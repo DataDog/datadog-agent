@@ -12,8 +12,6 @@ from string import Template
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.types.copyright import COPYRIGHT_HEADER
-
 
 # Component represents a directory defining a component
 #  version=1 is the classic style using:
@@ -677,6 +675,8 @@ def write_template(comp_path, template_name, new_file_path, var_mapping, overwri
     """
     Get the content of a templated file, substitute its variables and then writes the result into 'new_file_path' file.
     """
+    from tasks.libs.types.copyright import COPYRIGHT_HEADER
+
     template_path = get_template_path(template_name)
     # Get the content of the template and resolve it
     raw_template_value = read_file_content(template_path)

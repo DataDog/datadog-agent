@@ -1,202 +1,56 @@
 default_language_version:
   python: python3
+
 default_install_hook_types:
   - pre-commit
-  - pre-push
+
 default_stages:
   - pre-commit
 
 repos:
-- repo: https://github.com/jumanjihouse/pre-commit-hooks
-  rev: 38980559e3a605691d6579f96222c30778e5a69e # frozen: 3.0.0
-  hooks:
-    - id: shellcheck
-      args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
-- repo: https://github.com/tekwizely/pre-commit-golang
-  rev: bd69b816c43306f28bad4d7b303d981b0ecd2fd5 # frozen: v1.0.0-beta.5
-  hooks:
-    - id: go-fmt
-      args: [ "-w", "-s" ]
-      exclude: ^.*.(pb.go|_gen.go)$
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
+  - repo: https://github.com/rhysd/actionlint
+    rev: 914e7df21a07ef503a81201c76d2b11c789d3fca # frozen: v1.7.12
     hooks:
-      - id: end-of-file-fixer
-        files: release.json
-- repo: https://github.com/rhysd/actionlint
-  rev: 914e7df21a07ef503a81201c76d2b11c789d3fca # frozen: v1.7.12
-  hooks:
-    - id: actionlint
-      args: [ "-ignore", "shellcheck" ]
-- repo: local
-  hooks:
-    - id: protected-branches
-      name: protected-branches
-      description: checks that the commit isn't created on a protected branch
-      entry: 'dda inv git.check-protected-branch'
-      language: system
-      pass_filenames: false
-      stages: [pre-commit, pre-push]
-    - id: copyright
-      name: copyright
-      description: copyright headers
-      entry: 'dda inv linter.copyrights --only-staged-files'
-      language: system
-      require_serial: true
-      files: \.go$
-      pass_filenames: false
-    - id: python-linter
-      name: python-linter
-      description: run python linter (ruff)
-      entry: dda inv linter.python
-      language: system
-      require_serial: true
-      files: \.py$
-      pass_filenames: false
-    - id: docs-links
-      name: docs-links
-      description: checks that developer docs link to the repository through the `repo` macro
-      entry: 'dda inv linter.docs-links'
-      language: system
-      require_serial: true
-      files: ^doc/.*\.md$
-      pass_filenames: false
-    - id: win-clang-format
-      name: win-clang-format
-      description: clang-format
-      entry: 'dda inv pre-commit.check-winclang-format'
-      language: system
-      types_or: [c, c++]
-      pass_filenames: false
-    - # dotnet format is available on Linux, see https://learn.microsoft.com/en-us/dotnet/core/install/linux
-      id: dotnet-format-installer
-      name: dotnet-format-installer
-      description: Format .net file of the MSI installer
-      language: system
-      # The dotnet format tool requires a solution file to operate.
-      entry: dotnet format ./tools/windows/DatadogAgentInstaller --include
-      types: [c#]
-    - id: go-mod-tidy
-      name: go-mod-tidy
-      description: check that all go.mod files are tidy
-      entry: bash -c 'GOTOOLCHAIN=go$(cat .go-version) dda inv tidy'
-      language: system
-      require_serial: true
-      files: (\.go|^go\.mod|^go\.sum)$
-      pass_filenames: false
-      stages: [pre-push]
-    - id: go-mod-replace
-      name: go-mod-replace
-      description: check that all go.mod files contain replace directives from modules.yml
-      entry: bash -c 'GOTOOLCHAIN=go$(cat .go-version) dda inv modules.check-all-replace'
-      language: system
-      require_serial: true
-      files: (\.go|^go\.mod$|^go\.sum$|^modules\.yml$)
-      pass_filenames: false
-      stages: [pre-push]
-    - id: go-test
-      name: go-test
-      description: run go test on modified packages
-      entry: bash -c 'GOTOOLCHAIN=go"$(cat .go-version)" dda inv test --only-modified-packages'
-      language: system
-      require_serial: true
-      always_run: true
-      pass_filenames: false
-      stages: [pre-push]
-    - id: go-linter
-      name: go-linter
-      description: run go linter on modified packages
-      entry: bash -c 'GOTOOLCHAIN=go"$(cat .go-version)" dda inv linter.go --only-modified-packages'
-      language: system
-      require_serial: true
-      always_run: true
-      pass_filenames: false
-      stages: [ pre-push ]
-    - id: shell-check-no-set-x
-      name: shell-check-no-set-x
-      description: check that no `set -x` is set within github / gitlab workflows
-      entry: 'dda inv pre-commit.check-set-x'
-      language: system
-      require_serial: true
-      files: (\.yaml|\.yml|\.sh|Dockerfile)$
-      pass_filenames: false
-    - id: gitlab-configuration
-      name: gitlab-configuration
-      description: Lint and test GitLab CI configuration files
-      entry: "dda inv linter.full-gitlab-ci -t main --pre-push-linters --fail-fast"
-      language: system
-      require_serial: true
-      files: .*gitlab.*\.yml$
-      pass_filenames: false
-      stages: [pre-push]
-    - id: update-go
-      name: update-go
-      description: test formatting of files will allow go update
-      entry: 'dda inv linter.update-go'
-      language: system
-      pass_filenames: false
-    - id: check-go-modules-in-python
-      name: check-go-modules-in-python
-      description: Validate all go modules are declared in Invoke tasks
-      entry: 'dda inv modules.validate --fix-format'
-      language: system
-      pass_filenames: false
-      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py)$
-    - id: protocol-buffer
-      name: validate-protocol-buffer-generated-files
-      description: Validate that the generated protocol buffer files are up to date
-      entry: 'dda inv protobuf.generate --pre-commit'
-      language: system
-      pass_filenames: false
-      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*\.proto|.*protobuf\.py)$
-    - id: cws-go-generate
-      name: validate-cws-generated-files
-      description: Validate that the generated CWS files (SECL accessors, BPF map names, docs, ...) are up to date
-      entry: 'dda inv security-agent.cws-go-generate'
-      language: system
-      pass_filenames: false
-      stages: [pre-push]
-      files: ^(pkg/security/.*|docs/cloud-workload-security/.*|bazel/rules/cws_codegen/.*)$
-    - id: experiment-systemd-units
-      name: validate-experiment-systemd-units
-      description: Validate that the generated systemd experimrent units are up to date
-      entry: 'dda inv installer.generate-experiment-units --check'
-      language: system
-      pass_filenames: false
-      files: ^pkg/fleet/installer/packages/embedded/.*\.service$
-    - id: scenario-imports
-      name: validate-scenario-imports
-      description: Validate that test/new-e2e/run/scenarios_import_gen.go is up to date
-      entry: 'go run ./tools/generate-scenario-imports/main.go -check'
-      language: system
-      pass_filenames: false
-      files: (^test/new-e2e/tests/.*/scenario\.go$|^test/new-e2e/run/scenarios_import_gen\.go$)
-    - id: e2e-internet-access
-      name: e2e-internet-access
-      description: Check that E2E WithInternetAccess() usages are listed in test/new-e2e/internet-access.yaml
-      entry: bash -c 'args=(); for f in "$@"; do args+=(--path "$f"); done; dda inv linter.e2e-internet-access "${args[@]}"' --
-      language: system
-      files: ^test/(new-e2e|e2e-framework)/.*\.go$|^test/new-e2e/internet-access\.yaml$
-      pass_filenames: true
-      require_serial: true
-    - id: rst-releasenotes
-      name: rst-releasenotes
-      description: Check release notes for RST formatting issues (Markdown syntax detected)
-      entry: bash -c 'dda inv linter.rst-releasenotes --files="$(echo "$@" | tr " " ",")"' --
-      language: system
-      files: ^releasenotes(-dca)?/notes/.*\.yaml$
-      pass_filenames: true
-    - id: releasenote-unique-ids
-      name: releasenote-unique-ids
-      description: Check that release note UIDs are unique (prevents MQ collisions)
-      entry: bash -c 'dda inv linter.releasenote-unique-ids --files="$(echo "$@" | tr " " ",")"' --
-      language: system
-      files: ^releasenotes(-dca)?/notes/.*\.yaml$
-      pass_filenames: true
-    - id: releasenote-reused-uids
-      name: releasenote-reused-uids
-      description: Check that added release notes don't reuse a deleted note's UID (e.g. re-landed reverts)
-      entry: bash -c 'dda inv linter.releasenote-reused-uids --files="$(echo "$@" | tr " " ",")"' --
-      language: system
-      files: ^releasenotes(-dca)?/notes/.*\.yaml$
-      pass_filenames: true
+      - id: actionlint
+        entry: 'dda inv pre-commit.check-actionlint'
+        args: []
+        pass_filenames: false
+        always_run: true
+  - repo: local
+    hooks:
+      - id: protected-branches
+        name: protected-branches
+        entry: 'dda inv git.check-protected-branch'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: go-fmt
+        name: go-fmt
+        entry: 'dda inv pre-commit.check-go-fmt'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: shellcheck
+        name: shellcheck
+        entry: 'dda inv pre-commit.check-shellcheck'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: copyright
+        name: copyright
+        entry: 'dda inv linter.copyrights --only-staged-files'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: shell-check-no-set-x
+        name: shell-check-no-set-x
+        entry: 'dda inv pre-commit.check-set-x'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: python-ruff
+        name: python-ruff
+        entry: 'dda inv linter.python --only-staged-files'
+        language: system
+        pass_filenames: false
+        always_run: true

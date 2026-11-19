@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import os
 import re
+import runpy
 import shlex
+import subprocess
 import sys
 from collections import defaultdict
 from fnmatch import fnmatch
 from glob import glob
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import yaml
 from invoke.exceptions import Exit
@@ -32,7 +35,6 @@ from tasks.libs.common.git import (
     get_common_ancestor,
     get_default_branch,
     get_file_modifications,
-    get_staged_files,
 )
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.linter.e2e_internet_access import (
@@ -66,7 +68,6 @@ from tasks.libs.linter.gitlab_exceptions import (
 from tasks.libs.linter.go import run_lint_go
 from tasks.libs.linter.shell import DEFAULT_SHELLCHECK_EXCLUDES, shellcheck_linter
 from tasks.libs.owners.parsing import read_owners
-from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.test_core import process_input_args, process_result
 from tasks.update_go import _update_go_mods, _update_references
 
@@ -184,16 +185,47 @@ def update_go(_):
 
 # === PYTHON === #
 @task()
-def python(ctx, show_versions=False):
+def python(ctx, show_versions=False, only_staged_files=False):
     """Lints Python files.
 
     See 'setup.cfg' and 'pyproject.toml' file for configuration. If
     running locally, you probably want to use the pre-commit instead.
 
     Args:
-        files: Optional list of files to lint (space-separated). If not provided, lints all files.
         show_versions: Show the versions of the linters that are being used.
+        only_staged_files: Check staged Python contents with Ruff without applying fixes.
     """
+
+    if only_staged_files:
+        from tasks.pre_commit import _run_files, _staged_blobs, _staged_paths, _tracked_paths, _write_blob
+
+        changed = _staged_paths(ctx)
+        settings = {'pyproject.toml', 'ruff.toml', '.ruff.toml', '.python-version', '.gitignore', '.ignore'}
+        tracked = _tracked_paths(ctx)
+        candidates = (
+            tracked if any(Path(path).name in settings or path.endswith('.toml') for path in changed) else changed
+        )
+        files = sorted(path for path in candidates if path in tracked and path.endswith(('.py', '.pyi')))
+        if not files:
+            return
+
+        if show_versions:
+            ctx.run('ruff --version')
+        with TemporaryDirectory() as directory:
+            subprocess.run(['git', '-c', 'init.templateDir=', 'init', '--quiet', directory], check=True)
+            # Preserve native configuration discovery without reading unstaged settings.
+            for path, contents in _staged_blobs(
+                p for p in tracked if p.endswith('.toml') or Path(p).name in {'.gitignore', '.ignore'}
+            ):
+                _write_blob(directory, path, contents)
+            for path, contents in _staged_blobs(p for p in tracked if p.endswith(('.py', '.pyi'))):
+                _write_blob(directory, path, contents)
+            # Keep import classification context, then use native discovery for ignore rules.
+            discovered = b'\n' + subprocess.check_output(['ruff', 'check', '--show-files', '.'], cwd=directory)
+            files = [path for path in files if b'\n' + os.fsencode(str(Path(directory, path))) + b'\n' in discovered]
+            for command in (['ruff', 'format', '--check'], ['ruff', 'check', '--no-fix']):
+                _run_files([*command, '--force-exclude', '--no-cache'], files, directory)
+        return
 
     print(
         "Remember to set up pre-commit to lint your files before committing: "
@@ -924,8 +956,35 @@ def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=Fal
     files = None
 
     if only_staged_files:
-        staged_files = get_staged_files(ctx)
-        files = [path for path in staged_files if path.endswith(".go")]
+        from tasks.pre_commit import _staged_blobs, _staged_paths, _tracked_paths, _write_blob
+
+        changed = _staged_paths(ctx)
+        tracked = _tracked_paths(ctx)
+        rules = 'tasks/libs/types/copyright.py'
+        candidates = tracked if not fix and rules in changed else tracked.intersection(changed)
+        selected = sorted(p for p in candidates if p.endswith('.go'))
+        if fix:
+            # Explicit repairs retain the existing working-tree behavior and never stage changes.
+            files = [str(Path(path).resolve()) for path in selected if Path(path).is_file()]
+        elif selected:
+            if rules not in tracked:
+                raise Exit(f'Copyright validation requires the staged rules in {rules}.')
+            with TemporaryDirectory() as directory:
+                files = []
+                for path, contents in _staged_blobs([rules, *selected]):
+                    _write_blob(directory, path, contents)
+                    if path != rules:
+                        files.append(str(Path(directory, path)))
+                policy = runpy.run_path(str(Path(directory, rules)))
+                try:
+                    policy['CopyrightLinter'](debug=debug).assert_compliance(files=files)
+                except policy['LintFailure']:
+                    raise Exit(code=1) from None
+            return
+        else:
+            return
+
+    from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 
     try:
         CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run, files=files)
