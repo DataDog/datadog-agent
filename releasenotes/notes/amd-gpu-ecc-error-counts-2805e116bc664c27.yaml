@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    GPU monitoring: the ``amd_gpu`` check now reports the ECC error counts of
+    AMD GPUs with RAS support: ``gpu.errors.ecc.uncorrected.total``,
+    ``gpu.errors.ecc.corrected.total`` and the new AMD-only
+    ``gpu.errors.ecc.deferred.total``. They match the totals of
+    ``amd-smi metric --ecc`` and count the errors since the amdgpu driver
+    loaded, not over the lifetime of the GPU as on NVIDIA GPUs.

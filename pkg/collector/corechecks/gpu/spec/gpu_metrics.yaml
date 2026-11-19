@@ -570,6 +570,10 @@ metrics:
         recurring corrected errors can be an early sign of degrading memory or
         underlying hardware issues. The counter reports errors seen for the entire
         lifetime of the device.
+        On AMD GPUs, the sum of the amdgpu RAS err_count attributes over the
+        blocks amd-smi counts, without a memory_location tag: the errors counted
+        since the driver loaded (on a virtual function, the counts the host
+        reports), not over the lifetime of the device.
       aggregation: lifetime_error
     tagsets:
       - device
@@ -609,6 +613,10 @@ metrics:
         corruption that could not be automatically fixed. These errors can lead
         to data corruption, application crashes, or incorrect computation
         results. The counter reports errors seen for the entire lifetime of the device.
+        On AMD GPUs, the sum of the amdgpu RAS err_count attributes over the
+        blocks amd-smi counts, without a memory_location tag: the errors counted
+        since the driver loaded (on a virtual function, the counts the host
+        reports), not over the lifetime of the device.
       aggregation: lifetime_error
     tagsets:
       - device
@@ -639,6 +647,25 @@ metrics:
         mig_parent: true
         physical: true
         vgpu: true
+  errors.ecc.deferred.total:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Deferred ECC (Error Correcting Code) errors of AMD GPUs: uncorrectable
+        errors whose handling the hardware deferred, marking the affected data
+        as poisoned. The sum of the amdgpu RAS err_count attributes over the
+        blocks amd-smi counts: the errors counted since the driver loaded (on a
+        virtual function, the counts the host reports).
+      aggregation: lifetime_error
+    tagsets:
+      - device
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   errors.ecc.sram.threshold_exceeded:
     metadata:
       metric_type: gauge

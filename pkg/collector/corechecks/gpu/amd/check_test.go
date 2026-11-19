@@ -163,6 +163,49 @@ func TestAMDOnlyHostEmitsMetrics(t *testing.T) {
 	// 32 GT/s x16 with 128b/130b encoding.
 	require.Len(t, gauges["gpu.pci.link.speed.current"], 1)
 	assert.InDelta(t, 32e9*128/130/8*16, gauges["gpu.pci.link.speed.current"][0].Arguments.Get(1), 1)
+	assert.NotContains(t, gauges, "gpu.errors.ecc.uncorrected.total", "no ras directory")
+}
+
+func TestAMDECCErrorCounts(t *testing.T) {
+	fs := amdgpu.NewFakeSysfs(t)
+	devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", amdgpu.MI300XAttributes("00c0ffee00c0ffee"))
+	fs.WriteFiles(filepath.Join(devDir, "ras"), map[string]string{
+		"umc_err_count":  "ue: 2\nce: 7\nde: 1\n",
+		"gfx_err_count":  "ue: 1\nce: 0\n",
+		"sdma_err_count": "garbage\n", // left out
+	})
+	fs.AddCard("card0", devDir)
+	check, mockSender := setupAMDCheck(t, fs.Root, nil)
+
+	require.NoError(t, check.Run())
+	gauges := emittedGauges(mockSender)
+	for name, value := range map[string]float64{
+		"gpu.errors.ecc.uncorrected.total": 3,
+		"gpu.errors.ecc.corrected.total":   7,
+		"gpu.errors.ecc.deferred.total":    1,
+	} {
+		require.Len(t, gauges[name], 1, name)
+		assert.Equal(t, value, gauges[name][0].Arguments.Get(1), name)
+		assert.Contains(t, gauges[name][0].Arguments.Get(3), "gpu_uuid:"+testAMDUUID, name)
+	}
+	assert.Len(t, gauges["gpu.gr_engine_active"], 1, "other metrics are unaffected")
+
+	specs, err := gpuspec.LoadSpecs()
+	require.NoError(t, err)
+	for name, observations := range gpu.GetEmittedGPUMetrics(mockSender) {
+		if !strings.HasPrefix(name, "errors.ecc.") {
+			continue
+		}
+		metricSpec, ok := specs.Metrics.Metrics[name]
+		require.True(t, ok, "%s is not in the spec", name)
+		expectedTags, _, err := gpuspec.ExpectedTagsForMetric(specs.Tags, metricSpec)
+		require.NoError(t, err)
+		for _, observation := range observations {
+			for tagName := range gpuspec.TagsToKeyValues(observation.Tags) {
+				assert.Contains(t, expectedTags, tagName, "%s has unexpected tag %s", name, tagName)
+			}
+		}
+	}
 }
 
 func TestAMDDeviceExcludedByConfig(t *testing.T) {

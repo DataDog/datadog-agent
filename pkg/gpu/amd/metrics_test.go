@@ -335,3 +335,81 @@ func TestReadMetricsZeroLinkWidthIsUnavailable(t *testing.T) {
 	assert.False(t, m.PCIeLinkWidth.Valid)
 	assert.False(t, m.PCIeMaxLinkWidth.Valid)
 }
+
+// The err_count contents follow amdgpu_ras_sysfs_read in amdgpu_ras.c.
+func TestReadMetricsECC(t *testing.T) {
+	for name, tc := range map[string]struct {
+		ras                              map[string]string // no ras directory when nil
+		uncorrected, corrected, deferred Reading
+		wantErr                          string
+	}{
+		"no ras directory": {},
+		"MI300X VF without errors": {
+			ras: map[string]string{
+				"umc_err_count":      "ue: 0\nce: 0\nde: 0\n",
+				"gfx_err_count":      "ue: 0\nce: 0\n",
+				"sdma_err_count":     "ue: 0\nce: 0\n",
+				"mmhub_err_count":    "ue: 0\nce: 0\n",
+				"pcie_bif_err_count": "ue: 0\nce: 0\n",
+				"features":           "feature mask: 0x3fbb\n",
+			},
+			uncorrected: valid(0), corrected: valid(0), deferred: valid(0),
+		},
+		"errors in several blocks": {
+			ras: map[string]string{
+				"umc_err_count":       "ue: 2\nce: 7\nde: 1\n",
+				"gfx_err_count":       "ue: 1\nce: 0\n",
+				"sdma_err_count":      "ue: 0\nce: 3\n",
+				"xgmi_wafl_err_count": "ue: 0\nce: 4\n",
+				"vcn_err_count":       "ue: 5\nce: 5\n", // not counted by amd-smi
+			},
+			uncorrected: valid(3), corrected: valid(14), deferred: valid(1),
+		},
+		"no deferred count": {
+			ras:         map[string]string{"gfx_err_count": "ue: 1\nce: 2\n"},
+			uncorrected: valid(1), corrected: valid(2),
+		},
+		"query inaccessible during a reset": {
+			ras: map[string]string{
+				"umc_err_count": "Query currently inaccessible\n",
+				"gfx_err_count": "ue: 1\nce: 2\n",
+			},
+			uncorrected: valid(1), corrected: valid(2),
+		},
+		"unparsable block": {
+			ras: map[string]string{
+				"umc_err_count": "ue: 2\nce: many\nde: 0\n",
+				"gfx_err_count": "ue: 1\nce: 2\n",
+			},
+			uncorrected: valid(1), corrected: valid(2),
+			wantErr: "umc_err_count",
+		},
+		"no readable block": {
+			ras: map[string]string{
+				"umc_err_count": "Query currently inaccessible\n",
+				"gfx_err_count": "ue: 1\n",
+			},
+			wantErr: "gfx_err_count",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fs := NewFakeSysfs(t)
+			devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", MI300XAttributes(""))
+			fs.AddCard("card0", devDir)
+			if tc.ras != nil {
+				fs.WriteFiles(filepath.Join(devDir, "ras"), tc.ras)
+			}
+
+			m, err := discoverSingle(t, fs).ReadMetrics()
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.uncorrected, m.ECCUncorrected)
+			assert.Equal(t, tc.corrected, m.ECCCorrected)
+			assert.Equal(t, tc.deferred, m.ECCDeferred)
+			assert.Equal(t, valid(37), m.GPUBusyPercent, "other metrics are unaffected")
+		})
+	}
+}

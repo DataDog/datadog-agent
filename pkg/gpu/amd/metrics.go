@@ -52,6 +52,13 @@ type Metrics struct {
 	PCIeLinkSpeedGTs    Reading // current_link_speed, GT/s per lane
 	PCIeMaxLinkSpeedGTs Reading // max_link_speed, GT/s per lane
 
+	// ECC error counts summed over the RAS blocks, like the amd-smi totals.
+	// They are invalid when no block count could be read, and the deferred
+	// count also when no block reports deferred errors.
+	ECCUncorrected Reading
+	ECCCorrected   Reading
+	ECCDeferred    Reading
+
 	// GPUMetrics is the decoded gpu_metrics table, nil when the device has
 	// none. When GPUMetricsErr is set (ErrGPUMetricsUnsupported or
 	// ErrGPUMetricsMalformed), it only holds the version from the header, or
@@ -101,6 +108,7 @@ func (d *Device) ReadMetricsWithOptions(opts ReadOptions) (Metrics, error) {
 	}
 	m.GraphicsClockMHz = r.clock(hwmonDir, hwmonEntries, "sclk", filepath.Join(d.devicePath, "pp_dpm_sclk"))
 	m.MemoryClockMHz = r.clock(hwmonDir, hwmonEntries, "mclk", filepath.Join(d.devicePath, "pp_dpm_mclk"))
+	r.readECC(filepath.Join(d.devicePath, "ras"), &m)
 
 	if !opts.SkipGPUMetrics {
 		m.GPUMetrics, m.GPUMetricsErr = r.gpuMetrics(filepath.Join(d.devicePath, "gpu_metrics"))
@@ -364,4 +372,70 @@ func (r *reader) hwmonClock(dir string, entries []os.DirEntry, label string) Rea
 		}
 	}
 	return Reading{}
+}
+
+// rasBlocks are the RAS blocks whose ras/<block>_err_count attributes amd-smi
+// adds up for its total ECC counts (amdsmi_get_gpu_total_ecc_count and
+// rsmi_dev_ecc_count_get in ROCm/rocm-systems projects/amdsmi).
+var rasBlocks = []string{"umc", "sdma", "gfx", "mmhub", "pcie_bif", "hdp", "xgmi_wafl"}
+
+// rasQueryInaccessible is what amdgpu returns for an err_count attribute while
+// it cannot query errors, such as during a GPU reset.
+const rasQueryInaccessible = "Query currently inaccessible"
+
+// readECC sums the error counts of the RAS blocks. A block that is absent or
+// whose count cannot be read or parsed is left out.
+func (r *reader) readECC(rasDir string, m *Metrics) {
+	var uncorrected, corrected, deferred uint64
+	var found, foundDeferred bool
+	for _, block := range rasBlocks {
+		path := filepath.Join(rasDir, block+"_err_count")
+		content, ok := r.read(path)
+		if !ok || content == rasQueryInaccessible {
+			continue
+		}
+		counts, err := parseErrCount(content)
+		if err != nil {
+			r.errs = append(r.errs, fmt.Errorf("parse %s: %w", path, err))
+			continue
+		}
+		found = true
+		uncorrected += counts["ue"]
+		corrected += counts["ce"]
+		if de, ok := counts["de"]; ok {
+			foundDeferred = true
+			deferred += de
+		}
+	}
+	if found {
+		m.ECCUncorrected = valid(float64(uncorrected))
+		m.ECCCorrected = valid(float64(corrected))
+	}
+	if foundDeferred {
+		m.ECCDeferred = valid(float64(deferred))
+	}
+}
+
+// parseErrCount parses an err_count attribute, such as "ue: 0\nce: 2\nde: 0"
+// (only UMC reports "de"). The ue and ce counts are required.
+func parseErrCount(content string) (map[string]uint64, error) {
+	counts := make(map[string]uint64, 3)
+	for line := range strings.Lines(content) {
+		key, value, _ := strings.Cut(line, ":")
+		key = strings.TrimSpace(key)
+		if key != "ue" && key != "ce" && key != "de" {
+			continue
+		}
+		count, err := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("%s count: %w", key, err)
+		}
+		counts[key] = count
+	}
+	for _, key := range []string{"ue", "ce"} {
+		if _, ok := counts[key]; !ok {
+			return nil, fmt.Errorf("missing %s count", key)
+		}
+	}
+	return counts, nil
 }
