@@ -13,6 +13,7 @@ import (
 	"math"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2121,6 +2122,81 @@ func TestNStatTracerRecordsDomainWithoutLock(t *testing.T) {
 	tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderTCPKernel, testNStatTCPFlow(1234, tcpStateEstablished), "example.com"))
 
 	require.Equal(t, []bool{false}, lockHeld)
+}
+
+func TestNStatTracerCollectsConnectionAfterRecordingItsDomain(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	recording := make(chan struct{})
+	release := make(chan struct{})
+	var recorded atomic.Bool
+	tracer.recordDomain = func(processutil.Address, string) {
+		close(recording)
+		<-release
+		recorded.Store(true)
+	}
+	go tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderTCPKernel, testNStatTCPFlow(1234, tcpStateEstablished), "example.com"))
+	<-recording
+
+	var buffer network.ConnectionBuffer
+	collected := make(chan error)
+	go func() {
+		collected <- tracer.GetConnections(&buffer, nil)
+	}()
+	select {
+	case <-collected:
+		t.Fatal("the connection was collected while its domain was being recorded")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(release)
+
+	require.NoError(t, <-collected)
+	require.True(t, recorded.Load())
+	require.Len(t, buffer.Connections(), 1)
+}
+
+func TestNStatTracerCollectsConnectionsAfterRecorderPanics(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	tracer.recordDomain = func(processutil.Address, string) {
+		panic("recorder failed")
+	}
+	require.Panics(t, func() {
+		tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderTCPKernel, testNStatTCPFlow(1234, tcpStateEstablished), "example.com"))
+	})
+
+	var buffer network.ConnectionBuffer
+	collected := make(chan error)
+	go func() {
+		collected <- tracer.GetConnections(&buffer, nil)
+	}()
+	select {
+	case err := <-collected:
+		require.NoError(t, err)
+	case <-time.After(nstatDomainRecordWait / 2):
+		t.Fatal("collections still wait for the recording that panicked")
+	}
+	require.Len(t, buffer.Connections(), 1)
+}
+
+func TestNStatTracerSurvivesRecorderCollectingConnections(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	collected := -1
+	tracer.recordDomain = func(processutil.Address, string) {
+		var buffer network.ConnectionBuffer
+		if tracer.GetConnections(&buffer, nil) == nil {
+			collected = len(buffer.Connections())
+		}
+	}
+	processed := make(chan struct{})
+	go func() {
+		defer close(processed)
+		tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderTCPKernel, testNStatTCPFlow(1234, tcpStateEstablished), "example.com"))
+	}()
+	select {
+	case <-processed:
+	case <-time.After(5 * nstatDomainRecordWait):
+		t.Fatal("a recorder collecting connections deadlocked the tracer")
+	}
+	require.Equal(t, 1, collected)
 }
 
 func TestNStatTracerRecordsDomainBeforeClosing(t *testing.T) {

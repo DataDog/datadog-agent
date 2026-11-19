@@ -545,8 +545,11 @@ func (p *LibpcapSource) collectStats(ih *interfaceHandle, prev *struct{ captured
 // SetBPFFilter replaces the filter expression of every capture, including the
 // captures of interfaces found later. Readers install it within pcapTimeout.
 // Installing a filter discards the packets the kernel buffered for a handle,
-// so callers should set one only when it changes.
+// so an unchanged expression is ignored.
 func (p *LibpcapSource) SetBPFFilter(expr string) {
+	if current := p.bpfFilter.Load(); current != nil && *current == expr {
+		return
+	}
 	p.bpfFilter.Store(&expr)
 }
 

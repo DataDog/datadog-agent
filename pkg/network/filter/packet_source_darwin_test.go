@@ -427,6 +427,18 @@ func TestLibpcapSourceUpdatesBPFFilter(t *testing.T) {
 	assert.Equal(t, []uint16{5300}, ports)
 }
 
+func TestLibpcapSourceIgnoresUnchangedBPFFilter(t *testing.T) {
+	ps := &LibpcapSource{}
+	ps.SetBPFFilter("port 53")
+	installed := ps.bpfFilter.Load()
+
+	ps.SetBPFFilter("port 53")
+	assert.Same(t, installed, ps.bpfFilter.Load())
+
+	ps.SetBPFFilter("port 53 or port 5353")
+	assert.Equal(t, "port 53 or port 5353", *ps.bpfFilter.Load())
+}
+
 func TestDarwinPacketInfoLengths(t *testing.T) {
 	info := &DarwinPacketInfo{
 		originalLen: 1500,

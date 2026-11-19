@@ -76,6 +76,10 @@ const (
 	// they don't for an idle connection.
 	nstatDomainRefresh = time.Minute
 
+	// GetConnections waits at most this long for a domain being recorded,
+	// which normally takes microseconds.
+	nstatDomainRecordWait = time.Second
+
 	// Darwin 21.2 is macOS 12.1, the oldest release whose NStat updates carry
 	// the domain extension the tracer requests. macOS 12.0 attached domains
 	// through an earlier, incompatible filter.
@@ -243,9 +247,16 @@ type nstatTracer struct {
 	packetCoverage func(ifIndex uint32) bool
 
 	// recordDomain receives the domain each published connection was opened
-	// for, again every nstatDomainRefresh, and is called without mu held. It is set before Start, and sources
-	// are described with update requests while it is set.
+	// for, again every nstatDomainRefresh, and is called without mu held. It
+	// is set before Start, and sources are described with update requests
+	// while it is set.
 	recordDomain func(addr processutil.Address, domain string)
+	// domainRecording is closed once the domain processEvent last recorded
+	// is in. GetConnections waits for it after its snapshot, at most
+	// nstatDomainRecordWait, so a client that collects a connection also
+	// finds its name, and a recorder that blocks or calls back into the
+	// tracer can't hold collections up for good.
+	domainRecording chan struct{}
 	// isDNSServer reports whether a remote address serves plain DNS on a
 	// port, so that connections to it record no domain. It is set along with
 	// recordDomain, and is called with mu held.
@@ -676,12 +687,21 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 	}
 	callback := t.closeCallback
 	record := t.recordDomain
+	var recorded chan struct{}
+	if domain.name != "" {
+		recorded = make(chan struct{})
+		t.domainRecording = recorded
+	}
 	t.mu.Unlock()
 
 	// The domain is recorded before the closed connection is handed over, so
 	// a client that collects the connection also finds its name.
 	if domain.name != "" {
-		record(domain.addr, domain.name)
+		func() {
+			// Deferred, so that a recovered panic can't leave collections waiting.
+			defer close(recorded)
+			record(domain.addr, domain.name)
+		}()
 	}
 	if closed != nil && callback != nil {
 		callback(closed)
@@ -1708,11 +1728,28 @@ func (t *nstatTracer) Stop() {
 }
 
 func (t *nstatTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
+	recording, err := t.getConnections(buffer, filter)
+	if err != nil || recording == nil {
+		return err
+	}
+	// Only the run loop records, one domain at a time, so the domains of the
+	// connections just collected are in once the last one recorded is.
+	select {
+	case <-recording:
+	case <-time.After(nstatDomainRecordWait):
+		log.Debugf("nstat: collected connections before a domain was recorded")
+	}
+	return nil
+}
+
+// getConnections appends the published connections to buffer and returns
+// the channel closed once the domain last recorded is in.
+func (t *nstatTracer) getConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) (chan struct{}, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if t.runtimeErr != nil {
-		return t.runtimeErr
+		return nil, t.runtimeErr
 	}
 	connections := make([]network.ConnectionStats, 0, len(t.sources))
 	for _, source := range t.sources {
@@ -1733,7 +1770,7 @@ func (t *nstatTracer) GetConnections(buffer *network.ConnectionBuffer, filter fu
 		connections = append(connections, conn)
 	}
 	buffer.Append(connections)
-	return nil
+	return t.domainRecording, nil
 }
 
 func (t *nstatTracer) FlushPending() {}
