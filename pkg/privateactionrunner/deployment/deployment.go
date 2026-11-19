@@ -45,14 +45,14 @@ var ErrFIPSUnsupported = errors.New("private action runner is not supported in F
 // EnsureSupported returns ErrFIPSUnsupported when the Agent runs in FIPS mode,
 // through a FIPS build, runtime FIPS mode or fips.enabled.
 func EnsureSupported(cfg model.Reader) error {
-	return ensureSupported(cfg, fips.Enabled)
+	return ensureSupported(cfg, fips.BuiltForFIPS, fips.Enabled)
 }
 
-func ensureSupported(cfg model.Reader, fipsEnabled func() (bool, error)) error {
+func ensureSupported(cfg model.Reader, builtForFIPS func() bool, fipsEnabled func() (bool, error)) error {
 	if cfg.GetBool("fips.enabled") {
 		return ErrFIPSUnsupported
 	}
-	if fips.BuiltForFIPS() {
+	if builtForFIPS() {
 		return ErrFIPSUnsupported
 	}
 	enabled, err := fipsEnabled()
@@ -68,11 +68,11 @@ func ensureSupported(cfg model.Reader, fipsEnabled func() (bool, error)) error {
 // Resolve applies the same deployment policy to monolithic startup and the core startup gate.
 // Callers must not start either architecture when resolution fails.
 func Resolve(cfg model.Reader) (Mode, error) {
-	return resolve(cfg, runtime.GOOS, configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"), fips.Enabled)
+	return resolve(cfg, runtime.GOOS, configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"), fips.BuiltForFIPS, fips.Enabled)
 }
 
-func resolve(cfg model.Reader, goos string, containerized bool, envValue string, fipsEnabled func() (bool, error)) (Mode, error) {
-	if err := ensureSupported(cfg, fipsEnabled); err != nil {
+func resolve(cfg model.Reader, goos string, containerized bool, envValue string, builtForFIPS func() bool, fipsEnabled func() (bool, error)) (Mode, error) {
+	if err := ensureSupported(cfg, builtForFIPS, fipsEnabled); err != nil {
 		return Monolithic, err
 	}
 	if !requested(cfg.GetBool(par.SplitEnabled), containerized, envValue) {
