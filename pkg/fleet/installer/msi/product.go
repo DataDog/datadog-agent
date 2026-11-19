@@ -24,12 +24,12 @@ var errProductNotFound = errors.New("no products found")
 
 // CheckAgentFlavor rejects an installer that targets the opposite installed Agent flavor.
 func CheckAgentFlavor(fipsMode bool) error {
-	return checkAgentFlavor(fipsMode, FindAllProductCodes)
+	return checkAgentFlavor(fipsMode, FindProductCode)
 }
 
-func checkAgentFlavor(fipsMode bool, findProducts func(string) ([]Product, error)) error {
+func checkAgentFlavor(fipsMode bool, findProduct func(string) (*Product, error)) error {
 	installedProduct := AgentProductName(!fipsMode)
-	_, err := findProducts(installedProduct)
+	_, err := findProduct(installedProduct)
 	if errors.Is(err, errProductNotFound) {
 		return nil
 	}
@@ -110,9 +110,12 @@ func FindProductCode(productName string) (*Product, error) {
 
 // FindUninstallProductCodes looks for the productName in the registry and returns information about it
 func FindUninstallProductCodes(productName string) ([]*Product, error) {
+	return findUninstallProductCodes(registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`, productName)
+}
+
+func findUninstallProductCodes(root registry.Key, rootPath, productName string) ([]*Product, error) {
 	var products []*Product
-	rootPath := "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
-	reg, err := registry.OpenKey(registry.LOCAL_MACHINE, rootPath, registry.ENUMERATE_SUB_KEYS)
+	reg, err := registry.OpenKey(root, rootPath, registry.ENUMERATE_SUB_KEYS)
 	if err != nil {
 		return nil, err
 	}
@@ -122,13 +125,13 @@ func FindUninstallProductCodes(productName string) ([]*Product, error) {
 		return nil, err
 	}
 	for _, key := range keys {
-		product, err := processKey(rootPath, key, productName)
+		product, err := processKey(root, rootPath, key, productName)
 		if err == nil && product != nil {
 			products = append(products, product)
 		}
 	}
 	if len(products) == 0 {
-		return nil, fmt.Errorf("no products found with name: %s", productName)
+		return nil, fmt.Errorf("%w with name: %s", errProductNotFound, productName)
 	}
 	return products, nil
 }
@@ -170,8 +173,8 @@ func RemoveProduct(ctx context.Context, productName string, opts ...MsiexecOptio
 	return nil
 }
 
-func processKey(rootPath, key, name string) (*Product, error) {
-	subkey, err := registry.OpenKey(registry.LOCAL_MACHINE, rootPath+"\\"+key, registry.QUERY_VALUE)
+func processKey(root registry.Key, rootPath, key, name string) (*Product, error) {
+	subkey, err := registry.OpenKey(root, rootPath+"\\"+key, registry.QUERY_VALUE)
 	if err != nil {
 		return nil, err
 	}
