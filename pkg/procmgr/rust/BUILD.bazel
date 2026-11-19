@@ -193,6 +193,7 @@ rust_test(
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-security-windows.yaml.tmpl",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-sysprobe-windows.yaml.tmpl",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-trace-windows.yaml.tmpl",
+        "//pkg/fleet/installer/packages/embedded:tmpl/gen/darwin-pm/processes.d/datadog-agent-sysprobe.yaml",
         "//pkg/fleet/installer/packages/user/windows:user.go",
         "//Dockerfiles/agent:Dockerfile",
         "//Dockerfiles/agent:entrypoint.sh",

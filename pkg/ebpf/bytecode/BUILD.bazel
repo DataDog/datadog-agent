@@ -107,6 +107,20 @@ runtime_compilation_bundle(
 )
 
 runtime_compilation_bundle(
+    name = "skb-parse-test",
+    header_deps = _NETWORK_HEADERS,
+    include_dirs = [
+        "pkg/ebpf/c",
+        "pkg/network/ebpf/c/runtime",
+        "pkg/network/ebpf/c",
+    ],
+    out_go_file = "//pkg/ebpf/bytecode/runtime:skb-parse-test.go",
+    out_name = "skb-parse-test",
+    src_c = "//pkg/network/ebpf/c/co-re:skb-parse-test.c",
+    visibility = ["//visibility:public"],
+)
+
+runtime_compilation_bundle(
     name = "runtime-security",
     header_deps = _EBPF_HEADERS + ["//pkg/security/ebpf/c/include:security_ebpf_headers_files"],
     include_dirs = [

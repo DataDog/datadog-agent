@@ -5,6 +5,6 @@
 
 //nolint:revive // TODO(DBM) Fix revive linter
 /*
-Package systemd provides core checks for oracle
+Package oracle provides core checks for oracle
 */
 package oracle

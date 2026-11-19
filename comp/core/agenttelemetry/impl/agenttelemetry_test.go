@@ -3061,6 +3061,69 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 	}
 }
 
+func TestHealthPlatformMetricsInChecksProfile(t *testing.T) {
+	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
+	require.NoError(t, err)
+
+	var profile *Profile
+	for _, candidate := range cfg.Profiles {
+		if candidate.Name == "checks" {
+			profile = candidate
+			break
+		}
+	}
+	require.NotNil(t, profile)
+	require.NotNil(t, profile.Metric)
+	metrics := make(map[string][]string, len(profile.Metric.Metrics))
+	for _, metric := range profile.Metric.Metrics {
+		metrics[metric.Name] = metric.PreserveTags
+	}
+	for name, tags := range map[string][]string{
+		"health_platform.issues_detected": {"issue_type", "severity"},
+		"health_platform.active_issues":   {"issue_type"},
+		"health_platform.reports_sent":    {"status", "error_type"},
+		"health_platform.issues_resolved": {"issue_type"},
+	} {
+		require.Contains(t, metrics, name)
+		assert.ElementsMatch(t, tags, metrics[name], name)
+	}
+	require.NotNil(t, profile.Schedule)
+	assert.EqualValues(t, 900, profile.Schedule.Period)
+}
+
+func TestDefaultProfilesExportHealthPlatformMetrics(t *testing.T) {
+	tel := makeTelMock(t)
+	tel.NewGauge("health_platform", "active_issues", []string{"issue_type"}, "").Set(2, "test_issue")
+	tel.NewCounter("health_platform", "reports_sent", []string{"status", "error_type"}, "").Inc("error", "http_4xx")
+	tel.NewCounter("health_platform", "issues_resolved", []string{"issue_type"}, "").Inc("test_issue")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, ""), sender, nil, runner)
+	require.True(t, a.enabled)
+	a.start()
+	runner.(*runnerMock).run()
+
+	require.Len(t, sender.sentMetrics, 3)
+	for _, payload := range sender.sentMetrics {
+		require.Len(t, payload.metrics, 1, payload.name)
+		metric := payload.metrics[0]
+		labels := map[string]string{"issue_type": "test_issue", "emitter": "agent"}
+		switch payload.name {
+		case "health_platform.active_issues":
+			assert.Equal(t, 2.0, metric.GetGauge().GetValue())
+		case "health_platform.reports_sent":
+			assert.Equal(t, 1.0, metric.GetCounter().GetValue())
+			labels = map[string]string{"status": "error", "error_type": "http_4xx", "emitter": "agent"}
+		case "health_platform.issues_resolved":
+			assert.Equal(t, 1.0, metric.GetCounter().GetValue())
+		default:
+			t.Fatalf("unexpected metric: %s", payload.name)
+		}
+		assert.Equal(t, labels, metricLabels(metric), payload.name)
+	}
+}
+
 func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
 	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
 	require.NoError(t, err)

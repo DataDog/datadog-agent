@@ -45,10 +45,12 @@ package_aix-ppc64:
     - !reference [.manual]
   script:
     - 'echo "=== AIX: running packaging build (build.sh) ==="'
+    # Keep clean separate from build so a retry of the build reuses its
+    # completed stages instead of wiping them.
+    - aix_run_cmd "cd $AIX_AGENT_SRC/packaging/aix && sh ./clean.sh"
     - |
       aix_run_cmd <<EOF
       set -eux
-      cd $AIX_AGENT_SRC/packaging/aix && sh ./clean.sh
       cd $AIX_AGENT_SRC
       env AGENT_BUILD=1 sh $AIX_AGENT_SRC/packaging/aix/build.sh
       EOF
