@@ -48,3 +48,12 @@ func TestScanRoot(t *testing.T) {
 		assert.Nil(t, result.Report)
 	})
 }
+
+// TestScanUnknownContainer checks that the scan of a container whose cgroup
+// holds no process reports ErrNotFound under the ID of the container.
+func TestScanUnknownContainer(t *testing.T) {
+	const id = "sbom-procfs-test-unknown-container"
+	result := (&Collector{}).Scan(t.Context(), NewScanRequest(id))
+	assert.Equal(t, id, result.RequestID)
+	assert.ErrorIs(t, result.Error, ErrNotFound)
+}

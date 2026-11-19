@@ -387,4 +387,15 @@ func Test_buildPayload_dpi(t *testing.T) {
 
 	flowPayload = buildPayload(&flow, dpi.Application{}, "my-hostname", time.Now())
 	assert.Equal(t, payload.DPI{ApplicationID: 100}, flowPayload.DPI, "the application id is reported even when the application is unknown")
+
+	paloAltoFlow := common.Flow{FlowType: common.TypeNetFlow9, ExporterAddr: []byte{127, 0, 0, 1}, ApplicationName: "ssl"}
+	flowPayload = buildPayload(&paloAltoFlow, dpi.Application{}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{ApplicationName: "ssl"}, flowPayload.DPI, "the application name reported on the flow is used without an application id")
+
+	flowWithBoth := common.Flow{FlowType: common.TypeNetFlow9, ExporterAddr: []byte{127, 0, 0, 1}, ApplicationID: 100, ApplicationName: "ssl"}
+	flowPayload = buildPayload(&flowWithBoth, dpi.Application{ID: 100, Name: "HTTP", Metadata: dpi.Metadata{Category: "browsing"}}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{ApplicationID: 100, ApplicationName: "HTTP", Category: "browsing"}, flowPayload.DPI, "a resolved application is never mixed with the application name reported on the flow")
+
+	flowPayload = buildPayload(&flowWithBoth, dpi.Application{}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{ApplicationName: "ssl"}, flowPayload.DPI, "an unresolved application id is not reported alongside the application name reported on the flow")
 }

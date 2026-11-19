@@ -1,0 +1,15 @@
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+description: Files with ..-prefixed names in subdirectories are accessible inside allowed paths
+setup:
+  files:
+    - path: allowed/sub/..data.txt
+      content: "nested dotdot"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    cat allowed/sub/..data.txt
+expect:
+  stdout: "nested dotdot"
+  stderr: ""
+  exit_code: 0

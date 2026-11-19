@@ -14,10 +14,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -357,6 +359,43 @@ func TestCollectProcessMemory(t *testing.T) {
 			require.Len(t, processMetrics, tt.expectedCount)
 		})
 	}
+}
+
+// TestProcessMemoryDoesNotAttributeProcessesToMIGParent checks that the processes NVML lists on a MIG parent,
+// which are the ones running on its MIG devices, are not attributed to the parent.
+func TestProcessMemoryDoesNotAttributeProcessesToMIGParent(t *testing.T) {
+	processes := []testutil.MockProcessData{{Pid: 1234, UsedGpuMemory: 1 << 30}}
+
+	t.Run("MIG parent", func(t *testing.T) {
+		device := setupMockDevice(t,
+			testutil.WithDeviceFeatureMode(testutil.DeviceFeatureMIG),
+			testutil.WithDeviceOptions(0, testutil.WithMIGChildUUIDs(map[int]string{0: testutil.MIGUUIDs[0]})),
+			testutil.WithProcessData(processes, nvml.SUCCESS),
+		)
+		require.True(t, isMIGParent(device))
+
+		samples, _, err := processMemorySample(device)
+		require.NoError(t, err)
+
+		metrics := requireMetrics(t, samples)
+		require.Len(t, metrics, 1)
+		require.Equal(t, "memory.limit", metrics[0].Name)
+		require.Empty(t, metrics[0].associatedWorkloads, "memory.limit of a MIG parent should not carry process tags")
+	})
+
+	t.Run("physical device", func(t *testing.T) {
+		device := setupMockDevice(t, testutil.WithProcessData(processes, nvml.SUCCESS))
+		require.False(t, isMIGParent(device))
+
+		samples, _, err := processMemorySample(device)
+		require.NoError(t, err)
+
+		names := make([]string, 0, len(samples))
+		for _, metric := range requireMetrics(t, samples) {
+			names = append(names, metric.Name)
+		}
+		require.ElementsMatch(t, []string{"process.memory.usage", "memory.limit"}, names)
+	})
 }
 
 // TestCollectProcessMemory_Error tests error handling with API failures
@@ -881,6 +920,32 @@ func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fakeNodeSource stands in for the cluster agent.
+type fakeNodeSource struct{}
+
+func (fakeNodeSource) NodeUnschedulable() (nodeunschedulable.Result, error) {
+	return nodeunschedulable.Result{Reasons: []string{}}, nil
+}
+func (fakeNodeSource) Probe() error { return nil }
+
+// The reasons API is only dropped when no health source can ever exist and the node state is
+// off; a GPU missing from workloadmeta at startup keeps it, so health appears once known.
+func TestUnavailableReasonsAPISupport(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithUnsupportedFields(nvml.FI_DEV_GET_GPU_RECOVERY_ACTION))
+	wmeta := testutil.GetWorkloadMetaMock(t) // no GPUs yet
+	supported := func(deps *CollectorDependencies) int {
+		apis := createStatelessAPIs(deps)
+		return len(filterSupportedAPIs(device, []apiCallInfo{findAPICallByName(t, apis, "device_unavailable_reasons")}))
+	}
+
+	env.SetFeatures(t)
+	require.Zero(t, supported(&CollectorDependencies{Workloadmeta: wmeta}))
+	require.Equal(t, 1, supported(&CollectorDependencies{Workloadmeta: wmeta, NodeUnschedulable: nodeunschedulable.NewCache(fakeNodeSource{}, time.Minute)}))
+
+	env.SetFeatures(t, env.KubernetesDevicePlugins)
+	require.Equal(t, 1, supported(&CollectorDependencies{Workloadmeta: wmeta}))
 }
 
 func TestPCIELinkMetrics(t *testing.T) {

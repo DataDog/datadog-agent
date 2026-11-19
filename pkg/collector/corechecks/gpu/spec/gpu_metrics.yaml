@@ -18,8 +18,9 @@
 #       - nvidia_smi or calibrated_workload: validate against the named external source in real-GPU integration tests
 #       - value_tolerance: required with an external source; contains one or both of absolute and relative (percent) tolerances
 #   - support:
+#       - amd_only (optional): true for metrics emitted only for AMD GPUs; no architecture listed in architectures.yaml supports them
 #       - unsupported_architectures: [<architecture_name>, ...] (the list of architectures that do not support the metric)
-#       - device_modes: {mig: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric)
+#       - device_modes: {mig: bool, mig_parent: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric; mig is a MIG child device, mig_parent is the physical GPU hosting MIG devices)
 #       - capabilities_required (optional): {nvlink: <min_generation>, max_nvlink: <max_generation>, c2c: <bool>} (hardware capabilities required for the metric; max_nvlink requires nvlink)
 metric_prefix: gpu
 metrics:
@@ -39,6 +40,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: true
   clock.speed.graphics.max:
@@ -53,6 +55,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.speed.memory:
@@ -71,6 +74,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: true
   clock.speed.memory.max:
@@ -85,6 +89,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.speed.sm:
@@ -99,6 +104,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: true
   clock.speed.sm.max:
@@ -113,6 +119,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.speed.video:
@@ -128,6 +135,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: true
   clock.speed.video.max:
@@ -143,6 +151,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.applications_clocks_setting:
@@ -159,6 +168,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.display_clock_setting:
@@ -175,6 +185,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.gpu_idle:
@@ -191,6 +202,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.hw_power_brake_slowdown:
@@ -207,22 +219,25 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.hw_slowdown:
     metadata:
       metric_type: gauge
-      description: GPU clocks that are throttled by hardware slowdown
+      description: >-
+        GPU clocks that are throttled by hardware slowdown (PROCHOT on AMD GPUs). On NVIDIA GPUs the value is 0 or 1; on AMD GPUs it is the fraction of the collection interval spent throttled, from 0 to 1, so a value above 0 means throttling on both.
       aggregation: sensor_data
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      range: {min: 0, max: 1}
     support:
       unsupported_architectures:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.hw_thermal_slowdown:
@@ -239,6 +254,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.none:
@@ -255,38 +271,43 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.sw_power_cap:
     metadata:
       metric_type: gauge
-      description: GPU clocks that are throttled to avoid exceeding power limits
+      description: >-
+        GPU clocks that are throttled to avoid exceeding power limits (package power tracking, PPT, on AMD GPUs). On NVIDIA GPUs the value is 0 or 1; on AMD GPUs it is the fraction of the collection interval spent throttled, from 0 to 1, so a value above 0 means throttling on both.
       aggregation: sensor_data
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      range: {min: 0, max: 1}
     support:
       unsupported_architectures:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.sw_thermal_slowdown:
     metadata:
       metric_type: gauge
-      description: GPU clocks that are throttled to avoid exceeding temperature limits
+      description: >-
+        GPU clocks that are throttled to avoid exceeding temperature limits (the socket temperature limit on AMD GPUs). On NVIDIA GPUs the value is 0 or 1; on AMD GPUs it is the fraction of the collection interval spent throttled, from 0 to 1, so a value above 0 means throttling on both.
       aggregation: sensor_data
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      range: {min: 0, max: 1}
     support:
       unsupported_architectures:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.sync_boost:
@@ -305,6 +326,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttled_while_active:
@@ -323,6 +345,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   core.limit:
@@ -344,6 +367,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   decoder_active:
@@ -363,8 +387,65 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
+  # device.sharing_replicas is only reported for devices shared by replication
+  # (time-slicing, MPS), so it is optional: other devices never produce it.
+  device.sharing_replicas:
+    metadata:
+      metric_type: gauge
+      unit: device
+      description: >-
+        Number of replicas of the GPU, when it is shared by replication
+        (time-slicing or MPS), as described by the gpu_sharing_mode tag: how
+        many workloads can share the GPU. Read from the GPU Feature Discovery
+        replicas node label of the GPU's resource (e.g. nvidia.com/gpu.replicas,
+        or nvidia.com/mig-1g.10gb.replicas for a MIG profile), so not reported
+        without it.
+      aggregation: absolute_usage
+    optional: true
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 1
+        max: 1000000000000
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
+  # device.sharing_replicas_used is only reported for containers holding
+  # replicas of a device shared by replication (time-slicing, MPS), so it is
+  # optional: other workloads never produce it.
+  device.sharing_replicas_used:
+    metadata:
+      metric_type: gauge
+      unit: device
+      description: >-
+        Number of replicas of the GPU that the container holds, when the GPU
+        is shared by replication (time-slicing or MPS), as described by the
+        gpu_sharing_mode tag. A container can hold several of them, e.g.
+        requesting two shared GPUs that are both replicas of one. Not
+        reported for containers without an allocated replica.
+      aggregation: absolute_usage
+    workload_only: true
+    optional: true
+    tagsets:
+      - device
+      - container
+    validator:
+      range:
+        min: 1
+        max: 1000000000000
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   # device.sharing_fraction is only reported for containers assigned a share of
   # a GPU, so it is optional: other workloads never produce it.
   device.sharing_fraction:
@@ -390,6 +471,38 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
+        mig_parent: false
+        physical: true
+        vgpu: true
+  # device.sharing_memory is only reported for containers assigned a share of
+  # a GPU, so it is optional: other workloads never produce it.
+  device.sharing_memory:
+    metadata:
+      metric_type: gauge
+      unit: byte
+      description: >-
+        GPU memory the container is allowed to use, when the GPU is shared
+        between containers that are each assigned a fraction of it, as described
+        by the gpu_sharing_mode tag (for example, kai_fraction for KAI Scheduler
+        GPU fractions). The GPU memory not assigned to any container can be
+        computed with `max:gpu.memory.limit{*} by {gpu_uuid} -
+        sum:gpu.device.sharing_memory{*} by {gpu_uuid}`. Not reported for
+        containers without an assigned fraction.
+      aggregation: absolute_usage
+    workload_only: true
+    optional: true
+    tagsets:
+      - device
+      - container
+    validator:
+      range:
+        min: 0
+        max: 1000000000000 # 1 TB (bytes)
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        mig_parent: false
         physical: true
         vgpu: true
   device.total:
@@ -407,6 +520,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   device.unhealthy:
@@ -422,13 +536,15 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   dram_active:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of time the DRAM was active
+      description: >-
+        Percentage of time the DRAM was active. On AMD GPUs, the HBM bandwidth utilization in percent of the peak, not the time busy: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous mem_busy_percent. On Cloud TPUs, the HBM bandwidth utilization in percent of the maximum supported bandwidth.
       aggregation: relative_activity
     tagsets:
       - device
@@ -437,6 +553,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: true
   encoder_active:
@@ -456,6 +573,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
   errors.ecc.corrected.total:
@@ -477,6 +595,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: true
   errors.ecc.corrected.volatile:
@@ -494,6 +613,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: true
   errors.ecc.uncorrected.total:
@@ -514,6 +634,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: true
   errors.ecc.uncorrected.volatile:
@@ -530,7 +651,8 @@ metrics:
     support:
       unsupported_architectures: []
       device_modes:
-        mig: false
+        mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   errors.ecc.sram.threshold_exceeded:
@@ -549,6 +671,7 @@ metrics:
         - turing
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: true
   errors.ecc.sram.uncorrected_by_subtype.total:
@@ -572,6 +695,7 @@ metrics:
         - turing
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: true
   errors.ecc.sram.uncorrected_by_subtype.volatile:
@@ -595,6 +719,7 @@ metrics:
         - turing
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: true
   ecc.repair_pending.channel:
@@ -609,6 +734,7 @@ metrics:
         - volta
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   ecc.repair_pending.tpc:
@@ -623,6 +749,7 @@ metrics:
         - volta
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   errors.xid:
@@ -643,6 +770,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
   errors.xid.total:
@@ -666,6 +794,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
   fabric.registered:
@@ -685,6 +814,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   fabric.health.unhealthy:
@@ -704,6 +834,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   fabric.health.issue:
@@ -726,6 +857,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   fan_speed:
@@ -743,6 +875,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
   fp16_active:
@@ -767,6 +900,7 @@ metrics:
         - ada
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: false
   fp32_active:
@@ -791,6 +925,7 @@ metrics:
         - ada
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: false
   fp64_active:
@@ -815,13 +950,15 @@ metrics:
         - ada
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: false
   gr_engine_active:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of time that the graphics engine was active
+      description: >-
+        Percentage of time that the graphics engine was active. On AMD GPUs, the socket's graphics activity, the mean over its XCDs: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous gpu_busy_percent. On Cloud TPUs, the TensorCore duty cycle.
       used_in_dd_ui: true
       aggregation: relative_activity
     tagsets:
@@ -835,6 +972,7 @@ metrics:
         - fermi
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   integer_active:
@@ -859,6 +997,7 @@ metrics:
         - ada
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: false
   memory.bar1.free:
@@ -874,6 +1013,7 @@ metrics:
         - fermi
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   memory.bar1.total:
@@ -889,6 +1029,7 @@ metrics:
         - fermi
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   memory.bar1.used:
@@ -904,6 +1045,7 @@ metrics:
         - fermi
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   memory.free:
@@ -921,6 +1063,7 @@ metrics:
         - maxwell
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   memory.limit:
@@ -942,6 +1085,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   memory.reserved:
@@ -959,6 +1103,7 @@ metrics:
         - maxwell
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   memory.utilization:
@@ -979,6 +1124,7 @@ metrics:
         - maxwell
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   memory.temperature:
@@ -1005,27 +1151,35 @@ metrics:
         - ada
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   device.unavailable:
     metadata:
       metric_type: gauge
       description: >-
-        Whether the GPU is unavailable for the reason in the unavailable_reason
-        tag. The lost reason means NVML reports the GPU as inaccessible
-        (NVML_ERROR_GPU_IS_LOST, typically because it has fallen off the bus).
-        0 means available, 1 means unavailable.
+        Whether the GPU is unavailable for the reason in unavailable_reason, 0 or
+        1, on physical GPUs (MIG parents included, slices excluded). A GPU has at
+        most one reason at 1, in this order: lost (NVML reports the GPU as
+        inaccessible), unhealthy (device plugin unhealthy or an NVML recovery
+        action), unschedulable (the node is cordoned, not Ready or matches a rule).
+        Series carry device tags but no workload tags. Only unschedulable series
+        carry unschedulable_reason tags, one per cause, and report 0 for 10 minutes
+        after the cause clears.
       aggregation: absolute_usage
     tagsets:
       - device
     custom_tags:
       - unavailable_reason
+      - unschedulable_reason
+    optional: true
     validator:
       values: [0, 1]
     support:
       unsupported_architectures: []
       device_modes:
-        mig: false
+        mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   device.needs_recovery:
@@ -1045,6 +1199,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   nvlink.count.active:
@@ -1058,6 +1213,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1073,6 +1229,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1088,6 +1245,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1107,6 +1265,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1125,6 +1284,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1146,6 +1306,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1168,6 +1329,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1187,6 +1349,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1209,6 +1372,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1228,6 +1392,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1245,6 +1410,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1262,6 +1428,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1283,6 +1450,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1306,6 +1474,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1324,6 +1493,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1341,6 +1511,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1358,6 +1529,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1375,6 +1547,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1394,6 +1567,7 @@ metrics:
         - pascal
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   nvlink.plr.codes_loss:
@@ -1410,6 +1584,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1427,6 +1602,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1444,6 +1620,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1461,6 +1638,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1478,6 +1656,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1495,6 +1674,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1512,6 +1692,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1529,6 +1710,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1547,6 +1729,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1565,6 +1748,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1583,6 +1767,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1601,6 +1786,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1616,6 +1802,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1637,6 +1824,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1655,6 +1843,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1673,6 +1862,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1688,6 +1878,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1709,6 +1900,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1729,6 +1921,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1750,6 +1943,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1770,6 +1964,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1792,6 +1987,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1813,6 +2009,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1835,6 +2032,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1856,6 +2054,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1872,6 +2071,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1887,10 +2087,93 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
         nvlink: 7
+  xgmi.throughput.data.rx:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: >-
+        Per-link XGMI receive throughput of AMD Instinct MI300 and MI350 Series GPUs in an XGMI hive with at least one peer, from the data read counters of the amdgpu gpu_metrics table (data bytes, like nvlink.throughput.data).
+      aggregation: absolute_usage
+    tagsets:
+      - device
+      - xgmi
+    validator:
+      range:
+        min: 0
+        max: 1000000000 # 1 TB/s per link, in KB/s
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  xgmi.throughput.data.rx.total:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: >-
+        XGMI receive throughput summed over the links of AMD Instinct MI300 and MI350 Series GPUs in an XGMI hive with at least one peer, from the amdgpu gpu_metrics table.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 8000000000 # 8 links of 1 TB/s, in KB/s
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  xgmi.throughput.data.tx:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: >-
+        Per-link XGMI transmit throughput of AMD Instinct MI300 and MI350 Series GPUs in an XGMI hive with at least one peer, from the data written counters of the amdgpu gpu_metrics table (data bytes, like nvlink.throughput.data).
+      aggregation: absolute_usage
+    tagsets:
+      - device
+      - xgmi
+    validator:
+      range:
+        min: 0
+        max: 1000000000 # 1 TB/s per link, in KB/s
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  xgmi.throughput.data.tx.total:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: >-
+        XGMI transmit throughput summed over the links of AMD Instinct MI300 and MI350 Series GPUs in an XGMI hive with at least one peer, from the amdgpu gpu_metrics table.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 8000000000 # 8 links of 1 TB/s, in KB/s
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   c2c.errors.interrupt:
     metadata:
       metric_type: gauge
@@ -1903,6 +2186,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1919,6 +2203,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1935,6 +2220,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
       capabilities_required:
@@ -1942,7 +2228,8 @@ metrics:
   pci.replay_counter:
     metadata:
       metric_type: gauge
-      description: PCI replay counter
+      description: >-
+        PCI replay counter. On AMD GPUs, a cumulative firmware counter from the amdgpu gpu_metrics table, which on a virtual function can persist across guest driver loads.
     tagsets:
       - device
     validator:
@@ -1954,6 +2241,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.throughput.rx:
@@ -1974,6 +2262,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.throughput.tx:
@@ -1994,6 +2283,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.link.speed.current:
@@ -2010,6 +2300,7 @@ metrics:
     support:
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.link.speed.max:
@@ -2026,6 +2317,7 @@ metrics:
     support:
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.link.speed.degraded:
@@ -2039,6 +2331,7 @@ metrics:
     support:
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.link.width.current:
@@ -2054,6 +2347,7 @@ metrics:
     support:
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.link.width.max:
@@ -2069,6 +2363,7 @@ metrics:
     support:
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.link.width.degraded:
@@ -2082,6 +2377,7 @@ metrics:
     support:
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   performance_state:
@@ -2095,6 +2391,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: true
   power.management_limit:
@@ -2109,6 +2406,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   power.usage:
@@ -2132,6 +2430,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   process.core.usage:
@@ -2157,6 +2456,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
+        mig_parent: false
         physical: true
         vgpu: true
   process.decoder_active:
@@ -2175,6 +2475,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: true
   process.dram_active:
@@ -2193,6 +2494,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: true
   process.encoder_active:
@@ -2211,6 +2513,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: true
   process.memory.usage:
@@ -2235,6 +2538,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
+        mig_parent: false
         physical: true
         vgpu: true
   process.sm_active:
@@ -2258,6 +2562,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
+        mig_parent: false
         physical: true
         vgpu: true
   remapped_rows.correctable:
@@ -2283,6 +2588,7 @@ metrics:
         - turing
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
   remapped_rows.failed:
@@ -2306,6 +2612,7 @@ metrics:
         - turing
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
   remapped_rows.pending:
@@ -2329,6 +2636,7 @@ metrics:
         - turing
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
   remapped_rows.uncorrectable:
@@ -2354,6 +2662,7 @@ metrics:
         - turing
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
   retired_pages:
@@ -2384,6 +2693,7 @@ metrics:
         - blackwell
       device_modes:
         mig: false
+        mig_parent: false
         physical: true
         vgpu: false
   slowdown_temperature:
@@ -2399,13 +2709,15 @@ metrics:
         - fermi
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   sm_active:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of time the streaming multiprocessor was active
+      description: >-
+        Percentage of time the streaming multiprocessor was active. On AMD GPUs, equal to gr_engine_active (the interval average from gpu_metrics 1.9 and later when it passes its checks, otherwise the instantaneous gpu_busy_percent), as no compute-unit activity is available. On Cloud TPUs, the TensorCore utilization.
       used_in_dd_ui: true
       aggregation: relative_activity
     tagsets:
@@ -2422,6 +2734,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   sm_occupancy:
@@ -2447,6 +2760,7 @@ metrics:
         - ada
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: false
   sm_utilization:
@@ -2471,6 +2785,7 @@ metrics:
         - ada
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: false
   temperature:
@@ -2493,6 +2808,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   tensor_active:
@@ -2516,6 +2832,7 @@ metrics:
         - ada
       device_modes:
         mig: true
+        mig_parent: true
         physical: true
         vgpu: false
   total_energy_consumption:
@@ -2534,6 +2851,7 @@ metrics:
         - pascal
       device_modes:
         mig: false
+        mig_parent: true
         physical: true
         vgpu: false
   vgpu.license_status:
@@ -2558,5 +2876,6 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
+        mig_parent: false
         physical: false
         vgpu: true

@@ -36,7 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
@@ -48,7 +48,7 @@ const maxNumberOfPorts = 50
 // getServices call the /discovery/services endpoint. It will perform a /proc scan
 // to get the list of running pids and use them as the pids query param.
 func getServices(t require.TestingT, discovery *testDiscoveryModule) *model.ServicesResponse {
-	location := discovery.url + "/" + string(config.DiscoveryModule) + pathServices
+	location := discovery.url + "/" + string(sysconfigtypes.DiscoveryModule) + pathServices
 	params := &core.Params{
 		NewPids: getRunningPids(t),
 	}

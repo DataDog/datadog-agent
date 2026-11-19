@@ -37,6 +37,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -230,7 +231,7 @@ func (o *OrchestratorCheck) Run() error {
 	// Enable terminated resource bundle to start buffering terminated resources
 	o.collectorBundle.EnableTerminatedResourceBundle()
 
-	o.collectorBundle.RetryDiscovery()
+	o.collectorBundle.RefreshDiscovery()
 
 	// Initialize collectors
 	o.collectorBundle.Initialize()
@@ -289,15 +290,28 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 	unassignedPodsTweakListOptions := func(options *metav1.ListOptions) {
 		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
 	}
+	helmReleasesTweakListOptions := func(options *metav1.ListOptions) {
+		options.LabelSelector = k8s.HelmReleaseLabelSelector
+	}
 
 	of := &collectors.OrchestratorInformerFactory{
 		InformerFactory:              informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval),
 		CRDInformerFactory:           externalversions.NewSharedInformerFactory(apiClient.CRDInformerClient, defaultResyncInterval),
 		DynamicInformerFactory:       dynamicinformer.NewDynamicSharedInformerFactory(apiClient.DynamicInformerCl, defaultResyncInterval),
-		MetadataInformerFactory:      metadatainformer.NewSharedInformerFactory(apiClient.MetadataInformerCl, defaultResyncInterval),
 		VPAInformerFactory:           vpai.NewSharedInformerFactory(apiClient.VPAInformerClient, defaultResyncInterval),
 		UnassignedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(unassignedPodsTweakListOptions)),
 	}
+	of.HelmReleaseConfigMapInformerFactory = informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(helmReleasesTweakListOptions))
+	of.SecretMetadataInformerFactory = metadatainformer.NewSharedInformerFactory(apiClient.MetadataInformerCl, defaultResyncInterval)
+
+	// When enabled, Helm release ConfigMaps are reported by the Helm release collector, with their data.
+	var configMapTweakListOptions metadatainformer.TweakListOptionsFunc
+	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.helm_releases.configmaps.enabled") {
+		configMapTweakListOptions = func(options *metav1.ListOptions) {
+			options.LabelSelector = k8s.NonHelmReleaseLabelSelector
+		}
+	}
+	of.ConfigMapMetadataInformerFactory = metadatainformer.NewFilteredSharedInformerFactory(apiClient.MetadataInformerCl, defaultResyncInterval, metav1.NamespaceAll, configMapTweakListOptions)
 
 	return of
 }

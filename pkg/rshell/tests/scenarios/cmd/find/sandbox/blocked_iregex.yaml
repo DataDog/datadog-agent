@@ -1,0 +1,14 @@
+description: find -iregex is blocked for sandbox safety.
+skip_assert_against_bash: true  # intentional: bash allows -iregex; rshell blocks it (ReDoS risk)
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -iregex '.*\.txt'
+expect:
+  stderr_contains: ["blocked"]
+  exit_code: 1

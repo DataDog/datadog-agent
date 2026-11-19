@@ -52,7 +52,7 @@ type RunPredefinedPowershellScriptConfig struct {
 
 func parseCredentials(credentials *privateconnection.PrivateCredentials) (*ScriptBundleConfig, error) {
 	tokens := credentials.AsTokenMap()
-	stringConfig := tokens["configFileLocation"] // ResolveConnectionInfoToCredential has loaded the content of the file
+	stringConfig := tokens["configFileLocation"] // The credential resolver has loaded the content of the file.
 
 	scriptConfig := &ScriptBundleConfig{}
 	err := yaml.Unmarshal([]byte(stringConfig), scriptConfig)

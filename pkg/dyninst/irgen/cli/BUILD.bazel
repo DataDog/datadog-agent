@@ -35,7 +35,7 @@ go_binary(
     gotags = [
         "test",
         "bpf",
-    ],  # keep
-    target_compatible_with = ["@platforms//os:linux"],  # keep
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

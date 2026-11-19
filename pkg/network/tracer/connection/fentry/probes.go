@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
+	ddfeatures "github.com/DataDog/datadog-agent/pkg/ebpf/features"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
@@ -34,8 +36,9 @@ const (
 	udpSendPageReturn = "udp_sendpage_exit"
 
 	// tcpRecvMsgReturn traces the return value for the tcp_recvmsg() system call
-	tcpRecvMsgReturn        = "tcp_recvmsg_exit"
-	tcpRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
+	tcpRecvMsgReturn          = "tcp_recvmsg_exit"
+	tcpRecvMsgNoAddrLenReturn = "tcp_recvmsg_exit_no_addr_len"
+	tcpRecvMsgPre5190Return   = "tcp_recvmsg_exit_pre_5_19_0"
 	// tcpClose traces the tcp_close() system call
 	tcpClose = "tcp_close"
 	// tcpCloseReturn traces the return of tcp_close(); it cleans protocol
@@ -45,6 +48,8 @@ const (
 
 	// tcpDone traces the tcp_done() kernel function for failed connection tracking
 	tcpDone = "tcp_done"
+	// tcpDisconnect traces the tcp_disconnect() kernel function
+	tcpDisconnect = "tcp_disconnect"
 
 	// tcpReadSockReturn traces the return of tcp_read_sock() — only fexit is needed
 	tcpReadSockReturn = "tcp_read_sock_exit"
@@ -73,8 +78,6 @@ const (
 
 	udpv6DestroySock = "udpv6_destroy_sock"
 
-	// tcpRetransmit traces the tcp_retransmit_skb() kernel function
-	tcpRetransmit = "tcp_retransmit_skb"
 	// tcpRetransmitRet traces the return of the tcp_retransmit_skb() system call
 	tcpRetransmitRet = "tcp_retransmit_skb_exit"
 
@@ -109,7 +112,18 @@ const (
 
 	// net_dev_queue raw tracepoint for protocol classification (fentry requires 5.8+ so raw tracepoints are always available)
 	netDevQueueRawTracepoint = "raw_tracepoint__net__net_dev_queue"
+	// netDevQueueTPBTF is preferred over netDevQueueRawTracepoint when it loads
+	netDevQueueTPBTF = "tp_btf__net__net_dev_queue"
 )
+
+// netDevQueueTPBTFSupported trial-loads a tp_btf program on net_dev_queue that makes a BPF_PROBE_MEM load.
+var netDevQueueTPBTFSupported = func() bool {
+	err := ddfeatures.SupportsTPBTFProbeMem("net_dev_queue")
+	if err != nil {
+		log.Debugf("tp_btf/net_dev_queue not supported, using raw tracepoint: %s", err)
+	}
+	return err == nil
+}
 
 var programs = map[string]struct{}{
 	inetBind:                   {},
@@ -124,7 +138,6 @@ var programs = map[string]struct{}{
 	tcpCloseReturn:             {},
 	tcpConnect:                 {},
 	tcpFinishConnect:           {},
-	tcpRetransmit:              {},
 	tcpRetransmitRet:           {},
 	tcpEnterLoss:               {},
 	tcpEnterRecovery:           {},
@@ -132,6 +145,7 @@ var programs = map[string]struct{}{
 	tcpSendMsgReturn:           {},
 	tcpSendPageReturn:          {},
 	tcpDone:                    {},
+	tcpDisconnect:              {},
 	tcpReadSockReturn:          {},
 	udpDestroySock:             {},
 	udpRecvMsg:                 {},
@@ -150,6 +164,7 @@ var programs = map[string]struct{}{
 	__skbFreeDatagramLocked:    {},
 	skbConsumeUDP:              {},
 	tcpRecvMsgPre5190Return:    {},
+	tcpRecvMsgNoAddrLenReturn:  {},
 	udpRecvMsgPre5190Return:    {},
 	udpv6RecvMsgPre5190Return:  {},
 	// Protocol classification
@@ -159,9 +174,8 @@ var programs = map[string]struct{}{
 	protocolClassifierQueues:    {},
 	protocolClassifierDBs:       {},
 	protocolClassifierGRPC:      {},
-	// Note: netDevQueueRawTracepoint is NOT in this map — it's added separately
-	// in manager.go with TracepointName/TracepointCategory fields, and enabled
-	// directly in enabledPrograms() to avoid duplicate probe registration.
+	// Note: netDevQueueRawTracepoint and netDevQueueTPBTF are NOT in this map — they're added separately
+	// in manager.go, and enabled directly in enabledPrograms() to avoid duplicate probe registration.
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {
@@ -216,20 +230,36 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 	hasSendPage := util.HasTCPSendPage(kv)
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
+		// Count from the running kernel's BTF, which the fexit program is
+		// attached to and verified against. The CO-RE KernelTypes is usually
+		// the same spec, but it is a configured btf_path when one is set,
+		// which might not match the running kernel.
+		spec, err := ddbtf.GetKernelSpec()
+		if err != nil {
+			return nil, fmt.Errorf("error loading kernel BTF: %w", err)
+		}
+		n, err := ddbtf.GetKernelFuncArgCount(spec, "tcp_recvmsg")
+		if err != nil {
+			return nil, fmt.Errorf("could not determine tcp_recvmsg signature: %w", err)
+		}
+		tcpRecvMsgProbe, err := selectTCPRecvMsgReturn(n)
+		if err != nil {
+			return nil, err
+		}
 		enableProgram(enabled, tcpSendMsgReturn)
-		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
+		enableProgram(enabled, tcpRecvMsgProbe)
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
 		enableProgram(enabled, tcpFinishConnect)
 		enableProgram(enabled, selectVersionBasedProbe(kv, inetCskAcceptReturn, inetCskAcceptReturnPre6100, kernel.VersionCode(6, 10, 0)))
 		enableProgram(enabled, inetCskListenStop)
-		enableProgram(enabled, tcpRetransmit)
 		enableProgram(enabled, tcpRetransmitRet)
 		enableProgram(enabled, tcpEnterLoss)
 		enableProgram(enabled, tcpEnterRecovery)
 		enableProgram(enabled, tcpSendProbe0)
 		enableProgram(enabled, tcpDone)
+		enableProgram(enabled, tcpDisconnect)
 		enableProgram(enabled, tcpReadSockReturn)
 
 		if hasSendPage {
@@ -246,8 +276,12 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 			enableProgram(enabled, protocolClassifierGRPC)
 
 			// fentry requires 5.8+ which always supports raw tracepoints (4.17+)
-			// Directly insert — not in programs map since manager.go adds it with TracepointName fields
-			enabled[netDevQueueRawTracepoint] = struct{}{}
+			// Directly insert — not in programs map since manager.go adds them
+			if !util.NetDevQueueTPBTFRejected.Load() && netDevQueueTPBTFSupported() {
+				enabled[netDevQueueTPBTF] = struct{}{}
+			} else {
+				enabled[netDevQueueRawTracepoint] = struct{}{}
+			}
 		}
 	}
 
@@ -298,6 +332,30 @@ func enableAdvancedUDP(enabled map[string]struct{}) error {
 		return errors.New("missing desired UDP receive kernel functions")
 	}
 	return nil
+}
+
+// selectTCPRecvMsgReturn picks the fexit/tcp_recvmsg variant matching the
+// kernel's tcp_recvmsg signature, given its parameter count from the kernel BTF.
+// Since fexit programs read the return value from the slot after the last
+// argument, the declared argument count must match exactly.
+//
+// The signature is detected from the kernel BTF rather than the kernel version,
+// because the removal of addr_len was backported within a version series:
+// upstream v7.0 and Ubuntu 7.0.0-28 still have it, while Ubuntu 7.0.0-38 does
+// not. A count with no matching variant returns ErrorUnsupported instead of
+// guessing: a variant declaring fewer arguments than the kernel would load and
+// silently read an argument as the return value.
+func selectTCPRecvMsgReturn(paramCount int) (string, error) {
+	switch paramCount {
+	case 6: // tcp_recvmsg(sk, msg, len, nonblock, flags, addr_len), pre-5.19
+		return tcpRecvMsgPre5190Return, nil
+	case 5: // tcp_recvmsg(sk, msg, len, flags, addr_len)
+		return tcpRecvMsgReturn, nil
+	case 4: // tcp_recvmsg(sk, msg, len, flags)
+		return tcpRecvMsgNoAddrLenReturn, nil
+	default:
+		return "", fmt.Errorf("%w: no fexit variant for tcp_recvmsg with %d parameters", ErrorUnsupported, paramCount)
+	}
 }
 
 func selectVersionBasedProbe(kv kernel.Version, dfault string, versioned string, reqVer kernel.Version) string {

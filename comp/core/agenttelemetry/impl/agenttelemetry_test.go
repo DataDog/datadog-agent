@@ -694,9 +694,9 @@ func TestRun(t *testing.T) {
 
 	a.start()
 
-	// Default configuration has 7 jobs with different schedules:
+	// Default configuration has 8 jobs with different schedules:
 	fmt.Println(r.(*runnerMock).jobs)
-	assert.Equal(t, 7, len(r.(*runnerMock).jobs))
+	assert.Equal(t, 8, len(r.(*runnerMock).jobs))
 
 	// Verify we have the expected number of profiles across all jobs
 	totalProfiles := 0
@@ -704,10 +704,10 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 22 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, troubleshooting).
+	// Default config has 24 profiles total (par-phone-home, checks, logs-and-metrics, intake-routing, database, synthetics, connectivity, forwarder_stats, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, config-schema, troubleshooting).
 	// troubleshooting is scheduled like any other profile; it is skipped at
 	// collection time while its remote flag is off.
-	assert.Equal(t, 22, totalProfiles)
+	assert.Equal(t, 25, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -2936,6 +2936,8 @@ func TestDefaultProfilesExportGPUMetrics(t *testing.T) {
 		}
 	}
 
+	deviceTotal := tel.NewGauge("gpu", "device_total", append([]string{"gpu_sharing_mode"}, collectorTags[1:]...), "")
+	deviceTotal.Set(2, append([]string{"time-slicing"}, withDevice()...)...)
 	created := tel.NewCounter("gpu__collectors", "created", append([]string{"status"}, collectorTags...), "")
 	created.Add(2, withDevice("error", "device_events")...)
 	created.Add(3, withDevice("success", "stateless")...)
@@ -2968,6 +2970,16 @@ func TestDefaultProfilesExportGPUMetrics(t *testing.T) {
 		delete(labels, emitterTagName)
 		return labels
 	}
+
+	deviceMetrics := sent["gpu.device_total"]
+	require.Len(t, deviceMetrics, 1)
+	deviceLabels := expectedCollectorLabels("")
+	delete(deviceLabels, "collector")
+	deviceLabels["gpu_nvlink_capable"] = "true"
+	deviceLabels["gpu_nvlink_version"] = "4"
+	deviceLabels["gpu_sharing_mode"] = "time-slicing"
+	assert.Equal(t, deviceLabels, labelsWithoutEmitter(deviceMetrics[0]))
+	assert.Equal(t, 2.0, deviceMetrics[0].GetGauge().GetValue())
 
 	createdMetrics := sent["gpu.collectors__created"]
 	require.Len(t, createdMetrics, 2, "unsupported and disabled statuses must be excluded")
@@ -3023,6 +3035,7 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 		preserveTags   []string
 		aggregateTotal bool
 	}{
+		{name: "gpu.device_total", preserveTags: []string{"gpu_device", "gpu_virtualization_mode", "gpu_architecture", "gpu_slicing_mode", "gpu_nvlink_capable", "gpu_nvlink_version", "gpu_driver_version", "gpu_sharing_mode"}},
 		{name: "dogstatsd.udp_packets_bytes"},
 		{name: "dogstatsd.uds_packets_bytes"},
 		{name: "dogstatsd_client.bytes_sent", preserveTags: []string{"client", "client_transport"}},
@@ -3048,6 +3061,69 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 	}
 }
 
+func TestHealthPlatformMetricsInChecksProfile(t *testing.T) {
+	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
+	require.NoError(t, err)
+
+	var profile *Profile
+	for _, candidate := range cfg.Profiles {
+		if candidate.Name == "checks" {
+			profile = candidate
+			break
+		}
+	}
+	require.NotNil(t, profile)
+	require.NotNil(t, profile.Metric)
+	metrics := make(map[string][]string, len(profile.Metric.Metrics))
+	for _, metric := range profile.Metric.Metrics {
+		metrics[metric.Name] = metric.PreserveTags
+	}
+	for name, tags := range map[string][]string{
+		"health_platform.issues_detected": {"issue_type", "severity"},
+		"health_platform.active_issues":   {"issue_type"},
+		"health_platform.reports_sent":    {"status", "error_type"},
+		"health_platform.issues_resolved": {"issue_type"},
+	} {
+		require.Contains(t, metrics, name)
+		assert.ElementsMatch(t, tags, metrics[name], name)
+	}
+	require.NotNil(t, profile.Schedule)
+	assert.EqualValues(t, 900, profile.Schedule.Period)
+}
+
+func TestDefaultProfilesExportHealthPlatformMetrics(t *testing.T) {
+	tel := makeTelMock(t)
+	tel.NewGauge("health_platform", "active_issues", []string{"issue_type"}, "").Set(2, "test_issue")
+	tel.NewCounter("health_platform", "reports_sent", []string{"status", "error_type"}, "").Inc("error", "http_4xx")
+	tel.NewCounter("health_platform", "issues_resolved", []string{"issue_type"}, "").Inc("test_issue")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, ""), sender, nil, runner)
+	require.True(t, a.enabled)
+	a.start()
+	runner.(*runnerMock).run()
+
+	require.Len(t, sender.sentMetrics, 3)
+	for _, payload := range sender.sentMetrics {
+		require.Len(t, payload.metrics, 1, payload.name)
+		metric := payload.metrics[0]
+		labels := map[string]string{"issue_type": "test_issue", "emitter": "agent"}
+		switch payload.name {
+		case "health_platform.active_issues":
+			assert.Equal(t, 2.0, metric.GetGauge().GetValue())
+		case "health_platform.reports_sent":
+			assert.Equal(t, 1.0, metric.GetCounter().GetValue())
+			labels = map[string]string{"status": "error", "error_type": "http_4xx", "emitter": "agent"}
+		case "health_platform.issues_resolved":
+			assert.Equal(t, 1.0, metric.GetCounter().GetValue())
+		default:
+			t.Fatalf("unexpected metric: %s", payload.name)
+		}
+		assert.Equal(t, labels, metricLabels(metric), payload.name)
+	}
+}
+
 func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
 	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
 	require.NoError(t, err)
@@ -3069,6 +3145,30 @@ func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
 
 	assert.Contains(t, metrics, "instrumentation_controller.resources")
 	assert.ElementsMatch(t, []string{"section", "status"}, metrics["instrumentation_controller.reconciliations"])
+}
+
+func TestAgentPerformanceProfilePreservesContainerTags(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, defaultProfiles)
+	atCfg, err := parseConfig(cfg)
+	require.NoError(t, err)
+
+	for _, profile := range atCfg.Profiles {
+		if profile.Name != "agent-performance" {
+			continue
+		}
+		require.NotNil(t, profile.Metric)
+		terminatedMetricFound := false
+		for _, metric := range profile.Metric.Metrics {
+			assert.Contains(t, metric.PreserveTags, "container_name", metric.Name)
+			if metric.Name == "agent_performance.container_terminated" {
+				terminatedMetricFound = true
+				assert.Contains(t, metric.PreserveTags, "exit_code")
+			}
+		}
+		require.True(t, terminatedMetricFound)
+		return
+	}
+	t.Fatal("agent-performance profile is missing")
 }
 
 // TestDataPlanePreflightModeProfile guards the Agent Data Plane preflight mode metrics.
@@ -3543,6 +3643,46 @@ func TestShippedTroubleshootingProfileIsGated(t *testing.T) {
 	names = collectMetricNames(t, a, sndr)
 	assert.NotContains(t, names, "transactions.errors")
 	assert.Contains(t, names, "transactions.retries")
+}
+
+// TestShippedIntakeRoutingProfile checks that the shipped intake-routing profile collects every
+// metric of comp/intakerouting, with its tags. The names and labels below must match
+// comp/intakerouting/impl/telemetry.go.
+func TestShippedIntakeRoutingProfile(t *testing.T) {
+	tel := makeTelMock(t)
+	tel.NewCounter("intake_routing", "queries", []string{"status"}, "").Inc("success")
+	tel.NewCounter("intake_routing", "preflights", []string{"status"}, "").Inc("failure")
+	tel.NewCounter("intake_routing", "switches", []string{"telemetry_type", "direction"}, "").Inc("logs", "to_enhanced")
+	tel.NewCounter("intake_routing", "rejected_answers", []string{"telemetry_type", "reason"}, "").Inc("logs", "invalid_host")
+	tel.NewCounter("intake_routing", "skipped_endpoints", []string{"telemetry_type", "reason"}, "").Inc("logs", "private_address")
+	tel.NewGauge("intake_routing", "active_overrides", []string{"telemetry_type"}, "").Set(1, "logs")
+
+	sndr := &senderMock{}
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, "foo.bar"), sndr, nil, nil)
+	require.True(t, a.enabled, "default profiles must parse and compile")
+
+	sndr.sentMetrics = nil
+	_, err := a.loadPayloads(a.atelCfg.Profiles)
+	require.NoError(t, err)
+
+	collected := make(map[string]map[string]string)
+	for _, m := range sndr.sentMetrics {
+		if !strings.HasPrefix(m.name, "intake_routing.") {
+			continue
+		}
+		require.Len(t, m.metrics, 1, m.name)
+		labels := metricLabels(m.metrics[0])
+		delete(labels, "emitter")
+		collected[m.name] = labels
+	}
+	assert.Equal(t, map[string]map[string]string{
+		"intake_routing.queries":           {"status": "success"},
+		"intake_routing.preflights":        {"status": "failure"},
+		"intake_routing.switches":          {"telemetry_type": "logs", "direction": "to_enhanced"},
+		"intake_routing.rejected_answers":  {"telemetry_type": "logs", "reason": "invalid_host"},
+		"intake_routing.skipped_endpoints": {"telemetry_type": "logs", "reason": "private_address"},
+		"intake_routing.active_overrides":  {"telemetry_type": "logs"},
+	}, collected)
 }
 
 func TestDetectedFeatures(t *testing.T) {

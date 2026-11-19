@@ -10,6 +10,7 @@ package sbom
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -1254,6 +1255,41 @@ func TestProcessProcfsScanGoesOutInFull(t *testing.T) {
 	assert.NotNil(t, entity.GetCyclonedx())
 }
 
+// TestProcfsScansRunningContainers checks that the check requests procfs
+// scans of running containers alone.
+func TestProcfsScansRunningContainers(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("procfs.IsAgentContainer reads the cgroup of the Agent, which needs Linux")
+	}
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	scanner := &fakeScanner{}
+	p := &processor{
+		workloadmetaStore: store,
+		containerFilter:   workloadfilterfxmock.SetupMockFilter(t).GetContainerSBOMFilters(),
+		sbomScanner:       scanner,
+		procfsSBOM:        true,
+	}
+
+	var events []workloadmeta.Event
+	for id, running := range map[string]bool{"running": true, "stopped": false} {
+		ctr := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
+			State:    workloadmeta.ContainerState{Running: running},
+		}
+		store.Set(ctr)
+		events = append(events, workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: ctr})
+	}
+	p.processContainerImagesEvents(workloadmeta.EventBundle{Events: events, Ch: make(chan struct{})})
+
+	require.Len(t, scanner.requests, 1)
+	assert.Equal(t, "running", scanner.requests[0].ID())
+}
+
 // fakeScanner records the scan requests it receives.
 type fakeScanner struct {
 	requests []sbom.ScanRequest
@@ -1350,6 +1386,30 @@ func TestHostSBOMWaitsForUsage(t *testing.T) {
 		p.processHostScanResult(newHostScan(scanned.Add(time.Minute)))
 		assert.Empty(t, p.queue, "the first successful scan still waits")
 	})
+}
+
+// TestHostSBOMCCRID checks that every host SBOM, heartbeats and failures
+// included, carries the CCRID of the host.
+func TestHostSBOMCCRID(t *testing.T) {
+	const ccrid = "arn:aws:ec2:us-east-1:123456789012:instance/i-0123456789abcdef"
+	p := &processor{
+		queue:                 make(chan *model.SBOMEntity, 4),
+		hostSBOM:              true,
+		hostname:              "host",
+		hostCCRID:             func() string { return ccrid },
+		hostHeartbeatValidity: time.Hour,
+	}
+	scanned := time.Unix(1700000000, 0)
+
+	p.processHostScanResult(newHostScan(scanned))
+	p.processHostScanResult(newHostScan(scanned.Add(time.Minute)))
+	p.processHostScanResult(sbom.ScanResult{Error: errors.New("scan failed"), CreatedAt: scanned})
+
+	for _, wantHeartbeat := range []bool{false, true, false} {
+		entity := <-p.queue
+		assert.Equal(t, wantHeartbeat, entity.GetHeartbeat())
+		assert.Equal(t, ccrid, entity.GetCcrid())
+	}
 }
 
 const graceImageID = "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd"

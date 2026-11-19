@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -132,7 +131,7 @@ func (a *Agent) validateAndFixType(ts *info.TagStats, spanType string) string {
 
 // validateAndFixHTTPStatusCode handles HTTP status code validation for both pb.Span and idx.InternalSpan
 func (a *Agent) validateAndFixHTTPStatusCode(ts *info.TagStats, sc string) (string, bool) {
-	if !isValidStatusCode(sc) {
+	if !normalizeutil.IsValidStatusCode(sc) {
 		ts.SpansMalformed.InvalidHTTPStatusCode.Inc()
 		log.Debugf("Fixing malformed trace. HTTP status code is invalid (reason:invalid_http_status_code), dropping invalid http.status_code=%s", sc)
 		return "", false
@@ -214,6 +213,8 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	svc, _ := a.normalizeService(ts, s.Service, ts.Lang)
 	s.Service = svc
 
+	// The peer.service, _dd.base_service, env and http.status_code changes below are mirrored by rootTags in
+	// comp/otelcol/otlp/components/connector/datadogconnector/root_filter.go; keep them in sync.
 	reg := semantics.DefaultRegistry()
 	spanAccessor := semantics.NewDDSpanAccessor(s.Meta, s.Metrics)
 	if pSvc := semantics.LookupString(reg, spanAccessor, semantics.ConceptPeerService); pSvc != "" {
@@ -440,6 +441,12 @@ func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t *idx.InternalTraceChu
 		}
 		t.TraceID = buf[:]
 	}
+	// Check all 128 bits: an ID whose low-order 64 bits are zero is still a valid W3C/OTel
+	// trace ID. An empty or missing trace ID has been normalized to all zeros above.
+	if [16]byte(t.TraceID) == [16]byte{} {
+		ts.TracesDropped.TraceIDZero.Inc()
+		return fmt.Errorf("TraceID is zero (reason:trace_id_zero): %v", t.Spans[0])
+	}
 
 	spanIDs := make(map[uint64]struct{})
 	for _, span := range t.Spans {
@@ -462,11 +469,4 @@ func (a *Agent) normalizeStatsGroup(b *pb.ClientGroupedStats, lang string) {
 	if b.Resource == "" {
 		b.Resource = b.Name
 	}
-}
-
-func isValidStatusCode(sc string) bool {
-	if code, err := strconv.ParseUint(sc, 10, 64); err == nil {
-		return 100 <= code && code < 600
-	}
-	return false
 }

@@ -1,0 +1,19 @@
+description: Container symlink using parent traversal to escape allowed root is blocked
+# skip: container host-prefix symlink resolution is an rshell-specific feature
+skip_assert_against_bash: true
+containerized: true
+setup:
+  files:
+    - path: host/etc/shadow
+      content: "root:x\n"
+    - path: host/var/log/containers/escape.log
+      symlink: /var/log/../../etc/shadow
+input:
+  allowed_paths: ["host/var/log"]
+  script: |+
+    cat host/var/log/containers/escape.log
+expect:
+  stdout: |+
+  stderr_contains:
+    - "escape.log"
+  exit_code: 1

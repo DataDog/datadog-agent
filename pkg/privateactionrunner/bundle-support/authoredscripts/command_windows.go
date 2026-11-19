@@ -9,20 +9,43 @@ package authoredscripts
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
-func platformCommand(_ context.Context, _ []string) (*exec.Cmd, error) {
-	return nil, errors.New("authored-script commands are not supported on Windows")
+const powerShellExecutable = "powershell.exe"
+
+func platformCommand(ctx context.Context, command []string) (*exec.Cmd, error) {
+	entrypoint := command[0]
+	extension := strings.ToLower(filepath.Ext(entrypoint))
+	switch extension {
+	case ".ps1":
+		systemRoot, err := windowsSystemRoot()
+		if err != nil {
+			return nil, err
+		}
+		powershell := filepath.Join(systemRoot, "System32", "WindowsPowerShell", "v1.0", powerShellExecutable)
+		arguments := []string{
+			powershell,
+			"-NoLogo",
+			"-NoProfile",
+			"-NonInteractive",
+			"-ExecutionPolicy",
+			"Bypass",
+			"-File",
+			entrypoint,
+		}
+		command = append(arguments, command[1:]...)
+	case ".exe", ".com":
+		// Run native executables directly.
+	default:
+		return nil, fmt.Errorf("authored-script command %q has unsupported Windows extension %q; expected .ps1, .exe, or .com", entrypoint, extension)
+	}
+	return exec.CommandContext(ctx, command[0], command[1:]...), nil
 }
 
 func executionDeniedError(err error) error {
-	return err
-}
-
-func configureCommand(_ *exec.Cmd) {}
-
-func startCommand(_ *exec.Cmd) (commandController, error) {
-	return nil, errors.New("authored-script execution is not supported on Windows")
+	return fmt.Errorf("authored-script execution was denied by the host; check file permissions, AppLocker, and Windows Defender Application Control policies: %w", err)
 }

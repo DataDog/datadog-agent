@@ -1,0 +1,14 @@
+description: grep on a binary file (containing NUL bytes) with no matching lines produces no stdout, no stderr, and exits with code 1.
+setup:
+  files:
+    - path: file.txt
+      content: "nul_\x00byte\nskipline\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep nomatch file.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

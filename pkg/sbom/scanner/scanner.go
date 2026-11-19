@@ -43,6 +43,7 @@ type deprecatedSetting struct {
 const (
 	cacheReason = "SBOM scans keep their cache in memory"
 	dirsReason  = "SBOM scans read the files their analyzers need"
+	mountReason = "sbom.container_image.overlayfs_direct_scan replaces it"
 )
 
 // deprecatedSettings lists the settings that SBOM scans ignore.
@@ -54,6 +55,7 @@ var deprecatedSettings = []deprecatedSetting{
 	{"sbom.container_image.overlayfs_disable_cache", cacheReason},
 	{"sbom.container_image.additional_directories", dirsReason},
 	{"sbom.host.additional_directories", dirsReason},
+	{"sbom.container_image.use_mount", mountReason},
 }
 
 // Scanner defines the scanner
@@ -153,7 +155,10 @@ func (s *Scanner) Scan(request sbom.ScanRequest) error {
 	return nil
 }
 
-func (s *Scanner) enoughDiskSpace(collectorName string, opts sbom.ScanOptions, imgMeta *workloadmeta.ContainerImageMetadata) error {
+// enoughDiskSpace returns an error when the disk holds less than
+// opts.MinAvailableDisk. The export of an image checks the room for the image
+// itself.
+func (s *Scanner) enoughDiskSpace(opts sbom.ScanOptions) error {
 	if !opts.CheckDiskUsage {
 		return nil
 	}
@@ -167,38 +172,7 @@ func (s *Scanner) enoughDiskSpace(collectorName string, opts sbom.ScanOptions, i
 		return fmt.Errorf("not enough disk space to safely collect sbom, %d available, %d required", usage.Available, opts.MinAvailableDisk)
 	}
 
-	// Beyond the flat minimum, only scans that export the whole image to a
-	// tarball on disk (the "docker save" path) need room for the image itself.
-	if imgMeta == nil || !mayStoreTarball(collectorName, opts) {
-		return nil
-	}
-
-	// Check that we have either the minimum amount of disk space required for a scan
-	// or 20% more than the size of the image
-	sizeRequired := uint64(float64(imgMeta.SizeBytes) * 1.2)
-	if usage.Available < sizeRequired {
-		return fmt.Errorf("not enough disk space to safely collect sbom, %d available, %d required", usage.Available, sizeRequired)
-	}
-
 	return nil
-}
-
-// mayStoreTarball reports whether the collector, with these options, may export
-// the whole image to a tarball on disk (the "docker save" path), which is the
-// only scan mode that needs room for the image itself. CRI-O always scans
-// overlayfs in place; containerd exports only when neither overlayfs_direct_scan
-// nor use_mount is set; the Docker collector may always fall back to the tarball
-// export (it only uses the overlayfs path on the overlay2 graph driver and
-// ignores use_mount), so it cannot be ruled out ahead of the scan.
-func mayStoreTarball(collectorName string, opts sbom.ScanOptions) bool {
-	switch collectorName {
-	case collectors.CrioCollector:
-		return false
-	case collectors.ContainerdCollector:
-		return !opts.OverlayFsScan && !opts.UseMount
-	default:
-		return true
-	}
 }
 
 // sendResult sends a ScanResult to the channel associated with the collector.
@@ -258,7 +232,8 @@ func (s *Scanner) handleScanRequest(ctx context.Context, request sbom.ScanReques
 	}
 
 	var imgMeta *workloadmeta.ContainerImageMetadata
-	if collector.Type() == collectors.ContainerImageScanType {
+	switch collector.Type() {
+	case collectors.ContainerImageScanType:
 		if imgMeta = s.getImageMetadata(request); imgMeta == nil {
 			s.scanQueue.Forget(request)
 			return
@@ -272,15 +247,33 @@ func (s *Scanner) handleScanRequest(ctx context.Context, request sbom.ScanReques
 			s.scanQueue.Forget(request)
 			return
 		}
+	case collectors.ProcfsScanType:
+		// A procfs scan reads the root of a process of the container.
+		if !s.containerRunning(request.ID()) {
+			log.Debugf("skipping the SBOM scan of container %s, which is missing or stopped", request.ID())
+			s.scanQueue.Forget(request)
+			return
+		}
 	}
 
-	telemetry.SBOMAttempts.Inc(request.Collector(), request.Type(collector.Options()))
+	telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 	s.processScan(ctx, request, imgMeta, collector)
 }
 
 // hasFullSBOM reports whether s lists all the packages of its image.
 func hasFullSBOM(s *workloadmeta.CompressedSBOM) bool {
 	return s != nil && s.Status == workloadmeta.Success && !s.OSFallback
+}
+
+// containerRunning reports whether workloadmeta holds container id as running.
+// A scanner created with option.None reports true.
+func (s *Scanner) containerRunning(id string) bool {
+	store, ok := s.wmeta.Get()
+	if !ok {
+		return true
+	}
+	ctr, err := store.GetContainer(id)
+	return err == nil && ctr.State.Running
 }
 
 // getImageMetadata returns the image metadata if the collector is a container image collector
@@ -304,13 +297,18 @@ func (s *Scanner) getImageMetadata(request sbom.ScanRequest) *workloadmeta.Conta
 func (s *Scanner) processScan(ctx context.Context, request sbom.ScanRequest, imgMeta *workloadmeta.ContainerImageMetadata, collector collectors.Collector) {
 	defer waitAfterScanIfNecessary(ctx, collector)
 
-	result := s.checkDiskSpace(request.Collector(), imgMeta, collector)
+	result := s.checkDiskSpace(imgMeta, collector)
 	errorType := "disk_space"
 
 	if result == nil {
 		scanContext, cancel := context.WithTimeout(ctx, timeout(collector))
 		defer cancel()
 		result = s.PerformScan(scanContext, request, collector)
+		// The image collectors file a result under ImgMeta, which a scan that
+		// fails before it reads the image leaves nil.
+		if result.ImgMeta == nil {
+			result.ImgMeta = imgMeta
+		}
 		errorType = "scan"
 	}
 	osFallback := result.Error == nil && sbom.IsOSFallback(result.Report)
@@ -338,7 +336,7 @@ func (s *Scanner) keepPublishedSBOM(request sbom.ScanRequest, collector collecto
 		return true
 	case result.Error != nil && published != nil && published.Status == workloadmeta.Success:
 		log.Warnf("SBOM scan of image %s failed, keeping the SBOM of its OS packages: %v", request.ID(), result.Error)
-		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(collector.Options()), errorType)
+		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), errorType)
 		s.scanQueue.AddRateLimited(request)
 		return true
 	}
@@ -362,8 +360,8 @@ func (s *Scanner) publishedSBOM(request sbom.ScanRequest) *workloadmeta.Compress
 // checkDiskSpace checks if there is enough disk space to perform the scan
 // It sends a scan result wrapping an error if there is not enough space
 // If everything is correct it returns nil.
-func (s *Scanner) checkDiskSpace(collectorName string, imgMeta *workloadmeta.ContainerImageMetadata, collector collectors.Collector) *sbom.ScanResult {
-	err := s.enoughDiskSpace(collectorName, collector.Options(), imgMeta)
+func (s *Scanner) checkDiskSpace(imgMeta *workloadmeta.ContainerImageMetadata, collector collectors.Collector) *sbom.ScanResult {
+	err := s.enoughDiskSpace(collector.Options())
 	if err == nil {
 		return nil
 	}
@@ -396,12 +394,12 @@ func (s *Scanner) PerformScan(ctx context.Context, request sbom.ScanRequest, col
 // but the host.
 func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, collector collectors.Collector, request sbom.ScanRequest, errorType string, osFallback bool) {
 	if scanResult == nil {
-		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(collector.Options()), "nil_scan_result")
+		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "nil_scan_result")
 		log.Errorf("nil scan result for '%s'", request.ID())
 		return
 	}
 	if scanResult.Error != nil {
-		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(collector.Options()), errorType)
+		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), errorType)
 		if errors.Is(scanResult.Error, sbom.ErrScanNotSupported) {
 			// This request can never succeed, so retrying it would keep the scan
 			// worker busy forever. Drop it.
@@ -413,9 +411,9 @@ func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, collector collec
 		return
 	}
 
-	telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type(collector.Options()))
+	telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type())
 	if osFallback {
-		telemetry.SBOMOSFallbacks.Inc(request.Collector(), request.Type(collector.Options()))
+		telemetry.SBOMOSFallbacks.Inc(request.Collector(), request.Type())
 		// Retry the full scan with the backoff of a failure. The host waits
 		// for its periodic refresh instead, which rescans it anyway.
 		if collector.Type() != collectors.HostScanType {

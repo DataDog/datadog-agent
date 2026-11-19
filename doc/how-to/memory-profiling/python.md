@@ -118,7 +118,7 @@ That will print out some memory information to screen, for instance:
     ...
 ```
 
-But will also store the profiling information for futher inspection if
+But will also store the profiling information for further inspection if
 necessary.
 
 There are additional hidden flags available when performing the memory

@@ -1,0 +1,10 @@
+description: In a 3-stage pipeline, a non-zero exit from the last command determines the exit status.
+input:
+  script: |+
+    exit 0 | exit 0 | exit 4
+    echo $?
+expect:
+  stdout: |+
+    4
+  stderr: ""
+  exit_code: 0

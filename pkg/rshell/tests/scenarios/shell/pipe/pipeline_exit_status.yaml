@@ -1,0 +1,17 @@
+description: Pipeline exit status is from last command.
+input:
+  script: |+
+    true | true | true; echo $?
+    true | true | false; echo $?
+    false | true | true; echo $?
+    false | false | true; echo $?
+    true | false | false; echo $?
+expect:
+  stdout: |+
+    0
+    1
+    0
+    0
+    1
+  stderr: ""
+  exit_code: 0

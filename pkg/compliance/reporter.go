@@ -45,6 +45,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 		&sender.NoopSink{},
 		&diagnostic.NoopMessageReceiver{},
 		nil, // processingRules
+		nil, // CSPM compliance events are not logs and are never filtered
 		endpoints,
 		dstcontext,
 		&common.NoopStatusProvider{},

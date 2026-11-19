@@ -9,13 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/portrollup"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierfxmock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -60,18 +61,19 @@ func Test_flowAccumulator_add(t *testing.T) {
 		},
 	}
 	flowA2 := &common.Flow{
-		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   []byte{127, 0, 0, 1},
-		StartTimestamp: 1234578,
-		EndTimestamp:   1234579,
-		Bytes:          10,
-		Packets:        2,
-		SrcAddr:        []byte{10, 10, 10, 10},
-		DstAddr:        []byte{10, 10, 10, 20},
-		IPProtocol:     uint32(6),
-		SrcPort:        2000,
-		DstPort:        80,
-		TCPFlags:       ackFlag,
+		FlowType:        common.TypeNetFlow9,
+		ExporterAddr:    []byte{127, 0, 0, 1},
+		StartTimestamp:  1234578,
+		EndTimestamp:    1234579,
+		Bytes:           10,
+		Packets:         2,
+		SrcAddr:         []byte{10, 10, 10, 10},
+		DstAddr:         []byte{10, 10, 10, 20},
+		IPProtocol:      uint32(6),
+		SrcPort:         2000,
+		DstPort:         80,
+		TCPFlags:        ackFlag,
+		ApplicationName: "ssl",
 		AdditionalFields: map[string]any{
 			"custom_field":   "another_test",
 			"custom_field_2": "second_flow_field",
@@ -112,6 +114,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	assert.Equal(t, uint64(1234568), wrappedFlowA.flow.StartTimestamp)
 	assert.Equal(t, uint64(1234579), wrappedFlowA.flow.EndTimestamp)
 	assert.Equal(t, synAckFlag, wrappedFlowA.flow.TCPFlags)
+	assert.Equal(t, "ssl", wrappedFlowA.flow.ApplicationName, "keeping first non-empty application name")
 	assert.Equal(t, map[string]any{"custom_field": "test", "custom_field_2": "second_flow_field"}, wrappedFlowA.flow.AdditionalFields) // Keeping first value seen for key `custom_field`
 
 	wrappedFlowB := acc.flows[flowB1.AggregationHash()]

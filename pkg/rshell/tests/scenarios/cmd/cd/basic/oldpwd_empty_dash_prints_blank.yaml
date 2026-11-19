@@ -1,0 +1,18 @@
+description: OLDPWD='' (set but empty) makes `cd -` print a blank line and leaves pwd unchanged, matching bash.
+setup:
+  files:
+    - path: child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd child
+    saved=$(pwd)
+    OLDPWD= cd -
+    if [ "$(pwd)" = "$saved" ]; then echo unchanged; else echo "moved: $(pwd)"; fi
+expect:
+  stdout: |+
+
+    unchanged
+  stderr: ""
+  exit_code: 0

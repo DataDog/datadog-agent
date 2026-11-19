@@ -1,0 +1,10 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: An unknown command with a multi-word-like name (with hyphens) prints "unknown command".
+input:
+  script: |+
+    my-unknown-command
+expect:
+  stdout: ""
+  stderr_contains: ["my-unknown-command", "unknown command"]
+  exit_code: 127

@@ -1,0 +1,10 @@
+description: A long option that requires a value but is given none emits GNU's "option '--lines' requires an argument" wording. Verifies the long-flag branch of `rewritePflagError` in builtins/builtins.go (sibling of the short-flag form, which uses different wording).
+input:
+  script: |+
+    head --lines
+expect:
+  stdout: ""
+  stderr: |+
+    head: option '--lines' requires an argument
+    Try 'head --help' for more information.
+  exit_code: 1

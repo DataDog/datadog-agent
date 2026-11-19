@@ -1,0 +1,9 @@
+description: Subshells execute commands in an isolated environment.
+input:
+  script: |+
+    (echo hello)
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

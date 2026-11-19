@@ -21,6 +21,7 @@ import (
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -81,6 +82,8 @@ type CollectorDependencies struct {
 	SystemProbeCache *SystemProbeCache
 	// PRMCache is a cache of privileged PRM metrics obtained from system-probe
 	PRMCache *PRMCache
+	// NodeUnschedulable is an (optional) cache of the node unschedulable state, refreshed by the check
+	NodeUnschedulable *nodeunschedulable.Cache
 	// Telemetry is the telemetry component to use for collecting metrics
 	Telemetry *CollectorTelemetry
 	// Workloadmeta is used for getting auxialiary metadata about containers and GPUs
@@ -283,8 +286,11 @@ func collectorDisabled(name CollectorName, config gpuconfig.Config) bool {
 	case nvlinkPLR:
 		return !config.Enabled || !config.PRMEndpointEnabled
 	case sharing:
-		// Only KAI Scheduler fractions assign containers a share of a GPU.
-		return !config.KAISchedulerEnabled
+		// KAI Scheduler fractions and shared-device replicas (time-slicing,
+		// MPS) are reported through the sharing collector. It walks only the
+		// containers holding a GPU share or replicas, so it costs nothing on
+		// nodes without shared GPUs and needs no gate of its own.
+		return false
 	default:
 		return false
 	}
@@ -312,8 +318,8 @@ func NewCollectorTelemetry(tm telemetry.Component) *CollectorTelemetry {
 	}
 }
 
-var collectorTelemetryTagNames = []string{
-	"collector",
+// DeviceTelemetryTagNames are the NVML device labels shared by GPU telemetry.
+var DeviceTelemetryTagNames = []string{
 	"gpu_device",
 	"gpu_virtualization_mode",
 	"gpu_architecture",
@@ -322,6 +328,8 @@ var collectorTelemetryTagNames = []string{
 	"gpu_nvlink_version",
 	"gpu_driver_version",
 }
+
+var collectorTelemetryTagNames = append([]string{"collector"}, DeviceTelemetryTagNames...)
 
 var (
 	cachedDriverVersion     string
@@ -336,9 +344,13 @@ func CollectorTelemetryTags(collector Collector) []string {
 }
 
 func collectorTelemetryTags(name CollectorName, device ddnvml.Device) []string {
+	return append([]string{string(name)}, DeviceTelemetryTags(device)...)
+}
+
+// DeviceTelemetryTags returns values in DeviceTelemetryTagNames order.
+func DeviceTelemetryTags(device ddnvml.Device) []string {
 	deviceInfo := device.GetDeviceInfo()
 	return []string{
-		string(name),
 		gpuutil.NormalizeGPUDeviceName(deviceInfo.Name),
 		gpuutil.VirtualizationModeToString(deviceInfo.VirtualizationMode),
 		gpuutil.ArchToString(deviceInfo.Architecture),
@@ -368,14 +380,18 @@ func driverVersionForTelemetry() string {
 	return cachedDriverVersion
 }
 
+// isMIGParent returns true for a GPU that hosts MIG devices.
+func isMIGParent(device ddnvml.Device) bool {
+	physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
+	return ok && len(physicalDevice.MIGChildren) > 0
+}
+
 func slicingModeTag(device ddnvml.Device) string {
-	switch device := device.(type) {
-	case *ddnvml.MIGDevice:
+	if physicalDevice, ok := device.(*ddnvml.PhysicalDevice); ok && (physicalDevice.HasMIGFeatureEnabled || isMIGParent(device)) {
+		return "mig-parent"
+	}
+	if _, ok := device.(*ddnvml.MIGDevice); ok {
 		return "mig"
-	case *ddnvml.PhysicalDevice:
-		if len(device.MIGChildren) > 0 {
-			return "mig-parent"
-		}
 	}
 	return "none"
 }

@@ -1,0 +1,8 @@
+description: Exit with large number wraps via uint8 conversion (513 mod 256 = 1).
+input:
+  script: |+
+    exit 513
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

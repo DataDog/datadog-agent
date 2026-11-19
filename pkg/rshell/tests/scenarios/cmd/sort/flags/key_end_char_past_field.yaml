@@ -1,0 +1,13 @@
+description: "sort -k with end char offset past field allows extending into separator."
+setup:
+  files:
+    - path: data.txt
+      content: "x:a b\ny:a:b\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -t : -k 2.2,2.2 data.txt
+expect:
+  stdout: "x:a b\ny:a:b\n"
+  stderr: ""
+  exit_code: 0

@@ -30,16 +30,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	gpumodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
+	gpuresources "github.com/DataDog/datadog-agent/pkg/gpu/resources"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	tpudevice "github.com/DataDog/datadog-agent/pkg/gpu/tpu"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -55,11 +59,19 @@ const (
 // logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
 var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 
+// Readiness is shared across GPU check instances for the lifetime of the agent.
+type Readiness struct {
+	handle *health.Handle
+	timer  *time.Timer
+}
+
 var _ check.IssueAwareCheck = (*Check)(nil)
 
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
+	resourcePublisher   *gpuresources.Publisher
+	readiness           *Readiness
 	collectors          []nvidia.Collector               // collectors for NVML metrics
 	collectorBuilder    *nvidia.CollectorBuilder         // collectorBuilder builds the collectors and retries the ones that failed to be created
 	excludedDeviceUUIDs map[string]struct{}              // excludedDeviceUUIDs contains normalized device UUIDs whose metrics should not be collected
@@ -78,15 +90,17 @@ type Check struct {
 	strictIntervals     *nvidia.StrictIntervalProcessor  // strictIntervals timestamps metrics that must be emitted on a fixed cadence
 	parallelCollectors  bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
 	issueReporter       healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
+	nvmlIssueID         string                           // nvmlIssueID is the ID of the NVML issue being reported, kept stable across runs since the resource_id is resolved best-effort; only touched from the Run goroutine
 	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
 	sysprobeNvmlState   sysprobeNvmlStateNotifier        // sysprobeNvmlState pushes the release state to the system-probe GPU monitoring probe
-	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
+	nodeInfo            nodeLabelReader                  // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
 	driverEventsEnabled bool                             // driverEventsEnabled is true when driver events are requested from system-probe
 	sysprobeData        *sysprobeDataTracker             // sysprobeData tracks failures of the system-probe data sources; only touched from the Run goroutine
 	draCDIMissingSince  time.Time                        // draCDIMissingSince is when running DRA claims without readable CDI specs were first seen; only touched from the Run goroutine
 	hostname            string                           // hostname scopes health issue IDs to this host, resolved lazily; only touched from the Run goroutine
-	skipNVML            bool                             // skipNVML is set in Configure when gpu.amd.enabled is on and the host has AMD GPUs but no NVIDIA GPU: there is nothing for NVML to collect, so Run returns before loading it
+	skipNVML            bool                             // skipNVML is set in Configure when the host has AMD GPUs but no NVIDIA GPU, or Cloud TPUs: there is nothing for NVML to collect, so Run returns before loading it
 	sysRoot             string                           // sysRoot is the sysfs root used to read the PCI inventory
+	nodeUnschedulable   *nodeunschedulable.Cache         // nodeUnschedulable is the unschedulable state of the node, nil when gpu.unschedulable_nodes.enabled is false; refreshed before the collectors run
 }
 
 type checkTelemetry struct {
@@ -105,16 +119,35 @@ type checkTelemetryMetrics struct {
 	deviceCount                telemetry.Gauge // emitted as a telemetry metric too in order to send it through COAT
 }
 
+// NewReadiness registers GPU readiness before the health probe server and checks start.
+// The returned state must be shared across check cancellations and reloads.
+// The timeout also applies while NVML is released for a GPU reset.
+// A non-positive timeout disables the readiness check.
+func NewReadiness(timeout time.Duration) *Readiness {
+	if timeout <= 0 {
+		return nil
+	}
+	handle := health.RegisterReadiness(CheckName, health.Once)
+	timer := time.AfterFunc(timeout, func() {
+		select {
+		case <-handle.C:
+		default:
+		}
+	})
+	return &Readiness{handle: handle, timer: timer}
+}
+
 // Factory creates a new check factory
-func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) option.Option[func() check.Check] {
+func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component, readiness *Readiness) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
-		return newCheck(tagger, telemetry, wmeta)
+		return newCheck(tagger, telemetry, wmeta, readiness)
 	})
 }
 
-func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
+func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component, readiness *Readiness) check.Check {
 	return &Check{
 		CheckBase:           core.NewCheckBase(CheckName),
+		readiness:           readiness,
 		tagger:              tagger,
 		telemetry:           newCheckTelemetry(telemetry),
 		wmeta:               wmeta,
@@ -131,7 +164,7 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 
 // NewCheck creates a new GPU check instance. This is exported for integration testing.
 func NewCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
-	return newCheck(tagger, telemetry, wmeta)
+	return newCheck(tagger, telemetry, wmeta, nil)
 }
 
 // SetContainerProvider sets the container provider on the Check.
@@ -161,7 +194,7 @@ func newCheckTelemetryMetrics(tm telemetry.Component) *checkTelemetryMetrics {
 		duplicateMetrics:           tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
 		missingContainerGpuMapping: tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
 		containerMappingFailurePct: tm.NewGauge(CheckName, "container_gpu_mapping_failure_pct", nil, "Percentage of GPU containers whose devices could not be fully matched in the last check run"),
-		deviceCount:                tm.NewGauge(CheckName, "device_total", nil, "Number of GPU devices"),
+		deviceCount:                tm.NewGauge(CheckName, "device_total", append([]string{"gpu_sharing_mode"}, nvidia.DeviceTelemetryTagNames...), "Number of physical GPU devices"),
 	}
 }
 
@@ -177,6 +210,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	c.gpuConfig = gpuconfig.New()
+	if err := c.configureResources(); err != nil {
+		return err
+	}
 	for _, collectorName := range c.gpuConfig.DisabledCollectors {
 		log.Infof("Collector %s is disabled by configuration", collectorName)
 	}
@@ -187,12 +223,24 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 	c.parallelCollectors = pkgconfigsetup.Datadog().GetBool("gpu.parallel_collectors")
 	if c.sysRoot == "" {
-		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers.
-		c.sysRoot = kernel.SysFSRoot()
+		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers,
+		// falling back to /sys when that root has no devices.
+		c.sysRoot = sysfsroot.DeviceSysFSRoot()
 	}
-	c.skipNVML = pkgconfigsetup.Datadog().GetBool("gpu.amd.enabled") && hasOnlyAMDGPUs(c.sysRoot)
-	if c.skipNVML {
+	// With no NVIDIA GPU, NVML would only fail on every run.
+	c.skipNVML = hasOnlyAMDGPUs(c.sysRoot)
+	if c.skipNVML && !pkgconfigsetup.Datadog().GetBool("gpu.amd.enabled") {
+		log.Warn("All GPUs on this host are AMD and gpu.amd.enabled is false: set it to true (DD_GPU_AMD_ENABLED) to monitor them with the AMD GPU check")
+	} else if c.skipNVML {
 		log.Info("All GPUs on this host are AMD: the AMD GPU check collects them, the NVIDIA GPU check stays idle")
+	} else if tpudevice.HasTPU(c.sysRoot) {
+		// TPU hosts have no NVIDIA GPU.
+		c.skipNVML = true
+		if !pkgconfigsetup.Datadog().GetBool("gpu.tpu.enabled") {
+			log.Warn("This host has Cloud TPUs and gpu.tpu.enabled is false: set it to true (DD_GPU_TPU_ENABLED) to monitor them with the TPU check")
+		} else {
+			log.Info("This host has Cloud TPUs: the TPU check collects them, the NVIDIA GPU check stays idle")
+		}
 	}
 	c.strictIntervals = nvidia.NewStrictIntervalProcessor(c.gpuConfig.StaticMetricsReportingInterval)
 	if c.parallelCollectors {
@@ -239,6 +287,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		}
 	}
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer(driverEventsSource)
+	c.nodeUnschedulable = nodeunschedulable.New(pkgconfigsetup.Datadog())
 
 	return nil
 }
@@ -279,6 +328,7 @@ func (c *Check) ensureInitCollectors() error {
 		DeviceEventsGatherer: c.deviceEvtGatherer,
 		SystemProbeCache:     c.spCache,
 		PRMCache:             c.prmCache,
+		NodeUnschedulable:    c.nodeUnschedulable,
 		Telemetry:            c.telemetry.collectorTelemetry,
 		Workloadmeta:         c.wmeta,
 		Config:               *c.gpuConfig,
@@ -345,16 +395,17 @@ func (c *Check) Interval() time.Duration {
 // Run executes the check. Configure must have been called before and returned no errors, otherwise
 // we will panic here as we assume certain components have been initialized.
 func (c *Check) Run() error {
-	// On hosts whose GPUs are all AMD, collected by the AMD GPU check, NVML is
-	// not expected: skip it entirely. The check stays loaded rather than
+	// On hosts whose GPUs are all AMD, or that have Cloud TPUs, collected by the
+	// AMD GPU and TPU checks, NVML is not expected: skip it entirely. The check stays loaded rather than
 	// refusing in Configure, so it resolves an NVML issue raised before (the
 	// issue reporter is only set before runs) and does not show as a loading
 	// error in the agent status.
 	if c.skipNVML {
 		if c.issueReporter != nil {
-			c.issueReporter.ResolveIssue(gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable))
+			c.resolveNvmlIssues("")
+			c.nvmlIssueID = ""
 		}
-		c.telemetry.metrics.deviceCount.Set(0)
+		c.updateDeviceCountTelemetry(nil)
 		return nil
 	}
 
@@ -411,6 +462,17 @@ func (c *Check) Run() error {
 
 	currentExecutionTime := time.Now()
 
+	// NVML readiness is independent of metric sender availability.
+	c.telemetry.nvmlState.Check()
+	c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable(), c.telemetry.nvmlState.LastNvmlInitSuccess())
+	if c.telemetry.nvmlState.LastNvmlInitSuccess() && c.readiness != nil {
+		c.readiness.timer.Stop()
+		select {
+		case <-c.readiness.handle.C:
+		default:
+		}
+	}
+
 	snd, err := c.GetSender()
 	if err != nil {
 		return fmt.Errorf("get metric sender: %w", err)
@@ -418,22 +480,18 @@ func (c *Check) Run() error {
 	// Commit the metrics even in case of an error
 	defer snd.Commit()
 
-	// Check the state of the NVML library for telemetry
-	c.telemetry.nvmlState.Check()
-	c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable(), c.telemetry.nvmlState.LastNvmlInitSuccess())
-
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
 	}
-
-	deviceCount, err := c.deviceCache.Count()
-	if err != nil {
-		if logLimitCheck.ShouldLog() {
-			log.Warnf("failed to get device count: %v", err)
-		}
-		deviceCount = 0
+	if err := c.publishResources(snd, currentExecutionTime); err != nil {
+		_ = c.Warnf("GPU resource publication failed: %v", err)
 	}
-	c.telemetry.metrics.deviceCount.Set(float64(deviceCount))
+
+	physicalDevices, err := c.deviceCache.AllPhysicalDevices()
+	if err != nil && logLimitCheck.ShouldLog() {
+		log.Warnf("failed to get physical devices: %v", err)
+	}
+	c.updateDeviceCountTelemetry(physicalDevices)
 
 	// Refresh system-probe data before collecting metrics.
 	if c.spCache != nil && c.gpuConfig.EnableEBPFProbes {
@@ -451,6 +509,10 @@ func (c *Check) Run() error {
 		if err != nil && logLimitCheck.ShouldLog() {
 			log.Warnf("error refreshing PRM cache: %v", err)
 		}
+	}
+
+	if c.nodeUnschedulable != nil {
+		c.nodeUnschedulable.Refresh(currentExecutionTime)
 	}
 
 	// start device event gatherer if we have not already
@@ -499,7 +561,6 @@ func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
 		return
 	}
 
-	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
 	if !unavailable {
 		// Only mark the issue as resolved if we had a successful init of the
 		// NVML library. unavailable is only true after a certain amount of
@@ -508,7 +569,8 @@ func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
 		// (unavailable will be false at the start) even if the NVML library is
 		// not available still.
 		if nvmlInitSuccess {
-			c.issueReporter.ResolveIssue(issueID)
+			c.resolveNvmlIssues("")
+			c.nvmlIssueID = ""
 		}
 		return
 	}
@@ -521,10 +583,28 @@ func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
 		log.Warnf("failed to build GPU NVML health issue: %v", buildErr)
 		return
 	}
-	issue.Id = issueID
+	if c.nvmlIssueID == "" {
+		c.nvmlIssueID = c.gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
+	}
+	issue.Id = c.nvmlIssueID
 
 	if err := c.issueReporter.ReportIssue(issue); err != nil {
 		log.Warnf("failed to report GPU NVML health issue: %v", err)
+		return
+	}
+	c.resolveNvmlIssues(c.nvmlIssueID)
+}
+
+// resolveNvmlIssues resolves every active NVML issue except keep. Active issues
+// are looked up by name rather than by recomputing the id, so that issues
+// persisted by a previous run (possibly with another discriminator, or the
+// legacy unscoped id) are resolved too.
+func (c *Check) resolveNvmlIssues(keep string) {
+	prefix := gpuenvironment.IssueID + ":" + gpuenvironment.ReasonNvmlUnavailable
+	for _, issueID := range c.issueReporter.GetActiveIssueIDsByIssueName(gpuenvironment.IssueName) {
+		if issueID != keep && strings.HasPrefix(issueID, prefix) {
+			c.issueReporter.ResolveIssue(issueID)
+		}
 	}
 }
 
@@ -594,8 +674,10 @@ func (c *Check) resolveIssuesByName(issueName, keepID string) {
 	}
 }
 
-func gpuHealthIssueID(reason string) string {
-	return gpuenvironment.IssueID + ":" + reason
+// gpuHealthIssueID scopes the issue to the resource_id the outbound report
+// carries, so agents on different resources don't share the same id.
+func (c *Check) gpuHealthIssueID(reason string) string {
+	return gpuenvironment.IssueID + ":" + reason + ":" + c.issueReporter.ResourceID()
 }
 
 // PCI identifiers used to tell from the PCI inventory whether a host only has
@@ -612,8 +694,8 @@ const (
 
 // hasOnlyAMDGPUs reports whether the PCI inventory under sysRoot
 // (<sysRoot>/bus/pci/devices) has at least one AMD GPU and no NVIDIA GPU. When
-// it does, and AMD collection is enabled, the NVIDIA GPU check stays idle and
-// leaves the host to the AMD GPU check.
+// it does, the NVIDIA GPU check stays idle and leaves the host to the AMD GPU
+// check.
 //
 // It reads the PCI bus rather than driver state, so that:
 //   - an NVIDIA GPU counts even if its driver is missing or broken: the NVIDIA
@@ -690,6 +772,11 @@ func (c *Check) getGPUToContainersMap(now time.Time) map[string][]*workloadmeta.
 		}
 		if containers.IsKAIReservationContainer(c.wmeta, container) {
 			log.Debugf("Container %s belongs to a KAI Scheduler reservation pod, skipping for device assignment", container.Name)
+			continue
+		}
+
+		if containers.IsUtilityOnlyContainer(container) {
+			log.Debugf("Container %s declares utility-only NVIDIA driver capabilities, skipping for device assignment", container.Name)
 			continue
 		}
 
@@ -911,7 +998,7 @@ func newSysprobeNvmlStateNotifier() sysprobeNvmlStateNotifier {
 			Released:   state,
 			TTLSeconds: int(ttl / time.Second),
 		}
-		_, err := sysprobeclient.Post[struct{}](client, spNvmlReleaseEndpoint, body, sysconfig.GPUMonitoringModule)
+		_, err := sysprobeclient.Post[struct{}](client, spNvmlReleaseEndpoint, body, sysconfigtypes.GPUMonitoringModule)
 		return err
 	}
 }
@@ -922,6 +1009,10 @@ func newSysprobeNvmlStateNotifier() sysprobeNvmlStateNotifier {
 // permanently pause GPU monitoring.
 func isMigReconfigState(v string) bool {
 	return v == "pending" || v == "rebooting"
+}
+
+type nodeLabelReader interface {
+	GetNodeLabels(context.Context) (map[string]string, error)
 }
 
 // shouldReleaseNVML reports whether an NVML release window is active, driven
@@ -1033,5 +1124,23 @@ func (c *Check) reacquireNVML(force bool) {
 	c.releaseWindowStart = time.Time{}
 	if err := c.pushNvmlStateToSysprobe(gpumodel.NvmlStateAcquired); err != nil {
 		log.Warnf("error ending the system-probe NVML release lease (it will expire on its own): %v", err)
+	}
+}
+
+// updateDeviceCountTelemetry partitions the NVML physical inventory using the
+// collector device labels plus sharing mode. MIG children and device-plugin
+// replicas never increase this physical-device count.
+func (c *Check) updateDeviceCountTelemetry(devices []ddnvml.Device) {
+	// Rebuild the counts so removed devices and changed tags leave no stale series.
+	c.telemetry.metrics.deviceCount.DeletePartialMatch(nil)
+	for _, device := range devices {
+		mode := workloadmeta.GPUSharingModeNone
+		// Sharing detection is asynchronous. Missing state means no sharing
+		// detected; unknown is reserved for known replication of unknown strategy.
+		if gpu, err := c.wmeta.GetGPU(device.GetDeviceInfo().UUID); err == nil && gpu.SharingMode != "" {
+			mode = gpu.SharingMode
+		}
+		tags := append([]string{string(mode)}, nvidia.DeviceTelemetryTags(device)...)
+		c.telemetry.metrics.deviceCount.Inc(tags...)
 	}
 }

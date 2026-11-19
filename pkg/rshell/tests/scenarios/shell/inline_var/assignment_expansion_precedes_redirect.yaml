@@ -1,0 +1,13 @@
+description: Inline assignment values are expanded before command redirects are applied.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    X=$(echo assignment >&2) echo ok 2>err.txt
+    cat err.txt
+expect:
+  stdout: |+
+    ok
+  stderr: |+
+    assignment
+  exit_code: 0

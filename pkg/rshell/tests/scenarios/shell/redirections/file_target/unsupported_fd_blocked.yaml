@@ -1,0 +1,12 @@
+description: In remediation mode, unsupported fd redirects (fd != 1 or 2) are rejected at validation time (exit 2), before any word expansion occurs.
+input:
+  script: |+
+    echo hello 3> out.txt
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+expect:
+  stdout: |+
+  stderr: |+
+    3> fd redirection is not supported
+  exit_code: 2
+skip_assert_against_bash: true

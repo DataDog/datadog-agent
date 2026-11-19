@@ -8,8 +8,10 @@
 package privateactionrunner
 
 const (
-	Enabled = "private_action_runner.enabled"
-	LogFile = "private_action_runner.log_file"
+	Enabled         = "private_action_runner.enabled"
+	LogFile         = "private_action_runner.log_file"
+	RunnerURL       = "private_action_runner.par_dd_url"
+	RemoteConfigURL = "remote_configuration.rc_dd_url"
 
 	// Identity / enrollment configuration
 	SelfEnroll             = "private_action_runner.self_enroll"
@@ -36,6 +38,9 @@ const (
 	HTTPAllowlist         = "private_action_runner.http_allowlist"
 	HTTPAllowIMDSEndpoint = "private_action_runner.http_allow_imds_endpoint"
 
+	// Domains actions may reach; replaces HTTPAllowlist when set
+	DomainAllowlist = "private_action_runner.domain_allowlist"
+
 	// Kubernetes action related
 	KubernetesAllowedCustomResources = "private_action_runner.kubernetes_allowed_custom_resources"
 
@@ -60,4 +65,9 @@ const (
 // CredentialConfig defines a named credential and its usage configuration.
 type CredentialConfig struct {
 	Value string `mapstructure:"value"`
+	// Nil allows every action; a configured empty list denies every action.
+	AllowedActions []string `mapstructure:"allowed_actions"`
+	// Nil leaves destinations unrestricted; an empty list denies every destination.
+	// When set, only HTTP actions may use the credential.
+	AllowedHTTPDomains []string `mapstructure:"allowed_http_domains"`
 }

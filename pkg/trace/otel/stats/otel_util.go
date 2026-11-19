@@ -59,6 +59,20 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	primaryTagKeys []string,
 	obfuscator *obfuscate.Obfuscator,
 ) []stats.Input {
+	return OTLPTracesToConcentratorInputsWithObfuscationAndFilter(traces, conf, containerTagKeys, peerTagKeys, primaryTagKeys, obfuscator, nil)
+}
+
+// OTLPTracesToConcentratorInputsWithObfuscationAndFilter is OTLPTracesToConcentratorInputsWithObfuscation that also
+// excludes from stats the spans for which spanFilter, if set, returns false.
+func OTLPTracesToConcentratorInputsWithObfuscationAndFilter(
+	traces ptrace.Traces,
+	conf *config.AgentConfig,
+	containerTagKeys []string,
+	peerTagKeys []string,
+	primaryTagKeys []string,
+	obfuscator *obfuscate.Obfuscator,
+	spanFilter func(pcommon.Resource, ptrace.Span) bool,
+) []stats.Input {
 	resourceSpans := traces.ResourceSpans()
 	clientComputedResources := resourcesWithClientComputedStats(resourceSpans)
 	if resourceSpans.Len() > 0 && len(clientComputedResources) == resourceSpans.Len() {
@@ -71,9 +85,13 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	ignoreResources := filters.NewBlacklister(conf.Ignore["resource"])
 	chunks := make(map[chunkKey]*pb.TraceChunk)
 	containerTagsByID := make(map[string][]string)
+	tagKeys := transform.NewOTelSpanTagKeys(peerTagKeys, primaryTagKeys)
 	for spanID, otelspan := range spanByID {
 		otelres := resByID[spanID]
 		if _, ok := clientComputedResources[otelres]; ok {
+			continue
+		}
+		if spanFilter != nil && !spanFilter(otelres, otelspan) {
 			continue
 		}
 		var resourceName string
@@ -128,7 +146,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 			chunks[ckey] = chunk
 		}
 		_, isTop := topLevelSpans[spanID]
-		ddSpan := transform.OtelSpanToDDSpanMinimal(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys, primaryTagKeys)
+		ddSpan := transform.OtelSpanToDDSpanMinimalWithTagKeys(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, tagKeys)
 		if obfuscator != nil {
 			obfuscateSpanForConcentrator(obfuscator, ddSpan, conf)
 		}

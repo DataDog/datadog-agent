@@ -19,7 +19,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -56,7 +56,7 @@ func (c *SystemProbeCache) Refresh() error {
 		return errors.New("system-probe client is nil")
 	}
 
-	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.client, sysconfig.GPUMonitoringModule)
+	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.client, sysconfigtypes.GPUMonitoringModule)
 	if err != nil {
 		// Clear cache on failure to ensure fail-fast behavior
 		c.stats = nil

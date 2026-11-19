@@ -1,0 +1,20 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: real logrotate(8)'s -d debug flag is not implemented; -n/--dry-run is the rshell spelling and -d is rejected.
+setup:
+  files:
+    - path: app.log
+      content: "abcde"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate -d -f app.log
+    wc -c < app.log
+expect:
+  stdout: |+
+    5
+  stderr: |+
+    logrotate: invalid option -- 'd'
+    Try 'logrotate --help' for more information.
+  exit_code: 0

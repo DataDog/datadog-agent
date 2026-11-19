@@ -1,0 +1,8 @@
+description: xargs -I aborts when the post-substitution command line exceeds -s (GNU xargs prints "command too long"; rshell prints "argument line too long" — both stderr_contains "xargs:").
+input:
+  script: |+
+    printf 'abcdef\n' | xargs -s 50 -I{} echo {}{}{}{}{}{}{}{}{}{}
+expect:
+  stdout: |+
+  stderr_contains: ["xargs:"]
+  exit_code: 1

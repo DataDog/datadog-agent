@@ -1,0 +1,15 @@
+description: du -0 -b ends each line with a NUL byte instead of a newline.
+setup:
+  files:
+    - path: a.txt
+      content: "12345"
+    - path: b.txt
+      content: "ab"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -0 -b a.txt b.txt
+expect:
+  stdout: "5\ta.txt\x002\tb.txt\x00"
+  stderr: |+
+  exit_code: 0

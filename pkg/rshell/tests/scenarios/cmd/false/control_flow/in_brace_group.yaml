@@ -1,0 +1,10 @@
+description: False works correctly inside a brace group.
+input:
+  script: |+
+    { false; }
+    echo $?
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

@@ -110,7 +110,7 @@ properties:
       overlayfs_direct_scan:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       overlayfs_disable_cache:
         node_type: setting
         type: boolean
@@ -131,12 +131,15 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        deprecated: true
+        comment: deprecated and ignored, sbom.container_image.overlayfs_direct_scan replaces it
       use_spread_refresher:
         node_type: setting
         type: boolean
         default: false
   additional_endpoints:
     node_type: setting
+    sensitive: true
     type: array
     default: []
     items:

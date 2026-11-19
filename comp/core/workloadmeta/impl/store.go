@@ -484,6 +484,16 @@ func (w *workloadmeta) GetKubernetesKueueWorkload(id string) (*wmdef.KubernetesK
 	return entity.(*wmdef.KubernetesKueueWorkload), nil
 }
 
+// GetKubernetesKAIPodGroup implements Store#GetKubernetesKAIPodGroup
+func (w *workloadmeta) GetKubernetesKAIPodGroup(id string) (*wmdef.KubernetesKAIPodGroup, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesKAIPodGroup, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesKAIPodGroup), nil
+}
+
 // ListECSTasks implements Store#ListECSTasks
 func (w *workloadmeta) ListECSTasks() []*wmdef.ECSTask {
 	entities := w.listEntitiesByKind(wmdef.KindECSTask)
@@ -1078,13 +1088,14 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 	// There are two timeouts here:
 	// 1. closeEventBundleChTimeout: time to wait to send the bundle to the subscriber channel.
 	// 2. eventBundleChTimeout: time to wait for the subscriber to acknowledge the bundle.
+	bundle.EnqueuedAt = time.Now()
 	select {
 	case ch <- bundle:
 		// Successfully sent
 	case <-time.After(closeEventBundleChTimeout):
 		// Timeout sending to channel - subscriber not reading, events will be lost
 		log.Errorf("collector %q dropped %d event(s) after %v timeout, subscriber is not reading from channel. This may cause data inconsistency for this subscriber.", name, len(bundle.Events), closeEventBundleChTimeout)
-		telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
+		telemetry.NotificationsSent.Inc(name, telemetry.StatusError, "true")
 		// Close acknowledgment channel to prevent resource leak
 		close(bundle.Ch)
 		return
@@ -1093,10 +1104,10 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 	if wait {
 		select {
 		case <-bundle.Ch:
-			telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess)
+			telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess, "false")
 		case <-time.After(eventBundleChTimeout):
 			log.Warnf("collector %q did not close the event bundle channel in time, continuing with downstream collectors. bundle size: %d", name, len(bundle.Events))
-			telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
+			telemetry.NotificationsSent.Inc(name, telemetry.StatusError, "false")
 		}
 	}
 }

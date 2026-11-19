@@ -63,6 +63,11 @@ type Payload struct {
 	UUID      string           `json:"uuid"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeHostGPU
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -149,7 +154,7 @@ func (gh *gpuHost) fillData() {
 	}
 }
 
-func (gh *gpuHost) getPayload() marshaler.JSONMarshaler {
+func (gh *gpuHost) getPayload() marshaler.TypedJSONMarshaler {
 	gh.fillData()
 
 	if len(gh.data.Devices) == 0 {

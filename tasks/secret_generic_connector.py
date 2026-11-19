@@ -9,7 +9,7 @@ import sys
 from invoke import task
 
 from tasks.build_tags import get_default_build_tags
-from tasks.flavor import AgentFlavor
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING, REPO_PATH
 from tasks.libs.common.go import go_build
@@ -30,7 +30,7 @@ def build(
     go_mod="readonly",
     output_bin=None,
     strip_binary=True,
-    fips_mode=False,
+    fips_backend=FipsBackend.none,
     arch_suffix=False,
     enable_bazel=False,
 ):
@@ -46,9 +46,8 @@ def build(
             )
         if race:
             raise NotImplementedError("--enable-bazel does not support --race. Use bazel build directly.")
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
         build_binary_with_bazel(
-            "//cmd/secret-generic-connector:secret-generic-connector", args=bazel_args, bin_path=BIN_PATH
+            "//cmd/secret-generic-connector:secret-generic-connector", bin_path=BIN_PATH, fips_backend=fips_backend
         )
         return
 
@@ -56,13 +55,14 @@ def build(
 
     # generate windows resources
     if sys.platform == 'win32':
-        build_messagetable(ctx)
+        build_messagetable(ctx, fips_backend=fips_backend)
         vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/secret-generic-connector/windows_resources/secret-generic-connector.rc",
             vars=vars,
             out="cmd/secret-generic-connector/rsrc.syso",
+            fips_backend=fips_backend,
         )
 
     ldflags, gcflags, env = get_build_flags(ctx)
@@ -71,10 +71,10 @@ def build(
     # https://github.com/DataDog/datadog-secret-backend/blob/v1/.github/workflows/release.yaml
     ldflags += f" -X main.appVersion={version}"
     if strip_binary:
-        if fips_mode:
-            ldflags += " -w"
-        else:
+        if fips_backend == FipsBackend.none:
             ldflags += " -s -w"
+        else:
+            ldflags += " -w"
 
     # gcflags: -l disables inlining to reduce binary size.
     # get_build_flags() only sets gcflags for DELVE/NO_GO_OPT, and both already disable inlining,
@@ -85,11 +85,8 @@ def build(
 
     # FIPS mode requires CGO for BoringCrypto bindings
     # Non-FIPS builds use CGO_ENABLED=0 for static binary
-    env["CGO_ENABLED"] = "1" if fips_mode else "0"
-
-    build_tags = get_default_build_tags(
-        build="secret-generic-connector", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
-    )
+    env["CGO_ENABLED"] = "0" if fips_backend == FipsBackend.none else "1"
+    build_tags = get_default_build_tags(build="secret-generic-connector", flavor=fips_backend.agent_flavor())
     bin_path = output_bin or BIN_PATH
 
     if arch_suffix:
@@ -108,6 +105,7 @@ def build(
         bin_path=bin_path,
         env=env,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        fips_backend=fips_backend,
     )
 
 

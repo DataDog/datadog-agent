@@ -1,8 +1,10 @@
+import io
 import os
 import subprocess
 import unittest
 from unittest.mock import patch
 
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import bazel, package_from_path, split_label
 from tasks.libs.common.utils import get_repo_root
 
@@ -39,6 +41,39 @@ class TestBazel(unittest.TestCase):
 
     @patch("tasks.libs.build.bazel._run_command")
     @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_capture_stderr(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("/bzlx info", 0, "", "err\n")
+        self.assertEqual(bazel("info", capture_stderr=True), "err\n")
+
+    @patch("tasks.libs.build.bazel._run_command")
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_capture_stderr_printed_on_failure(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("/bzlx info", 2, "", "err\n")
+        with patch("sys.stderr", new_callable=io.StringIO) as stderr, self.assertRaises(SystemExit) as cm:
+            bazel("info", capture_stderr=True)
+        self.assertEqual(cm.exception.code, 2)
+        self.assertTrue(stderr.getvalue().endswith("err\n"))
+
+    @patch("tasks.libs.build.bazel._run_command")
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_allowed_exit_codes_tolerated(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("/bzlx info", 4, "out\n", "")
+        self.assertEqual(bazel("info", capture_output=True, allowed_exit_codes=frozenset({4})), "out\n")
+
+    @patch("tasks.libs.build.bazel._run_command")
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_disallowed_exit_code_still_fails(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("/bzlx info", 2, "", "err\n")
+        with self.assertRaises(SystemExit) as cm:
+            bazel("info", allowed_exit_codes=frozenset({4}))
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_capture_both_requires_ignore_errors(self):
+        with self.assertRaises(ValueError):
+            bazel("info", capture_output=True, capture_stderr=True)
+
+    @patch("tasks.libs.build.bazel._run_command")
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
     def test_input_disabled_by_default(self, _, run_command):
         run_command.return_value = subprocess.CompletedProcess("/bzlx info", 0, "", "")
         bazel("info")
@@ -64,25 +99,58 @@ class TestBazel(unittest.TestCase):
     @patch.dict(os.environ, {"AGENT_FLAVOR": "fips", "INSTALL_DIR": "/opt"})
     def test_inserted_omnibazel_flags(self, _, run_command):
         run_command.return_value = subprocess.CompletedProcess(
-            "/bzlx --batch run --//packages/agent:flavor=fips --//:install_dir=/opt --//:output_config_dir= //:go",
+            "/bzlx --batch run --platforms=//bazel/platforms:linux_x86_64_fips --//:install_dir=/opt --//:output_config_dir= //:go",
             0,
             "",
             "",
         )
-        with patch("tasks.libs.build.bazel.sys.platform", "linux"):
-            bazel("--batch", "run", "//:go")
+        with (
+            patch("tasks.libs.build.bazel.platform.system", return_value="Linux"),
+            patch("tasks.libs.types.arch.platform.machine", return_value="x86_64"),
+        ):
+            bazel("--batch", "run", "//:go", fips_backend=FipsBackend.msgo)
         self.assertEqual(
             run_command.call_args.args[0],
             (
                 "/bzlx",
                 "--batch",
                 "run",
-                "--//packages/agent:flavor=fips",
+                "--platforms=//bazel/platforms:linux_x86_64_fips",
                 "--//:install_dir=/opt",
                 "--//:output_config_dir=",
                 "//:go",
             ),
         )
+
+    @patch("tasks.libs.build.bazel._run_command")
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    @patch.dict(os.environ, {"AGENT_FLAVOR": "fips"}, clear=True)
+    def test_fips_agent_flavor_without_fips_backend(self, _, run_command):
+        with self.assertRaises(ValueError):
+            bazel("build", "//:go")
+        run_command.assert_not_called()
+
+    @patch("tasks.libs.build.bazel._run_command")
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    @patch.dict(os.environ, {}, clear=True)
+    def test_fips_backend(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("", 0, "", "")
+        with (
+            patch("tasks.libs.build.bazel.platform.system", return_value="Linux"),
+            patch("tasks.libs.types.arch.platform.machine", return_value="aarch64"),
+        ):
+            bazel("build", "//:go", fips_backend=FipsBackend.msgo)
+        self.assertEqual(
+            run_command.call_args.args[0],
+            ("/bzlx", "build", "--platforms=//bazel/platforms:linux_arm64_fips", "//:go"),
+        )
+
+    @patch("tasks.libs.build.bazel._run_command")
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_unsupported_fips_backend(self, _, run_command):
+        with self.assertRaises(NotImplementedError):
+            bazel("build", "//:go", fips_backend=FipsBackend.boringcrypto)
+        run_command.assert_not_called()
 
 
 class TestSplitLabel(unittest.TestCase):

@@ -1,0 +1,11 @@
+description: Heredoc input piped to grep works correctly.
+input:
+  script: |+
+    grep hello <<EOF | cat
+    hello world
+    goodbye world
+    EOF
+expect:
+  stdout: "hello world\n"
+  stderr: ""
+  exit_code: 0

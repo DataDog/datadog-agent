@@ -102,7 +102,7 @@ func dogtelGatewayProvisioner() provisioners.TypedProvisioner[environments.Kuber
 			}),
 		)
 	}
-	if isKindLocal() {
+	if provlocal.IsKindLocal() {
 		return provlocal.Provisioner(
 			provlocal.WithStandaloneOTelAgent(deployFn),
 			provlocal.WithAgentOptions(
@@ -116,6 +116,8 @@ func dogtelGatewayProvisioner() provisioners.TypedProvisioner[environments.Kuber
 	}
 	return provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 			scenkindvm.WithAgentOptions(
 				kubernetesagentparams.WithHelmValues(dogtelGatewayHelmValues),

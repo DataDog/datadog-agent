@@ -23,6 +23,8 @@ const (
 	ContainerImageScanType ScanType = "container-image"
 	// HostScanType defines the host scan type
 	HostScanType ScanType = "host"
+	// ProcfsScanType defines the scan type of containers scanned through procfs
+	ProcfsScanType ScanType = "procfs"
 	// ContainerdCollector is the name of the containerd collector
 	ContainerdCollector = "containerd"
 	// CrioCollector is the name of the containerd collector

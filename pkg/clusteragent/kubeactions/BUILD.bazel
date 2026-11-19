@@ -33,7 +33,10 @@ go_library(
 
 dd_agent_go_test(
     name = "kubeactions_test",
-    srcs = ["action_store_test.go"],
+    srcs = [
+        "action_store_test.go",
+        "validator_test.go",
+    ],
     embed = [":kubeactions"],
     gotags_sets = [[
         "cel",
@@ -42,4 +45,9 @@ dd_agent_go_test(
         "kubelet",
     ]],
     include_default = False,
+    deps = [
+        "@com_github_datadog_agent_payload_v5//kubeactions",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

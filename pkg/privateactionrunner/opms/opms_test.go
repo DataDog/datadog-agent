@@ -23,9 +23,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 )
 
@@ -44,11 +44,10 @@ func newTestKey(t *testing.T) *ecdsa.PrivateKey {
 // newTestClient builds a client wired to the given httptest server.
 func newTestClient(t *testing.T, srv *httptest.Server) *client {
 	t.Helper()
-	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
 	return &client{
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 		config: &config.Config{
-			DDHost:             srv.URL,
+			APIBaseURL:         srv.URL,
 			OpmsRequestTimeout: 5000,
 			OrgId:              1,
 			RunnerId:           "test-runner",
@@ -59,15 +58,8 @@ func newTestClient(t *testing.T, srv *httptest.Server) *client {
 }
 
 func TestEndpointURL(t *testing.T) {
-	cfg := &config.Config{
-		DDHost:    "http://fakeintake.test:8080",
-		DDApiHost: "api.datadoghq.com",
-	}
-	client := &client{config: cfg}
-
+	client := &client{config: &config.Config{APIBaseURL: "https://api.datadoghq.com"}}
 	assert.Equal(t, "https://api.datadoghq.com/task", client.endpointURL("/task"))
-
-	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
 	for _, test := range []struct {
 		name     string
 		ddHost   string
@@ -84,13 +76,13 @@ func TestEndpointURL(t *testing.T) {
 			expected: "https://fakeintake.test:8443/task",
 		},
 		{
-			name:     "normalized HTTPS URL",
-			ddHost:   "fakeintake.test:8443",
+			name:     "trailing slash",
+			ddHost:   "https://fakeintake.test:8443/",
 			expected: "https://fakeintake.test:8443/task",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			client.config.DDHost = test.ddHost
+			client.config.APIBaseURL = test.ddHost
 			assert.Equal(t, test.expected, client.endpointURL("/task"))
 		})
 	}
@@ -253,6 +245,27 @@ func TestDequeueTask_RetryAfterMs_OnErrorResponse(t *testing.T) {
 }
 
 // ---------- HealthCheck ----------
+
+func TestHealthCheckUsesPAROverride(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/prefix"+healthCheckPath, r.URL.Path)
+		assert.NotEmpty(t, r.Header.Get("X-Datadog-OnPrem-JWT"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"site":                             "datadoghq.eu",
+		"private_action_runner.par_dd_url": srv.URL + "/prefix/",
+		"private_action_runner.enabled":    true,
+		"remote_configuration.rc_dd_url":   "https://rc-proxy.example.com",
+	})
+	runner, err := config.FromDDConfig(cfg, nil)
+	require.NoError(t, err)
+	runner.PrivateKey, runner.OrgId, runner.RunnerId = newTestKey(t), 1, "test-runner"
+	_, err = NewClient(cfg, runner).HealthCheck(context.Background())
+	require.NoError(t, err)
+}
 
 func TestHealthCheck_RetryAfterMs(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

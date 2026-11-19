@@ -1,0 +1,13 @@
+description: Nested group commands work correctly.
+setup:
+  files:
+    - path: input.txt
+      content: "foo bar\nhello world\nfoo baz\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '/foo/{ s/foo/FOO/; /bar/{ s/bar/BAR/; } }' input.txt
+expect:
+  stdout: "FOO BAR\nhello world\nFOO baz\n"
+  stderr: ""
+  exit_code: 0

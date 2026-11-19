@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CSPM: On hosts in FIPS mode, ``oscap-io`` aborted before its first rule
+    with "out of core in secure memory" wherever it could not lock memory,
+    as in system-probe, whose seccomp profile denies ``mlock``. It now
+    evaluates the XCCDF rules there.

@@ -11,6 +11,7 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/credentials"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
@@ -38,6 +39,7 @@ type initConfig struct {
 // documentInstance is one device of the document's instances list.
 type documentInstance struct {
 	IPAddress             string                              `json:"ip_address"`
+	InventoryID           string                              `json:"inventory_id"`
 	CredID                string                              `json:"cred_id"`
 	Port                  int                                 `json:"port"`
 	TimeoutSec            int                                 `json:"timeout_sec"`
@@ -90,6 +92,7 @@ type checkPingLinuxBlock struct {
 // omitted so the check applies its own default.
 type checkInstance struct {
 	IPAddress             string                              `yaml:"ip_address"`
+	InventoryID           string                              `yaml:"inventory_id,omitempty"`
 	SNMPVersion           string                              `yaml:"snmp_version"`
 	CommunityString       string                              `yaml:"community_string,omitempty"`
 	User                  string                              `yaml:"user,omitempty"`
@@ -141,9 +144,10 @@ func renderInitConfig(ic initConfig, sharedPing *pingOptions) (integration.Data,
 
 // renderInstance joins a document instance with its credential. A nil ping
 // leaves ping off for the device.
-func renderInstance(in documentInstance, c credential, ping *pingOptions) (integration.Data, error) {
+func renderInstance(in documentInstance, c credentials.Credential, ping *pingOptions) (integration.Data, error) {
 	body, err := yaml.Marshal(checkInstance{
 		IPAddress:             in.IPAddress,
+		InventoryID:           in.InventoryID,
 		SNMPVersion:           c.SNMPVersion,
 		CommunityString:       c.CommunityString,
 		User:                  c.User,

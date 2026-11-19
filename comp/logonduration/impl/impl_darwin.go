@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -57,7 +57,7 @@ func (w *sysProbeClientWrapper) GetLoginTimestamps(ctx context.Context) (logondu
 	)
 
 	for {
-		timestamps, err := sysprobeclient.GetCheck[logonduration.LoginTimestamps](client, sysconfig.LogonDurationModule)
+		timestamps, err := sysprobeclient.GetCheck[logonduration.LoginTimestamps](client, sysconfigtypes.LogonDurationModule)
 		if err == nil {
 			return timestamps, nil
 		}

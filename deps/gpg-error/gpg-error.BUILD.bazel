@@ -13,7 +13,7 @@ package(
     default_visibility = ["//packages:__subpackages__"],
 )
 
-VERSION = "1.47"
+VERSION = "1.61"
 
 package_metadata(
     name = "package_metadata",
@@ -209,7 +209,7 @@ config_to_abi = {
 mkheader_cmds = {
     arch: """cp $(execpath :lock-obj-pub_native_h) $$(pwd) && \
             $(execpath :mkheader) {} $(execpath src/gpg-error.h.in) $(execpath :copy_config_h) \
-            1.47 0x012F00 > $@""".format(arch)
+            {} 0x013D00 > $@""".format(arch, VERSION)
     for arch in config_to_abi.keys()
 }
 
@@ -283,6 +283,7 @@ cc_library(
         "GPGRT_ENABLE_ARGPARSE_MACROS=1",
         "HAVE_CONFIG_H",
         "LOCALEDIR=NULL",
+        'SYSCONFDIR=\\"/opt/datadog-agent/embedded/etc\\"',
     ],
     visibility = ["//visibility:public"],
 )
@@ -304,7 +305,7 @@ dd_cc_packaged(
     data = [":hdr_files"],
     dest_dir = "embedded/lib",
     input = ":gpg-error",
-    version = "0.34.0",
+    version = "0.42.1",
     visibility = ["//visibility:public"],
 )
 

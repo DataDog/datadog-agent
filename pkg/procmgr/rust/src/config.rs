@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::config_gate::ConditionConfigFile;
+use crate::config_gate::{ConditionConfigFile, HostOs};
 use crate::platform;
+use crate::spawn::{RequestedIdentity, translate};
 use anyhow::{Context, Result};
 use log::{debug, info, warn};
 use serde::Deserialize;
@@ -269,6 +270,12 @@ pub struct ProcessConfig {
     pub after: Vec<String>,
     #[serde(default)]
     pub before: Vec<String>,
+    /// Exit the daemon with this process's code (incl. 0). Overrides `restart`.
+    #[serde(default)]
+    pub exit_with_supervisor: bool,
+    // Crate-private: ProcessConfig is public and RequestedIdentity is not.
+    #[serde(default)]
+    pub(crate) identity: RequestedIdentity,
 }
 
 const DEFAULT_STOP_TIMEOUT_SECS: u64 = 90;
@@ -303,6 +310,8 @@ impl Default for ProcessConfig {
             runtime_success_sec: None,
             after: vec![],
             before: vec![],
+            exit_with_supervisor: false,
+            identity: RequestedIdentity::default(),
         }
     }
 }
@@ -420,7 +429,15 @@ fn parse_config(path: &Path) -> Result<ProcessConfig> {
         std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
     let config: ProcessConfig =
         serde_yaml::from_str(&contents).with_context(|| format!("parsing {}", path.display()))?;
+    validate_identity(&config.identity, HostOs::CURRENT)
+        .with_context(|| format!("parsing {}", path.display()))?;
     Ok(config)
+}
+
+fn validate_identity(identity: &RequestedIdentity, os: HostOs) -> Result<()> {
+    translate(identity, os)
+        .map(|_| ())
+        .map_err(anyhow::Error::msg)
 }
 
 #[cfg(test)]
@@ -674,6 +691,26 @@ condition_path_exists: /usr/bin/sleep
     }
 
     #[test]
+    fn test_exit_with_supervisor_defaults_false() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("p.yaml"), "command: /a\n").unwrap();
+        let configs = load_configs(dir.path()).unwrap().processes;
+        assert!(!configs[0].config.exit_with_supervisor);
+    }
+
+    #[test]
+    fn test_exit_with_supervisor_true() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("p.yaml"),
+            "command: /a\nexit_with_supervisor: true\n",
+        )
+        .unwrap();
+        let configs = load_configs(dir.path()).unwrap().processes;
+        assert!(configs[0].config.exit_with_supervisor);
+    }
+
+    #[test]
     fn test_load_configs_nonexistent_directory() {
         let result = load_configs(Path::new("/nonexistent/processes.d"));
         assert!(result.is_err());
@@ -779,5 +816,285 @@ stderr: inherit
             np.config.condition_path_exists.as_deref(),
             Some("/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent")
         );
+    }
+
+    #[test]
+    fn test_absent_empty_and_bare_identity_are_the_default() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("absent.yaml"), "command: /bin/true\n").unwrap();
+        fs::write(
+            dir.path().join("empty.yaml"),
+            "command: /bin/true\nidentity: {}\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("bare.yaml"),
+            "command: /bin/true\nidentity:\n",
+        )
+        .unwrap();
+
+        let catalog = load_configs(dir.path()).unwrap();
+        assert!(
+            catalog.invalid.is_empty(),
+            "default identity forms must load: {:?}",
+            catalog.invalid
+        );
+        assert_eq!(catalog.processes.len(), 3);
+        let absent = &catalog.processes[0].config;
+        let bare = &catalog.processes[1].config;
+        let empty = &catalog.processes[2].config;
+        assert_eq!(absent.identity, RequestedIdentity::default());
+        assert_eq!(bare.identity, RequestedIdentity::default());
+        assert_eq!(empty.identity, RequestedIdentity::default());
+        assert_eq!(absent, bare);
+        assert_eq!(bare, empty);
+    }
+
+    #[test]
+    fn test_identity_parses_run_as_and_grants() {
+        use crate::spawn::{Grant, RunAs};
+        use std::collections::BTreeSet;
+
+        let privileged: ProcessConfig =
+            serde_yaml::from_str("command: /bin/true\nidentity:\n  run_as: privileged\n").unwrap();
+        assert_eq!(
+            privileged.identity,
+            RequestedIdentity {
+                run_as: RunAs::Privileged,
+                grants: BTreeSet::new(),
+            }
+        );
+
+        let bind: ProcessConfig = serde_yaml::from_str(
+            "command: /bin/true\nidentity:\n  run_as: agent\n  grants: [bind-privileged-ports]\n",
+        )
+        .unwrap();
+        assert_eq!(
+            bind.identity,
+            RequestedIdentity {
+                run_as: RunAs::Agent,
+                grants: BTreeSet::from([Grant::BindPrivilegedPorts]),
+            }
+        );
+
+        let raw: ProcessConfig = serde_yaml::from_str(
+            "command: /bin/true\nidentity:\n  run_as: agent\n  grants: [raw-network]\n",
+        )
+        .unwrap();
+        assert_eq!(
+            raw.identity,
+            RequestedIdentity {
+                run_as: RunAs::Agent,
+                grants: BTreeSet::from([Grant::RawNetwork]),
+            }
+        );
+
+        let bare_grants: ProcessConfig =
+            serde_yaml::from_str("command: /bin/true\nidentity:\n  grants:\n").unwrap();
+        assert_eq!(bare_grants.identity, RequestedIdentity::default());
+    }
+
+    #[test]
+    fn test_identity_grant_order_does_not_change_the_config() {
+        let forward: ProcessConfig = serde_yaml::from_str(
+            "command: /bin/true\nidentity:\n  grants: [raw-network, bind-privileged-ports]\n",
+        )
+        .unwrap();
+        let reverse: ProcessConfig = serde_yaml::from_str(
+            "command: /bin/true\nidentity:\n  grants: [bind-privileged-ports, raw-network]\n",
+        )
+        .unwrap();
+        assert_eq!(forward, reverse);
+    }
+
+    #[test]
+    fn test_invalid_identity_is_invalid_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let cases = [
+            (
+                "unknown-key.yaml",
+                "command: /bin/true\nidentity:\n  extra: 1\n",
+                "unknown field `extra`",
+            ),
+            (
+                "unknown-run-as.yaml",
+                "command: /bin/true\nidentity:\n  run_as: root\n",
+                "unknown variant `root`",
+            ),
+            (
+                "unknown-grant.yaml",
+                "command: /bin/true\nidentity:\n  grants: [not-a-grant]\n",
+                "unknown variant `not-a-grant`",
+            ),
+            (
+                "duplicate-grant.yaml",
+                "command: /bin/true\nidentity:\n  grants: [raw-network, raw-network]\n",
+                "duplicate grant raw-network",
+            ),
+            (
+                "null.yaml",
+                "command: /bin/true\nidentity: null\n",
+                "unit value, expected a mapping with optional run_as and grants",
+            ),
+            (
+                "tilde.yaml",
+                "command: /bin/true\nidentity: ~\n",
+                "unit value, expected a mapping with optional run_as and grants",
+            ),
+            (
+                "integer.yaml",
+                "command: /bin/true\nidentity: 1\n",
+                "integer `1`, expected a mapping with optional run_as and grants",
+            ),
+            (
+                "privileged-grant.yaml",
+                "command: /bin/true\nidentity:\n  run_as: privileged\n  grants: [bind-privileged-ports]\n",
+                "identity: grants are not allowed with run_as privileged",
+            ),
+            (
+                "sequence.yaml",
+                "command: /bin/true\nidentity: [bind-privileged-ports]\n",
+                "sequence, expected a mapping with optional run_as and grants",
+            ),
+            (
+                "string.yaml",
+                "command: /bin/true\nidentity: agent\n",
+                "string \"agent\", expected a mapping with optional run_as and grants",
+            ),
+        ];
+        for (name, yaml, _) in cases {
+            fs::write(dir.path().join(name), yaml).unwrap();
+        }
+
+        let catalog = load_configs(dir.path()).unwrap();
+        assert!(catalog.processes.is_empty());
+        assert_eq!(catalog.invalid.len(), cases.len());
+        for (name, _, needle) in cases {
+            let stem = name.trim_end_matches(".yaml");
+            let entry = catalog
+                .invalid
+                .iter()
+                .find(|entry| entry.name == stem)
+                .unwrap_or_else(|| panic!("missing invalid entry {stem}"));
+            assert!(
+                entry.error.contains(needle),
+                "{stem} error should name the problem ({needle}): {}",
+                entry.error
+            );
+        }
+    }
+
+    #[test]
+    fn test_unknown_top_level_key_still_loads() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("future.yaml"),
+            "command: /bin/true\nfuture_key: 1\n",
+        )
+        .unwrap();
+
+        let catalog = load_configs(dir.path()).unwrap();
+        assert!(catalog.invalid.is_empty(), "{:?}", catalog.invalid);
+        assert_eq!(catalog.processes.len(), 1);
+        assert_eq!(catalog.processes[0].config.command, "/bin/true");
+        assert_eq!(
+            catalog.processes[0].config.identity,
+            RequestedIdentity::default()
+        );
+    }
+
+    #[test]
+    fn test_validate_identity_for_every_host_os() {
+        use crate::spawn::{Grant, RunAs};
+        use std::collections::BTreeSet;
+
+        // `Unavailable` is a grant the given `HostOs` cannot translate. `Unsupported` is
+        // `run_as: privileged` on `HostOs::Other`.
+        enum Expect {
+            Ok,
+            Unavailable(&'static str, &'static str),
+            Unsupported,
+        }
+
+        let agent = RequestedIdentity::default();
+        let bind = RequestedIdentity {
+            run_as: RunAs::Agent,
+            grants: BTreeSet::from([Grant::BindPrivilegedPorts]),
+        };
+        let raw = RequestedIdentity {
+            run_as: RunAs::Agent,
+            grants: BTreeSet::from([Grant::RawNetwork]),
+        };
+        let privileged = RequestedIdentity {
+            run_as: RunAs::Privileged,
+            grants: BTreeSet::new(),
+        };
+
+        let hosts = [HostOs::Linux, HostOs::MacOs, HostOs::Windows, HostOs::Other];
+        for os in hosts {
+            validate_identity(&agent, os)
+                .unwrap_or_else(|err| panic!("agent with no grants should pass on {os:?}: {err}"));
+        }
+
+        let cases = [
+            (HostOs::Linux, &bind, Expect::Ok),
+            (
+                HostOs::MacOs,
+                &bind,
+                Expect::Unavailable("bind-privileged-ports", "macos"),
+            ),
+            (HostOs::Windows, &bind, Expect::Ok),
+            (
+                HostOs::Other,
+                &bind,
+                Expect::Unavailable("bind-privileged-ports", "other"),
+            ),
+            (HostOs::Linux, &raw, Expect::Ok),
+            (
+                HostOs::MacOs,
+                &raw,
+                Expect::Unavailable("raw-network", "macos"),
+            ),
+            (
+                HostOs::Windows,
+                &raw,
+                Expect::Unavailable("raw-network", "windows"),
+            ),
+            (
+                HostOs::Other,
+                &raw,
+                Expect::Unavailable("raw-network", "other"),
+            ),
+            (HostOs::Linux, &privileged, Expect::Ok),
+            (HostOs::MacOs, &privileged, Expect::Ok),
+            (HostOs::Windows, &privileged, Expect::Ok),
+            (HostOs::Other, &privileged, Expect::Unsupported),
+        ];
+
+        for (os, identity, expect) in cases {
+            match expect {
+                Expect::Ok => {
+                    validate_identity(identity, os)
+                        .unwrap_or_else(|err| panic!("{os:?} {identity:?} should pass: {err}"));
+                }
+                Expect::Unavailable(grant, platform) => {
+                    let err = match validate_identity(identity, os) {
+                        Ok(_) => panic!("{os:?} {identity:?} should fail"),
+                        Err(err) => err.to_string(),
+                    };
+                    assert!(err.starts_with("identity:"), "{os:?}: {err}");
+                    assert!(err.contains(grant), "{os:?}: {err}");
+                    assert!(err.contains(platform), "{os:?}: {err}");
+                }
+                Expect::Unsupported => {
+                    let err = validate_identity(identity, os)
+                        .expect_err("privileged on Other should fail")
+                        .to_string();
+                    assert!(err.starts_with("identity:"), "{err}");
+                    assert!(err.contains("run_as privileged"), "{err}");
+                    assert!(err.contains("other"), "{err}");
+                }
+            }
+        }
     }
 }

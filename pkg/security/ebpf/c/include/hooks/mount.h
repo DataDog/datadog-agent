@@ -536,6 +536,14 @@ int hook_clone_mnt(ctx_t *ctx) {
 
 HOOK_EXIT("clone_mnt")
 int rethook_clone_mnt(ctx_t *ctx) {
+    struct syscall_cache_t *fork_syscall = peek_syscall(EVENT_FORK);
+    if (fork_syscall) {
+        if (!fork_syscall->fork.newmnt) {
+            fork_syscall->fork.newmnt = (struct mount *)CTX_PARMRET(ctx);
+        }
+        return 0;
+    }
+
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN_TREE);
 
     if (!syscall) {
