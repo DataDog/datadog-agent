@@ -127,6 +127,8 @@ func TestReadMetricsGraphicsClockFallsBackToHwmon(t *testing.T) {
 		"no pp_dpm_sclk":            {hwmon: sclkHwmon},
 		"RAS interrupt":             {sclk: "unavailable\n", hwmon: sclkHwmon}, // the hwmon value is not set then
 		"unparsable active level":   {sclk: "1: fastMhz *\n", hwmon: sclkHwmon, wantErr: "pp_dpm_sclk"},
+		"unparsable unmarked table": {sclk: "0: fastMhz\n", hwmon: sclkHwmon},
+		"unparsable unmarked level": {sclk: "0: 500Mhz \n1: fastMhz\n", hwmon: sclkHwmon},
 		"active level preferred":    {sclk: "0: 500Mhz \n1: 1420Mhz *\n2: 2200Mhz \n", hwmon: sclkHwmon, want: valid(1420)},
 		"deep sleep level":          {sclk: "S: 49Mhz *\n1: 500Mhz \n2: 2200Mhz \n", hwmon: sclkHwmon, want: valid(49)},
 		"no sclk label":             {sclk: linux70Sclk, hwmon: map[string]string{"freq2_label": "mclk\n", "freq2_input": "2000000000\n"}},

@@ -236,16 +236,25 @@ func (r *reader) int(path string, scale float64) Reading {
 // in a pp_dpm_* table. Lines look like "1: 1700Mhz *", "S: 19Mhz *" (deep
 // sleep) or "0:        872Mhz"; the value and its unit may be separated by
 // spaces. This follows the parser of ROCm SMI (rocm_smi.cc, freq_lines).
-// unmarked reports a table that lists levels but marks none. During a RAS
-// interrupt, the table reads "unavailable" or fails with EBUSY, depending on
-// the kernel and GPU.
+// unmarked reports a table whose lines all parse as levels but none is
+// marked. During a RAS interrupt, the table reads "unavailable" or fails with
+// EBUSY, depending on the kernel and GPU.
 func (r *reader) activeDPMLevel(path string) (level Reading, unmarked bool) {
 	content, ok := r.read(path)
 	if !ok {
 		return Reading{}, false
 	}
+	levels, malformed := false, false
 	for line := range strings.Lines(content) {
 		if !strings.Contains(line, "*") {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			if _, err := parseDPMFrequency(line); err != nil {
+				malformed = true
+			} else {
+				levels = true
+			}
 			continue
 		}
 		mhz, err := parseDPMFrequency(line)
@@ -255,7 +264,7 @@ func (r *reader) activeDPMLevel(path string) (level Reading, unmarked bool) {
 		}
 		return valid(mhz), false
 	}
-	return Reading{}, strings.Contains(content, ":")
+	return Reading{}, levels && !malformed
 }
 
 // parseDPMFrequency parses the frequency of one pp_dpm_* line, in MHz.
