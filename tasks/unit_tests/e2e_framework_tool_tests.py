@@ -1,4 +1,3 @@
-import os
 import unittest
 from unittest import mock
 
@@ -22,6 +21,13 @@ def _env(ctx) -> dict:
     return ctx.run.call_args.kwargs["env"]
 
 
+def _run_bare_pulumi(test: unittest.TestCase):
+    """Make commands start with `pulumi`: what runs the CLI is TestPulumiCommand's concern."""
+    patcher = mock.patch.object(tool, "pulumi_command", return_value="pulumi")
+    patcher.start()
+    test.addCleanup(patcher.stop)
+
+
 class TestRunPulumi(unittest.TestCase):
     def setUp(self):
         # Neither the caller's shell nor a real config file should leak into the assertions.
@@ -31,6 +37,7 @@ class TestRunPulumi(unittest.TestCase):
         passphrase = mock.patch.object(tool, "_local_pulumi_passphrase", return_value=None)
         passphrase.start()
         self.addCleanup(passphrase.stop)
+        _run_bare_pulumi(self)
 
     def test_project_dir_default_uses_the_e2e_framework_project(self):
         ctx = _run_mock()
@@ -85,6 +92,7 @@ class TestPulumiEnv(unittest.TestCase):
         patcher = mock.patch.dict("os.environ", {}, clear=True)
         patcher.start()
         self.addCleanup(patcher.stop)
+        _run_bare_pulumi(self)
 
     def test_passphrase_comes_from_the_local_config(self):
         with mock.patch.object(tool, "_local_pulumi_passphrase", return_value="from-config"):
@@ -133,15 +141,16 @@ class TestPulumiEnv(unittest.TestCase):
             self.assertIsNone(tool._local_pulumi_passphrase(None))
 
 
-class TestInstallPulumi(unittest.TestCase):
-    def test_installs_with_bazel_and_goes_first_on_path(self):
-        env = {"PULUMI_HOME": "/pulumi", "PATH": os.pathsep.join(["/usr/local/bin", "/pulumi/bin", "/usr/bin"])}
-        with mock.patch.dict("os.environ", env, clear=True), mock.patch.object(tool, "bazel") as bazel:
-            tool.install_pulumi()
-            path = os.environ["PATH"]
-        bazel.assert_called_once_with("run", "@pulumi_cli//:install", "--", "--destdir=/pulumi/bin")
-        # It shadows the image's copy, without adding a duplicate when it was already on the PATH.
-        self.assertEqual(path, os.pathsep.join(["/pulumi/bin", "/usr/local/bin", "/usr/bin"]))
+class TestPulumiCommand(unittest.TestCase):
+    def test_runs_the_pinned_cli_through_bazel(self):
+        with mock.patch.object(tool.shutil, "which", return_value="/bin/bazelisk"):
+            command = tool.pulumi_command()
+        self.assertTrue(command.startswith("/bin/bazelisk run "))
+        self.assertTrue(command.endswith(" //internal/tools:pulumi --"))
+
+    def test_fails_without_bazel(self):
+        with mock.patch.object(tool.shutil, "which", return_value=None), self.assertRaises(SystemExit):
+            tool.pulumi_command()
 
 
 class TestPulumiStackNames(unittest.TestCase):
@@ -149,6 +158,7 @@ class TestPulumiStackNames(unittest.TestCase):
         patcher = mock.patch.object(tool, "_local_pulumi_passphrase", return_value=None)
         patcher.start()
         self.addCleanup(patcher.stop)
+        _run_bare_pulumi(self)
 
     def test_names_are_read_from_json(self):
         ctx = _run_mock(stdout='[{"name": "a"}, {"name": "b"}, {"current": true}]')

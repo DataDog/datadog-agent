@@ -7,7 +7,7 @@ from pathlib import Path
 
 from invoke.context import Context
 
-from tasks.e2e_framework.tool import install_pulumi, install_pulumi_plugins, pulumi_bin_dir
+from tasks.e2e_framework.tool import install_pulumi_plugins, pulumi_command
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import get_repo_root, is_installed
 from tasks.libs.types.arch import Arch
@@ -36,7 +36,7 @@ def get_requirements() -> list[Requirement]:
 
 class Pulumi(Requirement):
     def _check_user_logged_in(self, ctx: Context) -> RequirementState:
-        pulumi_about_res = ctx.run("pulumi about", warn=True)
+        pulumi_about_res = ctx.run(f"{pulumi_command()} about", warn=True)
         if pulumi_about_res is None or not pulumi_about_res.ok:
             return RequirementState(Status.FAIL, "pulumi is not installed correctly.")
 
@@ -47,29 +47,13 @@ class Pulumi(Requirement):
         return RequirementState(Status.FAIL, "pulumi is not logged in.")
 
     def check(self, ctx: Context, fix: bool) -> RequirementState:
-        if shutil.which("pulumi") is None:
-            if Path(pulumi_bin_dir(), "pulumi").exists():
-                return RequirementState(
-                    Status.FAIL,
-                    f"pulumi installed in {pulumi_bin_dir()} but not in $PATH. Please add that path to your shell configuration",
-                )
-
-            if not fix:
-                return RequirementState(Status.FAIL, "pulumi is not installed.", fixable=True)
-
-            try:
-                # Also puts it on this session's PATH, so that the next checks can call it.
-                install_pulumi()
-            except SystemExit as e:
-                return RequirementState(Status.FAIL, f"pulumi installation failed: {e}")
-
         login_state = self._check_user_logged_in(ctx)
         if login_state.state != Status.OK:
             if not fix:
                 return login_state
 
             try:
-                ctx.run("pulumi login --local")
+                ctx.run(f"{pulumi_command()} login --local")
             except Exception as e:
                 return RequirementState(Status.FAIL, f"pulumi login command failed: {e}")
 
@@ -102,7 +86,7 @@ class PulumiPlugin(Requirement):
         test_infra_repo_run = os.path.join(TestInfraDefinitionsRepo.get_repo_path(), "run")
 
         with ctx.cd(test_infra_repo_run):
-            res = ctx.run("pulumi --non-interactive plugin ls", warn=True)
+            res = ctx.run(f"{pulumi_command()} --non-interactive plugin ls", warn=True)
             # If there are more than 3 lines, then there are plugins installed. The other lines are headers/footers.
             if res is not None and res.ok and len(res.stdout.splitlines()) > 3:
                 return RequirementState(Status.OK, "pulumi plugins installed.")

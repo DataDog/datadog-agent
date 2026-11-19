@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from invoke.context import Context
 
+from tasks.e2e_framework.tool import pulumi_command
 from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.tool import error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
 
 def selftest_pulumi(ctx: Context, _: bool) -> SelftestResult:
     """Tests that pulumi is installed and can be run."""
-    res = ctx.run("pulumi --non-interactive plugin ls", hide=True, warn=True)
+    res = ctx.run(f"{pulumi_command()} --non-interactive plugin ls", hide=True, warn=True)
     if res is None or not res.ok:
         return False, "Cannot run pulumi, check installation"
     return True, "pulumi is installed"
