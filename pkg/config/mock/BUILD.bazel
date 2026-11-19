@@ -4,6 +4,7 @@ go_library(
     name = "mock",
     srcs = [
         "agent_configs.go",
+        "fleet_windows.go",
         "mock.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/mock",
