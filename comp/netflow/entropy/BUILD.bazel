@@ -10,10 +10,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/entropy",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/log/def",
         "//comp/netflow/common",
         "//pkg/aggregator/sender",
-        "//pkg/version",
     ],
 )
 
@@ -22,7 +20,6 @@ dd_agent_go_test(
     srcs = ["entropy_test.go"],
     embed = [":entropy"],
     deps = [
-        "//comp/core/log/mock",
         "//comp/netflow/common",
         "//pkg/aggregator/mocksender",
         "@com_github_stretchr_testify//assert",
