@@ -95,6 +95,7 @@ func (s *packageBaseSuite) testInstall() {
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/security-agent"), 0755, "root", "root")
 	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/ebpf"), 0755, "root", "root")
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
+	s.assertClangBPFHardened(state, agentDir)
 
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentRunSymlink, "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-agent", agentSymlink, "root", "root")
@@ -392,6 +393,22 @@ func (s *packageAgentSuite) TestNoWorldWritableFiles() {
 	}
 }
 
+// assertClangBPFHardened checks that the clang-bpf and llc-bpf binaries system-probe runs as
+// root for eBPF runtime compilation are root-owned, and that the dynamic loader does not search
+// any RPATH/RUNPATH directory for them: $ORIGIN/../lib would resolve to the dd-agent-owned
+// embedded/lib and let dd-agent plant a library that runs as root.
+func (s *packageBaseSuite) assertClangBPFHardened(state host.State, agentDir string) {
+	for _, name := range []string{"clang-bpf", "llc-bpf"} {
+		bin := path.Join(agentDir, "embedded/bin", name)
+		state.AssertFileExists(bin, 0744, "root", "root")
+
+		// LD_DEBUG=libs makes the loader print every library search path, labelled with where
+		// it comes from, e.g. "search path=/opt/datadog-agent/embedded/bin/../lib (RPATH from file ...)".
+		out := s.host.Run(fmt.Sprintf("sudo env LD_DEBUG=libs %s --version 2>&1", bin))
+		s.Require().NotRegexp(`\((RPATH|RUNPATH) from file`, out, name+" has a library search path")
+	}
+}
+
 // unreachableAncestor returns the closest ancestor directory of path that other users cannot
 // traverse, if there is one. Without the execute bit on every directory above it, a file cannot
 // be opened by another user whatever its own mode says. Ancestors missing from the state -- the
@@ -569,6 +586,7 @@ func (s *packageAgentSuite) TestInstallFips() {
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/security-agent"), 0755, "root", "root")
 	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/ebpf"), 0755, "root", "root")
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
+	s.assertClangBPFHardened(state, agentDir)
 
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentRunSymlink, "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-agent", agentSymlink, "root", "root")

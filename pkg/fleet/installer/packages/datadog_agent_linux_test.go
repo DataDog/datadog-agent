@@ -41,6 +41,19 @@ func TestPrivilegedRshellPackagePermissionsProtectParentDirectories(t *testing.T
 	}
 }
 
+func TestRootExecutedBinariesAreRootOwned(t *testing.T) {
+	// system-probe runs as root and executes clang-bpf and llc-bpf for runtime
+	// compilation, so they must not be left writable by dd-agent like the rest of
+	// the package.
+	for _, bin := range []string{"embedded/bin/clang-bpf", "embedded/bin/llc-bpf"} {
+		assert.Contains(t, agentPackagePermissions, installerFile.Permission{
+			Path:  bin,
+			Owner: "root",
+			Group: "root",
+		})
+	}
+}
+
 func TestEnsurePrivilegedRshellPermissionsRejectsSymlink(t *testing.T) {
 	packagePath := t.TempDir()
 	binaryPath := filepath.Join(packagePath, privilegedRshellBinaryRelPath)
