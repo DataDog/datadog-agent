@@ -800,27 +800,29 @@ func TestProcessInfoMatches(t *testing.T) {
 func TestInsertionErrorType(t *testing.T) {
 	cause := errors.New("cause")
 	tests := []struct {
-		name string
-		err  error
-		want string
+		name       string
+		err        error
+		want       string
+		insertable bool
 	}{
-		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, InsertionErrorBrokenLineage},
-		{"broken lineage in the tree", ErrBrokenLineage, InsertionErrorBrokenLineage},
-		{"no process context", model.ErrNoProcessContext, InsertionErrorNoProcessContext},
-		{"path resolution", &path.ErrPathResolution{Err: cause}, InsertionErrorPathResolution},
-		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), InsertionErrorPathResolution},
-		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, InsertionErrorPathResolutionNotCritical},
-		{"path resolution wrapping a non critical one", &path.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", &path.ErrPathResolutionNotCritical{Err: cause})}, InsertionErrorPathResolution},
-		{"dns decoding", model.ErrFailedDNSPacketDecoding, InsertionErrorDNSDecoding},
-		{"invalid generation type", fmt.Errorf("%w: %v", ErrInvalidGenerationType, 42), InsertionErrorInvalidGenerationType},
-		{"process node not created", ErrProcessNodeNotCreated, InsertionErrorProcessNodeNotCreated},
-		{"other", cause, InsertionErrorOther},
+		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, InsertionErrorBrokenLineage, true},
+		{"broken lineage in the tree", ErrBrokenLineage, InsertionErrorBrokenLineage, false},
+		{"no process context", model.ErrNoProcessContext, InsertionErrorNoProcessContext, false},
+		{"path resolution", &path.ErrPathResolution{Err: cause}, InsertionErrorPathResolution, false},
+		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), InsertionErrorPathResolution, false},
+		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, InsertionErrorPathResolutionNotCritical, false},
+		{"path resolution wrapping a non critical one", &path.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", &path.ErrPathResolutionNotCritical{Err: cause})}, InsertionErrorPathResolution, false},
+		{"dns decoding", model.ErrFailedDNSPacketDecoding, InsertionErrorDNSDecoding, false},
+		{"invalid generation type", fmt.Errorf("%w: %v", ErrInvalidGenerationType, 42), InsertionErrorInvalidGenerationType, false},
+		{"process node not created", ErrProcessNodeNotCreated, InsertionErrorProcessNodeNotCreated, false},
+		{"other", cause, InsertionErrorOther, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := InsertionErrorType(tt.err)
 			assert.Equal(t, tt.want, got)
 			assert.Contains(t, InsertionErrorTypes, got)
+			assert.Equal(t, tt.insertable, IsInsertableEventError(tt.err))
 		})
 	}
 }

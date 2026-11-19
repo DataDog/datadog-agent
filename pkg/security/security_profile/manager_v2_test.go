@@ -1177,8 +1177,8 @@ func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
 
 func TestManagerV2_eventsWithError(t *testing.T) {
 	brokenLineage := &model.ErrProcessBrokenLineage{Err: errors.New("missing parent")}
-	countOf := func(m *ManagerV2, eventType model.EventType, errorType string) uint64 {
-		return m.insertionErrors[insertionErrorKey{eventType: eventType, errorType: errorType}].Load()
+	countOf := func(m *ManagerV2, eventType model.EventType, errorType string, outcome string) uint64 {
+		return m.insertionErrors[insertionErrorKey{eventType: eventType, errorType: errorType, outcome: outcome}].Load()
 	}
 	total := func(m *ManagerV2) uint64 {
 		var total uint64
@@ -1187,19 +1187,40 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 		}
 		return total
 	}
+	// breakLineage makes the lineage of the event stop at its parent, which is the container shim unless
+	// insideContainer is set
+	breakLineage := func(event *model.Event, insideContainer bool) {
+		event.ProcessCacheEntry.Ancestor.Pid = 41
+		if insideContainer {
+			event.ProcessCacheEntry.Ancestor.ContainerContext.ContainerID = testContainerID
+		}
+		event.Error = brokenLineage
+	}
 
-	t.Run("counted and dropped", func(t *testing.T) {
+	t.Run("dropped before insertion", func(t *testing.T) {
 		m := newTagResolutionTestManagerV2(t, 10, 10)
 		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
-		event.Error = brokenLineage
+		event.Error = model.ErrNoProcessContext
 
 		m.ProcessEvent(event)
 
-		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorNoProcessContext, insertionErrorDropped))
 		assert.EqualValues(t, 1, total(m))
 		assert.Empty(t, m.profiles)
 		assert.Empty(t, m.resolvedCgroups)
 		assert.Empty(t, m.profilePendingEvents)
+	})
+
+	t.Run("broken lineage goes through", func(t *testing.T) {
+		m := newTagResolutionTestManagerV2(t, 10, 10)
+		event := newUntaggedTestEventV2(0)
+		event.Error = brokenLineage
+
+		m.ProcessEvent(event)
+
+		require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(0))
+		assert.Equal(t, 1, m.profilePendingEvents[untaggedTestCGroupID(0)].events.Len())
+		assert.Zero(t, total(m))
 	})
 
 	for _, tt := range []struct {
@@ -1208,15 +1229,12 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 	}{
 		{"host process", func(e *model.Event) { e.ProcessContext.Process.ContainerContext.ContainerID = "" }},
 		{"untraced event type", func(e *model.Event) { e.Type = uint32(model.FileChmodEventType) }},
-		{"full DNS response with another error", func(e *model.Event) {
-			e.Type = uint32(model.FullDNSResponseEventType)
-			e.Error = model.ErrNoProcessContext
-		}},
+		{"full DNS response with another error", func(e *model.Event) { e.Type = uint32(model.FullDNSResponseEventType) }},
 	} {
 		t.Run("not counted: "+tt.name, func(t *testing.T) {
 			m := newTagResolutionTestManagerV2(t, 10, 10)
 			event := newTestEventV2(model.FileOpenEventType, "v1", "known")
-			event.Error = brokenLineage
+			event.Error = model.ErrNoProcessContext
 			tt.setup(event)
 
 			m.ProcessEvent(event)
@@ -1232,11 +1250,11 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 
 		m.ProcessEvent(event)
 
-		assert.EqualValues(t, 1, countOf(m, model.DNSEventType, activity_tree.InsertionErrorDNSDecoding))
+		assert.EqualValues(t, 1, countOf(m, model.DNSEventType, activity_tree.InsertionErrorDNSDecoding, insertionErrorDropped))
 		assert.EqualValues(t, 1, total(m))
 	})
 
-	t.Run("raised during insertion", func(t *testing.T) {
+	t.Run("dropped during insertion", func(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
 		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
 		event.Error = &path.ErrPathResolution{Err: errors.New("dentry not found")}
@@ -1244,7 +1262,34 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 		_, inserted := m.insertEventIntoProfile(event)
 
 		assert.False(t, inserted)
-		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorPathResolution))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorPathResolution, insertionErrorDropped))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("broken lineage outside of the container is kept", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		breakLineage(event, false)
+
+		p, inserted := m.insertEventIntoProfile(event)
+
+		require.NotNil(t, p)
+		assert.True(t, inserted)
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "known"))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorKept))
+		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorDropped))
+	})
+
+	t.Run("broken lineage inside of the container is dropped", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		breakLineage(event, true)
+
+		_, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorDropped))
+		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorKept))
 		assert.EqualValues(t, 1, total(m))
 	})
 
@@ -1257,7 +1302,7 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 		_, inserted := m.insertEventIntoProfile(event)
 
 		assert.False(t, inserted)
-		assert.EqualValues(t, 1, countOf(m, model.ExecEventType, activity_tree.InsertionErrorBrokenLineage))
+		assert.EqualValues(t, 1, countOf(m, model.ExecEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorDropped))
 		assert.EqualValues(t, 1, total(m))
 	})
 
@@ -1269,7 +1314,7 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 		_, inserted := m.insertEventIntoProfile(event)
 
 		assert.False(t, inserted)
-		assert.EqualValues(t, 1, countOf(m, model.DNSEventType, activity_tree.InsertionErrorDNSDecoding))
+		assert.EqualValues(t, 1, countOf(m, model.DNSEventType, activity_tree.InsertionErrorDNSDecoding, insertionErrorDropped))
 		assert.EqualValues(t, 1, total(m))
 	})
 }
