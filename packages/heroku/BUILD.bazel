@@ -68,7 +68,6 @@ dd_collect_dependencies(
     name = "_collected_libs",
     srcs = [
         "//cmd/agent",
-        "//cmd/privateactionrunner",
         "//cmd/trace-agent",
         "@curl//:curl_bin_pkg",
         "@freetds//:tdsodbc_pkg",
@@ -113,7 +112,6 @@ pkg_filegroup(
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
         "//packages/agent/product:dirs",
-        "//packages/agent/product:privateactionrunner_binary",
         "//packages/agent/python-scripts:all_files",
     ],
 )
