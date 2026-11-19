@@ -783,6 +783,7 @@ _BAZEL_RUNTIME_GEN_TARGETS = [
     "//pkg/ebpf/bytecode:conntrack_gen",
     "//pkg/ebpf/bytecode:tracer_gen",
     "//pkg/ebpf/bytecode:offsetguess-test_gen",
+    "//pkg/ebpf/bytecode:skb-parse-test_gen",
     "//pkg/ebpf/bytecode:runtime-security_gen",
     "//pkg/ebpf/bytecode:gpu_gen",
 ]
