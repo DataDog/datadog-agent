@@ -20,15 +20,17 @@ func NewAtomicRegistryWriter() auditor.RegistryWriter {
 	return &atomicRegistryWriter{}
 }
 
-func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPath string, registryTmpFile string, data []byte) error {
+func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPath string, registryTmpFile string, data []byte) (err error) {
 	f, err := os.CreateTemp(registryDirPath, registryTmpFile)
 	if err != nil {
 		return err
 	}
 	tmpName := f.Name()
 	defer func() {
-		_ = f.Close()
-		_ = os.Remove(tmpName)
+		if err != nil {
+			_ = f.Close()
+			_ = os.Remove(tmpName)
+		}
 	}()
 
 	if _, err = f.Write(data); err != nil {
