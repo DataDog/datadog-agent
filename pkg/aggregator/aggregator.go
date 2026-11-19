@@ -983,7 +983,6 @@ func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
 		return
 	}
 	for _, cs := range agg.checkSamplers {
-		cs.clearStripCache()
 		cs.refilter(matcher)
 	}
 }
