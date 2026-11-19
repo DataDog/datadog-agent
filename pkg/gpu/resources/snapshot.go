@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
@@ -71,15 +72,11 @@ func fillPlacement(d *Device, info *safenvml.DeviceInfo) {
 		path := append([]string{}, info.PCIePath...)
 		d.PCIePath = &path
 	}
-	if info.NUMANode != nil {
-		node := *info.NUMANode
-		d.NUMANode = &node
-	}
+	d.NUMANode = info.NUMANode // cached, never modified
 	// Like the matching metric tags, placement is only known with an
 	// identified chassis: without one, NVML reports zero or 255 placeholders.
 	if d.ChassisSerial != "" {
-		slot, tray, module := info.SlotNumber, info.TrayIndex, info.ModuleID
-		d.SlotNumber, d.TrayIndex, d.ModuleID = &slot, &tray, &module
+		d.SlotNumber, d.TrayIndex, d.ModuleID = pointer.Ptr(info.SlotNumber), pointer.Ptr(info.TrayIndex), pointer.Ptr(info.ModuleID)
 		d.Platform = &Platform{HostID: info.HostID}
 	}
 	d.HostLink = hostLink(info.HostLink)
@@ -97,14 +94,16 @@ func hostLink(info safenvml.HostLinkInfo) *HostLink {
 			link.PCIeMaxBandwidthBytesPerSecond = int64(bandwidth)
 		}
 	}
-	if info.C2CEnabled != nil {
+	switch {
+	case info.C2CEnabled != nil && *info.C2CEnabled:
+		link.Protocol = "nvlink_c2c"
+		link.C2CLinkCount = info.C2CLinkCount
+		// NVML reports megabytes per second; the schema uses megabits.
+		link.C2CMaxBandwidthMbps = int64(info.C2CMaxBandwidthMBps) * 8
+	case info.C2CEnabled != nil || link != (HostLink{}):
+		// PCIe unless C2C is reported enabled, as long as something is known
+		// about the link (an unknown C2C state doesn't rule PCIe out).
 		link.Protocol = "pcie"
-		if *info.C2CEnabled {
-			link.Protocol = "nvlink_c2c"
-			link.C2CLinkCount = info.C2CLinkCount
-			// NVML reports megabytes per second; the schema uses megabits.
-			link.C2CMaxBandwidthMbps = int64(info.C2CMaxBandwidthMBps) * 8
-		}
 	}
 	if link == (HostLink{}) {
 		return nil

@@ -181,11 +181,8 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		gpuDeviceInfo.BoardSerial = info.BoardSerial
 	}
 
-	// Cached at device construction, from NVML or the sysfs fallback.
-	if info.NUMANode != nil {
-		numaNode := *info.NUMANode
-		gpuDeviceInfo.NUMANode = &numaNode
-	}
+	// Cached at device construction and never modified afterwards.
+	gpuDeviceInfo.NUMANode = info.NUMANode
 
 	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
 	if virtMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {

@@ -148,7 +148,8 @@ func TestSnapshotUnknownPlacementFactsAreAbsent(t *testing.T) {
 	d := Snapshot([]safenvml.Device{&safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{
 		UUID: testUUID, HostLink: safenvml.HostLinkInfo{PCIeMaxGeneration: 99, PCIeMaxWidth: 16},
 	}}})[0]
-	require.Equal(t, &HostLink{PCIeMaxGeneration: 99, PCIeMaxWidth: 16}, d.HostLink, "no bandwidth for an unknown generation")
+	require.Equal(t, &HostLink{Protocol: "pcie", PCIeMaxGeneration: 99, PCIeMaxWidth: 16}, d.HostLink,
+		"PCIe when C2C is unknown, with no bandwidth for an unknown generation")
 
 	d = Snapshot([]safenvml.Device{&safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{UUID: testUUID}}})[0]
 	encoded, err := json.Marshal(d)
