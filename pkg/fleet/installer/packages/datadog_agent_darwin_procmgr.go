@@ -29,12 +29,6 @@ const (
 // procmgrEnabled is indirected so the hook tests do not depend on the host's environment or datadog.yaml.
 var procmgrEnabled = resolveProcmgrEnabled
 
-type procmgrSetting struct {
-	ProcessManager struct {
-		Enabled *bool `yaml:"enabled"`
-	} `yaml:"process_manager"`
-}
-
 func resolveProcmgrEnabled(lookupEnv func(string) (string, bool), install installEnv, datadogYAML string) (enabled bool, source string) {
 	if enabled, ok := procmgrEnabledFromEnv(lookupEnv); ok {
 		return enabled, procmgrSourceEnvironment
@@ -72,6 +66,11 @@ func interpretProcmgrEnv(raw string) (bool, bool) {
 	return env.ProcessManagerEnabledValue(value), true
 }
 
+// procmgrEnabledFromYAML reads process_manager.enabled. Keys are normalized the
+// same way as the Agent config loader: case is ignored, a dotted key is the same
+// setting as the nested mapping, and YAML merge keys are applied. A null value
+// does not clear the other form. When the two forms are both bools and disagree,
+// the installer keeps false and logs a warning.
 func procmgrEnabledFromYAML(path string) (bool, bool) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -80,13 +79,110 @@ func procmgrEnabledFromYAML(path string) (bool, bool) {
 		}
 		return false, false
 	}
-	var setting procmgrSetting
-	if err := yaml.Unmarshal(data, &setting); err != nil {
+	// map[string]interface{} applies YAML merges. MapSlice keeps the "<<:" key
+	// literally, which would drop an opt-out inherited through a merge.
+	var root map[string]interface{}
+	if err := yaml.Unmarshal(data, &root); err != nil {
 		log.Warnf("could not parse %s: %v", path, err)
 		return false, false
 	}
-	if setting.ProcessManager.Enabled == nil {
+	enabled, found, reason := procmgrEnabledInDocument(root)
+	if reason != "" {
+		log.Warnf("could not parse %s: %s", path, reason)
+	}
+	if !found {
 		return false, false
 	}
-	return *setting.ProcessManager.Enabled, true
+	return enabled, true
+}
+
+type procmgrFormValue struct {
+	kind    procmgrFormKind
+	enabled bool
+}
+
+type procmgrFormKind int
+
+const (
+	procmgrFormNull procmgrFormKind = iota
+	procmgrFormBool
+	procmgrFormBad
+)
+
+type procmgrForms struct {
+	sawBool  bool
+	enabled  bool
+	conflict bool
+	bad      bool
+}
+
+func procmgrEnabledInDocument(root map[string]interface{}) (enabled bool, found bool, reason string) {
+	var forms procmgrForms
+	for key, value := range root {
+		switch strings.ToLower(key) {
+		case "process_manager.enabled":
+			forms.add(procmgrFormFromValue(value))
+		case "process_manager":
+			forms.addSection(value)
+		}
+	}
+	return forms.result()
+}
+
+func (forms *procmgrForms) add(value procmgrFormValue) {
+	switch value.kind {
+	case procmgrFormBool:
+		if forms.sawBool && forms.enabled != value.enabled {
+			forms.conflict = true
+		}
+		forms.sawBool = true
+		forms.enabled = value.enabled
+	case procmgrFormBad:
+		forms.bad = true
+	}
+}
+
+func (forms procmgrForms) result() (enabled bool, found bool, reason string) {
+	if forms.conflict {
+		return false, true, "process_manager.enabled is both true and false"
+	}
+	if forms.sawBool {
+		return forms.enabled, true, ""
+	}
+	if forms.bad {
+		return false, false, "process_manager.enabled is not a bool"
+	}
+	return false, false, ""
+}
+
+func procmgrFormFromValue(value interface{}) procmgrFormValue {
+	if value == nil {
+		return procmgrFormValue{kind: procmgrFormNull}
+	}
+	enabled, ok := value.(bool)
+	if !ok {
+		return procmgrFormValue{kind: procmgrFormBad}
+	}
+	return procmgrFormValue{kind: procmgrFormBool, enabled: enabled}
+}
+
+// addSection reads enabled from a process_manager value. A mapping that does not
+// set enabled adds nothing, so it does not clear the dotted form. A scalar
+// section is malformed.
+func (forms *procmgrForms) addSection(value interface{}) {
+	if value == nil {
+		return
+	}
+	mapping, ok := value.(map[interface{}]interface{})
+	if !ok {
+		forms.add(procmgrFormValue{kind: procmgrFormBad})
+		return
+	}
+	for key, item := range mapping {
+		text, ok := key.(string)
+		if !ok || strings.ToLower(text) != "enabled" {
+			continue
+		}
+		forms.add(procmgrFormFromValue(item))
+	}
 }
