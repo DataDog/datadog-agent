@@ -67,6 +67,7 @@ func TestDefaultInterval(t *testing.T) {
 
 	assert.Equal(t, defaultMinInterval, i.MinInterval)
 	assert.Equal(t, defaultMaxInterval, i.MaxInterval)
+	assert.Zero(t, i.firstRunDelay)
 }
 
 func TestProviderSpecificFirstRunDelay(t *testing.T) {
@@ -150,7 +151,9 @@ func TestCollectRecentLastCollect(t *testing.T) {
 }
 
 func TestCollectStartupTime(t *testing.T) {
-	i := getTestInventoryPayload(t, nil)
+	i := getTestInventoryPayload(t, map[string]any{
+		"inventories_first_run_delay": 60,
+	})
 
 	// testing collect do not send metadata if hasn't elapsed a minute from createdAt time
 	createdAt := time.Now().Add(2 * time.Minute)

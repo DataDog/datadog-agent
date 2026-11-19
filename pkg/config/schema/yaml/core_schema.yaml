@@ -8788,7 +8788,7 @@ properties:
   inventories_first_run_delay:
     node_type: setting
     type: integer
-    default: 60
+    default: 0
     comment: Seconds to wait to sent metadata payload to the backend after startup
   inventories_max_interval:
     node_type: setting

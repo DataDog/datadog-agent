@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    The Agent now sends inventory metadata at startup instead of one minute
+    later, so Fleet Automation shows a new or restarted Agent sooner. The
+    default of ``inventories_first_run_delay`` changes from ``60`` to ``0``.
+    The system-probe, security-agent, GPU, and cluster checks inventory payloads
+    still wait one minute, because their data may not be ready at startup.
