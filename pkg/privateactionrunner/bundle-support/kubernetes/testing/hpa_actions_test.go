@@ -84,6 +84,8 @@ clusters:
     server: %s
 `, server.URL)), 0600))
 			t.Setenv("HOME", home)
+			// os.UserHomeDir reads USERPROFILE on Windows.
+			t.Setenv("USERPROFILE", home)
 			action := autoscaling.NewKubernetesAutoscaling().GetAction(verb + "HorizontalPodAutoscaler")
 			output, err := action.Run(context.Background(), generatedActionTask(map[string]interface{}{"namespace": "production", "body": object}), &privateconnection.PrivateCredentials{Tokens: []privateconnection.PrivateCredentialsToken{{Name: "context", Value: "test"}}})
 			require.NoError(t, err)

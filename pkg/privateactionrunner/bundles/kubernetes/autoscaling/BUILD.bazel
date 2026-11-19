@@ -6,7 +6,7 @@ go_library(
     srcs = [
         "create_horizontal_pod_autoscaler.gen.go",
         "delete_horizontal_pod_autoscaler.gen.go",
-        "delete_multiple_horizontal_pod_autoscalers.gen.go",
+        "delete_multiple_hpas.gen.go",
         "entrypoint.gen.go",
         "get_horizontal_pod_autoscaler.gen.go",
         "list_horizontal_pod_autoscaler.gen.go",
