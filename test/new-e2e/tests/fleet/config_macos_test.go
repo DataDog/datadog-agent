@@ -333,6 +333,21 @@ func (s *configMacOSSuite) pushTask(method string, expected expectedState, param
 	return taskID
 }
 
+// startProbation is how long the post-start hook watches a new experiment's jobs before it reports
+// the start (configExperimentProbation in pkg/fleet/installer/packages/datadog_agent_darwin.go).
+// The daemon holds the start task, and its state, until then.
+const startProbation = 30 * time.Second
+
+// taskWaitTimeout is how long one push of a task is given to show its outcome in the daemon's
+// state: 25 seconds for any task, plus the probation for a start.
+func taskWaitTimeout(method string) time.Duration {
+	const base = 25 * time.Second
+	if method == "start_experiment_config" {
+		return base + startProbation + 10*time.Second
+	}
+	return base
+}
+
 // pushTaskUntilExecuted pushes an UPDATER_TASK and returns it as /status reports it once the daemon
 // has finished executing it, successfully or not.
 //
@@ -340,10 +355,8 @@ func (s *configMacOSSuite) pushTask(method string, expected expectedState, param
 // its INSTALLER_CONFIG fails with "not found in available configs", which is the push race and not
 // an outcome of the task itself.
 func (s *configMacOSSuite) pushTaskUntilExecuted(method string, params *experimentTaskParams, description string) backend.RemoteConfigStateTask {
-	const (
-		attempts = 3
-		perTry   = 25 * time.Second
-	)
+	const attempts = 3
+	perTry := taskWaitTimeout(method)
 	for attempt := 1; attempt <= attempts; attempt++ {
 		taskID := s.pushTask(method, s.currentExpectedState(), params)
 		var task *backend.RemoteConfigStateTask
@@ -393,10 +406,8 @@ func (s *configMacOSSuite) pushTaskExpectingFailure(method string, params *exper
 // partially applied one does not.
 func (s *configMacOSSuite) pushTaskUntil(method string, params *experimentTaskParams,
 	applied func(backend.RemoteConfigStatePackage) bool, description string) {
-	const (
-		attempts = 3
-		perTry   = 25 * time.Second
-	)
+	const attempts = 3
+	perTry := taskWaitTimeout(method)
 	for attempt := 1; attempt <= attempts; attempt++ {
 		s.pushTask(method, s.currentExpectedState(), params)
 		if s.waitForPackageState(applied, perTry) {
@@ -805,14 +816,16 @@ func (s *configMacOSSuite) TestConfigJQReplaceTagMacOS() {
 
 // --- Set 4: failure and rollback scenarios ---------------------------------------------------
 
-// TestConfigFailureCrashMacOS pins that an experiment whose Agent refuses to start is rolled back
-// on its own, and that the bad value never reaches the stable configuration.
+// TestConfigFailureCrashMacOS pins that an experiment whose Agent refuses to start fails the start
+// task itself, and that the bad value never reaches the stable configuration.
 //
 // The experiment sets log_level to an unresolvable ENC[...] placeholder, which agent-exp rejects at
-// startup ("unknown log level"). The start itself succeeds -- the configuration is written and the
-// experiment job set loaded -- and the watcher (config_experiment_watcher_darwin.go) then reverts
-// on agent-exp's exit, within seconds and with no stop task. That window is too short to poll the
-// experiment as deployed, so the test asserts on the start task's own result and on the end state.
+// startup ("unknown log level"). The post-start hook watches the experiment jobs before it returns
+// (probeExperiment, pkg/fleet/installer/packages/config_experiment_watcher_darwin.go), catches
+// agent-exp's exit, restores the stable jobs and discards the configuration. The daemon then reports
+// the start task as an error, which Fleet counts as a failed attempt; before that check the task was
+// reported done and Fleet, seeing no experiment, started it again. An experiment that fails here
+// never hands the installer daemon over.
 // TestAgentExpCrashRevertsAndIsNotRelaunchedMacOS covers a crash of an Agent that did start.
 func (s *configMacOSSuite) TestConfigFailureCrashMacOS() {
 	s.requireResting()
@@ -826,27 +839,30 @@ func (s *configMacOSSuite) TestConfigFailureCrashMacOS() {
 	s.pushInstallerConfig(deploymentID, []backend.FileOperation{
 		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "ENC[invalid_secret]"}`)},
 	})
-	// The experiment should start even though its Agent cannot. That is judged by agent-exp having
-	// run, not by the task's state: the daemon that executed the task is swapped out for the
-	// experiment daemon as soon as the start returns, and the done state it held goes with it, while
-	// the experiment reverts too quickly for /status to be sure to report it.
-	s.pushTaskUntil("start_experiment_config", &experimentTaskParams{Version: deploymentID},
-		func(backend.RemoteConfigStatePackage) bool { return s.agentExpLogLevelRejections() > rejectionsBefore },
+	task := s.pushTaskExpectingFailure("start_experiment_config", &experimentTaskParams{Version: deploymentID},
 		"start_experiment_config "+deploymentID)
+	require.NotNil(s.T(), task.Error, "the failed start should carry an error")
+	// The bad log level fails every experiment job that reads it, and the probe names whichever
+	// exits first: the Agent or Agent Data Plane.
+	require.Regexp(s.T(), `configuration experiment failed: com\.datadoghq\.[a-z-]+-exp exited`, task.Error.Message,
+		"the error should name the job that exited")
 
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		assert.True(c, s.etcExpResting(), "etc-exp should be a symlink again once the watcher reverts")
+		assert.True(c, s.etcExpResting(), "etc-exp should be a symlink again after the failed start")
 		status, err := s.tryReadStatus()
 		if assert.NoError(c, err) && assert.Len(c, status.Packages, 1) {
-			assert.Empty(c, status.Packages[0].ExperimentConfigVersion, "the daemon should no longer report the experiment")
+			assert.Empty(c, status.Packages[0].ExperimentConfigVersion, "the daemon should not report the experiment")
 		}
 		for label, loaded := range s.launchdLabelsLoaded(experimentLabels()...) {
-			assert.False(c, loaded, "%s should be unloaded by the revert", label)
+			assert.False(c, loaded, "%s should be unloaded", label)
 		}
 		assert.NotEmpty(c, s.jobPID("com.datadoghq.agent"), "the stable Agent should be running again")
 	}, 60*time.Second, 5*time.Second)
+	require.True(s.T(), s.stableInstallerDaemonLoaded(), "a start that failed its probation must not hand the installer daemon over")
 
-	require.Greater(s.T(), s.agentExpLogLevelRejections(), rejectionsBefore, "agent-exp should have refused the unresolvable log level")
+	// When Agent Data Plane exits first, the start is failed before agent-exp gets to log its own
+	// refusal, so the count only corroborates.
+	s.T().Logf("agent-exp log level refusals: %d before, %d after", rejectionsBefore, s.agentExpLogLevelRejections())
 
 	config, err := s.Agent.Configuration()
 	require.NoError(s.T(), err)
@@ -1124,7 +1140,8 @@ func (s *configMacOSSuite) TestConfigExperimentJobDefinitionsMatchInstalledMacOS
 // experiment and reverts to stable the moment any of them exits abnormally, with no explicit
 // stop/promote task ever sent. A SIGKILL'd job reports as Signaled rather than a clean Exited/
 // ExitStatus==0, so exitedCleanly treats it as a crash and the watcher's own exit observer -- not
-// this test -- drives the revert.
+// this test -- drives the revert. The watcher reverts through the installer's
+// remove-config-experiment command, which also hands the installer daemon back to its stable job.
 func (s *configMacOSSuite) TestWatcherRevertsOnSysprobeCrashMacOS() {
 	s.requireResting()
 
@@ -1150,6 +1167,7 @@ func (s *configMacOSSuite) TestWatcherRevertsOnSysprobeCrashMacOS() {
 
 	loadedStable := s.launchdLabelsLoaded("com.datadoghq.sysprobe")
 	require.True(s.T(), loadedStable["com.datadoghq.sysprobe"], "sysprobe stable job should be loaded again after the watcher's revert")
+	s.requireInstallerDaemon(installerDaemonLabel, installerDaemonExperimentLabel)
 
 	// Best-effort: the watcher's own log line corroborates *why* it reverted, but the daemon-state
 	// assertions above already establish *that* it did, so this is a soft check.
@@ -1682,7 +1700,10 @@ func (s *configMacOSSuite) TestExperimentJobDefinitionsMacOS() {
 
 // TestAgentExpCrashRevertsAndIsNotRelaunchedMacOS covers the first failure mode, "the -exp Agent
 // crashes": launchd does not relaunch it, since the experiment set has no KeepAlive, and the
-// watcher (config_experiment_watcher_darwin.go) reverts to stable on its exit.
+// watcher (config_experiment_watcher_darwin.go) reverts to stable on its exit, through the
+// installer's remove-config-experiment command, which also hands the installer daemon back.
+// startConfigExperimentRC only returns once the start's probation is over, so the crash lands
+// after it; TestAgentExpCrashDuringProbationFailsTheStartMacOS covers a crash inside it.
 // TestWatcherRevertsOnSysprobeCrashMacOS covers the same path for system-probe.
 func (s *configMacOSSuite) TestAgentExpCrashRevertsAndIsNotRelaunchedMacOS() {
 	s.requireResting()
@@ -1719,10 +1740,86 @@ func (s *configMacOSSuite) TestAgentExpCrashRevertsAndIsNotRelaunchedMacOS() {
 		assert.False(c, s.pathExists(experimentPlistPath("com.datadoghq.agent")), "the revert should remove the experiment job definitions")
 		assert.NotEmpty(c, s.jobPID("com.datadoghq.agent"), "the stable Agent should be running again")
 	}, 60*time.Second, 5*time.Second)
+	s.requireInstallerDaemon(installerDaemonLabel, installerDaemonExperimentLabel)
 
 	config, err := s.Agent.Configuration()
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), before["log_level"], config["log_level"], "the stable Agent should read the stable configuration")
+}
+
+// TestAgentExpCrashDuringProbationFailsTheStartMacOS is the crash a few seconds into a start: the
+// experiment Agent is killed while the post-start hook still watches the experiment jobs
+// (probeExperiment). The hook fails the start, so the daemon reports the start task as an error and
+// Fleet counts the attempt. Before that check the task was reported done, the watcher reverted on
+// its own, and Fleet, seeing no experiment, started it again without limit. The installer daemon is
+// never handed over, since the hand-over waits for the start command to exit.
+func (s *configMacOSSuite) TestAgentExpCrashDuringProbationFailsTheStartMacOS() {
+	s.requireResting()
+
+	before, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	stableFingerprint := s.stableConfigFingerprint()
+
+	deploymentID := nextID("cfg-probation-crash")
+	s.pushInstallerConfig(deploymentID, []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+	})
+	// The task is pushed again only when the daemon refused it for arriving before its config (see
+	// pushTaskUntil). A task that is merely slow to arrive must not be: once the first start fails,
+	// a second one still matches the resting host and would start the experiment again.
+	taskID := s.pushTask("start_experiment_config", s.currentExpectedState(), &experimentTaskParams{Version: deploymentID})
+	var crashedPID string
+	for giveUp := time.Now().Add(2 * time.Minute); time.Now().Before(giveUp); time.Sleep(time.Second) {
+		if crashedPID = s.jobPID("com.datadoghq.agent-exp"); crashedPID != "" {
+			break
+		}
+		if status, err := s.tryReadStatus(); err == nil && len(status.Packages) == 1 {
+			if task := status.Packages[0].Task; task != nil && task.ID == taskID && task.State == backend.TaskStateError &&
+				task.Error != nil && strings.Contains(task.Error.Message, "not found in available configs") {
+				s.T().Logf("start_experiment_config %s: the task arrived before its config; pushing it again under a new id", deploymentID)
+				taskID = s.pushTask("start_experiment_config", s.currentExpectedState(), &experimentTaskParams{Version: deploymentID})
+			}
+		}
+	}
+	require.NotEmpty(s.T(), crashedPID, "the experiment Agent never started")
+	_, err = s.Env().RemoteHost.Execute("sudo kill -9 " + crashedPID)
+	require.NoError(s.T(), err)
+
+	var task *backend.RemoteConfigStateTask
+	finished := s.waitForPackageState(func(pkg backend.RemoteConfigStatePackage) bool {
+		if pkg.Task == nil || pkg.Task.ID != taskID {
+			return false
+		}
+		if pkg.Task.State != backend.TaskStateDone && pkg.Task.State != backend.TaskStateError {
+			return false
+		}
+		task = pkg.Task
+		return true
+	}, taskWaitTimeout("start_experiment_config"))
+	s.clearPendingUpdaterTasks()
+	require.True(s.T(), finished, "the start task never finished")
+	require.Equal(s.T(), backend.TaskStateError, task.State, "a crash inside the probation should fail the start task")
+	require.NotNil(s.T(), task.Error)
+	require.Contains(s.T(), task.Error.Message, "com.datadoghq.agent", "the error should name the job that exited")
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.True(c, s.etcExpResting(), "etc-exp should be a symlink again after the failed start")
+		status, err := s.tryReadStatus()
+		if assert.NoError(c, err) && assert.Len(c, status.Packages, 1) {
+			assert.Empty(c, status.Packages[0].ExperimentConfigVersion, "the daemon should not report the experiment")
+		}
+		assert.False(c, s.pathExists(experimentDeadlinePath), "the failed start should clear the deadline")
+		for label, loaded := range s.launchdLabelsLoaded(experimentLabels()...) {
+			assert.False(c, loaded, "%s should be unloaded", label)
+		}
+		assert.NotEmpty(c, s.jobPID("com.datadoghq.agent"), "the stable Agent should be running again")
+	}, 60*time.Second, 5*time.Second)
+	require.True(s.T(), s.stableInstallerDaemonLoaded(), "a start that failed its probation must not hand the installer daemon over")
+
+	config, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), before["log_level"], config["log_level"], "the stable Agent should read the stable configuration")
+	require.Equal(s.T(), stableFingerprint, s.stableConfigFingerprint(), "the failed start must leave the stable configuration untouched")
 }
 
 // TestDeadlineFileLifecycleMacOS pins the persisted deadline (pkg/fleet/installer/packages/launchd/
