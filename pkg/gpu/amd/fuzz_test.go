@@ -55,7 +55,7 @@ func FuzzReadMetrics(f *testing.F) {
 	f.Add("37\n", "1: 1.5GHz *\n", "16.0 GT/s\n", "mem\n")
 	f.Add("37\n", "1: "+strings.Repeat("9", 308)+"Ghz *\n", "1e309 GT/s PCIe\n", "edge\n") // overflow to +Inf
 	f.Add("37\n", "*\n:\n1: *\n1: Mhz *\n", "NaN GT/s PCIe\n", "")
-	f.Add("37\n", "0: 500Mhz \n1: 2200Mhz \n", "32.0 GT/s PCIe\n", "sclk\n") // hwmon gfx clock fallback
+	f.Add("37\n", "0: 500Mhz \n1: 2200Mhz \n", "32.0 GT/s PCIe\n", "sclk\n") // hwmon gfx clock
 
 	f.Fuzz(func(t *testing.T, number, dpmTable, linkSpeed, label string) {
 		fs := NewFakeSysfs(t)

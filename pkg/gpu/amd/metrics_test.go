@@ -105,36 +105,34 @@ func TestReadMetricsMissingAttributesAreInvalidNotErrors(t *testing.T) {
 	assert.Equal(t, valid(1420), m.GraphicsClockMHz)
 }
 
-// Linux 7.0 to 7.0.9 prints pp_dpm_sclk of AMD Instinct GPUs (MI200, MI300,
-// MI350) with no active level while the clock is between its minimum and maximum
-// (smu_cmn_print_dpm_clk_levels without SMU_DPM_TABLE_FINE_GRAINED).
-func TestReadMetricsGraphicsClockFallsBackToHwmon(t *testing.T) {
-	const linux70Sclk = "0: 500Mhz \n1: 2200Mhz \n"
-	sclkHwmon := map[string]string{
+// hwmon reports the SMU's current clocks. Since Linux 7.0 and amdgpu-dkms
+// 6.19.14, pp_dpm_* of AMD Instinct GPUs can mark no level while the clock is
+// between two (an MI300X VF under load showed UCLK at 1270 MHz between its 1100
+// and 1300 MHz levels).
+func TestReadMetricsClocks(t *testing.T) {
+	const unmarkedSclk = "0: 500Mhz \n1: 2200Mhz \n"
+	clocksHwmon := map[string]string{
 		"freq1_label": "sclk\n",
 		"freq1_input": "1933000000\n",
 		"freq2_label": "mclk\n",
-		"freq2_input": "2000000000\n",
+		"freq2_input": "1270000000\n",
 	}
 	for name, tc := range map[string]struct {
-		sclk    string // pp_dpm_sclk content, absent when empty
-		hwmon   map[string]string
-		want    Reading
-		wantErr string
+		sclk          string // pp_dpm_sclk content, absent when empty
+		unreadable    bool   // pp_dpm_sclk is a directory
+		hwmon         map[string]string
+		graphics, mem Reading
+		wantErr       string
 	}{
-		"no active level":           {sclk: linux70Sclk, hwmon: sclkHwmon, want: valid(1933)},
-		"empty table":               {sclk: "\n", hwmon: sclkHwmon},
-		"no pp_dpm_sclk":            {hwmon: sclkHwmon},
-		"RAS interrupt":             {sclk: "unavailable\n", hwmon: sclkHwmon}, // the hwmon value is not set then
-		"unparsable active level":   {sclk: "1: fastMhz *\n", hwmon: sclkHwmon, wantErr: "pp_dpm_sclk"},
-		"unparsable unmarked table": {sclk: "0: fastMhz\n", hwmon: sclkHwmon},
-		"unparsable unmarked level": {sclk: "0: 500Mhz \n1: fastMhz\n", hwmon: sclkHwmon},
-		"active level preferred":    {sclk: "0: 500Mhz \n1: 1420Mhz *\n2: 2200Mhz \n", hwmon: sclkHwmon, want: valid(1420)},
-		"deep sleep level":          {sclk: "S: 49Mhz *\n1: 500Mhz \n2: 2200Mhz \n", hwmon: sclkHwmon, want: valid(49)},
-		"no sclk label":             {sclk: linux70Sclk, hwmon: map[string]string{"freq2_label": "mclk\n", "freq2_input": "2000000000\n"}},
-		"sclk input not exposed":    {sclk: linux70Sclk, hwmon: map[string]string{"freq1_label": "sclk\n"}},
-		"unparsable sclk input":     {sclk: linux70Sclk, hwmon: map[string]string{"freq1_label": "sclk\n", "freq1_input": "fast\n"}, wantErr: "freq1_input"},
-		"sclk label on second freq": {sclk: linux70Sclk, hwmon: map[string]string{"freq1_label": "mclk\n", "freq1_input": "2000000000\n", "freq2_label": "sclk\n", "freq2_input": "85000000\n"}, want: valid(85)},
+		"hwmon preferred":           {sclk: "0: 500Mhz \n1: 1420Mhz *\n2: 2200Mhz \n", hwmon: clocksHwmon, graphics: valid(1933), mem: valid(1270)},
+		"no active level":           {sclk: unmarkedSclk, hwmon: clocksHwmon, graphics: valid(1933), mem: valid(1270)},
+		"no hwmon clocks":           {sclk: "0: 500Mhz \n1: 1420Mhz *\n", hwmon: map[string]string{}, graphics: valid(1420), mem: valid(1300)},
+		"no hwmon clocks, unmarked": {sclk: unmarkedSclk, hwmon: map[string]string{}, mem: valid(1300)},
+		"sclk input not exposed":    {sclk: "S: 49Mhz *\n1: 500Mhz \n", hwmon: map[string]string{"freq1_label": "sclk\n"}, graphics: valid(49), mem: valid(1300)},
+		"unparsable sclk input":     {sclk: "1: 1420Mhz *\n", hwmon: map[string]string{"freq1_label": "sclk\n", "freq1_input": "fast\n"}, graphics: valid(1420), mem: valid(1300), wantErr: "freq1_input"},
+		"RAS interrupt":             {sclk: "unavailable\n", hwmon: clocksHwmon, mem: valid(1270)},                    // hwmon then returns a value the driver did not set
+		"unreadable pp_dpm_sclk":    {unreadable: true, hwmon: clocksHwmon, mem: valid(1270), wantErr: "pp_dpm_sclk"}, // EBUSY in a RAS interrupt or reset
+		"sclk label on second freq": {hwmon: map[string]string{"freq1_label": "mclk\n", "freq1_input": "2000000000\n", "freq2_label": "sclk\n", "freq2_input": "85000000\n"}, graphics: valid(85), mem: valid(2000)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			fs := NewFakeSysfs(t)
@@ -146,6 +144,9 @@ func TestReadMetricsGraphicsClockFallsBackToHwmon(t *testing.T) {
 			devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", attrs)
 			fs.AddCard("card0", devDir)
 			fs.AddHwmon(devDir, "hwmon0", tc.hwmon)
+			if tc.unreadable {
+				require.NoError(t, os.Mkdir(filepath.Join(devDir, "pp_dpm_sclk"), 0o755))
+			}
 
 			m, err := discoverSingle(t, fs).ReadMetrics()
 			if tc.wantErr != "" {
@@ -153,42 +154,8 @@ func TestReadMetricsGraphicsClockFallsBackToHwmon(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			assert.Equal(t, tc.want, m.GraphicsClockMHz)
-			assert.Equal(t, valid(1300), m.MemoryClockMHz, "the memory clock is unchanged")
-		})
-	}
-}
-
-// Since Linux 7.0 and amdgpu-dkms 6.19.14, pp_dpm_mclk marks no level while UCLK is more than 25 MHz
-// from every level. An MI300X VF under load showed 1270 MHz between its 1100
-// and 1300 MHz levels.
-func TestReadMetricsMemoryClockFallsBackToHwmon(t *testing.T) {
-	mclkHwmon := map[string]string{
-		"freq1_label": "sclk\n",
-		"freq1_input": "1933000000\n",
-		"freq2_label": "mclk\n",
-		"freq2_input": "1270000000\n",
-	}
-	for name, tc := range map[string]struct {
-		mclk string
-		want Reading
-	}{
-		"no active level":        {mclk: "0: 900Mhz \n1: 1100Mhz \n2: 1300Mhz \n", want: valid(1270)},
-		"active level preferred": {mclk: "0: 900Mhz *\n1: 1100Mhz \n2: 1300Mhz \n", want: valid(900)},
-		"RAS interrupt":          {mclk: "unavailable\n"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			fs := NewFakeSysfs(t)
-			attrs := MI300XAttributes("")
-			attrs["pp_dpm_mclk"] = tc.mclk
-			devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", attrs)
-			fs.AddCard("card0", devDir)
-			fs.AddHwmon(devDir, "hwmon0", mclkHwmon)
-
-			m, err := discoverSingle(t, fs).ReadMetrics()
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, m.MemoryClockMHz)
-			assert.Equal(t, valid(1420), m.GraphicsClockMHz, "the graphics clock is unchanged")
+			assert.Equal(t, tc.graphics, m.GraphicsClockMHz)
+			assert.Equal(t, tc.mem, m.MemoryClockMHz)
 		})
 	}
 }
