@@ -36,6 +36,7 @@ go_library(
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/kubernetes/apiserver/controllers",
+        "//pkg/util/kubernetes/kueue",
         "//pkg/util/log",
         "@com_github_datadog_dd_trace_go_v2//ddtrace/ext",
         "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
