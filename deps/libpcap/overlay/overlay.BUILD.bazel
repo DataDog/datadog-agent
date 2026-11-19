@@ -123,6 +123,7 @@ cc_library(
         "sunatmpos.h",
         "thread-local.h",
         "varattrs.h",
+        "missing/strlcat.c",
         "missing/strlcpy.c",
     ],
     hdrs = PUBLIC_HEADERS,
