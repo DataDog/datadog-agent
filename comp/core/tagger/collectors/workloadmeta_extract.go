@@ -141,7 +141,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 	// Autoscaler targets with changes in this bundle
 	autoscalerTargets := make(map[workloadmeta.AutoscalerTarget]struct{})
-	tagged := make(map[workloadmeta.EntityID]struct{}, len(evBundle.Events))
 
 	for _, ev := range evBundle.Events {
 		entityID := ev.Entity.GetID()
@@ -180,11 +179,15 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			continue
 		}
 
-		tagged[entityID] = struct{}{}
-
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
 			tagInfos = append(tagInfos, c.tagEntity(ev)...)
+			// A set event for a partial unset has the entity as it was before
+			// the removal, which can look up other entities than the one in
+			// the store. Its readers must follow both.
+			if current, ok := c.getEntity(entityID); ok && current != ev.Entity {
+				c.dependencies.add(entityID, c.currentDependencies(current, ev.IsComplete), ev.IsComplete)
+			}
 			tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
 
 		case workloadmeta.EventTypeUnset:
@@ -197,15 +200,18 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		}
 	}
 
-	// Workloadmeta updates its store with the whole bundle before sending it,
-	// so the entities tagged above already used the new state of the entities
-	// they depend on.
+	// The readers of the entities of the bundle are re-tagged from the store
+	// once the whole bundle is tagged, including the readers tagged above:
+	// their first pass may have used state that later events of the bundle
+	// changed, like the completeness of a container, or an entity sent as it
+	// was before one of its sources was removed.
+	retagged := make(map[workloadmeta.EntityID]struct{})
 	for _, ev := range evBundle.Events {
 		for _, readerID := range c.dependencies.readersOf(ev.Entity.GetID()) {
-			if _, ok := tagged[readerID]; ok {
+			if _, ok := retagged[readerID]; ok {
 				continue
 			}
-			tagged[readerID] = struct{}{}
+			retagged[readerID] = struct{}{}
 
 			reader, ok := c.getEntity(readerID)
 			if !ok {
@@ -258,38 +264,7 @@ func (c *WorkloadMetaCollector) handleSet(ev workloadmeta.Event) []*types.TagInf
 	// seen in this iteration.
 	c.children[taggerEntityID] = make(map[types.EntityID]struct{})
 
-	switch entityID.Kind {
-	case workloadmeta.KindContainer:
-		tagInfos = append(tagInfos, c.handleContainer(ev)...)
-	case workloadmeta.KindKubernetesPod:
-		tagInfos = append(tagInfos, c.handleKubePod(ev)...)
-	case workloadmeta.KindECSTask:
-		tagInfos = append(tagInfos, c.handleECSTask(ev)...)
-	case workloadmeta.KindContainerImageMetadata:
-		tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
-	case workloadmeta.KindKubernetesMetadata:
-		tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
-	case workloadmeta.KindKubernetesNode:
-		tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
-	case workloadmeta.KindProcess:
-		tagInfos = append(tagInfos, c.handleProcess(ev)...)
-	case workloadmeta.KindKubernetesDeployment:
-		tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
-	case workloadmeta.KindKubernetesKueueQueue:
-		tagInfos = append(tagInfos, c.handleKubeKueueQueue(ev)...)
-	case workloadmeta.KindKubernetesKueueResourceFlavor:
-		tagInfos = append(tagInfos, c.handleKubeKueueResourceFlavor(ev)...)
-	case workloadmeta.KindKubernetesKueueWorkload:
-		tagInfos = append(tagInfos, c.handleKubeKueueWorkload(ev)...)
-	case workloadmeta.KindGPU:
-		tagInfos = append(tagInfos, c.handleGPU(ev)...)
-	case workloadmeta.KindCRD:
-		tagInfos = append(tagInfos, c.handleCRD(ev)...)
-	case workloadmeta.KindKubeCapabilities:
-		tagInfos = append(tagInfos, c.handleKubeCapabilities(ev)...)
-	default:
-		log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
-	}
+	tagInfos = append(tagInfos, c.handleKind(ev)...)
 
 	// remove the children seen in this iteration from the
 	// unseen list ...
@@ -305,8 +280,59 @@ func (c *WorkloadMetaCollector) handleSet(ev workloadmeta.Event) []*types.TagInf
 	return tagInfos
 }
 
-// getEntity returns the current state of an entity that a dependency change
-// re-tags. Only kinds whose handlers make tracked lookups can be re-tagged.
+// handleKind tags the entity of a set event with the handler of its kind.
+func (c *WorkloadMetaCollector) handleKind(ev workloadmeta.Event) []*types.TagInfo {
+	entityID := ev.Entity.GetID()
+
+	switch entityID.Kind {
+	case workloadmeta.KindContainer:
+		return c.handleContainer(ev)
+	case workloadmeta.KindKubernetesPod:
+		return c.handleKubePod(ev)
+	case workloadmeta.KindECSTask:
+		return c.handleECSTask(ev)
+	case workloadmeta.KindContainerImageMetadata:
+		return c.handleContainerImage(ev)
+	case workloadmeta.KindKubernetesMetadata:
+		return c.handleKubeMetadata(ev)
+	case workloadmeta.KindKubernetesNode:
+		return c.handleKubeNode(ev)
+	case workloadmeta.KindProcess:
+		return c.handleProcess(ev)
+	case workloadmeta.KindKubernetesDeployment:
+		return c.handleKubeDeployment(ev)
+	case workloadmeta.KindKubernetesKueueQueue:
+		return c.handleKubeKueueQueue(ev)
+	case workloadmeta.KindKubernetesKueueResourceFlavor:
+		return c.handleKubeKueueResourceFlavor(ev)
+	case workloadmeta.KindKubernetesKueueWorkload:
+		return c.handleKubeKueueWorkload(ev)
+	case workloadmeta.KindGPU:
+		return c.handleGPU(ev)
+	case workloadmeta.KindCRD:
+		return c.handleCRD(ev)
+	case workloadmeta.KindKubeCapabilities:
+		return c.handleKubeCapabilities(ev)
+	default:
+		log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
+		return nil
+	}
+}
+
+// currentDependencies returns the entities that the handler of entity looks
+// up, without tagging it. The handler runs without registering children and
+// with the completeness the entity's own event already recorded.
+func (c *WorkloadMetaCollector) currentDependencies(entity workloadmeta.Entity, isComplete bool) map[workloadmeta.EntityID]struct{} {
+	c.dryRun = true
+	c.store.startTracking()
+	_ = c.handleKind(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: entity, IsComplete: isComplete})
+	dependencies := c.store.stopTracking()
+	c.dryRun = false
+	return dependencies
+}
+
+// getEntity returns the entity in the store, for the kinds whose handlers make
+// tracked lookups. It returns false for other kinds.
 func (c *WorkloadMetaCollector) getEntity(id workloadmeta.EntityID) (workloadmeta.Entity, bool) {
 	var entity workloadmeta.Entity
 	var err error
@@ -317,7 +343,6 @@ func (c *WorkloadMetaCollector) getEntity(id workloadmeta.EntityID) (workloadmet
 	case workloadmeta.KindKubernetesKueueWorkload:
 		entity, err = c.store.GetKubernetesKueueWorkload(id.ID)
 	default:
-		log.Errorf("cannot re-tag entity %q with kind %q", id.ID, id.Kind)
 		return nil, false
 	}
 
@@ -1914,6 +1939,10 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 }
 
 func (c *WorkloadMetaCollector) registerChild(parent, child workloadmeta.EntityID) {
+	if c.dryRun {
+		return
+	}
+
 	parentTaggerEntityID := common.BuildTaggerEntityID(parent)
 	childTaggerEntityID := common.BuildTaggerEntityID(child)
 

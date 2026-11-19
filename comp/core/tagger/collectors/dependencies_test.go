@@ -7,6 +7,7 @@ package collectors
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -94,7 +95,7 @@ func TestKueueWorkloadRemovalRetagsPod(t *testing.T) {
 	workload := newKueueWorkload("job-a", "a100")
 
 	got := h.add(newContainer("ctr-a"), newKueuePod("pod-a", "ctr-a", "job-a"), workload)
-	require.Contains(t, tagInfoFor(got, podTaggerID("pod-a")).OrchestratorCardTags, "kueue_workload:job-a")
+	require.Contains(t, mustTagInfo(t, got, podTaggerID("pod-a")).OrchestratorCardTags, "kueue_workload:job-a")
 
 	h.store.Unset(workload)
 	got = h.process(unsetEvent(workload))
@@ -117,7 +118,7 @@ func TestKueueResourceFlavorChangeRetagsOnlyPodsUsingIt(t *testing.T) {
 		newKueueResourceFlavor("a100", "ampere"),
 		newKueueResourceFlavor("h100", "hopper"),
 	)
-	require.Contains(t, tagInfoFor(got, podTaggerID("pod-a")).LowCardTags, "gpu_architecture:ampere")
+	require.Contains(t, mustTagInfo(t, got, podTaggerID("pod-a")).LowCardTags, "gpu_architecture:ampere")
 
 	got = h.add(newKueueResourceFlavor("a100", "blackwell"))
 
@@ -144,13 +145,12 @@ func TestDeletedPodIsNotRetagged(t *testing.T) {
 	assert.Nil(t, tagInfoFor(got, podTaggerID("pod-a")))
 }
 
-func TestEntityInBundleIsTaggedOnce(t *testing.T) {
+func TestReaderIsRetaggedOncePerBundle(t *testing.T) {
 	h := newDependencyTestHarness(t)
-	pod := newKueuePod("pod-a", "ctr-a", "job-a")
-	workload := newKueueWorkload("job-a", "a100")
-	h.add(newContainer("ctr-a"), pod, workload)
+	h.add(newContainer("ctr-a"), newKueuePod("pod-a", "ctr-a", "job-a"), newKueueWorkload("job-a", "a100"), newKueueResourceFlavor("a100", "ampere"))
 
-	got := h.process(setEvent(pod), setEvent(workload))
+	// Both entities that the pod reads change in the same bundle.
+	got := h.add(newKueueWorkload("job-a", "h100"), newKueueResourceFlavor("a100", "hopper"))
 
 	count := 0
 	for _, tagInfo := range got {
@@ -159,6 +159,125 @@ func TestEntityInBundleIsTaggedOnce(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, count)
+}
+
+// A pod tagged before its container in a bundle computes the container's tags
+// with the container's previous completeness. When a dependency of the pod
+// changes in the same bundle, its re-tag runs after the whole bundle, with the
+// container's new completeness.
+func TestReaderRetagUsesStateUpdatedLaterInTheBundle(t *testing.T) {
+	h := newDependencyTestHarness(t)
+	container := newContainer("ctr-a")
+	pod := newKueuePod("pod-a", "ctr-a", "job-a")
+	h.store.Set(container)
+	h.store.Set(pod)
+	workload := newKueueWorkload("job-a", "a100")
+	h.store.Set(workload)
+
+	got := h.process(
+		setEvent(pod),
+		setEvent(container),
+		setEvent(workload),
+	)
+
+	var fromPod *types.TagInfo
+	for _, tagInfo := range got {
+		if tagInfo.Source == podSource && tagInfo.EntityID == containerTaggerID("ctr-a") && !tagInfo.DeleteEntity {
+			fromPod = tagInfo
+		}
+	}
+	require.NotNil(t, fromPod, "the pod didn't tag its container")
+	assert.True(t, fromPod.IsComplete, "the container's tags from the pod use its completeness from later in the bundle")
+	assert.Contains(t, fromPod.OrchestratorCardTags, "kueue_workload:job-a")
+}
+
+// When one source of a pod is removed while another remains, workloadmeta
+// sends a set event with the pod as it was before the removal, while the
+// store already dropped that source's data. A pod tagged from that event is
+// re-tagged from the store when a dependency changes in the same bundle, like
+// pods re-tagged in later bundles.
+func TestReaderTaggedFromPreRemovalEventIsRetaggedFromStore(t *testing.T) {
+	h := newDependencyTestHarness(t)
+	podID := workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-a"}
+	// The PodGroup annotation only comes from the kubelet.
+	fromKubelet := &workloadmeta.KubernetesPod{
+		EntityID: podID,
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        "pod-a",
+			Namespace:   "default",
+			Annotations: map[string]string{kubernetes.KAIPodGroupAnnotationKey: "pg"},
+		},
+	}
+	fromCluster := &workloadmeta.KubernetesPod{
+		EntityID:   podID,
+		EntityMeta: workloadmeta.EntityMeta{Name: "pod-a", Namespace: "default"},
+	}
+	h.store.Notify([]workloadmeta.CollectorEvent{
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceNodeOrchestrator, Entity: fromKubelet},
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceClusterOrchestrator, Entity: fromCluster},
+	})
+	h.add(newKAIPodGroup("pg", "queue-a"))
+	beforeRemoval, err := h.store.GetKubernetesPod(podID.ID)
+	require.NoError(t, err)
+	got := h.process(setEvent(beforeRemoval))
+	require.Contains(t, kaiTags(tagInfoFor(got, podTaggerID("pod-a"))), "kai_queue:queue-a")
+
+	// The kubelet removes the pod first, and the PodGroup changes in the same
+	// bundle. The pre-removal copy carries the annotation; the store's pod
+	// no longer does.
+	h.store.Notify([]workloadmeta.CollectorEvent{
+		{Type: workloadmeta.EventTypeUnset, Source: workloadmeta.SourceNodeOrchestrator, Entity: fromKubelet},
+	})
+	preRemovalCopy := beforeRemoval.DeepCopy()
+	updated := newKAIPodGroup("pg", "queue-b")
+	h.store.Set(updated)
+	got = h.process(setEvent(preRemovalCopy), setEvent(updated))
+
+	podTags := tagInfoFor(got, podTaggerID("pod-a"))
+	require.NotNil(t, podTags)
+	assert.Empty(t, kaiTags(podTags), "the pod is tagged from the store, which lost the annotation")
+}
+
+// A set event sent for a partial unset has the entity as it was before the
+// removal, which can reference other entities than the one now in the store.
+// The pod must also be re-tagged when the entities the store's pod references
+// change.
+func TestPreRemovalEventAlsoRecordsCurrentDependencies(t *testing.T) {
+	h := newDependencyTestHarness(t)
+	podID := workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-a"}
+	newSourcePod := func(podGroup string) *workloadmeta.KubernetesPod {
+		return &workloadmeta.KubernetesPod{
+			EntityID: podID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:        "pod-a",
+				Namespace:   "default",
+				Annotations: map[string]string{kubernetes.KAIPodGroupAnnotationKey: podGroup},
+			},
+		}
+	}
+	// Sources are merged in alphabetical order, so the merged pod has the
+	// cluster orchestrator's PodGroup.
+	fromCluster, fromKubelet := newSourcePod("pg-a"), newSourcePod("pg-b")
+	h.store.Notify([]workloadmeta.CollectorEvent{
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceClusterOrchestrator, Entity: fromCluster},
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceNodeOrchestrator, Entity: fromKubelet},
+	})
+	h.add(newKAIPodGroup("pg-a", "queue-a"), newKAIPodGroup("pg-b", "queue-b"))
+	merged, err := h.store.GetKubernetesPod(podID.ID)
+	require.NoError(t, err)
+	require.Contains(t, kaiTags(tagInfoFor(h.process(setEvent(merged)), podTaggerID("pod-a"))), "kai_pod_group:pg-a")
+
+	// The cluster orchestrator's source is removed: the tagger gets the pod as
+	// it was before, with pg-a, while the store's pod has pg-b.
+	h.store.Notify([]workloadmeta.CollectorEvent{
+		{Type: workloadmeta.EventTypeUnset, Source: workloadmeta.SourceClusterOrchestrator, Entity: fromCluster},
+	})
+	h.process(setEvent(merged.DeepCopy()))
+
+	got := h.add(newKAIPodGroup("pg-b", "queue-c"))
+	podTags := tagInfoFor(got, podTaggerID("pod-a"))
+	require.NotNil(t, podTags, "pod-a was not re-tagged when the PodGroup of the store's pod changed")
+	assert.Contains(t, kaiTags(podTags), "kai_queue:queue-c")
 }
 
 type dependencyTestHarness struct {
@@ -209,6 +328,14 @@ type processorFunc func([]*types.TagInfo)
 
 func (f processorFunc) ProcessTagInfo(tagInfos []*types.TagInfo) {
 	f(tagInfos)
+}
+
+// mustTagInfo is tagInfoFor for tag infos the test requires.
+func mustTagInfo(t *testing.T, tagInfos []*types.TagInfo, id types.EntityID) *types.TagInfo {
+	t.Helper()
+	tagInfo := tagInfoFor(tagInfos, id)
+	require.NotNil(t, tagInfo, "no tags for %s", id)
+	return tagInfo
 }
 
 func tagInfoFor(tagInfos []*types.TagInfo, id types.EntityID) *types.TagInfo {
@@ -284,4 +411,28 @@ func newKueueResourceFlavor(name, gpuFamily string) *workloadmeta.KubernetesKueu
 		EntityMeta:         workloadmeta.EntityMeta{Name: name},
 		NodeAffinityLabels: map[string]string{"nvidia.com/gpu.family": gpuFamily},
 	}
+}
+
+func newKAIPodGroup(name, queue string) *workloadmeta.KubernetesKAIPodGroup {
+	return &workloadmeta.KubernetesKAIPodGroup{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKAIPodGroup,
+			ID:   workloadmeta.GenerateKAIPodGroupEntityID("default", name),
+		},
+		EntityMeta: workloadmeta.EntityMeta{Name: name, Namespace: "default"},
+		QueueName:  queue,
+	}
+}
+
+func kaiTags(tagInfo *types.TagInfo) []string {
+	if tagInfo == nil {
+		return nil
+	}
+	var kai []string
+	for _, tag := range append(tagInfo.LowCardTags, tagInfo.OrchestratorCardTags...) {
+		if strings.HasPrefix(tag, "kai_") {
+			kai = append(kai, tag)
+		}
+	}
+	return kai
 }

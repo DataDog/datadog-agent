@@ -48,6 +48,29 @@ func (d *dependencyIndex) replace(reader workloadmeta.EntityID, reads map[worklo
 	}
 }
 
+// add adds to the entities that reader depends on. isComplete is used if
+// reader had no dependencies yet.
+func (d *dependencyIndex) add(reader workloadmeta.EntityID, reads map[workloadmeta.EntityID]struct{}, isComplete bool) {
+	if len(reads) == 0 {
+		return
+	}
+
+	tagged, ok := d.tagged[reader]
+	if !ok {
+		tagged = taggedEntity{reads: make(map[workloadmeta.EntityID]struct{}), isComplete: isComplete}
+		d.tagged[reader] = tagged
+	}
+	for read := range reads {
+		tagged.reads[read] = struct{}{}
+		readers, ok := d.readers[read]
+		if !ok {
+			readers = make(map[workloadmeta.EntityID]struct{})
+			d.readers[read] = readers
+		}
+		readers[reader] = struct{}{}
+	}
+}
+
 func (d *dependencyIndex) forget(reader workloadmeta.EntityID) {
 	for read := range d.tagged[reader].reads {
 		delete(d.readers[read], reader)

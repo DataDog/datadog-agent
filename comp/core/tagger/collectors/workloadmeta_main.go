@@ -61,6 +61,8 @@ type WorkloadMetaCollector struct {
 	cfg          config.Component
 	children     map[types.EntityID]map[types.EntityID]struct{}
 	dependencies *dependencyIndex
+	// dryRun is set while a handler runs only to find what it looks up
+	dryRun       bool
 	tagProcessor taggerdef.Processor
 
 	containerEnvAsTags              map[string]string
