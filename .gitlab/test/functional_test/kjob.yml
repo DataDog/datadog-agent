@@ -93,7 +93,8 @@ single_machine_performance-kjob:
   after_script:
     - mkdir -p outputs
     - |
-      KJOB_JOB_ID=$(jq -er '.id' outputs/submit.json 2>/dev/null || true)
+      # A failed submit writes {"error": …}, so take the ID only when it exists.
+      KJOB_JOB_ID=$(jq -er '.id // empty' outputs/submit.json 2>/dev/null || true)
       KJOB_RESULT_CODE=$(cat outputs/result_code 2>/dev/null || true)
       case "${KJOB_RESULT_CODE}" in
         3) KJOB_NO_RESULT_REASON="the run did not finish before the time limit" ;;

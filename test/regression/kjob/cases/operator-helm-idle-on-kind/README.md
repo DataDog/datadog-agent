@@ -12,7 +12,14 @@ None. The case adds no Pods and no traffic.
 
 ## Assertions
 
-None yet. Bounds for the `agent` and `cluster-agent` containers come after CI runs give data.
+Upper bounds on the peak working-set memory of each container:
+
+| Container | Upper bound |
+|---|---:|
+| `agent` (Node Agent) | 164 MiB |
+| `cluster-agent` (Cluster Agent) | 100 MiB |
+
+Each bound is the highest value from 10 CI replicates plus 10%, rounded to the nearest MiB.
 
 ## Special Considerations
 
