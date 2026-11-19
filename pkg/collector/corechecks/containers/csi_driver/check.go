@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -245,7 +247,7 @@ func (c *Check) Cancel() {
 	c.CheckBase.Cancel()
 }
 
-func (c *Check) scrape() ([]prometheus.MetricFamily, error) {
+func (c *Check) scrape() ([]*prometheus.MetricFamily, error) {
 	resp, err := c.httpClient.Get(c.config.OpenmetricsEndpoint)
 	if err != nil {
 		return nil, err
@@ -275,7 +277,7 @@ func normalizeMetricName(name string) string {
 	return strings.TrimSuffix(name, "_total")
 }
 
-func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamily) {
+func (c *Check) submitMetrics(s sender.Sender, families []*prometheus.MetricFamily) {
 	c.state.mu.Lock()
 	defer c.state.mu.Unlock()
 
@@ -307,22 +309,22 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 			case counterMetric:
 				tags := clientTags(sample.Metric)
 				key := strings.Join(tags, "|")
-				counterSums[key] += sample.Value
+				counterSums[key] += float64(sample.Value)
 				counterTags[key] = tags
 			case gaugeMetric:
-				s.Gauge(metricNs+def.ddName, sample.Value, "", labelsToTags(sample.Metric))
+				s.Gauge(metricNs+def.ddName, float64(sample.Value), "", labelsToTags(sample.Metric))
 			}
 
 			if def.coat != nil {
 				tagValues := make([]string, len(def.coat.tagKeys))
 				for i, k := range def.coat.tagKeys {
-					tagValues[i] = sample.Metric[k]
+					tagValues[i] = string(sample.Metric[model.LabelName(k)])
 				}
 
 				switch def.coat.kind {
 				case counterMetric:
 					key := c.endpointCoatKey(def.ddName, tagValues)
-					coatCounterSums[key] += sample.Value
+					coatCounterSums[key] += float64(sample.Value)
 					coatCounterTags[key] = tagValues
 				case gaugeMetric:
 					// Keyed by COAT series identity; see sharedState (no cross-endpoint aggregation).
@@ -332,7 +334,7 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 						coat:      def.coat,
 						tagValues: slicesClone(tagValues),
 					}
-					def.coat.gauge.Set(sample.Value, tagValues...)
+					def.coat.gauge.Set(float64(sample.Value), tagValues...)
 				}
 			}
 
@@ -340,7 +342,7 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 				// Reduce the histogram to count/sum counters; ignore _bucket and
 				// any other series (see coatHistogram). The raw series name is
 				// kept in the __name__ label after the parser trims the family.
-				rawName := sample.Metric["__name__"]
+				rawName := string(sample.Metric["__name__"])
 				var target telemetry.Counter
 				switch {
 				case strings.HasSuffix(rawName, "_count"):
@@ -351,9 +353,9 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 				if target != nil {
 					tagValues := make([]string, len(def.coatHist.tagKeys))
 					for i, k := range def.coatHist.tagKeys {
-						tagValues[i] = sample.Metric[k]
+						tagValues[i] = string(sample.Metric[model.LabelName(k)])
 					}
-					c.addCounterDeltaLocked(target, c.endpointSeriesKey(rawName, sample.Metric), sample.Value, tagValues)
+					c.addCounterDeltaLocked(target, c.endpointSeriesKey(rawName, sample.Metric), float64(sample.Value), tagValues)
 				}
 			}
 		}
@@ -406,7 +408,7 @@ func (c *Check) deleteStaleGaugeSeriesLocked(currentGaugeKeys map[string]struct{
 	}
 }
 
-func (c *Check) endpointSeriesKey(name string, labels prometheus.Metric) string {
+func (c *Check) endpointSeriesKey(name string, labels model.Metric) string {
 	return c.config.OpenmetricsEndpoint + "|" + seriesKey(name, labels)
 }
 
@@ -430,13 +432,13 @@ func slicesClone(in []string) []string {
 
 // seriesKey builds a unique key for a metric time series from its name and
 // all label values, used to track previous values for delta computation.
-func seriesKey(name string, labels prometheus.Metric) string {
+func seriesKey(name string, labels model.Metric) string {
 	keys := make([]string, 0, len(labels))
 	for k := range labels {
 		if k == "__name__" {
 			continue
 		}
-		keys = append(keys, k)
+		keys = append(keys, string(k))
 	}
 	sort.Strings(keys)
 
@@ -446,18 +448,18 @@ func seriesKey(name string, labels prometheus.Metric) string {
 		b.WriteByte('|')
 		b.WriteString(k)
 		b.WriteByte('=')
-		b.WriteString(labels[k])
+		b.WriteString(string(labels[model.LabelName(k)]))
 	}
 	return b.String()
 }
 
-func labelsToTags(m prometheus.Metric) []string {
+func labelsToTags(m model.Metric) []string {
 	tags := make([]string, 0, len(m))
 	for k, v := range m {
 		if k == "__name__" {
 			continue
 		}
-		tags = append(tags, k+":"+v)
+		tags = append(tags, string(k)+":"+string(v))
 	}
 	return tags
 }
@@ -475,7 +477,7 @@ const pathLabel = "path"
 // that matches the COAT preserved-tag set; callers sum the cumulative values
 // per context before submitting, which stays monotonic because the driver never
 // removes its Prometheus series.
-func clientTags(m prometheus.Metric) []string {
+func clientTags(m model.Metric) []string {
 	tags := slices.DeleteFunc(labelsToTags(m), func(t string) bool {
 		return strings.HasPrefix(t, pathLabel+":")
 	})

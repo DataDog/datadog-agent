@@ -12,6 +12,7 @@ go_library(
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/prometheus",
+        "@com_github_prometheus_common//model",
     ],
 )
 
@@ -29,7 +30,7 @@ dd_agent_go_test(
     include_default = False,
     deps = [
         "//pkg/collector/corechecks/containers/kubelet/common",
-        "//pkg/util/prometheus",
+        "@com_github_prometheus_common//model",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

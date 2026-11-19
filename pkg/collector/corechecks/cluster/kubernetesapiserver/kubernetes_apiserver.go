@@ -692,8 +692,8 @@ func apiServerClientTimeout() time.Duration {
 // from either supported Kubernetes storage-object metric family.
 func submitStorageObjectsMetrics(sender sender.Sender, family *prometheus.MetricFamily) {
 	for _, sample := range family.Samples {
-		tags := []string{"resource:" + sample.Metric["resource"]}
-		sender.Gauge("kube_apiserver.storage_objects", sample.Value, "", tags)
+		tags := []string{"resource:" + string(sample.Metric["resource"])}
+		sender.Gauge("kube_apiserver.storage_objects", float64(sample.Value), "", tags)
 	}
 }
 

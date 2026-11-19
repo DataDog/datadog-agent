@@ -27,6 +27,7 @@ go_library(
             "//pkg/metrics/servicecheck",
             "//pkg/util/option",
             "//pkg/util/prometheus",
+            "@com_github_prometheus_common//model",
             "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:darwin": [
@@ -76,6 +77,7 @@ go_library(
             "//pkg/metrics/servicecheck",
             "//pkg/util/option",
             "//pkg/util/prometheus",
+            "@com_github_prometheus_common//model",
             "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:netbsd": [
@@ -139,6 +141,7 @@ dd_agent_go_test(
             "//pkg/collector/check/id",
             "//pkg/collector/corechecks",
             "//pkg/metrics/servicecheck",
+            "@com_github_prometheus_common//model",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
@@ -153,6 +156,7 @@ dd_agent_go_test(
             "//pkg/collector/check/id",
             "//pkg/collector/corechecks",
             "//pkg/metrics/servicecheck",
+            "@com_github_prometheus_common//model",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
