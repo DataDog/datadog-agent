@@ -40,7 +40,7 @@ require (
 	github.com/google/go-containerregistry v0.22.1
 	github.com/google/uuid v1.6.0
 	github.com/hairyhenderson/go-codeowners v0.7.2
-	github.com/jackc/pgx/v5 v5.12.0
+	github.com/jackc/pgx/v5 v5.13.0
 	github.com/kr/pretty v0.3.1
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.54.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.13.0
@@ -311,7 +311,7 @@ require (
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.2 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.5.0 // indirect
-	github.com/pulumi/pulumi-gcp/sdk/v10 v10.2.0 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v10 v10.3.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.6 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3 // indirect

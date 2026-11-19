@@ -316,7 +316,7 @@ require (
 	github.com/hashicorp/vault/api/auth/userpass v0.12.0
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
 	github.com/invopop/jsonschema v0.14.0
-	github.com/jackc/pgx/v5 v5.12.0
+	github.com/jackc/pgx/v5 v5.13.0
 	github.com/jarcoal/httpmock v1.4.2
 	github.com/jellydator/ttlcache/v3 v3.4.1
 	github.com/jmoiron/sqlx v1.4.0
@@ -498,7 +498,7 @@ require (
 	google.golang.org/grpc v1.85.0
 	google.golang.org/grpc/examples v0.0.0-20250407062114-b368379ef8f6
 	google.golang.org/protobuf v1.36.12
-	gopkg.in/ini.v1 v1.67.3
+	gopkg.in/ini.v1 v1.68.0
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.32.0
 	istio.io/client-go v1.32.0

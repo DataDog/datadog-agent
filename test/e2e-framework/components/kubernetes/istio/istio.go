@@ -50,7 +50,7 @@ func NewHelmInstallation(e config.Env, opts ...pulumi.ResourceOption) (*HelmComp
 	values := buildIstioBaseHelmValues()
 
 	istioBase, err := helm.NewInstallation(e, helm.InstallArgs{
-		RepoURL:     "https://istio-release.storage.googleapis.com/charts",
+		RepoURL:     istioChartsRepo,
 		ChartName:   "base",
 		InstallName: "istio-base",
 		Namespace:   "istio-system",
@@ -65,7 +65,7 @@ func NewHelmInstallation(e config.Env, opts ...pulumi.ResourceOption) (*HelmComp
 	opts = append(opts, utils.PulumiDependsOn(istioBase))
 
 	istiod, err := helm.NewInstallation(e, helm.InstallArgs{
-		RepoURL:     "https://istio-release.storage.googleapis.com/charts",
+		RepoURL:     istioChartsRepo,
 		ChartName:   "istiod",
 		InstallName: "istiod",
 		Namespace:   "istio-system",
@@ -85,7 +85,7 @@ func NewHelmInstallation(e config.Env, opts ...pulumi.ResourceOption) (*HelmComp
 	}
 
 	istioIngress, err := helm.NewInstallation(e, helm.InstallArgs{
-		RepoURL:     "https://istio-release.storage.googleapis.com/charts",
+		RepoURL:     istioChartsRepo,
 		ChartName:   "gateway",
 		InstallName: "istio-ingress",
 		Namespace:   "istio-ingress",
