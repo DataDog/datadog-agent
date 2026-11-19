@@ -721,7 +721,7 @@ func TestTypeFiltersAtOutput(t *testing.T) {
 	cases := map[metrics.MetricType]bool{
 		metrics.GaugeType:              false,
 		metrics.RateType:               false,
-		metrics.CountType:              false,
+		metrics.CountType:              true,
 		metrics.MonotonicCountType:     false,
 		metrics.CounterType:            true,
 		metrics.HistogramType:          false,
