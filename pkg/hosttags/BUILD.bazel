@@ -3,18 +3,12 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "hosttags",
-    srcs = [
-        "host_tag_provider.go",
-        "payload_tags.go",
-    ],
+    srcs = ["host_tag_provider.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/hosttags",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/tagger/tags",
-        "//comp/core/tagger/types",
         "//comp/metadata/host/impl/hosttags",
         "//pkg/config/setup",
-        "//pkg/util/fargate",
         "//pkg/util/log",
         "@com_github_benbjohnson_clock//:clock",
     ],
@@ -22,15 +16,10 @@ go_library(
 
 dd_agent_go_test(
     name = "hosttags_test",
-    srcs = [
-        "host_tag_provider_test.go",
-        "payload_tags_test.go",
-    ],
+    srcs = ["host_tag_provider_test.go"],
     embed = [":hosttags"],
     deps = [
-        "//comp/core/tagger/types",
         "//comp/metadata/host/impl/hosttags",
-        "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/config/setup",
         "@com_github_benbjohnson_clock//:clock",

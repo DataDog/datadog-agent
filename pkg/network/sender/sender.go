@@ -50,12 +50,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const clientID = "local_client"
+
+// missingTaskARNLogLimit limits the log when the ECS task tags have no task_arn.
+var missingTaskARNLogLimit = utillog.NewLogLimit(1, 10*time.Minute)
+
 const telemetrySubsystem = "sender__connections"
 
 var senderTelemetry = struct {
@@ -68,14 +74,19 @@ var senderTelemetry = struct {
 	telemetryimpl.GetCompatComponent().NewCounter(telemetrySubsystem, "connection_count", nil, ""),
 }
 
-// newPayloadTags returns the host tags the direct sender attaches to its payloads.
-func newPayloadTags(syscfg sysprobeconfig.Component, tagger tagger.Component) *hosttags.PayloadTags {
-	return hosttags.NewPayloadTags(
-		hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
-		tagger,
-		// the hostname is empty on ECS Fargate, so task_arn is the only task identity
-		true,
-	)
+// hostTags returns the host tags for the payloads of a check run: the expected host tags and, on
+// ECS Fargate, the task's tags, which identify the task since the hostname is empty there. They're
+// sorted and deduplicated, so encoding them for each chunk doesn't modify them.
+func (d *directSender) hostTags() []string {
+	hostTags := slices.Clone(d.hostTagProvider.GetHostTags())
+	taskTags, onECSFargate := fargate.ECSTaskTags(d.tagger)
+	if onECSFargate && !fargate.HasTaskARN(taskTags) && missingTaskARNLogLimit.ShouldLog() {
+		// expected briefly after startup, until the tagger has the task's metadata
+		d.log.Infof("no task_arn in the ECS task tags yet: connections can't be attributed to the task until it's available")
+	}
+	hostTags = append(hostTags, taskTags...)
+	slices.Sort(hostTags)
+	return slices.Compact(hostTags)
 }
 
 // New creates a direct sender
@@ -158,11 +169,11 @@ func New(
 	ds := directSender{
 		tracer: tr,
 
-		hostTags:   newPayloadTags(syscfg, deps.Tagger),
-		agentCfg:   marshal.NewAgentConfiguration(syscfg, deps.Config),
-		ctx:        ctx,
-		cancelFunc: cancel,
-		resolver:   newContainerResolver(deps.Wmeta, syscfg.GetDuration("system_probe_config.expected_tags_duration")),
+		hostTagProvider: hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
+		agentCfg:        marshal.NewAgentConfiguration(syscfg, deps.Config),
+		ctx:             ctx,
+		cancelFunc:      cancel,
+		resolver:        newContainerResolver(deps.Wmeta, syscfg.GetDuration("system_probe_config.expected_tags_duration")),
 
 		sysprobeconfig: syscfg,
 		tagger:         deps.Tagger,
@@ -197,8 +208,8 @@ type directSender struct {
 	tracer  ConnectionsSource
 	groupID atomic.Int32
 
-	hostTags *hosttags.PayloadTags
-	agentCfg *model.AgentConfiguration
+	hostTagProvider *hosttags.HostTagProvider
+	agentCfg        *model.AgentConfiguration
 
 	sysprobeconfig sysprobeconfig.Component
 	tagger         tagger.Component
@@ -437,7 +448,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 
 	builder := model.NewCollectorConnectionsBuilder(io.Discard)
 	// the same for every chunk of the group
-	hostTags := d.hostTags.Get()
+	hostTags := d.hostTags()
 
 	return func(yield func([]byte) bool) {
 		defer func() {
