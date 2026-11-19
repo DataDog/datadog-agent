@@ -39,6 +39,7 @@ import (
 	schemafx "github.com/DataDog/datadog-agent/comp/core/schema/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigfx "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/fx"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
@@ -185,8 +186,9 @@ func scenarioDescription(t *testing.T, name string) string {
 }
 
 // runInvalidConfigScenario loads the scenario configuration like the Agent does, then asserts that the health report
-// received by the intake matches the scenario expected report and that no payload leaks a configured value
-func runInvalidConfigScenario(t *testing.T, name string) {
+// received by the intake matches the scenario expected report and that no payload leaks a configured value. It returns
+// the loaded system-probe configuration, whose effective settings aren't all visible in the reports.
+func runInvalidConfigScenario(t *testing.T, name string) sysprobeconfig.Component {
 	expected := readScenarioFile(t, name+".expected.json", false)
 
 	ready := make(chan bool, 1)
@@ -197,7 +199,9 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 	fi.Start()
 	require.True(t, <-ready, "fakeintake server did not become ready")
 	t.Cleanup(func() { _ = fi.Stop() })
-	fiClient := fakeintakeclient.NewClient(fi.URL())
+	// The fakeintake runs in-process: a single bounded request per poll, rather than the client default retries spanning
+	// longer than the polling deadline, so no read outlives the wait and the fakeintake shutdown
+	fiClient := fakeintakeclient.NewClient(fi.URL(), fakeintakeclient.WithGetBackoffRetries(1), fakeintakeclient.WithGetTimeout(time.Second))
 
 	confDir := t.TempDir()
 	datadogYAML := filepath.Join(confDir, "datadog.yaml")
@@ -236,9 +240,10 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 
 	deps := fxutil.Test[struct {
 		fx.In
-		Config config.Component
-		Store  storedef.Component
-		Schema schema.Component
+		Config         config.Component
+		SysprobeConfig sysprobeconfig.Component
+		Store          storedef.Component
+		Schema         schema.Component
 	}](t,
 		Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
@@ -301,7 +306,7 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 			assert.True(t, isCanary, "unexpected configuration issue %q: %s", issue.GetId(), issue.GetTitle())
 		}
 		assertNoLeakedValue(t, fiClient)
-		return
+		return deps.SysprobeConfig
 	}
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -325,6 +330,7 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 	}, 10*time.Second, 100*time.Millisecond, "health report doesn't match %s/%s.expected.json", invalidConfigScenarioDir, name)
 
 	assertNoLeakedValue(t, fiClient)
+	return deps.SysprobeConfig
 }
 
 // assertNoLeakedValue checks that none of the health reports received by the intake holds a leak marker, both in the
