@@ -374,23 +374,46 @@ func (r *reader) hwmonClock(dir string, entries []os.DirEntry, label string) Rea
 	return Reading{}
 }
 
-// rasBlocks are the RAS blocks whose ras/<block>_err_count attributes amd-smi
-// adds up for its total ECC counts (amdsmi_get_gpu_total_ecc_count and
+// rasBlocks are the RAS blocks amd-smi adds up for its total ECC counts, with
+// their bit in ras/features (amdsmi_get_gpu_total_ecc_count and
 // rsmi_dev_ecc_count_get in ROCm/rocm-systems projects/amdsmi).
-var rasBlocks = []string{"umc", "sdma", "gfx", "mmhub", "pcie_bif", "hdp", "xgmi_wafl"}
+var rasBlocks = []struct {
+	name string
+	bit  uint
+}{{"umc", 0}, {"sdma", 1}, {"gfx", 2}, {"mmhub", 3}, {"pcie_bif", 5}, {"hdp", 6}, {"xgmi_wafl", 7}}
 
-// rasQueryInaccessible is what amdgpu returns for an err_count attribute while
-// it cannot query errors, such as during a GPU reset.
+// rasQueryInaccessible is what amdgpu returns for an error count attribute
+// while it cannot query errors, such as during a GPU reset.
 const rasQueryInaccessible = "Query currently inaccessible"
 
-// readECC sums the error counts of the RAS blocks. A block that is absent or
-// whose count cannot be read or parsed is left out.
+// readECC sums the error counts of the RAS blocks enabled in ras/features, as
+// amd-smi does. A block whose count is absent or cannot be read or parsed is
+// left out.
 func (r *reader) readECC(rasDir string, m *Metrics) {
+	featuresPath := filepath.Join(rasDir, "features")
+	features, ok := r.read(featuresPath)
+	if !ok {
+		return
+	}
+	mask, err := parseRASFeatures(features)
+	if err != nil {
+		r.errs = append(r.errs, fmt.Errorf("parse %s: %w", featuresPath, err))
+		return
+	}
+
 	var uncorrected, corrected, deferred uint64
 	var found, foundDeferred bool
 	for _, block := range rasBlocks {
-		path := filepath.Join(rasDir, block+"_err_count")
+		if mask&(1<<block.bit) == 0 {
+			continue
+		}
+		path := filepath.Join(rasDir, block.name+"_err_count")
 		content, ok := r.read(path)
+		if !ok {
+			// With ACA (bare-metal MI300 and later), the attribute is aca_<block>.
+			path = filepath.Join(rasDir, "aca_"+block.name)
+			content, ok = r.read(path)
+		}
 		if !ok || content == rasQueryInaccessible {
 			continue
 		}
@@ -416,8 +439,18 @@ func (r *reader) readECC(rasDir string, m *Metrics) {
 	}
 }
 
-// parseErrCount parses an err_count attribute, such as "ue: 0\nce: 2\nde: 0"
-// (only UMC reports "de"). The ue and ce counts are required.
+// parseRASFeatures parses ras/features, such as "feature mask: 0x20065bff".
+func parseRASFeatures(content string) (uint64, error) {
+	value, found := strings.CutPrefix(content, "feature mask:")
+	if !found {
+		return 0, fmt.Errorf("invalid feature mask %q", content)
+	}
+	return strconv.ParseUint(strings.TrimPrefix(strings.TrimSpace(value), "0x"), 16, 64)
+}
+
+// parseErrCount parses an error count attribute, such as "ue: 0\nce: 2\nde: 0"
+// (de is only reported by UMC, or by all blocks with ACA). The ue and ce counts
+// are required.
 func parseErrCount(content string) (map[string]uint64, error) {
 	counts := make(map[string]uint64, 3)
 	for line := range strings.Lines(content) {

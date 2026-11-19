@@ -336,8 +336,10 @@ func TestReadMetricsZeroLinkWidthIsUnavailable(t *testing.T) {
 	assert.False(t, m.PCIeMaxLinkWidth.Valid)
 }
 
-// The err_count contents follow amdgpu_ras_sysfs_read in amdgpu_ras.c.
+// The contents follow amdgpu_ras_sysfs_read, amdgpu_ras_aca_sysfs_read and
+// amdgpu_ras_sysfs_features_read in amdgpu_ras.c.
 func TestReadMetricsECC(t *testing.T) {
+	const features = "feature mask: 0x20065bff\n" // MI300X VF: every block amd-smi counts
 	for name, tc := range map[string]struct {
 		ras                              map[string]string // no ras directory when nil
 		uncorrected, corrected, deferred Reading
@@ -346,17 +348,18 @@ func TestReadMetricsECC(t *testing.T) {
 		"no ras directory": {},
 		"MI300X VF without errors": {
 			ras: map[string]string{
+				"features":           features,
 				"umc_err_count":      "ue: 0\nce: 0\nde: 0\n",
 				"gfx_err_count":      "ue: 0\nce: 0\n",
 				"sdma_err_count":     "ue: 0\nce: 0\n",
 				"mmhub_err_count":    "ue: 0\nce: 0\n",
 				"pcie_bif_err_count": "ue: 0\nce: 0\n",
-				"features":           "feature mask: 0x3fbb\n",
 			},
 			uncorrected: valid(0), corrected: valid(0), deferred: valid(0),
 		},
 		"errors in several blocks": {
 			ras: map[string]string{
+				"features":            features,
 				"umc_err_count":       "ue: 2\nce: 7\nde: 1\n",
 				"gfx_err_count":       "ue: 1\nce: 0\n",
 				"sdma_err_count":      "ue: 0\nce: 3\n",
@@ -365,12 +368,40 @@ func TestReadMetricsECC(t *testing.T) {
 			},
 			uncorrected: valid(3), corrected: valid(14), deferred: valid(1),
 		},
+		"ACA attributes": {
+			ras: map[string]string{
+				"features":  features,
+				"aca_umc":   "ue: 1\nce: 6\nde: 2\n",
+				"aca_gfx":   "ue: 0\nce: 1\nde: 1\n",
+				"aca_mmhub": "ue: 0\nce: 0\nde: 0\n",
+			},
+			uncorrected: valid(1), corrected: valid(7), deferred: valid(3),
+		},
+		"block disabled in the feature mask": {
+			ras: map[string]string{
+				"features":      "feature mask: 0x1\n", // UMC only
+				"umc_err_count": "ue: 1\nce: 2\nde: 0\n",
+				"gfx_err_count": "ue: 5\nce: 5\n",
+			},
+			uncorrected: valid(1), corrected: valid(2), deferred: valid(0),
+		},
+		"no feature mask": {
+			ras: map[string]string{"umc_err_count": "ue: 1\nce: 2\nde: 0\n"},
+		},
+		"unparsable feature mask": {
+			ras: map[string]string{
+				"features":      "garbage\n",
+				"umc_err_count": "ue: 1\nce: 2\nde: 0\n",
+			},
+			wantErr: "features",
+		},
 		"no deferred count": {
-			ras:         map[string]string{"gfx_err_count": "ue: 1\nce: 2\n"},
+			ras:         map[string]string{"features": features, "gfx_err_count": "ue: 1\nce: 2\n"},
 			uncorrected: valid(1), corrected: valid(2),
 		},
 		"query inaccessible during a reset": {
 			ras: map[string]string{
+				"features":      features,
 				"umc_err_count": "Query currently inaccessible\n",
 				"gfx_err_count": "ue: 1\nce: 2\n",
 			},
@@ -378,6 +409,7 @@ func TestReadMetricsECC(t *testing.T) {
 		},
 		"unparsable block": {
 			ras: map[string]string{
+				"features":      features,
 				"umc_err_count": "ue: 2\nce: many\nde: 0\n",
 				"gfx_err_count": "ue: 1\nce: 2\n",
 			},
@@ -386,6 +418,7 @@ func TestReadMetricsECC(t *testing.T) {
 		},
 		"no readable block": {
 			ras: map[string]string{
+				"features":      features,
 				"umc_err_count": "Query currently inaccessible\n",
 				"gfx_err_count": "ue: 1\n",
 			},

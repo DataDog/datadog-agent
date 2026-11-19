@@ -170,6 +170,7 @@ func TestAMDECCErrorCounts(t *testing.T) {
 	fs := amdgpu.NewFakeSysfs(t)
 	devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", amdgpu.MI300XAttributes("00c0ffee00c0ffee"))
 	fs.WriteFiles(filepath.Join(devDir, "ras"), map[string]string{
+		"features":       "feature mask: 0x20065bff\n",
 		"umc_err_count":  "ue: 2\nce: 7\nde: 1\n",
 		"gfx_err_count":  "ue: 1\nce: 0\n",
 		"sdma_err_count": "garbage\n", // left out
