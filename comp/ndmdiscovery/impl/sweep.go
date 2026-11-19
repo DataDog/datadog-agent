@@ -39,8 +39,6 @@ type sweepRequest struct {
 	Options probe.Options
 	Plan    *chunkPlan
 	Digest  string
-	// Workers is this range's share of the global worker budget.
-	Workers int64
 	// Interval is how long after this cycle ends the range is next due.
 	Interval time.Duration
 }
@@ -53,7 +51,9 @@ type sweeper struct {
 	sem      *semaphore.Weighted
 	// budget is the size of sem.
 	budget int64
-	log    log.Component
+	// sweeping counts the sweeps in progress, which split the budget between them.
+	sweeping atomic.Int64
+	log      log.Component
 	// progressEvery paces the in_progress reports, and disables them at zero.
 	progressEvery     time.Duration
 	newProgressTicker func(d time.Duration) (<-chan time.Time, func())
@@ -85,7 +85,8 @@ func newSweeper(scan scanFunc, reporter discoveryReporter, cursors cursorStore, 
 
 func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 	id := r.Config.AutodiscoveryID
-	r.Workers = clampWorkers(r.Workers, s.budget)
+	s.sweeping.Add(1)
+	defer s.sweeping.Add(-1)
 	state := s.startState(r)
 	total := r.Plan.chunkCount()
 
@@ -232,27 +233,24 @@ func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk
 		return nil, nil
 	}
 
-	if err := s.sem.Acquire(ctx, r.Workers); err != nil {
+	workers := s.share(len(chunk.Targets))
+	if err := s.sem.Acquire(ctx, workers); err != nil {
 		return nil, err
 	}
-	defer s.sem.Release(r.Workers)
+	defer s.sem.Release(workers)
 
-	res, err := s.scan(ctx, int(r.Workers), chunk.Targets, r.Options)
+	res, err := s.scan(ctx, int(workers), chunk.Targets, r.Options)
 	if err != nil {
 		return nil, err
 	}
 	return toDiscoveredDevices(r.Config.AutodiscoveryID, runID, res), nil
 }
 
-// clampWorkers keeps a range's worker share inside [1, budget].
-func clampWorkers(workers, budget int64) int64 {
-	if workers < 1 {
-		return 1
-	}
-	if workers > budget {
-		return budget
-	}
-	return workers
+// share is one chunk's slice of the budget: an even split between the sweeps in
+// progress, capped at the chunk's size since a chunk cannot use more workers.
+func (s *sweeper) share(targets int) int64 {
+	active := max(s.sweeping.Load(), 1)
+	return max(min(s.budget/active, int64(targets)), 1)
 }
 
 func (s *sweeper) saveCursor(id string, state cursorState) {
