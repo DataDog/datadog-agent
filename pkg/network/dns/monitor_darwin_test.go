@@ -224,17 +224,15 @@ func TestDarwinDNSMonitor_EthernetDNSResponse(t *testing.T) {
 }
 
 func TestDarwinDNSMonitor_AddDomain(t *testing.T) {
-	answerIP := net.IP{1, 2, 3, 4}
-	src := newMockSubSource([]mockDNSPacket{
-		{data: buildEthernetDNSResponse("example.com", answerIP), layerType: layers.LayerTypeEthernet, ts: time.Now()},
-	})
-	m := newTestMonitor(t, src)
+	m := newTestMonitor(t, newMockSubSource(nil))
 	defer m.Close()
-	require.Eventually(t, func() bool {
-		return m.cache.Len() >= 1
-	}, 5*time.Second, 10*time.Millisecond, "cache should contain the resolved DNS entry")
+	addr := util.AddressFromString("1.2.3.4")
+	// The name a captured DNS answer adds, as the snooper does after parsing.
+	m.cache.Add(&translation{
+		dns: ToHostname("example.com"),
+		ips: map[util.Address]time.Time{addr: time.Now().Add(time.Minute)},
+	})
 
-	addr := util.AddressFromNetIP(answerIP)
 	m.AddDomain(addr, "api.example.com")
 	m.AddDomain(addr, "example.com")
 
