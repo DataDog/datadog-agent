@@ -98,7 +98,7 @@ func TestStrictIntervalTracksSeriesIndependently(t *testing.T) {
 	batch := func() []Sample {
 		return []Sample{
 			&Metric{Name: "device.total", Value: 1, Type: metrics.GaugeType, StrictInterval: testStrictInterval},
-			&Metric{Name: "device.unavailable", Value: 0, Type: metrics.GaugeType, StrictInterval: testStrictInterval},
+			&Metric{Name: "device.unhealthy", Value: 0, Type: metrics.GaugeType, StrictInterval: testStrictInterval},
 		}
 	}
 
