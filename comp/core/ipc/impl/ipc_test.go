@@ -95,6 +95,40 @@ func TestSuccessfulLoadAuthToken(t *testing.T) {
 	assert.EqualValues(t, RWComp.Comp.GetTLSServerConfig().Certificates, ROComp.Comp.GetTLSServerConfig().Certificates)
 }
 
+// TestGetMTLSServerConfig verifies that GetMTLSServerConfig requires client
+// certificates by default, and that insecure_temporarily_disable_ipc_mtls disables it.
+func TestGetMTLSServerConfig(t *testing.T) {
+	defer pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
+
+	mockConfig := configmock.New(t)
+	tmpDir, err := os.MkdirTemp("", "")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	mockConfig.SetInTest("auth_token_file_path", path.Join(tmpDir, "auth_token"))
+	mockConfig.SetInTest("ipc_cert_file_path", path.Join(tmpDir, "ipc_cert_file"))
+
+	reqs := Requires{
+		Log:  logmock.New(t),
+		Conf: mockConfig,
+	}
+	comp, err := NewComponent(reqs)
+	require.NoError(t, err)
+
+	// Default: mTLS enforced
+	mtlsConfig := comp.Comp.GetMTLSServerConfig()
+	assert.Equal(t, tls.RequireAndVerifyClientCert, mtlsConfig.ClientAuth)
+	assert.EqualValues(t, comp.Comp.GetTLSServerConfig().Certificates, mtlsConfig.Certificates)
+
+	// GetTLSServerConfig (token-only servers) is unaffected
+	assert.Equal(t, tls.VerifyClientCertIfGiven, comp.Comp.GetTLSServerConfig().ClientAuth)
+
+	// Rollback setting disables the requirement
+	mockConfig.SetInTest("insecure_temporarily_disable_ipc_mtls", true)
+	mtlsConfig = comp.Comp.GetMTLSServerConfig()
+	assert.Equal(t, tls.VerifyClientCertIfGiven, mtlsConfig.ClientAuth)
+}
+
 // This test check that if CreateAndSetAuthToken blocks, the function timeout
 func TestDeadline(t *testing.T) {
 	synctest.Test(t, syncTestDeadline)

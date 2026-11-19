@@ -43,6 +43,12 @@ func (ipc *ipcComponent) GetTLSServerConfig() *tls.Config {
 	return &tls.Config{}
 }
 
+// GetMTLSServerConfig return a TLS configuration with the IPC certificate for http.Server
+// requiring client certificates (mTLS). Noop implementation, no IPC certificate is available.
+func (ipc *ipcComponent) GetMTLSServerConfig() *tls.Config {
+	return &tls.Config{}
+}
+
 func (ipc *ipcComponent) HTTPMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Noop

@@ -81,6 +81,22 @@ func assertAgentUseCert(t *assert.CollectT, host *components.RemoteHost, ipcCert
 	// Setting IPC certificate as Root CA
 	tr.TLSClientConfig.RootCAs = CA
 
+	// mTLS-enforcing servers (core IPC, trace-agent debug) reject clients without
+	// the IPC certificate
+	trNoClientCert := client.Transport.(*http.Transport).Clone()
+	trNoClientCert.TLSClientConfig = &tls.Config{
+		RootCAs: CA,
+	}
+	clientNoCert := host.NewHTTPClient()
+	clientNoCert.Transport = trNoClientCert
+	for _, endpoint := range []ipcEndpoint{
+		{"coreIPC", coreIPCPort},
+		{"traceAgentDebug", apmCmdPort},
+	} {
+		_, err := clientNoCert.Get(fmt.Sprintf("https://127.0.0.1:%d", endpoint.Port)) // nolint: bodyclose
+		require.Errorf(t, err, "connection to %v succeeded without a client certificate", endpoint.Name)
+	}
+
 	for _, endpoint := range []ipcEndpoint{
 		{"coreCMD", coreCMDPort},
 		{"coreIPC", coreIPCPort},

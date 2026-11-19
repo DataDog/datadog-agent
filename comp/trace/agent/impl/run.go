@@ -60,7 +60,8 @@ func (ag component) telemetryMiddleware(serverName, route string) func(http.Hand
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
 func runAgentSidekicks(ag component) error {
 	// Configure the Trace Agent Debug server to use the IPC certificate
-	ag.Agent.DebugServer.SetTLSConfig(ag.ipc.GetTLSServerConfig())
+	// mTLS: clients must present the IPC certificate
+	ag.Agent.DebugServer.SetTLSConfig(ag.ipc.GetMTLSServerConfig())
 
 	tracecfg := ag.config.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option

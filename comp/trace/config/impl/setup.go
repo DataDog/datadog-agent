@@ -167,7 +167,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	cfg.AuthToken = ipc.GetAuthToken()
 	cfg.IPCTLSClientConfig = ipc.GetTLSClientConfig()
-	cfg.IPCTLSServerConfig = ipc.GetTLSServerConfig()
+	cfg.IPCTLSServerConfig = ipc.GetMTLSServerConfig()
 	cfg.HTTPTransportFunc = func() *http.Transport {
 		return httputils.CreateHTTPTransport(coreConfigObject)
 	}
