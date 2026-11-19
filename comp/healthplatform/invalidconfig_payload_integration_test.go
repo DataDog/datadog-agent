@@ -436,6 +436,10 @@ func setScenarioEnv(t *testing.T, envFile string) {
 			require.NoError(t, os.Unsetenv(key))
 		}
 	}
+	// The Docker socket check of the bundle skips the host sockets when DOCKER_HOST selects another endpoint. Probing them
+	// would make the result depend on the host, and on Windows a successful named pipe dial starts a process-wide I/O
+	// completion goroutine blocked in a system call, which never lets a testing/synctest bubble become idle.
+	t.Setenv("DOCKER_HOST", "tcp://docker.invalid:2375")
 	scanner := bufio.NewScanner(strings.NewReader(envFile))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
