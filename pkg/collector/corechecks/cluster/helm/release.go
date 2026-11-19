@@ -94,11 +94,17 @@ func decodeRelease(data string) (*release, error) {
 			return nil, err
 		}
 		defer r.Close()
-		b2, err := io.ReadAll(r)
+
+		// Limit the reader to 32MB
+		// Max size of compressed data is 1MB, uncompressed data could deflate about 20-30x larger.
+		// Round it up to 32MB to be safe.
+		// This is a security measure to prevent zip bombs or overloading the memory by inflating very well compressed data.
+		inflatedBuffer, err := io.ReadAll(io.LimitReader(r, 32*1024*1024))
 		if err != nil {
 			return nil, err
 		}
-		b = b2
+
+		b = inflatedBuffer
 	}
 
 	var rls release
