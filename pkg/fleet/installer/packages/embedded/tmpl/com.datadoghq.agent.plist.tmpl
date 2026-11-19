@@ -3,18 +3,29 @@
 <plist version="1.0">
     <dict>
         <key>Label</key>
-        <string>com.datadoghq.agent</string>
+        <string>com.datadoghq.agent{{.LabelSuffix}}</string>
+{{- /* Only the stable set starts at load and is relaunched by launchd. An experiment job that
+       exits stays down, so the installer reverts to the stable set rather than launchd
+       respawning the experiment, and a reboot mid-experiment brings back only the stable set. */}}
         <key>RunAtLoad</key>
-        <true/>
+        <{{if .Supervised}}true{{else}}false{{end}}/>
+{{- if .Supervised}}
         <key>KeepAlive</key>
         <dict>
             <key>SuccessfulExit</key>
             <false/>
         </dict>
+{{- end}}
         <key>EnvironmentVariables</key>
         <dict>
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
+{{- if not .Stable}}
+            <key>DD_INVENTORIES_FIRST_RUN_DELAY</key>
+            <string>5</string>
+            <key>DD_CONFD_PATH</key>
+            <string>{{.EtcDir}}/conf.d</string>
+{{- end}}
         </dict>
         <key>ProgramArguments</key>
         <array>
@@ -25,9 +36,9 @@
             <string>--sysprobecfgpath={{.EtcDir}}/system-probe.yaml</string>
         </array>
         <key>StandardOutPath</key>
-        <string>{{.LogDir}}/launchd.log</string>
+        <string>{{.LogDir}}/launchd{{.LabelSuffix}}.log</string>
         <key>StandardErrorPath</key>
-        <string>{{.LogDir}}/launchd.log</string>
+        <string>{{.LogDir}}/launchd{{.LabelSuffix}}.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>

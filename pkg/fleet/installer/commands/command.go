@@ -284,6 +284,7 @@ func RootCommands() []*cobra.Command {
 		installConfigExperimentCommand(),
 		removeConfigExperimentCommand(),
 		promoteConfigExperimentCommand(),
+		resumeConfigExperimentsCommand(),
 		garbageCollectCommand(),
 		purgeCommand(),
 		isInstalledCommand(),
@@ -573,6 +574,24 @@ func promoteConfigExperimentCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteConfigExperiment(i.ctx, args[0])
+		},
+	}
+	return cmd
+}
+
+func resumeConfigExperimentsCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "resume-config-experiments",
+		Short:   "Recover a configuration experiment left running unsupervised by a daemon that did not shut down cleanly",
+		GroupID: "installer",
+		Args:    cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			i, err := newInstallerCmd("resume_config_experiments")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			return i.ResumeConfigExperiments(i.ctx)
 		},
 	}
 	return cmd
