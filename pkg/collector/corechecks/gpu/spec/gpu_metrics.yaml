@@ -2282,7 +2282,7 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        Number of PCIe NAKs received of AMD Instinct MI300 and MI350 Series GPUs, a cumulative firmware counter from the amdgpu gpu_metrics table, which on a virtual function can persist across guest driver loads.
+        Number of PCIe NAKs received of AMD Instinct MI300 and MI350 Series GPUs, from a 32-bit firmware counter of the amdgpu gpu_metrics table: the value read when the check starts, plus the increases since, including wraps at 2^32. On a virtual function the firmware counter can persist across guest driver loads.
     tagsets:
       - device
     validator:
@@ -2300,7 +2300,7 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        Number of PCIe NAKs sent of AMD Instinct MI300 and MI350 Series GPUs, a cumulative firmware counter from the amdgpu gpu_metrics table, which on a virtual function can persist across guest driver loads.
+        Number of PCIe NAKs sent of AMD Instinct MI300 and MI350 Series GPUs, from a 32-bit firmware counter of the amdgpu gpu_metrics table: the value read when the check starts, plus the increases since, including wraps at 2^32. On a virtual function the firmware counter can persist across guest driver loads.
     tagsets:
       - device
     validator:
@@ -2318,7 +2318,7 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        Number of times the PCIe link entered recovery from L0 of AMD Instinct MI300 and MI350 Series GPUs, a cumulative firmware counter from the amdgpu gpu_metrics table, which on a virtual function can persist across guest driver loads.
+        Number of times the PCIe link entered recovery from L0 of AMD Instinct MI300 and MI350 Series GPUs, from a 32-bit firmware counter of the amdgpu gpu_metrics table: the value read when the check starts, plus the increases since, including wraps at 2^32. On a virtual function the firmware counter can persist across guest driver loads.
     tagsets:
       - device
     validator:

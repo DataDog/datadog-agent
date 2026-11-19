@@ -103,9 +103,9 @@ func TestParseGPUMetricsSMU1508(t *testing.T) {
 		VRThermalResidency:     filled(0),
 		HBMThermalResidency:    filled(0),
 		PCIeReplayCount:        filled(3),
-		PCIeRecoveryCount:      Counter{Value: math.MaxUint64},
-		PCIeNAKSentCount:       Counter{Value: math.MaxUint64},
-		PCIeNAKReceivedCount:   Counter{Value: math.MaxUint64},
+		PCIeRecoveryCount:      filled(2),
+		PCIeNAKSentCount:       filled(5),
+		PCIeNAKReceivedCount:   filled(7),
 		GFXActivityAcc:         filled(1e8),
 		MemActivityAcc:         filled(1e7),
 		XGMILinkSpeedGTs:       Counter{Value: math.MaxUint16},
@@ -368,21 +368,33 @@ func TestParseGPUMetricsKernelEncodings(t *testing.T) {
 			{attrPPTResidencyAcc, typeU32, unitNone, []uint64{1}},
 			{attrGFXActivityAcc, typeU32, unitPercent, []uint64{2}},
 			{attrMemActivityAcc, typeU32, unitPercent, []uint64{3}},
-			{attrPCIeNAKSentCountAcc, typeU32, unitNone, []uint64{4}},
+			{attrVRThmResidencyAcc, typeU32, unitNone, []uint64{4}},
+			{attrHBMThmResidencyAcc, typeU32, unitNone, []uint64{5}},
+			{attrPCIeL0ToRecovCountAcc, typeU64, unitNone, []uint64{6}},
+			{attrPCIeNAKSentCountAcc, typeU32, unitNone, []uint64{8}},
+			{attrPCIeNAKRcvdCountAcc, typeU32, unitNone, []uint64{9}},
 		},
 		"Linux 7.0": {
 			{attrAccumulationCounter, typeU64, unitNone, []uint64{7}},
 			{attrPPTResidencyAcc, typeU32, unitNone, []uint64{1}},
 			{attrGFXActivityAcc, typeU32, unitPercent, []uint64{2}},
 			{attrMemActivityAcc, typeU32, unitPercent, []uint64{3}},
-			{attrPCIeNAKSentCountAcc, typeU32, unitNone, []uint64{4}},
+			{attrVRThmResidencyAcc, typeU32, unitNone, []uint64{4}},
+			{attrHBMThmResidencyAcc, typeU32, unitNone, []uint64{5}},
+			{attrPCIeL0ToRecovCountAcc, typeU64, unitNone, []uint64{6}},
+			{attrPCIeNAKSentCountAcc, typeU32, unitNone, []uint64{8}},
+			{attrPCIeNAKRcvdCountAcc, typeU32, unitNone, []uint64{9}},
 		},
 		"Linux 7.3": {
 			{attrAccumulationCounter, typeU64, unitNone, []uint64{7}},
 			{attrPPTResidencyAcc, typeU64, unitNone, []uint64{1}},
 			{attrGFXActivityAcc, typeU64, unitNone, []uint64{2}},
 			{attrMemActivityAcc, typeU64, unitNone, []uint64{3}},
-			{attrPCIeNAKSentCountAcc, typeU64, unitNone, []uint64{4}},
+			{attrVRThmResidencyAcc, typeU64, unitNone, []uint64{4}},
+			{attrHBMThmResidencyAcc, typeU64, unitNone, []uint64{5}},
+			{attrPCIeL0ToRecovCountAcc, typeU64, unitNone, []uint64{6}},
+			{attrPCIeNAKSentCountAcc, typeU64, unitNone, []uint64{8}},
+			{attrPCIeNAKRcvdCountAcc, typeU64, unitNone, []uint64{9}},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -392,7 +404,11 @@ func TestParseGPUMetricsKernelEncodings(t *testing.T) {
 			assert.Equal(t, filled(1), gm.PPTResidency)
 			assert.Equal(t, filled(2), gm.GFXActivityAcc)
 			assert.Equal(t, filled(3), gm.MemActivityAcc)
-			assert.Equal(t, filled(4), gm.PCIeNAKSentCount)
+			assert.Equal(t, filled(4), gm.VRThermalResidency)
+			assert.Equal(t, filled(5), gm.HBMThermalResidency)
+			assert.Equal(t, filled(6), gm.PCIeRecoveryCount)
+			assert.Equal(t, filled(8), gm.PCIeNAKSentCount)
+			assert.Equal(t, filled(9), gm.PCIeNAKReceivedCount)
 		})
 	}
 
@@ -406,6 +422,31 @@ func TestParseGPUMetricsKernelEncodings(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			_, err := ParseGPUMetrics(buildGPUMetrics(1, 9, attr))
 			require.ErrorIs(t, err, ErrGPUMetricsUnexpectedEncoding)
+		})
+	}
+}
+
+// An optional field of unknown type or unit is skipped: the other fields of
+// the table are still used.
+func TestParseGPUMetricsOptionalFieldEncodings(t *testing.T) {
+	for name, tc := range map[string]struct {
+		attr     testAttr
+		encoding string
+	}{
+		"VR residency in percent":   {testAttr{attrVRThmResidencyAcc, typeU64, unitPercent, []uint64{1}}, "U64/PERCENT/x1"},
+		"HBM residency of 16 bits":  {testAttr{attrHBMThmResidencyAcc, typeU16, unitNone, []uint64{1}}, "U16/NONE/x1"},
+		"U32 recovery count":        {testAttr{attrPCIeL0ToRecovCountAcc, typeU32, unitNone, []uint64{1}}, "U32/NONE/x1"},
+		"signed NAK sent count":     {testAttr{attrPCIeNAKSentCountAcc, typeS64, unitNone, []uint64{1}}, "S64/NONE/x1"},
+		"NAK received count in KB":  {testAttr{attrPCIeNAKRcvdCountAcc, typeU32, unitDataKB, []uint64{1}}, "U32/DATA_1/x1"},
+		"two NAK received counters": {testAttr{attrPCIeNAKRcvdCountAcc, typeU32, unitNone, []uint64{1, 2}}, "U32/NONE/x2"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			gm, err := ParseGPUMetrics(buildGPUMetrics(1, 9, pptAttr(42), tc.attr))
+			require.NoError(t, err)
+			assert.Equal(t, filled(42), gm.PPTResidency)
+			assert.Equal(t, []SkippedField{{Name: gpuMetricsSignatures[tc.attr.id].name, Encoding: tc.encoding}}, gm.Skipped)
+			assert.False(t, gm.VRThermalResidency.Valid || gm.HBMThermalResidency.Valid || gm.PCIeRecoveryCount.Valid ||
+				gm.PCIeNAKSentCount.Valid || gm.PCIeNAKReceivedCount.Valid)
 		})
 	}
 }

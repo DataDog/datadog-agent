@@ -9,8 +9,9 @@
 features:
   - |
     GPU monitoring: on AMD Instinct GPUs (Linux 6.19+ or a recent
-    amdgpu-dkms), the ``amd_gpu`` check now reports the
-    ``vr_thermal_slowdown`` and ``hbm_thermal_slowdown`` throttle
-    reasons, as the fraction of the interval spent throttled, and the
-    PCIe link recovery and NAK counts (``gpu.pci.recovery_counter``,
-    ``gpu.pci.nak_sent_counter`` and ``gpu.pci.nak_received_counter``).
+    amdgpu-dkms), the ``amd_gpu`` check now reports VR and HBM thermal
+    throttling (``gpu.clock.throttle_reasons.vr_thermal_slowdown`` and
+    ``gpu.clock.throttle_reasons.hbm_thermal_slowdown``), as the fraction
+    of the interval spent throttled, and the PCIe link recovery and NAK
+    counts (``gpu.pci.recovery_counter``, ``gpu.pci.nak_sent_counter``
+    and ``gpu.pci.nak_received_counter``).

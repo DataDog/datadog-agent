@@ -54,7 +54,13 @@ func gpuMetricsFields(step uint64) map[string][]uint64 {
 }
 
 // cumulativeMetrics are the samples of a table without a baseline.
-var cumulativeMetrics = []string{"pci.replay_counter", "pci.recovery_counter", "pci.nak_sent_counter", "pci.nak_received_counter"}
+var cumulativeMetrics = func() []string {
+	names := []string{"pci.replay_counter"}
+	for _, counter := range pcieErrorCounters {
+		names = append(names, counter.metric)
+	}
+	return names
+}()
 
 func parseTable(t *testing.T, fields map[string][]uint64) *amdgpu.GPUMetrics {
 	t.Helper()
@@ -117,6 +123,42 @@ func TestThrottleSamples(t *testing.T) {
 	assert.False(t, implausible)
 	samples, _ = throttleSamples(current, current)
 	assert.Empty(t, samples, "no accumulation period elapsed")
+}
+
+// The PCIe error counters are 32-bit in the firmware, also when zero-extended
+// to U64: a wrap adds to the reported value, while a reset or a decrease of a
+// wider value starts a new baseline.
+func TestPCIeErrorCounters(t *testing.T) {
+	c := newGPUMetricsCollector(testutil.GetTelemetryMock(t))
+	dev := &amdgpu.Device{UUID: "amd-1"}
+	start := time.Unix(1000, 0)
+	nakSent := func(step uint64, value uint64) float64 {
+		fields := gpuMetricsFields(step)
+		fields["pcie_nak_sent_count_acc"] = []uint64{value}
+		gm, err := amdgpu.ParseGPUMetrics(amdgpu.GPUMetricsTableLinux73(t, fields))
+		require.NoError(t, err)
+		samples, _ := c.samples(dev, &amdgpu.Metrics{GPUMetrics: gm}, true, start.Add(time.Duration(step)*15*time.Second))
+		values := sampleValues(samples)
+		v, ok := values["pci.nak_sent_counter"]
+		if !ok {
+			return -1
+		}
+		return v
+	}
+	assert.Equal(t, float64(math.MaxUint32-18), nakSent(1, math.MaxUint32-18), "the first value is reported as read")
+	assert.Equal(t, float64(math.MaxUint32+57), nakSent(2, 56), "a wrap at 2^32 adds 75")
+	assert.Equal(t, float64(math.MaxUint32+60), nakSent(3, 59))
+	assert.Equal(t, -1.0, nakSent(4, math.MaxUint64), "unfilled")
+	assert.Equal(t, float64(math.MaxUint32+61), nakSent(5, 60), "the increase over the unfilled table")
+	assert.Equal(t, float64(math.MaxUint32+61), nakSent(1, 10), "the table went back: a new baseline")
+	assert.Equal(t, float64(math.MaxUint32+66), nakSent(2, 15))
+
+	c.forget(nil)
+	assert.Equal(t, 9.0, nakSent(6, 9), "a returning device is baselined again")
+	c.forget(nil)
+	assert.Equal(t, float64(1<<40), nakSent(6, 1<<40), "a value wider than 32 bits")
+	assert.Equal(t, float64(1<<40), nakSent(7, 7), "its decrease is not a wrap")
+	assert.Equal(t, float64(1<<40+1), nakSent(8, 8))
 }
 
 // A 32-bit accumulator can wrap and end above its previous value over a long
@@ -474,7 +516,12 @@ func TestGPUMetricsCollectorLinux73(t *testing.T) {
 	requireValue(t, values, "clock.throttle_reasons.sw_power_cap", 0.84)
 	requireValue(t, values, "clock.throttle_reasons.sw_thermal_slowdown", 0.01)
 	requireValue(t, values, "clock.throttle_reasons.hw_slowdown", 0)
+	requireValue(t, values, "clock.throttle_reasons.vr_thermal_slowdown", 0.02)
+	requireValue(t, values, "clock.throttle_reasons.hbm_thermal_slowdown", 0)
 	requireValue(t, values, "pci.replay_counter", 4)
+	requireValue(t, values, "pci.recovery_counter", 1)
+	requireValue(t, values, "pci.nak_sent_counter", 2)
+	requireValue(t, values, "pci.nak_received_counter", 0)
 	requireReading(t, 23.75, act.graphics)
 	requireReading(t, 3.5, act.memory)
 
@@ -508,7 +555,9 @@ func TestGPUMetricsCollectorSMU1508(t *testing.T) {
 	values := sampleValues(samples)
 	requireValue(t, values, "clock.throttle_reasons.sw_power_cap", 0.84)
 	requireValue(t, values, "clock.throttle_reasons.sw_thermal_slowdown", 0.01)
+	requireValue(t, values, "clock.throttle_reasons.vr_thermal_slowdown", 0.02)
 	requireValue(t, values, "pci.replay_counter", 4)
+	requireValue(t, values, "pci.nak_sent_counter", 2)
 	requireReading(t, 23.75, act.graphics)
 	requireReading(t, 3.5, act.memory)
 	for name := range values {
@@ -606,7 +655,7 @@ func TestAMDGPUMetricsEmitted(t *testing.T) {
 	specs, err := gpuspec.LoadSpecs()
 	require.NoError(t, err)
 	for name, observations := range gpu.GetEmittedGPUMetrics(mockSender) {
-		if !strings.Contains(name, "throttle_reasons") && !strings.Contains(name, "xgmi") && !strings.Contains(name, "replay_counter") {
+		if !strings.Contains(name, "throttle_reasons") && !strings.Contains(name, "xgmi") && !strings.HasPrefix(name, "gpu.pci.") {
 			continue
 		}
 		metricSpec, ok := specs.Metrics.Metrics[name]

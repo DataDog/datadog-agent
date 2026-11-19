@@ -48,15 +48,16 @@ const (
 	failureCounterReset       gpuMetricsFailure = "counter_reset"
 )
 
-// throttleReason maps a gpu_metrics residency counter to its throttle reason
-// metric: the NVIDIA one of the same cause, or an AMD-only one for VR and HBM
-// thermal limits.
-type throttleReason struct {
-	metric    string
-	residency func(*amdgpu.GPUMetrics) amdgpu.Counter
+// counterMetric maps a gpu_metrics counter to a metric.
+type counterMetric struct {
+	metric  string
+	counter func(*amdgpu.GPUMetrics) amdgpu.Counter
 }
 
-var throttleReasons = []throttleReason{
+// throttleReasons maps the residency counters to their throttle reason
+// metrics: the NVIDIA one of the same cause, or an AMD-only one for VR and HBM
+// thermal limits.
+var throttleReasons = []counterMetric{
 	{"clock.throttle_reasons.sw_power_cap", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.PPTResidency }},
 	{"clock.throttle_reasons.sw_thermal_slowdown", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.SocketThermalResidency }},
 	{"clock.throttle_reasons.hw_slowdown", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.ProchotResidency }},
@@ -64,13 +65,9 @@ var throttleReasons = []throttleReason{
 	{"clock.throttle_reasons.hbm_thermal_slowdown", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.HBMThermalResidency }},
 }
 
-// pcieCounters are the cumulative PCIe counters of gpu_metrics, reported as
-// gauges like pci.replay_counter.
-var pcieCounters = []struct {
-	metric string
-	value  func(*amdgpu.GPUMetrics) amdgpu.Counter
-}{
-	{"pci.replay_counter", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.PCIeReplayCount }},
+// pcieErrorCounters are the 32-bit cumulative PCIe error counters of the
+// firmware, reported as cumulative gauges like pci.replay_counter.
+var pcieErrorCounters = []counterMetric{
 	{"pci.recovery_counter", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.PCIeRecoveryCount }},
 	{"pci.nak_sent_counter", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.PCIeNAKSentCount }},
 	{"pci.nak_received_counter", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.PCIeNAKReceivedCount }},
@@ -79,6 +76,7 @@ var pcieCounters = []struct {
 type gpuMetricsTelemetry struct {
 	reads          telemetry.Counter // reads counts the gpu_metrics tables read, by device and version
 	failures       telemetry.Counter // failures counts the gpu_metrics tables not used, or partly used, by device and reason
+	skipped        telemetry.Counter // skipped counts the used fields left out of decoded tables, by device and field
 	activitySource telemetry.Counter // activitySource counts the activity values emitted, by device, metric and source
 }
 
@@ -86,6 +84,7 @@ func newGPUMetricsTelemetry(tm telemetry.Component) gpuMetricsTelemetry {
 	return gpuMetricsTelemetry{
 		reads:    tm.NewCounter(CheckName, "gpu_metrics_reads", []string{"device", "version"}, "Number of gpu_metrics tables read from AMD GPUs, by version"),
 		failures: tm.NewCounter(CheckName, "gpu_metrics_failures", []string{"device", "reason"}, "Number of gpu_metrics tables of AMD GPUs not used, or partly used, by reason"),
+		skipped:  tm.NewCounter(CheckName, "gpu_metrics_skipped_fields", []string{"device", "field"}, "Number of used fields left out of decoded gpu_metrics tables of AMD GPUs, for their instance count or encoding"),
 		activitySource: tm.NewCounter(CheckName, "activity_source", []string{"device", "metric", "source"},
 			"Number of AMD GPU activity values emitted, by source: accumulator for interval averages from gpu_metrics, snapshot for sysfs busy percentages"),
 	}
@@ -97,6 +96,37 @@ type gpuMetricsDevice struct {
 	rejectedAt time.Time                // rejectedAt is the time the last table was not decoded; zero when it was
 	previous   *amdgpu.GPUMetrics       // previous is the last decoded table, the baseline of accumulated counters
 	logged     string                   // logged is the decoding error last logged, to log changes only
+	pcieErrors []wrappingCounter        // pcieErrors holds the cumulative values of pcieErrorCounters
+}
+
+// wrappingCounter is the Agent-side cumulative value of a 32-bit firmware
+// counter, which wraps at 2^32 even when zero-extended to U64.
+type wrappingCounter struct {
+	last  uint64 // last is the raw value last read
+	total uint64 // total is the reported value: the first raw value plus the increases since
+	valid bool
+}
+
+// update adds the increase from the last raw value to cur, handling a wrap of
+// a 32-bit value. On a reset, or a decrease of a value wider than 32 bits, the
+// counter starts a new baseline without adding to the total. It returns false
+// when cur is invalid: an unfilled value, which up to Linux 7.2 a real
+// 0xFFFFFFFF is too.
+func (w *wrappingCounter) update(cur amdgpu.Counter, reset bool) (uint64, bool) {
+	if !cur.Valid {
+		return 0, false
+	}
+	switch {
+	case !w.valid:
+		w.total, w.valid = cur.Value, true
+	case reset:
+	case cur.Value >= w.last:
+		w.total += cur.Value - w.last
+	case w.last <= math.MaxUint32 && cur.Value <= math.MaxUint32:
+		w.total += cur.Value + (math.MaxUint32 + 1) - w.last
+	}
+	w.last = cur.Value
+	return w.total, true
 }
 
 // gpuMetricsCollector turns the gpu_metrics tables of AMD GPUs into XGMI,
@@ -179,7 +209,11 @@ func (c *gpuMetricsCollector) samples(dev *amdgpu.Device, m *amdgpu.Metrics, rea
 		state.previous = nil // counters of another layout are no baseline
 	}
 	state.version, state.rejectedAt, state.logged = gm.Version, time.Time{}, ""
-	if regressed(state.previous, gm) {
+	for _, field := range gm.Skipped {
+		c.telemetry.skipped.Inc(dev.UUID, field.Name)
+	}
+	reset := regressed(state.previous, gm)
+	if reset {
 		// The driver or the firmware restarted: start a new baseline.
 		state.previous = nil
 		c.telemetry.failures.Inc(dev.UUID, string(failureCounterReset))
@@ -188,6 +222,7 @@ func (c *gpuMetricsCollector) samples(dev *amdgpu.Device, m *amdgpu.Metrics, rea
 	previous := state.previous
 	state.previous = gm
 	samples, act, implausible := intervalSamples(previous, gm, m.XGMIHiveSize >= 2)
+	samples = append(samples, state.pcieErrorSamples(gm, reset)...)
 	if implausible || len(gm.Implausible) > 0 {
 		c.telemetry.failures.Inc(dev.UUID, string(failureImplausibleValue))
 	}
@@ -198,10 +233,9 @@ func (c *gpuMetricsCollector) samples(dev *amdgpu.Device, m *amdgpu.Metrics, rea
 // table, with previous as the baseline of its accumulated counters, or nil for
 // the first table. implausible reports values dropped by an invariant.
 func intervalSamples(previous, gm *amdgpu.GPUMetrics, xgmi bool) (samples []nvidia.Sample, act activity, implausible bool) {
-	for _, counter := range pcieCounters {
-		if v := counter.value(gm); v.Valid {
-			samples = append(samples, nvidia.NewMetric(counter.metric, float64(v.Value), metrics.GaugeType, nvidia.Low, nil, nil))
-		}
+	if gm.PCIeReplayCount.Valid {
+		// A cumulative firmware counter, reported as a gauge like the NVML one.
+		samples = append(samples, nvidia.NewMetric("pci.replay_counter", float64(gm.PCIeReplayCount.Value), metrics.GaugeType, nvidia.Low, nil, nil))
 	}
 	if previous == nil {
 		return samples, activity{}, false // the first table is the baseline of accumulated counters
@@ -216,6 +250,21 @@ func intervalSamples(previous, gm *amdgpu.GPUMetrics, xgmi bool) (samples []nvid
 	}
 	act, implausibleActivity := activityAverages(previous, gm)
 	return samples, act, implausibleThrottle || implausibleXGMI || implausibleActivity
+}
+
+// pcieErrorSamples returns the cumulative values of the PCIe error counters
+// of a decoded table. reset reports a driver or firmware restart.
+func (state *gpuMetricsDevice) pcieErrorSamples(gm *amdgpu.GPUMetrics, reset bool) []nvidia.Sample {
+	if state.pcieErrors == nil {
+		state.pcieErrors = make([]wrappingCounter, len(pcieErrorCounters))
+	}
+	var samples []nvidia.Sample
+	for i, counter := range pcieErrorCounters {
+		if total, ok := state.pcieErrors[i].update(counter.counter(gm), reset); ok {
+			samples = append(samples, nvidia.NewMetric(counter.metric, float64(total), metrics.GaugeType, nvidia.Low, nil, nil))
+		}
+	}
+	return samples
 }
 
 // regressed reports whether the accumulation counter or the system clock went
@@ -316,7 +365,7 @@ func throttleSamples(previous, current *amdgpu.GPUMetrics) (samples []nvidia.Sam
 		return nil, false
 	}
 	for _, reason := range throttleReasons {
-		throttled, ok := increase(reason.residency(previous), reason.residency(current))
+		throttled, ok := increase(reason.counter(previous), reason.counter(current))
 		if !ok {
 			continue
 		}
