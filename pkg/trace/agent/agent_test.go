@@ -5518,3 +5518,43 @@ func TestProcessV1CanonicalizesChunkEnvVersion(t *testing.T) {
 	}
 	assert.Equal(t, map[string][]string{"version": {"v2"}}, decodedValues)
 }
+
+// TestProcessV1ChunkEnvNormalizedToEmpty checks that a chunk env that normalizes to empty is
+// no override: stats use the payload env and the forwarded chunk has no env attribute.
+func TestProcessV1ChunkEnvNormalizedToEmpty(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.RareSamplerEnabled = false
+	agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+
+	strs := idx.NewStringTable()
+	chunk := spansToChunkV1(idx.NewInternalSpan(strs, &idx.Span{SpanID: 1, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")}))
+	chunk.Priority = 2
+	chunk.SetEnv("!!!")
+	payload := &api.PayloadV1{Source: info.NewReceiverStats(true).GetTagStats(info.Tags{}), TracerPayload: &idx.InternalTracerPayload{
+		Strings: strs,
+		Chunks:  []*idx.InternalTraceChunk{chunk},
+	}}
+	payload.TracerPayload.SetEnv("prod")
+	payload.TracerPayload.SetChunkEnvVersionOverridesEnabled(true)
+
+	agent.ProcessV1(payload)
+
+	mco := agent.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.statsV1, 1)
+	require.Len(t, mco.statsV1[0].Traces, 1)
+	assert.Equal(t, "prod", mco.statsV1[0].Traces[0].TracerEnv)
+
+	payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+	require.Len(t, payloads, 1)
+	bts, err := pb.MarshalAgentPayload(&pb.AgentPayload{IdxTracerPayloads: []*idx.TracerPayload{payloads[0].TracerPayload.ToProto()}})
+	require.NoError(t, err)
+	var decoded pb.AgentPayload
+	require.NoError(t, proto.Unmarshal(bts, &decoded))
+	require.Len(t, decoded.IdxTracerPayloads, 1)
+	dtp := decoded.IdxTracerPayloads[0]
+	require.Len(t, dtp.Chunks, 1)
+	for k := range dtp.Chunks[0].Attributes {
+		assert.NotEqual(t, "env", dtp.Strings[k], "the forwarded chunk has no env attribute")
+	}
+}

@@ -508,6 +508,18 @@ func TestTraceChunkEnvAppVersionAttributes(t *testing.T) {
 		assert.Equal(t, "kept", strs.Get(c.Attributes[strs.Lookup("other")].GetStringValueRef()))
 	})
 
+	t.Run("canonicalize drops an env that normalizes to empty", func(t *testing.T) {
+		strs := NewStringTable()
+		c := NewInternalTraceChunk(strs, 1, "", nil, nil, false, nil, 0)
+		c.SetEnv("!!!")
+		c.SetAppVersion("v2")
+		c.CanonicalizeEnvVersion(func(string) string { return "" })
+		assert.Empty(t, c.Env())
+		_, hasEnv := c.Attributes[strs.Lookup("env")]
+		assert.False(t, hasEnv, "the env attribute is removed")
+		assert.Equal(t, "v2", c.AppVersion())
+	})
+
 	t.Run("only native msgpack decode enables overrides", func(t *testing.T) {
 		assert.False(t, (&InternalTracerPayload{}).ChunkEnvVersionOverridesEnabled())
 		tp := &InternalTracerPayload{}

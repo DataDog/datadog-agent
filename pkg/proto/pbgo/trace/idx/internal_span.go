@@ -841,10 +841,14 @@ func (c *InternalTraceChunk) CanonicalizeEnvVersion(normalizeEnv func(string) st
 		return
 	}
 	if ref, env := c.stringAttributeRef(chunkEnvAttributeKey); ref != 0 {
+		if env != "" && normalizeEnv != nil {
+			env = normalizeEnv(env)
+		}
+		// Check emptiness after normalization: an env that normalizes to "" is no override.
 		if env == "" {
 			delete(c.Attributes, ref)
-		} else if normalizeEnv != nil {
-			c.SetEnv(normalizeEnv(env))
+		} else {
+			c.SetEnv(env)
 		}
 	}
 	if ref, version := c.stringAttributeRef(chunkVersionAttributeKey); ref != 0 && version == "" {
