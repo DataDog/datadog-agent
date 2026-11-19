@@ -105,6 +105,57 @@ func TestReadMetricsMissingAttributesAreInvalidNotErrors(t *testing.T) {
 	assert.Equal(t, valid(1420), m.GraphicsClockMHz)
 }
 
+// Linux 7.0 to 7.0.9 prints pp_dpm_sclk of MI300 and MI350 GPUs with no
+// active level while the clock is between its minimum and maximum
+// (smu_cmn_print_dpm_clk_levels without SMU_DPM_TABLE_FINE_GRAINED).
+func TestReadMetricsGraphicsClockFallsBackToHwmon(t *testing.T) {
+	const linux70Sclk = "0: 500Mhz \n1: 2200Mhz \n"
+	sclkHwmon := map[string]string{
+		"freq1_label": "sclk\n",
+		"freq1_input": "1933000000\n",
+		"freq2_label": "mclk\n",
+		"freq2_input": "2000000000\n",
+	}
+	for name, tc := range map[string]struct {
+		sclk    string // pp_dpm_sclk content, absent when empty
+		hwmon   map[string]string
+		want    Reading
+		wantErr string
+	}{
+		"no active level":           {sclk: linux70Sclk, hwmon: sclkHwmon, want: valid(1933)},
+		"empty table":               {sclk: "\n", hwmon: sclkHwmon, want: valid(1933)},
+		"no pp_dpm_sclk":            {hwmon: sclkHwmon, want: valid(1933)},
+		"unparsable active level":   {sclk: "1: fastMhz *\n", hwmon: sclkHwmon, want: valid(1933), wantErr: "pp_dpm_sclk"},
+		"active level preferred":    {sclk: "0: 500Mhz \n1: 1420Mhz *\n2: 2200Mhz \n", hwmon: sclkHwmon, want: valid(1420)},
+		"deep sleep level":          {sclk: "S: 49Mhz *\n1: 500Mhz \n2: 2200Mhz \n", hwmon: sclkHwmon, want: valid(49)},
+		"no sclk label":             {sclk: linux70Sclk, hwmon: map[string]string{"freq2_label": "mclk\n", "freq2_input": "2000000000\n"}},
+		"sclk input not exposed":    {sclk: linux70Sclk, hwmon: map[string]string{"freq1_label": "sclk\n"}},
+		"unparsable sclk input":     {sclk: linux70Sclk, hwmon: map[string]string{"freq1_label": "sclk\n", "freq1_input": "fast\n"}, wantErr: "freq1_input"},
+		"sclk label on second freq": {sclk: linux70Sclk, hwmon: map[string]string{"freq1_label": "mclk\n", "freq1_input": "2000000000\n", "freq2_label": "sclk\n", "freq2_input": "85000000\n"}, want: valid(85)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fs := NewFakeSysfs(t)
+			attrs := MI300XAttributes("")
+			delete(attrs, "pp_dpm_sclk")
+			if tc.sclk != "" {
+				attrs["pp_dpm_sclk"] = tc.sclk
+			}
+			devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", attrs)
+			fs.AddCard("card0", devDir)
+			fs.AddHwmon(devDir, "hwmon0", tc.hwmon)
+
+			m, err := discoverSingle(t, fs).ReadMetrics()
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.want, m.GraphicsClockMHz)
+			assert.Equal(t, valid(1300), m.MemoryClockMHz, "the memory clock is unchanged")
+		})
+	}
+}
+
 func TestReadMetricsWithoutHwmon(t *testing.T) {
 	fs := NewFakeSysfs(t)
 	fs.AddCard("card0", fs.AddPCIDevice("0000:c1:00.0", "amdgpu", MI300XAttributes("")))

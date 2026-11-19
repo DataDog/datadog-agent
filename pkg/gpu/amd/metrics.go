@@ -44,7 +44,7 @@ type Metrics struct {
 	PowerMilliwatts    Reading // hwmon power1_average, or power1_input when averaging is not exposed
 	PowerCapMilliwatts Reading // hwmon power1_cap
 
-	GraphicsClockMHz Reading // active level of pp_dpm_sclk
+	GraphicsClockMHz Reading // active level of pp_dpm_sclk, else hwmon sclk
 	MemoryClockMHz   Reading // active level of pp_dpm_mclk
 
 	PCIeLinkWidth       Reading // current_link_width, lanes
@@ -304,10 +304,12 @@ func (r *reader) linkSpeed(path string) Reading {
 const (
 	milliDegreesPerDegree   = 1000
 	microwattsPerMilliwatts = 1000
+	hertzPerMegahertz       = 1000000
 )
 
 func (r *reader) readHwmon(dir string, m *Metrics) {
-	for _, entry := range r.readDir(dir) {
+	entries := r.readDir(dir)
+	for _, entry := range entries {
 		name := entry.Name()
 		if !strings.HasPrefix(name, "temp") || !strings.HasSuffix(name, "_label") {
 			continue
@@ -333,4 +335,25 @@ func (r *reader) readHwmon(dir string, m *Metrics) {
 		m.PowerMilliwatts = r.uint(filepath.Join(dir, "power1_input"), 1.0/microwattsPerMilliwatts)
 	}
 	m.PowerCapMilliwatts = r.uint(filepath.Join(dir, "power1_cap"), 1.0/microwattsPerMilliwatts)
+
+	// Linux 7.0 to 7.0.9 marks no pp_dpm_sclk level of MI300 and MI350 GPUs
+	// while the clock is between its minimum and maximum.
+	if !m.GraphicsClockMHz.Valid {
+		m.GraphicsClockMHz = r.hwmonClock(dir, entries, "sclk")
+	}
+}
+
+// hwmonClock reads the hwmon clock with the given label, in MHz.
+func (r *reader) hwmonClock(dir string, entries []os.DirEntry, label string) Reading {
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasPrefix(name, "freq") || !strings.HasSuffix(name, "_label") {
+			continue
+		}
+		labelPath := filepath.Join(dir, name)
+		if l, ok := r.read(labelPath); ok && l == label {
+			return r.uint(strings.TrimSuffix(labelPath, "_label")+"_input", 1.0/hertzPerMegahertz)
+		}
+	}
+	return Reading{}
 }
