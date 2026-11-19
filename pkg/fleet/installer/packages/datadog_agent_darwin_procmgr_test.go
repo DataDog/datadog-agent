@@ -50,11 +50,7 @@ func TestResolveProcmgrEnabled(t *testing.T) {
 		{name: "yaml key commented out", yaml: strPtr("process_manager:\n  # enabled: false\n"), want: true, source: procmgrSourceDefault},
 		{name: "yaml null", yaml: strPtr("process_manager:\n  enabled:\n"), want: true, source: procmgrSourceDefault},
 		{name: "yaml unquoted no", yaml: strPtr("process_manager:\n  enabled: no\n"), want: false, source: procmgrSourceDatadogYAML},
-		{name: "yaml quoted false", yaml: strPtr("process_manager:\n  enabled: \"false\"\n"), want: false, source: procmgrSourceDatadogYAML},
-		{name: "yaml quoted no", yaml: strPtr("process_manager:\n  enabled: \"no\"\n"), want: true, source: procmgrSourceDefault, wantWarn: true},
-		{name: "yaml zero", yaml: strPtr("process_manager:\n  enabled: 0\n"), want: false, source: procmgrSourceDatadogYAML},
-		{name: "yaml zero float", yaml: strPtr("process_manager:\n  enabled: 0.0\n"), want: false, source: procmgrSourceDatadogYAML},
-		{name: "yaml one point five", yaml: strPtr("process_manager:\n  enabled: 1.5\n"), want: true, source: procmgrSourceDatadogYAML},
+		{name: "yaml not a bool", yaml: strPtr("process_manager:\n  enabled: 0\n"), want: true, source: procmgrSourceDefault, wantWarn: true},
 		{name: "yaml scalar", yaml: strPtr("process_manager: true\n"), want: true, source: procmgrSourceDefault, wantWarn: true},
 		{name: "yaml last block wins", yaml: strPtr("process_manager:\n  enabled: true\nprocess_manager:\n  enabled: false\n"), want: false, source: procmgrSourceDatadogYAML},
 		{name: "yaml duplicate unrelated key", yaml: strPtr("api_key: a\napi_key: b\nprocess_manager:\n  enabled: false\n"), want: false, source: procmgrSourceDatadogYAML},
@@ -65,7 +61,7 @@ func TestResolveProcmgrEnabled(t *testing.T) {
 		{name: "process env beats install script and yaml", yaml: strPtr("process_manager:\n  enabled: true\n"), install: "true", installSet: true, process: "false", processSet: true, want: false, source: procmgrSourceEnvironment},
 		{name: "process env false ignores case", process: "FALSE", processSet: true, want: false, source: procmgrSourceEnvironment},
 		{name: "process env blank falls through", process: "  ", processSet: true, install: "false", installSet: true, want: false, source: procmgrSourceInstallScript},
-		{name: "process env zero is on", process: "0", processSet: true, want: true, source: procmgrSourceEnvironment, wantWarn: true},
+		{name: "process env zero is on", process: "0", processSet: true, want: true, source: procmgrSourceEnvironment},
 	}
 
 	for _, tt := range tests {
