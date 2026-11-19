@@ -36,6 +36,9 @@ type Data struct {
 	hostname     string
 	data         agentMetadata
 	mu           sync.Mutex
+
+	// fullConfigEnabled decides whether full_configuration is emitted. Guarded by mu.
+	fullConfigEnabled func() bool
 }
 
 // NewData returns empty metadata for the resolved hostname. Init collects the
@@ -43,6 +46,25 @@ type Data struct {
 func NewData(conf config.Component, l log.Component, hostname hostnameinterface.Component) *Data {
 	hname, _ := hostname.Get(context.Background())
 	return &Data{conf: conf, log: l, hostnameComp: hostname, hostname: hname, data: make(agentMetadata)}
+}
+
+// SetFullConfigurationEnabled overrides how the payload decides whether to include
+// full_configuration. By default it reads the inventories_full_configuration_enabled
+// setting. The resolver is called on every payload build and must be cheap and thread-safe.
+func (ia *Data) SetFullConfigurationEnabled(resolver func() bool) {
+	ia.mu.Lock()
+	defer ia.mu.Unlock()
+	ia.fullConfigEnabled = resolver
+}
+
+func (ia *Data) isFullConfigurationEnabled() bool {
+	ia.mu.Lock()
+	resolver := ia.fullConfigEnabled
+	ia.mu.Unlock()
+	if resolver == nil {
+		return ia.conf.GetBool("inventories_full_configuration_enabled")
+	}
+	return resolver()
 }
 
 // Init collects the common fields: install info, hostname source, version,
@@ -157,8 +179,10 @@ func (ia *Data) getConfigs(data agentMetadata) {
 				}
 			}
 		}
-		if yaml, err := ia.marshalAndScrub(flareScrubber, ia.conf.AllSettingsWithoutSecrets()); err == nil {
-			data["full_configuration"] = yaml
+		if ia.isFullConfigurationEnabled() {
+			if yaml, err := ia.marshalAndScrub(flareScrubber, ia.conf.AllSettingsWithoutSecrets()); err == nil {
+				data["full_configuration"] = yaml
+			}
 		}
 	}
 }

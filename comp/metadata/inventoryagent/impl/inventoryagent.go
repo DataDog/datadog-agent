@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher/tracers"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/fips"
+	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -88,6 +89,8 @@ type Provides struct {
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
 	Endpoint             api.AgentEndpointProvider
+	// Subscriber registers the remote flag handler dropping full_configuration.
+	Subscriber pkgremoteflags.RemoteFlagSubscriber `group:"remoteFlagSubscriber"`
 }
 
 // NewComponent creates a new inventoryagent component
@@ -108,12 +111,16 @@ func NewComponent(deps Requires) Provides {
 		deps.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64, _ model.Source) { ia.Refresh() })
 	}
 
+	flag := newFullConfigFlagHandler(deps.Config, ia.Refresh)
+	ia.data.SetFullConfigurationEnabled(flag.fullConfigurationEnabled)
+
 	return Provides{
 		Comp:                 ia,
 		Provider:             ia.MetadataProvider(),
 		FlareProvider:        ia.FlareProvider(),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(ia),
 		Endpoint:             api.NewAgentEndpointProvider(ia.writePayloadAsJSON, "/metadata/inventory-agent", "GET"),
+		Subscriber:           flag,
 	}
 }
 

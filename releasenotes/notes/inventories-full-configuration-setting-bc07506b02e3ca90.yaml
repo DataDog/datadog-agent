@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Add the ``inventories_full_configuration_enabled`` setting (default ``true``). When set to
+    ``false``, the Agent omits the ``full_configuration`` entry (all settings, including defaults)
+    from the inventory payload. ``provided_configuration`` and the per-source configuration
+    entries are unchanged. The setting only applies when ``inventories_configuration_enabled`` is
+    ``true``, and Datadog may override it remotely unless it is set explicitly.
