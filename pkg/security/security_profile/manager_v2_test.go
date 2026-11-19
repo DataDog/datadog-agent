@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -161,6 +162,59 @@ func TestManagerV2_evictUnusedNodes_skipsDisabledProfile(t *testing.T) {
 	m.evictUnusedNodes()
 
 	assert.False(t, p.IsEnabled(), "eviction must not re-enable a disabled profile")
+}
+
+// TestManagerV2_SendStats_reportsProfileCount verifies the profile-count gauge follows the V2
+// manager: enabled and disabled profiles both count, and an empty manager reports zero.
+func TestManagerV2_SendStats_reportsProfileCount(t *testing.T) {
+	newManager := func() (*ManagerV2, *gaugeRecorder) {
+		m, _ := newTestManagerV2WithLocalStorage(t)
+		recorder := &gaugeRecorder{values: map[string][]float64{}, tags: map[string][][]string{}}
+		m.statsdClient = recorder
+		m.profiles = make(map[cgroupModel.WorkloadSelector]*profile.Profile)
+		m.queueSize = atomic.NewUint64(0)
+		m.pendingProfiles = atomic.NewUint64(0)
+		m.sampleRefreshReceived = atomic.NewUint64(0)
+		m.sampleRefreshHits = atomic.NewUint64(0)
+		m.sampleRefreshMisses = atomic.NewUint64(0)
+		m.tagResolutionEventsDropped = atomic.NewUint64(0)
+		m.tagResolutionCgroupsExpired = atomic.NewUint64(0)
+		m.tagResolutionCappedCgroup = atomic.NewUint64(0)
+		m.tagResolutionCappedTotal = atomic.NewUint64(0)
+		m.cleanupProfilesRemoved = atomic.NewUint64(0)
+		m.evictionRuns = atomic.NewUint64(0)
+		m.evictionNodesEvicted = atomic.NewUint64(0)
+		return m, recorder
+	}
+
+	t.Run("counts enabled and disabled profiles per image", func(t *testing.T) {
+		m, recorder := newManager()
+		enabled := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}))
+		disabled := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "gcr.io/org/worker", Tag: "*"}))
+		disabled.Disable()
+		m.profiles[cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}] = enabled
+		m.profiles[cgroupModel.WorkloadSelector{Image: "gcr.io/org/worker", Tag: "*"}] = disabled
+
+		require.NoError(t, m.SendStats())
+
+		got := map[string]float64{}
+		for i, tags := range recorder.tags[metrics.MetricSecurityProfileProfiles] {
+			got[strings.Join(tags, ",")] = recorder.values[metrics.MetricSecurityProfileProfiles][i]
+		}
+		assert.Equal(t, map[string]float64{
+			"profile_image_name:gcr.io/org/app":    1,
+			"profile_image_name:gcr.io/org/worker": 1,
+		}, got)
+	})
+
+	t.Run("reports zero when no profile is tracked", func(t *testing.T) {
+		m, recorder := newManager()
+
+		require.NoError(t, m.SendStats())
+
+		assert.Equal(t, []float64{0}, recorder.values[metrics.MetricSecurityProfileProfiles])
+		assert.Equal(t, [][]string{{}}, recorder.tags[metrics.MetricSecurityProfileProfiles])
+	})
 }
 
 func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
@@ -474,6 +528,19 @@ func (fh *monotonicFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.Bas
 		ev.Timestamp = fh.boot.Add(time.Duration(ev.TimestampRaw))
 	}
 	return ev.Timestamp
+}
+
+// gaugeRecorder records the values and tags sent through Gauge.
+type gaugeRecorder struct {
+	statsd.NoOpClient
+	values map[string][]float64
+	tags   map[string][][]string
+}
+
+func (r *gaugeRecorder) Gauge(name string, value float64, tags []string, _ float64) error {
+	r.values[name] = append(r.values[name], value)
+	r.tags[name] = append(r.tags[name], tags)
+	return nil
 }
 
 // distributionRecorder records the values sent through Distribution.

@@ -900,17 +900,34 @@ func (m *ManagerV2) SendStats() error {
 		return err
 	}
 
+	// Profile count by image name. Enabled and disabled profiles both count.
 	var tags [][]string
 	m.profilesLock.Lock()
 	profiles := make([]*profile.Profile, 0, len(m.profiles))
+	profileCounts := make(map[string]int)
 	for selector, prof := range m.profiles {
 		profiles = append(profiles, prof)
+		profileCounts[selector.Image]++
 		if prof.IsEnabled() {
 			continue
 		}
 		tags = append(tags, []string{"profile_image_name:" + selector.Image, "profile_image_tag:" + selector.Tag})
 	}
 	m.profilesLock.Unlock()
+
+	// Total profiles tracked on this host, enabled and disabled, broken down per image. A sum
+	// across series and hosts is the fleet-wide profile count. Disabled profiles are also broken
+	// out per image and tag by MetricSecurityProfileV2DisabledProfiles.
+	if len(profileCounts) == 0 {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, 0, []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	for imageName, count := range profileCounts {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(count), []string{"profile_image_name:" + imageName}, 1.0); err != nil {
+			return err
+		}
+	}
 
 	for _, tag := range tags {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, tag, 1.0); err != nil {
