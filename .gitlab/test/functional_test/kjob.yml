@@ -15,9 +15,11 @@ single_machine_performance-kjob:
   allow_failure: true
   timeout: 2h
   variables:
-    # This dev build of the SMP CLI has `smp kjob` and `--override`.
-    SMP_VERSION: dev-pr4862-96eddc61a
+    # This dev build of the SMP CLI has `smp kjob report` with custom templates.
+    # The KJob services of SMP_TEAM_NAME must run the same build, because the report format changed.
+    SMP_VERSION: dev-pr4862-dc11f2317
     SMP_TEAM_NAME: agent-beta
+    AWS_NAMED_PROFILE: single-machine-performance
     KJOB_DIRECTORY: test/regression/kjob/operator-helm-smoketest
     KJOB_REPLICATES: "1"
     KJOB_DURATION: 60s
@@ -44,7 +46,6 @@ single_machine_performance-kjob:
     - tar --extract --gzip --file /tmp/helm.tar.gz --directory /tmp linux-amd64/helm
     - export PATH="/tmp/linux-amd64:${PATH}"
     - helm version --template '{{.Version}}'
-    - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_BOT_ID=$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$SMP_ACCOUNT" bot_login) || exit $?
     - SMP_BOT_KEY=$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$SMP_ACCOUNT" bot_token) || exit $?
     - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile "${AWS_NAMED_PROFILE}"
@@ -59,14 +60,14 @@ single_machine_performance-kjob:
     - ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob submit "${KJOB_DIRECTORY}" "${SMP_KJOB_ARGS[@]}" --output json | tee outputs/submit.json
     - KJOB_JOB_ID=$(jq -er '.id' outputs/submit.json)
     - echo "KJob job ID is ${KJOB_JOB_ID}"
-    # `smp kjob result` exits with 0 when the assertions pass, 1 when they
-    # fail, 2 on an error, and 3 while the report is not ready. It has no
-    # wait option, so poll until the exit code is not 3.
+    # `smp kjob report` exits with 0 when all replicates and checks pass, 1 when
+    # a replicate or a check fails, 2 on an error, and 3 while the report is not
+    # ready. It has no wait option, so poll until the exit code is not 3.
     - |
       KJOB_DEADLINE=$(( $(date +%s) + KJOB_RESULT_WAIT_SECONDS ))
       while :; do
         KJOB_RESULT_CODE=0
-        ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob result --job-id "${KJOB_JOB_ID}" --output json > outputs/report.v1.json || KJOB_RESULT_CODE=$?
+        ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob report --job-id "${KJOB_JOB_ID}" --output json > outputs/report.v1.json || KJOB_RESULT_CODE=$?
         if [[ "${KJOB_RESULT_CODE}" != "3" ]]; then
           break
         fi
@@ -76,25 +77,40 @@ single_machine_performance-kjob:
         fi
         sleep "${KJOB_RESULT_POLL_SECONDS}"
       done
-      # The PR comment payload reads this file in after_script.
+      # after_script reads this file to choose the PR comment text.
       echo "${KJOB_RESULT_CODE}" > outputs/result_code
-      ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob status "${KJOB_JOB_ID}" --output json > outputs/status.json || echo "WARNING: smp kjob status failed"
-      KJOB_STATE=$(jq -r '.state' outputs/status.json || true)
-      echo "KJob job state is ${KJOB_STATE}"
       case "${KJOB_RESULT_CODE}" in
-        # A failed replicate can still give passing checks, so check the job state too.
-        0) if [[ "${KJOB_STATE}" == "failed" ]]; then echo "The KJob assertions passed, but the KJob job failed."; exit 1; fi
-           echo "The KJob assertions passed." ;;
-        1) echo "The KJob assertions failed."; jq . outputs/report.v1.json; exit 1 ;;
+        0) echo "All KJob replicates and checks passed." ;;
+        1) echo "A KJob replicate or check failed."; jq . outputs/report.v1.json; exit 1 ;;
         3) exit 1 ;;
-        *) echo "smp kjob result failed with exit code ${KJOB_RESULT_CODE}."; exit "${KJOB_RESULT_CODE}" ;;
+        *) echo "smp kjob report failed with exit code ${KJOB_RESULT_CODE}."; exit "${KJOB_RESULT_CODE}" ;;
       esac
     - jq . outputs/report.v1.json
   # The after_script also runs when the script fails, so each run gets a PR comment.
+  # `smp kjob report` renders the comment. Without a job ID, or when the render
+  # fails, a short fixed message takes its place.
   after_script:
     - mkdir -p outputs
     - |
-      python3 test/regression/kjob/pr_comment.py --outputs outputs --commit "${CI_COMMIT_SHA}" --job-url "${CI_JOB_URL}" --started-at "${CI_JOB_STARTED_AT:-}" --output outputs/pr_comment.json || echo "WARNING: the KJob PR comment payload could not be written"
+      KJOB_JOB_ID=$(jq -er '.id' outputs/submit.json 2>/dev/null || true)
+      KJOB_RESULT_CODE=$(cat outputs/result_code 2>/dev/null || true)
+      case "${KJOB_RESULT_CODE}" in
+        3) KJOB_NO_RESULT_REASON="the run did not finish before the time limit" ;;
+        "") KJOB_NO_RESULT_REASON="the CI job stopped before the run finished" ;;
+        *) KJOB_NO_RESULT_REASON="" ;;
+      esac
+      jq -n --arg commit "${CI_COMMIT_SHA}" --arg job_url "${CI_JOB_URL}" --arg reason "${KJOB_NO_RESULT_REASON}" \
+        '{commit: $commit, job_url: $job_url} + (if $reason == "" then {} else {no_result_reason: $reason} end)' > outputs/extra.json
+      if [[ -n "${KJOB_JOB_ID}" && -x ./smp ]]; then
+        ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob report --job-id "${KJOB_JOB_ID}" --template-file test/regression/kjob/report_template.md.j2 --extra outputs/extra.json > outputs/report.md || true
+      fi
+      if [[ ! -s outputs/report.md ]]; then
+        if [[ -n "${KJOB_JOB_ID}" ]]; then KJOB_NO_RESULT_REASON="the CI job could not read the result of the run"; else KJOB_NO_RESULT_REASON="the CI job failed before the run started"; fi
+        printf '**⚠️ No result:** %s\n\n<sub><i>Commit <a href="https://github.com/DataDog/datadog-agent/commit/%s">%s</a> · <a href="%s">CI job</a></i></sub>\n' \
+          "${KJOB_NO_RESULT_REASON}" "${CI_COMMIT_SHA}" "${CI_COMMIT_SHA:0:11}" "${CI_JOB_URL}" > outputs/report.md
+      fi
+      jq -n --arg commit "${CI_COMMIT_SHA}" --rawfile message outputs/report.md \
+        '{org: "DataDog", repo: "datadog-agent", commit: $commit, header: "K8s Regression Detector Results", message: $message}' > outputs/pr_comment.json || echo "WARNING: the KJob PR comment payload could not be written"
 
 # Post the result of the KJob job on the PR, also when the KJob job fails.
 # This follows single-machine-performance-regression_detector-pr-comment in
