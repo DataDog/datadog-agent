@@ -16,9 +16,10 @@ function Execute-Sql([string]$sql) {
 function Read-Rows([string]$sql) {
     $view = $database.OpenView($sql)
     try {
-        $view.Execute()
+        # COM methods emit null return values; only records belong in the pipeline.
+        [void]$view.Execute()
         while ($record = $view.Fetch()) { $record }
-    } finally { $view.Close() }
+    } finally { [void]$view.Close() }
 }
 function Quote-Sql([string]$value) { "'" + $value.Replace("'", "''") + "'" }
 
