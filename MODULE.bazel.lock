@@ -959,13 +959,13 @@
         "pulumi-resource-docker-v4.11.2-windows-amd64.tar.gz": "sha1-GM1wKy/IAznBMUQ7jShGtY2kKYA=",
         "pulumi-resource-docker-v4.11.2-windows-arm64.tar.gz": "sha1-osE1xp11GE6E8P10FtNySoLp78A="
       },
-      "https://github.com/pulumi/pulumi-docker/releases/download/v5.2.2/pulumi-docker_5.2.2_checksums.txt": {
-        "pulumi-resource-docker-v5.2.2-darwin-amd64.tar.gz": "sha1-WdQM2HxXzJ4Y6XPjp/dNyNOO4Qw=",
-        "pulumi-resource-docker-v5.2.2-darwin-arm64.tar.gz": "sha1-x+wCdq38hnxsa5iqqTDIYn5mMYs=",
-        "pulumi-resource-docker-v5.2.2-linux-amd64.tar.gz": "sha1-elvW7mFNRq66bwZrAgm4N8ivVlI=",
-        "pulumi-resource-docker-v5.2.2-linux-arm64.tar.gz": "sha1-wZJvh4y9kqSZHKwQGYVQ0KoNcEM=",
-        "pulumi-resource-docker-v5.2.2-windows-amd64.tar.gz": "sha1-vOszq3FjR8VC4e6Llwj8bB7HoJw=",
-        "pulumi-resource-docker-v5.2.2-windows-arm64.tar.gz": "sha1-+dL5Iz3SjnJjMH+maxjq40rk9kE="
+      "https://github.com/pulumi/pulumi-docker/releases/download/v5.3.0/pulumi-docker_5.3.0_checksums.txt": {
+        "pulumi-resource-docker-v5.3.0-darwin-amd64.tar.gz": "sha1-Wiv3OeAeYkGq9OEwrgo1qoRzwHM=",
+        "pulumi-resource-docker-v5.3.0-darwin-arm64.tar.gz": "sha1-E19e0xyC0KWwFunzsDwFdzCrBPQ=",
+        "pulumi-resource-docker-v5.3.0-linux-amd64.tar.gz": "sha1-jNnCtvy7xGvg7Rg9OhnhtpqHjnk=",
+        "pulumi-resource-docker-v5.3.0-linux-arm64.tar.gz": "sha1-hIl/UplHDqZKiEw1mBN5MlIWCqM=",
+        "pulumi-resource-docker-v5.3.0-windows-amd64.tar.gz": "sha1-4EP/sONezawvK2+JuLRk+aSU8+g=",
+        "pulumi-resource-docker-v5.3.0-windows-arm64.tar.gz": "sha1-14LVm8TYlyAnxgbRKH7dj61BVmI="
       },
       "https://github.com/pulumi/pulumi-eks/releases/download/v4.5.0/pulumi-eks_4.5.0_checksums.txt": {
         "pulumi-resource-eks-v4.5.0-darwin-amd64.tar.gz": "sha1-7CjidWiFR0rImzbYWjo0LLyWGtQ=",
@@ -1065,7 +1065,7 @@
         "name": "docker",
         "url": "https://github.com/pulumi/pulumi-docker"
       },
-      "https://registry.npmjs.org/@pulumi/docker/5.2.2": {
+      "https://registry.npmjs.org/@pulumi/docker/5.3.0": {
         "dependencies": {},
         "name": "docker",
         "url": "https://github.com/pulumi/pulumi-docker"
