@@ -558,84 +558,122 @@ func TestReset(t *testing.T) {
 	}
 }
 
-// TestLateAnomalyClamp verifies that an anomaly with a historical timestamp
-// (already advanced past) is clamped to lastAdvancedSec so it participates in
-// the next Advance call rather than leaking into a pending bucket that is
-// never processed.
-//
-// This reproduces the scanmw/scanwelch pattern: a scan detector emits a
-// changepoint with a historical timestamp after the scorer has moved forward.
-func TestLateAnomalyClamp(t *testing.T) {
+func TestReplayLateInputsMatchesChronologicalScoring(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
-	cfg.WindowSecs = 15
-	s := NewAnomalyScorer(cfg)
+	cfg.WindowSecs = 3
+	cfg.MaxBuckets = 50
+	chronological := NewAnomalyScorer(cfg).(*anomalyScorer)
+	reordered := NewAnomalyScorer(cfg).(*anomalyScorer)
 
-	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: testCompositeTags([]string{"host:h"})}
-
-	// Advance to t=1010 with no anomalies.
-	s.Advance(1010)
-
-	// Now receive a scanmw anomaly with a historical timestamp (t=1000),
-	// which is already behind lastAdvancedSec=1010.
-	s.ProcessAnomaly(observer.Anomaly{
-		DetectorName: "scanmw",
-		Timestamp:    1000,
-		Score:        scorePtr(20),
-		Source:       src,
-	})
-
-	// Advance to t=1011 — the anomaly is clamped to lastAdvancedSec+1=1011
-	// and must appear in that bucket.
-	s.Advance(1011)
-
-	st := s.ScoreState()
-	var b1011 *observer.AnomalyScoreBucket
-	for i := range st.Buckets {
-		if st.Buckets[i].Second == 1011 {
-			b1011 = &st.Buckets[i]
-			break
-		}
+	strong := makeAnomaly("scanmw", 1000, scorePtr(30))
+	weak := makeAnomaly("bocpd", 1002, nil) // Same series, lower level.
+	current := makeAnomaly("bocpd", 1005, nil)
+	current.Source.Name = "current"
+	secondLate := makeAnomaly("scanmw", 1004, scorePtr(20))
+	secondLate.Source.Name = "second late"
+	future := makeAnomaly("bocpd", 1008, nil)
+	for _, a := range []observer.Anomaly{strong, weak, secondLate, current, future} {
+		chronological.ProcessAnomaly(a)
 	}
-	if b1011 == nil {
-		t.Fatal("no bucket for t=1011")
+	chronological.Advance(1010)
+
+	// No earlier score exists when the first batch backfills before startup.
+	reordered.Advance(1003)
+	for _, a := range []observer.Anomaly{weak, future, current, strong} {
+		reordered.ProcessAnomaly(a)
 	}
-	if b1011.Count != 1 {
-		t.Errorf("clamped anomaly not in t=1011 bucket: count=%d, bins=%v", b1011.Count, b1011.Bins)
+	reordered.Advance(1005)
+	require.Empty(t, reordered.late)
+	require.Len(t, reordered.pending, 1)
+	require.Equal(t, []observer.Anomaly{future}, reordered.pending[future.Timestamp])
+
+	// This batch needs the checkpoint corrected by the first replay, plus
+	// evidence from before the new replay start.
+	reordered.ProcessAnomaly(secondLate)
+	reordered.Advance(1010)
+	require.Empty(t, reordered.late)
+	require.Empty(t, reordered.pending)
+	want := chronological.ScoreState().Buckets
+	got := reordered.ScoreState().Buckets
+	require.Len(t, got, len(want))
+	for i, expected := range want {
+		actual := got[i]
+		require.InDelta(t, expected.Ewma, actual.Ewma, 1e-10, "second %d", expected.Second)
+		actual.Ewma = expected.Ewma
+		require.Equal(t, expected, actual)
+		slot := replaySlot(expected.Second, len(reordered.replay.checkpoints))
+		require.Equal(t, chronological.replay.checkpoints[slot].state.level, reordered.replay.checkpoints[slot].state.level)
 	}
 }
 
-// TestLateAnomalyNoLeakInPending verifies that after clamping, the original
-// historical second (t=1000) has no pending entry — i.e. nothing leaks.
-func TestLateAnomalyNoLeakInPending(t *testing.T) {
+func TestReplayLateInputsUsesNextAdvanceCutoff(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
-	cfg.WindowSecs = 15
+	cfg.MaxBuckets = 1000
+	cfg.CorrelationEvents = true
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	s.enableHistory()
+	const latest = int64(1700)
+	const cutoff = latest - defaultAnomalyReorderingWindowSecs
+	s.Advance(cutoff - 3)
+	s.Advance(latest - 2)
+	s.openEpisode = &observer.ActiveCorrelation{}
+	for _, sec := range []int64{cutoff - 1, cutoff, cutoff + 1} {
+		a := makeAnomaly("bocpd", sec, nil)
+		a.SourceRef = &observer.QueryHandle{Ref: observer.SeriesRef(sec)}
+		s.ProcessAnomaly(a)
+	}
+	require.Len(t, s.late, 3, "all three are in range at intake")
+	s.Advance(latest - 2)
+	s.Advance(latest - 3)
+	require.Len(t, s.late, 3, "non-forward advances leave arrivals pending")
+	require.Equal(t, latest-2, s.lastAdvancedSec)
+	s.Advance(latest)
+
+	require.Empty(t, s.late)
+	require.Empty(t, s.pending)
+	require.NotContains(t, s.replay.journal, cutoff-1)
+	require.NotContains(t, s.replay.journal, cutoff)
+	require.Len(t, s.replay.journal[cutoff+1], 1)
+	history := s.historyState()
+	require.Len(t, history.Inputs, 1)
+	require.Equal(t, int64(cutoff+1), history.Inputs[0].ScoringSecond)
+	require.Len(t, s.openEpisode.Anomalies, 1)
+	require.Len(t, s.topAnomalies.entries, 1)
+	require.Equal(t, latest, s.topAnomalies.entries[0].timestamp)
+}
+
+func TestReplayDoesNotRedeliverScoredTransitions(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.Alpha = 0.99
+	cfg.SaturationK = 1
 	s := NewAnomalyScorer(cfg)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+	s.ProcessAnomaly(makeAnomaly("scanmw", 1000, scorePtr(30)))
+	s.Advance(1030)
+	require.Len(t, listener.events, 2)
 
-	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: testCompositeTags([]string{"host:h"})}
+	// The weaker evidence expires at the same time and changes no transition.
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.Advance(1031)
+	require.Len(t, listener.events, 2)
+}
 
-	s.Advance(1010)
+func TestReplayDoesNotDropUnscoredCatchupInputs(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.MaxBuckets = 1000
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	s.Advance(1000)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
+	s.Advance(1001 + defaultAnomalyReorderingWindowSecs)
+	buckets := s.ScoreState().Buckets
+	require.Equal(t, int64(1001), buckets[1].Second)
+	require.Equal(t, 1, buckets[1].Count)
 
-	// Late anomaly with historical timestamp.
-	s.ProcessAnomaly(observer.Anomaly{
-		DetectorName: "scanmw",
-		Timestamp:    1000,
-		Score:        scorePtr(20),
-		Source:       src,
-	})
-
-	// Access internal state directly via type assertion to inspect unexported fields.
-	sc := s.(*anomalyScorer)
-	sc.mu.Lock()
-	_, hasOldSec := sc.pending[1000]
-	_, hasNextSec := sc.pending[1011] // clamped to lastAdvancedSec+1
-	sc.mu.Unlock()
-
-	if hasOldSec {
-		t.Error("BUG: pending still has entry for historical second 1000 (memory leak)")
-	}
-	if !hasNextSec {
-		t.Error("clamped anomaly not found in pending[1011]")
-	}
+	s.ProcessAnomaly(makeAnomaly("bocpd", s.lastAdvancedSec, nil))
+	require.Len(t, s.late, 1)
+	s.Reset()
+	require.Empty(t, s.late)
 }
 
 // TestLateAnomalyBeforeFirstAdvance verifies that anomalies received before
@@ -785,7 +823,7 @@ func TestScorerHistoryCapturesOriginalRun(t *testing.T) {
 	}, listener)
 
 	scorer.Advance(1000)
-	anomaly := makeAnomaly("bocpd", 900, nil)
+	anomaly := makeAnomaly("bocpd", 995, nil)
 	anomaly.SourceRef = &observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}
 	scorer.ProcessAnomaly(anomaly)
 	scorer.Advance(1030)
@@ -793,8 +831,8 @@ func TestScorerHistoryCapturesOriginalRun(t *testing.T) {
 	history := scorer.historyState()
 	require.True(t, history.Available)
 	require.Len(t, history.Inputs, 1)
-	require.Equal(t, int64(1001), history.Inputs[0].ScoringSecond)
-	require.Equal(t, int64(900), history.Inputs[0].Anomaly.Timestamp)
+	require.Equal(t, int64(995), history.Inputs[0].ScoringSecond)
+	require.Equal(t, int64(995), history.Inputs[0].Anomaly.Timestamp)
 	require.Greater(t, len(history.Buckets), int(cfg.WindowSecs), "history must retain more than the production bucket window")
 	require.Equal(t, int64(1030), history.Buckets[len(history.Buckets)-1].Second)
 	require.Equal(t, listener.events, history.Events)

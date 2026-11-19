@@ -581,12 +581,10 @@ type anomalyScorer struct {
 	history *scorerHistory
 
 	// pending holds anomalies received since the last Advance, grouped by second.
-	// Past-timestamped anomalies are clamped to lastAdvancedSec+1 in ProcessAnomaly,
-	// so the past side is always drained on the next Advance. Future-timestamped
-	// anomalies (sec > upcoming dataTime) accumulate until Advance reaches that
-	// second; no current detector produces future timestamps, but there is no hard
-	// cap if one ever does.
+	// Future-timestamped anomalies accumulate until Advance reaches their second.
 	pending map[int64][]observerdef.Anomaly
+	// late holds arrivals for already-scored seconds until the next forward Advance.
+	late []observerdef.Anomaly
 
 	// windowMap tracks the highest anomaly level seen per series within the
 	// active window [lastAdvancedSec-WindowSecs+1, lastAdvancedSec].
@@ -828,21 +826,25 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 
 func (s *anomalyScorer) Name() string { return "anomaly_scorer" }
 
-// ProcessAnomaly buffers the anomaly into the pending map keyed by its second.
-// If the anomaly's timestamp is in the past (already advanced past), it is
-// clamped to lastAdvancedSec+1 so it participates in the next Advance call.
-// Also appends to the open scorer episode if one is active.
+// ProcessAnomaly buffers evidence by its original timestamp.
 func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	sec := a.Timestamp
-	if s.lastAdvancedSec > 0 && sec <= s.lastAdvancedSec {
-		sec = s.lastAdvancedSec + 1
+	if s.replay != nil && a.Timestamp <= s.lastAdvancedSec {
+		if a.Timestamp > 0 && a.Timestamp > s.lastAdvancedSec-s.replay.windowSecs() {
+			s.late = append(s.late, a)
+		}
+		return
 	}
-	s.pending[sec] = append(s.pending[sec], a)
+	s.pending[a.Timestamp] = append(s.pending[a.Timestamp], a)
+	s.recordAnomaly(a)
+}
+
+// recordAnomaly tracks accepted evidence for history and an open episode.
+func (s *anomalyScorer) recordAnomaly(a observerdef.Anomaly) {
 	if s.history != nil {
 		s.history.inputs = append(s.history.inputs, ScorerHistoryInput{
-			ScoringSecond: sec,
+			ScoringSecond: a.Timestamp,
 			Anomaly:       a,
 		})
 	}
@@ -862,9 +864,13 @@ func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 // the dispatcher, which may call listeners on resulting transitions.
 func (s *anomalyScorer) Advance(dataTime int64) {
 	s.mu.Lock()
+	if s.replay != nil && dataTime <= s.lastAdvancedSec {
+		s.mu.Unlock()
+		return
+	}
 
 	start := s.lastAdvancedSec + 1
-	if s.lastAdvancedSec == 0 {
+	if s.replay == nil {
 		// First Advance: start from the earliest pending anomaly (or dataTime if
 		// no anomalies), to avoid emitting empty buckets for all seconds since epoch.
 		start = dataTime
@@ -875,11 +881,16 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 		}
 	}
 
+	late := s.replayLateInputs(dataTime)
+
 	// Collect per-second EWMA values and derived raw severity levels to feed
 	// the dispatcher after releasing the scorer lock.
 	states := make([]secState, 0, int(dataTime-start+1))
 	for sec := start; sec <= dataTime; sec++ {
 		states = append(states, s.advanceSecond(sec))
+	}
+	if s.topAnomalies != nil && len(late) > 0 {
+		s.topAnomalies.update(dataTime, late, s.config.AnomalyScorerConfig)
 	}
 	s.lastAdvancedSec = dataTime
 
@@ -948,6 +959,7 @@ func (s *anomalyScorer) ActiveCorrelations() []observerdef.ActiveCorrelation {
 func (s *anomalyScorer) Reset() {
 	s.mu.Lock()
 	s.pending = make(map[int64][]observerdef.Anomaly)
+	s.late = nil
 	s.windowMap = make(map[string]windowEntry)
 	if s.topAnomalies != nil {
 		s.topAnomalies.reset()
@@ -1056,11 +1068,12 @@ func (s *anomalyScorer) advanceSecond(sec int64) secState {
 	if len(anomalies) > 0 {
 		inputs = make([]scoringInput, len(anomalies))
 		for i, a := range anomalies {
-			inputs[i] = scoringInput{series: seriesID(a), level: anomalyLevel(a, cfg)}
+			inputs[i] = scoringEvidence(a, cfg)
 		}
 	}
 	if s.replay == nil {
 		s.replay = newScorerReplayHistory(defaultAnomalyReorderingWindowSecs, cfg.WindowSecs)
+		s.replay.firstSecond = sec
 		s.replay.saveCheckpoint(sec-1, s.score)
 	}
 	bucket, next := scoreSecond(sec, inputs, cfg, s.windowMap, s.score)
@@ -1069,10 +1082,7 @@ func (s *anomalyScorer) advanceSecond(sec int64) secState {
 	s.buckets = append(s.buckets, bucket)
 
 	// Default cap is WindowSecs; MaxBuckets overrides this when set to a positive value.
-	bucketCap := s.config.MaxBuckets
-	if bucketCap <= 0 {
-		bucketCap = s.config.WindowSecs
-	}
+	bucketCap := s.bucketCap()
 	if int64(len(s.buckets)) > bucketCap {
 		trimmed := make([]observerdef.AnomalyScoreBucket, bucketCap)
 		copy(trimmed, s.buckets[int64(len(s.buckets))-bucketCap:])
@@ -1082,9 +1092,14 @@ func (s *anomalyScorer) advanceSecond(sec int64) secState {
 	return secState{sec: sec, ewma: next.ewma, level: next.level}
 }
 
-// scoreSecond updates the evidence window in place and computes the next score
-// and raw severity from the previous second.
-func scoreSecond(sec int64, inputs []scoringInput, cfg observerdef.AnomalyScorerConfig, window map[string]windowEntry, previous scoringState) (observerdef.AnomalyScoreBucket, scoringState) {
+func (s *anomalyScorer) bucketCap() int64 {
+	if s.config.MaxBuckets > 0 {
+		return s.config.MaxBuckets
+	}
+	return s.config.WindowSecs
+}
+
+func mergeScoringInputs(sec int64, inputs []scoringInput, window map[string]windowEntry) {
 	for _, input := range inputs {
 		entry := window[input.series]
 		if sec > entry[input.level] {
@@ -1092,6 +1107,12 @@ func scoreSecond(sec int64, inputs []scoringInput, cfg observerdef.AnomalyScorer
 		}
 		window[input.series] = entry
 	}
+}
+
+// scoreSecond updates the evidence window in place and computes the next score
+// and raw severity from the previous second.
+func scoreSecond(sec int64, inputs []scoringInput, cfg observerdef.AnomalyScorerConfig, window map[string]windowEntry, previous scoringState) (observerdef.AnomalyScoreBucket, scoringState) {
+	mergeScoringInputs(sec, inputs, window)
 
 	// A newer, weaker anomaly must not extend the lifetime of an older peak.
 	windowStart := sec - cfg.WindowSecs + 1
@@ -1160,6 +1181,10 @@ type scoringInput struct {
 	level  int
 }
 
+func scoringEvidence(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) scoringInput {
+	return scoringInput{series: seriesID(a), level: anomalyLevel(a, cfg)}
+}
+
 type scoringCheckpoint struct {
 	second  int64
 	state   scoringState
@@ -1173,6 +1198,7 @@ type scorerReplayHistory struct {
 	checkpoints    []scoringCheckpoint
 	journal        map[int64][]scoringInput
 	evidenceWindow int64
+	firstSecond    int64
 }
 
 func newScorerReplayHistory(window, evidence int64) *scorerReplayHistory {
@@ -1194,21 +1220,91 @@ func (h *scorerReplayHistory) saveCheckpoint(second int64, state scoringState) {
 	h.checkpoints[replaySlot(second, len(h.checkpoints))] = scoringCheckpoint{second: second, state: state, present: true}
 }
 
+func (h *scorerReplayHistory) windowSecs() int64 {
+	return int64(len(h.checkpoints) - 1)
+}
+
+func (h *scorerReplayHistory) ensureJournal() {
+	if h.journal == nil {
+		h.journal = make(map[int64][]scoringInput)
+	}
+}
+
 func (h *scorerReplayHistory) recordSecond(second int64, inputs []scoringInput, state scoringState) {
 	h.saveCheckpoint(second, state)
 	if second <= 0 {
 		return // Nonpositive timestamps cannot enter the evidence window.
 	}
 	if len(inputs) > 0 {
-		if h.journal == nil {
-			h.journal = make(map[int64][]scoringInput)
-		}
+		h.ensureJournal()
 		h.journal[second] = inputs
 	}
 
 	// Forward scoring visits every second, including across catch-up advances.
-	cutoff := second - int64(len(h.checkpoints)-1)
+	cutoff := second - h.windowSecs()
 	if cutoff >= h.evidenceWindow {
 		delete(h.journal, cutoff-h.evidenceWindow+1)
 	}
+}
+
+// replayLateInputs corrects the scored prefix once, before normal forward scoring.
+// It returns the accepted arrivals for attribution at discovery time.
+func (s *anomalyScorer) replayLateInputs(dataTime int64) []observerdef.Anomaly {
+	if len(s.late) == 0 {
+		return nil
+	}
+	h := s.replay
+	cutoff := dataTime - h.windowSecs()
+	start := s.lastAdvancedSec
+	accepted := s.late[:0]
+	for _, a := range s.late {
+		if a.Timestamp <= cutoff {
+			continue
+		}
+		h.ensureJournal()
+		h.journal[a.Timestamp] = append(h.journal[a.Timestamp], scoringEvidence(a, s.config.AnomalyScorerConfig))
+		start = min(start, a.Timestamp)
+		s.recordAnomaly(a)
+		accepted = append(accepted, a)
+	}
+	s.late = nil
+	if len(accepted) > 0 {
+		s.replayScoredSeconds(start)
+	}
+	return accepted
+}
+
+// replayScoredSeconds restores the scoring state without replaying side effects.
+func (s *anomalyScorer) replayScoredSeconds(start int64) {
+	h := s.replay
+	cfg := s.config.AnomalyScorerConfig
+	var previous scoringState
+	if start <= h.firstSecond {
+		// A late input can precede the first advance. There is no earlier score.
+		h.firstSecond = start
+		h.saveCheckpoint(start-1, previous)
+	} else {
+		// Admission guarantees that start-1 is still in the checkpoint ring.
+		previous = h.checkpoints[replaySlot(start-1, len(h.checkpoints))].state
+	}
+	clear(s.windowMap)
+	for sec := max(h.firstSecond, start-cfg.WindowSecs+1); sec < start; sec++ {
+		mergeScoringInputs(sec, h.journal[sec], s.windowMap)
+	}
+
+	debugStart := s.buckets[0].Second
+	if from := max(start, s.lastAdvancedSec-s.bucketCap()+1); from < debugStart {
+		// Startup backfill can add seconds before the first stored bucket.
+		s.buckets = append(make([]observerdef.AnomalyScoreBucket, debugStart-from), s.buckets...)
+		debugStart = from
+	}
+	for sec := start; sec <= s.lastAdvancedSec; sec++ {
+		bucket, next := scoreSecond(sec, h.journal[sec], cfg, s.windowMap, previous)
+		h.saveCheckpoint(sec, next)
+		if sec >= debugStart {
+			s.buckets[sec-debugStart] = bucket
+		}
+		previous = next
+	}
+	s.score = previous
 }
