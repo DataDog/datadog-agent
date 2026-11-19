@@ -14,6 +14,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -389,8 +390,13 @@ func failureReason(err error) string {
 
 // isPermanentError reports whether retrying err cannot succeed without a change on the cluster side
 // (RBAC, admission policies, schema validation), in which case the backoff only adds API calls.
+// An exhausted ResourceQuota is also reported as Forbidden but can clear on its own, so it is retried.
 func isPermanentError(err error) bool {
-	return apierrors.IsForbidden(err) || apierrors.IsInvalid(err)
+	if apierrors.IsInvalid(err) {
+		return true
+	}
+	var status apierrors.APIStatus
+	return apierrors.IsForbidden(err) && !(errors.As(err, &status) && strings.Contains(status.Status().Message, "exceeded quota"))
 }
 
 func instantiatePatterns(config appsecconfig.Config, logger logComp.Component, k8sClient dynamic.Interface, recorder record.EventRecorder) map[appsecconfig.ProxyType]appsecconfig.InjectionPattern {
