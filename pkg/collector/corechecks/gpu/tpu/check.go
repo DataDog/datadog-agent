@@ -277,7 +277,7 @@ func parseDevicePluginMetrics(data []byte) ([]*chip, error) {
 			byID = runtime
 		}
 		for _, s := range family.Samples {
-			id := s.Metric["accelerator_id"]
+			id := string(s.Metric["accelerator_id"])
 			if id == "" {
 				continue
 			}
@@ -287,14 +287,18 @@ func parseDevicePluginMetrics(data []byte) ([]*chip, error) {
 				byID[id] = ch
 			}
 			if isNode {
-				ch.node[name] = s.Value
+				ch.node[name] = float64(s.Value)
 				continue
 			}
-			key := workloadKey{namespace: s.Metric["namespace"], pod: s.Metric["pod"], container: s.Metric["container"]}
+			key := workloadKey{
+				namespace: string(s.Metric["namespace"]),
+				pod:       string(s.Metric["pod"]),
+				container: string(s.Metric["container"]),
+			}
 			if key.pod == "" {
 				continue
 			}
-			ch.workload(key)[name] = s.Value
+			ch.workload(key)[name] = float64(s.Value)
 		}
 	}
 	mergeRuntimeChips(host, runtime)
