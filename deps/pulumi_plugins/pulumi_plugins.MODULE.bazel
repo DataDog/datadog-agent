@@ -1,3 +1,7 @@
+pulumi_cli = use_extension("//deps/pulumi_plugins:extension.bzl", "pulumi_cli")
+pulumi_cli.from_file(go_sum = "//test/new-e2e:go.sum")
+use_repo(pulumi_cli, "pulumi_cli")
+
 pulumi_plugins = use_extension("//deps/pulumi_plugins:extension.bzl", "pulumi_plugins")
 pulumi_plugins.from_file(
     go_sum = "//test/new-e2e:go.sum",

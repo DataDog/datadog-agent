@@ -118,6 +118,9 @@ new-e2e-unit-tests:
     - mkdir -p ~/.aws
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
+    # Install the Pulumi CLI matching the e2e framework's SDK, ahead of the image's
+    - bazel run @pulumi_cli//:install -- --destdir=$HOME/.pulumi/bin
+    - export PATH=$HOME/.pulumi/bin:$PATH
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   script:

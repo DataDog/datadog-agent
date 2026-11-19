@@ -7,7 +7,7 @@ from pathlib import Path
 
 from invoke.context import Context
 
-from tasks.e2e_framework.tool import install_pulumi_plugins
+from tasks.e2e_framework.tool import install_pulumi, install_pulumi_plugins, pulumi_bin_dir
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import get_repo_root, is_installed
 from tasks.libs.types.arch import Arch
@@ -48,21 +48,20 @@ class Pulumi(Requirement):
 
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         if shutil.which("pulumi") is None:
-            if Path("~/.pulumi/bin/pulumi").expanduser().exists():
+            if Path(pulumi_bin_dir(), "pulumi").exists():
                 return RequirementState(
                     Status.FAIL,
-                    "pulumi installed in ~/.pulumi/bin but not in $PATH. Please add that path to your shell configuration",
+                    f"pulumi installed in {pulumi_bin_dir()} but not in $PATH. Please add that path to your shell configuration",
                 )
 
             if not fix:
                 return RequirementState(Status.FAIL, "pulumi is not installed.", fixable=True)
 
-            res = ctx.run("curl -fsSL https://get.pulumi.com | sh", warn=True)
-            if res is None or not res.ok:
-                return RequirementState(Status.FAIL, "pulumi installation failed.")
-
-            # Update PATH in this session so we can call the command
-            os.environ["PATH"] = f"{os.environ['PATH']}:{os.path.expanduser('~/.pulumi/bin')}"
+            try:
+                # Also puts it on this session's PATH, so that the next checks can call it.
+                install_pulumi()
+            except SystemExit as e:
+                return RequirementState(Status.FAIL, f"pulumi installation failed: {e}")
 
         login_state = self._check_user_logged_in(ctx)
         if login_state.state != Status.OK:

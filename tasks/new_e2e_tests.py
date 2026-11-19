@@ -425,11 +425,7 @@ def run(
     if "test" not in tags:
         tags = tags + ["test"]
 
-    if shutil.which("pulumi") is None:
-        raise Exit(
-            "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/datadog-agent/blob/main/test/e2e-framework/README.md)",
-            1,
-        )
+    tool.install_pulumi()
 
     _check_e2e_local_config_or_exit(profile)
 
