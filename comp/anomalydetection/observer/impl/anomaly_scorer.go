@@ -598,6 +598,8 @@ type anomalyScorer struct {
 
 	score scoringState
 
+	replay *scorerReplayHistory
+
 	lastAdvancedSec int64
 
 	// buckets retains the most recent WindowSecs AnomalyScoreBucket entries for debug
@@ -951,6 +953,7 @@ func (s *anomalyScorer) Reset() {
 		s.topAnomalies.reset()
 	}
 	s.score = scoringState{}
+	s.replay = nil
 	s.lastAdvancedSec = 0
 	s.buckets = nil
 	s.openEpisode = nil
@@ -1048,7 +1051,20 @@ func (s *anomalyScorer) advanceSecond(sec int64) secState {
 		s.topAnomalies.update(sec, anomalies, s.config.AnomalyScorerConfig)
 	}
 
-	bucket, next := scoreSecond(sec, anomalies, s.config.AnomalyScorerConfig, s.windowMap, s.score)
+	cfg := s.config.AnomalyScorerConfig
+	var inputs []scoringInput
+	if len(anomalies) > 0 {
+		inputs = make([]scoringInput, len(anomalies))
+		for i, a := range anomalies {
+			inputs[i] = scoringInput{series: seriesID(a), level: anomalyLevel(a, cfg)}
+		}
+	}
+	if s.replay == nil {
+		s.replay = newScorerReplayHistory(defaultAnomalyReorderingWindowSecs, cfg.WindowSecs)
+		s.replay.saveCheckpoint(sec-1, s.score)
+	}
+	bucket, next := scoreSecond(sec, inputs, cfg, s.windowMap, s.score)
+	s.replay.recordSecond(sec, inputs, next)
 	s.score = next
 	s.buckets = append(s.buckets, bucket)
 
@@ -1068,15 +1084,13 @@ func (s *anomalyScorer) advanceSecond(sec int64) secState {
 
 // scoreSecond updates the evidence window in place and computes the next score
 // and raw severity from the previous second.
-func scoreSecond(sec int64, anomalies []observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig, window map[string]windowEntry, previous scoringState) (observerdef.AnomalyScoreBucket, scoringState) {
-	for _, a := range anomalies {
-		sid := seriesID(a)
-		level := anomalyLevel(a, cfg)
-		entry := window[sid]
-		if sec > entry[level] {
-			entry[level] = sec
+func scoreSecond(sec int64, inputs []scoringInput, cfg observerdef.AnomalyScorerConfig, window map[string]windowEntry, previous scoringState) (observerdef.AnomalyScoreBucket, scoringState) {
+	for _, input := range inputs {
+		entry := window[input.series]
+		if sec > entry[input.level] {
+			entry[input.level] = sec
 		}
-		window[sid] = entry
+		window[input.series] = entry
 	}
 
 	// A newer, weaker anomaly must not extend the lifetime of an older peak.
@@ -1136,4 +1150,65 @@ func scoreSecond(sec int64, anomalies []observerdef.Anomaly, cfg observerdef.Ano
 		WeightSum: weightSum,
 		Ewma:      ewma,
 	}, scoringState{ewma: ewma, level: level, initialized: true}
+}
+
+const defaultAnomalyReorderingWindowSecs = 10 * 60
+
+// scoringInput is the evidence needed to score an anomaly. It retains no payload or attribution.
+type scoringInput struct {
+	series string
+	level  int
+}
+
+type scoringCheckpoint struct {
+	second  int64
+	state   scoringState
+	present bool
+}
+
+// scorerReplayHistory retains scoring state independently of debug buckets.
+// At T, the oldest replayable second is T-window+1. Its seed is the
+// checkpoint at T-window, and it needs evidence back to T-window-evidence+2.
+type scorerReplayHistory struct {
+	checkpoints    []scoringCheckpoint
+	journal        map[int64][]scoringInput
+	evidenceWindow int64
+}
+
+func newScorerReplayHistory(window, evidence int64) *scorerReplayHistory {
+	return &scorerReplayHistory{
+		checkpoints:    make([]scoringCheckpoint, window+1),
+		evidenceWindow: evidence,
+	}
+}
+
+func replaySlot(second int64, size int) int {
+	slot := int(second % int64(size))
+	if slot < 0 {
+		slot += size
+	}
+	return slot
+}
+
+func (h *scorerReplayHistory) saveCheckpoint(second int64, state scoringState) {
+	h.checkpoints[replaySlot(second, len(h.checkpoints))] = scoringCheckpoint{second: second, state: state, present: true}
+}
+
+func (h *scorerReplayHistory) recordSecond(second int64, inputs []scoringInput, state scoringState) {
+	h.saveCheckpoint(second, state)
+	if second <= 0 {
+		return // Nonpositive timestamps cannot enter the evidence window.
+	}
+	if len(inputs) > 0 {
+		if h.journal == nil {
+			h.journal = make(map[int64][]scoringInput)
+		}
+		h.journal[second] = inputs
+	}
+
+	// Forward scoring visits every second, including across catch-up advances.
+	cutoff := second - int64(len(h.checkpoints)-1)
+	if cutoff >= h.evidenceWindow {
+		delete(h.journal, cutoff-h.evidenceWindow+1)
+	}
 }

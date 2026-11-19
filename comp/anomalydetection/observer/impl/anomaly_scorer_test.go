@@ -726,6 +726,48 @@ func TestScorerChronologicalBaseline(t *testing.T) {
 	}, listener.events)
 }
 
+func TestScorerReplayHistoryRetention(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.WindowSecs = 3
+	scorer := NewAnomalyScorer(cfg).(*anomalyScorer)
+	const first = int64(1000)
+
+	a := makeAnomaly("bocpd", first, nil)
+	scorer.ProcessAnomaly(a)
+	scorer.Advance(first)
+	h := scorer.replay
+	require.Len(t, h.checkpoints, defaultAnomalyReorderingWindowSecs+1)
+	require.Len(t, h.journal, 1)
+	require.Equal(t, scoringCheckpoint{second: first - 1, present: true},
+		h.checkpoints[replaySlot(first-1, len(h.checkpoints))])
+
+	a.Timestamp++
+	scorer.ProcessAnomaly(a)
+	scorer.Advance(first + 2)
+	boundary := scorer.score
+	require.Positive(t, boundary.ewma)
+
+	// Catch up through a quiet tail, wrapping the ring. The seed predates the
+	// first replayable second, whose evidence still includes the second input.
+	latest := first + 2 + defaultAnomalyReorderingWindowSecs
+	scorer.Advance(latest)
+	require.Equal(t, scoringCheckpoint{second: first + 2, state: boundary, present: true},
+		h.checkpoints[replaySlot(first+2, len(h.checkpoints))])
+	require.Equal(t, scoringCheckpoint{second: latest, state: scorer.score, present: true},
+		h.checkpoints[replaySlot(first+1, len(h.checkpoints))])
+	require.Equal(t, map[int64][]scoringInput{first + 1: {{series: seriesID(a), level: 2}}}, h.journal)
+	require.Len(t, scorer.ScoreState().Buckets, int(cfg.WindowSecs))
+
+	scorer.Advance(latest + 1)
+	require.Empty(t, h.journal)
+
+	scorer.Reset()
+	require.Nil(t, scorer.replay)
+	scorer.Advance(latest + 2)
+	require.Equal(t, scoringCheckpoint{second: latest + 1, present: true},
+		scorer.replay.checkpoints[replaySlot(latest+1, len(scorer.replay.checkpoints))])
+}
+
 func TestScorerHistoryCapturesOriginalRun(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
 	cfg.Alpha = 0.99
