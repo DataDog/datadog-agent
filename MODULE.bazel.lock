@@ -965,13 +965,13 @@
         "pulumi-resource-docker-v5.3.0-windows-amd64.tar.gz": "sha1-4EP/sONezawvK2+JuLRk+aSU8+g=",
         "pulumi-resource-docker-v5.3.0-windows-arm64.tar.gz": "sha1-14LVm8TYlyAnxgbRKH7dj61BVmI="
       },
-      "https://github.com/pulumi/pulumi-eks/releases/download/v4.5.0/pulumi-eks_4.5.0_checksums.txt": {
-        "pulumi-resource-eks-v4.5.0-darwin-amd64.tar.gz": "sha1-7CjidWiFR0rImzbYWjo0LLyWGtQ=",
-        "pulumi-resource-eks-v4.5.0-darwin-arm64.tar.gz": "sha1-Y5LmLGtKRnzjX/LtOEX3SUz6DHY=",
-        "pulumi-resource-eks-v4.5.0-linux-amd64.tar.gz": "sha1-i1T0RZzDcrq0jAy1GLaQyCx7FXA=",
-        "pulumi-resource-eks-v4.5.0-linux-arm64.tar.gz": "sha1-WM8gvQgdxn7L+0a3Ie7sf4/N8R0=",
-        "pulumi-resource-eks-v4.5.0-windows-amd64.tar.gz": "sha1-x3mjkTO8cjeeO+Fg12wdiPrkssw=",
-        "pulumi-resource-eks-v4.5.0-windows-arm64.tar.gz": "sha1-BSMG9CzasgYtyIULhhgXqWM3jDM="
+      "https://github.com/pulumi/pulumi-eks/releases/download/v4.6.0/pulumi-eks_4.6.0_checksums.txt": {
+        "pulumi-resource-eks-v4.6.0-darwin-amd64.tar.gz": "sha1-+rJNCrAdu5HwAR1yXYEOxO+uIAE=",
+        "pulumi-resource-eks-v4.6.0-darwin-arm64.tar.gz": "sha1-OKl5mH9MxZZ5XYQ6B07TMMctTwE=",
+        "pulumi-resource-eks-v4.6.0-linux-amd64.tar.gz": "sha1-85ecZUAz5S9pRuruahqRKKgR7aQ=",
+        "pulumi-resource-eks-v4.6.0-linux-arm64.tar.gz": "sha1-Kc0hx0hHbOZbvoxvOsRK8RDWZ3U=",
+        "pulumi-resource-eks-v4.6.0-windows-amd64.tar.gz": "sha1-94ir7VMnVLR4Og9YMCS11bQPHWU=",
+        "pulumi-resource-eks-v4.6.0-windows-arm64.tar.gz": "sha1-DkhiY/D0xFo5KQv5HpqsS78uGY8="
       },
       "https://github.com/pulumi/pulumi-gcp/releases/download/v10.3.0/pulumi-gcp_10.3.0_checksums.txt": {
         "pulumi-resource-gcp-v10.3.0-darwin-amd64.tar.gz": "sha1-0MXHM7GRfD5T54R9MFeV981vCkk=",
@@ -1068,9 +1068,9 @@
         "name": "docker",
         "url": "https://github.com/pulumi/pulumi-docker"
       },
-      "https://registry.npmjs.org/@pulumi/eks/4.5.0": {
+      "https://registry.npmjs.org/@pulumi/eks/4.6.0": {
         "dependencies": {
-          "@pulumi/aws": "v7.25.0",
+          "@pulumi/aws": "v7.43.0",
           "@pulumi/kubernetes": "v4.19.0"
         },
         "name": "eks",
