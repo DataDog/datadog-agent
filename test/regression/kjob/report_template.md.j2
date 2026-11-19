@@ -1,0 +1,45 @@
+{#- PR comment for the single_machine_performance-kjob CI job, rendered by `smp kjob report --template-file`.
+    The pr-commenter service adds the "K8s Regression Detector Results" header, so this template has no header line.
+    GitHub renders Markdown after an HTML block only after a blank line, so keep a blank line around each <details> block. -#}
+{{ summary }}
+{% if failure_lines %}
+
+{% for line in failure_lines %}
+{{ line }}
+{% endfor %}
+{% endif %}
+{% if execution_failures %}
+
+<details>
+<summary>Run errors</summary>
+
+{% for failure in execution_failures %}
+- `{{ failure.experiment }}` replicate {{ failure.replicate_index }}: <code>{{ failure.error | replace("\n", " ") | e }}</code>
+{% endfor %}
+
+</details>
+{% endif %}
+{% if report is not none %}
+
+<details>
+<summary>Detailed Bounds Checks ({{ report.experiments | length }} experiment{% if report.experiments | length != 1 %}s{% endif %})</summary>
+
+{% if rows %}
+{{ rows | table([["result", "result"], ["experiment", "experiment"], ["check", "check"], ["bound", "bound"], ["observed", "observed"], ["replicates passed", "replicates_passed"]]) }}
+{% if experiments_without_checks %}
+
+Experiments without bounds checks: {% for name in experiments_without_checks %}`{{ name }}`{% if not loop.last %}, {% endif %}{% endfor %}
+
+{% endif %}
+{% else %}
+There are no bounds checks in the experiments run.
+{% endif %}
+
+</details>
+{% endif %}
+{% if links is not none %}
+
+**Available Telemetry:** [Target Logs]({{ links.logs }}) · [Metrics]({{ links.metrics }})
+{% endif %}
+
+<sub><i>Commit <a href="https://github.com/DataDog/datadog-agent/commit/{{ extra.commit }}">{{ extra.commit[:11] }}</a> · <a href="{{ extra.job_url }}">CI job</a></i></sub>
