@@ -340,6 +340,31 @@ func TestECSTaskRetagLeavesGlobalTagsAlone(t *testing.T) {
 	require.NotNil(t, fromTask, "the container's arrival didn't re-tag task-a")
 }
 
+// A process re-tags its container, but not before the container's own event:
+// the pod tagged in between must still see the container's completeness as
+// unknown, so that the container's event re-tags it.
+func TestProcessBeforeItsContainerLeavesItsCompletenessUnknown(t *testing.T) {
+	h := newDependencyTestHarness(t)
+	h.collector.promoteProcessTags = true
+	process := newProcessWithTags(1, "ctr-a", "training_run_id:run-1")
+	pod := newKueuePod("pod-a", "ctr-a", "")
+	container := newContainer("ctr-a")
+	h.store.Set(container)
+	h.store.Set(process)
+	h.store.Set(pod)
+
+	got := h.process(setEvent(process), setEvent(pod), setEvent(container))
+
+	var fromPod *types.TagInfo
+	for _, tagInfo := range got {
+		if tagInfo.Source == podSource && tagInfo.EntityID == containerTaggerID("ctr-a") && !tagInfo.DeleteEntity {
+			fromPod = tagInfo
+		}
+	}
+	require.NotNil(t, fromPod)
+	assert.True(t, fromPod.IsComplete)
+}
+
 // A container's first event in the bundle of a partial unset of its pod
 // re-tags the pod from the pod's event, not from the store, which lost the
 // removed source's data.

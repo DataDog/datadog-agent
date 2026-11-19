@@ -559,12 +559,18 @@ func (c *WorkloadMetaCollector) retagProcessContainer(entity workloadmeta.Entity
 	if err != nil {
 		return nil
 	}
-
-	return c.handleContainer(workloadmeta.Event{
+	isComplete, seen := c.entityCompleteness[container.EntityID]
+	tagInfos := c.handleContainer(workloadmeta.Event{
 		Type:       workloadmeta.EventTypeSet,
 		Entity:     container,
-		IsComplete: c.entityCompleteness[container.EntityID],
+		IsComplete: isComplete,
 	})
+	// Only the container's own event sets its completeness, so that readers
+	// tagged before that event still wait for it.
+	if !seen {
+		delete(c.entityCompleteness, container.EntityID)
+	}
+	return tagInfos
 }
 
 // Processes without a promotable tag cannot change the tags of their container.
