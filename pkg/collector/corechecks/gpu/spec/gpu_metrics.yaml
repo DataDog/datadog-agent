@@ -523,22 +523,6 @@ metrics:
         mig_parent: true
         physical: true
         vgpu: true
-  device.unhealthy:
-    metadata:
-      metric_type: gauge
-      description: Whether the GPU device is unhealthy
-      aggregation: absolute_usage
-    tagsets:
-      - device
-    validator:
-      values: [0, 1]
-    support:
-      unsupported_architectures: []
-      device_modes:
-        mig: true
-        mig_parent: true
-        physical: true
-        vgpu: true
   dram_active:
     metadata:
       metric_type: gauge
