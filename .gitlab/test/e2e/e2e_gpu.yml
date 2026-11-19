@@ -13,10 +13,6 @@
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
         - comp/core/autodiscovery/listeners/staticconfig.go
-        - test/e2e-framework/components/kubernetes/mokka/**/*
-        - test/e2e-framework/components/kubernetes/kaischeduler/**/*
-        - comp/core/workloadmeta/collectors/internal/kubeapiserver/kai*.go
-        - comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers/kai*.go
       compare_to: $COMPARE_TO_BRANCH
 
 new-e2e-gpu:
@@ -36,8 +32,23 @@ new-e2e-gpu:
     matrix:
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu2204"
       - EXTRA_PARAMS: "--run TestGPUK8sSuiteUbuntu2204"
-      - EXTRA_PARAMS: "--run TestGPUMokkaK8sSuite" # CPU-only kind cluster with GPUs simulated by Mokka (no CUDA/eBPF)
-      - EXTRA_PARAMS: "--run TestGPUMokkaKAISuite" # KAI Scheduler tagging on GPUs simulated by Mokka
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver510"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
+  retry: !reference [.retry_only_infra_failure, retry]
+
+# GPU suites on CPU-only kind clusters, with GPUs simulated by Mokka (no CUDA/eBPF).
+# TODO: run them automatically once the CI can pull their charts. The CI runners can't reach ghcr.io,
+# so they need the ghcr.io/registry.k8s.io ECR pull-through caches (ddoghq/cloud-inventory#3478).
+new-e2e-gpu-mokka:
+  extends: .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/gpu
+    TEAM: accelerator-telemetry
+    E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: "--run TestGPUMokkaK8sSuite"
+      - EXTRA_PARAMS: "--run TestGPUMokkaKAISuite" # KAI Scheduler tagging on GPUs simulated by Mokka
   retry: !reference [.retry_only_infra_failure, retry]
