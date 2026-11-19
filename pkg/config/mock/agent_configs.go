@@ -23,7 +23,8 @@ import (
 //
 // The environment variables are read while the configurations are built, so they must be set before. The previous
 // configurations and override functions are restored at the end of the test, and New and NewSystemProbe return the
-// new configurations until then.
+// new configurations until then. Build the config component parameters with config.NewParams rather than
+// config.NewAgentParams, which initializes the configurations again and replaces the ones created here.
 func InitAgentConfigs(t testing.TB) {
 	m.Lock()
 	defer m.Unlock()
@@ -32,7 +33,7 @@ func InitAgentConfigs(t testing.TB) {
 	isConfigMocked, isSystemProbeConfigMocked = true, true
 	originalDatadog := setup.GlobalConfigBuilder()
 	originalSystemProbe := setup.GlobalSystemProbeConfigBuilder()
-	model.RestoreOverrideFuncs(t)
+	restoreOverrideFuncs := model.RestoreOverrideFuncs(t)
 	t.Cleanup(func() {
 		m.Lock()
 		defer m.Unlock()
@@ -42,4 +43,6 @@ func InitAgentConfigs(t testing.TB) {
 	})
 
 	setup.InitConfigObjects()
+	// InitConfigObjects registered the override functions again, on top of the ones registered when the process started
+	restoreOverrideFuncs()
 }
