@@ -18,7 +18,6 @@ from tasks.libs.serverless_init.release_notes import (
     pr_link,
     pr_number,
     read_note,
-    ref_exists,
     rst_to_markdown,
     strip_pr_number,
 )
@@ -69,8 +68,14 @@ class TestNoteEntries(unittest.TestCase):
         note = {'features': ['Add a thing.'], 'fixes': ['Fix a thing.', 'Fix another.']}
         self.assertEqual(note_entries(note), ['Add a thing.', 'Fix a thing.', 'Fix another.'])
 
+    def test_section_order_follows_the_note(self):
+        self.assertEqual(note_entries({'fixes': ['Fix.'], 'features': ['Add.']}), ['Fix.', 'Add.'])
+
     def test_prelude_is_skipped(self):
         self.assertEqual(note_entries({'prelude': 'Release on: today', 'fixes': ['Fix.']}), ['Fix.'])
+
+    def test_unknown_sections_are_ignored(self):
+        self.assertEqual(note_entries({'fixes': ['Fix.'], 'not_a_section': ['Not a release note.']}), ['Fix.'])
 
     def test_string_section(self):
         self.assertEqual(note_entries({'fixes': 'Fix.'}), ['Fix.'])
@@ -110,10 +115,6 @@ def _ctx(stdout='', ok=True):
 
 
 class TestGit(unittest.TestCase):
-    def test_ref_exists(self):
-        self.assertTrue(ref_exists(_ctx(ok=True), 'serverless-init-1.11.3'))
-        self.assertFalse(ref_exists(_ctx(ok=False), 'nope'))
-
     def test_list_commits(self):
         ctx = _ctx('aaa fix a (#1)\nbbb feat: b\n\n')
         with patch('tasks.libs.common.utils.is_windows', return_value=False):
@@ -148,7 +149,6 @@ class TestGit(unittest.TestCase):
     def test_commands_on_windows_do_not_use_posix_quotes_or_percent(self):
         commands = []
         for helper, args in (
-            (ref_exists, ('p',)),
             (list_commits, ('p', 's')),
             (added_notes, ('aaa',)),
             (read_note, ('s', 'path')),
@@ -160,8 +160,6 @@ class TestGit(unittest.TestCase):
         for command in commands:
             self.assertNotIn("'", command)
             self.assertNotIn('%', command)
-        # `^` is a cmd.exe metacharacter, so the argument carrying it must be double-quoted
-        self.assertIn('"p^{commit}"', commands[0])
 
 
 class TestReleaseNotes(unittest.TestCase):

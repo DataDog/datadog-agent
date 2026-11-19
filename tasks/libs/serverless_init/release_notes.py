@@ -16,6 +16,7 @@ import yaml
 
 from tasks.libs.common.constants import GITHUB_REPO_NAME
 from tasks.libs.common.utils import join_command
+from tasks.libs.linter.releasenotes import RENO_SECTIONS
 
 # Paths that make up the serverless-init image. Changes elsewhere (shared libraries, dependencies)
 # can also ship in the image, so the output of the task still has to be reviewed.
@@ -27,6 +28,8 @@ DEPENDENCY_ONLY_ENTRY = 'Dependency updates only'
 # Printed when commits changed serverless-init but none of them has a reno note, so that an unreviewed
 # section cannot be mistaken for a complete one
 NO_NOTE_PLACEHOLDER = 'TODO: describe the changes, no reno note was found for them'
+# The sections of a reno note that hold release notes. The prelude is only used by the Agent release notes
+_NOTE_SECTIONS = RENO_SECTIONS - {'prelude'}
 
 _PR_NUMBER_RE = re.compile(r'\(#(\d+)\)\s*$')
 _RST_LINK_RE = re.compile(r'`([^`<]+?)\s*<([^>]+)>`_{1,2}')
@@ -68,8 +71,7 @@ def note_entries(note: object) -> list[str]:
         return []
     entries = []
     for section, items in note.items():
-        # The prelude is only used by the Agent release notes
-        if section == 'prelude':
+        if section not in _NOTE_SECTIONS:
             continue
         for item in [items] if isinstance(items, str) else items or []:
             if isinstance(item, str) and item.strip():
@@ -92,11 +94,6 @@ def format_section(version: str | None, bullets: list[str]) -> str:
             '',
         ]
     return '\n'.join(lines + bullets) + '\n'
-
-
-def ref_exists(ctx, ref: str) -> bool:
-    command = join_command(['git', 'rev-parse', '--verify', '--quiet', f'{ref}^{{commit}}'])
-    return ctx.run(command, hide=True, warn=True).ok
 
 
 def list_commits(ctx, prev: str, sha: str) -> list[Commit]:

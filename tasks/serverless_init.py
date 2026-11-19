@@ -8,6 +8,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
+from tasks.libs.common.git import ref_exists
 from tasks.libs.serverless_init.release_notes import (
     DEPENDENCY_ONLY_ENTRY,
     NO_NOTE_PLACEHOLDER,
@@ -19,7 +20,6 @@ from tasks.libs.serverless_init.release_notes import (
     note_entries,
     pr_link,
     read_note,
-    ref_exists,
     strip_pr_number,
 )
 
