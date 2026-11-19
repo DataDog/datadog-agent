@@ -283,6 +283,47 @@ func TestAggregatorForceFlush(t *testing.T) {
 	}, time.Second, 10*time.Millisecond, "the aggregator must keep aggregating after ForceFlush")
 }
 
+type blockingStatsWriter struct {
+	writing chan struct{}
+	release chan struct{}
+}
+
+func (w *blockingStatsWriter) Write(*pb.StatsPayload) {
+	w.writing <- struct{}{}
+	<-w.release
+}
+
+func TestAggregatorAddNotBlockedByWrite(t *testing.T) {
+	a := newTestAggregator()
+	w := &blockingStatsWriter{writing: make(chan struct{}, 1), release: make(chan struct{})}
+	a.writer = w
+	now := time.Now()
+	a.add(now, getTestStatsWithStart(t, now, false))
+
+	flushed := make(chan struct{})
+	go func() {
+		a.flushAll()
+		close(flushed)
+	}()
+	<-w.writing
+
+	added := make(chan struct{})
+	go func() {
+		a.add(now, getTestStatsWithStart(t, now, false))
+		close(added)
+	}()
+	select {
+	case <-added:
+	case <-time.After(5 * time.Second):
+		t.Fatal("add is blocked while the writer is busy")
+	}
+
+	close(w.release)
+	<-flushed
+	a.writer = noopStatsWriter{}
+	a.Stop()
+}
+
 func TestMergeMany(t *testing.T) {
 	assert := assert.New(t)
 	for i := 0; i < 10; i++ {

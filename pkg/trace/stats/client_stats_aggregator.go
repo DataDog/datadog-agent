@@ -156,17 +156,21 @@ func (a *ClientStatsAggregator) flush(now time.Time, force bool) {
 	flushTs := alignAggTs(now.Add(bucketDuration - oldestBucketStart))
 
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
+	var toFlush [][]*pb.ClientStatsPayload
 	for ts, b := range a.buckets {
 		if !force && !flushTs.After(b.ts) {
 			continue
 		}
 		log.Debugf("css aggregator: flushing bucket %d", ts)
-		a.flushPayloads(b.aggregationToPayloads())
+		toFlush = append(toFlush, b.aggregationToPayloads())
 		delete(a.buckets, ts)
 	}
 	a.oldestTs = flushTs
+	a.mu.Unlock()
+
+	for _, p := range toFlush {
+		a.flushPayloads(p)
+	}
 }
 
 // getAggregationBucketTime returns unix time at which we aggregate the bucket.
