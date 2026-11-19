@@ -5358,10 +5358,6 @@ properties:
     node_type: setting
     type: integer
     default: 1000
-  aggregator_use_tags_store:
-    node_type: setting
-    type: boolean
-    default: true
   allow_arbitrary_tags:
     node_type: setting
     type: boolean
@@ -5551,6 +5547,11 @@ properties:
                 type: boolean
                 default: true
                 comment: Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
+              min_token_match_ratio:
+                node_type: setting
+                type: number
+                default: 0.6
+                description: Fraction of structural tokens that must match an existing log pattern.
           log_pattern_extractor:
             node_type: section
             type: object
@@ -6199,15 +6200,6 @@ properties:
     node_type: setting
     type: string
     default: ''
-  c_core_dump:
-    node_type: setting
-    type: boolean
-    default: false
-  c_stacktrace_collection:
-    node_type: setting
-    type: boolean
-    default: false
-    comment: Debugging + C-land crash feature flags
   cel_workload_exclude:
     node_type: setting
     type: array

@@ -2936,6 +2936,8 @@ func TestDefaultProfilesExportGPUMetrics(t *testing.T) {
 		}
 	}
 
+	deviceTotal := tel.NewGauge("gpu", "device_total", append([]string{"gpu_sharing_mode"}, collectorTags[1:]...), "")
+	deviceTotal.Set(2, append([]string{"time-slicing"}, withDevice()...)...)
 	created := tel.NewCounter("gpu__collectors", "created", append([]string{"status"}, collectorTags...), "")
 	created.Add(2, withDevice("error", "device_events")...)
 	created.Add(3, withDevice("success", "stateless")...)
@@ -2968,6 +2970,16 @@ func TestDefaultProfilesExportGPUMetrics(t *testing.T) {
 		delete(labels, emitterTagName)
 		return labels
 	}
+
+	deviceMetrics := sent["gpu.device_total"]
+	require.Len(t, deviceMetrics, 1)
+	deviceLabels := expectedCollectorLabels("")
+	delete(deviceLabels, "collector")
+	deviceLabels["gpu_nvlink_capable"] = "true"
+	deviceLabels["gpu_nvlink_version"] = "4"
+	deviceLabels["gpu_sharing_mode"] = "time-slicing"
+	assert.Equal(t, deviceLabels, labelsWithoutEmitter(deviceMetrics[0]))
+	assert.Equal(t, 2.0, deviceMetrics[0].GetGauge().GetValue())
 
 	createdMetrics := sent["gpu.collectors__created"]
 	require.Len(t, createdMetrics, 2, "unsupported and disabled statuses must be excluded")
@@ -3023,6 +3035,7 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 		preserveTags   []string
 		aggregateTotal bool
 	}{
+		{name: "gpu.device_total", preserveTags: []string{"gpu_device", "gpu_virtualization_mode", "gpu_architecture", "gpu_slicing_mode", "gpu_nvlink_capable", "gpu_nvlink_version", "gpu_driver_version", "gpu_sharing_mode"}},
 		{name: "dogstatsd.udp_packets_bytes"},
 		{name: "dogstatsd.uds_packets_bytes"},
 		{name: "dogstatsd_client.bytes_sent", preserveTags: []string{"client", "client_transport"}},
@@ -3045,6 +3058,69 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 			require.Equal(t, testCase.preserveTags, metric.PreserveTags)
 			require.Equal(t, testCase.aggregateTotal, metric.AggregateTotal)
 		})
+	}
+}
+
+func TestHealthPlatformMetricsInChecksProfile(t *testing.T) {
+	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
+	require.NoError(t, err)
+
+	var profile *Profile
+	for _, candidate := range cfg.Profiles {
+		if candidate.Name == "checks" {
+			profile = candidate
+			break
+		}
+	}
+	require.NotNil(t, profile)
+	require.NotNil(t, profile.Metric)
+	metrics := make(map[string][]string, len(profile.Metric.Metrics))
+	for _, metric := range profile.Metric.Metrics {
+		metrics[metric.Name] = metric.PreserveTags
+	}
+	for name, tags := range map[string][]string{
+		"health_platform.issues_detected": {"issue_type", "severity"},
+		"health_platform.active_issues":   {"issue_type"},
+		"health_platform.reports_sent":    {"status", "error_type"},
+		"health_platform.issues_resolved": {"issue_type"},
+	} {
+		require.Contains(t, metrics, name)
+		assert.ElementsMatch(t, tags, metrics[name], name)
+	}
+	require.NotNil(t, profile.Schedule)
+	assert.EqualValues(t, 900, profile.Schedule.Period)
+}
+
+func TestDefaultProfilesExportHealthPlatformMetrics(t *testing.T) {
+	tel := makeTelMock(t)
+	tel.NewGauge("health_platform", "active_issues", []string{"issue_type"}, "").Set(2, "test_issue")
+	tel.NewCounter("health_platform", "reports_sent", []string{"status", "error_type"}, "").Inc("error", "http_4xx")
+	tel.NewCounter("health_platform", "issues_resolved", []string{"issue_type"}, "").Inc("test_issue")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, ""), sender, nil, runner)
+	require.True(t, a.enabled)
+	a.start()
+	runner.(*runnerMock).run()
+
+	require.Len(t, sender.sentMetrics, 3)
+	for _, payload := range sender.sentMetrics {
+		require.Len(t, payload.metrics, 1, payload.name)
+		metric := payload.metrics[0]
+		labels := map[string]string{"issue_type": "test_issue", "emitter": "agent"}
+		switch payload.name {
+		case "health_platform.active_issues":
+			assert.Equal(t, 2.0, metric.GetGauge().GetValue())
+		case "health_platform.reports_sent":
+			assert.Equal(t, 1.0, metric.GetCounter().GetValue())
+			labels = map[string]string{"status": "error", "error_type": "http_4xx", "emitter": "agent"}
+		case "health_platform.issues_resolved":
+			assert.Equal(t, 1.0, metric.GetCounter().GetValue())
+		default:
+			t.Fatalf("unexpected metric: %s", payload.name)
+		}
+		assert.Equal(t, labels, metricLabels(metric), payload.name)
 	}
 }
 
