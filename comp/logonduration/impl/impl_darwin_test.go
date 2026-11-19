@@ -919,6 +919,27 @@ func TestCollectTimestamps_StopsAtTimeout(t *testing.T) {
 	assert.GreaterOrEqual(t, client.GetCallCount(), 2)
 }
 
+func TestCollectTimestamps_ErrorAfterPartialReturnsPartial(t *testing.T) {
+	comp, client, boot, partial := collectionTestComponent()
+	partial.DesktopReadyTime = time.Time{}
+	client.On("GetLoginTimestamps", mock.Anything).Return(partial, nil).Once()
+	client.On("GetLoginTimestamps", mock.Anything).Return(logonduration.LoginTimestamps{}, errors.New("system-probe unavailable"))
+	got, err := comp.collectTimestamps(context.Background(), boot)
+	require.NoError(t, err)
+	assert.Equal(t, partial, got)
+	assert.GreaterOrEqual(t, client.GetCallCount(), 2)
+}
+
+func TestCollectTimestamps_FirstErrorReturnsError(t *testing.T) {
+	comp, client, boot, _ := collectionTestComponent()
+	expectedErr := errors.New("system-probe unavailable")
+	client.On("GetLoginTimestamps", mock.Anything).Return(logonduration.LoginTimestamps{}, expectedErr).Once()
+	_, err := comp.collectTimestamps(context.Background(), boot)
+	require.ErrorIs(t, err, expectedErr)
+	assert.Equal(t, 1, client.GetCallCount())
+	client.AssertExpectations(t)
+}
+
 func TestCollectTimestamps_ReturnsOnCancel(t *testing.T) {
 	comp, client, boot, partial := collectionTestComponent()
 	partial.DesktopReadyTime = time.Time{}

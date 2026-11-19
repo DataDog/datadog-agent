@@ -250,10 +250,20 @@ func (c *logonDurationComponent) collectTimestamps(ctx context.Context, bootTime
 	}
 
 	var deadline time.Time
+	var ts logonduration.LoginTimestamps
 	for {
-		ts, err := c.sysProbeClient.GetLoginTimestamps(ctx)
+		answer, err := c.sysProbeClient.GetLoginTimestamps(ctx)
 		if err != nil {
-			return logonduration.LoginTimestamps{}, err
+			// Fail on the first request; afterwards keep the last good answer.
+			if deadline.IsZero() {
+				return logonduration.LoginTimestamps{}, err
+			}
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return logonduration.LoginTimestamps{}, ctxErr
+			}
+			log.Debugf("Logon duration: system-probe retry failed, keeping last answer: %v", err)
+		} else {
+			ts = answer
 		}
 		now := time.Now()
 		if deadline.IsZero() {
@@ -277,7 +287,7 @@ func (c *logonDurationComponent) collectTimestamps(ctx context.Context, bootTime
 			log.Infof("Logon duration: timed out waiting for login timestamps; missing %v", missing)
 			return ts, nil
 		}
-		timer := time.NewTimer(c.retryInterval)
+		timer := time.NewTimer(min(c.retryInterval, deadline.Sub(now)))
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
