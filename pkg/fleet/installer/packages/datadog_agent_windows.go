@@ -12,7 +12,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -32,7 +31,6 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
-	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -185,57 +183,9 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 
 	// OCI path: Run MSI to uninstall
 	if !ctx.Upgrade {
-		if err := removeAgentIfInstalledAndRestartOnFailure(ctx, ctx.WindowsArgs...); err != nil {
-			return err
-		}
-		if slices.Contains(ctx.WindowsArgs, "FLEET_PURGE=1") {
-			return deleteRetainedAgentServices()
-		}
+		return removeAgentIfInstalledAndRestartOnFailure(ctx, ctx.WindowsArgs...)
 	}
 	return nil
-}
-
-// A previous Fleet removal may have unregistered the MSI while retaining services.
-// Explicit purge must clean these up even when there is no installed product left.
-func deleteRetainedAgentServices() error {
-	// Both Agent flavors and the legacy standalone Installer own these names.
-	// Fail closed on enumeration errors rather than deleting a registered product's services.
-	if err := winutil.EnumerateMsiProducts(winutil.MSIINSTALLCONTEXT_MACHINE, func(code []uint16, _ uint32, _ string) error {
-		name, err := winutil.GetMsiProductInfo("ProductName", code)
-		if err != nil {
-			return err
-		}
-		if name == msi.AgentProductName(false) || name == msi.AgentProductName(true) || name == "Datadog Installer" {
-			return fmt.Errorf("refusing to delete retained services while %s is registered", name)
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-	m, err := mgr.Connect()
-	if err != nil {
-		return err
-	}
-	defer m.Disconnect()
-	var errs []error
-	for _, name := range []string{
-		"datadogagent", "datadog-trace-agent", "datadog-process-agent",
-		"datadog-security-agent", "datadog-system-probe", "datadog-agent-action",
-		"dd-procmgr-service", "Datadog Installer", "ddnpm", "ddprocmon",
-	} {
-		service, err := m.OpenService(name)
-		if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) || errors.Is(err, windows.ERROR_SERVICE_MARKED_FOR_DELETE) {
-			continue
-		}
-		if err == nil {
-			err = service.Delete()
-			service.Close()
-		}
-		if err != nil && !errors.Is(err, windows.ERROR_SERVICE_MARKED_FOR_DELETE) {
-			errs = append(errs, fmt.Errorf("delete retained service %s: %w", name, err))
-		}
-	}
-	return errors.Join(errs...)
 }
 
 func resolveDatadogProgramFilesInstallRoot() (string, error) {
