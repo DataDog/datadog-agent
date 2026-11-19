@@ -91,8 +91,6 @@ func NewComponent(deps Requires) Provides {
 		client:   deps.IPCClient,
 	}
 	sa.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sa.getPayload, "security-agent.json")
-	// security-agent may not serve its config yet at startup, and nothing triggers a new payload once it does.
-	sa.InventoryPayload.SetFirstRunDelay(time.Minute)
 
 	return Provides{
 		Comp:             sa,

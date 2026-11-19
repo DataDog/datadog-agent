@@ -112,8 +112,6 @@ func NewComponent(deps Requires) Provides {
 		data:     &hostGPUMetadata{},
 	}
 	gh.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, gh.getPayload, flareFileName)
-	// workloadmeta may not list the GPUs yet at startup, and nothing triggers a new payload once it does.
-	gh.InventoryPayload.SetFirstRunDelay(time.Minute)
 
 	return Provides{
 		Comp:          gh,

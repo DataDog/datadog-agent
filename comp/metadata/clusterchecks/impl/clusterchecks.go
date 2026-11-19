@@ -122,8 +122,6 @@ func NewComponent(deps Requires) Provides {
 		cc.getPayloadAsMarshaler,
 		"cluster-checks-metadata.json",
 	)
-	// The cluster handler and leadership may not be known yet at startup, and nothing triggers a new payload once they are.
-	cc.InventoryPayload.SetFirstRunDelay(time.Minute)
 
 	return Provides{
 		Comp:     cc,

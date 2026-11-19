@@ -95,8 +95,6 @@ func NewComponent(deps Requires) Provides {
 		sysprobeConf: deps.SysProbeConfig,
 	}
 	sb.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sb.getPayload, "system-probe.json")
-	// system-probe may not serve its config yet at startup, and nothing triggers a new payload once it does.
-	sb.InventoryPayload.SetFirstRunDelay(time.Minute)
 
 	return Provides{
 		Comp:             sb,
