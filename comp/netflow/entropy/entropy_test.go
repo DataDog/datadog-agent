@@ -126,6 +126,22 @@ func TestComputeEntropy(t *testing.T) {
 	}
 }
 
+func TestReport_SubmitEntropy(t *testing.T) {
+	flows := make([]*common.Flow, 0, 8)
+	for i := range 8 {
+		flows = append(flows, ingressFlow(byte(i+1), 100, 1, 1))
+	}
+	report := closeWindowW(t, testConfig(), w-1, flows)
+
+	sender := mocksender.NewMockSender(t, "")
+	sender.SetupAcceptAll()
+	report.Submit(sender, logmock.New(t))
+	tags := []string{"device_namespace:ns", "exporter_ip:127.0.0.1", "interface_index:1", "observation_point:ingress",
+		"dd.internal.resource:ndm_device:ns:127.0.0.1"}
+	sender.AssertMetricInRange(t, "Gauge", "datadog.netflow.entropy.bytes", 3-1e-9, 3+1e-9, "", tags)
+	sender.AssertMetricInRange(t, "Gauge", "datadog.netflow.entropy.normalized_bytes", 1-1e-9, 1+1e-9, "", tags)
+}
+
 func TestAccumulator_Windows(t *testing.T) {
 	acc := NewAccumulator(testConfig(), time.Unix(w-1, 0))
 
