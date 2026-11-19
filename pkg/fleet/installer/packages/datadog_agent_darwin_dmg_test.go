@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -569,6 +570,28 @@ func TestSecureConfigReachesNothingOutsideTheTree(t *testing.T) {
 				"no access control list may be applied to an entry that was not secured")
 		}
 	}
+}
+
+// TestSecureTreeSkipsSocketsAndPipes covers the run directory on a host with a logged-in user: the
+// Agent's GUI keeps a socket there (run/ipc/gui-<uid>.sock), which cannot be opened, and opening it
+// used to fail the whole .dmg set-up. Sockets and pipes are skipped; the rest is still secured.
+func TestSecureTreeSkipsSocketsAndPipes(t *testing.T) {
+	// A short path: a unix socket's path is limited to about a hundred bytes.
+	root, err := os.MkdirTemp("/tmp", "securetree")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(root) })
+	ipc := filepath.Join(root, "ipc")
+	require.NoError(t, os.Mkdir(ipc, 0o755))
+	listener, err := net.Listen("unix", filepath.Join(ipc, "gui-501.sock"))
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+	require.NoError(t, syscall.Mkfifo(filepath.Join(ipc, "pipe"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "agent.pid"), nil, 0o600))
+
+	dirs, files, err := secureTree(root, os.Getuid(), os.Getgid(), nil)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{root, ipc}, dirs)
+	assert.ElementsMatch(t, []string{filepath.Join(root, "agent.pid")}, files)
 }
 
 // openConfRoot opens dir as the os.Root the configuration steps work through, for the rest of the

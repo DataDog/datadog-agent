@@ -899,10 +899,19 @@ func secureTree(root string, uid, gid int, modeFor func(rel string, dir bool) fs
 		if entry.Type()&fs.ModeSymlink != 0 {
 			return nil
 		}
+		if entry.Type()&(fs.ModeSocket|fs.ModeNamedPipe|fs.ModeDevice|fs.ModeCharDevice|fs.ModeIrregular) != 0 {
+			// Only directories and regular files are secured. A socket, such as the one the Agent's
+			// GUI keeps in the run directory for a logged-in user, cannot even be opened.
+			return nil
+		}
 		f, err := r.OpenFile(rel, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 		if err != nil {
 			if errors.Is(err, syscall.ELOOP) || errors.Is(err, fs.ErrNotExist) {
 				// Replaced by a link, or removed, since the walk listed it.
+				return nil
+			}
+			if errors.Is(err, syscall.EOPNOTSUPP) {
+				// Replaced by a socket since the walk listed it.
 				return nil
 			}
 			return fmt.Errorf("could not open %s: %w", filepath.Join(root, rel), err)
