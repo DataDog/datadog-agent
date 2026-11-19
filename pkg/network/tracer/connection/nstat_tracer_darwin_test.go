@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/nstat"
+	processutil "github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestNStatTracerTCPActiveAndFinalLifecycle(t *testing.T) {
@@ -1985,6 +1986,194 @@ func TestNStatConversions(t *testing.T) {
 	require.Equal(t, uint32(tcpStateClosed), merged.TCPState)
 }
 
+func TestNStatTracerDescribesWithUpdatesWhileRecordingDomains(t *testing.T) {
+	control := newFakeNStatControl()
+	tracer := newNStatTracerWithControl(testNStatConfig(), control)
+	now := time.Unix(500, 0)
+	tracer.now = func() time.Time { return now }
+	recordNStatDomains(tracer)
+
+	tracer.processEvent(nstat.Event{Kind: nstat.EventAdded, SourceRef: 7, Provider: nstat.ProviderTCPKernel})
+	tracer.pumpDescriptionRequests(now)
+
+	require.Equal(t, []uint64{7}, control.updates())
+	require.Empty(t, control.descriptions())
+}
+
+func TestNStatTracerRecordsDomainOfPublishedConnection(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	recorded := recordNStatDomains(tracer)
+	found := nstatTracerTelemetry.domains.WithValues("domain")
+	foundBefore := found.Get()
+	flow := testNStatTCPFlow(1234, tcpStateEstablished)
+
+	tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderTCPKernel, flow, "example.com"))
+	// A source keeps the first domain found for it.
+	tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderTCPKernel, flow, "other.example"))
+
+	require.Equal(t, []nstatRecordedDomain{{processutil.AddressFromString("198.51.100.20"), "example.com"}}, *recorded)
+	require.Equal(t, foundBefore+2, found.Get())
+}
+
+func TestNStatTracerRecordsDomainAgainWhileConnectionLives(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	now := time.Unix(500, 0)
+	tracer.now = func() time.Time { return now }
+	recorded := recordNStatDomains(tracer)
+	counts := nstat.Event{Kind: nstat.EventCounts, SourceRef: 7, Provider: nstat.ProviderTCPKernel, Counts: &nstat.Counts{}}
+	want := nstatRecordedDomain{processutil.AddressFromString("198.51.100.20"), "example.com"}
+
+	tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderTCPKernel, testNStatTCPFlow(1234, tcpStateEstablished), "example.com"))
+	require.Equal(t, []nstatRecordedDomain{want}, *recorded)
+
+	// The counts of an idle connection keep its domain cached, so the domain
+	// is still there when the connection sends again or closes.
+	for range 15 {
+		now = now.Add(nstatDomainRefresh / 2)
+		tracer.processEvent(counts)
+	}
+	require.Len(t, *recorded, 8)
+
+	var recordedAtClose int
+	tracer.closeCallback = func(*network.ConnectionStats) { recordedAtClose = len(*recorded) }
+	now = now.Add(nstatDomainRefresh / 2)
+	closing := testNStatDomainUpdate(7, nstat.ProviderTCPKernel, testNStatTCPFlow(1234, tcpStateClosed), "example.com")
+	tracer.processEvent(closing)
+	tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: 7})
+	require.Equal(t, 9, recordedAtClose)
+	for _, domain := range *recorded {
+		require.Equal(t, want, domain)
+	}
+}
+
+func TestNStatTracerRecordsDomainCarriedBeforePublication(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	recorded := recordNStatDomains(tracer)
+
+	// An update can carry the domain of a UDP socket before it has a peer to
+	// publish it with.
+	peerless := testNStatUDPFlow(1234)
+	peerless.Remote = nstat.Endpoint{}
+	tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderUDPKernel, peerless, "example.com"))
+	require.Empty(t, *recorded)
+
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 7,
+		Provider:  nstat.ProviderUDPKernel,
+		Flow:      testNStatUDPFlow(1234),
+	})
+	require.Equal(t, []nstatRecordedDomain{{processutil.AddressFromString("198.51.100.20"), "example.com"}}, *recorded)
+}
+
+func TestNStatTracerRecordsNoDomainOfDNSServer(t *testing.T) {
+	server := processutil.AddressFromString("198.51.100.20")
+	for port, records := range map[uint16]bool{5300: false, 443: true} {
+		tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+		recorded := recordNStatDomains(tracer)
+		tracer.isDNSServer = func(addr processutil.Address, remotePort uint16) bool {
+			return addr == server && remotePort == 5300
+		}
+		flow := testNStatUDPFlow(1234)
+		flow.Remote.Port = port
+
+		tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderUDPKernel, flow, "example.com"))
+
+		require.NotNil(t, tracer.sources[7].conn, port)
+		if records {
+			require.Equal(t, []nstatRecordedDomain{{server, "example.com"}}, *recorded, port)
+		} else {
+			require.Empty(t, *recorded, port)
+		}
+	}
+}
+
+func TestNStatTracerRecordsNoDomainOfDNSServerOnceUnlisted(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	now := time.Unix(500, 0)
+	tracer.now = func() time.Time { return now }
+	recorded := recordNStatDomains(tracer)
+	listed := true
+	tracer.isDNSServer = func(processutil.Address, uint16) bool { return listed }
+
+	tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderTCPKernel, testNStatTCPFlow(1234, tcpStateEstablished), "example.com"))
+	// The server is no longer listed, but the connection still carries the
+	// name it looked up.
+	listed = false
+	now = now.Add(nstatDomainRefresh)
+	tracer.processEvent(nstat.Event{Kind: nstat.EventCounts, SourceRef: 7, Provider: nstat.ProviderTCPKernel, Counts: &nstat.Counts{}})
+
+	require.NotNil(t, tracer.sources[7].conn)
+	require.Empty(t, *recorded)
+}
+
+func TestNStatTracerRecordsDomainWithoutLock(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	var lockHeld []bool
+	tracer.recordDomain = func(processutil.Address, string) {
+		acquired := tracer.mu.TryLock()
+		if acquired {
+			tracer.mu.Unlock()
+		}
+		lockHeld = append(lockHeld, !acquired)
+	}
+
+	tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderTCPKernel, testNStatTCPFlow(1234, tcpStateEstablished), "example.com"))
+
+	require.Equal(t, []bool{false}, lockHeld)
+}
+
+func TestNStatTracerRecordsDomainBeforeClosing(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	recorded := recordNStatDomains(tracer)
+	var recordedAtClose []nstatRecordedDomain
+	tracer.closeCallback = func(*network.ConnectionStats) {
+		recordedAtClose = append(recordedAtClose, *recorded...)
+	}
+
+	// The first update of a source removed before it was described both
+	// publishes and closes it.
+	tracer.processEvent(nstat.Event{Kind: nstat.EventAdded, SourceRef: 7, Provider: nstat.ProviderUDPKernel})
+	tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: 7})
+	tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderUDPKernel, testNStatUDPFlow(1234), "example.com"))
+
+	require.Equal(t, []nstatRecordedDomain{{processutil.AddressFromString("198.51.100.20"), "example.com"}}, recordedAtClose)
+}
+
+type nopDomainRecorder struct{}
+
+func (nopDomainRecorder) AddDomain(processutil.Address, string) {}
+
+func (nopDomainRecorder) IsDNSServer(processutil.Address, uint16) bool { return false }
+
+func TestRecordDarwinDomainsReachesNStatThroughWrappers(t *testing.T) {
+	primary := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+
+	RecordDarwinDomains(&darwinRuntimeFallbackTracer{active: &darwinCompositeTracer{primary: primary}}, nopDomainRecorder{})
+	recordsDomains := darwinKernelRecordsDomains(darwinKernelRelease())
+	require.Equal(t, recordsDomains, primary.recordDomain != nil)
+	require.Equal(t, recordsDomains, primary.isDNSServer != nil)
+	require.NotPanics(t, func() { RecordDarwinDomains(&darwinCompositeTracer{}, nopDomainRecorder{}) })
+}
+
+func TestDarwinKernelRecordsDomains(t *testing.T) {
+	for release, records := range map[string]bool{
+		"20.6.0":  false, // macOS 11
+		"21.1.0":  false, // macOS 12.0.1
+		"21.2.0":  true,  // macOS 12.1
+		"21.6.0":  true,  // macOS 12.5 to 12.7
+		"21.10.0": true,
+		"22.6.0":  true, // macOS 13.5 to 13.7
+		"25.6.0":  true,
+		"26":      true,
+		"21":      false,
+		"":        false,
+		"darwin":  false,
+	} {
+		require.Equal(t, records, darwinKernelRecordsDomains(release), release)
+	}
+}
+
 const testNStatLoopbackIfIndex = 1
 
 func testNStatConfig() *config.Config {
@@ -2049,11 +2238,38 @@ func testNStatUDPv6Flow(pid uint32) *nstat.Flow {
 	return testNStatTCPv6Flow(pid, 0)
 }
 
+func testNStatDomainUpdate(sourceRef uint64, provider uint32, flow *nstat.Flow, domain string) nstat.Event {
+	return nstat.Event{
+		Kind:        nstat.EventUpdate,
+		SourceRef:   sourceRef,
+		Provider:    provider,
+		Flow:        flow,
+		Counts:      &nstat.Counts{},
+		Domain:      domain,
+		DomainState: nstat.DomainFound,
+	}
+}
+
+type nstatRecordedDomain struct {
+	addr   processutil.Address
+	domain string
+}
+
+// recordNStatDomains makes tracer record domains and returns what it records.
+func recordNStatDomains(tracer *nstatTracer) *[]nstatRecordedDomain {
+	recorded := &[]nstatRecordedDomain{}
+	tracer.recordDomain = func(addr processutil.Address, domain string) {
+		*recorded = append(*recorded, nstatRecordedDomain{addr: addr, domain: domain})
+	}
+	return recorded
+}
+
 type fakeNStatControl struct {
 	mu sync.Mutex
 
 	subscribed          []uint32
 	descriptionRequests []uint64
+	updateRequests      []uint64
 	closed              chan struct{}
 	closeOnce           sync.Once
 	pollStarted         chan struct{}
@@ -2088,6 +2304,13 @@ func (f *fakeNStatControl) RequestDescription(sourceRef uint64) error {
 	return nil
 }
 
+func (f *fakeNStatControl) RequestUpdate(sourceRef uint64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.updateRequests = append(f.updateRequests, sourceRef)
+	return nil
+}
+
 func (f *fakeNStatControl) Poll(time.Duration) (bool, error) {
 	f.pollOnce.Do(func() { close(f.pollStarted) })
 	<-f.closed
@@ -2113,6 +2336,12 @@ func (f *fakeNStatControl) descriptions() []uint64 {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]uint64(nil), f.descriptionRequests...)
+}
+
+func (f *fakeNStatControl) updates() []uint64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]uint64(nil), f.updateRequests...)
 }
 
 func (f *fakeNStatControl) isClosed() bool {
