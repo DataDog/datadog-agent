@@ -663,8 +663,8 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	require.NoError(t, err)
 }
 
-// This test ensures that conntrack lookups are retried for short-lived
-// connections when the first lookup fails
+// This test ensures that the tracer retries the conntrack lookup of an active
+// connection on a later fetch when the first lookup fails
 func (s *TracerSuite) TestConntrackDelays() {
 	t := s.T()
 	cfg := testConfig()
@@ -693,16 +693,42 @@ func (s *TracerSuite) TestConntrackDelays() {
 	c, err := tracertestutil.DialTCP("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err)
 	defer tracertestutil.GracefulCloseTCP(c)
-	_, err = c.Write([]byte("ping"))
-	require.NoError(t, err)
 
+	// SetupDNAT rewrites 2.2.2.2 to 1.1.1.1 without changing the port, so the
+	// reply tuple runs from the server (1.1.1.1:port) back to the client.
+	laddr := c.LocalAddr().(*net.TCPAddr)
+	serverPort, err := strconv.ParseUint(port, 10, 16)
+	require.NoError(t, err)
+	expectedTranslation := &network.IPTranslation{
+		ReplSrcIP:   util.AddressFromString("1.1.1.1"),
+		ReplDstIP:   util.AddressFromNetIP(laddr.IP),
+		ReplSrcPort: uint16(serverPort),
+		ReplDstPort: uint16(laddr.Port),
+	}
+
+	// The tracer looks up the NAT translation of every active connection on each
+	// fetch, and the delayedConntracker makes its first lookup miss, so the test
+	// passes only if a later fetch retries the lookup. With the netlink conntracker
+	// (the fallback when the eBPF conntracker is unavailable, e.g. on kernels before
+	// 4.14 other than RHEL 7) the entry is also registered asynchronously and can land
+	// after several fetches. An idle connection is reported in only one fetch per
+	// client, so write on every tick to keep it in each delta.
+	var seen, sawMiss bool
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		_, err := c.Write([]byte("ping"))
+		require.NoError(collect, err)
 		connections, cleanup := getConnections(collect, tr)
 		defer cleanup()
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		require.True(collect, ok)
-		require.NotNil(collect, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple))
+		require.True(collect, ok, "connection not found")
+		if !seen {
+			seen = true
+			sawMiss = conn.IPTranslation == nil
+		}
+		require.NotNil(collect, conn.IPTranslation, "connection reported without NAT translation")
+		require.Equal(collect, expectedTranslation, conn.IPTranslation, "unexpected NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection with translation")
+	require.True(t, sawMiss, "the tracer's first translation lookup should have been delayed")
 
 	// write newline so server connections will exit
 	_, err = c.Write([]byte("\n"))
