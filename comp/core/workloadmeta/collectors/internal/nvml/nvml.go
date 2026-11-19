@@ -56,10 +56,13 @@ type collector struct {
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
 	gpuMonitoringEnabled               bool
-	kaiSchedulerEnabled                bool
-	kaiAssignmentFailed                telemetry.Counter
-	lastCollectionTimestamp            time.Time
-	deviceCache                        ddnvml.DeviceCache
+	// orchestratorGPUDevicesEnabled starts the collector without GPU
+	// Monitoring, for the orchestrator pod check to send the node's GPUs.
+	orchestratorGPUDevicesEnabled bool
+	kaiSchedulerEnabled           bool
+	kaiAssignmentFailed           telemetry.Counter
+	lastCollectionTimestamp       time.Time
+	deviceCache                   ddnvml.DeviceCache
 	// nodeGPULabels caches the labels of this node, as read for the GPU
 	// sharing strategy resolution, and nodeGPULabelsAt is when they were last
 	// read, successfully or not. fetchNodeLabels reads them.
@@ -110,6 +113,7 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 	case *ddnvml.PhysicalDevice:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypePhysical
 		gpuDeviceInfo.MIGModeEnabled = d.HasMIGFeatureEnabled
+		gpuDeviceInfo.MinorNumber = d.MinorNumber
 		for _, child := range d.MIGChildren {
 			gpuDeviceInfo.ChildrenGPUUUIDs = append(gpuDeviceInfo.ChildrenGPUUUIDs, child.GetDeviceInfo().UUID)
 		}
@@ -308,6 +312,8 @@ func newCollector(store workloadmeta.Component, config config.Component, tm tele
 		collector.integrateWithWorkloadmetaProcesses = gpuCfg.IntegrateWithWorkloadmetaProcesses
 		collector.gpuMonitoringEnabled = gpuCfg.GPUMonitoringEnabled
 		collector.kaiSchedulerEnabled = gpuCfg.KAISchedulerEnabled
+		collector.orchestratorGPUDevicesEnabled = config.GetBool("orchestrator_explorer.enabled") &&
+			config.GetBool("orchestrator_explorer.gpu_devices.enabled")
 	}
 
 	return collector
@@ -331,8 +337,8 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return dderrors.NewDisabled(componentName, "Agent does not have NVML library available")
 	}
 
-	if !c.gpuMonitoringEnabled {
-		return dderrors.NewDisabled(componentName, "GPU monitoring is disabled")
+	if !c.gpuMonitoringEnabled && !c.orchestratorGPUDevicesEnabled {
+		return dderrors.NewDisabled(componentName, "GPU monitoring and orchestrator GPU device collection are disabled")
 	}
 
 	c.store = store
