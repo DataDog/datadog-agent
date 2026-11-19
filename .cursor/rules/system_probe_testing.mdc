@@ -1,6 +1,6 @@
 ---
 description: How to test system-probe and eBPF changes, and what you may claim afterward
-globs: "pkg/ebpf/**,pkg/network/**,pkg/collector/corechecks/ebpf/**,cmd/system-probe/**,pkg/system-probe/**,pkg/util/kernel/**,pkg/process/monitor/**"
+globs: "pkg/ebpf/**,pkg/network/**,pkg/collector/corechecks/ebpf/**,pkg/dyninst/**,cmd/system-probe/**,pkg/system-probe/**,pkg/util/kernel/**,pkg/process/monitor/**"
 alwaysApply: false
 ---
 

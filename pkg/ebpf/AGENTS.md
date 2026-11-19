@@ -1,8 +1,9 @@
 # Testing system-probe and eBPF changes
 
 How to test a change to system-probe or eBPF code, and what you may claim afterward. It applies to
-`pkg/ebpf/`, `pkg/network/`, `pkg/collector/corechecks/ebpf/`, `cmd/system-probe/`, `pkg/system-probe/`,
-`pkg/util/kernel/`, and `pkg/process/monitor/`, including the eBPF C sources under them.
+`pkg/ebpf/`, `pkg/network/`, `pkg/collector/corechecks/ebpf/`, `pkg/dyninst/`, `cmd/system-probe/`,
+`pkg/system-probe/`, `pkg/util/kernel/`, and `pkg/process/monitor/`, including the eBPF C sources under
+them.
 
 This file holds the workflow and the rules for claims. CI behavior and other pitfalls that the test
 framework doesn't handle for you are in [`TESTING_GOTCHAS.md`](TESTING_GOTCHAS.md).
@@ -29,17 +30,24 @@ Run `uname -sm` first. Results only hold for the OS, kernel, and architecture th
    dda inv -e kmt.destroy-stack                       # when done
    ```
 
+   - **Pick the VMs up front by what the change can break.** For kernel-sensitive changes, launch a
+     representative range of kernels from `dda inv kmt.ls`. For architecture-sensitive changes, use
+     remote VMs for both architectures, for example
+     `dda inv -e kmt.gen-config --vms=ubuntu_22.04-arm64-distro,ubuntu_22.04-x86_64-distro`. Prefer
+     remote VMs for large or multi-architecture matrices, and local VMs otherwise. Local VMs match the
+     host architecture; remote ones are EC2 metal instances, so ask first.
    - **An existing Linux VM** (Parallels, VMware, a cloud host) works through an alien profile: pass
      `--alien-vms=<profile.json>` to `kmt.test` and `kmt.build` instead of `--vms`. The profile format
      is in the README.
    - **`kmt.build`** builds system-probe itself and copies it to the VMs, for runs outside the test
      suite.
-   - **Local VMs match the host architecture.** Behavior specific to the other architecture needs
-     remote KMT VMs (EC2 metal instances, so ask first) or CI.
    - `kmt.build` and `kmt.test` compile inside a Docker container (`tasks/kernel_matrix_testing/compiler.py`),
-     so Docker must be running and responsive; if `docker ps` hangs, the KMT run is `blocked`.
-   - Run KMT from a regular clone, not a git worktree: the compiler container refuses to start when
-     `.git` isn't a directory.
+     so Docker must be running.
+   - **KMT builds one self-contained clone.** The compiler container bind-mounts the clone it was
+     started from and is reused per architecture, so run KMT from a single clone, or run
+     `kmt.start-compiler` after switching. That clone's `.git` must be a directory holding all its
+     objects: git worktrees are refused, and `--reference` or `--shared` clones fail with
+     `error obtaining VCS status`.
    - On macOS, `kmt.init` needs `sudo` (libvirt and virtlogd services, bootpd, NFS, IP forwarding), so
      a person must run it in a terminal first; until then, local VMs are `blocked`. Pass
      `--skip-ssh-setup` when only local VMs are needed: until DataDog/datadog-agent#60814 merges,
@@ -68,7 +76,8 @@ it typechecks.
   CO-RE builds with a different tracer. Mode- and kernel-specific bugs usually pass in every other mode.
 - **Read which modes ran from the subtest names.** The modes a test runs depend on the host
   (`ebpftest.SupportedBuildModes` in `pkg/ebpf/ebpftest/`) and on the suite; don't assume.
-- **For a change that must behave the same in every mode,** test runtime-compiled and CO-RE at least.
+- **Don't filter out modes.** Tests built on `ebpftest.TestBuildModes` run in every mode the kernel
+  supports unless the test passes a narrower list, so don't `--run` a single mode's subtest.
 - **The verifier runs only when a program loads.** Building the objects proves the C compiles;
   verifier acceptance needs a load on a real kernel, ideally including the oldest kernel the program
   targets.
@@ -98,8 +107,9 @@ it typechecks.
   find and fix the cause before comparing. The `ebpf` check reports them
   (`ebpf.kprobes.kprobe_nesting_misses`, `ebpf.kprobes.kretprobe_maxactive_misses`,
   `ebpf.programs.recursion_misses`).
-- **Keep `kernel.bpf_stats_enabled` the same in every arm**; it adds cost to every BPF call. BPF
-  run-time counters miss kprobe dispatch and socket-filter softirq time, so use `perf` for those.
+- **Keep `kernel.bpf_stats_enabled` the same in every arm**; it adds cost to every BPF call. Its
+  `run_time_ns` covers only the program body, not the kprobe or trampoline dispatch around it, so it
+  understates overhead; measure end to end as well.
 - **Loopback and cross-container traffic are valid modes.** Measure them as their own scenario, not as
   a stand-in for cross-host traffic.
 - **Overhead includes the application's kernel time.** eBPF programs run in the context of the process

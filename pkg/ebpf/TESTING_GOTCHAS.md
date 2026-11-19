@@ -19,8 +19,9 @@ new entries under the closest heading, one short bullet each.
 - **`optmem_max`:** a socket filter is charged its size after JIT constant blinding, which
   `net.core.bpf_jit_harden=2` (set on some hardened distros) can nearly double. Size socket filters
   with that setting as well as the default.
-- **Runtime `-Werror`:** old kernel headers don't mark `inline` functions `__maybe_unused`, so a static
-  inline helper that loses its last caller fails the runtime compile there and nowhere else. To catch
+- **Runtime `-Werror`:** the runtime compile uses `-Wall -Werror`, and the kernel headers' `inline`
+  macro adds `__maybe_unused` on recent kernels but not old ones. A `static inline` helper in our eBPF C
+  that loses its last caller therefore fails the runtime compile on old kernels only. To catch
   it on a modern kernel, temporarily add `-DKBUILD_EXTRA_WARN1` (headers 5.4 to 6.17) or
   `-DKBUILD_EXTRA_WARN2` (6.18 and later) to `defaultFlags` in
   `pkg/ebpf/bytecode/runtime/runtime_compilation_helpers.go`, compare against the base commit, and
@@ -69,20 +70,14 @@ test binaries were built, `kmt.test` of one `pkg/ebpf` test took about 90 second
   (`test/e2e-framework/scenarios/aws/microVMs/microvms/resources/distro/domain-arm64.xsl`) doesn't
   set it, so libvirt defaults to GICv2. Adding `<gic version='3' />` inside the `features` element
   fixes it. A failed launch leaves the domain defined; `virsh undefine` it before retrying.
-- **The compiler container keeps the checkout it was started from.** It's named per architecture and
-  reused, so after switching clones run `kmt.start-compiler` from the new one, or `kmt.test` builds
-  the old tree.
-- **Don't clone with `--reference` or `--shared`:** the container can't see the alternate object
-  directory, so `go build` fails with `error obtaining VCS status`. Use a plain clone, or run
-  `git repack -a -d` and delete `.git/objects/info/alternates`.
 - **The first `kmt.test` in a fresh clone runs `sudo mkdir`** for `kmt-deps/<arch>/tools`, because
   `setup_runtime_clang` treats a missing directory as unwritable. Create it first with
   `mkdir -p kmt-deps/arm64/tools`.
-- **`too many open files in system`** while the compiler unpacks Go toolchains means the Docker VM's
-  shared filesystem holds a host file descriptor per cached file and hit macOS's per-process limit.
-  Drop the Docker VM's page cache, or restart it, and rerun.
-- **VM networking worked without Internet Sharing:** the VM was reachable from the host on the KMT
-  bridge as soon as the stack was up.
+- **`too many open files in system`** while the compiler unpacks Go toolchains comes from Docker's
+  host file sharing, which the compiler's bind mounts go through: it holds a host file handle for each
+  file the Docker VM has cached. `ulimit -n` in the container doesn't raise that limit. Restart Docker,
+  or drop the VM's inode and dentry caches (`echo 2 > /proc/sys/vm/drop_caches` as root in the VM), and
+  rerun.
 
 ## Manual runs outside KMT
 
