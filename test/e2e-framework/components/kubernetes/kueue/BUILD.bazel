@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//test/e2e-framework/common",
         "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/apiextensions",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/core/v1:core",

@@ -23,11 +23,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 )
 
 const (
-	chartRef   = "oci://registry.k8s.io/kueue/charts/kueue"
 	apiVersion = "kueue.x-k8s.io/v1beta2"
+
+	// DefaultChartRepository is the OCI repository of the Kueue Helm chart.
+	DefaultChartRepository = "oci://registry.k8s.io/kueue/charts"
 
 	// DefaultVersion is the pinned version of the Kueue Helm chart.
 	DefaultVersion = "0.20.6"
@@ -51,10 +54,11 @@ type LocalQueue struct {
 
 // Params holds the configuration of a Kueue installation.
 type Params struct {
-	Version        string
-	Namespace      string
-	ClusterQueue   string
-	ResourceFlavor string
+	ChartRepository string
+	Version         string
+	Namespace       string
+	ClusterQueue    string
+	ResourceFlavor  string
 	// Quotas are the nominal quotas of the ClusterQueue, by resource name.
 	Quotas map[string]string
 	// LocalQueues point workload namespaces to the ClusterQueue. Their namespaces are created.
@@ -67,10 +71,11 @@ type Option = func(*Params) error
 // NewParams returns the Kueue parameters with defaults applied.
 func NewParams(options ...Option) (*Params, error) {
 	params := &Params{
-		Version:        DefaultVersion,
-		Namespace:      DefaultNamespace,
-		ClusterQueue:   DefaultClusterQueue,
-		ResourceFlavor: DefaultResourceFlavor,
+		ChartRepository: DefaultChartRepository,
+		Version:         DefaultVersion,
+		Namespace:       DefaultNamespace,
+		ClusterQueue:    DefaultClusterQueue,
+		ResourceFlavor:  DefaultResourceFlavor,
 		Quotas: map[string]string{
 			"cpu":            "8",
 			"memory":         "16Gi",
@@ -78,6 +83,16 @@ func NewParams(options ...Option) (*Params, error) {
 		},
 	}
 	return common.ApplyOption(params, options)
+}
+
+// WithChartRepository overrides the OCI repository of the Kueue chart, e.g. to pull it through a
+// mirror of registry.k8s.io. When the repository is on one of the imagePull registries, the chart
+// is pulled with their credentials.
+func WithChartRepository(repository string) Option {
+	return func(p *Params) error {
+		p.ChartRepository = repository
+		return nil
+	}
 }
 
 // WithVersion overrides the pinned Kueue chart version.
@@ -120,12 +135,14 @@ func NewInstallation(e config.Env, params *Params, kubeProvider *kubernetes.Prov
 	}
 	opts = append(opts, pulumi.Parent(comp), pulumi.Provider(kubeProvider), pulumi.DeletedWith(kubeProvider))
 
+	chart := params.ChartRepository + "/kueue"
 	var err error
 	comp.Release, err = helm.NewRelease(e.Ctx(), e.CommonNamer().ResourceName("kueue"), &helm.ReleaseArgs{
 		Name:            pulumi.String("kueue"),
 		Namespace:       pulumi.String(params.Namespace),
 		CreateNamespace: pulumi.Bool(true),
-		Chart:           pulumi.String(chartRef),
+		Chart:           pulumi.String(chart),
+		RepositoryOpts:  utils.HelmOCIRepositoryOpts(e, chart),
 		Version:         pulumi.String(params.Version),
 		// The queues below are validated by the Kueue webhooks, which must be serving first.
 		Timeout: pulumi.Int(600),

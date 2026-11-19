@@ -6,6 +6,7 @@
 package gpu
 
 import (
+	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/kueue"
@@ -23,6 +24,15 @@ const (
 	kueueWorkloadNamespace = "kueue-e2e"
 )
 
+// k8sChartRepository returns the OCI repository of a chart published on registry.k8s.io under
+// path, through the chart mirror when one is configured (see chartMirrorEnvVar).
+func k8sChartRepository(path string) string {
+	if mirror := os.Getenv(chartMirrorEnvVar); mirror != "" {
+		return "oci://" + mirror + "/k8s/" + path
+	}
+	return "oci://registry.k8s.io/" + path
+}
+
 // gpuMokkaKueueSuite checks the Kueue integration on a CPU-only kind cluster: Kueue admits Jobs
 // on GPUs simulated by Mokka, and the Agent tags them with their Kueue Workload and queues.
 type gpuMokkaKueueSuite struct {
@@ -35,7 +45,10 @@ func TestGPUMokkaKueueSuite(t *testing.T) {
 		profile:  "t4",
 		gpuCount: 2,
 		runOptions: []kindvm.RunOption{
-			kindvm.WithKueue(kueue.WithLocalQueue(kueueWorkloadNamespace, kueueTestLocalQueue)),
+			kindvm.WithKueue(
+				kueue.WithLocalQueue(kueueWorkloadNamespace, kueueTestLocalQueue),
+				kueue.WithChartRepository(k8sChartRepository("kueue/charts")),
+			),
 			kindvm.WithVMOptions(ec2.WithInstanceType("t3.xlarge")),
 		},
 	})
