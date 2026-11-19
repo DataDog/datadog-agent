@@ -157,13 +157,15 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 			if spanGitCommitSha := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDGitCommitSHA); spanGitCommitSha != "" && spanConvertedFields.GitCommitShaRef == 0 {
 				spanConvertedFields.GitCommitShaRef = stringTable.Add(spanGitCommitSha)
 			}
+			// The first non-zero decision maker of the chunk wins. Mechanism 0 ("-0") is the tracer's
+			// startup fallback and is indistinguishable from unset, so a later real decision replaces it.
 			if spanDecisionMaker := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDDecisionMaker); spanDecisionMaker != "" && spanConvertedFields.SamplingMechanism == 0 {
 				spanDecisionMaker, _ = strings.CutPrefix(spanDecisionMaker, "-")
-				samplingMechanism, err := strconv.ParseUint(spanDecisionMaker, 10, 32)
-				if err != nil {
+				if samplingMechanism, err := strconv.ParseUint(spanDecisionMaker, 10, 32); err != nil {
 					log.Debugf("Found invalid sampling mechanism %s: %v, Decision maker will be ignored", spanDecisionMaker, err)
+				} else {
+					spanConvertedFields.SamplingMechanism = uint32(samplingMechanism)
 				}
-				spanConvertedFields.SamplingMechanism = uint32(samplingMechanism)
 			}
 			if spanAPMMode := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDAPMMode); spanAPMMode != "" && spanConvertedFields.APMModeRef == 0 {
 				spanConvertedFields.APMModeRef = stringTable.Add(spanAPMMode)

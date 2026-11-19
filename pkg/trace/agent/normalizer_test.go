@@ -692,6 +692,40 @@ func TestTagDecisionMaker(t *testing.T) {
 	assert.Equal("right", chunk.Spans[1].Meta[tagDecisionMaker])
 }
 
+// TestTagDecisionMakerPrefersRealDecision checks that "-0", the tracer's startup fallback, is promoted
+// only when no other decision maker is present on the chunk, regardless of span order.
+func TestTagDecisionMakerPrefersRealDecision(t *testing.T) {
+	tests := []struct {
+		name     string
+		dms      []string
+		expected string
+	}{
+		{"default then rule", []string{"-0", "-3"}, "-3"},
+		{"rule then default", []string{"-3", "-0"}, "-3"},
+		{"first real decision wins", []string{"-0", "-3", "-8"}, "-3"},
+		{"only default", []string{"", "-0", "-0"}, "-0"},
+		{"no decision maker", []string{"", ""}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := newTestSpan()
+			chunk := testutil.TraceChunkWithSpan(root)
+			chunk.Spans = nil
+			for _, dm := range tt.dms {
+				s := newTestSpan()
+				if dm != "" {
+					traceutil.SetMeta(s, tagDecisionMaker, dm)
+				}
+				chunk.Spans = append(chunk.Spans, s)
+			}
+			setChunkAttributes(chunk, root)
+			dm, ok := chunk.Tags[tagDecisionMaker]
+			assert.Equal(t, tt.expected != "", ok)
+			assert.Equal(t, tt.expected, dm)
+		})
+	}
+}
+
 // TestTagDecisionMakerNilChunkTags covers a v0.7 payload that omits the chunk
 // "tags" key entirely: the decoder leaves Tags nil, and promoting the span-level
 // decision maker into it must not panic.

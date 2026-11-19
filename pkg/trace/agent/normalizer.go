@@ -357,21 +357,40 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 	}
 
 	if _, ok := chunk.Tags[tagDecisionMaker]; !ok {
-		for _, span := range chunk.Spans {
-			// First span wins
-			if dm, ok := span.Meta[tagDecisionMaker]; ok {
-				// A v0.7 payload that omits the "tags" key decodes with a nil
-				// map; allocate before writing to avoid panicking on it.
-				if chunk.Tags == nil {
-					chunk.Tags = make(map[string]string, 1)
-				}
-				chunk.Tags[tagDecisionMaker] = dm
-				break
+		// There are downstream systems that rely on this tag being on the span,
+		// so it is copied rather than moved.
+		if dm, ok := chunkDecisionMaker(chunk.Spans); ok {
+			// A v0.7 payload that omits the "tags" key decodes with a nil
+			// map; allocate before writing to avoid panicking on it.
+			if chunk.Tags == nil {
+				chunk.Tags = make(map[string]string, 1)
 			}
-			// There are downstream systems that rely on this tag being on the span
-			// delete(span.Meta, tagDecisionMaker)
+			chunk.Tags[tagDecisionMaker] = dm
 		}
 	}
+}
+
+// decisionMakerDefault is the decision maker a tracer uses as its startup fallback, before agent
+// rates are available.
+const decisionMakerDefault = "-0"
+
+// chunkDecisionMaker returns the decision maker to promote from the spans of a chunk: the first one
+// that isn't decisionMakerDefault, or decisionMakerDefault if it is the only one present. A real
+// sampling decision made on the chunk must not be credited to the startup fallback.
+func chunkDecisionMaker(spans []*pb.Span) (string, bool) {
+	found := false
+	for _, span := range spans {
+		if dm, ok := span.Meta[tagDecisionMaker]; ok {
+			if dm != decisionMakerDefault {
+				return dm, true
+			}
+			found = true
+		}
+	}
+	if found {
+		return decisionMakerDefault, true
+	}
+	return "", false
 }
 
 // normalizeTrace takes a trace and

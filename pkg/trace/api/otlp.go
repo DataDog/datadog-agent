@@ -643,16 +643,28 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 // tracerDecisionMaker returns the sampling decision maker set upstream by the tracer on
 // any span of the chunk, either as a `_dd.p.dm` attribute or, failing that, as the `t.dm`
 // field of the `dd` member of the W3C tracestate. Only well-formed values are returned.
+// Any decision maker is preferred over "-0", the tracer's startup fallback, which is returned
+// only when no other decision maker is present.
 func tracerDecisionMaker(spans pb.Trace) (string, bool) {
+	fallback := false
 	for _, s := range spans {
 		if dm, ok := s.Meta["_dd.p.dm"]; ok && isValidDecisionMaker(dm) {
-			return dm, true
+			if dm != "-0" {
+				return dm, true
+			}
+			fallback = true
 		}
 	}
 	for _, s := range spans {
 		if dm, ok := decisionMakerFromTracestate(s.Meta["w3c.tracestate"]); ok {
-			return dm, true
+			if dm != "-0" {
+				return dm, true
+			}
+			fallback = true
 		}
+	}
+	if fallback {
+		return "-0", true
 	}
 	return "", false
 }
