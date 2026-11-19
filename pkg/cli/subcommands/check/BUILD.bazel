@@ -74,6 +74,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/serializer",
         "//pkg/status/collector",
+        "//pkg/util/coredump",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/util/option",

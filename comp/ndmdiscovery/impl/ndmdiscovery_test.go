@@ -147,7 +147,7 @@ func TestNewComponentReadsTheRangeDefaults(t *testing.T) {
 	assert.Equal(t, rangeDefaults{Namespace: "lab", IntervalSec: 900, MaxAddresses: 1024}, comp.defaults)
 }
 
-func TestStartDetectsThePingCapabilityOnceAndStops(t *testing.T) {
+func TestStartsAndStops(t *testing.T) {
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 		"network_devices.discovery.enabled": true,
 	})
@@ -157,9 +157,7 @@ func TestStartDetectsThePingCapabilityOnceAndStops(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, lc.Start(t.Context()))
-	comp := provides.Comp.(*ndmDiscovery)
-	detected := comp.ping
-	assert.Equal(t, detected, comp.pingCapability(), "the capability is detected once, at start")
+	assert.Equal(t, 0, provides.Comp.RangeCount())
 
 	require.NoError(t, lc.Stop(t.Context()))
 }

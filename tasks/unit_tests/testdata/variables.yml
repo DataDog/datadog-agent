@@ -144,7 +144,6 @@ variables:
   DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx
   SLACK_AGENT: slack-agent-ci  # agent-devx
-  VCPKG_BLOB_SAS_URL: vcpkg-blob-sas  # windows-products
   WINGET_PAT: winget-pat  # windows-products
   # End vault variables
 

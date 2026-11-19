@@ -50,6 +50,16 @@ profiles:
         preserve_tags:
           - issue_type
           - severity
+      - name: health_platform.active_issues
+        preserve_tags:
+          - issue_type
+      - name: health_platform.reports_sent
+        preserve_tags:
+          - status
+          - error_type
+      - name: health_platform.issues_resolved
+        preserve_tags:
+          - issue_type
   schedule:
     start_after: 30
     iterations: 0

@@ -308,25 +308,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v153199977-a2a96aa6
+  CI_IMAGE_BTF_GEN: v154311449-1d5afc12
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v153199977-a2a96aa6
+  CI_IMAGE_DOCKER_X64: v154311449-1d5afc12
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v153199977-a2a96aa6
+  CI_IMAGE_DOCKER_ARM64: v154311449-1d5afc12
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v153199977-a2a96aa6
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v154311449-1d5afc12
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v153199977-a2a96aa6
+  CI_IMAGE_LINUX: v154311449-1d5afc12
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v153199977-a2a96aa6
+  CI_IMAGE_RPM_X64: v154311449-1d5afc12
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v153199977-a2a96aa6
+  CI_IMAGE_RPM_ARM64: v154311449-1d5afc12
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v153199977-a2a96aa6
+  CI_IMAGE_RPM_ARMHF: v154311449-1d5afc12
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v153199977-a2a96aa6
+  CI_IMAGE_WIN_LTSC2022_X64: v154311449-1d5afc12
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v153199977-a2a96aa6
+  CI_IMAGE_WIN_LTSC2025_X64: v154311449-1d5afc12
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -372,7 +372,6 @@ variables:
   MACOS_KEYCHAIN_PWD: ci-keychain # agent-delivery
   SLACK_AGENT: slack-agent-ci # agent-devx
   SMP_ACCOUNT: smp # single-machine-performance
-  VCPKG_BLOB_SAS_URL: vcpkg-blob-sas # windows-products
   VIRUS_TOTAL: virus-total # windows-products
   WINGET_PAT: winget-pat # windows-products
   # End vault variables
@@ -380,7 +379,6 @@ variables:
   # POSIX only (Linux and macOS): Windows jobs override this in .windows_docker_default
   DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: tools/ci/read_ci_secret.sh feature-flags-client token
 
-  DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Shallow clone by default.
