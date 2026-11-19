@@ -15,7 +15,7 @@ import (
 )
 
 func TestStore(t *testing.T) {
-	c := NewStore(true, "test")
+	c := NewStore("test")
 
 	t1 := tagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
 	t2 := tagset.NewHashingTagsAccumulatorWithTags([]string{"2"})
@@ -83,43 +83,8 @@ func TestStore(t *testing.T) {
 	require.EqualValues(t, 0, c.cap)
 }
 
-func TestStoreDisabled(t *testing.T) {
-	c := NewStore(false, "test")
-
-	t1 := tagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
-	t2 := tagset.NewHashingTagsAccumulatorWithTags([]string{"2"})
-
-	t1a := c.Insert(1, t1)
-	require.EqualValues(t, 0, len(c.tagsByKey))
-	require.EqualValues(t, 0, c.cap)
-
-	t1b := c.Insert(1, t1)
-	require.EqualValues(t, 0, len(c.tagsByKey))
-	require.EqualValues(t, 0, c.cap)
-	require.NotSame(t, t1a, t1b)
-	require.Equal(t, t1a, t1b)
-
-	t2a := c.Insert(2, t2)
-	require.EqualValues(t, 0, len(c.tagsByKey))
-	require.EqualValues(t, 0, c.cap)
-	require.NotSame(t, t1a, t2a)
-	require.NotEqual(t, t1a, t2a)
-
-	t1a.Release()
-	require.EqualValues(t, 0, len(c.tagsByKey))
-	require.EqualValues(t, 0, c.cap)
-
-	t2a.Release()
-	require.EqualValues(t, 0, len(c.tagsByKey))
-	require.EqualValues(t, 0, c.cap)
-
-	c.Shrink()
-	require.EqualValues(t, 0, len(c.tagsByKey))
-	require.EqualValues(t, 0, c.cap)
-}
-
 func BenchmarkRefCounting(b *testing.B) {
-	st := NewStore(true, "foo")
+	st := NewStore("foo")
 	tagsBuffer := tagset.NewHashingTagsAccumulator()
 
 	// Entries are only removed in Shrink, which isn't called in this
