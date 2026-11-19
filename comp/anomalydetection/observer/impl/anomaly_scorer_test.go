@@ -973,6 +973,76 @@ func TestReplayPreservesForwardCrossingInCatchup(t *testing.T) {
 	require.Equal(t, int64(1000), listener.events[2].HistoricalTimestamp)
 }
 
+func TestReplayDiscoversHighInCatchupAtCurrentTick(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.WindowSecs = 3
+	cfg.Alpha = 0.5
+	s := NewAnomalyScorer(cfg)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+	s.Advance(1000)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.Advance(1005)
+
+	var highs []severityeventsdef.SeverityEvent
+	for _, evt := range listener.events {
+		if evt.ToLevel == severityeventsdef.SeverityHigh {
+			highs = append(highs, evt)
+		}
+	}
+	require.Len(t, highs, 1)
+	require.EqualValues(t, 1001, highs[0].HistoricalTimestamp)
+	require.EqualValues(t, 1005, highs[0].Timestamp)
+	require.Equal(t, highs[0], listener.events[len(listener.events)-1])
+	s.Advance(1006)
+	require.Equal(t, severityeventsdef.SeverityLow, listener.events[len(listener.events)-1].ToLevel)
+}
+
+func TestClampCatchupDoesNotDeliverProvisionalHigh(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.ReorderingWindowSecs = 3
+	cfg.LateAnomalyBehavior = "clamp"
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+	s.Advance(1000)
+	for _, name := range []string{"weak1", "weak2", "weak3"} {
+		a := makeAnomaly("scanmw", 999, nil)
+		a.Source.Name = name
+		s.ProcessAnomaly(a)
+	}
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1005, nil))
+	s.Advance(1007)
+
+	// Clamping the weaker inputs to 1005 lowers the score below High.
+	slot := replaySlot(1005, len(s.replay.checkpoints))
+	require.Equal(t, severityeventsdef.SeverityMedium, s.replay.checkpoints[slot].state.level)
+	require.False(t, s.replay.recognizedHighAt(1005))
+	for _, evt := range listener.events {
+		require.NotEqual(t, severityeventsdef.SeverityHigh, evt.ToLevel)
+	}
+}
+
+func TestReplayKeepsForwardHighTriggerWithEarlierCrossing(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.WindowSecs = 3
+	cfg.Alpha = 0.5
+	s := NewAnomalyScorer(cfg)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+	s.Advance(1000)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.ProcessAnomaly(makeAnomaly("scanmw", 1002, scorePtr(30)))
+	s.Advance(1005)
+
+	// The ordinary crossing at 1002 survives, but replay moves the start of
+	// that same period to 1001.
+	require.Len(t, listener.events, 1)
+	require.Equal(t, severityeventsdef.SeverityHigh, listener.events[0].ToLevel)
+	require.EqualValues(t, 1002, listener.events[0].Timestamp)
+	require.EqualValues(t, 1001, listener.events[0].HistoricalTimestamp)
+}
+
 // TestLateAnomalyBeforeFirstAdvance verifies that anomalies received before
 // the first Advance are NOT clamped — their original timestamp is preserved.
 func TestLateAnomalyBeforeFirstAdvance(t *testing.T) {

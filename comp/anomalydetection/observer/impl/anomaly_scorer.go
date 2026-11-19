@@ -385,10 +385,10 @@ func (b *topAnomalyBuffer) contributors(maxItems int) []observerdef.ScorerContri
 
 // secState is the per-second scorer state emitted after each Advance step.
 type secState struct {
-	sec         int64
-	ewma        float64
-	level       severityeventsdef.SeverityLevel
-	enteredHigh bool
+	sec          int64
+	ewma         float64
+	level        severityeventsdef.SeverityLevel
+	highCrossing int64
 }
 
 // ---------------------------------------------------------------------------
@@ -908,32 +908,21 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 		}
 	}
 
-	// If a catch-up puts the clamp point in unscored time, score the forward
-	// ticks first, then apply the correction at discovery rather than backdating it.
-	deferReplay := len(s.late) > 0 && s.config.LateAnomalyBehavior == lateAnomalyClamp &&
-		start <= dataTime-s.replay.windowSecs()+1
-	var late []observerdef.Anomaly
-	var missedHigh int64
-	if !deferReplay {
-		late, missedHigh = s.replayLateInputs(dataTime)
-	}
+	late, replayStart := s.takeLateInputs(dataTime)
 
-	// Collect per-second EWMA values and derived raw severity levels to feed
-	// the dispatcher after releasing the scorer lock.
+	// Score forward without the late batch to identify ordinary High crossings.
+	// From replayStart on, these provisional states must not mark High coverage.
 	states := make([]secState, 0, int(dataTime-start+1))
 	for sec := start; sec <= dataTime; sec++ {
-		states = append(states, s.advanceSecond(sec))
+		states = append(states, s.advanceSecond(sec, replayStart == 0 || sec < replayStart))
 	}
 	s.lastAdvancedSec = dataTime
-	if deferReplay {
-		late, missedHigh = s.replayLateInputs(dataTime)
-		last := &states[len(states)-1]
-		last.ewma = s.score.ewma
-		last.level = s.score.level
-		last.enteredHigh = last.enteredHigh && last.level == severityeventsdef.SeverityHigh
-	}
-	if s.topAnomalies != nil && len(late) > 0 {
-		s.topAnomalies.update(dataTime, late, s.config.AnomalyScorerConfig)
+	var missedHigh int64
+	if len(late) > 0 {
+		missedHigh = s.replayLateInputs(dataTime, replayStart, late, states)
+		if s.topAnomalies != nil {
+			s.topAnomalies.update(dataTime, late, s.config.AnomalyScorerConfig)
+		}
 	}
 	s.mu.Unlock()
 
@@ -957,8 +946,8 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 			switch {
 			case st.sec == dataTime && missedHigh != 0:
 				dispatcher.DiscoverHigh(dataTime, missedHigh)
-			case st.enteredHigh:
-				dispatcher.DiscoverHigh(st.sec, st.sec)
+			case st.highCrossing != 0:
+				dispatcher.DiscoverHigh(st.sec, st.highCrossing)
 			case st.level != severityeventsdef.SeverityHigh:
 				dispatcher.Advance(st.sec, st.level)
 			default:
@@ -1105,7 +1094,7 @@ func (s *anomalyScorer) ScoreState() observerdef.AnomalyScoreState {
 
 // advanceSecond consumes pending anomalies and records attribution and debug buckets.
 // Must be called with mu held.
-func (s *anomalyScorer) advanceSecond(sec int64) secState {
+func (s *anomalyScorer) advanceSecond(sec int64, recognizeHigh bool) secState {
 	anomalies := s.pending[sec]
 	delete(s.pending, sec)
 
@@ -1124,11 +1113,14 @@ func (s *anomalyScorer) advanceSecond(sec int64) secState {
 	if s.replay == nil {
 		s.replay = newScorerReplayHistory(cfg.ReorderingWindowSecs, cfg.WindowSecs)
 		s.replay.firstSecond = sec
-		s.replay.saveCheckpoint(sec-1, s.score)
+		s.replay.saveCheckpoint(sec-1, s.score, true)
 	}
 	bucket, next := scoreSecond(sec, inputs, cfg, s.windowMap, s.score)
-	enteredHigh := next.level == severityeventsdef.SeverityHigh && s.score.level != next.level
-	s.replay.recordSecond(sec, inputs, next)
+	var highCrossing int64
+	if next.level == severityeventsdef.SeverityHigh && s.score.level != next.level {
+		highCrossing = sec
+	}
+	s.replay.recordSecond(sec, inputs, next, recognizeHigh)
 	s.score = next
 	s.buckets = append(s.buckets, bucket)
 
@@ -1140,7 +1132,7 @@ func (s *anomalyScorer) advanceSecond(sec int64) secState {
 		s.buckets = trimmed
 	}
 
-	return secState{sec: sec, ewma: next.ewma, level: next.level, enteredHigh: enteredHigh}
+	return secState{sec: sec, ewma: next.ewma, level: next.level, highCrossing: highCrossing}
 }
 
 func (s *anomalyScorer) bucketCap() int64 {
@@ -1282,13 +1274,13 @@ func replaySlot(second int64, size int) int {
 	return slot
 }
 
-func (h *scorerReplayHistory) saveCheckpoint(second int64, state scoringState) {
+func (h *scorerReplayHistory) saveCheckpoint(second int64, state scoringState, recognizeHigh bool) {
 	slot := &h.checkpoints[replaySlot(second, len(h.checkpoints))]
 	if !slot.present || slot.second != second {
 		*slot = scoringCheckpoint{second: second, present: true}
 	}
 	slot.state = state
-	slot.recognizedHigh = slot.recognizedHigh || state.level == severityeventsdef.SeverityHigh
+	slot.recognizedHigh = slot.recognizedHigh || (recognizeHigh && state.level == severityeventsdef.SeverityHigh)
 }
 
 func (h *scorerReplayHistory) recognizedHighAt(second int64) bool {
@@ -1306,8 +1298,8 @@ func (h *scorerReplayHistory) ensureJournal() {
 	}
 }
 
-func (h *scorerReplayHistory) recordSecond(second int64, inputs []scoringInput, state scoringState) {
-	h.saveCheckpoint(second, state)
+func (h *scorerReplayHistory) recordSecond(second int64, inputs []scoringInput, state scoringState, recognizeHigh bool) {
+	h.saveCheckpoint(second, state, recognizeHigh)
 	if second <= 0 {
 		return // Nonpositive timestamps cannot enter the evidence window.
 	}
@@ -1323,47 +1315,50 @@ func (h *scorerReplayHistory) recordSecond(second int64, inputs []scoringInput, 
 	}
 }
 
-// replayLateInputs corrects the scored prefix once, before normal forward scoring.
-// It returns the accepted arrivals and earliest missed High crossing.
-func (s *anomalyScorer) replayLateInputs(dataTime int64) ([]observerdef.Anomaly, int64) {
+// takeLateInputs drains the arrivals and finds the first second they can change.
+func (s *anomalyScorer) takeLateInputs(dataTime int64) ([]observerdef.Anomaly, int64) {
 	if len(s.late) == 0 {
 		return nil, 0
 	}
 	h := s.replay
 	oldest := dataTime - h.windowSecs() + 1
-	start := s.lastAdvancedSec
+	var start int64
 	accepted := s.late[:0]
 	for _, a := range s.late {
-		sec := a.Timestamp
-		if sec < oldest {
-			if s.config.LateAnomalyBehavior != lateAnomalyClamp {
-				continue
-			}
-			sec = oldest
+		if a.Timestamp < oldest && s.config.LateAnomalyBehavior != lateAnomalyClamp {
+			continue
 		}
-		h.ensureJournal()
-		h.journal[sec] = append(h.journal[sec], scoringEvidence(a, s.config.AnomalyScorerConfig))
-		start = min(start, sec)
-		s.recordAnomaly(a, sec)
+		if sec := max(a.Timestamp, oldest); start == 0 || sec < start {
+			start = sec
+		}
 		accepted = append(accepted, a)
 	}
 	s.late = nil
-	if len(accepted) == 0 {
-		return nil, 0
+	return accepted, start
+}
+
+func (s *anomalyScorer) replayLateInputs(dataTime, start int64, late []observerdef.Anomaly, forward []secState) int64 {
+	h := s.replay
+	oldest := dataTime - h.windowSecs() + 1
+	h.ensureJournal()
+	for _, a := range late {
+		sec := max(a.Timestamp, oldest)
+		h.journal[sec] = append(h.journal[sec], scoringEvidence(a, s.config.AnomalyScorerConfig))
+		s.recordAnomaly(a, sec)
 	}
-	return accepted, s.replayScoredSeconds(start)
+	return s.replayScoredSeconds(start, forward)
 }
 
 // replayScoredSeconds restores the scoring state without replaying side effects.
-// A corrected High period is new only if it overlaps no recognized High second.
-func (s *anomalyScorer) replayScoredSeconds(start int64) int64 {
+// A High without recognized coverage or an ordinary entry is discovered now.
+func (s *anomalyScorer) replayScoredSeconds(start int64, forward []secState) int64 {
 	h := s.replay
 	cfg := s.config.AnomalyScorerConfig
 	var previous scoringState
 	if start <= h.firstSecond {
 		// A late input can precede the first advance. There is no earlier score.
 		h.firstSecond = start
-		h.saveCheckpoint(start-1, previous)
+		h.saveCheckpoint(start-1, previous, true)
 	} else {
 		// Admission guarantees that start-1 is still in the checkpoint ring.
 		previous = h.checkpoints[replaySlot(start-1, len(h.checkpoints))].state
@@ -1381,21 +1376,34 @@ func (s *anomalyScorer) replayScoredSeconds(start int64) int64 {
 	}
 	var firstMissed, highStart int64
 	knownHigh := previous.level == severityeventsdef.SeverityHigh
+	forwardStart := forward[0].sec
 	for sec := start; sec <= s.lastAdvancedSec; sec++ {
 		bucket, next := scoreSecond(sec, h.journal[sec], cfg, s.windowMap, previous)
+		var ordinaryEntry bool
+		if sec >= forwardStart {
+			st := &forward[sec-forwardStart]
+			ordinaryEntry = st.highCrossing != 0
+			*st = secState{sec: sec, level: next.level, ewma: next.ewma}
+		}
 		if next.level == severityeventsdef.SeverityHigh {
 			if previous.level != next.level {
 				highStart = sec
 				knownHigh = false
 			}
 			knownHigh = knownHigh || h.recognizedHighAt(sec)
+			// Only retain an ordinary forward entry if it still falls inside a
+			// corrected High period that began in the forward part of this advance.
+			if !knownHigh && highStart >= forwardStart && ordinaryEntry {
+				forward[sec-forwardStart].highCrossing = highStart
+				knownHigh = true
+			}
 		} else if highStart != 0 {
 			if firstMissed == 0 && !knownHigh {
 				firstMissed = highStart
 			}
 			highStart = 0
 		}
-		h.saveCheckpoint(sec, next)
+		h.saveCheckpoint(sec, next, true)
 		if sec >= debugStart {
 			s.buckets[sec-debugStart] = bucket
 		}
