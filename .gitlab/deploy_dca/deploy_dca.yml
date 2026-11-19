@@ -25,4 +25,7 @@ include:
 deploy_containers-dca:
   extends: .deploy_containers-dca-base
   rules: !reference [.on_deploy_manual_auto_on_rc]
+  # The artifact-gateway policy denies publishing the cluster-agent image unless
+  # agent-delivery runs the pipeline, so this job must not fail it.
+  allow_failure: true
 
