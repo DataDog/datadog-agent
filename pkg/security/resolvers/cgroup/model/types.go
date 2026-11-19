@@ -15,10 +15,13 @@ var (
 	ErrNoImageProvided = errors.New("no image name provided") // ErrNoImageProvided is returned when no image name is provided
 )
 
-// WorkloadSelector is a selector used to uniquely indentify the image of a workload
+// WorkloadSelector is a selector used to uniquely identify the image of a workload.
+// ShortName is the workload short_image. It is not part of the profile identity:
+// use Identity for map keys and comparisons that decide which profile an event belongs to.
 type WorkloadSelector struct {
-	Image string
-	Tag   string
+	Image     string
+	Tag       string
+	ShortName string
 }
 
 // NewWorkloadSelector returns an initialized instance of a WorkloadSelector
@@ -32,6 +35,12 @@ func NewWorkloadSelector(image string, tag string) (WorkloadSelector, error) {
 		Image: image,
 		Tag:   tag,
 	}, nil
+}
+
+// Identity returns the selector fields that identify a profile. ShortName is omitted so
+// a profile stays keyed by image name and tag when the short image is learned later.
+func (ws WorkloadSelector) Identity() WorkloadSelector {
+	return WorkloadSelector{Image: ws.Image, Tag: ws.Tag}
 }
 
 // IsReady returns true if the selector is ready

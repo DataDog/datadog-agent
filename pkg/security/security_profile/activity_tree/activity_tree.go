@@ -1061,9 +1061,9 @@ func (at *ActivityTree) Snapshot(newEvent func() *model.Event, containerID conta
 	}
 }
 
-// SendStats sends the tree statistics
-func (at *ActivityTree) SendStats(client statsd.ClientInterface) error {
-	return at.Stats.SendStats(client, at.treeType)
+// SendStats sends the tree statistics. extraTags are added to the per-profile v2 metrics.
+func (at *ActivityTree) SendStats(client statsd.ClientInterface, extraTags ...string) error {
+	return at.Stats.SendStats(client, at.treeType, extraTags...)
 }
 
 // TagAllNodes tags all the activity tree's nodes with the given image tag

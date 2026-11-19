@@ -25,6 +25,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
@@ -518,6 +519,7 @@ func (p *Profile) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
 	defer p.Unlock()
 
 	if p.selector.IsReady() {
+		p.learnShortNameLocked()
 		return &p.selector
 	}
 
@@ -536,6 +538,7 @@ func (p *Profile) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
 		}
 	}
 
+	selector.ShortName = utils.GetTagValue("short_image", p.tags)
 	p.selector = selector
 	// Once per workload, when tags are resolved and the first time we successfully get the selector, tag all the existing nodes
 	p.ActivityTree.TagAllNodes(selector.Tag, time.Now())
@@ -548,7 +551,39 @@ func (p *Profile) SendStats(statsdClient statsd.ClientInterface) error {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.ActivityTree.SendStats(statsdClient)
+	extra := metrics.WithProfileShortImage(nil, p.learnShortNameLocked())
+	return p.ActivityTree.SendStats(statsdClient, extra...)
+}
+
+// SetShortName records the workload short image on the selector. An empty value is ignored,
+// and a short name already set is kept.
+func (p *Profile) SetShortName(shortName string) {
+	if shortName == "" {
+		return
+	}
+	p.Lock()
+	defer p.Unlock()
+	if p.selector.ShortName == "" {
+		p.selector.ShortName = shortName
+	}
+}
+
+// ShortName returns the workload short image, learning it from the profile tags when it
+// was not stored on the selector yet.
+func (p *Profile) ShortName() string {
+	p.Lock()
+	defer p.Unlock()
+	return p.learnShortNameLocked()
+}
+
+// learnShortNameLocked fills ShortName from the short_image tag. The caller holds p's lock.
+func (p *Profile) learnShortNameLocked() string {
+	if p.selector.ShortName == "" {
+		if shortName := utils.GetTagValue("short_image", p.tags); shortName != "" {
+			p.selector.ShortName = shortName
+		}
+	}
+	return p.selector.ShortName
 }
 
 // AddSnapshotAncestors adds the given process branch to the profile, calling the callback for each process cache entry which resulted in a new node insertion
