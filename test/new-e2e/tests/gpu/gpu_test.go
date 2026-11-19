@@ -535,9 +535,9 @@ func (v *gpuBaseSuite[Env]) TestGPUResourcesPublished() {
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		events, err := v.caps.FakeIntake().Client().FilterGenResources("gpu_device")
 		require.NoError(c, err)
-		// A GPU can refresh while the suite is running. Each observation should
-		// still carry at most one event for each UUID.
-		seenByGPU := make(map[string]map[time.Time]bool)
+		// HTTP retries can deliver an event more than once. Validate every
+		// delivery and compare GPU UUIDs by membership.
+		seenByGPU := make(map[string]struct{}, len(uuids))
 		for _, event := range events {
 			resource := event.GetResource()
 			uuid := resource.GetKey()
@@ -546,11 +546,7 @@ func (v *gpuBaseSuite[Env]) TestGPUResourcesPublished() {
 			require.NoError(c, resource.GetExpireAt().CheckValid(), "GPU %s expire_at", uuid)
 			seenAt := resource.GetSeenAt().AsTime()
 			assert.Equal(c, ttl, resource.GetExpireAt().AsTime().Sub(seenAt), "GPU %s", uuid)
-			if seenByGPU[uuid] == nil {
-				seenByGPU[uuid] = make(map[time.Time]bool)
-			}
-			assert.False(c, seenByGPU[uuid][seenAt], "duplicate resource for GPU %s at %s", uuid, seenAt)
-			seenByGPU[uuid][seenAt] = true
+			seenByGPU[uuid] = struct{}{}
 
 			var fields gpuFields
 			require.NoError(c, json.Unmarshal(resource.GetFieldsJson(), &fields), "GPU %s", uuid)
