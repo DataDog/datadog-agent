@@ -1774,8 +1774,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
-				netNSPath := utils.NewNSPathFromPath(mountPath, utils.NetNsType)
-				_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, netNSPath)
+				p.Resolvers.NamespaceResolver.PushNetworkNamespaceMountRequest(nsid, event.PIDContext.Pid, mountPath)
 			}
 		}
 
@@ -1788,8 +1787,11 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
-			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
-				p.FlushNetworkNamespace(namespace)
+			// a dropped release would leave our handle keeping the namespace alive, so flush it here instead
+			if !p.Resolvers.NamespaceResolver.PushNetworkNamespaceUnmountRequest(nsid) {
+				if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
+					p.FlushNetworkNamespace(namespace)
+				}
 			}
 		}
 
@@ -2817,6 +2819,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 func (p *EBPFProbe) updateEBPFCheckMapping() {
 	ddebpf.ClearProgramIDMappings("cws")
 	p.Manager.AddNameMappings("cws")
+	p.Resolvers.TCResolver.AddProgramNameMappings()
 	ddebpf.AddProbeFDMappings(p.Manager.Get())
 
 }

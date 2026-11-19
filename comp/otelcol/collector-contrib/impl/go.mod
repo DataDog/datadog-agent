@@ -87,7 +87,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v8 v8.0.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.10.1 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.215 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.216 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.84.0-devel.0.20261030015547-4fcf7d423463 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.85.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.84.0-devel.0.20261030015547-4fcf7d423463 // indirect
@@ -613,7 +613,7 @@ require (
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/ini.v1 v1.67.3 // indirect
+	gopkg.in/ini.v1 v1.68.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.37.2 // indirect

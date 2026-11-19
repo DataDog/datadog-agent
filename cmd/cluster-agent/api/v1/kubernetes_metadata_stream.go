@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -436,8 +437,25 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 			}
 		case *workloadmeta.KubernetesKueueWorkload:
 			snapshotShared()
+			previousPodUID := srv.metadata.kueueWorkloads[entity.ID].labels[kubernetes.KueueJobUIDLabelKey]
 			if srv.metadata.processKueueWorkloadEvent(event.Type, entity) {
 				changed = true
+			}
+			if srv.kueueWorkloadsPerNode {
+				// A plain managed pod can precede its Workload and has no
+				// name reference. Refresh its routing when the UID claim changes,
+				// including removals and ambiguity clearing. Use the previous
+				// snapshot too: an unset may contain only the Workload ID.
+				for podUID := range sets.New(previousPodUID, kueue.JobUID(entity)) {
+					if podUID == "" {
+						continue
+					}
+					if pod, err := srv.wmeta.GetKubernetesPod(podUID); err == nil {
+						for _, nodeName := range srv.processPodEvent(workloadmeta.EventTypeSet, pod) {
+							scopedNodes[nodeName] = struct{}{}
+						}
+					}
+				}
 			}
 		case *workloadmeta.KubernetesKAIPodGroup:
 			if srv.processKAIPodGroupEvent(event.Type, entity) {
@@ -675,8 +693,17 @@ func (srv *KubeMetadataStreamServer) processPodEvent(eventType workloadmeta.Even
 		if podGroupName := pod.Annotations[kubernetes.KAIPodGroupAnnotationKey]; podGroupName != "" {
 			current.kaiPodGroupKey = workloadmeta.GenerateKAIPodGroupEntityID(pod.Namespace, podGroupName)
 		}
-		if workloadName := kueueWorkloadNameForPod(pod); workloadName != "" && srv.kueueWorkloadsPerNode {
-			current.kueueWorkloadKey = workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, workloadName)
+		if srv.kueueWorkloadsPerNode {
+			if workloadName := kueue.WorkloadName(pod); workloadName != "" {
+				// Keep explicit references even before the Workload is collected.
+				current.kueueWorkloadKey = workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, workloadName)
+			} else if kueue.IsManagedPod(pod) && pod.ID != "" {
+				// Resolve the plain Pod integration's job-uid association through
+				// workloadmeta, just as pod tagging does on the receiving node.
+				if workload, err := srv.wmeta.GetKubernetesKueueWorkloadForPod(pod); err == nil {
+					current.kueueWorkloadKey = workload.ID
+				}
+			}
 		}
 		if current.kaiPodGroupKey != "" || current.kueueWorkloadKey != "" {
 			current.nodeName = pod.NodeName
@@ -705,15 +732,6 @@ func (srv *KubeMetadataStreamServer) processPodEvent(eventType workloadmeta.Even
 		nodes = append(nodes, current.nodeName)
 	}
 	return nodes
-}
-
-// kueueWorkloadNameForPod returns the name of the pod's Kueue Workload, read
-// like the tagger does.
-func kueueWorkloadNameForPod(pod *workloadmeta.KubernetesPod) string {
-	if workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]; workloadName != "" {
-		return workloadName
-	}
-	return pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
 }
 
 func (idx nodeIndex) add(nodeName, key string) {
