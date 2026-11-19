@@ -83,6 +83,16 @@ func TestResolveRootOwner(t *testing.T) {
 			expected: &core.FilterRootOwner{Kind: "StrimziPodSet", Name: "my-cluster-kafka"},
 		},
 		{
+			name:     "Workflow created by a CronWorkflow resolves to CronWorkflow",
+			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "Workflow", Name: "hello-world-1697040000", Controller: boolPtr(true)}},
+			expected: &core.FilterRootOwner{Kind: "CronWorkflow", Name: "hello-world"},
+		},
+		{
+			name:     "standalone Workflow is its own root",
+			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "Workflow", Name: "whalesay", Controller: boolPtr(true)}},
+			expected: &core.FilterRootOwner{Kind: "Workflow", Name: "whalesay"},
+		},
+		{
 			name: "prefers controller owner over non-controller",
 			owners: []workloadmeta.KubernetesPodOwner{
 				{Kind: "Node", Name: "node-1", Controller: boolPtr(false)},
@@ -154,4 +164,36 @@ func TestCreatePodWithStrimziPodSetRootOwner(t *testing.T) {
 	assert.NotNil(t, result.FilterPod.Rootowner)
 	assert.Equal(t, "StrimziPodSet", result.FilterPod.Rootowner.Kind)
 	assert.Equal(t, "my-cluster-kafka", result.FilterPod.Rootowner.Name)
+}
+
+func TestCreatePodWithWorkflowRootOwner(t *testing.T) {
+	pod := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "whalesay",
+			Namespace: "argo",
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{Kind: "Workflow", Name: "whalesay", Controller: boolPtr(true)},
+		},
+	}
+	result := CreatePod(pod)
+	assert.NotNil(t, result.FilterPod.Rootowner)
+	assert.Equal(t, "Workflow", result.FilterPod.Rootowner.Kind)
+	assert.Equal(t, "whalesay", result.FilterPod.Rootowner.Name)
+}
+
+func TestCreatePodWithCronWorkflowRootOwner(t *testing.T) {
+	pod := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "hello-world-1697040000",
+			Namespace: "argo",
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{Kind: "Workflow", Name: "hello-world-1697040000", Controller: boolPtr(true)},
+		},
+	}
+	result := CreatePod(pod)
+	assert.NotNil(t, result.FilterPod.Rootowner)
+	assert.Equal(t, "CronWorkflow", result.FilterPod.Rootowner.Kind)
+	assert.Equal(t, "hello-world", result.FilterPod.Rootowner.Name)
 }

@@ -36,3 +36,36 @@ config_setting(
 )
 
 cgo_godefs_test_suite(name = "cgo_godefs_tests")
+
+# cgo_godefs uses these from cfg = "exec" attributes. A select() there would
+# resolve against the target platform; through an alias it resolves against
+# the exec platform, so Windows types can be generated on Linux and macOS.
+alias(
+    name = "godefs_cc",
+    actual = select({
+        "@platforms//os:windows": "@winlibs_mingw64//:gcc",
+        "//conditions:default": "@llvm//tools:clang",
+    }),
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "godefs_cc_data",
+    actual = select({
+        "@platforms//os:windows": ":empty",
+        "//conditions:default": "@llvm//:builtin_resource_dir",
+    }),
+    visibility = ["//visibility:public"],
+)
+
+# Windows headers for clang; the gcc used on Windows exec brings its own.
+alias(
+    name = "godefs_mingw_sysroot",
+    actual = select({
+        "@platforms//os:windows": ":empty",
+        "//conditions:default": "@winlibs_mingw64//:mingw_headers",
+    }),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(name = "empty")
