@@ -37,6 +37,7 @@ type testIteration struct {
 	parentProcessPath     string
 	processPath           string
 	granpaInsideContainer bool
+	granpaCGroupResolved  bool
 	completeLineage       bool
 	differentContainerID  bool
 	fileLessParent        bool
@@ -135,6 +136,10 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 	if test.granpaInsideContainer {
 		process.Ancestor.Ancestor.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
 	}
+	if test.granpaCGroupResolved {
+		process.Ancestor.Ancestor.CGroup.CGroupID = "/system.slice/containerd.service"
+		process.Ancestor.Ancestor.CGroup.CGroupPathKey = model.PathKey{Inode: 40, MountID: 40}
+	}
 	process.Ancestor.Ancestor.FileEvent.Inode = 40
 	process.Ancestor.Ancestor.FileEvent.MountID = 40
 	process.Ancestor.Ancestor.Args = "start"
@@ -147,12 +152,42 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 
 	tests := []testIteration{
 
-		// check process with broken lineage (parent with pid != 1 && containerID != "")
+		// check process with a lineage broken outside of the container (granpa with pid != 1 && containerID == "", on a
+		// host cgroup)
 		{
-			testName:              "broken_lineage",
+			testName:              "broken_lineage_outside_container",
 			resetActivityTree:     true,
 			parentProcessPath:     "/bin/foo",
 			processPath:           "/bin/bar",
+			granpaCGroupResolved:  true,
+			completeLineage:       false,
+			resultNodeShouldBeNil: false,
+			resultNewProcessNode:  true,
+			resultErr:             nil,
+			resultTree:            map[string][]string{"/bin/foo": {"/bin/bar"}},
+		},
+
+		// check process with a lineage broken at a granpa whose workload is unknown (pid != 1 && containerID == "",
+		// cgroup not resolved)
+		{
+			testName:              "broken_lineage_unknown_workload",
+			resetActivityTree:     true,
+			parentProcessPath:     "/bin/foo",
+			processPath:           "/bin/bar",
+			completeLineage:       false,
+			resultNodeShouldBeNil: true,
+			resultNewProcessNode:  false,
+			resultErr:             activity_tree.ErrBrokenLineage,
+			resultTree:            map[string][]string{},
+		},
+
+		// check process with a lineage broken inside of the container (granpa with pid != 1 && containerID != "")
+		{
+			testName:              "broken_lineage_inside_container",
+			resetActivityTree:     true,
+			parentProcessPath:     "/bin/foo",
+			processPath:           "/bin/bar",
+			granpaInsideContainer: true,
 			completeLineage:       false,
 			resultNodeShouldBeNil: true,
 			resultNewProcessNode:  false,
