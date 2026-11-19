@@ -20,8 +20,9 @@ single_machine_performance-kjob:
     SMP_VERSION: dev-pr4862-dc11f2317
     SMP_TEAM_NAME: agent-beta
     AWS_NAMED_PROFILE: single-machine-performance
-    KJOB_DIRECTORY: test/regression/kjob/operator-helm-smoketest
-    KJOB_REPLICATES: "1"
+    # The SMP CLI submits every case under test/regression/kjob/cases/.
+    KJOB_DIRECTORY: test/regression/kjob
+    KJOB_REPLICATES: "10"
     KJOB_DURATION: 60s
     KJOB_COOLDOWN: 0s
     # Stop the wait loop before the job timeout, so the artifacts upload.
@@ -56,7 +57,7 @@ single_machine_performance-kjob:
     - SMP_KJOB_ARGS=(--replicates "${KJOB_REPLICATES}" --duration "${KJOB_DURATION}" --cooldown "${KJOB_COOLDOWN}")
     # A dry run needs no AWS access. The job saves the resolved job input as an
     # artifact. The fixture holds only dummy credentials.
-    - ./smp kjob submit "${KJOB_DIRECTORY}" --dry-run "${SMP_KJOB_ARGS[@]}" --output json > outputs/dry-run.json
+    - ./smp kjob submit "${KJOB_DIRECTORY}" --dry-run "${SMP_KJOB_ARGS[@]}" > outputs/dry-run.json
     - ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob submit "${KJOB_DIRECTORY}" "${SMP_KJOB_ARGS[@]}" --output json | tee outputs/submit.json
     - KJOB_JOB_ID=$(jq -er '.id' outputs/submit.json)
     - echo "KJob job ID is ${KJOB_JOB_ID}"
@@ -67,7 +68,7 @@ single_machine_performance-kjob:
       KJOB_DEADLINE=$(( $(date +%s) + KJOB_RESULT_WAIT_SECONDS ))
       while :; do
         KJOB_RESULT_CODE=0
-        ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob report --job-id "${KJOB_JOB_ID}" --output json > outputs/report.v1.json || KJOB_RESULT_CODE=$?
+        ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob report --job-id "${KJOB_JOB_ID}" > outputs/report.v1.json || KJOB_RESULT_CODE=$?
         if [[ "${KJOB_RESULT_CODE}" != "3" ]]; then
           break
         fi
