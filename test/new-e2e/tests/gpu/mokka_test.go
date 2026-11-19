@@ -7,6 +7,7 @@ package gpu
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -20,8 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
+
+// mokkaT4GPUCount is the number of GPUs simulated by the Mokka suites.
+const mokkaT4GPUCount = 2
 
 // mokkaT4System describes the GPUs simulated by Mokka with the T4 profile. Mokka implements
 // the NVML APIs the GPU check needs, but does not execute CUDA, so the system-probe
@@ -41,7 +44,7 @@ type gpuMokkaK8sSuite struct {
 // TestGPUMokkaK8sSuite runs the GPU Kubernetes tests against two simulated NVIDIA T4 GPUs.
 // Not to be run in parallel, as some tests wait until the checks are available.
 func TestGPUMokkaK8sSuite(t *testing.T) {
-	provisioner := gpuMokkaK8sProvisioner(mokkaProfileParams{profile: "t4", gpuCount: 2})
+	provisioner := gpuMokkaK8sProvisioner(mokkaProfileParams{profile: "t4", gpuCount: mokkaT4GPUCount})
 
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioner)}
 	if *devMode {
@@ -70,9 +73,10 @@ func (s *gpuMokkaK8sSuite) SetupSuite() {
 	s.gpuBaseSuite.SetupSuite()
 }
 
-// TestMockGPUAllocationTags checks that the metrics of a GPU allocated to a pod carry the
-// tags of that pod, and that only one GPU does. The allocation comes from the kubelet
-// pod-resources API, fed by the NVIDIA device plugin running on the mock driver.
+// TestMockGPUAllocationTags checks that the pod's tags are on the metrics of exactly the GPU the
+// device plugin allocated to it, and not on the other GPUs. The allocated GPU is read from the
+// container (NVIDIA_VISIBLE_DEVICES, set by the device plugin), independently of the Agent, which
+// maps GPUs to pods through the kubelet pod-resources API.
 func (s *gpuMokkaK8sSuite) TestMockGPUAllocationTags() {
 	ctx := context.Background()
 	podName := strings.ToLower("gpu-sleeper-" + common.RandString(5))
@@ -84,9 +88,10 @@ func (s *gpuMokkaK8sSuite) TestMockGPUAllocationTags() {
 			RestartPolicy: corev1.RestartPolicyNever,
 			Containers: []corev1.Container{{
 				Name: "main",
-				// The pause image is already on the kind nodes, and as a static binary it is not
-				// affected by the LD_PRELOAD that Mokka injects into GPU containers.
-				Image: "registry.k8s.io/pause:3.10",
+				// busybox has a shell to read the allocated GPU, and is statically linked, so the
+				// LD_PRELOAD that Mokka injects into GPU containers does not affect it.
+				Image:   "busybox:1.36",
+				Command: []string{"sleep", "3600"},
 				Resources: corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{"nvidia.com/gpu": resource.MustParse("1")},
 				},
@@ -106,25 +111,72 @@ func (s *gpuMokkaK8sSuite) TestMockGPUAllocationTags() {
 		}
 		assert.Equal(c, corev1.PodRunning, p.Status.Phase, "GPU pod is not running: %s %s", p.Status.Reason, p.Status.Message)
 	}, 3*time.Minute, 5*time.Second)
+	podRunningSince := time.Now().Unix()
 
-	expectedTags := []string{"pod_name:" + podName, "kube_namespace:" + jobNamespace, "kube_container_name:main"}
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(jobNamespace, podName, "main", []string{"printenv", "NVIDIA_VISIBLE_DEVICES"})
+	s.Require().NoError(err, "failed to read the allocated GPU: %s", stderr)
+	allocatedUUID := strings.ToLower(strings.TrimSpace(stdout))
+	s.Require().NotEmpty(allocatedUUID, "the device plugin did not set NVIDIA_VISIBLE_DEVICES")
+	s.Require().NotContains(allocatedUUID, ",", "the pod requested one GPU but got %s", allocatedUUID)
+	s.T().Logf("GPU allocated to %s: %s", podName, allocatedUUID)
+
+	podTags := []string{"pod_name:" + podName, "kube_namespace:" + jobNamespace, "kube_container_name:main"}
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		metrics, err := s.caps.FakeIntake().Client().FilterMetrics("gpu.core.limit", client.WithTags[*aggregator.MetricSeries](expectedTags))
+		metrics, err := s.caps.FakeIntake().Client().FilterMetrics("gpu.core.limit")
 		if !assert.NoError(c, err) {
 			return
 		}
-		if !assertMetricsHaveExpectedTagKeys(c, metrics, mandatoryMetricTags, "gpu.core.limit") {
-			return
-		}
 
-		uuids := make(map[string]struct{})
+		// Every GPU must have reported since the pod started, so that a missing series of another
+		// GPU can't hide misplaced pod tags.
+		reportedUUIDs := make(map[string]struct{})
+		var allocatedWithPodTags []*aggregator.MetricSeries
 		for _, metric := range metrics {
-			for _, tag := range metric.GetTags() {
-				if strings.HasPrefix(tag, "gpu_uuid:") {
-					uuids[tag] = struct{}{}
-				}
+			uuid := tagValue(metric.GetTags(), "gpu_uuid")
+			if !hasPointSince(metric, podRunningSince) {
+				continue
+			}
+			reportedUUIDs[uuid] = struct{}{}
+			if !hasTags(metric.GetTags(), podTags) {
+				continue
+			}
+			if assert.Equal(c, allocatedUUID, uuid, "the pod tags are on a GPU that was not allocated to it: %v", metric.GetTags()) {
+				allocatedWithPodTags = append(allocatedWithPodTags, metric)
 			}
 		}
-		assert.Len(c, uuids, 1, "the pod requested one GPU, but its tags are on the metrics of %v", uuids)
+		assert.Len(c, reportedUUIDs, mokkaT4GPUCount, "not every GPU reported gpu.core.limit since the pod started: %v", reportedUUIDs)
+		if assert.NotEmpty(c, allocatedWithPodTags, "no gpu.core.limit of the allocated GPU %s with the pod tags %v", allocatedUUID, podTags) {
+			assertMetricsHaveExpectedTagKeys(c, allocatedWithPodTags, mandatoryMetricTags, "gpu.core.limit")
+		}
 	}, 5*time.Minute, 10*time.Second)
+}
+
+// tagValue returns the value of the tag key, or an empty string.
+func tagValue(tags []string, key string) string {
+	for _, tag := range tags {
+		if v, ok := strings.CutPrefix(tag, key+":"); ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// hasTags reports whether tags contains every expected tag.
+func hasTags(tags []string, expected []string) bool {
+	for _, e := range expected {
+		if !slices.Contains(tags, e) {
+			return false
+		}
+	}
+	return true
+}
+
+// hasPointSince reports whether the series has a point at or after the given Unix timestamp.
+func hasPointSince(metric *aggregator.MetricSeries, since int64) bool {
+	for _, point := range metric.GetPoints() {
+		if point.GetTimestamp() >= since {
+			return true
+		}
+	}
+	return false
 }
