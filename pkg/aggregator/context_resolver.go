@@ -161,7 +161,6 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			contextKey, taggerKey, metricKey = cr.filterTags(metricSampleContext, tagMatcher, contextKey)
 		}
 	}
-	tracksOutput := cr.filteredIdentities != nil && cr.tagFilterEnabled
 
 	if entry, ok := cr.contextsByKey[contextKey]; !ok {
 		mtype := metricSampleContext.GetMetricType()
@@ -174,9 +173,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			noIndex:    metricSampleContext.IsNoIndex(),
 			source:     metricSampleContext.GetSource(),
 		}
-		if tracksOutput {
-			cr.trackOutput(context, metricSampleContext, filterList)
-		}
+		cr.trackOutput(context, metricSampleContext, filterList)
 		cr.contextsByKey[contextKey] = resolverEntry{
 			lastSeen: timestamp,
 			context:  context,
@@ -187,9 +184,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		cr.bytesByMtype[mtype] += uint64(context.SizeInBytes())
 		cr.dataBytesByMtype[mtype] += uint64(context.DataSizeInBytes())
 	} else {
-		if tracksOutput {
-			cr.trackOutput(entry.context, metricSampleContext, filterList)
-		}
+		cr.trackOutput(entry.context, metricSampleContext, filterList)
 		// We can't assign to a field of a struct contained in map
 		cr.contextsByKey[contextKey] = resolverEntry{
 			lastSeen: timestamp,

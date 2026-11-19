@@ -113,11 +113,14 @@ func (t *filteredIdentityTable) get(ref uint32) *filteredIdentity {
 	return &t.identities[ref-1]
 }
 
-// trackOutput records what a sample adds to its context's output. The first sample of a type that can be filtered
-// filters the context if a rule matches: the identity only depends on the context, so the rule is looked up once
-// (ShouldStripTags allocates), and refilter updates contexts when rules change. The resolver's buffers must hold the
-// context's tags.
+// trackOutput records what a sample adds to its context's output, for check samplers with tag filtering enabled. The
+// first sample of a type that can be filtered filters the context if a rule matches: the identity only depends on the
+// context, so the rule is looked up once (ShouldStripTags allocates), and refilter updates contexts when rules change.
+// The resolver's buffers must hold the context's tags.
 func (cr *contextResolver) trackOutput(context *Context, metricSampleContext metrics.MetricSampleContext, filterList filterlist.TagMatcher) {
+	if cr.filteredIdentities == nil || !cr.tagFilterEnabled {
+		return
+	}
 	if !typeFiltersAtOutput(metricSampleContext.GetMetricType()) || (cr.sketchesPerTimestamp && becomesSketch(metricSampleContext)) {
 		context.tagFilterFlags.set(hasUnfilterableType)
 		cr.releaseFiltered(context)
