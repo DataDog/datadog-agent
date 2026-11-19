@@ -9,6 +9,7 @@
 package securityprofile
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -32,6 +33,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -616,7 +618,8 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 		profiles:               make(map[cgroupModel.WorkloadSelector]*profile.Profile),
 		localStorage:           localStorage,
 		eventFiltering:         make(map[eventFilteringEntry]*atomic.Uint64),
-		insertionErrors:        make(map[insertionErrorKey]*atomic.Uint64),
+		insertionErrors:        make(map[errorTypeKey]*atomic.Uint64),
+		eventsWithError:        make(map[eventWithErrorKey]*atomic.Uint64),
 		pendingProfileRemovals: make(map[cgroupModel.WorkloadSelector]time.Time),
 		sampleCookieMap:        cookieMap,
 		sampleRefreshReceived:  atomic.NewUint64(0),
@@ -689,7 +692,12 @@ var testEventTypesV2 = []model.EventType{model.ExecEventType, model.FileOpenEven
 
 // findTestEventNode returns the profile node holding the activity of the variant, or nil
 func findTestEventNode(p *profile.Profile, eventType model.EventType, variant string) *activity_tree.NodeBase {
-	for _, pn := range p.ActivityTree.ProcessNodes {
+	return findTestEventNodeIn(p.ActivityTree.ProcessNodes, eventType, variant)
+}
+
+// findTestEventNodeIn returns the node of one of the provided process nodes holding the activity of the variant, or nil
+func findTestEventNodeIn(nodes []*activity_tree.ProcessNode, eventType model.EventType, variant string) *activity_tree.NodeBase {
+	for _, pn := range nodes {
 		switch eventType {
 		case model.ExecEventType:
 			if pn.Process.FileEvent.PathnameStr == "/usr/bin/"+variant {
@@ -1171,6 +1179,226 @@ func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
 	assert.EqualValues(t, maxPending, m.queueSize.Load())
 	assert.EqualValues(t, 1, m.tagResolutionCappedTotal.Load())
 	assert.Zero(t, m.tagResolutionCappedCgroup.Load())
+}
+
+func assertZeroCounters[K comparable](t *testing.T, counters map[K]*atomic.Uint64) {
+	t.Helper()
+	for key, count := range counters {
+		assert.Zero(t, count.Load(), "%+v", key)
+	}
+}
+
+func TestManagerV2_eventsWithError(t *testing.T) {
+	brokenLineage := &model.ErrProcessBrokenLineage{Err: errors.New("missing parent")}
+	critical := &path.ErrPathResolution{Err: errors.New("dentry not found")}
+	countOf := func(m *ManagerV2, eventType model.EventType, errorType string, outcome string) uint64 {
+		return m.eventsWithError[eventWithErrorKey{errorTypeKey: errorTypeKey{eventType: eventType, errorType: errorType}, outcome: outcome}].Load()
+	}
+	// breakLineage makes the lineage of the event stop at its parent, which is the container shim unless
+	// insideContainer is set
+	breakLineage := func(event *model.Event, insideContainer bool) {
+		event.ProcessCacheEntry.Ancestor.Pid = 41
+		if insideContainer {
+			event.ProcessCacheEntry.Ancestor.ContainerContext.ContainerID = testContainerID
+		}
+		event.Error = brokenLineage
+	}
+
+	t.Run("dropped before insertion", func(t *testing.T) {
+		m := newTagResolutionTestManagerV2(t, 10, 10)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		event.Error = errors.New("unknown")
+
+		m.ProcessEvent(event)
+
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorOther, eventWithErrorDropped))
+		assert.Empty(t, m.profiles)
+		assert.Empty(t, m.resolvedCgroups)
+		assert.Empty(t, m.profilePendingEvents)
+	})
+
+	t.Run("broken lineage goes through", func(t *testing.T) {
+		m := newTagResolutionTestManagerV2(t, 10, 10)
+		event := newUntaggedTestEventV2(0)
+		event.Error = brokenLineage
+
+		m.ProcessEvent(event)
+
+		require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(0))
+		assert.Equal(t, 1, m.profilePendingEvents[untaggedTestCGroupID(0)].events.Len())
+		assertZeroCounters(t, m.eventsWithError)
+	})
+
+	t.Run("not counted outside of profiles", func(t *testing.T) {
+		m := newTagResolutionTestManagerV2(t, 10, 10)
+
+		hostEvent := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		hostEvent.ProcessContext.Process.ContainerContext.ContainerID = ""
+		hostEvent.Error = model.ErrNoProcessContext
+		m.ProcessEvent(hostEvent)
+
+		untracedEvent := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		untracedEvent.Type = uint32(model.FileChmodEventType)
+		untracedEvent.Error = model.ErrNoProcessContext
+		m.ProcessEvent(untracedEvent)
+
+		assertZeroCounters(t, m.eventsWithError)
+	})
+
+	t.Run("dropped during insertion", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		event.SetPathResolutionError(&event.Open.File, critical)
+
+		_, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorPathResolution, eventWithErrorDropped))
+		assertZeroCounters(t, m.insertionErrors)
+	})
+
+	t.Run("path errors that leave the activity intact are kept", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		kernelMount := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		kernelMount.SetPathResolutionError(&kernelMount.Open.File, &path.ErrPathResolutionNotCritical{Err: errors.New("kernel mount")})
+		otherFile := newTestEventV2(model.FileOpenEventType, "v1", "new")
+		otherFile.SetPathResolutionError(&otherFile.ProcessCacheEntry.LinuxBinprm.FileEvent, critical)
+
+		_, inserted := m.insertEventIntoProfile(kernelMount)
+		assert.True(t, inserted)
+		p, inserted := m.insertEventIntoProfile(otherFile)
+		assert.True(t, inserted)
+
+		require.NotNil(t, p)
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "known"))
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "new"))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorPathResolutionNotCritical, eventWithErrorKept))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorPathResolution, eventWithErrorKept))
+	})
+
+	t.Run("a path error hides the decoding failure of a dns packet", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.DNSEventType, "v1", "known")
+		event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, critical)
+
+		_, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.DNSEventType, activity_tree.EventErrorPathResolution, eventWithErrorDropped))
+	})
+
+	t.Run("an exec whose binary path couldn't be resolved is dropped despite its broken lineage", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.ExecEventType, "v1", "known")
+		event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, critical)
+		breakLineage(event, false)
+
+		p, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.Nil(t, p)
+		require.Contains(t, m.profiles, testSelector)
+		assert.Empty(t, m.profiles[testSelector].ActivityTree.ProcessNodes)
+		assert.EqualValues(t, 1, countOf(m, model.ExecEventType, activity_tree.EventErrorPathResolution, eventWithErrorDropped))
+		assert.Zero(t, countOf(m, model.ExecEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorDropped))
+	})
+
+	t.Run("broken lineage outside of the container is kept", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		breakLineage(event, false)
+
+		p, inserted := m.insertEventIntoProfile(event)
+
+		require.NotNil(t, p)
+		assert.True(t, inserted)
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "known"))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorKept))
+		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorDropped))
+	})
+
+	t.Run("broken lineage inside of the container is unattributed", func(t *testing.T) {
+		for _, eventType := range []model.EventType{model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType} {
+			t.Run(eventType.String(), func(t *testing.T) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				event := newTestEventV2(eventType, "v1", "known")
+				breakLineage(event, true)
+
+				m.onEventTagsResolved(event)
+
+				p := m.profiles[testSelector]
+				require.NotNil(t, p)
+				assert.Empty(t, *anomalies, "what is new to the unattributed activity may not be new to the workload")
+				assert.Empty(t, p.ActivityTree.ProcessNodes)
+				require.NotNil(t, p.ActivityTree.UnattributedActivity)
+				assert.NotNil(t, findTestEventNodeIn([]*activity_tree.ProcessNode{p.ActivityTree.UnattributedActivity}, eventType, "known"))
+				assert.EqualValues(t, 1, countOf(m, eventType, activity_tree.EventErrorBrokenLineage, eventWithErrorUnattributed))
+				assert.Zero(t, countOf(m, eventType, activity_tree.EventErrorBrokenLineage, eventWithErrorKept))
+				assert.Zero(t, countOf(m, eventType, activity_tree.EventErrorBrokenLineage, eventWithErrorDropped))
+				assertZeroCounters(t, m.insertionErrors)
+			})
+		}
+	})
+
+	t.Run("no process context in the container is unattributed", func(t *testing.T) {
+		for _, eventType := range []model.EventType{model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType} {
+			t.Run(eventType.String(), func(t *testing.T) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				event := newTestEventV2(eventType, "v1", "known")
+				placeholder := model.NewPlaceholderProcessCacheEntry(42, 42, false)
+				placeholder.ContainerContext = event.ProcessCacheEntry.ContainerContext
+				event.ProcessCacheEntry = placeholder
+				event.ProcessContext = &placeholder.ProcessContext
+				event.Error = model.ErrNoProcessContext
+
+				m.onEventTagsResolved(event)
+
+				p := m.profiles[testSelector]
+				require.NotNil(t, p)
+				assert.Empty(t, *anomalies)
+				assert.Empty(t, p.ActivityTree.ProcessNodes)
+				require.NotNil(t, p.ActivityTree.UnattributedActivity)
+				assert.NotNil(t, findTestEventNodeIn([]*activity_tree.ProcessNode{p.ActivityTree.UnattributedActivity}, eventType, "known"))
+				assert.EqualValues(t, 1, countOf(m, eventType, activity_tree.EventErrorNoProcessContext, eventWithErrorUnattributed))
+				assertZeroCounters(t, m.insertionErrors)
+			})
+		}
+	})
+
+	t.Run("broken lineage inside of the container is dropped for an exec", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.ExecEventType, "v1", "known")
+		breakLineage(event, true)
+
+		_, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.ExecEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorDropped))
+		assertZeroCounters(t, m.insertionErrors)
+	})
+
+	t.Run("broken lineage inside of the container is kept for a known process", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		execTime := time.Now()
+		known := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		known.ProcessCacheEntry.Cookie = 42
+		known.ProcessCacheEntry.ExecTime = execTime
+		_, inserted := m.insertEventIntoProfile(known)
+		require.True(t, inserted)
+
+		event := newTestEventV2(model.FileOpenEventType, "v1", "new")
+		event.ProcessCacheEntry.Cookie = 42
+		event.ProcessCacheEntry.ExecTime = execTime
+		breakLineage(event, true)
+
+		p, inserted := m.insertEventIntoProfile(event)
+
+		require.NotNil(t, p)
+		assert.True(t, inserted)
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "new"))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorKept))
+		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorDropped))
+	})
 }
 
 func TestManagerV2_seedMountsForWorkload(t *testing.T) {

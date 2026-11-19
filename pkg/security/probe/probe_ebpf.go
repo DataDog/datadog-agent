@@ -1336,7 +1336,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 			p.profileManager.ProcessEvent(event)
 		}
-	} else if event.Error == nil {
+	} else {
 		p.profileManager.ProcessEvent(event)
 	}
 
@@ -1518,9 +1518,32 @@ func (p *EBPFProbe) newRelatedCGroupWriteEvent(pce *model.ProcessCacheEntry) *mo
 	return relatedEvent
 }
 
+// newContainerPlaceholder returns the placeholder of a process that couldn't be resolved, in the container of the
+// cgroup reported by the kernel. Returns nil if that cgroup isn't the one of a known container.
+func (p *EBPFProbe) newContainerPlaceholder(pidContext model.PIDContext, cgroupContext model.CGroupContext) *model.ProcessCacheEntry {
+	// without bpf_get_current_cgroup_id(), the cgroup reported by the kernel can be stale
+	if !p.kernelTracksCGroupID || cgroupContext.CGroupPathKey.Inode == 0 {
+		return nil
+	}
+	cacheEntry := p.Resolvers.CGroupResolver.GetCacheEntryByInode(cgroupContext.CGroupPathKey.Inode)
+	if cacheEntry == nil || cacheEntry.IsContainerContextNull() {
+		return nil
+	}
+	entry := model.NewPlaceholderProcessCacheEntry(pidContext.Pid, pidContext.Tid, false)
+	entry.PIDContext = pidContext
+	entry.CGroup = cacheEntry.GetCGroupContext()
+	entry.ContainerContext = cacheEntry.GetContainerContext()
+	return entry
+}
+
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
 func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, cgroupContext model.CGroupContext) bool {
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, p.onNewPCE)
+	if !isResolved && !event.PIDContext.IsKworker {
+		if placeholder := p.newContainerPlaceholder(event.PIDContext, cgroupContext); placeholder != nil {
+			entry = placeholder
+		}
+	}
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
