@@ -4,6 +4,26 @@
   tags: ["arch:amd64", "specific:true"]
   needs: []
 
+# Apply the expanded file coverage to changes while existing broad linters
+# continue to enforce their repository-wide requirements.
+.lint_changed_files:
+  extends: .lint
+  variables:
+    GIT_DEPTH: 0
+  before_script:
+    - git fetch origin "$COMPARE_TO_BRANCH"
+    - |
+      # Mainline pushes compare their endpoints; PRs compare from the merge base.
+      if [ "${CI_COMMIT_BRANCH:-}" = "$COMPARE_TO_BRANCH" ]; then
+        CHANGED_FILES_BASE="${CI_COMMIT_BEFORE_SHA:-HEAD^}"
+        if [ "$CHANGED_FILES_BASE" = "0000000000000000000000000000000000000000" ]; then
+          CHANGED_FILES_BASE=HEAD^
+        fi
+      else
+        CHANGED_FILES_BASE=$(git merge-base FETCH_HEAD HEAD)
+      fi
+      export CHANGED_FILES_BASE
+
 lint_licenses:
   extends: [.lint, .bazel:defs:cache:progressive]
   script:
@@ -15,13 +35,32 @@ lint_rust_licenses:
     - dda inv -- -e lint-rust-licenses
 
 lint_shell:
-  extends: .lint
+  extends: .lint_changed_files
   script:
     - shellcheck --version
-    #Excludes:
-    #SC2028: echo may not expand escape sequences. Use printf.
-    #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
-    - shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
+    - shellcheck --severity=info -e SC2059 -e SC2028 ./cmd/**/*.sh ./omnibus/package-scripts/*/*
+    - dda inv -- -e pre-commit.check-shellcheck --base "$CHANGED_FILES_BASE"
+
+lint_github_actions:
+  extends: .lint
+  script:
+    - go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+    - dda inv -- -e pre-commit.check-actionlint --all-files
+
+lint_shell_no_set_x:
+  extends: .lint
+  script:
+    - dda inv -- -e pre-commit.check-set-x --all-files
+
+lint_go_format:
+  extends: .lint_changed_files
+  script:
+    - dda inv -- -e pre-commit.check-go-fmt --base "$CHANGED_FILES_BASE"
+
+lint_release_json_newline:
+  extends: .lint
+  script:
+    - dda inv -- -e pre-commit.check-release-json-newline
 
 lint_filename:
   extends: .lint

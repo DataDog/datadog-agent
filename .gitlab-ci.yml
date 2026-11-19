@@ -1401,6 +1401,7 @@ workflow:
   - changes:
       paths:
         - tasks/**/*
+        - .gitlab/build/lint/technical_linters.yml
         - .gitlab-ci.yml # A buildimage bump can also affect the invoke tasks
         - packages/agent/dependencies/**/* # Some bazel files are read from invoke unit tests
       compare_to: $COMPARE_TO_BRANCH
