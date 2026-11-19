@@ -1,3 +1,5 @@
+# description: unknown settings, settings without a value, empty collections and deprecated settings raise no issue
+
 # unknown settings, at the top level and inside a known section
 an_unknown_setting: value
 network_path:

@@ -1,4 +1,4 @@
-# Valid values for scalar, list and map settings: no invalid-config issue is expected.
+# description: valid scalar, list and map values, from the file and environment variables, raise no issue
 tags:
   - team:agent-health
   - env:e2e

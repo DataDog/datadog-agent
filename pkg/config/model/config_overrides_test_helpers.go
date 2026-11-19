@@ -19,11 +19,12 @@ func CleanOverride(t *testing.T) {
 	})
 }
 
-// RestoreOverrideFuncs registers a function restoring, at the end of a test, the override functions registered when it
-// is called. Tests that initialize the configuration again, registering its override functions again, use it so they
-// don't pile up.
+// RestoreOverrideFuncs empties the override functions and registers a function restoring them at the end of the test.
+// Tests that initialize the configuration again, registering its override functions again, use it so each override
+// function is registered, and runs, once.
 func RestoreOverrideFuncs(t testing.TB) {
 	saved := slices.Clone(overrideFuncs)
+	overrideFuncs = make([]func(Config), 0)
 	t.Cleanup(func() {
 		overrideFuncs = saved
 	})
