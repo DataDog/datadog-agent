@@ -489,10 +489,30 @@ def get_pulumi_run_folder() -> str:
     return os.path.join(_get_root_path(), "test", "e2e-framework", "run")
 
 
+def _pulumi_home() -> str:
+    return os.environ.get("PULUMI_HOME") or os.path.expanduser("~/.pulumi")
+
+
+def pulumi_bin_dir() -> str:
+    """Where `install_pulumi` puts the Pulumi CLI, which is also where Pulumi's own installer puts it."""
+    return os.path.join(_pulumi_home(), "bin")
+
+
+def install_pulumi() -> None:
+    """Install the Pulumi CLI matching the e2e framework's Pulumi SDK, and put it first on this process's PATH.
+
+    Putting it first makes it shadow any other `pulumi` on the PATH, e.g. a CI image's, for the commands this process
+    runs and for the tests it starts, whose Automation API looks `pulumi` and `pulumi-language-go` up on the PATH.
+    """
+    bin_dir = pulumi_bin_dir()
+    bazel("run", "@pulumi_cli//:install", "--", f"--destdir={bin_dir}")
+    paths = [path for path in os.environ.get("PATH", "").split(os.pathsep) if path and path != bin_dir]
+    os.environ["PATH"] = os.pathsep.join([bin_dir, *paths])
+
+
 def install_pulumi_plugins() -> None:
     """Install the Pulumi plugins where Pulumi looks for them."""
-    pulumi_home = os.environ.get("PULUMI_HOME") or os.path.expanduser("~/.pulumi")
-    bazel("run", "@pulumi_plugins//:install", "--", f"--destdir={os.path.join(pulumi_home, 'plugins')}")
+    bazel("run", "@pulumi_plugins//:install", "--", f"--destdir={os.path.join(_pulumi_home(), 'plugins')}")
 
 
 class RemoteHost:

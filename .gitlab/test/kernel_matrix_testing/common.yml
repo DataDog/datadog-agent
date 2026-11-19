@@ -174,6 +174,9 @@
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    # Install the Pulumi CLI matching the e2e framework's SDK, ahead of the image's
+    - bazel run @pulumi_cli//:install -- --destdir=$HOME/.pulumi/bin
+    - export PATH=$HOME/.pulumi/bin:$PATH
     - bazel run @pulumi_plugins//:install -- --destdir=$HOME/.pulumi/plugins
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]

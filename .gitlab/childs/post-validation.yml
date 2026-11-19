@@ -1,5 +1,6 @@
 ---
 include:
+  - local: .gitlab/build/bazel/defs.yml
   - local: .gitlab/common/checkout.yml
 
 workflow:
@@ -27,6 +28,7 @@ stages:
   - post_validation
 
 new-e2e-cleanup-on-failure:
+  extends: .bazel:defs:cache:progressive
   stage: post_validation
   allow_failure: true
   variables:
@@ -44,6 +46,9 @@ new-e2e-cleanup-on-failure:
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_PUBLIC_KEY_PATH || exit $?
     - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_PRIVATE_KEY_PATH || exit $?
     - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E pulumi_passphrase) || exit $?; export PULUMI_CONFIG_PASSPHRASE
+    # Install the Pulumi CLI matching the e2e framework's SDK, ahead of the image's
+    - bazel run @pulumi_cli//:install -- --destdir=$HOME/.pulumi/bin
+    - export PATH=$HOME/.pulumi/bin:$PATH
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   script:
     - STACK_REGEX="ci-init-${CLEANUP_TARGET_PIPELINE_ID}-.*"

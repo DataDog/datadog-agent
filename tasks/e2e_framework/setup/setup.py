@@ -15,8 +15,10 @@ from tasks.e2e_framework.tool import (
     get_aws_cmd,
     get_resource_owner_id,
     info,
+    install_pulumi,
     install_pulumi_plugins,
     is_windows,
+    pulumi_bin_dir,
     run_pulumi,
     warn,
 )
@@ -127,7 +129,7 @@ def setup(
     from tasks.e2e_framework.setup.agent import setup_agent_config
     from tasks.e2e_framework.setup.aws import setup_aws_config
     from tasks.e2e_framework.setup.config import check_config
-    from tasks.e2e_framework.setup.pulumi import install_pulumi, pulumi_version, setup_pulumi_config
+    from tasks.e2e_framework.setup.pulumi import setup_pulumi_config
 
     # AWS CLI is the only hard prereq on the default path.
     if not shutil.which("aws"):
@@ -146,11 +148,12 @@ def setup(
 
         install_gcloud_auth_plugin(ctx)
 
-    pulumi_ver, pulumi_up_to_date = pulumi_version(ctx)
-    if pulumi_up_to_date:
-        info(f"✓ Pulumi is up to date: {pulumi_ver}")
-    else:
-        install_pulumi(ctx)
+    path_pulumi = shutil.which("pulumi")
+    install_pulumi()
+    pulumi_ver = run_pulumi(ctx, "version", project_dir=False, hide=True)
+    info(f"✓ Pulumi {pulumi_ver.stdout.strip() if pulumi_ver else ''} installed in {pulumi_bin_dir()}")
+    if path_pulumi is None or os.path.dirname(path_pulumi) != pulumi_bin_dir():
+        warn(f"Put {pulumi_bin_dir()} first on your PATH to run this Pulumi CLI outside of `dda inv` tasks")
 
     install_pulumi_plugins()
     run_pulumi(ctx, "login --local", project_dir=False, hide=True)

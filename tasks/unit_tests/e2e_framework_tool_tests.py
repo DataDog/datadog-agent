@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest import mock
 
@@ -100,7 +101,6 @@ class TestPulumiEnv(unittest.TestCase):
                 read.assert_not_called()
 
     def test_skip_update_check_can_be_turned_off(self):
-        # pulumi_version() reads the upgrade banner off stderr, so it must not be skipped.
         with mock.patch.object(tool, "_local_pulumi_passphrase", return_value=None):
             env = tool.pulumi_env(skip_update_check=False)
         self.assertEqual(env, {})
@@ -131,6 +131,17 @@ class TestPulumiEnv(unittest.TestCase):
     def test_a_broken_config_does_not_break_pulumi(self):
         with mock.patch("tasks.e2e_framework.config.get_local_config", side_effect=ValueError("bad yaml")):
             self.assertIsNone(tool._local_pulumi_passphrase(None))
+
+
+class TestInstallPulumi(unittest.TestCase):
+    def test_installs_with_bazel_and_goes_first_on_path(self):
+        env = {"PULUMI_HOME": "/pulumi", "PATH": os.pathsep.join(["/usr/local/bin", "/pulumi/bin", "/usr/bin"])}
+        with mock.patch.dict("os.environ", env, clear=True), mock.patch.object(tool, "bazel") as bazel:
+            tool.install_pulumi()
+            path = os.environ["PATH"]
+        bazel.assert_called_once_with("run", "@pulumi_cli//:install", "--", "--destdir=/pulumi/bin")
+        # It shadows the image's copy, without adding a duplicate when it was already on the PATH.
+        self.assertEqual(path, os.pathsep.join(["/pulumi/bin", "/usr/local/bin", "/usr/bin"]))
 
 
 class TestPulumiStackNames(unittest.TestCase):
