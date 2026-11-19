@@ -1,16 +1,10 @@
 ---
 features:
   - |
-    GPU monitoring: the ``amd_gpu`` check now reports the RAS errors of AMD
+    GPU monitoring: the ``amd_gpu`` check now reports the ECC errors of AMD
     GPUs, counted since the amdgpu driver loaded (on a virtual function, the
     counts come from the host and survive guest driver reloads):
     ``gpu.errors.ecc.uncorrected.total``, ``gpu.errors.ecc.corrected.total``
     and the new AMD-only ``gpu.errors.ecc.deferred.total``, which match the
-    totals of ``amd-smi metric --ecc``; fatal errors and poisoned data as
-    ``gpu.errors.amdgpu.total`` with the ``type`` tag ``ras_fatal``,
-    ``ras_poison_creation`` or ``ras_poison_consumption``, except on a virtual
-    function, whose guest driver does not see the host's fatal and poison
-    events, in an XGMI hive with other GPUs, with unified RAS, or before Linux
-    6.11; and
-    ``gpu.device.unhealthy``, which is 1 after an uncorrectable ECC error or a
-    fatal error.
+    totals of ``amd-smi metric --ecc``; and ``gpu.device.unhealthy``, which is
+    1 after an uncorrectable ECC error.

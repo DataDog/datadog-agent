@@ -10,7 +10,6 @@ package amd
 import (
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -346,7 +345,8 @@ func TestReadMetricsECC(t *testing.T) {
 		uncorrected, corrected, deferred Reading
 		wantErr                          string
 	}{
-		"no ras directory": {},
+		"no ras directory":   {},
+		"no count attribute": {ras: map[string]string{"features": features}},
 		"MI300X VF without errors": {
 			ras: map[string]string{
 				"features":           features,
@@ -471,129 +471,4 @@ func TestReadMetricsECCReadFailure(t *testing.T) {
 	assert.False(t, m.ECCCorrected.Valid)
 	assert.False(t, m.ECCDeferred.Valid)
 	assert.Equal(t, valid(37), m.GPUBusyPercent, "other metrics are unaffected")
-}
-
-// amdgpu_ras_sysfs_event_state_show fails with EINVAL without an event
-// manager: the fatal count is unknown, not absent.
-func TestReadMetricsRASEventsReadFailure(t *testing.T) {
-	fs := NewFakeSysfs(t)
-	devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", MI300XAttributes(""))
-	fs.AddCard("card0", devDir)
-	fs.WriteFiles(filepath.Join(devDir, "ras"), map[string]string{
-		"event_state": "current seqno: 0\nFatal Error: count:0, last_seqno:0\n",
-	})
-	readRASFile = func(path string) ([]byte, error) {
-		if filepath.Base(path) == "event_state" {
-			return nil, &os.PathError{Op: "read", Path: path, Err: syscall.EINVAL}
-		}
-		return os.ReadFile(path)
-	}
-	t.Cleanup(func() { readRASFile = os.ReadFile })
-
-	m, err := discoverSingle(t, fs).ReadMetrics()
-	require.NoError(t, err)
-	assert.False(t, m.RASFatalErrors.Valid)
-	assert.True(t, m.RASFatalUnknown)
-}
-
-// The contents follow amdgpu_ras_sysfs_event_state_show and
-// amdgpu_ras_sysfs_version_show in amdgpu_ras.c.
-func TestReadMetricsRASEvents(t *testing.T) {
-	const zero = "current seqno: 0\nFatal Error: count:0, last_seqno:0\nPoison Creation: count:0, last_seqno:0\nPoison Consumption: count:0, last_seqno:0\n"
-	for name, tc := range map[string]struct {
-		ras                           map[string]string // no ras directory when nil
-		hivePeers                     int
-		deviceID                      string // MI300X when empty
-		fatal, creations, consumption Reading
-		fatalUnknown                  bool
-		unreadable                    bool // event_state is a directory, so reads fail
-		wantErr                       string
-	}{
-		"no ras directory": {},
-		"MI300X without events": {
-			ras:   map[string]string{"event_state": zero, "version": "table version: 0x0\n"},
-			fatal: valid(0), creations: valid(0), consumption: valid(0),
-		},
-		"fatal error and poison": {
-			ras: map[string]string{"event_state": "current seqno: 5\nFatal Error: count:1, last_seqno:5\n" +
-				"Poison Creation: count:3, last_seqno:4\nPoison Consumption: count:1, last_seqno:2\n"},
-			fatal: valid(1), creations: valid(3), consumption: valid(1),
-		},
-		"no event_state": {
-			ras: map[string]string{"version": "table version: 0x0\n"},
-		},
-		"missing and unknown lines": {
-			ras:   map[string]string{"event_state": "current seqno: 2\nFatal Error: count:2, last_seqno:2\nNew Event: count:9, last_seqno:1\n"},
-			fatal: valid(2),
-		},
-		"unreadable event_state": {
-			ras:          map[string]string{},
-			unreadable:   true,
-			fatalUnknown: true,
-			wantErr:      "event_state",
-		},
-		"no fatal line": {
-			ras:          map[string]string{"event_state": "current seqno: 0\nPoison Creation: count:0, last_seqno:0\n"},
-			creations:    valid(0),
-			fatalUnknown: true,
-			wantErr:      "no Fatal Error count",
-		},
-		"malformed lines": {
-			ras: map[string]string{"event_state": "current seqno: 0\nFatal Error: count:many, last_seqno:0\n" +
-				"Poison Creation: 4\nPoison Consumption: count:0, last_seqno:0\n"},
-			consumption:  valid(0),
-			fatalUnknown: true,
-			wantErr:      "Fatal Error",
-		},
-		"unified RAS does not count events": {
-			ras: map[string]string{"event_state": zero, "version": "table version: 0x10000\nras version: 1.0.0\n"},
-		},
-		"XGMI hive shares the counts": {
-			ras:       map[string]string{"event_state": zero},
-			hivePeers: 2,
-		},
-		"alone in its XGMI hive": {
-			ras:       map[string]string{"event_state": zero},
-			hivePeers: 1,
-			fatal:     valid(0), creations: valid(0), consumption: valid(0),
-		},
-		"VF guest does not count events": {
-			ras:      map[string]string{"event_state": zero},
-			deviceID: "0x74b5\n", // MI300X VF
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			fs := NewFakeSysfs(t)
-			attrs := MI300XAttributes("")
-			if tc.deviceID != "" {
-				attrs["device"] = tc.deviceID
-			}
-			devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", attrs)
-			fs.AddCard("card0", devDir)
-			if tc.ras != nil {
-				fs.WriteFiles(filepath.Join(devDir, "ras"), tc.ras)
-			}
-			if tc.unreadable {
-				require.NoError(t, os.MkdirAll(filepath.Join(devDir, "ras", "event_state"), 0o755))
-			}
-			for i := range tc.hivePeers {
-				hive := filepath.Join(devDir, "xgmi_hive_info")
-				require.NoError(t, os.MkdirAll(hive, 0o755))
-				require.NoError(t, os.Symlink(devDir, filepath.Join(hive, "node"+strconv.Itoa(i+1))))
-			}
-
-			m, err := discoverSingle(t, fs).ReadMetrics()
-			if tc.wantErr != "" {
-				require.ErrorContains(t, err, tc.wantErr)
-				assert.NotContains(t, err.Error(), "Poison Consumption")
-			} else {
-				require.NoError(t, err)
-			}
-			assert.Equal(t, tc.fatal, m.RASFatalErrors)
-			assert.Equal(t, tc.creations, m.RASPoisonCreations)
-			assert.Equal(t, tc.consumption, m.RASPoisonConsumptions)
-			assert.Equal(t, tc.fatalUnknown, m.RASFatalUnknown)
-			assert.Equal(t, valid(37), m.GPUBusyPercent, "other metrics are unaffected")
-		})
-	}
 }

@@ -166,15 +166,13 @@ func TestAMDOnlyHostEmitsMetrics(t *testing.T) {
 	assert.NotContains(t, gauges, "gpu.errors.ecc.uncorrected.total", "no ras directory")
 }
 
-func TestAMDRASMetrics(t *testing.T) {
+func TestAMDECCMetrics(t *testing.T) {
 	fs := amdgpu.NewFakeSysfs(t)
 	devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", amdgpu.MI300XAttributes("00c0ffee00c0ffee"))
 	fs.WriteFiles(filepath.Join(devDir, "ras"), map[string]string{
 		"features":      "feature mask: 0x20065bff\n",
 		"umc_err_count": "ue: 2\nce: 7\nde: 1\n",
 		"gfx_err_count": "ue: 1\nce: 0\n",
-		"event_state": "current seqno: 4\nFatal Error: count:0, last_seqno:0\n" +
-			"Poison Creation: count:3, last_seqno:3\nPoison Consumption: count:1, last_seqno:4\n",
 	})
 	fs.AddCard("card0", devDir)
 	check, mockSender := setupAMDCheck(t, fs.Root, nil)
@@ -191,17 +189,6 @@ func TestAMDRASMetrics(t *testing.T) {
 		assert.Equal(t, value, gauges[name][0].Arguments.Get(1), name)
 		assert.Contains(t, gauges[name][0].Arguments.Get(3), "gpu_uuid:"+testAMDUUID, name)
 	}
-	events := map[string]float64{}
-	for _, call := range gauges["gpu.errors.amdgpu.total"] {
-		tags := call.Arguments.Get(3).([]string)
-		assert.Contains(t, tags, "origin:hardware")
-		for _, tag := range tags {
-			if errorType, ok := strings.CutPrefix(tag, "type:"); ok {
-				events[errorType] = call.Arguments.Get(1).(float64)
-			}
-		}
-	}
-	assert.Equal(t, map[string]float64{"ras_fatal": 0, "ras_poison_creation": 3, "ras_poison_consumption": 1}, events)
 	assert.Len(t, gauges["gpu.gr_engine_active"], 1, "other metrics are unaffected")
 
 	specs, err := gpuspec.LoadSpecs()
@@ -239,34 +226,24 @@ func TestAMDRASMetrics(t *testing.T) {
 	}
 }
 
-// An uncorrectable ECC error or a fatal RAS event makes the GPU unhealthy.
+// An uncorrectable ECC error makes the GPU unhealthy; without the ECC count
+// nothing is reported.
 func TestAMDDeviceUnhealthy(t *testing.T) {
-	invalid := amdgpu.Reading{}
-	count := func(v float64) amdgpu.Reading { return amdgpu.Reading{Value: v, Valid: true} }
 	for _, tc := range []struct {
-		uncorrected, fatal amdgpu.Reading
-		fatalUnknown       bool
-		want               *float64
+		uncorrected amdgpu.Reading
+		want        *float64
 	}{
-		{uncorrected: invalid, fatal: invalid, want: nil},
-		{uncorrected: count(0), fatal: count(0), want: ptr(0)},
-		{uncorrected: count(0), fatal: invalid, want: ptr(0)},
-		{uncorrected: invalid, fatal: count(0), want: nil}, // healthy needs the ECC count
-		{uncorrected: count(2), fatal: count(0), want: ptr(1)},
-		{uncorrected: count(0), fatal: count(1), want: ptr(1)},
-		{uncorrected: count(3), fatal: invalid, want: ptr(1)},
-		{uncorrected: invalid, fatal: count(1), want: ptr(1)},
-		{uncorrected: count(3), fatal: count(1), want: ptr(1)},
-		{uncorrected: count(0), fatal: invalid, fatalUnknown: true, want: nil}, // event_state unreadable
-		{uncorrected: count(2), fatal: invalid, fatalUnknown: true, want: ptr(1)},
+		{uncorrected: amdgpu.Reading{}, want: nil},
+		{uncorrected: amdgpu.Reading{Value: 0, Valid: true}, want: ptr(0)},
+		{uncorrected: amdgpu.Reading{Value: 2, Valid: true}, want: ptr(1)},
 	} {
 		var got *float64
-		for _, s := range amdSamples(amdgpu.Metrics{ECCUncorrected: tc.uncorrected, RASFatalErrors: tc.fatal, RASFatalUnknown: tc.fatalUnknown}, activity{}) {
+		for _, s := range amdSamples(amdgpu.Metrics{ECCUncorrected: tc.uncorrected}, activity{}) {
 			if m := s.(*nvidia.Metric); m.Name == "device.unhealthy" {
 				got = &m.Value
 			}
 		}
-		assert.Equal(t, tc.want, got, "uncorrected %+v, fatal %+v", tc.uncorrected, tc.fatal)
+		assert.Equal(t, tc.want, got, "uncorrected %+v", tc.uncorrected)
 	}
 }
 

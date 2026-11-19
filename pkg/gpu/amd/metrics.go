@@ -53,22 +53,12 @@ type Metrics struct {
 	PCIeMaxLinkSpeedGTs Reading // max_link_speed, GT/s per lane
 
 	// ECC error counts summed over the RAS blocks, like the amd-smi totals.
-	// They are invalid when no block count could be read, and the deferred
-	// count also when no block reports deferred errors.
+	// They are invalid when a block count cannot be read or parsed, or no
+	// enabled block has one, and the deferred count also when no block
+	// reports deferred errors.
 	ECCUncorrected Reading
 	ECCCorrected   Reading
 	ECCDeferred    Reading
-
-	// RAS event counts of ras/event_state since the driver loaded. They are
-	// invalid on a VF, whose guest driver does not see the host's fatal and
-	// poison events, when the GPU shares them with other GPUs of its XGMI
-	// hive, or when the driver does not count them (unified RAS).
-	RASFatalErrors        Reading
-	RASPoisonCreations    Reading
-	RASPoisonConsumptions Reading
-	// RASFatalUnknown is set when event_state exists but its fatal count
-	// could not be read or parsed, including EINVAL.
-	RASFatalUnknown bool
 
 	// GPUMetrics is the decoded gpu_metrics table, nil when the device has
 	// none. When GPUMetricsErr is set (ErrGPUMetricsUnsupported or
@@ -83,7 +73,7 @@ type Metrics struct {
 
 // ReadOptions selects the optional parts of a telemetry read.
 type ReadOptions struct {
-	// SkipGPUMetrics leaves the gpu_metrics table unread and XGMIHiveSize unset.
+	// SkipGPUMetrics leaves the gpu_metrics table and the XGMI hive size unread.
 	SkipGPUMetrics bool
 }
 
@@ -120,16 +110,10 @@ func (d *Device) ReadMetricsWithOptions(opts ReadOptions) (Metrics, error) {
 	m.GraphicsClockMHz = r.clock(hwmonDir, hwmonEntries, "sclk", filepath.Join(d.devicePath, "pp_dpm_sclk"))
 	m.MemoryClockMHz = r.clock(hwmonDir, hwmonEntries, "mclk", filepath.Join(d.devicePath, "pp_dpm_mclk"))
 	r.readECC(filepath.Join(d.devicePath, "ras"), &m)
-	hiveSize := d.XGMIHiveSize()
-	// A VF guest driver does not see the host's fatal and poison events, and
-	// the GPUs of an XGMI hive share one set of counts.
-	if !isVirtualFunction(d.DeviceID) && hiveSize <= 1 {
-		r.readRASEvents(filepath.Join(d.devicePath, "ras"), &m)
-	}
 
 	if !opts.SkipGPUMetrics {
 		m.GPUMetrics, m.GPUMetricsErr = r.gpuMetrics(filepath.Join(d.devicePath, "gpu_metrics"))
-		m.XGMIHiveSize = hiveSize
+		m.XGMIHiveSize = d.XGMIHiveSize()
 	}
 
 	return m, errors.Join(r.errs...)
@@ -501,54 +485,4 @@ func parseErrCount(content string) (map[string]uint64, error) {
 		}
 	}
 	return counts, nil
-}
-
-// readRASEvents reads the RAS event counts of ras/event_state, whose lines look
-// like "Fatal Error: count:0, last_seqno:0". A line that cannot be parsed
-// leaves its count invalid.
-func (r *reader) readRASEvents(rasDir string, m *Metrics) {
-	// With unified RAS, the driver reports its version here and does not
-	// count events in event_state.
-	if version, ok := r.read(filepath.Join(rasDir, "version")); ok && strings.Contains(version, "ras version:") {
-		return
-	}
-	path := filepath.Join(rasDir, "event_state")
-	data, err := readRASFile(path)
-	if err != nil {
-		// Only an absent file means the driver does not count events. Other
-		// errors, such as EINVAL without an event manager, leave it unknown.
-		m.RASFatalUnknown = !errors.Is(err, os.ErrNotExist)
-		if !isUnsupported(err) {
-			r.errs = append(r.errs, err)
-		}
-		return
-	}
-	content := sysfsValue(data)
-	sawFatal := false
-	for line := range strings.Lines(content) {
-		name, value, _ := strings.Cut(line, ":")
-		var count *Reading
-		switch strings.TrimSpace(name) {
-		case "Fatal Error":
-			count = &m.RASFatalErrors
-			sawFatal = true
-		case "Poison Creation":
-			count = &m.RASPoisonCreations
-		case "Poison Consumption":
-			count = &m.RASPoisonConsumptions
-		default:
-			continue
-		}
-		field, _, _ := strings.Cut(strings.TrimSpace(value), ",")
-		n, err := strconv.ParseUint(strings.TrimPrefix(field, "count:"), 10, 64)
-		if err != nil || !strings.HasPrefix(field, "count:") {
-			r.errs = append(r.errs, fmt.Errorf("parse %s: invalid line %q", path, strings.TrimSpace(line)))
-			continue
-		}
-		*count = valid(float64(n))
-	}
-	if !sawFatal {
-		r.errs = append(r.errs, fmt.Errorf("parse %s: no Fatal Error count", path))
-	}
-	m.RASFatalUnknown = !m.RASFatalErrors.Valid
 }
