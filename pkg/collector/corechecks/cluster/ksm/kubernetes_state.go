@@ -891,8 +891,11 @@ func shouldDropForMetadata(name string) bool {
 	if strings.HasPrefix(name, "kube_customresource") {
 		return false
 	}
-	return strings.HasSuffix(name, "_labels") || strings.HasSuffix(name, "_info") || strings.HasSuffix(name, "_status_reason")
+	// TEST ONLY: the unanchored regular expression used before #56939
+	return metadataMetricsRegex.MatchString(name)
 }
+
+var metadataMetricsRegex = regexp.MustCompile(".*_(info|labels|status_reason)")
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
@@ -1098,9 +1101,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			}
 			// ignore the metric if it doesn't have a transformer
 			// or if it isn't mapped to a datadog metric name
-			if log.ShouldLog(log.TraceLvl) {
-				log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
-			}
+			log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
 		}
 	}
 	for _, aggregator := range k.metricAggregators {
@@ -1856,36 +1857,22 @@ func ownerTags(kind, name string) ([]string, string) {
 		return nil, ""
 	}
 
+	// TEST ONLY: fmt.Sprintf and append as before #43407 and #43645
+	tagFormat := "%s:%s"
+	tagList := []string{fmt.Sprintf(tagFormat, tagKey, name)}
 	switch kind {
 	case kubernetes.JobKind:
 		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
-			return []string{tagKey + ":" + name, tags.KubeCronjob + ":" + cronjob}, ""
+			return append(tagList, fmt.Sprintf(tagFormat, tags.KubeCronjob, cronjob)), ""
 		}
 	case kubernetes.ReplicaSetKind:
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
-			return []string{tagKey + ":" + name, tags.KubeDeployment + ":" + deployment}, deployment
+			return append(tagList, fmt.Sprintf(tagFormat, tags.KubeDeployment, deployment)), deployment
 		}
 	}
 
-	return []string{tagKey + ":" + name}, ""
+	return tagList, ""
 }
-
-var (
-	podLabelsMapperOverride = map[string]string{
-		"phase": "pod_phase",
-	}
-
-	ingressLabelsMapperOverride = map[string]string{
-		"host":         "kube_ingress_host",
-		"path":         "kube_ingress_path",
-		"service_name": "kube_service",
-		"service_port": "kube_service_port",
-	}
-
-	serviceLabelsMapperOverride = map[string]string{
-		"service": "kube_service",
-	}
-)
 
 // labelsMapperOverride allows overriding the default label mapping for
 // a given metric depending on the metric family.
@@ -1895,16 +1882,24 @@ var (
 //   - Ingress metrics have generic tag names (host/path/service_name/service_port).
 //     It's important to have them in a dedicated mapper override for ingresses.
 func labelsMapperOverride(metricName string) map[string]string {
+	// TEST ONLY: a new map at each call, as before #56757
 	if strings.HasPrefix(metricName, "kube_pod") {
-		return podLabelsMapperOverride
+		return map[string]string{"phase": "pod_phase"}
 	}
 
 	if strings.HasPrefix(metricName, "kube_ingress") {
-		return ingressLabelsMapperOverride
+		return map[string]string{
+			"host":         "kube_ingress_host",
+			"path":         "kube_ingress_path",
+			"service_name": "kube_service",
+			"service_port": "kube_service_port",
+		}
 	}
 
 	if strings.HasPrefix(metricName, "kube_service") {
-		return serviceLabelsMapperOverride
+		return map[string]string{
+			"service": "kube_service",
+		}
 	}
 
 	if strings.HasPrefix(metricName, "kube_horizontalpodautoscaler") {
