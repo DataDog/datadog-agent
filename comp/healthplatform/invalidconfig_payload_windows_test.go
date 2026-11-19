@@ -12,22 +12,29 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // TestInvalidConfigPayloadIgnoresHostFleetPolicy checks that the scenarios are isolated from a Fleet Automation
-// policy configured on the host. On Windows, the config loader falls back to the fleet_policies_dir registry value
-// when the setting is unset, so a host policy would be merged into the scenario configuration. The policy here sends
-// the health reports to an unreachable intake: the scenario only passes if the policy is ignored.
+// policy configured on the host. On Windows, both config loaders fall back to the fleet_policies_dir registry value
+// when the setting is unset, so a host policy would be merged into the scenario configurations:
+//   - the datadog.yaml policy sends the health reports to an unreachable intake: the scenario only passes if it's ignored
+//   - the system-probe.yaml policy sets a setting the reports don't show: it must not reach the loaded configuration
 func TestInvalidConfigPayloadIgnoresHostFleetPolicy(t *testing.T) {
 	requireSchema(t)
 
 	policyDir := t.TempDir()
-	policy := "health_platform:\n  forwarder:\n    dd_url: \"http://127.0.0.1:1\"\n"
-	require.NoError(t, os.WriteFile(filepath.Join(policyDir, "datadog.yaml"), []byte(policy), 0o600))
+	datadogPolicy := "health_platform:\n  forwarder:\n    dd_url: \"http://127.0.0.1:1\"\n"
+	require.NoError(t, os.WriteFile(filepath.Join(policyDir, "datadog.yaml"), []byte(datadogPolicy), 0o600))
+	const sysprobePolicyLogFile = "host-fleet-policy-system-probe.log"
+	sysprobePolicy := "system_probe_config:\n  log_file: " + sysprobePolicyLogFile + "\n"
+	require.NoError(t, os.WriteFile(filepath.Join(policyDir, "system-probe.yaml"), []byte(sysprobePolicy), 0o600))
 	configmock.SetFleetPoliciesDirFromRegistry(t, policyDir)
 
-	runInvalidConfigScenario(t, "file_types")
+	sysprobeConfig := runInvalidConfigScenario(t, "file_types")
+	assert.NotEqual(t, sysprobePolicyLogFile, sysprobeConfig.GetString("system_probe_config.log_file"),
+		"the host system-probe fleet policy must not be merged")
 }
