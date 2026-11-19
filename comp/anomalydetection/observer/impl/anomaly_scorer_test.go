@@ -669,6 +669,63 @@ func TestLateAnomalyBeforeFirstAdvance(t *testing.T) {
 	}
 }
 
+func TestScorerChronologicalBaseline(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.WindowSecs = 2
+	cfg.MaxBuckets = 8
+	cfg.Alpha = 0.5
+	cfg.SaturationK = 1
+	cfg.LowThreshold = 0.24
+	cfg.HighThreshold = 0.9
+	cfg.MarginPct = 0.2
+	scorer := NewAnomalyScorer(cfg)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, scorer, severityeventsdef.SeverityEventsConfiguration{}, listener)
+
+	scorer.Advance(999)
+	strong := makeAnomaly("bocpd", 1000, nil)
+	strong.LevelChange = &observer.LevelChangeEvidence{BeforeMedian: 100, AfterMedian: 200}
+	other := makeAnomaly("bocpd", 1000, nil)
+	other.Source.Name = "other"
+	scorer.ProcessAnomaly(strong)
+	scorer.ProcessAnomaly(other)
+	scorer.Advance(1000)
+
+	weak := makeAnomaly("bocpd", 1001, nil)
+	weak.LevelChange = &observer.LevelChangeEvidence{BeforeMedian: 100, AfterMedian: 108}
+	scorer.ProcessAnomaly(weak)
+	scorer.Advance(1001)
+	scorer.Advance(1006)
+
+	// Pin main's output across the lower-level fallback and the empty-window decay.
+	want := []observer.AnomalyScoreBucket{
+		{Second: 999},
+		{Second: 1000, Bins: [5]int{0, 0, 1, 0, 1}, Count: 2, WeightSum: 4, Ewma: 0.8646647167633873},
+		{Second: 1001, Bins: [5]int{0, 0, 1, 0, 1}, Count: 2, WeightSum: 4, Ewma: 1.296997075145081},
+		{Second: 1002, Bins: [5]int{0, 1}, Count: 1, WeightSum: 0.5, Ewma: 0.8065286772796799},
+		{Second: 1003, Ewma: 0.40326433863983996},
+		{Second: 1004, Ewma: 0.20163216931991998},
+		{Second: 1005, Ewma: 0.10081608465995999},
+		{Second: 1006, Ewma: 0.050408042329979995},
+	}
+	got := scorer.ScoreState().Buckets
+	require.Len(t, got, len(want))
+	for i, expected := range want {
+		actual := got[i]
+		assert.InDelta(t, expected.Ewma, actual.Ewma, 1e-10, "second %d", expected.Second)
+		actual.Ewma = expected.Ewma
+		assert.Equal(t, expected, actual)
+	}
+
+	// Zero cooldown exposes the raw severity transitions, including hysteresis.
+	require.Equal(t, []severityeventsdef.SeverityEvent{
+		{Timestamp: 1000, FromLevel: severityeventsdef.SeverityLow, ToLevel: severityeventsdef.SeverityMedium, Direction: severityeventsdef.SeverityEventEscalation},
+		{Timestamp: 1001, FromLevel: severityeventsdef.SeverityMedium, ToLevel: severityeventsdef.SeverityHigh, Direction: severityeventsdef.SeverityEventEscalation},
+		{Timestamp: 1003, FromLevel: severityeventsdef.SeverityHigh, ToLevel: severityeventsdef.SeverityMedium, Direction: severityeventsdef.SeverityEventDeescalation},
+		{Timestamp: 1006, FromLevel: severityeventsdef.SeverityMedium, ToLevel: severityeventsdef.SeverityLow, Direction: severityeventsdef.SeverityEventDeescalation},
+	}, listener.events)
+}
+
 func TestScorerHistoryCapturesOriginalRun(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
 	cfg.Alpha = 0.99
