@@ -150,17 +150,3 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 		resp.Body.Close()
 	}
 }
-
-func checkPingEndpoint(t *testing.T, client *http.Client) {
-	guiURL := url.URL{
-		Scheme: "http",
-		Host:   net.JoinHostPort("localhost", strconv.Itoa(guiPort)),
-		Path:   "/agent/ping",
-	}
-
-	// Make the GET request
-	resp, err := client.Post(guiURL.String(), "", nil)
-	require.NoErrorf(t, err, "failed to reach GUI at address %s", guiURL.String())
-	defer resp.Body.Close()
-	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
-}
