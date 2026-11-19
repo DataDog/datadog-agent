@@ -431,7 +431,7 @@ func (m *macosInstallSuite) TestZYReinstallSameVersion() {
 	assertNoMacosUnexpectedLaunchDaemons(t, macosTestClient)
 }
 
-// assertMacosProcessManagerOff checks that procmgr is unloaded and its catalog is gone, while the other jobs load.
+// assertMacosProcessManagerOff checks the process-manager opt-out state.
 func assertMacosProcessManagerOff(t *testing.T, client *common.MacOSTestClient, wantPostinstallWarning bool) {
 	t.Helper()
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -459,8 +459,8 @@ func assertMacosProcessManagerOff(t *testing.T, client *common.MacOSTestClient, 
 	}
 }
 
-// TestZXProcessManagerOptOut covers each source of process_manager.enabled false. It is named to
-// run before the ZY tests, which expect procmgr loaded.
+// The ZX prefix runs this after the read-only tests and before the ZY tests. Its cleanup reloads
+// procmgr, which they expect.
 func (m *macosInstallSuite) TestZXProcessManagerOptOut() {
 	t := m.T()
 	client := common.NewMacOSTestClient(m.Env().RemoteHost)

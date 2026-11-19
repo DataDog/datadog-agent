@@ -26,7 +26,7 @@ const (
 	envProcessManagerEnabled = "DD_PROCESS_MANAGER_ENABLED"
 )
 
-// procmgrEnabled reports whether this install runs dd-procmgrd, and where that came from.
+// procmgrEnabled is indirected so the hook tests do not depend on the host's environment or datadog.yaml.
 var procmgrEnabled = resolveProcmgrEnabled
 
 type procmgrSetting struct {

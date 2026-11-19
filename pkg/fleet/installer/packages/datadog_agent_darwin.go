@@ -112,7 +112,7 @@ func installStableJobs(ctx HookContext, skip map[string]bool) (err error) {
 }
 
 // unloadStableJob unloads a job and removes its definition. A job that can't be unloaded keeps its
-// definition, as in loadStableJob.
+// definition, so launchd is never left running a job whose file is gone.
 func unloadStableJob(ctx context.Context, client *launchd.Client, label string) error {
 	if err := client.Bootout(ctx, label); err != nil {
 		log.Warnf("failed to unload %s: %v", label, err)
@@ -172,7 +172,8 @@ func postInstallDatadogAgent(ctx HookContext) error {
 // as a package, loading the stable job set, and installing the GUI LaunchAgents (startDMGGUI). If
 // it fails, the script fails the install. The catalog is written first, so dd-procmgrd reads it
 // when its job loads. A catalog write error is only logged. When process_manager.enabled is false,
-// com.datadoghq.procmgr is removed instead, and the other jobs still load.
+// com.datadoghq.procmgr and the catalog are removed instead, failing the hook if either remains, and
+// the other jobs still load.
 //
 // Every step runs even if an earlier one fails, and in this order so the installer daemon finds its
 // directories and the package registered when it starts: a failed registration only leaves Fleet
@@ -184,6 +185,7 @@ func postInstallDMG(ctx HookContext) error {
 		errs = append(errs, err)
 	}
 	skip := map[string]bool{}
+	// Resolved after setUpDMGInstall, which restores datadog.yaml from the saved configuration on upgrade.
 	enabled, source := procmgrEnabled(os.LookupEnv, env, filepath.Join(defaultDmgLayout.confDir(), "datadog.yaml"))
 	if span, ok := telemetry.SpanFromContext(ctx); ok {
 		span.SetTag("process_manager.enabled", enabled)

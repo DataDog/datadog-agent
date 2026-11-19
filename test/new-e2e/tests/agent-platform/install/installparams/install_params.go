@@ -112,7 +112,7 @@ func WithUsername(username string) Option {
 	}
 }
 
-// WithExtraEnvVars sets extra environment variables for the install script.
+// WithExtraEnvVars sets extra environment variables for the macOS install script.
 func WithExtraEnvVars(vars map[string]string) Option {
 	return func(p *Params) {
 		p.ExtraEnvVars = vars
