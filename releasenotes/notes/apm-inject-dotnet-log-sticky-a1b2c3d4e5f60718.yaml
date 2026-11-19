@@ -1,0 +1,8 @@
+---
+security:
+  - |
+    APM auto-instrumentation (Linux): the ``/var/log/datadog/dotnet`` log
+    directory is now created with the sticky bit (mode ``01777``) instead of
+    ``0777``. In this shared, world-writable directory the sticky bit ensures a
+    user can only remove or rename its own files, matching the macOS installer
+    which already sets the sticky bit on its equivalent shared directory.

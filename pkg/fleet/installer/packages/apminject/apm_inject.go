@@ -151,8 +151,11 @@ func (a *InjectorInstaller) Setup(ctx context.Context) error {
 	if err != nil && !os.IsExist(err) {
 		return fmt.Errorf("error creating /var/log/datadog/dotnet: %w", err)
 	}
-	// a umask 0022 is frequently set by default, so we need to change the permissions by hand
-	err = os.Chmod("/var/log/datadog/dotnet", 0777)
+	// a umask 0022 is frequently set by default, so we need to change the permissions by hand.
+	// Set the sticky bit so a local user cannot delete or replace another user's log
+	// file in this shared directory, matching the macOS installer which already uses
+	// 0o777|ModeSticky for its equivalent shared directory.
+	err = os.Chmod("/var/log/datadog/dotnet", 0o1777)
 	if err != nil {
 		return fmt.Errorf("error changing permissions on /var/log/datadog/dotnet: %w", err)
 	}
