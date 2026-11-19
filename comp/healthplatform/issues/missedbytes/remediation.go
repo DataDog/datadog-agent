@@ -18,5 +18,5 @@ var remediationSteps = []string{
 	"If the `strategy` row is saturated, set `logs_config.use_compression` to false or raise `logs_config.pipelines`.",
 	"If the `processor` row is saturated, scope global `logs_config.processing_rules` to the affected source, or set `logs_config.auto_multi_line_detection` to false.",
 	"If the Agent still cannot keep up, drop unneeded logs with an `exclude_at_match` processing rule, or reduce the volume written to the file between rotations.",
-	"Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log. This issue clears about an hour after the last loss.",
+	"Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log. This issue clears about an hour after the last loss, or within 30 minutes of running `sudo datadog-agent logs clear-health` once the cause is fixed.",
 }

@@ -270,6 +270,7 @@
 /cmd/agent/subcommands/snmp                         @DataDog/network-device-monitoring-core
 /cmd/agent/subcommands/streamlogs                   @DataDog/agent-log-pipelines
 /cmd/agent/subcommands/analyzelogs                  @DataDog/agent-log-pipelines
+/cmd/agent/subcommands/logs                         @DataDog/agent-log-pipelines
 /cmd/agent/subcommands/streamep                     @DataDog/container-integrations
 /cmd/agent/subcommands/taggerlist                   @DataDog/container-platform
 /cmd/agent/subcommands/workloadlist                 @DataDog/container-platform

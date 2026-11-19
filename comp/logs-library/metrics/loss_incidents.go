@@ -198,3 +198,12 @@ func boundNameTo(name string, maxLen int) string {
 	}
 	return string([]rune(name)[:maxLen])
 }
+
+// ClearLogsHealth forgets every ongoing loss incident, dropped logs and rotation
+// loss alike, so their Agent Health issues resolve at the next check. A customer
+// runs it (`agent logs clear-health`) once the cause is fixed; if logs are still
+// being lost, a new incident starts and the issue comes back.
+func ClearLogsHealth() {
+	droppedLogs.reset()
+	missedBytes.reset()
+}

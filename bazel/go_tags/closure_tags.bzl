@@ -46,6 +46,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/cmd/agent/subcommands/integrations": ["bpf", "clusterchecks", "functionaltests", "goexperiment.systemcrypto", "python", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/cmd/agent/subcommands/jmx": None,
     "github.com/DataDog/datadog-agent/cmd/agent/subcommands/launchgui": ["bpf", "clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/cmd/agent/subcommands/logs": ["bpf", "clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/cmd/agent/subcommands/otel": ["bpf", "clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/cmd/agent/subcommands/processchecks": None,
     "github.com/DataDog/datadog-agent/cmd/agent/subcommands/remotecommand": ["bpf", "clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "requirefips", "serverless", "test"],

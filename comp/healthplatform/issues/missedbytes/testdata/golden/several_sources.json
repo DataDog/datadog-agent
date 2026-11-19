@@ -63,7 +63,7 @@
       },
       {
         "order": 7,
-        "text": "Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log. This issue clears about an hour after the last loss."
+        "text": "Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log. This issue clears about an hour after the last loss, or within 30 minutes of running `sudo datadog-agent logs clear-health` once the cause is fixed."
       }
     ]
   },

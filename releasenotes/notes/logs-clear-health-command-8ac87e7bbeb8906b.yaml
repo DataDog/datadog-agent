@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add the ``agent logs clear-health`` command. Once you have fixed what made
+    the Agent lose logs, run it to clear the Logs Dropped Before Delivery and
+    Log Data Lost After Rotation issues from Agent Health without restarting
+    the Agent; they resolve within 30 minutes. If the Agent is still losing
+    logs, the issues come back.

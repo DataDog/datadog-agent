@@ -94,6 +94,7 @@ type Provides struct {
 	StatusProvider statusComponent.InformationProvider
 	LogsReciever   option.Option[integrations.Component]
 	APIStreamLogs  api.AgentEndpointProvider
+	APIClearHealth api.AgentEndpointProvider
 }
 
 // logAgent represents the data pipeline that collects, decodes,
@@ -196,6 +197,7 @@ func NewComponent(deps Requires) Provides {
 				"/stream-logs",
 				"POST",
 			),
+			APIClearHealth: api.NewAgentEndpointProvider(clearHealth, "/logs/clear-health", "POST"),
 		}
 	}
 
