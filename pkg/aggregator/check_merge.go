@@ -15,7 +15,9 @@ import (
 
 // checkOutputMerger merges the outputs of check samplers that filter to the same series, from one check instance or
 // several, before they are sent: the intake keeps only the last point it receives for a series and timestamp. Counts
-// and rates are summed, and sketches merged, per series and timestamp, each with the metadata of its own sources.
+// and rates are summed, and sketches merged, per series and timestamp, each with the metadata of its own sources:
+// not indexed if any of them asks not to be, and the lowest of their origins, a choice that doesn't depend on the
+// order they arrive in.
 //
 // It sends each timestamp of a series once, as long as the clock doesn't step back. Samplers stamp what they hand it
 // at commit, and the aggregator's run loop handles commits and flushes one at a time, so a commit handled after a
