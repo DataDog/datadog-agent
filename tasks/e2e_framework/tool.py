@@ -16,7 +16,8 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.runners import Result
 
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, bazel_not_found_message
+from tasks.libs.common.utils import join_command
 
 try:
     from termcolor import colored
@@ -280,7 +281,7 @@ def run_pulumi(
     omits it (for commands that aren't project scoped, such as `login` or `version`), and
     a path uses that directory.
     """
-    cmd_parts = ["pulumi"]
+    cmd_parts = [pulumi_command()]
     if project_dir is True:
         dir_flag = get_pulumi_dir_flag()
         if dir_flag:
@@ -493,21 +494,37 @@ def _pulumi_home() -> str:
     return os.environ.get("PULUMI_HOME") or os.path.expanduser("~/.pulumi")
 
 
-def pulumi_bin_dir() -> str:
-    """Where `install_pulumi` puts the Pulumi CLI, which is also where Pulumi's own installer puts it."""
-    return os.path.join(_pulumi_home(), "bin")
+def pulumi_command() -> str:
+    """The command line prefix running the Pulumi CLI pinned by Bazel: `bazel run //internal/tools:pulumi --`.
 
-
-def install_pulumi() -> None:
-    """Install the Pulumi CLI matching the e2e framework's Pulumi SDK, and put it first on this process's PATH.
-
-    Putting it first makes it shadow any other `pulumi` on the PATH, e.g. a CI image's, for the commands this process
-    runs and for the tests it starts, whose Automation API looks `pulumi` and `pulumi-language-go` up on the PATH.
+    Bazel's own messages are filtered out, and the rest goes to stderr, so the standard output is Pulumi's.
     """
-    bin_dir = pulumi_bin_dir()
-    bazel("run", "@pulumi_cli//:install", "--", f"--destdir={bin_dir}")
-    paths = [path for path in os.environ.get("PATH", "").split(os.pathsep) if path and path != bin_dir]
-    os.environ["PATH"] = os.pathsep.join([bin_dir, *paths])
+    if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
+        raise SystemExit(bazel_not_found_message("red"))
+    return join_command(
+        [
+            bazelisk,
+            "run",
+            "--noshow_progress",
+            "--show_result=0",
+            "--ui_event_filters=-info",
+            "//internal/tools:pulumi",
+            "--",
+        ]
+    )
+
+
+def pulumi_cli_dir() -> str:
+    """The directory of the Pulumi CLI that `//internal/tools:pulumi` runs, next to its language hosts.
+
+    For programs that look `pulumi` up on the PATH rather than running it through Bazel, like the Automation API of
+    the e2e tests.
+    """
+    path = bazel(
+        "cquery", "--output=files", f"@pulumi_cli//:bin/pulumi{'.exe' if is_windows() else ''}", capture_output=True
+    ).strip()
+    output_base = bazel("info", "output_base", capture_output=True).strip()
+    return os.path.dirname(os.path.join(output_base, path))
 
 
 def install_pulumi_plugins() -> None:

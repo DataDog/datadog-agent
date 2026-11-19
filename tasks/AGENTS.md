@@ -99,6 +99,12 @@ convention) goes through `run_pulumi` / `pulumi_json` / `pulumi_stack_names` in
 `tasks/e2e_framework/tool.py`. Do not add a bare `ctx.run("pulumi …")` or
 `subprocess.run(["pulumi", …])`.
 
+The CLI itself is pinned by Bazel to the Pulumi SDK version in `test/new-e2e/go.sum`:
+`run_pulumi` runs `bazel run //internal/tools:pulumi --` (`pulumi_command()`, which
+`kernel_matrix_testing/` uses too), never the `pulumi` on the `PATH`. A Go program
+driving the Automation API looks `pulumi` up on the `PATH` instead: put `pulumi_cli_dir()`
+first on its `PATH`, as `new-e2e-tests.run` does.
+
 The helper is what makes the tasks work on machines that do not look like a dev laptop —
 a Datadog workspace, for instance, where the OS user is `bits` for everyone and
 `PULUMI_CONFIG_PASSPHRASE` is never exported. It resolves the project directory, the
