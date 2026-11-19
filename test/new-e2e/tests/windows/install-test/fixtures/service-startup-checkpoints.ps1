@@ -23,8 +23,10 @@ function Read-Rows([string]$sql) {
 function Quote-Sql([string]$value) { "'" + $value.Replace("'", "''") + "'" }
 
 # Leave room for observation and failure actions without changing relative ordering.
+# MSI SQL does not support DESC. Materialize the rows before changing sequences;
+# the Sequence column is not unique, so updates do not require descending order.
 $sequences = @{}
-foreach ($row in (Read-Rows 'SELECT `Action`, `Sequence` FROM `InstallExecuteSequence` ORDER BY `Sequence` DESC')) {
+foreach ($row in (Read-Rows 'SELECT `Action`, `Sequence` FROM `InstallExecuteSequence`')) {
     $name = $row.StringData(1)
     $sequence = $row.IntegerData(2)
     if ($sequence -le 0) { continue }

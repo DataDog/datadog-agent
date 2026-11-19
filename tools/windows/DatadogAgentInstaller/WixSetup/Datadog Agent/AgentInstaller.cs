@@ -436,7 +436,7 @@ namespace WixSetup.Datadog_Agent
                 document
                     .Select("Wix/Package/InstallExecuteSequence")
                     .AddElement("DeleteServices",
-                        "Condition=(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE) AND FLEET_INSTALL<>\"1\")");
+                        "Condition=(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
 
                 // We don't use the Wix "Merge" MSM feature because it seems to be a no-op...
                 document

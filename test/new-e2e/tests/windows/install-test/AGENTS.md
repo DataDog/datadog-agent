@@ -110,13 +110,12 @@ installation and outgoing removal rollback enable that package's active services
 using package defaults, without preserving customized startup modes. Keep retired
 services in the disable list but remove them from the active list. Retain their
 uninstall ServiceControl entries even after removing their binaries, so full
-non-Fleet uninstall can delete their registrations.
+uninstall can delete their registrations.
 
 `TestUpgradeServiceProtection` exercises removal, configuration and late rollback
 and success using the current MSI and its same-pipeline `-upgrade-test` MSI
 (override with `UPGRADE_AGENT_MSI_URL`). Both must contain the fix to exercise
 outgoing rollback enablement. Test-only copies observe service settings at
-execution checkpoints without changing production action order. The same suite
-checks Fleet removal retains disabled services, reinstall enables them, and true
-uninstall deletes them. Released-version upgrade tests separately cover legacy
-rollback without the new outgoing enable action.
+execution checkpoints without changing production action order. Released-version
+upgrade tests separately cover legacy rollback without the new outgoing enable
+action.

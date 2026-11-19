@@ -120,38 +120,6 @@ func (s *testUpgradeServiceProtectionSuite) TestUpgradeServiceProtection() {
 	}
 }
 
-// Fleet removes the MSI between package versions. Its removal must retain
-// disabled registrations, and a subsequent true uninstall must remove them.
-func (s *testUpgradeServiceProtectionSuite) TestFleetRemovalKeepsServices() {
-	vm := s.Env().RemoteHost
-	msi := s.installAgentPackage(vm, s.AgentPackage, windowsAgent.WithInstallOnly("1"))
-	defer func() {
-		// A failed assertion between Fleet removal and reinstall must not leave
-		// orphaned registrations that break a retry on the same VM.
-		if _, err := windowsAgent.GetDatadogAgentProductCode(vm); err != nil && len(s.captureProtectedServiceStartup()) != 0 {
-			s.Assert().NoError(windowsCommon.InstallMSI(vm, msi, `DD_INSTALL_ONLY=1`, filepath.Join(s.SessionOutputDir(), "cleanup-reinstall.log")))
-		}
-		s.cleanupAgent()
-	}()
-	product, err := windowsAgent.GetDatadogAgentProductCode(vm)
-	s.Require().NoError(err)
-
-	s.Require().NoError(windowsCommon.UninstallMSI(vm, product, "FLEET_INSTALL=1", filepath.Join(s.SessionOutputDir(), "fleet-uninstall.log")))
-	retained := s.captureProtectedServiceStartup()
-	s.Require().Len(retained, len(protectedServiceNames))
-	for name, setting := range retained {
-		s.Require().Equal(windowsCommon.SERVICE_DISABLED, setting.startType, "%s must remain disabled between Fleet packages", name)
-	}
-
-	s.Require().NoError(windowsCommon.InstallMSI(vm, msi, `DD_INSTALL_ONLY=1`, filepath.Join(s.SessionOutputDir(), "fleet-reinstall.log")))
-	s.assertServiceStartupDefaults()
-	s.Require().NoError(windowsCommon.StartService(vm, "datadogagent"))
-	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
-
-	s.Require().NoError(windowsCommon.UninstallMSI(vm, product, "FLEET_INSTALL=0", filepath.Join(s.SessionOutputDir(), "full-uninstall.log")))
-	s.Require().Empty(s.captureProtectedServiceStartup(), "true uninstall must delete retained service registrations")
-}
-
 func (s *baseAgentMSISuite) assertServiceStartupDefaults() {
 	actual := s.captureProtectedServiceStartup()
 	s.Require().Len(actual, len(protectedServiceNames))
