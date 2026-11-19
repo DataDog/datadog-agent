@@ -2,7 +2,7 @@
     "base_branch": "main",
     "current_milestone": "7.87.0",
     "dependencies": {
-        "INTEGRATIONS_CORE_VERSION": "d438710de2772c2a7eac48276fe39af3e7e32d62",
+        "INTEGRATIONS_CORE_VERSION": "aa2e053d828d4f940e428551bc24348aab82ddfb",
         "INTEGRATIONS_WHEELS_STORAGE": "stable",
         "OMNIBUS_RUBY_VERSION": "564a6f11686c655771da48765ae65a11c479d625",
         "SECURITY_AGENT_POLICIES_SHA256": "57ce0e30465068e2ead377612d72406ffed347cb80c3cd8cab46dd3ed8db5efe",
