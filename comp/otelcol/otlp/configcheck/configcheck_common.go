@@ -130,8 +130,9 @@ func ValidateDataPlaneProxy(cfg configmodel.Reader) error {
 		ErrDataPlaneProxyTLS, strings.Join(protocols, " and "), strings.Join(enabledDataPlaneProxySignals(cfg), " and "))
 }
 
-// IsTraceInternalReceiverEnabled reports whether the trace-agent should listen on the internal OTLP traces port. The
-// port stays closed when the proxy configuration is invalid, so OTLP traces cannot bypass the rejection.
+// IsTraceInternalReceiverEnabled reports whether the trace-agent should listen on the internal OTLP traces port. It
+// returns false when the proxy configuration is invalid, so OTLP traces cannot bypass the rejection. This only holds
+// when cfg has the same data_plane settings as the core Agent: a trace-agent configured without them keeps listening.
 func IsTraceInternalReceiverEnabled(cfg configmodel.Reader) bool {
 	return IsAgentPipelineEnabled(cfg) && ValidateDataPlaneProxy(cfg) == nil
 }
