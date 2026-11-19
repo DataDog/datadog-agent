@@ -217,7 +217,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			if !ok {
 				continue
 			}
-			tagInfos = append(tagInfos, c.tagEntity(workloadmeta.Event{
+			tagInfos = append(tagInfos, c.retagEntity(workloadmeta.Event{
 				Type:       workloadmeta.EventTypeSet,
 				Entity:     reader,
 				IsComplete: c.dependencies.isComplete(readerID),
@@ -242,6 +242,17 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 func (c *WorkloadMetaCollector) tagEntity(ev workloadmeta.Event) []*types.TagInfo {
 	c.store.startTracking()
 	tagInfos := c.handleSet(ev)
+	dependencies := c.store.stopTracking()
+	c.dependencies.replace(ev.Entity.GetID(), dependencies, ev.IsComplete)
+	return tagInfos
+}
+
+// retagEntity re-tags an entity after a change to an entity it depends on.
+// Unlike tagEntity it leaves the entity's children alone: only the entity's
+// own events can tell that a child is gone.
+func (c *WorkloadMetaCollector) retagEntity(ev workloadmeta.Event) []*types.TagInfo {
+	c.store.startTracking()
+	tagInfos := c.handleKind(ev)
 	dependencies := c.store.stopTracking()
 	c.dependencies.replace(ev.Entity.GetID(), dependencies, ev.IsComplete)
 	return tagInfos
@@ -944,7 +955,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 
 		tagList.AddLow(tags.EcsContainerName, taskContainer.Name)
 
-		containerComplete := c.entityCompleteness[container.EntityID]
+		containerComplete := c.trackedContainerCompleteness(container)
 
 		low, orch, high, standard := tagList.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
@@ -1924,7 +1935,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	containerAdapter := newResolvableAdapter(pod, container)
 	c.extractTagsFromJSONWithResolution(annotation, pod.Annotations, tagList, containerAdapter)
 
-	containerComplete := c.entityCompleteness[container.EntityID]
+	containerComplete := c.trackedContainerCompleteness(container)
 
 	low, orch, high, standard := tagList.Compute()
 	return &types.TagInfo{
@@ -1938,6 +1949,17 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 		StandardTags:         standard,
 		IsComplete:           containerComplete && podComplete,
 	}, nil
+}
+
+// trackedContainerCompleteness records a dependency on a container whose own
+// event hasn't been processed yet, so that the event re-tags the reader once
+// the container's completeness is known.
+func (c *WorkloadMetaCollector) trackedContainerCompleteness(container *workloadmeta.Container) bool {
+	isComplete, ok := c.entityCompleteness[container.EntityID]
+	if !ok {
+		c.store.track(workloadmeta.KindContainer, container.ID)
+	}
+	return isComplete
 }
 
 func (c *WorkloadMetaCollector) registerChild(parent, child workloadmeta.EntityID) {

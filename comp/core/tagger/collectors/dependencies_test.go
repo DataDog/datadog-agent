@@ -303,6 +303,63 @@ func TestContainerArrivingAfterItsPodRetagsThePod(t *testing.T) {
 	assert.Empty(t, h.collector.dependencies.readersOf(workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "ctr-a"}))
 }
 
+// A pod tagged before its container's event in a bundle computes the
+// container's tags before the container's completeness is known. The
+// container's event re-tags the pod, even without a scheduler event.
+func TestPodBeforeItsContainerInABundleTagsItComplete(t *testing.T) {
+	h := newDependencyTestHarness(t)
+	container := newContainer("ctr-a")
+	pod := newKueuePod("pod-a", "ctr-a", "")
+	h.store.Set(container)
+	h.store.Set(pod)
+
+	got := h.process(setEvent(pod), setEvent(container))
+
+	var fromPod *types.TagInfo
+	for _, tagInfo := range got {
+		if tagInfo.Source == podSource && tagInfo.EntityID == containerTaggerID("ctr-a") && !tagInfo.DeleteEntity {
+			fromPod = tagInfo
+		}
+	}
+	require.NotNil(t, fromPod)
+	assert.True(t, fromPod.IsComplete)
+	assert.Empty(t, h.collector.dependencies.readersOf(workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "ctr-a"}))
+}
+
+// After a partial unset, the store's pod can lack the containers that
+// workloadmeta's pre-removal event still has. A re-tag after a dependency
+// change must not expire the container tags that event keeps.
+func TestDependencyRetagKeepsChildrenAfterPartialUnset(t *testing.T) {
+	h := newDependencyTestHarness(t)
+	podID := workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-a"}
+	// The containers and the Workload annotation only come from the kubelet.
+	fromKubelet := newKueuePod("pod-a", "ctr-a", "job-a")
+	fromCluster := &workloadmeta.KubernetesPod{
+		EntityID:   podID,
+		EntityMeta: workloadmeta.EntityMeta{Name: "pod-a", Namespace: "default"},
+	}
+	h.add(newContainer("ctr-a"), newKueueWorkload("job-a", "a100"))
+	h.store.Notify([]workloadmeta.CollectorEvent{
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceNodeOrchestrator, Entity: fromKubelet},
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceClusterOrchestrator, Entity: fromCluster},
+	})
+	beforeRemoval, err := h.store.GetKubernetesPod(podID.ID)
+	require.NoError(t, err)
+	h.process(setEvent(beforeRemoval))
+
+	h.store.Notify([]workloadmeta.CollectorEvent{
+		{Type: workloadmeta.EventTypeUnset, Source: workloadmeta.SourceNodeOrchestrator, Entity: fromKubelet},
+	})
+	updated := newKueueWorkload("job-a", "h100")
+	h.store.Set(updated)
+	got := h.process(setEvent(beforeRemoval.DeepCopy()), setEvent(updated))
+
+	for _, tagInfo := range got {
+		assert.False(t, tagInfo.Source == podSource && tagInfo.EntityID == containerTaggerID("ctr-a") && tagInfo.DeleteEntity,
+			"the container's tags from the pod were expired")
+	}
+}
+
 type dependencyTestHarness struct {
 	store     workloadmetamock.Mock
 	collector *WorkloadMetaCollector
