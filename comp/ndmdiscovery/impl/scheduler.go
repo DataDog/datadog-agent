@@ -24,8 +24,6 @@ var (
 
 // schedulerOptions are the agent-wide settings the scheduler needs.
 type schedulerOptions struct {
-	// Workers is the global sweep worker budget, shared by every range.
-	Workers      int64
 	MaxAddresses int
 	Defaults     rangeDefaults
 	// Credentials resolves a range's credential ids once per cycle.
@@ -67,13 +65,6 @@ type scheduler struct {
 }
 
 func newScheduler(sw *sweeper, logger log.Component, opts schedulerOptions) *scheduler {
-	if opts.Workers < 1 {
-		opts.Workers = 1
-	}
-	// A share larger than the semaphore could never be acquired.
-	if sw != nil && opts.Workers > sw.budget {
-		opts.Workers = sw.budget
-	}
 	return &scheduler{
 		sweeper: sw,
 		log:     logger,
@@ -127,22 +118,6 @@ func (s *scheduler) count() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.ranges)
-}
-
-// workerShare is this dispatch's slice of the global budget, recomputed per dispatch.
-func (s *scheduler) workerShare() int64 {
-	s.mu.Lock()
-	active := int64(len(s.ranges))
-	s.mu.Unlock()
-
-	if active < 1 {
-		active = 1
-	}
-	share := s.opts.Workers / active
-	if share < 1 {
-		share = 1
-	}
-	return share
 }
 
 // set adds or replaces a range. A range that is too large is rejected.
@@ -319,7 +294,6 @@ func (s *scheduler) runCycle(ctx context.Context, sr *scheduledRange, interval t
 		Options:  opts,
 		Plan:     plan,
 		Digest:   rangeDigest(cfg, opts.Fingerprints()),
-		Workers:  s.workerShare(),
 		Interval: interval,
 		Fresh:    fresh,
 	}
