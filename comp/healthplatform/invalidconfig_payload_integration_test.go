@@ -19,6 +19,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -148,6 +149,9 @@ func scenarioCanaries(t *testing.T, expectedReport string) []noIssueCanary {
 // invalidConfigLeakMarkers must never appear in a payload: the configured values, URL credentials and secret handles
 var invalidConfigLeakMarkers = []string{"RAW_", "ENC["}
 
+// resolvedSecretValues matches the marker-bearing parts of the secret values of secrets.json, e.g. a URL password
+var resolvedSecretValues = regexp.MustCompile(`RAW_SECRET_[A-Za-z0-9_]+`)
+
 // resolvedSecretMarker is held by the secret values of secrets.json the payloads must not leak: the scenarios using
 // secrets check it reached the loaded configuration, so the leak check has something to catch
 const resolvedSecretMarker = "RAW_SECRET_"
@@ -264,8 +268,8 @@ func runInvalidConfigScenario(t *testing.T, name string) sysprobeconfig.Componen
 	agentParams.ConfFilePath = datadogYAML
 
 	secretResolver := secretsmock.New(t)
+	secretValues := map[string]string{}
 	if strings.Contains(scenarioConfig, "ENC[") {
-		secretValues := map[string]string{}
 		require.NoError(t, json.Unmarshal([]byte(readScenarioFile(t, invalidConfigSecrets, true)), &secretValues))
 		secretResolver.SetSecrets(secretValues)
 	}
@@ -305,6 +309,12 @@ func runInvalidConfigScenario(t *testing.T, name string) sysprobeconfig.Componen
 		require.NoError(t, err)
 		assert.NotContains(t, string(settings), "ENC[", "a secret handle was not resolved")
 		assert.Contains(t, string(settings), resolvedSecretMarker, "no secret value holding %q reached the configuration", resolvedSecretMarker)
+		// every marker-bearing secret value reached the configuration, so the leak check covers each of them
+		for handle, value := range secretValues {
+			for _, resolved := range resolvedSecretValues.FindAllString(value, -1) {
+				assert.Contains(t, string(settings), resolved, "the value of the %q secret didn't reach the configuration", handle)
+			}
+		}
 	}
 
 	if expected == "" {
