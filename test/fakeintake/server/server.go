@@ -71,6 +71,7 @@ type Server struct {
 	clock              clock.Clock
 	retention          time.Duration
 	shutdown           chan struct{}
+	served             chan struct{}
 	dddevForward       bool
 	forwardEndpoint    string
 	logForwardEndpoint string
@@ -309,6 +310,7 @@ func (fi *Server) Start() {
 		return
 	}
 	fi.shutdown = make(chan struct{})
+	fi.served = make(chan struct{})
 
 	go fi.listenRoutine()
 	go fi.cleanUpPayloadsRoutine()
@@ -337,16 +339,21 @@ func (fi *Server) Stop() error {
 	if !fi.IsRunning() {
 		return errors.New("server not running")
 	}
-	defer close(fi.shutdown)
 	defer fi.store.Close()
 	err := fi.server.Shutdown(context.Background())
+	// stop the background routines, including a listen routine still notifying its readiness
+	close(fi.shutdown)
 	if err != nil {
 		return err
 	}
+	// Serve may only start after Shutdown, as readiness is notified before: wait for the listen routine to return, as
+	// it closes the listener, so the listener is closed once Stop returns
+	<-fi.served
 	return nil
 }
 
 func (fi *Server) listenRoutine() {
+	defer close(fi.served)
 	listener, url := fi.listener, fi.listenerURL
 	if listener == nil {
 		// explicitly creating a listener to get the actual port
@@ -368,7 +375,13 @@ func (fi *Server) listenRoutine() {
 	fi.setURL(url)
 	// notify server is ready, if anybody is listening
 	if fi.ready != nil {
-		fi.ready <- true
+		select {
+		case fi.ready <- true:
+		case <-fi.shutdown:
+			// stopped before its readiness was read: Serve won't close the listener
+			_ = listener.Close()
+			return
+		}
 	}
 	// server.Serve blocks and listens to requests
 	err := fi.server.Serve(listener)
