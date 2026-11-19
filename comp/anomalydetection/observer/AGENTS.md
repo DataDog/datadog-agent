@@ -61,14 +61,14 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Extractor | `log_metrics_extractor` | on |
 | Extractor | `log_pattern_extractor` | on |
 | Extractor | `connection_error_extractor` | off |
-| Extractor | `log_error_count_extractor` | off |
+| Extractor | `log_error_count_extractor` | with `log_failure` |
 | Detector | `bocpd` | on |
 | Detector | `log_failure` | off |
 | Detector | `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
 | Correlator | `time_cluster` | off |
 | Correlator | `anomaly_scorer` | off |
 
-`log_failure` and its required `log_error_count_extractor` are described in
+`log_failure` and the `log_error_count_extractor` it runs are described in
 [direct-failure.md](direct-failure.md).
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.

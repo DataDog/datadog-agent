@@ -77,7 +77,17 @@ func hasLogErrorCountExtractor(extractors []observerdef.LogMetricsExtractor) boo
 
 // errorLevelHint cheaply rejects lines that cannot declare an error level, so
 // routine output below a source's minimum skips the full parse.
-var errorLevelHint = regexp.MustCompile(`(?i)err|crit|fatal|panic|alert|emerg|"level"\s*:\s*[56]0|^\s*[EF]\d{4} `)
+var errorLevelHint = regexp.MustCompile(`(?i)err|crit|fatal|panic|alert|emerg|"(?:` + jsonLevelKeyPattern() + `)"\s*:\s*[56]0|^\s*[EF]\d{4} `)
+
+// jsonLevelKeyPattern matches every key jsonLogLevel reads, so numeric levels
+// under any of them reach the full parse.
+func jsonLevelKeyPattern() string {
+	quoted := make([]string, len(jsonLevelKeys))
+	for i, key := range jsonLevelKeys {
+		quoted[i] = regexp.QuoteMeta(key)
+	}
+	return strings.Join(quoted, "|")
+}
 
 // declaredErrorStatus raises a below-minimum log to its declared application
 // level when that level is ERROR or higher. Other logs keep their transport
@@ -122,7 +132,8 @@ var applicationLevelPattern = regexp.MustCompile(`(?i)(?:^|[\s\]])(TRACE|DEBUG|L
 // Header formats are matched only near the start of a line, where loggers put
 // the level: klog (`E1116 10:00:00.000000`), logfmt (`level=error`), bracketed
 // (`[ERROR]`) and a bare upper-case level after a timestamp (`... ERROR [main]`).
-// The leftmost match wins, so a level field precedes message text.
+// The earliest match across these and applicationLevelPattern wins, so the
+// application's leading level takes precedence over level words in the message.
 var (
 	klogLevelPattern   = regexp.MustCompile(`^([IWEF])\d{4} \d{2}:\d{2}:\d{2}\.\d+ `)
 	headerLevelPattern = regexp.MustCompile(`(?:^|[\s\[(|])(?:(?i:level|lvl|severity|loglevel)=["']?([A-Za-z]+)|\[((?i:TRACE|DEBUG|INFO|NOTICE|WARNING|WARN|ERROR|ERR|CRITICAL|CRIT|FATAL|PANIC))\]|(TRACE|DEBUG|INFO|NOTICE|WARNING|WARN|ERROR|CRITICAL|FATAL|PANIC)(?:\s|$))`)
@@ -151,25 +162,38 @@ func applicationLogSeverity(log observerdef.LogView) (string, bool) {
 	if match := klogLevelPattern.FindStringSubmatch(content); match != nil {
 		return klogLevels[match[1]], true
 	}
-	header := content[:min(len(content), applicationLevelHeaderBytes)]
-	if match := headerLevelPattern.FindStringSubmatch(header); match != nil {
-		for _, value := range match[1:] {
-			if value != "" {
-				if level, ok := declaredLogLevel(value); ok {
-					return level, true
-				}
-				break
-			}
-		}
-	}
-	if match := applicationLevelPattern.FindStringSubmatch(content); len(match) == 2 {
-		return declaredLogLevel(match[1])
+	if level, ok := earliestTextLevel(content); ok {
+		return level, true
 	}
 	// The Agent's own logger supplies application severity directly.
 	if log.GetSource() == "datadog-agent" {
 		return declaredLogLevel(log.GetStatus())
 	}
 	return "", false
+}
+
+// earliestTextLevel returns the recognized level whose match starts first among
+// the header formats (searched near the start of the line) and the `LEVEL:` form.
+func earliestTextLevel(content string) (string, bool) {
+	start, level := -1, ""
+	header := content[:min(len(content), applicationLevelHeaderBytes)]
+	if loc := headerLevelPattern.FindStringSubmatchIndex(header); loc != nil {
+		for group := 1; 2*group+1 < len(loc); group++ {
+			if loc[2*group] < 0 {
+				continue
+			}
+			if declared, ok := declaredLogLevel(header[loc[2*group]:loc[2*group+1]]); ok {
+				start, level = loc[0], declared
+			}
+			break
+		}
+	}
+	if loc := applicationLevelPattern.FindStringSubmatchIndex(content); loc != nil && (start < 0 || loc[0] < start) {
+		if declared, ok := declaredLogLevel(content[loc[2]:loc[3]]); ok {
+			start, level = loc[0], declared
+		}
+	}
+	return level, start >= 0
 }
 
 // jsonLogLevel reads the first recognized level key, ignoring key case.

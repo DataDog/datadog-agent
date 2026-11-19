@@ -109,34 +109,6 @@ func TestLogErrorCountDoesNotInheritPatternIdleZeros(t *testing.T) {
 	require.Greater(t, len(patterns.Points), 1, "existing pattern idle-zero behavior is preserved")
 }
 
-func TestLogErrorCountWarmsExistingBOCPD(t *testing.T) {
-	detector := NewBOCPDDetector(DefaultBOCPDConfig())
-	e := newErrorCountTestEngine(detector)
-	for sec := int64(100); sec < 400; sec += 5 {
-		e.IngestLog("logs", &logObs{source: "datadog-agent", timestampMs: sec * 1000, status: "info", tags: []string{"service:api"}})
-		e.Advance(sec + 4)
-	}
-	require.Len(t, detector.series, 1, "zeros must warm exactly one average/count-value detector")
-	var warmed *bocpdSeriesState
-	for _, state := range detector.series {
-		warmed = state
-		require.True(t, state.initialized)
-	}
-	var anomalyCount int
-	for sec := int64(400); sec < 450; sec += 5 {
-		for i := 0; i < 10; i++ {
-			e.IngestLog("logs", &logObs{source: "datadog-agent", timestampMs: sec * 1000, status: "error",
-				content: fmt.Sprintf("never seen failure %d", i), tags: []string{"service:api"}})
-		}
-		anomalyCount += len(e.Advance(sec + 4).anomalies)
-	}
-	require.Len(t, detector.series, 1)
-	for _, state := range detector.series {
-		require.Same(t, warmed, state)
-	}
-	require.Positive(t, anomalyCount, "the ordinary detector must recognize the zero-to-errors change")
-}
-
 func TestLogErrorCountPendingBoundsAndReset(t *testing.T) {
 	e := newErrorCountTestEngine()
 	telComp := telemetryimpl.NewMock(t)
@@ -161,28 +133,30 @@ func TestLogErrorCountPendingBoundsAndReset(t *testing.T) {
 	require.NotNil(t, e.errorCounts)
 }
 
-func TestLogErrorCountCatalogOptIn(t *testing.T) {
+func TestLogErrorCountFollowsLogFailure(t *testing.T) {
 	_, _, _, extractors, _, err := defaultCatalog().Instantiate(ComponentSettings{})
 	require.NoError(t, err)
 	require.Nil(t, errorCountBucketizer(extractors))
-	cfg := configmock.NewFromYAML(t, `
-anomaly_detection:
-  detectors:
-    log_error_count_extractor:
-      enabled: true
-`)
 	catalog := defaultCatalog()
-	settings := settingsFromAgentConfig(catalog, cfg)
-	_, _, _, extractors, _, err = catalog.Instantiate(settings)
-	require.NoError(t, err)
-	require.NotNil(t, errorCountBucketizer(extractors))
+	for _, tc := range []struct {
+		yaml string
+		want bool
+	}{
+		{"log_error_count_extractor:\n      enabled: true", false},
+		{"log_failure:\n      enabled: true\n    log_error_count_extractor:\n      enabled: false", true},
+	} {
+		cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  detectors:\n    "+tc.yaml+"\n")
+		_, _, _, extractors, _, err := catalog.Instantiate(settingsFromAgentConfig(catalog, cfg))
+		require.NoError(t, err, "an explicit extractor toggle never blocks startup")
+		require.Equal(t, tc.want, errorCountBucketizer(extractors) != nil, "the extractor runs exactly when log_failure does")
+	}
 }
 
-func TestLogErrorCountDoesNotActivateWithoutConsumer(t *testing.T) {
+func TestLogFailureDoesNotActivateWithoutConsumer(t *testing.T) {
 	cfg := configmock.NewFromYAML(t, `
 anomaly_detection:
   detectors:
-    log_error_count_extractor:
+    log_failure:
       enabled: true
 `)
 	telComp := telemetryimpl.NewMock(t)
@@ -273,6 +247,9 @@ func TestDeclaredErrorAdmissionRequiresErrorCountExtraction(t *testing.T) {
 	require.Len(t, logsCh, 1)
 	admitted := (<-logsCh).log
 	require.Equal(t, "error", admitted.status, "admission and rate limiting use the declared level")
+	observe(`{"severity":50,"msg":"write failed"}`)
+	require.Len(t, logsCh, 1, "numeric levels under any supported key pass the pre-check")
+	require.Equal(t, "error", (<-logsCh).log.status)
 }
 
 func TestLogErrorCountHostEnvironmentAndIngressIsolation(t *testing.T) {

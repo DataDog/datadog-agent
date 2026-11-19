@@ -267,6 +267,10 @@ type Anomaly struct {
 	MetricKind   MetricKind // Registration kind; legacy detectors leave UNSET.
 	// Evidence marks qualified failure evidence independently of statistical confidence.
 	Evidence EvidenceKind
+	// FailureWeight is the minimum scorer weight while this failure evidence is
+	// fresh. Failure detectors set it from their own configuration; zero leaves
+	// the ordinary contribution.
+	FailureWeight float64
 	// Context carries optional enrichment about the originating signal, such as
 	// a synthesized pattern and example source data.
 	Context   *MetricContext
@@ -466,10 +470,6 @@ type Correlator interface {
 type AnomalyScorerConfig struct {
 	// Alpha is the EWMA smoothing factor (0 < α ≤ 1). Lower = smoother.
 	Alpha float64 `json:"alpha"`
-	// FailureWeight sets a minimum scorer input while failure evidence is in the
-	// window. Repeated evidence refreshes one floor; it never adds one
-	// contribution per log, series or detector. Zero disables it.
-	FailureWeight float64 `json:"failure_weight"`
 	// SaturationK is the saturation constant k: saturation = 1−exp(−n/k).
 	// Calibrated against the window count (unique anomalous series), not per-second count.
 	SaturationK float64 `json:"saturation_k"`

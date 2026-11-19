@@ -7,36 +7,65 @@ package observerimpl
 
 import (
 	"errors"
+	"math"
 	"sort"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // LogFailureDetectorName identifies the experimental history-free error rule.
 const LogFailureDetectorName = "log_failure"
 
-// LogFailureConfig exposes qualification thresholds to replay experiments.
-// Bucket width and freshness remain fixed at five seconds.
+// The qualification rule is fixed: at least logFailureMinErrors errors across
+// at least logFailureMinIntervals five-second intervals in the last
+// logFailureWindowSeconds.
+const (
+	logFailureMinErrors           = 3
+	logFailureMinIntervals        = 2
+	logFailureWindowSeconds int64 = 30
+)
+
+// LogFailureConfig holds the detector's scorer weight.
 type LogFailureConfig struct {
-	MinErrors     int   `json:"min_errors"`
-	MinIntervals  int   `json:"min_intervals"`
-	WindowSeconds int64 `json:"window_seconds"`
+	FailureWeight float64 `json:"failure_weight"`
 }
+
+const (
+	// defaultLogFailureWeight floors fresh evidence above the scorer's High
+	// threshold: 3 × (1 − e^(−1/5)) ≈ 0.54 > 0.40.
+	defaultLogFailureWeight = 3.0
+	maxLogFailureWeight     = 6.0
+)
 
 // DefaultLogFailureConfig preserves the evaluated repeated-error rule.
 func DefaultLogFailureConfig() LogFailureConfig {
-	return LogFailureConfig{MinErrors: 3, MinIntervals: 2, WindowSeconds: 30}
+	return LogFailureConfig{FailureWeight: defaultLogFailureWeight}
+}
+
+func validLogFailureWeight(weight float64) bool {
+	return !math.IsNaN(weight) && weight >= 0 && weight <= maxLogFailureWeight
+}
+
+// readLogFailureConfig reads the Agent's failure_weight. An invalid value falls
+// back to the default with a warning rather than blocking Observer startup.
+func readLogFailureConfig(reader ConfigReader, prefix string) any {
+	cfg := DefaultLogFailureConfig()
+	key := prefix + "failure_weight"
+	if !reader.IsConfigured(key) {
+		return cfg
+	}
+	if weight := reader.GetFloat64(key); validLogFailureWeight(weight) {
+		cfg.FailureWeight = weight
+	} else {
+		logging.Warnf("log_failure: %s must be in [0, %g], got %g — using default %g", key, maxLogFailureWeight, weight, defaultLogFailureWeight)
+	}
+	return cfg
 }
 
 func (cfg LogFailureConfig) validate() error {
-	if cfg.MinErrors < 1 {
-		return errors.New("log_failure min_errors must be positive")
-	}
-	if cfg.WindowSeconds < defaultLogCountBucketSeconds || cfg.WindowSeconds > 300 || cfg.WindowSeconds%defaultLogCountBucketSeconds != 0 {
-		return errors.New("log_failure window_seconds must be a multiple of five between 5 and 300")
-	}
-	if cfg.MinIntervals < 1 || int64(cfg.MinIntervals) > cfg.WindowSeconds/defaultLogCountBucketSeconds {
-		return errors.New("log_failure min_intervals must fit within the five-second intervals in the window")
+	if !validLogFailureWeight(cfg.FailureWeight) {
+		return errors.New("log_failure failure_weight must be between 0 and 6")
 	}
 	return nil
 }
@@ -66,7 +95,7 @@ func newLogFailureDetector(cfg LogFailureConfig) *LogFailureDetector {
 }
 
 func (d *LogFailureDetector) DetectorPointWindow() observer.DetectorPointWindow {
-	return observer.DetectorPointWindow{MinPoints: d.config.MinIntervals, MaxPoints: int(d.config.WindowSeconds / defaultLogCountBucketSeconds)}
+	return observer.DetectorPointWindow{MinPoints: logFailureMinIntervals, MaxPoints: int(logFailureWindowSeconds / defaultLogCountBucketSeconds)}
 }
 func (*LogFailureDetector) Name() string  { return LogFailureDetectorName }
 func (d *LogFailureDetector) Ready() bool { return d.ready }
@@ -121,7 +150,7 @@ func (d *LogFailureDetector) Detect(storage observer.StorageReader, dataTime int
 		// visible long after it completed. Judge each new bucket by the window
 		// ending at that bucket: late analysis neither drops nor re-reports it,
 		// and zero counts or old buckets cannot renew evidence.
-		_, d.points = directWindow(storage, meta.Ref, newAfter-d.config.WindowSeconds, dataTime, observer.AggregateAverage, d.points)
+		_, d.points = directWindow(storage, meta.Ref, newAfter-logFailureWindowSeconds, dataTime, observer.AggregateAverage, d.points)
 		latest, total, ok := d.newestQualifiedBucket(d.points, newAfter)
 		if !ok {
 			continue
@@ -132,11 +161,11 @@ func (d *LogFailureDetector) Detect(storage observer.StorageReader, dataTime int
 			Type:      observer.AnomalyTypeLog,
 			Source:    observer.SeriesDescriptor{Namespace: meta.Namespace, Name: meta.Name, Host: meta.Host, Tags: meta.Tags, Aggregate: observer.AggregateAverage},
 			SourceRef: &ref, DetectorName: d.Name(), Timestamp: latest,
-			Evidence: observer.EvidenceFailure,
+			Evidence: observer.EvidenceFailure, FailureWeight: d.config.FailureWeight,
 			DebugInfo: &observer.AnomalyDebugInfo{
-				CurrentValue: total, Threshold: float64(d.config.MinErrors),
-				FailureRule: "repeated_application_errors", FailureWindowSeconds: d.config.WindowSeconds,
-				FailureMinIntervals: d.config.MinIntervals,
+				CurrentValue: total, Threshold: logFailureMinErrors,
+				FailureRule: "repeated_application_errors", FailureWindowSeconds: logFailureWindowSeconds,
+				FailureMinIntervals: logFailureMinIntervals,
 			},
 		})
 	}
@@ -154,10 +183,10 @@ func (d *LogFailureDetector) newestQualifiedBucket(points []observer.Point, newA
 		if !(candidate.Value > 0) {
 			continue
 		}
-		windowStart := candidate.Timestamp - d.config.WindowSeconds
+		windowStart := candidate.Timestamp - logFailureWindowSeconds
 		first := sort.Search(i+1, func(j int) bool { return points[j].Timestamp > windowStart })
 		total, occupied, _ := countFailureWindow(points[first:i+1], defaultLogCountBucketSeconds)
-		if total >= float64(d.config.MinErrors) && occupied >= d.config.MinIntervals {
+		if total >= logFailureMinErrors && occupied >= logFailureMinIntervals {
 			return candidate.Timestamp, total, true
 		}
 	}

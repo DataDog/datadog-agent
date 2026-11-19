@@ -5406,13 +5406,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-          failure_weight:
-            node_type: setting
-            type: number
-            default: 3
-            description: |
-              Minimum scorer weight while failure evidence (for example from log_failure) is in the scorer window.
-              The default floors fresh failure evidence above the High threshold. 0 disables it; maximum 10.
           high_threshold:
             node_type: setting
             type: number
@@ -5567,23 +5560,18 @@ properties:
                 type: boolean
                 default: false
                 description: |
-                  Detect repeated application errors without statistical warmup.
-                  Requires three errors across two five-second intervals within thirty seconds.
-                  Enables error-count extraction unless explicitly disabled. Does not activate Observer by itself.
-          log_error_count_extractor:
-            node_type: section
-            type: object
-            properties:
-              enabled:
+                  Detect repeated application errors without statistical warmup: three errors across two
+                  five-second intervals within thirty seconds, per host, service, environment and Observer input.
+                  Errors are levels the application declares (for example a JSON level field or a leading ERROR).
+                  While enabled, logs below an input's min_severity are still admitted when they declare ERROR or higher.
+                  Does not activate Observer by itself.
+              failure_weight:
                 node_type: setting
-                type: boolean
-                default: false
+                type: number
+                default: 3
                 description: |
-                  Count accepted error-or-higher logs per host, service, environment and Observer input.
-                  Counts use five-second intervals independently of pattern time buckets.
-                  Intervals with accepted non-error logs contribute zero; intervals without logs are omitted.
-                  Logs below an input's min_severity are admitted when the application declares ERROR or higher.
-                  To build zero-error history from INFO-only traffic, configure that input's min_severity to info.
+                  Minimum anomaly-scorer weight while this detector's evidence is fresh. The default lets
+                  sustained repeated errors reach High on their own. 0 gives the ordinary contribution; maximum 6.
           log_pattern_extractor:
             node_type: section
             type: object

@@ -42,6 +42,9 @@ func TestApplicationSeverityIsNotTransportSeverity(t *testing.T) {
 		{`E1116 10:00:00.123456       1 controller.go:42] sync failed`, "info", "error", true},
 		{`I1116 10:00:00.123456       1 controller.go:42] synced`, "error", "info", true},
 		{`retrying after error in upstream call`, "error", "", false},
+		{`INFO: received ERROR response from upstream`, "error", "info", true},
+		{`ERROR: retrying at INFO level`, "info", "error", true},
+		{`{"severity":50,"msg":"write failed"}`, "info", "error", true},
 	} {
 		t.Run(tc.content, func(t *testing.T) {
 			got, known := applicationLogSeverity(&logObs{content: tc.content, status: tc.status})
@@ -68,6 +71,7 @@ func TestLogFailureColdStartRepetitionFreshnessAndRearm(t *testing.T) {
 	a := e.Advance(109).anomalies
 	require.Len(t, a, 1)
 	require.Equal(t, observer.EvidenceFailure, a[0].Evidence)
+	require.Equal(t, defaultLogFailureWeight, a[0].FailureWeight, "evidence carries the detector's scorer weight")
 	require.NotNil(t, a[0].SourceRef)
 	require.Empty(t, e.Advance(110).anomalies, "no renewal without fresh errors")
 	ingest(111, 1)
@@ -129,8 +133,8 @@ func TestLogFailureExperimentConfig(t *testing.T) {
 				want LogFailureConfig
 			}{
 				{`{"enabled":true}`, DefaultLogFailureConfig()},
-				{`{"enabled":true,"min_errors":5}`, LogFailureConfig{MinErrors: 5, MinIntervals: 2, WindowSeconds: 30}},
-				{`{"enabled":true,"min_errors":4,"min_intervals":3,"window_seconds":15}`, LogFailureConfig{MinErrors: 4, MinIntervals: 3, WindowSeconds: 15}},
+				{`{"enabled":true,"failure_weight":0}`, LogFailureConfig{FailureWeight: 0}},
+				{`{"enabled":true,"failure_weight":6}`, LogFailureConfig{FailureWeight: 6}},
 			} {
 				settings, err := parse(map[string]json.RawMessage{LogFailureDetectorName: json.RawMessage(tc.raw)})
 				require.NoError(t, err)
@@ -141,22 +145,29 @@ func TestLogFailureExperimentConfig(t *testing.T) {
 			}
 		})
 	}
-	// Agent settings continue to use the evaluated rule without new tuning keys.
-	catalog := defaultCatalog()
-	_, _, _, _, components, err := catalog.Instantiate(settingsFromAgentConfig(catalog, configmock.New(t)))
-	require.NoError(t, err)
-	require.Equal(t, DefaultLogFailureConfig(), components[LogFailureDetectorName].instance.(*LogFailureDetector).config)
 	for _, raw := range []string{
-		`{"min_errors":0}`, `{"min_errors":-1}`, `{"min_errors":1.5}`, `{"min_errors":"3"}`, `{"min_errors":null}`,
-		`{"min_intervals":0}`, `{"min_intervals":7}`, `{"window_seconds":0}`, `{"window_seconds":31}`, `{"window_seconds":305}`,
-		`{"min_error":3}`, `{"bucket_seconds":10}`, `null`,
+		`{"failure_weight":-1}`, `{"failure_weight":6.5}`, `{"failure_weight":"3"}`, `{"failure_weight":null}`, `null`,
+		`{"min_errors":3}`, `{"window_seconds":30}`,
 	} {
 		t.Run(raw, func(t *testing.T) {
 			_, err := ParseSettingsFromJSON(map[string]json.RawMessage{LogFailureDetectorName: json.RawMessage(raw)})
-			require.Error(t, err)
+			require.Error(t, err, "invalid weights and the fixed thresholds are rejected")
 		})
 	}
-	_, _, _, _, _, err = catalog.Instantiate(ComponentSettings{configs: map[string]any{LogFailureDetectorName: LogFailureConfig{}}})
+	catalog := defaultCatalog()
+	for _, tc := range []struct {
+		yaml string
+		want float64
+	}{
+		{"enabled: true", defaultLogFailureWeight}, {"failure_weight: 6", 6}, {"failure_weight: 0", 0},
+		{"failure_weight: -1", defaultLogFailureWeight}, {"failure_weight: 6.5", defaultLogFailureWeight},
+	} {
+		cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  detectors:\n    log_failure:\n      "+tc.yaml+"\n")
+		_, _, _, _, components, err := catalog.Instantiate(settingsFromAgentConfig(catalog, cfg))
+		require.NoError(t, err, "an invalid Agent weight falls back instead of blocking startup")
+		require.Equal(t, tc.want, components[LogFailureDetectorName].instance.(*LogFailureDetector).config.FailureWeight, tc.yaml)
+	}
+	_, _, _, _, _, err := catalog.Instantiate(ComponentSettings{configs: map[string]any{LogFailureDetectorName: LogFailureConfig{FailureWeight: 7}}})
 	require.Error(t, err, "programmatic settings also validate before constructing the detector")
 }
 
@@ -177,67 +188,9 @@ anomaly_detection:
 		require.NotContains(t, settings.Enabled, LogErrorCountExtractorName, "dependency resolution must not mutate caller settings")
 	}
 	settings.Enabled[LogErrorCountExtractorName] = false
-	_, _, _, _, _, err := catalog.Instantiate(settings)
-	require.ErrorContains(t, err, "explicit disable")
-}
-
-func TestLogFailureConfiguredQualificationWindowAndReset(t *testing.T) {
-	cfg := LogFailureConfig{MinErrors: 4, MinIntervals: 3, WindowSeconds: 15}
-	d := newLogFailureDetector(cfg)
-	e := newErrorCountTestEngine(d)
-	for _, step := range []struct {
-		sec    int64
-		errors int
-		want   int
-	}{
-		{100, 3, 0},
-		{105, 1, 0}, // Enough errors, but only two intervals.
-		{110, 1, 1}, // Five errors across three intervals qualify.
-		{115, 1, 0}, // The first interval expires; three errors remain.
-	} {
-		for i := 0; i < step.errors; i++ {
-			e.IngestLog("logs", &logObs{timestampMs: step.sec * 1000, content: `{"level":"ERROR"}`, tags: []string{"service:api"}})
-		}
-		anomalies := e.Advance(step.sec + 4).anomalies
-		require.Len(t, anomalies, step.want)
-		if len(anomalies) > 0 {
-			require.Equal(t, float64(5), anomalies[0].DebugInfo.CurrentValue)
-			require.Equal(t, float64(4), anomalies[0].DebugInfo.Threshold)
-			require.Equal(t, "repeated_application_errors", anomalies[0].DebugInfo.FailureRule)
-			_, description := observer.FormatAnomaly(anomalies[0])
-			require.Contains(t, description, "at least 3 five-second intervals in the last 15 seconds")
-		}
-	}
-	d.Reset()
-	require.Equal(t, cfg, d.config)
-	require.Zero(t, d.checkedUpTo)
-	require.Empty(t, d.lastRead)
-	require.False(t, d.Ready())
-	require.Empty(t, d.Detect(e.storage, 119, observer.DetectionFilter{}).Anomalies, "reset must retain configured thresholds")
-}
-
-func TestLogFailureConfiguredWindowStorageRetention(t *testing.T) {
-	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
-		"bocpd":                json.RawMessage(`{"enabled":false}`),
-		LogFailureDetectorName: json.RawMessage(`{"enabled":true,"min_errors":60,"min_intervals":60,"window_seconds":300}`),
-	})
+	_, _, _, extractors, _, err := catalog.Instantiate(settings)
 	require.NoError(t, err)
-	storageCfg, err := StorageConfigForComponents(settings)
-	require.NoError(t, err)
-	require.Equal(t, 60, storageCfg.MaxPointsPerSeries)
-	detectors, _, _, extractors, _, err := defaultCatalog().Instantiate(settings)
-	require.NoError(t, err)
-	e := mustNewEngine(engineConfig{storage: newTimeSeriesStorageWith(storageCfg), detectors: detectors, extractors: extractors})
-	for i := 0; i < 60; i++ {
-		sec := int64(100 + i*5)
-		e.IngestLog("logs", &logObs{timestampMs: sec * 1000, content: `{"level":"ERROR"}`})
-		anomalies := e.Advance(sec + 4).anomalies
-		if i < 59 {
-			require.Empty(t, anomalies)
-		} else {
-			require.Len(t, anomalies, 1, "configured window must remain available under bounded production storage")
-		}
-	}
+	require.NotNil(t, errorCountBucketizer(extractors), "an explicit extractor disable is ignored")
 }
 
 func TestLogFailureStorageReplayParityAndAggregationScope(t *testing.T) {

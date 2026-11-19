@@ -6,7 +6,7 @@ Failure evidence describes the signal; it does not establish urgent business imp
 
 ## Qualification and renewal
 
-The default rule requires at least three accepted ERROR-or-higher logs across
+The fixed rule requires at least three accepted ERROR-or-higher logs across
 two occupied five-second intervals in the last thirty seconds. It pools patterns
 and containers within each host, service, environment and Observer input.
 
@@ -37,11 +37,13 @@ Statistical detectors exclude these error-count series before creating models
 when `log_failure` is enabled. Other log-derived and native metric detection
 continues normally, including the kind-routed metric pipeline. Statistical
 baseline qualification and noisy-series muting do not suppress direct evidence.
-Emissions carry `EvidenceFailure`. While failure evidence is in the scorer
-window, `anomaly_detection.anomaly_scorer.failure_weight` (default 3, maximum
-10, 0 disables) floors the scorer input at `weight × (1 − e^(−1/k))`. The default
-floor (≈0.54) exceeds the High threshold, so sustained failure evidence can reach High
-on its own. The floor does not grow with more failing
+Emissions carry `EvidenceFailure` and the detector's `failure_weight`
+(`anomaly_detection.detectors.log_failure.failure_weight`, default 3, maximum 6).
+While a detector's failure evidence is in the scorer window, the scorer floors its
+input at `weight × (1 − e^(−1/k))`; with several failure detectors, the largest
+fresh weight applies. The default floor (≈0.54) exceeds the High threshold, so
+sustained failure evidence can reach High on its own; 0 gives the ordinary
+contribution. The floor does not grow with more failing
 series. Repeated emissions refresh the same contributor rather than adding one per log.
 An open scorer episode lists each failure series once, so repeats do not crowd
 other detectors out of its capped member list.
@@ -58,12 +60,12 @@ anomaly_detection:
       enabled: true
 ```
 
-The detector is disabled by default. Enabling it also enables the required
-extractor, but does not activate Observer without an existing consumer or the
-scorer's dry-run consumer. Explicitly disabling the required extractor is an error.
+The detector is disabled by default. The error-count extractor runs exactly when
+the detector is enabled and has no setting of its own. Enabling the detector does
+not activate Observer without an existing consumer or the scorer's dry-run consumer.
 
 Ingress severity gates, processing rules and rate limits apply before extraction.
-Container stdout is transported as info. While error-count extraction is
+Container stdout is transported as info. While the detector is
 enabled, a log below its input's `min_severity` is still admitted when the
 application declares ERROR or higher, and is then rate limited at that level.
 Declared non-error logs stay subject to the minimum, so zero-error history from
@@ -73,25 +75,12 @@ application rates. Recurring database or instrumentation errors may qualify
 during otherwise healthy workload periods. Review severity timelines and
 healthy-workload results before enabling this path broadly.
 
-## Replay tuning
+## Replay configuration
 
-The testbench's existing `--config` JSON supports bounded experiments:
+The testbench `--config` JSON accepts the same `failure_weight` as the Agent:
 
 ```json
-{
-  "components": {
-    "log_failure": {
-      "enabled": true,
-      "min_errors": 3,
-      "min_intervals": 2,
-      "window_seconds": 30
-    }
-  }
-}
+{"components": {"log_failure": {"enabled": true, "failure_weight": 3}}}
 ```
 
-Omitted fields retain the defaults. Error and interval minima must be positive;
-the lookback must be a multiple of five from 5 to 300 seconds, and must fit the
-required intervals. Bucket width stays at five seconds. Reset keeps
-the selected rule, storage retains its required history, and anomaly descriptions
-include its thresholds. These overrides are replay-only; the Agent uses 3/2/30.
+The qualification thresholds are fixed and are not configurable.

@@ -194,13 +194,16 @@ func defaultCatalog() *componentCatalog {
 			{
 				name: LogFailureDetectorName, displayName: "Log Failure", kind: componentDetector,
 				defaultConfig: DefaultLogFailureConfig(), defaultEnabled: false,
-				factory: func(cfg any) any { return newLogFailureDetector(cfg.(LogFailureConfig)) },
+				factory:    func(cfg any) any { return newLogFailureDetector(cfg.(LogFailureConfig)) },
+				readConfig: readLogFailureConfig,
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					return parseLogFailureConfig(defaults.(LogFailureConfig), raw)
 				},
 			},
 			// ---- Extractors ----
 			{
+				// Not independently toggleable: Instantiate enables it exactly
+				// when log_failure is enabled.
 				name:           LogErrorCountExtractorName,
 				displayName:    "Log Error Count Extractor",
 				kind:           componentExtractor,
@@ -435,19 +438,15 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	err error,
 ) {
 	components = make(map[string]*componentInstance, len(c.entries))
-	if settings.Enabled[LogFailureDetectorName] {
-		if enabled, explicit := settings.Enabled[LogErrorCountExtractorName]; explicit && !enabled {
-			return nil, nil, nil, nil, nil, errors.New("log_failure requires log_error_count_extractor; remove its explicit disable")
-		}
-		// This detector requires count extraction. Do not require a second opt-in
-		// or mutate the caller's settings map.
-		enabled := make(map[string]bool, len(settings.Enabled)+1)
-		for name, value := range settings.Enabled {
-			enabled[name] = value
-		}
-		enabled[LogErrorCountExtractorName] = true
-		settings.Enabled = enabled
+	// Error-count extraction exists only to feed log_failure, so it runs exactly
+	// when the detector does and any explicit toggle is ignored. Copy the map
+	// rather than mutate the caller's settings.
+	enabled := make(map[string]bool, len(settings.Enabled)+1)
+	for name, value := range settings.Enabled {
+		enabled[name] = value
 	}
+	enabled[LogErrorCountExtractorName] = settings.Enabled[LogFailureDetectorName]
+	settings.Enabled = enabled
 
 	if settings.UseMetricPipeline {
 		logging.Info("metric pipeline enabled")
