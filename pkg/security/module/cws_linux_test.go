@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
-	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 )
 
 func newProfilingConfig(runtimeEnabled bool) *config.Config {
