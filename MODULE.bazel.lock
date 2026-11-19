@@ -975,13 +975,13 @@
         "pulumi-resource-eks-v4.5.0-windows-amd64.tar.gz": "sha1-x3mjkTO8cjeeO+Fg12wdiPrkssw=",
         "pulumi-resource-eks-v4.5.0-windows-arm64.tar.gz": "sha1-BSMG9CzasgYtyIULhhgXqWM3jDM="
       },
-      "https://github.com/pulumi/pulumi-gcp/releases/download/v10.2.0/pulumi-gcp_10.2.0_checksums.txt": {
-        "pulumi-resource-gcp-v10.2.0-darwin-amd64.tar.gz": "sha1-l4Ps4AGDqbJ4iEqvmLa5iMSAnqI=",
-        "pulumi-resource-gcp-v10.2.0-darwin-arm64.tar.gz": "sha1-362EzJ2QkoItdUy1if98lWOJPY0=",
-        "pulumi-resource-gcp-v10.2.0-linux-amd64.tar.gz": "sha1-8C4m92DG3Bv8cXsEIIiN/LDFZXs=",
-        "pulumi-resource-gcp-v10.2.0-linux-arm64.tar.gz": "sha1-hiObPXHBnYrar3XAnaN6+gPlHzc=",
-        "pulumi-resource-gcp-v10.2.0-windows-amd64.tar.gz": "sha1-oO+xdAj7KMPOFykxfbrzJXRAxF8=",
-        "pulumi-resource-gcp-v10.2.0-windows-arm64.tar.gz": "sha1-ez58G3O6rJWzxSWCk+CZEiUJmyA="
+      "https://github.com/pulumi/pulumi-gcp/releases/download/v10.3.0/pulumi-gcp_10.3.0_checksums.txt": {
+        "pulumi-resource-gcp-v10.3.0-darwin-amd64.tar.gz": "sha1-0MXHM7GRfD5T54R9MFeV981vCkk=",
+        "pulumi-resource-gcp-v10.3.0-darwin-arm64.tar.gz": "sha1-fZDSuQlxPCNsU9asHt+xw70COrs=",
+        "pulumi-resource-gcp-v10.3.0-linux-amd64.tar.gz": "sha1-a1J+NgM0CLGsMWm4EeuxqK0+94w=",
+        "pulumi-resource-gcp-v10.3.0-linux-arm64.tar.gz": "sha1-OT8UqC6NgYUqBTLxz7SH9ys+pDk=",
+        "pulumi-resource-gcp-v10.3.0-windows-amd64.tar.gz": "sha1-aO1cDkjRSXgkGL9SKnNtdH+tUUE=",
+        "pulumi-resource-gcp-v10.3.0-windows-arm64.tar.gz": "sha1-7fub/pMqHLhDc1UxZQJCQ50a1qE="
       },
       "https://github.com/pulumi/pulumi-kubernetes/releases/download/v4.19.0/pulumi-kubernetes_4.19.0_checksums.txt": {
         "pulumi-resource-kubernetes-v4.19.0-darwin-amd64.tar.gz": "sha256-3VMMAwhVu/12ZXPKt9q8clAQP7+Js4OgwlfWL8pW2Sk=",
@@ -1078,7 +1078,7 @@
         "name": "eks",
         "url": "https://github.com/pulumi/pulumi-eks"
       },
-      "https://registry.npmjs.org/@pulumi/gcp/10.2.0": {
+      "https://registry.npmjs.org/@pulumi/gcp/10.3.0": {
         "dependencies": {},
         "name": "gcp",
         "url": "https://github.com/pulumi/pulumi-gcp"

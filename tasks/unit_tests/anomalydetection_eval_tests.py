@@ -111,11 +111,11 @@ class TestAblationConfig(unittest.TestCase):
             locked={"anomaly_scorer"},
         )["components"]
 
-        self.assertEqual(components["bocpd"]["warmup_points"], 40)
+        self.assertEqual(components["bocpd"]["warmup_points"], 20)
         self.assertEqual(components["holt_residual"]["warmup_points"], 15)
         self.assertEqual(components["holt_residual"]["residual_window"], 25)
         self.assertEqual(components["tukey_biweight"]["window_size"], 40)
-        self.assertEqual(components["tukey_biweight"]["min_points"], 40)
+        self.assertEqual(components["tukey_biweight"]["min_points"], 20)
 
     def test_optuna_cannot_override_testbench_warmup_profile(self):
         components = _build_optuna_config(
@@ -124,11 +124,11 @@ class TestAblationConfig(unittest.TestCase):
             locked=set(),
         )["components"]
 
-        self.assertEqual(components["bocpd"]["warmup_points"], 40)
+        self.assertEqual(components["bocpd"]["warmup_points"], 20)
         self.assertEqual(components["holt_residual"]["warmup_points"], 15)
         self.assertEqual(components["holt_residual"]["residual_window"], 25)
         self.assertEqual(components["tukey_biweight"]["window_size"], 40)
-        self.assertEqual(components["tukey_biweight"]["min_points"], 40)
+        self.assertEqual(components["tukey_biweight"]["min_points"], 20)
 
 
 class TestPipelineResume(unittest.TestCase):
