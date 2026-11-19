@@ -1,9 +1,0 @@
-{
-  "enabledMcpjsonServers": [
-    "api",
-    "ci",
-    "google-workspace",
-    "atlassian",
-    "slack"
-  ]
-}
