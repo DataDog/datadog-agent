@@ -132,12 +132,18 @@ func WithGetTimeout(timeout time.Duration) Option {
 	}
 }
 
-// WithHTTPTransport sets the transport of the requests to fakeintake, for instance one dialing an in-memory listener
+// WithHTTPTransport sets the transport of every request to fakeintake, for instance one dialing an in-memory listener
 // given to the server with server.WithListener.
 func WithHTTPTransport(transport http.RoundTripper) Option {
 	return func(c *Client) {
 		c.httpClient.Transport = transport
 	}
+}
+
+// controlHTTPClient returns the HTTP client of the Remote Config and Private Action Runner control requests: like
+// http.DefaultClient they have no timeout, and they use the transport set with WithHTTPTransport, if any.
+func (c *Client) controlHTTPClient() *http.Client {
+	return &http.Client{Transport: c.httpClient.Transport}
 }
 
 // Client is a fake intake client
