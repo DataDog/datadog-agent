@@ -45,8 +45,8 @@ to validate the full post-install/post-uninstall state.
 
 ## Running tests
 
-Run through `dda inv new-e2e-tests.run`. See the `run-windows-e2e` skill
-references for environment setup: `.agents/skills/run-windows-e2e/references/setup.md` and
+See the `run-windows-e2e` skill references for environment setup and `go test`
+invocations: `.claude/skills/run-windows-e2e/references/setup.md` and
 `.../running.md` (or invoke the `/run-windows-e2e` skill).
 
 ## CI
@@ -100,19 +100,3 @@ runs as its own parallel job via the `E2E_MSI_TEST` matrix (see parent
    Go wrappers (services, registry, ACL, event logs) before writing one-off
    PowerShell commands. Use `s.newTester(vm)` for post-install/uninstall
    validation.
-
-## Service protection upgrade coverage
-
-Service protection covers all packaged user-mode Agent services (drivers manage
-startup separately). The outgoing MSI disables them during removal; the incoming
-MSI stops existing services and installs new registrations Disabled. Successful
-installation and outgoing removal rollback enable that package's active services
-using package defaults, without preserving customized startup modes. Keep retired
-services in the disable list but remove them from the active list. Retain their
-uninstall ServiceControl entries even after removing their binaries, so full
-uninstall can delete their registrations.
-
-`TestUpgradeRollback` and `TestUpgradeRollbackWithoutCWS` check service startup
-settings before manually starting the outgoing Agent. The pre-procmgr variants
-cover the legacy layout. C# tests cover default startup modes and rollback action
-placement; intermediate upgrade states are checked during manual VM QA.
