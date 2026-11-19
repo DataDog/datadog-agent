@@ -13,14 +13,17 @@ single_machine_performance-kjob:
     - !reference [.on_dev_branches]
     - when: on_success
   allow_failure: true
+  # A failed replicate or bounds check is a result for the PR comment, not a CI failure.
+  # Do not retry, because a retry submits the whole KJob job again.
+  retry: 0
   timeout: 2h
   variables:
-    # This dev build of the SMP CLI has `smp kjob report` with custom templates.
-    # The KJob services of SMP_TEAM_NAME must run the same build, because the report format changed.
-    SMP_VERSION: dev-pr4862-dc11f2317
+    # This dev build of the SMP CLI has `smp kjob report` and finds cases recursively.
+    # The KJob services of SMP_TEAM_NAME must use the same report format as this CLI.
+    SMP_VERSION: dev-pr4862-db3e8f21f
     SMP_TEAM_NAME: agent-beta
     AWS_NAMED_PROFILE: single-machine-performance
-    # The SMP CLI submits every case under test/regression/kjob/cases/.
+    # The SMP CLI submits each directory under test/regression/kjob that has an experiment.yaml file.
     KJOB_DIRECTORY: test/regression/kjob
     KJOB_REPLICATES: "10"
     KJOB_DURATION: 60s
@@ -82,7 +85,9 @@ single_machine_performance-kjob:
       echo "${KJOB_RESULT_CODE}" > outputs/result_code
       case "${KJOB_RESULT_CODE}" in
         0) echo "All KJob replicates and checks passed." ;;
-        1) echo "A KJob replicate or check failed."; jq . outputs/report.v1.json; exit 1 ;;
+        # The PR comment reports failed replicates and bounds checks, so the CI job passes.
+        1) echo "A KJob replicate or check failed. The PR comment shows the details." ;;
+        # The CI job fails only when it cannot get a result.
         3) exit 1 ;;
         *) echo "smp kjob report failed with exit code ${KJOB_RESULT_CODE}."; exit "${KJOB_RESULT_CODE}" ;;
       esac
