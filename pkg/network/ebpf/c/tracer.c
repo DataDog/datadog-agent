@@ -23,6 +23,10 @@
 
 #include "protocols/tls/tls-certs.h"
 
+#ifdef COMPILE_RUNTIME
+#include <net/tcp.h> // struct tcp_skb_cb
+#endif
+
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
     protocol_classifier_entrypoint(skb);
@@ -862,45 +866,55 @@ int BPF_BYPASSABLE_KPROBE(kprobe__skb_consume_udp, struct sock *sk, struct sk_bu
     return handle_skb_consume_udp(sk, skb, len);
 }
 
+// pending_retransmit_key keys a tcp_retransmit_skb call by CPU as well as pid_tgid. Retransmits from timers on
+// idle CPUs all run with pid_tgid 0, so a pid_tgid key lets a call's return pick up another CPU's entry,
+// counting one call twice and missing another.
+static __always_inline pending_retransmit_key_t pending_retransmit_key() {
+    pending_retransmit_key_t key = {};
+    key.pid_tgid = bpf_get_current_pid_tgid();
+    key.cpu = bpf_get_smp_processor_id();
+    return key;
+}
+
 #ifdef COMPILE_PREBUILT
 
 SEC("kprobe/tcp_retransmit_skb")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_retransmit_skb, struct sock *sk) {
     int segs = (int)PT_REGS_PARM3(ctx);
     log_debug("kprobe/tcp_retransmit: segs: %d", segs);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    pending_retransmit_key_t key = pending_retransmit_key();
     tcp_retransmit_skb_args_t args = {};
     args.sk = sk;
     args.segs = segs;
-    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &key, &args, BPF_ANY);
     return 0;
 }
 
 SEC("kprobe/tcp_retransmit_skb")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_retransmit_skb_pre_4_7_0, struct sock *sk) {
     log_debug("kprobe/tcp_retransmit");
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    pending_retransmit_key_t key = pending_retransmit_key();
     tcp_retransmit_skb_args_t args = {};
     args.sk = sk;
     args.segs = 1;
-    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &key, &args, BPF_ANY);
     return 0;
 }
 
 SEC("kretprobe/tcp_retransmit_skb")
 int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int ret) {
-    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    pending_retransmit_key_t key = pending_retransmit_key();
     if (ret < 0) {
-        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
+        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &key);
         return 0;
     }
-    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &pid_tgid);
+    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &key);
     if (args == NULL) {
         return 0;
     }
     struct sock *sk = args->sk;
     int segs = args->segs;
-    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
+    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &key);
     log_debug("kretprobe/tcp_retransmit: segs: %d", segs);
     return handle_retransmit(sk, segs);
 }
@@ -910,34 +924,36 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int ret) {
 #if defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
 
 SEC("kprobe/tcp_retransmit_skb")
-int BPF_BYPASSABLE_KPROBE(kprobe__tcp_retransmit_skb, struct sock *sk) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb) {
+    pending_retransmit_key_t key = pending_retransmit_key();
     tcp_retransmit_skb_args_t args = {};
     args.sk = sk;
-    args.segs = 0;
-    BPF_CORE_READ_INTO(&args.retrans_out_pre, tcp_sk(sk), retrans_out);
-    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
+    args.skb = skb;
+    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &key, &args, BPF_ANY);
     return 0;
 }
 
 SEC("kretprobe/tcp_retransmit_skb")
 int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int rc) {
     log_debug("kretprobe/tcp_retransmit");
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    pending_retransmit_key_t key = pending_retransmit_key();
     if (rc < 0) {
-        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
+        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &key);
         return 0;
     }
-    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &pid_tgid);
+    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &key);
     if (args == NULL) {
         return 0;
     }
     struct sock *sk = args->sk;
-    u32 retrans_out_pre = args->retrans_out_pre;
-    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
-    u32 retrans_out = 0;
-    BPF_CORE_READ_INTO(&retrans_out, tcp_sk(sk), retrans_out);
-    return handle_retransmit(sk, retrans_out - retrans_out_pre);
+    struct sk_buff *skb = args->skb;
+    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &key);
+    // count the segments the call resent, as the fentry tracer does, not the change in
+    // retrans_out: that's a gauge, not a total, so the change between the two probes can be
+    // negative and wrap the count
+    u16 segs = 0;
+    BPF_CORE_READ_INTO(&segs, (struct tcp_skb_cb *)&skb->cb[0], tcp_gso_segs);
+    return handle_retransmit(sk, segs);
 }
 
 // These kprobes fire from kernel timer/softirq context. The shared helpers
