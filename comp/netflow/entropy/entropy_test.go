@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
@@ -135,7 +134,7 @@ func TestReport_SubmitEntropy(t *testing.T) {
 
 	sender := mocksender.NewMockSender(t, "")
 	sender.SetupAcceptAll()
-	report.Submit(sender, logmock.New(t))
+	report.Submit(sender)
 	tags := []string{"device_namespace:ns", "exporter_ip:127.0.0.1", "interface_index:1", "observation_point:ingress",
 		"dd.internal.resource:ndm_device:ns:127.0.0.1"}
 	sender.AssertMetricInRange(t, "Gauge", "datadog.netflow.entropy.bytes", 3-1e-9, 3+1e-9, "", tags)
@@ -280,7 +279,7 @@ func TestAccumulator_DropReasons(t *testing.T) {
 
 	sender := mocksender.NewMockSender(t, "")
 	sender.SetupAcceptAll()
-	report.Submit(sender, logmock.New(t))
+	report.Submit(sender)
 	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.interface_records_dropped", 2, "",
 		[]string{"reason:no_output_interface", "device_namespace:ns", "exporter_ip:127.0.0.1"})
 	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.interface_records_dropped", 2, "",
