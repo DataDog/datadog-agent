@@ -181,6 +181,16 @@ func TestPullMIGModeEnabled(t *testing.T) {
 				require.Equal(t, tt.wantSlicing, gpu.SlicingMode())
 			}
 			require.True(t, found)
+
+			for _, gpu := range wmetaMock.ListGPUs() {
+				if gpu.DeviceType != workloadmeta.GPUDeviceTypeMIG {
+					continue
+				}
+				parent, err := wmetaMock.GetGPU(gpu.ParentGPUUUID)
+				require.NoError(t, err)
+				require.Equalf(t, parent.Index, gpu.Index, "MIG device %s takes the index of its parent", gpu.ID)
+				require.Containsf(t, testutil.DefaultDevicesWithMIGChildren(), gpu.Index, "MIG device %s", gpu.ID)
+			}
 		})
 	}
 }

@@ -1170,6 +1170,9 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUSharingMode, sharingModeTagValue(gpu))
 	tagList.AddLow(tags.GPUMIGProfile, migProfileTagValue(gpu))
 	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
+	if gpu.Index >= 0 {
+		tagList.AddLow(tags.GPUIndex, strconv.Itoa(gpu.Index))
+	}
 	tagList.AddLow(tags.GPUNVLinkVersion, gpu.NVLinkVersion)
 	tagList.AddLow(tags.GPUNVLinkCapable, strconv.FormatBool(gpu.NVLinkVersion != "not_nvlink_capable" && gpu.NVLinkVersion != ""))
 	if gpu.FabricClusterUUID != "" {

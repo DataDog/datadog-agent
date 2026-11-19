@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -317,8 +318,80 @@ func TestCapturedTopologiesKFDMapping(t *testing.T) {
 				assert.Len(t, dev.kfdGPUIDs, gpu.partitions, "partitions of %s", gpu.pciBusID())
 				assert.Equal(t, "gfx942", dev.Architecture)
 			}
+
+			// amd-smi numbers every partition in PCI address order: a GPU has
+			// the index of its first partition.
+			sorted := slices.Clone(gpus)
+			slices.SortFunc(sorted, func(a, b capturedGPU) int { return strings.Compare(a.pciBusID(), b.pciBusID()) })
+			index := 0
+			for _, gpu := range sorted {
+				assert.Equal(t, index, byPCI[gpu.pciBusID()].Index, "index of %s", gpu.pciBusID())
+				index += gpu.partitions
+			}
 		})
 	}
+}
+
+// The captured MI308X host lists its GPUs alternating between two PCI
+// domains; amd-smi numbers all of domain 0 first.
+func TestCapturedTopologyAMDSMIIndex(t *testing.T) {
+	gpus := capturedTopologies["topology-parsing-mi308"]
+	fs := buildCapturedSysfs(t, gpus)
+	node := 0
+	for _, gpu := range gpus {
+		for p := range gpu.partitions {
+			node++
+			fs.AddKFDNode(node, uint64(1000+node), gpu.domain, gpu.locationID+uint32(p), 90402)
+		}
+	}
+
+	devices, err := Discover(fs.Root)
+	require.NoError(t, err)
+	indexes := map[string]int{}
+	for _, dev := range devices {
+		indexes[dev.PCIBusID] = dev.Index
+	}
+	assert.Equal(t, map[string]int{
+		"0000:0a:00.0": 0,
+		"0000:80:00.0": 4,
+		"0000:a4:00.0": 8,
+		"0000:c8:00.0": 12,
+		"0001:0b:00.0": 16,
+		"0001:81:00.0": 20,
+		"0001:a5:00.0": 24,
+		"0001:c9:00.0": 28,
+	}, indexes)
+}
+
+// amd-smi compares PCI addresses as numbers, so a 5-digit domain sorts last.
+func TestDiscoverIndexFollowsNumericPCIOrder(t *testing.T) {
+	fs := NewFakeSysfs(t)
+	fs.AddCard("card0", fs.AddPCIDevice("10000:01:00.0", "amdgpu", MI300XAttributes("")))
+	fs.AddCard("card1", fs.AddPCIDevice("ffff:01:00.0", "amdgpu", MI300XAttributes("")))
+	fs.AddKFDNode(1, 4101, 0x10000, 0x100, 90402)
+	fs.AddKFDNode(2, 4102, 0xffff, 0x100, 90402)
+
+	devices, err := Discover(fs.Root)
+	require.NoError(t, err)
+	indexes := map[string]int{}
+	for _, dev := range devices {
+		indexes[dev.PCIBusID] = dev.Index
+	}
+	assert.Equal(t, map[string]int{"ffff:01:00.0": 0, "10000:01:00.0": 1}, indexes)
+}
+
+// A GPU without a KFD node is not listed by amd-smi.
+func TestDiscoverIndexWithoutKFDNode(t *testing.T) {
+	fs := NewFakeSysfs(t)
+	fs.AddCard("card0", fs.AddPCIDevice("0000:11:00.0", "amdgpu", MI300XAttributes("")))
+	fs.AddCard("card1", fs.AddPCIDevice("0000:21:00.0", "amdgpu", MI300XAttributes("")))
+	fs.AddKFDNode(1, 4101, 0, 0x2100, 90402)
+
+	devices, err := Discover(fs.Root)
+	require.NoError(t, err)
+	require.Len(t, devices, 2)
+	assert.Equal(t, -1, devices[0].Index)
+	assert.Equal(t, 0, devices[1].Index)
 }
 
 func TestDiscoverRejectsIncompleteKFDAddresses(t *testing.T) {
@@ -346,6 +419,7 @@ func TestDiscoverRejectsIncompleteKFDAddresses(t *testing.T) {
 			assert.Empty(t, devices[0].kfdGPUIDs, "must not attribute malformed nodes to 0000:00:00.0")
 			assert.Equal(t, []uint64{5100}, devices[1].kfdGPUIDs)
 			assert.Equal(t, "gfx942", devices[1].Architecture)
+			assert.Equal(t, -1, devices[1].Index, "the malformed node may sort before it")
 		})
 	}
 }
