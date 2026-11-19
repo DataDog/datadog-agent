@@ -329,11 +329,19 @@ pkg_files(
     prefix = "embedded/bin",
 )
 
+pkg_files(
+    name = "system_probe_dist_config",
+    srcs = ["//pkg/config:system_probe_config"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "bin/agent/dist",
+)
+
 # Not wired into Omnibus. FIPS omits the binary.
 pkg_filegroup(
     name = "system_probe_install_dir_files",
     srcs = [
         ":system_probe_co_re_objects",
+        ":system_probe_dist_config",
         ":system_probe_ebpf_objects",
         ":system_probe_llvm_bpf",
         ":system_probe_runtime_sources",
