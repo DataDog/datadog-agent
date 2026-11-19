@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync/atomic"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -136,6 +137,15 @@ type SafeDevice interface {
 	GetNvLinkState(link int) (nvml.EnableState, error)
 	// GetNvLinkVersion returns the version of the specified NVLink.
 	GetNvLinkVersion(link int) (int, error)
+	// GetNvLinkRemoteDeviceType returns the type of device at the remote end of a local NVLink port.
+	GetNvLinkRemoteDeviceType(link int) (nvml.IntNvLinkDeviceType, error)
+	// GetNvLinkRemotePciInfo returns the PCI information of the device at the remote end of a local NVLink port.
+	GetNvLinkRemotePciInfo(link int) (nvml.PciInfo, error)
+	// GetNvLinkCapability returns the value of a capability of a local NVLink port.
+	GetNvLinkCapability(link int, capability nvml.NvLinkCapability) (uint32, error)
+	// GetP2PStatus returns the status of a peer-to-peer capability from this device (as the
+	// source) to the given peer device. The direction of the query is significant.
+	GetP2PStatus(peer SafeDevice, capability nvml.GpuP2PCapsIndex) (nvml.GpuP2PStatus, error)
 	// GetNvLinkErrorCounter returns the specified NVLink error counter for a link.
 	GetNvLinkErrorCounter(link int, counter nvml.NvLinkErrorCounter) (uint64, error)
 	// GetNumGpuCores returns the number of GPU cores in the device
@@ -273,6 +283,22 @@ type PhysicalDevice struct {
 	// concepts, and a mismatch silently attributes a container to the wrong
 	// physical card.
 	MinorNumber int
+
+	// peerTopology is the NVLink and P2P view of this device, replaced whenever the device cache
+	// is refreshed. Nil until the first scan.
+	peerTopology atomic.Pointer[PeerTopology]
+}
+
+// PeerTopology returns the last known NVLink and P2P view of the device, or nil before the
+// first device cache refresh scanned it. The result must not be modified.
+func (d *PhysicalDevice) PeerTopology() *PeerTopology {
+	return d.peerTopology.Load()
+}
+
+// SetPeerTopology replaces the NVLink and P2P view of the device. The device cache calls it
+// after each scan; tests use it to give a device a topology without an NVML mock.
+func (d *PhysicalDevice) SetPeerTopology(topology *PeerTopology) {
+	d.peerTopology.Store(topology)
 }
 
 var _ Device = &PhysicalDevice{}

@@ -34,8 +34,10 @@ dd_agent_go_test(
     name = "resources_test",
     srcs = [
         "contract_test.go",
+        "hardware_test.go",
         "publisher_test.go",
         "snapshot_test.go",
+        "topology_test.go",
     ],
     data = [
         "testdata/gpu_device_contract.json",
@@ -53,6 +55,7 @@ dd_agent_go_test(
             "//comp/core/tagger/taglist",
             "//comp/core/workloadmeta/def",
             "//pkg/gpu/safenvml",
+            "//pkg/util/gpu",
             "@com_github_nvidia_go_nvml//pkg/nvml",
         ],
         "@rules_go//go/platform:linux": [
@@ -60,6 +63,7 @@ dd_agent_go_test(
             "//comp/core/tagger/taglist",
             "//comp/core/workloadmeta/def",
             "//pkg/gpu/safenvml",
+            "//pkg/util/gpu",
             "@com_github_nvidia_go_nvml//pkg/nvml",
         ],
         "//conditions:default": [],

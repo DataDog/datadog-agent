@@ -34,6 +34,7 @@ func TestPublishedDeviceMatchesREDAPLSchema(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(data, &contract))
 	clique := uint32(math.MaxUint32)
+	yes, no := true, false
 	for _, tc := range []struct {
 		name   string
 		device Device
@@ -47,6 +48,12 @@ func TestPublishedDeviceMatchesREDAPLSchema(t *testing.T) {
 			FabricClusterUUID: "01020304-0506-0708-090a-0b0c0d0e0f10", FabricCliqueID: &clique,
 			NVLinkDomain: "01020304-0506-0708-090a-0b0c0d0e0f10:4294967295",
 			BoardSerial:  "board", ChassisSerial: "chassis",
+			GPUPeers: []GPUPeer{{
+				UUID:            "gpu-00000000-0000-0000-0000-000000000002",
+				P2PCapabilities: &P2PCapabilities{Read: &yes, Write: &no, Atomics: &yes, NVLink: &yes, PCI: &no},
+				DirectNVLinks:   []DirectNVLink{{Port: 0, RemotePCIBusID: "0000:19:00.0", Version: "3.1"}},
+			}},
+			UnresolvedNVLinks: []UnresolvedNVLink{{Port: math.MaxInt32, RemoteType: "switch", RemotePCIBusID: "0000:80:00.0", Version: "4.0"}},
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -82,6 +89,10 @@ func TestPublishedDeviceMatchesREDAPLSchema(t *testing.T) {
 					}
 					_, err := strconv.ParseInt(string(value), 10, bits)
 					require.NoError(t, err, "%s must fit schema type %s", name, property.Type)
+				case "array":
+					var elements []map[string]json.RawMessage
+					require.NoError(t, json.Unmarshal(value, &elements), name)
+					requireElementsMatchContract(t, name, elements)
 				default:
 					t.Fatalf("add contract coverage for emitted %s of type %s", name, property.Type)
 				}
@@ -90,5 +101,80 @@ func TestPublishedDeviceMatchesREDAPLSchema(t *testing.T) {
 			require.Equal(t, strings.ToLower(testUUID), event.Resource.Key)
 			require.JSONEq(t, `"canonical-host"`, string(fields[strings.TrimPrefix(contract.HostRelationship.Source, ".")]))
 		})
+	}
+}
+
+// arrayElementContract lists the properties of the array items of the gpu_device contract
+// (gpu_device.yaml, see the source of gpu_device_contract.json) and which are required. The JSON
+// copy of the contract only records that these properties are arrays.
+var arrayElementContract = map[string]struct {
+	properties map[string]string // name -> type
+	required   []string
+}{
+	"gpu_peers": {
+		properties: map[string]string{"gpu_uuid": "string", "p2p_capabilities": "object", "direct_nvlinks": "array"},
+		required:   []string{"gpu_uuid"},
+	},
+	"unresolved_nvlinks": {
+		properties: map[string]string{"nvlink_port": "int32", "remote_type": "string", "remote_pci_bus_id": "string", "remote_port": "int32", "version": "string"},
+		required:   []string{"nvlink_port"},
+	},
+}
+
+var nestedElementContract = map[string]struct {
+	properties map[string]string
+	required   []string
+}{
+	"gpu_peers.p2p_capabilities": {properties: map[string]string{"read": "boolean", "write": "boolean", "atomics": "boolean", "nvlink": "boolean", "pci": "boolean"}},
+	"gpu_peers.direct_nvlinks": {
+		properties: map[string]string{"nvlink_port": "int32", "remote_nvlink_port": "int32", "remote_pci_bus_id": "string", "version": "string"},
+		required:   []string{"nvlink_port"},
+	},
+}
+
+func requireElementsMatchContract(t *testing.T, field string, elements []map[string]json.RawMessage) {
+	t.Helper()
+	contract, ok := arrayElementContract[field]
+	require.True(t, ok, "add element contract coverage for emitted array %s", field)
+	for _, element := range elements {
+		requireObjectMatchesContract(t, field, element, contract.properties, contract.required)
+		for name, value := range element {
+			if contract.properties[name] == "array" {
+				var nested []map[string]json.RawMessage
+				require.NoError(t, json.Unmarshal(value, &nested))
+				nestedContract := nestedElementContract[field+"."+name]
+				for _, item := range nested {
+					requireObjectMatchesContract(t, field+"."+name, item, nestedContract.properties, nestedContract.required)
+				}
+			}
+			if contract.properties[name] == "object" {
+				var nested map[string]json.RawMessage
+				require.NoError(t, json.Unmarshal(value, &nested))
+				nestedContract := nestedElementContract[field+"."+name]
+				requireObjectMatchesContract(t, field+"."+name, nested, nestedContract.properties, nestedContract.required)
+			}
+		}
+	}
+}
+
+func requireObjectMatchesContract(t *testing.T, path string, object map[string]json.RawMessage, properties map[string]string, required []string) {
+	t.Helper()
+	for _, name := range required {
+		require.Contains(t, object, name, "%s: required property", path)
+	}
+	for name, value := range object {
+		kind, ok := properties[name]
+		require.True(t, ok, "%s.%s is not in the contract", path, name)
+		switch kind {
+		case "string":
+			var text string
+			require.NoError(t, json.Unmarshal(value, &text), "%s.%s", path, name)
+		case "boolean":
+			var flag bool
+			require.NoError(t, json.Unmarshal(value, &flag), "%s.%s", path, name)
+		case "int32":
+			_, err := strconv.ParseInt(string(value), 10, 32)
+			require.NoError(t, err, "%s.%s must fit int32", path, name)
+		}
 	}
 }
