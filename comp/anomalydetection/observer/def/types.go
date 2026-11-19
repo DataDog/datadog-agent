@@ -410,6 +410,9 @@ type CorrelatorEvent struct {
 	CorrelatorName string
 	// Timestamp is the data time (unix seconds) when the event occurred.
 	Timestamp int64
+	// HistoricalTimestamp is the raw High crossing for a scorer EpisodeStarted,
+	// when known. Timestamp remains the start of the delivered episode.
+	HistoricalTimestamp int64
 	// Correlation is the pattern associated with this event.
 	// For EpisodeStarted: the newly opened episode (no end time yet).
 	// For EpisodeEnded: the closed episode with the final LastUpdated.
