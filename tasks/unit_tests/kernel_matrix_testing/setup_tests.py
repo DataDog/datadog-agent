@@ -15,7 +15,8 @@ from tasks.libs.common.status import Status
 
 
 class TestPulumiRequirement(unittest.TestCase):
-    def test_pulumi_user_logged_in(self):
+    @patch("tasks.kernel_matrix_testing.setup.common.pulumi_command", return_value="pulumi")
+    def test_pulumi_user_logged_in(self, _):
         logged_out_output = """
         Backend
 Name           pulumi.com

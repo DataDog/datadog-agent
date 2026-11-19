@@ -1,8 +1,7 @@
 """Fetches the Pulumi CLI and plugins matching the SDKs in a `go.sum`.
 
 `pulumi_cli` fetches the release of the CLI at the version of `github.com/pulumi/pulumi/sdk/v3`, so that the CLI the
-Automation API drives is never older than the SDK, and keeps the binaries the e2e framework needs: `pulumi` itself and
-the `pulumi-language-go` host, which Pulumi looks up next to it.
+Automation API drives is never older than the SDK, as `@pulumi_cli//:pulumi`, which `//internal/tools:pulumi` runs.
 
 `pulumi_plugins` fetches the plugins of the SDKs, laid out as `pulumi plugin install` does.
 
@@ -143,7 +142,6 @@ pulumi_plugins = module_extension(
 )
 
 _CLI_SDK = "github.com/pulumi/pulumi/sdk/v3"
-_CLI_BINARIES = ["pulumi", "pulumi-language-go"]
 
 def _cli_impl(mctx):
     facts = {}
@@ -169,29 +167,25 @@ def _cli_impl(mctx):
     name = "pulumi_cli"
     http_archive(
         name = name,
-        build_file_content = """load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+        build_file_content = """load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
 
-exports_files(["pulumi{ext}"])
-
-pkg_files(
-    name = "binaries",
-    srcs = [{srcs}],
-    attributes = pkg_attributes(mode = "0755"),
-)
-
-pkg_install(
-    name = "install",
-    srcs = [":binaries"],
+native_binary(
+    name = "pulumi",
+    src = "bin/pulumi{ext}",
+    out = "pulumi{ext}",
+    # Use the language hosts released with this CLI rather than any other on the PATH, e.g. a CI image's.
+    env = {{"PULUMI_IGNORE_AMBIENT_PLUGINS": "true"}},
     visibility = ["//visibility:public"],
 )
-""".format(ext = ext, srcs = ", ".join(['"{}{}"'.format(binary, ext) for binary in _CLI_BINARIES])),
+""".format(ext = ext),
         integrity = _fact(
             mctx,
             facts,
             "{}pulumi-{}-checksums.txt".format(base_url, version.removeprefix("v")),
             _integrities,
         )[filename],
+        # Frees the `pulumi` name for the target. `pulumi-language-go` stays next to `pulumi`, where Pulumi looks it up.
+        add_prefix = "bin",
         strip_prefix = "pulumi/bin" if is_windows else "pulumi",
         urls = ["{}{}".format(base_url, filename)],
     )
