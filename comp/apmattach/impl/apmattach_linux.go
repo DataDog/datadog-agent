@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	cfgPrefix       = "apm_config.instrumentation.attach."
+	cfgPrefix       = "apm_config.ssi_attach."
 	cfgEnabled      = cfgPrefix + "enabled"
 	cfgScanInterval = cfgPrefix + "scan_interval"
 	cfgInjectorPath = cfgPrefix + "injector_path"
