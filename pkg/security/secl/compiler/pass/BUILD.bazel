@@ -5,8 +5,10 @@ go_library(
     name = "pass",
     srcs = [
         "bools.go",
+        "fields.go",
         "idents.go",
         "pass.go",
+        "project.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass",
     visibility = ["//visibility:public"],
@@ -17,7 +19,9 @@ dd_agent_go_test(
     name = "pass_test",
     srcs = [
         "bools_test.go",
+        "fields_test.go",
         "idents_test.go",
+        "project_test.go",
     ],
     embed = [":pass"],
     deps = [

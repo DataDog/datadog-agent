@@ -12,7 +12,7 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 Before deploying, make sure you have:
 
-- [OpenTelemetry Collector Helm chart](https://opentelemetry.io/docs/platforms/kubernetes/helm/collector/) version **0.152.1** or later.
+- [OpenTelemetry Collector Helm chart](https://opentelemetry.io/docs/platforms/kubernetes/helm/collector/) version **0.159.2** or later.
 - A namespace for the Host Profiler. You can reuse an existing namespace or create a dedicated one.
 - A Datadog API key available to the Collector as `DD_API_KEY`.
 
@@ -82,6 +82,18 @@ The provided Helm values configure the required capabilities and seccomp profile
 After you apply the values, Helm rolls out an OpenTelemetry Collector DaemonSet with the Host Profiler. Wait for that rollout to complete before verifying profiles.
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
+
+## Running as non-root (optional)
+
+By default, the Host Profiler container runs as root. To run it as a non-privileged user (UID/GID `100`) instead, add `runAsUser`, `runAsGroup`, and `runAsNonRoot` to the `securityContext` in [`helm/collector-values.yaml`](helm/collector-values.yaml):
+
+```yaml
+securityContext:
+  # ... existing fields ...
+  runAsUser: 100
+  runAsGroup: 100
+  runAsNonRoot: true
+```
 
 ## AppArmor (optional)
 

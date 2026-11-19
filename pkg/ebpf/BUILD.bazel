@@ -3,17 +3,18 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library")
 # gazelle:exclude include_headers_gen.go
 # gazelle:exclude testdata/c
 
+load("@bazel_lib//lib:expand_template.bzl", "expand_template")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
-genrule(
+expand_template(
     name = "include_headers_src",
-    srcs = ["include_headers.go"],
-    outs = ["include_headers_gen.go"],
-    cmd = "grep -v '^//go:build ignore' $< > $@",
+    out = "include_headers_gen.go",
+    substitutions = {"//go:build ignore\n": ""},
+    template = "include_headers.go",
 )
 
 go_binary(
@@ -143,6 +144,7 @@ filegroup(
         "//pkg/gpu/ebpf/c/runtime:gpu-debug.stripped",
         "//pkg/network/ebpf/c:tracer.stripped",
         "//pkg/network/ebpf/c:tracer-debug.stripped",
+        "//pkg/network/ebpf/c/co-re:skb-parse-test.stripped",
         "//pkg/network/ebpf/c/co-re:tracer-fentry.stripped",
         "//pkg/network/ebpf/c/co-re:tracer-fentry-debug.stripped",
         "//pkg/network/ebpf/c/runtime:conntrack.stripped",
@@ -166,6 +168,7 @@ filegroup(
         "//pkg/ebpf/bytecode:oom-kill_flat",
         "//pkg/ebpf/bytecode:runtime-security_flat",
         "//pkg/ebpf/bytecode:shared-libraries_flat",
+        "//pkg/ebpf/bytecode:skb-parse-test_flat",
         "//pkg/ebpf/bytecode:tcp-queue-length_flat",
         "//pkg/ebpf/bytecode:tracer_flat",
         "//pkg/ebpf/bytecode:usm_flat",
@@ -249,6 +252,7 @@ pkg_files(
         "//pkg/ebpf/bytecode:oom-kill_gen",
         "//pkg/ebpf/bytecode:runtime-security_gen",
         "//pkg/ebpf/bytecode:shared-libraries_gen",
+        "//pkg/ebpf/bytecode:skb-parse-test_gen",
         "//pkg/ebpf/bytecode:tcp-queue-length_gen",
         "//pkg/ebpf/bytecode:tracer_gen",
         "//pkg/ebpf/bytecode:usm_gen",

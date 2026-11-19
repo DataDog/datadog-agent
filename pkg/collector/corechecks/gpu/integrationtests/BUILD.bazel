@@ -27,7 +27,9 @@ dd_agent_go_test(
     srcs = [
         "check_test.go",
         "gpu_burner_test.go",
+        "mig_setup_test.go",
         "nvml_test.go",
+        "system_probe_test.go",
         "value_validation_test.go",
     ],
     embed = [":integrationtests"],

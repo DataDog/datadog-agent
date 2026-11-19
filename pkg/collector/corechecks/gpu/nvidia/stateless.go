@@ -82,6 +82,14 @@ func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, pr
 	var processSamples []Sample
 	var allWorkloadIDs []workloadmeta.EntityID
 
+	// For a GPU in MIG mode, NVML lists the processes running on any of its MIG devices as processes of the
+	// parent too. They are already reported on the MIG device they run on, where the rest of the per-process
+	// metrics are also reported (the per-process utilization API is not supported on the parent), so don't
+	// attribute them to the parent as well: it would show the same process on two devices.
+	if isMIGParent(device) {
+		usage = nil
+	}
+
 	for _, usage := range usage {
 		workloads := []workloadmeta.EntityID{{
 			Kind: workloadmeta.KindProcess,
@@ -336,6 +344,17 @@ var gpuRecoveryActionToTag = map[nvml.DeviceGpuRecoveryAction]string{
 	nvml.GPU_RECOVERY_ACTION_DRAIN_AND_RESET: "drain_and_reset",
 }
 
+// recoveryActionTagValue returns the recovery_action tag value for an NVML GPU
+// recovery action code. Unknown future values are tagged with the raw code
+// ("unknown_<n>") so they are not silently dropped. It is shared with the XID
+// 154 event tags so events and metrics use the same vocabulary.
+func recoveryActionTagValue(code int64) string {
+	if tag, ok := gpuRecoveryActionToTag[nvml.DeviceGpuRecoveryAction(code)]; ok {
+		return tag
+	}
+	return "unknown_" + strconv.FormatInt(code, 10)
+}
+
 // needsRecoverySample queries the GPU recovery action field and emits a single
 // device.needs_recovery metric: 0 when no action is required, 1 otherwise. The
 // metric is tagged with the specific recovery action.
@@ -346,12 +365,7 @@ func needsRecoverySample(device ddnvml.Device) ([]Sample, uint64, error) {
 	}
 
 	recoveryAction := nvml.DeviceGpuRecoveryAction(action)
-	actionTag, ok := gpuRecoveryActionToTag[recoveryAction]
-	if !ok {
-		// Unknown future action value: still report that recovery is needed,
-		// tagging it with the raw value so it's not silently dropped.
-		actionTag = "unknown_" + strconv.Itoa(action)
-	}
+	actionTag := recoveryActionTagValue(int64(action))
 
 	return []Sample{&Metric{
 		baseSample: baseSample{tags: []string{"recovery_action:" + actionTag}},

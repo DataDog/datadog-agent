@@ -1,3 +1,4 @@
+load("@bazel_lib//lib:expand_template.bzl", "expand_template")
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
@@ -9,6 +10,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 # gazelle:exclude oom-kill.go
 # gazelle:exclude runtime-security.go
 # gazelle:exclude shared-libraries.go
+# gazelle:exclude skb-parse-test.go
 # gazelle:exclude tcp-queue-length.go
 # gazelle:exclude tracer.go
 # gazelle:exclude usm.go
@@ -24,6 +26,7 @@ exports_files(
         "offsetguess-test.go",
         "runtime-security.go",
         "gpu.go",
+        "skb-parse-test.go",
     ],
     visibility = ["//pkg/ebpf/bytecode:__pkg__"],
 )
@@ -31,11 +34,11 @@ exports_files(
 # gazelle:exclude integrity_gen.go
 
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
-genrule(
+expand_template(
     name = "integrity_src",
-    srcs = ["integrity.go"],
-    outs = ["integrity_gen.go"],
-    cmd = "grep -v '^//go:build ignore' $< > $@",
+    out = "integrity_gen.go",
+    substitutions = {"//go:build ignore\n": ""},
+    template = "integrity.go",
 )
 
 go_binary(
@@ -64,6 +67,7 @@ go_library(
         "//pkg/ebpf/bytecode:oom-kill_gen",  # keep
         "//pkg/ebpf/bytecode:runtime-security_gen",  # keep
         "//pkg/ebpf/bytecode:shared-libraries_gen",  # keep
+        "//pkg/ebpf/bytecode:skb-parse-test_gen",  # keep
         "//pkg/ebpf/bytecode:tcp-queue-length_gen",  # keep
         "//pkg/ebpf/bytecode:tracer_gen",  # keep
         "//pkg/ebpf/bytecode:usm_gen",  # keep

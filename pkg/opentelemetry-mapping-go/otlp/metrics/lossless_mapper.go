@@ -203,7 +203,7 @@ func (m *lossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consume
 }
 
 // Histograms are forwarded unvalidated on purpose: the limits depend on the
-// backend that will consume them, which is not settled yet (OTAGENT-1131).
+// backend that consumes them, so checking them is left to the Consumer.
 func (m *lossLessMapper) MapHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.HistogramDataPointSlice, _ bool) error {
 	consumer.ConsumeExplicitBoundHistogram(ctx, dims, slice)
 	return nil

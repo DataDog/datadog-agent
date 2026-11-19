@@ -37,4 +37,7 @@ const (
 	DataPlaneExperimentalOTLPProxySection                   = DataPlaneSection + ".experimental.otlp.proxy"
 	DataPlaneExperimentalOTLPProxyAgentReceiverGRPCEndpoint = DataPlaneExperimentalOTLPProxySection + ".agent_receiver_grpc_endpoint"
 	DataPlaneExperimentalOTLPProxyAgentReceiverHTTPEndpoint = DataPlaneExperimentalOTLPProxySection + ".agent_receiver_http_endpoint"
+	DataPlaneExperimentalOTLPProxyLogs                      = DataPlaneExperimentalOTLPProxySection + ".logs"
+	DataPlaneExperimentalOTLPProxyMetrics                   = DataPlaneExperimentalOTLPProxySection + ".metrics"
+	DataPlaneExperimentalOTLPProxyTraces                    = DataPlaneExperimentalOTLPProxySection + ".traces"
 )

@@ -100,7 +100,7 @@ func (c *recordingComponent) SubscribeSeverityEventsReader(_ severityeventsdef.S
 // TestTimeSamplerObserverHandle verifies that ObserveMetric is called for each
 // sample fed to the TimeSampler when an observerHandle is wired.
 func TestTimeSamplerObserverHandle(t *testing.T) {
-	store := tags.NewStore(false, "test")
+	store := tags.NewStore("test")
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	handle := &recordingHandle{}
 	sampler.observerHandle = handle
@@ -134,7 +134,7 @@ func TestTimeSamplerObserverHandle(t *testing.T) {
 
 func TestTimeSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
-	store := tags.NewStore(false, "test")
+	store := tags.NewStore("test")
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	handle := &recordingHandle{}
 	sampler.observerHandle = handle
@@ -170,7 +170,7 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 			name: "time sampler",
 			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher filterlistdef.TagMatcher) recordedCall {
 				t.Helper()
-				sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), tagger, "host")
+				sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore("test"), tagger, "host")
 				handle := &recordingHandle{}
 				sampler.observerHandle = handle
 				sampler.sample(sample, 1000, matcher)
@@ -183,7 +183,7 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 			name: "check sampler",
 			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher filterlistdef.TagMatcher) recordedCall {
 				t.Helper()
-				sampler := newCheckSampler(10, false, false, 0, false, true, tags.NewStore(false, "test"), "test-check", tagger, newFilteredIdentityTable())
+				sampler := newCheckSampler(10, false, false, 0, false, true, tags.NewStore("test"), "test-check", tagger, newFilteredIdentityTable())
 				handle := &recordingHandle{}
 				sampler.SetObserverHandle(handle)
 				sampler.addSample(sample, matcher)
@@ -276,7 +276,7 @@ func TestNoAggStreamWorkerObserverHandleUsesSerializedTags(t *testing.T) {
 
 // TestTimeSamplerObserverHandleNil verifies no panic when observerHandle is nil.
 func TestTimeSamplerObserverHandleNil(t *testing.T) {
-	store := tags.NewStore(false, "test")
+	store := tags.NewStore("test")
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	// observerHandle is nil by default — must not panic
 
@@ -356,7 +356,7 @@ func TestSetObserverReportingEventsGateOn(t *testing.T) {
 // TestCheckSamplerObserverHandle verifies that ObserveMetric is called for each
 // sample fed to CheckSampler.addSample when an observerHandle is wired.
 func TestCheckSamplerObserverHandle(t *testing.T) {
-	store := tags.NewStore(false, "test")
+	store := tags.NewStore("test")
 	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent(), newFilteredIdentityTable())
 	handle := &recordingHandle{}
 	cs.SetObserverHandle(handle)
@@ -386,7 +386,7 @@ func TestCheckSamplerObserverHandle(t *testing.T) {
 
 func TestCheckSamplerObserverHandleUsesFullTags(t *testing.T) {
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
-	store := tags.NewStore(false, "test")
+	store := tags.NewStore("test")
 	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent(), newFilteredIdentityTable())
 	handle := &recordingHandle{}
 	cs.SetObserverHandle(handle)
@@ -411,7 +411,7 @@ func TestCheckSamplerObserverHandleUsesFullTags(t *testing.T) {
 
 // TestCheckSamplerObserverHandleNil verifies no panic when observerHandle is nil.
 func TestCheckSamplerObserverHandleNil(t *testing.T) {
-	store := tags.NewStore(false, "test")
+	store := tags.NewStore("test")
 	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent(), newFilteredIdentityTable())
 	// observerHandle is nil by default
 

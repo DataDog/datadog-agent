@@ -33,9 +33,11 @@ test/new-e2e/tests/sbom:
   - test: TestSBOMKindSuite/TestSBOM
 
 # TODO: https://datadoghq.atlassian.net/browse/FLREM-153
-# TODO: https://datadoghq.atlassian.net/browse/FLREM-154
-test/new-e2e/tests/agent-subcommands:
+test/new-e2e/tests/agent-subcommands/flare:
   - test: TestLinuxFlareSuite/TestFlareDefaultFiles
+
+# TODO: https://datadoghq.atlassian.net/browse/FLREM-154
+test/new-e2e/tests/agent-subcommands/diagnose:
   - test: TestWindowsDiagnoseSuite/TestDiagnoseOtherCmdPort
 
 # TODO: https://datadoghq.atlassian.net/browse/FLREM-148

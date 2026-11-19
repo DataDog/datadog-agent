@@ -255,6 +255,11 @@ When that's not enough, common advanced patterns:
 | Docker Compose | `test/new-e2e/tests/agent-health/` |
 | ECS / Fargate | `test/new-e2e/tests/cws/` |
 
+When provisioning multiple AWS ECS fakeintakes in one stack, pass
+`fakeintake.WithTaskFamilyName("fakeintake-<name>-ecs")` with a distinct name for
+each instance. The stack name is prepended automatically. By default, fakeintakes
+use the historical `<stack>-fakeintake-ecs` task definition family.
+
 ## Validating E2E tests
 
 E2E tests provision real cloud infrastructure (~10 min per run). **Always run
@@ -294,7 +299,7 @@ host in a component or scenario.
 
 | Accessor | Use for | AWS | GCP / Azure / local |
 |----------|---------|-----|---------------------|
-| `DatadogPublicRegistry()` | publicly released Datadog images (agent, cluster-agent, ddot-collector, operator, dogstatsd, fakeintake) | `<internal ECR>/ecr-public/datadog` | `gcr.io/datadoghq` |
+| `DatadogPublicRegistry()` | publicly released Datadog images (agent, cluster-agent, ddot-collector, operator, dogstatsd, fakeintake) | `<internal ECR>/ecr-public/datadog` | `registry.datadoghq.com` |
 | `InternalDockerhubMirror()` | anything published to Docker Hub, including the unstable `agent-dev` images behind the FIPS and OTel variants | `<internal ECR>/dockerhub` | `registry-1.docker.io` |
 
 On AWS both are pull-through cache prefixes, so the pull stays inside the account. The AWS
@@ -312,7 +317,7 @@ Two deliberate exceptions, commented where they occur:
   `public.ecr.aws`. The ECS control plane pulls the image with the task execution role as
   part of the service definition, so there is no host to authenticate against the cache on.
 - **`injector-dev`** (used by `tests/ssi`) is not published to public ECR, so those images
-  stay on `registry.datadoghq.com`/`gcr.io` and remain internet-dependent on AWS.
+  stay on `registry.datadoghq.com` and remain internet-dependent on AWS.
 
 ## Fakeintake image version
 

@@ -12,7 +12,7 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 Before deploying, make sure you have:
 
-- [OpenTelemetry Operator](https://opentelemetry.io/docs/kubernetes/operator/) installed.
+- [OpenTelemetry Operator](https://opentelemetry.io/docs/kubernetes/operator/) version **0.142.0** or later.
 - A namespace for the Host Profiler. You can reuse an existing namespace or create a dedicated one.
 - A Datadog API key available to the Collector as `DD_API_KEY`.
 
@@ -80,6 +80,18 @@ The provided manifests configure the required capabilities and seccomp profile a
 After you apply the manifests, the OpenTelemetry Operator reconciles the Custom Resource and rolls out an OpenTelemetry Collector DaemonSet with the Host Profiler. Wait for that rollout to complete before verifying profiles.
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
+
+## Running as non-root (optional)
+
+By default, the Host Profiler container runs as root. To run it as a non-privileged user (UID/GID `100`) instead, add `runAsUser`, `runAsGroup`, and `runAsNonRoot` to the `securityContext` in [`operator/collector.yaml`](operator/collector.yaml):
+
+```yaml
+securityContext:
+  # ... existing fields ...
+  runAsUser: 100
+  runAsGroup: 100
+  runAsNonRoot: true
+```
 
 ## AppArmor (optional)
 

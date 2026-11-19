@@ -31,6 +31,8 @@ const ENTRYPOINT_PRIVATE_ACTION_RUNNER: &str =
     include_str!("../../../../Dockerfiles/agent/entrypoint.d/privateactionrunner");
 const ENTRYPOINT_PROCMGR_ALL_IN_ONE: &str =
     include_str!("../../../../Dockerfiles/agent/entrypoint.d/procmgr-all-in-one");
+const ENTRYPOINT_S6_ALL_IN_ONE: &str =
+    include_str!("../../../../Dockerfiles/agent/entrypoint.d/s6-all-in-one");
 const AGENT_DOCKERFILE: &str = include_str!("../../../../Dockerfiles/agent/Dockerfile");
 const ENTRYPOINT_LAUNCHER: &str = include_str!("../../../../Dockerfiles/agent/entrypoint.sh");
 
@@ -628,8 +630,8 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
 fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     let script = ENTRYPOINT_PROCMGR_ALL_IN_ONE;
     assert!(script.contains("set -euo pipefail"));
-    // s6 runs every regular file by its shebang. The entrypoint copies each one
-    // onto the /var/run/s6 volume because shipped and customer scripts are mode 0644.
+    // s6 runs every regular file by its shebang. The entrypoint stages executable
+    // copies because shipped and customer scripts are mode 0644.
     assert!(
         !script.contains("/etc/cont-init.d/*.sh"),
         "a .sh-only glob skips customer scripts that have another suffix"
@@ -663,12 +665,38 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         [mapfile_line],
         "LC_ALL is only the sort prefix, so dd-procmgrd does not inherit it"
     );
-    // Wipe the copy dir before either loop. The loops themselves are one contiguous slice,
-    // so fi and both done lines stay attached to the bodies they close.
+    // The loops are compared as one contiguous slice, so the generic fi and done lines
+    // stay attached to the bodies they close.
+    let staging_cleanup =
+        r#"if [[ "$copy_dir" != "$primary" ]]; then rm -rf "$copy_dir"; trap - EXIT TERM INT; fi"#;
+    // Unique lines only: pos() returns the first match, so a repeated `fi` would not
+    // prove order.
     let steps = [
-        "copy_dir=/var/run/s6/procmgr-cont-init.d",
-        r#"rm -rf "$copy_dir""#,
-        r#"mkdir -p "$copy_dir""#,
+        "stage_executes() {",
+        r#"local probe="$1/.procmgr-exec-probe" status=1"#,
+        r#"if printf '#!/bin/sh\nexit 0\n' >"$probe" && chmod 0755 "$probe" && "$probe" 2>/dev/null; then"#,
+        "status=0",
+        r#"rm -f "$probe""#,
+        r#"return "$status""#,
+        "copy_dir=",
+        "primary=/var/run/s6/procmgr-cont-init.d",
+        r#"if rm -rf "$primary" 2>/dev/null && mkdir "$primary" 2>/dev/null && stage_executes "$primary"; then"#,
+        "copy_dir=$primary",
+        r#"rm -rf "$primary" 2>/dev/null || true"#,
+        r#"for parent in "${TMPDIR:-/tmp}" /opt/datadog-agent/run; do"#,
+        r#"if ! candidate=$(mktemp -d "$parent/procmgr-cont-init.d.XXXXXX" 2>/dev/null); then"#,
+        "continue",
+        "copy_dir=$candidate",
+        r#"trap 'rm -rf "$copy_dir"' EXIT"#,
+        r#"trap 'rm -rf "$copy_dir"; exit 143' TERM INT"#,
+        r#"if stage_executes "$candidate"; then"#,
+        "break",
+        r#"rm -rf "$candidate""#,
+        "trap - EXIT TERM INT",
+        r#"copy_dir="""#,
+        r#"echo "cannot stage /etc/cont-init.d: no writable executable directory in /var/run/s6, ${TMPDIR:-/tmp}, or /opt/datadog-agent/run" >&2"#,
+        "exit 1",
+        r#"printf '===== STAGING cont-init in %s =====\n' "$copy_dir""#,
         mapfile_line,
         r#"wait "$!""#,
         "selected=()",
@@ -700,16 +728,28 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     let loops_end = stage_at + loops.len();
     assert!(
         positions.last().copied().unwrap() < stage_at,
-        "wipe the copy dir before either loop"
+        "pick the copy dir before either loop"
     );
     assert_eq!(
         &code_lines[stage_at..loops_end],
         &loops[..],
         "the copy loop, including fi and done, must finish before the run loop"
     );
+    assert_eq!(
+        code_lines[loops_end], staging_cleanup,
+        "remove the fallback copy dir right after the run loop, because exec skips the EXIT trap"
+    );
     assert!(
         loops_end < pos("exec /opt/datadog-agent/embedded/bin/dd-procmgrd"),
-        "both loops must finish before dd-procmgrd"
+        "both loops and the cleanup must finish before dd-procmgrd"
+    );
+    assert!(
+        !script.contains("mkdir -p"),
+        "mkdir -p would accept a leftover directory this UID cannot clean"
+    );
+    assert!(
+        !script.contains("procmgr-cont-init.d.*"),
+        "a glob would delete another container's live staging directory on a shared mount"
     );
     assert!(script.contains("DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio"));
     assert!(script.contains(
@@ -744,6 +784,15 @@ fn default_entrypoint_still_execs_init() {
     assert!(
         !ENTRYPOINT_DEFAULT.contains("dd-procmgrd"),
         "_default must keep exec /init and must not exec dd-procmgrd"
+    );
+}
+
+#[test]
+fn s6_all_in_one_entrypoint_execs_init() {
+    assert!(ENTRYPOINT_S6_ALL_IN_ONE.contains("exec /init"));
+    assert!(
+        !ENTRYPOINT_S6_ALL_IN_ONE.contains("dd-procmgrd"),
+        "s6-all-in-one pins s6 and must not exec dd-procmgrd"
     );
 }
 

@@ -36,7 +36,7 @@ func filterPodMatcher(t *testing.T, names ...string) filterlistdef.TagMatcher {
 }
 
 func newTagFilterTestSampler(id string, table *filteredIdentityTable) *CheckSampler {
-	return newCheckSampler(2, true, false, time.Hour, true, true, tags.NewStore(true, "test"), checkid.ID(id), nooptagger.NewComponent(), table)
+	return newCheckSampler(2, true, false, time.Hour, true, true, tags.NewStore("test"), checkid.ID(id), nooptagger.NewComponent(), table)
 }
 
 func podSample(name string, mtype metrics.MetricType, pod string, value, ts float64) *metrics.MetricSample {
@@ -240,7 +240,7 @@ func TestCheckSamplerOnlyMergesSeriesThatAddUp(t *testing.T) {
 func TestCheckSamplerDoesNotFilterSketchesStampedPerSecond(t *testing.T) {
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	table := newFilteredIdentityTable()
-	cs := newCheckSampler(2, true, false, time.Hour, true, false, tags.NewStore(true, "test"), checkid.ID("check:0"), nooptagger.NewComponent(), table)
+	cs := newCheckSampler(2, true, false, time.Hour, true, false, tags.NewStore("test"), checkid.ID("check:0"), nooptagger.NewComponent(), table)
 	matcher := filterPodMatcher(t, "my.counter", "my.dist")
 	flushMatcher := metricname.NewMatcher(nil, false)
 

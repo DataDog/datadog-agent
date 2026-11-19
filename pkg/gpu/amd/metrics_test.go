@@ -105,6 +105,61 @@ func TestReadMetricsMissingAttributesAreInvalidNotErrors(t *testing.T) {
 	assert.Equal(t, valid(1420), m.GraphicsClockMHz)
 }
 
+// hwmon reports the SMU's current clocks. Since Linux 7.0 and amdgpu-dkms
+// 6.19.14, pp_dpm_* of AMD Instinct GPUs can mark no level while the clock is
+// between two (an MI300X VF under load showed UCLK at 1270 MHz between its 1100
+// and 1300 MHz levels).
+func TestReadMetricsClocks(t *testing.T) {
+	const unmarkedSclk = "0: 500Mhz \n1: 2200Mhz \n"
+	clocksHwmon := map[string]string{
+		"freq1_label": "sclk\n",
+		"freq1_input": "1933000000\n",
+		"freq2_label": "mclk\n",
+		"freq2_input": "1270000000\n",
+	}
+	for name, tc := range map[string]struct {
+		sclk          string // pp_dpm_sclk content, absent when empty
+		unreadable    bool   // pp_dpm_sclk is a directory
+		hwmon         map[string]string
+		graphics, mem Reading
+		wantErr       string
+	}{
+		"hwmon preferred":           {sclk: "0: 500Mhz \n1: 1420Mhz *\n2: 2200Mhz \n", hwmon: clocksHwmon, graphics: valid(1933), mem: valid(1270)},
+		"no active level":           {sclk: unmarkedSclk, hwmon: clocksHwmon, graphics: valid(1933), mem: valid(1270)},
+		"no hwmon clocks":           {sclk: "0: 500Mhz \n1: 1420Mhz *\n", hwmon: map[string]string{}, graphics: valid(1420), mem: valid(1300)},
+		"no hwmon clocks, unmarked": {sclk: unmarkedSclk, hwmon: map[string]string{}, mem: valid(1300)},
+		"sclk input not exposed":    {sclk: "S: 49Mhz *\n1: 500Mhz \n", hwmon: map[string]string{"freq1_label": "sclk\n"}, graphics: valid(49), mem: valid(1300)},
+		"unparsable sclk input":     {sclk: "1: 1420Mhz *\n", hwmon: map[string]string{"freq1_label": "sclk\n", "freq1_input": "fast\n"}, graphics: valid(1420), mem: valid(1300), wantErr: "freq1_input"},
+		"RAS interrupt":             {sclk: "unavailable\n", hwmon: clocksHwmon, mem: valid(1270)},                    // hwmon then returns a value the driver did not set
+		"unreadable pp_dpm_sclk":    {unreadable: true, hwmon: clocksHwmon, mem: valid(1270), wantErr: "pp_dpm_sclk"}, // EBUSY in a RAS interrupt or reset
+		"sclk label on second freq": {hwmon: map[string]string{"freq1_label": "mclk\n", "freq1_input": "2000000000\n", "freq2_label": "sclk\n", "freq2_input": "85000000\n"}, graphics: valid(85), mem: valid(2000)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fs := NewFakeSysfs(t)
+			attrs := MI300XAttributes("")
+			delete(attrs, "pp_dpm_sclk")
+			if tc.sclk != "" {
+				attrs["pp_dpm_sclk"] = tc.sclk
+			}
+			devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", attrs)
+			fs.AddCard("card0", devDir)
+			fs.AddHwmon(devDir, "hwmon0", tc.hwmon)
+			if tc.unreadable {
+				require.NoError(t, os.Mkdir(filepath.Join(devDir, "pp_dpm_sclk"), 0o755))
+			}
+
+			m, err := discoverSingle(t, fs).ReadMetrics()
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.graphics, m.GraphicsClockMHz)
+			assert.Equal(t, tc.mem, m.MemoryClockMHz)
+		})
+	}
+}
+
 func TestReadMetricsWithoutHwmon(t *testing.T) {
 	fs := NewFakeSysfs(t)
 	fs.AddCard("card0", fs.AddPCIDevice("0000:c1:00.0", "amdgpu", MI300XAttributes("")))

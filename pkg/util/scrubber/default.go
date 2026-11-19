@@ -203,7 +203,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	// Scoped to scanning_rules: every rule key is scrubbed unless explicitly allowed.
 	scanningRulesYaml := matchYAMLOnly(`^scanning_rules$`, func(data any) any {
-		walk(&data, func(key string, _ string, _ any) (bool, any) {
+		scrubber.walk(&data, "", func(key string, _ string, _ any) (bool, any) {
 			switch key {
 			// ADD rule info that can be shown
 			case "id", "license":
@@ -287,13 +287,13 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	//  additional-endpoints key would cause the YAML parser to skip all subnodes).
 	additionalEndpointsYaml := Replacer{
 		YAMLKeyRegex: regexp.MustCompile(`^(orchestrator_)?additional_endpoints$`),
-		ProcessValue: func(data any) any {
+		processValueAtPath: func(data any, path string) any {
 			switch data.(type) {
 			case map[string]interface{}, map[interface{}]interface{}:
 				return scrubAllLeafValues(data)
 			case []interface{}:
 				wrapped := data
-				scrubber.ScrubDataObj(&wrapped)
+				scrubber.scrubDataObjAt(&wrapped, path)
 				return wrapped
 			}
 			return data
@@ -303,9 +303,9 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	privateActionRunnerYaml := Replacer{
 		YAMLKeyRegex: regexp.MustCompile(`^private_action_runner$`),
-		ProcessValue: func(data any) any {
+		processValueAtPath: func(data any, path string) any {
 			wrapped := data
-			scrubber.ScrubDataObj(&wrapped)
+			scrubber.scrubDataObjAt(&wrapped, path)
 			scrubPrivateActionRunnerCredentialValues(wrapped)
 			return wrapped
 		},
@@ -364,41 +364,48 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	privateKeyReplacer.LastUpdated = parseVersion("7.76.0")
 
-	scrubber.AddReplacer(SingleLine, delaFallbackReplacer)
-	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
-	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
-	scrubber.AddReplacer(SingleLine, prefixedAPPKeyReplacer)
-	scrubber.AddReplacer(SingleLine, hintedBearerReplacer)
-	scrubber.AddReplacer(SingleLine, hintedBearerInvalidReplacer)
-	scrubber.AddReplacer(SingleLine, httpHeaderKeyReplacer)
-	scrubber.AddReplacer(SingleLine, httpHeaderTokenReplacer)
-	scrubber.AddReplacer(SingleLine, httpHeaderAuthReplacer)
-	scrubber.AddReplacer(SingleLine, httpHeaderSecretReplacer)
-	scrubber.AddReplacer(SingleLine, exactKeyReplacer)
-	scrubber.AddReplacer(SingleLine, privateKeyReplacer)
-	scrubber.AddReplacer(SingleLine, apiKeyReplacerYAML)
-	scrubber.AddReplacer(SingleLine, apiKeyReplacer)
-	scrubber.AddReplacer(SingleLine, appKeyReplacerYAML)
-	scrubber.AddReplacer(SingleLine, appKeyReplacer)
-	scrubber.AddReplacer(SingleLine, rcAppKeyReplacer)
-	scrubber.AddReplacer(SingleLine, uriPasswordReplacer)
-	scrubber.AddReplacer(SingleLine, yamlPasswordReplacer)
-	scrubber.AddReplacer(SingleLine, passwordReplacer)
-	scrubber.AddReplacer(SingleLine, tokenReplacer)
-	scrubber.AddReplacer(SingleLine, consumerKeyAndTokenIDReplacer)
-	scrubber.AddReplacer(SingleLine, secretReplacer)
-	scrubber.AddReplacer(SingleLine, accessKeyReplacer)
-	scrubber.AddReplacer(SingleLine, snmpReplacer)
-	scrubber.AddReplacer(SingleLine, scanningRulesYaml)
-	scrubber.AddReplacer(SingleLine, scanningRulesPatternReplacer)
+	for _, replacer := range []Replacer{
+		delaFallbackReplacer,
+		hintedAPIKeyReplacer,
+		hintedAPPKeyReplacer,
+		prefixedAPPKeyReplacer,
+		hintedBearerReplacer,
+		hintedBearerInvalidReplacer,
+		httpHeaderKeyReplacer,
+		httpHeaderTokenReplacer,
+		httpHeaderAuthReplacer,
+		httpHeaderSecretReplacer,
+		exactKeyReplacer,
+		privateKeyReplacer,
+		apiKeyReplacerYAML,
+		apiKeyReplacer,
+		appKeyReplacerYAML,
+		appKeyReplacer,
+		rcAppKeyReplacer,
+		uriPasswordReplacer,
+		yamlPasswordReplacer,
+		passwordReplacer,
+		tokenReplacer,
+		consumerKeyAndTokenIDReplacer,
+		secretReplacer,
+		accessKeyReplacer,
+		snmpReplacer,
+		scanningRulesYaml,
+		scanningRulesPatternReplacer,
+		apiKeyYaml,
+		appKeyYaml,
+		additionalEndpointsYaml,
+		privateActionRunnerYaml,
+	} {
+		scrubber.AddReplacer(SingleLine, replacer)
+	}
 
-	scrubber.AddReplacer(SingleLine, apiKeyYaml)
-	scrubber.AddReplacer(SingleLine, appKeyYaml)
-	scrubber.AddReplacer(SingleLine, additionalEndpointsYaml)
-	scrubber.AddReplacer(SingleLine, privateActionRunnerYaml)
-
-	scrubber.AddReplacer(MultiLine, snmpMultilineReplacer)
-	scrubber.AddReplacer(MultiLine, certReplacer)
+	for _, replacer := range []Replacer{
+		snmpMultilineReplacer,
+		certReplacer,
+	} {
+		scrubber.AddReplacer(MultiLine, replacer)
+	}
 
 	dynamicReplacersMutex.Lock()
 	for _, r := range dynamicReplacers {
@@ -522,11 +529,11 @@ func ScrubYaml(data []byte) ([]byte, error) {
 }
 
 // ScrubYamlPreserveStructure scrubs credentials from YAML while preserving
-// key order and scalar styles, using the default scrubber.
+// key order and scalar styles, returning per-call secret declarations using the default scrubber.
 // Some fields such as `additional_endpoints` may lose order. This is acceptable behavior,
 // since this setting isn't really used too often, and already has some strange edge-cases
 // we handle specially.
-func ScrubYamlPreserveStructure(data []byte) ([]byte, error) {
+func ScrubYamlPreserveStructure(data []byte) ([]byte, []ConfigSecret, error) {
 	return DefaultScrubber.ScrubYamlPreserveStructure(data)
 }
 
@@ -698,8 +705,8 @@ func AddStrippedKeys(strippedKeys []string) {
 	}
 }
 
-// GetStrippedKeys returns the keys whose values were scrubbed by ScrubDataObj (and so ScrubYaml and ScrubJSON) on the
-// default scrubber.
+// GetStrippedKeys returns the paths of the settings whose values were scrubbed by ScrubDataObj (and so ScrubYaml and
+// ScrubJSON) on the default scrubber.
 func GetStrippedKeys() []string {
 	return DefaultScrubber.GetStrippedKeys()
 }
