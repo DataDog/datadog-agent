@@ -81,11 +81,11 @@ type Check struct {
 	prmCache            *nvidia.PRMCache                 // prmCache holds system-probe privileged NVLink metrics
 	gpuConfig           *gpuconfig.Config                // gpuConfig is shared with the system-probe GPU module
 	deviceEvtGatherer   *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
+	stateChanges        *nvidia.StateChangesGatherer     // stateChanges reads the watched values every second and keeps the events of their changes
 	workloadTagCache    *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
 	containerProvider   proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 	rateCalculator      *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
 	strictIntervals     *nvidia.StrictIntervalProcessor  // strictIntervals timestamps metrics that must be emitted on a fixed cadence
-	changeEvents        *nvidia.ChangeEventProcessor     // changeEvents sends events when watched metrics change value
 	parallelCollectors  bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
 	issueReporter       healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
 	nvmlIssueID         string                           // nvmlIssueID is the ID of the NVML issue being reported, kept stable across runs since the resource_id is resolved best-effort; only touched from the Run goroutine
@@ -155,7 +155,6 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 		collectorBuilder:    nvidia.NewCollectorBuilder(),
 		rateCalculator:      nvidia.NewRateCalculator(),
 		strictIntervals:     nvidia.NewStrictIntervalProcessor(0),
-		changeEvents:        nvidia.NewChangeEventProcessor(nvidia.DefaultChangeEventRules),
 		sysprobeNvmlState:   newSysprobeNvmlStateNotifier(),
 		sysprobeData:        newSysprobeDataTracker(),
 	}
@@ -276,6 +275,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer(driverEventsSource)
 	c.nodeUnschedulable = nodeunschedulable.New(pkgconfigsetup.Datadog())
+	c.stateChanges = nvidia.NewStateChangesGatherer(c.deviceCache,
+		&nvidia.CollectorDependencies{Workloadmeta: c.wmeta, NodeUnschedulable: c.nodeUnschedulable})
 
 	return nil
 }
@@ -314,6 +315,7 @@ func (c *Check) ensureInitCollectors() error {
 
 	deps := &nvidia.CollectorDependencies{
 		DeviceEventsGatherer: c.deviceEvtGatherer,
+		StateChangesGatherer: c.stateChanges,
 		SystemProbeCache:     c.spCache,
 		PRMCache:             c.prmCache,
 		NodeUnschedulable:    c.nodeUnschedulable,
@@ -351,6 +353,9 @@ func (c *Check) Cancel() {
 		if err := c.deviceEvtGatherer.Stop(); err != nil {
 			log.Warnf("error stopping event set gatherer: %v", err)
 		}
+	}
+	if c.stateChanges != nil {
+		c.stateChanges.Stop()
 	}
 
 	// NVML is deliberately not shut down here: the singleton is shared with
@@ -514,6 +519,12 @@ func (c *Check) Run() error {
 			// registration backoff.
 			nvidia.ResetEventRegistrations(c.collectors)
 		}
+	}
+
+	// The state changes gatherer is stopped while NVML is released, and not started at all
+	// when its collector is disabled: nothing would take its events.
+	if nvidia.StateChangesEnabled(*c.gpuConfig) {
+		c.stateChanges.Start()
 	}
 
 	// Attempt refreshing device events. Only the system-probe driver events
@@ -887,7 +898,6 @@ func (c *Check) sampleEmitter() *SampleEmitter {
 		WorkloadTagCache: c.workloadTagCache,
 		RateCalculator:   c.rateCalculator,
 		StrictIntervals:  c.strictIntervals,
-		ChangeEvents:     c.changeEvents,
 		Telemetry: EmitterTelemetry{
 			CollectionRuns:   c.telemetry.collectorTelemetry.CollectionRuns,
 			CollectionErrors: c.telemetry.collectorTelemetry.CollectionErrors,
@@ -1059,6 +1069,9 @@ func (c *Check) releaseNVML() {
 		if err := c.deviceEvtGatherer.Stop(); err != nil {
 			log.Warnf("error stopping device events gatherer for the NVML release: %v", err)
 		}
+	}
+	if c.stateChanges != nil {
+		c.stateChanges.Stop()
 	}
 
 	// The gated release FIRST: it arms the released flag (rejecting new NVML

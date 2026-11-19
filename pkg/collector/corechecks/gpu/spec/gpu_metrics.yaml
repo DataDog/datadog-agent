@@ -1147,12 +1147,12 @@ metrics:
         mig_parent: true
         physical: true
         vgpu: false
-  nvlink.active:
+  nvlink.link_up:
     metadata:
       metric_type: gauge
       description: >-
-        Whether the NVLink port is active (1) or inactive (0). A change of value
-        is also sent as a gpu_nvlink_state_change event.
+        Whether the NVLink port is up (1) or down (0). A change of value is also
+        sent as a gpu_nvlink_state_change event.
       aggregation: absolute_usage
     tagsets:
       - device

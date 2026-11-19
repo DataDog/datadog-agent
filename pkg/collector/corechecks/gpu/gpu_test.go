@@ -624,7 +624,11 @@ func TestReadinessWaitsForNVMLInitialization(t *testing.T) {
 		synctest.Wait()
 		require.Contains(t, health.GetReady().Unhealthy, CheckName)
 
+		// Stop the state changes worker before replacing the NVML singleton, and before
+		// this mock is reset at cleanup: cleanups run in reverse order.
+		check.stateChanges.Stop()
 		nvmltestutil.SetupMockNVML(t, testutil.WithPhysicalDeviceUUIDs([]string{testutil.DefaultGpuUUID}), testutil.WithMockAllFunctions())
+		t.Cleanup(check.stateChanges.Stop)
 		require.NoError(t, check.Run())
 		require.True(t, check.telemetry.nvmlState.LastNvmlInitSuccess())
 		time.Sleep(15 * time.Second)
@@ -649,8 +653,10 @@ func TestReadinessStaysHealthyAfterNVMLBecomesUnavailable(t *testing.T) {
 		synctest.Wait()
 		require.Contains(t, health.GetReady().Healthy, CheckName)
 
-		// Stop the event worker before replacing the NVML singleton with a failing mock.
+		// Stop the event and state changes workers before replacing the NVML singleton with
+		// a failing mock.
 		require.NoError(t, check.deviceEvtGatherer.Stop())
+		check.stateChanges.Stop()
 		lib.InitFunc = func() nvml.Return { return nvml.ERROR_UNKNOWN }
 		ddnvml.WithPartialMockNVML(t, nil, nil)
 		ddnvml.WithMockNvmlNewFunc(t, func(...nvml.LibraryOption) nvml.Interface { return lib })
@@ -877,8 +883,9 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// eBPF and KAI Scheduler support are disabled by default, and PLR
 	// requires the system-probe endpoint.
 	parentCollectorTypes := nvidia.NumCollectors() - 3
-	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created.
-	migCollectorTypes := parentCollectorTypes - 4
+	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created, and
+	// state changes are only watched on physical devices.
+	migCollectorTypes := parentCollectorTypes - 5
 
 	// Track the number of visible MIG children dynamically.
 	migDeviceCount := 0
@@ -2013,7 +2020,7 @@ func TestNvlinkErrorCounterDedupPrefersStatelessCollector(t *testing.T) {
 
 	disabled := []string{
 		"stateless", "sampling", "fields", "gpm", "device_events",
-		"nvlink_plr", "nvlink_fec", "nvlink_gpm",
+		"nvlink_plr", "nvlink_fec", "nvlink_gpm", "state_changes",
 	}
 	deps := &nvidia.CollectorDependencies{
 		Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t),

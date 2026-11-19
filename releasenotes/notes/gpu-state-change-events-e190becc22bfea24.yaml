@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    gpu: Add the ``gpu.nvlink.active`` metric, which reports whether each NVLink port is active.
+    gpu: Add the ``gpu.nvlink.link_up`` metric, which reports whether each NVLink port is up.
   - |
     gpu: Send events when an NVLink port goes up or down, and when a GPU becomes available or unavailable.
