@@ -928,6 +928,33 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int ret) {
 
 #if defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
 
+// tcp_skb_pcount(): kernels before 3.18 keep the segment count in skb_shinfo(skb)->gso_segs,
+// not in tcp_skb_cb
+static __always_inline u16 skb_shinfo_gso_segs(struct sk_buff *skb) {
+    u16 segs = 0;
+    unsigned char *head = NULL;
+    u32 end = 0; // sk_buff_data_t is an offset from head on 64-bit kernels
+    BPF_CORE_READ_INTO(&head, skb, head);
+    BPF_CORE_READ_INTO(&end, skb, end);
+    BPF_CORE_READ_INTO(&segs, (struct skb_shared_info *)(head + end), gso_segs);
+    return segs;
+}
+
+static __always_inline u16 tcp_skb_segs(struct sk_buff *skb) {
+    u16 segs = 0;
+#ifdef COMPILE_CORE
+    if (!bpf_core_field_exists(struct tcp_skb_cb, tcp_gso_segs)) {
+        return skb_shinfo_gso_segs(skb);
+    }
+    BPF_CORE_READ_INTO(&segs, (struct tcp_skb_cb *)&skb->cb[0], tcp_gso_segs);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+    BPF_CORE_READ_INTO(&segs, (struct tcp_skb_cb *)&skb->cb[0], tcp_gso_segs);
+#else
+    segs = skb_shinfo_gso_segs(skb);
+#endif
+    return segs;
+}
+
 SEC("kprobe/tcp_retransmit_skb")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb) {
     pending_retransmit_key_t key = pending_retransmit_key();
@@ -956,9 +983,7 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int rc) {
     // count the segments the call resent, as the fentry tracer does, not the change in
     // retrans_out: that's a gauge, not a total, so the change between the two probes can be
     // negative and wrap the count
-    u16 segs = 0;
-    BPF_CORE_READ_INTO(&segs, (struct tcp_skb_cb *)&skb->cb[0], tcp_gso_segs);
-    return handle_retransmit(sk, segs);
+    return handle_retransmit(sk, tcp_skb_segs(skb));
 }
 
 // These kprobes fire from kernel timer/softirq context. The shared helpers
