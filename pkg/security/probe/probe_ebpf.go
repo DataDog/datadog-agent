@@ -1634,9 +1634,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// do not notify consumers as we are replaying the process cache entries after a ruleset reload
 		p.replayEvents(false)
 	}
-	if p.profileManager != nil {
-		p.profileManager.DrainPendingEvents()
-	}
 
 	// Return any related events to the pool on every exit path (success, early
 	// return, or panic). Nil-out the backing slots so completed entries don't
@@ -2330,6 +2327,9 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		}
 		return false
 	case model.NopEventType:
+		if p.profileManager != nil {
+			p.profileManager.DrainPendingEvents()
+		}
 		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
 		seclog.Debugf("nop event received, skipping further event handling")
 		return false
