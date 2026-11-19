@@ -192,13 +192,12 @@
       "canonical": "db.system",
       "fallbacks": [
         {
-          "name": "db.system.name",
+          "name": "db.system",
           "provider": "otel",
-          "type": "string",
-          "version": "1.30.0"
+          "type": "string"
         },
         {
-          "name": "db.system",
+          "name": "db.system.name",
           "provider": "otel",
           "type": "string"
         }
@@ -311,16 +310,6 @@
       "fallbacks": [
         {
           "name": "http.route",
-          "provider": "otel",
-          "type": "string"
-        }
-      ]
-    },
-    "url.template": {
-      "canonical": "url.template",
-      "fallbacks": [
-        {
-          "name": "url.template",
           "provider": "otel",
           "type": "string"
         }
@@ -640,12 +629,6 @@
       "canonical": "peer.db.system",
       "fallbacks": [
         {
-          "name": "db.system.name",
-          "provider": "otel",
-          "type": "string",
-          "version": "1.30.0"
-        },
-        {
           "name": "db.system",
           "provider": "otel",
           "type": "string"
@@ -663,6 +646,11 @@
         {
           "name": "sequel.db.vendor",
           "provider": "datadog",
+          "type": "string"
+        },
+        {
+          "name": "db.system.name",
+          "provider": "otel",
           "type": "string"
         }
       ]
@@ -1078,6 +1066,16 @@
         }
       ]
     },
+    "url.template": {
+      "canonical": "url.template",
+      "fallbacks": [
+        {
+          "name": "url.template",
+          "provider": "otel",
+          "type": "string"
+        }
+      ]
+    },
     "valkey.raw_command": {
       "canonical": "valkey.raw_command",
       "fallbacks": [
@@ -1100,9 +1098,9 @@
     }
   },
   "metadata": {
-    "content_hash": "sha256:d2d19e7f53f8d3cb4abe235d3a83b3dcb3399cadcc21cc2ebb5d5e724143b7f3",
-    "git_commit": "a23d98a0be6355dcc72c6af771b13c8f738ff5ba",
-    "timestamp": "20260630131934"
+    "content_hash": "sha256:4f58407dfbaaf77c98cbb475ce5e21d6d27dc7d5c52c8ca69000186c90958938",
+    "git_commit": "4cdbe92008d4d2f5c95264cf7fa53ef47994f3de",
+    "timestamp": "20261118155240"
   },
-  "version": "v20260630131934-121850049"
+  "version": "v20261118155240-4cdbe920"
 }
