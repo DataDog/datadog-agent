@@ -3122,10 +3122,16 @@ func newScanQueueResolver(t *testing.T) (*Resolver, *SBOM) {
 // TestScanFailedRetriesScan checks that a workload whose scan failed is queued
 // for a scan again.
 func TestScanFailedRetriesScan(t *testing.T) {
+	for _, err := range []error{errors.New("scan failed"), errNoProcessForContainerID, errNoContainerRoot} {
+		t.Run(err.Error(), func(t *testing.T) { testScanFailedRetriesScan(t, err) })
+	}
+}
+
+func testScanFailedRetriesScan(t *testing.T, err error) {
 	synctest.Test(t, func(t *testing.T) {
 		r, sbom := newScanQueueResolver(t)
 
-		r.scanFailed(sbom, errors.New("scan failed"))
+		r.scanFailed(sbom, err)
 		time.Sleep(failedScanRetryDelay)
 		synctest.Wait()
 
@@ -3187,6 +3193,7 @@ func TestScanFailedReleasesGoneWorkload(t *testing.T) {
 				r, sbom := newScanQueueResolver(t)
 
 				r.scanFailed(sbom, err)
+				r.Delete(sbom.ContainerID) // simulate a stopped container, see OnCGroupDeletedEvent
 				time.Sleep(failedScanRetryDelay)
 				synctest.Wait()
 

@@ -39,9 +39,9 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.30.0
 	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.30.0
 	github.com/pulumi/pulumi-command/sdk v1.3.0
-	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.2
+	github.com/pulumi/pulumi-docker/sdk/v5 v5.3.0
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.5.0
-	github.com/pulumi/pulumi-gcp/sdk/v10 v10.2.0
+	github.com/pulumi/pulumi-gcp/sdk/v10 v10.3.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.3
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.6
@@ -68,7 +68,7 @@ require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20261006220739-8c912ac31dd4 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.215 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.216 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-rc.4 // indirect

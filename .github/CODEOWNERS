@@ -835,6 +835,7 @@
 /pkg/privateactionrunner/bundles/remoteaction/pcap                    @DataDog/action-platform @DataDog/cloud-network-monitoring
 /pkg/proto/                                                           @DataDog/agent-runtimes
 /pkg/proto/datadog/dogstatsdhttp                                      @DataDog/agent-metric-pipelines
+/pkg/proto/datadog/genresources                                      @DataDog/accelerator-telemetry
 /pkg/proto/datadog/kubemetadata                                       @DataDog/container-platform
 /pkg/proto/datadog/languagedetection                                  @DataDog/container-experiences
 /pkg/proto/datadog/privateactionrunner                                @DataDog/action-platform
@@ -883,7 +884,7 @@
 /pkg/util/kubernetes/                                                 @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/nodename/                                        @DataDog/opentelemetry-agent
 /pkg/util/podman/                                                     @DataDog/container-integrations
-/pkg/util/port/                                                       @DataDog/agent-runtimes
+/pkg/util/port/                                                       @DataDog/cloud-network-monitoring
 /pkg/util/port/portlist/*windows*.go                                  @DataDog/windows-products
 /pkg/util/prometheus                                                  @DataDog/container-integrations
 /pkg/util/quantile/                                                   @DataDog/opentelemetry-agent
@@ -1219,6 +1220,7 @@
 /test/regression/container/quality_gates/quality_gate_private_action_runner* @DataDog/single-machine-performance @DataDog/action-platform
 /test/regression/container/selection.yaml                         @DataDog/single-machine-performance
 /test/regression/container/logs/                                  @DataDog/agent-log-pipelines
+/test/regression/container/agent-metric-pipelines/                @DataDog/agent-metric-pipelines
 
 /tools/                                                              @DataDog/agent-devx
 /tools/host-profiler/                                                @DataDog/profiling-full-host

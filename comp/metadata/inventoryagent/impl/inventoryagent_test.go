@@ -267,6 +267,8 @@ func TestInitData(t *testing.T) {
 
 		"fips.enabled":                                true,
 		"logs_enabled":                                true,
+		"private_action_runner.enabled":               true,
+		"private_action_runner.split_enabled":         true,
 		"compliance_config.enabled":                   true,
 		"compliance_config.host_benchmarks.enabled":   true,
 		"apm_config.enabled":                          true,
@@ -305,6 +307,7 @@ func TestInitData(t *testing.T) {
 
 		"feature_process_language_detection_enabled":          true,
 		"feature_logs_enabled":                                true,
+		"feature_private_action_runner_enabled":               true,
 		"feature_cspm_enabled":                                true,
 		"feature_cspm_host_benchmarks_enabled":                true,
 		"feature_apm_enabled":                                 true,
