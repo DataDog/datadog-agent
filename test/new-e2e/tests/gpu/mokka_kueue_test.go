@@ -51,13 +51,13 @@ func TestGPUMokkaKueueSuite(t *testing.T) {
 // reach both the metrics of its container and the metrics of the GPU allocated to it. The
 // scheduler queue of a Kueue workload is its ClusterQueue, which holds the quota.
 func (s *gpuMokkaKueueSuite) TestKueueJobTags() {
-	podName := runSchedulerGPUJob(&s.BaseSuite, schedulerGPUJob{
+	run := runSchedulerGPUJob(&s.BaseSuite, schedulerGPUJob{
 		namespace: kueueWorkloadNamespace,
 		jobLabels: map[string]string{kueue.QueueNameLabel: kueueTestLocalQueue},
 	})
 
-	assertSchedulerTags(&s.BaseSuite, []string{
-		"pod_name:" + podName,
+	assertSchedulerTags(&s.BaseSuite, run, []string{
+		"pod_name:" + run.podName,
 		"kube_namespace:" + kueueWorkloadNamespace,
 		"kube_scheduler:kueue",
 		"kube_scheduler_queue:" + kueue.DefaultClusterQueue,

@@ -62,14 +62,14 @@ func (s *gpuMokkaKAISuite) TestKAIJobTags() {
 		s.Require().NoError(err, "failed to create the workload namespace")
 	}
 
-	podName := runSchedulerGPUJob(&s.BaseSuite, schedulerGPUJob{
+	run := runSchedulerGPUJob(&s.BaseSuite, schedulerGPUJob{
 		namespace:     kaiWorkloadNamespace,
 		podLabels:     map[string]string{kaischeduler.QueueLabel: kaiTestQueue},
 		schedulerName: kaischeduler.SchedulerName,
 	})
 
-	assertSchedulerTags(&s.BaseSuite, []string{
-		"pod_name:" + podName,
+	assertSchedulerTags(&s.BaseSuite, run, []string{
+		"pod_name:" + run.podName,
 		"kube_namespace:" + kaiWorkloadNamespace,
 		"kube_scheduler:kai",
 		"kube_scheduler_queue:" + kaiTestQueue,

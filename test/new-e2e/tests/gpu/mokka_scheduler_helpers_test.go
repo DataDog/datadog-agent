@@ -35,9 +35,19 @@ type schedulerGPUJob struct {
 	schedulerName string
 }
 
-// runSchedulerGPUJob creates the Job, waits until its pod runs on a GPU and returns the pod name.
-// The Job is deleted at the end of the test.
-func runSchedulerGPUJob(s *e2e.BaseSuite[environments.Kubernetes], job schedulerGPUJob) string {
+// schedulerGPUJobRun is a running schedulerGPUJob.
+type schedulerGPUJobRun struct {
+	podName string
+	// allocatedGPU is the UUID (lowercase, as in the gpu_uuid tag) of the GPU the device plugin
+	// gave to the pod, read from the container independently of the Agent.
+	allocatedGPU string
+	// runningSince is the Unix time at which the pod was seen running.
+	runningSince int64
+}
+
+// runSchedulerGPUJob creates the Job, waits until its pod runs on a GPU and returns the pod and
+// its GPU. The Job is deleted at the end of the test.
+func runSchedulerGPUJob(s *e2e.BaseSuite[environments.Kubernetes], job schedulerGPUJob) schedulerGPUJobRun {
 	ctx := context.Background()
 	kubeClient := s.Env().KubernetesCluster.Client()
 
@@ -90,18 +100,26 @@ func runSchedulerGPUJob(s *e2e.BaseSuite[environments.Kubernetes], job scheduler
 		assert.Equal(c, corev1.PodRunning, pod.Status.Phase, "job pod is not running: %s %s", pod.Status.Reason, pod.Status.Message)
 		podName = pod.Name
 	}, 5*time.Minute, 5*time.Second, "the scheduler did not run the job on a mock GPU")
+	runningSince := time.Now().Unix()
 
-	return podName
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(job.namespace, podName, "work", []string{"printenv", "NVIDIA_VISIBLE_DEVICES"})
+	s.Require().NoError(err, "failed to read the allocated GPU: %s", stderr)
+	allocatedGPU := strings.ToLower(strings.TrimSpace(stdout))
+	s.Require().NotEmpty(allocatedGPU, "the device plugin did not set NVIDIA_VISIBLE_DEVICES")
+	s.Require().NotContains(allocatedGPU, ",", "the job requested one GPU but got %s", allocatedGPU)
+	s.T().Logf("GPU allocated to %s: %s", podName, allocatedGPU)
+
+	return schedulerGPUJobRun{podName: podName, allocatedGPU: allocatedGPU, runningSince: runningSince}
 }
 
 // assertSchedulerTags checks that expectedTags are on both the container metrics of the job and
-// the metrics of the GPU allocated to it (on exactly one GPU), and that the generic scheduler
+// the metrics of the GPU allocated to it (and on no other GPU), and that the generic scheduler
 // workload tag and the scheduler-specific workloadTagKey are set and name the same workload.
 //
 // Tags are eventually consistent: until the Cluster Agent streams the scheduler workload object
 // to the node, pods only get the tags derived from their own labels (e.g. the queue). fakeintake
 // keeps every series of the run, so the checks look for series that already carry the workload.
-func assertSchedulerTags(s *e2e.BaseSuite[environments.Kubernetes], expectedTags []string, workloadTagKey string) {
+func assertSchedulerTags(s *e2e.BaseSuite[environments.Kubernetes], run schedulerGPUJobRun, expectedTags []string, workloadTagKey string) {
 	s.Run("container metrics", func() {
 		s.EventuallyWithT(func(c *assert.CollectT) {
 			metrics, err := s.Env().FakeIntake.Client().FilterMetrics("container.memory.usage", client.WithTags[*aggregator.MetricSeries](expectedTags))
@@ -115,23 +133,39 @@ func assertSchedulerTags(s *e2e.BaseSuite[environments.Kubernetes], expectedTags
 
 	s.Run("allocated GPU metrics", func() {
 		s.EventuallyWithT(func(c *assert.CollectT) {
-			metrics, err := s.Env().FakeIntake.Client().FilterMetrics("gpu.core.limit", client.WithTags[*aggregator.MetricSeries](expectedTags))
-			if !assert.NoError(c, err) || !assert.NotEmpty(c, metrics, "no gpu.core.limit with tags %v", expectedTags) {
+			metrics, err := s.Env().FakeIntake.Client().FilterMetrics("gpu.core.limit")
+			if !assert.NoError(c, err) {
 				return
 			}
-			tagged := withSameTagValue(metrics, "kube_scheduler_workload", workloadTagKey)
-			if !assert.NotEmpty(c, tagged, "no gpu.core.limit with matching kube_scheduler_workload and %s tags, got: %v", workloadTagKey, tagSets(metrics)) {
-				return
-			}
-			uuids := make(map[string]struct{})
-			for _, metric := range tagged {
-				for _, tag := range metric.GetTags() {
-					if strings.HasPrefix(tag, "gpu_uuid:") {
-						uuids[tag] = struct{}{}
-					}
+
+			// Every GPU must have reported since the pod started, so that a missing series of another
+			// GPU can't hide misplaced job tags.
+			reportedUUIDs := make(map[string]struct{})
+			var allocated []*aggregator.MetricSeries
+			for _, metric := range metrics {
+				if !hasPointSince(metric, run.runningSince) {
+					continue
+				}
+				uuid := tagValue(metric.GetTags(), "gpu_uuid")
+				reportedUUIDs[uuid] = struct{}{}
+				// Any series tagged with the job pod, even before the scheduler tags arrive, must be
+				// of the allocated GPU.
+				if !hasTags(metric.GetTags(), []string{"pod_name:" + run.podName}) {
+					continue
+				}
+				if !assert.Equal(c, run.allocatedGPU, uuid, "the job pod tags are on a GPU that was not allocated to it: %v", metric.GetTags()) {
+					continue
+				}
+				if hasTags(metric.GetTags(), expectedTags) {
+					allocated = append(allocated, metric)
 				}
 			}
-			assert.Len(c, uuids, 1, "the job requested one GPU, but its tags are on the metrics of %v", uuids)
+			assert.Len(c, reportedUUIDs, mokkaT4GPUCount, "not every GPU reported gpu.core.limit since the pod started: %v", reportedUUIDs)
+			if !assert.NotEmpty(c, allocated, "no gpu.core.limit of the allocated GPU %s with tags %v", run.allocatedGPU, expectedTags) {
+				return
+			}
+			assert.NotEmpty(c, withSameTagValue(allocated, "kube_scheduler_workload", workloadTagKey),
+				"no gpu.core.limit of the allocated GPU with matching kube_scheduler_workload and %s tags, got: %v", workloadTagKey, tagSets(allocated))
 		}, 5*time.Minute, 10*time.Second)
 	})
 }
