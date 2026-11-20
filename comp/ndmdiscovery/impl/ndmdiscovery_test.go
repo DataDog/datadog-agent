@@ -103,7 +103,6 @@ func TestNewComponentUsesOneWorkerNumberEverywhere(t *testing.T) {
 	comp, ok := provides.Comp.(*ndmDiscovery)
 	require.True(t, ok)
 
-	assert.Equal(t, int64(3), comp.sched.opts.Workers, "scheduler worker budget")
 	assert.Equal(t, int64(3), comp.sched.sweeper.budget, "sweeper budget")
 
 	sem := comp.sched.sweeper.sem
@@ -123,7 +122,6 @@ func TestNewComponentClampsANonPositiveWorkerCount(t *testing.T) {
 	require.NoError(t, err)
 
 	comp := provides.Comp.(*ndmDiscovery)
-	assert.Equal(t, int64(1), comp.sched.opts.Workers)
 	assert.Equal(t, int64(1), comp.sched.sweeper.budget)
 	require.True(t, comp.sched.sweeper.sem.TryAcquire(1))
 	assert.False(t, comp.sched.sweeper.sem.TryAcquire(1))

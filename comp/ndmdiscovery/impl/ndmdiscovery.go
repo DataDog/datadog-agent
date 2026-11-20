@@ -93,7 +93,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		),
 		reqs.Log,
 		schedulerOptions{
-			Workers:      workers,
 			MaxAddresses: defaults.MaxAddresses,
 			Defaults:     defaults,
 			Credentials:  credentials.NewStore(reqs.Config),

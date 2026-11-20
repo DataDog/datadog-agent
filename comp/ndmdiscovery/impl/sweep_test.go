@@ -165,7 +165,6 @@ func testSweepRequestWithOptions(t *testing.T, cidr string, ignored []string, op
 		Options:  opts,
 		Plan:     plan,
 		Digest:   rangeDigest(cfg, opts.Fingerprints()),
-		Workers:  2,
 		Interval: 30 * time.Second,
 	}
 }
@@ -530,31 +529,53 @@ func TestSweepResumeAfterFailureOpensANewRun(t *testing.T) {
 	assert.False(t, saved.Failed)
 }
 
-func TestSweepClampsWorkersToTheBudget(t *testing.T) {
+func TestSweepAloneUsesTheWholeBudget(t *testing.T) {
 	scanner := answerAll()
-	// semaphore.Acquire never returns for n greater than the semaphore's size.
-	s := newTestSweeper(t, scanner, &recordingReporter{}, newMemCursorStore(), 4)
+	s := newTestSweeper(t, scanner, &recordingReporter{}, newMemCursorStore(), 10)
 
-	req := testSweepRequest(t, "10.0.0.0/26", nil)
-	req.Workers = 32
-	require.NoError(t, s.sweep(context.Background(), req))
+	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/26", nil)))
+
+	sent := scanner.recorded()
+	require.Len(t, sent, 1)
+	assert.Equal(t, 10, sent[0].Workers)
+}
+
+func TestSweepShareIsCappedAtTheChunkSize(t *testing.T) {
+	scanner := answerAll()
+	s := newTestSweeper(t, scanner, &recordingReporter{}, newMemCursorStore(), 100)
+
+	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/30", nil)))
 
 	sent := scanner.recorded()
 	require.Len(t, sent, 1)
 	assert.Equal(t, 4, sent[0].Workers)
 }
 
-func TestSweepClampsNonPositiveWorkersToOne(t *testing.T) {
-	scanner := answerAll()
-	s := newTestSweeper(t, scanner, &recordingReporter{}, newMemCursorStore(), 4)
+func TestSweepShareSplitsTheBudgetBetweenSweepsInProgress(t *testing.T) {
+	s := newTestSweeper(t, answerAll(), &recordingReporter{}, newMemCursorStore(), 10)
 
-	req := testSweepRequest(t, "10.0.0.0/26", nil)
-	req.Workers = 0
-	require.NoError(t, s.sweep(context.Background(), req))
+	s.sweeping.Store(1)
+	assert.Equal(t, int64(10), s.share(64))
+	s.sweeping.Store(3)
+	assert.Equal(t, int64(3), s.share(64))
+	s.sweeping.Store(20)
+	assert.Equal(t, int64(1), s.share(64), "the share never drops below one worker")
+	s.sweeping.Store(0)
+	assert.Equal(t, int64(10), s.share(64), "no sweep counted yet still gets the budget")
+}
 
-	sent := scanner.recorded()
-	require.Len(t, sent, 1)
-	assert.Equal(t, 1, sent[0].Workers, "a zero share would bound nothing")
+func TestSweepCountsItselfOnlyWhileSweeping(t *testing.T) {
+	scanner := newBlockingScanner()
+	s := newTestSweeper(t, &scanner.recordingScanner, &recordingReporter{}, newMemCursorStore(), 10)
+
+	done := make(chan error, 1)
+	go func() { done <- s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/26", nil)) }()
+	<-scanner.entered
+	assert.Equal(t, int64(1), s.sweeping.Load())
+
+	close(scanner.release)
+	require.NoError(t, <-done)
+	assert.Zero(t, s.sweeping.Load())
 }
 
 func TestSweepContinuesWhenAChunkReportFails(t *testing.T) {
@@ -593,14 +614,12 @@ func TestSweepPassesTheResolvedOptionsToTheScanner(t *testing.T) {
 		Ping: &pingprobe.Options{Count: 1, Interval: time.Second, Timeout: time.Second},
 		SNMP: testSNMPOptions(),
 	})
-	req.Workers = 4
 	require.NoError(t, s.sweep(context.Background(), req))
 
 	sent := scanner.recorded()
 	require.Len(t, sent, 1)
 	require.NotNil(t, sent[0].Options.Ping)
 	require.NotNil(t, sent[0].Options.SNMP)
-	assert.Equal(t, 4, sent[0].Workers)
 	assert.Len(t, sent[0].Targets, 64)
 }
 
