@@ -59,6 +59,7 @@ go_library(
         "//comp/metadata/inventorychecks/def",
         "//comp/metadata/inventorychecks/fx",
         "//comp/networkconfigmanagement/def",
+        "//comp/networkconfigmanagement/fx",
         "//comp/networkpath/traceroute/def",
         "//comp/networkpath/traceroute/fx-remote",
         "//comp/serializer/logscompression/fx",
@@ -98,9 +99,14 @@ go_library(
 
 dd_agent_go_test(
     name = "check_test",
-    srcs = ["command_test.go"],
+    srcs = [
+        "command_ncm_test.go",
+        "command_test.go",
+    ],
     embed = [":check"],
+    gotags_sets = [["ncm"]],
     deps = [
+        "//comp/aggregator/demultiplexer/def",
         "//comp/core",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/mock",
@@ -112,7 +118,12 @@ dd_agent_go_test(
         "//comp/core/workloadfilter/fx-mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
+        "//comp/networkconfigmanagement/def",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks/networkconfigmanagement",
+        "//pkg/networkconfigmanagement/store",
         "//pkg/util/fxutil",
+        "//pkg/util/option",
         "@com_github_spf13_cobra//:cobra",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
