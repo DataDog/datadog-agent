@@ -22,6 +22,7 @@ type systemAPI interface {
 	GetServiceState(serviceName string) (svc.State, error)
 	StopService(serviceName string) error
 	StartService(serviceName string) error
+	DeleteService(serviceName string) error
 	OpenProcess(desiredAccess uint32, inheritHandle bool, processID uint32) (windows.Handle, error)
 	TerminateProcess(handle windows.Handle, exitCode uint32) error
 	WaitForSingleObject(handle windows.Handle, timeoutMs uint32) (uint32, error)
@@ -99,4 +100,20 @@ func (api *winSystemAPI) WaitForSingleObject(handle windows.Handle, timeoutMs ui
 
 func (api *winSystemAPI) CloseHandle(handle windows.Handle) error {
 	return windows.CloseHandle(handle)
+}
+
+func (api *winSystemAPI) DeleteService(serviceName string) error {
+	manager, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return err
+	}
+	defer manager.Disconnect()
+
+	service, err := winutil.OpenService(manager, serviceName, windows.DELETE)
+	if err != nil {
+		return err
+	}
+	defer service.Close()
+
+	return service.Delete()
 }

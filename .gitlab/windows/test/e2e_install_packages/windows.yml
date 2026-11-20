@@ -283,6 +283,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
+      - EXTRA_PARAMS: --run "TestAgentInstalls$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
       - EXTRA_PARAMS: --run "TestUpgradeWithMissingPassword$/TestUpgradeWithMissingPassword$"
       - EXTRA_PARAMS: --run "TestExtensionPersistence$/TestExtensionPersistThroughMSIUpgrade$"

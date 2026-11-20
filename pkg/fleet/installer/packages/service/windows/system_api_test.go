@@ -58,3 +58,8 @@ func (m *mockSystemAPI) CloseHandle(handle windows.Handle) error {
 	args := m.Called(handle)
 	return args.Error(0)
 }
+
+func (m *mockSystemAPI) DeleteService(serviceName string) error {
+	args := m.Called(serviceName)
+	return args.Error(0)
+}
