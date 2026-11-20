@@ -82,6 +82,12 @@ func TestGetActivePIDsConcurrent(t *testing.T) {
 	wg.Wait()
 }
 
+func TestCloseTwice(t *testing.T) {
+	probe := getProbe()
+	probe.Close()
+	probe.Close()
+}
+
 func TestTrimAndSplitBytes(t *testing.T) {
 	for _, tc := range []struct {
 		input  []byte

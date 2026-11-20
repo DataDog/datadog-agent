@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unicode"
@@ -134,6 +135,7 @@ type probe struct {
 	euid        uint32 // Effective UID
 	clockTicks  float64
 	exit        chan struct{}
+	closeOnce   sync.Once
 
 	// configurations
 	elevatedPermissions     bool
@@ -172,7 +174,7 @@ func NewProcessProbe(options ...Option) Probe {
 
 // Close cleans up everything related to Probe object
 func (p *probe) Close() {
-	close(p.exit)
+	p.closeOnce.Do(func() { close(p.exit) })
 }
 
 // syncBootTime checks bootTime every minute and stores it.
