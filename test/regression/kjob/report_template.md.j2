@@ -5,22 +5,10 @@
 {% set inline_error_limit = 3 %}
 {#- Cut an error on a failure line after this number of characters. "Run errors" then shows the full text. -#}
 {% set error_length_limit = 200 %}
-{#- When all checks use memory series, the column headers show the unit and the cells show only numbers. -#}
-{% set units = namespace(memory_only=true) %}
-{% if report is not none %}
-{% for experiment in report.experiments %}
-{% for check in experiment.checks %}
-{% if not ("target.memory." in check.series and "_bytes" in check.series) %}
-{% set units.memory_only = false %}
-{% endif %}
-{% endfor %}
-{% endfor %}
-{% endif %}
+{#- Each cell shows its unit, because checks can use different units. A whole MiB bound has no decimals. -#}
 {% macro number(value, series, whole) -%}
 {% if whole and "target.memory." in series and "_bytes" in series and value % 1048576 == 0 -%}
-{{ (value // 1048576) | int }}{% if not units.memory_only %} MiB{% endif %}
-{%- elif units.memory_only -%}
-{{ value | kjob_value(series) | replace(" MiB", "") }}
+{{ (value // 1048576) | int }} MiB
 {%- else -%}
 {{ value | kjob_value(series) }}
 {%- endif %}
@@ -52,13 +40,9 @@ unavailable
 {% endfor %}
 {% if hidden.count == 1 %} (1 check has no result){% elif hidden.count > 1 %} ({{ hidden.count }} checks have no result){% endif %}
 {%- endmacro %}
-{#- The cell shows only the metric name of a memory series. The check name tells the container. A tooltip shows the full series. -#}
+{#- The cell shows the series without the "target." prefix. GitHub removes <abbr> tooltips from comments. -#}
 {% macro metric(series) -%}
-{% if series is startingwith("target.memory.") -%}
-<abbr title="{{ series | e }}">{{ series[14:] | split("{") | first }}</abbr>
-{%- else -%}
-{{ series }}
-{%- endif %}
+{{ series | replace("target.", "") }}
 {%- endmacro %}
 {{ summary }}
 {% if report is not none %}
@@ -74,9 +58,9 @@ unavailable
 {% for failure in experiment.failures %}
 {% set error = (failure.error or "no execution error detail is available") | replace("\n", " ") %}
 {% if error | length > error_length_limit %}
-{#- A tooltip shows the full error. "Run errors" also shows it, for readers without tooltips. -#}
+{#- "Run errors" shows the full error. -#}
 {% set errors.collapsed = true %}
-{% set error_html = "<abbr title=\"" ~ (error | e) ~ "\"><code>" ~ (error[:error_length_limit] | e) ~ "…</code></abbr>" %}
+{% set error_html = "<code>" ~ (error[:error_length_limit] | e) ~ "…</code>" %}
 {% else %}
 {% set error_html = "<code>" ~ (error | e) ~ "</code>" %}
 {% endif %}
@@ -118,7 +102,6 @@ unavailable
 <summary>Detailed Bounds Checks ({{ report.experiments | length }} experiment{% if report.experiments | length != 1 %}s{% endif %})</summary>
 
 {% if rows %}
-{% set unit = " (MiB)" if units.memory_only else "" %}
 {#- The table cells have no code spans, because a code span makes a column wider. -#}
 {#- Failed rows come first. Inside each group, the rows keep the order of the report. -#}
 {% set table = namespace(rows=[]) %}
@@ -136,7 +119,7 @@ unavailable
 {% endfor %}
 {% endfor %}
 {% endfor %}
-{{ table.rows | table([["result", "result"], ["experiment", "experiment"], ["check", "check"], ["metric", "metric"], ["bound" ~ unit, "bound"], ["max" ~ unit, "max_observed"]]) }}
+{{ table.rows | table([["result", "result"], ["experiment", "experiment"], ["check", "check"], ["metric", "metric"], ["bound", "bound"], ["max", "max_observed"]]) }}
 {% if experiments_without_checks %}
 
 Experiments without bounds checks: {% for name in experiments_without_checks %}`{{ name }}`{% if not loop.last %}, {% endif %}{% endfor %}
