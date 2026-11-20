@@ -122,7 +122,7 @@ func setUpDMGInstall(ctx context.Context, layout dmgLayout) error {
 // restExperimentConfig puts the experiment configuration path back to resting on the stable one,
 // a link from etc-exp to etc. A fresh install gets the link, and an install over a host that was
 // running a configuration experiment discards it: the experiment's deadline is removed with the
-// old install files, so nothing would ever resume it, and a real etc-exp left in place would have
+// old install files, so nothing would ever end it, and a real etc-exp left in place would have
 // the installer daemon report it as the running configuration. It runs before the jobs are loaded,
 // so the daemon never sees the experiment.
 func restExperimentConfig(ctx context.Context, layout dmgLayout) {
@@ -247,8 +247,7 @@ func removeOldInstallFiles(layout dmgLayout) {
 		// The deadline of a configuration experiment that was running when the install started,
 		// where builds before this one kept it. collapseConfigExperiment clears the current one.
 		// The install replaces the Agent the experiment ran, so the experiment is discarded:
-		// without its deadline the daemon doesn't resume it, and restExperimentConfig discards
-		// its configuration.
+		// its deadline goes, and restExperimentConfig discards its configuration.
 		filepath.Join(layout.runDir(), "experiment-deadline"),
 		// Builds that kept the installer daemon's state and logs under the packages root. The
 		// daemon now keeps them in the Agent's run and log directories, and anything left under the

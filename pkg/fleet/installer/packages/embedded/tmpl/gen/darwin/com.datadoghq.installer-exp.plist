@@ -10,8 +10,6 @@
         <dict>
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
-            <key>DD_INSTALLER_EXPERIMENT_DAEMON</key>
-            <string>true</string>
         </dict>
         <key>ProgramArguments</key>
         <array>

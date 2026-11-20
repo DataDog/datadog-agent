@@ -52,10 +52,10 @@ var startupPollTimeout = 5 * time.Second
 // A var so tests can shorten it.
 var installerLockPoll = time.Minute
 
-// watchExperiment runs in a detached process, launched by the experiment daemon when it starts and
-// finds an experiment pending (resumeConfigExperimentDatadogAgent). It supervises the experiment
-// job set, the experiment daemon included, for as long as the deadline file (configExperimentDeadlinePath) still holds the deadline it
-// read on start, reverting to the stable set if an experiment job exits in a way that fails the
+// watchExperiment runs in a detached process, launched by the hand-over once it has moved the
+// installer daemon to the experiment (superviseHandedOverExperiment). It supervises the experiment
+// job set, the experiment daemon included, for as long as the deadline file
+// (configExperimentDeadlinePath) still holds the deadline it read on start, reverting to the stable set if an experiment job exits in a way that fails the
 // experiment (exitFailsExperiment) or if the deadline expires.
 //
 // A deliberate stop or promote (configExperiment.restoreStable) replaces the deadline with the
@@ -241,7 +241,7 @@ func experimentConfigDeployed() bool {
 // command can run either, so the last attempt reverts without it.
 //
 // A watcher stopped on purpose (ctx cancelled: a daemon start replacing it) reverts nothing.
-// Whatever this cannot revert is left to the next stable daemon start (settleConfigExperiment).
+// Whatever this cannot revert is left with the reverting marker, for Fleet's stop to finish.
 func failSafeRevert(ctx context.Context, deadline launchd.Deadline, token string, cause error) error {
 	log.Errorf("watcher: cannot keep supervising the configuration experiment, reverting it: %v", cause)
 	stillOurs := func() (bool, error) {
@@ -460,8 +460,8 @@ func revertExperimentIfStillPending(ctx context.Context, jobs launchd.JobSet, de
 // reporting the experiment, with the stable daemon's config_id as the running configuration, so
 // Fleet's health check rolls it back.
 //
-// The watcher reverts every job (configExperimentJobSet). The stable daemon settling the host
-// reverts the agent jobs only (see settleConfigExperiment).
+// The watcher, the hand-over and the hand-back revert every job (configExperimentJobSet): they run
+// outside the installer daemon's job, so they can swap the daemon too (see installerJob).
 //
 // An experiment whose configuration is no longer deployed while its deadline is still pending is a
 // promote whose hook never ran: the configuration was promoted, the jobs were not handed back. It is

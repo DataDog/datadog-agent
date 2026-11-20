@@ -338,16 +338,6 @@ func (d *daemonImpl) SetConfigCatalog(configs map[string]installerConfig) {
 
 // Start starts remote config and the garbage collector.
 func (d *daemonImpl) Start(_ context.Context) error {
-	// Recover a configuration experiment left running unsupervised by a daemon that did not shut
-	// down cleanly (crash, kill, reboot), before anything else runs. Only macOS has such
-	// experiments to recover. It runs before the first state refresh because it may resume or
-	// revert the experiment, and until it does, the configuration on disk is not the one the
-	// Agent is running.
-	if runtime.GOOS == "darwin" {
-		if err := d.installer(d.env).ResumeConfigExperiments(d.ctx); err != nil {
-			log.Errorf("Daemon: could not resume configuration experiments: %v", err)
-		}
-	}
 	d.refreshState(d.ctx)
 
 	d.m.Lock()

@@ -261,21 +261,11 @@ type testInstaller struct {
 	bm  *testBoostrapper
 }
 
-// expectResumeOnStart registers the startup resume where Start makes it. Only macOS resumes
-// configuration experiments on start; elsewhere no expectation is registered, so a call fails the
-// test as unexpected.
-func expectResumeOnStart(pm *testPackageManager) {
-	if runtime.GOOS == "darwin" {
-		pm.On("ResumeConfigExperiments", mock.Anything).Return(nil)
-	}
-}
-
 func newTestInstaller(t *testing.T) *testInstaller {
 	bm := &testBoostrapper{}
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	expectResumeOnStart(pm)
 	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
 		States:       map[string]repository.State{},
 		ConfigStates: map[string]repository.State{},
@@ -521,7 +511,6 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	expectResumeOnStart(pm)
 	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
 		States:       testPackageStates,
 		ConfigStates: testConfigStates,
@@ -600,7 +589,6 @@ func TestRefreshStateRunningConfigVersion(t *testing.T) {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	expectResumeOnStart(pm)
 	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
 		States:       testPackageStates,
 		ConfigStates: testConfigStates,
@@ -761,26 +749,20 @@ func TestDecryptSecrets(t *testing.T) {
 	})
 }
 
-// TestStartResumesConfigExperimentsOnlyOnMacOS pins the startup resume. On macOS it runs before the
-// first state refresh: resuming may revert or re-establish a configuration experiment, so
-// refreshing first would report whatever the previous daemon left on disk rather than the
-// configuration the Agent is running. Elsewhere it is skipped, since no other platform has an
-// experiment to resume and the call would only spawn the installer to do nothing.
-func TestStartResumesConfigExperimentsOnlyOnMacOS(t *testing.T) {
+// TestStartDoesNotResumeConfigExperiments pins that Start runs no configuration-experiment step
+// before its first state refresh, on any platform. On macOS the watcher is launched by the hand-over
+// and an experiment a reboot interrupted is ended by Fleet's stop, so there is nothing to recover
+// on start. No ResumeConfigExperiments expectation is registered, so a call fails the test.
+func TestStartDoesNotResumeConfigExperiments(t *testing.T) {
 	var mu sync.Mutex
 	var order []string
-	record := func(call string) func(mock.Arguments) {
-		return func(mock.Arguments) {
-			mu.Lock()
-			defer mu.Unlock()
-			order = append(order, call)
-		}
-	}
-
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	pm.On("ResumeConfigExperiments", mock.Anything).Run(record("resume")).Return(nil)
-	pm.On("ConfigAndPackageStates", mock.Anything).Run(record("refresh")).Return(&repository.PackageStates{
+	pm.On("ConfigAndPackageStates", mock.Anything).Run(func(mock.Arguments) {
+		mu.Lock()
+		defer mu.Unlock()
+		order = append(order, "refresh")
+	}).Return(&repository.PackageStates{
 		States:       map[string]repository.State{},
 		ConfigStates: map[string]repository.State{},
 	}, nil)
@@ -789,14 +771,8 @@ func TestStartResumesConfigExperimentsOnlyOnMacOS(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	if runtime.GOOS == "darwin" {
-		require.GreaterOrEqual(t, len(order), 2)
-		assert.Equal(t, []string{"resume", "refresh"}, order[:2])
-		return
-	}
 	require.NotEmpty(t, order)
-	assert.NotContains(t, order, "resume")
-	assert.Equal(t, "refresh", order[0])
+	pm.AssertNotCalled(t, "ResumeConfigExperiments", mock.Anything)
 }
 
 // startTestDaemon starts a daemon over pm with a test remote config client and stops it when the
