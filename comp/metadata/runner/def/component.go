@@ -34,6 +34,20 @@ func NewProvider(callback MetadataProvider) Provider {
 	return Provider{Callback: callback}
 }
 
+// PrimaryProvider registers a MetadataProvider callback that runs before regular
+// providers on startup (e.g. host metadata so aliases and tags are sent before
+// inventory payloads).
+type PrimaryProvider struct {
+	fx.Out
+
+	Callback MetadataProvider `group:"metadata_provider_primary"`
+}
+
+// NewPrimaryProvider registers a new primary metadata provider.
+func NewPrimaryProvider(callback MetadataProvider) PrimaryProvider {
+	return PrimaryProvider{Callback: callback}
+}
+
 // GetAndFilterProviders filters nil providers from the fx group.
 // This wraps fxutil.GetAndFilterGroup so that impl packages can use it
 // without importing fxutil directly.

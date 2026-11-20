@@ -76,7 +76,7 @@ type Provides struct {
 	compdef.Out
 
 	Comp                 hostComp.Component
-	MetadataProvider     runnerdef.Provider
+	MetadataProvider     runnerdef.PrimaryProvider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
 	Endpoint             api.AgentEndpointProvider
@@ -142,7 +142,7 @@ func NewComponent(deps Requires) Provides {
 	}
 	return Provides{
 		Comp:             &h,
-		MetadataProvider: runnerdef.NewProvider(h.collect),
+		MetadataProvider: runnerdef.NewPrimaryProvider(h.collect),
 		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(StatusProvider{
 			Config:   h.config,
