@@ -1243,16 +1243,22 @@ func (p *EBPFProbe) snapshotLoadedModules() []*model.Event {
 // replaySysCtlEvents dispatches a synthetic sysctl read event for every
 // parameter in /proc/sys, so that rules can match on the values set before the
 // agent started (e.g. at boot), which no sysctl event reports. The events are
-// built and dispatched one at a time: a host has thousands of parameters, about
-// 130 more per network interface.
+// built and dispatched one at a time, and neither the walk nor the evaluation of
+// an event that matches no rule allocates per parameter: a host has thousands of
+// parameters, about 130 more per network interface.
 func (p *EBPFProbe) replaySysCtlEvents(notifyConsumers bool) {
 	// /proc/sys gives no process to attribute the values to
 	anchor := model.NewPlaceholderProcessCacheEntry(0, 0, false)
 	timestamp := time.Now()
 	timestampRaw := uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(timestamp))
 
+	// the walk reuses its buffers, while the events need their own copy of the
+	// strings, as a `set` action can keep a field value in a variable
+	var arena sysctl.StringArena
+
 	var count int
-	err := sysctl.WalkProcSys(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames, func(name, value string) {
+	err := sysctl.WalkProcSys(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames, func(rawName, rawValue []byte) {
+		name, value := arena.Copy(rawName, rawValue)
 		event := p.newSysCtlEventFromProcFSSnapshot(name, value, anchor, timestamp, timestampRaw)
 		p.DispatchEvent(event, notifyConsumers)
 		p.putBackPoolEvent(event)

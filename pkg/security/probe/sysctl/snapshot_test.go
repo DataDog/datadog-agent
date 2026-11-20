@@ -9,6 +9,7 @@ package sysctl
 
 import (
 	"io/fs"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -376,8 +377,8 @@ func TestWalkSystemControls(t *testing.T) {
 	assert.NoError(t, os.Chmod(filepath.Join(root, "vm/write_only_file_not_visited"), 0o200))
 
 	got := make(map[string]string)
-	err := walkSystemControls(root, []string{"boot_id"}, func(name, value string) {
-		got[name] = value
+	err := walkSystemControls(root, []string{"boot_id"}, func(name, value []byte) {
+		got[string(name)] = string(value)
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{
@@ -408,12 +409,66 @@ func TestWalkSystemControlsSkipsUnreadableDirectories(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(unreadable, 0o755) })
 
 	got := make(map[string]string)
-	err := walkSystemControls(root, nil, func(name, value string) {
-		got[name] = value
+	err := walkSystemControls(root, nil, func(name, value []byte) {
+		got[string(name)] = string(value)
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{
 		"fs/file-max":   "100",
 		"vm/swappiness": "60",
 	}, got)
+}
+
+func TestWalkSystemControlsAllocationsDontGrowWithParameters(t *testing.T) {
+	newTree := func(parameters int) string {
+		root := t.TempDir()
+		for i := range parameters {
+			file := filepath.Join(root, "net", "ipv4", "conf", fmt.Sprintf("veth%d", i%10), fmt.Sprintf("param%d", i))
+			assert.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
+			assert.NoError(t, os.WriteFile(file, []byte("1\n"), 0o644))
+		}
+		return root
+	}
+
+	allocs := func(root string) float64 {
+		return testing.AllocsPerRun(10, func() {
+			assert.NoError(t, walkSystemControls(root, []string{"param0"}, func(_, _ []byte) {}))
+		})
+	}
+
+	small, large := newTree(10), newTree(1000)
+	assert.Equal(t, allocs(small), allocs(large), "the walk must not allocate per parameter")
+}
+
+func TestStringArena(t *testing.T) {
+	var arena StringArena
+	name, value := []byte("kernel/yama/ptrace_scope"), []byte("2")
+
+	gotName, gotValue := arena.Copy(name, value)
+	assert.Equal(t, "kernel/yama/ptrace_scope", gotName)
+	assert.Equal(t, "2", gotValue)
+
+	// the copies don't change when the walk reuses its buffers, nor when the
+	// arena copies more parameters, in the same chunk or in a new one
+	copy(name, "XXXXXXXXXXXXXXXXXXXXXXXX")
+	value[0] = 'X'
+	for range 2 * stringArenaChunkSize / 16 {
+		arena.Copy([]byte("net/ipv4/conf/x"), []byte("1"))
+	}
+	large, _ := arena.Copy(make([]byte, 2*stringArenaChunkSize), nil)
+	assert.Len(t, large, 2*stringArenaChunkSize)
+	assert.Equal(t, "kernel/yama/ptrace_scope", gotName)
+	assert.Equal(t, "2", gotValue)
+
+	emptyName, emptyValue := arena.Copy(nil, nil)
+	assert.Empty(t, emptyName)
+	assert.Empty(t, emptyValue)
+
+	allocs := testing.AllocsPerRun(10, func() {
+		var arena StringArena
+		for range 1000 {
+			arena.Copy([]byte("net/ipv4/conf/veth0/forwarding"), []byte("0"))
+		}
+	})
+	assert.LessOrEqual(t, allocs, float64(2), "the arena must share its chunks between parameters")
 }
