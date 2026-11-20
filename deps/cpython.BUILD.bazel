@@ -1,5 +1,6 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//deps/cpython:macros.bzl", "cpython_frozen_modules", "cpython_shared_modules")
 load("@@//deps/cpython:srcs.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MACOS_SHARED_MODULES", "MODULE_SRCS", "OBJECT_SRCS", "PARSER_SRCS", "PLATFORMS", "PYTHON_SRCS", "SHARED_MODULES", "sysconfig_vars")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
@@ -17,7 +18,6 @@ load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink", "strip_prefix")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
-load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 
 package(
     default_package_metadata = [":package_metadata"],

@@ -1,13 +1,12 @@
 """cpython"""
 
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@cpython_versions//:constants.bzl", "PYTHON_SOURCE_URL", "PYTHON_VERSION")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink", "strip_prefix")
 load("@rules_python//python:py_test.bzl", "py_test")
-load("@cpython_versions//:constants.bzl", "PYTHON_SOURCE_URL", "PYTHON_VERSION")
-load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 
 package(
     default_package_metadata = [":package_metadata"],
