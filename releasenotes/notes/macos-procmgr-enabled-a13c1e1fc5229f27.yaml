@@ -7,4 +7,5 @@ enhancements:
     that install only. The install fails and leaves the process manager off when ``datadog.yaml``
     cannot be read or parsed, or the value is not a boolean, and nothing overrides it.
     If the installed ``datadog.yaml`` is missing, the copy saved from the previous
-    install is used instead.
+    install is used instead. The install also fails when that copy cannot be
+    restored, and the process manager follows the saved copy.

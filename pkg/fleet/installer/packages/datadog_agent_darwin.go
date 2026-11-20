@@ -192,7 +192,8 @@ func procmgrDatadogYAML(layout dmgLayout) (path string, fromSaved bool) {
 // the catalog are removed instead, failing the hook if either remains, and the other jobs still
 // load. That configuration failure also fails the hook, so a broken file cannot start dd-procmgrd.
 // A missing live datadog.yaml is read from the copy the preinstall script saved. If that copy is
-// missing too, the process manager stays on by default.
+// missing too, the process manager stays on by default. When restoring that copy fails, the
+// decision uses the saved copy even if a live file remains, and the install fails.
 //
 // Every step runs even if an earlier one fails, and in this order so the installer daemon finds its
 // directories and the package registered when it starts: a failed registration only leaves Fleet
@@ -200,14 +201,23 @@ func procmgrDatadogYAML(layout dmgLayout) (path string, fromSaved bool) {
 func postInstallDMG(ctx HookContext) error {
 	var errs []error
 	env := readInstallEnv(defaultDmgLayout)
-	if err := setUpDMGInstall(ctx, defaultDmgLayout); err != nil {
-		errs = append(errs, err)
+	setupErr := setUpDMGInstall(ctx, defaultDmgLayout)
+	if setupErr != nil {
+		errs = append(errs, setupErr)
 	}
 	skip := map[string]bool{}
 	// Resolved after setUpDMGInstall, which restores datadog.yaml from the saved configuration on
 	// upgrade. If that restore did not happen and the live file is absent, the saved copy is read
-	// directly so an opt-out there is not treated as a first install.
+	// directly so an opt-out there is not treated as a first install. A failed restore of that
+	// copy uses the saved file even when a live file remains.
 	datadogYAML, fromSaved := procmgrDatadogYAML(defaultDmgLayout)
+	if errors.Is(setupErr, errDatadogYAMLRestore) {
+		savedYAML := filepath.Join(defaultDmgLayout.savedConfDir(), "datadog.yaml")
+		if _, err := os.Stat(savedYAML); !os.IsNotExist(err) {
+			datadogYAML = savedYAML
+			fromSaved = true
+		}
+	}
 	enabled, source, resolveErr := procmgrEnabled(os.LookupEnv, env, datadogYAML)
 	if fromSaved && source == procmgrSourceDatadogYAML {
 		source = procmgrSourceSavedDatadogYAML

@@ -1191,6 +1191,88 @@ func TestPostInstallDMGHonorsSavedConfigWhenSetupFails(t *testing.T) {
 	assertProcmgrOmitted(t, *calls, dir)
 }
 
+func TestPostInstallDMGUsesSavedConfigWhenRestoreFails(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	procmgrEnabled = resolveProcmgrEnabled
+	t.Setenv(envProcessManagerEnabled, "")
+	logs := captureHookLog(t)
+	require.NoError(t, os.MkdirAll(defaultDmgLayout.savedConfDir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(defaultDmgLayout.savedConfDir(), "datadog.yaml"), []byte("process_manager:\n  enabled: false\n"), 0o644))
+	live := filepath.Join(defaultDmgLayout.confDir(), "datadog.yaml")
+	require.NoError(t, os.MkdirAll(live, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(live, "keep"), []byte("x"), 0o644))
+
+	err := postInstallDMG(testHookContext(t))
+
+	require.ErrorIs(t, err, errDatadogYAMLRestore)
+	assert.FileExists(t, filepath.Join(live, "keep"))
+	assert.Contains(t, logs.String(), "process_manager.enabled is false (from saved datadog.yaml): com.datadoghq.procmgr is not loaded")
+	assertProcmgrOmitted(t, *calls, dir)
+}
+
+func TestPostInstallDMGFailsClosedWhenTheSavedConfigCannotBeRead(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	procmgrEnabled = resolveProcmgrEnabled
+	t.Setenv(envProcessManagerEnabled, "")
+	logs := captureHookLog(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(defaultDmgLayout.savedConfDir(), "datadog.yaml"), 0o755))
+	live := filepath.Join(defaultDmgLayout.confDir(), "datadog.yaml")
+	require.NoError(t, os.WriteFile(live, []byte("process_manager:\n  enabled: true\n"), 0o644))
+
+	err := postInstallDMG(testHookContext(t))
+
+	require.ErrorIs(t, err, errDatadogYAMLRestore)
+	require.ErrorContains(t, err, "process_manager.enabled could not be read from saved datadog.yaml")
+	assert.Contains(t, logs.String(), "process_manager.enabled could not be read from saved datadog.yaml: com.datadoghq.procmgr is not loaded")
+	content, readErr := os.ReadFile(live)
+	require.NoError(t, readErr)
+	assert.Equal(t, "process_manager:\n  enabled: true\n", string(content))
+	assertProcmgrOmitted(t, *calls, dir)
+}
+
+func TestPostInstallDMGEnvOverridesAFailedRestore(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	procmgrEnabled = resolveProcmgrEnabled
+	t.Setenv(envProcessManagerEnabled, "true")
+	require.NoError(t, os.MkdirAll(defaultDmgLayout.savedConfDir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(defaultDmgLayout.savedConfDir(), "datadog.yaml"), []byte("process_manager:\n  enabled: false\n"), 0o644))
+	live := filepath.Join(defaultDmgLayout.confDir(), "datadog.yaml")
+	require.NoError(t, os.MkdirAll(live, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(live, "keep"), []byte("x"), 0o644))
+
+	err := postInstallDMG(testHookContext(t))
+
+	require.ErrorIs(t, err, errDatadogYAMLRestore)
+	assert.FileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
+	assert.Contains(t, *calls, []string{"bootstrap", "system", filepath.Join(dir, procmgrLabel+".plist")})
+}
+
+func TestPostInstallDMGUsesTheLiveFileWhenSetupFails(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	procmgrEnabled = resolveProcmgrEnabled
+	t.Setenv(envProcessManagerEnabled, "")
+	require.NoError(t, os.MkdirAll(defaultDmgLayout.savedConfDir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(defaultDmgLayout.savedConfDir(), "datadog.yaml"), []byte("process_manager:\n  enabled: false\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(defaultDmgLayout.confDir(), "datadog.yaml"), []byte("api_key: live\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Dir(defaultDmgLayout.logDir()), 0o755))
+	require.NoError(t, os.WriteFile(defaultDmgLayout.logDir(), []byte("not a directory"), 0o644))
+
+	err := postInstallDMG(testHookContext(t))
+
+	require.Error(t, err)
+	require.NotErrorIs(t, err, errDatadogYAMLRestore)
+	assert.FileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
+	assert.Contains(t, *calls, []string{"bootstrap", "system", filepath.Join(dir, procmgrLabel+".plist")})
+}
+
 func TestPostInstallDMGHonorsTheInstallScriptEnv(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
