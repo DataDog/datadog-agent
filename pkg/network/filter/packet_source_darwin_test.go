@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -391,22 +392,27 @@ func buildUDPPacket(dstPort uint16) []byte {
 	return buf.Bytes()
 }
 
-func TestLibpcapSourceUpdatesBPFFilter(t *testing.T) {
+// openUDPCapture returns a handle reading a capture of UDP packets to ports.
+// A capture file stands in for an interface, since opening one needs root.
+func openUDPCapture(t *testing.T, ports ...uint16) *pcap.Handle {
 	path := filepath.Join(t.TempDir(), "udp.pcap")
 	f, err := os.Create(path)
 	require.NoError(t, err)
 	w := pcapgo.NewWriter(f)
 	require.NoError(t, w.WriteFileHeader(defaultSnapLen, layers.LinkTypeEthernet))
-	for _, port := range []uint16{443, 5300} {
+	for _, port := range ports {
 		data := buildUDPPacket(port)
 		require.NoError(t, w.WritePacket(gopacket.CaptureInfo{CaptureLength: len(data), Length: len(data)}, data))
 	}
 	require.NoError(t, f.Close())
-	// A capture file stands in for an interface, since opening one needs root.
 	handle, err := pcap.OpenOffline(path)
 	require.NoError(t, err)
-	defer handle.Close()
+	t.Cleanup(handle.Close)
+	return handle
+}
 
+func TestLibpcapSourceUpdatesBPFFilter(t *testing.T) {
+	handle := openUDPCapture(t, 443, 5300)
 	ps := &LibpcapSource{}
 	ih := &interfaceHandle{handle: handle, ifaceName: "test"}
 	for _, expr := range []string{"udp port 443", "udp port 5300", "not a filter"} {
@@ -425,6 +431,32 @@ func TestLibpcapSourceUpdatesBPFFilter(t *testing.T) {
 		ports = append(ports, uint16(udp.DstPort))
 	}
 	assert.Equal(t, []uint16{5300}, ports)
+}
+
+func TestLibpcapSourceRetriesFailedBPFFilter(t *testing.T) {
+	ps := &LibpcapSource{}
+	ih := &interfaceHandle{handle: openUDPCapture(t), ifaceName: "test"}
+	ps.SetBPFFilter("udp port 443")
+	ps.updateBPFFilter(ih)
+	installed := ih.bpfFilter
+
+	ps.SetBPFFilter("not a filter")
+	ps.updateBPFFilter(ih)
+	assert.Same(t, installed, ih.bpfFilter, "a filter that fails to install is not taken as installed")
+	assert.Equal(t, bpfFilterRetryMin, ih.bpfFilterRetryDelay)
+	retry := ih.bpfFilterRetry
+	ps.updateBPFFilter(ih)
+	assert.Equal(t, retry, ih.bpfFilterRetry, "the filter is not retried before its backoff ends")
+
+	ih.bpfFilterRetry = time.Time{}
+	ps.updateBPFFilter(ih)
+	assert.Same(t, installed, ih.bpfFilter)
+	assert.Equal(t, 2*bpfFilterRetryMin, ih.bpfFilterRetryDelay, "a failed retry doubles the backoff")
+
+	ps.SetBPFFilter("udp port 5300")
+	ps.updateBPFFilter(ih)
+	assert.Equal(t, "udp port 5300", *ih.bpfFilter, "a new filter is installed without waiting out the backoff")
+	assert.Nil(t, ih.failedBPFFilter)
 }
 
 func TestLibpcapSourceIgnoresUnchangedBPFFilter(t *testing.T) {

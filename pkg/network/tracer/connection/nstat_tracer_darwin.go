@@ -213,8 +213,8 @@ type nstatSource struct {
 	domain                   string
 	domainRecorded           time.Time
 	// dnsServer is set once the source is found connected to a DNS server.
-	// Its domain is then a looked-up name for the rest of its life, even if
-	// the server is no longer listed.
+	// Its domain is then a looked-up name until it connects to another peer,
+	// even if the server is no longer listed.
 	dnsServer bool
 }
 
@@ -653,7 +653,17 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 				}
 				source = t.getSource(event.SourceRef)
 			}
+			var dest processutil.Address
+			var dport uint16
+			if source.conn != nil {
+				dest, dport = source.conn.Dest, source.conn.DPort
+			}
 			t.updateSource(event.SourceRef, source, event)
+			if dport != 0 && source.conn != nil && (source.conn.Dest != dest || source.conn.DPort != dport) {
+				// A UDP socket connected to another peer. Its domain, and
+				// whether it talks to a DNS server, were of the previous one.
+				source.domain, source.domainRecorded, source.dnsServer = "", time.Time{}, false
+			}
 			if event.Kind == nstat.EventUpdate {
 				t.observeDomainLocked(source, event)
 			}

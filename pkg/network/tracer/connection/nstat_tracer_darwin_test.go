@@ -2089,6 +2089,50 @@ func TestNStatTracerRecordsNoDomainOfDNSServer(t *testing.T) {
 	}
 }
 
+func TestNStatTracerForgetsDomainWhenUDPSocketChangesPeer(t *testing.T) {
+	previous := processutil.AddressFromString("198.51.100.20")
+	next := processutil.AddressFromString("203.0.113.5")
+	for _, domain := range []string{"other.example", ""} {
+		tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+		now := time.Unix(500, 0)
+		tracer.now = func() time.Time { return now }
+		recorded := recordNStatDomains(tracer)
+		tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderUDPKernel, testNStatUDPFlow(1234), "example.com"))
+
+		now = now.Add(nstatDomainRefresh)
+		reconnected := testNStatUDPFlow(1234)
+		reconnected.Remote.Address = next.Addr
+		update := testNStatDomainUpdate(7, nstat.ProviderUDPKernel, reconnected, domain)
+		if domain == "" {
+			update.DomainState = nstat.DomainAbsent
+		}
+		tracer.processEvent(update)
+
+		want := []nstatRecordedDomain{{previous, "example.com"}}
+		if domain != "" {
+			want = append(want, nstatRecordedDomain{next, domain})
+		}
+		require.Equal(t, next, tracer.sources[7].conn.Dest, domain)
+		require.Equal(t, want, *recorded, domain)
+	}
+}
+
+func TestNStatTracerRecordsDomainOnceUDPSocketLeavesDNSServer(t *testing.T) {
+	server := processutil.AddressFromString("198.51.100.20")
+	next := processutil.AddressFromString("203.0.113.5")
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	recorded := recordNStatDomains(tracer)
+	tracer.isDNSServer = func(addr processutil.Address, _ uint16) bool { return addr == server }
+	tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderUDPKernel, testNStatUDPFlow(1234), "looked-up.example"))
+	require.Empty(t, *recorded)
+
+	reconnected := testNStatUDPFlow(1234)
+	reconnected.Remote.Address = next.Addr
+	tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderUDPKernel, reconnected, "example.com"))
+
+	require.Equal(t, []nstatRecordedDomain{{next, "example.com"}}, *recorded)
+}
+
 func TestNStatTracerRecordsNoDomainOfDNSServerOnceUnlisted(t *testing.T) {
 	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
 	now := time.Unix(500, 0)

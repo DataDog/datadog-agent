@@ -102,6 +102,10 @@ func newDarwinDNSMonitorWithSource(cfg *config.Config, src filter.PacketSource) 
 	if err != nil {
 		return nil, err
 	}
+	// State attaches DNS stats to connections on the configured ports only.
+	snoop.keepStats = func(serverPort uint16) bool {
+		return slices.Contains(cfg.DNSMonitoringPortList, int(serverPort))
+	}
 	m := &darwinDNSMonitor{
 		socketFilterSnooper: snoop,
 		monitoredPorts:      cfg.DNSMonitoringPortList,
@@ -159,10 +163,22 @@ func (m *darwinDNSMonitor) refreshDNSServers(list func() ([]netip.AddrPort, erro
 	if err != nil {
 		return err
 	}
-	if slices.Equal(servers, *m.servers.Load()) {
+	previous := *m.servers.Load()
+	if slices.Equal(servers, previous) {
 		return nil
 	}
 	m.servers.Store(&servers)
+	// Until a server is listed, the connection tracer takes the names its
+	// queries look up for names of its address, unless its port already
+	// marks it as a DNS server.
+	var added []netip.Addr
+	for _, server := range servers {
+		port := server.Port()
+		if !slices.Contains(previous, server) && port != dnsPort && !slices.Contains(m.monitoredPorts, int(port)) {
+			added = append(added, server.Addr())
+		}
+	}
+	m.cache.remove(added)
 	log.Infof("DNS servers on ports other than %d: %v", dnsPort, servers)
 	expr, left := dnsCaptureFilter(m.monitoredPorts, servers)
 	if len(left) > 0 {
@@ -218,4 +234,19 @@ func dnsCaptureFilterExpr(ports []int, servers []netip.AddrPort) string {
 func dnsCaptureFilterFits(expr string) bool {
 	instructions, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, dnsSnapLen, expr)
 	return err == nil && len(instructions) <= dnsCaptureFilterMaxInstructions
+}
+
+// remove deletes the names of addrs, cached under the address or its
+// IPv4-mapped form.
+func (c *reverseDNSCache) remove(addrs []netip.Addr) {
+	if len(addrs) == 0 {
+		return
+	}
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	for _, addr := range addrs {
+		delete(c.data, util.Address{Addr: addr})
+		delete(c.data, util.Address{Addr: netip.AddrFrom16(addr.As16())})
+	}
+	cacheTelemetry.length.Set(int64(len(c.data)))
 }

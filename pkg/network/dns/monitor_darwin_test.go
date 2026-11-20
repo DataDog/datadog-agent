@@ -94,9 +94,16 @@ func (m *mockSubSource) Close() {
 // buildEthernetDNSResponse builds an Ethernet+IPv4+UDP packet containing a
 // DNS A-record response mapping domain → ip.
 func buildEthernetDNSResponse(domain string, ip net.IP) []byte {
+	return buildEthernetDNSPacket(domain, ip, net.IP{8, 8, 8, 8}, 53, true)
+}
+
+// buildEthernetDNSPacket builds an Ethernet+IPv4+UDP packet between a client
+// and server:serverPort, carrying a DNS A-record query for domain or its
+// response mapping domain → ip.
+func buildEthernetDNSPacket(domain string, ip net.IP, server net.IP, serverPort uint16, response bool) []byte {
 	dnsLayer := &layers.DNS{
 		ID:           1,
-		QR:           true, // response
+		QR:           response,
 		OpCode:       layers.DNSOpCodeQuery,
 		AA:           false,
 		TC:           false,
@@ -125,12 +132,17 @@ func buildEthernetDNSResponse(domain string, ip net.IP) []byte {
 		Version:  4,
 		TTL:      64,
 		Protocol: layers.IPProtocolUDP,
-		SrcIP:    net.IP{8, 8, 8, 8},  // DNS server
+		SrcIP:    server,
 		DstIP:    net.IP{10, 0, 0, 1}, // client
 	}
 	udpLayer := &layers.UDP{
-		SrcPort: 53,
+		SrcPort: layers.UDPPort(serverPort),
 		DstPort: 12345,
+	}
+	if !response {
+		dnsLayer.Answers = nil
+		ipLayer.SrcIP, ipLayer.DstIP = ipLayer.DstIP, ipLayer.SrcIP
+		udpLayer.SrcPort, udpLayer.DstPort = udpLayer.DstPort, udpLayer.SrcPort
 	}
 	// SetNetworkLayerForChecksum is required when ComputeChecksums is true.
 	if err := udpLayer.SetNetworkLayerForChecksum(ipLayer); err != nil {
@@ -223,6 +235,36 @@ func TestDarwinDNSMonitor_EthernetDNSResponse(t *testing.T) {
 	assert.Contains(t, names[addr], ToHostname("example.com"), "example.com should be in the resolved names")
 }
 
+func TestDarwinDNSMonitor_KeepsDNSStatsOfConfiguredPortsOnly(t *testing.T) {
+	cfg := config.New()
+	cfg.CollectDNSStats = true
+	cfg.DNSMonitoringPortList = []int{53}
+	configured := net.IP{8, 8, 8, 8}
+	var packets []mockDNSPacket
+	for server, port := range map[string]uint16{configured.String(): 53, "192.0.2.53": 5300} {
+		for _, response := range []bool{false, true} {
+			data := buildEthernetDNSPacket("example.com", net.IP{1, 2, 3, 4}, net.ParseIP(server).To4(), port, response)
+			packets = append(packets, mockDNSPacket{data: data, layerType: layers.LayerTypeEthernet, ts: time.Now()})
+		}
+	}
+	src := newMockSubSource(packets)
+	m, err := newDarwinDNSMonitorWithSource(cfg, src)
+	require.NoError(t, err)
+	defer m.Close()
+	select {
+	case <-src.drained:
+	case <-time.After(5 * time.Second):
+		t.Fatal("packets were not processed within timeout")
+	}
+
+	var servers []util.Address
+	for key := range m.GetDNSStats() {
+		servers = append(servers, key.ServerIP)
+	}
+	assert.Equal(t, []util.Address{util.AddressFromNetIP(configured)}, servers, "a server on another port gets names but no stats")
+	assert.Contains(t, m.Resolve(map[util.Address]struct{}{util.AddressFromString("1.2.3.4"): {}}), util.AddressFromString("1.2.3.4"))
+}
+
 func TestDarwinDNSMonitor_AddDomain(t *testing.T) {
 	m := newTestMonitor(t, newMockSubSource(nil))
 	defer m.Close()
@@ -283,6 +325,41 @@ func TestDarwinDNSMonitor_RefreshDNSServers(t *testing.T) {
 	require.NoError(t, m.refreshDNSServers(list, setFilter))
 	assert.Equal(t, []string{"port 53 or (port 443 and (host 208.67.220.220))", "port 53"}, filters)
 	assert.False(t, m.IsDNSServer(addr, 443))
+}
+
+func TestDarwinDNSMonitor_RefreshForgetsNamesOfNewDNSServers(t *testing.T) {
+	cfg := config.New()
+	cfg.DNSMonitoringPortList = []int{53, 8053}
+	m, err := newDarwinDNSMonitorWithSource(cfg, newMockSubSource(nil))
+	require.NoError(t, err)
+	defer m.Close()
+	listed := util.AddressFromString("192.0.2.53")
+	added := util.AddressFromString("198.51.100.53")
+	addedMapped := util.Address{Addr: netip.AddrFrom16(added.Addr.As16())}
+	addedOnMonitoredPort := util.AddressFromString("198.51.100.80")
+	other := util.AddressFromString("203.0.113.1")
+	list := func(servers ...netip.AddrPort) func() ([]netip.AddrPort, error) {
+		return func() ([]netip.AddrPort, error) { return servers, nil }
+	}
+	require.NoError(t, m.refreshDNSServers(list(netip.AddrPortFrom(listed.Addr, 5300)), func(string) {}))
+	// The connection tracer records no names for a server it knows, so its
+	// names came from elsewhere, such as a DNS answer, and stay.
+	for _, addr := range []util.Address{listed, added, addedMapped, addedOnMonitoredPort, other} {
+		m.AddDomain(addr, "looked-up.example")
+	}
+
+	require.NoError(t, m.refreshDNSServers(list(
+		netip.AddrPortFrom(listed.Addr, 5300),
+		netip.AddrPortFrom(added.Addr, 5300),
+		netip.AddrPortFrom(addedOnMonitoredPort.Addr, 8053),
+	), func(string) {}))
+
+	names := m.Resolve(map[util.Address]struct{}{listed: {}, added: {}, addedMapped: {}, addedOnMonitoredPort: {}, other: {}})
+	assert.Equal(t, map[util.Address][]Hostname{
+		listed:               {ToHostname("looked-up.example")},
+		addedOnMonitoredPort: {ToHostname("looked-up.example")},
+		other:                {ToHostname("looked-up.example")},
+	}, names)
 }
 
 func TestDarwinDNSMonitor_CloseStopsWatchingDNSServers(t *testing.T) {

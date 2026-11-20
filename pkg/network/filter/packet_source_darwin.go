@@ -46,6 +46,11 @@ const (
 
 	// packetChannelSize is the buffer size for the merged packet channel
 	packetChannelSize = 1000
+
+	// A filter an interface failed to install is retried after
+	// bpfFilterRetryMin, doubling up to bpfFilterRetryMax.
+	bpfFilterRetryMin = time.Second
+	bpfFilterRetryMax = time.Minute
 )
 
 // Telemetry
@@ -91,6 +96,11 @@ type interfaceHandle struct {
 
 	// bpfFilter is the filter expression last installed on handle.
 	bpfFilter *string
+	// failedBPFFilter is the filter expression handle last failed to
+	// install, tried again at bpfFilterRetry.
+	failedBPFFilter     *string
+	bpfFilterRetry      time.Time
+	bpfFilterRetryDelay time.Duration
 
 	// localAddrs contains the local IP addresses for this interface
 	localAddrs   map[netip.Addr]struct{}
@@ -554,17 +564,31 @@ func (p *LibpcapSource) SetBPFFilter(expr string) {
 }
 
 // updateBPFFilter installs the current filter expression on ih if it changed.
-// Only the reader goroutine that owns ih calls it, since a pcap handle is not
-// safe for concurrent use.
+// A filter that fails to install is retried with backoff. Only the reader
+// goroutine that owns ih calls it, since a pcap handle is not safe for
+// concurrent use.
 func (p *LibpcapSource) updateBPFFilter(ih *interfaceHandle) {
 	bpfFilter := p.bpfFilter.Load()
 	if bpfFilter == ih.bpfFilter {
 		return
 	}
-	ih.bpfFilter = bpfFilter
-	if err := ih.handle.SetBPFFilter(*bpfFilter); err != nil {
-		log.Warnf("error setting BPF filter on %s, keeping the previous one: %v", ih.ifaceName, err)
+	now := time.Now()
+	if bpfFilter == ih.failedBPFFilter && now.Before(ih.bpfFilterRetry) {
+		return
 	}
+	if err := ih.handle.SetBPFFilter(*bpfFilter); err != nil {
+		if bpfFilter == ih.failedBPFFilter {
+			ih.bpfFilterRetryDelay = min(2*ih.bpfFilterRetryDelay, bpfFilterRetryMax)
+		} else {
+			log.Warnf("error setting BPF filter on %s, keeping the previous one: %v", ih.ifaceName, err)
+			ih.failedBPFFilter = bpfFilter
+			ih.bpfFilterRetryDelay = bpfFilterRetryMin
+		}
+		ih.bpfFilterRetry = now.Add(ih.bpfFilterRetryDelay)
+		return
+	}
+	ih.bpfFilter = bpfFilter
+	ih.failedBPFFilter = nil
 }
 
 // CapturesInterfaceIndex reports whether packets on the interface with the
