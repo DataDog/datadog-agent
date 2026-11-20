@@ -525,6 +525,13 @@ func removeOtherEntries(dir string, keep ...string) {
 func preRemoveDatadogAgent(ctx HookContext) error {
 	client := launchdClient()
 	var errs []error
+	if !ctx.Upgrade {
+		// An uninstall stops a configuration experiment's watchers and clears its deadline before
+		// the jobs go away, as collapseConfigExperiment does on a reinstall: a watcher would read the
+		// experiment jobs going away as a crash and restore the stable jobs on top of the uninstall.
+		// The .dmg's preinstall script already does this on an upgrade.
+		collapseConfigExperiment(ctx)
+	}
 	// The experiment set first: a leftover -exp job would otherwise keep running against a
 	// configuration that is about to be removed. Its definitions are not loaded at boot, so a job
 	// that can't be unloaded only leaves an unused file behind.
