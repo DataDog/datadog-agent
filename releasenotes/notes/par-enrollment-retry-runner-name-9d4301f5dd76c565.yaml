@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Private Action Runner: API key enrollment no longer stops when a retried
+    request is rejected because the timed-out first attempt already created a
+    runner with the same name. Each retry now sends the runner name with the
+    attempt number appended, for example ``<name>-2``.

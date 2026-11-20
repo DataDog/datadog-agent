@@ -11,6 +11,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -452,25 +453,46 @@ func TestEnrollmentTransientStatusIsRetried(t *testing.T) {
 
 func TestEnrollWithApiKeySendsNewRunnerNameOnRetry(t *testing.T) {
 	var names []string
+	// The handler runs on the server goroutine, so it reports errors here
+	// instead of calling require, and answers 400 to stop the enrollment retries.
+	handlerErrs := make(chan error, 10)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
+		if err != nil {
+			handlerErrs <- fmt.Errorf("read request body: %w", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		body := new(par.CreateRunnerRequest)
-		require.NoError(t, jsonapi.Unmarshal(raw, body))
+		if err := jsonapi.Unmarshal(raw, body); err != nil {
+			handlerErrs <- fmt.Errorf("unmarshal request body: %w", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		names = append(names, body.RunnerName)
 		if len(names) == 1 {
 			w.WriteHeader(http.StatusGatewayTimeout)
 			return
 		}
 		payload, err := jsonapi.Marshal(par.CreateRunnerResponse{ID: "runner-test", RunnerID: "runner-test", OrgID: 42})
-		require.NoError(t, err)
-		_, err = w.Write(payload)
-		require.NoError(t, err)
+		if err != nil {
+			handlerErrs <- fmt.Errorf("marshal response: %w", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if _, err := w.Write(payload); err != nil {
+			handlerErrs <- fmt.Errorf("write response: %w", err)
+		}
 	}))
 	defer srv.Close()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	p := &publicClient{ddBaseURL: srv.URL, httpClient: srv.Client()}
-	response, runnerName, err := p.EnrollWithApiKey(context.Background(), "api-key", "app-key", "host-20261118000000", []modes.Mode{modes.ModePull}, &jose.JSONWebKey{Key: &newTestKey(t).PublicKey}, "host", "", "agent")
+	response, runnerName, err := p.EnrollWithApiKey(ctx, "api-key", "app-key", "host-20261118000000", []modes.Mode{modes.ModePull}, &jose.JSONWebKey{Key: &newTestKey(t).PublicKey}, "host", "", "agent")
+	for len(handlerErrs) > 0 {
+		assert.NoError(t, <-handlerErrs, "test server handler")
+	}
 	require.NoError(t, err)
 	assert.Equal(t, "runner-test", response.RunnerID)
 	assert.Equal(t, []string{"host-20261118000000", "host-20261118000000-2"}, names)
