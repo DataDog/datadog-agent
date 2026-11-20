@@ -1712,7 +1712,20 @@ type KueuePodSetAssignment struct {
 	Flavors map[string]string
 }
 
+// KueueWorkloadCondition is a status condition of a Kueue Workload.
+type KueueWorkloadCondition struct {
+	Type               string
+	Status             string
+	Reason             string
+	Message            string
+	LastTransitionTime time.Time
+}
+
 // KubernetesKueueWorkload is an Entity representing a Kueue Workload.
+//
+// The fields after PodTemplateAnnotations are only used by the Cluster Agent
+// to emit Workload events. They are not part of the kube metadata stream, so
+// node Agents never receive them.
 type KubernetesKueueWorkload struct {
 	EntityID
 	EntityMeta
@@ -1721,6 +1734,12 @@ type KubernetesKueueWorkload struct {
 	PodSetAssignments      []KueuePodSetAssignment
 	PodTemplateLabels      map[string]string
 	PodTemplateAnnotations map[string]string
+
+	CreationTimestamp time.Time
+	// Priority is spec.priority, nil when the Workload does not set one.
+	Priority          *int32
+	PriorityClassName string
+	Conditions        []KueueWorkloadCondition
 }
 
 // GetID implements Entity#GetID.
@@ -1757,6 +1776,14 @@ func (w KubernetesKueueWorkload) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Pod Set Assignments:", w.PodSetAssignments)
 	_, _ = fmt.Fprintln(&sb, "Pod Template Labels:", mapToScrubbedJSONString(w.PodTemplateLabels))
 	_, _ = fmt.Fprintln(&sb, "Pod Template Annotations:", mapToScrubbedJSONString(w.PodTemplateAnnotations))
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Creation Timestamp:", w.CreationTimestamp)
+		if w.Priority != nil {
+			_, _ = fmt.Fprintln(&sb, "Priority:", *w.Priority)
+		}
+		_, _ = fmt.Fprintln(&sb, "Priority Class:", w.PriorityClassName)
+		_, _ = fmt.Fprintln(&sb, "Conditions:", w.Conditions)
+	}
 	return sb.String()
 }
 
@@ -1767,11 +1794,43 @@ func GenerateKAIPodGroupEntityID(namespace, name string) string {
 	return namespace + "/" + name
 }
 
+// KAISchedulingExplanation is one reason KAI gives for not scheduling a PodGroup.
+type KAISchedulingExplanation struct {
+	Reason  string
+	Message string
+}
+
+// KAISchedulingCondition is an entry of the status.schedulingConditions of a
+// KAI PodGroup. KAI reports why a PodGroup cannot be scheduled in one
+// condition per node pool, and removes it once the PodGroup is scheduled.
+type KAISchedulingCondition struct {
+	Type               string
+	Status             string
+	NodePool           string
+	Reason             string
+	Message            string
+	Explanations       []KAISchedulingExplanation
+	LastTransitionTime time.Time
+}
+
 // KubernetesKAIPodGroup is an Entity representing a KAI Scheduler PodGroup.
+//
+// The fields after QueueName are only used by the Cluster Agent to emit
+// PodGroup events. They are not part of the kube metadata stream, so node
+// Agents never receive them.
 type KubernetesKAIPodGroup struct {
 	EntityID
 	EntityMeta
 	QueueName string
+
+	CreationTimestamp time.Time
+	PriorityClassName string
+	// LastStartTime and LastEvictionTime are the times KAI last allocated or
+	// evicted the pods of the PodGroup, read from its annotations. They are
+	// zero when KAI has not stamped them.
+	LastStartTime        time.Time
+	LastEvictionTime     time.Time
+	SchedulingConditions []KAISchedulingCondition
 }
 
 // GetID implements Entity#GetID.
@@ -1804,6 +1863,13 @@ func (pg KubernetesKAIPodGroup) String(verbose bool) string {
 	_, _ = fmt.Fprint(&sb, pg.EntityMeta.String(verbose))
 	_, _ = fmt.Fprintln(&sb, "----------- KAI PodGroup -----------")
 	_, _ = fmt.Fprintln(&sb, "Queue:", pg.QueueName)
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Creation Timestamp:", pg.CreationTimestamp)
+		_, _ = fmt.Fprintln(&sb, "Priority Class:", pg.PriorityClassName)
+		_, _ = fmt.Fprintln(&sb, "Last Start:", pg.LastStartTime)
+		_, _ = fmt.Fprintln(&sb, "Last Eviction:", pg.LastEvictionTime)
+		_, _ = fmt.Fprintln(&sb, "Scheduling Conditions:", pg.SchedulingConditions)
+	}
 	return sb.String()
 }
 

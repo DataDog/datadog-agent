@@ -10,11 +10,13 @@ package kubernetesresourceparsers
 import (
 	"fmt"
 	"maps"
+	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type kueueQueueParser struct {
@@ -121,6 +123,17 @@ func (p kueueWorkloadParser) Parse(obj interface{}) workloadmeta.Entity {
 		podTemplateLabels, podTemplateAnnotations = kueuePodTemplateMetadata(u)
 	}
 
+	var priority *int32
+	if value, found, err := unstructured.NestedInt64(u.Object, "spec", "priority"); found && err == nil {
+		narrowed := int32(value)
+		priority = &narrowed
+	}
+	// priorityClassRef is the current field, priorityClassName the deprecated one.
+	priorityClassName, _, _ := unstructured.NestedString(u.Object, "spec", "priorityClassRef", "name")
+	if priorityClassName == "" {
+		priorityClassName, _, _ = unstructured.NestedString(u.Object, "spec", "priorityClassName")
+	}
+
 	return &workloadmeta.KubernetesKueueWorkload{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesKueueWorkload,
@@ -132,7 +145,55 @@ func (p kueueWorkloadParser) Parse(obj interface{}) workloadmeta.Entity {
 		PodSetAssignments:      kueuePodSetAssignments(u),
 		PodTemplateLabels:      podTemplateLabels,
 		PodTemplateAnnotations: podTemplateAnnotations,
+		CreationTimestamp:      u.GetCreationTimestamp().UTC(),
+		Priority:               priority,
+		PriorityClassName:      priorityClassName,
+		Conditions:             kueueWorkloadConditions(u),
 	}
+}
+
+// kueueWorkloadConditions returns the status conditions of a Workload that
+// have a type, in the order Kueue reports them.
+func kueueWorkloadConditions(u *unstructured.Unstructured) []workloadmeta.KueueWorkloadCondition {
+	items, _, _ := unstructured.NestedSlice(u.Object, "status", "conditions")
+
+	var conditions []workloadmeta.KueueWorkloadCondition
+	for _, item := range items {
+		fields, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		conditionType, _, _ := unstructured.NestedString(fields, "type")
+		if conditionType == "" {
+			continue
+		}
+		status, _, _ := unstructured.NestedString(fields, "status")
+		reason, _, _ := unstructured.NestedString(fields, "reason")
+		message, _, _ := unstructured.NestedString(fields, "message")
+		transitionTime, _, _ := unstructured.NestedString(fields, "lastTransitionTime")
+
+		conditions = append(conditions, workloadmeta.KueueWorkloadCondition{
+			Type:               conditionType,
+			Status:             status,
+			Reason:             reason,
+			Message:            message,
+			LastTransitionTime: parseRFC3339(transitionTime),
+		})
+	}
+	return conditions
+}
+
+// parseRFC3339 returns the zero time when the value is empty or malformed.
+func parseRFC3339(value string) time.Time {
+	if value == "" {
+		return time.Time{}
+	}
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		log.Debugf("Ignoring malformed timestamp %q of a scheduler workload: %v", value, err)
+		return time.Time{}
+	}
+	return parsed
 }
 
 // kueuePodTemplateMetadata returns labels and annotations that have the same
