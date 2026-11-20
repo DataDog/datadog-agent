@@ -21,6 +21,7 @@ pkg/gpu/
 ├── context.go         # systemContext holds GPU device info, caches
 ├── cuda/              # CUDA binary parsing (fatbin, cubin, symbols)
 ├── safenvml/          # Safe wrapper around NVML library
+├── resources/         # GPU resource models and publication
 ├── ebpf/              # eBPF program and types
 ├── containers/        # Container detection for GPU workloads
 └── config/            # Configuration
@@ -217,6 +218,25 @@ require.Equal(t, stats.get, stats.put)  // Balanced get/put
 - Handles library loading, error recovery
 - Caches device info to reduce NVML calls
 - `DeviceCache.Refresh` keeps a previously enumerated physical GPU when that index returns `NVML_ERROR_GPU_IS_LOST`. No lost-state attribute is added to `DeviceInfo`; callers that need the current state must query NVML. Any other per-device error still drops that index.
+
+### Static resource publication (`resources/`)
+
+- The GPU core check owns the feature-gated publisher and invokes it after its
+  existing cache refresh. Consume cached `DeviceInfo`; do not add another
+  enumeration, static query pass or background scheduler.
+- NVML handles must not escape into publisher state. Share hardware-formatting
+  helpers with other collectors to preserve metric/resource join formats.
+- The check sender acknowledges submission, not delivery. Periodic full refresh
+  repairs missed events; it is not safe to advance destructive scope watermarks
+  based on sender submission.
+- `Snapshot` assumes cached `DeviceInfo` is complete: a GPU is either fully
+  populated or not enumerated. Most static queries are best-effort in
+  `safenvml` (logged, not fatal), so a rare single-query failure can publish a
+  partial record until the next refresh replaces it; this is accepted rather
+  than handled. In particular, a failed `GetVirtualizationMode` leaves
+  `VirtualizationMode` at its zero value (`NONE`) with an empty
+  `VirtualizationModeName`, so the zero value does not establish mode `none`
+  and a vGPU can be published as a physical GPU in that case.
 
 ### NVML test mocks (`testutil/`)
 - Use `safenvml/testutil.SetupMockNVML` as the main setup entry point outside

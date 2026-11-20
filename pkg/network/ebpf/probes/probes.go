@@ -38,6 +38,8 @@ const (
 	// ProtocolClassifierGRPCSocketFilter runs a classification rules for gRPC protocols.
 	ProtocolClassifierGRPCSocketFilter ProbeFuncName = "socket__classifier_grpc"
 
+	// NetDevQueueTPBTF is the BTF-typed (tp_btf) version of the net_dev_queue probe, CO-RE only
+	NetDevQueueTPBTF ProbeFuncName = "tp_btf__net__net_dev_queue"
 	// NetDevQueueRawTracepoint runs a raw tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
 	NetDevQueueRawTracepoint ProbeFuncName = "raw_tracepoint__net__net_dev_queue"
 	// NetDevQueueTracepoint is the tracepoint version of the same probe attach on kernels less than 4.17
@@ -91,6 +93,8 @@ const (
 	TCPClose ProbeFuncName = "kprobe__tcp_close"
 	// TCPDone traces the tcp_done() system call
 	TCPDone ProbeFuncName = "kprobe__tcp_done"
+	// TCPDisconnect traces the tcp_disconnect() kernel function
+	TCPDisconnect ProbeFuncName = "kprobe__tcp_disconnect"
 	// TCPCloseCleanProtocolsReturn traces the return of tcp_close() system call
 	TCPCloseCleanProtocolsReturn ProbeFuncName = "kretprobe__tcp_close_clean_protocols"
 

@@ -20,6 +20,9 @@
         New-Item -ItemType Directory -Force $env:XDG_CACHE_HOME
         bazel run @temurin_jre_windows_x64//:install -- --destdir=${BUILD_CONTEXT}/java
         If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+        If ($BUILD_ARG -match 'WITH_FIPS=true') {
+          bazel run //deps/maven:install_bouncycastle_fips_jars -- --destdir=${BUILD_CONTEXT}/bouncycastle-fips
+        }
       }
 
     - pushd ${BUILD_CONTEXT}

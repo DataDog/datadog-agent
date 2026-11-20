@@ -1,0 +1,860 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2014-present Datadog, Inc.
+
+//go:build linux
+
+package sockdiag
+
+import (
+	"bufio"
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"net"
+	"net/netip"
+	"os"
+	"runtime"
+	"slices"
+	"strconv"
+	"strings"
+	"sync"
+	"testing"
+
+	vnetns "github.com/vishvananda/netns"
+	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/util/port/portlist"
+)
+
+// testSock is a raw TCP socket opened by a test.
+type testSock struct {
+	fd    int
+	inode string // "socket:[N]", as in /proc/<pid>/fd
+	port  uint16
+}
+
+type sockOpts struct {
+	v6only    bool
+	reuseport bool
+	noListen  bool
+}
+
+func openTCP(addr netip.Addr, port uint16, o sockOpts) (testSock, error) {
+	family := unix.AF_INET
+	if addr.Is6() {
+		family = unix.AF_INET6
+	}
+	fd, err := unix.Socket(family, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
+	if err != nil {
+		return testSock{}, err
+	}
+	ok := false
+	defer func() {
+		if !ok {
+			unix.Close(fd)
+		}
+	}()
+	if family == unix.AF_INET6 {
+		v := 0
+		if o.v6only {
+			v = 1
+		}
+		if err := unix.SetsockoptInt(fd, unix.IPPROTO_IPV6, unix.IPV6_V6ONLY, v); err != nil {
+			return testSock{}, err
+		}
+	}
+	if o.reuseport {
+		if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_REUSEPORT, 1); err != nil {
+			return testSock{}, err
+		}
+	}
+	var sa unix.Sockaddr
+	if family == unix.AF_INET {
+		sa = &unix.SockaddrInet4{Port: int(port), Addr: addr.As4()}
+	} else {
+		sa = &unix.SockaddrInet6{Port: int(port), Addr: addr.As16()}
+	}
+	if err := unix.Bind(fd, sa); err != nil {
+		return testSock{}, fmt.Errorf("bind %s:%d: %w", addr, port, err)
+	}
+	if !o.noListen {
+		if err := unix.Listen(fd, 4096); err != nil {
+			return testSock{}, err
+		}
+	}
+	s, err := describe(fd)
+	if err != nil {
+		return testSock{}, err
+	}
+	ok = true
+	return s, nil
+}
+
+func describe(fd int) (testSock, error) {
+	var st unix.Stat_t
+	if err := unix.Fstat(fd, &st); err != nil {
+		return testSock{}, err
+	}
+	sa, err := unix.Getsockname(fd)
+	if err != nil {
+		return testSock{}, err
+	}
+	var port int
+	switch a := sa.(type) {
+	case *unix.SockaddrInet4:
+		port = a.Port
+	case *unix.SockaddrInet6:
+		port = a.Port
+	}
+	return testSock{fd: fd, inode: "socket:[" + strconv.FormatUint(st.Ino, 10) + "]", port: uint16(port)}, nil
+}
+
+// connectPair opens an established connection to l and returns both ends.
+func connectPair(l testSock, addr netip.Addr) (client, server int, err error) {
+	family := unix.AF_INET6
+	var sa unix.Sockaddr = &unix.SockaddrInet6{Port: int(l.port), Addr: addr.As16()}
+	if addr.Is4() {
+		family = unix.AF_INET
+		sa = &unix.SockaddrInet4{Port: int(l.port), Addr: addr.As4()}
+	}
+	client, err = unix.Socket(family, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
+	if err != nil {
+		return -1, -1, err
+	}
+	if err = unix.Connect(client, sa); err != nil {
+		unix.Close(client)
+		return -1, -1, err
+	}
+	server, _, err = unix.Accept4(l.fd, unix.SOCK_CLOEXEC)
+	if err != nil {
+		unix.Close(client)
+		return -1, -1, err
+	}
+	return client, server, nil
+}
+
+// closeNoTimeWait closes fd with a zero linger so no TIME_WAIT entry is left.
+func closeNoTimeWait(fd int) {
+	_ = unix.SetsockoptLinger(fd, unix.SOL_SOCKET, unix.SO_LINGER, &unix.Linger{Onoff: 1, Linger: 0})
+	unix.Close(fd)
+}
+
+func setLoopbackUp() error {
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM|unix.SOCK_CLOEXEC, 0)
+	if err != nil {
+		return err
+	}
+	defer unix.Close(fd)
+	ifr, err := unix.NewIfreq("lo")
+	if err != nil {
+		return err
+	}
+	ifr.SetUint16(unix.IFF_UP | unix.IFF_LOOPBACK | unix.IFF_RUNNING)
+	return unix.IoctlIfreq(fd, unix.SIOCSIFFLAGS, ifr)
+}
+
+// inNewNetns runs fn on a thread in a fresh, anonymous network namespace with
+// lo up, then moves the thread back. Sockets created by fn stay in the new
+// namespace, which goes away once its last socket is closed. The thread must
+// be restored rather than abandoned: if it is the thread-group leader,
+// /proc/self/net follows its namespace.
+func inNewNetns(fn func() error) error {
+	errc := make(chan error, 1)
+	go func() {
+		runtime.LockOSThread()
+		orig, err := unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+		if err != nil {
+			runtime.UnlockOSThread()
+			errc <- err
+			return
+		}
+		defer unix.Close(orig)
+		if err := unix.Unshare(unix.CLONE_NEWNET); err != nil {
+			runtime.UnlockOSThread()
+			errc <- fmt.Errorf("unshare: %w", err)
+			return
+		}
+		err = setLoopbackUp()
+		if err == nil {
+			err = fn()
+		}
+		if serr := unix.Setns(orig, unix.CLONE_NEWNET); serr != nil {
+			// Leave the thread locked so it is discarded with the goroutine.
+			errc <- fmt.Errorf("restoring netns: %w", serr)
+			return
+		}
+		runtime.UnlockOSThread()
+		errc <- err
+	}()
+	return <-errc
+}
+
+func requireRoot(tb testing.TB) {
+	if os.Geteuid() != 0 {
+		tb.Skip("requires root to create network namespaces")
+	}
+}
+
+// procNetListenInodes returns the "socket:[N]" keys of every LISTEN row in
+// /proc/net/tcp and /proc/net/tcp6.
+func procNetListenInodes(t *testing.T) map[string]bool {
+	t.Helper()
+	out := map[string]bool{}
+	for _, name := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
+		f, err := os.Open(name)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		sc := bufio.NewScanner(f)
+		sc.Scan() // header
+		for sc.Scan() {
+			fields := strings.Fields(sc.Text())
+			if len(fields) > 9 && fields[3] == "0A" {
+				out["socket:["+fields[9]+"]"] = true
+			}
+		}
+		f.Close()
+		if err := sc.Err(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return out
+}
+
+// dumpByInode runs one real sock_diag dump through TCPListeners, keyed like
+// procNetListenInodes.
+func dumpByInode(t *testing.T) map[string]portlist.TCPListener {
+	t.Helper()
+	resetSockDiagLatch(t)
+	ls, err := TCPListeners()
+	if err != nil {
+		t.Fatalf("sock_diag dump failed: %v", err)
+	}
+	out := make(map[string]portlist.TCPListener, len(ls))
+	for _, l := range ls {
+		out["socket:["+strconv.FormatUint(uint64(l.Inode), 10)+"]"] = l
+	}
+	return out
+}
+
+// pollList runs one TCP-only poll, via sock_diag or /proc/net only.
+func pollList(t *testing.T, includeLocalhost, useSockDiag bool) []string {
+	t.Helper()
+	var src func() ([]portlist.TCPListener, error)
+	if useSockDiag {
+		resetSockDiagLatch(t)
+		src = func() ([]portlist.TCPListener, error) {
+			ls, err := TCPListeners()
+			if err != nil {
+				t.Fatalf("sock_diag dump failed: %v", err)
+			}
+			return ls, nil
+		}
+	}
+	p := portlist.NewTCPPoller(includeLocalhost, src)
+	ports, _, err := p.Poll()
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	list := make([]string, len(ports))
+	for i, p := range ports {
+		list[i] = fmtPort(p)
+	}
+	return list
+}
+
+func fmtPort(p portlist.Port) string {
+	return fmt.Sprintf("%s %s %d pid=%d %s", p.Proto, p.IP, p.Port, p.Pid, p.Process)
+}
+
+func setDiff(procfs map[string]bool, sd map[string]portlist.TCPListener) string {
+	var b strings.Builder
+	for k := range procfs {
+		if _, ok := sd[k]; !ok {
+			fmt.Fprintf(&b, "  only procfs: %s\n", k)
+		}
+	}
+	for k, l := range sd {
+		if !procfs[k] {
+			fmt.Fprintf(&b, "  only sock_diag: %s %s:%d\n", k, l.IP, l.Port)
+		}
+	}
+	return b.String()
+}
+
+type wantSock struct {
+	s         testSock
+	ip        netip.Addr // as reported, after unmapping
+	localhost bool       // dropped when IncludeLocalhost is false
+}
+
+func TestSockDiagMatchesProcNet(t *testing.T) {
+	var (
+		any4   = netip.IPv4Unspecified()
+		any6   = netip.IPv6Unspecified()
+		lo4    = netip.MustParseAddr("127.0.0.1")
+		lo4b   = netip.MustParseAddr("127.0.0.2")
+		lo6    = netip.IPv6Loopback()
+		mapped = netip.MustParseAddr("::ffff:127.0.0.1")
+	)
+
+	var want []wantSock
+	var excluded []testSock
+	closeLater := func(fd int) { t.Cleanup(func() { closeNoTimeWait(fd) }) }
+	mustOpen := func(addr netip.Addr, port uint16, o sockOpts) testSock {
+		t.Helper()
+		s, err := openTCP(addr, port, o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		closeLater(s.fd)
+		return s
+	}
+	add := func(addr netip.Addr, port uint16, o sockOpts, ip netip.Addr, localhost bool) testSock {
+		t.Helper()
+		s := mustOpen(addr, port, o)
+		want = append(want, wantSock{s: s, ip: ip, localhost: localhost})
+		return s
+	}
+
+	wild4 := add(any4, 0, sockOpts{}, any4, false)
+	add(lo4, 0, sockOpts{}, lo4, true)
+	add(lo4b, 0, sockOpts{}, lo4b, false)
+	// IPv6 cases need a usable ::1, which some containers lack.
+	var shared6 testSock
+	hasV6 := false
+	if s, err := openTCP(lo6, 0, sockOpts{v6only: true}); err == nil {
+		unix.Close(s.fd)
+		hasV6 = true
+	} else {
+		t.Logf("IPv6 unavailable, skipping IPv6 cases: %v", err)
+	}
+	shared := add(any4, 0, sockOpts{}, any4, false)
+	rp4 := add(lo4, 0, sockOpts{reuseport: true}, lo4, true)
+	add(lo4, rp4.port, sockOpts{reuseport: true}, lo4, true)
+	add(lo4, rp4.port, sockOpts{reuseport: true}, lo4, true)
+	if hasV6 {
+		add(any6, 0, sockOpts{}, any6, false) // dual-stack
+		add(lo6, 0, sockOpts{v6only: true}, lo6, true)
+		// v4-mapped shows up in tcp6 and is unmapped; the procfs localhost
+		// filter doesn't match it, so it's kept either way.
+		add(mapped, 0, sockOpts{}, lo4, false)
+		// IPv4 and v6only IPv6 wildcards sharing one port.
+		shared6 = add(any6, shared.port, sockOpts{v6only: true}, any6, false)
+		// SO_REUSEPORT on the IPv6 wildcard.
+		rp6 := add(any6, 0, sockOpts{v6only: true, reuseport: true}, any6, false)
+		add(any6, rp6.port, sockOpts{v6only: true, reuseport: true}, any6, false)
+	}
+
+	// A non-loopback local address, when the host has one.
+	if addrs, err := net.InterfaceAddrs(); err == nil {
+		var got4, got6 bool
+		for _, a := range addrs {
+			pfx, err := netip.ParsePrefix(a.String())
+			if err != nil || !pfx.Addr().IsGlobalUnicast() {
+				continue
+			}
+			ip := pfx.Addr()
+			if (ip.Is4() && got4) || (ip.Is6() && (got6 || ip.Zone() != "")) {
+				continue
+			}
+			if s, err := openTCP(ip, 0, sockOpts{}); err == nil {
+				closeLater(s.fd)
+				want = append(want, wantSock{s: s, ip: ip})
+				got4 = got4 || ip.Is4()
+				got6 = got6 || ip.Is6()
+			}
+		}
+	}
+
+	// Established connections and a bound, non-listening socket must not appear.
+	type dst struct {
+		l    testSock
+		addr netip.Addr
+	}
+	dsts := []dst{{wild4, lo4}}
+	if hasV6 {
+		dsts = append(dsts, dst{shared6, lo6})
+	}
+	for _, c := range dsts {
+		client, server, err := connectPair(c.l, c.addr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		closeLater(client)
+		closeLater(server)
+		for _, fd := range []int{client, server} {
+			s, err := describe(fd)
+			if err != nil {
+				t.Fatal(err)
+			}
+			excluded = append(excluded, s)
+		}
+	}
+	excluded = append(excluded, mustOpen(lo4, 0, sockOpts{noListen: true}))
+
+	// Listeners in another network namespace must not appear.
+	if os.Geteuid() == 0 {
+		err := inNewNetns(func() error {
+			addrs := []netip.Addr{any4, lo4}
+			if hasV6 {
+				addrs = append(addrs, any6)
+			}
+			for _, a := range addrs {
+				s, err := openTCP(a, 0, sockOpts{})
+				if err != nil {
+					return err
+				}
+				closeLater(s.fd)
+				excluded = append(excluded, s)
+			}
+			return nil
+		})
+		if errors.Is(err, unix.EPERM) {
+			t.Logf("cannot create a network namespace, skipping those listeners: %v", err)
+		} else if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		t.Log("not root: skipping the other-namespace listeners")
+	}
+
+	// Other processes on the host may change listeners between two reads, so
+	// allow a few attempts to get a consistent pair.
+	var sd map[string]portlist.TCPListener
+	var diff string
+	for attempt := 0; attempt < 5; attempt++ {
+		pf := procNetListenInodes(t)
+		sd = dumpByInode(t)
+		if diff = setDiff(pf, sd); diff == "" {
+			break
+		}
+	}
+	if diff != "" {
+		t.Fatalf("sock_diag and /proc/net disagree:\n%s", diff)
+	}
+	for _, w := range want {
+		l, ok := sd[w.s.inode]
+		if !ok {
+			t.Errorf("missing listener %s %s:%d", w.s.inode, w.ip, w.s.port)
+			continue
+		}
+		if l.IP != w.ip || l.Port != w.s.port || l.Loopback != w.localhost {
+			t.Errorf("listener %s: got %s:%d loopback=%v, want %s:%d loopback=%v", w.s.inode, l.IP, l.Port, l.Loopback, w.ip, w.s.port, w.localhost)
+		}
+	}
+	for _, s := range excluded {
+		if l, ok := sd[s.inode]; ok {
+			t.Errorf("non-listening or other-namespace socket %s reported: %s:%d", s.inode, l.IP, l.Port)
+		}
+	}
+
+	pid := os.Getpid()
+	for _, includeLocalhost := range []bool{true, false} {
+		t.Run(fmt.Sprintf("includeLocalhost=%v", includeLocalhost), func(t *testing.T) {
+			var pfList, sdList []string
+			for attempt := 0; attempt < 5; attempt++ {
+				pfList = pollList(t, includeLocalhost, false)
+				sdList = pollList(t, includeLocalhost, true)
+				if slices.Equal(pfList, sdList) {
+					break
+				}
+			}
+			if !slices.Equal(pfList, sdList) {
+				t.Fatalf("poll results differ:\n  procfs:    %q\n  sock_diag: %q", pfList, sdList)
+			}
+			for _, w := range want {
+				prefix := fmt.Sprintf("tcp %s %d pid=%d ", w.ip, w.s.port, pid)
+				found := slices.ContainsFunc(sdList, func(e string) bool { return strings.HasPrefix(e, prefix) })
+				if !includeLocalhost && w.localhost {
+					if found {
+						t.Errorf("%s (%s:%d) should be filtered as localhost", w.s.inode, w.ip, w.s.port)
+					}
+				} else if !found {
+					t.Errorf("poll is missing %s, want prefix %q in %q", w.s.inode, prefix, sdList)
+				}
+			}
+		})
+	}
+}
+
+// fakeNetlink feeds crafted datagrams to recvInetDiag through a socketpair,
+// reporting them as sent by netlink port ID senderPid (0 is the kernel).
+func fakeNetlink(t *testing.T, senderPid uint32, msgs ...[]byte) recvFunc {
+	t.Helper()
+	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM|unix.SOCK_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { unix.Close(fds[0]); unix.Close(fds[1]) })
+	for _, m := range msgs {
+		if _, err := unix.Write(fds[1], m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return func(p []byte) (int, int, unix.Sockaddr, error) {
+		n, _, flags, _, err := unix.Recvmsg(fds[0], p, nil, unix.MSG_DONTWAIT)
+		return n, flags, &unix.SockaddrNetlink{Family: unix.AF_NETLINK, Pid: senderPid}, err
+	}
+}
+
+func nlmsg(typ uint16, flags uint16, seq uint32, payload []byte) []byte {
+	n := nlmsgHdrLen + len(payload)
+	b := make([]byte, (n+3)&^3)
+	ne := binary.NativeEndian
+	ne.PutUint32(b[0:4], uint32(n))
+	ne.PutUint16(b[4:6], typ)
+	ne.PutUint16(b[6:8], flags)
+	ne.PutUint32(b[8:12], seq)
+	copy(b[nlmsgHdrLen:], payload)
+	return b
+}
+
+func diagMsg(family, state uint8, addr netip.Addr, port uint16, inode uint32) []byte {
+	m := make([]byte, inetDiagMsgLen)
+	m[0], m[1] = family, state
+	binary.BigEndian.PutUint16(m[4:6], port)
+	if family == unix.AF_INET {
+		a := addr.As4()
+		copy(m[8:12], a[:])
+	} else {
+		a := addr.As16()
+		copy(m[8:24], a[:])
+	}
+	binary.NativeEndian.PutUint32(m[68:72], inode)
+	return m
+}
+
+func errPayload(errno int32) []byte {
+	b := make([]byte, 4)
+	binary.NativeEndian.PutUint32(b, uint32(errno))
+	return b
+}
+
+func TestRecvInetDiag(t *testing.T) {
+	const seq = 7
+	lo4 := netip.MustParseAddr("127.0.0.1")
+	mapped := netip.MustParseAddr("::ffff:127.0.0.1")
+	cat := func(bs ...[]byte) []byte { return slices.Concat(bs...) }
+
+	t.Run("multipart", func(t *testing.T) {
+		recv := fakeNetlink(t, 0,
+			cat(nlmsg(unix.SOCK_DIAG_BY_FAMILY, unix.NLM_F_MULTI, seq, diagMsg(unix.AF_INET6, tcpStateListen, mapped, 80, 1)),
+				nlmsg(unix.SOCK_DIAG_BY_FAMILY, unix.NLM_F_MULTI, seq, diagMsg(unix.AF_INET6, 1, mapped, 81, 2))),
+			cat(nlmsg(unix.SOCK_DIAG_BY_FAMILY, unix.NLM_F_MULTI, seq, diagMsg(unix.AF_INET6, tcpStateListen, netip.IPv6Loopback(), 82, 3)),
+				nlmsg(unix.NLMSG_DONE, unix.NLM_F_MULTI, seq, errPayload(0))),
+		)
+		got, err := recvInetDiag(recv, make([]byte, sockDiagRecvBuf), unix.AF_INET6, seq, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []portlist.TCPListener{
+			{IP: lo4, Port: 80, Inode: 1},
+			{IP: netip.IPv6Loopback(), Port: 82, Inode: 3, Loopback: true},
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("got %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("not_from_kernel", func(t *testing.T) {
+		recv := fakeNetlink(t, 4242, nlmsg(unix.NLMSG_DONE, unix.NLM_F_MULTI, seq, errPayload(0)))
+		if _, err := recvInetDiag(recv, make([]byte, sockDiagRecvBuf), unix.AF_INET, seq, nil); !errors.Is(err, errNotFromKernel) {
+			t.Fatalf("got %v, want errNotFromKernel", err)
+		}
+	})
+
+	t.Run("non_netlink_sender", func(t *testing.T) {
+		recv := func([]byte) (int, int, unix.Sockaddr, error) { return 0, 0, nil, nil }
+		if _, err := recvInetDiag(recv, make([]byte, sockDiagRecvBuf), unix.AF_INET, seq, nil); !errors.Is(err, errNotFromKernel) {
+			t.Fatalf("got %v, want errNotFromKernel", err)
+		}
+	})
+
+	for _, tc := range []struct {
+		name string
+		msgs [][]byte
+		buf  int
+	}{
+		{"nlmsg_error", [][]byte{nlmsg(unix.NLMSG_ERROR, 0, seq, errPayload(-int32(unix.EPERM)))}, sockDiagRecvBuf},
+		{"done_with_error", [][]byte{nlmsg(unix.NLMSG_DONE, unix.NLM_F_MULTI, seq, errPayload(-int32(unix.EINVAL)))}, sockDiagRecvBuf},
+		{"wrong_seq", [][]byte{nlmsg(unix.NLMSG_DONE, unix.NLM_F_MULTI, seq+1, errPayload(0))}, sockDiagRecvBuf},
+		{"dump_interrupted", [][]byte{nlmsg(unix.NLMSG_DONE, unix.NLM_F_MULTI|unix.NLM_F_DUMP_INTR, seq, errPayload(0))}, sockDiagRecvBuf},
+		{"unexpected_type", [][]byte{nlmsg(99, 0, seq, nil)}, sockDiagRecvBuf},
+		{"short_msg", [][]byte{nlmsg(unix.SOCK_DIAG_BY_FAMILY, unix.NLM_F_MULTI, seq, make([]byte, 10))}, sockDiagRecvBuf},
+		{"truncated", [][]byte{nlmsg(unix.SOCK_DIAG_BY_FAMILY, unix.NLM_F_MULTI, seq, diagMsg(unix.AF_INET, tcpStateListen, lo4, 80, 1))}, 20},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			recv := fakeNetlink(t, 0, tc.msgs...)
+			if _, err := recvInetDiag(recv, make([]byte, tc.buf), unix.AF_INET, seq, nil); err == nil {
+				t.Fatal("expected an error")
+			}
+		})
+	}
+}
+
+// resetSockDiagLatch clears the process-wide latches for the test's duration
+// and reports tcp_diag as present.
+func resetSockDiagLatch(t *testing.T) {
+	sockDiagOff.Store(false)
+	t.Cleanup(func() { sockDiagOff.Store(false) })
+	setTCPDiagPresent(t, true)
+}
+
+func setTCPDiagPresent(t testing.TB, present bool) {
+	orig := tcpDiagPresent
+	tcpDiagPresent = func() bool { return present }
+	t.Cleanup(func() { tcpDiagPresent = orig })
+}
+
+func TestSockDiagLatch(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		err   error
+		latch bool
+	}{
+		{"socket_EPROTONOSUPPORT", fmt.Errorf("netlink socket: %w", unix.EPROTONOSUPPORT), true},
+		{"socket_EAFNOSUPPORT", fmt.Errorf("netlink socket: %w", unix.EAFNOSUPPORT), true},
+		{"nlmsg_error_ENOENT", fmt.Errorf("sock_diag request: %w", unix.ENOENT), true},
+		{"v4_ENOENT", &sockDiagFamilyError{unix.AF_INET, fmt.Errorf("sock_diag request: %w", unix.ENOENT)}, true},
+		{"v6_ENOENT", &sockDiagFamilyError{unix.AF_INET6, fmt.Errorf("sock_diag request: %w", unix.ENOENT)}, false},
+		{"v6_EPERM", &sockDiagFamilyError{unix.AF_INET6, fmt.Errorf("sock_diag request: %w", unix.EPERM)}, true},
+		{"v6_EINVAL", &sockDiagFamilyError{unix.AF_INET6, fmt.Errorf("sock_diag request: %w", unix.EINVAL)}, true},
+		{"v6_EAGAIN", &sockDiagFamilyError{unix.AF_INET6, fmt.Errorf("receiving sock_diag reply: %w", unix.EAGAIN)}, false},
+		{"nlmsg_error_EINVAL", fmt.Errorf("sock_diag request: %w", unix.EINVAL), true},
+		{"nlmsg_error_EPERM", fmt.Errorf("sock_diag request: %w", unix.EPERM), true},
+		{"socket_EACCES", fmt.Errorf("netlink socket: %w", unix.EACCES), true},
+		{"recv_EAGAIN", fmt.Errorf("receiving sock_diag reply: %w", unix.EAGAIN), false},
+		{"recv_EINTR", fmt.Errorf("receiving sock_diag reply: %w", unix.EINTR), false},
+		{"send_ENOBUFS", fmt.Errorf("sending sock_diag request: %w", unix.ENOBUFS), false},
+		{"truncated", errSockDiagTruncated, false},
+		{"dump_interrupted", errors.New("sock_diag dump interrupted"), false},
+		{"wrong_seq", errors.New("unexpected netlink seq 2, want 1"), false},
+		{"parse", errors.New("short inet_diag_msg (10 bytes)"), false},
+		{"not_from_kernel", errNotFromKernel, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resetSockDiagLatch(t)
+			orig := dumpTCPListeners
+			defer func() { dumpTCPListeners = orig }()
+			calls := 0
+			dumpTCPListeners = func() ([]portlist.TCPListener, error) {
+				calls++
+				return nil, tc.err
+			}
+			const polls = 3
+			for i := 0; i < polls; i++ {
+				if _, err := TCPListeners(); err == nil {
+					t.Fatal("expected an error")
+				}
+			}
+			want := polls
+			if tc.latch {
+				want = 1
+			}
+			if calls != want {
+				t.Fatalf("sock_diag attempted %d times over %d polls, want %d", calls, polls, want)
+			}
+			if sockDiagOff.Load() != tc.latch {
+				t.Fatalf("latch = %v, want %v", sockDiagOff.Load(), tc.latch)
+			}
+		})
+	}
+}
+
+func TestSockDiagRequiresTCPDiag(t *testing.T) {
+	resetSockDiagLatch(t)
+	present := false
+	tcpDiagPresent = func() bool { return present }
+	orig := dumpTCPListeners
+	defer func() { dumpTCPListeners = orig }()
+	calls := 0
+	dumpTCPListeners = func() ([]portlist.TCPListener, error) {
+		calls++
+		return nil, nil
+	}
+	for i := 0; i < 3; i++ {
+		if _, err := TCPListeners(); err != errNoTCPDiag {
+			t.Fatalf("err = %v, want errNoTCPDiag", err)
+		}
+	}
+	if calls != 0 {
+		t.Fatalf("sock_diag dumped %d times without tcp_diag", calls)
+	}
+	if sockDiagOff.Load() {
+		t.Fatal("a missing tcp_diag latched sock_diag off")
+	}
+
+	present = true
+	if _, err := TCPListeners(); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("sock_diag not used once tcp_diag appeared (calls = %d)", calls)
+	}
+}
+
+func TestSockDiagLatchConcurrent(t *testing.T) {
+	resetSockDiagLatch(t)
+	orig := dumpTCPListeners
+	defer func() { dumpTCPListeners = orig }()
+	dumpTCPListeners = func() ([]portlist.TCPListener, error) {
+		return nil, fmt.Errorf("sock_diag request: %w", unix.ENOENT)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 5; j++ {
+				if _, err := TCPListeners(); err == nil {
+					t.Error("expected an error")
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if !sockDiagOff.Load() {
+		t.Fatal("latch not set")
+	}
+}
+
+// BenchmarkTCPListeners compares one poll via /proc/net and via
+// sock_diag while many established TCP sockets exist in another network
+// namespace or in this one. Set PORTLIST_BENCH_CONNS to change the number of
+// connections (each is two sockets).
+func BenchmarkTCPListeners(b *testing.B) {
+	requireRoot(b)
+	conns := 50000
+	if v, err := strconv.Atoi(os.Getenv("PORTLIST_BENCH_CONNS")); err == nil {
+		conns = v
+	}
+
+	for _, load := range []string{"none", "otherns", "samens"} {
+		b.Run("load="+load, func(b *testing.B) {
+			var fds []int
+			defer func() {
+				for _, fd := range fds {
+					closeNoTimeWait(fd)
+				}
+			}()
+			if load != "none" {
+				mk := func() error {
+					var err error
+					fds, err = openConns(conns)
+					return err
+				}
+				var err error
+				if load == "otherns" {
+					err = inNewNetns(mk)
+				} else {
+					err = mk()
+				}
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+
+			for _, mode := range []string{"procfs-all", "procfs-tcp", "sockdiag"} {
+				b.Run("mode="+mode, func(b *testing.B) {
+					setTCPDiagPresent(b, true)
+					p := &portlist.Poller{IncludeLocalhost: true}
+					switch mode {
+					case "procfs-tcp":
+						p = portlist.NewTCPPoller(true, nil)
+					case "sockdiag":
+						p = portlist.NewTCPPoller(true, TCPListeners)
+					}
+					// Warm the inode cache so the loop measures enumeration only.
+					if _, _, err := p.Poll(); err != nil {
+						b.Fatal(err)
+					}
+					b.ReportAllocs()
+					b.ResetTimer()
+					for i := 0; i < b.N; i++ {
+						if _, _, err := p.Poll(); err != nil {
+							b.Fatal(err)
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+// openConns opens n loopback connections spread over several listeners in the
+// calling thread's network namespace. It returns every fd, listeners included.
+func openConns(n int) (fds []int, err error) {
+	defer func() {
+		if err != nil {
+			for _, fd := range fds {
+				closeNoTimeWait(fd)
+			}
+			fds = nil
+		}
+	}()
+	lo4 := netip.MustParseAddr("127.0.0.1")
+	// Several destinations keep us well inside the ephemeral port range.
+	const listeners = 8
+	ls := make([]testSock, listeners)
+	for i := range ls {
+		if ls[i], err = openTCP(lo4, 0, sockOpts{}); err != nil {
+			return fds, err
+		}
+		fds = append(fds, ls[i].fd)
+	}
+	for i := 0; i < n; i++ {
+		c, s, err := connectPair(ls[i%listeners], lo4)
+		if err != nil {
+			return fds, fmt.Errorf("connection %d: %w", i, err)
+		}
+		fds = append(fds, c, s)
+	}
+	return fds, nil
+}
+
+// TestNetlinkSocketRestoreFailure stubs setNS so switching succeeds as a no-op
+// and restoring fails, and checks the socket is not returned.
+func TestNetlinkSocketRestoreFailure(t *testing.T) {
+	// A handle that never equals the current namespace; setNS never sees it.
+	f, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	errRestore := errors.New("forced restore failure")
+	orig := setNS
+	t.Cleanup(func() { setNS = orig })
+	calls := 0
+	setNS = func(vnetns.NsHandle) error {
+		calls++
+		if calls > 1 {
+			return errRestore
+		}
+		return nil
+	}
+
+	type result struct {
+		fd  int
+		err error
+	}
+	done := make(chan result, 1)
+	// Run on its own goroutine: the thread stays locked and is discarded on exit.
+	go func() {
+		fd, err := netlinkSocketIn(vnetns.NsHandle(f.Fd()))
+		done <- result{fd, err}
+	}()
+	r := <-done
+	if calls != 2 {
+		t.Fatalf("setNS called %d times, want 2", calls)
+	}
+	if r.fd != -1 || !errors.Is(r.err, errRestore) {
+		t.Fatalf("got fd=%d err=%v, want -1 and the restore error", r.fd, r.err)
+	}
+}

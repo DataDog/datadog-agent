@@ -25,6 +25,7 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//pkg/config/setup",
         "//pkg/util/containers",
+        "//pkg/util/flavor",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/log",
         "@io_k8s_api//core/v1:core",

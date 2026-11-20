@@ -9,6 +9,8 @@ package egressimpl
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,6 +20,7 @@ import (
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 	forwardermock "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/mock"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
@@ -36,6 +39,7 @@ func newTestEgress(t *testing.T, store storedef.Component, forwarder forwarderde
 		agentFlavor: "agent",
 		store:       store,
 		forwarder:   forwarder,
+		reportsSent: telemetrymock.New(t).NewCounter("health_platform", "reports_sent", []string{"status", "error_type"}, ""),
 		resolvedCh:  make(chan *healthplatformpayload.Issue, resolvedChBuf),
 		resolved:    make(map[string]*healthplatformpayload.Issue),
 		stopCh:      make(chan struct{}),
@@ -89,6 +93,44 @@ func TestTickSkipsWhenEmpty(t *testing.T) {
 	e.tick()
 
 	assert.False(t, called)
+	assert.Zero(t, e.reportsSent.WithValues("success", "none").Get())
+	for _, errorType := range []string{"timeout", "http_4xx", "http_5xx", "other"} {
+		assert.Zero(t, e.reportsSent.WithValues("error", errorType).Get())
+	}
+}
+
+func TestReportsSentTelemetry(t *testing.T) {
+	for _, test := range []struct {
+		name, status, errorType string
+		err                     error
+	}{
+		{name: "success", status: "success", errorType: "none"},
+		{name: "4xx", status: "error", errorType: "http_4xx", err: &forwarderdef.StatusCodeError{Code: 400}},
+		{name: "5xx wrapped", status: "error", errorType: "http_5xx", err: fmt.Errorf("wrapped: %w", &forwarderdef.StatusCodeError{Code: 503})},
+		{name: "deadline wrapped", status: "error", errorType: "timeout", err: fmt.Errorf("wrapped: %w", context.DeadlineExceeded)},
+		{name: "net timeout", status: "error", errorType: "timeout", err: &net.DNSError{IsTimeout: true}},
+		{name: "other", status: "error", errorType: "other", err: assert.AnError},
+		{name: "3xx", status: "error", errorType: "other", err: &forwarderdef.StatusCodeError{Code: 302}},
+		{name: "net non-timeout", status: "error", errorType: "other", err: &net.DNSError{IsNotFound: true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "test:1"}))
+			fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(context.Context, *healthplatformpayload.HealthReport) (int, error) {
+				return 0, test.err
+			}))
+			e := newTestEgress(t, store, fwd)
+			for attempt := 1; attempt <= 2; attempt++ {
+				e.tick()
+				for _, tags := range [][2]string{{"success", "none"}, {"error", "timeout"}, {"error", "http_4xx"}, {"error", "http_5xx"}, {"error", "other"}} {
+					want := 0.0
+					if tags[0] == test.status && tags[1] == test.errorType {
+						want = float64(attempt)
+					}
+					assert.Equal(t, want, e.reportsSent.WithValues(tags[:]...).Get(), tags)
+				}
+			}
+		})
+	}
 }
 
 func TestTickLogsOnForwarderError(t *testing.T) {
