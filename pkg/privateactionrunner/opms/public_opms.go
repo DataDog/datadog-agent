@@ -61,7 +61,7 @@ type PublicClient interface {
 		agentHostname string,
 		orchClusterID string,
 		agentFlavor string,
-	) (*par.CreateRunnerResponse, error)
+	) (*par.CreateRunnerResponse, string, error)
 
 	EnrollWithApiKeyOnly(
 		ctx context.Context,
@@ -72,7 +72,7 @@ type PublicClient interface {
 		agentHostname string,
 		orchClusterID string,
 		agentFlavor string,
-	) (*par.CreateRunnerResponse, error)
+	) (*par.CreateRunnerResponse, string, error)
 }
 
 type publicClient struct {
@@ -102,7 +102,7 @@ func (p *publicClient) EnrollWithApiKey(
 	agentHostname string,
 	orchClusterID string,
 	agentFlavor string,
-) (*par.CreateRunnerResponse, error) {
+) (*par.CreateRunnerResponse, string, error) {
 	return p.enroll(ctx, createPARPath, apiKey, appKey, runnerName, runnerModes, publicJwk, agentHostname, orchClusterID, agentFlavor)
 }
 
@@ -115,7 +115,7 @@ func (p *publicClient) EnrollWithApiKeyOnly(
 	agentHostname string,
 	orchClusterID string,
 	agentFlavor string,
-) (*par.CreateRunnerResponse, error) {
+) (*par.CreateRunnerResponse, string, error) {
 	return p.enroll(ctx, createPARApiKeyOnlyPath, apiKey, "", runnerName, runnerModes, publicJwk, agentHostname, orchClusterID, agentFlavor)
 }
 
@@ -130,10 +130,10 @@ func (p *publicClient) enroll(
 	agentHostname string,
 	orchClusterID string,
 	agentFlavor string,
-) (*par.CreateRunnerResponse, error) {
+) (*par.CreateRunnerResponse, string, error) {
 	publicKeyPEM, err := util.JWKToPEM(publicJwk)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert public key to PEM: %w", err)
+		return nil, "", fmt.Errorf("failed to convert public key to PEM: %w", err)
 	}
 
 	createRunnerURL := p.ddBaseURL + path
@@ -149,20 +149,28 @@ func (p *publicClient) enroll(
 
 	requestBodyJSON, err := jsonapi.Marshal(request, jsonapi.MarshalClientMode())
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		return nil, "", fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	respBody, err := p.doEnrollRequestWithRetry(ctx, createRunnerURL, requestBodyJSON, apiKey, appKey)
+	attempt := 0
+	respBody, err := p.doEnrollRequestWithRetry(ctx, createRunnerURL, func() ([]byte, error) {
+		attempt++
+		if attempt == 1 {
+			return requestBodyJSON, nil
+		}
+		request.RunnerName = fmt.Sprintf("%s-%d", runnerName, attempt)
+		return jsonapi.Marshal(request, jsonapi.MarshalClientMode())
+	}, apiKey, appKey)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	createRunnerResponse := new(par.CreateRunnerResponse)
 	err = jsonapi.Unmarshal(respBody, createRunnerResponse)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal runner creation response: %w", err)
+		return nil, "", fmt.Errorf("failed to unmarshal runner creation response: %w", err)
 	}
-	return createRunnerResponse, nil
+	return createRunnerResponse, request.RunnerName, nil
 }
 
 // doEnrollRequestWithRetry sends the enrollment POST and retries transient
@@ -171,8 +179,12 @@ func (p *publicClient) enroll(
 // cancellation is the only exit other than success or a rejection. Enrollment
 // is required for the runner to function, so we keep trying rather than
 // crashing the agent.
-func (p *publicClient) doEnrollRequestWithRetry(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, error) {
+func (p *publicClient) doEnrollRequestWithRetry(ctx context.Context, url string, buildBody func() ([]byte, error), apiKey, appKey string) ([]byte, error) {
 	return util.RetryHTTPRequest(ctx, func() ([]byte, int, error) {
+		body, err := buildBody()
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to marshal request body: %w", err)
+		}
 		return p.doEnrollRequest(ctx, url, body, apiKey, appKey)
 	}, util.RetryHTTPOptions{
 		InitialInterval: enrollmentInitialBackoff,

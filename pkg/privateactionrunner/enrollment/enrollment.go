@@ -145,7 +145,7 @@ func SelfEnroll(
 		enrollmentHostname = ""
 	}
 
-	createRunnerResponse, err := publicClient.EnrollWithApiKey(
+	createRunnerResponse, enrolledRunnerName, err := publicClient.EnrollWithApiKey(
 		ctx,
 		apiKey,
 		appKey,
@@ -167,7 +167,7 @@ func SelfEnroll(
 		PrivateKey:    privateJwk.Key.(*ecdsa.PrivateKey),
 		URN:           urn,
 		Hostname:      enrollmentHostname,
-		RunnerName:    runnerName,
+		RunnerName:    enrolledRunnerName,
 		OrchClusterID: agentIdentifier.OrchClusterID,
 		APIKeyHash:    HashAPIKey(apiKey),
 	}, nil
@@ -234,7 +234,7 @@ func SelfEnrollApiKeyOnly(
 		enrollmentHostname = ""
 	}
 
-	createRunnerResponse, err := publicClient.EnrollWithApiKeyOnly(
+	createRunnerResponse, enrolledRunnerName, err := publicClient.EnrollWithApiKeyOnly(
 		ctx,
 		apiKey,
 		runnerName,
@@ -255,7 +255,7 @@ func SelfEnrollApiKeyOnly(
 		PrivateKey:    privateJwk.Key.(*ecdsa.PrivateKey),
 		URN:           urn,
 		Hostname:      enrollmentHostname,
-		RunnerName:    runnerName,
+		RunnerName:    enrolledRunnerName,
 		OrchClusterID: agentIdentifier.OrchClusterID,
 		APIKeyHash:    HashAPIKey(apiKey),
 	}, nil

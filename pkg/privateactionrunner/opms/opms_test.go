@@ -11,6 +11,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -20,12 +21,15 @@ import (
 	"time"
 
 	"github.com/DataDog/jsonapi"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/par"
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 )
 
@@ -375,6 +379,10 @@ func TestDoEnrollRequestUsesOwnHttpClient(t *testing.T) {
 	assert.True(t, transportCalled, "doEnrollRequest must use p.httpClient, not http.DefaultClient")
 }
 
+func staticBody(body string) func() ([]byte, error) {
+	return func() ([]byte, error) { return []byte(body), nil }
+}
+
 func TestEnrollmentCredentialRejectionStopsRetrying(t *testing.T) {
 	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusBadRequest, http.StatusNotFound} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
@@ -387,7 +395,7 @@ func TestEnrollmentCredentialRejectionStopsRetrying(t *testing.T) {
 			defer srv.Close()
 
 			p := &publicClient{httpClient: srv.Client()}
-			_, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, []byte("{}"), "api-key", "app-key")
+			_, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, staticBody("{}"), "api-key", "app-key")
 			require.Error(t, err)
 			assert.Equal(t, 1, calls)
 			assert.ErrorIs(t, err, ErrEnrollmentRejected)
@@ -414,7 +422,7 @@ func TestEnrollmentRejectionWithUnreadableBodyStopsRetrying(t *testing.T) {
 		},
 	}
 
-	_, err := p.doEnrollRequestWithRetry(context.Background(), "https://app.datadoghq.com/enroll", []byte("{}"), "api-key", "app-key")
+	_, err := p.doEnrollRequestWithRetry(context.Background(), "https://app.datadoghq.com/enroll", staticBody("{}"), "api-key", "app-key")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrEnrollmentRejected)
 	assert.Equal(t, 1, calls)
@@ -435,12 +443,60 @@ func TestEnrollmentTransientStatusIsRetried(t *testing.T) {
 			defer srv.Close()
 
 			p := &publicClient{httpClient: srv.Client()}
-			body, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, []byte("{}"), "api-key", "app-key")
+			body, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, staticBody("{}"), "api-key", "app-key")
 			require.NoError(t, err)
 			assert.Equal(t, "{}", string(body))
 			assert.Equal(t, 2, calls)
 		})
 	}
+}
+
+func TestEnrollWithApiKeySendsNewRunnerNameOnRetry(t *testing.T) {
+	var names []string
+	// The handler runs on the server goroutine, so it reports errors here
+	// instead of calling require, and answers 400 to stop the enrollment retries.
+	handlerErrs := make(chan error, 10)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		if err != nil {
+			handlerErrs <- fmt.Errorf("read request body: %w", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		body := new(par.CreateRunnerRequest)
+		if err := jsonapi.Unmarshal(raw, body); err != nil {
+			handlerErrs <- fmt.Errorf("unmarshal request body: %w", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		names = append(names, body.RunnerName)
+		if len(names) == 1 {
+			w.WriteHeader(http.StatusGatewayTimeout)
+			return
+		}
+		payload, err := jsonapi.Marshal(par.CreateRunnerResponse{ID: "runner-test", RunnerID: "runner-test", OrgID: 42})
+		if err != nil {
+			handlerErrs <- fmt.Errorf("marshal response: %w", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if _, err := w.Write(payload); err != nil {
+			handlerErrs <- fmt.Errorf("write response: %w", err)
+		}
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	p := &publicClient{ddBaseURL: srv.URL, httpClient: srv.Client()}
+	response, runnerName, err := p.EnrollWithApiKey(ctx, "api-key", "app-key", "host-20261118000000", []modes.Mode{modes.ModePull}, &jose.JSONWebKey{Key: &newTestKey(t).PublicKey}, "host", "", "agent")
+	for len(handlerErrs) > 0 {
+		assert.NoError(t, <-handlerErrs, "test server handler")
+	}
+	require.NoError(t, err)
+	assert.Equal(t, "runner-test", response.RunnerID)
+	assert.Equal(t, []string{"host-20261118000000", "host-20261118000000-2"}, names)
+	assert.Equal(t, "host-20261118000000-2", runnerName)
 }
 
 func TestHeartbeat_NotFoundReturnsErrJobNotFound(t *testing.T) {
