@@ -1,5 +1,5 @@
 ---
 features:
   - |
-    Add `container.memory.full_stall` and `container.io.full_stall` metrics based on PSI Full values when the host is running with cgroup v2 enabled (Linux only).
+    Add ``container.memory.full_stall`` and ``container.io.full_stall`` metrics based on PSI Full values when the host is running with cgroup v2 enabled (Linux only).
     They report the wall time (in nanoseconds) during which all tasks in the container were stalled on the given resource.
