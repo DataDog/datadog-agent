@@ -7,6 +7,7 @@ package agentplatform
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -80,6 +81,9 @@ func macosProcmgrListNames(t *testing.T, client *common.MacOSTestClient, command
 func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	t := m.T()
 	client := common.NewMacOSTestClient(m.Env().RemoteHost)
+	// The duration is unique per run, so cleanup can match this child's command line after
+	// a daemon crash drops the runtime entry.
+	sleepArg := strconv.Itoa(100000 + int(time.Now().UnixNano()%900000))
 
 	// Registered first so it runs after diagnostics. The stop is only on failure: the
 	// child has its own process group and can outlive the daemon restart, which drops
@@ -93,6 +97,9 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 			// reloads that entry as skipped and does not see a child a failed denial started.
 			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosSysprobeProcess); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosSysprobeProcess, err)
+			}
+			if _, err := client.Execute("sudo pkill -f '^/bin/sleep " + sleepArg + "$'"); err != nil {
+				t.Logf("cleanup: no leftover child for /bin/sleep %s or pkill failed: %v", sleepArg, err)
 			}
 		}
 		if _, err := client.Execute("sudo launchctl kickstart -k system/com.datadoghq.procmgr"); err != nil {
@@ -108,7 +115,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	require.NoError(t, statErr, "stat %s failed:\n%s", macosProcmgrSocket, statOut)
 	require.Equal(t, "root:daemon 660", strings.TrimSpace(statOut), "socket owner or mode")
 
-	_, err := client.Execute("sudo " + macosProcmgrCLI + " create --name " + macosCallerAuthEntry + " --command /bin/sleep --args 600 --no-auto-start --restart-policy never")
+	_, err := client.Execute("sudo " + macosProcmgrCLI + " create --name " + macosCallerAuthEntry + " --command /bin/sleep --args " + sleepArg + " --no-auto-start --restart-policy never")
 	require.NoError(t, err)
 	created := macosProcmgrDescribe(t, client, macosCallerAuthEntry)
 	assert.Equal(t, "Skipped", created.State)
