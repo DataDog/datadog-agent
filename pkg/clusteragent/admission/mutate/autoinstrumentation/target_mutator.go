@@ -10,6 +10,7 @@ package autoinstrumentation
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
@@ -38,6 +39,7 @@ type injectionResolution struct {
 	plan       *injectionPlan
 	isSSI      bool
 	selectedBy injectionSourceName
+	additions  []*injectionPlan
 }
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
@@ -128,7 +130,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 			{name: injectionSourceOTelOperator, source: otelOperatorSource{}},
 			{name: injectionSourceRemoteConfig, determinesSSIMode: true, source: remoteSource},
 			{name: injectionSourceGPU, determinesSSIMode: true, source: gpuSource},
-			{name: injectionSourceAPMBasic, determinesSSIMode: true, source: apmBasicSource},
+			{name: injectionSourceAPMBasic, determinesSSIMode: true, additive: true, source: apmBasicSource},
 			{name: injectionSourceStatic, determinesSSIMode: true, source: staticSource},
 			{name: injectionSourceInjectAll, determinesSSIMode: true, source: injectAllSource},
 		},
@@ -222,6 +224,10 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 			extracted = extractedLanguageDetection
 		}
 	}
+	// After language detection, which replaces the library list.
+	if len(resolved.additions) > 0 {
+		extracted = extracted.withLibs(withAddedLibraries(extracted.libs, resolved.additions))
+	}
 
 	// Add the configuration for the security client library.
 	if err := m.core.mutatePodContainers(pod, m.securityClientLibraryMutator, true); err != nil {
@@ -237,6 +243,12 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	// in the target.
 	for _, envVar := range injection.tracerEnvVars {
 		_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
+	}
+	// After the plan's configs, so the plan wins on a shared name.
+	for _, addition := range resolved.additions {
+		for _, envVar := range addition.tracerEnvVars {
+			_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
+		}
 	}
 
 	// Inject the libraries.
@@ -301,11 +313,15 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 	var selected sourceResult
 	var selectedBy injectionSourceName
 	selectionDecided := false
+	ssiDecided := false
 	isSSI := false
 	var veto *sourceResult
 	var vetoBy injectionSourceName
 
 	for _, entry := range m.sources {
+		if entry.additive {
+			continue
+		}
 		result := entry.source.resolve(pod)
 		// An abstaining source has no matching plan, so move on to the next.
 		if result.action == sourcePass {
@@ -337,6 +353,7 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 		// first decisive SSI source may supply only the mode.
 		if entry.determinesSSIMode {
 			isSSI = result.action == sourceInject
+			ssiDecided = true
 			break
 		}
 
@@ -346,14 +363,73 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 		}
 	}
 
-	if !selectionDecided || selected.plan == nil {
+	if !selectionDecided {
+		return m.resolveAdditive(pod, nil, false)
+	}
+	if selected.plan == nil {
 		return nil
 	}
-	return &injectionResolution{
+
+	resolved := &injectionResolution{
 		plan:       selected.plan,
 		isSSI:      isSSI,
 		selectedBy: selectedBy,
 	}
+	// A denial also blocks additive sources. An SSI source can deny after an
+	// annotation selected the libraries: the annotation still applies.
+	ssiDenied := ssiDecided && !isSSI
+	if selected.action == sourceDeny || selected.plan.blocked || ssiDenied {
+		return resolved
+	}
+	return m.resolveAdditive(pod, resolved, ssiDecided)
+}
+
+func (m *TargetMutator) resolveAdditive(pod *corev1.Pod, resolved *injectionResolution, ssiDecided bool) *injectionResolution {
+	for _, entry := range m.sources {
+		if !entry.additive {
+			continue
+		}
+		result := entry.source.resolve(pod)
+		if result.action != sourceInject {
+			continue
+		}
+		if resolved == nil {
+			resolved = &injectionResolution{plan: result.plan, isSSI: entry.determinesSSIMode, selectedBy: entry.name}
+			ssiDecided = entry.determinesSSIMode
+			continue
+		}
+		if entry.determinesSSIMode && !ssiDecided {
+			resolved.isSSI = true
+			ssiDecided = true
+		}
+		// Its configs would retarget the plan's own library, e.g. switch GPU's dd-trace-c to RED metrics only.
+		if sharesLanguage(resolved.plan.libraries, result.plan.libraries) {
+			continue
+		}
+		resolved.additions = append(resolved.additions, result.plan)
+	}
+	return resolved
+}
+
+func injectsLanguage(libs []libInfo, lang language) bool {
+	return slices.ContainsFunc(libs, func(l libInfo) bool { return l.lang == lang })
+}
+
+func sharesLanguage(libs, other []libInfo) bool {
+	return slices.ContainsFunc(other, func(l libInfo) bool { return injectsLanguage(libs, l.lang) })
+}
+
+// withAddedLibraries copies libs: they may alias a plan shared across pods.
+func withAddedLibraries(libs []libInfo, additions []*injectionPlan) []libInfo {
+	merged := slices.Clone(libs)
+	for _, addition := range additions {
+		for _, lib := range addition.libraries {
+			if !injectsLanguage(merged, lib.lang) {
+				merged = append(merged, lib)
+			}
+		}
+	}
+	return merged
 }
 
 func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {

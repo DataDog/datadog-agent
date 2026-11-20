@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    GPU monitoring: the ``amd_gpu`` check now reports the ECC errors of AMD
+    GPUs, counted since the amdgpu driver loaded (on a virtual function, the
+    counts come from the host and survive guest driver reloads):
+    ``gpu.errors.ecc.uncorrected.total``, ``gpu.errors.ecc.corrected.total``
+    and the new AMD-only ``gpu.errors.ecc.deferred.total``, which match the
+    totals of ``amd-smi metric --ecc``.

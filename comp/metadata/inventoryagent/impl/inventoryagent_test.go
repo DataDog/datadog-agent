@@ -131,6 +131,52 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, 1234, payload.Metadata["test"])
 }
 
+func TestDefaultFeatureFlags(t *testing.T) {
+	originalSecurity, originalProcess := fetchSecurityConfig, fetchProcessConfig
+	originalTrace, originalSystemProbe := fetchTraceConfig, fetchSystemProbeConfig
+	t.Cleanup(func() {
+		fetchSecurityConfig, fetchProcessConfig = originalSecurity, originalProcess
+		fetchTraceConfig, fetchSystemProbeConfig = originalTrace, originalSystemProbe
+	})
+	fetchConfig := func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
+		return "", errors.New("unreachable")
+	}
+	fetchSecurityConfig = fetchConfig
+	fetchProcessConfig = fetchConfig
+	fetchTraceConfig = fetchConfig
+	fetchSystemProbeConfig = fetchConfig
+
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.refreshMetadata()
+
+	for key, expected := range map[string]bool{
+		"feature_apm_enabled":                                 true,
+		"feature_logs_enabled":                                false,
+		"feature_process_enabled":                             false,
+		"feature_synthetics_collector_enabled":                false,
+		"feature_network_path_remote_config_enabled":          false,
+		"feature_network_path_connections_monitoring_enabled": false,
+		"feature_cspm_enabled":                                false,
+	} {
+		assert.Equal(t, expected, ia.Get()[key], key)
+	}
+
+	t.Run("system-probe", func(t *testing.T) {
+		if runtime.GOOS == "darwin" {
+			t.Skip("system-probe does not support darwin")
+		}
+
+		for key, expected := range map[string]bool{
+			"feature_networks_enabled":   false,
+			"feature_traceroute_enabled": false,
+			"feature_cws_enabled":        false,
+			"feature_usm_enabled":        false,
+		} {
+			assert.Equal(t, expected, ia.Get()[key], key)
+		}
+	})
+}
+
 func TestFullAgentMetadataRefresh(t *testing.T) {
 	originalSecurity, originalProcess := fetchSecurityConfig, fetchProcessConfig
 	originalTrace, originalSystemProbe := fetchTraceConfig, fetchSystemProbeConfig
@@ -267,6 +313,8 @@ func TestInitData(t *testing.T) {
 
 		"fips.enabled":                                true,
 		"logs_enabled":                                true,
+		"private_action_runner.enabled":               true,
+		"private_action_runner.split_enabled":         true,
 		"compliance_config.enabled":                   true,
 		"compliance_config.host_benchmarks.enabled":   true,
 		"apm_config.enabled":                          true,
@@ -305,6 +353,7 @@ func TestInitData(t *testing.T) {
 
 		"feature_process_language_detection_enabled":          true,
 		"feature_logs_enabled":                                true,
+		"feature_private_action_runner_enabled":               true,
 		"feature_cspm_enabled":                                true,
 		"feature_cspm_host_benchmarks_enabled":                true,
 		"feature_apm_enabled":                                 true,

@@ -49,26 +49,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 FROM baseimage AS extract-base
 RUN apt update && apt install --no-install-recommends -y curl ca-certificates xz-utils
 
-############################################################
-#  Preparation stage: retrieval of 3rd party dependencies  #
-############################################################
-
-FROM extract-base AS external-deps
-ARG TARGETARCH
-ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
-
-WORKDIR /output
-
-# Get s6-overlay
-ENV S6_VERSION="v2.2.0.3"
-ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
-ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
-RUN S6ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "aarch64") && curl -L ${JUST_CONTAINERS_DOWNLOAD_LOCATION}/${S6_VERSION}/s6-overlay-${S6ARCH}.tar.gz -o /output/s6.tgz
-COPY s6.$TARGETARCH.sha256 /output/s6.$TARGETARCH.sha256
-# To calculate S6_SHA256SUM for a specific version, run:
-# curl -L https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-<arch>.tar.gz | sha256sum
-RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - && rm -f /output/s6.$TARGETARCH.sha256
-
 ########################################################################
 #  Construct the base image for the release, everything but the Agent  #
 ########################################################################
@@ -113,13 +93,12 @@ RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
 # - The debian image is now built with merged-usr explicitly disabled,
 #   see https://github.com/debuerreotype/debuerreotype/pull/50
 # - Ubuntu 20.10 uses the symlink /bin -> /usr/bin
-COPY --from=external-deps /output/s6.tgz /
-RUN tar xzf s6.tgz -C / --exclude="./bin" \
-  && tar xzf s6.tgz -C /usr ./bin \
-  && rm s6.tgz
+RUN --mount=type=bind,source=s6.tgz,target=/tmp/s6.tgz \
+  tar xzf /tmp/s6.tgz -C / --exclude=./usr/bin/execlineb \
+    --transform='s,^\./bin\(/\|$\),./usr/bin\1,' \
+    --transform='s,^\./etc/s6/init/init-stage3$,&-original,'
 
 # Override the exit script by ours to fix --pid=host operations
-RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
