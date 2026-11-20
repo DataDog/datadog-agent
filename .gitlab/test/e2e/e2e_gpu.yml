@@ -43,6 +43,7 @@ new-e2e-gpu:
 new-e2e-gpu-mokka:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
+    - !reference [.except_disable_e2e_tests]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/gpu
