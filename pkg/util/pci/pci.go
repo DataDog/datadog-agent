@@ -96,10 +96,10 @@ func (s *Sysfs) NUMANode(busID string) (int, bool) {
 	return -1, false
 }
 
-// UpstreamBridges returns the normalized bus IDs of the bridges between a PCI
-// device and its root port, ordered from the device toward the root port and
-// excluding the device itself. A device directly on a root complex has no
-// bridges.
+// UpstreamBridges returns the normalized bus IDs of the bridges above a PCI
+// device, ordered from the device toward the host bridge and excluding the
+// device itself. The last entry is the root port. A device directly on a root
+// complex has no bridges.
 //
 // The path is read from the target of the /sys/bus/pci/devices/<bdf> symlink
 // (e.g. ../../../devices/pci0000:89/0000:89:00.0/0000:8a:00.0/0000:8d:00.0),
