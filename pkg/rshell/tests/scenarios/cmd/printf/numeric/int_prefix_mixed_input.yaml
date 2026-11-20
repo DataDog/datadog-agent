@@ -1,0 +1,8 @@
+description: Printf %d extracts numeric prefix from mixed alphanumeric input (bash compat).
+input:
+  script: |+
+    printf "%d\n" 123abc
+expect:
+  stdout: "123\n"
+  stderr_contains: ["printf:"]
+  exit_code: 1

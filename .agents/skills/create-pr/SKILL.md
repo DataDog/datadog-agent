@@ -37,25 +37,26 @@ Create a pull request for the current branch following the Datadog Agent contrib
    - **0, review completed**: show the findings to the user, and say which reviewer ran when it wasn't `codex`, since CI uses `codex`. Findings don't block PR creation; fix them first only if the user asks.
    - **1, every attempted review failed**: tell the user, with the errors, and continue.
    - **2, no reviewer available**: never skip this silently. Show the user the alert and the reasons the script printed, then continue.
-6. **PR title**: Use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) format, prefixed with the general area of change. Examples:
+6. **Describe the functional changes**: invoke the `/describe-functional-changes` skill on this branch, passing any motivation or context the user gave (if your harness can't invoke skills, read and follow `.agents/skills/describe-functional-changes/SKILL.md`). It returns a `**Functional changes**` block, usually a Before | After table (or a single "No functional change" line), that says what behaves differently, and for whom. Without it, reviewers have to read every changed line to understand what the PR actually does. It may also return notes, such as unverified claims or likely bugs: show them to the user with the draft in step 8. This step doesn't depend on the review, so do it while the review from step 5 runs.
+7. **PR title**: Use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) format, prefixed with the general area of change. Examples:
    - `fix(e2e): Fix flaky diagnose test`
    - `feat(logs): Add new log pipeline`
    - `refactor(config): Simplify endpoint resolution`
-7. **Draft a concise PR description** from the commits and diff. See "PR Description Guidelines" below — keep the draft short and plain, like a human wrote it in two minutes, not AI-generated prose. Present the draft body (What does this PR do? / Motivation, at minimum) directly in your reply so the user can review it — but don't block on confirmation: since PRs open as drafts by default (step 12), the user can review and edit the description directly from the GitHub UI, which is usually faster than relaying corrections through the agent. If the user has given corrections or missing context during the session (e.g. the real motivation, an issue link, a tradeoff worth mentioning), fold it in. The one exception is a non-draft PR (`--real`): a PR marked ready for review implies its description is final, so get explicit confirmation on the draft before opening it.
-8. **Check for a needed backport** (see "Backport Detection" below) and note the matching `backport/<branch>` label(s) if applicable.
-9. **Labels**: Choose appropriate labels (plus any additional labels passed as $ARGUMENTS):
+8. **Draft a concise PR description** from the commits and diff. See "PR Description Guidelines" below — keep the draft short and plain, like a human wrote it in two minutes, not AI-generated prose. Present the draft body (What does this PR do? / Motivation, at minimum) directly in your reply so the user can review it — but don't block on confirmation: since PRs open as drafts by default (step 13), the user can review and edit the description directly from the GitHub UI, which is usually faster than relaying corrections through the agent. If the user has given corrections or missing context during the session (e.g. the real motivation, an issue link, a tradeoff worth mentioning), fold it in. The one exception is a non-draft PR (`--real`): a PR marked ready for review implies its description is final, so get explicit confirmation on the draft before opening it.
+9. **Check for a needed backport** (see "Backport Detection" below) and note the matching `backport/<branch>` label(s) if applicable.
+10. **Labels**: Choose appropriate labels (plus any additional labels passed as $ARGUMENTS):
    - If the PR only changes tests, docs, CI config, or developer tooling (no Agent binary code changes), use `changelog/no-changelog` and `qa/no-code-change`
    - If the PR changes Agent binary code and QA was done, use `qa/done`
    - A reno release note is only expected for **customer-facing changes** — not for every PR that touches Agent binary code. See "Release Notes" below for what qualifies; if the change isn't customer-facing, use `changelog/no-changelog`
-   - Add any `backport/<branch-name>` labels identified in step 8, or if the user explicitly asks for a specific backport
-10. **PR body**: Fill in the PR template sections:
-   - **What does this PR do?**: A clear description of what is changed, based on the user's concise description from step 7. Must be readable independently, tying back to the changed code.
+   - Add any `backport/<branch-name>` labels identified in step 9, or if the user explicitly asks for a specific backport
+11. **PR body**: Fill in the PR template sections:
+   - **What does this PR do?**: A clear description of what is changed, based on the user's concise description from step 8. Must be readable independently, tying back to the changed code. Start with a sentence or two on what the code change is, then add the functional changes block from step 6.
    - **Motivation**: A reason why the change is made. Point to an issue if applicable. Include drawbacks or tradeoffs if any.
    - **Describe how you validated your changes**: How you validated the change (tests added/run, benchmarks, manual testing). Only needed when testing included work not covered by test suites.
    - **Additional Notes**: Any extra context, links to predecessor PRs if part of a chain, notes that make code understanding easier. **Only include this section if there is genuinely useful context to add** — omit it entirely rather than filling it with filler.
-11. **Push the branch** to origin if needed
-12. **Open the PR**: Now that the title, body, and labels are finalized, open the PR. By default, open as **Draft** using `gh pr create --draft`. If `$ARGUMENTS` contains `--real`, open as a regular (non-draft) PR instead (omit the `--draft` flag). Remove `--real` from `$ARGUMENTS` before processing remaining arguments as labels.
-13. Once the PR is pushed, ask the user if they want to follow CI status for this PR. If yes, invoke the `/follow-pr` skill.
+12. **Push the branch** to origin if needed
+13. **Open the PR**: Now that the title, body, and labels are finalized, open the PR. By default, open as **Draft** using `gh pr create --draft`. If `$ARGUMENTS` contains `--real`, open as a regular (non-draft) PR instead (omit the `--draft` flag). Remove `--real` from `$ARGUMENTS` before processing remaining arguments as labels.
+14. Once the PR is pushed, ask the user if they want to follow CI status for this PR. If yes, invoke the `/follow-pr` skill.
 
 ## PR Description Guidelines (from CONTRIBUTING.md)
 
@@ -69,8 +70,9 @@ The PR description should incorporate everything reviewers and future maintainer
 - If there are drawbacks or tradeoffs, raise them
 
 **Avoid AI slop.** Reviewers can tell when a PR description was auto-generated from a diff — padded, generic, restating the code instead of explaining intent. To avoid this:
-- Draft the description yourself (step 7) and show it to the user, but don't gate the PR on their sign-off — for draft PRs they can edit the description in the GitHub UI faster than explaining what to fix. Don't outsource the writing to the user either.
+- Draft the description yourself (step 8) and show it to the user, but don't gate the PR on their sign-off — for draft PRs they can edit the description in the GitHub UI faster than explaining what to fix. Don't outsource the writing to the user either.
 - Keep it short. A few sentences beat a bulleted essay. Don't restate every changed file — the diff already shows that.
+- Say what the change does, not only how. The technical summary says how the code changes; the functional changes block (step 6) says what that changes for Agent users, developers, or CI. Keep both, and don't repeat in one what the other already says.
 - Don't pad sections with filler when there's nothing to say (e.g. an empty-but-present "Additional Notes" section, or a "Describe how you validated" filled with "N/A" — omit instead).
 - Write plainly, the way the user would describe it in Slack to a teammate, not like a press release ("This PR introduces a robust, comprehensive solution to...").
 
@@ -113,6 +115,14 @@ The diagnose E2E test flaked because it hit fakeintake directly instead of
 through the redirect the agent config sets up. Route it through the same
 path the agent uses.
 
+**Functional changes**
+
+| Before | After |
+| --- | --- |
+| The diagnose E2E test reached fakeintake through its own connection, so its result didn't reflect the agent's connectivity | The test goes through the same redirect as the agent |
+
+Unchanged: the agent, and what the test asserts.
+
 ### Motivation
 
 Flaked ~1 in 5 runs on main, blocking merges for unrelated PRs.
@@ -124,7 +134,7 @@ EOF
 )"
 ```
 
-Note there is no "Additional Notes" section here — it was omitted because there was nothing beyond the two sections above worth adding, per the "no filler" guidance.
+Note there is no "Additional Notes" section here — it was omitted because there was nothing beyond the two sections above worth adding, per the "no filler" guidance. The functional changes table has a single row because the PR is small; the line after it tells reviewers they don't need to look for agent behavior changes.
 
 ## Usage
 
@@ -134,5 +144,5 @@ Note there is no "Additional Notes" section here — it was omitted because ther
 
 ## Output
 
-If you are not following the PR status (step 13): Return the PR URL when done.
+If you are not following the PR status (step 14): Return the PR URL when done.
 Otherwise, defer to `/follow-pr`.

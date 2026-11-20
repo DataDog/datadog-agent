@@ -71,7 +71,7 @@ func TestRealMI350XVirtualFunction(t *testing.T) {
 	require.Len(t, devices, 1, "the 7 amdgpu_xcp_* platform devices are not GPUs")
 	dev := devices[0]
 
-	assert.Equal(t, "amd-00c0ffee00c0ffee", dev.UUID)
+	assert.Equal(t, "000075b0-0000-1000-80c0-ffee00c0ffee", dev.UUID)
 	assert.Equal(t, "0000:83:00.0", dev.PCIBusID)
 	assert.Equal(t, uint16(0x75b0), dev.DeviceID)
 	assert.Equal(t, "AMD Instinct MI350X VF", dev.Name, "no product_name attribute on this host; the name comes from amdgpu.ids")
@@ -85,6 +85,9 @@ func TestRealMI350XVirtualFunction(t *testing.T) {
 
 	metrics, err := dev.ReadMetrics()
 	require.NoError(t, err)
+	require.NoError(t, metrics.GPUMetricsErr)
+	require.NotNil(t, metrics.GPUMetrics, "decoded in TestParseGPUMetricsMI350XVF")
+	metrics.GPUMetrics = nil
 	assert.Equal(t, Metrics{
 		GPUBusyPercent:       valid(0),
 		MemoryBusyPercent:    valid(0),
@@ -94,7 +97,7 @@ func TestRealMI350XVirtualFunction(t *testing.T) {
 		MemoryTemperatureC:   valid(41),
 		PowerMilliwatts:      valid(254000), // power1_input only, no power1_average
 		PowerCapMilliwatts:   valid(1000000),
-		GraphicsClockMHz:     valid(49), // deep-sleep level "S: 49Mhz *"
+		GraphicsClockMHz:     valid(85), // hwmon freq1_input; pp_dpm_sclk read the deep-sleep level "S: 49Mhz *"
 		MemoryClockMHz:       valid(2000),
 		PCIeLinkWidth:        valid(16),
 		PCIeMaxLinkWidth:     valid(16),

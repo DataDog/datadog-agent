@@ -297,6 +297,10 @@ func ecsFakeintakeAdditionalEndpointsEnv(fi *fakeintake.Fakeintake) ([]ecs.TaskD
 			Value: fi.URL.ToStringOutput(),
 		},
 		ecs.TaskDefinitionKeyValuePairArgs{
+			Name:  pulumi.StringPtr("DD_HEALTH_PLATFORM_FORWARDER_DD_URL"),
+			Value: fi.URL.ToStringOutput(),
+		},
+		ecs.TaskDefinitionKeyValuePairArgs{
 			Name:  pulumi.StringPtr("DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"),
 			Value: fi.URL.ToStringOutput(),
 		},

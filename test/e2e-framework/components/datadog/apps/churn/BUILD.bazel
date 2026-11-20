@@ -4,6 +4,7 @@ go_library(
     name = "churn",
     srcs = ["k8s.go"],
     embedsrcs = [
+        "workload/crds.yaml",
         "workload/fake.yaml",
         "workload/kwok-nodes.yaml",
         "workload/sleepers.yaml",

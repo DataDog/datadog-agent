@@ -1,0 +1,26 @@
+description: find -newer matches files newer than reference.
+skip_assert_against_bash: false
+setup:
+  files:
+    - path: dir/old.txt
+      content: "old"
+      chmod: 0644
+      mod_time: "2024-01-01T00:00:00Z"
+    - path: dir/ref.txt
+      content: "reference"
+      chmod: 0644
+      mod_time: "2024-01-02T00:00:00Z"
+    - path: dir/new.txt
+      content: "new"
+      chmod: 0644
+      mod_time: "2024-01-03T00:00:00Z"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -newer dir/old.txt -type f
+expect:
+  stdout_unordered: |+
+    dir/ref.txt
+    dir/new.txt
+  stderr: ""
+  exit_code: 0

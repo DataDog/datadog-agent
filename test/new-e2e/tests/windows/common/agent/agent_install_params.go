@@ -54,6 +54,8 @@ type InstallAgentParams struct {
 	InfrastructureMode      string `installer_arg:"DD_INFRASTRUCTURE_MODE"`
 	InstallOnly             string `installer_arg:"DD_INSTALL_ONLY"`
 	KeepUserRights          string `installer_arg:"DDAGENTUSER_KEEP_RIGHTS"`
+	// Installer parameters passed to the OCI package setup
+	SystemProbeNetworkEnabled string `installer_arg:"DD_SYSTEM_PROBE_NETWORK_ENABLED"`
 }
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
@@ -107,6 +109,14 @@ func WithKeepUserRights(value string) InstallAgentOption {
 func WithEnvironment(environment string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.Environment = environment
+		return nil
+	}
+}
+
+// WithSystemProbeNetworkEnabled specifies the DD_SYSTEM_PROBE_NETWORK_ENABLED parameter.
+func WithSystemProbeNetworkEnabled(enabled string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.SystemProbeNetworkEnabled = enabled
 		return nil
 	}
 }

@@ -119,7 +119,7 @@ Invoke-BuildScript `
     }
 
     # Run python-script unit tests
-    & dda inv -- -e invoke-unit-tests --directory=".\omnibus\python-scripts\"
+    & dda inv -- -e invoke-unit-tests --directory=".\packages\agent\python-scripts\"
     $err = $LASTEXITCODE
     Write-Host Python-script test result is $err
     if($err -ne 0){
@@ -149,7 +149,7 @@ Invoke-BuildScript `
     }
     $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
     # incident-59224/incident-59369: set --build-cpus=4 as 6+ concurrent linkers exhaust 20 GB
-    & dda inv -- -e test --junit-tar="$Env:JUNIT_TAR" `
+    & dda inv -- -e test-legacy --junit-tar="$Env:JUNIT_TAR" `
         --race --rerun-fails=2 --coverage --cpus 8 --build-cpus=4 `
         --python-home-3=$Env:Python3_ROOT_DIR `
         --result-json $internal_result_json `

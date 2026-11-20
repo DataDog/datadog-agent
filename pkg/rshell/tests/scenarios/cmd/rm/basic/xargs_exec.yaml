@@ -1,0 +1,21 @@
+# Tests that rm invoked as xargs's target command still goes through the
+# same remediation-gated CallContext.RunCommand dispatch, mirroring the
+# truncate/basic/find_exec.yaml coverage for the find -exec dispatch path.
+description: rm invoked via xargs works in remediation mode.
+setup:
+  files:
+    - path: a.txt
+      content: "a\n"
+    - path: b.txt
+      content: "b\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf 'a.txt\nb.txt\n' | xargs rm
+    [ -f a.txt ] || [ -f b.txt ] || echo gone
+expect:
+  stdout: |+
+    gone
+  stderr: |+
+  exit_code: 0

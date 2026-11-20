@@ -1,0 +1,8 @@
+description: tr accepts explicit repeat count [c*n] in STRING2 for delete+squeeze.
+input:
+  script: |+
+    echo aaab | tr -d -s a '[x*3]'
+expect:
+  stdout: "b\n"
+  stderr: ""
+  exit_code: 0

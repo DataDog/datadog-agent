@@ -1,0 +1,11 @@
+description: vmstat rejects a delay/count combination whose nominal wait time exceeds 29 seconds.
+# skip: the duration cap is an intentional rshell safety restriction.
+skip_assert_against_bash: true
+input:
+  script: |+
+    vmstat 2 30
+expect:
+  stdout: |+
+  stderr: |+
+    vmstat: sampling duration exceeds 29s
+  exit_code: 1

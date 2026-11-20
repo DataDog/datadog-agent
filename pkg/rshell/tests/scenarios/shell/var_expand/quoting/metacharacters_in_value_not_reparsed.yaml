@@ -1,0 +1,13 @@
+description: |
+  Shell metacharacters inside a variable's value are NOT re-parsed when the
+  variable expands. Field splitting splits on whitespace only; characters
+  like `;`, `|`, `$`, backticks become literal argument bytes.
+input:
+  script: |+
+    EVIL='; echo HACKED ;'
+    echo a $EVIL b
+expect:
+  stdout: |+
+    a ; echo HACKED ; b
+  stderr: ""
+  exit_code: 0

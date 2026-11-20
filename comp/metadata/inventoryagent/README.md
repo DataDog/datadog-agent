@@ -56,7 +56,7 @@ The payload is a JSON dict with the following fields
   - `enc_info` - **dict of string to array of string**: the paths of secret settings, their handles, and scrubbed leafs (scrubbed)
     - `paths` - **array of strings**: the paths of settings that contain secrets
     - `handles` - **array of strings**: the handles that correspond to these paths
-    - `scrubbed` - **array of strings**: the keys of non-default settings whose values were scrubbed, either because the key is known to be sensitive (ex: `authKey`) or because the value looks like a credential (ex: a raw API key). Keys already covered by `paths` are omitted
+    - `scrubbed` - **array of strings**: the keys of non-default settings whose values were scrubbed, either because the key is known to be sensitive (ex: `snmp_traps.users.0.authKey`) or because the value looks like a credential (ex: a raw API key). Keys already covered by `paths` are omitted
   - `install_method_tool` - **string**: the name of the tool used to install the agent (ie, Chef, Ansible, ...).
   - `install_method_tool_version` - **string**: the tool version used to install the agent (ie: Chef version, Ansible
     version, ...). This defaults to `"undefined"` when not installed through a tool (like when installed with apt, source
@@ -108,6 +108,7 @@ The payload is a JSON dict with the following fields
   - `feature_discovery_enabled` - **bool**: True if discovery module is enabled (see: `discovery.enabled` config option).
   - `feature_dynamic_instrumentation_enabled` - **bool**: True if dynamic instrumentation module is enabled (see: `dynamic_instrumentation.enabled` config option).
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
+  - `feature_private_action_runner_enabled` - **bool**: True if the Private Action Runner is enabled in split deployment mode (see: `private_action_runner.enabled` and `private_action_runner.split_enabled` config options).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
     `compliance_config.enabled` config option).
   - `feature_cspm_host_benchmarks_enabled` - **bool**: True if host benchmarks are enabled (see:
@@ -158,7 +159,7 @@ The payload is a JSON dict with the following fields
 
 Here an example of an inventory payload:
 
-```
+```json
 {
     "agent_metadata": {
         "agent_version": "7.37.0-devel+git.198.68a5b69",
@@ -208,11 +209,37 @@ Here an example of an inventory payload:
     },
     "files_metadata": {
         "/etc/datadog-agent/datadog.yaml": {
-            "hash": "8e9f...",
-            "raw_config": "api_key: '***************************aaaa'\nsite: datadoghq.com\n"
+            "hash": "8645920b282cc63c2c101090298c4d4aee99fbaa735bab94604def151448463f",
+            "raw_config": "api_key: '***************************aaaa'\nsite: datadoghq.com\nlogs_config:\n  api_key: ENC[logs_api_key]\n",
+            "secrets": [
+                {"path": "api_key", "kind": "raw"},
+                {"path": "logs_config.api_key", "kind": "enc", "handle": "logs_api_key"}
+            ]
         }
     },
     "hostname": "my-host",
     "timestamp": 1631281754507358895
 }
 ```
+
+### Secret declarations in configuration files
+
+This metadata is intended to support Fleet Automation for VM-based Agents and only
+covers configuration files reported in `files_metadata`. Secrets supplied only
+through other configuration sources, such as environment variables or Kubernetes
+Autodiscovery annotations, are not included. It is not a complete inventory of
+secrets in the effective configuration.
+
+Each `files_metadata[filename].secrets` array describes the secret declarations in
+that file. Entries have `kind` (`enc` or `raw`), `path` (a dotted path relative to the file,
+including list indexes), and, for ENC declarations, `handle`. For example,
+`{"kind":"enc","path":"instances.0.password","handle":"db_password"}`.
+The filename and path together identify a location, including when two files
+configure the same integration. Values and hashes are never included in these entries.
+Raw references identify the field replaced by a scrubbing rule. When a rule
+replaces a list or mapping, the reference identifies that whole field (for example,
+`snmp_traps.community_strings`), rather than reconstructing its original leaves.
+ENC references always retain their original indexed paths and handles, even inside
+a replaced container. Repeated handles retain one entry per location. These entries describe file
+contents; `agent_metadata.enc_info` continues reporting resolved handles and hashes.
+`metadata_skip_secrets` suppresses these entries as well as `enc_info`.

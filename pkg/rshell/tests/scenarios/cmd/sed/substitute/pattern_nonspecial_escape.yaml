@@ -1,0 +1,12 @@
+description: "Non-special escapes in s/// patterns drop the backslash (GNU sed compatibility)."
+setup:
+  files:
+    - path: input.txt
+      content: "q\n\\q\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n 's/\q/X/p' input.txt
+expect:
+  stdout: "X\n\\X\n"
+  exit_code: 0

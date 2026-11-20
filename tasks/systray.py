@@ -7,6 +7,7 @@ import sys
 
 from invoke import task
 
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
@@ -18,7 +19,16 @@ AGENT_TAG = "datadog/agent:master"
 
 
 @task
-def build(ctx, debug=False, console=False, rebuild=False, race=False, go_mod="readonly", enable_bazel=False):
+def build(
+    ctx,
+    debug=False,
+    console=False,
+    rebuild=False,
+    race=False,
+    go_mod="readonly",
+    enable_bazel=False,
+    fips_backend=FipsBackend.none,
+):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -42,7 +52,9 @@ def build(ctx, debug=False, console=False, rebuild=False, race=False, go_mod="re
             )
         if race:
             raise NotImplementedError("--enable-bazel does not support --race.")
-        build_binary_with_bazel("//cmd/systray:systray", bin_path=os.path.join(BIN_PATH, bin_name("ddtray")))
+        build_binary_with_bazel(
+            "//cmd/systray:systray", bin_path=os.path.join(BIN_PATH, bin_name("ddtray")), fips_backend=fips_backend
+        )
         return
 
     # This generates the manifest resource. The manifest resource is necessary for
@@ -76,6 +88,7 @@ def build(ctx, debug=False, console=False, rebuild=False, race=False, go_mod="re
         env=env,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         build_tags=["grpcnotrace"],
+        fips_backend=fips_backend,
     )
 
 

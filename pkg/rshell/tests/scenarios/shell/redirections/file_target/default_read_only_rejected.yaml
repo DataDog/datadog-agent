@@ -1,0 +1,12 @@
+# skip: sandbox path-mode rejection is an rshell-specific security feature
+skip_assert_against_bash: true
+description: In remediation mode, file-target redirection is rejected inside an unsuffixed default read-only AllowedPaths root.
+input:
+  script: |+
+    echo hello > out.txt
+  allowed_paths: ["$DIR"]
+  mode: "remediation"
+expect:
+  stdout: |+
+  stderr_contains: ["permission denied"]
+  exit_code: 1

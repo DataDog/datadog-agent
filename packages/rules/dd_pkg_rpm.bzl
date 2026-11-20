@@ -5,14 +5,15 @@ load("//packages/rules:dd_pkg_owned_dirs.bzl", "dd_pkg_owned_dirs")
 load("//packages/rules:description.bzl", "rpm_description")
 
 _DEFAULT_DEFINES = {
-    "__provides_exclude": ".*",
-    "__requires_exclude": ".*",
+    # Skip the steps rpmbuild runs after %install (brp-strip, brp-compress,
+    # ...), like omnibus does. Binaries are already stripped by dd_strip.
+    "__spec_install_post": "%{nil}",
     "_build_id_links": "none",
 }
 
 # rpm only removes directories listed in the package on uninstall. Declare the
 # implicit parent directories of srcs so they don't get left behind.
-def _dd_pkg_rpm_impl(name, visibility, description, srcs, **kwargs):
+def _dd_pkg_rpm_impl(name, visibility, description, srcs, defines = None, **kwargs):
     owned_dirs = "%s_owned_dirs_" % name
     dd_pkg_owned_dirs(
         name = owned_dirs,
@@ -21,11 +22,20 @@ def _dd_pkg_rpm_impl(name, visibility, description, srcs, **kwargs):
         visibility = ["//visibility:private"],
     )
 
+    merged_defines = dict(_DEFAULT_DEFINES)
+    merged_defines.update(defines or {})
     pkg_rpm_impl(
         name = name,
         srcs = srcs + [":" + owned_dirs],
-        defines = _DEFAULT_DEFINES,
+        autoreqprov = False,
+        binary_payload_compression = select({
+            "//:is_release": "w9T8.xzdio",
+            "//conditions:default": "w5T8.xzdio",
+        }),
+        defines = merged_defines,
         description = rpm_description(description),
+        packager = "Datadog, Inc <package@datadoghq.com>",
+        vendor = "Datadog <package@datadoghq.com>",
         visibility = visibility,
         **kwargs
     )
@@ -35,9 +45,13 @@ dd_pkg_rpm = macro(
     inherit_attrs = pkg_rpm_impl,
     implementation = _dd_pkg_rpm_impl,
     attrs = {
-        "defines": None,
+        "autoreqprov": None,
+        "binary_payload_compression": None,
+        "defines": attr.string_dict(configurable = False),
         "description": attr.string(configurable = False),
+        "packager": None,
         "private_stamp_detect": None,
         "stamp": None,
+        "vendor": None,
     },
 )

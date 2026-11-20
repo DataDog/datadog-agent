@@ -1,0 +1,22 @@
+description: awk treats single-character field separators as case-sensitive literals, including regex metacharacters.
+setup:
+  files:
+    - path: plain.txt
+      content: |+
+        abc
+    - path: pipe.txt
+      content: |+
+        a|b
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk -F . '{ print NF }' plain.txt
+    awk -F '|' '{ print NF, $1, $2 }' pipe.txt
+    awk 'BEGIN { FS = "x"; $0 = "aXbxc"; n = split("dXeXf", parts, "x"); print NF, $1, $2, n, parts[1] }'
+expect:
+  stdout: |+
+    1
+    2 a b
+    2 aXb c 1 dXeXf
+  stderr: |+
+  exit_code: 0

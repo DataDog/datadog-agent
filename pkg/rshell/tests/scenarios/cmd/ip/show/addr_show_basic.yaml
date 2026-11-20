@@ -1,0 +1,10 @@
+# ip addr show - basic: command exits 0 and produces output containing known interface patterns.
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip addr show exits 0 and prints interface information"
+input:
+  script: |+
+    ip addr show
+expect:
+  stdout_contains: ["inet "]
+  exit_code: 0
+skip_assert_against_bash: true

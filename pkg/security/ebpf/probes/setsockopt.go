@@ -24,18 +24,6 @@ func getSetSockOptProbe(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_sk_attach_filter",
 			},
 		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "hook_release_sock",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "rethook_release_sock",
-			},
-		},
 	}
 
 	setsockoptProbes = append(setsockoptProbes, ExpandSyscallProbes(&manager.Probe{

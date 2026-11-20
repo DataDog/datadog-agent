@@ -1601,44 +1601,34 @@ func warningMessages(cb *CollectorBundle) []string {
 }
 
 func TestImportBuiltinHelmReleaseConfigMapCollector(t *testing.T) {
-	for _, enabled := range []bool{false, true} {
-		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
-			cfg := mockconfig.New(t)
-			cfg.SetInTest("orchestrator_explorer.helm_releases.configmaps.enabled", enabled)
-
-			collectorDiscovery := &discovery.DiscoveryCollector{}
-			collectorDiscovery.SetCache(discovery.DiscoveryCache{
+	for _, tc := range []struct {
+		name          string
+		enabled       bool
+		configured    []string
+		expectedAdded bool
+	}{
+		{name: "enabled with the ConfigMap collector", enabled: true, configured: []string{"configmaps"}, expectedAdded: true},
+		{name: "enabled without the ConfigMap collector", enabled: true, configured: []string{"pods"}, expectedAdded: false},
+		{name: "disabled with the ConfigMap collector", enabled: false, configured: []string{"configmaps"}, expectedAdded: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cb := newRetryTestBundle(t, tc.configured, false, nil, map[string]any{
+				"orchestrator_explorer.helm_releases.configmaps.enabled": tc.enabled,
+			})
+			cb.collectorDiscovery.SetCache(discovery.DiscoveryCache{
 				CollectorForVersion: map[discovery.CollectorVersion]struct{}{
 					{GroupVersion: "v1", Kind: "configmaps"}: {},
+					{GroupVersion: "v1", Kind: "pods"}:       {},
 				},
 			})
 
-			cb := CollectorBundle{
-				collectorDiscovery:  collectorDiscovery,
-				activatedCollectors: make(map[string]struct{}),
-				inventory:           inventory.NewCollectorInventory(cfg, nil, nil),
-				runCfg: &collectors.CollectorRunConfig{
-					K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
-						APIClient: createMockAPIClient(),
-					},
-				},
-			}
-
+			cb.importCollectorsFromCheckConfig()
 			cb.importBuiltinCollectors()
-			names := make([]string, 0, len(cb.collectors))
-			for _, collector := range cb.collectors {
-				names = append(names, collector.Metadata().FullName())
-			}
 
-			if enabled {
-				assert.Contains(t, names, "v1/helm-releases-configmaps")
-				for _, collector := range cb.collectors {
-					if collector.Metadata().Name == "helm-releases-configmaps" {
-						assert.True(t, collector.Metadata().IsStable)
-					}
-				}
+			if tc.expectedAdded {
+				assert.Contains(t, collectorNames(cb), "v1/helm-releases-configmaps")
 			} else {
-				assert.NotContains(t, names, "v1/helm-releases-configmaps")
+				assert.NotContains(t, collectorNames(cb), "v1/helm-releases-configmaps")
 			}
 		})
 	}

@@ -369,7 +369,7 @@ func TestResolveFromKernelMapsUsesEventPPid(t *testing.T) {
 	kernelEntry.ExecTime = bootTime
 	kernelEntry.ExitTime = bootTime
 
-	procCache := make([]byte, 176) // sizeof(struct proc_cache_t)
+	procCache := make([]byte, model.ProcCacheEntrySize)
 	_, err = kernelEntry.Process.MarshalProcCache(procCache, bootTime)
 	require.NoError(t, err)
 

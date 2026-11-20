@@ -1,0 +1,19 @@
+description: sed -i in remediation mode rewrites the file in place with no stdout output.
+setup:
+  files:
+    - path: greeting.txt
+      content: |+
+        hello
+        world
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    sed -i 's/hello/HI/' greeting.txt
+    cat greeting.txt
+expect:
+  stdout: |+
+    HI
+    world
+  stderr: |+
+  exit_code: 0

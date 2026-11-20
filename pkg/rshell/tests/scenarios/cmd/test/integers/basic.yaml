@@ -1,0 +1,31 @@
+description: "test integer equality and comparison operators"
+input:
+  script: |+
+    test 9 -eq 9
+    echo "eq: $?"
+    test 8 -eq 9
+    echo "ne: $?"
+    test 5 -gt 4
+    echo "gt: $?"
+    test 5 -gt 5
+    echo "gt-eq: $?"
+    test 4 -lt 5
+    echo "lt: $?"
+    test 5 -lt 5
+    echo "lt-eq: $?"
+    test 5 -ge 5
+    echo "ge-eq: $?"
+    test 5 -le 5
+    echo "le-eq: $?"
+expect:
+  stdout: |
+    eq: 0
+    ne: 1
+    gt: 0
+    gt-eq: 1
+    lt: 0
+    lt-eq: 1
+    ge-eq: 0
+    le-eq: 0
+  stderr: ""
+  exit_code: 0

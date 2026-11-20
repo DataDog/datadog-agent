@@ -1,0 +1,22 @@
+description: ls with multiple directory arguments lists each with headers.
+setup:
+  files:
+    - path: dir1/one.txt
+      content: "1"
+      chmod: 0644
+    - path: dir2/two.txt
+      content: "2"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls dir1 dir2
+expect:
+  stdout: |+
+    dir1:
+    one.txt
+
+    dir2:
+    two.txt
+  stderr: ""
+  exit_code: 0

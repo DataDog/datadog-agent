@@ -1,0 +1,22 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "integrationtest_test",
+    srcs = ["forwarder_errors_integration_test.go"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/agenttelemetry/fx",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
+        "//comp/healthplatform/forwarder/def",
+        "//comp/healthplatform/forwarder/fx",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

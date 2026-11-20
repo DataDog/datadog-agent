@@ -1,0 +1,19 @@
+description: awk reports NF 0 for blank records with a literal field separator.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        a:b
+
+        :
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk -F: '{ print NF }' input.txt
+expect:
+  stdout: |+
+    2
+    0
+    2
+  stderr: |+
+  exit_code: 0

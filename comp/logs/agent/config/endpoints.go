@@ -35,9 +35,9 @@ type IntakeOrigin string
 
 const (
 	_ EPIntakeVersion = iota
-	// EPIntakeVersion1 is version 1 of the envets platform intake API
+	// EPIntakeVersion1 is version 1 of the events platform intake API
 	EPIntakeVersion1
-	// EPIntakeVersion2 is version 2 of the envets platform intake API
+	// EPIntakeVersion2 is version 2 of the events platform intake API
 	EPIntakeVersion2
 )
 
@@ -371,7 +371,7 @@ func (e *Endpoint) GetAPIKeyIfReady() (string, bool) {
 // back. It is false once a runtime config change has disabled the endpoint until restart, and for
 // directives in settings that nothing writes back: no key will ever arrive for those.
 func (e *Endpoint) AwaitsDelegatedAuthKey() bool {
-	if e.credential == nil || e.configSettingPath != model.DelaLogsEndpointsKey {
+	if e.credential == nil || !model.IsDelaListEndpointsKey(e.configSettingPath) {
 		return false
 	}
 	credential := e.credential.Load()

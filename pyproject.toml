@@ -10,7 +10,6 @@ exclude = [
     ".github",
     "chocolatey",
     "Dockerfiles",
-    "omnibus",
     "releasenotes",
     "vendor",
     "venv",
@@ -74,6 +73,11 @@ disable_error_code = [
     "list-item",
     "return-value",
 ]
+
+[[tool.mypy.overrides]]
+module = ["optuna", "optuna.*"]
+# Optuna's dependency tree requires a newer mypy than the Agent's pinned version.
+follow_imports = "skip"
 
 [[tool.mypy.overrides]]
 module = "tasks.kernel_matrix_testing.*,tasks.kmt,tasks.libs.gpu.*,tasks.gpu"

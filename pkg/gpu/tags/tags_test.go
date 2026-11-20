@@ -14,8 +14,10 @@ import (
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetTags(t *testing.T) {
@@ -28,10 +30,10 @@ func TestGetTags(t *testing.T) {
 	defer func() { kernel.ProcFSRoot = originalProcFSRoot }()
 
 	// Keep the AMD detection away from the host sysfs
-	originalSysFSRoot := kernel.SysFSRoot
+	originalDeviceSysFSRoot := sysfsroot.DeviceSysFSRoot
 	sysDir := t.TempDir()
-	kernel.SysFSRoot = func() string { return sysDir }
-	defer func() { kernel.SysFSRoot = originalSysFSRoot }()
+	sysfsroot.DeviceSysFSRoot = func() string { return sysDir }
+	defer func() { sysfsroot.DeviceSysFSRoot = originalDeviceSysFSRoot }()
 
 	tests := []struct {
 		name     string
@@ -125,8 +127,8 @@ func TestGetTagsAMD(t *testing.T) {
 	kernel.ProcFSRoot = func() string { return procDir }
 	defer func() { kernel.ProcFSRoot = originalProcFSRoot }()
 
-	originalSysFSRoot := kernel.SysFSRoot
-	defer func() { kernel.SysFSRoot = originalSysFSRoot }()
+	originalDeviceSysFSRoot := sysfsroot.DeviceSysFSRoot
+	defer func() { sysfsroot.DeviceSysFSRoot = originalDeviceSysFSRoot }()
 
 	cfg := configmock.New(t)
 
@@ -200,7 +202,7 @@ func TestGetTagsAMD(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sysDir := t.TempDir()
-			kernel.SysFSRoot = func() string { return sysDir }
+			sysfsroot.DeviceSysFSRoot = func() string { return sysDir }
 			cfg.SetInTest("gpu.amd.enabled", !tt.amdDisabled)
 			if !tt.noDRM {
 				assert.NoError(t, os.MkdirAll(filepath.Join(sysDir, "class", "drm"), 0o755))
@@ -228,4 +230,26 @@ func TestGetTagsAMD(t *testing.T) {
 			assert.Equal(t, tt.expected, getTags())
 		})
 	}
+}
+
+func TestGetTagsTPU(t *testing.T) {
+	originalProcFSRoot := kernel.ProcFSRoot
+	procDir := t.TempDir()
+	kernel.ProcFSRoot = func() string { return procDir }
+	defer func() { kernel.ProcFSRoot = originalProcFSRoot }()
+
+	originalDeviceSysFSRoot := sysfsroot.DeviceSysFSRoot
+	defer func() { sysfsroot.DeviceSysFSRoot = originalDeviceSysFSRoot }()
+	sysDir := t.TempDir()
+	sysfsroot.DeviceSysFSRoot = func() string { return sysDir }
+	dir := filepath.Join(sysDir, "bus", "pci", "devices", "0000:00:04.0")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "vendor"), []byte("0x1ae0\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "device"), []byte("0x006f\n"), 0o644))
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("gpu.tpu.enabled", true)
+	assert.Equal(t, []string{"gpu_host:true"}, getTags())
+	cfg.SetInTest("gpu.tpu.enabled", false)
+	assert.Nil(t, getTags())
 }

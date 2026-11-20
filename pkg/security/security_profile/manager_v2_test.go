@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -161,6 +162,59 @@ func TestManagerV2_evictUnusedNodes_skipsDisabledProfile(t *testing.T) {
 	m.evictUnusedNodes()
 
 	assert.False(t, p.IsEnabled(), "eviction must not re-enable a disabled profile")
+}
+
+// TestManagerV2_SendStats_reportsProfileCount verifies the profile-count gauge follows the V2
+// manager: enabled and disabled profiles both count, and an empty manager reports zero.
+func TestManagerV2_SendStats_reportsProfileCount(t *testing.T) {
+	newManager := func() (*ManagerV2, *gaugeRecorder) {
+		m, _ := newTestManagerV2WithLocalStorage(t)
+		recorder := &gaugeRecorder{values: map[string][]float64{}, tags: map[string][][]string{}}
+		m.statsdClient = recorder
+		m.profiles = make(map[cgroupModel.WorkloadSelector]*profile.Profile)
+		m.queueSize = atomic.NewUint64(0)
+		m.pendingProfiles = atomic.NewUint64(0)
+		m.sampleRefreshReceived = atomic.NewUint64(0)
+		m.sampleRefreshHits = atomic.NewUint64(0)
+		m.sampleRefreshMisses = atomic.NewUint64(0)
+		m.tagResolutionEventsDropped = atomic.NewUint64(0)
+		m.tagResolutionCgroupsExpired = atomic.NewUint64(0)
+		m.tagResolutionCappedCgroup = atomic.NewUint64(0)
+		m.tagResolutionCappedTotal = atomic.NewUint64(0)
+		m.cleanupProfilesRemoved = atomic.NewUint64(0)
+		m.evictionRuns = atomic.NewUint64(0)
+		m.evictionNodesEvicted = atomic.NewUint64(0)
+		return m, recorder
+	}
+
+	t.Run("counts enabled and disabled profiles per image", func(t *testing.T) {
+		m, recorder := newManager()
+		enabled := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}))
+		disabled := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "gcr.io/org/worker", Tag: "*"}))
+		disabled.Disable()
+		m.profiles[cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}] = enabled
+		m.profiles[cgroupModel.WorkloadSelector{Image: "gcr.io/org/worker", Tag: "*"}] = disabled
+
+		require.NoError(t, m.SendStats())
+
+		got := map[string]float64{}
+		for i, tags := range recorder.tags[metrics.MetricSecurityProfileProfiles] {
+			got[strings.Join(tags, ",")] = recorder.values[metrics.MetricSecurityProfileProfiles][i]
+		}
+		assert.Equal(t, map[string]float64{
+			"profile_image_name:gcr.io/org/app":    1,
+			"profile_image_name:gcr.io/org/worker": 1,
+		}, got)
+	})
+
+	t.Run("reports zero when no profile is tracked", func(t *testing.T) {
+		m, recorder := newManager()
+
+		require.NoError(t, m.SendStats())
+
+		assert.Equal(t, []float64{0}, recorder.values[metrics.MetricSecurityProfileProfiles])
+		assert.Equal(t, [][]string{{}}, recorder.tags[metrics.MetricSecurityProfileProfiles])
+	})
 }
 
 func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
@@ -474,6 +528,19 @@ func (fh *monotonicFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.Bas
 		ev.Timestamp = fh.boot.Add(time.Duration(ev.TimestampRaw))
 	}
 	return ev.Timestamp
+}
+
+// gaugeRecorder records the values and tags sent through Gauge.
+type gaugeRecorder struct {
+	statsd.NoOpClient
+	values map[string][]float64
+	tags   map[string][][]string
+}
+
+func (r *gaugeRecorder) Gauge(name string, value float64, tags []string, _ float64) error {
+	r.values[name] = append(r.values[name], value)
+	r.tags[name] = append(r.tags[name], tags)
+	return nil
 }
 
 // distributionRecorder records the values sent through Distribution.
@@ -801,11 +868,12 @@ func TestManagerV2_insertEventIntoProfile_evictsLeastRecentlySeenVersion(t *test
 			require.False(t, inserted)
 			assert.Greater(t, v1.LastSeenNano, uint64(2), "known activities must refresh the version's last seen time")
 			assert.Equal(t, uint64(1), v1.FirstSeenNano)
-			assert.Equal(t, originalTags, v1.Tags, "refreshing a version must keep the tags of its first workload")
+			assert.Equal(t, append(originalTags, "service:another-container"), v1.Tags, "refreshing a version must add the tags it doesn't hold yet")
 
 			_, inserted = m.insertEventIntoProfile(newTestEventV2(eventType, "v3", "known"))
 			assert.False(t, inserted, "activities shared with a retained version must stay learned")
 			assert.ElementsMatch(t, []string{"v1", "v3"}, p.GetVersions())
+			assert.ElementsMatch(t, []string{"image_name:" + testImageName, "image_tag:v1", "service:another-container", "image_tag:v3"}, p.GetDumpTags(), "only the tags of the retained versions must be sent with the profile")
 			assert.Zero(t, p.ActivityTree.GetImageTagID("v2"))
 			assert.Nil(t, findTestEventNode(p, eventType, "new"), "activities exclusive to the evicted version must be removed")
 
@@ -1387,5 +1455,107 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		}
 		assert.True(t, foundProcSnapshot, "pre-existing mounts in clonedNs must be synced and seeded as Snapshot")
 		assert.True(t, foundLiveRuntime, "triggering live mount event must be inserted as Runtime")
+	})
+}
+
+func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
+	const (
+		baseNs     = uint32(4026531840)
+		foreignNs  = uint32(4026531841)
+		mountCount = 50
+	)
+
+	// newSeedingTest returns a profile and workload ready to be seeded with mountCount mounts in the base
+	// namespace, plus mountCount mounts in a foreign namespace entered by the event's process if withForeign is set.
+	newSeedingTest := func(t *testing.T, maxSize int, withForeign bool) (*ManagerV2, *profile.Profile, *tags.Workload, *model.Event) {
+		t.Helper()
+
+		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.SecurityProfileV2EventTypes = append(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.FileMountEventType)
+		m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize = func() int { return maxSize }
+		mr, err := mount.NewResolver(nil, nil, mount.ResolverOpts{})
+		require.NoError(t, err)
+		m.resolvers.MountResolver = mr
+
+		for i := range mountCount {
+			require.NoError(t, mr.Insert(model.Mount{
+				MountID:        uint32(100 + i),
+				NamespaceInode: baseNs,
+				Path:           fmt.Sprintf("/base/m%02d", i),
+				RootStr:        "/",
+				FSType:         "overlay",
+			}))
+			require.NoError(t, mr.Insert(model.Mount{
+				MountID:        uint32(200 + i),
+				NamespaceInode: foreignNs,
+				Path:           fmt.Sprintf("/frgn/m%02d", i),
+				RootStr:        "/",
+				FSType:         "overlay",
+			}))
+		}
+
+		ev := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		rootEntry := ev.ProcessCacheEntry
+		rootEntry.Process.MntNS = baseNs
+		if withForeign {
+			childEntry := model.NewPlaceholderProcessCacheEntry(43, 43, false)
+			childEntry.ContainerContext = rootEntry.ContainerContext
+			childEntry.FileEvent = rootEntry.FileEvent
+			childEntry.Process.MntNS = foreignNs
+			childEntry.Ancestor = rootEntry
+			ev.ProcessCacheEntry = childEntry
+			ev.ProcessContext = &childEntry.ProcessContext
+		}
+
+		selector, err := m.buildWorkloadSelector(ev)
+		require.NoError(t, err)
+		p, err := m.getOrCreateProfile(selector, ev)
+		require.NoError(t, err)
+		workload := m.getOrCreateWorkload(ev, selector, getWorkloadIDFromEvent(ev))
+		require.NotNil(t, workload)
+		m.linkWorkloadToProfile(p, workload)
+		return m, p, workload, ev
+	}
+
+	// fullBaseSize is the profile size once every base namespace mount is seeded
+	refManager, ref, refWorkload, refEv := newSeedingTest(t, 1<<30, false)
+	refManager.seedMountsForWorkload(ref, refWorkload, refEv)
+	require.Len(t, ref.ActivityTree.Mounts, mountCount)
+	fullBaseSize := ref.ComputeHeapSize()
+
+	t.Run("base namespace seeding stops at the max size and the profile is disabled", func(t *testing.T) {
+		maxSize := int(fullBaseSize / 2)
+		m, p, workload, ev := newSeedingTest(t, maxSize, false)
+
+		m.seedMountsForWorkload(p, workload, ev)
+		assert.Greater(t, len(p.ActivityTree.Mounts), 1)
+		assert.Less(t, len(p.ActivityTree.Mounts), mountCount, "seeding should stop once the profile reaches the max size")
+		assert.GreaterOrEqual(t, p.ComputeHeapSize(), int64(maxSize))
+
+		got, inserted := m.insertEventIntoProfile(ev)
+		assert.Nil(t, got)
+		assert.False(t, inserted)
+		assert.False(t, p.IsEnabled())
+		assert.True(t, p.ActivityTree.IsEmpty(), "a disabled profile drops its activity tree")
+		assert.Empty(t, p.ActivityTree.Mounts)
+		assert.Zero(t, p.ComputeHeapSize())
+		assert.Positive(t, m.eventFiltering[eventFilteringEntry{model.FileOpenEventType, model.ProfileAtMaxSize, NA}].Load())
+	})
+
+	t.Run("foreign namespace is not seeded once the base namespace reached the max size", func(t *testing.T) {
+		m, p, workload, ev := newSeedingTest(t, int(fullBaseSize), true)
+
+		m.seedMountsForWorkload(p, workload, ev)
+		assert.Len(t, p.ActivityTree.Mounts, mountCount)
+		for _, mn := range p.ActivityTree.Mounts {
+			assert.True(t, mn.InBaseNamespace, "no foreign namespace mount should be seeded past the max size: %s", mn.MountPoint)
+		}
+
+		got, inserted := m.insertEventIntoProfile(ev)
+		assert.Nil(t, got)
+		assert.False(t, inserted)
+		assert.False(t, p.IsEnabled())
+		assert.True(t, p.ActivityTree.IsEmpty(), "a disabled profile drops its activity tree")
+		assert.Zero(t, p.ComputeHeapSize())
 	})
 }

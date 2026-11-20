@@ -110,6 +110,7 @@ cc_binary(
     }),
     copts = [
         "-I.",
+        "-O2",
     ],
     defines = LOCAL_DEFINES,
     dynamic_deps = [
@@ -144,9 +145,6 @@ cc_library(
     srcs = ["lib/curl_config.h"] + HDRS + LIB_CURL_SRCS_ALL,
     hdrs = PUBLIC_HEADERS,
     copts = [
-        "-Wno-implicit-function-declaration",
-        "-Wno-int-conversion",
-        "-Wno-system-headers",
         "-I.",
         "-O2",
     ],
@@ -190,9 +188,6 @@ cc_library(
     }),
     hdrs = PUBLIC_HEADERS,
     copts = [
-        "-Wno-implicit-function-declaration",
-        "-Wno-int-conversion",
-        "-Wno-system-headers",
         "-I.",
         "-O2",
     ],

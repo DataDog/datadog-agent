@@ -1,0 +1,22 @@
+description: find -prune skips a subdirectory; -exec only runs on files outside the pruned subtree.
+skip_assert_against_bash: true  # rshell -exec only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/sub/hidden.txt
+      content: "hidden"
+      chmod: 0644
+    - path: dir/visible.txt
+      content: "visible"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:echo
+  script: |+
+    find dir -type d -name sub -prune -o -type f -exec echo {} \;
+expect:
+  stdout: |+
+    dir/visible.txt
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: wc -w treats vertical tab (\v) as a word separator.
+setup:
+  files:
+    - path: file.txt
+      content: "a\vb\vc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -w file.txt
+expect:
+  stdout: "3 file.txt\n"
+  stderr: ""
+  exit_code: 0

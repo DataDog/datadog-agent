@@ -1,0 +1,12 @@
+# Subnet-directed broadcast addresses (last octet 255) must be rejected.
+# pro-bing v0.8.0 auto-retries sends with SO_BROADCAST on EACCES, so we block
+# any IPv4 address ending in .255 before passing it to pro-bing.
+description: "ping 10.0.0.255 (directed broadcast) exits 1"
+input:
+  script: |+
+    ping -c 1 10.0.0.255
+expect:
+  stdout: ""
+  stderr: "ping: broadcast destination not allowed: 10.0.0.255\n"
+  exit_code: 1
+skip_assert_against_bash: true

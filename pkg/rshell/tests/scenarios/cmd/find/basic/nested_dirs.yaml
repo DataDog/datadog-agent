@@ -1,0 +1,21 @@
+description: find recurses into nested directories.
+setup:
+  files:
+    - path: a/b/c.txt
+      content: "deep"
+      chmod: 0644
+    - path: a/d.txt
+      content: "shallow"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find a
+expect:
+  stdout_unordered: |+
+    a
+    a/b
+    a/b/c.txt
+    a/d.txt
+  stderr: ""
+  exit_code: 0

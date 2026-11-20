@@ -5,6 +5,7 @@ go_library(
     name = "processmanager",
     srcs = [
         "adp_procmgr_config_windows.go",
+        "catalog_darwin.go",
         "ddot_procmgr_config_windows.go",
         "install_root_procmgr_config_windows.go",
         "par_procmgr_config_windows.go",
@@ -16,9 +17,21 @@ go_library(
         "trace_procmgr_config_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager",
-    target_compatible_with = ["@platforms//os:windows"],
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
     visibility = ["//visibility:public"],
     deps = select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/packages/embedded",
+            "//pkg/fleet/installer/packages/service",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/packages/embedded",
+            "//pkg/fleet/installer/packages/service",
+        ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/paths",
@@ -31,9 +44,24 @@ go_library(
 
 dd_agent_go_test(
     name = "processmanager_test",
-    srcs = ["procmgr_yaml_placeholders_windows_test.go"],
+    srcs = [
+        "catalog_darwin_test.go",
+        "procmgr_yaml_placeholders_windows_test.go",
+    ],
     embed = [":processmanager"],
     deps = select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/packages/embedded",
+            "//pkg/fleet/installer/packages/service",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/packages/embedded",
+            "//pkg/fleet/installer/packages/service",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/packages/embedded",
             "@com_github_stretchr_testify//assert",

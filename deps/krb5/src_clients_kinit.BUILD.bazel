@@ -1,0 +1,61 @@
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//deps/krb5:krb5_defs.bzl", "KRB5_COPTS", "KRB5_PROGRAM_LOCAL_DEFINES")
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+package(
+    default_package_metadata = ["//:package_metadata"],
+    default_visibility = [
+        "//:__subpackages__",
+        "@@//deps/krb5:__pkg__",
+    ],
+)
+
+# kinit (clients/kinit), the only krb5 program we ship.
+cc_binary(
+    name = "kinit",
+    srcs = glob([
+        "*.c",
+        "*.h",
+    ]),
+    copts = KRB5_COPTS,
+    dynamic_deps = [
+        "//src/lib:gssrpc_pkg",
+        "//src/lib:kadm5srv_mit_pkg",
+        "//src/lib:kdb5_pkg",
+        "//src/lib/crypto:k5crypto_pkg",
+        "//src/lib/gssapi:gssapi_krb5_pkg",
+        "//src/lib/krb5:krb5_pkg",
+        "//src/util:com_err_pkg",
+        "//src/util:krb5support_pkg",
+    ],
+    local_defines = KRB5_PROGRAM_LOCAL_DEFINES,
+    deps = [
+        "//:gssrpc_h",
+        "//:include",
+        "//src/lib:kadm5_h",
+        "//src/lib:kadm5srv_mit_lib",
+        "//src/lib:kdb5_lib",
+        "//src/lib/crypto:k5crypto_lib",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:com_err_lib",
+        "//src/util:krb5support_lib",
+    ],
+)
+
+# Entry point for packaging krb5: pulls the libraries through kinit, plus what kinit doesn't link.
+dd_cc_packaged(
+    name = "kinit_pkg",
+    data = [
+        "//src/lib:kadm5clnt_mit_pkg",
+        "//src/plugins:db2_pkg",
+        "//src/plugins:k5tls_pkg",
+        "//src/plugins:otp_pkg",
+        "//src/plugins:pkinit_pkg",
+        "//src/plugins:preauth_test_pkg",
+        "//src/plugins:spake_pkg",
+    ],
+    dest_dir = "embedded/bin",
+    input = ":kinit",
+    mode = "0755",
+    visibility = ["//:__pkg__"],
+)

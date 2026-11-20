@@ -66,10 +66,17 @@ const (
 	KueueResourceFlavorResourceName = "resourceflavors"
 	// KueueWorkloadResourceName is the plural resource name for Kueue Workload objects
 	KueueWorkloadResourceName = "workloads"
+	// KueueJobUIDLabelKey identifies the job (a Pod for standalone pod integration) owning a Workload.
+	KueueJobUIDLabelKey = "kueue.x-k8s.io/job-uid"
 	// KueueWorkloadAnnotationKey is the pod annotation key set by Kueue with the admitted Workload name
 	KueueWorkloadAnnotationKey = "kueue.x-k8s.io/workload"
 	// KueuePodGroupNameLabelKey is the pod label key used by Kueue to group plain Pods into one Workload
 	KueuePodGroupNameLabelKey = "kueue.x-k8s.io/pod-group-name"
+	// KueueManagedLabelKey marks pods managed directly by Kueue's plain Pod integration.
+	KueueManagedLabelKey = "kueue.x-k8s.io/managed"
+	// KueuePrebuiltWorkloadNameKey references a Workload created before its job or pod,
+	// rather than one created by Kueue for that job or pod. It is a label or annotation.
+	KueuePrebuiltWorkloadNameKey = "kueue.x-k8s.io/prebuilt-workload-name"
 	// KueuePodSetLabelKey is the pod label key set by Kueue with the Workload pod set name
 	KueuePodSetLabelKey = "kueue.x-k8s.io/podset"
 	// KAIGroupName is the API group used by KAI Scheduler resources
@@ -178,6 +185,10 @@ const (
 	RolloutKind = "Rollout"
 	// StrimziPodSetKind represents the Strimzi PodSet object kind
 	StrimziPodSetKind = "StrimziPodSet"
+	// WorkflowKind represents the Argo Workflows Workflow object kind
+	WorkflowKind = "Workflow"
+	// CronWorkflowKind represents the Argo Workflows CronWorkflow object kind
+	CronWorkflowKind = "CronWorkflow"
 
 	// CriContainerNamespaceLabel is the label set on containers by runtimes with Pod Namespace
 	CriContainerNamespaceLabel = "io.kubernetes.pod.namespace"

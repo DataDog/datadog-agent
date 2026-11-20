@@ -1,0 +1,8 @@
+description: xargs -I with no input does not run the command (matches GNU; replace mode implies one invocation per item).
+input:
+  script: |+
+    printf '' | xargs -I {} echo hi
+expect:
+  stdout: |+
+  stderr: |+
+  exit_code: 0

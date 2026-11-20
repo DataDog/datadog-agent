@@ -11,8 +11,14 @@ exports_files(
     visibility = ["//pkg/procmgr/rust:__pkg__"],
 )
 
+exports_files(
+    ["tmpl/gen/darwin-pm/processes.d/datadog-agent-sysprobe.yaml"],
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
+
 service_srcs = glob([
     "tmpl/gen/pm/processes.d/*.yaml",
+    "tmpl/gen/darwin-pm/processes.d/*.yaml",
     "tmpl/gen/windows/*.yaml",
     "tmpl/gen/pm/debrpm/*.service",
     "tmpl/gen/pm/oci/*.service",
@@ -42,19 +48,6 @@ nocap_service_srcs = glob([
 # keep
 launchd_job_srcs = glob(["tmpl/gen/darwin/*.plist"])
 
-# The stable definitions of the Agent's own LaunchDaemons, also shipped as plain files: the .dmg
-# postinstall script installs them directly when the installer cannot.
-filegroup(
-    name = "launchd_fallback_jobs",
-    srcs = [
-        "tmpl/gen/darwin/com.datadoghq.agent.plist",
-        "tmpl/gen/darwin/com.datadoghq.data-plane.plist",
-        "tmpl/gen/darwin/com.datadoghq.procmgr.plist",
-        "tmpl/gen/darwin/com.datadoghq.sysprobe.plist",
-    ],
-    visibility = ["//packages/macos/app:__pkg__"],
-)
-
 go_library(
     name = "embedded",
     srcs = ["embed.go"],
@@ -74,6 +67,7 @@ go_library(
     embedsrcs = [
         "tmpl/com.datadoghq.agent.plist.tmpl",
         "tmpl/com.datadoghq.data-plane.plist.tmpl",
+        "tmpl/com.datadoghq.installer.plist.tmpl",
         "tmpl/com.datadoghq.procmgr.plist.tmpl",
         "tmpl/com.datadoghq.sysprobe.plist.tmpl",
         "tmpl/datadog-agent-par-control.yaml.tmpl",
@@ -97,6 +91,7 @@ go_library(
         "tmpl/datadog-agent-security-windows.yaml.tmpl",
         "tmpl/datadog-agent-sysprobe.service.tmpl",
         "tmpl/datadog-agent-sysprobe-windows.yaml.tmpl",
+        "tmpl/datadog-agent-sysprobe-darwin.yaml.tmpl",
         "tmpl/datadog-agent-trace.service.tmpl",
         "tmpl/datadog-agent-trace-windows.yaml.tmpl",
         "tmpl/datadog-agent.service.tmpl",

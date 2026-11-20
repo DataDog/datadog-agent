@@ -41,6 +41,7 @@ dd_agent_go_test(
         "aggregation_test.go",
         "client_stats_aggregator_test.go",
         "concentrator_test.go",
+        "span_concentrator_test.go",
         "statsraw_test.go",
         "weight_test.go",
     ],

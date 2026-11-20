@@ -8,6 +8,7 @@
 package zstd
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -36,11 +37,8 @@ const (
 // is known at compile time.
 func LevelFromInt(i int) Level { return kzstd.EncoderLevelFromZstd(i) }
 
-// nocgoEncoderOptions returns the klauspost encoder options for the given
-// level. The ZSTD_NOCGO_CONCURRENCY and ZSTD_NOCGO_WINDOW environment
-// variables can be used to tune concurrency and the window size; missing or
-// invalid values fall back to sensible defaults.
-func nocgoEncoderOptions(level Level) []kzstd.EOption {
+// nocgoEncoderOptions applies per-writer options after the environment defaults.
+func nocgoEncoderOptions(level Level, options ...WriterOption) ([]kzstd.EOption, error) {
 	conc, err := strconv.Atoi(os.Getenv("ZSTD_NOCGO_CONCURRENCY"))
 	if err != nil {
 		conc = 1
@@ -49,10 +47,20 @@ func nocgoEncoderOptions(level Level) []kzstd.EOption {
 	if err != nil {
 		window = 1 << 15
 	}
+	o := writerOptions{lowerEncoderMem: true}
+	for _, option := range options {
+		option(&o)
+	}
+	if o.windowLogSize != nil {
+		if *o.windowLogSize < 0 {
+			return nil, fmt.Errorf("window log size must be non-negative: %d", *o.windowLogSize)
+		}
+		window = 1 << *o.windowLogSize
+	}
 	return []kzstd.EOption{
 		kzstd.WithEncoderLevel(level),
 		kzstd.WithEncoderConcurrency(conc),
-		kzstd.WithLowerEncoderMem(true),
+		kzstd.WithLowerEncoderMem(o.lowerEncoderMem),
 		kzstd.WithWindowSize(window),
 		// WithZeroFrames(true) ensures empty input produces a valid zstd frame.
 		// Without this, klauspost/compress returns empty output for empty
@@ -67,16 +75,46 @@ func nocgoEncoderOptions(level Level) []kzstd.EOption {
 		//  * https://github.com/IBM/sarama/pull/1477 ->
 		//  * https://github.com/IBM/sarama/issues/1252
 		kzstd.WithZeroFrames(true),
-	}
+	}, nil
 }
 
 // CompressLevel compresses src at the given level using the pure-Go backend.
 func CompressLevel(dst, src []byte, level Level) ([]byte, error) {
-	enc, err := kzstd.NewWriter(nil, nocgoEncoderOptions(level)...)
+	options, err := nocgoEncoderOptions(level)
+	if err != nil {
+		return nil, err
+	}
+	enc, err := kzstd.NewWriter(nil, options...)
 	if err != nil {
 		return nil, err
 	}
 	return enc.EncodeAll(src, dst), nil
+}
+
+type nocgoCompressor struct {
+	enc   *kzstd.Encoder
+	level Level
+}
+
+// NewCompressor returns a reusable compression context backed by one pure-Go encoder,
+// created on first use and recreated when the level changes.
+func NewCompressor() Compressor {
+	return &nocgoCompressor{}
+}
+
+func (c *nocgoCompressor) CompressLevel(dst, src []byte, level Level) ([]byte, error) {
+	if c.enc == nil || c.level != level {
+		options, err := nocgoEncoderOptions(level)
+		if err != nil {
+			return nil, err
+		}
+		enc, err := kzstd.NewWriter(nil, options...)
+		if err != nil {
+			return nil, err
+		}
+		c.enc, c.level = enc, level
+	}
+	return c.enc.EncodeAll(src, dst[:0]), nil
 }
 
 // Decompress decompresses src using the pure-Go backend.
@@ -96,7 +134,17 @@ func NewWriter(w io.Writer) (Writer, error) {
 
 // NewWriterLevel returns a streaming zstd writer at the given level.
 func NewWriterLevel(w io.Writer, level Level) (Writer, error) {
-	return kzstd.NewWriter(w, nocgoEncoderOptions(level)...)
+	return NewWriterLevelWithOptions(w, level)
+}
+
+// NewWriterLevelWithOptions creates a pure-Go writer. Options override defaults
+// and ZSTD_NOCGO_* environment variables; the last option wins.
+func NewWriterLevelWithOptions(w io.Writer, level Level, options ...WriterOption) (Writer, error) {
+	encoderOptions, err := nocgoEncoderOptions(level, options...)
+	if err != nil {
+		return nil, err
+	}
+	return kzstd.NewWriter(w, encoderOptions...)
 }
 
 // NewReader returns a streaming zstd reader.

@@ -1,0 +1,10 @@
+description: Line continuation across operators && joins the command correctly.
+input:
+  script: |+
+    true \
+    && echo ok
+expect:
+  stdout: |+
+    ok
+  stderr: ""
+  exit_code: 0

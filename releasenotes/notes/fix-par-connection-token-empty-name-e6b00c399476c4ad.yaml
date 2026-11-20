@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The Private Action Runner now rejects a task whose connection contains a
+    token without a name, reporting the task as failed instead of stopping the
+    runner process.

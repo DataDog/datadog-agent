@@ -104,6 +104,11 @@ type Payload struct {
 	UUID      string        `json:"uuid"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeHost
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -259,7 +264,7 @@ func (ih *invHost) fillData() {
 	ih.data.RPMGlobalRepoGPGCheckEnabled = repoGPGCheck
 }
 
-func (ih *invHost) getPayload() marshaler.JSONMarshaler {
+func (ih *invHost) getPayload() marshaler.TypedJSONMarshaler {
 	ih.fillData()
 
 	return &Payload{
