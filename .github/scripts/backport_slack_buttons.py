@@ -112,10 +112,7 @@ def main() -> int:
             "value": "dismiss",
         }
     )
-    msg = web.chat_postMessage(
-        channel=web.conversations_open(users=[user_id])["channel"]["id"],
-        text=f":rewind: Backport assessment for #{pr_number}",
-        blocks=[
+    blocks = [
             {
                 "type": "section",
                 "text": {
@@ -130,7 +127,11 @@ def main() -> int:
                 },
             },
             {"type": "actions", "elements": buttons},
-        ],
+    ]
+    msg = web.chat_postMessage(
+        channel=web.conversations_open(users=[user_id])["channel"]["id"],
+        text=f":rewind: Backport assessment for #{pr_number}",
+        blocks=blocks,
     )
     print(f"Sent: {msg['permalink']}", flush=True)
 
@@ -166,32 +167,38 @@ def main() -> int:
     print(f"Socket Mode connected: {sm.is_connected()}", flush=True)
     clicked.wait(timeout=ttl)
 
-    # Always remove the buttons so stale clicks can't pile up after expiry/choice.
-    try:
-        web.chat_update(
-            channel=msg["channel"],
-            ts=ts,
-            text=f":rewind: Backport assessment for #{pr_number}",
-            blocks=[
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": (
-                            f":white_check_mark: Backport to `{result['branch']}` requested — "
-                            "the label is being added, the backport PR will follow."
-                            if result["outcome"] == "add"
-                            else f":no_entry_sign: No backport for <{env('PR_URL')}|#{pr_number}>."
-                            if result["outcome"] == "dismiss"
-                            else f":alarm_clock: No answer within {hours} hour(s) — to backport "
-                            f"<{env('PR_URL')}|#{pr_number}> manually, add a backport/<branch> label."
-                        ),
-                    },
-                }
-            ],
+    # Remove the buttons from the original message (stale clicks can't pile up after the
+    # decision/expiry), then report the outcome as a reply in the message's thread.
+    if result["outcome"] == "add":
+        outcome_text = (
+            f":white_check_mark: Backport to `{result['branch']}` requested — "
+            "the label is being added, the backport PR will follow."
         )
-    except Exception as e:  # noqa: BLE001
-        print(f"Could not update the message (non-fatal): {e}")
+    elif result["outcome"] == "dismiss":
+        outcome_text = f":no_entry_sign: No backport for <{env('PR_URL')}|#{pr_number}>."
+    else:
+        outcome_text = (
+            f":alarm_clock: No answer within {hours} hour(s) — to backport "
+            f"<{env('PR_URL')}|#{pr_number}> manually, add a backport/<branch> label."
+        )
+    for call in ("chat_update", "chat_postMessage"):
+        try:
+            if call == "chat_update":
+                # Keep the original section, drop the actions block
+                web.chat_update(
+                    channel=msg["channel"],
+                    ts=ts,
+                    text=f":rewind: Backport assessment for #{pr_number}",
+                    blocks=[b for b in blocks if b["type"] != "actions"],
+                )
+            else:
+                web.chat_postMessage(
+                    channel=msg["channel"],
+                    thread_ts=ts,
+                    text=outcome_text,
+                )
+        except Exception as e:  # noqa: BLE001
+            print(f"Could not {call} (non-fatal): {e}")
 
     output("outcome", result["outcome"])
     output("branch", result["branch"])
