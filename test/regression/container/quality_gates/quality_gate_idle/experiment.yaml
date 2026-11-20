@@ -41,7 +41,7 @@ checks:
       upper_bound: "202 MiB"
 
   - name: memory_usage_p99_quantile_gate
-    description: "Memory usage p99 quantile gate. This puts a bound on the 99th percentile of the total agent memory usage."
+    description: "Memory usage p99 quantile gate. This fails when the 99th percentile of the total agent memory usage is statistically above the configured upper bound."
     quantile_bounds:
       series: total_pss_bytes
       quantile: 0.99
