@@ -8,6 +8,7 @@ package engine
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -665,6 +666,9 @@ func TestGPUTypeSources(t *testing.T) {
 		{"AMD node labeller", map[string]string{"amd.com/gpu.product-name": "AMD_Instinct_MI300X"}, "mi300x"},
 		{"AMD without vendor prefix", map[string]string{"amd.com/gpu.product-name": "Instinct_MI210"}, "mi210"},
 		{"GFD wins over GKE", map[string]string{labelGPUProduct: "NVIDIA-A100-SXM4-80GB", "cloud.google.com/gke-accelerator": "nvidia-h100-80gb"}, "a100"},
+		{"EKS Karpenter a10g joins the node check's a10", map[string]string{"karpenter.k8s.aws/instance-gpu-name": "a10g"}, "a10"},
+		{"GKE l40s joins the node check's l40", map[string]string{"cloud.google.com/gke-accelerator": "nvidia-l40s"}, "l40"},
+		{"GKE nvidia-l4", map[string]string{"cloud.google.com/gke-accelerator": "nvidia-l4"}, "l4"},
 		{"unparseable falls through", map[string]string{labelGPUProduct: "garbage", "karpenter.k8s.aws/instance-gpu-name": "l4"}, "l4"},
 		{"none", map[string]string{}, GPUTypeUnknown},
 	}
@@ -673,6 +677,19 @@ func TestGPUTypeSources(t *testing.T) {
 			assert.Equal(t, tt.want, gpuType(Node{Labels: tt.labels}))
 		})
 	}
+}
+
+func TestUnsupportedRowsCarryGPUType(t *testing.T) {
+	rack := map[string]string{rackLabel: "rack-1"}
+	mig := gpuNode("mig", map[string]string{rackLabel: "rack-1", labelGPUProduct: "NVIDIA-A100-SXM4-40GB-MIG-1g.5gb"}, 7, nvidia)
+	shared := gpuNode("shared", map[string]string{rackLabel: "rack-1", labelGPUProduct: "Tesla-T4-SHARED"}, 16, nvidia)
+	plain := gpuNode("plain", rack, 4, nvidia)
+	res := Compute(Topology{Levels: []string{rackLabel}}, []Node{mig, shared, plain}, nil)
+	assert.Equal(t, []NodeCount{
+		{State: NodeInTopology, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 1},
+		{State: NodeUnsupported, GPUResource: GPUResourceMIG, GPUType: "a100", Count: 1},
+		{State: NodeUnsupported, GPUResource: GPUResourceShared, GPUType: "t4", Count: 1},
+	}, nonZero(res.Nodes))
 }
 
 func TestCPUOnlyNodesNeverCreateUnknown(t *testing.T) {
@@ -724,10 +741,20 @@ func TestDeterministicOrder(t *testing.T) {
 	})
 	for i := range nodes {
 		nodes[i].Capacity[amd], nodes[i].Allocatable[amd] = 2, 2
+		if strings.HasSuffix(nodes[i].Name, "-h1") {
+			nodes[i].Labels[labelGPUProduct] = "NVIDIA-H100-80GB-HBM3" // two GPU types
+		}
+		if nodes[i].Name == "block-a-rack-1-h0" {
+			nodes[i].Unschedulable = true
+		}
 	}
-	nodes[0].Unschedulable = true
 	topo := Topology{Levels: []string{blockLabel, rackLabel}}
 	want := Compute(topo, nodes, alloc)
+	var units []string
+	for _, rr := range want.Resources {
+		units = append(units, rr.Resource+"/"+rr.GPUType)
+	}
+	assert.Equal(t, []string{amd + "/h100", amd + "/unknown", nvidia + "/h100", nvidia + "/unknown"}, units)
 
 	rng := rand.New(rand.NewSource(1))
 	for range 20 {
@@ -737,7 +764,7 @@ func TestDeterministicOrder(t *testing.T) {
 	assert.Equal(t, [][]string{
 		{"block-a", "rack-1"}, {"block-a", "rack-2"}, {"block-a", "rack-3"},
 		{"block-b", "rack-1"}, {"block-b", "rack-2"},
-	}, paths(want.Resources[0].Levels[1]))
+	}, paths(want.Resources[3].Levels[1]))
 }
 
 func TestStateStrings(t *testing.T) {
