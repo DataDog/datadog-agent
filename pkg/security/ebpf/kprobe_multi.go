@@ -8,7 +8,6 @@
 package ebpf
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -23,8 +22,8 @@ import (
 
 // kprobeMultiBackend is an opt-in research backend using one multi-kprobe link
 // per existing hook. It preserves the programs, hook targets and selectors.
-// If the companion ebpf-manager support or kernel capability is unavailable,
-// initialization keeps the legacy program specifications and attachments.
+// If the kernel capability is unavailable, initialization keeps the legacy
+// program specifications and attachments.
 type kprobeMultiBackend struct {
 	checkSupport func() error
 }
@@ -55,10 +54,6 @@ func (b *kprobeMultiBackend) BeforeInit(m *manager.Manager, _ names.ModuleName, 
 }
 
 func checkKprobeMultiSupport() error {
-	backend, ok := any(&manager.Probe{}).(interface{ SupportsKprobeMulti() bool })
-	if !ok || !backend.SupportsKprobeMulti() {
-		return errors.New("CWS multi-kprobe backend requires the companion ebpf-manager patch")
-	}
 	if err := features.HaveBPFLinkKprobeMulti(); err != nil {
 		return fmt.Errorf("CWS multi-kprobe backend unsupported: %w", err)
 	}

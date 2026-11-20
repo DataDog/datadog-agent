@@ -61,7 +61,6 @@ func TestKprobeMultiBackendDisabled(t *testing.T) {
 func TestKprobeMultiBackendFallsBackBeforeRetargeting(t *testing.T) {
 	for name, supportErr := range map[string]error{
 		"unsupported_kernel": lib.ErrNotSupported,
-		"missing_dependency": errors.New("companion ebpf-manager patch unavailable"),
 		"permission_denied":  os.ErrPermission,
 		"probe_failure":      errors.New("unexpected capability probe failure"),
 	} {
