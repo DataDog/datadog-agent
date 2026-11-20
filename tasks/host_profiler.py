@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import sys
+import time
 
 from invoke import task
 from invoke.context import Context
@@ -25,6 +26,14 @@ PPROFILE_MAX_VERSION = "v0.165.1"
 BIN_NAME = "host-profiler"
 BIN_DIR = os.path.join(".", "bin", "host-profiler")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("host-profiler"))
+
+# See .gitlab/deploy/internal_image_deploy/internal_image_deploy.yml.
+INTERNAL_JOB = "publish_internal_container_image-host_profiler_standalone"
+# See .gitlab/deploy/dev_container_deploy/docker_linux.yml.
+DEV_BRANCH_JOB = "dev_branch-host-profiler-standalone"
+DEVTEST_JOB = "dev_deploy-host-profiler-devtest"
+DEVTEST_BRIDGE = "deploy_host_profiler_to_reliability_env_devtest"
+FAILED_STATUSES = ("failed", "canceled", "skipped")
 
 
 def _get_profiler_agent_version(ctx):
@@ -108,6 +117,164 @@ def build(ctx, enable_bazel=False):
         "./cmd/host-profiler/dist/host-profiler-config.yaml",
         os.path.join(dist_folder, "host-profiler-config.yaml"),
     )
+
+
+def _latest(items, name):
+    """Return the item named `name` with the highest id, i.e. the last retry."""
+    return max((i for i in items if i.name == name), key=lambda i: i.id, default=None)
+
+
+def _report(seen: dict, name: str, status: str, url: str = ""):
+    if seen.get(name) != status:
+        seen[name] = status
+        print(f"{time.strftime('%H:%M:%S')} {name}: {status} {url}".rstrip(), flush=True)
+
+
+def _ref_slug(ref: str) -> str:
+    """GitLab's CI_COMMIT_REF_SLUG."""
+    import re
+
+    return re.sub(r"[^a-z0-9]", "-", ref.lower())[:63].strip("-")
+
+
+def _follow(repo, pipeline, names: list[str], timeout: int):
+    """Wait for the jobs in `names` and, for devtest, the reliability env trigger. Print published images."""
+    import re
+
+    all_jobs = pipeline.jobs.list(all=True)
+    job_ids = {}
+    for name in names:
+        job = _latest(all_jobs, name)
+        if job is None:
+            raise Exit(f"{name} is not part of the pipeline.", code=1)
+        job_ids[name] = job.id
+    pending = set(names) | ({DEVTEST_BRIDGE} if DEVTEST_JOB in names else set())
+    tag = child_url = None
+    seen: dict[str, str] = {}
+    deadline = time.time() + timeout
+
+    while time.time() < deadline:
+        for name in [n for n in names if n in pending]:
+            job = repo.jobs.get(job_ids[name])
+            if job.status in FAILED_STATUSES:
+                # Jobs may retry themselves on failure.
+                job_ids[name] = _latest(pipeline.jobs.list(all=True), name).id
+                job = repo.jobs.get(job_ids[name])
+            _report(seen, name, job.status, job.web_url)
+            if name == INTERNAL_JOB and child_url is None and job.status in ("running", "success"):
+                log = job.trace().decode(errors="replace")
+                if tag is None and (m := re.search(r"'RELEASE_TAG': '([^']+)'", log)):
+                    tag = m.group(1)
+                    print(f"Tag: {tag}", flush=True)
+                if m := re.search(r"Created a child pipeline with id=\d+, url=(\S+)", log):
+                    child_url = m.group(1)
+                    print(f"ddoghq/images pipeline: {child_url}", flush=True)
+            if job.status == "manual":
+                raise Exit(f"{name} did not start automatically: does {pipeline.ref} include its CI rule?", code=1)
+            if job.status in FAILED_STATUSES:
+                raise Exit(f"{name} {job.status}: {job.web_url}", code=1)
+            if job.status == "success":
+                pending.discard(name)
+                if name == INTERNAL_JOB:
+                    print(color_message(f"Published registry.ddbuild.io/ddot-ebpf:{tag}", "green"), flush=True)
+                elif name == DEV_BRANCH_JOB:
+                    image = f"docker.io/datadog/ddot-ebpf-dev:{_ref_slug(pipeline.ref)}"
+                    print(color_message(f"Published {image}", "green"), flush=True)
+
+        if DEVTEST_BRIDGE in pending:
+            bridge = _latest(pipeline.bridges.list(all=True), DEVTEST_BRIDGE)
+            if bridge is None:
+                raise Exit(f"{DEVTEST_BRIDGE} is not part of the pipeline.", code=1)
+            _report(seen, DEVTEST_BRIDGE, bridge.status, (bridge.downstream_pipeline or {}).get("web_url", ""))
+            if bridge.status in FAILED_STATUSES:
+                raise Exit(f"{DEVTEST_BRIDGE} {bridge.status}: {pipeline.web_url}", code=1)
+            if bridge.status == "success":
+                pending.discard(DEVTEST_BRIDGE)
+                print(color_message("Deployed to the reliability devtest env.", "green"), flush=True)
+
+        if not pending:
+            return
+        time.sleep(30)
+    raise Exit("Timed out.", code=1)
+
+
+@task
+def publish(
+    ctx,
+    internal=True,
+    dev_branch=False,
+    devtest=False,
+    git_ref="",
+    pipeline_id=None,
+    follow=True,
+    timeout=3 * 3600,
+):
+    """
+    Publish the host profiler image of a pushed branch, without needing a PR.
+
+    --internal (default) publishes registry.ddbuild.io/ddot-ebpf:dev-<branch>-<sha> through ddoghq/images.
+    --dev-branch publishes the public docker.io/datadog/ddot-ebpf-dev:<branch slug>, skipping ddoghq/images.
+    --devtest overwrites the shared ddot-ebpf-dev:devtest-latest (used by relenv candidate-experimental)
+    and deploys it to the reliability devtest env.
+    --pipeline-id plays the jobs of an existing pipeline instead, which requires their dependencies to be built.
+    """
+    from gitlab.exceptions import GitlabGetError, GitlabJobPlayError
+
+    from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+    from tasks.libs.common.git import get_commit_sha, get_current_branch
+    from tasks.libs.pipeline.tools import (
+        FilteredOutException,
+        cancel_pipelines_with_confirmation,
+        get_running_pipelines_on_same_ref,
+        trigger_agent_pipeline,
+    )
+
+    targets = {
+        INTERNAL_JOB: ("PUBLISH_HOST_PROFILER_INTERNAL", internal),
+        DEV_BRANCH_JOB: ("PUBLISH_HOST_PROFILER_DEV_BRANCH", dev_branch),
+        DEVTEST_JOB: ("DEPLOY_HOST_PROFILER_DEVTEST", devtest),
+    }
+    jobs = {name: var for name, (var, enabled) in targets.items() if enabled}
+    if not jobs:
+        raise Exit("Nothing to publish: --no-internal requires --dev-branch or --devtest.", code=1)
+
+    repo = get_gitlab_repo()
+
+    if pipeline_id:
+        if git_ref:
+            raise Exit("--git-ref and --pipeline-id are mutually exclusive.", code=1)
+        pipeline = repo.pipelines.get(pipeline_id)
+        manual = {j.name: j for j in pipeline.jobs.list(scope="manual", all=True)}
+        for name in jobs:
+            if name not in manual:
+                raise Exit(f"{name} is not playable: dependencies not built yet, or already played.", code=1)
+        for name in jobs:
+            try:
+                repo.jobs.get(manual[name].id, lazy=True).play()
+            except GitlabJobPlayError as e:
+                raise Exit(f"Could not play {name}: {e}", code=1) from e
+    else:
+        ref = git_ref or get_current_branch(ctx)
+        try:
+            remote_sha = repo.branches.get(ref).commit["id"]
+        except GitlabGetError as e:
+            raise Exit(f"Branch {ref} is not pushed.", code=1) from e
+        if not git_ref and remote_sha != get_commit_sha(ctx):
+            print(color_message(f"WARNING: local HEAD differs from pushed {ref} ({remote_sha[:11]}).", "orange"))
+
+        running = get_running_pipelines_on_same_ref(repo, ref)
+        if running:
+            print(f"There are already {len(running)} pipeline(s) running on {ref}.")
+            cancel_pipelines_with_confirmation(repo, running)
+
+        try:
+            pipeline = trigger_agent_pipeline(repo, ref, "dev", variables={var: "true" for var in jobs.values()})
+        except FilteredOutException as e:
+            raise Exit(f"The pipeline for {ref} does not match any workflow rule.", code=1) from e
+
+    print(color_message("Pipeline: ", "blue") + color_message(pipeline.web_url, "green"), flush=True)
+    if follow:
+        _follow(repo, pipeline, list(jobs), timeout)
 
 
 @task

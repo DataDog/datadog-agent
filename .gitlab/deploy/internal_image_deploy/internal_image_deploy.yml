@@ -153,6 +153,14 @@ publish_internal_container_image-ot_standalone-fips:
 
 publish_internal_container_image-host_profiler_standalone:
   extends: .docker_trigger_base
+  rules:
+    - !reference [.except_light_pipeline]
+    # Set by `dda inv host-profiler.publish`.
+    - if: $PUBLISH_HOST_PROFILER_INTERNAL == "true"
+      when: on_success
+      variables:
+        RELEASE_PROD: "false"
+    - !reference [.on_deploy_internal_or_internal_image_change_or_manual]
   needs:
     - job: docker_build_host_profiler_standalone_amd64
       artifacts: false
