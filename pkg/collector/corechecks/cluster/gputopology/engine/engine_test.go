@@ -661,7 +661,7 @@ func TestStateStrings(t *testing.T) {
 	for _, s := range DomainStates() {
 		got = append(got, s.String())
 	}
-	assert.Equal(t, []string{"free", "partial", "full", "unavailable"}, got)
+	assert.Equal(t, []string{"free", "partially_occupied", "fully_occupied", "unavailable"}, got)
 
 	got = nil
 	for _, s := range NodeStates() {
