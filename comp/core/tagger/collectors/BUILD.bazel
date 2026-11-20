@@ -67,6 +67,7 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/core/tagger/common",
         "//comp/core/tagger/taglist",
         "//comp/core/tagger/tags",
         "//comp/core/tagger/types",
