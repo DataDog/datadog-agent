@@ -40,7 +40,9 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config/policyreceipt"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
@@ -350,4 +352,30 @@ func TestExpvarExist(t *testing.T) {
 		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 	assert.NotNil(t, expvar.Get("inventories"))
+}
+
+func TestPolicyReceiptIgnoresScrubbedContentCache(t *testing.T) {
+	root := t.TempDir()
+	confd := filepath.Join(root, "conf.d")
+	filename := filepath.Join(confd, "redisdb.d", "conf.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(filename), 0700))
+	require.NoError(t, os.WriteFile(filename, []byte("instances:\n- password: private-password\n"), 0640))
+	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil)
+	configmock.New(t).SetConfigFile(filepath.Join(root, "datadog.yaml"))
+	providers.ResetReader([]string{confd})
+	t.Cleanup(func() { providers.ResetReader(nil) })
+	r := &policyreceipt.Receipt{SchemaVersion: 1, OrgID: 42, PolicyID: "policy", PolicyVersion: 7, SecretRevision: "first01", DeploymentID: "deployment"}
+	require.NoError(t, policyreceipt.Record(root, r, []string{"/conf.d/redisdb.d/conf.yaml"}))
+	first := ic.getFilesMetadata()[filename].(metadata)
+	require.Len(t, first["config_policy_receipts"], 1)
+	require.NoError(t, os.WriteFile(filename, []byte("instances:\n- password: changed-password\n"), 0640))
+	second := ic.getFilesMetadata()[filename].(metadata)
+	require.Equal(t, first["hash"], second["hash"], "password-only drift has identical scrubbed contents")
+	require.Empty(t, second["config_policy_receipts"], "verification must bypass the provider cache")
+	require.NoError(t, policyreceipt.Record(root, r, []string{"/conf.d/redisdb.d/conf.yaml"}))
+	ic.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
+	require.Empty(t, ic.getFilesMetadata()[filename].(metadata)["config_policy_receipts"])
+	require.NoError(t, os.Remove(filename))
+	providers.ResetReader([]string{confd})
+	require.Empty(t, ic.getFilesMetadata()[filename].(metadata)["config_policy_receipts"], "missing files must clear previous evidence")
 }

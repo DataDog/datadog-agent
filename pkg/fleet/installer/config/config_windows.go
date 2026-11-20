@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config/policyreceipt"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -133,6 +134,9 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 	err = backupOrRestoreDirectory(ctx, d.ExperimentPath, d.StablePath)
 	if err != nil {
 		return fmt.Errorf("error restoring stable directory: %w", err)
+	}
+	if err := policyreceipt.Invalidate(d.StablePath); err != nil {
+		return fmt.Errorf("error invalidating policy receipts: %w", err)
 	}
 	err = removeConfigFilesMissingFromSource(d.ExperimentPath, d.StablePath)
 	if err != nil {

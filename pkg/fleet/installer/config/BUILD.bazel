@@ -12,6 +12,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/config",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/fleet/installer/config/policyreceipt",
         "@com_github_evanphx_json_patch_v5//:json-patch",
         "@com_github_itchyny_gojq//:gojq",
         "@in_yaml_go_yaml_v2//:yaml",
@@ -136,12 +137,14 @@ dd_agent_go_test(
     name = "config_test",
     srcs = [
         "config_nix_test.go",
+        "config_policy_receipt_test.go",
         "config_rollback_windows_test.go",
         "config_test.go",
         "config_windows_test.go",
     ],
     embed = [":config"],
     deps = [
+        "//pkg/fleet/installer/config/policyreceipt",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v2//:yaml",

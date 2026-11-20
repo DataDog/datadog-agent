@@ -12,7 +12,9 @@ import (
 	"expvar"
 	"maps"
 	"net/http"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +31,7 @@ import (
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config/policyreceipt"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -290,22 +293,27 @@ func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http
 
 func (ic *inventorychecksImpl) getFilesMetadata() metadata {
 	configFiles := providers.ReadConfigFormats()
-	if len(configFiles) == 0 {
-		ic.log.Debug("could not read files metadata")
-		return metadata{}
-	}
-
 	filesMetadata := metadata{}
 	for _, configFile := range configFiles {
 		// Use the filename as key
 		filesMetadata[configFile.Filename] = metadata{
-			"raw_config": configFile.ConfigFormat,
-			"hash":       configFile.Hash,
+			"raw_config":             configFile.ConfigFormat,
+			"hash":                   configFile.Hash,
+			"config_policy_receipts": []policyreceipt.Receipt{},
 		}
 		if !ic.conf.GetBool("metadata_skip_secrets") {
 			filesMetadata[configFile.Filename].(metadata)["secrets"] = configFile.Secrets
+			filesMetadata[configFile.Filename].(metadata)["config_policy_receipts"] = policyreceipt.Verify(filepath.Dir(ic.conf.ConfigFileUsed()), configFile.Filename)
 		}
 	}
 
+	for _, filename := range policyreceipt.KnownFiles(filepath.Dir(ic.conf.ConfigFileUsed())) {
+		if !strings.HasPrefix(filename, filepath.Join(filepath.Dir(ic.conf.ConfigFileUsed()), "conf.d")+string(filepath.Separator)) {
+			continue
+		}
+		if _, found := filesMetadata[filename]; !found {
+			filesMetadata[filename] = metadata{"config_policy_receipts": []policyreceipt.Receipt{}}
+		}
+	}
 	return filesMetadata
 }

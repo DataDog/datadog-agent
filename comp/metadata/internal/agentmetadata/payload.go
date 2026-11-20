@@ -10,6 +10,8 @@ package agentmetadata
 import (
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config/policyreceipt"
+
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -18,9 +20,10 @@ type agentMetadata map[string]interface{}
 
 // RawFile is a scrubbed configuration file and the hash of its scrubbed content.
 type RawFile struct {
-	RawConfig string                  `json:"raw_config"`
-	Hash      string                  `json:"hash"`
-	Secrets   []scrubber.ConfigSecret `json:"secrets,omitempty"`
+	RawConfig      string                  `json:"raw_config"`
+	Hash           string                  `json:"hash"`
+	Secrets        []scrubber.ConfigSecret `json:"secrets,omitempty"`
+	PolicyReceipts []policyreceipt.Receipt `json:"config_policy_receipts"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload
