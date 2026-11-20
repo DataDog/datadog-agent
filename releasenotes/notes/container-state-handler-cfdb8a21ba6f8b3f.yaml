@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add Kubernetes container state transition events to the container lifecycle
+    check. When the container lifecycle events feature is enabled, the Agent
+    now reports each transition of a container between waiting, running, and
+    terminated states, including the reason, exit code, and timestamp where
+    available.

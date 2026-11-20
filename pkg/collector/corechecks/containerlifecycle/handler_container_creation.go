@@ -20,13 +20,21 @@ type ContainerCreationHandler struct {
 	store workloadmeta.Component
 
 	mu sync.Mutex
-	// seen maps a container ID to whether the event emitted for it carried owner info.
-	seen map[string]bool
+	// emitted maps a container ID to the metadata its emitted creation events
+	// carried, so a Set re-emits only when it adds metadata the last emission lacked.
+	emitted map[string]emittedMetadata
+}
+
+// emittedMetadata is what a creation event needs: the owner to correlate it and
+// the creation timestamp to anchor it. Either can arrive on a later Set.
+type emittedMetadata struct {
+	owner             bool
+	creationTimestamp bool
 }
 
 // NewContainerCreationHandler returns a ContainerCreationHandler backed by the given store.
 func NewContainerCreationHandler(store workloadmeta.Component) *ContainerCreationHandler {
-	return &ContainerCreationHandler{store: store, seen: make(map[string]bool)}
+	return &ContainerCreationHandler{store: store, emitted: make(map[string]emittedMetadata)}
 }
 
 // String returns a human-readable name for the handler.
@@ -53,7 +61,7 @@ func (h *ContainerCreationHandler) Handle(ev workloadmeta.Event) ([]LifecycleEve
 		}
 
 		h.mu.Lock()
-		delete(h.seen, containerID)
+		delete(h.emitted, containerID)
 		h.mu.Unlock()
 		return nil, nil
 	}
@@ -91,15 +99,27 @@ func (h *ContainerCreationHandler) Handle(ev workloadmeta.Event) ([]LifecycleEve
 				log.Tracef("Cannot handle owner for container %q with type %q", containerID, c.Owner.Kind)
 			}
 		}
+		if ctr.OptionalCreationTimestamp == nil && !c.State.CreatedAt.IsZero() {
+			ts := c.State.CreatedAt.Unix()
+			ctr.OptionalCreationTimestamp = &contlcycle.ContainerEvent_CreationTimestamp{CreationTimestamp: ts}
+		}
 	}
 
 	h.mu.Lock()
-	hadOwner, alreadySeen := h.seen[containerID]
-	if alreadySeen && (hadOwner || ctr.Owner == nil) {
+	// Emit the first Set for a container, and re-emit only when this one adds the
+	// owner or the creation timestamp the last emission lacked: either can arrive
+	// on a later Set, and containers without an orchestrator owner never acquire
+	// one, so repeats without new metadata must not re-emit.
+	emittedMeta, alreadySeen := h.emitted[containerID]
+	ownerIsNew := ctr.Owner != nil && !emittedMeta.owner
+	timestampIsNew := ctr.OptionalCreationTimestamp != nil && !emittedMeta.creationTimestamp
+	if alreadySeen && !ownerIsNew && !timestampIsNew {
 		h.mu.Unlock()
 		return nil, nil
 	}
-	h.seen[containerID] = ctr.Owner != nil
+	emittedMeta.owner = emittedMeta.owner || ctr.Owner != nil
+	emittedMeta.creationTimestamp = emittedMeta.creationTimestamp || ctr.OptionalCreationTimestamp != nil
+	h.emitted[containerID] = emittedMeta
 	h.mu.Unlock()
 
 	return []LifecycleEvent{{
