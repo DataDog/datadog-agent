@@ -3744,7 +3744,7 @@ func (s *TracerSuite) TestNATFromEbpfConntracker() {
 		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
 			t.Skip("the sk tracer doesn't classify with the net_dev_queue map")
 		}
-		require.Nil(t, sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane))
+		require.Nil(t, sharedConntrackNATMap(cfg, tr.conntracker, kprobe.ClassificationSupported(cfg), hostBPFNATDataplane))
 		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 		require.NoError(t, err)
 		assert.Equal(t, cfg.MaxTrackedConnections, m.MaxEntries())
@@ -3786,19 +3786,31 @@ func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
 			}
 			require.NoError(t, err)
 
+			// After its one message the connection is idle, so each end is reported in one fetch only: the
+			// state skips an active connection whose stats haven't changed since the last fetch. The two ends
+			// can land in different fetches (the client's send can be reported before the server's goroutine
+			// reads it), and neither comes back afterwards. So keep the latest copy of each end seen across
+			// fetches.
+			var client, server *network.ConnectionStats
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
 				conns, cleanup := getConnections(collect, tr)
 				defer cleanup()
-				client, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-				if assert.NotNil(collect, client, "client connection not found") {
-					assert.True(collect, client.ProtocolStack.Contains(protocols.HTTP), "client not classified")
+				if conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); ok {
+					cp := *conn
+					client = &cp
 				}
 				// the server's socket sees the SNAT'd source
-				server := network.FirstConnection(conns, func(cs network.ConnectionStats) bool {
+				if conn := network.FirstConnection(conns, func(cs network.ConnectionStats) bool {
 					return cs.Direction == network.INCOMING && fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == srv.Address() && cs.Dest.String() == "7.7.7.7"
-				})
-				if assert.NotNil(collect, server, "server connection not found") {
-					assert.True(collect, server.ProtocolStack.Contains(protocols.HTTP), "server not classified")
+				}); conn != nil {
+					cp := *conn
+					server = &cp
+				}
+				if assert.NotNil(collect, client, "client connection not found in any fetch") {
+					assert.True(collect, client.ProtocolStack.Contains(protocols.HTTP), "client not classified: %v", client)
+				}
+				if assert.NotNil(collect, server, "server connection not found in any fetch") {
+					assert.True(collect, server.ProtocolStack.Contains(protocols.HTTP), "server not classified: %v", server)
 				}
 			}, 5*time.Second, 100*time.Millisecond)
 		})
@@ -3815,7 +3827,10 @@ func requireConntrackNATMapShared(t *testing.T, cfg *config.Config, tr *Tracer) 
 	if !slices.ContainsFunc(ctks, func(c netlink.Conntracker) bool { _, ok := c.(*ebpfConntracker); return ok }) {
 		t.Skip("ebpf conntracker not loaded")
 	}
-	natMap := sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane)
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported, so the map isn't shared")
+	}
+	natMap := sharedConntrackNATMap(cfg, tr.conntracker, true, hostBPFNATDataplane)
 	require.NotNil(t, natMap, "ebpf conntracker map not shared")
 	m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 	require.NoError(t, err)
