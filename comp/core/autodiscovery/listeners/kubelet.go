@@ -191,7 +191,7 @@ func (l *KubeletListener) createContainerService(
 
 		// Exclude non-running containers (including init containers)
 		// from metrics collection but keep them for collecting logs.
-		metricsExcluded:   l.metricsFilter.IsExcluded(filterableContainer) || !container.State.Running,
+		metricsExcluded:   l.metricsFilter.IsExcluded(filterableContainer) || !container.State.Running || pod.DeletionTimestamp != nil,
 		logsExcluded:      l.logsFilter.IsExcluded(filterableContainer),
 		tagger:            l.tagger,
 		imageName:         containerImg.ShortName,

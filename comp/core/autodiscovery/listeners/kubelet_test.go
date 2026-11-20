@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -155,6 +156,10 @@ func TestKubeletCreateContainerService(t *testing.T) {
 	podWithLogsExcludeAnnotation := podWithAnnotations.DeepCopy().(*workloadmeta.KubernetesPod)
 	podWithLogsExcludeAnnotation.Annotations[fmt.Sprintf("ad.datadoghq.com/%s.logs_exclude", containerName)] = `true`
 
+	podBeingDeleted := pod.DeepCopy().(*workloadmeta.KubernetesPod)
+	deletionTimestamp := time.Now()
+	podBeingDeleted.DeletionTimestamp = &deletionTimestamp
+
 	containerEntityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindContainer,
 		ID:   containerID,
@@ -293,6 +298,41 @@ func TestKubeletCreateContainerService(t *testing.T) {
 					parent: "kubernetes_pod://foobar",
 					service: &WorkloadService{
 						entity: recentlyStoppedContainer,
+						adIdentifiers: []string{
+							adtypes.KubeContainerNameIdentifier(containerName),
+							"docker://foobarquux",
+							"foobar",
+						},
+						hosts: map[string]string{
+							"pod": "127.0.0.1",
+						},
+						ports:           []workloadmeta.ContainerPort{},
+						metricsExcluded: true,
+						extraConfig: map[string]string{
+							"namespace": podNamespace,
+							"pod_name":  podName,
+							"pod_uid":   podID,
+						},
+						tagger:    taggerComponent,
+						imageName: "foobar",
+					},
+				},
+			},
+		},
+		{
+			name:      "running container of a pod being deleted excludes metrics but not logs",
+			pod:       podBeingDeleted,
+			container: basicContainer,
+			podContainer: &workloadmeta.OrchestratorContainer{
+				ID:    containerID,
+				Name:  containerName,
+				Image: basicImage,
+			},
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					parent: "kubernetes_pod://foobar",
+					service: &WorkloadService{
+						entity: basicContainer,
 						adIdentifiers: []string{
 							adtypes.KubeContainerNameIdentifier(containerName),
 							"docker://foobarquux",
@@ -583,6 +623,52 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			wlm.assertServices(tt.expectedServices)
 		})
 	}
+}
+
+func TestKubeletReplacesContainerServiceWhenPodDeletionStarts(t *testing.T) {
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+	newServices := make(chan Service, 2)
+	delServices := make(chan Service, 2)
+	listener := &KubeletListener{
+		workloadmetaListener: &workloadmetaListenerImpl{
+			services:   make(map[string]Service),
+			children:   make(map[string]map[string]struct{}),
+			newService: newServices,
+			delService: delServices,
+		},
+		globalFilter:  filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		metricsFilter: filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
+		logsFilter:    filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
+		tagger:        taggerComponent,
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podID},
+		EntityMeta: workloadmeta.EntityMeta{Name: podName, Namespace: podNamespace},
+	}
+	podBeingDeleted := pod.DeepCopy().(*workloadmeta.KubernetesPod)
+	deletionTimestamp := time.Now()
+	podBeingDeleted.DeletionTimestamp = &deletionTimestamp
+	podContainer := &workloadmeta.OrchestratorContainer{ID: containerID, Name: containerName}
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+		State:    workloadmeta.ContainerState{Running: true},
+		Runtime:  workloadmeta.ContainerRuntimeDocker,
+	}
+
+	listener.createContainerService(pod, podContainer, container)
+	require.Len(t, newServices, 1)
+	runningSvc := <-newServices
+	assert.False(t, runningSvc.HasFilter(workloadfilter.MetricsFilter))
+
+	listener.createContainerService(podBeingDeleted, podContainer, container)
+	require.Len(t, delServices, 1)
+	require.Len(t, newServices, 1)
+	assert.Same(t, runningSvc, <-delServices)
+	deletingSvc := <-newServices
+	assert.True(t, deletingSvc.HasFilter(workloadfilter.MetricsFilter))
+	assert.False(t, deletingSvc.HasFilter(workloadfilter.LogsFilter))
 }
 
 func TestProcessPodWithEphemeralContainer(t *testing.T) {

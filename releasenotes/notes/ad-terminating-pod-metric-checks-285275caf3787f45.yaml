@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Autodiscovery now stops the metric checks of a Kubernetes container as
+    soon as its pod starts terminating, instead of running them against a
+    container that is shutting down until the container is removed. The
+    same applies when a container stops running. Logs of these containers
+    are still collected.
