@@ -58,27 +58,29 @@ func TestStatusAPIKeySuffixAfterUpdate(t *testing.T) {
 	config.Set("dd_url", "https://app.example.com", model.SourceAgentRuntime)
 	config.Set("api_key", "key1old12345", model.SourceAgentRuntime)
 	config.Set("additional_endpoints", map[string][]string{
-		"https://intake.example.com":               {"key2old12345", "key3old12345"},
-		"https://series.example.com/api/v2/series": {"key4old12345"},
+		"https://intake.example.com":               {"key2old12346", "key3old12347"},
+		"https://series.example.com/api/v2/series": {"key4old12348"},
 	}, model.SourceAgentRuntime)
 
 	provider := Provider{}
 	var buf bytes.Buffer
 	assert.NoError(t, provider.Text(false, &buf))
 	assert.Contains(t, buf.String(), "https://app.example.com - API Key ending with:\n      - 2345")
-	assert.Contains(t, buf.String(), "https://intake.example.com - API Keys ending with:\n      - 2345\n      - 2345")
-	assert.Contains(t, buf.String(), "https://series.example.com/api/v2/series - API Key ending with:\n      - 2345")
+	assert.Contains(t, buf.String(), "https://intake.example.com - API Keys ending with:\n      - 2346\n      - 2347")
+	assert.Contains(t, buf.String(), "https://series.example.com/api/v2/series - API Key ending with:\n      - 2348")
 
 	config.Set("api_key", "key1new54321", model.SourceAgentRuntime)
 	config.Set("additional_endpoints", map[string][]string{
-		"https://intake.example.com":               {"key2new54321", "key3new54321"},
-		"https://series.example.com/api/v2/series": {"key4new54321"},
+		"https://intake.example.com":               {"key2new54322", "key3new54323"},
+		"https://series.example.com/api/v2/series": {"key4new54324"},
 	}, model.SourceAgentRuntime)
 
 	buf.Reset()
 	assert.NoError(t, provider.Text(false, &buf))
 	assert.Contains(t, buf.String(), "https://app.example.com - API Key ending with:\n      - 4321")
-	assert.Contains(t, buf.String(), "https://intake.example.com - API Keys ending with:\n      - 4321\n      - 4321")
-	assert.Contains(t, buf.String(), "https://series.example.com/api/v2/series - API Key ending with:\n      - 4321")
-	assert.NotContains(t, buf.String(), "2345")
+	assert.Contains(t, buf.String(), "https://intake.example.com - API Keys ending with:\n      - 4322\n      - 4323")
+	assert.Contains(t, buf.String(), "https://series.example.com/api/v2/series - API Key ending with:\n      - 4324")
+	for _, oldSuffix := range []string{"2345", "2346", "2347", "2348"} {
+		assert.NotContains(t, buf.String(), oldSuffix)
+	}
 }
