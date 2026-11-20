@@ -139,7 +139,6 @@ var (
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
 	var tagInfos []*types.TagInfo
-	var kaiPodGroupIDs map[string]struct{}
 
 	// Autoscaler targets with changes in this bundle
 	autoscalerTargets := make(map[workloadmeta.AutoscalerTarget]struct{})
@@ -154,13 +153,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		}
 
 		if entityID.Kind == workloadmeta.KindKubernetesKAIPodGroup {
-			// PodGroups have no tags, but the tags of their pods depend on
-			// them. A bundle can hold one PodGroup per pod, so pods are
-			// retagged once per bundle rather than once per PodGroup.
-			if kaiPodGroupIDs == nil {
-				kaiPodGroupIDs = make(map[string]struct{})
-			}
-			kaiPodGroupIDs[entityID.ID] = struct{}{}
+			// PodGroups have no tags of their own
 			continue
 		}
 
@@ -189,11 +182,13 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
-			tagInfos = append(tagInfos, c.handleSet(ev)...)
+			tagInfos = append(tagInfos, c.tagEntity(ev)...)
 			tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
 			tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
 
 		case workloadmeta.EventTypeUnset:
+			c.dependencies.forget(entityID)
+			delete(c.lastEvents, entityID)
 			tagInfos = append(tagInfos, c.handleDelete(ev)...)
 			// A removed Kueue entity is no longer in the store, so the pods
 			// that used it get re-tagged without it.
@@ -205,9 +200,26 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		}
 	}
 
-	tagInfos = append(tagInfos, c.retagKAIDependentPods(kaiPodGroupIDs)...)
+	// The readers of the entities of the bundle are re-tagged from their last
+	// event once the whole bundle is tagged, including the readers tagged
+	// above: their first pass may have used state that later events of the
+	// bundle changed, like the completeness of a container.
+	retagged := make(map[workloadmeta.EntityID]struct{})
+	for _, ev := range evBundle.Events {
+		for _, readerID := range c.dependencies.readersOf(ev.Entity.GetID()) {
+			if _, ok := retagged[readerID]; ok {
+				continue
+			}
+			retagged[readerID] = struct{}{}
+
+			if readerEv, ok := c.lastEvents[readerID]; ok {
+				tagInfos = append(tagInfos, c.tagEntity(readerEv)...)
+			}
+		}
+	}
+
 	if len(autoscalerTargets) > 0 {
-		tagInfos = append(tagInfos, c.retagAutoscalerDependentPods(autoscalerTargets)...)
+		tagInfos = append(tagInfos, c.retagAutoscalerDependentPods(autoscalerTargets, retagged)...)
 		tagInfos = append(tagInfos, c.handleAutoscaledWorkloads(autoscalerTargets)...)
 	}
 
@@ -216,6 +228,31 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 	}
 
 	evBundle.Acknowledge()
+}
+
+// tagEntity tags the entity of a set event, from the entity's own event or
+// from its last one when an entity it depends on changes, and records the
+// entities its handler looked up, so that changes to them re-tag it.
+func (c *WorkloadMetaCollector) tagEntity(ev workloadmeta.Event) []*types.TagInfo {
+	c.store.startTracking()
+	tagInfos := c.handleSet(ev)
+	dependencies := c.store.stopTracking()
+	c.recordDependencies(ev, dependencies)
+	return tagInfos
+}
+
+// recordDependencies records what the entity of ev was tagged from: its
+// dependencies, and the event itself for the entities that can be re-tagged
+// without an event of their own, those with dependencies and pods, which
+// autoscaler changes re-tag.
+func (c *WorkloadMetaCollector) recordDependencies(ev workloadmeta.Event, dependencies map[workloadmeta.EntityID]struct{}) {
+	id := ev.Entity.GetID()
+	c.dependencies.replace(id, dependencies)
+	if len(dependencies) > 0 || id.Kind == workloadmeta.KindKubernetesPod {
+		c.lastEvents[id] = ev
+	} else {
+		delete(c.lastEvents, id)
+	}
 }
 
 func (c *WorkloadMetaCollector) handleSet(ev workloadmeta.Event) []*types.TagInfo {
@@ -1613,41 +1650,32 @@ func (c *WorkloadMetaCollector) retagKueueDependentPods(entity workloadmeta.Enti
 
 	return c.retagPods(func(pod *workloadmeta.KubernetesPod) bool {
 		return c.kueueEntityAffectsPod(entity, pod)
-	})
+	}, make(map[workloadmeta.EntityID]struct{}))
 }
 
-// retagKAIDependentPods recomputes the tags of the pods that reference one of
-// the given KAI PodGroups.
-func (c *WorkloadMetaCollector) retagKAIDependentPods(podGroupIDs map[string]struct{}) []*types.TagInfo {
-	if len(podGroupIDs) == 0 {
-		return nil
-	}
-
-	return c.retagPods(func(pod *workloadmeta.KubernetesPod) bool {
-		podGroupName := pod.Annotations[kubernetes.KAIPodGroupAnnotationKey]
-		if podGroupName == "" {
-			return false
-		}
-		_, ok := podGroupIDs[workloadmeta.GenerateKAIPodGroupEntityID(pod.Namespace, podGroupName)]
-		return ok
-	})
-}
-
-// retagPods recomputes the tags of the pods for which affected returns true.
-// Pod tags are computed from the scheduler entities in the store at that time,
-// and setting, changing or removing those entities later does not generate a
-// new event for the pod.
-func (c *WorkloadMetaCollector) retagPods(affected func(*workloadmeta.KubernetesPod) bool) []*types.TagInfo {
+// retagPods recomputes the tags of the pods for which affected returns true,
+// from their last event if they have one, skipping the pods already re-tagged.
+// Pod tags are computed from the entities in the store at that time, and
+// changes to those entities don't generate a new event for the pod.
+func (c *WorkloadMetaCollector) retagPods(affected func(*workloadmeta.KubernetesPod) bool, retagged map[workloadmeta.EntityID]struct{}) []*types.TagInfo {
 	var tagInfos []*types.TagInfo
 	for _, pod := range c.store.ListKubernetesPods() {
-		if !affected(pod) {
+		ev, ok := c.lastEvents[pod.EntityID]
+		if !ok {
+			ev = workloadmeta.Event{
+				Type:       workloadmeta.EventTypeSet,
+				Entity:     pod,
+				IsComplete: c.entityCompleteness[pod.EntityID],
+			}
+		}
+		if !affected(ev.Entity.(*workloadmeta.KubernetesPod)) {
 			continue
 		}
-		tagInfos = append(tagInfos, c.handleKubePod(workloadmeta.Event{
-			Type:       workloadmeta.EventTypeSet,
-			Entity:     pod,
-			IsComplete: c.entityCompleteness[pod.EntityID],
-		})...)
+		if _, ok := retagged[pod.EntityID]; ok {
+			continue
+		}
+		retagged[pod.EntityID] = struct{}{}
+		tagInfos = append(tagInfos, c.tagEntity(ev)...)
 	}
 	return tagInfos
 }
@@ -1763,7 +1791,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodAutoscalers(pod *workloadmeta.
 // retagAutoscalerDependentPods recomputes the tags of the pods of the given
 // autoscaler targets. Pod tags depend on the autoscalers, but autoscaler
 // changes don't generate pod events, so the pods need to be re-tagged here.
-func (c *WorkloadMetaCollector) retagAutoscalerDependentPods(targets map[workloadmeta.AutoscalerTarget]struct{}) []*types.TagInfo {
+func (c *WorkloadMetaCollector) retagAutoscalerDependentPods(targets map[workloadmeta.AutoscalerTarget]struct{}, retagged map[workloadmeta.EntityID]struct{}) []*types.TagInfo {
 	return c.retagPods(func(pod *workloadmeta.KubernetesPod) bool {
 		target, ok := pod.AutoscalerTarget()
 		if !ok {
@@ -1771,7 +1799,7 @@ func (c *WorkloadMetaCollector) retagAutoscalerDependentPods(targets map[workloa
 		}
 		_, affected := targets[target]
 		return affected
-	})
+	}, retagged)
 }
 
 func (c *WorkloadMetaCollector) handleAutoscaledWorkloads(targets map[workloadmeta.AutoscalerTarget]struct{}) []*types.TagInfo {
