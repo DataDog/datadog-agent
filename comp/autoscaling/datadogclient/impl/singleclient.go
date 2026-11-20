@@ -63,7 +63,7 @@ func newDatadogAPIClient(cfg configComponent.Component, apiKey, appKey, endpoint
 		// go-datadog-api uses no timeout by default, so a request that never completes would
 		// otherwise only be bounded by the OS (minutes). The timeout covers the whole exchange,
 		// including reading the response. A value <= 0 disables it.
-		Timeout: time.Duration(cfg.GetInt(metricsQueryTimeoutConfig)) * time.Second,
+		Timeout: time.Duration(cfg.GetInt(metricsEndpointTimeoutConfig)) * time.Second,
 	}
 	client.RetryTimeout = 3 * time.Second
 	client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"

@@ -57,25 +57,25 @@ func TestClientsHaveRequestTimeout(t *testing.T) {
 
 	for _, tt := range []struct {
 		name string
-		// queryTimeout is only set when setQueryTimeout is true, otherwise the default is used.
-		setQueryTimeout bool
-		queryTimeout    int
-		fallback        bool
-		expected        time.Duration
+		// endpointTimeout is only set when setEndpointTimeout is true, otherwise the default is used.
+		setEndpointTimeout bool
+		endpointTimeout    int
+		fallback           bool
+		expected           time.Duration
 	}{
 		{name: "single client, default", expected: 30 * time.Second},
-		{name: "single client, configured", setQueryTimeout: true, queryTimeout: 7, expected: 7 * time.Second},
-		{name: "single client, disabled", setQueryTimeout: true, queryTimeout: 0, expected: 0},
+		{name: "single client, configured", setEndpointTimeout: true, endpointTimeout: 7, expected: 7 * time.Second},
+		{name: "single client, disabled", setEndpointTimeout: true, endpointTimeout: 0, expected: 0},
 		{name: "fallback client, default", fallback: true, expected: 30 * time.Second},
-		{name: "fallback client, configured", fallback: true, setQueryTimeout: true, queryTimeout: 7, expected: 7 * time.Second},
-		{name: "fallback client, disabled", fallback: true, setQueryTimeout: true, queryTimeout: 0, expected: 0},
+		{name: "fallback client, configured", fallback: true, setEndpointTimeout: true, endpointTimeout: 7, expected: 7 * time.Second},
+		{name: "fallback client, disabled", fallback: true, setEndpointTimeout: true, endpointTimeout: 0, expected: 0},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 			cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
-			if tt.setQueryTimeout {
-				cfg.Set(metricsQueryTimeoutConfig, tt.queryTimeout, pkgconfigmodel.SourceLocalConfigProcess)
+			if tt.setEndpointTimeout {
+				cfg.Set(metricsEndpointTimeoutConfig, tt.endpointTimeout, pkgconfigmodel.SourceLocalConfigProcess)
 			}
 			if tt.fallback {
 				cfg.SetInTest(metricsRedundantEndpointConfig, []map[string]interface{}{{"site": "api.datadoghq.eu", "url": "https://api.datadoghq.eu", "api_key": "12345", "app_key": "67890"}})

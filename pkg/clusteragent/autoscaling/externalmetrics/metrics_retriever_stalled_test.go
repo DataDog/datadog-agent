@@ -148,7 +148,7 @@ func TestRetrieveMetricsStalledRequest(t *testing.T) {
 		// The timeout of the Datadog clients created by the Agent.
 		client.HttpClient = &http.Client{
 			Transport: transport,
-			Timeout:   time.Duration(cfg.GetInt("external_metrics_provider.query_timeout")) * time.Second,
+			Timeout:   time.Duration(cfg.GetInt("external_metrics_provider.endpoint_timeout")) * time.Second,
 		}
 		client.RetryTimeout = 3 * time.Second
 

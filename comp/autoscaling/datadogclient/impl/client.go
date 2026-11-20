@@ -36,7 +36,7 @@ const (
 	metricsEndpointPrefix          = "https://api."
 	metricsEndpointConfig          = "external_metrics_provider.endpoint"
 	metricsRedundantEndpointConfig = "external_metrics_provider.endpoints"
-	metricsQueryTimeoutConfig      = "external_metrics_provider.query_timeout"
+	metricsEndpointTimeoutConfig   = "external_metrics_provider.endpoint_timeout"
 )
 
 // endpoint represent a datadog endpoint
