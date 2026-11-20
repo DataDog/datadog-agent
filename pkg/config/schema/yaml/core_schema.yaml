@@ -8774,9 +8774,10 @@ properties:
     visibility: public
     description: |-
       [INSECURE] Disables the client certificate requirement (mTLS) on the
-      trace-agent debug server (apm_config.debug.port), which then accepts
-      requests authenticated with the auth token only. Temporary rollback lever,
-      to be removed; do not enable unless instructed by Datadog support.
+      trace-agent debug server (apm_config.debug.port) and the process-agent
+      API server (process_config.cmd_port), which then accept requests
+      authenticated with the auth token only. Temporary rollback lever, to be
+      removed; do not enable unless instructed by Datadog support.
     comment: temporary rollback lever for the mTLS rollout; remove once mTLS is
       enforced on all sub-agent IPC APIs (AGENTRUN)
   inventories_collect_cloud_provider_account_id:

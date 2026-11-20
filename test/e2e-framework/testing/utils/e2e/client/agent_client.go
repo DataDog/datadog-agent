@@ -6,6 +6,7 @@
 package client
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"strings"
@@ -123,7 +124,12 @@ func waitForAgentsReady(ctx Context, host *Host, params *agentclientparams.Param
 		"security-agent": securityAgentRequest,
 	}
 
-	hostHTTPClient := host.NewHTTPClient()
+	// Sub-agent API servers that require mTLS need the client to present
+	// the IPC certificate, on top of the auth token.
+	hostHTTPClient, err := hostHTTPClientWithIPCCert(params, host)
+	if err != nil {
+		return err
+	}
 	deadline := time.Now().Add(params.WaitForDuration)
 	var lastErr error
 
@@ -214,6 +220,36 @@ func fetchAuthTokenCommand(authTokenPath string, osFamily osComp.Family) string 
 	}
 
 	return "sudo cat " + authTokenPath
+}
+
+// hostHTTPClientWithIPCCert returns an HTTP client presenting the IPC certificate
+// (mTLS), required by sub-agent API servers such as the process-agent one.
+func hostHTTPClientWithIPCCert(params *agentclientparams.Params, host *Host) (*http.Client, error) {
+	c := host.NewHTTPClient()
+
+	certPEM, err := host.Execute(fetchIPCCertCommand(params.IPCCertPath, host.osFamily))
+	if err != nil {
+		return nil, fmt.Errorf("could not read the IPC certificate file: %v", err)
+	}
+	// The cert file holds both the certificate and the key; X509KeyPair picks
+	// the right PEM block from each argument.
+	tlsCert, err := tls.X509KeyPair([]byte(certPEM), []byte(certPEM))
+	if err != nil {
+		return nil, fmt.Errorf("could not load the IPC certificate: %v", err)
+	}
+
+	tr := c.Transport.(*http.Transport).Clone()
+	tr.TLSClientConfig.Certificates = []tls.Certificate{tlsCert}
+	c.Transport = tr
+	return c, nil
+}
+
+func fetchIPCCertCommand(ipcCertPath string, osFamily osComp.Family) string {
+	if osFamily == osComp.WindowsFamily {
+		return "Get-Content -Raw -Path " + ipcCertPath
+	}
+
+	return "sudo cat " + ipcCertPath
 }
 
 func waitForReadyTimeout(commandRunner *agentCommandRunner, timeout time.Duration) error {

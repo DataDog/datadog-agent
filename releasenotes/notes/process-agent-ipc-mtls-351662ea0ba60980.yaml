@@ -1,0 +1,15 @@
+---
+security:
+  - |
+    The process-agent API server (``process_config.cmd_port``) now requires
+    mutual TLS: clients must present the IPC certificate, on top of the auth
+    token. The insecure ``insecure_temporarily_disable_ipc_mtls`` setting
+    reverts it to token-only authentication; it is a temporary rollback lever
+    and will be removed.
+upgrade:
+  - |
+    Local clients of the process-agent API server (``process_config.cmd_port``,
+    e.g. curl or scripts querying ``/agent/status``) must present the IPC
+    certificate from ``ipc_cert.pem``. To keep token-only access, set the
+    temporary ``insecure_temporarily_disable_ipc_mtls`` setting to ``true``
+    (insecure, will be removed).

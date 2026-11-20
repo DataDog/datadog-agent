@@ -28,8 +28,9 @@ type Component interface {
 	// GetMTLSServerConfig returns a copy of the TLS configuration for HTTPS servers
 	// that require client certificates (mTLS). Use it for IPC API servers whose
 	// only clients are other Agent processes, which always present the IPC
-	// certificate. Currently used by the trace-agent debug server; the core agent
-	// IPC server enforces mTLS unconditionally and does not use this accessor.
+	// certificate. Currently used by the trace-agent debug server and the
+	// process-agent API server; the core agent IPC server enforces mTLS
+	// unconditionally and does not use this accessor.
 	GetMTLSServerConfig() *tls.Config
 	// HTTPMiddleware returns a middleware that verifies the auth_token in incoming HTTP requests
 	HTTPMiddleware(next http.Handler) http.Handler
