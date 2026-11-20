@@ -191,19 +191,21 @@ func postInstallDMG(ctx HookContext) error {
 		span.SetTag("process_manager.enabled", enabled)
 		span.SetTag("process_manager.enabled_source", source)
 	}
+	log.Infof("process_manager.enabled is %t (from %s)", enabled, source)
 	if enabled {
-		log.Infof("process_manager.enabled is %t (from %s)", enabled, source)
 		if err := writeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {
 			log.Warnf("failed to write the processes.d catalog: %v", err)
 		}
 	} else {
-		log.Warnf("process_manager.enabled is false (from %s): %s is not loaded", source, procmgrLabel)
 		skip[procmgrLabel] = true
 		// dd-procmgrd runs as root, so the opt-out does not depend on the Agent's account.
 		if err := unloadStableJob(ctx, launchdClient(), procmgrLabel); err != nil {
-			errs = append(errs, fmt.Errorf("process_manager.enabled is false but %s could not be fully removed: %w", procmgrLabel, err))
-		} else if err := removeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {
-			errs = append(errs, fmt.Errorf("process_manager.enabled is false but the opt-out is incomplete: the processes.d catalog could not be removed: %w", err))
+			errs = append(errs, fmt.Errorf("process_manager.enabled is false (from %s) but %s could not be fully removed: %w", source, procmgrLabel, err))
+		} else {
+			log.Warnf("process_manager.enabled is false (from %s): %s is not loaded", source, procmgrLabel)
+			if err := removeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {
+				errs = append(errs, fmt.Errorf("process_manager.enabled is false (from %s) but the opt-out is incomplete: the processes.d catalog could not be removed: %w", source, err))
+			}
 		}
 	}
 	// The packages root holds the package entry the installer daemon reports the Agent from, and

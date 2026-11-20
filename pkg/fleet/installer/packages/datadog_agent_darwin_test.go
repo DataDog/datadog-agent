@@ -8,8 +8,10 @@
 package packages
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -23,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -924,6 +927,26 @@ func stubProcmgrOff(t *testing.T) {
 	}
 }
 
+// captureHookLog collects the hook's log output at warn level, the installer's default.
+func captureHookLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevel(&buf, log.WarnLvl)
+	require.NoError(t, err)
+	log.SetupLogger(logger, "warn")
+	// SetupLogger replays the lines logged before the first setup.
+	buf.Reset()
+	t.Cleanup(func() {
+		discard, discardErr := log.LoggerFromWriterWithMinLevel(io.Discard, log.WarnLvl)
+		if discardErr == nil {
+			log.SetupLogger(discard, "warn")
+		}
+	})
+	return &buf
+}
+
+const procmgrNotLoadedLog = "process_manager.enabled is false (from datadog.yaml): com.datadoghq.procmgr is not loaded"
+
 func assertProcmgrOmitted(t *testing.T, calls [][]string, dir string) {
 	t.Helper()
 	bootout := callIndex(calls, "bootout", "system/"+procmgrLabel)
@@ -958,10 +981,12 @@ func TestPostInstallDMGOmitsProcmgrWhenDisabled(t *testing.T) {
 	dir := stubJobDir(t)
 	dmgHookContext(t)
 	stubProcmgrOff(t)
+	logs := captureHookLog(t)
 
 	require.NoError(t, postInstallDMG(testHookContext(t)))
 
 	assertProcmgrOmitted(t, *calls, dir)
+	assert.Contains(t, logs.String(), procmgrNotLoadedLog)
 }
 
 func TestPostInstallDMGKeepsProcmgrWhenBootoutFails(t *testing.T) {
@@ -969,6 +994,7 @@ func TestPostInstallDMGKeepsProcmgrWhenBootoutFails(t *testing.T) {
 	dir := stubJobDir(t)
 	dmgHookContext(t)
 	stubProcmgrOff(t)
+	logs := captureHookLog(t)
 	path := filepath.Join(dir, procmgrLabel+".plist")
 	require.NoError(t, os.WriteFile(path, []byte("old definition"), 0o644))
 	stubFailingBootout(t, procmgrLabel)
@@ -977,6 +1003,8 @@ func TestPostInstallDMGKeepsProcmgrWhenBootoutFails(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), procmgrLabel)
+	assert.Contains(t, err.Error(), "(from datadog.yaml)")
+	assert.NotContains(t, logs.String(), "is not loaded", "the job was reported unloaded although bootout failed")
 	assert.FileExists(t, path)
 	assert.Equal(t, -1, callIndex(*calls, catalogRemoveCall, defaultDmgLayout.installDir))
 	for _, call := range *calls {
@@ -1002,6 +1030,7 @@ func TestPostInstallDMGKeepsProcmgrWhenDefinitionRemovalFails(t *testing.T) {
 	dir := stubJobDir(t)
 	dmgHookContext(t)
 	stubProcmgrOff(t)
+	logs := captureHookLog(t)
 	path := filepath.Join(dir, procmgrLabel+".plist")
 	require.NoError(t, os.Mkdir(path, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(path, "keep"), []byte("x"), 0o644))
@@ -1010,6 +1039,8 @@ func TestPostInstallDMGKeepsProcmgrWhenDefinitionRemovalFails(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), procmgrLabel)
+	assert.Contains(t, err.Error(), "(from datadog.yaml)")
+	assert.NotContains(t, logs.String(), "is not loaded", "the opt-out was reported complete although the definition remains")
 	assert.DirExists(t, path)
 	assert.Equal(t, -1, callIndex(*calls, catalogRemoveCall, defaultDmgLayout.installDir))
 	for _, call := range *calls {
