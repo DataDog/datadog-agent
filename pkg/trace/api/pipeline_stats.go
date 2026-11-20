@@ -136,7 +136,10 @@ func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Re
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
 	targets, keys := m.activeTargets()
-	if len(targets) == 1 {
+	// Take the direct path only when a single endpoint is configured. When MRF
+	// filtering leaves one target, still go through replayableBody so the
+	// MaxRequestBytes limit does not change when failover toggles.
+	if len(m.targets) == 1 {
 		setTarget(req, targets[0], keys[0])
 		rresp, rerr = m.rt.RoundTrip(req)
 		if rerr != nil {

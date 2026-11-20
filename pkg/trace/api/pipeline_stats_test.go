@@ -141,6 +141,75 @@ func TestPipelineStatsProxyMRF(t *testing.T) {
 	}
 }
 
+func TestPipelineStatsProxyMRFMaxRequestBytes(t *testing.T) {
+	var hits [2]atomic.Int32
+	var urls []*url.URL
+	for i := range hits {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			hits[i].Add(1)
+			w.WriteHeader(http.StatusAccepted)
+		}))
+		t.Cleanup(srv.Close)
+		u, err := url.Parse(srv.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		urls = append(urls, u)
+	}
+	c := &config.AgentConfig{
+		ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc,
+		MaxRequestBytes:           2,
+	}
+	proxy := httptest.NewServer(newPipelineStatsProxy(c, urls, []string{"key1", "key2"}, []bool{false, true}, "key:val", &statsd.NoOpClient{}))
+	t.Cleanup(proxy.Close)
+
+	resp, err := http.Post(proxy.URL, "application/msgpack", strings.NewReader("body"))
+	if !assert.NoError(t, err) {
+		return
+	}
+	resp.Body.Close()
+	assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+	assert.EqualValues(t, 0, hits[0].Load())
+	assert.EqualValues(t, 0, hits[1].Load())
+}
+
+func TestPipelineStatsProxyHandlerMRFRemoteConfigToggle(t *testing.T) {
+	var hits [2]atomic.Int32
+	conf := newTestReceiverConfig()
+	conf.Endpoints = nil
+	for i := range hits {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			hits[i].Add(1)
+			w.WriteHeader(http.StatusAccepted)
+		}))
+		t.Cleanup(srv.Close)
+		conf.Endpoints = append(conf.Endpoints, &config.Endpoint{Host: srv.URL, APIKey: "test", IsMRF: i == 1})
+	}
+	handler := newTestReceiverFromConfig(conf).pipelineStatsProxyHandler()
+	send := func() {
+		req := httptest.NewRequest(http.MethodPost, "/some/path", strings.NewReader("body"))
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusAccepted, rec.Code)
+	}
+
+	send()
+	assert.EqualValues(t, 1, hits[0].Load())
+	assert.EqualValues(t, 0, hits[1].Load())
+
+	// Remote Config turns failover on without rebuilding the handler.
+	failover := true
+	conf.MRFFailoverAPMRC = &failover
+	send()
+	assert.EqualValues(t, 2, hits[0].Load())
+	assert.EqualValues(t, 1, hits[1].Load())
+
+	failover = false
+	send()
+	assert.EqualValues(t, 3, hits[0].Load())
+	assert.EqualValues(t, 1, hits[1].Load())
+}
+
 func TestPipelineStatsProxyHandler(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var called bool
