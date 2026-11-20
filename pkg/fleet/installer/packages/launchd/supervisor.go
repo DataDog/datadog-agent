@@ -26,8 +26,8 @@ import (
 // a restart of whichever process enforces it. It is the only coverage for an experiment that is
 // alive but hung: the ExitObserver sees exit, nothing else.
 //
-// The root watcher and the resume hook act on what this file says, so it is only trusted when it
-// and the directory holding it are owned by OwnerUID and writable by nobody else: a file another
+// The root watchers and the experiment hooks act on what this file says, so it is only trusted when
+// it and the directory holding it are owned by OwnerUID and writable by nobody else: a file another
 // account could have planted or replaced is refused rather than read.
 type Deadline struct {
 	// Path is the file the deadline is persisted to.
@@ -127,7 +127,7 @@ const DeadlineReverting = "reverting"
 //
 // Every process that read the deadline earlier sees it change, so a watcher stands down exactly as
 // it does when the file is cleared, while the file itself survives a failed or interrupted
-// hand-back for the next daemon start to finish.
+// hand-back for whatever ends the experiment next to finish.
 func (d Deadline) MarkReverting() error {
 	return d.write(DeadlineReverting)
 }
