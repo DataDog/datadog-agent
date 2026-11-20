@@ -83,8 +83,7 @@ func newBaselineController(cfg BaselineConfig, detectorNames []string) *baseline
 func detectorNames(detectors []detectorRegistration) []string {
 	names := make([]string, 0, len(detectors))
 	for _, registration := range detectors {
-		detector := registration.detector
-		names = append(names, detector.Name())
+		names = append(names, registration.detector.Name())
 	}
 	return names
 }

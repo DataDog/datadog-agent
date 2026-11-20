@@ -290,9 +290,10 @@ func pipelineDetectionFilter(
 	}
 	kind, metricType := registration.kind, registration.metricType
 	return observer.DetectionFilter{
-		MetricKind:   &kind,
-		MetricType:   &metricType,
-		Aggregations: aggregations,
+		ExcludeNamespaces: filter.ExcludeNamespaces,
+		MetricKind:        &kind,
+		MetricType:        &metricType,
+		Aggregations:      aggregations,
 	}, true
 }
 

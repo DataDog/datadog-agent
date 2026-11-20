@@ -5552,6 +5552,26 @@ properties:
                 type: number
                 default: 0.6
                 description: Fraction of structural tokens that must match an existing log pattern.
+          log_failure:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                description: |
+                  Detect repeated application errors without statistical warmup: three or more ERROR-level
+                  logs across two five-second intervals within thirty seconds, per host, service and environment.
+                  While enabled, logs that declare ERROR or higher are admitted below an input's min_severity.
+                  Does not activate Observer by itself.
+              failure_weight:
+                node_type: setting
+                type: number
+                default: 3
+                description: |
+                  Minimum anomaly-scorer weight while this detector's evidence is fresh. The default lets
+                  sustained repeated errors reach High on their own. 0 gives the ordinary contribution; maximum 6.
           log_pattern_extractor:
             node_type: section
             type: object

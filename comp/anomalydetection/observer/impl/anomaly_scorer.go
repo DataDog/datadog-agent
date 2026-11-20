@@ -162,6 +162,9 @@ func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) in
 // calibrated levelWeights. It is used only to rank retained top anomalies; the
 // scorer's EWMA continues to use the calibrated discrete levelWeights.
 func contributorWeight(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) float64 {
+	if a.Evidence == observerdef.EvidenceFailure && a.FailureWeight > 0 {
+		return math.Max(a.FailureWeight, levelWeights[anomalyLevel(a, cfg)])
+	}
 	if a.LevelChange != nil {
 		return levelWeights[anomalyLevel(a, cfg)]
 	}
@@ -213,6 +216,11 @@ func seriesID(a observerdef.Anomaly) string {
 // highest level that still has an active timestamp, rather than carrying the
 // stale peak forward.
 type windowEntry [5]int64
+
+type failureFloor struct {
+	lastSec int64
+	weight  float64
+}
 
 const (
 	topAnomalyWindowSecs        = int64(5 * 60)
@@ -585,6 +593,9 @@ type anomalyScorer struct {
 	// active window [lastAdvancedSec-WindowSecs+1, lastAdvancedSec].
 	// Entries are evicted once lastSeenSec falls outside the window.
 	windowMap map[string]windowEntry
+	// failureFloors records each failure detector's latest evidence second and
+	// weight; fresh entries floor the scorer input. Allocated on first use.
+	failureFloors map[string]failureFloor
 	// topAnomalies retains bounded five-minute attribution only when
 	// correlation events are enabled.
 	topAnomalies *topAnomalyBuffer
@@ -858,13 +869,30 @@ func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 	}
 
 	if s.openEpisode != nil {
-		if s.config.MaxEpisodeAnomalies <= 0 || len(s.openEpisode.Anomalies) < s.config.MaxEpisodeAnomalies {
+		if (s.config.MaxEpisodeAnomalies <= 0 || len(s.openEpisode.Anomalies) < s.config.MaxEpisodeAnomalies) && !episodeListsFailure(s.openEpisode, a) {
 			s.openEpisode.Anomalies = append(s.openEpisode.Anomalies, a)
 			if a.Timestamp > s.openEpisode.LastUpdated {
 				s.openEpisode.LastUpdated = a.Timestamp
 			}
 		}
 	}
+}
+
+// episodeListsFailure reports whether the episode already lists failure evidence
+// from the same detector and series. Direct failure detectors re-emit on every
+// fresh interval; listing each repeat would crowd out other detectors' examples
+// from the capped member list. Repeats still contribute to the score.
+func episodeListsFailure(episode *observerdef.ActiveCorrelation, a observerdef.Anomaly) bool {
+	if a.Evidence != observerdef.EvidenceFailure || a.SourceRef == nil {
+		return false
+	}
+	for _, listed := range episode.Anomalies {
+		if listed.Evidence == observerdef.EvidenceFailure && listed.DetectorName == a.DetectorName &&
+			listed.SourceRef != nil && *listed.SourceRef == *a.SourceRef {
+			return true
+		}
+	}
+	return false
 }
 
 // Advance finalises all 1-second buckets from lastAdvancedSec+1 up to dataTime
@@ -951,7 +979,10 @@ func (s *anomalyScorer) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	if s.openEpisode == nil {
 		return nil
 	}
-	return []observerdef.ActiveCorrelation{*s.openEpisode}
+	// Example retention must not truncate a sustained episode's duration.
+	snapshot := *s.openEpisode
+	snapshot.LastUpdated = max(snapshot.LastUpdated, s.lastAdvancedSec)
+	return []observerdef.ActiveCorrelation{snapshot}
 }
 
 // Reset clears all internal EWMA/window state and resets every dispatcher so
@@ -961,6 +992,7 @@ func (s *anomalyScorer) Reset() {
 	s.mu.Lock()
 	s.pending = make(map[int64][]observerdef.Anomaly)
 	s.windowMap = make(map[string]windowEntry)
+	s.failureFloors = nil
 	if s.topAnomalies != nil {
 		s.topAnomalies.reset()
 	}
@@ -1077,6 +1109,12 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 
 	// Step 1: merge new anomalies into the window.
 	for _, a := range anomalies {
+		if a.Evidence == observerdef.EvidenceFailure && a.FailureWeight > 0 {
+			if s.failureFloors == nil {
+				s.failureFloors = make(map[string]failureFloor)
+			}
+			s.failureFloors[a.DetectorName] = failureFloor{lastSec: sec, weight: a.FailureWeight}
+		}
 		sid := seriesID(a)
 		level := anomalyLevel(a, s.config.AnomalyScorerConfig)
 		entry := s.windowMap[sid]
@@ -1128,6 +1166,22 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 	if count > 0 {
 		meanWeight := weightSum / float64(count)
 		input = meanWeight * (1 - math.Exp(-float64(count)/s.config.SaturationK))
+	}
+
+	// Fresh failure evidence sets a floor rather than adding to the input, so
+	// overlapping log-pattern and failure detections are not double counted.
+	// The largest fresh weight applies; more failing series or detectors cannot
+	// raise the floor further.
+	var floorWeight float64
+	for name, floor := range s.failureFloors {
+		if floor.lastSec < windowStart {
+			delete(s.failureFloors, name)
+			continue
+		}
+		floorWeight = math.Max(floorWeight, floor.weight)
+	}
+	if floorWeight > 0 {
+		input = math.Max(input, floorWeight*(1-math.Exp(-1/s.config.SaturationK)))
 	}
 
 	s.ewma = s.config.Alpha*input + (1-s.config.Alpha)*s.ewma

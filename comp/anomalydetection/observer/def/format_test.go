@@ -37,6 +37,8 @@ func TestFormatAnomaly(t *testing.T) {
 			"Tukey biweight: cpu.user:avg", "below biweight baseline (z=-5.00, mu=10.0000, sigma=0.5000, n=80)"},
 		{"tukey up no aggregate", Anomaly{Source: SeriesDescriptor{Name: "requests"}, DetectorName: "tukey_biweight", DebugInfo: &AnomalyDebugInfo{BaselineMedian: 10, BaselineMAD: 0.5, TukeyBiweightZScore: 5, TukeyBiweightSampleCount: 80}},
 			"Tukey biweight: requests", "above biweight baseline (z=5.00, mu=10.0000, sigma=0.5000, n=80)"},
+		{"log failure defaults", Anomaly{Source: SeriesDescriptor{Name: "log.errors.count", Aggregate: AggregateAverage}, DetectorName: "log_failure", DebugInfo: &AnomalyDebugInfo{CurrentValue: 5, Threshold: 3, FailureMinIntervals: 2, FailureWindowSeconds: 30}},
+			"Repeated application errors: log.errors.count:avg", "5 explicit application errors across at least 2 five-second intervals in the last 30 seconds (threshold: 3 errors)"},
 		{"missing debug", Anomaly{Source: series, DetectorName: "scanmw"},
 			"Anomaly detected: scanmw: cpu.user:avg", ""},
 		{"unknown trigger", Anomaly{Source: series, DetectorName: "bocpd", DebugInfo: &AnomalyDebugInfo{BOCPDTrigger: BOCPDTriggerUnknown}},

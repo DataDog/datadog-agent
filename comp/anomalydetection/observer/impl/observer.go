@@ -224,6 +224,11 @@ type logAdmissionFilter struct {
 	internal   logSourceRateState
 	kubelet    logSourceRateState
 	containers logSourceRateState
+	// admitDeclaredErrors admits logs whose transport status is below a source's
+	// minimum when the application itself declares ERROR or higher. Container
+	// stdout is transported as info, so error-count extraction would otherwise
+	// never see application errors written there. Set before handles are created.
+	admitDeclaredErrors bool
 }
 
 func loadLogAdmissionFilter(cfg config.Component, logsEnabled, agentLogsEnabled bool) *logAdmissionFilter {
@@ -560,6 +565,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
+	eng.onErrorCountCapacityHit = obsTelemetry.recordErrorCountCapacityHit
 	eng.onAnomalyDedupEvicted = obsTelemetry.recordAnomalyDedupEvicted
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
 	for _, extractor := range extractors {
@@ -587,6 +593,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	recorder, recorderEnabled := deps.Recorder.Get()
 	recordingOnly := recorderEnabled && anomalydetectionconfig.RecordingOnly(cfg)
 	logFilter := loadLogAdmissionFilter(cfg, (observerRequired || recorderEnabled) && logsEnabled, agentLogsEnabled)
+	logFilter.admitDeclaredErrors = hasLogErrorCountExtractor(extractors)
 
 	obs := &observerImpl{
 		engine:               eng,
@@ -1729,14 +1736,18 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	logSource := classifyLogSourceByOrigin(h.source, rawSource)
 	if logSource == "" {
 		if h.logFilter != nil && h.logFilter.kubelet.minBucket == h.logFilter.containers.minBucket && bucket < h.logFilter.containers.minBucket {
-			return
+			if status, bucket = h.declaredErrorStatus(msg, status, bucket); bucket < h.logFilter.containers.minBucket {
+				return
+			}
 		}
 		rawTags = msg.Tags()
 		hasRawTags = true
 		logSource = classifyLogSource(h.source, rawTags)
 	}
 	if h.logFilter != nil && bucket < h.logFilter.minBucketForSource(logSource) {
-		return
+		if status, bucket = h.declaredErrorStatus(msg, status, bucket); bucket < h.logFilter.minBucketForSource(logSource) {
+			return
+		}
 	}
 	if !hasRawTags {
 		rawTags = msg.Tags()

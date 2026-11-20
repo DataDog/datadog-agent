@@ -28,6 +28,7 @@ const (
 	telemetrySeriesFresh                     = "observer.series.fresh"                        // Number of non-telemetry observer series with a bucket newly visible since the previous sampled advance.
 	telemetryLogsInFlightCount               = "observer.logs.in_flight"                      // Number of logs currently queued/in flight.
 	telemetryStorageSeriesEvicted            = "observer.storage.series_evicted"              // Number of storage series evicted to enforce bounds.
+	telemetryErrorCountCapacityDropped       = "observer.log_error_count.capacity_dropped"    // Contributions dropped at the pending-state limit.
 	telemetryStorageCapacityHit              = "observer.storage.capacity_hit"                // Number of times storage capacity eviction was triggered.
 	telemetryAnomalyDedupEvicted             = "observer.anomaly_dedup.evicted"               // Number of anomaly dedup entries evicted to enforce bounds or remove stale refs.
 	telemetryAdvanceSkipped                  = "observer.scheduler.advance_skipped"           // Number of advance requests skipped as already analyzed.
@@ -59,21 +60,22 @@ type observerTelemetry struct {
 	logPatternCount        telemetry.Gauge
 	logMetricsPatternCount telemetry.Gauge
 
-	logsAcceptedBytes    telemetry.Counter
-	filteredLogs         telemetry.Counter
-	filteredMetrics      telemetry.Counter
-	seriesCount          telemetry.Gauge
-	seriesFresh          telemetry.Counter
-	logsInFlight         telemetry.Gauge
-	storageEvicted       telemetry.Counter
-	storageCapHit        telemetry.Counter
-	anomalyDedupEvicted  telemetry.Counter
-	advanceSkipped       telemetry.Counter
-	inputRateLimiterDrop telemetry.Counter
-	processingTime       telemetry.Gauge
-	detectorEmissions    telemetry.Counter
-	scorerEwma           telemetry.Gauge
-	scorerSeverity       telemetry.Gauge
+	logsAcceptedBytes         telemetry.Counter
+	filteredLogs              telemetry.Counter
+	filteredMetrics           telemetry.Counter
+	seriesCount               telemetry.Gauge
+	seriesFresh               telemetry.Counter
+	logsInFlight              telemetry.Gauge
+	storageEvicted            telemetry.Counter
+	storageCapHit             telemetry.Counter
+	errorCountCapacityDropped telemetry.Counter
+	anomalyDedupEvicted       telemetry.Counter
+	advanceSkipped            telemetry.Counter
+	inputRateLimiterDrop      telemetry.Counter
+	processingTime            telemetry.Gauge
+	detectorEmissions         telemetry.Counter
+	scorerEwma                telemetry.Gauge
+	scorerSeverity            telemetry.Gauge
 
 	inFlightInternal   atomic.Int64
 	inFlightKubelet    atomic.Int64
@@ -153,6 +155,10 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			telemetryStorageSeriesEvicted,
 			[]string{"reason"},
 			"Number of storage series evicted by reason",
+		),
+		errorCountCapacityDropped: telemetryComp.NewCounter(
+			"observer", telemetryErrorCountCapacityDropped, nil,
+			"Error-count contributions dropped because pending series or buckets reached capacity",
 		),
 		storageCapHit: telemetryComp.NewCounter(
 			"observer",
@@ -361,4 +367,10 @@ func (t *observerTelemetry) recordDetectorTiming(detector, kind string, meanNs f
 
 func (t *observerTelemetry) recordMetricKindTransitions(from, to string, count uint64) {
 	t.metricKindTransitions.Add(float64(count), from, to)
+}
+
+func (t *observerTelemetry) recordErrorCountCapacityHit() {
+	if t != nil {
+		t.errorCountCapacityDropped.Add(1)
+	}
 }

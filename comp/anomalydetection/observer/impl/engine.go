@@ -167,6 +167,7 @@ type engine struct {
 	detectors       []detectorRegistration
 	correlators     []observerdef.Correlator
 	logCounts       *materializedLogCountBucketizer
+	errorCounts     *materializedLogCountBucketizer
 	logKeyGenerator *SliceKeyGenerator
 
 	// scorer is a typed pointer to the anomaly scorer (when present).
@@ -233,10 +234,11 @@ type engine struct {
 	emissionCounts map[emissionKey]uint64
 
 	// Optional callbacks for direct telemetry emission.
-	onStorageSeriesEvicted func(reason string, count int)
-	onStorageCapacityHit   func()
-	onAnomalyDedupEvicted  func(reason string, count int)
-	onAdvanceSkipped       func(reason string)
+	onStorageSeriesEvicted  func(reason string, count int)
+	onStorageCapacityHit    func()
+	onErrorCountCapacityHit func()
+	onAnomalyDedupEvicted   func(reason string, count int)
+	onAdvanceSkipped        func(reason string)
 
 	// Event subscription management.
 	sinks   []eventSink
@@ -335,7 +337,8 @@ func newEngine(cfg engineConfig) (*engine, error) {
 	e := &engine{
 		storage:         cfg.storage,
 		extractors:      cfg.extractors,
-		detectors:       cfg.detectors,
+		errorCounts:     errorCountBucketizer(cfg.extractors),
+		detectors:       withDirectFailureFilters(cfg.detectors),
 		correlators:     correlators,
 		logKeyGenerator: NewSliceKeyGenerator(),
 		scorer:          cfg.scorer,
@@ -527,8 +530,18 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				}
 			}
 			timestamp := l.timestampMs / 1000
-			if e.logCounts != nil && e.logCounts.handlesMetric(m) {
-				if !e.logCounts.observe(extractor.Name(), m, host, timestamp, tags, seriesKey) {
+			buckets := e.logCounts
+			if extractor.Name() == LogErrorCountExtractorName {
+				buckets = e.errorCounts
+				if buckets != nil && !buckets.hasErrorCountCapacity(seriesKey, timestamp) {
+					if e.onErrorCountCapacityHit != nil {
+						e.onErrorCountCapacityHit()
+					}
+					continue
+				}
+			}
+			if buckets != nil && buckets.handlesMetric(m) {
+				if !buckets.observe(extractor.Name(), m, host, timestamp, tags, seriesKey) {
 					e.latePoints.Add(1)
 					if e.latePointsBySource == nil {
 						e.latePointsBySource = make(map[string]int64)
@@ -564,8 +577,11 @@ func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []stri
 		if name == "" {
 			continue
 		}
-		if e.logCounts != nil {
-			e.logCounts.removeMetricName(namespace, name)
+		for _, buckets := range []*materializedLogCountBucketizer{e.logCounts, e.errorCounts} {
+			if buckets == nil {
+				continue
+			}
+			buckets.removeMetricName(namespace, name)
 		}
 		freedAll = append(freedAll, e.storage.RemoveSeriesByMetricName(namespace, name)...)
 	}
@@ -582,8 +598,10 @@ func (e *engine) handleCapacityEvictions(freed []observerdef.SeriesRef) {
 	if len(freed) == 0 {
 		return
 	}
-	if e.logCounts != nil {
-		e.logCounts.removeSeriesByRefs(freed)
+	for _, buckets := range []*materializedLogCountBucketizer{e.logCounts, e.errorCounts} {
+		if buckets != nil {
+			buckets.removeSeriesByRefs(freed)
+		}
 	}
 	if e.onStorageCapacityHit != nil {
 		e.onStorageCapacityHit()
@@ -723,8 +741,10 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		// series globally before a slower detector can process them again.
 		e.completeDueBaselines(upToSec)
 	}
-	if e.logCounts != nil {
-		e.handleCapacityEvictions(e.logCounts.flush(e.storage, upToSec))
+	for _, buckets := range []*materializedLogCountBucketizer{e.logCounts, e.errorCounts} {
+		if buckets != nil {
+			e.handleCapacityEvictions(buckets.flush(e.storage, upToSec))
+		}
 	}
 	// Inactivity eviction happens after materialized log-count buckets have
 	// restored their real last-observation activity time, and before detectors
@@ -779,8 +799,11 @@ func (e *engine) evictInactiveSeries(upToSec int64, detectors []detectorRegistra
 	if len(freed) == 0 {
 		return
 	}
-	if e.logCounts != nil {
-		e.logCounts.removeSeriesByRefs(freed)
+	for _, buckets := range []*materializedLogCountBucketizer{e.logCounts, e.errorCounts} {
+		if buckets == nil {
+			continue
+		}
+		buckets.removeSeriesByRefs(freed)
 	}
 	if e.onStorageSeriesEvicted != nil {
 		e.onStorageSeriesEvicted("inactive", len(freed))
@@ -879,6 +902,11 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []dete
 				continue // invalid detector output: no storage series to identify it
 			}
 			e.enrichAnomaly(&anomaly)
+			if anomaly.Source.Namespace == LogErrorCountExtractorName {
+				if detector.Name() != LogFailureDetectorName && hasLogFailureDetector(e.detectors) {
+					continue
+				}
+			}
 			// Baseline gate must precede acceptAnomaly: scan detectors re-emit
 			// the same anomaly (same {source ref,aggregate,detector,ts}) on consecutive advances,
 			// so acceptAnomaly would return false (duplicate) before we could mark it.
@@ -1165,8 +1193,12 @@ func (e *engine) completeDueBaselines(dataSec int64) {
 
 func (e *engine) completeBaseline(detectorName string, upToSec int64) {
 	newHashes, snapshotChanged, windowAnomalyCount, allComplete := e.baseline.complete(detectorName)
-	if e.logCounts != nil && e.baseline.config.MuteNoisyMetrics && len(newHashes) > 0 {
-		e.logCounts.removeSeriesByHashes(newHashes)
+	if e.baseline.config.MuteNoisyMetrics && len(newHashes) > 0 {
+		for _, buckets := range []*materializedLogCountBucketizer{e.logCounts, e.errorCounts} {
+			if buckets != nil {
+				buckets.removeSeriesByHashes(newHashes)
+			}
+		}
 	}
 
 	needRefs := e.baseline.config.MuteNoisyMetrics || e.baseline.config.Verbose
@@ -1238,7 +1270,7 @@ func (e *engine) SetDetectors(detectors []detectorRegistration) {
 	for i := range detectors {
 		detectors[i].timing = &detectorTiming{}
 	}
-	e.detectors = detectors
+	e.detectors = withDirectFailureFilters(detectors)
 	e.emissionCounts = make(map[emissionKey]uint64)
 	e.logObservers = nil
 	for _, registration := range e.detectors {
@@ -1268,6 +1300,7 @@ func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) err
 		return err
 	}
 	e.extractors = extractors
+	e.errorCounts = errorCountBucketizer(extractors)
 	return nil
 }
 
@@ -1303,8 +1336,10 @@ func (e *engine) Reset() {
 			resetter.Reset()
 		}
 	}
-	if e.logCounts != nil {
-		e.logCounts.reset()
+	for _, buckets := range []*materializedLogCountBucketizer{e.logCounts, e.errorCounts} {
+		if buckets != nil {
+			buckets.reset()
+		}
 	}
 	e.resetPipelineKinds()
 
