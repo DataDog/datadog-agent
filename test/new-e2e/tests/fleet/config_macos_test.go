@@ -1714,10 +1714,18 @@ func (s *configMacOSSuite) TestAgentCrashDuringTheWatcherOverlapMacOS() {
 }
 
 // TestStopWhoseCommandDiesIsFinishedByTheWatcherMacOS covers the mid-stop crash: the experiment
-// daemon, and the stop command it runs, die once the stop has marked the deadline as reverting,
-// with the jobs half handed back. The watcher sees the daemon go, waits for the lock the dead command
-// held, and finishes the restore, every job and the daemon with it, keeping the experiment for Fleet
-// to stop again.
+// daemon, and the stop command it runs, die once the stop has marked the deadline as reverting.
+// Where the kill lands decides what is left, and both are ends Fleet's next stop cleans up:
+//
+//   - inside the restore, with the jobs half handed back: the watcher sees the daemon go, waits for
+//     the lock the dead command held, and finishes the restore, every job and the daemon with it,
+//     marking the experiment failed;
+//   - after the hook handed the Agent back and cleared the deadline, before the installer discarded
+//     the configuration: the watcher hands the daemon back, and the experiment is left deployed
+//     with no deadline.
+//
+// Either way every job ends on its stable variant, the stable daemon included, the experiment is
+// still reported, and nothing is left half switched.
 func (s *configMacOSSuite) TestStopWhoseCommandDiesIsFinishedByTheWatcherMacOS() {
 	s.requireResting()
 
@@ -1731,17 +1739,39 @@ func (s *configMacOSSuite) TestStopWhoseCommandDiesIsFinishedByTheWatcherMacOS()
 	// Kill the experiment daemon and its stop command as soon as the stop marks the deadline as
 	// reverting, from a background shell on the host, so the kill lands inside the stop.
 	_, err := s.Env().RemoteHost.Execute(`sudo sh -c 'nohup sh -c "` +
-		`for i in \$(seq 1 1200); do [ \"\$(cat ` + experimentDeadlinePath + ` 2>/dev/null)\" = reverting ] && break; sleep 0.05; done; ` +
+		`for i in \$(seq 1 6000); do [ \"\$(cat ` + experimentDeadlinePath + ` 2>/dev/null)\" = reverting ] && break; sleep 0.01; done; ` +
 		`pkill -9 -f \"installer remove-config-experiment\"; launchctl kill SIGKILL system/` + installerDaemonExperimentLabel +
 		`" >/dev/null 2>&1 &'`)
 	require.NoError(s.T(), err)
 	s.pushTask("stop_experiment_config", s.currentExpectedState(), nil)
 
-	s.requireFailedOnHost(deploymentID)
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		for label, loaded := range s.launchdLabelsLoaded(experimentLabels()...) {
+			assert.False(c, loaded, "%s should be unloaded", label)
+		}
+		assert.NotEmpty(c, s.jobPID("com.datadoghq.agent"), "the stable Agent should be running")
+		assert.True(c, s.stableInstallerDaemonLoaded(), "the stable installer daemon should be back")
+		status, err := s.tryReadStatus()
+		if assert.NoError(c, err) && assert.Len(c, status.Packages, 1) {
+			assert.Equal(c, deploymentID, status.Packages[0].ExperimentConfigVersion, "the experiment should still be reported, for Fleet to stop")
+		}
+	}, 90*time.Second, 5*time.Second)
+	require.False(s.T(), s.etcExpResting(), "the experiment's configuration should be kept for Fleet's stop")
+	deadline := ""
+	if s.pathExists(experimentDeadlinePath) {
+		deadline = strings.TrimSpace(s.readFile(experimentDeadlinePath))
+	}
+	require.Contains(s.T(), []string{"failed", ""}, deadline, "the deadline should be failed, or cleared by the hook before the kill")
+	s.T().Logf("the kill landed %s", map[string]string{"failed": "inside the restore", "": "after the hook cleared the deadline"}[deadline])
 	s.requireWatcherExits("finished the interrupted stop")
+
 	// See clearPendingUpdaterTasks: the killed stop is never reported as done.
 	s.clearPendingUpdaterTasks()
-	s.stopFailedExperimentRC()
+	agentPID := s.jobPID("com.datadoghq.agent")
+	s.stopConfigExperimentRC()
+	require.True(s.T(), s.etcExpResting(), "the stop should discard the experiment's configuration")
+	require.False(s.T(), s.pathExists(experimentDeadlinePath), "the stop should leave no deadline")
+	require.Equal(s.T(), agentPID, s.jobPID("com.datadoghq.agent"), "the stop must not restart the stable Agent")
 }
 
 // TestWatcherExitsWithItsExperimentMacOS regression-tests
