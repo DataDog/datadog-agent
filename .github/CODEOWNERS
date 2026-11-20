@@ -657,6 +657,8 @@
 /pkg/discovery/language/                                              @DataDog/agent-discovery
 /pkg/discovery/model/                                                 @DataDog/agent-discovery
 /pkg/discovery/usm/                                                   @DataDog/agent-discovery
+/pkg/discovery/module/rust/src/params.rs                              @DataDog/agent-discovery
+/pkg/discovery/module/rust/src/ust.rs                                 @DataDog/agent-discovery
 /pkg/discovery/tracermetadata/                                        @DataDog/agent-discovery
 /pkg/discovery/module/rust/src/comm.rs                                @DataDog/agent-discovery
 /pkg/discovery/module/rust/src/procfs/fd.rs                           @DataDog/agent-discovery
