@@ -10,6 +10,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 # gazelle:exclude oom-kill.go
 # gazelle:exclude runtime-security.go
 # gazelle:exclude shared-libraries.go
+# gazelle:exclude skb-parse-test.go
 # gazelle:exclude tcp-queue-length.go
 # gazelle:exclude tracer.go
 # gazelle:exclude usm.go
@@ -25,6 +26,7 @@ exports_files(
         "offsetguess-test.go",
         "runtime-security.go",
         "gpu.go",
+        "skb-parse-test.go",
     ],
     visibility = ["//pkg/ebpf/bytecode:__pkg__"],
 )
@@ -65,6 +67,7 @@ go_library(
         "//pkg/ebpf/bytecode:oom-kill_gen",  # keep
         "//pkg/ebpf/bytecode:runtime-security_gen",  # keep
         "//pkg/ebpf/bytecode:shared-libraries_gen",  # keep
+        "//pkg/ebpf/bytecode:skb-parse-test_gen",  # keep
         "//pkg/ebpf/bytecode:tcp-queue-length_gen",  # keep
         "//pkg/ebpf/bytecode:tracer_gen",  # keep
         "//pkg/ebpf/bytecode:usm_gen",  # keep

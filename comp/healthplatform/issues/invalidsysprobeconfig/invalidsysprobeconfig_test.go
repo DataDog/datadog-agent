@@ -18,6 +18,7 @@ import (
 	schemaimpl "github.com/DataDog/datadog-agent/comp/core/schema/impl"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
+	noopstelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -182,7 +183,7 @@ func TestBuiltInStartupHealthCheck_GatedByFlag(t *testing.T) {
 // newTestChecker returns a checker validating cfg with a new schema component, so results cached by previous tests are
 // ignored.
 func newTestChecker(cfg sysprobeconfig.Component, hostname hostnameinterface.Component, selfIdent *selfident.SelfIdent) *checker {
-	schemaComp := schemaimpl.NewComponent().Comp
+	schemaComp := schemaimpl.NewComponent(schemaimpl.Requires{Telemetry: noopstelemetry.NewComponent()}).Comp
 	if cfg != nil {
 		// validate the configuration like the Agent does when it loads it. Errors (ie: the schema isn't embedded in
 		// the test binary) leave no violation to report.

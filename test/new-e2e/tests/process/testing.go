@@ -9,6 +9,7 @@ package process
 import (
 	_ "embed"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -249,6 +250,22 @@ func FilterProcessPayloadsByName(payloads []*aggregator.ProcessPayload, processN
 		procs = append(procs, filterProcesses(processName, payload.Processes)...)
 	}
 	return procs
+}
+
+// filterProcessPayloadsByECSCluster selects whole payloads using container metadata,
+// independently of the processes collected or the hostname being validated.
+func filterProcessPayloadsByECSCluster(payloads []*aggregator.ProcessPayload, clusterName string) []*aggregator.ProcessPayload {
+	clusterTag := "ecs_cluster_name:" + clusterName
+	var filtered []*aggregator.ProcessPayload
+	for _, payload := range payloads {
+		for _, container := range payload.Containers {
+			if slices.Contains(container.Tags, clusterTag) {
+				filtered = append(filtered, payload)
+				break
+			}
+		}
+	}
+	return filtered
 }
 
 // filterProcesses returns processes which match the given process name

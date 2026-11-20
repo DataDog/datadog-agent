@@ -7,15 +7,47 @@ package ndmconnectivitycheckimpl
 
 import (
 	"context"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 )
 
-// scan probes one request's targets.
+// scan probes one request's targets. With target groups, each group's targets
+// are tried only with the credentials the group names.
 func (c *connectivityCheck) scan(ctx context.Context, req connectivity.Request) (connectivity.Result, error) {
-	opts, err := toProbeOptions(req, c.pingCapability())
+	if len(req.TargetGroups) == 0 {
+		return c.scanTargets(ctx, req)
+	}
+
+	res := connectivity.Result{Devices: []connectivity.DeviceResult{}}
+	for _, g := range req.TargetGroups {
+		groupReq := req
+		groupReq.Targets = g.TargetIPs
+		groupReq.Credentials = credsByID(req.Credentials, g.CredentialIDs)
+		groupRes, err := c.scanTargets(ctx, groupReq)
+		if err != nil {
+			return connectivity.Result{}, err
+		}
+		res.Devices = append(res.Devices, groupRes.Devices...)
+	}
+	return res, nil
+}
+
+// credsByID returns the credentials whose id is in ids.
+func credsByID(creds []connectivity.SNMPCredential, ids []string) []connectivity.SNMPCredential {
+	var out []connectivity.SNMPCredential
+	for _, c := range creds {
+		if slices.Contains(ids, c.ID) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// scanTargets probes the request's targets with all its credentials.
+func (c *connectivityCheck) scanTargets(ctx context.Context, req connectivity.Request) (connectivity.Result, error) {
+	opts, err := toProbeOptions(req)
 	if err != nil {
 		return connectivity.Result{}, err
 	}
@@ -34,15 +66,4 @@ func workers(hint int) int {
 		return 1
 	}
 	return hint
-}
-
-// pingCapability detects whether this agent can ping, once.
-func (c *connectivityCheck) pingCapability() pingprobe.Capability {
-	c.pingOnce.Do(func() {
-		c.ping = pingprobe.Detect()
-		if !c.ping.Available {
-			c.logger.Warnf("ndmconnectivitycheck: the ping probe is not available on this agent: %s", c.ping.Reason)
-		}
-	})
-	return c.ping
 }

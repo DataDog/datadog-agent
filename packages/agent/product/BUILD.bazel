@@ -36,6 +36,7 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
+        "//packages/agent/python-scripts:all_files",
         ":agent_binary",
 
         # TODO: sysprobe - windows
@@ -107,6 +108,7 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
+        "//packages/agent/python-scripts:all_files",
     ],
 )
 
@@ -202,6 +204,10 @@ agent_binary_for_package(
 
 agent_binary_for_package(
     name = "secret_generic_connector_binary",
+    attributes = select({
+        "@platforms//os:linux": pkg_attributes(mode = "0500"),
+        "//conditions:default": pkg_attributes(mode = "0755"),
+    }),
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
@@ -312,7 +318,7 @@ pkg_files(
     prefix = "embedded/share/system-probe/ebpf/runtime",
 )
 
-# clang-bpf only. llc-bpf stays a toolchain file.
+# clang-bpf only. llvm-strip stays a toolchain file.
 pkg_files(
     name = "system_probe_llvm_bpf",
     srcs = select({
@@ -323,11 +329,25 @@ pkg_files(
     prefix = "embedded/bin",
 )
 
+# Temporary during omnibus migration.
+pkg_install(
+    name = "install_system_probe_llvm_bpf",
+    srcs = [":system_probe_llvm_bpf"],
+)
+
+pkg_files(
+    name = "system_probe_dist_config",
+    srcs = ["//pkg/config:system_probe_config"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "bin/agent/dist",
+)
+
 # Not wired into Omnibus. FIPS omits the binary.
 pkg_filegroup(
     name = "system_probe_install_dir_files",
     srcs = [
         ":system_probe_co_re_objects",
+        ":system_probe_dist_config",
         ":system_probe_ebpf_objects",
         ":system_probe_llvm_bpf",
         ":system_probe_runtime_sources",

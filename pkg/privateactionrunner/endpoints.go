@@ -20,6 +20,15 @@ import (
 
 // Site returns the logical Datadog site independently of intake URL overrides.
 func Site(cfg model.Reader) string {
+	site := strings.TrimRight(strings.ToLower(strings.TrimSpace(cfg.GetString(RunnerSite))), ".")
+	if site != "" {
+		return site
+	}
+	return AgentSite(cfg)
+}
+
+// AgentSite returns the normalized main Agent site, without PAR overrides.
+func AgentSite(cfg model.Reader) string {
 	site := strings.TrimRight(strings.ToLower(strings.TrimSpace(cfg.GetString("site"))), ".")
 	if site == "" {
 		return configconstants.DefaultSite

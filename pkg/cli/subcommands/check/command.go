@@ -87,6 +87,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
+	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -290,6 +291,10 @@ func run(
 	traceroute traceroute.Component,
 	healthPlatform healthplatformdef.Component,
 ) error {
+	if err := coredump.Setup(config); err != nil {
+		logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {

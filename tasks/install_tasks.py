@@ -15,7 +15,6 @@ TOOL_LIST = [
     'github.com/bazelbuild/bazelisk',
     'github.com/wadey/gocovmerge',
     'github.com/uber-go/gopatch',
-    'github.com/aarzilli/whydeadcode',
     'golang.org/x/perf/cmd/benchstat',  # dda inv logs-tokenizer.bench-compare
     'gotest.tools/gotestsum',
 ]

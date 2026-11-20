@@ -70,7 +70,6 @@
 /CHANGELOG-DCA.rst                              @DataDog/container-integrations @DataDog/container-platform
 /CHANGELOG-INSTALLSCRIPT.rst                    @DataDog/agent-delivery
 /*.md                                           @DataDog/agent-devx
-/CHANGELOG-AIX.md                               @DataDog/agent-runtimes
 /AGENTS.md                                      @DataDog/agent-devx
 /CLAUDE.md                                      @DataDog/agent-devx
 /NOTICE                                         @DataDog/agent-delivery
@@ -319,6 +318,7 @@
 /cmd/agent/dist/conf.d/myapp.d/                        @DataDog/agent-log-pipelines
 /cmd/agent/dist/conf.d/mysql.d/                        @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/amd_gpu.d/                      @DataDog/accelerator-telemetry
+/cmd/agent/dist/conf.d/tpu.d/                          @DataDog/accelerator-telemetry
 /cmd/agent/dist/conf.d/nccl.d/                         @DataDog/accelerator-telemetry
 /cmd/agent/dist/conf.d/network.d/                      @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/network_config_management.d/    @DataDog/ndm-integrations
@@ -466,7 +466,6 @@
 /omnibus/package-scripts/agent-rpm/                      @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-deb/                      @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-dmg/                      @DataDog/agent-build @DataDog/windows-products
-/omnibus/python-scripts/                                 @DataDog/agent-integrations @DataDog/windows-products
 /deps/openscap/                                          @DataDog/agent-build @DataDog/agent-cspm @DataDog/agent-security
 /omnibus/config/software/datadog-agent-integrations-*.rb @DataDog/agent-integrations
 /deps/agent_integrations/                                @DataDog/agent-build @DataDog/agent-integrations
@@ -477,6 +476,7 @@
 /packages/macos                                          @DataDog/agent-build @DataDog/windows-products
 /packages/windows                                        @DataDog/agent-build @DataDog/windows-products
 /packages/installer                                      @DataDog/agent-build @DataDog/fleet
+/packages/agent/python-scripts/                          @DataDog/agent-integrations @DataDog/windows-products
 
 # AIX
 /packaging/aix/ @DataDog/agent-build
@@ -835,6 +835,7 @@
 /pkg/privateactionrunner/bundles/remoteaction/pcap                    @DataDog/action-platform @DataDog/cloud-network-monitoring
 /pkg/proto/                                                           @DataDog/agent-runtimes
 /pkg/proto/datadog/dogstatsdhttp                                      @DataDog/agent-metric-pipelines
+/pkg/proto/datadog/genresources                                      @DataDog/accelerator-telemetry
 /pkg/proto/datadog/kubemetadata                                       @DataDog/container-platform
 /pkg/proto/datadog/languagedetection                                  @DataDog/container-experiences
 /pkg/proto/datadog/privateactionrunner                                @DataDog/action-platform
@@ -881,13 +882,15 @@
 /pkg/util/ktime                                                       @DataDog/agent-security
 /pkg/util/kubelet/                                                    @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/                                                 @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
+/pkg/util/kubernetes/autoscalers/                                     @DataDog/container-integrations @Datadog/container-autoscaling @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/nodename/                                        @DataDog/opentelemetry-agent
 /pkg/util/podman/                                                     @DataDog/container-integrations
-/pkg/util/port/                                                       @DataDog/agent-runtimes
+/pkg/util/port/                                                       @DataDog/cloud-network-monitoring
 /pkg/util/port/portlist/*windows*.go                                  @DataDog/windows-products
 /pkg/util/prometheus                                                  @DataDog/container-integrations
 /pkg/util/quantile/                                                   @DataDog/opentelemetry-agent
 /pkg/util/tags/                                                       @DataDog/container-platform
+/pkg/util/telemetry/                                                  @DataDog/fleet-remediation
 /pkg/util/tmplvar/                                                    @DataDog/container-platform
 /pkg/util/trivy/                                                      @DataDog/agent-security @DataDog/container-integrations
 /pkg/util/uuid/                                                       @DataDog/agent-runtimes
@@ -1218,6 +1221,7 @@
 /test/regression/container/quality_gates/quality_gate_private_action_runner* @DataDog/single-machine-performance @DataDog/action-platform
 /test/regression/container/selection.yaml                         @DataDog/single-machine-performance
 /test/regression/container/logs/                                  @DataDog/agent-log-pipelines
+/test/regression/container/agent-metric-pipelines/                @DataDog/agent-metric-pipelines
 
 /tools/                                                              @DataDog/agent-devx
 /tools/host-profiler/                                                @DataDog/profiling-full-host
