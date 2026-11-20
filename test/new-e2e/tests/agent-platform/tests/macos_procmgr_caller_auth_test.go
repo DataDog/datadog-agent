@@ -50,7 +50,8 @@ func assertMacosProcmgrRequiresRoot(t *testing.T, client *common.MacOSTestClient
 	t.Helper()
 	_, err := client.Execute(command)
 	require.Error(t, err, command)
-	assert.Contains(t, err.Error(), "operation requires root")
+	// grpc_err prints "{code}: {message}", and tonic displays a code as its description.
+	assert.Contains(t, err.Error(), "The caller does not have permission to execute the specified operation: operation requires root")
 	return err.Error()
 }
 
