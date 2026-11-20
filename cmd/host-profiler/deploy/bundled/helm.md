@@ -86,11 +86,11 @@ datadog:
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
 
-## Selective deployment (optional)
+## Partial deployment (optional)
 
 The bundled Host Profiler runs wherever the Agent DaemonSet runs.
 
-### Run the Agent and Host Profiler only on selected nodes
+### Run the Agent and Host Profiler on a subset of nodes
 
 Use one Helm release. In that release’s Helm values, add the [Host Profiler configuration](#deploy) and set `agents.nodeSelector` or `agents.affinity.nodeAffinity`. Nodes that don’t match the selector will stop running the Datadog Agent from this release.
 
@@ -98,7 +98,7 @@ Follow [Assigning Pods to Nodes](https://kubernetes.io/docs/concepts/scheduling-
 
 If taints block scheduling on the target nodes, add matching `agents.tolerations`. [Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) allow scheduling on tainted nodes but do not select nodes.
 
-### Profile selected nodes while keeping Agent coverage
+### Profile a subset of nodes while keeping existing Agent coverage
 
 Use two Agent releases with non-overlapping node scopes. Preserve any existing scheduling constraints. For example, use required node affinity with `NotIn` on the primary release and `In` on the second release, using the same label key and value.
 

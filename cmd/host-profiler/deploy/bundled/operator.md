@@ -104,9 +104,9 @@ spec:
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
 
-## Selective deployment (optional)
+## Partial deployment (optional)
 
-Follow the [Datadog Agent Profiles guide](https://docs.datadoghq.com/containers/datadog_operator/datadog_agent_profiles/) to enable profiles. Create a `DatadogAgentProfile` in the same namespace as the `DatadogAgent` and select nodes with `spec.profileAffinity.profileNodeAffinity`.
+Follow [this guide](https://docs.datadoghq.com/containers/datadog_operator/datadog_agent_profiles/) to enable `DatadogAgentProfiles`, which allow to override certain Operator settings on a subset of nodes. Create a `DatadogAgentProfile` in the same namespace as the `DatadogAgent` and select nodes with `spec.profileAffinity.profileNodeAffinity`.
 
 | Where to run the Host Profiler | `DatadogAgent` | `DatadogAgentProfile` |
 | --- | --- | --- |
