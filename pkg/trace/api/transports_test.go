@@ -6,13 +6,16 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 // nilResponseTransport is a simple mock that returns a nil response and an
@@ -138,5 +141,116 @@ func TestForwardingTransport_MultipleTargets(t *testing.T) {
 			rt := setupTransport(t)
 			validateResponse(t, rt, c.req)
 		})
+	}
+}
+
+type recordingTransport struct {
+	rt   http.RoundTripper
+	mu   sync.Mutex
+	errs map[string]error
+}
+
+func (r *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := r.rt.RoundTrip(req)
+	r.mu.Lock()
+	r.errs[req.URL.Host] = err
+	r.mu.Unlock()
+	return resp, err
+}
+
+func TestForwardingTransport_AdditionalSurvivesClientCancel(t *testing.T) {
+	received := make(chan struct{})
+	release := make(chan struct{})
+	mainServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("ok"))
+	}))
+	t.Cleanup(mainServer.Close)
+	var additionalBody string
+	additionalServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		additionalBody = string(b)
+		close(received)
+		<-release
+		w.Write([]byte("ok"))
+	}))
+	t.Cleanup(additionalServer.Close)
+
+	mainEndpoint, _ := url.Parse(mainServer.URL)
+	additionalEndpoint, _ := url.Parse(additionalServer.URL)
+	rt := &recordingTransport{rt: http.DefaultTransport, errs: map[string]error{}}
+	ft := newForwardingTransport(rt, mainEndpoint, "test-key", map[string][]string{additionalEndpoint.String(): {"key1"}}, 25*1024*1024)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost:8080/debugger/v1/input", strings.NewReader("payload"))
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		resp, _ := ft.RoundTrip(req)
+		if resp != nil && resp.Body != nil {
+			resp.Body.Close()
+		}
+	}()
+
+	<-received
+	cancel()
+	close(release)
+	<-done
+
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	if err := rt.errs[additionalEndpoint.Host]; err != nil {
+		t.Errorf("expected the additional endpoint request to complete after the client went away, got %v", err)
+	}
+	if additionalBody != "payload" {
+		t.Errorf("expected the additional endpoint to receive the payload, got %q", additionalBody)
+	}
+}
+
+func TestForwardingTransport_AdditionalKeepsDeadline(t *testing.T) {
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	mainServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("ok"))
+	}))
+	t.Cleanup(mainServer.Close)
+	additionalServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		select {
+		case <-release:
+		case <-time.After(5 * time.Second):
+		}
+		w.Write([]byte("ok"))
+	}))
+	t.Cleanup(additionalServer.Close)
+
+	mainEndpoint, _ := url.Parse(mainServer.URL)
+	additionalEndpoint, _ := url.Parse(additionalServer.URL)
+	rt := &recordingTransport{rt: http.DefaultTransport, errs: map[string]error{}}
+	ft := newForwardingTransport(rt, mainEndpoint, "test-key", map[string][]string{additionalEndpoint.String(): {"key1"}}, 25*1024*1024)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost:8080/debugger/v1/input", strings.NewReader("payload"))
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+
+	start := time.Now()
+	resp, _ := ft.RoundTrip(req)
+	if resp != nil && resp.Body != nil {
+		resp.Body.Close()
+	}
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Errorf("expected the additional endpoint request to stop at the request deadline, took %s", elapsed)
+	}
+
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	if err := rt.errs[additionalEndpoint.Host]; !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("expected the additional endpoint request to hit the request deadline, got %v", err)
 	}
 }
