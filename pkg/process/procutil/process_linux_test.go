@@ -85,7 +85,7 @@ func TestGetActivePIDsConcurrent(t *testing.T) {
 func TestCloseTwice(t *testing.T) {
 	probe := getProbe()
 	probe.Close()
-	probe.Close()
+	assert.NotPanics(t, probe.Close)
 }
 
 func TestTrimAndSplitBytes(t *testing.T) {
