@@ -10,6 +10,7 @@ package amd
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -82,10 +83,17 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 	}
 	gpus = make(map[string]*kfdGPU)
 	var errs []error
-	var nodeAddresses []uint64
+	// The GPU nodes, with the GPU each belongs to ("" if not probed).
+	type gpuNode struct {
+		address  uint64
+		node     uint64
+		pciBusID string
+	}
+	var gpuNodes []gpuNode
 	topologyComplete := true
 	for _, entry := range entries {
-		if _, err := strconv.ParseUint(entry.Name(), 10, 32); err != nil || !entry.IsDir() {
+		nodeNumber, err := strconv.ParseUint(entry.Name(), 10, 32)
+		if err != nil || !entry.IsDir() {
 			continue
 		}
 		nodeDir := filepath.Join(nodesDir, entry.Name())
@@ -121,7 +129,7 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 			errs = append(errs, fmt.Errorf("%s: missing or invalid PCI location_id/domain", nodeDir))
 			continue
 		}
-		nodeAddresses = append(nodeAddresses, domain<<32|location)
+		gpuNodes = append(gpuNodes, gpuNode{address: domain<<32 | location, node: nodeNumber})
 		slot := fmt.Sprintf("%04x:%02x:%02x.", domain, (location>>8)&0xff, (location>>3)&0x1f)
 		pciBusID, known := pciSlots[slot]
 		if !known {
@@ -148,6 +156,7 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 			continue
 		}
 
+		gpuNodes[len(gpuNodes)-1].pciBusID = pciBusID
 		gpu, ok := gpus[pciBusID]
 		if !ok {
 			gpu = &kfdGPU{banksComplete: true}
@@ -174,20 +183,24 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 			gpu.busWidthBits = bank.widthBits
 		}
 	}
-	for pciBusID, gpu := range gpus {
+	for _, gpu := range gpus {
 		gpu.amdSMIIndex = -1
-		// amd-smi numbers the GPU KFD nodes, one per partition, in PCI address
-		// order (RocmSMI::Initialize in rocm_smi/src/rocm_smi_main.cc), so a
-		// GPU's index is the number of GPU nodes at a lower address. Any
-		// unreadable node may sort before it.
-		if address, ok := pciAddressKey(pciBusID); ok && topologyComplete {
-			gpu.amdSMIIndex = 0
-			for _, nodeAddress := range nodeAddresses {
-				if nodeAddress < address {
-					gpu.amdSMIIndex++
-				}
+	}
+	// amd-smi numbers the GPU KFD nodes, one per partition, by a stable sort
+	// of the nodes in KFD order on their PCI location (RocmSMI::Initialize in
+	// rocm_smi/src/rocm_smi_main.cc): a GPU's index is the position of its
+	// first node. Any unreadable node may sort before it.
+	if topologyComplete {
+		slices.SortFunc(gpuNodes, func(a, b gpuNode) int {
+			return cmp.Or(cmp.Compare(a.address, b.address), cmp.Compare(a.node, b.node))
+		})
+		for i, n := range gpuNodes {
+			if gpu := gpus[n.pciBusID]; gpu != nil && gpu.amdSMIIndex < 0 {
+				gpu.amdSMIIndex = i
 			}
 		}
+	}
+	for _, gpu := range gpus {
 		slices.Sort(gpu.gpuIDs)
 		gpu.gpuIDs = slices.Compact(gpu.gpuIDs)
 		slices.Sort(gpu.renderMinors)
@@ -200,16 +213,6 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 		}
 	}
 	return gpus, denied, topologyComplete, errors.Join(errs...)
-}
-
-// pciAddressKey returns the PCI address in the KFD layout: domain << 32 |
-// bus << 8 | device << 3 | function.
-func pciAddressKey(pciBusID string) (uint64, bool) {
-	var domain, bus, device, function uint64
-	if _, err := fmt.Sscanf(pciBusID, "%x:%x:%x.%x", &domain, &bus, &device, &function); err != nil {
-		return 0, false
-	}
-	return domain<<32 | bus<<8 | device<<3 | function, true
 }
 
 // readKFDProperties parses a KFD node properties file ("name value" lines).

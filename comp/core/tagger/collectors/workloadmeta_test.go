@@ -5301,7 +5301,6 @@ func TestHandleGPU(t *testing.T) {
 					HighCardTags:         []string{},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
-						"gpu_index:1",
 						"gpu_architecture:ampere",
 						"gpu_device:a100-sxm4-40gb_mig_3g.20gb",
 						"gpu_driver_version:525.60.13",

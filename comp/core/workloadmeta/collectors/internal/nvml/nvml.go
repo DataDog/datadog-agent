@@ -118,8 +118,6 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		gpuDeviceInfo.MIGProfile = d.Profile
 		if d.Parent != nil {
 			gpuDeviceInfo.ParentGPUUUID = d.Parent.UUID
-			// NVML indexes MIG devices within their parent; nvidia-smi lists them under the parent's index.
-			gpuDeviceInfo.Index = d.Parent.Index
 		}
 	default:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeUnknown

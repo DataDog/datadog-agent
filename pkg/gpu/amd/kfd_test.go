@@ -615,6 +615,31 @@ func TestDiscoverNonzeroPCIFunctionAndSiblingFunctions(t *testing.T) {
 	assert.Equal(t, []uint64{4101}, devices[1].kfdGPUIDs)
 }
 
+// Nodes at the same PCI location keep their KFD order, as in amd-smi: a
+// partition of .0 numbered before the sibling function .1 shares its location
+// and comes first.
+func TestDiscoverIndexKeepsKFDOrderAtSameLocation(t *testing.T) {
+	fs := NewFakeSysfs(t)
+	gpu0 := fs.AddPCIDevice("0000:27:00.0", "amdgpu", MI300XAttributes("2222"))
+	fs.AddCard("card0", gpu0)
+	fs.AddCard("renderD128", gpu0)
+	gpu1 := fs.AddPCIDevice("0000:27:00.1", "amdgpu", MI300XAttributes("1111"))
+	fs.AddCard("card1", gpu1)
+	fs.AddCard("renderD129", gpu1)
+	fs.AddKFDNode(1, 4103, 0, 0x2701, 90402) // partition of .0
+	fs.SetKFDRenderMinor(1, 128)
+	fs.AddKFDNode(2, 4102, 0, 0x2700, 90402)
+	fs.SetKFDRenderMinor(2, 128)
+	fs.AddKFDNode(3, 4101, 0, 0x2701, 90402)
+	fs.SetKFDRenderMinor(3, 129)
+	devices, err := Discover(fs.Root)
+	require.NoError(t, err)
+	require.Len(t, devices, 2)
+	assert.Equal(t, "0000:27:00.0", devices[0].PCIBusID)
+	assert.Equal(t, 0, devices[0].Index)
+	assert.Equal(t, 2, devices[1].Index, "after both nodes of .0")
+}
+
 func TestDiscoverIncompleteMemoryBanksDoesNotPublishBusWidth(t *testing.T) {
 	fs := NewFakeSysfs(t)
 	fs.AddCard("card0", fs.AddPCIDevice("0000:27:00.0", "amdgpu", MI300XAttributes("")))
