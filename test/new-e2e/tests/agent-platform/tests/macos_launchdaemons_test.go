@@ -461,6 +461,9 @@ func assertMacosProcessManagerOff(t *testing.T, client *common.MacOSTestClient, 
 // The ZX prefix runs this after the read-only tests and before the ZY tests. Its cleanup reloads
 // procmgr, which they expect.
 func (m *macosInstallSuite) TestZXProcessManagerOptOut() {
+	if installparams.NewParams().PipelineID == "" {
+		m.T().Skip("E2E_PIPELINE_ID is not set: there is no pipeline build to test the process manager opt-out against")
+	}
 	t := m.T()
 	client := common.NewMacOSTestClient(m.Env().RemoteHost)
 	conf := macosConfDefaultConfPath + "/datadog.yaml"
