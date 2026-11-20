@@ -37,25 +37,31 @@ import (
 )
 
 func TestCommandNCM(t *testing.T) {
-	testCommandNCM(t, false)
+	testCommandNCM(t, false, false)
 }
 
 func TestCommandNCMLockedDatabase(t *testing.T) {
-	testCommandNCM(t, true)
+	testCommandNCM(t, true, true)
 }
 
-func testCommandNCM(t *testing.T, lockDatabase bool) {
+// With rollback enabled and no Agent holding the lock, the CLI must still leave the database alone.
+func TestCommandNCMDoesNotOpenRollbackDatabase(t *testing.T) {
+	testCommandNCM(t, true, false)
+}
+
+func testCommandNCM(t *testing.T, rollbackEnabled, lockDatabase bool) {
 	t.Helper()
 	corechecks.WithTestCatalog(t)
 	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "ncm_config.db")
 	if lockDatabase {
 		// Simulate a running Agent holding the rollback database open.
-		store, err := ncmstore.Open(filepath.Join(tempDir, "ncm_config.db"))
+		store, err := ncmstore.Open(dbPath)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, store.Close(context.Background())) })
 	}
 	confFilePath := filepath.Join(tempDir, "datadog.yaml")
-	conf := fmt.Sprintf("hostname: test\npython_lazy_loading: true\nrun_path: %q\nnetwork_devices:\n  config_management:\n    rollback:\n      enabled: %t\n", tempDir, lockDatabase)
+	conf := fmt.Sprintf("hostname: test\npython_lazy_loading: true\nrun_path: %q\nnetwork_devices:\n  config_management:\n    rollback:\n      enabled: %t\n", tempDir, rollbackEnabled)
 	require.NoError(t, os.WriteFile(confFilePath, []byte(conf), 0644))
 
 	command := MakeCommand(func() GlobalParams {
@@ -73,7 +79,13 @@ func testCommandNCM(t *testing.T, lockDatabase bool) {
 			require.Equal(t, []string{ncm.CheckName}, cliParams.args)
 			require.Equal(t, `.ip_address == "10.27.66.253"`, cliParams.instanceFilter)
 			require.Equal(t, tempDir, cfg.GetString("run_path"))
-			require.Equal(t, lockDatabase, cfg.GetBool("network_devices.config_management.rollback.enabled"))
+			// The CLI's rollback override is scoped to the NCM component.
+			require.Equal(t, rollbackEnabled, cfg.GetBool(ncmRollbackEnabledKey))
+			_, ok := ncmComp.Get()
+			require.True(t, ok)
+			if !lockDatabase {
+				require.NoFileExists(t, dbPath)
+			}
 
 			// Exercise run's registration path, stopping before autodiscovery starts.
 			// Dependencies unused before that point can be nil.
