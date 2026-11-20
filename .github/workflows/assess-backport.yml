@@ -339,6 +339,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20 # covers the default 10-min input TTL plus overhead
+    # Same protected environment as ask-owner for the Socket Mode token. If the
+    # environment's deployment branch policy only allows main, a dispatch from a
+    # feature branch is blocked — allowlist the test branch temporarily or run the
+    # dry-run after merge.
+    environment:
+      name: main
     permissions:
       pull-requests: read # fetch the PR title/url and the owner's email
       id-token: write # for dd-octo-sts (label application)
