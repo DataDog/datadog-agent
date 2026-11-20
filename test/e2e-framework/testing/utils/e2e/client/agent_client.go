@@ -124,17 +124,26 @@ func waitForAgentsReady(ctx Context, host *Host, params *agentclientparams.Param
 		"security-agent": securityAgentRequest,
 	}
 
-	// Sub-agent API servers that require mTLS need the client to present
-	// the IPC certificate, on top of the auth token.
-	hostHTTPClient, err := hostHTTPClientWithIPCCert(params, host)
-	if err != nil {
-		return err
-	}
 	deadline := time.Now().Add(params.WaitForDuration)
 	var lastErr error
+	var hostHTTPClient *http.Client
 
 	for time.Now().Before(deadline) {
 		allReady := true
+
+		// Sub-agent API servers that require mTLS need the client to present
+		// the IPC certificate, on top of the auth token. The certificate may not
+		// exist yet on the first attempts, so fetch it inside the retry loop.
+		if hostHTTPClient == nil {
+			c, err := hostHTTPClientWithIPCCert(params, host)
+			if err != nil {
+				allReady = false
+				lastErr = fmt.Errorf("could not build the IPC certificate client: %w", err)
+				time.Sleep(params.WaitForTick)
+				continue
+			}
+			hostHTTPClient = c
+		}
 		for name, getReadyRequest := range agentReadyCmds {
 			req, ok, err := getReadyRequest(params, host)
 			if err != nil {
