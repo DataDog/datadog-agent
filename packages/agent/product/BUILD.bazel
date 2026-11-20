@@ -60,8 +60,6 @@ pkg_filegroup(
             "//deps/agent_integrations:integrations_runtime_files",
             "//deps/agent_integrations:requirements_agent_release_file",
             "//pkg/discovery/module/rust:all_files",
-            "//pkg/privateactionrunner/par-control:all_files",
-            "//pkg/privateactionrunner/rshell:all_files_linux",
             "//pkg/procmgr/rust:all_files",
         ],
         "//packages/agent:linux_fips": [
@@ -77,11 +75,7 @@ pkg_filegroup(
     }) + select({
         # Private action runner is not supported in FIPS.
         "//bazel/platforms:fips": [],
-        "//conditions:default": [":privateactionrunner_binary"],
-    }) + select({
-        "//packages/agent:windows_x86_64_fips": [],
-        "@platforms//os:windows": ["//pkg/privateactionrunner/par-control:all_files"],
-        "//conditions:default": [],
+        "//conditions:default": [":privateactionrunner_files"],
     }) + select({
         "@platforms//os:linux": [
             "//cmd/loader:trace_loader_all_files",
@@ -203,6 +197,19 @@ agent_binary_for_package(
     name = "privateactionrunner_binary",
     prefix = "embedded/bin",
     target = "//cmd/privateactionrunner",
+)
+
+# Everything the private action runner ships. Not shipped in FIPS builds (see all_files).
+pkg_filegroup(
+    name = "privateactionrunner_files",
+    srcs = [":privateactionrunner_binary"] + select({
+        "@platforms//os:linux": [
+            "//pkg/privateactionrunner/par-control:all_files",
+            "//pkg/privateactionrunner/rshell:all_files_linux",
+        ],
+        "@platforms//os:windows": ["//pkg/privateactionrunner/par-control:all_files"],
+        "//conditions:default": [],
+    }),
 )
 
 agent_binary_for_package(
