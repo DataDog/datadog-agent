@@ -58,23 +58,15 @@ fn remove_pid_file(path: &Path) {
         Ok(()) => info!("Removed PID file at {}", path.display()),
         // After drop_capabilities() we no longer hold CAP_DAC_OVERRIDE, so
         // unlinking fails when the parent directory is not writable by us (the
-        // default run directory is owned by dd-agent). We still own the file
-        // itself, so truncate it instead: an empty PID file is ignored on the
-        // next start, and the service manager removes the file anyway.
-        Err(e) if e.kind() == ErrorKind::PermissionDenied => {
-            match std::fs::OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .open(path)
-            {
-                Ok(_) => info!(
-                    "Could not remove PID file at {} ({}), truncated it instead",
-                    path.display(),
-                    e
-                ),
-                Err(te) => error!("Failed to remove PID file: {}, truncate failed: {}", e, te),
-            }
-        }
+        // default run directory is owned by dd-agent). The service manager
+        // removes the file (systemd PIDFile=, upstart post-stop), so this is
+        // expected. Do not fall back to writing through the path: the directory
+        // owner could have replaced it with a symlink to a root-owned file.
+        Err(e) if e.kind() == ErrorKind::PermissionDenied => info!(
+            "PID file at {} not removed ({}), leaving it to the service manager",
+            path.display(),
+            e
+        ),
         Err(e) => error!("Failed to remove PID file: {}", e),
     }
 }
@@ -569,7 +561,7 @@ mod tests {
     }
 
     #[test]
-    fn test_remove_pid_file_truncates_when_dir_not_writable() {
+    fn test_remove_pid_file_leaves_file_when_dir_not_writable() {
         // Root (with CAP_DAC_OVERRIDE) can unlink regardless of directory
         // permissions, so this scenario cannot be reproduced.
         if uzers::get_effective_uid() == 0 {
@@ -596,6 +588,6 @@ mod tests {
         fs::set_permissions(temp_dir.path(), Permissions::from_mode(0o755))
             .unwrap_or_else(|e| panic!("Failed to restore temp dir permissions: {}", e));
 
-        assert!(contents.is_empty(), "PID file should be truncated");
+        assert_eq!(contents, "12345", "PID file should be left untouched");
     }
 }
