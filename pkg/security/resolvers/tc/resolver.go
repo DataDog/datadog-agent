@@ -84,35 +84,12 @@ func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	}
 }
 
-// UpdateActivatedProbes updates the probes activated in the manager, and keeps the TC programs that are running. TC
-// programs can't be added nor removed until the activation is done: the manager would fail on a program that is gone,
-// and detach the programs it wasn't asked to keep.
-func (tcr *Resolver) UpdateActivatedProbes(m *manager.Manager, selectors []manager.ProbesSelector) error {
-	if err := tcr.activateProbes(m, selectors); err != nil {
-		return err
-	}
-
-	var validationErrs error
-	for _, selector := range selectors {
-		if err := selector.RunValidator(m); err != nil {
-			validationErrs = errors.Join(validationErrs, err)
-		}
-	}
-	if validationErrs != nil {
-		_ = m.Stop(manager.CleanInternal)
-		return fmt.Errorf("probes activation validation failed: %w", validationErrs)
-	}
-	return nil
-}
-
-// activateProbes activates the provided probes without validating them: a validation failure makes the manager stop,
-// which waits for the event handlers, and those can wait for probesLock.
-func (tcr *Resolver) activateProbes(m *manager.Manager, selectors []manager.ProbesSelector) error {
+// FreezePrograms returns the selector of the TC programs that are running, and keeps TC programs from being added or
+// removed until the returned function is called. Probes activated in between can't fail on a program that is gone, nor
+// detach one they weren't asked to keep.
+func (tcr *Resolver) FreezePrograms() (manager.ProbesSelector, func()) {
 	tcr.probesLock.Lock()
-	defer tcr.probesLock.Unlock()
-
-	unvalidated := &manager.BestEffort{Selectors: append(slices.Clone(selectors), tcr.selectTCProbes())}
-	return m.UpdateActivatedProbes([]manager.ProbesSelector{unvalidated})
+	return tcr.selectTCProbes(), tcr.probesLock.Unlock
 }
 
 // selectTCProbes selects the TC probes that are running. The caller must hold probesLock.

@@ -62,7 +62,11 @@ func TestTCProbesLockOrder(t *testing.T) {
 		}
 	})
 	loop(func(uint32) { nr.manualFlushNamespaces() })
-	loop(func(uint32) { _ = tcResolver.UpdateActivatedProbes(m, nil) })
+	loop(func(uint32) {
+		running, unfreeze := tcResolver.FreezePrograms()
+		_ = m.UpdateActivatedProbes([]manager.ProbesSelector{running})
+		unfreeze()
+	})
 	loop(func(nsID uint32) {
 		_ = tcResolver.SetupNewTCClassifierWithNetNSHandle(model.NetDevice{IfIndex: 1, NetNS: nsID}, handle, m)
 	})
