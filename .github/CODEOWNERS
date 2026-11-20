@@ -578,6 +578,7 @@
 /comp/rdnsquerier @DataDog/ndm-integrations @DataDog/network-path
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metric-pipelines
+/comp/serializer/serializer @DataDog/agent-metric-pipelines
 /comp/snmpscan @DataDog/network-device-monitoring-core
 /comp/snmpscanmanager @DataDog/network-device-monitoring-core
 /comp/softwareinventory @DataDog/windows-products

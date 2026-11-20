@@ -83,22 +83,41 @@ func initExtraHeaders(s *Serializer) {
 	}
 }
 
-// MetricSerializer represents the interface of method needed by the aggregator to serialize its data
-type MetricSerializer interface {
-	SendEvents(e event.Events) error
-	SendServiceChecks(serviceChecks servicecheck.ServiceChecks) error
+// MetricsSerializer serializes metric series and sketches.
+type MetricsSerializer interface {
 	SendIterableSeries(serieSource metrics.SerieSource) error
 	AreSeriesEnabled() bool
 	SendSketch(sketches metrics.SketchesSource) error
 	AreSketchesEnabled() bool
+}
 
+// EventsSerializer serializes events and service checks.
+type EventsSerializer interface {
+	SendEvents(e event.Events) error
+	SendServiceChecks(serviceChecks servicecheck.ServiceChecks) error
+	SendAgentShutdownEvent(ctx context.Context, e *event.Event) error
+}
+
+// MetadataSerializer serializes metadata payloads.
+type MetadataSerializer interface {
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
 	SendProcessesMetadata(data interface{}) error
 	SendAgentchecksMetadata(m marshaler.JSONMarshaler) error
+}
+
+// OrchestratorSerializer routes orchestrator payloads to the orchestrator forwarder.
+type OrchestratorSerializer interface {
 	SendOrchestratorMetadata(msgs []types.ProcessMessageBody, hostName, clusterID string, payloadType int) error
 	SendOrchestratorManifests(msgs []types.ProcessMessageBody, hostName, clusterID string) error
-	SendAgentShutdownEvent(ctx context.Context, e *event.Event) error
+}
+
+// MetricSerializer represents the interface of method needed by the aggregator to serialize its data
+type MetricSerializer interface {
+	MetricsSerializer
+	EventsSerializer
+	MetadataSerializer
+	OrchestratorSerializer
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder

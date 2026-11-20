@@ -1040,6 +1040,13 @@ Package logscompression provides the component for logs compression
 
 Package metricscompression provides the component for metrics compression
 
+### [comp/serializer/serializer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/serializer)
+
+*Datadog Team*: agent-metric-pipelines
+
+Package serializer defines the serializer component, which serializes all
+payload kinds and routes them to the forwarders.
+
 ### [comp/snmpscan](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpscan)
 
 *Datadog Team*: network-device-monitoring-core
