@@ -8,6 +8,7 @@
 package safenvml
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -401,6 +402,55 @@ func (d *safeDeviceImpl) GetNvLinkVersion(link int) (int, error) {
 	}
 	version, ret := d.nvmlDevice.GetNvLinkVersion(link)
 	return int(version), NewNvmlAPIErrorOrNil("GetNvLinkVersion", ret)
+}
+
+func (d *safeDeviceImpl) GetNvLinkRemoteDeviceType(link int) (nvml.IntNvLinkDeviceType, error) {
+	if err := d.lib.lookup(toNativeName("GetNvLinkRemoteDeviceType")); err != nil {
+		return 0, err
+	}
+	deviceType, ret := d.nvmlDevice.GetNvLinkRemoteDeviceType(link)
+	return deviceType, NewNvmlAPIErrorOrNil("GetNvLinkRemoteDeviceType", ret)
+}
+
+func (d *safeDeviceImpl) GetNvLinkRemotePciInfo(link int) (nvml.PciInfo, error) {
+	if err := d.lib.lookup(toNativeName("GetNvLinkRemotePciInfo")); err != nil {
+		return nvml.PciInfo{}, err
+	}
+	info, ret := d.nvmlDevice.GetNvLinkRemotePciInfo(link)
+	return info, NewNvmlAPIErrorOrNil("GetNvLinkRemotePciInfo", ret)
+}
+
+func (d *safeDeviceImpl) GetNvLinkCapability(link int, capability nvml.NvLinkCapability) (uint32, error) {
+	if err := d.lib.lookup(toNativeName("GetNvLinkCapability")); err != nil {
+		return 0, err
+	}
+	value, ret := d.nvmlDevice.GetNvLinkCapability(link, capability)
+	return value, NewNvmlAPIErrorOrNil("GetNvLinkCapability", ret)
+}
+
+func (d *safeDeviceImpl) GetP2PStatus(peer SafeDevice, capability nvml.GpuP2PCapsIndex) (nvml.GpuP2PStatus, error) {
+	if err := d.lib.lookup(toNativeName("GetP2PStatus")); err != nil {
+		return 0, err
+	}
+	peerHandle, err := nvmlHandleOf(peer)
+	if err != nil {
+		return 0, err
+	}
+	status, ret := d.nvmlDevice.GetP2PStatus(peerHandle, capability)
+	return status, NewNvmlAPIErrorOrNil("GetP2PStatus", ret)
+}
+
+// nvmlHandleOf returns the raw NVML handle behind a physical device. MIG devices are
+// rejected: P2P is a property of physical GPUs.
+func nvmlHandleOf(device SafeDevice) (nvml.Device, error) {
+	switch d := device.(type) {
+	case *safeDeviceImpl:
+		return d.nvmlDevice, nil
+	case *PhysicalDevice:
+		return nvmlHandleOf(d.SafeDevice)
+	default:
+		return nil, fmt.Errorf("cannot get an NVML handle from %T", device)
+	}
 }
 
 func (d *safeDeviceImpl) GetNvLinkErrorCounter(link int, counter nvml.NvLinkErrorCounter) (uint64, error) {
