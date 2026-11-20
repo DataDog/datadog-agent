@@ -56,8 +56,8 @@ var statFn = os.Stat
 const maxSandboxWarningsInSummary = 5
 
 // logSandboxWarnings logs one warning line per run that gives the number of
-// sandbox warnings (for example allowed paths that rshell cannot open) and the
-// first few of them. When the list is truncated, the full list is logged at
+// sandbox warnings (for example allowed paths that rshell cannot open, or
+// unsupported system service actions) and the first few of them. When the list is truncated, the full list is logged at
 // debug level.
 func logSandboxWarnings(warnings []string) {
 	if len(warnings) == 0 {
@@ -69,8 +69,7 @@ func logSandboxWarnings(warnings []string) {
 		shown = warnings[:maxSandboxWarningsInSummary]
 		more = fmt.Sprintf(" (and %d more, full list at debug level)", len(warnings)-maxSandboxWarningsInSummary)
 	}
-	log.Warnf("rshell sandbox: %d allowlist entries are not usable, rshell runs without them: %s%s",
-		len(warnings), strings.Join(shown, "; "), more)
+	log.Warnf("rshell sandbox: %d allowlist warnings: %s%s", len(warnings), strings.Join(shown, "; "), more)
 	if len(warnings) > maxSandboxWarningsInSummary {
 		log.Debugf("rshell sandbox warnings: %s", strings.Join(warnings, "; "))
 	}

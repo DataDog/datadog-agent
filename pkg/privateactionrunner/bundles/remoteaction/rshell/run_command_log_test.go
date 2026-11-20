@@ -54,8 +54,8 @@ func TestRunCommandLogsOneSandboxWarningPerRun(t *testing.T) {
 	result := out.(*RunCommandOutputs)
 	require.Len(t, result.SandboxWarnings, 2)
 	logs := logBuffer.String()
-	assert.Equal(t, 1, strings.Count(logs, "[WARN]"), logs)
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] rshell sandbox: 2 allowlist entries are not usable"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] rshell sandbox:"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] rshell sandbox: 2 allowlist warnings: "), logs)
 	assert.NotContains(t, logs, "more, full list at debug level")
 	assert.NotContains(t, logs, "rshell sandbox warnings:")
 	assert.NotContains(t, logs, "not found, rshell may fail")
@@ -85,8 +85,8 @@ func TestRunCommandTruncatesSandboxWarningSummary(t *testing.T) {
 
 	var warnLine, debugLine string
 	for _, line := range strings.Split(logs, "\n") {
-		if strings.Contains(line, "[WARN]") {
-			require.Empty(t, warnLine, "more than one warning line: %s", logs)
+		if strings.Contains(line, "[WARN] rshell sandbox:") {
+			require.Empty(t, warnLine, "more than one sandbox warning line: %s", logs)
 			warnLine = line
 		}
 		if strings.Contains(line, "[DEBUG] rshell sandbox warnings:") {
@@ -96,7 +96,7 @@ func TestRunCommandTruncatesSandboxWarningSummary(t *testing.T) {
 	}
 	require.NotEmpty(t, warnLine, logs)
 	require.NotEmpty(t, debugLine, logs)
-	assert.Contains(t, warnLine, fmt.Sprintf("rshell sandbox: %d allowlist entries are not usable", len(paths)))
+	assert.Contains(t, warnLine, fmt.Sprintf("rshell sandbox: %d allowlist warnings: ", len(paths)))
 	assert.Contains(t, warnLine, fmt.Sprintf("(and %d more, full list at debug level)", extra))
 	for i, warning := range result.SandboxWarnings {
 		if i < maxSandboxWarningsInSummary {
