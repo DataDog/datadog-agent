@@ -6,15 +6,18 @@ go_library(
     srcs = [
         "cpu_flags.go",
         "snapshot.go",
+        "walk.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/sysctl",
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/util/kernel",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/kernel",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),
@@ -25,6 +28,7 @@ dd_agent_go_test(
     srcs = [
         "cpu_flags_test.go",
         "snapshot_test.go",
+        "walk_bench_test.go",
     ],
     embed = [":sysctl"],
     deps = select({
