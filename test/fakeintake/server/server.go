@@ -384,7 +384,12 @@ func (fi *Server) listenRoutine(served, shutdown chan struct{}) {
 			fi.startMutex.Unlock()
 
 			if fi.ready != nil {
-				fi.ready <- false
+				// like the readiness below, give up on a notification nobody reads once the server stops, as Stop
+				// waits for this routine
+				select {
+				case fi.ready <- false:
+				case <-fi.shutdown:
+				}
 			}
 
 			return
