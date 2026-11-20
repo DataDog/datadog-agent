@@ -1,0 +1,87 @@
+"""cpython"""
+
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_python//python:py_test.bzl", "py_test")
+load("@cpython_versions//:constants.bzl", "PYTHON_SOURCE_URL", "PYTHON_VERSION")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["//visibility:private"],
+)
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = PYTHON_SOURCE_URL,
+        package = "cpython",
+        version = PYTHON_VERSION,
+    ),
+)
+
+license(
+    name = "license",
+    # 2.0 is the version of the python license, not the python code version.
+    license_kinds = ["@rules_license//licenses/spdx:Python-2.0"],
+    # Instead of the LICENSE file upstream, we use the license text previously approved
+    # and locally cached at https://dd-agent-omnibus.s3.amazonaws.com/licenses/Python-2.0"
+    # Switching to the upstream one would add historical notes that point to obsolete
+    # license terms, making the actual license obligations less clear and costing 4K of disk space.
+    license_text = "@@//third_party/licenses:text/Python-2.0",
+    visibility = ["//visibility:public"],
+)
+
+exports_files([
+    "cxx_extension.cpp",
+    "cxx_extension_test.py",
+    "gen_sysconfigdata.py",
+    "python_test.py",
+    "python_test.sh",
+    "pyconfig-linux-arm64.h",
+    "pyconfig-linux-x86_64.h",
+    "pyconfig-macos-arm64.h",
+    "pyconfig-macos-x86_64.h",
+])
+
+# The python_win outputs in one real directory, so python.exe finds its Lib
+# through the runfiles junction.
+copy_to_directory(
+    name = "python_home_win",
+    srcs = ["@cpython//:python_win"],
+    out = "python_home_win",
+    include_external_repositories = ["*"],
+    root_paths = ["build"],
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+py_test(
+    name = "distrusted_spki_test",
+    srcs = ["distrusted_spki_test.py"],
+    data = [
+        "distrusted_spki_check.py",
+        "@cpython_distrusted_spki_zip//file",
+    ] + select({
+        "@platforms//os:windows": [":python_home_win"],
+        "//conditions:default": [
+            "@cpython//:python3_bin",
+            "@cpython//:python_unix",
+            "@cpython//:runtime_deps",
+        ],
+    }),
+    env = {
+        "CHECK_SCRIPT": "$(rlocationpath distrusted_spki_check.py)",
+        "DISTRUSTED_ZIP": "$(rlocationpath @cpython_distrusted_spki_zip//file)",
+    } | select({
+        "@platforms//os:windows": {"PYTHON": "$(rlocationpath :python_home_win)/python.exe"},
+        "//conditions:default": {
+            "PYTHON": "$(rlocationpath @cpython//:python3_bin)",
+            "SHARED_LIBS": "$(rlocationpaths @cpython//:runtime_deps)",
+        },
+    }),
+    deps = ["@rules_python//python/runfiles"],
+)
