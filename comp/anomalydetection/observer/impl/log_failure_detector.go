@@ -124,6 +124,9 @@ func (d *LogFailureDetector) Detect(storage observer.StorageReader, dataTime int
 	if !allowed {
 		return out
 	}
+	// No model warmup: ready from the first check, so the baseline window
+	// starts with the Observer rather than at the first failure.
+	d.ready = true
 	if d.cachedSeries == nil || d.cachedGen != storage.SeriesGeneration() {
 		selection := detectorSeriesFilter(filter)
 		selection.Namespace = LogErrorCountExtractorName
@@ -155,7 +158,6 @@ func (d *LogFailureDetector) Detect(storage observer.StorageReader, dataTime int
 		if !ok {
 			continue
 		}
-		d.ready = true
 		ref := observer.QueryHandle{Ref: meta.Ref, Aggregate: observer.AggregateAverage}
 		out.Anomalies = append(out.Anomalies, observer.Anomaly{
 			Type:      observer.AnomalyTypeLog,

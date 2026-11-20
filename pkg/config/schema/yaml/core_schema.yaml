@@ -5566,6 +5566,7 @@ properties:
                   Errors are levels the application declares (for example a JSON level field or a leading ERROR).
                   While enabled, logs below an input's min_severity are still admitted when they declare ERROR or higher.
                   Container application logs reach the detector only when logs.containers.enabled is true.
+                  Like other detectors, follows baseline_analysis: scopes that qualify during the window are muted.
                   Does not activate Observer by itself.
               failure_weight:
                 node_type: setting

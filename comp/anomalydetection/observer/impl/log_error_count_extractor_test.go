@@ -217,12 +217,18 @@ anomaly_detection:
 			require.NoError(t, lc.hooks[0].OnStop(context.Background()))
 			found := false
 			for _, registration := range obs.engine.detectors {
-				if registration.detector.Name() == LogFailureDetectorName {
-					found = true
-					require.Equal(t, tc.want, registration.detector.Ready())
-				}
+				found = found || registration.detector.Name() == LogFailureDetectorName
 			}
 			require.True(t, found)
+			// Startup failures fall in the baseline window, so check the counted
+			// errors rather than detector output.
+			counted := false
+			if series := errorCountTestSeries(obs.engine, "api"); series != nil {
+				for _, point := range series.Points {
+					counted = counted || point.Value > 0
+				}
+			}
+			require.Equal(t, tc.want, counted)
 		})
 	}
 }

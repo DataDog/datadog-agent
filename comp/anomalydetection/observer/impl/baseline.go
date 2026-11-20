@@ -83,12 +83,7 @@ func newBaselineController(cfg BaselineConfig, detectorNames []string) *baseline
 func detectorNames(detectors []detectorRegistration) []string {
 	names := make([]string, 0, len(detectors))
 	for _, registration := range detectors {
-		detector := registration.detector
-		// Direct failure evidence needs no statistical qualification or noisy-series
-		// muting; pre-existing failures remain failures rather than becoming healthy.
-		if !isDirectFailureDetector(detector.Name()) {
-			names = append(names, detector.Name())
-		}
+		names = append(names, registration.detector.Name())
 	}
 	return names
 }

@@ -914,7 +914,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []dete
 				e.baseline.mark(detector.Name(), e.anomalyStorageKey(anomaly))
 				continue
 			}
-			if !isDirectFailureDetector(detector.Name()) && e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
+			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
 				h := e.anomalyStorageKey(anomaly)
 				if _, muted := e.baseline.mutedHashes[h]; muted {
 					continue

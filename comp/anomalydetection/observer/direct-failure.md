@@ -35,8 +35,7 @@ capacity drops increment `observer.log_error_count.capacity_dropped`.
 
 Statistical detectors exclude these error-count series before creating models
 when `log_failure` is enabled. Other log-derived and native metric detection
-continues normally, including the kind-routed metric pipeline. Statistical
-baseline qualification and noisy-series muting do not suppress direct evidence.
+continues normally, including the kind-routed metric pipeline.
 Emissions carry `EvidenceFailure` and the detector's `failure_weight`
 (`anomaly_detection.detectors.log_failure.failure_weight`, default 3, maximum 6).
 While a detector's failure evidence is in the scorer window, the scorer floors its
@@ -47,6 +46,18 @@ contribution. The floor does not grow with more failing
 series. Repeated emissions refresh the same contributor rather than adding one per log.
 An open scorer episode lists each failure series once, so repeats do not crowd
 other detectors out of its capped member list.
+
+## Baseline analysis
+
+Like other detectors, `log_failure` follows `anomaly_detection.baseline_analysis`
+(enabled by default, 10 minutes from Observer start). Evidence during the window
+is suppressed. With `mute_noisy_metrics` (default true), each scope that qualified
+during the window is muted until the Agent restarts, so errors that repeat from
+startup do not keep raising evidence. A scope that logged only isolated errors
+during the window, or that first appears after it, is not muted. A failure that
+begins during the window is not reported, and a muted scope's later errors are
+ignored, including new kinds of error. The detector has no separate baseline
+setting.
 
 ## Enable for a controlled experiment
 
@@ -76,8 +87,9 @@ application declares ERROR or higher, and is then rate limited at that level.
 Declared non-error logs stay subject to the minimum, so zero-error history from
 INFO-only output requires that input's `min_severity` to be `info`. Replay
 bypasses these gates and does not validate live admission or unsampled
-application rates. Recurring database or instrumentation errors may qualify
-during otherwise healthy workload periods. Review severity timelines and
+application rates. Recurring errors that begin after the baseline window, such
+as periodic database or instrumentation errors, may still qualify during
+otherwise healthy workload periods. Review severity timelines and
 healthy-workload results before enabling this path broadly.
 
 ## Replay configuration

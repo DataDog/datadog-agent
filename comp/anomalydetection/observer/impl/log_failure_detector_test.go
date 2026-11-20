@@ -57,8 +57,6 @@ func TestApplicationSeverityIsNotTransportSeverity(t *testing.T) {
 func TestLogFailureColdStartRepetitionFreshnessAndRearm(t *testing.T) {
 	d := NewLogFailureDetector()
 	e := newErrorCountTestEngine(d)
-	// Qualification/muting must not hide direct failures, even at observer startup.
-	e.baseline = newBaselineController(BaselineConfig{Enabled: true, DurationSec: 600, MuteNoisyMetrics: true}, detectorNames(e.detectors))
 	ingest := func(sec int64, n int) {
 		for i := 0; i < n; i++ {
 			e.IngestLog("logs", &logObs{timestampMs: sec * 1000, content: `{"level":"error"}`, tags: []string{"service:api"}})
@@ -66,7 +64,7 @@ func TestLogFailureColdStartRepetitionFreshnessAndRearm(t *testing.T) {
 	}
 	ingest(100, 10)
 	require.Empty(t, e.Advance(104).anomalies, "one occupied interval is insufficient, regardless of volume")
-	require.False(t, d.Ready())
+	require.True(t, d.Ready(), "no warmup: ready from the first check")
 	ingest(105, 1)
 	a := e.Advance(109).anomalies
 	require.Len(t, a, 1)
@@ -87,6 +85,39 @@ func TestLogFailureColdStartRepetitionFreshnessAndRearm(t *testing.T) {
 	d.Reset()
 	require.False(t, d.Ready())
 	require.Zero(t, d.checkedUpTo)
+}
+
+// The baseline window starts with the Observer. A service that fails the rule
+// during it stays muted; one that only logged an isolated error does not.
+func TestLogFailureBaselineMutesServicesFailingAtStartup(t *testing.T) {
+	d := NewLogFailureDetector()
+	e := newErrorCountTestEngine(d)
+	e.baseline = newBaselineController(BaselineConfig{Enabled: true, DurationSec: 60, MuteNoisyMetrics: true}, detectorNames(e.detectors))
+	// Advance with the data, as live analysis does.
+	step := func(sec int64, services ...string) []observer.Anomaly {
+		for _, service := range services {
+			e.IngestLog("logs", &logObs{timestampMs: sec * 1000, content: `{"level":"error"}`, tags: []string{"service:" + service}})
+		}
+		return e.Advance(sec + 4).anomalies
+	}
+	e.IngestLog("logs", &logObs{timestampMs: 0, content: `{"level":"info"}`, tags: []string{"service:rare"}})
+	require.Empty(t, e.Advance(4).anomalies)
+	require.True(t, d.Ready(), "the window starts at the first check, not at the first failure")
+	for sec := int64(5); sec < 65; sec += 5 {
+		services := []string{"chronic"}
+		if sec == 20 {
+			services = append(services, "rare")
+		}
+		require.Empty(t, step(sec, services...), "failures during the baseline window are suppressed")
+	}
+	var reported []string
+	for sec := int64(65); sec < 100; sec += 5 {
+		for _, a := range step(sec, "chronic", "rare") {
+			a.Source.Tags.ForEach(func(tag string) { reported = append(reported, tag) })
+		}
+	}
+	require.Contains(t, reported, "service:rare", "an isolated startup error does not mute its service")
+	require.NotContains(t, reported, "service:chronic", "a service failing at startup stays muted")
 }
 
 // Analysis advances only when input arrives, so a burst followed by silence is
