@@ -61,6 +61,27 @@ func stubInstallerHandOver(t *testing.T) *int {
 	return calls
 }
 
+// stubSurvivingHelpers replaces the lookup and termination of the detached experiment processes a
+// previous daemon left behind, so the settle never lists or signals the host's processes. Returns
+// the number of times it was called, and the number of launchctl calls recorded in calls at the
+// first one (-1 until then).
+func stubSurvivingHelpers(t *testing.T, calls *[][]string, err error) (*int, *int) {
+	t.Helper()
+
+	stopped, callsAtStop := new(int), new(int)
+	*callsAtStop = -1
+	original := stopSurvivingHelpers
+	stopSurvivingHelpers = func(context.Context) error {
+		*stopped++
+		if *callsAtStop < 0 && calls != nil {
+			*callsAtStop = len(*calls)
+		}
+		return err
+	}
+	t.Cleanup(func() { stopSurvivingHelpers = original })
+	return stopped, callsAtStop
+}
+
 // stubWatcherRunning makes the hand-over see a watcher as running or not.
 func stubWatcherRunning(t *testing.T, running bool) {
 	t.Helper()
@@ -408,23 +429,6 @@ func TestStartConfigExperimentRollsBackWhenTheExperimentFailsToBootstrap(t *test
 	assert.NoFileExists(t, deadlinePath, "the deadline survived a start that was fully rolled back")
 }
 
-// TestResumeKeepsTheOriginalDeadline pins that Resume, unlike Start, leaves the deadline alone: it
-// bounds the time since the experiment first started, so a resumed experiment must not outlive it.
-func TestResumeKeepsTheOriginalDeadline(t *testing.T) {
-	stubLaunchd(t)
-	stubJobDir(t)
-	stubDeadlinePath(t)
-	require.NoError(t, experimentDeadline().Write(time.Minute))
-	before, err := experimentDeadline().Read()
-	require.NoError(t, err)
-
-	require.NoError(t, configExperiment{jobs: agentJobSet()}.Resume(testHookContext(t)))
-
-	after, err := experimentDeadline().Read()
-	require.NoError(t, err)
-	assert.Equal(t, before, after)
-}
-
 // TestRestoreStableRetriesBeforeGivingUp covers the second gap PR #55770's review flagged: a
 // transient failure restoring the stable set must be retried, not surfaced immediately.
 func TestRestoreStableRetriesBeforeGivingUp(t *testing.T) {
@@ -513,13 +517,14 @@ func TestRestoreStableClearsTheDeadlineOnceTheStableSetIsBack(t *testing.T) {
 	assert.Empty(t, token)
 }
 
-// TestResumeRetriesAFailedRestore covers the backstop: a restore that gave up leaves the marker,
-// and the next daemon start reverts the experiment instead of resuming it.
-func TestResumeRetriesAFailedRestore(t *testing.T) {
+// TestSettleRetriesAFailedRestore covers the backstop: a restore that gave up leaves the marker,
+// and the next stable daemon start hands back every job that is not on its stable job yet.
+func TestSettleRetriesAFailedRestore(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
 	stubDeadlinePath(t)
 	stubConfigExperimentWatcher(t)
+	stubSurvivingHelpers(t, nil, nil)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
 	require.NoError(t, experimentDeadline().MarkReverting())
@@ -796,28 +801,29 @@ func TestStartConfigExperimentKeepsTheConfigWhenItSucceeds(t *testing.T) {
 	assert.Equal(t, "experiment-1", experimentDeploymentID(t, dirs))
 }
 
-// TestResumeRevertsAnExperimentDeployedWithNoDeadline covers a daemon that died between the
+// TestSettleDiscardsAnExperimentDeployedWithNoDeadline covers a daemon that died between the
 // installer publishing the experiment directory and Start writing the deadline (or partway through
-// a deliberate stop, which clears the deadline first). Nothing will ever resume that experiment,
-// so it is reverted instead of being reported as running for good.
-func TestResumeRevertsAnExperimentDeployedWithNoDeadline(t *testing.T) {
+// a deliberate stop, which clears the deadline first). Nothing will ever end that experiment, so it
+// is reverted and discarded instead of being reported as running for good.
+func TestSettleDiscardsAnExperimentDeployedWithNoDeadline(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
 	stubDeadlinePath(t)
+	stubSurvivingHelpers(t, nil, nil)
 	handOverCalls := stubInstallerHandOver(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
 
 	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
 	assert.Empty(t, experimentDeploymentID(t, dirs), "an orphaned experiment configuration was left deployed")
-	assert.Zero(t, *handOverCalls, "an orphaned experiment was resumed instead of reverted")
+	assert.Zero(t, *handOverCalls, "an orphaned experiment was handed over instead of reverted")
 	for _, label := range agentJobs {
 		assert.NoFileExists(t, filepath.Join(dir, label+"-exp.plist"))
 		assert.Contains(t, launchctlCalls(*calls, "bootstrap"), filepath.Join(dir, label+".plist"), "the stable job %s was not restored", label)
 	}
 }
 
-// TestParseHelperPIDs pins which processes resume stops as a surviving watcher: only root-owned
+// TestParseHelperPIDs pins which processes a daemon start stops as a surviving watcher: only root-owned
 // processes running exactly the installer's watcher command, and never the caller itself. A shell
 // or pgrep whose command line merely contains the watcher's arguments must not match.
 func TestParseHelperPIDs(t *testing.T) {
@@ -849,41 +855,37 @@ func TestParseHelperPIDs(t *testing.T) {
 	assert.Equal(t, []int{101, 108, 201, 202}, parseHelperPIDs(helpers, 999, experimentHelperCommands...))
 }
 
-// TestResumeStopsTheSurvivingWatcherBeforeTouchingTheJobs covers a daemon restart in the middle of
-// an experiment. The previous watcher outlives the daemon and is armed on the experiment pids, so
-// when resume bounces the experiment jobs it would see them terminate, take that for a crash and
-// revert the experiment under the resume. It has to be gone before the first job is touched.
-func TestResumeStopsTheSurvivingWatcherBeforeTouchingTheJobs(t *testing.T) {
+// TestSettleStopsTheSurvivingHelpersBeforeTouchingTheJobs covers a stable daemon start in the
+// middle of an experiment. A previous watcher outlives the daemon and is armed on the experiment
+// pids, so when the settle hands the jobs back it would see them terminate, take that for a crash
+// and revert on top of the settle. It has to be gone before the first job is touched, and the
+// experiment is failed rather than brought back.
+func TestSettleStopsTheSurvivingHelpersBeforeTouchingTheJobs(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
 	stubDeadlinePath(t)
 	handOverCalls := stubInstallerHandOver(t)
+	watcherCalls := stubConfigExperimentWatcher(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
 	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
-
-	var stopped int
-	launchctlCallsAtStop := -1
-	original := stopSurvivingHelpers
-	stopSurvivingHelpers = func(context.Context) error {
-		stopped++
-		launchctlCallsAtStop = len(*calls)
-		return nil
-	}
-	t.Cleanup(func() { stopSurvivingHelpers = original })
+	stopped, callsAtStop := stubSurvivingHelpers(t, calls, nil)
 
 	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
-	assert.Equal(t, 1, stopped, "the previous watcher should be stopped exactly once")
-	assert.Zero(t, launchctlCallsAtStop, "resume touched launchd before it stopped the previous watcher")
-	assert.Equal(t, 1, *handOverCalls, "the installer daemon should be handed over to the resumed experiment")
-	assert.NotEmpty(t, launchctlCalls(*calls, "kickstart"), "the experiment jobs were not started")
-	assert.Equal(t, "experiment-1", experimentDeploymentID(t, dirs), "the resumed experiment must stay deployed")
+	assert.Equal(t, 1, *stopped, "the previous helpers should be stopped exactly once")
+	assert.Zero(t, *callsAtStop, "the settle touched launchd before it stopped the previous helpers")
+	assert.Zero(t, *handOverCalls, "the stable daemon must not hand the installer daemon over again")
+	assert.Zero(t, *watcherCalls, "the stable daemon must not launch a watcher")
+	for _, target := range launchctlCalls(*calls, "kickstart") {
+		assert.NotContains(t, target, "-exp", "the experiment must not be brought back")
+	}
+	assertFailedOnHost(t, dirs)
 }
 
-// TestResumeStillResumesWhenTheWatcherCannotBeStopped pins that failing to find or stop the
-// previous watcher is not fatal: resuming with a stale watcher at worst reverts the experiment,
-// which is safe, whereas giving up would leave the experiment unsupervised.
-func TestResumeStillResumesWhenTheWatcherCannotBeStopped(t *testing.T) {
+// TestSettleStillSettlesWhenTheHelpersCannotBeStopped pins that failing to find or stop the
+// previous helpers is not fatal: a stale watcher at worst reverts the experiment again, which is
+// safe, whereas giving up would leave the host off its stable set.
+func TestSettleStillSettlesWhenTheHelpersCannotBeStopped(t *testing.T) {
 	stubLaunchd(t)
 	stubJobDir(t)
 	stubDeadlinePath(t)
@@ -891,26 +893,25 @@ func TestResumeStillResumesWhenTheWatcherCannotBeStopped(t *testing.T) {
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
 	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
-
-	original := stopSurvivingHelpers
-	stopSurvivingHelpers = func(context.Context) error { return errors.New("injected failure") }
-	t.Cleanup(func() { stopSurvivingHelpers = original })
+	stubSurvivingHelpers(t, nil, errors.New("injected failure"))
 
 	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
-	assert.Equal(t, 1, *handOverCalls)
-	assert.Equal(t, "experiment-1", experimentDeploymentID(t, dirs))
+	assert.Zero(t, *handOverCalls)
+	assertFailedOnHost(t, dirs)
 }
 
-// TestResumeLeavesARestingHostAlone pins the common case: no deadline and no experiment means
-// nothing to recover, so resume must not touch any job.
-func TestResumeLeavesARestingHostAlone(t *testing.T) {
+// TestSettleLeavesARestingHostAlone pins the common case: no deadline and no experiment means
+// nothing to settle, so the stable daemon start must not touch any job or look for helpers.
+func TestSettleLeavesARestingHostAlone(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
 	stubDeadlinePath(t)
+	stopped, _ := stubSurvivingHelpers(t, nil, nil)
 	dirs := stubConfigExperimentDirs(t)
 
 	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
-	assert.Empty(t, *calls, "resume touched launchd on a host with no experiment")
+	assert.Empty(t, *calls, "the settle touched launchd on a host with no experiment")
+	assert.Zero(t, *stopped, "the settle looked for helpers on a host with no experiment")
 	assert.Empty(t, experimentDeploymentID(t, dirs))
 }
 
@@ -1106,7 +1107,7 @@ func TestStopAndPromoteHandTheInstallerBackOnlyWhenTheExperimentDaemonIsLoaded(t
 }
 
 // TestStopHandsTheInstallerBackEvenWhenTheAgentCannotBeRestored pins that a failed restore still
-// brings the stable daemon back: its resume hook is what reverts an experiment left half torn down.
+// brings the stable daemon back: its settle is what reverts an experiment left half torn down.
 func TestStopHandsTheInstallerBackEvenWhenTheAgentCannotBeRestored(t *testing.T) {
 	stubLaunchdWithExperimentDaemon(t, "bootstrap", "")
 	stubJobDir(t)
@@ -1387,44 +1388,220 @@ func TestResumeFromTheExperimentDaemonRevertsWhenTheWatcherCannotBeLaunched(t *t
 	assert.Equal(t, 1, *handBackCalls, "the daemon should be handed back")
 }
 
-// TestResumeNeverSwapsTheStableDaemon covers the stable daemon resuming an experiment after a
-// reboot: it runs in the installer's stable job, so it resumes the agent jobs only and leaves the
-// daemon to the hand-over process it launches.
-func TestResumeNeverSwapsTheStableDaemon(t *testing.T) {
+// TestSettleNeverSwapsTheStableDaemon covers the stable daemon settling an experiment after a
+// reboot: it runs in the installer's stable job, so it hands the agent jobs back only, and launches
+// no hand-over.
+func TestSettleNeverSwapsTheStableDaemon(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
 	stubDeadlinePath(t)
+	stubSurvivingHelpers(t, nil, nil)
 	handOverCalls := stubInstallerHandOver(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
 	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
-	original := stopSurvivingWatchers
-	stopSurvivingWatchers = func(context.Context) error { return nil }
-	t.Cleanup(func() { stopSurvivingWatchers = original })
 
 	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
-	assert.Equal(t, 1, *handOverCalls)
-	assert.False(t, touchesInstaller(*calls), "the stable daemon's resume swapped itself: %v", *calls)
+	assert.Zero(t, *handOverCalls)
+	assert.False(t, touchesInstaller(*calls), "the stable daemon's settle swapped itself: %v", *calls)
+	assertFailedOnHost(t, dirs)
 }
 
-// TestResumeRevertRemovesTheExperimentDaemonDefinition covers a reboot mid-experiment whose
-// deadline expired before the stable daemon came back: the revert must also remove the experiment
-// daemon's definition the reboot left on disk, without swapping the stable daemon it runs in.
-func TestResumeRevertRemovesTheExperimentDaemonDefinition(t *testing.T) {
+// TestSettleRemovesTheExperimentDaemonDefinition covers a reboot mid-experiment: the settle also
+// removes the experiment daemon's definition the reboot left on disk, without swapping the stable
+// daemon it runs in.
+func TestSettleRemovesTheExperimentDaemonDefinition(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
 	stubDeadlinePath(t)
+	stubSurvivingHelpers(t, nil, nil)
 	stubConfigExperimentWatcher(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
-	require.NoError(t, experimentDeadline().Write(-time.Minute))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 	experimentPlist := filepath.Join(dir, installerJob+"-exp.plist")
 	require.NoError(t, os.WriteFile(experimentPlist, []byte("leftover"), 0644))
 
 	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
 	assertFailedOnHost(t, dirs)
 	assert.NoFileExists(t, experimentPlist)
-	assert.False(t, touchesInstaller(*calls), "the stable daemon's resume swapped itself: %v", *calls)
+	assert.False(t, touchesInstaller(*calls), "the stable daemon's settle swapped itself: %v", *calls)
+}
+
+// rebootedHost lays out the jobs a reboot leaves running: launchd started every stable job at boot
+// (RunAtLoad), and none of the experiment jobs, whose definitions have no RunAtLoad.
+func rebootedHost(t *testing.T) *liveLaunchd {
+	t.Helper()
+
+	running := []string{procmgrJob, installerJob}
+	running = append(running, agentJobs...)
+	l := stubLiveLaunchd(t, running...)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	shortRestoreBackoff(t)
+	stubSurvivingHelpers(t, nil, nil)
+	return l
+}
+
+// assertNoStableJobRestarted checks that the settle left every stable agent job launchd started at
+// boot alone, and no experiment job loaded.
+func assertNoStableJobRestarted(t *testing.T, l *liveLaunchd) {
+	t.Helper()
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, label := range agentJobs {
+		assert.True(t, l.loaded["system/"+label], "%s should still be on its stable job", label)
+		assert.False(t, l.loaded["system/"+label+"-exp"], "%s should not be loaded", label+"-exp")
+		for _, args := range l.calls {
+			if args[0] == "bootout" || args[0] == "bootstrap" || args[0] == "kickstart" {
+				assert.NotEqual(t, "system/"+label, args[len(args)-1], "the settle restarted %s: %v", label, args)
+				assert.NotContains(t, args[len(args)-1], "/"+label+".plist", "the settle restarted %s: %v", label, args)
+			}
+		}
+	}
+}
+
+// TestSettleOutcomes pins what the stable daemon leaves after a restart, for every deadline the
+// previous daemon can have left beside a deployed experiment configuration or none: an unfinished
+// experiment fails for Fleet to stop, or is finished as a promote once its configuration is
+// promoted; a failed one waits for Fleet; one with no deadline is discarded. Whatever the outcome,
+// no stable job launchd has just started is restarted, and the experiment is never brought back.
+func TestSettleOutcomes(t *testing.T) {
+	const (
+		failedForFleet = "failed, kept for Fleet to stop"
+		promoted       = "promoted"
+		discarded      = "discarded"
+		resting        = "resting"
+	)
+	deadlines := map[string]func(t *testing.T, path string){
+		"deadline": func(t *testing.T, _ string) {
+			require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
+		},
+		"expired deadline": func(t *testing.T, _ string) {
+			require.NoError(t, experimentDeadline().Write(-time.Minute))
+		},
+		"reverting": func(t *testing.T, _ string) {
+			require.NoError(t, experimentDeadline().MarkReverting())
+		},
+		"failed": func(t *testing.T, _ string) {
+			require.NoError(t, experimentDeadline().MarkFailed())
+		},
+		"none": func(*testing.T, string) {},
+		"unreadable": func(t *testing.T, path string) {
+			require.NoError(t, os.Mkdir(path, 0o755))
+		},
+	}
+	for _, tc := range []struct {
+		deadline string
+		deployed bool
+		want     string
+	}{
+		{"deadline", true, failedForFleet},
+		{"expired deadline", true, failedForFleet},
+		{"reverting", true, failedForFleet},
+		{"failed", true, failedForFleet},
+		{"none", true, discarded},
+		// Fail falls back to discarding an experiment it cannot mark as failed.
+		{"unreadable", true, discarded},
+		{"deadline", false, promoted},
+		{"expired deadline", false, promoted},
+		{"reverting", false, promoted},
+		{"failed", false, resting},
+		{"none", false, resting},
+		{"unreadable", false, resting},
+	} {
+		t.Run(fmt.Sprintf("%s/deployed=%t", tc.deadline, tc.deployed), func(t *testing.T) {
+			l := rebootedHost(t)
+			handOverCalls := stubInstallerHandOver(t)
+			watcherCalls := stubConfigExperimentWatcher(t)
+			dirs := stubConfigExperimentDirs(t)
+			if tc.deployed {
+				deployExperimentConfig(t, dirs)
+			}
+			deadlines[tc.deadline](t, configExperimentDeadlinePath)
+
+			require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+
+			assert.Zero(t, *handOverCalls, "the experiment must not be handed over again")
+			assert.Zero(t, *watcherCalls, "the stable daemon must not launch a watcher")
+			assertNoStableJobRestarted(t, l)
+			token, err := experimentDeadline().Read()
+			require.NoError(t, err)
+			state, err := dirs.GetState()
+			require.NoError(t, err)
+			switch tc.want {
+			case failedForFleet:
+				assertFailedOnHost(t, dirs)
+			case promoted:
+				assert.Empty(t, token)
+				assert.Empty(t, state.ExperimentDeploymentID)
+			case discarded:
+				assert.Empty(t, token)
+				assert.Equal(t, config.State{StableDeploymentID: "stable-1"}, state)
+			case resting:
+				assert.Empty(t, token)
+				assert.Equal(t, config.State{StableDeploymentID: "stable-1"}, state)
+			}
+		})
+	}
+}
+
+// TestSettleUnloadsTheIdleExperimentDaemon covers the experiment daemon's job after a reboot: launchd
+// loaded its definition at boot without starting it. The settle unloads and removes it, and has
+// nothing to hand back.
+func TestSettleUnloadsTheIdleExperimentDaemon(t *testing.T) {
+	l := rebootedHost(t)
+	l.loaded["system/"+installerJob+"-exp"] = true
+	l.idle["system/"+installerJob+"-exp"] = true
+	handBackCalls := stubInstallerHandBack(t, nil)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	require.NoError(t, experimentDeadline().MarkFailed())
+	experimentPlist := filepath.Join(launchdJobDir, installerJob+"-exp.plist")
+	require.NoError(t, os.WriteFile(experimentPlist, []byte("leftover"), 0644))
+
+	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+
+	assert.False(t, l.isLoaded(installerJob+"-exp"), "the idle experiment daemon should be unloaded")
+	assert.True(t, l.isLoaded(installerJob), "the stable daemon must stay loaded")
+	assert.NoFileExists(t, experimentPlist)
+	assert.Zero(t, *handBackCalls, "an idle experiment daemon has nothing to hand back")
+	assertFailedOnHost(t, dirs)
+}
+
+// TestSettleHandsBackARunningExperimentDaemon covers a stable daemon started by hand while the
+// experiment daemon still runs: the settle cannot swap the daemon it runs in, so it launches the
+// hand-back, which unloads the experiment daemon and removes its definition.
+func TestSettleHandsBackARunningExperimentDaemon(t *testing.T) {
+	l := rebootedHost(t)
+	l.loaded["system/"+installerJob+"-exp"] = true
+	handBackCalls := stubInstallerHandBack(t, nil)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
+	experimentPlist := filepath.Join(launchdJobDir, installerJob+"-exp.plist")
+	require.NoError(t, os.WriteFile(experimentPlist, []byte("running"), 0644))
+
+	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+
+	assert.Equal(t, 1, *handBackCalls, "the running experiment daemon should be handed back")
+	assert.True(t, l.isLoaded(installerJob+"-exp"), "the settle must leave the swap to the hand-back")
+	assert.FileExists(t, experimentPlist, "the hand-back removes the definition once it has swapped")
+	assertFailedOnHost(t, dirs)
+}
+
+// TestRestoreStableRestartsLoadedStableJobsOutsideTheSettle pins that only the settle leaves a
+// running stable job alone: a stop or promote hands back every label, so a promote restarts each
+// stable job onto the promoted configuration.
+func TestRestoreStableRestartsLoadedStableJobsOutsideTheSettle(t *testing.T) {
+	l := rebootedHost(t)
+
+	require.NoError(t, configExperiment{jobs: agentJobSet()}.Promote(testHookContext(t)))
+
+	for _, label := range agentJobs {
+		assert.Contains(t, launchctlCalls(l.calls, "bootout"), "system/"+label, "the promote should restart %s", label)
+	}
 }
 
 // TestInstallerSwapsOutwaitTheDaemonsExitTimeOut pins that a bootout of the installer daemon waits
@@ -1753,13 +1930,14 @@ func TestResolveExperimentPidsFailsOnACleanExitOfAnEssentialJob(t *testing.T) {
 	}
 }
 
-// TestResumeFinishesAnInterruptedPromoteAsAPromote pins that a promote whose hook never ran is
+// TestSettleFinishesAnInterruptedPromoteAsAPromote pins that a promote whose hook never ran is
 // finished as a promote: the process manager has no experiment variant, so it only picks up the
 // promoted configuration when it is restarted.
-func TestResumeFinishesAnInterruptedPromoteAsAPromote(t *testing.T) {
+func TestSettleFinishesAnInterruptedPromoteAsAPromote(t *testing.T) {
 	l := stubLiveLaunchd(t, procmgrJob)
 	stubJobDir(t)
 	stubDeadlinePath(t)
+	stubSurvivingHelpers(t, nil, nil)
 	stubConfigExperimentWatcher(t)
 	stubConfigExperimentDirs(t)
 	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
@@ -1769,13 +1947,14 @@ func TestResumeFinishesAnInterruptedPromoteAsAPromote(t *testing.T) {
 	assert.Equal(t, [][]string{{"kickstart", "-k", "system/" + procmgrJob}}, l.kickstarts("system/"+procmgrJob))
 }
 
-// TestResumeFinishesAPromoteInterruptedAfterItsSwap covers a daemon that died in the middle of the
+// TestSettleFinishesAPromoteInterruptedAfterItsSwap covers a daemon that died in the middle of the
 // configuration swap itself, with the previous stable configuration still at the experiment path:
-// the next start must finish the promote, not resume that previous configuration as the experiment.
-func TestResumeFinishesAPromoteInterruptedAfterItsSwap(t *testing.T) {
+// the next start must finish the promote, not run that previous configuration as the experiment.
+func TestSettleFinishesAPromoteInterruptedAfterItsSwap(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
 	stubDeadlinePath(t)
+	stubSurvivingHelpers(t, nil, nil)
 	watchers := stubConfigExperimentWatcher(t)
 	handOvers := stubInstallerHandOver(t)
 	dirs := stubConfigExperimentDirs(t)
@@ -1787,7 +1966,7 @@ func TestResumeFinishesAPromoteInterruptedAfterItsSwap(t *testing.T) {
 	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
 
 	for _, target := range launchctlCalls(*calls, "kickstart") {
-		assert.NotContains(t, target, "-exp", "the previous stable configuration must not be resumed as the experiment")
+		assert.NotContains(t, target, "-exp", "the previous stable configuration must not be run as the experiment")
 	}
 	assert.Zero(t, *handOvers)
 	assert.Zero(t, *watchers)
@@ -1811,49 +1990,6 @@ func interruptPromoteAfterSwap(t *testing.T, dirs config.Directories) {
 	require.NoError(t, os.Rename(dirs.StablePath, previous))
 	require.NoError(t, os.Rename(dirs.ExperimentPath, dirs.StablePath))
 	require.NoError(t, os.Rename(previous, dirs.ExperimentPath))
-}
-
-// TestResumeKeepsTheConfigWhenTheExperimentCannotBeResumed pins that a resume that fails, and
-// whose rollback brought the stable set back, leaves the host as if no experiment had run: left in
-// place, the experiment configuration would be reported as running for the whole life of the daemon.
-func TestResumeKeepsTheConfigWhenTheExperimentCannotBeResumed(t *testing.T) {
-	stubLaunchdFailing(t, "bootstrap", "-exp")
-	dir := stubJobDir(t)
-	stubDeadlinePath(t)
-	stubConfigExperimentWatcher(t)
-	shortRestoreBackoff(t)
-	dirs := stubConfigExperimentDirs(t)
-	deployExperimentConfig(t, dirs)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, installerJob+"-exp.plist"), []byte("leftover"), 0644))
-	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
-
-	err := resumeConfigExperimentDatadogAgent(testHookContext(t))
-
-	require.ErrorContains(t, err, "experiment reverted")
-	assertFailedOnHost(t, dirs)
-	assert.NoFileExists(t, filepath.Join(dir, installerJob+"-exp.plist"))
-}
-
-// TestResumeKeepsTheConfigWhenTheHandOverFailsToLaunch is the resume twin of
-// TestStartConfigExperimentDiscardsTheConfigWhenTheHandOverFailsToLaunch. A resumed experiment had
-// its start reported long ago, so it keeps its configuration for Fleet to stop, instead of being
-// discarded like a failed start.
-func TestResumeKeepsTheConfigWhenTheHandOverFailsToLaunch(t *testing.T) {
-	stubLaunchd(t)
-	stubJobDir(t)
-	stubDeadlinePath(t)
-	stubConfigExperimentWatcher(t)
-	original := launchInstallerHandOver
-	launchInstallerHandOver = func(context.Context) error { return errors.New("injected failure") }
-	t.Cleanup(func() { launchInstallerHandOver = original })
-	dirs := stubConfigExperimentDirs(t)
-	deployExperimentConfig(t, dirs)
-	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
-
-	err := resumeConfigExperimentDatadogAgent(testHookContext(t))
-
-	require.ErrorContains(t, err, "hand-over failed to launch, experiment reverted")
-	assertFailedOnHost(t, dirs)
 }
 
 // TestASecondHandBackLeavesTheStableDaemonAlone pins that the hand-back is idempotent: two can run
@@ -1917,10 +2053,10 @@ func TestStopLeavesTheJobsOfAFailedExperimentAlone(t *testing.T) {
 	assert.Empty(t, token, "the stop should clear the failed marker")
 }
 
-// TestResumeLeavesAFailedExperimentForFleet covers a daemon start after an experiment failed on the
-// host: its configuration is kept for Fleet's stop, so the resume hook neither resumes it, reverts
+// TestSettleLeavesAFailedExperimentForFleet covers a daemon start after an experiment failed on the
+// host: its configuration is kept for Fleet's stop, so the settle neither brings it back, reverts
 // it again, nor discards it.
-func TestResumeLeavesAFailedExperimentForFleet(t *testing.T) {
+func TestSettleLeavesAFailedExperimentForFleet(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
 	stubDeadlinePath(t)
@@ -1931,7 +2067,7 @@ func TestResumeLeavesAFailedExperimentForFleet(t *testing.T) {
 
 	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
 
-	assert.Empty(t, launchctlCalls(*calls, "bootout"), "the resume touched the jobs of a failed experiment")
-	assert.Zero(t, *handOverCalls, "a failed experiment must not be resumed")
+	assert.Empty(t, launchctlCalls(*calls, "bootout"), "the settle touched the jobs of a failed experiment")
+	assert.Zero(t, *handOverCalls, "a failed experiment must not be handed over again")
 	assertFailedOnHost(t, dirs)
 }

@@ -33,12 +33,15 @@ type liveLaunchd struct {
 	calls  [][]string
 	// failPrint makes print fail, once, for the targets it names.
 	failPrint map[string]bool
+	// idle makes print report the targets it names as loaded but not running, as launchd leaves a
+	// job with no RunAtLoad whose definition it loaded at boot.
+	idle map[string]bool
 }
 
 func stubLiveLaunchd(t *testing.T, loaded ...string) *liveLaunchd {
 	t.Helper()
 
-	l := &liveLaunchd{loaded: map[string]bool{}, failPrint: map[string]bool{}}
+	l := &liveLaunchd{loaded: map[string]bool{}, failPrint: map[string]bool{}, idle: map[string]bool{}}
 	for _, label := range loaded {
 		l.loaded["system/"+label] = true
 	}
@@ -56,6 +59,9 @@ func stubLiveLaunchd(t *testing.T, loaded ...string) *liveLaunchd {
 				if l.failPrint[target] {
 					delete(l.failPrint, target)
 					return nil, errors.New("injected failure")
+				}
+				if l.loaded[target] && l.idle[target] {
+					return []byte(target + " = {\n\tstate = not running\n}\n"), nil
 				}
 				if l.loaded[target] {
 					return []byte(fmt.Sprintf("%s = {\n\tpid = %d\n}\n", target, os.Getpid())), nil
@@ -225,8 +231,8 @@ func TestFailSafeRevertRevertsWithoutAnUnusableLock(t *testing.T) {
 	assert.Equal(t, launchd.DeadlineFailed, token)
 }
 
-// TestFailSafeRevertDoesNothingOnceStopped pins that a watcher stopped on purpose -- the resume
-// step replacing it -- reverts nothing.
+// TestFailSafeRevertDoesNothingOnceStopped pins that a watcher stopped on purpose -- a daemon
+// start replacing it -- reverts nothing.
 func TestFailSafeRevertDoesNothingOnceStopped(t *testing.T) {
 	l, _, _ := runningExperiment(t)
 	token, err := experimentDeadline().Read()
@@ -240,14 +246,15 @@ func TestFailSafeRevertDoesNothingOnceStopped(t *testing.T) {
 	}
 }
 
-// TestResumeFinishesAPromoteInterruptedBeforeItsHook covers a daemon that died between promoting
+// TestSettleFinishesAPromoteInterruptedBeforeItsHook covers a daemon that died between promoting
 // the experiment configuration and handing the jobs back: the deadline is still in force but the
 // configuration is no longer deployed, so the next start hands the jobs back to the stable set
-// instead of resuming the experiment on the stable configuration.
-func TestResumeFinishesAPromoteInterruptedBeforeItsHook(t *testing.T) {
+// instead of bringing the experiment back on the stable configuration.
+func TestSettleFinishesAPromoteInterruptedBeforeItsHook(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
 	stubDeadlinePath(t)
+	stubSurvivingHelpers(t, nil, nil)
 	watchers := stubConfigExperimentWatcher(t)
 	stubConfigExperimentDirs(t)
 	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
@@ -256,7 +263,7 @@ func TestResumeFinishesAPromoteInterruptedBeforeItsHook(t *testing.T) {
 
 	assert.Zero(t, *watchers, "no watcher should be launched for an experiment being handed back")
 	for _, target := range launchctlCalls(*calls, "kickstart") {
-		assert.NotContains(t, target, "-exp", "the experiment must not be resumed")
+		assert.NotContains(t, target, "-exp", "the experiment must not be brought back")
 	}
 	token, err := experimentDeadline().Read()
 	require.NoError(t, err)

@@ -338,8 +338,9 @@ func postInstallDMG(ctx HookContext) error {
 // install, so running the post-install twice is harmless: it stops a surviving watcher, which would
 // read the experiment going away as a crash and revert on top of the install, and any hand-over or
 // hand-back still pending, which would swap the installer daemon under the install, and clears the
-// deadline, so the next daemon does not resume it. setUpDMGInstall then discards the experiment
-// configuration (restExperimentConfig), and unloadExperimentJobs its jobs.
+// deadline, so the next daemon start does not fail an experiment the install already discards.
+// setUpDMGInstall then discards the experiment configuration (restExperimentConfig), and
+// unloadExperimentJobs its jobs.
 //
 // The .dmg's preinstall script already does this on an upgrade; this repeats it for a host it did
 // not run on or did not finish on. Every step is allowed to fail.
@@ -702,7 +703,7 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) (err error) {
 // discarded, as for any other failed start.
 func revertFailedHandOver(ctx context.Context, handOverErr error) error {
 	log.Errorf("could not launch the installer daemon hand-over, reverting: %v", handOverErr)
-	if err := revertAndDiscardExperiment(ctx, agentJobSet()); err != nil {
+	if err := revertAndDiscardExperiment(ctx, configExperiment{jobs: agentJobSet()}); err != nil {
 		return fmt.Errorf("hand-over failed to launch (%w) and the experiment could not be reverted: %w", handOverErr, err)
 	}
 	removeInstallerExperimentJob()
