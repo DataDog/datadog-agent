@@ -55,9 +55,9 @@ var (
 	tlmHistogramBuckets = telemetryimpl.GetCompatComponent().NewCounter("checks", "histogram_buckets",
 		[]string{"check_name"}, "Histogram buckets count")
 	tlmExecutionTime = telemetryimpl.GetCompatComponent().NewGauge("checks", "execution_time",
-		[]string{"check_name", "check_loader"}, "Check execution time")
+		[]string{"check_name", "check_loader", "check_id"}, "Check execution time")
 	tlmFirstExecutionTime = telemetryimpl.GetCompatComponent().NewGauge("checks", "first_execution_time",
-		[]string{"check_name", "check_loader"}, "Check first execution time")
+		[]string{"check_name", "check_loader", "check_id"}, "Check first execution time")
 	tlmCheckDelay = telemetryimpl.GetCompatComponent().NewGauge("checks",
 		"delay",
 		[]string{"check_name"},
@@ -206,10 +206,10 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 	if cs.TotalRuns == 1 {
 		cs.FirstExecutionTime = tms
 		if cs.Telemetry {
-			tlmFirstExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader)
+			tlmFirstExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader, string(cs.CheckID))
 		}
 	} else if cs.Telemetry {
-		tlmExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader)
+		tlmExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader, string(cs.CheckID))
 	}
 	var totalExecutionTime int64
 	ringSize := min(cs.TotalRuns, uint64(len(cs.ExecutionTimes)))

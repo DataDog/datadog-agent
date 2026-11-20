@@ -124,9 +124,9 @@ func TestFirstExecutionTimeMetric(t *testing.T) {
 	require.NoError(t, err)
 	// first run goes only to checks.first_execution_time
 	assert.Contains(t, tlmData,
-		`checks__first_execution_time{check_loader="mockLoader",check_name="checkString"} 100`,
+		`checks__first_execution_time{check_id="checkID",check_loader="mockLoader",check_name="checkString"} 100`,
 	)
-	assert.NotContains(t, tlmData, `checks__execution_time{check_loader="mockLoader",check_name="checkString"}`)
+	assert.NotContains(t, tlmData, `checks__execution_time{check_id="checkID",check_loader="mockLoader",check_name="checkString"}`)
 
 	stats.Add(50*time.Millisecond, nil, []error{}, SenderStats{}, haagent)
 
@@ -134,10 +134,10 @@ func TestFirstExecutionTimeMetric(t *testing.T) {
 	require.NoError(t, err)
 	// subsequent runs go only to checks.execution_time, first_execution_time stays frozen
 	assert.Contains(t, tlmData,
-		`checks__execution_time{check_loader="mockLoader",check_name="checkString"} 50`,
+		`checks__execution_time{check_id="checkID",check_loader="mockLoader",check_name="checkString"} 50`,
 	)
 	assert.Contains(t, tlmData,
-		`checks__first_execution_time{check_loader="mockLoader",check_name="checkString"} 100`,
+		`checks__first_execution_time{check_id="checkID",check_loader="mockLoader",check_name="checkString"} 100`,
 	)
 }
 
