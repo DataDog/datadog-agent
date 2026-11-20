@@ -346,9 +346,9 @@ jobs:
     environment:
       name: main
     permissions:
-      pull-requests: read # fetch the PR title/url and the owner's email
-      issues: write # add the test label (production uses dd-octo-sts, which does not
-      # allow workflow_dispatch events from feature branches)
+      # addLabels on a PR needs both scopes with GITHUB_TOKEN in practice
+      pull-requests: write
+      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
