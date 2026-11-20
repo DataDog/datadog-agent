@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/require"
+	"strings"
 )
 
 type anomalyAPIDebugView struct {
@@ -279,5 +280,155 @@ func TestSeriesAPIUsesStoredMetricTypeForEverySource(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestEffectiveScoringSecond(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		anomalyTS   int64
+		prevData    int64
+		dataTime    int64
+		windowSecs  int64
+		behavior    string
+		wantScoring int64
+		wantAction  string
+	}{
+		{"current", 505, 500, 510, 100, "clamp", 505, ""},
+		{"detection clamp", 100, 500, 510, 0, "clamp", 501, "clamped"},
+		{"zero window ignore", 100, 500, 510, 0, "ignore", 0, "ignored"},
+		{"reordered inside window", 450, 500, 510, 100, "clamp", 450, "reordered"},
+		{"reordered clamped outside window", 100, 500, 510, 100, "clamp", 411, "clamped"},
+		{"reordered ignored outside window", 100, 500, 510, 100, "ignore", 0, "ignored"},
+		{"reordered inside window ignore", 450, 500, 510, 100, "ignore", 450, "reordered"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			scoring, action := effectiveScoringSecond(tc.anomalyTS, tc.prevData, tc.dataTime, tc.windowSecs, tc.behavior)
+			require.Equal(t, tc.wantScoring, scoring)
+			require.Equal(t, tc.wantAction, action)
+		})
+	}
+}
+
+func TestNewDelayStats(t *testing.T) {
+	require.Nil(t, newDelayStats(nil))
+	require.Nil(t, newDelayStats([]int64{}))
+
+	stats := newDelayStats([]int64{300, 0, 100, 200})
+	require.Equal(t, 4, stats.Count)
+	require.Equal(t, 3, stats.LateCount)
+	require.Equal(t, int64(0), stats.MinSecs)
+	require.Equal(t, int64(200), stats.MedianSecs)
+	require.Equal(t, int64(300), stats.MaxSecs)
+}
+
+func TestReplayScoresFromArrivalsClamp(t *testing.T) {
+	// One current anomaly at 505 and one late at 100, fed before Advance(510).
+	anomalies := []observerdef.Anomaly{
+		{Timestamp: 100, Source: observerdef.SeriesDescriptor{Name: "metric.late"}, DetectorName: "bocpd"},
+		{Timestamp: 505, Source: observerdef.SeriesDescriptor{Name: "metric.current"}, DetectorName: "bocpd"},
+	}
+	history := observerimpl.ScorerHistory{
+		Available: true,
+		Inputs: []observerimpl.ScorerHistoryInput{
+			{ScoringSecond: 411, Anomaly: anomalies[0]},
+			{ScoringSecond: 505, Anomaly: anomalies[1]},
+		},
+		Arrivals: anomalies,
+		Advances: []observerimpl.ScorerHistoryAdvance{
+			{DataTime: 500, ArrivalEnd: 0},
+			{DataTime: 510, ArrivalEnd: 2},
+		},
+	}
+	bench := &Bench{debug: anomalyAPIDebugView{}}
+	req := replayRequest{
+		AnomalyScorerConfig: observerdef.AnomalyScorerConfig{
+			Alpha: 0.5, SaturationK: 1, WindowSecs: 15, MaxBuckets: 100,
+			ReorderingWindowSecs: 100, LateAnomalyBehavior: "clamp",
+		},
+		CooldownSecs: 0,
+	}
+	resp := NewBenchAPI(bench).replayScoresFromArrivals(req, history, scorerReplayReordered)
+	require.True(t, resp.Available)
+	require.Equal(t, int64(100), resp.ReorderWindowSecs)
+	require.True(t, resp.HistoryAvailable)
+	require.Len(t, resp.Inputs, 2)
+	require.Equal(t, int64(411), resp.Inputs[0].ScoringSecond)
+	require.Equal(t, "clamped", resp.Inputs[0].LateAction)
+	require.Equal(t, int64(505), resp.Inputs[1].ScoringSecond)
+	require.Equal(t, "", resp.Inputs[1].LateAction)
+	require.NotNil(t, resp.InputDelay)
+	require.Equal(t, 2, resp.InputDelay.Count)
+	require.Equal(t, int64(5), resp.InputDelay.MinSecs)
+	require.Equal(t, int64(410), resp.InputDelay.MaxSecs)
+	require.Equal(t, 1, resp.OutsideWindowCount)
+	require.Len(t, resp.Buckets, 100)
+	for _, index := range []int{0, 94} {
+		bucket := resp.Buckets[index]
+		require.Equal(t, int64(411+index), bucket.Second)
+		require.Equal(t, 1, bucket.Count)
+		require.Positive(t, bucket.Ewma)
+	}
+}
+
+func TestReplayScoresFromArrivalsUnavailable(t *testing.T) {
+	// Arrival history missing: the mode is unavailable.
+	state := anomalyAPIStateView{
+		anomaly: observerdef.Anomaly{Timestamp: 505, Source: observerdef.SeriesDescriptor{Name: "metric.current"}, DetectorName: "bocpd"},
+		scorer:  observerimpl.ScorerHistory{Available: false},
+	}
+	api := NewBenchAPI(&Bench{debug: anomalyAPIDebugView{state: state}})
+	body := `{"alpha":0.5,"saturation_k":1,"window_secs":15,"cooldown_secs":0,"mode":"reordered"}`
+	recorder := httptest.NewRecorder()
+	api.handleScoresReplay(recorder, httptest.NewRequest(http.MethodPost, "/api/scores/replay", strings.NewReader(body)))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var resp scorerScoreResponse
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.False(t, resp.Available)
+	require.Equal(t, scorerReplayReordered, resp.Mode)
+}
+
+func TestScoresReplayTimingModes(t *testing.T) {
+	anomaly := observerdef.Anomaly{Timestamp: 100, Source: observerdef.SeriesDescriptor{Name: "metric.late"}, DetectorName: "scanmw"}
+	state := anomalyAPIStateView{
+		anomaly: anomaly,
+		scorer: observerimpl.ScorerHistory{
+			Available: true,
+			Arrivals:  []observerdef.Anomaly{anomaly},
+			Advances: []observerimpl.ScorerHistoryAdvance{
+				{DataTime: 1000},
+				{DataTime: 1010, ArrivalEnd: 1},
+			},
+		},
+	}
+	api := NewBenchAPI(&Bench{debug: anomalyAPIDebugView{state: state}})
+	for _, test := range []struct {
+		name        string
+		body        string
+		wantWindow  int64
+		wantScoring int64
+	}{
+		{"detection ignores reorder settings", `{"mode":"detection","anomaly_reordering_window_secs":600,"late_anomaly_behavior":"ignore"}`, 0, 1001},
+		{"change point ignores reorder settings", `{"mode":"change-point","anomaly_reordering_window_secs":600,"late_anomaly_behavior":"ignore"}`, 0, 100},
+		{"reordered default", `{"mode":"reordered"}`, 600, 411},
+		{"reordered custom", `{"mode":"reordered","anomaly_reordering_window_secs":100}`, 100, 911},
+		{"reordered zero", `{"mode":"reordered","anomaly_reordering_window_secs":0}`, 0, 1001},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			api.handleScoresReplay(recorder, httptest.NewRequest(http.MethodPost, "/api/scores/replay", strings.NewReader(test.body)))
+			require.Equal(t, http.StatusOK, recorder.Code)
+			var resp scorerScoreResponse
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+			require.True(t, resp.Available)
+			require.Equal(t, test.wantWindow, resp.Config.ReorderingWindowSecs)
+			for _, bucket := range resp.Buckets {
+				if bucket.Count > 0 {
+					require.Equal(t, test.wantScoring, bucket.Second)
+					return
+				}
+			}
+			t.Fatal("replay did not score the anomaly")
+		})
 	}
 }

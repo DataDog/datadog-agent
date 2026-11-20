@@ -491,6 +491,28 @@ func TestParseTestbenchSettingsFromJSON(t *testing.T) {
 	require.False(t, explicit.configs["anomaly_scorer"].(AnomalyScorerConfig).CorrelationEvents)
 }
 
+func TestTestbenchScorerReorderProfileAndValidation(t *testing.T) {
+	settings := ApplyTestbenchDefaults(ComponentSettings{})
+	scorer := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
+	require.Equal(t, int64(600), scorer.ReorderingWindowSecs)
+	require.Equal(t, "clamp", scorer.LateAnomalyBehavior)
+
+	explicit, err := ParseTestbenchSettingsFromJSON(map[string]json.RawMessage{
+		"anomaly_scorer": json.RawMessage(`{"anomaly_reordering_window_secs":0}`),
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(0), explicit.configs["anomaly_scorer"].(AnomalyScorerConfig).ReorderingWindowSecs)
+
+	for _, raw := range []json.RawMessage{
+		json.RawMessage(`{"anomaly_reordering_window_secs":3601}`),
+		json.RawMessage(`{"anomaly_reordering_window_secs":-1}`),
+		json.RawMessage(`{"late_anomaly_behavior":"backfill"}`),
+	} {
+		_, err := ParseTestbenchSettingsFromJSON(map[string]json.RawMessage{"anomaly_scorer": raw})
+		require.Error(t, err)
+	}
+}
+
 func instantiateForTest(t testing.TB, catalog *componentCatalog, settings ComponentSettings) (
 	[]detectorRegistration,
 	[]observerdef.Correlator,

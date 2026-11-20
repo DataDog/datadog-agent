@@ -616,6 +616,7 @@ def eval_scenarios(
     scenario: str = "",
     scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     sigma: float = 30.0,
+    time_mode: str = "historical",
     only: str = "",
     build: bool = True,
     main_report_path: str = "/tmp/observer-eval-main-report.json",
@@ -642,6 +643,8 @@ def eval_scenarios(
     Completed results include a command to inspect the same recording/settings.
     use_metric_pipeline is local-only and independent of component params.
     """
+    if time_mode not in ("historical", "trigger"):
+        raise Exit("--time-mode must be 'historical' or 'trigger'")
     dataset_info = None
     if not local:
         try:
@@ -776,6 +779,8 @@ def eval_scenarios(
             scenarios_dir,
             "--sigma",
             str(sigma),
+            "--time-mode",
+            time_mode,
             "--json",
         ]
         if mode == "no_faults":
@@ -824,6 +829,7 @@ def eval_scenarios(
                 "mode": mode,
                 "status": "completed",
                 **score,
+                "time_mode": time_mode,
                 "inspect_command": inspect,
                 "output": output_path,
                 "replay_mode": "retained" if retain_parquet else "streaming",
@@ -845,6 +851,7 @@ def eval_scenarios(
         main_score = total_fp if all(r.get("status") == "completed" for r in results) else None
     main_report = {
         "use_metric_pipeline": use_metric_pipeline,
+        "time_mode": time_mode,
         "score": main_score,
         "metadata": {r["name"]: r for r in results},
         "component_configs": config_obj,
@@ -972,6 +979,7 @@ def eval_combinations(
     output_dir: str = "/tmp/observer-eval-combinations",
     scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     sigma: float = 30.0,
+    time_mode: str = "historical",
     seed: int = None,
     build: bool = True,
     overwrite: bool = False,
@@ -1016,6 +1024,8 @@ def eval_combinations(
         dda inv anomalydetection.eval-combinations --n 5 --output-dir /tmp/ablation --scenarios example
         dda inv anomalydetection.eval-combinations --n 10 --force-enable bocpd --force-disable scanmw,scanwelch --scenarios example
     """
+    if time_mode not in ("historical", "trigger"):
+        raise Exit("--time-mode must be 'historical' or 'trigger'")
     validate_workflow_components(use_metric_pipeline, force_enable, force_disable)
     if use_metric_pipeline and "metric_pipeline" in {name.strip() for name in force_disable.split(",")}:
         raise Exit("The metric pipeline cannot be disabled through component selections")
@@ -1094,6 +1104,7 @@ def eval_combinations(
                 local=True,
                 scenarios_dir=scenarios_dir,
                 sigma=sigma,
+                time_mode=time_mode,
                 config=config_path,
                 build=False,
                 main_report_path=report_path,
@@ -1211,6 +1222,7 @@ def _bayesian_evaluation_inputs(
     scenarios_dir: str,
     sigma: float,
     timeout: int,
+    time_mode: str = "historical",
     scenarios: str,
     lock: str,
     eval_backend: str,
@@ -1224,6 +1236,7 @@ def _bayesian_evaluation_inputs(
         "scenarios_dir": os.path.abspath(scenarios_dir) if eval_backend == "local" else "",
         "sigma": float(sigma),
         "timeout": int(timeout),
+        "time_mode": time_mode,
         "locked_components": sorted(c.strip() for c in lock.split(",") if c.strip()),
     }
     if eval_backend == "local":
@@ -1242,6 +1255,7 @@ def _run_bayesian_runs(
     sigma: float,
     timeout: int,
     scenarios: str,
+    time_mode: str = "historical",
     lock: str = "",
     eval_backend: str = "local",
     run_logger: StepLogger | None = None,
@@ -1261,6 +1275,7 @@ def _run_bayesian_runs(
         sigma=sigma,
         timeout=timeout,
         scenarios=scenarios,
+        time_mode=time_mode,
         lock=lock,
         eval_backend=eval_backend,
         use_metric_pipeline=use_metric_pipeline,
@@ -1303,6 +1318,7 @@ def _run_bayesian_runs(
                 output_dir=run_dir,
                 scenarios_dir=scenarios_dir,
                 sigma=sigma,
+                time_mode=time_mode,
                 seed=run_seed,
                 build=False,
                 overwrite=True,
@@ -1357,6 +1373,7 @@ def eval_bayesian(
     output_dir: str = "/tmp/observer-optuna-eval",
     scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     sigma: str = "30.0",
+    time_mode: str = "historical",
     seed: int = None,
     build: bool = True,
     overwrite: bool = False,
@@ -1453,6 +1470,9 @@ def eval_bayesian(
 
     components_list = [c.strip() for c in components.split(",") if c.strip()]
 
+    if time_mode not in ("historical", "trigger"):
+        raise Exit("--time-mode must be 'historical' or 'trigger'")
+
     if only_list:
         default_components = detectors + ABLATION_CORRELATORS + EXTRACTORS
         known_components = detectors + SUPPORTED_CORRELATORS + EXTRACTORS
@@ -1530,6 +1550,7 @@ def eval_bayesian(
         sigma=sigma,
         timeout=timeout,
         scenarios=scenarios,
+        time_mode=time_mode,
         lock=",".join(sorted(locked_set)),
         eval_backend=eval_backend,
         use_metric_pipeline=use_metric_pipeline,
@@ -1589,6 +1610,7 @@ def eval_bayesian(
                 local=True,
                 scenarios_dir=scenarios_dir,
                 sigma=sigma,
+                time_mode=time_mode,
                 config=config_path,
                 build=False,
                 main_report_path=report_path,
@@ -1912,6 +1934,7 @@ def eval_pipeline(
     ddeval_testbench_binary_s3_uri: str = "",
     ddeval_testbench_sha256: str = "",
     ddeval_workflow_timeout: int = 7200,
+    time_mode: str = "historical",
     use_metric_pipeline: bool = False,
 ):
     """
@@ -2118,6 +2141,7 @@ def eval_pipeline(
             sigma=sigma,
             timeout=timeout,
             scenarios=scenarios,
+            time_mode=time_mode,
             eval_backend=eval_backend,
             run_logger=run_logger,
             step_label_prefix=combo_label,
@@ -2174,6 +2198,7 @@ def eval_pipeline(
             sigma=sigma,
             timeout=timeout,
             scenarios=scenarios,
+            time_mode=time_mode,
             lock="",
             eval_backend=eval_backend,
             use_metric_pipeline=use_metric_pipeline,
@@ -2197,6 +2222,7 @@ def eval_pipeline(
             output_dir=tune_dir,
             scenarios_dir=scenarios_dir,
             sigma=sigma,
+            time_mode=time_mode,
             seed=tune_seed,
             build=False,
             overwrite=True,
@@ -2274,6 +2300,7 @@ def eval_component(
     output_dir: str = "/tmp/observer-component-eval",
     scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     sigma: float = 30.0,
+    time_mode: str = "historical",
     seed: int = None,
     build: bool = True,
     overwrite: bool = False,
@@ -2324,6 +2351,8 @@ def eval_component(
         dda inv --feat anomalydetection anomalydetection.eval-component --component bocpd --scenarios food_delivery_redis
     """
     validate_workflow_components(use_metric_pipeline, component, enable, disable, lock)
+    if time_mode not in ("historical", "trigger"):
+        raise Exit("--time-mode must be 'historical' or 'trigger'")
     if use_metric_pipeline and "metric_pipeline" in {name.strip() for name in disable.split(",")}:
         raise Exit("The metric pipeline cannot be disabled through component selections")
     if component == "metric_pipeline":
@@ -2480,6 +2509,7 @@ def eval_component(
                 output_dir=subset_dir,
                 scenarios_dir=scenarios_dir,
                 sigma=sigma,
+                time_mode=time_mode,
                 timeout=timeout,
                 scenarios=scenarios,
                 lock=lock_for_run,
