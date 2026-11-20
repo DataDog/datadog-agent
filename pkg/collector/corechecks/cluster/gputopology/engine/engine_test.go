@@ -227,8 +227,8 @@ func TestWorkedExampleDomainStats(t *testing.T) {
 	nodes, alloc := cluster(map[string]map[string][]int{"b": {"rack-1": {4, 4, 1}, "rack-2": {0, 0, 0}}})
 	res := Compute(Topology{Levels: []string{rackLabel}}, nodes, alloc)
 	assert.Equal(t, []Domain{
-		{Path: []string{"rack-1"}, Hosts: 3, Allocatable: 12, Allocated: 9, Free: 3, FreeSlots: slots(3, 1, 0), State: DomainPartiallyOccupied},
-		{Path: []string{"rack-2"}, Hosts: 3, Allocatable: 12, Allocated: 0, Free: 12, FreeSlots: slots(12, 6, 3), State: DomainFree},
+		{Path: []string{"rack-1"}, ID: "rack-1", Hosts: 3, Allocatable: 12, Allocated: 9, Free: 3, FreeSlots: slots(3, 1, 0), State: DomainPartiallyOccupied},
+		{Path: []string{"rack-2"}, ID: "rack-2", Hosts: 3, Allocatable: 12, Allocated: 0, Free: 12, FreeSlots: slots(12, 6, 3), State: DomainFree},
 	}, res.Resources[0].Levels[0].DomainStats)
 }
 
@@ -453,10 +453,41 @@ func TestFullyDownRack(t *testing.T) {
 	assert.Equal(t, 11, rack.LargestFreeGPUs)
 	assert.Equal(t, StateCounts{0, 11, 0, 0}, rack.FreeGPUs, "down nodes add nothing")
 	assert.Equal(t, StateCounts{0, 1, 0, 0}, rack.AllocatedGPUs)
-	assert.Equal(t, Domain{Path: []string{"rack-2"}, Hosts: 3, FreeSlots: slots(0, 0, 0), State: DomainUnavailable}, rack.DomainStats[1])
+	assert.Equal(t, Domain{Path: []string{"rack-2"}, ID: "rack-2", Hosts: 3, Unschedulable: 12, FreeSlots: slots(0, 0, 0), State: DomainUnavailable}, rack.DomainStats[1])
 	assert.Equal(t, 4, rr.UnschedulableGPUs[ReasonNodeUnavailable])
 	assert.Equal(t, 4, rr.UnschedulableGPUs[ReasonTainted])
 	assert.Equal(t, 4, rr.UnschedulableGPUs[ReasonNoAllocatable])
+}
+
+func TestDegradedDomains(t *testing.T) {
+	// Rack of 3 hosts, 1 cordoned, nothing allocated: free and degraded.
+	nodes, alloc := cluster(map[string]map[string][]int{"b": {"rack-1": {0, 0, 0}, "rack-2": {0, 0}, "rack-3": {0, 0}}})
+	for i := range nodes {
+		switch nodes[i].Name {
+		case "b-rack-1-h0":
+			nodes[i].Unschedulable = true
+		case "b-rack-2-h0":
+			nodes[i].Allocatable[nvidia] = 3 // one unhealthy GPU
+		}
+	}
+	alloc["b-rack-2-h1"][nvidia] = 1
+	res := Compute(Topology{Levels: []string{blockLabel, rackLabel}}, nodes, alloc)
+	block, rack, host := res.Resources[0].Levels[0], res.Resources[0].Levels[1], res.Resources[0].Levels[2]
+
+	assert.Equal(t, StateCounts{2, 1, 0, 0}, rack.Domains)
+	assert.Equal(t, StateCounts{1, 1, 0, 0}, rack.DegradedDomains, "rack-1 free+degraded, rack-2 partial+degraded")
+	assert.Equal(t, []Domain{
+		{Path: []string{"b", "rack-1"}, ID: "b/rack-1", Hosts: 3, Allocatable: 8, Free: 8, Unschedulable: 4, FreeSlots: slots(8, 4, 2), State: DomainFree, Degraded: true},
+		{Path: []string{"b", "rack-2"}, ID: "b/rack-2", Hosts: 2, Allocatable: 7, Allocated: 1, Free: 6, Unschedulable: 1, FreeSlots: slots(6, 2, 0), State: DomainPartiallyOccupied, Degraded: true},
+		{Path: []string{"b", "rack-3"}, ID: "b/rack-3", Hosts: 2, Allocatable: 8, Free: 8, FreeSlots: slots(8, 4, 2), State: DomainFree},
+	}, rack.DomainStats)
+	assert.Equal(t, StateCounts{0, 1, 0, 0}, block.DegradedDomains)
+	assert.Equal(t, 5, block.DomainStats[0].Unschedulable)
+
+	// Hosts: the cordoned one is unavailable (never degraded), the
+	// unhealthy one is free and degraded.
+	assert.Equal(t, StateCounts{5, 1, 0, 1}, host.Domains)
+	assert.Equal(t, StateCounts{1, 0, 0, 0}, host.DegradedDomains)
 }
 
 func TestUnschedulableGPUs(t *testing.T) {
@@ -645,8 +676,8 @@ func TestGPUTypes(t *testing.T) {
 
 	// The mixed rack is one rack per type.
 	a100, h100, unknown := res.Resources[0].Levels[0], res.Resources[1].Levels[0], res.Resources[2].Levels[0]
-	assert.Equal(t, []Domain{{Path: []string{"rack-1"}, Hosts: 1, Allocatable: 8, Allocated: 2, Free: 6, FreeSlots: slots(6, 3, 1, 0), State: DomainPartiallyOccupied}}, a100.DomainStats)
-	assert.Equal(t, []Domain{{Path: []string{"rack-1"}, Hosts: 2, Allocatable: 16, Allocated: 8, Free: 8, FreeSlots: slots(8, 4, 2, 1), State: DomainPartiallyOccupied}}, h100.DomainStats)
+	assert.Equal(t, []Domain{{Path: []string{"rack-1"}, ID: "rack-1", Hosts: 1, Allocatable: 8, Allocated: 2, Free: 6, FreeSlots: slots(6, 3, 1, 0), State: DomainPartiallyOccupied}}, a100.DomainStats)
+	assert.Equal(t, []Domain{{Path: []string{"rack-1"}, ID: "rack-1", Hosts: 2, Allocatable: 16, Allocated: 8, Free: 8, FreeSlots: slots(8, 4, 2, 1), State: DomainPartiallyOccupied}}, h100.DomainStats)
 	assert.Equal(t, StateCounts{1, 0, 0, 0}, unknown.Domains)
 	assert.Equal(t, slots(8, 4, 2), unknown.LargestFreeSlots, "pod sizes are bounded per type")
 	assert.Equal(t, StateCounts{1, 0, 1, 0}, res.Resources[1].Levels[1].Domains, "h100 hosts")
