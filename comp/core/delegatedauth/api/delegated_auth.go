@@ -9,6 +9,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,8 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Nil uses the system roots; tests replace it to trust httptest servers.
+var oidcExchangeRootCAs *x509.CertPool
+
 const (
 	authorizationType = "Delegated"
+	oidcProofPrefix   = "oidc-"
 
 	contentTypeHeader   = "Content-Type"
 	authorizationHeader = "Authorization"
@@ -165,6 +170,18 @@ func GetAPIKey(ctx context.Context, cfg pkgconfigmodel.Reader, delegatedAuthProo
 	}
 	if targetSite != "" {
 		client.CheckRedirect = checkDelegatedAuthRedirect
+	}
+	if strings.HasPrefix(delegatedAuthProof, oidcProofPrefix) {
+		// The workload JWT is a bearer credential, so never send it in plaintext or follow a redirect with it.
+		if !strings.HasPrefix(url, "https://") {
+			return nil, errors.New("custom OIDC delegated auth requires an HTTPS endpoint")
+		}
+		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		if transport.TLSClientConfig.InsecureSkipVerify {
+			log.Warn("skip_ssl_validation is ignored for custom OIDC delegated auth; the workload token is only sent to a verified endpoint")
+		}
+		transport.TLSClientConfig.InsecureSkipVerify = false
+		transport.TLSClientConfig.RootCAs = oidcExchangeRootCAs
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer([]byte("")))
 	if err != nil {

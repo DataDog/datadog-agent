@@ -10,7 +10,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
-	github.com/DataDog/datadog-api-client-go/v2 v2.67.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.67.1-0.20261118182503-3f15e527af45
 	github.com/DataDog/dd-trace-go/v2 v2.12.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aws/aws-sdk-go-v2 v1.47.8

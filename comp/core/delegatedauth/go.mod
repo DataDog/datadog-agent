@@ -20,6 +20,13 @@ require (
 )
 
 require (
+	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
+	github.com/goccy/go-json v0.10.6 // indirect
+	github.com/google/uuid v1.6.0 // indirect
+	golang.org/x/oauth2 v0.38.0 // indirect
+)
+
+require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
@@ -41,6 +48,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.67.1-0.20261118182503-3f15e527af45
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.47.8 // indirect

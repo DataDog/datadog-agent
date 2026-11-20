@@ -700,6 +700,19 @@ task_id: task-1
 	})
 }
 
+func TestJWT(t *testing.T) {
+	jwt := "eyJhbGciOiJSUzI1NiJ9.eyJhdWQiOiJkYXRhZG9nL29yZyJ9.c2lnbmF0dXJl"
+	assertClean(t,
+		`invalid header field value "Delegated oidc-`+jwt+`"`,
+		`invalid header field value "Delegated oidc-********"`)
+	assertClean(t,
+		`token: `+jwt,
+		`token: "********"`)
+	assertClean(t,
+		`exchange failed for `+jwt+` with 401`,
+		`exchange failed for ******** with 401`)
+}
+
 func TestBearerToken(t *testing.T) {
 	assertClean(t,
 		`Bearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62ba`,

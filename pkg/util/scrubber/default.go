@@ -76,6 +76,15 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		LastUpdated: parseVersion("7.78.5"),
 	}
 
+	// Base64url JSON objects always start with "eyJ", so this matches JWTs such as workload identity tokens.
+	jwtReplacer := Replacer{
+		Regex: regexp.MustCompile(`\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`),
+		Hints: []string{"eyJ"},
+		Repl:  []byte(defaultReplacement),
+
+		LastUpdated: parseVersion("7.87.0"),
+	}
+
 	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
 	// the token has a different size we scrub it entirely.
 	hintedBearerReplacer := Replacer{
@@ -369,6 +378,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		hintedAPIKeyReplacer,
 		hintedAPPKeyReplacer,
 		prefixedAPPKeyReplacer,
+		jwtReplacer,
 		hintedBearerReplacer,
 		hintedBearerInvalidReplacer,
 		httpHeaderKeyReplacer,
