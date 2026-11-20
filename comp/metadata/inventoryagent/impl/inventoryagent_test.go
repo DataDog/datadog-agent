@@ -44,6 +44,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/fips"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config/policyreceipt"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	sysprobecfg "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -1235,4 +1236,28 @@ func TestGetProvidedConfiguration(t *testing.T) {
 	assert.Contains(t, payload.Metadata, "remote_configuration")
 	assert.Contains(t, payload.Metadata, "cli_configuration")
 	assert.Contains(t, payload.Metadata, "source_local_configuration")
+}
+
+func TestNamedFilePolicyReceiptRevalidatesSecrets(t *testing.T) {
+	root := t.TempDir()
+	filename := filepath.Join(root, "datadog.yaml")
+	configmock.New(t).SetConfigFile(filename)
+	require.NoError(t, os.WriteFile(filename, []byte("api_key: private-key\n"), 0640))
+	r := &policyreceipt.Receipt{SchemaVersion: 1, OrgID: 42, PolicyID: "policy", PolicyVersion: 7, SecretRevision: "first01", DeploymentID: "deployment"}
+	require.NoError(t, policyreceipt.Record(root, r, []string{"/datadog.yaml"}))
+	provided := getProvides(t, map[string]any{"inventories_configuration_enabled": true}, nil)
+	ia := provided.Comp.(*inventoryagent)
+	first := ia.getRawFiles()[filename]
+	require.Len(t, first.PolicyReceipts, 1)
+	require.NoError(t, os.WriteFile(filename, []byte("api_key: changed-key\n"), 0640))
+	second := ia.getRawFiles()[filename]
+	require.Equal(t, first.Hash, second.Hash)
+	require.Empty(t, second.PolicyReceipts)
+	require.NoError(t, policyreceipt.Record(root, r, []string{"/datadog.yaml"}))
+	ia.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
+	require.Empty(t, ia.getRawFiles()[filename].PolicyReceipts)
+	require.NoError(t, os.Remove(filename))
+	got, found := ia.getRawFiles()[filename]
+	require.True(t, found, "missing files must clear previous evidence")
+	require.Empty(t, got.PolicyReceipts)
 }

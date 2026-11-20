@@ -21,6 +21,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config/policyreceipt"
+
 	patch "github.com/evanphx/json-patch/v5"
 	"github.com/itchyny/gojq"
 	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
@@ -76,11 +78,20 @@ type State struct {
 type Operations struct {
 	DeploymentID   string          `json:"deployment_id"`
 	FileOperations []FileOperation `json:"file_operations"`
+	receipt        *policyreceipt.Receipt
 }
 
 // ReplaceSecrets replaces SEC[key] placeholders with decrypted values in the operations.
 func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) error {
+	var err error
+	operations.receipt, err = policyreceipt.FromSecrets(decryptedSecrets, operations.DeploymentID)
+	if err != nil {
+		return err
+	}
 	for key, decryptedValue := range decryptedSecrets {
+		if key == policyreceipt.SecretKey {
+			continue
+		}
 		// Build the full key: SEC[key]
 		fullKey := fmt.Sprintf("SEC[%s]", key)
 
@@ -136,6 +147,16 @@ func (o *Operations) Apply(ctx context.Context, rootPath string) error {
 		if err != nil {
 			return err
 		}
+	}
+	paths := make([]string, 0, len(o.FileOperations))
+	for _, operation := range o.FileOperations {
+		paths = append(paths, operation.FilePath)
+	}
+	if err := policyreceipt.Record(rootPath, o.receipt, paths); err != nil {
+		return err
+	}
+	if o.receipt != nil {
+		return setFileOwnershipAndPermissions(ctx, root, policyreceipt.StoreName, &configFileSpec{owner: "root", group: "dd-agent", mode: 0640})
 	}
 	return nil
 }

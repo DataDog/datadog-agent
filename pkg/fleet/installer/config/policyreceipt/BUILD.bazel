@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "policyreceipt",
+    srcs = ["receipt.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/config/policyreceipt",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "policyreceipt_test",
+    srcs = ["receipt_test.go"],
+    embed = [":policyreceipt"],
+)

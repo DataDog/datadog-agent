@@ -60,6 +60,11 @@ func MarshalSystemProbeRuntimeConfigDumpYAML() ([]byte, error) {
 func GetConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]string) {
 	for prefix, filePath := range confSearchPaths {
 		fb.CopyDirTo(filePath, filepath.Join("etc", "confd", prefix), func(path string) bool { //nolint:errcheck
+			// Receipt state includes private file authenticators.
+			if strings.HasPrefix(filepath.Base(path), ".fleet-policy-receipts.json") {
+				return false
+			}
+
 			// ignore .example file
 			if filepath.Ext(path) == ".example" {
 				return false

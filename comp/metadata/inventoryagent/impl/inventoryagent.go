@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher/tracers"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/fips"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config/policyreceipt"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -505,10 +507,24 @@ func (ia *inventoryagent) getRawFiles() map[string]agentmetadata.RawFile {
 		if scrubbedConfig, secrets, ok := ia.readAndScrubConfig(file); ok {
 			hash := sha256.Sum256(scrubbedConfig)
 			rawConfigFiles[file] = agentmetadata.RawFile{
-				RawConfig: string(scrubbedConfig),
-				Hash:      hex.EncodeToString(hash[:]),
-				Secrets:   secrets,
+				RawConfig:      string(scrubbedConfig),
+				Hash:           hex.EncodeToString(hash[:]),
+				Secrets:        secrets,
+				PolicyReceipts: []policyreceipt.Receipt{},
 			}
+			if !ia.conf.GetBool("metadata_skip_secrets") {
+				report := rawConfigFiles[file]
+				report.PolicyReceipts = policyreceipt.Verify(configDir, file)
+				rawConfigFiles[file] = report
+			}
+		}
+	}
+	for _, filename := range policyreceipt.KnownFiles(configDir) {
+		if !slices.Contains(possibleFiles, filename) {
+			continue
+		}
+		if _, found := rawConfigFiles[filename]; !found {
+			rawConfigFiles[filename] = agentmetadata.RawFile{PolicyReceipts: []policyreceipt.Receipt{}}
 		}
 	}
 	return rawConfigFiles
