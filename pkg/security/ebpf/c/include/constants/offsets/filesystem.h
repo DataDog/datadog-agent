@@ -374,6 +374,20 @@ static const char *__attribute__((always_inline)) get_dentry_name_ptr(struct den
     return get_dentry_name_ptr_at(dentry, get_dentry_name_offset());
 }
 
+// get_dentry_name_len returns qstr.len of the dentry name, or 0 when the offset could not be resolved.
+static u32 __attribute__((always_inline)) get_dentry_name_len(struct dentry *dentry) {
+    u64 dentry_d_name_offset;
+    LOAD_CONSTANT("dentry_d_name_offset", dentry_d_name_offset);
+    u64 qstr_len_offset;
+    LOAD_CONSTANT("qstr_len_offset", qstr_len_offset);
+
+    u32 len = 0;
+    if (qstr_len_offset) {
+        bpf_probe_read(&len, sizeof(len), (void *)dentry + dentry_d_name_offset + qstr_len_offset);
+    }
+    return len;
+}
+
 static void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
     const char *name = get_dentry_name_ptr(dentry);
     bpf_probe_read_str(buffer, n, (void *)name);

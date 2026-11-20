@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The Agent inventory metadata payload now includes the
+    ``feature_infra_enabled`` and ``feature_autoscaling_cluster_enabled``
+    fields, reflecting the ``enable_payloads.series`` and
+    ``autoscaling.cluster.enabled`` configuration options.

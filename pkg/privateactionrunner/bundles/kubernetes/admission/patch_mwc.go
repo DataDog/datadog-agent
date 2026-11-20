@@ -8,6 +8,7 @@ package com_datadoghq_kubernetes_admissionregistration
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 
@@ -41,6 +42,13 @@ func (h *PatchMutatingWebhookConfigurationHandler) Run(
 	inputs, err := types.ExtractInputs[PatchMutatingWebhookConfigurationInputs](task)
 	if err != nil {
 		return nil, err
+	}
+
+	if inputs.PatchFields == nil || inputs.Name == "" {
+		return nil, errors.New("name is required")
+	}
+	if inputs.Body == nil {
+		return nil, errors.New("body is required")
 	}
 
 	client, err := support.KubeClient(credential)

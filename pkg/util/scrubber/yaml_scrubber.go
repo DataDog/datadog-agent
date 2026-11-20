@@ -11,37 +11,49 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
 
 // scrubCallback is called on every map entry and on every string in a slice. key is the map key, or "" for slice
-// elements, while parent is the closest enclosing map key, or "" at the top level.
-type scrubCallback = func(key string, parent string, value interface{}) (bool, interface{})
+// elements, while path is the full dotted path to the entry, where slice elements use their index (ex:
+// "instances.0.community_string"). path is "" for a top-level string.
+type scrubCallback = func(key string, path string, value interface{}) (bool, interface{})
 
-func walkSlice(data []interface{}, parent string, callback scrubCallback) {
+// joinPath appends elem to the dotted path prefix
+func joinPath(prefix string, elem string) string {
+	if prefix == "" {
+		return elem
+	}
+	return prefix + "." + elem
+}
+
+func (c *Scrubber) walkSlice(data []interface{}, prefix string, callback scrubCallback) {
 	for i, k := range data {
+		path := joinPath(prefix, strconv.Itoa(i))
 		switch v := k.(type) {
 		case map[interface{}]interface{}:
-			walkHash(v, callback)
+			c.walkHash(v, path, callback)
 		case []interface{}:
-			walkSlice(v, parent, callback)
+			c.walkSlice(v, path, callback)
 		case map[string]interface{}:
-			walkStringMap(v, callback)
+			c.walkStringMap(v, path, callback)
 		case string:
-			if match, newValue := callback("", parent, v); match {
+			if match, newValue := callback("", path, v); match {
 				data[i] = newValue
 			}
 		}
 	}
 }
 
-func walkHash(data map[interface{}]interface{}, callback scrubCallback) {
+func (c *Scrubber) walkHash(data map[interface{}]interface{}, prefix string, callback scrubCallback) {
 	for k, v := range data {
 		keyString, isString := k.(string)
+		path := joinPath(prefix, c.scrubYamlText(fmt.Sprint(k)))
 		if isString {
-			if match, newValue := callback(keyString, keyString, v); match {
+			if match, newValue := callback(keyString, path, v); match {
 				data[keyString] = newValue
 				continue
 			}
@@ -49,57 +61,63 @@ func walkHash(data map[interface{}]interface{}, callback scrubCallback) {
 
 		switch v := data[k].(type) {
 		case map[interface{}]interface{}:
-			walkHash(v, callback)
+			c.walkHash(v, path, callback)
 		case []interface{}:
-			walkSlice(v, keyString, callback)
+			c.walkSlice(v, path, callback)
 		}
 	}
 }
 
-func walkStringMap(data map[string]interface{}, callback scrubCallback) {
+func (c *Scrubber) walkStringMap(data map[string]interface{}, prefix string, callback scrubCallback) {
 	for k, v := range data {
-		if match, newValue := callback(k, k, v); match {
+		path := joinPath(prefix, c.scrubYamlText(k))
+		if match, newValue := callback(k, path, v); match {
 			data[k] = newValue
 			continue
 		}
 		switch v := data[k].(type) {
 		case map[string]interface{}:
-			walkStringMap(v, callback)
+			c.walkStringMap(v, path, callback)
 		case []interface{}:
-			walkSlice(v, k, callback)
+			c.walkSlice(v, path, callback)
 		}
 
 	}
 }
 
 // walk will go through loaded data and call callback on every strings allowing
-// the callback to overwrite the string value
-func walk(data *interface{}, callback scrubCallback) {
+// the callback to overwrite the string value. prefix is the path of data itself.
+func (c *Scrubber) walk(data *interface{}, prefix string, callback scrubCallback) {
 	if data == nil {
 		return
 	}
 
 	switch v := (*data).(type) {
 	case map[interface{}]interface{}:
-		walkHash(v, callback)
+		c.walkHash(v, prefix, callback)
 	case []interface{}:
-		walkSlice(v, "", callback)
+		c.walkSlice(v, prefix, callback)
 	case map[string]interface{}:
-		walkStringMap(v, callback)
+		c.walkStringMap(v, prefix, callback)
 	case string:
-		if match, newValue := callback("", "", v); match {
+		if match, newValue := callback("", prefix, v); match {
 			*data = newValue
 		}
 	}
 }
 
-// ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes. The keys whose
-// values get scrubbed are recorded, see GetStrippedKeys.
+// ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes. The full paths of
+// the settings whose values get scrubbed are recorded, see GetStrippedKeys.
 func (c *Scrubber) ScrubDataObj(data *interface{}) {
-	walk(data, c.scrubDataValue)
+	c.scrubDataObjAt(data, "")
 }
 
-func (c *Scrubber) scrubDataValue(key string, parent string, value interface{}) (bool, interface{}) {
+// scrubDataObjAt is like ScrubDataObj for data found at the given path, which prefixes the recorded paths
+func (c *Scrubber) scrubDataObjAt(data *interface{}, prefix string) {
+	c.walk(data, prefix, c.scrubDataValue)
+}
+
+func (c *Scrubber) scrubDataValue(key string, path string, value interface{}) (bool, interface{}) {
 	str, isString := value.(string)
 	if isString && IsEnc(str) {
 		return false, ""
@@ -116,25 +134,25 @@ func (c *Scrubber) scrubDataValue(key string, parent string, value interface{}) 
 
 		lowerKey := strings.ToLower(key)
 		if replacer.YAMLKeyRegex.Match([]byte(lowerKey)) {
-			if replacer.ProcessValue != nil {
-				result := replacer.ProcessValue(value)
+			if replacer.hasProcessValue() {
+				result := replacer.processValue(value, path)
 				// If ProcessValue returned a string, still apply the value-content pass
 				// so embedded credentials (e.g. API keys in a JSON-encoded string) get scrubbed.
 				if resultStr, ok := result.(string); ok {
 					if mayHoldCredential(value) {
-						c.addStrippedKey(key)
+						c.addStrippedKey(path)
 					}
 					return true, c.scrubYamlText(resultStr)
 				}
 				// Structured results (ex: additional_endpoints, private_action_runner) are only recorded
 				// if they contain a scrubbed leaf. Replacers that re-enter ScrubDataObj record nested keys.
 				if containsReplacement(result) {
-					c.addStrippedKey(key)
+					c.addStrippedKey(path)
 				}
 				return true, result
 			}
 			if mayHoldCredential(value) {
-				c.addStrippedKey(key)
+				c.addStrippedKey(path)
 			}
 			return true, defaultReplacement
 		}
@@ -144,7 +162,7 @@ func (c *Scrubber) scrubDataValue(key string, parent string, value interface{}) 
 		scrubbed := c.scrubYamlText(str)
 		if scrubbed != str {
 			// the value itself looks like a credential (ex: a raw API key or a password in a URL)
-			c.addStrippedKey(parent)
+			c.addStrippedKey(path)
 			return true, scrubbed
 		}
 	}
@@ -229,54 +247,61 @@ func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 // Invalid YAML is rejected instead of falling back to the text scrubber. The
 // fallback cannot apply YAML-only replacers and is therefore not safe for data
 // that is sent automatically as metadata.
-func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, error) {
+//
+// Returned secret declarations belong only to this call. Raw declarations identify
+// replaced fields, including whole containers; ENC declarations retain every
+// original path and handle.
+func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, []ConfigSecret, error) {
+	secrets := []ConfigSecret{}
 	if len(input) == 0 {
-		return []byte{}, nil
+		return []byte{}, secrets, nil
 	}
 
 	decoder := yaml.NewDecoder(bytes.NewReader(input))
 	var document yaml.Node
 	if err := decoder.Decode(&document); err != nil {
 		if err == io.EOF {
-			return []byte{}, nil
+			return []byte{}, secrets, nil
 		}
-		return nil, err
+		return nil, nil, err
 	}
 	var trailing yaml.Node
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		if err == nil {
-			return nil, errors.New("multiple YAML documents are not supported")
+			return nil, nil, errors.New("multiple YAML documents are not supported")
 		}
-		return nil, err
+		return nil, nil, err
 	}
 	if len(document.Content) == 0 {
-		return []byte{}, nil
+		return []byte{}, secrets, nil
 	}
 	if containsYamlAlias(&document) {
-		return nil, errors.New("YAML aliases are not supported")
+		return nil, nil, errors.New("YAML aliases are not supported")
 	}
 	var validation interface{}
 	if err := document.Decode(&validation); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	c.collectYamlEncSecrets(&document, "", &secrets)
 
-	if err := c.scrubYamlNode(&document, "", make(map[*yaml.Node]struct{})); err != nil {
-		return nil, err
+	if err := c.scrubYamlNode(&document, "", make(map[*yaml.Node]struct{}), &secrets); err != nil {
+		return nil, nil, err
 	}
 
 	var buffer bytes.Buffer
 	encoder := yaml.NewEncoder(&buffer)
 	encoder.SetIndent(2)
 	if err := encoder.Encode(&document); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := encoder.Close(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return buffer.Bytes(), nil
+	return buffer.Bytes(), secrets, nil
 }
 
-func (c *Scrubber) scrubYamlNode(node *yaml.Node, parent string, visited map[*yaml.Node]struct{}) error {
+// scrubYamlNode scrubs node, whose dotted path is path (see scrubCallback)
+func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml.Node]struct{}, secrets *[]ConfigSecret) error {
 	if node == nil {
 		return nil
 	}
@@ -290,9 +315,15 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, parent string, visited map[*ya
 	node.FootComment = ""
 
 	switch node.Kind {
-	case yaml.DocumentNode, yaml.SequenceNode:
+	case yaml.DocumentNode:
 		for _, child := range node.Content {
-			if err := c.scrubYamlNode(child, parent, visited); err != nil {
+			if err := c.scrubYamlNode(child, path, visited, secrets); err != nil {
+				return err
+			}
+		}
+	case yaml.SequenceNode:
+		for i, child := range node.Content {
+			if err := c.scrubYamlNode(child, joinPath(path, strconv.Itoa(i)), visited, secrets); err != nil {
 				return err
 			}
 		}
@@ -307,7 +338,7 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, parent string, visited map[*ya
 			if decodedKeyString, ok := decodedKey.(string); ok {
 				keyValue = decodedKeyString
 			}
-			if err := c.scrubYamlNode(key, parent, visited); err != nil {
+			if err := c.scrubYamlNode(key, path, visited, nil); err != nil {
 				return err
 			}
 
@@ -315,12 +346,22 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, parent string, visited map[*ya
 			if err := value.Decode(&decoded); err != nil {
 				return err
 			}
-			if matched, replacement := c.scrubYamlDataValue(keyValue, decoded); matched {
+			valuePath := joinPath(path, c.scrubYamlText(keyValue))
+			if matched, replacement := c.scrubYamlDataValue(keyValue, valuePath, decoded); matched {
+				childSecrets := secrets
+				if secrets != nil {
+					// Replacers may mutate decoded maps; read the original node
+					// to check whether the field actually changed.
+					var before interface{}
+					if err := value.Decode(&before); err == nil && recordRawSecret(secrets, valuePath, before, replacement) {
+						childSecrets = nil
+					}
+				}
 				replaceYamlNode(value, replacement)
-				if err := c.scrubYamlNode(value, keyValue, visited); err != nil {
+				if err := c.scrubYamlNode(value, valuePath, visited, childSecrets); err != nil {
 					return err
 				}
-			} else if err := c.scrubYamlNode(value, keyValue, visited); err != nil {
+			} else if err := c.scrubYamlNode(value, valuePath, visited, secrets); err != nil {
 				return err
 			}
 		}
@@ -330,7 +371,8 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, parent string, visited map[*ya
 			return err
 		}
 		if str, ok := decoded.(string); ok {
-			if matched, replacement := c.scrubDataValue("", parent, str); matched {
+			if matched, replacement := c.scrubDataValue("", path, str); matched {
+				recordRawSecret(secrets, path, str, replacement)
 				replaceYamlNode(node, replacement)
 			}
 		}
@@ -349,8 +391,8 @@ func (c *Scrubber) scrubYamlText(value string) string {
 	return string(c.scrub([]byte(joined), c.multiLineReplacers, false))
 }
 
-func (c *Scrubber) scrubYamlDataValue(key string, value interface{}) (bool, interface{}) {
-	if matched, replacement := c.scrubDataValue(key, key, value); matched {
+func (c *Scrubber) scrubYamlDataValue(key string, path string, value interface{}) (bool, interface{}) {
+	if matched, replacement := c.scrubDataValue(key, path, value); matched {
 		return true, replacement
 	}
 
@@ -362,8 +404,8 @@ func (c *Scrubber) scrubYamlDataValue(key string, value interface{}) (bool, inte
 		if c.shouldApply != nil && !c.shouldApply(replacer) {
 			continue
 		}
-		if replacer.ProcessValue != nil {
-			return true, replacer.ProcessValue(value)
+		if replacer.hasProcessValue() {
+			return true, replacer.processValue(value, path)
 		}
 		return true, defaultReplacement
 	}

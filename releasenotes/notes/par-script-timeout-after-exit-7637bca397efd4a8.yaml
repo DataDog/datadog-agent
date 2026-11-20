@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Private Action Runner script actions now report a timeout when the
+    deadline expires while background processes started by an already-exited
+    script still hold its output. Previously, such runs could be reported as
+    successful with exit code 0.

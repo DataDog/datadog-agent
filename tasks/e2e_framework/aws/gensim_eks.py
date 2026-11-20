@@ -60,6 +60,7 @@ _NON_RECORDER_REPOS = {
     "datadog/agent",
     "docker.io/datadog/agent",
     "gcr.io/datadoghq/agent",
+    "registry.datadoghq.com/agent",
     "public.ecr.aws/datadog/agent",
 }
 

@@ -16,6 +16,7 @@ from tasks.libs.common.git import (
     get_origin_default_branch,
     get_staged_files,
     get_unstaged_files,
+    ref_exists,
 )
 
 
@@ -149,6 +150,36 @@ class TestGit(unittest.TestCase):
         self.ctx_mock.run.assert_called_once_with(
             'git diff --name-only --diff-filter=ACDMRTUXB "HEAD^...HEAD"',
             hide=True,
+        )
+
+    def test_ref_exists(self):
+        self.ctx_mock.run.return_value.ok = True
+
+        with patch("tasks.libs.common.utils.is_windows", return_value=False):
+            self.assertTrue(ref_exists(self.ctx_mock, "serverless-init-1.11.3"))
+
+        self.ctx_mock.run.assert_called_once_with(
+            "git rev-parse --verify --quiet 'serverless-init-1.11.3^{commit}'",
+            hide=True,
+            warn=True,
+        )
+
+    def test_ref_exists_unknown_ref(self):
+        self.ctx_mock.run.return_value.ok = False
+
+        self.assertFalse(ref_exists(self.ctx_mock, "nope"))
+
+    def test_ref_exists_quotes_the_caret_on_windows(self):
+        self.ctx_mock.run.return_value.ok = True
+
+        with patch("tasks.libs.common.utils.is_windows", return_value=True):
+            ref_exists(self.ctx_mock, "serverless-init-1.11.3")
+
+        # `^` is a cmd.exe metacharacter, so the argument carrying it must be double-quoted
+        self.ctx_mock.run.assert_called_once_with(
+            'git rev-parse --verify --quiet "serverless-init-1.11.3^{commit}"',
+            hide=True,
+            warn=True,
         )
 
     def test_check_uncommitted_changes(self):

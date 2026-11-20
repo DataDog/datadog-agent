@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
+	ddfeatures "github.com/DataDog/datadog-agent/pkg/ebpf/features"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
@@ -47,6 +48,8 @@ const (
 
 	// tcpDone traces the tcp_done() kernel function for failed connection tracking
 	tcpDone = "tcp_done"
+	// tcpDisconnect traces the tcp_disconnect() kernel function
+	tcpDisconnect = "tcp_disconnect"
 
 	// tcpReadSockReturn traces the return of tcp_read_sock() — only fexit is needed
 	tcpReadSockReturn = "tcp_read_sock_exit"
@@ -109,7 +112,18 @@ const (
 
 	// net_dev_queue raw tracepoint for protocol classification (fentry requires 5.8+ so raw tracepoints are always available)
 	netDevQueueRawTracepoint = "raw_tracepoint__net__net_dev_queue"
+	// netDevQueueTPBTF is preferred over netDevQueueRawTracepoint when it loads
+	netDevQueueTPBTF = "tp_btf__net__net_dev_queue"
 )
+
+// netDevQueueTPBTFSupported trial-loads a tp_btf program on net_dev_queue that makes a BPF_PROBE_MEM load.
+var netDevQueueTPBTFSupported = func() bool {
+	err := ddfeatures.SupportsTPBTFProbeMem("net_dev_queue")
+	if err != nil {
+		log.Debugf("tp_btf/net_dev_queue not supported, using raw tracepoint: %s", err)
+	}
+	return err == nil
+}
 
 var programs = map[string]struct{}{
 	inetBind:                   {},
@@ -131,6 +145,7 @@ var programs = map[string]struct{}{
 	tcpSendMsgReturn:           {},
 	tcpSendPageReturn:          {},
 	tcpDone:                    {},
+	tcpDisconnect:              {},
 	tcpReadSockReturn:          {},
 	udpDestroySock:             {},
 	udpRecvMsg:                 {},
@@ -159,9 +174,8 @@ var programs = map[string]struct{}{
 	protocolClassifierQueues:    {},
 	protocolClassifierDBs:       {},
 	protocolClassifierGRPC:      {},
-	// Note: netDevQueueRawTracepoint is NOT in this map — it's added separately
-	// in manager.go with TracepointName/TracepointCategory fields, and enabled
-	// directly in enabledPrograms() to avoid duplicate probe registration.
+	// Note: netDevQueueRawTracepoint and netDevQueueTPBTF are NOT in this map — they're added separately
+	// in manager.go, and enabled directly in enabledPrograms() to avoid duplicate probe registration.
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {
@@ -204,8 +218,9 @@ func ClassificationSupported(c *config.Config) bool {
 	return true
 }
 
-// enabledPrograms returns a map of probes that are enabled per config settings.
-func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[string]struct{}, error) {
+// enabledPrograms returns the programs to attach. With natFromConntrack, the eBPF conntracker's map supplies NAT'd
+// connections' packet tuples, so the net_dev_queue raw tracepoint isn't needed.
+func enabledPrograms(c *config.Config, isClassificationSupported, natFromConntrack bool) (map[string]struct{}, error) {
 	enabled := make(map[string]struct{}, 0)
 	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv, err := kernel.HostVersion()
@@ -245,6 +260,7 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 		enableProgram(enabled, tcpEnterRecovery)
 		enableProgram(enabled, tcpSendProbe0)
 		enableProgram(enabled, tcpDone)
+		enableProgram(enabled, tcpDisconnect)
 		enableProgram(enabled, tcpReadSockReturn)
 
 		if hasSendPage {
@@ -261,8 +277,14 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 			enableProgram(enabled, protocolClassifierGRPC)
 
 			// fentry requires 5.8+ which always supports raw tracepoints (4.17+)
-			// Directly insert — not in programs map since manager.go adds it with TracepointName fields
-			enabled[netDevQueueRawTracepoint] = struct{}{}
+			// Directly insert — not in programs map since manager.go adds them
+			if !natFromConntrack {
+				if !util.NetDevQueueTPBTFRejected.Load() && netDevQueueTPBTFSupported() {
+					enabled[netDevQueueTPBTF] = struct{}{}
+				} else {
+					enabled[netDevQueueRawTracepoint] = struct{}{}
+				}
+			}
 		}
 	}
 

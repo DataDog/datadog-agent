@@ -882,6 +882,77 @@ func TestEnrichTags(t *testing.T) {
 	}
 }
 
+// inodeRecordingMetaCollector records the inodes passed to GetContainerIDForInode.
+type inodeRecordingMetaCollector struct {
+	collectormock.MetaCollector
+	inodeLookups []uint64
+}
+
+func (m *inodeRecordingMetaCollector) GetContainerIDForInode(inode uint64, cacheValidity time.Duration) (string, error) {
+	m.inodeLookups = append(m.inodeLookups, inode)
+	return m.MetaCollector.GetContainerIDForInode(inode, cacheValidity)
+}
+
+func TestEnrichTagsInodeResolution(t *testing.T) {
+	mockReq := MockRequires{
+		Config:    configmock.New(t),
+		Log:       logmock.New(t),
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() config.Component { return mockReq.Config }),
+		fx.Provide(func() log.Component { return mockReq.Log }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	fakeTagger := NewMock(mockReq).Comp
+
+	const inode, containerID = uint64(1234), "container-id"
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, containerID), "host", []string{"container-low"}, nil, nil, nil)
+
+	metaCollector := &inodeRecordingMetaCollector{
+		MetaCollector: collectormock.MetaCollector{CIDFromInode: map[uint64]string{inode: containerID}},
+	}
+	mockMetricsProvider := collectormock.NewMetricsProvider()
+	mockMetricsProvider.RegisterMetaCollector(metaCollector)
+	cleanUp := setupFakeMetricsProvider(mockMetricsProvider)
+	defer cleanUp()
+
+	for _, tt := range []struct {
+		name            string
+		localData       origindetection.LocalData
+		expectedLookups []uint64
+		expectedTags    []string
+	}{
+		{
+			// Samples without origin data (e.g. check metrics and service checks) have no container ID and inode 0.
+			name:            "unknown inode is not looked up",
+			localData:       origindetection.LocalData{},
+			expectedLookups: nil,
+			expectedTags:    []string{},
+		},
+		{
+			name:            "known container ID skips the inode lookup",
+			localData:       origindetection.LocalData{ContainerID: containerID, Inode: inode},
+			expectedLookups: nil,
+			expectedTags:    []string{"container-low"},
+		},
+		{
+			name:            "known inode is resolved",
+			localData:       origindetection.LocalData{Inode: inode},
+			expectedLookups: []uint64{inode},
+			expectedTags:    []string{"container-low"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			metaCollector.inodeLookups = nil
+			tb := tagset.NewHashingTagsAccumulator()
+			fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{LocalData: tt.localData, Cardinality: "low"})
+			assert.Equal(t, tt.expectedLookups, metaCollector.inodeLookups)
+			assert.Equal(t, tt.expectedTags, tb.Get())
+		})
+	}
+}
+
 func TestEnrichTagsContainerIDMismatch(t *testing.T) {
 	mockReq := MockRequires{
 		Config:    configmock.New(t),
