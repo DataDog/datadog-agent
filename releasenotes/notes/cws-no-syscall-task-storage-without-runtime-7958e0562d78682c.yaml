@@ -10,5 +10,6 @@ enhancements:
   - |
     When Workload Protection is disabled, for example on hosts that only run
     Cloud Network Monitoring, system-probe's event monitor now keeps in-flight
-    syscall context in an LRU hash map instead of task storage, which lowers
-    the per-syscall cost of its hooks.
+    syscall context in an LRU hash map instead of task storage by default,
+    which lowers the per-syscall cost of its hooks. An explicit
+    ``event_monitoring_config.event_stream.use_syscall_task_storage`` setting is kept.
