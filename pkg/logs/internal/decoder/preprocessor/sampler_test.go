@@ -1251,6 +1251,9 @@ func TestAdaptiveSampler_ExactIndexMatchesLinearScan(t *testing.T) {
 		{"fuzzy_0.75_p12", 12, 0.75},
 		{"exact_1.0_p8", 8, 1.0},
 		{"small_p4", 4, 0.9},
+		{"indexed_0.9_p48", 48, 0.9},
+		{"indexed_1.0_p40", 40, 1.0},
+		{"indexed_0.75_p64", 64, 0.75},
 		{"degenerate_gt1", 8, 1.1},
 		{"degenerate_zero", 8, 0.0},
 	} {
@@ -1317,6 +1320,11 @@ func TestAdaptiveSampler_ExactIndexMatchesLinearScan(t *testing.T) {
 						require.Equal(t, h, got.entries[idx].hash)
 					}
 				}
+			}
+			if tc.maxPatterns >= exactIndexMinTableSize && tc.thresh <= 1.0 {
+				require.NotNil(t, got.exactIndex, "index should be built once the table reaches exactIndexMinTableSize")
+			} else {
+				require.Nil(t, got.exactIndex, "small tables should not build the index")
 			}
 		})
 	}
