@@ -254,14 +254,6 @@ func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string)
 	return cmd.Run()
 }
 
-// ResumeConfigExperiments recovers a configuration experiment left running unsupervised by a
-// daemon that did not shut down cleanly.
-func (i *InstallerExec) ResumeConfigExperiments(ctx context.Context) (err error) {
-	cmd := i.newInstallerCmd(ctx, "resume-config-experiments")
-	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
-}
-
 // GarbageCollect runs the garbage collector.
 func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	cmd := i.newInstallerCmd(ctx, "garbage-collect")
