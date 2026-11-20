@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head profile="http://www.w3.org/1999/xhtml/vocab">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="Generator" content="Drupal 7 (http://drupal.org)" />
+<link rel="canonical" href="/licenses/APL-1.0" />
+<link rel="shortlink" href="/node/39" />
+<meta name="MobileOptimized" content="width" />
+<meta name="HandheldFriendly" content="true" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="shortcut icon" href="https://opensource.org/files/osi_favicon.png" type="image/png" />
+  <title>Adaptive Public License 1.0 | Open Source Initiative</title>
+  <link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_xE-rWrJf-fncB6ztZfd2huxqgxu4WO-qwma6Xer30m4.css" media="all" />
+<link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_gh8wMJiOGewsPCJRDYXmqv3eEGGGSn0O_fqsi_9a-LY.css" media="all" />
+<link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_qMtvtYjDyL3jyvKhdeFzZVkBLhrAzESpT6WEC6RDrBo.css" media="all" />
+<link type="text/css" rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css" media="all" />
+<link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_KGZcOm3i1wmtbgZsjo-3V9FM4wZ-5UDcpJ7Vfzmt45E.css" media="all" />
+<link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_ulIzRpfhtuifCQvQJ8NpvGx_J9mvqUlZZLik4d4ZG-s.css" media="all" />
+
+<!--[if (lt IE 9)]>
+<link type="text/css" rel="stylesheet" href="https://opensource.org/sites/all/themes/bootstrap-business/css/ie8.css?r42bxq" media="all" />
+<![endif]-->
+
+    
+  <!-- HTML5 element support for IE6-8 -->
+  <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+  <script type="text/javascript" src="//code.jquery.com/jquery-1.10.2.min.js"></script>
+<script type="text/javascript">
+<!--//--><![CDATA[//><!--
+window.jQuery || document.write("<script src='/sites/all/modules/jquery_update/replace/jquery/1.10/jquery.min.js'>\x3C/script>")
+//--><!]]>
+</script>
+<script type="text/javascript" src="https://opensource.org/files/js/js_Hfha9RCTNm8mqMDLXriIsKGMaghzs4ZaqJPLj2esi7s.js"></script>
+<script type="text/javascript">
+<!--//--><![CDATA[//><!--
+
+      (function ($, D) {
+        D.behaviors.webform_civicrm_1125_3 = {
+          attach: function (context) {
+            var toHide = [];
+            var field = $('.webform-client-form-1125 :input.civicrm-enabled[name$="civicrm_1_contact_1_contact_existing]"]', context);
+            field.change(function() {
+                  wfCivi.existingSelect(1, 1125, "/webform-civicrm/js/1125-3", toHide, 'hide', 0, $(this).val(), true, {"disclaimer":"Sign up with your email to receive OSI's newsletter \u2014 your resource for industry news, upcoming events, insights from open source thought leaders and more.","civicrm-1-contact-1-email-email":"[current-user:mail]","civicrm-1-contact-1-contact-first-name":"[current-user:civicrm-contact:contact-id-contact:first-name]","civicrm-1-contact-1-contact-last-name":"[current-user:civicrm-contact:contact-id-contact:last-name]"});
+                });
+          }
+        };
+      })(jQuery, Drupal);
+//--><!]]>
+</script>
+<script type="text/javascript" src="https://opensource.org/files/js/js_DUNTYodva32GqgFb5T11Sne7vNBydw_Kz6E6zejEPcs.js"></script>
+<script type="text/javascript" src="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+<script type="text/javascript">
+<!--//--><![CDATA[//><!--
+jQuery(document).ready(function($) { 
+		$(window).scroll(function() {
+			if($(this).scrollTop() != 0) {
+				$("#toTop").fadeIn();	
+			} else {
+				$("#toTop").fadeOut();
+			}
+		});
+		
+		$("#toTop").click(function() {
+			$("body,html").animate({scrollTop:0},800);
+		});	
+		
+		});
+//--><!]]>
+</script>
+<script type="text/javascript" src="https://opensource.org/files/js/js_ruOYJN6FkJU2O5L1dAKVnDloSn5R6LjnLW88zFxS1Uw.js"></script>
+<script type="text/javascript" src="https://opensource.org/files/js/js_JQHTvV_SkyFlN3f2BnQwnusF-eI6tkX8wrKAk2siiZU.js"></script>
+<script type="text/javascript">
+<!--//--><![CDATA[//><!--
+jQuery.extend(Drupal.settings, {"basePath":"\/","pathPrefix":"","setHasJsCookie":0,"ajaxPageState":{"theme":"bootstrap_business","theme_token":"yJ-pvWOYrmUW4-6ruwmgyZT0TS_4xRjlfOM5a6dOmq4","js":{"sites\/all\/modules\/webform_civicrm\/js\/webform_civicrm_forms.js":1,"\/\/code.jquery.com\/jquery-1.10.2.min.js":1,"0":1,"misc\/jquery-extend-3.4.0.js":1,"misc\/jquery-html-prefilter-3.5.0-backport.js":1,"misc\/jquery.once.js":1,"misc\/drupal.js":1,"1":1,"sites\/all\/modules\/antibot\/js\/antibot.js":1,"sites\/all\/modules\/webform\/js\/webform.js":1,"\/\/maxcdn.bootstrapcdn.com\/bootstrap\/3.2.0\/js\/bootstrap.min.js":1,"2":1,"sites\/all\/libraries\/superfish\/jquery.hoverIntent.minified.js":1,"sites\/all\/libraries\/superfish\/sftouchscreen.js":1,"sites\/all\/libraries\/superfish\/sfsmallscreen.js":1,"sites\/all\/libraries\/superfish\/supposition.js":1,"sites\/all\/libraries\/superfish\/superfish.js":1,"sites\/all\/libraries\/superfish\/supersubs.js":1,"sites\/all\/modules\/superfish\/superfish.js":1,"sites\/all\/themes\/bootstrap-business\/js\/jquery.browser.min.js":1},"css":{"modules\/system\/system.base.css":1,"modules\/system\/system.menus.css":1,"modules\/system\/system.messages.css":1,"modules\/system\/system.theme.css":1,"modules\/aggregator\/aggregator.css":1,"modules\/comment\/comment.css":1,"modules\/field\/theme\/field.css":1,"modules\/node\/node.css":1,"modules\/search\/search.css":1,"modules\/user\/user.css":1,"sites\/all\/modules\/views\/css\/views.css":1,"sites\/all\/modules\/ckeditor\/css\/ckeditor.css":1,"sites\/all\/modules\/ctools\/css\/ctools.css":1,"sites\/all\/modules\/civicrm\/css\/crm-i.css":1,"sites\/all\/modules\/civicrm\/css\/civicrm.css":1,"sites\/all\/civicustom\/extras.css":1,"public:\/\/honeypot\/honeypot.css":1,"sites\/all\/modules\/webform\/css\/webform.css":1,"sites\/all\/modules\/webform_civicrm\/css\/webform_civicrm_forms.css":1,"\/\/maxcdn.bootstrapcdn.com\/bootstrap\/3.2.0\/css\/bootstrap.min.css":1,"sites\/all\/libraries\/superfish\/css\/superfish.css":1,"sites\/all\/themes\/bootstrap-business\/css\/style.css":1,"sites\/all\/themes\/bootstrap-business\/color\/colors.css":1,"sites\/all\/themes\/bootstrap-business\/css\/local.css":1,"sites\/all\/themes\/bootstrap-business\/css\/ie8.css":1}},"urlIsAjaxTrusted":{"\/licenses\/APL-1.0":true},"superfish":{"1":{"id":"1","sf":{"animation":{"opacity":"show","height":"show"},"speed":"\u0027fast\u0027","autoArrows":false,"dropShadows":true,"disableHI":false},"plugins":{"touchscreen":{"mode":"window_width"},"smallscreen":{"mode":"window_width","addSelected":false,"menuClasses":false,"hyperlinkClasses":false,"title":"Navigation"},"supposition":true,"bgiframe":false,"supersubs":{"minWidth":"12","maxWidth":"27","extraWidth":1}}}},"antibot":{"forms":{"webform-client-form-1125":{"action":"\/licenses\/APL-1.0","key":"899fb40be12e159cb2de5f89a4e3e2c1"}}}});
+//--><!]]>
+</script>
+</head>
+<body class="html not-front not-logged-in one-sidebar sidebar-second page-node page-node- page-node-39 node-type-page" >
+  <div id="skip-link">
+    <a href="#main-content" class="element-invisible element-focusable">Skip to main content</a>
+  </div>
+    <div id="toTop"><span class="glyphicon glyphicon-chevron-up"></span></div>
+
+
+
+<!-- #header-top -->
+<div id="header-top" class="clearfix">
+    <div class="container">
+
+        <!-- #header-top-inside -->
+        <div id="header-top-inside" class="clearfix">
+            <div class="row">
+            
+                        <div class="col-md-8">
+                <!-- #header-top-left -->
+                <div id="header-top-left" class="clearfix">
+                      <div class="region region-header-top-left">
+    <div id="block-menu-secondary-menu" class="block block-menu clearfix">
+
+    
+  <div class="content">
+    <ul class="menu"><li class="first leaf"><a href="/" title="">Home</a></li>
+<li class="leaf"><a href="/contact" title="">Contact</a></li>
+<li class="leaf"><a href="/civicrm/contribute/transact?reset=1&amp;id=2" title="">Donate</a></li>
+<li class="last leaf"><a href="/user/login" title="">Login</a></li>
+</ul>  </div>
+</div>
+  </div>
+                </div>
+                <!-- EOF:#header-top-left -->
+            </div>
+                        
+                        <div class="col-md-4">
+                <!-- #header-top-right -->
+                <div id="header-top-right" class="clearfix">
+                      <div class="region region-header-top-right">
+    <div id="block-search-form" class="block block-search clearfix">
+
+    
+  <div class="content">
+    <form action="/licenses/APL-1.0" method="post" id="search-block-form" accept-charset="UTF-8"><div><div class="container-inline">
+      <h2 class="element-invisible">Search form</h2>
+    <div class="form-item form-type-textfield form-item-search-block-form">
+ <input onblur="if (this.value == &#039;&#039;) {this.value = &#039;Search this website...&#039;;}" onfocus="if (this.value == &#039;Search this website...&#039;) {this.value = &#039;&#039;;}" type="text" id="edit-search-block-form--2" name="search_block_form" value="Search this website..." size="15" maxlength="128" class="form-text" />
+</div>
+<div class="form-actions form-wrapper" id="edit-actions"><input value="" type="submit" id="edit-submit" name="op" class="form-submit" /></div><input type="hidden" name="form_build_id" value="form-_r55r-kdrUqYCPLHr4jbIB0T0YGM9aY33S1w4VW-erk" />
+<input type="hidden" name="form_id" value="search_block_form" />
+</div>
+</div></form>  </div>
+</div>
+  </div>
+                </div>
+                <!-- EOF:#header-top-right -->
+            </div>
+                        
+            </div>
+        </div>
+        <!-- EOF: #header-top-inside -->
+
+    </div>
+</div>
+<!-- EOF: #header-top -->    
+
+<!-- header -->
+<header id="header" role="banner" class="clearfix">
+    <div class="container">
+
+        <!-- #header-inside -->
+        <div id="header-inside" class="clearfix">
+            <div class="row">
+                <div class="col-md-8">
+
+                                <div id="logo">
+                <a href="/" title="Home" rel="home"> <img src="https://opensource.org/files/osi_keyhole_300X300_90ppi_0.png" alt="Home" /> </a>
+                </div>
+                
+                                <div id="site-name">
+                <a href="/" title="Home">Open Source Initiative</a>
+                </div>
+                                
+                                <div id="site-slogan">
+                Guaranteeing the 'our' in source...                </div>
+                                
+                </div>
+                
+                <div class="col-md-4">
+                
+                
+                </div>
+            </div>
+        </div>
+        <!-- EOF: #header-inside -->
+
+    </div>
+</header>
+<!-- EOF: #header --> 
+
+<!-- #main-navigation --> 
+<div id="main-navigation" class="clearfix">
+    <div class="container">
+
+        <!-- #main-navigation-inside -->
+        <div id="main-navigation-inside" class="clearfix">
+            <div class="row">
+                <div class="col-md-12">
+                    <nav role="navigation">
+                                                  <div class="region region-navigation">
+    <div id="block-superfish-1" class="block block-superfish clearfix">
+
+    
+  <div class="content">
+    <ul id="superfish-1" class="menu sf-menu sf-navigation sf-horizontal sf-style-none sf-total-items-6 sf-parent-items-6 sf-single-items-0"><li id="menu-37-1" class="first odd sf-item-1 sf-depth-1 sf-total-children-4 sf-parent-children-2 sf-single-children-2 menuparent"><a href="/about" title="About the Open Source Initiative" class="sf-depth-1 menuparent">About</a><ul><li id="menu-75-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/history" title="History of the OSI" class="sf-depth-2">History</a></li><li id="menu-82-1" class="middle even sf-item-2 sf-depth-2 sf-total-children-7 sf-parent-children-0 sf-single-children-7 menuparent"><a href="/board" title="Board of Directors" class="sf-depth-2 menuparent">Board</a><ul><li id="menu-83-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/docs/board-annotated" title="OSI Board -- With Annotations" class="sf-depth-3">Board - Annotated</a></li><li id="menu-96-1" class="middle even sf-item-2 sf-depth-3 sf-no-children"><a href="/minutes" title="Public Minutes of Board Meetings" class="sf-depth-3">Minutes</a></li><li id="menu-185-1" class="middle odd sf-item-3 sf-depth-3 sf-no-children"><a href="/organization" title="These portfolios represent the activities of the current OSI board." class="sf-depth-3">Organization &amp; Operations</a></li><li id="menu-95-1" class="middle even sf-item-4 sf-depth-3 sf-no-children"><a href="/articles-of-incorporation" title="OSI incorporation record" class="sf-depth-3">Articles of Incorporation</a></li><li id="menu-1475-1" class="middle odd sf-item-5 sf-depth-3 sf-no-children"><a href="/elections" class="sf-depth-3">Board Elections</a></li><li id="menu-84-1" class="middle even sf-item-6 sf-depth-3 sf-no-children"><a href="/bylaws" title="Bylaws of the Open Source Initiative" class="sf-depth-3">Bylaws</a></li><li id="menu-1317-1" class="last odd sf-item-7 sf-depth-3 sf-no-children"><a href="/conflict_of_interest_policy" class="sf-depth-3">Conflict of Interest</a></li></ul></li><li id="menu-1843-1" class="middle odd sf-item-3 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/trademark" title="" class="sf-depth-2 menuparent">Trademark &amp; Logo</a><ul><li id="menu-184-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/trademark-guidelines" title="OSI&#039;s Trademark Policy" class="sf-depth-3">Trademark Guidelines</a></li><li id="menu-183-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/logo-usage-guidelines" title="Guidelines for appearance and usage of OSI Logo" class="sf-depth-3">Logo Guidelines</a></li></ul></li><li id="menu-126-1" class="last even sf-item-4 sf-depth-2 sf-no-children"><a href="/ToS" title="Rules for posting content on this site" class="sf-depth-2">Terms of Service</a></li></ul></li><li id="menu-65-1" class="middle even sf-item-2 sf-depth-1 sf-total-children-5 sf-parent-children-2 sf-single-children-3 menuparent"><a href="/licenses" class="sf-depth-1 menuparent">Licenses</a><ul><li id="menu-61-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/osd" title="The actual OSD defining what constitutes an Open Source licence" class="sf-depth-2">Open Source Definition</a></li><li id="menu-77-1" class="middle even sf-item-2 sf-depth-2 sf-no-children"><a href="/licenses/category" title="Licenses by Category" class="sf-depth-2">Licenses by Category</a></li><li id="menu-72-1" class="middle odd sf-item-3 sf-depth-2 sf-no-children"><a href="/licenses/alphabetical" title="Licenses that are approved by the OSI as conforming to the OSD" class="sf-depth-2">Licenses by Name</a></li><li id="menu-66-1" class="middle even sf-item-4 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/approval" title="Certifying licences as OSD-compliant" class="sf-depth-2 menuparent">License Review Process</a><ul><li id="menu-67-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/proliferation" title="Supporting choice while maintaining sanity" class="sf-depth-3">Licence Proliferation</a></li><li id="menu-69-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/proliferation-report" title="License Proliferation Committee&#039;s report to the OSI Board" class="sf-depth-3">LP report to the Board</a></li></ul></li><li id="menu-99-1" class="last odd sf-item-5 sf-depth-2 sf-total-children-4 sf-parent-children-0 sf-single-children-4 menuparent"><a href="/osr-intro" title="Open Standards Requirement for Software" class="sf-depth-2 menuparent">Open Standards</a><ul><li id="menu-101-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/osr" title="An &quot;open standard&quot; must not prohibit conforming implementations in open source software." class="sf-depth-3">The Open Standards Requirement</a></li><li id="menu-102-1" class="middle even sf-item-2 sf-depth-3 sf-no-children"><a href="/osr-compliance" class="sf-depth-3">Open Standards Requirement Compliance</a></li><li id="menu-100-1" class="middle odd sf-item-3 sf-depth-3 sf-no-children"><a href="/osr-rationale" class="sf-depth-3">Open Standards Requirement Rationale</a></li><li id="menu-103-1" class="last even sf-item-4 sf-depth-3 sf-no-children"><a href="/osr-faq" title="Frequently asked questions about the Open Standards Requirement" class="sf-depth-3">OSR Frequently Asked Questions</a></li></ul></li></ul></li><li id="menu-1842-1" class="middle odd sf-item-3 sf-depth-1 sf-total-children-3 sf-parent-children-2 sf-single-children-1 menuparent"><a href="/membership" title="Page for our various membership programs" class="sf-depth-1 menuparent">Membership</a><ul><li id="menu-914-1" class="first odd sf-item-1 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/members" class="sf-depth-2 menuparent">Individuals</a><ul><li id="menu-897-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/civicrm/contribute/transact?reset=1&amp;id=1" title="" class="sf-depth-3">Join</a></li><li id="menu-2265-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/benefits" class="sf-depth-3">Benefits</a></li></ul></li><li id="menu-675-1" class="middle even sf-item-2 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/osi-affiliate-membership" title="Home page for OSI&#039;s membership scheme for non-profits and not-for-profits" class="sf-depth-2 menuparent">Affiliates</a><ul><li id="menu-676-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/affiliates/about" class="sf-depth-3">Become an Affiliate</a></li><li id="menu-2071-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/AffiliateRequirements" class="sf-depth-3">Affiliate  Criteria</a></li></ul></li><li id="menu-1436-1" class="last odd sf-item-3 sf-depth-2 sf-no-children"><a href="/corporate-sponsors-support" title="" class="sf-depth-2">Sponsors &amp; Support</a></li></ul></li><li id="menu-1841-1" class="middle even sf-item-4 sf-depth-1 sf-total-children-5 sf-parent-children-1 sf-single-children-4 menuparent"><a href="/community" title="Page for our various community members." class="sf-depth-1 menuparent">Community</a><ul><li id="menu-2271-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/associations" class="sf-depth-2">Associations</a></li><li id="menu-63-1" class="middle even sf-item-2 sf-depth-2 sf-total-children-5 sf-parent-children-0 sf-single-children-5 menuparent"><a href="/lists" title="The virtual committees where the OSI&#039;s work gets done" class="sf-depth-2 menuparent">Mailing lists</a><ul><li id="menu-1072-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/codeofconduct/licensing" class="sf-depth-3">Licensing Code of Conduct</a></li><li id="menu-78-1" class="middle even sf-item-2 sf-depth-3 sf-no-children"><a href="/codeofconduct" title="Guidelines for OSI Mailing Lists" class="sf-depth-3">General Code of Conduct</a></li><li id="menu-2272-1" class="middle odd sf-item-3 sf-depth-3 sf-no-children"><a href="/node/960" title="Monthly reports summarizing the OSI&#039;s License-Discuss and License-Review mailing lists." class="sf-depth-3">Discussion List Reports</a></li><li id="menu-2111-1" class="middle even sf-item-4 sf-depth-3 sf-no-children"><a href="/public_forums_disclaimer" class="sf-depth-3">Disclaimer for OSI Public Forums</a></li><li id="menu-2110-1" class="last odd sf-item-5 sf-depth-3 sf-no-children"><a href="/public_archives_policy" class="sf-depth-3">Policy on Public Communications and Archives</a></li></ul></li><li id="menu-2032-1" class="middle odd sf-item-3 sf-depth-2 sf-no-children"><a href="/volunteersandstaff" class="sf-depth-2">Volunteers &amp; Staff</a></li><li id="menu-2192-1" class="middle even sf-item-4 sf-depth-2 sf-no-children"><a href="/AdvocateCircle" class="sf-depth-2">Advocate Circle</a></li><li id="menu-1846-1" class="last odd sf-item-5 sf-depth-2 sf-no-children"><a href="http://wiki.opensource.org" title="" class="sf-depth-2">Wiki</a></li></ul></li><li id="menu-1840-1" class="middle odd sf-item-5 sf-depth-1 sf-total-children-6 sf-parent-children-1 sf-single-children-5 menuparent"><a href="/resources" title="Page offering resources to OSI personas" class="sf-depth-1 menuparent">Resources</a><ul><li id="menu-342-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/faq" title="Frequently Asked Questions about open source and about the OSI." class="sf-depth-2">FAQ</a></li><li id="menu-45-1" class="middle even sf-item-2 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/help" title="Resources for questions and further exploration" class="sf-depth-2 menuparent">Getting Help</a><ul><li id="menu-76-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/links" title="Links and References to Open Source" class="sf-depth-3">Bibliography</a></li><li id="menu-125-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/advocacy/case_for_business.php" title="How to advocate Open Source to businesses" class="sf-depth-3">Open Source Case for Business</a></li></ul></li><li id="menu-1514-1" class="middle odd sf-item-3 sf-depth-2 sf-no-children"><a href="/working_groups" class="sf-depth-2">Working Groups &amp; Incubator Projects</a></li><li id="menu-12-1" class="middle even sf-item-4 sf-depth-2 sf-no-children"><a href="/osi-open-source-education" title="OSI&#039;s Open Source Education Initiative and Activities" class="sf-depth-2">Open Source Education</a></li><li id="menu-3046-1" class="middle odd sf-item-5 sf-depth-2 sf-no-children"><a href="/node/1012" class="sf-depth-2">Articles &amp; Books</a></li><li id="menu-2193-1" class="last even sf-item-6 sf-depth-2 sf-no-children"><a href="/authority" class="sf-depth-2">International Authority &amp; Recognition</a></li></ul></li><li id="menu-1844-1" class="last even sf-item-6 sf-depth-1 sf-total-children-3 sf-parent-children-0 sf-single-children-3 menuparent"><a href="/news" title="Page dedicated to the latest news and events." class="sf-depth-1 menuparent">News &amp; Events</a><ul><li id="menu-1845-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/news" title="Index of newsletters" class="sf-depth-2">Blog</a></li><li id="menu-1999-1" class="middle even sf-item-2 sf-depth-2 sf-no-children"><a href="/events" class="sf-depth-2">Events</a></li><li id="menu-4709-1" class="last odd sf-item-3 sf-depth-2 sf-no-children"><a href="/newsletter" title="" class="sf-depth-2">Newsletters</a></li></ul></li></ul>  </div>
+</div>
+  </div>
+                                            </nav>
+                </div>
+            </div>
+        </div>
+        <!-- EOF: #main-navigation-inside -->
+
+    </div>
+</div>
+<!-- EOF: #main-navigation -->
+
+<!-- #banner -->
+<div id="banner" class="clearfix">
+    <div class="container">
+        
+        <!-- #banner-inside -->
+        <div id="banner-inside" class="clearfix">
+            <div class="row">
+                <div class="col-md-12">
+                  <div class="region region-banner">
+    <div id="block-block-21" class="block block-block clearfix">
+
+    
+  <div class="content">
+    <div class="banner" style="&#10;   height: 150px; &#10;   background-image: url(https://join.opensource.org/static/img/audience.jpg);&#10;   background-repeat: no-repeat;&#10;   background-position: center center;&#10;   ">
+<h2 class="rtecenter" style="font-size: min(max(1.5rem, 7.258vw), 55px); line-height: 1;font-weight: bold; padding-top: 15px;"><a href="https://join.opensource.org?utm_source=web&amp;utm_medium=banner&amp;utm_campaign=300in30" style="text-decoration:none;color: white;">Join today</a></h2>
+
+<h3 class="rtecenter" style="font-size: min(max(.5rem, 1.258vw), 24px); line-height: 5px; color: white;"><a href="http://join.opensource.org?utm_source=web&amp;utm_medium=banner&amp;utm_campaign=300in30" style="text-decoration:none;color: white;">Get involved in open source community development and advocacy.</a></h3>
+</div>
+  </div>
+</div>
+  </div>
+                </div>
+            </div>
+        </div>
+        <!-- EOF: #banner-inside -->        
+
+    </div>
+</div>
+<!-- EOF:#banner -->
+
+<!-- #page -->
+<div id="page" class="clearfix">
+    
+    
+    <!-- #main-content -->
+    <div id="main-content">
+        <div class="container">
+        
+            <!-- #messages-console -->
+                        <!-- EOF: #messages-console -->
+            
+            <div class="row">
+
+                
+
+                <section class="col-md-10">
+
+                    <!-- #main -->
+                    <div id="main" class="clearfix">
+                    
+                        
+                        
+                        <!-- EOF:#content-wrapper -->
+                        <div id="content-wrapper">
+
+                                                                                    <h1 class="page-title">Adaptive Public License 1.0</h1>
+                                                        
+                                                  
+                            <!-- #tabs -->
+                                                            <div class="tabs">
+                                                                </div>
+                                                        <!-- EOF: #tabs -->
+
+                            <!-- #action links -->
+                                                        <!-- EOF: #action links -->
+
+                              <div class="region region-content">
+    <div id="block-system-main" class="block block-system clearfix">
+
+    
+  <div class="content">
+    <article id="node-39" class="node node-page clearfix">
+
+  
+  <div class="content">
+    <div class="field field-name-body field-type-text-with-summary field-label-hidden"><div class="field-items"><div class="field-item even"><p style="font-weight:bold">SPDX short identifier: APL-1.0</p>
+
+<div align="right"><button onclick="myFunction()">Further resources on the <b>Adaptive Public License 1.0</b></button></div>
+
+<p>Version 1.0</p>
+
+<p>THE LICENSED WORK IS PROVIDED UNDER THE TERMS OF THIS ADAPTIVE PUBLIC LICENSE ("<strong>LICENSE</strong>"). ANY USE, REPRODUCTION OR DISTRIBUTION OF THE LICENSED WORK CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS LICENSE AND ITS TERMS, WHETHER OR NOT SUCH RECIPIENT READS THE TERMS OF THIS LICENSE. "LICENSED WORK" AND "RECIPIENT" ARE DEFINED BELOW.</p>
+
+<p>IMPORTANT NOTE: This License is "adaptive", and the generic version or another version of an Adaptive Public License should not be relied upon to determine your rights and obligations under this License. You must read the specific Adaptive Public License that you receive with the Licensed Work, as certain terms are defined at the outset by the Initial Contributor.</p>
+
+<p>See Section 2.2 below, Exhibit A attached, and any Suppfile.txt accompanying this License to determine the specific adaptive features applicable to this License. For example, without limiting the foregoing, (a) for selected choice of law and jurisdiction see Part 3 of Exhibit A; (b) for the selected definition of Third Party see Part 4 of Exhibit A; and (c) for selected patent licensing terms (if any) see Section 2.2 below and Part 6 of Exhibit A.</p>
+
+<p><strong>1. DEFINITIONS.</strong></p>
+
+<blockquote>
+<p><strong>1.1.</strong> "<strong>CONTRIBUTION</strong>" means:</p>
+
+<blockquote>
+<p>(a) In the case of the Initial Contributor, the Initial Work distributed under this License by the Initial Contributor; and</p>
+
+<p>(b) In the case of each Subsequent Contributor, the Subsequent Work originating from and distributed by such Subsequent Contributor.</p>
+</blockquote>
+
+<p><strong>1.2.</strong> "<strong>DESIGNATED WEB SITE</strong>" means the web site having the URL identified in <strong>Part 1 of Exhibit A</strong>, which URL may be changed by the Initial Contributor by posting on the current Designated Web Site the new URL for at least sixty (60) days.</p>
+
+<p><strong>1.3.</strong> "<strong>DISTRIBUTOR</strong>" means any Person that distributes the Licensed Work or any portion thereof to at least one Third Party.</p>
+
+<p><strong>1.4.</strong> "<strong>ELECTRONIC DISTRIBUTION MECHANISM</strong>" means any mechanism generally accepted in the software development community for the electronic transfer of data.</p>
+
+<p><strong>1.5.</strong> "<strong>EXECUTABLE</strong>" means the Licensed Work in any form other than Source Code.</p>
+
+<p><strong>1.6.</strong> "<strong>GOVERNING JURISDICTION</strong>" means the state, province or other legal jurisdiction identified in <strong>Part 3 of Exhibit A</strong>.</p>
+
+<p><strong>1.7.</strong> "<strong>INDEPENDENT MODULE</strong>" means a separate module of software and/or data that is not a derivative work of or copied from the Licensed Work or any portion thereof. In addition, a module does not qualify as an Independent Module but instead forms part of the Licensed Work if the module: (a) is embedded in the Licensed Work; (b) is included by reference in the Licensed Work other than by a function call or a class reference; or (c) must be included or contained, in whole or in part, within a file directory or subdirectory actually containing files making up the Licensed Work.</p>
+
+<p><strong>1.8.</strong> "<strong>INITIAL CONTRIBUTOR</strong>" means the Person or entity identified as the Initial Contributor in the notice required by <strong>Part 1 of Exhibit A</strong>.</p>
+
+<p><strong>1.9.</strong> "<strong>INITIAL WORK</strong>" means the initial Source Code, object code (if any) and documentation for the computer program identified in <strong>Part 2 of Exhibit A</strong>, as such Source Code, object code and documentation is distributed under this License by the Initial Contributor.</p>
+
+<p><strong>1.10.</strong> "<strong>LARGER WORK</strong>" means a work that combines the Licensed Work or portions thereof with code not governed by this License.</p>
+
+<p><strong>1.11.</strong> "<strong>LICENSED WORK</strong>" means the Initial Work and/or any Subsequent Work, in each case including portions thereof.</p>
+
+<p><strong>1.12.</strong> "<strong>LICENSE NOTICE</strong>" has the meaning assigned in <strong>Part 5 of Exhibit A</strong>.</p>
+
+<p><strong>1.13.</strong> "<strong>MODIFICATION</strong>" or "<strong>MODIFICATIONS</strong>" means any change to and/or addition to the Licensed Work.</p>
+
+<p><strong>1.14.</strong> "<strong>PERSON</strong>" means an individual or other legal entity, including a corporation, partnership or other body.</p>
+
+<p><strong>1.15.</strong> "<strong>RECIPIENT</strong>" means any Person who receives or obtains the Licensed Work under this License (by way of example, without limiting the foregoing, any Subsequent Contributor or Distributor).</p>
+
+<p><strong>1.16.</strong> "<strong>SOURCE CODE</strong>" means the source code for a computer program, including the source code for all modules and components of the computer program, plus any associated interface definition files, and scripts used to control compilation and installation of an executable.</p>
+
+<p><strong>1.17.</strong> "<strong>SUBSEQUENT CONTRIBUTOR</strong>" means any Person that makes or contributes to the making of any Subsequent Work and that distributes that Subsequent Work to at least one Third Party.</p>
+
+<p><strong>1.18.</strong> "<strong>SUBSEQUENT WORK</strong>" means a work that has resulted or arises from changes to and/or additions to:</p>
+
+<blockquote>
+<p><b>(a)</b> the Initial Work;</p>
+
+<p><b>(b)</b> any other Subsequent Work; or</p>
+
+<p><b>(c)</b> to any combination of the Initial Work and any such other Subsequent Work;</p>
+
+<p>where such changes and/or additions originate from a Subsequent Contributor. A Subsequent Work will "originate" from a Subsequent Contributor if the Subsequent Work was a result of efforts by such Subsequent Contributor (or anyone acting on such Subsequent Contributor's behalf, such as, a contractor or other entity that is engaged by or under the direction of the Subsequent Contributor). For greater certainty, a Subsequent Work expressly excludes and shall not capture within its meaning any Independent Module.</p>
+</blockquote>
+
+<p><strong>1.19</strong>. "<strong>SUPPLEMENT FILE</strong>" means a file distributed with the Licensed Work having a file name "suppfile.txt".</p>
+
+<p><strong>1.20.</strong> "<strong>THIRD PARTY</strong>" has the meaning assigned in <strong>Part 4 of Exhibit A</strong>.</p>
+</blockquote>
+
+<p><strong>2. LICENSE.</strong></p>
+
+<blockquote>
+<p><strong>2.1. COPYRIGHT LICENSE FROM INITIAL AND SUBSEQUENT CONTRIBUTORS.</strong></p>
+
+<blockquote>
+<p><b>(a)</b> Subject to the terms of this License, the Initial Contributor hereby grants each Recipient a world-wide, royalty-free, non-exclusive copyright license to:</p>
+
+<blockquote>
+<p><b>(i)</b> reproduce, prepare derivative works of, publicly display, publicly perform, distribute and sublicense the Initial Work; and</p>
+
+<p><b>(ii)</b> reproduce, publicly display, publicly perform, distribute, and sublicense any derivative works (if any) prepared by Recipient;</p>
+</blockquote>
+
+<p>in Source Code and Executable form, either with other Modifications, on an unmodified basis, or as part of a Larger Work.</p>
+
+<p><b>(b)</b> Subject to the terms of this License, each Subsequent Contributor hereby grants each Recipient a world-wide, royalty-free, non-exclusive copyright license to:</p>
+
+<blockquote>
+<p><b>(i)</b> reproduce, prepare derivative works of, publicly display, publicly perform, distribute and sublicense the Subsequent Work of such Subsequent Contributor; and</p>
+
+<p><b>(ii)</b> reproduce, publicly display, publicly perform, distribute, and sublicense any derivative works (if any) prepared by Recipient;</p>
+</blockquote>
+in Source Code and Executable form, either with other Modifications, on an unmodified basis, or as part of a Larger Work.</blockquote>
+
+<p><strong>2.2. PATENT LICENSE FROM INITIAL AND SUBSEQUENT CONTRIBUTORS.</strong></p>
+
+<blockquote>
+<p><b>(a)</b> This License does not include or grant any patent license whatsoever from the Initial Contributor, Subsequent Contributor, or any Distributor unless, at the time the Initial Work is first distributed or made available under this License (as the case may be), the Initial Contributor has selected pursuant to <strong>Part 6 of Exhibit A</strong> the patent terms in paragraphs A, B, C, D and E from <strong>Part 6 of Exhibit A</strong>. If this is not done then the Initial Work and any other Subsequent Work is made available under the License without any patent license (the "<strong>PATENTS-EXCLUDED LICENSE</strong>").</p>
+
+<p><b>(b)</b> However, the Initial Contributor may subsequently distribute or make available (as the case may be) future copies of: (1) the Initial Work; or (2) any Licensed Work distributed by the Initial Contributor which includes the Initial Work (or any portion thereof) and/or any Modification made by the Initial Contributor; available under a License which includes a patent license (the "<strong>PATENTS-INCLUDED LICENSE</strong>") by selecting pursuant to <strong>Part 6 of Exhibit A</strong> the patent terms in paragraphs A, B, C, D and E from <strong>Part 6 of Exhibit A</strong>, when the Initial Contributor distributes or makes available (as the case may be) such future copies under this License.</p>
+
+<p><b>(c)</b> If any Recipient receives or obtains one or more copies of the Initial Work or any other portion of the Licensed Work under the Patents-Included License, then all licensing of such copies under this License shall include the terms in paragraphs A, B, C, D and E from <strong>Part 6 of Exhibit A</strong> and that Recipient shall not be able to rely upon the Patents-Excluded License for any such copies. However, all Recipients that receive one or more copies of the Initial Work or any other portion of the Licensed Work under a copy of the License which includes the Patents-Excluded License shall have no patent license with respect to such copies received under the Patents-Excluded License and availability and distribution of such copies, including Modifications made by such Recipient to such copies, shall be under a copy of the License without any patent license.</p>
+
+<p><b>(d)</b> Where a Recipient uses in combination or combines any copy of the Licensed Work (or portion thereof) licensed under a copy of the License having a Patents-Excluded License with any copy of the Licensed Work (or portion thereof) licensed under a copy of the License having a Patents-Included License, the combination (and any portion thereof) shall, from the first time such Recipient uses, makes available or distributes the combination (as the case may be), be subject to only the terms of the License having the Patents-Included License which shall include the terms in paragraphs A, B, C, D and E from <strong>Part 6 of Exhibit A</strong>.</p>
+</blockquote>
+
+<p class="c1"><strong>2.3. ACKNOWLEDGEMENT AND DISCLAIMER.</strong></p>
+
+<p>Recipient understands and agrees that although Initial Contributor and each Subsequent Contributor grants the licenses to its Contributions set forth herein, no representation, warranty, guarantee or assurance is provided by any Initial Contributor, Subsequent Contributor, or Distributor that the Licensed Work does not infringe the patent or other intellectual property rights of any other entity. Initial Contributor, Subsequent Contributor, and each Distributor disclaims any liability to Recipient for claims brought by any other entity based on infringement of intellectual property rights or otherwise, in relation to the Licensed Works. As a condition to exercising the rights and licenses granted hereunder, each Recipient hereby assumes sole responsibility to secure any other intellectual property rights needed, if any. For example, without limiting the foregoing disclaimers, if a third party patent license is required to allow Recipient to distribute the Licensed Work, it is Recipient's responsibility to acquire that license before distributing the Licensed Work.</p>
+
+<p><strong>2.4. RESERVATION.</strong></p>
+
+<p>Nothing in this License shall be deemed to grant any rights to trademarks, copyrights, patents, trade secrets or any other intellectual property of Initial Contributor, Subsequent Contributor, or Distributor except as expressly stated herein.</p>
+</blockquote>
+
+<p><strong>3. DISTRIBUTION OBLIGATIONS.</strong></p>
+
+<blockquote>
+<p><strong>3.1. DISTRIBUTION GENERALLY.</strong></p>
+
+<blockquote>
+<p><b>(a)</b> A Subsequent Contributor shall make that Subsequent Contributor's Subsequent Work(s) available to the public via an Electronic Distribution Mechanism for a period of at least twelve (12) months. The aforesaid twelve (12) month period shall begin within a reasonable time after the creation of the Subsequent Work and no later than sixty (60) days after first distribution of that Subsequent Contributor's Subsequent Work.</p>
+
+<p><b>(b)</b> All Distributors must distribute the Licensed Work in accordance with the terms of the License, and must include a copy of this License (including without limitation Exhibit A and the accompanying Supplement File) with each copy of the Licensed Work distributed. In particular, this License must be prominently distributed with the Licensed Work in a file called "license.txt." In addition, the License Notice in <strong>Part 5 of Exhibit A</strong> must be included at the beginning of all Source Code files, and viewable to a user in any executable such that the License Notice is reasonably brought to the attention of any party using the Licensed Work.</p>
+</blockquote>
+
+<p><strong>3.2. EXECUTABLE DISTRIBUTIONS OF THE LICENSED WORK.</strong></p>
+
+<p>A Distributor may choose to distribute the Licensed Work, or any portion thereof, in Executable form (an "<strong>EXECUTABLE DISTRIBUTION</strong>") to any third party, under the terms of Section 2 of this License, provided the Executable Distribution is made available under and accompanied by a copy of this License, AND provided at least ONE of the following conditions is fulfilled:</p>
+
+<blockquote>
+<p><b>(a)</b> The Executable Distribution must be accompanied by the Source Code for the Licensed Work making up the Executable Distribution, and the Source Code must be distributed on the same media as the Executable Distribution or using an Electronic Distribution Mechanism; or</p>
+
+<p><b>(b)</b> The Executable Distribution must be accompanied with a written offer, valid for at least thirty six (36) months, to give any third party under the terms of this License, for a charge no more than the cost of physically performing source distribution, a complete machine-readable copy of the Source Code for the Licensed Work making up the Executable Distribution, to be available and distributed using an Electronic Distribution Mechanism, and such Executable Distribution must remain available in Source Code form to any third party via the Electronic Distribution Mechanism (or any replacement Electronic Distribution Mechanism the particular Distributor may reasonably need to turn to as a substitute) for said at least thirty six (36) months.</p>
+</blockquote>
+
+<p>For greater certainty, the above-noted requirements apply to any Licensed Work or portion thereof distributed to any third party in Executable form, whether such distribution is made alone, in combination with a Larger Work or Independent Modules, or in some other combination.</p>
+
+<p><strong>3.3. SOURCE CODE DISTRIBUTIONS.</strong></p>
+
+<p>When a Distributor makes the Licensed Work, or any portion thereof, available to any Person in Source Code form, it must be made available under this License and a copy of this License must be included with each copy of the Source Code, situated so that the copy of the License is conspicuously brought to the attention of that Person. For greater clarification, this Section 3.3 applies to all distribution of the Licensed Work in any Source Code form. A Distributor may charge a fee for the physical act of transferring a copy, which charge shall be no more than the cost of physically performing source distribution.</p>
+
+<p><strong>3.4. REQUIRED NOTICES IN SOURCE CODE.</strong></p>
+
+<p>Each Subsequent Contributor must ensure that the notice set out in <strong>Part 5 of Exhibit A</strong> is included in each file of the Source Code for each Subsequent Work originating from that particular Subsequent Contributor, if such notice is not already included in each such file. If it is not possible to put such notice in a particular Source Code file due to its structure, then the Subsequent Contributor must include such notice in a location (such as a relevant directory in which the file is stored) where a user would be likely to look for such a notice.</p>
+
+<p><strong>3.5. NO DISTRIBUTION REQUIREMENTS FOR INTERNALLY USED MODIFICATIONS.</strong></p>
+
+<p>Notwithstanding Sections 3.2, 3.3 and 3.4, Recipient may, internally within its own corporation or organization use the Licensed Work, including the Initial Work and Subsequent Works, and make Modifications for internal use within Recipient's own corporation or organization (collectively, "<strong>INTERNAL USE MODIFICATIONS</strong>"). The Recipient shall have no obligation to distribute, in either Source Code or Executable form, any such Internal Use Modifications made by Recipient in the course of such internal use, except where required below in this Section 3.5. All Internal Use Modifications distributed to any Person, whether or not a Third Party, shall be distributed pursuant to and be accompanied by the terms of this License. If the Recipient chooses to distribute any such Internal Use Modifications to any Third Party, then the Recipient shall be deemed a Subsequent Contributor, and any such Internal Use Modifications distributed to any Third Party shall be deemed a Subsequent Work originating from that Subsequent Contributor, and shall from the first such instance become part of the Licensed Work that must thereafter be distributed and made available to third parties in accordance with the terms of Sections 3.1 to 3.4 inclusive.</p>
+
+<p><strong>3.6. INDEPENDENT MODULES.</strong></p>
+
+<p>This License shall not apply to Independent Modules of any Initial Contributor, Subsequent Contributor, Distributor or any Recipient, and such Independent Modules may be licensed or made available under one or more separate license agreements.</p>
+
+<p><strong>3.7. LARGER WORKS.</strong></p>
+
+<p>Any Distributor or Recipient may create or contribute to a Larger Work by combining any of the Licensed Work with other code not governed by the terms of this License, and may distribute the Larger Work as one or more products. However, in any such case, Distributor or Recipient (as the case may be) must make sure that the requirements of this License are fulfilled for the Licensed Work portion of the Larger Work.</p>
+
+<p><strong>3.8. DESCRIPTION OF DISTRIBUTED MODIFICATIONS.</strong></p>
+
+<blockquote>
+<p><b>(a)</b> Each Subsequent Contributor (including the Initial Contributor where the Initial Contributor also qualifies as a Subsequent Contributor) must cause each Subsequent Work created or contributed to by that Subsequent Contributor to contain a file documenting the changes, in accordance with the requirements of <strong>Part 1 of the Supplement File</strong>, that such Subsequent Contributor made in the creation or contribution to that Subsequent Work. If no Supplement File exists or no requirements are set out in <strong>Part 1 of the Supplement File</strong>, then there are no requirements for Subsequent Contributors to document changes that they make resulting in Subsequent Works.</p>
+
+<p><b>(b)</b> The Initial Contributor may at any time introduce requirements or add to or change earlier requirements (in each case, the "<strong>EARLIER DESCRIPTION REQUIREMENTS</strong>") for documenting changes resulting in Subsequent Works by revising <strong>Part 1</strong> of each copy of the Supplement File distributed by the Initial Contributor with future copies of the Licensed Work so that <strong>Part 1</strong> then contains new requirements (the "<strong>NEW DESCRIPTION REQUIREMENTS</strong>") for documenting such changes.</p>
+
+<p><b>(c)</b> Any Recipient receiving at any time any copy of an Initial Work or any Subsequent Work under a copy of this License (in each case, an "Earlier <b>LICENSED COPY</b>") having the Earlier Description Requirements may choose, with respect to each such Earlier Licensed Copy, to comply with the Earlier Description Requirements or the New Description Requirements. Where a Recipient chooses to comply with the New Description Requirements, that Recipient will, when thereafter distributing any copies of any such Earlier Licensed Copy, include a Supplement File having a section entitled <b>Part 1</b> that contains a copy of the New Description Requirements.</p>
+
+<p><b>(d)</b> For greater certainty, the intent of <b>Part 1 of the Supplement File</b> is to provide a mechanism (if any) by which Subsequent Contributors must document changes that they make to the Licensed Work resulting in Subsequent Works. <b>Part 1 of any Supplement File</b> shall not be used to increase or reduce the scope of the license granted in Article 2 of this License or in any other way increase or decrease the rights and obligations of any Recipient, and shall at no time serve as the basis for terminating the License. Further, a Recipient can be required to correct and change its documentation procedures to comply with <b>Part 1 of the Supplement File</b>, but cannot be penalised with damages. <b>Part 1 of any Supplement Fil</b>e is only binding on each Recipient of any Licensed Work to the extent <b>Part 1</b> sets out the requirements for documenting changes to the Initial Work or any Subsequent Work.</p>
+
+<p><b>(e)</b> An example of a set of requirements for documenting changes and contributions made by Subsequent Contributor is set out in <b>Part 7 of Exhibit A</b> of this License. <b>Part 7</b> is a sample only and is not binding on Recipients, unless (subject to the earlier paragraphs of this Section 3.8) those are the requirements that the Initial Contributor includes in <b>Part 1 of the Supplement File</b> with the copies of the Initial Work distributed under this License.</p>
+</blockquote>
+
+<p class="c1"><strong>3.9. USE OF DISTRIBUTOR NAME.</strong></p>
+
+<p>The name of a Distributor may not be used by any other Distributor to endorse or promote the Licensed Work or products derived from the Licensed Work, without prior written permission.</p>
+
+<p class="c1"><strong>3.10. LIMITED RECOGNITION OF INITIAL CONTRIBUTOR.</strong></p>
+
+<blockquote>
+<p><b>(a)</b> As a modest attribution to the Initial Contributor, in the hope that its promotional value may help justify the time, money and effort invested in writing the Initial Work, the Initial Contributor may include in <b>Part 2 of the Supplement File</b> a requirement that each time an executable program resulting from the Initial Work or any Subsequent Work, or a program dependent thereon, is launched or run, a prominent display of the Initial Contributor's attribution information must occur (the "<b>ATTRIBUTION INFORMATION</b>"). The Attribution Information must be included at the beginning of each Source Code file. For greater certainty, the Initial Contributor may specify in the Supplement File that the above attribution requirement only applies to an executable program resulting from the Initial Work or any Subsequent Work, but not a program dependent thereon. The intent is to provide for reasonably modest attribution, therefore the Initial Contributor may not require Recipients to display, at any time, more than the following Attribution Information: (a) a copyright notice including the name of the Initial Contributor; (b) a word or one phrase (not exceeding 10 words); (c) one digital image or graphic provided with the Initial Work; and (d) a URL (collectively, the "<b>ATTRIBUTION LIMITS</b>").</p>
+
+<p><b>(b)</b> If no Supplement File exists, or no Attribution Information is set out in <b>Part 2 of the Supplement File</b>, then there are no requirements for Recipients to display any Attribution Information of the Initial Contributor.</p>
+
+<p><b>(c)</b> Each Recipient acknowledges that all trademarks, service marks and/or trade names contained within <b>Part 2 of the Supplement File</b> distributed with the Licensed Work are the exclusive property of the Initial Contributor and may only be used with the permission of the Initial Contributor, or under circumstances otherwise permitted by law, or as expressly set out in this License.</p>
+</blockquote>
+
+<p><strong>3.11.</strong> For greater certainty, any description or attribution provisions contained within a Supplement File may only be used to specify the nature of the description or attribution requirements, as the case may be. Any provision in a Supplement File that otherwise purports to modify, vary, nullify or amend any right, obligation or representation contained herein shall be deemed void to that extent, and shall be of no force or effect.</p>
+</blockquote>
+
+<p class="c1"><strong>4. COMMERCIAL USE AND INDEMNITY.</strong></p>
+
+<blockquote>
+<p class="c1"><strong>4.1. COMMERCIAL SERVICES.</strong></p>
+
+<p>A Recipient ("<b>COMMERCIAL RECIPIENT</b>") may choose to offer, and to charge a fee for, warranty, support, indemnity or liability obligations (collectively, "<b>SERVICES</b>") to one or more other Recipients or Distributors. However, such Commercial Recipient may do so only on that Commercial Recipient's own behalf, and not on behalf of any other Distributor or Recipient, and Commercial Recipient must make it clear than any such warranty, support, indemnity or liability obligation(s) is/are offered by Commercial Recipient alone. At no time may Commercial Recipient use any Services to deny any party the Licensed Work in Source Code or Executable form when so required under any of the other terms of this License. For greater certainty, this Section 4.1 does not diminish any of the other terms of this License, including without limitation the obligation of the Commercial Recipient as a Distributor, when distributing any of the Licensed Work in Source Code or Executable form, to make such distribution royalty-free (subject to the right to charge a fee of no more than the cost of physically performing Source Code or Executable distribution (as the case may be)).</p>
+
+<p class="c1"><strong>4.2. INDEMNITY.</strong></p>
+
+<p>Commercial distributors of software may accept certain responsibilities with respect to end users, business partners and the like. While this License is intended to facilitate the commercial use of the Licensed Work, the Distributor who includes any of the Licensed Work in a commercial product offering should do so in a manner which does not create potential liability for other Distributors. Therefore, if a Distributor includes the Licensed Work in a commercial product offering or offers any Services, such Distributor ("<b>COMMERCIAL DISTRIBUTOR</b>") hereby agrees to defend and indemnify every other Distributor or Subsequent Contributor (in each case an "<b>INDEMNIFIED PARTY</b>") against any losses, damages and costs (collectively "<b>LOSSES</b>") arising from claims, lawsuits and other legal actions brought by a third party against the Indemnified Party to the extent caused by the acts or omissions of such Commercial Distributor in connection with its distribution of any of the Licensed Work in a commercial product offering or in connection with any Services. The obligations in this section do not apply to any claims or Losses relating to any actual or alleged intellectual property infringement. In order to qualify, an Indemnified Party must: (a) promptly notify the Commercial Distributor in writing of such claim; and (b) allow the Commercial Distributor to control, and co-operate with the Commercial Distributor in, the defense and any related settlement negotiations. The Indemnified Party may participate in any such claim at its own expense.</p>
+</blockquote>
+
+<p class="c1"><strong>5. VERSIONS OF THE LICENSE.</strong></p>
+
+<blockquote>
+<p class="c1"><strong>5.1. NEW VERSIONS.</strong></p>
+
+<p>The Initial Contributor may publish revised and/or new versions of the License from time to time. Each version will be given a distinguishing version number.</p>
+
+<p class="c1"><strong>5.2. EFFECT OF NEW VERSIONS.</strong></p>
+
+<p>Once the Licensed Work or any portion thereof has been published by Initial Contributor under a particular version of the License, Recipient may choose to continue to use it under the terms of that version. However, if a Recipient chooses to use the Licensed Work under the terms of any subsequent version of the License published by the Initial Contributor, then from the date of making this choice, the Recipient must comply with the terms of that subsequent version with respect to all further reproduction, preparation of derivative works, public display of, public performance of, distribution and sublicensing by the Recipient in connection with the Licensed Work. No one other than the Initial Contributor has the right to modify the terms applicable to the Licensed Work</p>
+</blockquote>
+
+<p class="c1"><strong>6. DISCLAIMER OF WARRANTY.</strong></p>
+
+<blockquote>
+<p class="c1"><strong>6.1. GENERAL DISCLAIMER.</strong></p>
+
+<p>EXCEPT AS EXPRESSLY SET FORTH IN THIS LICENSE, THE LICENSED WORK IS PROVIDED UNDER THIS LICENSE ON AN "AS IS" BASIS, WITHOUT ANY REPRESENTATION, WARRANTY, GUARANTEE, ASSURANCE OR CONDITION OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, WITHOUT LIMITATION, WARRANTIES OR CONDITIONS OF TITLE, NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE LICENSED WORK IS WITH RECIPIENT. SHOULD ANY LICENSED WORK PROVE DEFECTIVE IN ANY RESPECT, RECIPIENT (NOT THE INITIAL CONTRIBUTOR OR ANY SUBSEQUENT CONTRIBUTOR) ASSUMES THE COST OF ANY NECESSARY SERVICING, REPAIR OR CORRECTION. THIS CLAUSE CONSTITUTES AN ESSENTIAL PART OF THIS LICENSE. NO USE OF ANY LICENSED WORK IS AUTHORIZED HEREUNDER EXCEPT UNDER THIS LICENSE INCLUDING WITHOUT LIMITATION THIS DISCLAIMER.</p>
+
+<p class="c1"><strong>6.2. RESPONSIBILITY OF RECIPIENTS.</strong></p>
+
+<p>Each Recipient is solely responsible for determining the appropriateness of using and distributing the Licensed Work and assumes all risks associated with its exercise of rights under this License, including but not limited to the risks and costs of program errors, compliance with applicable laws, damage to or loss of data, programs or equipment, and unavailability or interruption of operations.</p>
+</blockquote>
+
+<p class="c1"><strong>7. TERMINATION.</strong></p>
+
+<blockquote>
+<p><strong>7.1.</strong> This License shall continue until terminated in accordance with the express terms herein.</p>
+
+<p><strong>7.2.</strong> Recipient may choose to terminate this License automatically at any time.</p>
+
+<p><strong>7.3</strong>. This License, including without limitation the rights granted hereunder to a particular Recipient, will terminate automatically if such Recipient is in material breach of any of the terms of this License and fails to cure such breach within sixty (60) days of becoming aware of the breach. Without limiting the foregoing, any material breach by such Recipient of any term of any other License under which such Recipient is granted any rights to the Licensed Work shall constitute a material breach of this License.</p>
+
+<p><strong>7.4.</strong> Upon termination of this License by or with respect to a particular Recipient for any reason, all rights granted hereunder and under any other License to that Recipient shall terminate. However, all sublicenses to the Licensed Work which were previously properly granted by such Recipient under a copy of this License (in each case, an "Other License" and in plural, "Other Licenses") shall survive any such termination of this License, including without limitation the rights and obligations under such Other Licenses as set out in their respective Sections 2, 3, 4, 5, 6, 7 and 8, <i>mutatis mutandis</i>, for so long as the respective sublicensees (i.e. other Recipients) remain in compliance with the terms of the copy of this License under which such sublicensees received rights to the Licensed Work. Any termination of such Other Licenses shall be pursuant to their respective Section 7, <i>mutatis mutandis</i>. Provisions which, by their nature, must remain in effect beyond the termination of this License shall survive.</p>
+
+<p><strong>7.5.</strong> Upon any termination of this License by or with respect to a particular Recipient, Sections 4.1, 4.2, 6.1, 6.2, 7.4, 7.5, 8.1, and 8.2, together with all provisions of this License necessary for the interpretation and enforcement of same, shall expressly survive such termination.</p>
+</blockquote>
+
+<p class="c1"><strong>8. LIMITATION OF LIABILITY.</strong></p>
+
+<blockquote>
+<p><strong>8.1.</strong> IN NO EVENT SHALL ANY OF INITIAL CONTRIBUTOR, ITS SUBSIDIARIES, OR AFFILIATES, OR ANY OF ITS OR THEIR RESPECTIVE OFFICERS, DIRECTORS, EMPLOYEES, AND/OR AGENTS (AS THE CASE MAY BE), HAVE ANY LIABILITY FOR ANY DIRECT DAMAGES, INDIRECT DAMAGES, PUNITIVE DAMAGES, INCIDENTAL DAMAGES, SPECIAL DAMAGES, EXEMPLARY DAMAGES, CONSEQUENTIAL DAMAGES OR ANY OTHER DAMAGES WHATSOEVER (INCLUDING WITHOUT LIMITATION LOSS OF USE, DATA OR PROFITS, OR ANY OTHER LOSS ARISING OUT OF OR IN ANY WAY RELATED TO THE USE, INABILITY TO USE, UNAUTHORIZED USE, PERFORMANCE, OR NON-PERFORMANCE OF THE LICENSED WORK OR ANY PART THEREOF OR THE PROVISION OF OR FAILURE TO PROVIDE SUPPORT SERVICES, OR THAT RESULT FROM ERRORS, DEFECTS, OMISSIONS, DELAYS IN OPERATION OR TRANSMISSION, OR ANY OTHER FAILURE OF PERFORMANCE), HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) IN RELATION TO OR ARISING IN ANY WAY OUT OF THIS LICENSE OR THE USE OR DISTRIBUTION OF THE LICENSED WORK OR THE EXERCISE OF ANY RIGHTS GRANTED HEREUNDER, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. THIS LIMITATION OF LIABILITY SHALL NOT APPLY TO LIABILITY FOR DEATH OR PERSONAL INJURY RESULTING FROM SUCH PARTY'S NEGLIGENCE TO THE EXTENT APPLICABLE LAW PROHIBITS SUCH LIMITATION. THIS CLAUSE CONSTITUTES AN ESSENTIAL PART OF THIS LICENSE. NO USE OF ANY LICENSED WORK IS AUTHORIZED HEREUNDER EXCEPT UNDER THIS LICENSE INCLUDING WITHOUT LIMITATION THE LIMITATIONS SET FORTH IN THIS SECTION 8.1.</p>
+
+<p><strong>8.2.</strong> EXCEPT AS EXPRESSLY SET FORTH IN THIS LICENSE, EACH RECIPIENT SHALL NOT HAVE ANY LIABILITY FOR ANY EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING WITHOUT LIMITATION LOST PROFITS), HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OR DISTRIBUTION OF THE LICENSED WORK OR THE EXERCISE OF ANY RIGHTS GRANTED HEREUNDER, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. THIS LIMITATION OF LIABILITY SHALL NOT APPLY TO LIABILITY FOR DEATH OR PERSONAL INJURY RESULTING FROM SUCH PARTY'S NEGLIGENCE TO THE EXTENT APPLICABLE LAW PROHIBITS SUCH LIMITATION.</p>
+</blockquote>
+
+<p class="c1"><strong>9. GOVERNING LAW AND LEGAL ACTION.</strong></p>
+
+<blockquote>
+<p><strong>9.1.</strong> This License shall be governed by and construed in accordance with the laws of the Governing Jurisdiction assigned in <b>Part 3 of Exhibit A</b>, without regard to its conflict of law provisions. No party may bring a legal action under this License more than one year after the cause of the action arose. Each party waives its rights (if any) to a jury trial in any litigation arising under this License. Note that if the Governing Jurisdiction is not assigned in <b>Part 3 of Exhibit A</b>, then the Governing Jurisdiction shall be the State of New York.</p>
+
+<p><strong>9.2.</strong> The courts of the Governing Jurisdiction shall have jurisdiction, but not exclusive jurisdiction, to entertain and determine all disputes and claims, whether for specific performance, injunction, damages or otherwise, both at law and in equity, arising out of or in any way relating to this License, including without limitation, the legality, validity, existence and enforceability of this License. Each party to this License hereby irrevocably attorns to and accepts the jurisdiction of the courts of the Governing Jurisdiction for such purposes.</p>
+
+<p><strong>9.3.</strong> Except as expressly set forth elsewhere herein, in the event of any action or proceeding brought by any party against another under this License the prevailing party shall be entitled to recover all costs and expenses including the fees of its attorneys in such action or proceeding in such amount as the court may adjudge reasonable.</p>
+</blockquote>
+
+<p class="c1"><strong>10. MISCELLANEOUS.</strong></p>
+
+<blockquote>
+<p><strong>10.1.</strong> The obligations imposed by this License are for the benefit of the Initial Contributor and any Recipient, and each Recipient acknowledges and agrees that the Initial Contributor and/or any other Recipient may enforce the terms and conditions of this License against any Recipient.</p>
+
+<p><strong>10.2.</strong> This License represents the complete agreement concerning subject matter hereof, and supersedes and cancels all previous oral and written communications, representations, agreements and understandings between the parties with respect to the subject matter hereof.</p>
+
+<p><strong>10.3.</strong> The application of the United Nations Convention on Contracts for the International Sale of Goods is expressly excluded.</p>
+
+<p><strong>10.4.</strong> The language in all parts of this License shall be in all cases construed simply according to its fair meaning, and not strictly for or against any of the parties hereto. Any law or regulation which provides that the language of a contract shall be construed against the drafter shall not apply to this License.</p>
+
+<p><strong>10.5.</strong> If any provision of this License is invalid or unenforceable under the laws of the Governing Jurisdiction, it shall not affect the validity or enforceability of the remainder of the terms of this License, and without further action by the parties hereto, such provision shall be reformed to the minimum extent necessary to make such provision valid and enforceable.</p>
+
+<p><strong>10.6.</strong> The paragraph headings of this License are for reference and convenience only and are not a part of this License, and they shall have no effect upon the construction or interpretation of any part hereof.</p>
+
+<p><strong>10.7.</strong> Each of the terms "including", "include" and "includes", when used in this License, is not limiting whether or not non-limiting language (such as "without limitation" or "but not limited to" or words of similar import) is used with reference thereto.</p>
+
+<p><strong>10.8.</strong> The parties hereto acknowledge they have expressly required that this License and notices relating thereto be drafted in the English language.</p>
+</blockquote>
+
+<p>//***THE LICENSE TERMS END HERE (OTHER THAN AS SET OUT IN EXHIBIT A).***//</p>
+
+<p class="c1">EXHIBIT A (to the Adaptive Public License)</p>
+
+<blockquote>
+<p class="c1">PART 1: INITIAL CONTRIBUTOR AND DESIGNATED WEB SITE</p>
+
+<table border="0" cellpadding="0" cellspacing="0" width="600"><tbody><tr><td width="160">The Initial Contributor is:</td>
+			<td width="420">____________________________________________________</td>
+		</tr><tr><td width="160"> </td>
+			<td width="420">
+			<div class="c2">[Enter full name of Initial Contributor]</div>
+			</td>
+		</tr></tbody></table>
+ 
+
+<table border="0" cellpadding="0" cellspacing="0" width="600"><tbody><tr><td width="200">Address of Initial Contributor:</td>
+			<td width="400">________________________________________________</td>
+		</tr><tr><td> </td>
+			<td>________________________________________________</td>
+		</tr><tr><td> </td>
+			<td>________________________________________________</td>
+		</tr><tr><td> </td>
+			<td>
+			<div class="c2">[Enter address above]</div>
+			</td>
+		</tr></tbody></table>
+ 
+
+<table border="0" cellpadding="0" cellspacing="0" width="600"><tbody><tr><td width="180">The Designated Web Site is:</td>
+			<td width="420">__________________________________________________</td>
+		</tr><tr><td> </td>
+			<td>
+			<div class="c2">[Enter URL for Designated Web Site of Initial Contributor]</div>
+			</td>
+		</tr></tbody></table><p>NOTE: The Initial Contributor is to complete this Part 1, along with Parts 2, 3, and 5, and, if applicable, Parts 4 and 6.</p>
+
+<p class="c1">PART 2: INITIAL WORK</p>
+
+<p>The Initial Work comprises the computer program(s) distributed by the Initial Contributor having the following title(s): _______________________________________________.</p>
+
+<p>The date on which the Initial Work was first available under this License: _________________</p>
+
+<p class="c1">PART 3: GOVERNING JURISDICTION</p>
+
+<p>For the purposes of this License, the Governing Jurisdiction is _________________________________________________.<br /><b>[Initial Contributor to Enter Governing Jurisdiction here]</b></p>
+
+<p class="c1">PART 4: THIRD PARTIES</p>
+
+<p>For the purposes of this License, "Third Party" has the definition set forth below in the ONE paragraph selected by the Initial Contributor from paragraphs A, B, C, D and E when the Initial Work is distributed or otherwise made available by the Initial Contributor. To select one of the following paragraphs, the Initial Contributor must place an "X" or "x" in the selection box alongside the one respective paragraph selected.</p>
+
+<table border="0" cellpadding="0" cellspacing="0" width="620"><tbody><tr><td width="80"><b>SELECTION</b></td>
+			<td width="540"> </td>
+		</tr><tr><td><b>BOX</b></td>
+			<td><b>PARAGRAPH</b></td>
+		</tr><tr><td valign="top">[  ]</td>
+			<td><b>A.</b> "<b>THIRD PARTY</b>" means any third party.</td>
+		</tr><tr><td> </td>
+			<td> </td>
+		</tr><tr><td valign="top">[  ]</td>
+			<td><b>B.</b> "<b>THIRD PARTY</b>" means any third party <u>except for</u> any of the following: (a) a wholly owned subsidiary of the Subsequent Contributor in question; (b) a legal entity (the "<b>PARENT</b>") that wholly owns the Subsequent Contributor in question; or (c) a wholly owned subsidiary of the wholly owned subsidiary in (a) or of the Parent in (b).</td>
+		</tr><tr><td> </td>
+			<td> </td>
+		</tr><tr><td valign="top">[  ]</td>
+			<td><b>C.</b> "<b>THIRD PARTY</b>" means any third party <u>except for</u> any of the following: (a) any Person directly or indirectly owning a majority of the voting interest in the Subsequent Contributor or (b) any Person in which the Subsequent Contributor directly or indirectly owns a majority voting interest.</td>
+		</tr><tr><td> </td>
+			<td> </td>
+		</tr><tr><td valign="top">[  ]</td>
+			<td><b>D.</b> "<b>THIRD PARTY</b>" means any third party <u>except for</u> any Person directly or indirectly controlled by the Subsequent Contributor. For purposes of this definition, "control" shall mean the power to direct or cause the direction of, the management and policies of such Person whether through the ownership of voting interests, by contract, or otherwise.</td>
+		</tr><tr><td> </td>
+			<td> </td>
+		</tr><tr><td valign="top">[  ]</td>
+			<td><b>E.</b> "<b>THIRD PARTY</b>" means any third party <u>except for</u> any Person directly or indirectly controlling, controlled by, or under common control with the Subsequent Contributor. For purposes of this definition, "control" shall mean the power to direct or cause the direction of, the management and policies of such Person whether through the ownership of voting interests, by contract, or otherwise.</td>
+		</tr></tbody></table><p>The default definition of "THIRD PARTY" is the definition set forth in paragraph A, if NONE OR MORE THAN ONE of paragraphs A, B, C, D or E in this Part 4 are selected by the Initial Contributor.</p>
+
+<p class="c1">PART 5: NOTICE</p>
+
+<p>THE LICENSED WORK IS PROVIDED UNDER THE TERMS OF THE ADAPTIVE PUBLIC LICENSE ("LICENSE") AS FIRST COMPLETED BY: ______________________ <b>[Insert the name of the Initial Contributor here]</b>. ANY USE, PUBLIC DISPLAY, PUBLIC PERFORMANCE, REPRODUCTION OR DISTRIBUTION OF, OR PREPARATION OF DERIVATIVE WORKS BASED ON, THE LICENSED WORK CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS LICENSE AND ITS TERMS, WHETHER OR NOT SUCH RECIPIENT READS THE TERMS OF THE LICENSE. "LICENSED WORK" AND "RECIPIENT" ARE DEFINED IN THE LICENSE. A COPY OF THE LICENSE IS LOCATED IN THE TEXT FILE ENTITLED "LICENSE.TXT" ACCOMPANYING THE CONTENTS OF THIS FILE. IF A COPY OF THE LICENSE DOES NOT ACCOMPANY THIS FILE, A COPY OF THE LICENSE MAY ALSO BE OBTAINED AT THE FOLLOWING WEB SITE: ___________________________________________________ <b>[Insert Initial Contributor's Designated Web Site here]</b></p>
+
+<p>Software distributed under the License is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License for the specific language governing rights and limitations under the License.</p>
+
+<p class="c1">PART 6: PATENT LICENSING TERMS</p>
+
+<p>For the purposes of this License, paragraphs A, B, C, D and E of this Part 6 of Exhibit A are only incorporated and form part of the terms of the License if the Initial Contributor places an "X" or "x" in the selection box alongside the YES answer to the question immediately below.</p>
+
+<p>Is this a Patents-Included License pursuant to Section 2.2 of the License?</p>
+
+<blockquote>
+<table border="0" cellpadding="0" cellspacing="0" width="100"><tbody><tr><td width="40">YES</td>
+			<td width="60">[      ]</td>
+		</tr><tr><td>NO</td>
+			<td>[      ]</td>
+		</tr></tbody></table></blockquote>
+
+<p>By default, if YES is not selected by the Initial Contributor, the answer is NO.</p>
+
+<blockquote>
+<p><b>A.</b> For the purposes of the paragraphs in this Part 6 of Exhibit A, "<b>LICENSABLE</b>" means having the right to grant, to the maximum extent possible, whether at the time of the initial grant or subsequently acquired, any and all of the rights granted herein.</p>
+
+<p><b>B.</b> The Initial Contributor hereby grants all Recipients a world-wide, royalty-free, non-exclusive license, subject to third party intellectual property claims, under patent claim(s) Licensable by the Initial Contributor that are or would be infringed by the making, using, selling, offering for sale, having made, importing, exporting, transfer or disposal of such Initial Work or any portion thereof. Notwithstanding the foregoing, no patent license is granted under this Paragraph B by the Initial Contributor: (1) for any code that the Initial Contributor deletes from the Initial Work (or any portion thereof) distributed by the Initial Contributor prior to such distribution; (2) for any Modifications made to the Initial Work (or any portion thereof) by any other Person; or (3) separate from the Initial Work (or portions thereof) distributed or made available by the Initial Contributor.</p>
+
+<p><b>C.</b> Effective upon distribution by a Subsequent Contributor to a Third Party of any Modifications made by that Subsequent Contributor, such Subsequent Contributor hereby grants all Recipients a world-wide, royalty-free, non-exclusive license, subject to third party intellectual property claims, under patent claim(s) Licensable by such Subsequent Contributor that are or would be infringed by the making, using, selling, offering for sale, having made, importing, exporting, transfer or disposal of any such Modifications made by that Subsequent Contributor alone and/or in combination with its Subsequent Work (or portions of such combination) to make, use, sell, offer for sale, have made, import, export, transfer and otherwise dispose of:</p>
+
+<blockquote>
+<p><b>(1)</b> Modifications made by that Subsequent Contributor (or portions thereof); and</p>
+
+<p><b>(2)</b> the combination of Modifications made by that Subsequent Contributor with its Subsequent Work (or portions of such combination);</p>
+</blockquote>
+
+<p>(collectively and in each case, the "<b>SUBSEQUENT CONTRIBUTOR VERSION</b>").</p>
+
+<p>Notwithstanding the foregoing, no patent license is granted under this Paragraph C by such Subsequent Contributor: (1) for any code that such Subsequent Contributor deletes from the Subsequent Contributor Version (or any portion thereof) distributed by the Subsequent Contributor prior to such distribution; (2) for any Modifications made to the Subsequent Contributor Version (or any portion thereof) by any other Person; or (3) separate from the Subsequent Contributor Version (or portions thereof) distributed or made available by the Subsequent Contributor.</p>
+
+<p><b>D.</b> Effective upon distribution of any Licensed Work by a Distributor to a Third Party, such Distributor hereby grants all Recipients a world-wide, royalty-free, non-exclusive license, subject to third party intellectual property claims, under patent claim(s) Licensable by such Distributor that are or would be infringed by the making, using, selling, offering for sale, having made, importing, exporting, transfer or disposal of any such Licensed Work distributed by such Distributor, to make, use, sell, offer for sale, have made, import, export, transfer and otherwise dispose of such Licensed Work or portions thereof (collectively and in each case, the "<b>DISTRIBUTOR VERSION</b>"). Notwithstanding the foregoing, no patent license is granted under this Paragraph D by such Distributor: (1) for any code that such Distributor deletes from the Distributor Version (or any portion thereof) distributed by the Distributor prior to such distribution; (2) for any Modifications made to the Distributor Version (or any portion thereof) by any other Person; or (3) separate from the Distributor Version (or portions thereof) distributed or made available by the Distributor.</p>
+
+<p><b>E.</b> If Recipient institutes patent litigation against another Recipient (a "<b>USER</b>") with respect to a patent applicable to a computer program or software (including a cross-claim or counterclaim in a lawsuit, and whether or not any of the patent claims are directed to a system, method, process, apparatus, device, product, article of manufacture or any other form of patent claim), then any patent or copyright license granted by that User to such Recipient under this License or any other copy of this License shall terminate. The termination shall be effective ninety (90) days after notice of termination from User to Recipient, unless the Recipient withdraws the patent litigation claim before the end of the ninety (90) day period. To be effective, any such notice of license termination must include a specific list of applicable patents and/or a copy of the copyrighted work of User that User alleges will be infringed by Recipient upon License termination. License termination is only effective with respect to patents and/or copyrights for which proper notice has been given.</p>
+</blockquote>
+
+<p class="c1">PART 7: SAMPLE REQUIREMENTS FOR THE DESCRIPTION OF DISTRIBUTED MODIFICATIONS</p>
+
+<p>Each Subsequent Contributor (including the Initial Contributor where the Initial Contributor qualifies as a Subsequent Contributor) is invited (but not required) to cause each Subsequent Work created or contributed to by that Subsequent Contributor to contain a file documenting the changes such Subsequent Contributor made to create that Subsequent Work and the date of any change. //***EXHIBIT A ENDS HERE.***//</p>
+</blockquote>
+</div></div></div>  </div>
+    
+     
+
+  
+</article>  </div>
+</div>
+  </div>
+                            
+                        </div>
+                        <!-- EOF:#content-wrapper -->
+
+                    </div>
+                    <!-- EOF:#main -->
+
+                </section>
+
+                                <aside class="col-md-2">
+                    <!--#sidebar-second-->
+                    <section id="sidebar-second" class="sidebar clearfix">
+                      <div class="region region-sidebar-second">
+    <div id="block-webform-client-block-1125" class="block block-webform clearfix">
+
+    <h2>Keep up with Open Source</h2>
+  
+  <div class="content">
+    <noscript>
+  <style>form.antibot { display: none !important; }</style>
+  <div class="antibot-no-js antibot-message antibot-message-warning messages warning">
+    You must have JavaScript enabled to use this form.  </div>
+</noscript>
+<div class="webform-civicrm-prefix contact-unknown">Sign up with your email to receive our newsletter — your resource for industry news, upcoming events, insights from Open Source thought leaders and more.</div><form class="webform-client-form webform-client-form-1125 antibot" action="/antibot" method="post" id="webform-client-form-1125" accept-charset="UTF-8"><div><div class="webform-progressbar">
+  
+
+  
+  </div>
+<div  class="form-item webform-component webform-component-markup webform-component--disclaimer">
+ Sign up with your email to receive OSI's newsletter — your resource for industry news, upcoming events, insights from open source thought leaders and more.
+</div>
+<div  class="form-item webform-component webform-component-email webform-component--civicrm-1-contact-1-email-email webform-container-inline">
+  <label for="edit-submitted-civicrm-1-contact-1-email-email">Email <span class="form-required" title="This field is required.">*</span></label>
+ <input required="required" class="email civicrm-enabled form-text form-email required" data-civicrm-field-key="civicrm_1_contact_1_email_email" type="email" id="edit-submitted-civicrm-1-contact-1-email-email" name="submitted[civicrm_1_contact_1_email_email]" size="20" />
+</div>
+<div class="form-item webform-component webform-component-civicrm_contact static webform-component--civicrm-1-contact-1-contact-existing">
+<input data-hide-method="hide" data-no-hide-blank="0" class="civicrm-enabled" data-civicrm-field-key="civicrm_1_contact_1_contact_existing" type="hidden" name="submitted[civicrm_1_contact_1_contact_existing]" value="" />
+
+</div>
+<div  class="form-item webform-component webform-component-textfield webform-component--civicrm-1-contact-1-contact-first-name webform-container-inline">
+  <label for="edit-submitted-civicrm-1-contact-1-contact-first-name">First Name </label>
+ <input class="civicrm-enabled form-text" data-civicrm-field-key="civicrm_1_contact_1_contact_first_name" type="text" id="edit-submitted-civicrm-1-contact-1-contact-first-name" name="submitted[civicrm_1_contact_1_contact_first_name]" value="" size="20" maxlength="128" />
+</div>
+<div  class="form-item webform-component webform-component-textfield webform-component--civicrm-1-contact-1-contact-last-name webform-container-inline">
+  <label for="edit-submitted-civicrm-1-contact-1-contact-last-name">Last Name </label>
+ <input class="civicrm-enabled form-text" data-civicrm-field-key="civicrm_1_contact_1_contact_last_name" type="text" id="edit-submitted-civicrm-1-contact-1-contact-last-name" name="submitted[civicrm_1_contact_1_contact_last_name]" value="" size="20" maxlength="128" />
+</div>
+<input type="hidden" name="details[sid]" />
+<input type="hidden" name="details[page_num]" value="1" />
+<input type="hidden" name="details[page_count]" value="1" />
+<input type="hidden" name="details[finished]" value="0" />
+<input type="hidden" name="form_build_id" value="form-ZKilfJP0eJ25Gbc2kx1i8cqFc8V0E4SDdrDCtYYlvBE" />
+<input type="hidden" name="form_id" value="webform_client_form_1125" />
+<input type="hidden" name="antibot_key" value="" />
+<input type="hidden" name="honeypot_time" value="1639562787|Q6NUPtEmiAtxyWfySq74QpCllHMoZYEZhAT7N4Zo1LA" />
+<div class="url-textfield"><div class="form-item form-type-textfield form-item-url">
+  <label for="edit-url">Leave this field blank </label>
+ <input autocomplete="off" type="text" id="edit-url" name="url" value="" size="20" maxlength="128" class="form-text" />
+</div>
+</div><div class="form-actions"><input class="webform-submit button-primary form-submit" type="submit" name="op" value="Send me the newsletter!" /></div></div></form>  </div>
+</div>
+  </div>
+                    </section>
+                    <!--EOF:#sidebar-second-->
+                </aside>
+                        
+            </div>
+
+        </div>
+    </div>
+    <!-- EOF:#main-content -->
+
+        <!-- #bottom-content -->
+    <div id="bottom-content" class="clearfix">
+        <div class="container">
+
+            <!-- #bottom-content-inside -->
+            <div id="bottom-content-inside" class="clearfix">
+                <div class="row">
+                    <div class="col-md-12">
+                      <div class="region region-bottom-content">
+    <div id="block-block-15" class="block block-block clearfix">
+
+    <h2>To promote and protect open source software and communities...</h2>
+  
+  <div class="content">
+    <p>For <a href="https://opensource.org/history">over 20 years</a> the Open Source Initiative (OSI) has worked to raise awareness and adoption of open source software, and build bridges between <a href="https://opensource.org/affiliates">open source communities</a> of practice. As a <a href="https://opensource.org/sponsors#sponOps">global non-profit</a>, the OSI champions software freedom in society through education, collaboration, and infrastructure, stewarding the <a href="https://opensource.org/osd">Open Source Definition</a> (OSD), and preventing abuse of the ideals and ethos inherent to the open source movement.</p>
+
+<p>Open source software is made by <a href="https://opensource.org/members">many people</a> and distributed under an <a href="https://opensource.org/licenses">OSD-compliant license</a> which grants all the rights to use, study, change, and share the software in modified and unmodified form. Software freedom is essential to enabling community development of open source software.</p>
+  </div>
+</div>
+  </div>
+                    </div>
+                </div>
+            </div>
+            <!-- EOF:#bottom-content-inside -->
+
+        </div>
+    </div>
+    <!-- EOF: #bottom-content -->
+    
+</div>
+<!-- EOF:#page -->
+
+
+<footer id="subfooter" class="clearfix">
+    <div class="container">
+        
+        <!-- #subfooter-inside -->
+        <div id="subfooter-inside" class="clearfix">
+            <div class="row">
+                <div class="col-md-12">
+                    <!-- #subfooter-left -->
+                    <div class="subfooter-area">
+                                            
+
+                                          <div class="region region-footer">
+    <div id="block-block-11" class="block block-block clearfix">
+
+    
+  <div class="content">
+    <div class="filler" style="vertical-align: middle; display: inline-block;">
+<p style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><a href="https://twitter.com/OpenSourceOrg" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><img alt="" src="/files/twitterlogo.png" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;" width="50" /></a> <a href="https://www.linkedin.com/company/open-source-initiative-osi-" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><img alt="" src="/files/linkedin.png" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;" width="50" /></a> <a href="http://wiki.opensource.org" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><img alt="" src="/files/xwikilogo.png" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;" width="50" /></a> <a href="http://creativecommons.org/licenses/by/4.0/" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><img alt="" src="/files/ccby.png" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;" width="50" /></a></p>
+</div>
+
+<p> </p>
+
+<div class="license" style="vertical-align: middle; display: inline-block;">
+<p>Sign-up for our <a href="newsletter/signup">newsletter</a>!</p>
+
+<p>The content on this website, of which Opensource.org is the author, is licensed under a <a href="http://creativecommons.org/licenses/by/4.0/" rel="license">Creative Commons Attribution 4.0 International License</a>.<br />
+Opensource.org is not the author of any of the licenses reproduced on this site. Questions about the copyright in a license should be directed to the license steward.</p>
+
+<p>Hosting for Opensource.org is generously provided by <a href="https://www.digitalocean.com/">DigitalOcean</a>. Please see <a href="../ToS">Terms of Service</a>.<br /><span style="font-size:10px;">For questions regarding the OSI website and contents pleasee <a href="mailto:webmaster@lists.opensource.org?subject=OSI%20website%20comment">email our webmaster</a>.</span></p>
+</div>
+
+<p> </p>
+  </div>
+</div>
+<div id="block-block-7" class="block block-block clearfix">
+
+    
+  <div class="content">
+    <script src="https://www.google-analytics.com/urchin.js" type="text/javascript"></script><script type="text/javascript">
+<!--//--><![CDATA[// ><!--
+
+_uacct = "UA-3916956-1";
+urchinTracker();
+
+//--><!]]>
+</script><script defer="defer" data-domain="opensource.org" src="https://plausible.io/js/plausible.js"></script>  </div>
+</div>
+  </div>
+                    
+                    </div>
+                    <!-- EOF: #subfooter-left -->
+                </div>
+            </div>
+        </div>
+        <!-- EOF: #subfooter-inside -->
+    
+    </div>
+</footer>
+<!-- EOF:#subfooter -->
+  <script type="text/javascript" src="https://opensource.org/files/js/js_y3dyBEa8T4s6UYWE26s2_6WUn3S7BX2OqjjPrLL6g1E.js"></script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@package_metadata//licenses/rules:license.bzl", "license")
+load("@package_metadata//licenses/rules:license_kind.bzl", "license_kind")
+load(":standard_licenses.bzl", "NON_SPDX_KINDS", "STANDARD_LICENSES", "license_kind_label", "standard_license")
+
+package(default_visibility = ["//visibility:public"])
+
+# One license per text, named like the omnibus S3 object, so callers can keep the omnibus
+# `THIRD-PARTY-<name>` file naming.
+[
+    license(
+        name = name,
+        kind = license_kind_label(name),
+        text = "text/" + name,
+    )
+    for name in sorted({name: None for name in STANDARD_LICENSES.values()}.keys())
+]
+
+[
+    license_kind(
+        name = "kind_" + name,
+        full_name = full_name,
+        identifier = identifier,
+    )
+    for name, (identifier, full_name) in NON_SPDX_KINDS.items()
+]
+
+build_test(
+    name = "standard_licenses_test",
+    targets = sorted({str(standard_license(license_id)): None for license_id in STANDARD_LICENSES}.keys()),
+)

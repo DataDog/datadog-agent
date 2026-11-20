@@ -1,0 +1,2 @@
+# Keep the license texts byte-identical to their upstream copies.
+text/** -text
