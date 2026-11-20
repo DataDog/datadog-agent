@@ -101,19 +101,19 @@ func TestInterpreters(t *testing.T) {
 	cfg := config.(Config)
 
 	require.True(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsSymbolizationDisabled())
-	require.True(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsLabelsDisabled())
+	require.False(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsLabelsDisabled())
 
 	err := confmap.NewFromStringMap(map[string]any{
 		"interpreters": map[string]any{
 			"go": map[string]any{
-				"labels": map[string]any{"disabled": false},
+				"labels": map[string]any{"disabled": true},
 			},
 		},
 		"symbol_uploader": map[string]any{"enabled": false},
 	}).Unmarshal(&cfg)
 	require.NoError(t, err)
 	require.NoError(t, cfg.Validate())
-	require.False(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsLabelsDisabled())
+	require.True(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsLabelsDisabled())
 }
 
 func TestDefaultEnvVars(t *testing.T) {
