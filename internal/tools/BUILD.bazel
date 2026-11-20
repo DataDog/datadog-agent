@@ -30,7 +30,7 @@ go_shim(
 
 go_shim(
     name = "pulumi",
-    tool = "@pulumi_cli//:pulumi",
+    tool = "@pulumi//:cli",
 )
 
 go_shim(

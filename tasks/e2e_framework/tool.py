@@ -521,7 +521,7 @@ def pulumi_cli_dir() -> str:
     the e2e tests.
     """
     path = bazel(
-        "cquery", "--output=files", f"@pulumi_cli//:bin/pulumi{'.exe' if is_windows() else ''}", capture_output=True
+        "cquery", "--output=files", f"@pulumi//:bin/pulumi{'.exe' if is_windows() else ''}", capture_output=True
     ).strip()
     output_base = bazel("info", "output_base", capture_output=True).strip()
     return os.path.dirname(os.path.join(output_base, path))
@@ -529,7 +529,7 @@ def pulumi_cli_dir() -> str:
 
 def install_pulumi_plugins() -> None:
     """Install the Pulumi plugins where Pulumi looks for them."""
-    bazel("run", "@pulumi_plugins//:install", "--", f"--destdir={os.path.join(_pulumi_home(), 'plugins')}")
+    bazel("run", "@pulumi//:install", "--", f"--destdir={os.path.join(_pulumi_home(), 'plugins')}")
 
 
 class RemoteHost:
