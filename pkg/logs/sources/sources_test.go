@@ -205,6 +205,32 @@ func TestSubscribeForType(t *testing.T) {
 	assert.Equal(t, sb1, source1)
 }
 
+func TestSubscribeForTypes(t *testing.T) {
+	sources := NewLogSources()
+	existingFoo := NewLogSource("existing-foo", &config.LogsConfig{Type: "foo"})
+	existingBaz := NewLogSource("existing-baz", &config.LogsConfig{Type: "baz"})
+	sources.AddSource(existingFoo)
+	sources.AddSource(existingBaz)
+
+	added, removed := sources.SubscribeForTypes([]string{"foo", "bar"}, make(chan struct{}), make(chan struct{}))
+	// existing sources of the subscribed types are delivered
+	assert.Equal(t, existingFoo, <-added)
+
+	foo := NewLogSource("foo", &config.LogsConfig{Type: "foo"})
+	bar := NewLogSource("bar", &config.LogsConfig{Type: "bar"})
+	baz := NewLogSource("baz", &config.LogsConfig{Type: "baz"})
+	go func() {
+		sources.AddSource(baz) // not delivered, not subscribed
+		sources.AddSource(foo)
+		sources.AddSource(bar)
+		sources.RemoveSource(baz)
+		sources.RemoveSource(foo)
+	}()
+	assert.Equal(t, foo, <-added)
+	assert.Equal(t, bar, <-added)
+	assert.Equal(t, foo, <-removed)
+}
+
 // TestPartialRestart verifies that AddSource does not block after a launcher
 // stops (closes its done channel) while a new launcher is subscribed.
 //

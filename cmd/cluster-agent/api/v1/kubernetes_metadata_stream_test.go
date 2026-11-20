@@ -1777,3 +1777,130 @@ func startTestStream(t *testing.T, srv *KubeMetadataStreamServer, nodeName strin
 		}
 	}
 }
+
+func TestStreamKueueWorkloadsPerNodeByPodUID(t *testing.T) {
+	for _, workloadFirst := range []bool{false, true} {
+		t.Run("workloadFirst="+strconv.FormatBool(workloadFirst), func(t *testing.T) {
+			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				core.MockBundle(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			srv := NewKubeMetadataStreamServer(controllers.GetGlobalMetaBundleStore(), wmeta)
+			srv.kueueWorkloadsPerNode = true
+			srv.SetKueueCheckNodesProvider(func() (map[string]struct{}, bool) {
+				return map[string]struct{}{"check-node": {}}, true
+			})
+			process := func(kind workloadmeta.EventType, entity workloadmeta.Entity) {
+				t.Helper()
+				// Subscribers see the store updated before their event arrives.
+				if kind == workloadmeta.EventTypeSet {
+					wmeta.Set(entity)
+				} else {
+					wmeta.Unset(entity)
+				}
+				srv.processWmetaEvents([]workloadmeta.Event{{Type: kind, Entity: entity}})
+			}
+			pod := testKueuePodEvent(workloadmeta.EventTypeSet, "pod-uid", "team-a", "node1", "", false).Entity.(*workloadmeta.KubernetesPod)
+			pod.Labels[kubernetes.KueueManagedLabelKey] = "true"
+			workload := testNamedKueueWorkloadEvent(workloadmeta.EventTypeSet, "team-a", "plain-pod", "queue").Entity.(*workloadmeta.KubernetesKueueWorkload)
+			workload.Labels = map[string]string{kubernetes.KueueJobUIDLabelKey: pod.ID}
+			// An identical UID claim in another namespace must not be sent.
+			foreign := workload.DeepCopy().(*workloadmeta.KubernetesKueueWorkload)
+			foreign.ID, foreign.Name, foreign.Namespace = "team-b/foreign", "foreign", "team-b"
+			process(workloadmeta.EventTypeSet, foreign)
+
+			if workloadFirst {
+				process(workloadmeta.EventTypeSet, workload)
+			}
+			process(workloadmeta.EventTypeSet, pod)
+			next := startTestStream(t, srv, "node1", nil)
+			initial := next()
+			require.True(t, initial.IsFullState)
+			checkWorkload := func(response *pb.KubeMetadataStreamResponse, kind pb.KubeMetadataEventType) {
+				t.Helper()
+				require.Len(t, response.KueueWorkloads, 1)
+				assert.Equal(t, workload.Name, response.KueueWorkloads[0].Name)
+				assert.Equal(t, kind, response.KueueWorkloads[0].Type)
+				if kind == pb.KubeMetadataEventType_SET {
+					assert.Equal(t, pod.ID, response.KueueWorkloads[0].Labels[kubernetes.KueueJobUIDLabelKey])
+				}
+			}
+			if workloadFirst {
+				checkWorkload(initial, pb.KubeMetadataEventType_SET)
+			} else {
+				require.Empty(t, initial.KueueWorkloads)
+				process(workloadmeta.EventTypeSet, workload)
+				checkWorkload(next(), pb.KubeMetadataEventType_SET)
+			}
+			assert.Empty(t, srv.buildNodeMetadataState("unrelated-node").kueueWorkloads)
+
+			// An ambiguous UID removes the streamed Workload; deleting the
+			// duplicate restores it without another pod event.
+			duplicate := workload.DeepCopy().(*workloadmeta.KubernetesKueueWorkload)
+			duplicate.ID, duplicate.Name = "team-a/duplicate", "duplicate"
+			process(workloadmeta.EventTypeSet, duplicate)
+			checkWorkload(next(), pb.KubeMetadataEventType_UNSET)
+			process(workloadmeta.EventTypeUnset, &workloadmeta.KubernetesKueueWorkload{EntityID: duplicate.EntityID})
+			checkWorkload(next(), pb.KubeMetadataEventType_SET)
+
+			// Workload removal also accepts an ID-only event, and recreation
+			// restores routing through the UID already stored on the pod.
+			process(workloadmeta.EventTypeUnset, &workloadmeta.KubernetesKueueWorkload{EntityID: workload.EntityID})
+			checkWorkload(next(), pb.KubeMetadataEventType_UNSET)
+			assert.Empty(t, srv.kueueWorkloadIndex.nodeKeys)
+			assert.Empty(t, srv.kueueWorkloadIndex.keyNodes)
+			process(workloadmeta.EventTypeSet, workload)
+			checkWorkload(next(), pb.KubeMetadataEventType_SET)
+
+			// Moving the pod removes the old node's Workload and exposes it
+			// only to the new node. Unmanaged and recreated pods cannot claim it.
+			moved := pod.DeepCopy().(*workloadmeta.KubernetesPod)
+			moved.NodeName = "node2"
+			process(workloadmeta.EventTypeSet, moved)
+			checkWorkload(next(), pb.KubeMetadataEventType_UNSET)
+			assert.ElementsMatch(t, []string{workload.ID}, kueueWorkloadKeys(srv.buildNodeMetadataState("node2").kueueWorkloads))
+			unmanaged := moved.DeepCopy().(*workloadmeta.KubernetesPod)
+			delete(unmanaged.Labels, kubernetes.KueueManagedLabelKey)
+			process(workloadmeta.EventTypeSet, unmanaged)
+			assert.Empty(t, srv.buildNodeMetadataState("node2").kueueWorkloads)
+			process(workloadmeta.EventTypeUnset, &workloadmeta.KubernetesPod{EntityID: moved.EntityID})
+			recreated := pod.DeepCopy().(*workloadmeta.KubernetesPod)
+			recreated.ID = "new-pod-uid"
+			process(workloadmeta.EventTypeSet, recreated)
+			assert.Empty(t, srv.buildNodeMetadataState("node1").kueueWorkloads)
+			assert.Empty(t, srv.pods)
+			assert.Empty(t, srv.kueueWorkloadIndex.nodeKeys)
+			assert.Empty(t, srv.kueueWorkloadIndex.keyNodes)
+		})
+	}
+}
+
+func TestKueueWorkloadsPerNodeExplicitReferences(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		labels      map[string]string
+		annotations map[string]string
+	}{
+		{name: "admission annotation", annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "workload"}},
+		{name: "prebuilt label", labels: map[string]string{kubernetes.KueuePrebuiltWorkloadNameKey: "workload"}},
+		{name: "prebuilt annotation", annotations: map[string]string{kubernetes.KueuePrebuiltWorkloadNameKey: "workload"}},
+		{name: "pod-group label", labels: map[string]string{kubernetes.KueuePodGroupNameLabelKey: "workload"}},
+		{name: "pod-group annotation", annotations: map[string]string{kubernetes.KueuePodGroupNameLabelKey: "workload"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := NewKubeMetadataStreamServer(nil, nil)
+			srv.kueueWorkloadsPerNode = true
+			srv.SetKueueCheckNodesProvider(func() (map[string]struct{}, bool) { return map[string]struct{}{}, true })
+			// Index an explicit name even before the Workload is collected.
+			pod := &workloadmeta.KubernetesPod{
+				EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod"},
+				EntityMeta: workloadmeta.EntityMeta{Namespace: "team-a", Labels: tt.labels, Annotations: tt.annotations},
+				NodeName:   "node1",
+			}
+			srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: pod}})
+			srv.processWmetaEvents([]workloadmeta.Event{testNamedKueueWorkloadEvent(workloadmeta.EventTypeSet, "team-a", "workload", "queue")})
+			assert.ElementsMatch(t, []string{"team-a/workload"}, kueueWorkloadKeys(srv.buildNodeMetadataState("node1").kueueWorkloads))
+			assert.Empty(t, srv.buildNodeMetadataState("node2").kueueWorkloads)
+		})
+	}
+}

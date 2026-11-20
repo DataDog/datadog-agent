@@ -209,7 +209,8 @@ differ when detection is delayed.
 
 ### Extractors
 
-Extractors are always enabled and convert raw observations into timeseries:
+Extractors convert raw observations into timeseries. The log metrics and log
+pattern extractors are enabled by default; the connection error extractor is opt-in:
 
 | Name | Description |
 |------|-------------|
@@ -423,6 +424,23 @@ Use `scanmw`, `scanwelch`, or `bocpd` as the only detector block. Legacy
 | `proximity_seconds` | 10 | Max time gap between anomalies to consider them in the same cluster |
 | `window_seconds` | 120 | How long to keep anomalies before eviction |
 | `min_cluster_size` | 0 | Minimum cluster size to report (0 = report all) |
+
+#### `log_metrics_extractor`
+
+Uses the shared Logs tokenizer and frequency-ordered first matching within each
+source/service/env/host group. Count metrics emit from the first matching log;
+JSON numeric extraction is preserved. Representatives remain fixed until eviction.
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `min_token_match_ratio` | 0.6 | Shared tokenizer structural matching threshold |
+| `max_eval_bytes` | 4096 | Tokenized prefix length; testbench JSON config only |
+
+The cache has internal limits of 3,000 representatives globally, 1,024 per group
+and 256 groups. Idle representatives expire on the next ingested log after four
+hours of data-time inactivity. These bounds are not exposed in Agent YAML or
+testbench JSON. Invalid thresholds use the 0.6 default. Eviction removes the
+associated storage and detector state through the engine cleanup path.
 
 #### `log_pattern_extractor`
 

@@ -1,0 +1,6 @@
+otlp_config:
+  receiver:
+    protocols:
+      http:
+        endpoint: "0.0.0.0:4318"
+        tls: {}
