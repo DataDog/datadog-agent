@@ -59,6 +59,64 @@ func TestVaultBackend(t *testing.T) {
 	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
 }
 
+func TestVaultBackend_ShortAliases(t *testing.T) {
+	client, token := createTestVault(t)
+	_, err := client.Logical().Write("secret/shared/db_password", map[string]interface{}{
+		"value":    "test-password",
+		"password": "custom-password",
+	})
+	require.NoError(t, err)
+	_, err = client.Logical().Write("secret/direct", map[string]interface{}{"value": "direct-password"})
+	require.NoError(t, err)
+
+	backend, err := NewVaultBackend(map[string]interface{}{
+		"vault_address": client.Address(),
+		"vault_token":   token,
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		handle        string
+		lookupPath    string
+		valueKey      string
+		expectedValue string
+		expectedError string
+	}{
+		{"configured alias", "db_password", "secret/shared", "value", "test-password", ""},
+		{"trailing slash", "db_password", "secret/shared/", "value", "test-password", ""},
+		{"custom value key", "db_password", "secret/shared", "password", "custom-password", ""},
+		{"disabled by default", "db_password", "", "", "", "invalid secret format"},
+		{"missing lookup path", "db_password", "", "value", "", "invalid secret format"},
+		{"missing value key", "db_password", "secret/shared", "", "", "invalid secret format"},
+		{"explicit URI unchanged", "vault://secret/direct#/data/value", "secret/shared", "password", "direct-password", ""},
+		{"explicit path unchanged", "secret/direct;value", "secret/shared", "password", "direct-password", ""},
+		{"malformed URI", "vault://secret/direct", "secret/shared", "value", "", "invalid vault:// format"},
+		{"missing explicit secret", "vault://secret/missing#/data/value", "secret/shared", "value", "", "secret data is nil"},
+		{"missing alias", "missing", "secret/shared", "value", "", "secret data is nil"},
+		{"missing key", "db_password", "secret/shared", "missing", "", "no value found for pointer"},
+		{"empty alias", "", "secret/shared", "value", "", "invalid secret format"},
+		{"unqualified path", "secret/direct", "secret/shared", "value", "", "invalid secret format"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DD_SECRETS_LOOKUP_PATH", tt.lookupPath)
+			t.Setenv("DD_SECRETS_VALUES_KEY", tt.valueKey)
+			output := backend.GetSecretOutput(context.Background(), tt.handle)
+			if tt.expectedError != "" {
+				require.NotNil(t, output.Error)
+				assert.Contains(t, *output.Error, tt.expectedError)
+				assert.Nil(t, output.Value)
+				return
+			}
+			require.Nil(t, output.Error)
+			require.NotNil(t, output.Value)
+			assert.Equal(t, tt.expectedValue, *output.Value)
+		})
+	}
+}
+
 func TestVaultBackend_KeyNotFound(t *testing.T) {
 	client, token := createTestVault(t)
 
