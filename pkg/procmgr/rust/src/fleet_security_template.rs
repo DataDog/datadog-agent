@@ -13,7 +13,7 @@ use std::path::Path;
 const SECURITY_NAME: &str = "datadog-agent-security";
 
 const SECURITY_TEMPLATE: &str = include_str!(
-    "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-security-windows.yaml.tmpl"
+    "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-security-windows.yaml.tmpl"
 );
 
 const EMPTY_AGENT_YAML: &str = "api_key: 0000001\n";

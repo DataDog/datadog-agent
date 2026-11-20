@@ -15,7 +15,7 @@ dd_agent_go_test(
     ],
     tags = ["manual"],
     deps = [
-        "//pkg/fleet/installer/packages/embedded",
+        "//pkg/fleet/installer/units/linuxunits",
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/dockeragentparams",
         "//test/e2e-framework/components/os",

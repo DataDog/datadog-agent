@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+exports_files(
+    ["gen/pm/processes.d/datadog-agent-sysprobe.yaml"],
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
+
+go_library(
+    name = "darwinunits",
+    srcs = ["registry.go"],
+    embedsrcs = [
+        "gen/launchd/com.datadoghq.agent.plist",
+        "gen/launchd/com.datadoghq.data-plane.plist",
+        "gen/launchd/com.datadoghq.installer.plist",
+        "gen/launchd/com.datadoghq.procmgr.plist",
+        "gen/launchd/com.datadoghq.sysprobe.plist",
+        "gen/pm/processes.d/datadog-agent-sysprobe.yaml",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/units/darwinunits",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/fleet/installer/units"],
+)
+
+dd_agent_go_test(
+    name = "darwinunits_test",
+    srcs = ["registry_test.go"],
+    embed = [":darwinunits"],
+    deps = [
+        "//pkg/fleet/installer/units",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+filegroup(
+    name = "gen",
+    srcs = glob(["gen/**"]),
+    visibility = ["//pkg/fleet/installer/units/generator:__pkg__"],
+)

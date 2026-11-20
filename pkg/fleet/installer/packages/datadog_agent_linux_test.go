@@ -15,6 +15,8 @@ import (
 
 	installerFile "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/linuxunits"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -131,19 +133,19 @@ private_action_runner:
 }
 
 func TestInstallableUnitsFiltersPrivilegedRshell(t *testing.T) {
-	units := []string{
-		"datadog-agent.service",
-		"datadog-agent-rshell-privileged.service",
-		privilegedRshellSocketStable,
-		"datadog-agent-action.service",
+	all := []units.Unit{
+		linuxunits.Systemd.Agent,
+		linuxunits.Systemd.RshellService,
+		linuxunits.Systemd.RshellSocket,
+		linuxunits.Systemd.Action,
 	}
 
 	ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir()}
-	assert.Equal(t, []string{"datadog-agent.service", "datadog-agent-action.service"}, installableUnits(ctx, units))
-	assert.Len(t, units, 4, "filtering must not mutate the lifecycle cleanup list")
+	assert.Equal(t, []units.Unit{linuxunits.Systemd.Agent, linuxunits.Systemd.Action}, installableUnits(ctx, all))
+	assert.Len(t, all, 4, "filtering must not mutate the lifecycle cleanup list")
 }
 
-func TestExperimentStartUnits(t *testing.T) {
+func TestStartedUnits(t *testing.T) {
 	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
 		t.Skip("privileged rshell is supported only on amd64 and arm64")
 	}
@@ -156,26 +158,32 @@ func TestExperimentStartUnits(t *testing.T) {
 	originalGetLandlockABIVersion := getLandlockABIVersion
 	t.Cleanup(func() { getLandlockABIVersion = originalGetLandlockABIVersion })
 
+	started := func() []string {
+		ctx := HookContext{Context: context.Background(), PackagePath: packagePath}
+		return units.Names(startedUnits(ctx, agentService.systemd), true)
+	}
+
 	getLandlockABIVersion = func() (int, error) { return privilegedRshellMinLandlockABI, nil }
 	t.Setenv(privilegedRshellEnabledEnv, "true")
-	ctx := HookContext{Context: context.Background(), PackagePath: packagePath}
-	assert.Equal(t,
-		[]string{"datadog-agent-exp.service", privilegedRshellSocketExp},
-		experimentStartUnits(ctx, "datadog-agent-exp.service"),
-	)
+	assert.Equal(t, []string{"datadog-agent-exp.service", "datadog-agent-rshell-privileged-exp.socket"}, started())
 
 	t.Setenv(privilegedRshellEnabledEnv, "false")
-	assert.Equal(t,
-		[]string{"datadog-agent-exp.service"},
-		experimentStartUnits(ctx, "datadog-agent-exp.service"),
-	)
+	assert.Equal(t, []string{"datadog-agent-exp.service"}, started())
 
 	t.Setenv(privilegedRshellEnabledEnv, "true")
 	getLandlockABIVersion = func() (int, error) { return 0, errors.New("landlock unavailable") }
-	assert.Equal(t,
-		[]string{"datadog-agent-exp.service"},
-		experimentStartUnits(ctx, "datadog-agent-exp.service"),
-	)
+	assert.Equal(t, []string{"datadog-agent-exp.service"}, started())
+}
+
+// TestAgentUnitSetsDifferOnlyByManagerSpecificUnits pins the agent unit sets: the procmgr service
+// manager swaps the main unit content and runs procmgr instead of the DDOT unit.
+func TestAgentUnitSetsDifferOnlyByManagerSpecificUnits(t *testing.T) {
+	common := []string{"datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-rshell-privileged.service", "datadog-agent-rshell-privileged.socket"}
+	assert.Equal(t, append(append([]string{"datadog-agent.service"}, common...), "datadog-agent-ddot.service"), units.Names(agentService.systemd.units, false))
+	assert.Equal(t, append(append([]string{"datadog-agent.service"}, common...), "datadog-agent-procmgr.service"), units.Names(agentService.procmgr.units, false))
+	assert.Equal(t, linuxunits.Procmgr.Agent, agentService.procmgr.units[0])
+	assert.Equal(t, "datadog-agent-ddot-exp.service", agentDDOTService.systemd.main.ExpName())
+	assert.Equal(t, []string{"datadog-agent-ddot"}, units.Names(agentDDOTService.upstart.units, false))
 }
 
 func TestStopProcmgrOnOptOut(t *testing.T) {
@@ -276,7 +284,8 @@ func TestProcmgrOnSysVAndUpstartKeepsPlainResults(t *testing.T) {
 }
 
 func TestWriteProcessesOnlyUnderProcmgr(t *testing.T) {
-	require.NotEmpty(t, agentService.ProcmgrProcesses)
+	processes := units.Names(agentService.processes, false)
+	require.NotEmpty(t, processes)
 	stubServiceManager(t, service.UpstartType, service.UpstartType)
 	packagePath := t.TempDir()
 	require.NoError(t, agentService.WriteProcesses(packagePath))
@@ -285,13 +294,13 @@ func TestWriteProcessesOnlyUnderProcmgr(t *testing.T) {
 
 	dir := service.ConfigDir(packagePath)
 	require.NoError(t, os.MkdirAll(dir, 0755))
-	for _, process := range agentService.ProcmgrProcesses {
+	for _, process := range processes {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, process), []byte("managed"), 0644))
 	}
 	custom := filepath.Join(dir, "custom.yaml")
 	require.NoError(t, os.WriteFile(custom, []byte("admin"), 0644))
 	require.NoError(t, agentService.WriteProcesses(packagePath))
-	for _, process := range agentService.ProcmgrProcesses {
+	for _, process := range processes {
 		_, err := os.Stat(filepath.Join(dir, process))
 		assert.ErrorIs(t, err, os.ErrNotExist)
 	}
@@ -299,7 +308,7 @@ func TestWriteProcessesOnlyUnderProcmgr(t *testing.T) {
 
 	stubServiceManager(t, service.ProcmgrType, service.UpstartType)
 	require.NoError(t, agentService.WriteProcesses(packagePath))
-	for _, process := range agentService.ProcmgrProcesses {
+	for _, process := range processes {
 		path := filepath.Join(dir, process)
 		assert.FileExists(t, path)
 		info, err := os.Stat(path)
@@ -314,6 +323,6 @@ func TestWriteProcessesOnlyUnderProcmgr(t *testing.T) {
 func TestSysVAndUpstartServicesStartProcmgr(t *testing.T) {
 	upstart := []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"}
 	sysvinit := []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"}
-	assert.Equal(t, upstart, agentService.UpstartServices)
-	assert.Equal(t, sysvinit, agentService.SysvinitServices)
+	assert.Equal(t, upstart, units.Names(agentService.upstart.units, false))
+	assert.Equal(t, sysvinit, units.Names(agentService.sysvinit.units, false))
 }

@@ -15,7 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/darwinunits"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
@@ -72,6 +73,18 @@ var macosUnexpectedLaunchDaemons = []string{
 	"com.datadoghq.sysprobe-exp",
 	"com.datadoghq.data-plane-exp",
 	"com.datadoghq.procmgr-exp",
+}
+
+func macosEmbeddedLaunchDaemon(t *testing.T, label string) []byte {
+	for _, u := range darwinunits.All() {
+		if u.Manager == units.Launchd && u.Name == label {
+			content, err := darwinunits.Content(u)
+			require.NoError(t, err)
+			return content
+		}
+	}
+	require.FailNow(t, "the installer embeds no LaunchDaemon "+label)
+	return nil
 }
 
 func macosLaunchDaemonPath(label string) string {
@@ -139,8 +152,7 @@ func assertMacosInstallerPostinstSucceeded(t *testing.T, client *common.MacOSTes
 func assertMacosStableLaunchDaemons(t *testing.T, client *common.MacOSTestClient) {
 	for _, label := range macosStableLaunchDaemons {
 		plist := macosLaunchDaemonPath(label)
-		expected, err := embedded.GetLaunchdJob(label)
-		require.NoError(t, err)
+		expected := macosEmbeddedLaunchDaemon(t, label)
 		installed := macosReadRemoteFile(t, client, plist)
 		assert.Equal(t, string(expected), installed, "%s differs from the definition the installer embeds", plist)
 

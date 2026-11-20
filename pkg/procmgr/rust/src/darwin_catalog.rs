@@ -12,7 +12,7 @@ use std::fs;
 const SYSTEM_PROBE: &str = "/opt/datadog-agent/embedded/bin/system-probe";
 
 const SYSPROBE_YAML: &str = include_str!(
-    "../../../../pkg/fleet/installer/packages/embedded/tmpl/gen/darwin-pm/processes.d/datadog-agent-sysprobe.yaml"
+    "../../../../pkg/fleet/installer/units/darwinunits/gen/pm/processes.d/datadog-agent-sysprobe.yaml"
 );
 
 #[test]

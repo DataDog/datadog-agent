@@ -14,7 +14,7 @@ use crate::fleet_template_support::{INSTALL_DIR, sorted};
 use std::path::Path;
 
 const DATA_PLANE_TEMPLATE: &str = include_str!(
-    "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-data-plane-windows.yaml.tmpl"
+    "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-data-plane-windows.yaml.tmpl"
 );
 const DATA_PLANE_NAME: &str = "datadog-agent-data-plane";
 

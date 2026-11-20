@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/linuxunits"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -53,26 +53,13 @@ var (
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 	}
 
-	// agentDDOTService are the services that are part of the DDOT package
+	// agentDDOTService holds the units of the DDOT package. It predates the ddot extension and installs
+	// its own unit under procmgr too.
 	agentDDOTService = datadogAgentService{
-		SystemdMainUnitStable: "datadog-agent-ddot.service",
-		SystemdMainUnitExp:    "datadog-agent-ddot-exp.service",
-		SystemdUnitsStable:    []string{"datadog-agent-ddot.service"},
-		SystemdUnitsExp:       []string{"datadog-agent-ddot-exp.service"},
-
-		// This package predates the ddot extension and is unaffected by the service manager: it
-		// installs its own unit under procmgr too, which is why datadog-agent-ddot.service is
-		// generated into both unit trees.
-		ProcmgrMainUnitStable: "datadog-agent-ddot.service",
-		ProcmgrMainUnitExp:    "datadog-agent-ddot-exp.service",
-		ProcmgrUnitsStable:    []string{"datadog-agent-ddot.service"},
-		ProcmgrUnitsExp:       []string{"datadog-agent-ddot-exp.service"},
-
-		UpstartMainService: "datadog-agent-ddot",
-		UpstartServices:    []string{"datadog--ddot"},
-
-		SysvinitMainService: "datadog-agent-ddot",
-		SysvinitServices:    []string{"datadog-agent-ddot"},
+		systemd:  unitSet{main: linuxunits.Systemd.DDOTStandalone, units: []units.Unit{linuxunits.Systemd.DDOTStandalone}},
+		procmgr:  unitSet{main: linuxunits.Systemd.DDOTStandalone, units: []units.Unit{linuxunits.Systemd.DDOTStandalone}},
+		upstart:  unitSet{main: linuxunits.Upstart.DDOT, units: []units.Unit{linuxunits.Upstart.DDOT}},
+		sysvinit: unitSet{main: linuxunits.Sysvinit.DDOT, units: []units.Unit{linuxunits.Sysvinit.DDOT}},
 	}
 )
 
@@ -141,13 +128,6 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}
-	// For backwards compatibility, remove "/ext/ddot" from the unit path and replace "/opt/datadog-packages/datadog-agent" by "/opt/datadog-packages/datadog-agent-ddot"
-	if err := modifyDDOTUnitFileForBackwardsCompatibility(ctx, agentDDOTService.SystemdMainUnitStable, true); err != nil {
-		return fmt.Errorf("failed to modify unit file for backwards compatibility: %s", err)
-	}
-	if err := systemd.Reload(ctx); err != nil {
-		return fmt.Errorf("failed to reload systemd: %s", err)
-	}
 	if err := agentDDOTService.EnableStable(ctx); err != nil {
 		return fmt.Errorf("failed to install stable unit: %s", err)
 	}
@@ -183,13 +163,6 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
-	}
-	// For backwards compatibility, remove "/ext/ddot" from the unit path
-	if err := modifyDDOTUnitFileForBackwardsCompatibility(ctx, agentDDOTService.SystemdMainUnitStable, false); err != nil {
-		return fmt.Errorf("failed to modify unit file for backwards compatibility: %s", err)
-	}
-	if err := systemd.Reload(ctx); err != nil {
-		return fmt.Errorf("failed to reload systemd: %s", err)
 	}
 	if err := agentDDOTService.EnableStable(ctx); err != nil {
 		return fmt.Errorf("failed to install stable unit: %s", err)
@@ -300,54 +273,4 @@ func copyFile(src, dst string, perm os.FileMode) error {
 		return err
 	}
 	return os.WriteFile(dst, data, perm)
-}
-
-// modifyDDOTUnitFileForBackwardsCompatibility modifies the systemd unit file to remove "/ext/ddot" from paths
-// for backwards compatibility. For OCI packages, it also replaces "/opt/datadog-packages/datadog-agent" with
-// "/opt/datadog-packages/datadog-agent-ddot".
-// This is likely temporary, it'll be removed when we remove the standalone DDOT package.
-func modifyDDOTUnitFileForBackwardsCompatibility(ctx HookContext, unitName string, isOCI bool) error {
-	// Determine the unit file path based on package type
-	var unitPath string
-	switch ctx.PackageType {
-	case PackageTypeDEB:
-		unitPath = filepath.Join("/lib/systemd/system", unitName)
-	case PackageTypeRPM:
-		unitPath = filepath.Join("/usr/lib/systemd/system", unitName)
-	case PackageTypeOCI:
-		unitPath = filepath.Join("/etc/systemd/system", unitName)
-	default:
-		return fmt.Errorf("unsupported package type: %s", ctx.PackageType)
-	}
-
-	// Read the unit file
-	content, err := os.ReadFile(unitPath)
-	if err != nil {
-		return fmt.Errorf("failed to read unit file %s: %w", unitPath, err)
-	}
-
-	// Modify the content line-by-line so we can skip ConditionPathExists lines
-	// from the OCI path rewrite. The processes.d gate must always reference the
-	// Agent package tree, not the standalone DDOT package tree.
-	lines := strings.Split(string(content), "\n")
-	for i, line := range lines {
-		// Remove "/ext/ddot" from all paths
-		lines[i] = strings.ReplaceAll(line, "/ext/ddot", "")
-
-		// For OCI packages, rewrite Agent package paths to DDOT package paths,
-		// but skip ConditionPathExists lines so the processes.d gate keeps
-		// pointing at the Agent install directory.
-		if isOCI && !strings.HasPrefix(strings.TrimSpace(lines[i]), "ConditionPathExists=!") {
-			lines[i] = strings.ReplaceAll(lines[i], "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent-ddot/stable")
-			lines[i] = strings.ReplaceAll(lines[i], "/opt/datadog-packages/datadog-agent/experiment", "/opt/datadog-packages/datadog-agent-ddot/experiment")
-		}
-	}
-	modifiedContent := strings.Join(lines, "\n")
-
-	// Write the modified content back
-	if err := os.WriteFile(unitPath, []byte(modifiedContent), 0644); err != nil {
-		return fmt.Errorf("failed to write modified unit file %s: %w", unitPath, err)
-	}
-
-	return nil
 }

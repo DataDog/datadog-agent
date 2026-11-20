@@ -1,8 +1,7 @@
 ---
 paths:
-  - "pkg/fleet/installer/packages/embedded/tmpl/**/*.service.tmpl"
-  - "pkg/fleet/installer/packages/embedded/tmpl/gen/sd/**"
-  - "pkg/fleet/installer/packages/embedded/tmpl/gen/pm/**"
+  - "pkg/fleet/installer/units/generator/tmpl/*.service.tmpl"
+  - "pkg/fleet/installer/units/linuxunits/**"
 ---
 
 # Linux systemd — prefer procmgr before a new unit
@@ -12,8 +11,8 @@ paths:
 **Before adding a new `datadog-agent-*.service` (or expanding a unit to own a
 new long-running Agent child), prefer supervising it with procmgr.**
 
-Add a `processes.d` entry via `pkg/fleet/installer/packages/processmanager`
-(and the embedded templates). procmgr already handles restart/recovery,
+Add a `processes.d` entry to the `Procmgr` table of `pkg/fleet/installer/units/linuxunits`
+(and its template). procmgr already handles restart/recovery,
 dependency ordering, and gates (`condition_path_exists`,
 `condition_config_any` / `condition_config_none`).
 

@@ -13,18 +13,27 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/windowsunits"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-// windowsProcmgrServiceName is the SCM service that runs dd-procmgrd on Windows.
-// Packaging currently defines a single stable name (no distinct exp/legacy SCM name).
-const windowsProcmgrServiceName = "dd-procmgr-service"
+// legacySupervisors are the SCM services supervising a service when procmgr does not, by service ID.
+var legacySupervisors = map[string]units.Unit{
+	"ddot":     windowsunits.SCM.OTel,
+	"process":  windowsunits.SCM.Process,
+	"sysprobe": windowsunits.SCM.Sysprobe,
+	"trace":    windowsunits.SCM.Trace,
+	"security": windowsunits.SCM.Security,
+	"action":   windowsunits.SCM.Action,
+}
 
 func detectLegacySupervisor(_ context.Context, service MigratableService) ManagementMode {
-	if service.LegacyWindowsService == "" {
+	legacy, ok := legacySupervisors[service.ID]
+	if !ok {
 		return ManagementModeNone
 	}
-	running, err := winutil.IsServiceRunning(service.LegacyWindowsService)
+	running, err := winutil.IsServiceRunning(legacy.Name)
 	if err == nil && running {
 		return ManagementModeWindowsService
 	}
@@ -32,7 +41,7 @@ func detectLegacySupervisor(_ context.Context, service MigratableService) Manage
 }
 
 func detectDaemonServiceState(_ context.Context) string {
-	state, err := winutil.QueryServiceState(windowsProcmgrServiceName)
+	state, err := winutil.QueryServiceState(windowsunits.SCM.Procmgr.Name)
 	if err != nil {
 		if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
 			return selectDaemonServiceState([]daemonServiceCandidateResult{{

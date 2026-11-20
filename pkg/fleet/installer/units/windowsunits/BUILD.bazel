@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "windowsunits",
+    srcs = ["registry.go"],
+    embedsrcs = [
+        "gen/pm/processes.d/datadog-agent-action-executor.yaml",
+        "gen/pm/processes.d/datadog-agent-action.yaml",
+        "gen/pm/processes.d/datadog-agent-data-plane.yaml",
+        "gen/pm/processes.d/datadog-agent-ddot.yaml",
+        "gen/pm/processes.d/datadog-agent-par-control.yaml",
+        "gen/pm/processes.d/datadog-agent-process.yaml",
+        "gen/pm/processes.d/datadog-agent-security.yaml",
+        "gen/pm/processes.d/datadog-agent-sysprobe.yaml",
+        "gen/pm/processes.d/datadog-agent-trace.yaml",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/units/windowsunits",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/fleet/installer/units"],
+)
+
+dd_agent_go_test(
+    name = "windowsunits_test",
+    srcs = ["registry_test.go"],
+    embed = [":windowsunits"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+filegroup(
+    name = "gen",
+    srcs = glob(["gen/**"]),
+    visibility = ["//pkg/fleet/installer/units/generator:__pkg__"],
+)

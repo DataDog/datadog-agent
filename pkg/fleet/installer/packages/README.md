@@ -83,3 +83,19 @@ v1.extension's files are removed from disk.
 ### Upgrade
 
 There is no concept of upgrade for an extension. When the package the extension is attached to gets upgraded, its pre-remove script should include removal & save of the installed extensions and its post-install script should include reinstallation of the saved extensions.
+
+## Service units
+
+Every service unit the hooks manage (systemd units, upstart and sysvinit scripts, processes.d
+entries, launchd jobs, Windows services) is an entry of the registry of its platform:
+`pkg/fleet/installer/units/{linuxunits,darwinunits,windowsunits}`. A registry only stores the
+units and their rendered files; the hooks decide which units to write, enable, start or stop.
+Each platform only imports its own registry, so a binary embeds the files of its platform only.
+
+To add a unit:
+
+1. Add its template to `pkg/fleet/installer/units/generator/tmpl/`.
+2. Add its entry to the table of its service manager in the platform registry.
+3. Regenerate the rendered files:
+   `bazelisk run //pkg/fleet/installer/units/generator -- "$PWD/pkg/fleet/installer/units"`.
+4. Reference the entry from the hooks that manage it.

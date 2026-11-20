@@ -7,7 +7,13 @@
 
 package coat
 
-import "context"
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units"
+)
+
+var legacySupervisors = map[string]units.Unit{}
 
 func detectLegacySupervisor(_ context.Context, _ MigratableService) ManagementMode {
 	return ManagementModeNone

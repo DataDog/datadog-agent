@@ -15,7 +15,7 @@ use crate::spawn::DATADOG_AGENT_PROCESS;
 use std::path::Path;
 
 const PROCESS_TEMPLATE: &str = include_str!(
-    "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-process-windows.yaml.tmpl"
+    "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-process-windows.yaml.tmpl"
 );
 
 /// Gate keys all absent, so each one falls through to the Agent's schema default.

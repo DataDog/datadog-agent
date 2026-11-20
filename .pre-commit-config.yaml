@@ -157,13 +157,6 @@ repos:
       pass_filenames: false
       stages: [pre-push]
       files: ^(pkg/security/.*|docs/cloud-workload-security/.*|bazel/rules/cws_codegen/.*)$
-    - id: experiment-systemd-units
-      name: validate-experiment-systemd-units
-      description: Validate that the generated systemd experimrent units are up to date
-      entry: 'dda inv installer.generate-experiment-units --check'
-      language: system
-      pass_filenames: false
-      files: ^pkg/fleet/installer/packages/embedded/.*\.service$
     - id: scenario-imports
       name: validate-scenario-imports
       description: Validate that test/new-e2e/run/scenarios_import_gen.go is up to date

@@ -18,10 +18,10 @@ import (
 	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/windowsunits"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
@@ -39,8 +39,6 @@ var datadogAgentDDOTPackage = hooks{
 
 const (
 	agentDDOTPackage = "datadog-agent-ddot"
-	otelServiceName  = "datadog-otel-agent"
-	coreAgentService = "datadogagent"
 )
 
 // preInstallDatadogAgentDDOT performs pre-installation steps for DDOT on Windows
@@ -67,12 +65,12 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to install ddot service: %w", err)
 	}
 	// Start DDOT only when core Agent is running (handle StartPending) and credentials exist
-	running, _ := winutil.IsServiceRunning(coreAgentService)
+	running, _ := winutil.IsServiceRunning(windowsunits.SCM.CoreAgent.Name)
 	if !running {
 		// If core Agent is still starting, wait briefly for it to leave StartPending
 		ctxCA, cancelCA := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancelCA()
-		if st, err := winutil.WaitForPendingStateChange(ctxCA, coreAgentService, svc.StartPending); err != nil || st != svc.Running {
+		if st, err := winutil.WaitForPendingStateChange(ctxCA, windowsunits.SCM.CoreAgent.Name, svc.StartPending); err != nil || st != svc.Running {
 			log.Warnf("DDOT: skipping service start (core Agent not running; state=%d, err=%v)", st, err)
 			return nil
 		}
@@ -86,20 +84,20 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 		log.Warnf("DDOT: skipping service start (no API key configured)")
 		return nil
 	}
-	if err = startServiceIfExists(otelServiceName); err != nil {
+	if err = startServiceIfExists(windowsunits.SCM.OTel.Name); err != nil {
 		log.Warnf("DDOT: failed to start service: %v", err)
 		return nil
 	}
 	// Fail fast if the service exits or transitions away from StartPending
 	ctxWait, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	state, err := winutil.WaitForPendingStateChange(ctxWait, otelServiceName, svc.StartPending)
+	state, err := winutil.WaitForPendingStateChange(ctxWait, windowsunits.SCM.OTel.Name, svc.StartPending)
 	if err != nil {
-		log.Warnf("DDOT: service %q did not reach Running state: %s", otelServiceName, err)
+		log.Warnf("DDOT: service %q did not reach Running state: %s", windowsunits.SCM.OTel.Name, err)
 		return nil
 	}
 	if state != svc.Running {
-		log.Warnf("DDOT: service %q transitioned to state %d instead of Running", otelServiceName, state)
+		log.Warnf("DDOT: service %q transitioned to state %d instead of Running", windowsunits.SCM.OTel.Name, state)
 		return nil
 	}
 	return nil
@@ -125,8 +123,8 @@ func readAPIKeyFromDatadogYAML() (string, error) {
 // preRemoveDatadogAgentDdot performs pre-removal steps for the DDOT package on Windows
 // All the steps are allowed to fail
 func preRemoveDatadogAgentDdot(ctx HookContext) error {
-	_ = stopServiceIfExists(otelServiceName)
-	_ = deleteServiceIfExists(otelServiceName)
+	_ = stopServiceIfExists(windowsunits.SCM.OTel.Name)
+	_ = deleteServiceIfExists(windowsunits.SCM.OTel.Name)
 
 	if !ctx.Upgrade {
 		// Preserve otel-config.yaml; only disable the feature in datadog.yaml
@@ -178,7 +176,7 @@ func ensureDDOTService() error {
 	}
 	defer m.Disconnect()
 
-	s, err := m.OpenService(otelServiceName)
+	s, err := m.OpenService(windowsunits.SCM.OTel.Name)
 	if err == nil {
 		defer s.Close()
 		// update existing, remove SCM dependency if any
@@ -213,7 +211,7 @@ func ensureDDOTService() error {
 		return nil
 	}
 
-	s, err = m.CreateService(otelServiceName, bin, mgr.Config{
+	s, err = m.CreateService(windowsunits.SCM.OTel.Name, bin, mgr.Config{
 		DisplayName:      "Datadog Distribution of OpenTelemetry Collector",
 		Description:      "Datadog OpenTelemetry Collector",
 		StartType:        mgr.StartManual,
@@ -239,7 +237,7 @@ func ensureDDOTService() error {
 // For LocalSystem/LocalService/NetworkService the password is empty string.
 // For other accounts, the password is retrieved from LSA; if absent, a NULL password is used.
 func configureDDOTServiceCredentials(s *mgr.Service) error {
-	coreUser, err := winutil.GetServiceUser(coreAgentService)
+	coreUser, err := winutil.GetServiceUser(windowsunits.SCM.CoreAgent.Name)
 	if err != nil || coreUser == "" {
 		return fmt.Errorf("DDOT: could not determine core Agent service user: %w", err)
 	}
@@ -250,7 +248,7 @@ func configureDDOTServiceCredentials(s *mgr.Service) error {
 
 	// Prefer SID-based detection for well-known accounts (locale-independent).
 	// If we cannot resolve the SID, fail installation as the environment is not in a stable state.
-	sid, errSID := winutil.GetServiceUserSID(coreAgentService)
+	sid, errSID := winutil.GetServiceUserSID(windowsunits.SCM.CoreAgent.Name)
 	if errSID != nil {
 		return fmt.Errorf("DDOT: could not resolve SID for service user %q: %w", coreUser, errSID)
 	}
@@ -270,7 +268,7 @@ func configureDDOTServiceCredentials(s *mgr.Service) error {
 	}
 
 	if err := windows.ChangeServiceConfig(s.Handle, noChange, noChange, noChange, nil, nil, nil, nil, acctPtr, pwdPtr, nil); err != nil {
-		log.Warnf("DDOT: failed to set credentials for %q to %q: %v", otelServiceName, coreUser, err)
+		log.Warnf("DDOT: failed to set credentials for %q to %q: %v", windowsunits.SCM.OTel.Name, coreUser, err)
 		return nil
 	}
 	return nil
@@ -290,7 +288,7 @@ func configureDDOTServiceCredentials(s *mgr.Service) error {
 func configureDDOTServicePermissions(s *mgr.Service) {
 	// Resolve the core Agent service account SID (locale-independent). This SID is used
 	// to grant the dd-agent user explicit start/stop/read access on the DDOT service.
-	sid, err := winutil.GetServiceUserSID(coreAgentService)
+	sid, err := winutil.GetServiceUserSID(windowsunits.SCM.CoreAgent.Name)
 	if err != nil || sid == nil {
 		log.Warnf("DDOT: could not resolve SID for core Agent user to set service DACL: %v", err)
 		return
@@ -350,7 +348,7 @@ func configureDDOTServicePermissions(s *mgr.Service) {
 func setDDOTServiceEnvVars() error {
 	key, err := registry.OpenKey(
 		registry.LOCAL_MACHINE,
-		`SYSTEM\CurrentControlSet\Services\`+otelServiceName,
+		`SYSTEM\CurrentControlSet\Services\`+windowsunits.SCM.OTel.Name,
 		registry.SET_VALUE,
 	)
 	if err != nil {
@@ -409,8 +407,8 @@ func deleteServiceIfExists(name string) error {
 // preInstallDDOTExtension stops the existing DDOT service before extension installation
 func preInstallDDOTExtension(_ HookContext) error {
 	// Best effort stop and delete existing service
-	_ = stopServiceIfExists(otelServiceName)
-	_ = deleteServiceIfExists(otelServiceName)
+	_ = stopServiceIfExists(windowsunits.SCM.OTel.Name)
+	_ = deleteServiceIfExists(windowsunits.SCM.OTel.Name)
 	return nil
 }
 
@@ -440,10 +438,10 @@ func postInstallDDOTExtension(ctx HookContext) error {
 	}
 
 	if env.FromEnv().ProcessManagerEnabled {
-		if err := processmanager.WriteDDOTProcmgrConfig(packagePath); err != nil {
+		if err := writeDDOTProcmgrConfig(packagePath); err != nil {
 			return fmt.Errorf("failed to write DDOT process manager config: %w", err)
 		}
-	} else if err := processmanager.RemoveDDOTProcmgrConfig(packagePath); err != nil {
+	} else if err := removeDDOTProcmgrConfig(packagePath); err != nil {
 		log.Warnf("DDOT: could not remove stale process manager config: %v", err)
 	}
 
@@ -451,8 +449,8 @@ func postInstallDDOTExtension(ctx HookContext) error {
 	if err := ensureDDOTServiceForExtension(binaryPath); err != nil {
 		return fmt.Errorf("failed to register DDOT Windows service for rollback: %w", err)
 	}
-	if err := stopServiceIfExists(otelServiceName); err != nil {
-		log.Warnf("DDOT: could not ensure %s is stopped after registration: %v", otelServiceName, err)
+	if err := stopServiceIfExists(windowsunits.SCM.OTel.Name); err != nil {
+		log.Warnf("DDOT: could not ensure %s is stopped after registration: %v", windowsunits.SCM.OTel.Name, err)
 	}
 	// No RestartService(dd-procmgr-service) here: InstallExtensions restarts Datadog agent services
 	// after all extension hooks return, which reloads dd-procmgr and picks up processes.d.
@@ -467,16 +465,16 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
 		packagePath = resolved
 	}
-	if err := processmanager.RemoveDDOTProcmgrConfig(packagePath); err != nil {
+	if err := removeDDOTProcmgrConfig(packagePath); err != nil {
 		log.Warnf("failed to remove DDOT process manager config: %v", err)
 	}
 	if env.FromEnv().ProcessManagerEnabled {
-		processmanager.ReloadOrRestartProcmgr()
+		reloadOrRestartProcmgr()
 	}
-	if err := stopServiceIfExists(otelServiceName); err != nil {
+	if err := stopServiceIfExists(windowsunits.SCM.OTel.Name); err != nil {
 		log.Warnf("failed to stop DDOT service: %s", err)
 	}
-	if err := deleteServiceIfExists(otelServiceName); err != nil {
+	if err := deleteServiceIfExists(windowsunits.SCM.OTel.Name); err != nil {
 		log.Warnf("failed to delete DDOT service: %s", err)
 	}
 	if err := disableOtelCollectorConfigWindows(); err != nil {
@@ -503,7 +501,7 @@ func ensureDDOTServiceForExtension(binaryPath string) error {
 	}
 	defer m.Disconnect()
 
-	s, err := m.OpenService(otelServiceName)
+	s, err := m.OpenService(windowsunits.SCM.OTel.Name)
 	if err == nil {
 		defer s.Close()
 		cfg, errC := s.Config()
@@ -538,7 +536,7 @@ func ensureDDOTServiceForExtension(binaryPath string) error {
 		return nil
 	}
 
-	s, err = m.CreateService(otelServiceName, binaryPath, mgr.Config{
+	s, err = m.CreateService(windowsunits.SCM.OTel.Name, binaryPath, mgr.Config{
 		DisplayName:      "Datadog Distribution of OpenTelemetry Collector",
 		Description:      "Datadog OpenTelemetry Collector",
 		StartType:        mgr.StartManual,
@@ -556,4 +554,23 @@ func ensureDDOTServiceForExtension(binaryPath string) error {
 		return err
 	}
 	return nil
+}
+
+// writeDDOTProcmgrConfig writes the DDOT processes.d entry in the MSI install root, where
+// dd-procmgrd reads it, pointing at the extension under packagePath.
+func writeDDOTProcmgrConfig(packagePath string) error {
+	if paths.DatadogProgramFilesDir == "" {
+		return errors.New("DatadogProgramFilesDir is empty; cannot write processes.d for DDOT")
+	}
+	return writeProcmgrConfig(windowsunits.Procmgr.DDOT, packagePath, procmgrConfigDir(paths.DatadogProgramFilesDir))
+}
+
+// removeDDOTProcmgrConfig removes the DDOT processes.d entry from the MSI install root and from the
+// legacy package-relative processes.d.
+func removeDDOTProcmgrConfig(packagePath string) error {
+	errs := []error{removeProcmgrConfigs(procmgrConfigDir(packagePath), windowsunits.Procmgr.DDOT)}
+	if installRoot := paths.DatadogProgramFilesDir; installRoot != "" {
+		errs = append(errs, removeProcmgrConfigs(procmgrConfigDir(installRoot), windowsunits.Procmgr.DDOT))
+	}
+	return errors.Join(errs...)
 }
