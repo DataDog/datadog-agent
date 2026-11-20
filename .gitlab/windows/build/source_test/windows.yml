@@ -73,7 +73,7 @@
 tests_windows-x64:
   extends: .tests_windows_base
   #parallel: 10
-  timeout: 1h 20m
+  timeout: 1h 50m  # Legacy (non-Bazel) runner: successful runs regularly exceed 1h15m
   variables:
     ARCH: "x64"
 
