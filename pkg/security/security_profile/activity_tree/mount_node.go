@@ -132,8 +132,7 @@ func (at *ActivityTree) demoteBaseMountNamespace(nsID uint32) {
 		nonBaseKey := mountNodeKey{mountPoint: mn.MountPoint, filesystem: mn.Filesystem, mountFlags: mn.MountFlags, inBaseNamespace: false}
 		if existing, ok := at.mountIndex[nonBaseKey]; ok {
 			before := existing.size()
-			existing.mergeSeen(&mn.NodeBase)
-			existing.mergeLastAnomalySent(&mn.NodeBase)
+			existing.absorb(&mn.NodeBase)
 			at.Stats.SizeBytes += (existing.size() - before) - mn.size()
 			continue
 		}

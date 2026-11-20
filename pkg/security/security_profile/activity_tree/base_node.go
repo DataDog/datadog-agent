@@ -29,6 +29,8 @@ func timeToNanos(t time.Time) int64 {
 type NodeBase struct {
 	seen            []seenEntry
 	lastAnomalySent int64 // lastAnomalySent is the last time an anomaly was sent for this activity.
+	// mergedInto is the node that absorbed this one when a merge folded it out of the tree.
+	mergedInto *NodeBase
 }
 
 // NewNodeBase creates a new NodeBase instance
@@ -159,6 +161,22 @@ func (b *NodeBase) mergeLastAnomalySent(other *NodeBase) {
 	if other.lastAnomalySent > b.lastAnomalySent {
 		b.lastAnomalySent = other.lastAnomalySent
 	}
+}
+
+// absorb records that b now holds the observations of other, which a merge folded out of the tree.
+func (b *NodeBase) absorb(other *NodeBase) {
+	b.mergeSeen(other)
+	b.mergeLastAnomalySent(other)
+	other.mergedInto = b
+}
+
+// Live returns the node of the tree that holds the observations of b: b itself, or the node that
+// absorbed it when a merge folded b. Callers must hold the lock of the tree, which merges hold.
+func (b *NodeBase) Live() *NodeBase {
+	for b != nil && b.mergedInto != nil {
+		b = b.mergedInto
+	}
+	return b
 }
 
 // EachSeen calls fn for every recorded image tag ID and its first/last seen timestamps

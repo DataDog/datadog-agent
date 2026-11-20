@@ -1136,6 +1136,84 @@ func TestManagerV2_eventCooldownSurvivesReload(t *testing.T) {
 	}
 }
 
+// TestManagerV2_eventCooldownFollowsMerges folds the node of an emitting event into the node of an activity
+// learned without an anomaly, between the insertion of the event and the start of its cooldown, as a
+// concurrent persistence would. The cooldown must run on the surviving node, which holds the sample cookies.
+func TestManagerV2_eventCooldownFollowsMerges(t *testing.T) {
+	const cooldown = time.Hour
+	m, anomalies := newInsertionTestManagerV2(t)
+	rs := m.config.RuntimeSecurity
+	rs.AnomalyDetectionEventCooldown = cooldown
+	patterns := activity_tree.DefaultPathPatternConfig()
+	rs.SecurityProfileV2PathPatternsEnabled = true
+	rs.SecurityProfileV2PathPatternsMaxChildren = patterns.MaxChildren
+	rs.SecurityProfileV2PathPatternsMinGroupSizeOnInsert = patterns.MinGroupSizeOnInsert
+	rs.SecurityProfileV2PathPatternsMinGroupSize = patterns.MinGroupSize
+	rs.SecurityProfileV2PathPatternsMinDateGroupSize = patterns.MinDateGroupSize
+	m.sampleMaps = map[model.EventType]*ebpf.Map{model.FileOpenEventType: nil}
+
+	start := time.Now()
+	nextCookie := uint64(0)
+	open := func(dir string, timestamp time.Time) *model.Event {
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		event.Open.File.PathnameStr = "/tmp/" + dir + "/file"
+		event.Open.File.BasenameStr = "file"
+		event.Timestamp = timestamp
+		nextCookie++
+		event.Open.SampleCookie = nextCookie
+		return event
+	}
+
+	for _, dir := range []string{"sess-aaa", "sess-bbb"} {
+		_, inserted, _ := m.insertEventIntoProfile(open(dir, start))
+		require.True(t, inserted)
+	}
+	p := m.profiles[testSelector]
+	require.NotNil(t, p)
+	tmp := p.ActivityTree.ProcessNodes[0].Files["tmp"]
+	require.NotNil(t, tmp)
+
+	reached, release := make(chan struct{}), make(chan struct{})
+	m.beforeAnomalyClaim = func() {
+		close(reached)
+		<-release
+	}
+	done := make(chan struct{})
+	racing := open("sess-ccc", start)
+	go func() {
+		defer close(done)
+		m.onEventTagsResolved(racing)
+	}()
+	<-reached
+	folded := &tmp.Children["sess-ccc"].Children["file"].NodeBase
+	m.persistProfile(p)
+	m.beforeAnomalyClaim = nil
+	close(release)
+	<-done
+
+	require.Len(t, *anomalies, 1, "a new activity folded before its claim should still trigger an anomaly")
+	pattern, ok := tmp.Children["sess-<alpha>"]
+	require.True(t, ok, "the persistence should fold the sibling directories into a pattern")
+	survivor := &pattern.Children["file"].NodeBase
+	require.NotSame(t, folded, survivor, "the node of the racing event should have been folded")
+	lastSent, ok := survivor.GetLastAnomalySent()
+	require.True(t, ok, "the cooldown should be recorded on the surviving node")
+	assert.True(t, lastSent.Equal(start))
+	assert.Contains(t, m.cooldownExpiries, survivor, "the cooldown expiry should be scheduled on the surviving node")
+	assert.NotContains(t, m.cooldownExpiries, folded)
+
+	m.onEventTagsResolved(open("sess-ccc", start.Add(30*time.Minute)))
+	assert.Len(t, *anomalies, 1, "the merged activity re-seen within the event cooldown shouldn't trigger an anomaly")
+
+	m.expireCooldowns(start.Add(cooldown + time.Minute))
+	assert.False(t, m.sampleCookieMap.Contains(racing.Open.SampleCookie), "the expiry should release the retargeted cookie of the racing event")
+	assert.NotContains(t, m.cooldownExpiries, survivor)
+
+	m.onEventTagsResolved(open("sess-ccc", start.Add(2*time.Hour)))
+	m.onEventTagsResolved(open("sess-aaa", start.Add(2*time.Hour+time.Minute)))
+	assert.Len(t, *anomalies, 2, "the merged activity re-seen after the event cooldown should trigger exactly one anomaly")
+}
+
 func TestManagerV2_insertEventIntoProfile_maxSize(t *testing.T) {
 	t.Run("a profile reaching the max size is disabled and stops learning", func(t *testing.T) {
 		m, anomalies := newInsertionTestManagerV2(t)
