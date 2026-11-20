@@ -13,6 +13,7 @@
 package windowsstartup
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -56,6 +57,10 @@ const (
 // Running as one process with no restarts.
 type adpWindowsStartupSuite struct {
 	e2e.BaseSuite[environments.Host]
+
+	// procmgrCLI is the path to dd-procmgr.exe. SetupSuite resolves it on the test goroutine, so that polling
+	// callbacks, which run on worker goroutines, never have to call require.
+	procmgrCLI string
 }
 
 // TestADPStartupWindowsServer2016Suite runs the check on Windows Server 2016.
@@ -82,7 +87,7 @@ func suiteOptions(descriptor e2eos.Descriptor) []e2e.SuiteOption {
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
 				awshost.WithRunOptions(
-					ec2.WithEC2InstanceOptions(ec2.WithOS(descriptor), ec2.WithInternetAccess()),
+					ec2.WithEC2InstanceOptions(ec2.WithOS(descriptor)),
 					ec2.WithAgentOptions(agentparams.WithAgentConfig("data_plane.enabled: true")),
 				),
 			),
@@ -96,10 +101,14 @@ func (s *adpWindowsStartupSuite) SetupSuite() {
 
 	host := s.Env().RemoteHost
 
-	// The test must not skip when dd-procmgr is missing: a skip reports as a pass, and this suite exists to fail.
-	exists, err := host.FileExists(s.procmgrCLI())
+	installPath, err := windowsagent.GetInstallPathFromRegistry(host)
 	require.NoError(s.T(), err)
-	require.True(s.T(), exists, "dd-procmgr CLI should be installed at %s", s.procmgrCLI())
+	s.procmgrCLI = strings.TrimRight(installPath, `\`) + `\bin\agent\dd-procmgr.exe`
+
+	// The test must not skip when dd-procmgr is missing: a skip reports as a pass, and this suite exists to fail.
+	exists, err := host.FileExists(s.procmgrCLI)
+	require.NoError(s.T(), err)
+	require.True(s.T(), exists, "dd-procmgr CLI should be installed at %s", s.procmgrCLI)
 
 	require.NoError(s.T(), windowsCommon.StartService(host, procmgrServiceName))
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
@@ -114,59 +123,79 @@ func (s *adpWindowsStartupSuite) SetupSuite() {
 // TestADPStaysUp requires ADP to reach Running and then to hold one PID, with an unchanged restart count, for
 // holdFor.
 func (s *adpWindowsStartupSuite) TestADPStaysUp() {
-	host := s.Env().RemoteHost
 	defer func() {
 		if s.T().Failed() {
 			s.dumpDiagnostics()
 		}
 	}()
 
-	var (
-		pid, restarts string
-		heldSince     time.Time
-	)
-	reset := func() {
-		pid, restarts, heldSince = "", "", time.Time{}
-	}
-
 	// Phase 1: ADP reaches Running.
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := host.Execute(s.describeADP())
-		if !assert.NoError(ct, err, "dd-procmgr describe %s", adpProcessName) {
+		detail, ok := s.describeADP(ct)
+		if !ok {
 			return
 		}
-		assert.Equal(ct, "Running", fieldValue(out, "State"), "%s should be Running: %s", adpProcessName, out)
+		assert.Equal(ct, "Running", detail.state(), "%s should be Running", adpProcessName)
 	}, startTimeout, pollInterval, "%s never reached Running", adpProcessName)
 
 	// Phase 2: ADP stays Running as the same process with no new restarts. Any change resets the hold. A crash
 	// loop changes the PID or the restart count, or shows a state other than Running, at least once per restart.
+	var (
+		held      *procmgrDetail
+		heldSince time.Time
+	)
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := host.Execute(s.describeADP())
-		if !assert.NoError(ct, err, "dd-procmgr describe %s", adpProcessName) {
-			reset()
-			return
-		}
-
-		state, p, r := fieldValue(out, "State"), fieldValue(out, "PID"), fieldValue(out, "Restarts")
-		if !assert.Equal(ct, "Running", state, "%s should stay Running: %s", adpProcessName, out) ||
-			!assert.NotContains(ct, []string{"", "-"}, p, "a Running process should have a PID: %s", out) {
-			reset()
+		detail, ok := s.describeADP(ct)
+		if !ok ||
+			!assert.Equal(ct, "Running", detail.state(), "%s should stay Running", adpProcessName) ||
+			!assert.NotZero(ct, *detail.PID, "a Running process should have a PID") {
+			held, heldSince = nil, time.Time{}
 			return
 		}
 
 		now := time.Now()
-		if p != pid || r != restarts {
-			if pid != "" {
-				s.T().Logf("%s changed from PID %s (restarts %s) to PID %s (restarts %s)",
-					adpProcessName, pid, restarts, p, r)
+		if held == nil || *detail.PID != *held.PID || *detail.RestartCount != *held.RestartCount {
+			if held != nil {
+				s.T().Logf("%s changed from PID %d (restarts %d) to PID %d (restarts %d)",
+					adpProcessName, *held.PID, *held.RestartCount, *detail.PID, *detail.RestartCount)
 			}
-			pid, restarts, heldSince = p, r, now
+			held, heldSince = &detail, now
 		}
 
 		// A tick that records no failure ends the wait, so the hold has to be an assertion.
 		assert.GreaterOrEqual(ct, now.Sub(heldSince), holdFor,
-			"%s has held PID %s for %s, needs %s", adpProcessName, pid, now.Sub(heldSince).Round(time.Second), holdFor)
+			"%s has held PID %d for %s, needs %s", adpProcessName, *held.PID, now.Sub(heldSince).Round(time.Second), holdFor)
 	}, holdTimeout, pollInterval, "%s did not stay up as one process for %s", adpProcessName, holdFor)
+}
+
+// procmgrDetail holds the fields of `dd-procmgr describe --json` that the test reads. The fields are pointers so
+// that a missing field is an error rather than a zero value, which would look stable on every poll.
+type procmgrDetail struct {
+	State        *string `json:"state"`
+	PID          *uint32 `json:"pid"`
+	RestartCount *uint64 `json:"restart_count"`
+}
+
+func (d procmgrDetail) state() string {
+	if d.State == nil {
+		return ""
+	}
+	return *d.State
+}
+
+// describeADP returns ADP's dd-procmgr detail. It records a failure on ct, and returns false, when the command
+// fails, its output is not JSON, or a field the test reads is missing.
+func (s *adpWindowsStartupSuite) describeADP(ct *assert.CollectT) (procmgrDetail, bool) {
+	var detail procmgrDetail
+	out, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`& '%s' describe --json %s`, s.procmgrCLI, adpProcessName))
+	if !assert.NoError(ct, err, "dd-procmgr describe %s", adpProcessName) ||
+		!assert.NoError(ct, json.Unmarshal([]byte(out), &detail), "dd-procmgr describe output should be JSON: %s", out) {
+		return detail, false
+	}
+	ok := assert.NotNil(ct, detail.State, "describe output should have state: %s", out)
+	ok = assert.NotNil(ct, detail.PID, "describe output should have pid: %s", out) && ok
+	ok = assert.NotNil(ct, detail.RestartCount, "describe output should have restart_count: %s", out) && ok
+	return detail, ok
 }
 
 // dumpDiagnostics logs what is needed to tell a crash loop from other failures. The host is destroyed when the
@@ -174,7 +203,7 @@ func (s *adpWindowsStartupSuite) TestADPStaysUp() {
 func (s *adpWindowsStartupSuite) dumpDiagnostics() {
 	host := s.Env().RemoteHost
 
-	s.logCommand("dd-procmgr describe", s.describeADP())
+	s.logCommand("dd-procmgr describe", fmt.Sprintf(`& '%s' describe %s`, s.procmgrCLI, adpProcessName))
 	s.logCommand("OS version", `(Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version | Format-List | Out-String).Trim()`)
 
 	configRoot, err := windowsagent.GetConfigRootFromRegistry(host)
@@ -199,30 +228,4 @@ func (s *adpWindowsStartupSuite) logCommand(label, command string) {
 		return
 	}
 	s.T().Logf("%s:\n%s", label, strings.TrimSpace(out))
-}
-
-func (s *adpWindowsStartupSuite) procmgrCLI() string {
-	return s.agentBin("dd-procmgr.exe")
-}
-
-func (s *adpWindowsStartupSuite) describeADP() string {
-	return fmt.Sprintf(`& '%s' describe %s`, s.procmgrCLI(), adpProcessName)
-}
-
-func (s *adpWindowsStartupSuite) agentBin(name string) string {
-	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
-	require.NoError(s.T(), err)
-	return strings.TrimRight(installPath, `\`) + `\bin\agent\` + name
-}
-
-// fieldValue returns the value of a "Label: value" line in dd-procmgr describe output.
-func fieldValue(output, label string) string {
-	needle := label + ":"
-	for _, line := range strings.Split(output, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, needle) {
-			return strings.TrimSpace(trimmed[len(needle):])
-		}
-	}
-	return ""
 }
