@@ -441,9 +441,9 @@ func assertMacosProcessManagerOff(t *testing.T, client *common.MacOSTestClient, 
 		assertMacosReportsAbsence(c, out, err, "failed to connect to")
 	}, 60*time.Second, 2*time.Second)
 	out, err := client.Execute("sudo test -e " + macosLaunchDaemonPath("com.datadoghq.procmgr"))
-	assertMacosReportsAbsence(t, out, err, "Process exited with status 1")
+	assertMacosExitStatus(t, out, err, 1)
 	out, err = client.Execute("sudo test -e " + macosProcessesDir)
-	assertMacosReportsAbsence(t, out, err, "Process exited with status 1")
+	assertMacosExitStatus(t, out, err, 1)
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		for _, label := range []string{"com.datadoghq.sysprobe", "com.datadoghq.data-plane", "com.datadoghq.agent", macosInstallerLaunchDaemon} {

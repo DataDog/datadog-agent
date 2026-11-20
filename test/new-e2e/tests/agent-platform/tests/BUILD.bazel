@@ -54,7 +54,10 @@ go_library(
     srcs = ["macos_absence.go"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/tests",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@org_golang_x_crypto//ssh",
+    ],
 )
 
 dd_agent_go_test(
