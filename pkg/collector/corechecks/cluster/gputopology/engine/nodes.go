@@ -89,6 +89,9 @@ func (s NodeState) String() string {
 const (
 	GPUResourceMIG    = "mig"                              // any MIG strategy
 	GPUResourceShared = string(gpu.GpuNvidiaGenericShared) // time-slicing or MPS
+	// GPUTypeUnknown is the GPU type of nodes without a parseable
+	// nvidia.com/gpu.product label.
+	GPUTypeUnknown = "unknown"
 	// GPUResourceNone is not produced by the engine: the check tags its zero
 	// node counts with it when Result.Nodes is empty.
 	GPUResourceNone = "none"
@@ -96,7 +99,8 @@ const (
 
 // classified is a node after classification.
 type classified struct {
-	node Node
+	node    Node
+	gpuType string
 	// states holds the node's state per attributed resource ("mig" or
 	// nvidia.com/gpu.shared for unsupported nodes). It only differs between
 	// resources for no_gpu_allocatable (e.g. one vendor's plugin down).
@@ -106,7 +110,7 @@ type classified struct {
 
 // classify returns the node's states, or false for a node with no GPU at all.
 func classify(n Node, levels []string, implicit bool, tols []Toleration) (classified, bool) {
-	c := classified{node: n, states: map[string]NodeState{}}
+	c := classified{node: n, gpuType: gpuType(n), states: map[string]NodeState{}}
 	if attr := unsupported(n); attr != "" {
 		c.states[attr] = NodeUnsupported
 		return c, true
@@ -170,6 +174,15 @@ func unsupported(n Node) string {
 		return GPUResourceShared
 	}
 	return ""
+}
+
+// gpuType returns the node's GPU type from its GFD product label, with the
+// same normalization as the gpu_type tag of the node GPU check.
+func gpuType(n Node) string {
+	if t := gpu.ExtractGPUType(gpu.GFDLabelToGPUDeviceName(n.Labels[labelGPUProduct])); t != "" {
+		return t
+	}
+	return GPUTypeUnknown
 }
 
 // attributedResources returns the modelled GPU resources present in the

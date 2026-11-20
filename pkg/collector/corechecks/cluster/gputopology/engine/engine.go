@@ -81,23 +81,23 @@ type DomainState int
 // Domain states. They index StateCounts.
 const (
 	DomainFree DomainState = iota
-	DomainPartial
-	DomainFull
+	DomainPartiallyOccupied
+	DomainFullyOccupied
 	DomainUnavailable // no in_topology capacity
 )
 
 // DomainStates returns all domain states in reporting order.
 func DomainStates() []DomainState {
-	return []DomainState{DomainFree, DomainPartial, DomainFull, DomainUnavailable}
+	return []DomainState{DomainFree, DomainPartiallyOccupied, DomainFullyOccupied, DomainUnavailable}
 }
 
 func (s DomainState) String() string {
 	switch s {
 	case DomainFree:
 		return "free"
-	case DomainPartial:
+	case DomainPartiallyOccupied:
 		return "partially_occupied"
-	case DomainFull:
+	case DomainFullyOccupied:
 		return "fully_occupied"
 	case DomainUnavailable:
 		return "unavailable"
@@ -110,11 +110,11 @@ func stateOf(d Domain) DomainState {
 	case d.Allocatable == 0:
 		return DomainUnavailable
 	case d.Free == 0:
-		return DomainFull
+		return DomainFullyOccupied
 	case d.Allocated == 0:
 		return DomainFree
 	}
-	return DomainPartial
+	return DomainPartiallyOccupied
 }
 
 // StateCounts holds one count per DomainState, indexed by it.
@@ -159,24 +159,28 @@ type ReasonCounts [5]int
 // Result is the output of Compute.
 type Result struct {
 	Topology Topology
-	// Nodes has a count for every NodeState and every GPU resource
-	// attribution seen, zeros included, sorted by state then resource.
+	// Nodes has a count for every NodeState and every (GPU resource
+	// attribution, GPU type) seen, zeros included, sorted by state, resource,
+	// then type.
 	Nodes       []NodeCount
-	Resources   []ResourceResult // sorted by resource name
+	Resources   []ResourceResult // sorted by resource, then GPU type
 	Overcommits []Overcommit     // sorted by node, then resource
 }
 
-// NodeCount is the number of nodes in a state for a GPU resource. A node
-// with several GPU resources counts once for each.
+// NodeCount is the number of nodes in a state for a GPU resource and type. A
+// node with several GPU resources counts once for each.
 type NodeCount struct {
 	State       NodeState
-	GPUResource string // resource name, or GPUResourceMIG
+	GPUResource string // resource name, GPUResourceMIG or GPUResourceShared
+	GPUType     string // e.g. "h100", or GPUTypeUnknown
 	Count       int
 }
 
-// ResourceResult holds the results for one GPU resource name.
+// ResourceResult holds the results for one (GPU resource, GPU type): nodes
+// of different GPU types never share a domain.
 type ResourceResult struct {
 	Resource          string
+	GPUType           string
 	UnschedulableGPUs ReasonCounts
 	Levels            []LevelResult // coarsest -> finest, host level included
 }
@@ -249,7 +253,7 @@ func Compute(t Topology, nodes []Node, alloc Allocations) Result {
 	tols := slices.Concat(t.Tolerations, t.AssumedTolerations)
 
 	var all []classified
-	var attributions []string
+	var seen []unit
 	counts := map[NodeCount]int{}
 	for _, n := range nodes {
 		c, ok := classify(n, levels, implicit, tols)
@@ -258,23 +262,23 @@ func Compute(t Topology, nodes []Node, alloc Allocations) Result {
 		}
 		all = append(all, c)
 		for r, state := range c.states {
-			counts[NodeCount{State: state, GPUResource: r}]++
-			if !slices.Contains(attributions, r) {
-				attributions = append(attributions, r)
+			counts[NodeCount{State: state, GPUResource: r, GPUType: c.gpuType}]++
+			if u := (unit{r, c.gpuType}); !slices.Contains(seen, u) {
+				seen = append(seen, u)
 			}
 		}
 	}
-	slices.Sort(attributions)
+	slices.SortFunc(seen, compareUnits)
 	for _, state := range NodeStates() {
-		for _, r := range attributions {
-			k := NodeCount{State: state, GPUResource: r}
+		for _, u := range seen {
+			k := NodeCount{State: state, GPUResource: u.resource, GPUType: u.gpuType}
 			k.Count = counts[k]
 			res.Nodes = append(res.Nodes, k)
 		}
 	}
 
-	for _, resource := range resourceNames(all) {
-		rr, overcommits := computeResource(resource, all, levels, alloc)
+	for _, u := range units(all) {
+		rr, overcommits := computeUnit(u, all, levels, alloc)
 		rr.Levels[len(levels)-1].Implicit = implicit
 		res.Resources = append(res.Resources, rr)
 		res.Overcommits = append(res.Overcommits, overcommits...)
@@ -285,14 +289,25 @@ func Compute(t Topology, nodes []Node, alloc Allocations) Result {
 	return res
 }
 
-func computeResource(resource string, nodes []classified, levels []string, alloc Allocations) (ResourceResult, []Overcommit) {
-	rr := ResourceResult{Resource: resource}
+// unit is the computation unit: a GPU resource and a GPU type.
+type unit struct {
+	resource string
+	gpuType  string
+}
+
+func compareUnits(a, b unit) int {
+	return cmp.Or(cmp.Compare(a.resource, b.resource), cmp.Compare(a.gpuType, b.gpuType))
+}
+
+func computeUnit(u unit, nodes []classified, levels []string, alloc Allocations) (ResourceResult, []Overcommit) {
+	resource := u.resource
+	rr := ResourceResult{Resource: resource, GPUType: u.gpuType}
 	var overcommits []Overcommit
 	var hosts []host
 	largestHost := 0 // bounds the pod sizes, independent of node health
 	for _, c := range nodes {
 		state, ok := c.states[resource]
-		if !ok {
+		if !ok || c.gpuType != u.gpuType {
 			continue
 		}
 		capacity := max(c.node.Capacity[resource], 0)
@@ -380,17 +395,17 @@ func newSlots(sizes []int) []Slots {
 	return slots
 }
 
-// resourceNames returns the sorted GPU resources attributed to the
-// classified nodes, unsupported nodes excluded.
-func resourceNames(nodes []classified) []string {
-	var names []string
+// units returns the sorted computation units of the classified nodes,
+// unsupported nodes excluded.
+func units(nodes []classified) []unit {
+	var out []unit
 	for _, c := range nodes {
 		for r, state := range c.states {
-			if state != NodeUnsupported && !slices.Contains(names, r) {
-				names = append(names, r)
+			if u := (unit{r, c.gpuType}); state != NodeUnsupported && !slices.Contains(out, u) {
+				out = append(out, u)
 			}
 		}
 	}
-	slices.Sort(names)
-	return names
+	slices.SortFunc(out, compareUnits)
+	return out
 }

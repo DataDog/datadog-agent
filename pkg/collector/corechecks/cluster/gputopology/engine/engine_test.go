@@ -73,6 +73,13 @@ func nonZero(counts []NodeCount) []NodeCount {
 	return out
 }
 
+func withoutType(counts []NodeCount) []NodeCount {
+	for i := range counts {
+		counts[i].GPUType = ""
+	}
+	return counts
+}
+
 func paths(l LevelResult) [][]string {
 	var out [][]string
 	for _, d := range l.DomainStats {
@@ -202,7 +209,7 @@ func TestWorkedExamples(t *testing.T) {
 			nodes, alloc := cluster(map[string]map[string][]int{"b": tt.used})
 			res := Compute(topo, nodes, alloc)
 
-			assert.Equal(t, []NodeCount{{State: NodeInTopology, GPUResource: nvidia, Count: len(nodes)}}, nonZero(res.Nodes))
+			assert.Equal(t, []NodeCount{{State: NodeInTopology, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: len(nodes)}}, nonZero(res.Nodes))
 			require.Len(t, res.Resources, 1)
 			rr := res.Resources[0]
 			assert.Equal(t, nvidia, rr.Resource)
@@ -219,7 +226,7 @@ func TestWorkedExampleDomainStats(t *testing.T) {
 	nodes, alloc := cluster(map[string]map[string][]int{"b": {"rack-1": {4, 4, 1}, "rack-2": {0, 0, 0}}})
 	res := Compute(Topology{Levels: []string{rackLabel}}, nodes, alloc)
 	assert.Equal(t, []Domain{
-		{Path: []string{"rack-1"}, Hosts: 3, Allocatable: 12, Allocated: 9, Free: 3, FreeSlots: slots(3, 1, 0), State: DomainPartial},
+		{Path: []string{"rack-1"}, Hosts: 3, Allocatable: 12, Allocated: 9, Free: 3, FreeSlots: slots(3, 1, 0), State: DomainPartiallyOccupied},
 		{Path: []string{"rack-2"}, Hosts: 3, Allocatable: 12, Allocated: 0, Free: 12, FreeSlots: slots(12, 6, 3), State: DomainFree},
 	}, res.Resources[0].Levels[0].DomainStats)
 }
@@ -386,7 +393,7 @@ func TestNodeStates(t *testing.T) {
 				n = m(n)
 			}
 			res := Compute(topo, []Node{n}, Allocations{"n": {nvidia: 1}})
-			assert.Equal(t, []NodeCount{{State: tt.want, GPUResource: tt.attr, Count: 1}}, nonZero(res.Nodes))
+			assert.Equal(t, []NodeCount{{State: tt.want, GPUResource: tt.attr, Count: 1}}, withoutType(nonZero(res.Nodes)))
 
 			if tt.want == NodeUnsupported {
 				assert.Empty(t, res.Resources, "unsupported nodes are only counted")
@@ -432,10 +439,10 @@ func TestFullyDownRack(t *testing.T) {
 	alloc["b-rack-2-h0"][nvidia] = 2 // usage on down nodes is ignored
 	res := Compute(Topology{Levels: []string{rackLabel}}, nodes, alloc)
 	assert.Equal(t, []NodeCount{
-		{State: NodeInTopology, GPUResource: nvidia, Count: 3},
-		{State: NodeUnavailable, GPUResource: nvidia, Count: 1},
-		{State: NodeTainted, GPUResource: nvidia, Count: 1},
-		{State: NodeNoGPUAllocatable, GPUResource: nvidia, Count: 1},
+		{State: NodeInTopology, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 3},
+		{State: NodeUnavailable, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 1},
+		{State: NodeTainted, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 1},
+		{State: NodeNoGPUAllocatable, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 1},
 	}, nonZero(res.Nodes))
 
 	rr := res.Resources[0]
@@ -515,9 +522,9 @@ func TestTolerations(t *testing.T) {
 
 func TestStateOf(t *testing.T) {
 	assert.Equal(t, DomainUnavailable, stateOf(Domain{}))
-	assert.Equal(t, DomainFull, stateOf(Domain{Allocatable: 4, Allocated: 4}))
+	assert.Equal(t, DomainFullyOccupied, stateOf(Domain{Allocatable: 4, Allocated: 4}))
 	assert.Equal(t, DomainFree, stateOf(Domain{Allocatable: 4, Free: 4}))
-	assert.Equal(t, DomainPartial, stateOf(Domain{Allocatable: 4, Allocated: 1, Free: 3}))
+	assert.Equal(t, DomainPartiallyOccupied, stateOf(Domain{Allocatable: 4, Allocated: 1, Free: 3}))
 }
 
 func TestNodeCountsIncludeZeros(t *testing.T) {
@@ -527,7 +534,7 @@ func TestNodeCountsIncludeZeros(t *testing.T) {
 	var want []NodeCount
 	for _, s := range NodeStates() {
 		for _, r := range []string{GPUResourceMIG, nvidia} {
-			want = append(want, NodeCount{State: s, GPUResource: r})
+			want = append(want, NodeCount{State: s, GPUResource: r, GPUType: GPUTypeUnknown})
 		}
 	}
 	want[1].Count = 1                      // in_topology, nvidia
@@ -572,9 +579,9 @@ func TestMixedVendors(t *testing.T) {
 	res := Compute(Topology{Levels: []string{rackLabel}}, nodes, alloc)
 
 	assert.Equal(t, []NodeCount{
-		{State: NodeInTopology, GPUResource: amd, Count: 1},
-		{State: NodeInTopology, GPUResource: nvidia, Count: 2},
-		{State: NodeMissingLabels, GPUResource: amd, Count: 1},
+		{State: NodeInTopology, GPUResource: amd, GPUType: GPUTypeUnknown, Count: 1},
+		{State: NodeInTopology, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 2},
+		{State: NodeMissingLabels, GPUResource: amd, GPUType: GPUTypeUnknown, Count: 1},
 	}, nonZero(res.Nodes))
 	require.Len(t, res.Resources, 2)
 	a, n := res.Resources[0], res.Resources[1]
@@ -597,13 +604,51 @@ func TestOneVendorPluginDown(t *testing.T) {
 	n.Capacity[amd], n.Allocatable[amd] = 8, 0
 	res := Compute(Topology{Levels: []string{rackLabel}}, []Node{n}, nil)
 	assert.Equal(t, []NodeCount{
-		{State: NodeInTopology, GPUResource: nvidia, Count: 1},
-		{State: NodeNoGPUAllocatable, GPUResource: amd, Count: 1},
+		{State: NodeInTopology, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 1},
+		{State: NodeNoGPUAllocatable, GPUResource: amd, GPUType: GPUTypeUnknown, Count: 1},
 	}, nonZero(res.Nodes))
 	require.Len(t, res.Resources, 2)
 	assert.Equal(t, StateCounts{0, 0, 0, 1}, res.Resources[0].Levels[0].Domains, "amd")
 	assert.Equal(t, 8, res.Resources[0].UnschedulableGPUs[ReasonNoAllocatable])
 	assert.Equal(t, StateCounts{1, 0, 0, 0}, res.Resources[1].Levels[0].Domains, "nvidia")
+}
+
+func TestGPUTypes(t *testing.T) {
+	rack := map[string]string{rackLabel: "rack-1"}
+	product := func(p string) map[string]string {
+		return map[string]string{rackLabel: "rack-1", labelGPUProduct: p}
+	}
+	nodes := []Node{
+		gpuNode("h100-a", product("NVIDIA-H100-80GB-HBM3"), 8, nvidia),
+		gpuNode("h100-b", product("NVIDIA-H100-80GB-HBM3"), 8, nvidia),
+		gpuNode("a100", product("NVIDIA-A100-SXM4-80GB"), 8, nvidia),
+		gpuNode("no-label", rack, 4, nvidia),
+		gpuNode("garbage", product("something-else"), 4, nvidia),
+	}
+	alloc := Allocations{"h100-a": {nvidia: 8}, "a100": {nvidia: 2}}
+	res := Compute(Topology{Levels: []string{rackLabel}}, nodes, alloc)
+
+	assert.Equal(t, []NodeCount{
+		{State: NodeInTopology, GPUResource: nvidia, GPUType: "a100", Count: 1},
+		{State: NodeInTopology, GPUResource: nvidia, GPUType: "h100", Count: 2},
+		{State: NodeInTopology, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 2},
+	}, nonZero(res.Nodes))
+
+	require.Len(t, res.Resources, 3)
+	var types []string
+	for _, rr := range res.Resources {
+		assert.Equal(t, nvidia, rr.Resource)
+		types = append(types, rr.GPUType)
+	}
+	assert.Equal(t, []string{"a100", "h100", GPUTypeUnknown}, types)
+
+	// The mixed rack is one rack per type.
+	a100, h100, unknown := res.Resources[0].Levels[0], res.Resources[1].Levels[0], res.Resources[2].Levels[0]
+	assert.Equal(t, []Domain{{Path: []string{"rack-1"}, Hosts: 1, Allocatable: 8, Allocated: 2, Free: 6, FreeSlots: slots(6, 3, 1, 0), State: DomainPartiallyOccupied}}, a100.DomainStats)
+	assert.Equal(t, []Domain{{Path: []string{"rack-1"}, Hosts: 2, Allocatable: 16, Allocated: 8, Free: 8, FreeSlots: slots(8, 4, 2, 1), State: DomainPartiallyOccupied}}, h100.DomainStats)
+	assert.Equal(t, StateCounts{1, 0, 0, 0}, unknown.Domains)
+	assert.Equal(t, slots(8, 4, 2), unknown.LargestFreeSlots, "pod sizes are bounded per type")
+	assert.Equal(t, StateCounts{1, 0, 1, 0}, res.Resources[1].Levels[1].Domains, "h100 hosts")
 }
 
 func TestEmpty(t *testing.T) {
