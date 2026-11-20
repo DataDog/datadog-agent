@@ -71,7 +71,6 @@ jobs:
           dda inv -- -e components.lint-components --fix
           dda inv -- -e modules.add-all-replace
           dda inv -- -e tidy
-          bazel run //:go_mod_tidy_all
           dda inv -- -e generate-licenses
 
       - uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
