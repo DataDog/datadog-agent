@@ -85,10 +85,18 @@ func (s NodeState) String() string {
 	return "unknown"
 }
 
-// GPU resource attributions of unsupported nodes, in NodeCount.GPUResource.
+// Modes of unsupported nodes, in NodeCount.SlicingMode and SharingMode.
 const (
-	GPUResourceMIG    = "mig"                              // any MIG strategy
-	GPUResourceShared = string(gpu.GpuNvidiaGenericShared) // time-slicing or MPS
+	SlicingModeMIG         = "mig"          // any MIG strategy
+	SharingModeTimeSlicing = "time_slicing" // incl. the nvidia.com/gpu.shared rename
+	SharingModeMPS         = "mps"
+
+	// sharedResource is the resource the NVIDIA device plugin advertises
+	// shared GPUs under with renameByDefault.
+	sharedResource = string(gpu.GpuNvidiaGenericShared)
+)
+
+const (
 	// GPUTypeUnknown is the GPU type of nodes without a parseable GPU type
 	// label (see gpuTypeLabels).
 	GPUTypeUnknown = "unknown"
@@ -102,19 +110,22 @@ type classified struct {
 	node Node
 	// gpuTypes holds the GPU type per key of states.
 	gpuTypes map[string]string
-	// states holds the node's state per attributed resource ("mig" or
-	// nvidia.com/gpu.shared for unsupported nodes). It only differs between
-	// resources for no_gpu_allocatable (e.g. one vendor's plugin down).
+	// states holds the node's state per attributed resource. It only differs
+	// between resources for no_gpu_allocatable (e.g. one vendor's plugin
+	// down). An unsupported node has a single entry.
 	states map[string]NodeState
-	path   []string // label values for every level, nil if missing_labels or unsupported
+	// slicing and sharing are the modes of an unsupported node.
+	slicing, sharing string
+	path             []string // label values for every level, nil if missing_labels or unsupported
 }
 
 // classify returns the node's states, or false for a node with no GPU at all.
 func classify(n Node, levels []string, implicit bool, tols []Toleration) (classified, bool) {
 	c := classified{node: n, states: map[string]NodeState{}, gpuTypes: map[string]string{}}
-	if attr := unsupported(n); attr != "" {
-		c.states[attr] = NodeUnsupported
-		c.gpuTypes[attr] = gpuType(n, attr)
+	if r, slicing, sharing := unsupported(n); r != "" {
+		c.states[r] = NodeUnsupported
+		c.gpuTypes[r] = gpuType(n, r)
+		c.slicing, c.sharing = slicing, sharing
 		return c, true
 	}
 	resources := attributedResources(n)
@@ -144,8 +155,9 @@ func classify(n Node, levels []string, implicit bool, tols []Toleration) (classi
 	return c, true
 }
 
-// unsupported returns the attribution of a node whose GPUs v1 doesn't model,
-// or "". MIG is checked first.
+// unsupported returns, for a node whose GPUs v1 doesn't model, the resource
+// it is attributed to and its slicing or sharing mode; or "" for other nodes.
+// MIG is checked first.
 //   - MIG is active: any nvidia.com/mig-* capacity (mixed strategy), or a
 //     -MIG- product label (single strategy, incl. -MIG-INVALID).
 //   - GPUs are shared (time-slicing or MPS): nvidia.com/gpu.shared in
@@ -153,30 +165,35 @@ func classify(n Node, levels []string, implicit bool, tols []Toleration) (classi
 //     gpu.sharing-strategy time-slicing/mps, or a -SHARED product suffix. By
 //     default the plugin advertises nvidia.com/gpu = GPUs x replicas, which
 //     would inflate capacity, free GPUs and slots.
-func unsupported(n Node) string {
+//   - MIG nodes are attributed to nvidia.com/gpu, with slicing mode "mig".
+//   - Shared nodes are attributed to nvidia.com/gpu.shared when renamed,
+//     else nvidia.com/gpu, with sharing mode "mps" when the strategy label
+//     says so, else "time_slicing".
+func unsupported(n Node) (resource, slicing, sharing string) {
+	nvidia := string(gpu.GpuNvidiaGeneric)
 	for r, c := range n.Capacity {
 		if c > 0 && strings.HasPrefix(r, migResourcePfx) {
-			return GPUResourceMIG
+			return nvidia, SlicingModeMIG, ""
 		}
 	}
 	product := n.Labels[labelGPUProduct]
 	if strings.Contains(product, "-MIG-") {
-		return GPUResourceMIG
+		return nvidia, SlicingModeMIG, ""
 	}
-	if _, ok := n.Capacity[GPUResourceShared]; ok {
-		return GPUResourceShared
+	strategy := n.Labels[labelGPUSharingStrategy]
+	replicas, err := strconv.Atoi(n.Labels[labelGPUReplicas])
+	_, renamed := n.Capacity[sharedResource]
+	if !renamed && !(err == nil && replicas > 1) && strategy != "time-slicing" && strategy != "mps" && !strings.HasSuffix(product, "-SHARED") {
+		return "", "", ""
 	}
-	if replicas, err := strconv.Atoi(n.Labels[labelGPUReplicas]); err == nil && replicas > 1 {
-		return GPUResourceShared
+	resource, sharing = nvidia, SharingModeTimeSlicing
+	if renamed {
+		resource = sharedResource
 	}
-	switch n.Labels[labelGPUSharingStrategy] {
-	case "time-slicing", "mps":
-		return GPUResourceShared
+	if strategy == "mps" {
+		sharing = SharingModeMPS
 	}
-	if strings.HasSuffix(product, "-SHARED") {
-		return GPUResourceShared
-	}
-	return ""
+	return resource, "", sharing
 }
 
 // GPU vendors, to pick the GPU type labels of a resource.
@@ -222,7 +239,7 @@ var gpuTypeLabels = []struct {
 // vendorOf returns the vendor of a resource or unsupported attribution.
 func vendorOf(resource string) string {
 	switch {
-	case resource == GPUResourceMIG || strings.HasPrefix(resource, "nvidia.com/"):
+	case strings.HasPrefix(resource, "nvidia.com/"):
 		return vendorNVIDIA
 	case strings.HasPrefix(resource, "amd.com/"):
 		return vendorAMD
