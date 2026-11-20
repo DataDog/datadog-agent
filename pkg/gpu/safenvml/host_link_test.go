@@ -55,6 +55,12 @@ func TestQueryHostLinkC2C(t *testing.T) {
 			want:    HostLinkInfo{C2CEnabled: &enabled, PCIeMaxGeneration: 6, PCIeGPUMaxGeneration: 6, PCIeMaxWidth: 16},
 		},
 		{
+			name:    "implausible link count",
+			options: []testutil.NvmlDeviceOption{gb200, testutil.WithC2CLinkCount(1 << 30)},
+			info:    nvml.C2cModeInfo_v1{IsC2cEnabled: 1},
+			want:    HostLinkInfo{C2CEnabled: &enabled, PCIeMaxGeneration: 6, PCIeGPUMaxGeneration: 6, PCIeMaxWidth: 16},
+		},
+		{
 			name:    "reported disabled",
 			options: []testutil.NvmlDeviceOption{testutil.WithC2CLinkCount(3)},
 			info:    nvml.C2cModeInfo_v1{IsC2cEnabled: 0},

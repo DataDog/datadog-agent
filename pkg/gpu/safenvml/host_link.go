@@ -71,16 +71,28 @@ func (d *DeviceInfo) queryHostLink(dev SafeDevice) HostLinkInfo {
 	return link
 }
 
+// maxC2CLinks bounds the link count read from the driver. Real devices have
+// around ten links; a larger value is treated as garbage.
+const maxC2CLinks = 64
+
 // queryC2CLinks returns the C2C link count and the highest per-link maximum
 // bandwidth, zero when unknown.
 func (d *DeviceInfo) queryC2CLinks(dev SafeDevice) (int, uint64) {
 	countField := []nvml.FieldValue{{FieldId: nvml.FI_DEV_C2C_LINK_COUNT}}
-	if err := dev.GetFieldValues(countField); err != nil || nvml.Return(countField[0].NvmlReturn) != nvml.SUCCESS {
-		singleton.logDeviceWarning(d.UUID, "cannot get C2C link count")
+	if err := dev.GetFieldValues(countField); err != nil {
+		singleton.logDeviceWarning(d.UUID, "cannot get C2C link count: %v", err)
+		return 0, 0
+	}
+	if ret := nvml.Return(countField[0].NvmlReturn); ret != nvml.SUCCESS {
+		singleton.logDeviceWarning(d.UUID, "cannot get C2C link count: %v", ret)
 		return 0, 0
 	}
 	count, err := nvmlFieldValueToInt(countField[0])
 	if err != nil || count <= 0 {
+		return 0, 0
+	}
+	if count > maxC2CLinks {
+		singleton.logDeviceWarning(d.UUID, "ignoring implausible C2C link count %d", count)
 		return 0, 0
 	}
 	bandwidthFields := make([]nvml.FieldValue, count)
