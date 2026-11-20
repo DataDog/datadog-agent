@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    On Windows, stopping or rolling back a Fleet Automation config experiment
+    now restarts the Agent services only after the stable configuration is
+    restored. Previously, the Agent could restart with the experiment
+    configuration still in place and keep running with it after the rollback.
