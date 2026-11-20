@@ -343,7 +343,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			}
 		}
 
-		if err == context.Canceled {
+		if errors.Is(err, context.Canceled) {
 			d.updateRetryState(nil, isRetrying)
 			return result
 		}
@@ -453,10 +453,18 @@ func (d *Destination) unconditionalSendWithContext(ctx context.Context, payload 
 	defer resp.Body.Close()
 	response, err := io.ReadAll(resp.Body)
 	if err != nil {
-		// the read failed because the server closed or terminated the connection
-		// *after* serving the request.
-		log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
-		return err
+		if errors.Is(err, context.Canceled) || ctx.Err() == context.Canceled {
+			return context.Canceled
+		}
+		if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+			// The read failed because the server closed or terminated the connection
+			// while sending a 2xx response. Treat as retryable rather than terminal loss.
+			log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
+			return client.NewRetryableError(err)
+		}
+		// Non-2xx response with a truncated/errored body: fall through to status-code
+		// classification so transient server failures (e.g., 503) remain retryable.
+		log.Debugf("Response body read failed for HTTP status %d: %v", resp.StatusCode, err)
 	}
 	log.Tracef("Log payload sent to %s. Response resolved with protocol %s in %d ms", d.url, resp.Proto, latency)
 
@@ -476,7 +484,7 @@ func (d *Destination) unconditionalSendWithContext(ctx context.Context, payload 
 		resp.StatusCode == http.StatusRequestEntityTooLarge {
 		tlmDropped.Inc()
 		return fmt.Errorf("%w: %s", errClient, resp.Status)
-	} else if resp.StatusCode > http.StatusBadRequest {
+	} else if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return client.NewRetryableError(fmt.Errorf("%w: %s", errServer, resp.Status))
 	}
 	d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)

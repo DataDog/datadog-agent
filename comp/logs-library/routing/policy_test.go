@@ -332,3 +332,35 @@ func TestProgressReliableSetORSuccessAndAllTerminalLoss(t *testing.T) {
 		}
 	}
 }
+
+func TestProgressReserveSharedReclaimsChurningIdentifiers(t *testing.T) {
+	sink := &policyTestSink{ch: make(chan *message.Payload, 64)}
+	// Tiny capacity (4) to prove churning >4 distinct shared-ingress identifiers never exhausts capacity.
+	progress, err := NewProgress(4, sink)
+	require.NoError(t, err)
+	defer progress.Close()
+
+	src := sources.NewLogSource("docker", &config.LogsConfig{Type: config.DockerType})
+	for i := 0; i < 50; i++ {
+		id := "docker:container-" + string(rune('a'+i%26)) + "-" + time.Duration(i).String()
+		m := message.NewMessageWithSource([]byte("line"), message.StatusInfo, src, 0)
+		m.Origin.Identifier = id
+		m.Origin.Offset = "1"
+		tok, err := progress.ReserveShared(context.Background(), m, 1)
+		require.NoError(t, err)
+		_, err = progress.AttachEndpointSelection(tok, EndpointSelection{Reliable: []string{"us1"}})
+		require.NoError(t, err)
+		meta := m.MessageMetadata
+		progress.CompleteReliableSuccess("us1", message.NewPayload([]*message.MessageMetadata{&meta}, nil, "", 0))
+		select {
+		case <-sink.ch:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("container %d checkpoint did not advance", i)
+		}
+		require.False(t, progress.OwnsSource(id), "idle shared-ingress source must be reclaimed")
+	}
+
+	// Explicit file source registration must still have full capacity available.
+	require.NoError(t, progress.RegisterSource("file:/tmp/active.log", 1))
+	require.True(t, progress.OwnsSource("file:/tmp/active.log"))
+}

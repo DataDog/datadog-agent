@@ -238,15 +238,25 @@ func TestFileLauncherAdoptsRoutedSourceInputAndRetiresGenerations(t *testing.T) 
 	require.Len(t, prov.inputs, 1)
 	prov.mu.Unlock()
 
-	// Rotate the file: rename old file and create a new file at the same path.
+	// Rotate the file while keeping the old file descriptor open so we can write a
+	// trailing line after rename (simulating an app still writing to the old FD).
+	oldFD, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o600)
+	require.NoError(t, err)
+	defer oldFD.Close()
 	require.NoError(t, os.Rename(path, path+".1"))
+	_, err = oldFD.WriteString("gen1-trailing-after-rotate\n")
+	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(path, []byte("gen2-line\n"), 0o600))
 
-	select {
-	case msg := <-prov.received:
-		require.Equal(t, "gen2-line", string(msg.GetContent()))
-	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for gen2 line after rotation")
+	got := make(map[string]bool)
+	deadline := time.After(5 * time.Second)
+	for !(got["gen1-trailing-after-rotate"] && got["gen2-line"]) {
+		select {
+		case msg := <-prov.received:
+			got[string(msg.GetContent())] = true
+		case <-deadline:
+			t.Fatalf("timed out waiting for rotated trailing + gen2 lines; got=%v", got)
+		}
 	}
 
 	// Old generation (1) should retire while new generation (2) remains active until Stop.
@@ -258,9 +268,19 @@ func TestFileLauncherAdoptsRoutedSourceInputAndRetiresGenerations(t *testing.T) 
 		t.Fatal("timed out waiting for gen1 retirement after rotation")
 	}
 
+	// Remove source right before Stop to verify async stopTailer completes before
+	// Launcher.Stop() returns (so closing provider input channels afterward cannot panic).
+	logSources.RemoveSource(src)
 	l.Stop()
+	// Simulate RoutedProvider.Stop() closing all input channels immediately after Launcher.Stop().
+	prov.mu.Lock()
+	for sg, ch := range prov.inputs {
+		delete(prov.inputs, sg)
+		close(ch)
+	}
+	prov.mu.Unlock()
 
-	// New generation (2) retires on Stop.
+	// New generation (2) retired cleanly without panic.
 	select {
 	case sg := <-prov.retireEvent:
 		require.Equal(t, identifier, sg.identifier)

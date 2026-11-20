@@ -151,3 +151,60 @@ func TestHTTPSenderOutcomeSinkDistinguishesSuccessFromPermanentLoss(t *testing.T
 		t.Fatal("timed out waiting for success")
 	}
 }
+
+func TestHTTPSenderTruncated503And304RetryInsteadOfTerminalLossOrSuccess(t *testing.T) {
+	var attempt atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		_ = r.Body.Close()
+		switch attempt.Add(1) {
+		case 1:
+			// Hijack connection to return 503 with truncated body (triggers io.ErrUnexpectedEOF in io.ReadAll).
+			hj, ok := w.(http.Hijacker)
+			if !ok {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			conn, buf, err := hj.Hijack()
+			if err != nil {
+				return
+			}
+			_, _ = buf.WriteString("HTTP/1.1 503 Service Unavailable\r\nContent-Length: 100\r\nConnection: close\r\n\r\nshort")
+			_ = buf.Flush()
+			_ = conn.Close()
+		case 2:
+			// Return 304 Not Modified (non-2xx must retry, never count as success).
+			w.WriteHeader(http.StatusNotModified)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer server.Close()
+
+	cfg := configmock.New(t)
+	destCtx := client.NewDestinationsContext()
+	destCtx.Start()
+	defer destCtx.Stop()
+
+	ep := endpointFromServer(t, server)
+	eps := config.NewEndpointsWithBatchSettings(ep, nil, false, true, time.Second, 1, 10, 1024*1024, 16)
+	sink := &testOutcomeSink{
+		success: make(chan *message.Payload, 4),
+		loss:    make(chan *message.Payload, 4),
+	}
+	s := NewHTTPSender(cfg, sink, 8, sender.NewServerlessMeta(false), eps, destCtx, "test-truncated", httpclient.JSONContentType, "", 1, 1, 1, 1, secretsnoopimpl.NewComponent().Comp, metrics.NewNoopPipelineMonitor(""))
+	s.Start()
+	defer s.Stop()
+
+	p := message.NewPayload([]*message.MessageMetadata{{}}, []byte(`[{"message":"must-retry"}]`), "", 26)
+	s.In() <- p
+
+	select {
+	case <-sink.success:
+		require.GreaterOrEqual(t, attempt.Load(), int32(3), "truncated 503 and 304 must both retry until 200 OK")
+	case <-sink.loss:
+		t.Fatal("truncated 503 or 304 must never be reported as terminal loss")
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for retry recovery to 200 OK")
+	}
+}

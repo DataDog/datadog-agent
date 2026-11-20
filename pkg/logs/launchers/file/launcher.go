@@ -101,6 +101,7 @@ type Launcher struct {
 	routingMu          sync.Mutex
 	tailerGenerations  map[*tailer.Tailer]sourceGeneration
 	pendingRetirements []sourceGeneration
+	stoppingTailers    sync.WaitGroup
 }
 
 const (
@@ -256,6 +257,7 @@ func (s *Launcher) cleanup() {
 		s.tailers.Remove(t)
 	}
 	stopper.Stop()
+	s.stoppingTailers.Wait()
 	for _, t := range stoppedTailers {
 		s.retireTailer(t)
 	}
@@ -829,7 +831,9 @@ func (s *Launcher) handleTailingModeChange(tailerID string, currentTailingMode c
 func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 	s.clearFingerprintRotationError(tailer.GetID())
 	s.tailers.Remove(tailer)
+	s.stoppingTailers.Add(1)
 	go func() {
+		defer s.stoppingTailers.Done()
 		tailer.Stop()
 		s.retireTailer(tailer)
 	}()

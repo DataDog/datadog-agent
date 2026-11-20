@@ -10,8 +10,6 @@ package agentimpl
 import (
 	"errors"
 	"fmt"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/spf13/afero"
@@ -180,29 +178,14 @@ func guardRegistryForProvider(provider pipeline.Provider, registry auditor.Regis
 	return registry
 }
 
-// sharedIngressGenerations supplies stable per-identifier generations for
-// launchers that still send checkpointed records over shared ingress.
-type sharedIngressGenerations struct {
-	mu   sync.Mutex
-	next atomic.Uint64
-	gens map[string]uint64
-}
-
-func (g *sharedIngressGenerations) generation(msg *message.Message) (uint64, error) {
+// sharedIngressGeneration supplies a constant generation for shared-ingress
+// launchers (such as container/journald/listener) whose sources are auto-reclaimed
+// once their in-flight records complete.
+func sharedIngressGeneration(msg *message.Message) (uint64, error) {
 	if msg == nil || msg.Origin == nil || msg.Origin.Identifier == "" {
 		return 0, nil
 	}
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if g.gens == nil {
-		g.gens = make(map[string]uint64)
-	}
-	if gen, ok := g.gens[msg.Origin.Identifier]; ok {
-		return gen, nil
-	}
-	gen := g.next.Add(1)
-	g.gens[msg.Origin.Identifier] = gen
-	return gen, nil
+	return 1, nil
 }
 
 // buildPipelineProvider builds a new pipeline provider with the given configuration
@@ -229,7 +212,6 @@ func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule
 			} else if numPipelines > 16 {
 				numPipelines = 16
 			}
-			sharedGens := &sharedIngressGenerations{}
 			routedProvider, err := pipeline.NewRoutedProvider(pipeline.RoutedOptions{
 				NumberOfPipelines:         numPipelines,
 				Sink:                      a.auditor,
@@ -237,7 +219,8 @@ func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule
 				ProcessingRules:           processingRules,
 				TagFilters:                tagFilters,
 				EndpointPolicy:            policy,
-				Generation:                sharedGens.generation,
+				AutoRetireSharedIngress:   true,
+				Generation:                sharedIngressGeneration,
 				DestinationsContext:       destinationsCtx,
 				Hostname:                  a.hostname,
 				Config:                    a.config,

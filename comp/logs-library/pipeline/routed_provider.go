@@ -91,6 +91,11 @@ type RoutedOptions struct {
 	// OptionalQueueSize bounds per-optional-endpoint stream/sender queues when
 	// EndpointPolicy is set. Zero uses safe bounded defaults.
 	OptionalQueueSize int
+	// AutoRetireSharedIngress reclaims idle shared-ingress source ownership once
+	// its queued records complete and routes shared-ingress records through a
+	// shared dispatch lane, preventing unbounded container churn from exhausting
+	// source capacity or leaking per-source goroutines.
+	AutoRetireSharedIngress bool
 	// Generation identifies checkpointed records on shared ingress before processing.
 	// SourceInput supplies its bound generation instead. Anonymous records need none.
 	// The callback must be local and bounded, as must Resolve.
@@ -450,7 +455,10 @@ func (p *RoutedProvider) admit(input <-chan *message.Message, bound *sourceInput
 		var err error
 		if bound != nil {
 			generation = bound.generation
-			if msg.Origin == nil || msg.Origin.Identifier != bound.identifier {
+			// Allow empty Origin.Identifier on a bound SourceInput so draining
+			// rotated file tailers (which clear Identifier to avoid clobbering
+			// the replacement file's checkpoint) still deliver trailing logs.
+			if msg.Origin == nil || (msg.Origin.Identifier != "" && msg.Origin.Identifier != bound.identifier) {
 				err = routing.ErrInvalidSelection
 			}
 		} else if msg.Origin != nil && msg.Origin.Identifier != "" {
@@ -461,7 +469,11 @@ func (p *RoutedProvider) admit(input <-chan *message.Message, bound *sourceInput
 			}
 		}
 		if err == nil {
-			_, err = p.progress.Reserve(p.ctx, msg, generation)
+			if bound == nil && p.opts.AutoRetireSharedIngress {
+				_, err = p.progress.ReserveShared(p.ctx, msg, generation)
+			} else {
+				_, err = p.progress.Reserve(p.ctx, msg, generation)
+			}
 		}
 		if err != nil {
 			p.report(err)
@@ -739,9 +751,13 @@ func (p *RoutedProvider) dispatchProcessed() {
 			identifier = msg.Origin.Identifier
 		}
 		sourceIdentifier := identifier
-		// Anonymous records have no source checkpoint and share one bounded lane.
+		// Anonymous records and auto-retired shared-ingress sources share bounded
+		// lanes so churning containers cannot leak per-identifier dispatch goroutines.
 		if identifier == "" {
 			identifier = "\x00"
+		} else if p.opts.AutoRetireSharedIngress && p.progress.IsEphemeralSource(identifier) {
+			identifier = "\x02shared"
+			sourceIdentifier = ""
 		} else {
 			identifier = "\x01" + identifier
 		}
@@ -750,8 +766,8 @@ func (p *RoutedProvider) dispatchProcessed() {
 		if lane == nil {
 			capacity := routing.SourcePendingLimit
 			if sourceIdentifier == "" {
-				// Anonymous admission uses the aggregate budget. Its shared lane
-				// must hold that window without blocking other source dispatch.
+				// Anonymous/shared admission uses the aggregate budget. Its shared lane
+				// must hold that window without blocking isolated SourceInput dispatch.
 				capacity = routedProgressCapacity
 			}
 			lane = &routedSourceDispatch{input: make(chan *message.Message, capacity), advanced: make(chan struct{}, 1), flushRequested: make(chan struct{}, 1)}

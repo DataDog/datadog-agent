@@ -708,3 +708,87 @@ func TestEndpointRoutingMultiReliableORD4EdgeCases(t *testing.T) {
 		}
 	})
 }
+
+func TestEndpointRoutingRotatedEmptyIdentifierAndSharedIngressChurn(t *testing.T) {
+	us1 := newMockEndpointIntake(t, "us1-key", false)
+	policy, err := routing.NewEndpointPolicyFromTargets([]routing.EndpointTarget{
+		{ID: "us1", Endpoint: us1.endpoint, Reliable: true, Evaluator: routing.MatchAllEvaluator{}},
+	}, newBatchTemplate(us1.endpoint, 30*time.Millisecond, 64), 4, nil)
+	require.NoError(t, err)
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.payload_channel_size", 16)
+	destCtx := client.NewDestinationsContext()
+	destCtx.Start()
+	defer destCtx.Stop()
+
+	sink := &routedTestSink{ch: make(chan *message.Payload, 256)}
+	var checkpoints atomic.Int64
+	var sinkWg sync.WaitGroup
+	sinkWg.Add(1)
+	go func() {
+		defer sinkWg.Done()
+		for p := range sink.ch {
+			checkpoints.Add(p.Count())
+		}
+	}()
+
+	provider, err := NewRoutedProvider(RoutedOptions{
+		NumberOfPipelines:         1,
+		Sink:                      sink,
+		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
+		EndpointPolicy:            policy,
+		AutoRetireSharedIngress:   true,
+		Generation: func(m *message.Message) (uint64, error) {
+			if m == nil || m.Origin == nil || m.Origin.Identifier == "" {
+				return 0, nil
+			}
+			return 1, nil
+		},
+		DestinationsContext: destCtx,
+		Config:              cfg,
+		Compression:         realGzipCompression{},
+		Secrets:             secretsnoopimpl.NewComponent().Comp,
+	})
+	require.NoError(t, err)
+	provider.Start()
+	defer func() {
+		provider.Stop()
+		close(sink.ch)
+		sinkWg.Wait()
+	}()
+
+	// 1. Bound file SourceInput receives a trailing rotated-file record with empty Origin.Identifier.
+	src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType})
+	boundCh, err := provider.SourceInput("file:/tmp/rot.log", 1)
+	require.NoError(t, err)
+
+	mNormal := message.NewMessageWithSource([]byte("before-rotate"), message.StatusInfo, src, 0)
+	mNormal.Origin.Identifier = "file:/tmp/rot.log"
+	mNormal.Origin.Offset = "14"
+	boundCh <- mNormal
+
+	mRotated := message.NewMessageWithSource([]byte("trailing-old-fd"), message.StatusInfo, src, 0)
+	mRotated.Origin.Identifier = "" // Cleared by file tailer after rotation.
+	mRotated.Origin.Offset = "0"
+	boundCh <- mRotated
+
+	// 2. Shared ingress churns 50 distinct container identifiers without blocking or leaking capacity.
+	sharedCh := provider.NextPipelineChan()
+	cSrc := sources.NewLogSource("docker", &config.LogsConfig{Type: config.DockerType})
+	for i := 0; i < 50; i++ {
+		m := message.NewMessageWithSource([]byte("container-"+strconv.Itoa(i)), message.StatusInfo, cSrc, 0)
+		m.Origin.Identifier = "docker:cid-" + strconv.Itoa(i)
+		m.Origin.Offset = "10"
+		sharedCh <- m
+	}
+
+	provider.Flush(context.Background())
+	waitForCondition(t, "all 52 records delivered (including trailing rotated-fd record)", func() bool {
+		return len(us1.messages()) == 52
+	})
+	require.Contains(t, us1.messages(), "trailing-old-fd")
+	waitForCondition(t, "all 51 checkpointed records advanced", func() bool {
+		return checkpoints.Load() == 51
+	})
+}

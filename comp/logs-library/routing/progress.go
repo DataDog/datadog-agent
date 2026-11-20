@@ -68,6 +68,7 @@ type sourceProgress struct {
 	queue              []*record
 	hasAdmittedRecords bool // Remains true after the queue drains.
 	invalidSelection   bool // Checkpoints cannot advance past an invalid barrier.
+	ephemeral          bool // Auto-reclaimed when queue drains (shared ingress without RetireSource).
 }
 
 // NewProgress creates bounded in-memory progress state and a bounded queue to
@@ -132,6 +133,7 @@ func (p *Progress) RegisterSource(identifier string, generation uint64) error {
 		source = &sourceProgress{seenGenerations: make(map[uint64]bool)}
 		p.sources[identifier] = source
 	}
+	source.ephemeral = false
 	source.currentGeneration = generation
 	source.seenGenerations[generation] = false
 	p.histories++
@@ -144,10 +146,10 @@ func (p *Progress) RegisterSource(identifier string, generation uint64) error {
 // producers may drain without reclaiming current checkpoint ownership; retired
 // producers return ErrObsoleteGeneration.
 func (p *Progress) Register(ctx context.Context, msg *message.Message, selection Selection, groups []string) (uint64, error) {
-	return p.register(ctx, msg, selection, groups, true, false)
+	return p.register(ctx, msg, selection, groups, true, false, false)
 }
 
-func (p *Progress) register(ctx context.Context, msg *message.Message, selection Selection, groups []string, requireCompleteSource, pendingSelection bool) (uint64, error) {
+func (p *Progress) register(ctx context.Context, msg *message.Message, selection Selection, groups []string, requireCompleteSource, pendingSelection, ephemeral bool) (uint64, error) {
 	if msg == nil || msg.Origin == nil {
 		return 0, fmt.Errorf("%w: missing source metadata", ErrInvalidSelection)
 	}
@@ -212,8 +214,10 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 	if identifier != "" {
 		source := p.sources[identifier]
 		if source == nil {
-			source = &sourceProgress{seenGenerations: make(map[uint64]bool)}
+			source = &sourceProgress{seenGenerations: make(map[uint64]bool), ephemeral: ephemeral}
 			p.sources[identifier] = source
+		} else if !ephemeral {
+			source.ephemeral = false
 		}
 		if requireCompleteSource {
 			if _, seen := source.seenGenerations[selection.Generation]; !seen {
@@ -243,14 +247,33 @@ func (p *Progress) HoldInvalid(ctx context.Context, msg *message.Message) error 
 	if msg == nil || msg.Origin == nil || msg.Origin.Identifier == "" {
 		return nil
 	}
-	_, err := p.register(ctx, msg, Selection{}, []string{""}, false, false)
+	_, err := p.register(ctx, msg, Selection{}, []string{""}, false, false, false)
 	return err
 }
 
 // Reserve claims capacity and source order before processing or selection. No
 // delivery or local completion is inferred while selection is pending.
 func (p *Progress) Reserve(ctx context.Context, msg *message.Message, generation uint64) (uint64, error) {
-	return p.register(ctx, msg, Selection{Generation: generation}, nil, true, true)
+	return p.register(ctx, msg, Selection{Generation: generation}, nil, true, true, false)
+}
+
+// ReserveShared claims capacity and per-source checkpoint order for a shared-ingress
+// producer that does not call RetireSource (e.g., churning containers). Its source
+// entry is automatically reclaimed once its queue drains with no invalid barrier.
+func (p *Progress) ReserveShared(ctx context.Context, msg *message.Message, generation uint64) (uint64, error) {
+	return p.register(ctx, msg, Selection{Generation: generation}, nil, true, true, true)
+}
+
+// IsEphemeralSource reports whether identifier is currently tracked as an
+// auto-reclaimed shared-ingress source rather than an explicitly owned SourceInput.
+func (p *Progress) IsEphemeralSource(identifier string) bool {
+	if identifier == "" {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	source := p.sources[identifier]
+	return source != nil && source.ephemeral
 }
 
 // AtCapacity reports pressure on the source window and aggregate record budget.
@@ -555,6 +578,11 @@ func (p *Progress) advance(r *record) {
 		p.notifySpace()
 	}
 	if !source.invalidSelection {
+		if source.ephemeral && len(source.queue) == 0 {
+			p.histories -= len(source.seenGenerations)
+			delete(p.sources, r.identifier)
+			p.notifySpace()
+		}
 		return
 	}
 	// An invalid barrier can never resolve. Retain it and unfinished records,
