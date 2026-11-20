@@ -112,7 +112,7 @@ func (d *Device) ReadMetricsWithOptions(opts ReadOptions) (Metrics, error) {
 	r.readECC(filepath.Join(d.devicePath, "ras"), &m)
 
 	if !opts.SkipGPUMetrics {
-		m.GPUMetrics, m.GPUMetricsErr = r.gpuMetrics(filepath.Join(d.devicePath, "gpu_metrics"))
+		m.GPUMetrics, m.GPUMetricsErr = r.gpuMetrics(d.devicePath)
 		m.XGMIHiveSize = d.XGMIHiveSize()
 	}
 
@@ -188,8 +188,8 @@ func (r *reader) parseUint(path, content string, scale float64) Reading {
 var readActivityFile = os.ReadFile
 
 // activity reads a busy percentage. amdgpu returns EPERM for it while the
-// device is runtime-suspended, which reads as idle, but also during a GPU
-// reset, which stays an error.
+// device is runtime-suspended (or suspending or resuming), which reads as
+// idle, but also during a GPU reset, which stays an error.
 func (r *reader) activity(devicePath, name string) Reading {
 	path := filepath.Join(devicePath, name)
 	content, err := readActivityFile(path)
@@ -205,10 +205,18 @@ func (r *reader) activity(devicePath, name string) Reading {
 	return r.parseUint(path, sysfsValue(content), 1)
 }
 
-// runtimeSuspended reports whether the device is runtime-suspended.
+// runtimeSuspended reports whether the device is runtime-suspended, or
+// suspending or resuming, when amdgpu also returns EPERM.
 func runtimeSuspended(devicePath string) bool {
 	content, err := os.ReadFile(filepath.Join(devicePath, "power", "runtime_status"))
-	return err == nil && sysfsValue(content) == "suspended"
+	if err != nil {
+		return false
+	}
+	switch sysfsValue(content) {
+	case "suspended", "suspending", "resuming":
+		return true
+	}
+	return false
 }
 
 // linkWidth reads a PCI link width. A width of 0 (no link trained) is unavailable.
