@@ -503,7 +503,7 @@ func TestHandleProxyErrorLogging(t *testing.T) {
 			body:       "body",
 			err:        context.Canceled,
 			wantStatus: http.StatusServiceUnavailable,
-			wantLog:    "[DEBUG] profiling proxy: client closed the connection before the upload completed for POST /profiling/v1/input - payload_size=4 ",
+			wantLog:    "[DEBUG] profiling proxy: client disconnected before the proxy received an intake response for POST /profiling/v1/input - payload_size=4 ",
 			noWarn:     true,
 		},
 		{
@@ -513,7 +513,7 @@ func TestHandleProxyErrorLogging(t *testing.T) {
 			chunked:    true,
 			err:        context.Canceled,
 			wantStatus: http.StatusServiceUnavailable,
-			wantLog:    "[DEBUG] profiling proxy: client closed the connection before the upload completed for POST /profiling/v1/input - payload_size=chunked ",
+			wantLog:    "[DEBUG] profiling proxy: client disconnected before the proxy received an intake response for POST /profiling/v1/input - payload_size=chunked ",
 			noWarn:     true,
 		},
 		{

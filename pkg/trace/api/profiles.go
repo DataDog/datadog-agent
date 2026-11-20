@@ -246,7 +246,7 @@ func handleProxyError(w http.ResponseWriter, r *http.Request, err error) {
 
 	// Single comprehensive log with all context
 	if errors.Is(err, context.Canceled) && errors.Is(r.Context().Err(), context.Canceled) {
-		log.Debugf("profiling proxy: client closed the connection before the upload completed for %s %s - payload_size=%s timeout_remaining=%v error=%v",
+		log.Debugf("profiling proxy: client disconnected before the proxy received an intake response for %s %s - payload_size=%s timeout_remaining=%v error=%v",
 			r.Method, r.URL.Path, payloadSizeStr, timeoutSetting, err)
 	} else {
 		log.Warnf("profiling proxy error: %s (%d) for %s %s - payload_size=%s timeout_remaining=%v error=%v",
