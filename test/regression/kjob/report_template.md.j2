@@ -1,6 +1,34 @@
 {#- PR comment for the single_machine_performance-kjob CI job, rendered by `smp kjob report --template-file`.
     The pr-commenter service adds the "K8s Regression Detector Results" header, so this template has no header line.
     GitHub renders Markdown after an HTML block only after a blank line, so keep a blank line around each <details> block. -#}
+{#- Show a value without decimals when it is a whole number of the display unit. -#}
+{% macro whole_value(value, series) -%}
+{% if "target.memory." in series and "_bytes" in series and value % 1048576 == 0 -%}
+{{ (value // 1048576) | int }} MiB
+{%- else -%}
+{{ value | kjob_value(series) }}
+{%- endif %}
+{%- endmacro %}
+{% macro bound(check) -%}
+{% if check.lower_bound is not none and check.upper_bound is not none -%}
+{{ whole_value(check.lower_bound, check.series) }} – {{ whole_value(check.upper_bound, check.series) }}
+{%- elif check.upper_bound is not none -%}
+≤ {{ whole_value(check.upper_bound, check.series) }}
+{%- elif check.lower_bound is not none -%}
+≥ {{ whole_value(check.lower_bound, check.series) }}
+{%- else -%}
+unavailable
+{%- endif %}
+{%- endmacro %}
+{% macro observed(check, value) -%}
+{% if value is not none -%}
+{{ value | kjob_value(check.series) }}
+{%- elif "no_data" in check.reasons -%}
+no data
+{%- else -%}
+unavailable
+{%- endif %}
+{%- endmacro %}
 {{ summary }}
 {% if failure_lines %}
 
@@ -25,7 +53,22 @@
 <summary>Detailed Bounds Checks ({{ report.experiments | length }} experiment{% if report.experiments | length != 1 %}s{% endif %})</summary>
 
 {% if rows %}
-{{ rows | table([["result", "result"], ["experiment", "experiment"], ["check", "check"], ["bound", "bound"], ["observed", "observed"], ["replicates passed", "replicates_passed"]]) }}
+{% set table = namespace(rows=[]) %}
+{% for experiment in report.experiments %}
+{% for check in experiment.checks %}
+{% set table.rows = table.rows + [{
+    "result": "✅" if check.passed else "❌",
+    "experiment": "`" ~ experiment.name ~ "`",
+    "check": "`" ~ check.name ~ "`",
+    "metric": "`" ~ (check.series | replace("|", "\\|")) ~ "`",
+    "bound": bound(check),
+    "min_observed": observed(check, check.min_observed),
+    "max_observed": observed(check, check.max_observed),
+    "replicates_passed": check.passed_replicates ~ "/" ~ check.expected_replicates,
+}] %}
+{% endfor %}
+{% endfor %}
+{{ table.rows | table([["result", "result"], ["experiment", "experiment"], ["check", "check"], ["metric", "metric"], ["bound", "bound"], ["min observed", "min_observed"], ["max observed", "max_observed"], ["replicates passed", "replicates_passed"]]) }}
 {% if experiments_without_checks %}
 
 Experiments without bounds checks: {% for name in experiments_without_checks %}`{{ name }}`{% if not loop.last %}, {% endif %}{% endfor %}
