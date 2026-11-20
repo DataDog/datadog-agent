@@ -58,11 +58,15 @@ func TestInMemoryListener(t *testing.T) {
 // server notifies its readiness once, and Stop closes the listener and stops every routine, or the bubble deadlocks.
 func TestInMemoryListenerStartedTwice(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		listener := newPipeListener()
+		// Without a URL, the server builds it from the listener address, which the gate holds until both Start calls
+		// returned: the second one runs while the server is starting, before it publishes its URL
+		gate := make(chan struct{})
+		listener := &gatedAddrListener{pipeListener: newPipeListener(), gate: gate}
 		ready := make(chan bool, 2)
-		fi := server.NewServer(server.WithListener(listener, "http://fakeintake.pipe"), server.WithReadyChannel(ready))
+		fi := server.NewServer(server.WithListener(listener, ""), server.WithReadyChannel(ready))
 		fi.Start()
 		fi.Start()
+		close(gate)
 		require.True(t, <-ready, "fakeintake server did not become ready")
 		synctest.Wait()
 		assert.Empty(t, ready, "the readiness must be notified once")
@@ -71,6 +75,18 @@ func TestInMemoryListenerStartedTwice(t *testing.T) {
 		_, err := listener.dial(context.Background(), "tcp", "fakeintake.pipe:80")
 		assert.ErrorIs(t, err, net.ErrClosed, "the listener must be closed once Stop returns")
 	})
+}
+
+// gatedAddrListener is a pipeListener whose address is only returned once its gate is closed
+type gatedAddrListener struct {
+	*pipeListener
+	gate chan struct{}
+}
+
+// Addr implements net.Listener
+func (l *gatedAddrListener) Addr() net.Addr {
+	<-l.gate
+	return l.pipeListener.Addr()
 }
 
 // TestInMemoryListenerURL checks the URL of a server given a listener: the given one without a trailing slash, or one
