@@ -20,7 +20,7 @@ jobs:
       pull-requests: write
       checks: write
       id-token: write # for dd-sts
-    uses: DataDog/code-review-action/.github/workflows/code-review.yml@77ee41c172523b1efd23ac681a58f4c1eaf44eb1 # v1.3.1
+    uses: DataDog/code-review-action/.github/workflows/code-review.yml@e7d55922a352af5a66712b1246cb6c95240911a6 # v1.3.2
     with:
       provider: codex
       # Review PRs when they are opened or transition out of draft. Use on_demand for issue_comments
