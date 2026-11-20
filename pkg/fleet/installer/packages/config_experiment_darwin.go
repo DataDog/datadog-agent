@@ -101,6 +101,10 @@ func discardExperimentConfig(ctx context.Context) error {
 // (configExperimentJobSet). See installerJob.
 type configExperiment struct {
 	jobs launchd.JobSet
+	// keepRunningStable makes a hand-back leave alone a label that is already on its stable job,
+	// instead of restarting it (restoreStableJobs). Only the stable daemon settling the host at
+	// start sets it: after a reboot launchd has just started every stable job.
+	keepRunningStable bool
 }
 
 // Start hands the Agent over to the experiment job set.
@@ -108,19 +112,11 @@ type configExperiment struct {
 // The deadline is written before anything else is touched: an orphaned deadline with no
 // experiment is harmless, but an experiment with no deadline is unbounded and silent. If the
 // handover fails partway, after some of the stable set has already been stopped, the stable set
-// is put back rather than left down with nothing in its place. Past the deadline, it is Resume.
+// is put back rather than left down with nothing in its place.
 func (e configExperiment) Start(ctx context.Context) error {
 	if err := experimentDeadline().Write(configExperimentDeadlineWindow); err != nil {
 		return err
 	}
-	return e.Resume(ctx)
-}
-
-// Resume re-establishes the experiment job set after an unsupervised restart (daemon restart,
-// crash, reboot) finds the deadline still valid. Unlike Start, it does not touch the deadline
-// file: the deadline bounds time since the experiment originally started, and rewriting it here
-// would let a resumed experiment outlive that original bound.
-func (e configExperiment) Resume(ctx context.Context) error {
 	if err := e.jobs.Stop(ctx, launchd.Stable); err != nil {
 		// Some of the stable jobs may already be down.
 		return e.abortStart(ctx, err)
@@ -246,9 +242,8 @@ func ensureProcmgr(ctx context.Context, restart bool) {
 // method and the watcher would then try to swap the job sets at once.
 //
 // The file is only cleared once every stable job is back. A restore that fails, or that is
-// interrupted, leaves the marker behind, and the marker reads as an expired deadline: the next
-// daemon start reverts again (resumeConfigExperimentDatadogAgent) instead of resuming the
-// experiment or leaving the host half switched.
+// interrupted, leaves the marker behind: the next stable daemon start hands the jobs back again
+// (settleConfigExperiment) instead of leaving the host half switched.
 func (e configExperiment) restoreStable(ctx context.Context) error {
 	return e.restoreStableThen(ctx, experimentDeadline().Clear)
 }
@@ -312,7 +307,7 @@ func runInstallerHandOver(ctx context.Context) error {
 // experiment never runs without one: if the daemon does not come up, or does not launch it in
 // time, the error makes the caller revert the experiment.
 //
-// It first waits for the installer command that ran the start or resume hook to exit
+// It first waits for the installer command that ran the start hook to exit
 // (waitForInstallerCommand): its process is in the stable daemon's job, so swapping the daemon
 // earlier would kill it halfway. The lock is released again before the swap. The daemon still has
 // to finish the request that command was part of once it exits -- read the package states, through
@@ -512,6 +507,9 @@ func experimentPending(token string) bool {
 //
 // The stable definitions are only written when the one on disk differs: they never change during
 // an experiment, so a restore normally writes nothing and still works on a full disk.
+//
+// With keepRunningStable, a label whose stable job is loaded and whose experiment job is not is
+// already handed back, and is left alone (onStableJob).
 func (e configExperiment) restoreStableJobs(ctx context.Context) error {
 	pending := e.jobs.Labels
 	var errs []error
@@ -524,6 +522,9 @@ func (e configExperiment) restoreStableJobs(ctx context.Context) error {
 		var failed []string
 		errs = nil
 		for _, label := range pending {
+			if e.keepRunningStable && e.onStableJob(ctx, label) {
+				continue
+			}
 			if err := e.jobs.Swap(ctx, label, launchd.Experiment, launchd.Stable); err != nil {
 				failed = append(failed, label)
 				errs = append(errs, err)
@@ -535,4 +536,15 @@ func (e configExperiment) restoreStableJobs(ctx context.Context) error {
 		return nil
 	}
 	return fmt.Errorf("could not restore %s after %d attempts: %w", strings.Join(pending, ", "), configExperimentRestoreRetries, errors.Join(errs...))
+}
+
+// onStableJob reports whether label is already on its stable job: the stable job loaded and the
+// experiment one not. A label launchctl cannot tell about is not, so it is handed back as usual.
+func (e configExperiment) onStableJob(ctx context.Context, label string) bool {
+	stable, err := e.jobs.Client.Print(ctx, label+string(launchd.Stable))
+	if err != nil || !stable.Loaded {
+		return false
+	}
+	experiment, err := e.jobs.Client.Print(ctx, label+string(launchd.Experiment))
+	return err == nil && !experiment.Loaded
 }

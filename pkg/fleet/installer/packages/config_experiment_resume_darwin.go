@@ -24,92 +24,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// resumeConfigExperimentDatadogAgent is run once each time a daemon starts. What it does depends on
-// which daemon that is, and in both cases it keeps a configuration experiment from running without
-// a supervisor.
+// resumeConfigExperimentDatadogAgent is run once each time an installer daemon starts. What it does
+// depends on which daemon that is.
 //
-// The stable daemon recovers an experiment left running unsupervised because the detached watcher
-// process (config_experiment_watcher_darwin.go) that was tracking it died along with everything
-// else in an abrupt shutdown -- a crash, a kill, a reboot -- before it could revert or hand off.
-// The deadline file is the only durable signal of this, since the watcher is a bare process with
-// no launchd job and nothing else re-spawns it: a present, unexpired deadline means an experiment
-// was mid-flight with nothing currently watching it, so the experiment job set is re-established
-// here, and the installer daemon handed over to the experiment, whose daemon launches the watcher.
-// A present, expired deadline means the unsupervised window was already exceeded before the daemon
-// got a chance to resume it, so the experiment is reverted instead. No deadline at all, but an
-// experiment configuration directory still deployed, is reverted too (see
-// revertOrphanedExperiment).
+// The experiment daemon launches the watcher that supervises the experiment it was handed over to
+// (superviseFromExperimentDaemon).
 //
-// The stable daemon drives the agent jobs only: it must not swap itself (see installerJob). The
-// hand-over process it launches does, from outside its job.
-//
-// The experiment daemon launches the watcher (superviseFromExperimentDaemon). It does not resume
-// or revert anything: starting is the experiment running as intended, and resuming would bounce
-// the experiment the watcher is about to supervise.
+// The stable daemon settles the host (settleConfigExperiment): it never brings an experiment back.
+// A stable daemon starting with an experiment still unfinished means the previous one did not end
+// it -- a reboot, a crash, a kill -- and the watcher that was supervising it, a detached process
+// with no launchd job, is gone with it. Bringing the experiment back would need a new watcher, a new
+// hand-over and a deadline that still means something; failing it puts the host in the state Fleet
+// already handles for any experiment that fails on the host.
 func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 	if runByExperimentDaemon() {
 		return superviseFromExperimentDaemon(ctx)
 	}
-	deadline := experimentDeadline()
-	token, err := deadline.Read()
-	if err != nil {
-		return fmt.Errorf("resume: could not read experiment deadline: %w", err)
-	}
-	if token == launchd.DeadlineFailed {
-		// The experiment failed on the host and its jobs are already back on the stable set. Its
-		// configuration is kept for Fleet's stop (configExperiment.Fail), so there is nothing to
-		// resume or revert.
-		log.Infof("resume: the configuration experiment failed on the host and waits for Fleet to stop it")
-		return nil
-	}
-	if token == "" {
-		return revertOrphanedExperiment(ctx)
-	}
-
-	expired, err := deadline.Expired(configExperimentDeadlineWindow)
-	if err != nil {
-		return fmt.Errorf("resume: could not check experiment deadline: %w", err)
-	}
-	if expired {
-		log.Warnf("resume: configuration experiment deadline already expired before the daemon could resume it, reverting")
-		_, err := revertFromResume(ctx, deadline, token, "experiment deadline expired before the daemon could resume it")
-		return err
-	}
-
-	// The installer publishes the experiment configuration before the experiment starts, and only
-	// promotes or discards it once a stop or promote is under way. A deadline still in force over a
-	// configuration that is no longer deployed is a promote whose hook never got to hand the jobs
-	// back -- the previous daemon died in between. Resuming would run the experiment job set on the
-	// stable configuration until the deadline; finish the hand-back instead.
-	if state, err := configExperimentDirs.GetState(); err != nil {
-		log.Warnf("resume: could not read the configuration state, resuming anyway: %v", err)
-	} else if state.ExperimentDeploymentID == "" {
-		log.Warnf("resume: the experiment configuration is no longer deployed, handing the jobs back to the stable set")
-		_, err := revertFromResume(ctx, deadline, token, "experiment configuration no longer deployed")
-		return err
-	}
-
-	log.Infof("resume: configuration experiment still within its deadline, resuming supervision")
-	// A daemon restart does not take the previous watcher with it: it is a detached process. It is
-	// still armed on the pids Resume is about to bounce, so it would read their termination as a
-	// crash and revert the experiment under the resume. Stop it first; the experiment daemon
-	// launches a new one once the hand-over below has started it.
-	if err := stopSurvivingHelpers(ctx); err != nil {
-		log.Warnf("resume: could not stop the previous watcher, resuming anyway: %v", err)
-	}
-	if err := (configExperiment{jobs: agentJobSet()}).Resume(ctx); err != nil {
-		log.Errorf("resume: could not resume the configuration experiment job set, reverting: %v", err)
-		return finishFailedResume(ctx, deadline, err)
-	}
-	if err := launchInstallerHandOver(ctx); err != nil {
-		log.Errorf("resume: could not launch the installer daemon hand-over, reverting: %v", err)
-		if revertErr := revertExperiment(ctx, agentJobSet()); revertErr != nil {
-			return fmt.Errorf("hand-over failed to launch (%w) and the experiment could not be reverted: %w", err, revertErr)
-		}
-		removeInstallerExperimentJob()
-		return fmt.Errorf("hand-over failed to launch, experiment reverted: %w", err)
-	}
-	return nil
+	return settleConfigExperiment(ctx)
 }
 
 // superviseFromExperimentDaemon is the resume hook as the experiment daemon runs it, each time it
@@ -139,7 +70,7 @@ func superviseFromExperimentDaemon(ctx HookContext) error {
 	}
 	if err := launchConfigExperimentWatcher(ctx); err != nil {
 		log.Errorf("resume: could not launch the configuration experiment watcher, reverting: %v", err)
-		revertErr := revertExperiment(ctx, agentJobSet())
+		revertErr := revertExperiment(ctx, configExperiment{jobs: agentJobSet()})
 		handBackErr := handBackInstallerAfterHook(ctx)
 		if joined := errors.Join(revertErr, handBackErr); joined != nil {
 			return fmt.Errorf("watcher failed to launch (%w) and the experiment could not be reverted: %w", err, joined)
@@ -149,66 +80,134 @@ func superviseFromExperimentDaemon(ctx HookContext) error {
 	return nil
 }
 
+// settleConfigExperiment is the resume hook as the stable daemon runs it. It leaves the host on the
+// stable job set, in one of the end states the rest of the experiment lifecycle already knows,
+// whatever the previous daemon was doing when it went away:
+//
+//   - An experiment still pending or being reverted (a deadline, or the reverting marker), with its
+//     configuration deployed, fails: the agent jobs go back to the stable set, the configuration is
+//     kept and the deadline replaced by the failed marker (configExperiment.Fail), for Fleet to stop.
+//   - The same with the configuration no longer deployed is a promote whose hook did not finish: it
+//     is finished as a promote (revertExperiment).
+//   - A failed experiment is left for Fleet to stop. A failed marker with no configuration behind it
+//     is cleared.
+//   - A configuration deployed with no deadline is discarded (revertOrphanedExperiment).
+//
+// After a reboot every stable job has just been started by launchd, so the hand-back leaves alone
+// any job already on its stable variant (configExperiment.keepRunningStable) instead of restarting
+// it. The stable daemon drives the agent jobs only: it must not swap itself (see installerJob).
+// Whatever is left of the experiment daemon's job is dealt with last
+// (settleInstallerExperimentJob).
+func settleConfigExperiment(ctx HookContext) error {
+	err := settleAgentJobs(ctx)
+	settleInstallerExperimentJob(ctx)
+	return err
+}
+
+// settleAgentJobs is settleConfigExperiment's decision, for the agent jobs and the deadline.
+func settleAgentJobs(ctx HookContext) error {
+	deadline := experimentDeadline()
+	token, err := deadline.Read()
+	switch {
+	case err != nil:
+		log.Warnf("settle: could not read the experiment deadline, failing any configuration experiment left behind: %v", err)
+		return settleUnfinishedExperiment(ctx)
+	case token == launchd.DeadlineFailed:
+		if experimentConfigDeployed() {
+			log.Infof("settle: the configuration experiment failed on the host and waits for Fleet to stop it")
+			return nil
+		}
+		return deadline.Clear()
+	case token == "":
+		return revertOrphanedExperiment(ctx)
+	default:
+		return settleUnfinishedExperiment(ctx)
+	}
+}
+
+// settleUnfinishedExperiment hands the agent jobs of an experiment the previous daemon left
+// unfinished back to the stable set: failed, configuration kept, or finished as a promote when the
+// configuration was already promoted (revertExperiment).
+func settleUnfinishedExperiment(ctx HookContext) error {
+	log.Warnf("settle: the previous installer daemon left a configuration experiment unfinished, handing every job back to the stable set")
+	stopHelpersBeforeSettling(ctx)
+	if err := revertExperiment(ctx, configExperiment{jobs: agentJobSet(), keepRunningStable: true}); err != nil {
+		return fmt.Errorf("settle: %w", err)
+	}
+	return nil
+}
+
 // revertOrphanedExperiment reverts an experiment configuration directory that is deployed with no
 // deadline beside it. Start writes the deadline before touching any job, and restoreStable only
 // clears it once the stable set is back, so this is a host whose previous daemon died either after
-// the installer published the directory but before the experiment job set ever started, or
-// between a deliberate stop's job hand-back and its discarding of the directory. Either way nothing will ever resume the experiment, yet the directory alone
-// would have the daemon report it as the running configuration indefinitely.
+// the installer published the directory but before the experiment job set ever started, or between
+// a deliberate stop's job hand-back and its discarding of the directory. Either way nothing will
+// ever end the experiment, yet the directory alone would have the daemon report it as the running
+// configuration indefinitely.
 func revertOrphanedExperiment(ctx HookContext) error {
 	state, err := configExperimentDirs.GetState()
 	if err != nil {
-		return fmt.Errorf("resume: could not read the configuration state: %w", err)
+		return fmt.Errorf("settle: could not read the configuration state: %w", err)
 	}
 	if state.ExperimentDeploymentID == "" {
 		return nil
 	}
-	log.Warnf("resume: configuration experiment %s is deployed with no deadline, reverting", state.ExperimentDeploymentID)
-	if err := revertAndDiscardExperiment(ctx, agentJobSet()); err != nil {
-		return fmt.Errorf("resume: %w", err)
+	log.Warnf("settle: configuration experiment %s is deployed with no deadline, reverting", state.ExperimentDeploymentID)
+	stopHelpersBeforeSettling(ctx)
+	if err := revertAndDiscardExperiment(ctx, configExperiment{jobs: agentJobSet(), keepRunningStable: true}); err != nil {
+		return fmt.Errorf("settle: %w", err)
 	}
-	removeInstallerExperimentJob()
 	return nil
 }
 
-// revertFromResume is revertExperimentIfStillPending for the resume hook: it reverts the agent
-// jobs, and removes a leftover definition of the experiment daemon's job.
-func revertFromResume(ctx context.Context, deadline launchd.Deadline, token string, reason string) (bool, error) {
-	reverted, err := revertExperimentIfStillPending(ctx, agentJobSet(), deadline, token, reason)
-	if reverted {
-		removeInstallerExperimentJob()
+// stopHelpersBeforeSettling stops the detached experiment processes a previous daemon left behind,
+// before the settle touches any job: a surviving watcher would read the jobs it was armed on going
+// away as a crash and revert on top of the settle, and a surviving hand-over would swap the
+// installer daemon under it. Failing to stop them does not stop the settle: the host must end up on
+// the stable set either way.
+func stopHelpersBeforeSettling(ctx context.Context) {
+	if err := stopSurvivingHelpers(ctx); err != nil {
+		log.Warnf("settle: could not stop the previous configuration experiment processes, settling anyway: %v", err)
 	}
-	return reverted, err
 }
 
-// finishFailedResume completes the revert of an experiment Resume could not bring back. Resume has
-// already put the agent jobs back on the stable set (abortStart), which clears the deadline. The
-// experiment configuration is kept for Fleet to stop, as for any experiment that fails on the host,
-// so the deadline is replaced by the failed marker (configExperiment.Fail), and the experiment
-// daemon's job definition is removed. A restore that did not finish leaves the reverting marker
-// instead, and the next daemon start reverts again.
-func finishFailedResume(_ context.Context, deadline launchd.Deadline, resumeErr error) error {
-	current, err := deadline.Read()
-	if err != nil {
-		return fmt.Errorf("resume failed (%w), and the experiment deadline could not be read: %w", resumeErr, err)
+// settleInstallerExperimentJob takes the experiment daemon's job out of the stable daemon's way.
+//
+// After a reboot mid-experiment its definition is still on disk, and launchd loads it at boot
+// without starting it (no RunAtLoad): it is unloaded and removed, so the host looks as if no
+// experiment had ever run. An experiment daemon actually running beside this one -- started by
+// hand -- is handed back by the hand-back process instead, as a stop or promote does: a hook cannot
+// swap the daemon it runs in. Failures are logged only: a leftover definition never starts on its
+// own.
+func settleInstallerExperimentJob(ctx context.Context) {
+	jobs := installerJobSet()
+	if _, err := os.Stat(jobs.Job(installerJob, launchd.Experiment).Path()); errors.Is(err, os.ErrNotExist) {
+		return
 	}
-	if current != "" {
-		return fmt.Errorf("resume failed and the experiment could not be reverted, the next daemon start retries: %w", resumeErr)
-	}
-	if err := deadline.MarkFailed(); err != nil {
-		return fmt.Errorf("resume failed (%w), and the experiment could not be marked as failed: %w", resumeErr, err)
+	label := installerJob + string(launchd.Experiment)
+	status, err := jobs.Client.Print(ctx, label)
+	switch {
+	case err != nil:
+		log.Warnf("settle: could not look at the experiment daemon's job: %v", err)
+	case status.PID != 0:
+		log.Warnf("settle: the experiment daemon is running beside the stable one, handing it back")
+		if err := launchInstallerHandBack(ctx); err != nil {
+			log.Errorf("settle: could not launch the installer daemon hand-back: %v", err)
+		}
+		return
+	case status.Loaded:
+		if err := jobs.Client.Bootout(ctx, label); err != nil {
+			log.Warnf("settle: could not unload the experiment daemon's job: %v", err)
+		}
 	}
 	removeInstallerExperimentJob()
-	return fmt.Errorf("resume failed, experiment reverted: %w", resumeErr)
 }
 
-// removeInstallerExperimentJob removes the experiment daemon's job definition, left on disk when
-// the host rebooted mid-experiment. The stable daemon is running, so that job is not: it only has
-// to go so the host looks as if no experiment had ever run. Failing to remove it is logged only:
-// with no RunAtLoad, a leftover definition never starts on its own.
+// removeInstallerExperimentJob removes the experiment daemon's job definition. Failing to remove it
+// is logged only: with no RunAtLoad, a leftover definition never starts on its own.
 func removeInstallerExperimentJob() {
 	if err := installerJobSet().Remove(launchd.Experiment); err != nil {
-		log.Warnf("resume: could not remove the experiment daemon's job definition: %v", err)
+		log.Warnf("could not remove the experiment daemon's job definition: %v", err)
 	}
 }
 
@@ -248,9 +247,10 @@ var stopSurvivingWatchers = func(ctx context.Context) error {
 
 // stopSurvivingHelpers terminates every detached experiment process a previous run left behind:
 // the watcher, and any hand-over or hand-back still pending. The stable daemon calls it before it
-// resumes an experiment, and the post-install before it discards one: a surviving hand-over would
-// otherwise race the one about to be launched, and its swap would stop the experiment daemon the
-// new one starts. A var so tests can observe when it is called.
+// settles the host, and the post-install before it discards an experiment: a surviving watcher
+// would read the jobs it was armed on going away as a crash and revert on top of them, and a
+// surviving hand-over would swap the installer daemon under them. A var so tests can observe when
+// it is called.
 var stopSurvivingHelpers = func(ctx context.Context) error {
 	return stopHelpers(ctx, experimentHelperCommands...)
 }
