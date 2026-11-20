@@ -347,7 +347,8 @@ jobs:
       name: main
     permissions:
       pull-requests: read # fetch the PR title/url and the owner's email
-      id-token: write # for dd-octo-sts (label application)
+      issues: write # add the test label (production uses dd-octo-sts, which does not
+      # allow workflow_dispatch events from feature branches)
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -387,14 +388,6 @@ jobs:
           SLACK_BUTTON_TTL_SECONDS: ${{ inputs.ttl }}
         run: python3 .github/scripts/backport_slack_buttons.py
 
-      - name: Get GitHub token
-        if: steps.slack.outputs.outcome == 'add'
-        uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
-        id: octo-sts
-        with:
-          scope: ${{ github.repository }}
-          policy: self.assess-backport.label-pr
-
       - name: Apply backport label
         if: steps.slack.outputs.outcome == 'add'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -402,7 +395,7 @@ jobs:
           PR_NUMBER: ${{ inputs.pr }}
           BRANCH: ${{ steps.slack.outputs.branch }}
         with:
-          github-token: ${{ steps.octo-sts.outputs.token }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const label = `backport/${process.env.BRANCH}`;
             await github.rest.issues.addLabels({
