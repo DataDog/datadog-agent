@@ -117,6 +117,12 @@ func (p *EnvsEntry) Get(key string) string {
 	return p.kv[key]
 }
 
+// KeyValues returns the values of the environment variables, by name
+func (p *EnvsEntry) KeyValues() map[string]string {
+	p.toMap()
+	return p.kv
+}
+
 // Equals compares two EnvsEntry
 func (p *EnvsEntry) Equals(o *EnvsEntry) bool {
 	if p == o {

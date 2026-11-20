@@ -188,6 +188,11 @@
           "property_doc_link": "common-credentials-egroup-doc"
         },
         {
+          "name": "process.ancestors.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
+        },
+        {
           "name": "process.ancestors.envp",
           "definition": "Environment variables of the process",
           "property_doc_link": "common-process-envp-doc"
@@ -808,6 +813,11 @@
           "property_doc_link": "common-credentials-egroup-doc"
         },
         {
+          "name": "process.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
+        },
+        {
           "name": "process.envp",
           "definition": "Environment variables of the process",
           "property_doc_link": "common-process-envp-doc"
@@ -1311,6 +1321,11 @@
           "name": "process.parent.egroup",
           "definition": "Effective group of the process",
           "property_doc_link": "common-credentials-egroup-doc"
+        },
+        {
+          "name": "process.parent.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
         },
         {
           "name": "process.parent.envp",
@@ -3061,6 +3076,11 @@
           "property_doc_link": "common-credentials-egroup-doc"
         },
         {
+          "name": "exec.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
+        },
+        {
           "name": "exec.envp",
           "definition": "Environment variables of the process",
           "property_doc_link": "common-process-envp-doc"
@@ -3738,6 +3758,11 @@
           "name": "exit.egroup",
           "definition": "Effective group of the process",
           "property_doc_link": "common-credentials-egroup-doc"
+        },
+        {
+          "name": "exit.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
         },
         {
           "name": "exit.envp",
@@ -5803,6 +5828,11 @@
           "property_doc_link": "common-credentials-egroup-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.envp",
           "definition": "Environment variables of the process",
           "property_doc_link": "common-process-envp-doc"
@@ -6423,6 +6453,11 @@
           "property_doc_link": "common-credentials-egroup-doc"
         },
         {
+          "name": "ptrace.tracee.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
+        },
+        {
           "name": "ptrace.tracee.envp",
           "definition": "Environment variables of the process",
           "property_doc_link": "common-process-envp-doc"
@@ -6926,6 +6961,11 @@
           "name": "ptrace.tracee.parent.egroup",
           "definition": "Effective group of the process",
           "property_doc_link": "common-credentials-egroup-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
         },
         {
           "name": "ptrace.tracee.parent.envp",
@@ -8436,6 +8476,11 @@
           "property_doc_link": "common-credentials-egroup-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.envp",
           "definition": "Environment variables of the process",
           "property_doc_link": "common-process-envp-doc"
@@ -9056,6 +9101,11 @@
           "property_doc_link": "common-credentials-egroup-doc"
         },
         {
+          "name": "setrlimit.target.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
+        },
+        {
           "name": "setrlimit.target.envp",
           "definition": "Environment variables of the process",
           "property_doc_link": "common-process-envp-doc"
@@ -9559,6 +9609,11 @@
           "name": "setrlimit.target.parent.egroup",
           "definition": "Effective group of the process",
           "property_doc_link": "common-credentials-egroup-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
         },
         {
           "name": "setrlimit.target.parent.envp",
@@ -10537,6 +10592,11 @@
           "property_doc_link": "common-credentials-egroup-doc"
         },
         {
+          "name": "signal.target.ancestors.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
+        },
+        {
           "name": "signal.target.ancestors.envp",
           "definition": "Environment variables of the process",
           "property_doc_link": "common-process-envp-doc"
@@ -11157,6 +11217,11 @@
           "property_doc_link": "common-credentials-egroup-doc"
         },
         {
+          "name": "signal.target.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
+        },
+        {
           "name": "signal.target.envp",
           "definition": "Environment variables of the process",
           "property_doc_link": "common-process-envp-doc"
@@ -11660,6 +11725,11 @@
           "name": "signal.target.parent.egroup",
           "definition": "Effective group of the process",
           "property_doc_link": "common-credentials-egroup-doc"
+        },
+        {
+          "name": "signal.target.parent.env",
+          "definition": "Environment variables of the process, read by name",
+          "property_doc_link": "common-process-env-doc"
         },
         {
           "name": "signal.target.parent.envp",
@@ -13502,6 +13572,36 @@
       "constants": "",
       "constants_link": "",
       "examples": []
+    },
+    {
+      "name": "*.env",
+      "link": "common-process-env-doc",
+      "type": "string",
+      "definition": "Environment variables of the process, read by name",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": [
+        {
+          "expression": "exec.env[\"LD_PRELOAD\"] != \"\"",
+          "description": "Matches the execution of a process with the LD_PRELOAD environment variable set to a value."
+        }
+      ]
     },
     {
       "name": "*.envp",
