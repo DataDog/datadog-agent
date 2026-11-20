@@ -14,7 +14,7 @@ permissions: {}
 jobs:
   check_coverage:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
