@@ -23,7 +23,6 @@ import (
 )
 
 const (
-	// oauth2ExpirySkew renews a cached token before the identity provider expires it.
 	oauth2ExpirySkew = 30 * time.Second
 	// oauth2DefaultLifetime applies when the token response omits expires_in.
 	oauth2DefaultLifetime       = 5 * time.Minute
@@ -68,8 +67,7 @@ func (o *oauth2Tokens) entry(details *privateconnection.OAuth2Details) *oauth2En
 	return o.entries[key]
 }
 
-// invalidate drops the cached token after the server rejected it, so the next
-// task gets a new one.
+// invalidate drops the cached token after the server rejected it.
 func (o *oauth2Tokens) invalidate(details *privateconnection.OAuth2Details) {
 	if details == nil {
 		return
@@ -97,8 +95,17 @@ func (h *Handler) oauth2Authorization(ctx context.Context, details *privateconne
 		return "", err
 	}
 	entry.accessToken = accessToken
-	entry.expiry = h.oauth2.now().Add(lifetime - oauth2ExpirySkew)
+	entry.expiry = tokenExpiry(h.oauth2.now(), lifetime)
 	return "Bearer " + accessToken, nil
+}
+
+// tokenExpiry renews oauth2ExpirySkew early, or halfway through a token shorter than twice that.
+func tokenExpiry(now time.Time, lifetime time.Duration) time.Time {
+	skew := oauth2ExpirySkew
+	if lifetime < 2*skew {
+		skew = lifetime / 2
+	}
+	return now.Add(lifetime - skew)
 }
 
 func validateOAuth2Details(details *privateconnection.OAuth2Details) error {
@@ -161,7 +168,6 @@ func (h *Handler) requestClientCredentialsToken(ctx context.Context, details *pr
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		// The error can name the token URL, never the secret.
 		return "", 0, fmt.Errorf("OAuth2 token request failed: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()

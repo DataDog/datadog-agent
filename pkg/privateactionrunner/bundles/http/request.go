@@ -46,13 +46,17 @@ func (h *Handler) WithEncryptionStore(encryptionStore *encryptioncontext.Store) 
 }
 
 func NewHttpRequestAction(cfg *config.Config) *Handler {
-	return &Handler{
+	h := &Handler{
 		allowIMDSEndpoints: cfg.AllowIMDSEndpoint,
 		httpTimeout:        cfg.HTTPTimeout,
 		httpClientProvider: httpclient.NewDefaultProvider(cfg),
-		isURLAllowed:       cfg.IsURLInAllowlist,
 		oauth2:             newOAuth2Tokens(),
 	}
+	// domain_allowlist replaces http_allowlist, and the client already checks it on every redirect.
+	if cfg.DomainAllowlist == nil {
+		h.isURLAllowed = cfg.IsURLInAllowlist
+	}
+	return h
 }
 
 type Header struct {
@@ -91,7 +95,7 @@ type RequestInputs struct {
 	ResponseParsing         *string         `json:"responseParsing,omitempty"`
 	ResponseEncoding        *string         `json:"responseEncoding,omitempty"`
 
-	// Raw mode only; see ResponseModeRaw. Unset keeps the default behavior.
+	// Raw mode only (ResponseModeRaw).
 	ResponseMode         *string                             `json:"responseMode,omitempty"`
 	BodyBase64           string                              `json:"bodyBase64,omitempty"`
 	EncryptResponseTo    *ResponseKey                        `json:"encryptResponseTo,omitempty"`
@@ -144,7 +148,6 @@ func (h *Handler) Run(
 	if err := validateResponseMode(inputs); err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, err.Error())
 	}
-	// Raw mode validates its own verbs, OPTIONS included.
 	if isRawMode(inputs) {
 		return h.runRaw(ctx, task, inputs, credential)
 	}

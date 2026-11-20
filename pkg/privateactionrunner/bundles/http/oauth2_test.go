@@ -120,7 +120,6 @@ func TestOAuth2ClientCredentialsAddsAndCachesToken(t *testing.T) {
 	assert.Equal(t, "par-client", idp.lastUser)
 	assert.Equal(t, "s3cret%26x", idp.lastPass)
 
-	// Expired tokens are replaced.
 	handler.oauth2.now = func() time.Time { return time.Now().Add(2 * time.Hour) }
 	_, err := handler.Run(context.Background(), requestTask(map[string]interface{}{"verb": "GET", "url": api.URL + "/items"}), credential)
 	require.NoError(t, err)
@@ -301,4 +300,11 @@ private_action_runner:
 			assert.Equal(t, "api.read api.write", idp.lastForm.Get("scope"))
 		})
 	}
+}
+
+func TestOAuth2TokenExpiry(t *testing.T) {
+	now := time.Unix(0, 0)
+	assert.Equal(t, now.Add(time.Hour-oauth2ExpirySkew), tokenExpiry(now, time.Hour))
+	// A token shorter than the skew is still cached, for half its lifetime.
+	assert.Equal(t, now.Add(10*time.Second), tokenExpiry(now, 20*time.Second))
 }

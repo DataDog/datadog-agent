@@ -40,8 +40,6 @@ func redirectingServers(t *testing.T) (origin, elsewhere *httptest.Server, follo
 	return origin, elsewhere, followed
 }
 
-// followRedirect: false used to be checked only after the redirect had been
-// followed, so the runner still contacted the redirect target.
 func TestRequestFollowRedirectFalseDoesNotContactTarget(t *testing.T) {
 	origin, _, followed := redirectingServers(t)
 	handler := NewHttpRequestAction(&config.Config{HTTPTimeout: 5 * time.Second})
@@ -56,20 +54,23 @@ func TestRequestFollowRedirectFalseDoesNotContactTarget(t *testing.T) {
 func TestRequestRedirectHopsAreChecked(t *testing.T) {
 	origin, _, followed := redirectingServers(t)
 	for _, test := range []struct {
-		name       string
-		allowlist  []string
-		credential *privateconnection.PrivateCredentials
-		query      string
-		wantError  string
+		name            string
+		allowlist       []string
+		domainAllowlist []string
+		credential      *privateconnection.PrivateCredentials
+		query           string
+		wantError       string
 	}{
 		{name: "outside allowlist", allowlist: []string{"127.0.0.1"}, wantError: "redirect url is not allowed by runner policy"},
+		{name: "domain_allowlist replaces http_allowlist", allowlist: []string{"127.0.0.1"}, domainAllowlist: []string{"127.0.0.1", "localhost"}},
+		{name: "outside domain_allowlist", domainAllowlist: []string{"127.0.0.1"}, wantError: "not allowed"},
 		{name: "outside base URL", credential: &privateconnection.PrivateCredentials{Type: privateconnection.TokenAuthType, HttpDetails: privateconnection.HttpDetails{BaseURL: origin.URL}}, wantError: "redirect url does not match base URL"},
 		{name: "same host allowed", credential: &privateconnection.PrivateCredentials{Type: privateconnection.TokenAuthType, HttpDetails: privateconnection.HttpDetails{BaseURL: origin.URL}}, query: "?to=same"},
 		{name: "no restriction", allowlist: []string{"127.0.0.1", "localhost"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			*followed = false
-			cfg := &config.Config{HTTPTimeout: 5 * time.Second, Allowlist: test.allowlist}
+			cfg := &config.Config{HTTPTimeout: 5 * time.Second, Allowlist: test.allowlist, DomainAllowlist: test.domainAllowlist}
 			_, err := NewHttpRequestAction(cfg).Run(context.Background(), requestTask(map[string]interface{}{"verb": "GET", "url": origin.URL + test.query}), test.credential)
 			if test.wantError != "" {
 				require.ErrorContains(t, err, test.wantError)

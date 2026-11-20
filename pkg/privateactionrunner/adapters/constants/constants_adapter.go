@@ -37,8 +37,7 @@ var (
 	TestingPathName          = "path"
 	TestingVerbName          = "verb"
 
-	// OAuth2 settings of an HTTP connection. client_secret is the only secret
-	// and normally comes from a runner credential.
+	// OAuth2 settings of an HTTP connection. Only client_secret is secret.
 	OAuth2GroupName                 = "oauth2"
 	OAuth2GrantTypeTokenName        = "grant_type"
 	OAuth2TokenURLTokenName         = "token_url"

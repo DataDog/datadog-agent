@@ -36,10 +36,8 @@ import (
 // and credentials apply only to the connection's base URL host, so a secret meant
 // for the MCP server never reaches another host such as an identity provider.
 //
-// Secrets that must not sit in plaintext in the task (an OAuth code, a refresh
-// token, a client secret, a user's access token) arrive through
-// ExecuteOboWithSecretInputs as encryptedCredentials, sealed to a one-time key
-// from prepareEncryption.
+// Secrets that must not sit in plaintext in the task arrive sealed in
+// encryptedCredentials.
 const ResponseModeRaw = "raw"
 
 // MaxRawResponseBodyBytes caps the raw response body. Base64 makes it about
@@ -183,7 +181,7 @@ func (h *Handler) runRaw(
 		return nil, util.DefaultActionErrorWithDisplayError(err, "failed to make request")
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode == http.StatusUnauthorized && credential != nil {
+	if resp.StatusCode == http.StatusUnauthorized && credential != nil && connectionHeaders.Get("Authorization") != "" {
 		h.oauth2.invalidate(credential.HttpDetails.OAuth2)
 	}
 
