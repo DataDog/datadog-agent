@@ -16,7 +16,8 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.runners import Result
 
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, bazel_not_found_message
+from tasks.libs.common.utils import join_command
 
 try:
     from termcolor import colored
@@ -280,7 +281,7 @@ def run_pulumi(
     omits it (for commands that aren't project scoped, such as `login` or `version`), and
     a path uses that directory.
     """
-    cmd_parts = ["pulumi"]
+    cmd_parts = [pulumi_command()]
     if project_dir is True:
         dir_flag = get_pulumi_dir_flag()
         if dir_flag:
@@ -489,10 +490,46 @@ def get_pulumi_run_folder() -> str:
     return os.path.join(_get_root_path(), "test", "e2e-framework", "run")
 
 
+def _pulumi_home() -> str:
+    return os.environ.get("PULUMI_HOME") or os.path.expanduser("~/.pulumi")
+
+
+def pulumi_command() -> str:
+    """The command line prefix running the Pulumi CLI pinned by Bazel: `bazel run //internal/tools:pulumi --`.
+
+    Bazel's own messages are filtered out, and the rest goes to stderr, so the standard output is Pulumi's.
+    """
+    if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
+        raise SystemExit(bazel_not_found_message("red"))
+    return join_command(
+        [
+            bazelisk,
+            "run",
+            "--noshow_progress",
+            "--show_result=0",
+            "--ui_event_filters=-info",
+            "//internal/tools:pulumi",
+            "--",
+        ]
+    )
+
+
+def pulumi_cli_dir() -> str:
+    """The directory of the Pulumi CLI that `//internal/tools:pulumi` runs, next to its language hosts.
+
+    For programs that look `pulumi` up on the PATH rather than running it through Bazel, like the Automation API of
+    the e2e tests.
+    """
+    path = bazel(
+        "cquery", "--output=files", f"@pulumi//:bin/pulumi{'.exe' if is_windows() else ''}", capture_output=True
+    ).strip()
+    output_base = bazel("info", "output_base", capture_output=True).strip()
+    return os.path.dirname(os.path.join(output_base, path))
+
+
 def install_pulumi_plugins() -> None:
     """Install the Pulumi plugins where Pulumi looks for them."""
-    pulumi_home = os.environ.get("PULUMI_HOME") or os.path.expanduser("~/.pulumi")
-    bazel("run", "@pulumi_plugins//:install", "--", f"--destdir={os.path.join(pulumi_home, 'plugins')}")
+    bazel("run", "@pulumi//:install", "--", f"--destdir={os.path.join(_pulumi_home(), 'plugins')}")
 
 
 class RemoteHost:

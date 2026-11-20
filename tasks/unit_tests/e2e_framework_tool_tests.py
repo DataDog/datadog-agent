@@ -21,6 +21,13 @@ def _env(ctx) -> dict:
     return ctx.run.call_args.kwargs["env"]
 
 
+def _run_bare_pulumi(test: unittest.TestCase):
+    """Make commands start with `pulumi`: what runs the CLI is TestPulumiCommand's concern."""
+    patcher = mock.patch.object(tool, "pulumi_command", return_value="pulumi")
+    patcher.start()
+    test.addCleanup(patcher.stop)
+
+
 class TestRunPulumi(unittest.TestCase):
     def setUp(self):
         # Neither the caller's shell nor a real config file should leak into the assertions.
@@ -30,6 +37,7 @@ class TestRunPulumi(unittest.TestCase):
         passphrase = mock.patch.object(tool, "_local_pulumi_passphrase", return_value=None)
         passphrase.start()
         self.addCleanup(passphrase.stop)
+        _run_bare_pulumi(self)
 
     def test_project_dir_default_uses_the_e2e_framework_project(self):
         ctx = _run_mock()
@@ -84,6 +92,7 @@ class TestPulumiEnv(unittest.TestCase):
         patcher = mock.patch.dict("os.environ", {}, clear=True)
         patcher.start()
         self.addCleanup(patcher.stop)
+        _run_bare_pulumi(self)
 
     def test_passphrase_comes_from_the_local_config(self):
         with mock.patch.object(tool, "_local_pulumi_passphrase", return_value="from-config"):
@@ -100,7 +109,6 @@ class TestPulumiEnv(unittest.TestCase):
                 read.assert_not_called()
 
     def test_skip_update_check_can_be_turned_off(self):
-        # pulumi_version() reads the upgrade banner off stderr, so it must not be skipped.
         with mock.patch.object(tool, "_local_pulumi_passphrase", return_value=None):
             env = tool.pulumi_env(skip_update_check=False)
         self.assertEqual(env, {})
@@ -133,11 +141,24 @@ class TestPulumiEnv(unittest.TestCase):
             self.assertIsNone(tool._local_pulumi_passphrase(None))
 
 
+class TestPulumiCommand(unittest.TestCase):
+    def test_runs_the_pinned_cli_through_bazel(self):
+        with mock.patch.object(tool.shutil, "which", return_value="/bin/bazelisk"):
+            command = tool.pulumi_command()
+        self.assertTrue(command.startswith("/bin/bazelisk run "))
+        self.assertTrue(command.endswith(" //internal/tools:pulumi --"))
+
+    def test_fails_without_bazel(self):
+        with mock.patch.object(tool.shutil, "which", return_value=None), self.assertRaises(SystemExit):
+            tool.pulumi_command()
+
+
 class TestPulumiStackNames(unittest.TestCase):
     def setUp(self):
         patcher = mock.patch.object(tool, "_local_pulumi_passphrase", return_value=None)
         patcher.start()
         self.addCleanup(patcher.stop)
+        _run_bare_pulumi(self)
 
     def test_names_are_read_from_json(self):
         ctx = _run_mock(stdout='[{"name": "a"}, {"name": "b"}, {"current": true}]')

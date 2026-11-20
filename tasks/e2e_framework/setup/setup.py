@@ -127,7 +127,7 @@ def setup(
     from tasks.e2e_framework.setup.agent import setup_agent_config
     from tasks.e2e_framework.setup.aws import setup_aws_config
     from tasks.e2e_framework.setup.config import check_config
-    from tasks.e2e_framework.setup.pulumi import install_pulumi, pulumi_version, setup_pulumi_config
+    from tasks.e2e_framework.setup.pulumi import setup_pulumi_config
 
     # AWS CLI is the only hard prereq on the default path.
     if not shutil.which("aws"):
@@ -146,11 +146,8 @@ def setup(
 
         install_gcloud_auth_plugin(ctx)
 
-    pulumi_ver, pulumi_up_to_date = pulumi_version(ctx)
-    if pulumi_up_to_date:
-        info(f"✓ Pulumi is up to date: {pulumi_ver}")
-    else:
-        install_pulumi(ctx)
+    pulumi_ver = run_pulumi(ctx, "version", project_dir=False, hide=True)
+    info(f"✓ Pulumi {pulumi_ver.stdout.strip() if pulumi_ver else ''}, run with `bazel run //internal/tools:pulumi --`")
 
     install_pulumi_plugins()
     run_pulumi(ctx, "login --local", project_dir=False, hide=True)

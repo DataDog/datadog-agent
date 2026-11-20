@@ -1,5 +1,6 @@
 ---
 new-e2e-cleanup-on-failure:
+  extends: .bazel:defs:cache:progressive
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   stage: .post
@@ -14,7 +15,7 @@ new-e2e-cleanup-on-failure:
     - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_PRIVATE_KEY_PATH || exit $?
     # Use S3 backend
     - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E pulumi_passphrase) || exit $?; export PULUMI_CONFIG_PASSPHRASE
-    - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+    - bazel run //internal/tools:pulumi -- login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
     - STACK_REGEX="ci-init-$CI_PIPELINE_ID-.*"
     - dda inv -- -e new-e2e-tests.cleanup-remote-stacks --stack-regex "$STACK_REGEX" 
   variables:

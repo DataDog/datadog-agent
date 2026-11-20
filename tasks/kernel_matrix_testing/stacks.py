@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, cast
 from invoke.context import Context
 from invoke.runners import Result
 
+from tasks.e2e_framework.tool import pulumi_cli_dir, pulumi_command
 from tasks.kernel_matrix_testing.infra import (
     build_infrastructure,
     ensure_key_in_agent,
@@ -316,6 +317,8 @@ def start_microvms(
     bazel(
         "run",
         *(f"--run_under={prefix}",) if prefix else (),
+        # Its Automation API runs the first `pulumi` on the PATH: make it the one `//internal/tools:pulumi` runs.
+        f"--run_env=PATH={pulumi_cli_dir()}{os.pathsep}{os.environ.get('PATH', '')}",
         "//test/new-e2e/scenarios/system-probe:start-microvms",
         "--",
         *" ".join(args).split(),
@@ -413,7 +416,7 @@ def destroy_stack_force(ctx: Context, stack: str):
     pulumi_stack_name = cast(
         'Result',
         ctx.run(
-            f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -a -C ./test/e2e-framework 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
+            f"PULUMI_CONFIG_PASSPHRASE=1234 {pulumi_command()} stack ls -a -C ./test/e2e-framework 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
             warn=True,
             hide=True,
         ),
@@ -423,12 +426,12 @@ def destroy_stack_force(ctx: Context, stack: str):
         return
 
     ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi cancel -y -C ./test/e2e-framework -s {pulumi_stack_name}",
+        f"PULUMI_CONFIG_PASSPHRASE=1234 {pulumi_command()} cancel -y -C ./test/e2e-framework -s {pulumi_stack_name}",
         warn=True,
         hide=True,
     )
     ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ./test/e2e-framework -s {pulumi_stack_name}",
+        f"PULUMI_CONFIG_PASSPHRASE=1234 {pulumi_command()} stack rm --force -y -C ./test/e2e-framework -s {pulumi_stack_name}",
         warn=True,
         hide=True,
     )

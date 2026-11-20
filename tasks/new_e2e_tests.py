@@ -425,12 +425,6 @@ def run(
     if "test" not in tags:
         tags = tags + ["test"]
 
-    if shutil.which("pulumi") is None:
-        raise Exit(
-            "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/datadog-agent/blob/main/test/e2e-framework/README.md)",
-            1,
-        )
-
     _check_e2e_local_config_or_exit(profile)
 
     e2e_module = get_default_modules()[module_name]
@@ -467,6 +461,8 @@ def run(
     # Pulls PULUMI_CONFIG_PASSPHRASE out of the local config when the environment doesn't
     # already carry one, so developers don't have to put the passphrase in their rc file.
     env_vars.update(tool.pulumi_env(skip_update_check=False))
+    # The tests' Automation API runs the first `pulumi` on the PATH: make it the one `//internal/tools:pulumi` runs.
+    env_vars["PATH"] = os.pathsep.join([tool.pulumi_cli_dir(), os.environ.get("PATH", "")])
 
     if not running_in_ci():
         env_vars.update(_docker_host_env(ctx))
