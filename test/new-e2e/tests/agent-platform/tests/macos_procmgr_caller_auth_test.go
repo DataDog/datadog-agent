@@ -100,8 +100,16 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthStartEntry); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthStartEntry, err)
 			}
+			// pkill exits 1 when nothing matches, and Execute hides that code, so pgrep is what
+			// shows a child that outlived the stop.
 			if _, err := client.Execute("sudo pkill -f '^/bin/sleep " + sleepArg + "$'"); err != nil {
-				t.Logf("cleanup: no leftover child for /bin/sleep %s or pkill failed: %v", sleepArg, err)
+				t.Logf("cleanup: pkill /bin/sleep %s: %v", sleepArg, err)
+			}
+			left, err := client.Execute("sudo sh -c 'pgrep -f \"^/bin/sleep " + sleepArg + "$\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'")
+			if err != nil {
+				t.Errorf("cleanup: failed to check for /bin/sleep %s: %v", sleepArg, err)
+			} else if strings.TrimSpace(left) != "" {
+				t.Errorf("cleanup: /bin/sleep %s still running:\n%s", sleepArg, left)
 			}
 		}
 		if _, err := client.Execute("sudo launchctl kickstart -k system/com.datadoghq.procmgr"); err != nil {
