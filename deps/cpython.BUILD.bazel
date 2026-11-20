@@ -50,6 +50,19 @@ EXT_SUFFIX = select({
 
 UNIX_SHARED_MODULES = SHARED_MODULES | MACOS_SHARED_MODULES
 
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//visibility:private"],
+)
+
+# 2.0 is the license version here, not the python version.
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Python-2.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
     "bzip2": "1.0.8",
