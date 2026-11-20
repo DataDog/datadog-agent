@@ -24,6 +24,7 @@ type ObserverMetadata struct {
 	Scenario            string                    `json:"scenario"`
 	TimelineStart       int64                     `json:"timeline_start"`
 	TimelineEnd         int64                     `json:"timeline_end"`
+	EvaluationStart     int64                     `json:"evaluation_start,omitempty"`
 	DetectorsEnabled    []string                  `json:"detectors_enabled"`
 	CorrelatorsEnabled  []string                  `json:"correlators_enabled"`
 	TotalAnomalyPeriods int                       `json:"total_anomaly_periods"`

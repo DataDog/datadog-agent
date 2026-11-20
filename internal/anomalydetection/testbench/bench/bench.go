@@ -107,6 +107,9 @@ type Config struct {
 
 	// ComponentSettings provides per-component configuration and enabled state.
 	ComponentSettings observerimpl.ComponentSettings
+	// BaselineFromEpisode uses the first third of a labeled healthy baseline as
+	// one shared learning window. Missing baseline metadata keeps DurationSec.
+	BaselineFromEpisode bool
 
 	// SkipDroppedMetrics filters out metrics marked as dropped during parquet load.
 	SkipDroppedMetrics bool
@@ -170,6 +173,7 @@ type BaselineInfo struct {
 	WindowEndSec       int64                                      `json:"windowEndSec,omitempty"`
 	MutedSeries        []string                                   `json:"mutedSeries,omitempty"`
 	Detectors          []observerimpl.BaselineDetectorDebugStatus `json:"detectors,omitempty"`
+	ReplayWindow       *observerimpl.BaselineWindow               `json:"replayWindow,omitempty"`
 }
 
 // StatusResponse is the response for /api/status.
@@ -417,6 +421,7 @@ func (tb *Bench) LoadScenario(name string) error {
 	tb.debug.SetReplayPhase("loading")
 
 	tb.episodeInfo = nil
+	tb.settings.Baseline.ReplayWindow = nil
 	if data, err := os.ReadFile(filepath.Join(scenarioPath, "episode.json")); err == nil {
 		var info EpisodeInfo
 		if jsonErr := json.Unmarshal(data, &info); jsonErr == nil {
@@ -424,10 +429,15 @@ func (tb *Bench) LoadScenario(name string) error {
 				info.Warmup = &EpisodePhase{Start: info.StartTime, End: info.EvaluationWindow.Start}
 			}
 			tb.episodeInfo = &info
+		} else if tb.config.BaselineFromEpisode {
+			tb.debug.SetReplayPhase("")
+			tb.mu.Unlock()
+			return fmt.Errorf("parsing episode.json: %w", jsonErr)
 		}
 	}
 
 	if err := tb.resetAllState(); err != nil {
+		tb.debug.SetReplayPhase("")
 		tb.mu.Unlock()
 		return err
 	}
@@ -531,6 +541,9 @@ func (tb *Bench) loadParquetDir(dir string) error {
 
 		var droppedCount int
 		for _, m := range metrics {
+			if !tb.inReplayWindow(m.Timestamp) {
+				continue
+			}
 			if strings.HasPrefix(m.Name, "datadog.") {
 				continue
 			}
@@ -561,6 +574,9 @@ func (tb *Bench) loadParquetDir(dir string) error {
 	}
 
 	for _, logEntry := range parquetLogs {
+		if !tb.inReplayWindow(logEntry.TimestampMs / 1000) {
+			continue
+		}
 		logCopy := logEntry
 		tb.rawLogs = append(tb.rawLogs, &logDataView{data: &logCopy})
 	}
@@ -576,6 +592,9 @@ func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) err
 	_, _, err := streamOrderedObservations(dir, format, tb.config.LogsOnly, func(observation parquetObservation) error {
 		if observation.metric != nil {
 			metric := observation.metric
+			if !tb.inReplayWindow(metric.Timestamp) {
+				return nil
+			}
 			if strings.HasPrefix(metric.Name, "datadog.") {
 				return nil
 			}
@@ -593,6 +612,9 @@ func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) err
 			return nil
 		}
 
+		if !tb.inReplayWindow(observation.log.TimestampMs / 1000) {
+			return nil
+		}
 		tb.streamInputLogsCount++
 		tb.extendStreamBounds(observation.log.TimestampMs/1000, observation.log.TimestampMs/1000)
 		view := logDataView{data: observation.log}
@@ -774,6 +796,9 @@ func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetecto
 
 // resetAllState resets engine state via DebugView.Reset.
 func (tb *Bench) resetAllState() error {
+	if err := tb.configureBaselineWindow(); err != nil {
+		return err
+	}
 	tb.baselineMu.Lock()
 	tb.baselineFrozen = false
 	tb.baselineWindowEndSec = 0
@@ -788,6 +813,56 @@ func (tb *Bench) resetAllState() error {
 		storageCfg = cfg
 	}
 	return tb.debug.Reset(tb.settings, storageCfg)
+}
+
+// configureBaselineWindow runs before input ingestion on every scenario load or
+// rerun. The engine still owns learning, alert state, and noisy-series muting.
+func (tb *Bench) configureBaselineWindow() error {
+	tb.settings.Baseline.ReplayWindow = nil
+	if !tb.config.BaselineFromEpisode || !tb.settings.Baseline.Enabled || tb.episodeInfo == nil || tb.episodeInfo.Baseline == nil {
+		return nil
+	}
+	phase := tb.episodeInfo.Baseline
+	start, err := time.Parse(time.RFC3339Nano, phase.Start)
+	if err != nil {
+		return fmt.Errorf("parsing baseline.start: %w", err)
+	}
+	end, err := time.Parse(time.RFC3339Nano, phase.End)
+	if err != nil {
+		return fmt.Errorf("parsing baseline.end: %w", err)
+	}
+	if !end.After(start) {
+		return errors.New("episode baseline.end must be after baseline.start")
+	}
+	if tb.episodeInfo.Disruption != nil {
+		onset, err := time.Parse(time.RFC3339Nano, tb.episodeInfo.Disruption.Start)
+		if err != nil {
+			return fmt.Errorf("parsing disruption.start: %w", err)
+		}
+		if end.After(onset) {
+			return errors.New("episode baseline must end before or at disruption.start")
+		}
+	}
+	// The observer advances in whole data seconds. Round both boundaries up so
+	// pre-baseline input cannot train a model and qualification never ends early.
+	ceilSecond := func(t time.Time) int64 {
+		sec := t.Unix()
+		if t.Nanosecond() != 0 {
+			sec++
+		}
+		return sec
+	}
+	window := &observerimpl.BaselineWindow{StartSec: ceilSecond(start), EndSec: ceilSecond(start.Add(end.Sub(start) / 3))}
+	if window.EndSec <= window.StartSec {
+		return errors.New("episode baseline is too short for a one-third learning window")
+	}
+	tb.settings.Baseline.ReplayWindow = window
+	return nil
+}
+
+func (tb *Bench) inReplayWindow(sec int64) bool {
+	window := tb.settings.Baseline.ReplayWindow
+	return window == nil || sec >= window.StartSec
 }
 
 // catalogEntries includes testbench-only adapters in addition to production
@@ -884,6 +959,10 @@ func (tb *Bench) GetStatus() StatusResponse {
 			WindowEndSec:       windowEndSec,
 			MutedSeries:        mutedSeries,
 			Detectors:          status.Detectors,
+			ReplayWindow:       tb.settings.Baseline.ReplayWindow,
+		}
+		if window := baselineInfo.ReplayWindow; window != nil {
+			baselineInfo.DurationSec = window.EndSec - window.StartSec
 		}
 	}
 
@@ -947,7 +1026,7 @@ func (tb *Bench) isComponentEnabled(name string) bool {
 // Caller must hold lock.
 func (tb *Bench) rerunDetectorsLocked() error {
 	// Reset engine with current settings (clears all storage).
-	if err := tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies, tb.config.TrackScorerHistory)); err != nil {
+	if err := tb.resetAllState(); err != nil {
 		return err
 	}
 
@@ -1452,6 +1531,7 @@ func (tb *Bench) loadDemoScenario() error {
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.ready = false
 	tb.loadedScenario = "demo"
+	tb.episodeInfo = nil
 
 	if err := tb.resetAllState(); err != nil {
 		tb.mu.Unlock()

@@ -103,6 +103,66 @@ func makeBaselineEngine(cfg BaselineConfig, correlator observerdef.Correlator) (
 
 // ---- baselineController unit tests ----
 
+func TestBaselineController_FixedReplayDeadline(t *testing.T) {
+	b := newBaselineController(BaselineConfig{ReplayWindow: &BaselineWindow{StartSec: 100, EndSec: 300}}, []string{"fast", "late"})
+	b.start(90)
+	require.Equal(t, int64(100), b.debugStatus().StartSec)
+	require.True(t, b.ready("fast", 120))
+	require.True(t, b.isAnalyzingAt("late", 299))
+	require.Empty(t, b.due(299))
+	require.ElementsMatch(t, []string{"fast", "late"}, b.due(300))
+	for _, name := range b.due(300) {
+		b.complete(name)
+	}
+	require.True(t, b.allComplete())
+	status := b.debugStatus()
+	require.True(t, *status.Detectors[0].ReadyAtEnd)
+	require.False(t, *status.Detectors[1].ReadyAtEnd)
+	require.True(t, b.ready("late", 500))
+	require.Equal(t, int64(300), b.detectors["late"].baselineEndSec)
+	require.False(t, b.isAnalyzingAt("late", 500), "late readiness must not start another quiet window")
+	require.False(t, *b.debugStatus().Detectors[1].ReadyAtEnd)
+}
+
+func TestBaseline_FixedReplayMutesBeforeBoundaryDetection(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	noisy := storage.Add("ns", "noisy", 1, 100, nil).Ref
+	quiet := storage.Add("ns", "quiet", 1, 100, nil).Ref
+	fast := &baselineTestDetector{name: "fast", readyAtSec: 100, emitAfterSec: 100, ref: noisy, source: observerdef.SeriesDescriptor{Namespace: "ns", Name: "noisy"}}
+	late := &baselineTestDetector{name: "late", readyAtSec: 500, emitAfterSec: 500, ref: quiet, source: observerdef.SeriesDescriptor{Namespace: "ns", Name: "quiet"}}
+	correlator := &recordingCorrelator{}
+	e := mustNewEngine(engineConfig{storage: storage, detectors: []detectorRegistration{{detector: fast}, {detector: late}},
+		correlators: []observerdef.Correlator{correlator}, baseline: BaselineConfig{Enabled: true, MuteNoisyMetrics: true, ReplayWindow: &BaselineWindow{StartSec: 100, EndSec: 300}}})
+	e.Advance(100)
+	e.Advance(299)
+	require.Empty(t, correlator.received)
+	e.Advance(300)
+	require.True(t, e.baseline.allComplete())
+	require.Nil(t, storage.GetSeriesMeta(noisy))
+	require.NotNil(t, storage.GetSeriesMeta(quiet))
+	require.Empty(t, correlator.received)
+	e.Advance(500)
+	require.Len(t, correlator.received, 1)
+	require.Equal(t, "late", correlator.received[0].DetectorName)
+	require.Equal(t, int64(300), e.baseline.detectors["late"].baselineEndSec)
+}
+
+func TestBaseline_FixedReplayObserveModeKeepsSeries(t *testing.T) {
+	correlator := &recordingCorrelator{}
+	e, ref := makeBaselineEngine(BaselineConfig{Enabled: true, ReplayWindow: &BaselineWindow{StartSec: 100, EndSec: 300}}, correlator)
+	filter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+	// Replay can turn muting off after the live observer installed this sink.
+	e.Subscribe(&baselineEventSink{filter: filter})
+	e.Advance(100)
+	e.Advance(299)
+	require.Empty(t, correlator.received)
+	e.Advance(300)
+	require.NotEmpty(t, correlator.received)
+	require.NotNil(t, e.storage.GetSeriesMeta(ref))
+	require.True(t, filter.isAllowed("cpu", "ns", nil), "observe mode must also preserve future ingestion")
+}
+
 func TestBaselineController_DetectorReadinessStartsIndependentWindows(t *testing.T) {
 	b := newBaselineController(BaselineConfig{DurationSec: 600}, []string{"fast", "slow"})
 	assert.False(t, b.debugStatus().Started)
@@ -392,9 +452,10 @@ func TestBaseline_MuteNoisyMetricsFalseDoesNotDropMetrics(t *testing.T) {
 	filter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)
 
-	// With MuteNoisyMetrics=false, baselineEventSink is NOT subscribed (matches
-	// production wiring in NewComponent). The filter must remain untouched.
+	// Replay can disable muting after NewComponent installed this subscriber.
+	// The filter must remain untouched under that configuration too.
 	e, _ := makeBaselineEngine(BaselineConfig{Enabled: true, DurationSec: 600, MuteNoisyMetrics: false}, nil)
+	e.Subscribe(&baselineEventSink{filter: filter})
 
 	e.Advance(100)
 	e.Advance(700) // freeze

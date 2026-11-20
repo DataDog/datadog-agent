@@ -7,13 +7,22 @@ package observerimpl
 
 import "sort"
 
-// BaselineConfig controls detector-specific baseline qualification windows.
-// DurationSec is the qualification duration after a detector becomes ready.
+// BaselineConfig controls baseline qualification. Without ReplayWindow,
+// DurationSec is the qualification duration after each detector becomes ready.
 type BaselineConfig struct {
 	Enabled          bool
 	DurationSec      int64
 	MuteNoisyMetrics bool
 	Verbose          bool // log each muted series when every baseline has completed
+	// ReplayWindow optionally gives all replay detectors the same qualification
+	// interval. Live Agent configuration leaves this nil.
+	ReplayWindow *BaselineWindow
+}
+
+// BaselineWindow is a replay's half-open qualification interval in data seconds.
+type BaselineWindow struct {
+	StartSec int64 `json:"startSec"`
+	EndSec   int64 `json:"endSec"`
 }
 
 // DefaultBaselineConfig returns the default baseline config (enabled, 10m qualification, muting on).
@@ -29,6 +38,7 @@ type detectorBaselineState struct {
 	windowAnomalyCount int
 	pendingHashes      map[uint64]struct{}
 	mutedCount         int
+	readyAtEnd         bool
 }
 
 // BaselineDetectorDebugStatus is a testbench-facing snapshot of one detector.
@@ -39,6 +49,9 @@ type BaselineDetectorDebugStatus struct {
 	BaselineEndSec int64  `json:"baselineEndSec,omitempty"`
 	Completed      bool   `json:"completed"`
 	MutedCount     int    `json:"mutedCount"`
+	// ReadyAtEnd captures readiness before the deadline's detection pass.
+	// Ready is detector-wide; individual series can still lack enough history.
+	ReadyAtEnd *bool `json:"readyAtEnd,omitempty"`
 }
 
 // BaselineDebugStatus is a testbench-facing snapshot of the baseline union.
@@ -51,15 +64,16 @@ type BaselineDebugStatus struct {
 	Detectors          []BaselineDetectorDebugStatus `json:"detectors"`
 }
 
-// baselineController coordinates independent detector windows. All methods
+// baselineController coordinates detector qualification windows. All methods
 // run on the engine goroutine.
 //
 //	data time ──►  [ warmup ] [ qualification ] [ detection ]
 //	detector        model       suppress + mute    forward
 //
-// Each detector owns its first two windows and must not emit anomalies during
-// warmup. Detector anomalies observed while analysing can mute their
-// storage-backed source series globally.
+// By default each detector owns its first two windows. ReplayWindow instead
+// ends qualification for every detector at a common deadline, including those
+// not ready yet. Detectors still own model initialization and alert state.
+// Detector anomalies observed while analysing can mute their series globally.
 type baselineController struct {
 	config    BaselineConfig
 	startSec  int64
@@ -76,6 +90,9 @@ func newBaselineController(cfg BaselineConfig, detectorNames []string) *baseline
 	b := &baselineController{config: cfg, detectors: make(map[string]*detectorBaselineState), mutedHashes: make(map[uint64]struct{})}
 	for _, name := range detectorNames {
 		b.detectors[name] = &detectorBaselineState{pendingHashes: make(map[uint64]struct{})}
+		if cfg.ReplayWindow != nil {
+			b.detectors[name].baselineEndSec = cfg.ReplayWindow.EndSec
+		}
 	}
 	return b
 }
@@ -89,18 +106,20 @@ func detectorNames(detectors []detectorRegistration) []string {
 	return names
 }
 
-// start records the first analysis timestamp. Individual qualification windows
-// begin only when their detector reports that it is ready to score.
+// start records the analysis start, or the labeled start for a fixed replay.
 func (b *baselineController) start(dataSec int64) {
 	if b.started {
 		return
 	}
 	b.started = true
 	b.startSec = dataSec
+	if b.config.ReplayWindow != nil {
+		b.startSec = b.config.ReplayWindow.StartSec
+	}
 }
 
-// ready records a detector's first usable scoring advance and starts its
-// qualification baseline. It returns true only for that first transition.
+// ready records a detector's first usable scoring advance. Only duration-based
+// qualification starts a new timer; a fixed replay deadline never moves.
 func (b *baselineController) ready(name string, dataSec int64) bool {
 	state := b.detectors[name]
 	if state == nil || state.ready {
@@ -108,7 +127,9 @@ func (b *baselineController) ready(name string, dataSec int64) bool {
 	}
 	state.ready = true
 	state.warmupEndSec = dataSec
-	state.baselineEndSec = dataSec + b.config.DurationSec
+	if b.config.ReplayWindow == nil {
+		state.baselineEndSec = dataSec + b.config.DurationSec
+	}
 	return true
 }
 
@@ -119,7 +140,7 @@ func (b *baselineController) isAnalyzingAt(name string, dataSec int64) bool {
 	if state == nil || state.completed {
 		return false
 	}
-	if !state.ready {
+	if b.config.ReplayWindow == nil && !state.ready {
 		return true
 	}
 	return dataSec < state.baselineEndSec
@@ -137,7 +158,7 @@ func (b *baselineController) mark(name string, h uint64) {
 func (b *baselineController) due(dataSec int64) []string {
 	var names []string
 	for name, state := range b.detectors {
-		if state.ready && !state.completed && dataSec >= state.baselineEndSec {
+		if (state.ready || b.config.ReplayWindow != nil) && !state.completed && dataSec >= state.baselineEndSec {
 			names = append(names, name)
 		}
 	}
@@ -146,10 +167,11 @@ func (b *baselineController) due(dataSec int64) []string {
 
 func (b *baselineController) complete(name string) (newHashes map[uint64]struct{}, snapshotChanged bool, anomalyCount int, allComplete bool) {
 	state := b.detectors[name]
-	if state == nil || !state.ready || state.completed {
+	if state == nil || (!state.ready && b.config.ReplayWindow == nil) || state.completed {
 		return nil, false, 0, b.allComplete()
 	}
 	state.completed = true
+	state.readyAtEnd = state.ready
 	state.mutedCount = len(state.pendingHashes)
 	newHashes = state.pendingHashes
 	state.pendingHashes = nil // release the per-detector set after its window ends
@@ -197,7 +219,12 @@ func (b *baselineController) debugStatus() BaselineDebugStatus {
 		if state.completed {
 			mutedCount = state.mutedCount
 		}
-		status.Detectors = append(status.Detectors, BaselineDetectorDebugStatus{Name: name, Ready: state.ready, WarmupEndSec: state.warmupEndSec, BaselineEndSec: state.baselineEndSec, Completed: state.completed, MutedCount: mutedCount})
+		detectorStatus := BaselineDetectorDebugStatus{Name: name, Ready: state.ready, WarmupEndSec: state.warmupEndSec, BaselineEndSec: state.baselineEndSec, Completed: state.completed, MutedCount: mutedCount}
+		if b.config.ReplayWindow != nil && state.completed {
+			readyAtEnd := state.readyAtEnd
+			detectorStatus.ReadyAtEnd = &readyAtEnd
+		}
+		status.Detectors = append(status.Detectors, detectorStatus)
 	}
 	sort.Slice(status.Detectors, func(i, j int) bool { return status.Detectors[i].Name < status.Detectors[j].Name })
 	return status

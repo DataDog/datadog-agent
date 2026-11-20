@@ -154,6 +154,34 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | `--only` | _(empty)_ | Enable ONLY these components (plus extractors); disable everything else. Mutually exclusive with `--enable`/`--disable`. |
 | `--config` | _(empty)_ | Path to a JSON params file controlling enabled state and hyperparameters. Takes full precedence over `--enable`/`--disable`/`--only`. See [Params File](#params-file--config). |
 | `--logs-only` | `false` | Load only log rows from parquet scenarios; skip metric samples and trace stats. Speeds up runs focused on log anomaly detection (interactive and headless). |
+| `--baseline-duration` | First third of the episode baseline | Override with a duration such as `2m` to use a qualification period after each detector becomes ready, or `0` to disable qualification and muting. Missing baseline metadata falls back to `2m` after readiness. |
+| `--mute-noisy-metrics` | `true` | Mute series that fire during qualification for the remainder of the replay. Set to `false` to keep those series eligible after qualification. |
+
+With labeled `baseline.start` and `baseline.end` in `episode.json`, the default
+learning window is the first third of that interval. Observations before the
+labeled baseline are skipped. All detectors share the same qualification end,
+regardless of when they become ready; a ten-minute baseline opens emissions at
+minute 3:20. Boundaries round up to whole data seconds. Both streaming and
+retained replay use this policy.
+
+During learning, detector emissions are suppressed and noisy series are
+identified. At the shared boundary, noisy-series muting takes effect globally;
+unmuted series remain eligible through the rest of baseline, disruption, and
+recovery. Learned models are not reset at the boundary. Native initialization,
+confirmation, and cooldown rules still apply; a late detector gets no additional
+quiet period. The baseline timeline reports whether each detector had become
+ready before the cutoff. This is detector-wide readiness, not a guarantee for
+every series.
+
+An explicit `--baseline-duration` preserves the duration-based policy and replays
+all input. Scenarios without a labeled baseline (including the demo) also keep
+the duration-based fallback. Invalid labeled baselines fail rather than silently
+training through a fault.
+
+Headless output records the shared cutoff as `metadata.evaluation_start`. The
+scorer excludes earlier high-severity episode starts and computes the healthy
+false-positive rate using the remaining baseline duration. Outputs without this
+field retain the previous scoring behavior.
 
 ### Headless Mode
 
