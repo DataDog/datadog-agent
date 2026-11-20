@@ -128,13 +128,12 @@ func WithBootTimeRefreshInterval(bootTimeRefreshInterval time.Duration) Option {
 
 // probe is a service that fetches process related info on current host
 type probe struct {
-	bootTime     *atomic.Uint64
-	procRootLoc  string // ProcFS
-	procRootFile *os.File
-	uid          uint32 // UID
-	euid         uint32 // Effective UID
-	clockTicks   float64
-	exit         chan struct{}
+	bootTime    *atomic.Uint64
+	procRootLoc string // ProcFS
+	uid         uint32 // UID
+	euid        uint32 // Effective UID
+	clockTicks  float64
+	exit        chan struct{}
 
 	// configurations
 	elevatedPermissions     bool
@@ -174,10 +173,6 @@ func NewProcessProbe(options ...Option) Probe {
 // Close cleans up everything related to Probe object
 func (p *probe) Close() {
 	close(p.exit)
-	if p.procRootFile != nil {
-		p.procRootFile.Close()
-		p.procRootFile = nil
-	}
 }
 
 // syncBootTime checks bootTime every minute and stores it.
@@ -391,33 +386,15 @@ func (p *probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, erro
 	return statsByPID, nil
 }
 
-func (p *probe) getRootProcFile() (*os.File, error) {
-	if p.procRootFile != nil {
-		return p.procRootFile, nil
-	}
-
-	f, err := os.Open(p.procRootLoc)
-	if err == nil {
-		p.procRootFile = f
-	}
-
-	return f, err
-}
-
 // getActivePIDs retrieves a list of PIDs representing actively running processes.
 func (p *probe) getActivePIDs() ([]int32, error) {
-	procFile, err := p.getRootProcFile()
+	procFile, err := os.Open(p.procRootLoc)
 	if err != nil {
 		return nil, err
 	}
+	defer procFile.Close()
 
 	fnames, err := procFile.Readdirnames(-1)
-	if err != nil {
-		return nil, err
-	}
-
-	// reset read offset to 0, so next time we could read the whole directory again
-	_, err = procFile.Seek(0, 0)
 	if err != nil {
 		return nil, err
 	}
