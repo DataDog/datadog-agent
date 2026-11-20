@@ -59,8 +59,10 @@ const (
 	NodeUnsupported
 )
 
-// NodeStates lists all node states in reporting order.
-var NodeStates = []NodeState{NodeInTopology, NodeUnavailable, NodeTainted, NodeNoGPUAllocatable, NodeMissingLabels, NodeUnsupported}
+// NodeStates returns all node states in reporting order.
+func NodeStates() []NodeState {
+	return []NodeState{NodeInTopology, NodeUnavailable, NodeTainted, NodeNoGPUAllocatable, NodeMissingLabels, NodeUnsupported}
+}
 
 func (s NodeState) String() string {
 	switch s {
@@ -80,9 +82,11 @@ func (s NodeState) String() string {
 	return "unknown"
 }
 
-// GPUResourceMIG is the GPU resource attribution of MIG nodes, used instead
-// of a resource name in NodeCount.GPUResource.
-const GPUResourceMIG = "mig"
+// GPU resource attributions of unsupported nodes, in NodeCount.GPUResource.
+const (
+	GPUResourceMIG    = "mig"                              // any MIG strategy
+	GPUResourceShared = string(gpu.GpuNvidiaGenericShared) // time-slicing with renameByDefault
+)
 
 // classified is a node after classification.
 type classified struct {
@@ -95,8 +99,8 @@ type classified struct {
 // classify returns the node's state, or false for a node with no GPU at all.
 func classify(n Node, levels []string, implicit bool, tols []Toleration) (classified, bool) {
 	c := classified{node: n}
-	if isMIG(n) {
-		c.state, c.resources = NodeUnsupported, []string{GPUResourceMIG}
+	if attr := unsupported(n); attr != "" {
+		c.state, c.resources = NodeUnsupported, []string{attr}
 		return c, true
 	}
 	c.resources = attributedResources(n)
@@ -121,15 +125,26 @@ func classify(n Node, levels []string, implicit bool, tols []Toleration) (classi
 	return c, true
 }
 
-// isMIG reports whether MIG is active: any nvidia.com/mig-* capacity (mixed
-// strategy), or a -MIG- product label (single strategy, incl. -MIG-INVALID).
-func isMIG(n Node) bool {
+// unsupported returns the attribution of a node whose GPUs v1 doesn't model,
+// or "":
+//   - MIG is active: any nvidia.com/mig-* capacity (mixed strategy), or a
+//     -MIG- product label (single strategy, incl. -MIG-INVALID).
+//   - GPUs are shared: nvidia.com/gpu.shared is in capacity (time-slicing
+//     with renameByDefault). Reporting them as no_gpu_allocatable would fire
+//     "broken node" monitors.
+func unsupported(n Node) string {
 	for r, c := range n.Capacity {
 		if c > 0 && strings.HasPrefix(r, migResourcePfx) {
-			return true
+			return GPUResourceMIG
 		}
 	}
-	return strings.Contains(n.Labels[labelGPUProduct], "-MIG-")
+	if strings.Contains(n.Labels[labelGPUProduct], "-MIG-") {
+		return GPUResourceMIG
+	}
+	if _, ok := n.Capacity[GPUResourceShared]; ok {
+		return GPUResourceShared
+	}
+	return ""
 }
 
 // attributedResources returns the modelled GPU resources present in the
@@ -200,6 +215,7 @@ func (t Toleration) tolerates(taint Taint) bool {
 		return false
 	}
 	if t.Key == "" {
+		// The API rejects an empty key with Equal, so only Exists matches all.
 		return t.Operator == OpExists
 	}
 	if t.Key != taint.Key {

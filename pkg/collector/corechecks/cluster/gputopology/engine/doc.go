@@ -14,9 +14,11 @@
 //
 // Each node matched by the flavor is classified once, in this precedence:
 //
-//  1. unsupported: MIG is active (any nvidia.com/mig-* capacity, or a
-//     nvidia.com/gpu.product label containing -MIG-). nvidia.com/mig.strategy
-//     is never used: GPU Feature Discovery sets it to "none" on every node.
+//  1. unsupported: GPUs v1 doesn't model. MIG is active (any
+//     nvidia.com/mig-* capacity, or a nvidia.com/gpu.product label containing
+//     -MIG-; nvidia.com/mig.strategy is never used: GPU Feature Discovery
+//     sets it to "none" on every node), or GPUs are shared (time-slicing
+//     renamed to nvidia.com/gpu.shared).
 //  2. missing_labels: lacks a topology level label.
 //  3. unavailable: NotReady or cordoned.
 //  4. no_gpu_allocatable: no allocatable GPU (e.g. device plugin down).
@@ -30,8 +32,15 @@
 // amd.com/gpu, gpu.intel.com/*) present in its capacity at any value, or
 // else to those of its GPU presence labels: when a device plugin dies,
 // kubelet removes the resource from capacity after about 5 minutes, and the
-// node must stay visible as no_gpu_allocatable. MIG nodes are attributed to
-// "mig". Nodes with no GPU evidence are ignored.
+// node must stay visible as no_gpu_allocatable. The Intel presence label maps
+// to gpu.intel.com/i915 (it can't tell xe from i915). Unsupported nodes are
+// attributed to "mig" or nvidia.com/gpu.shared. Nodes with no GPU evidence
+// are ignored.
+//
+// Result.Nodes has a row for every node state and every attribution seen,
+// zeros included. It is empty when no flavor node has a GPU (e.g. a GPU pool
+// scaled to 0): the check then emits its own zero series. A topology with no
+// levels is invalid (Kueue requires at least one) and yields an empty Result.
 //
 // # Domains
 //
@@ -39,7 +48,7 @@
 // at level k is the tuple of label values for levels 0..k, so "rack-1" in two
 // blocks are two racks. If the topology has no kubernetes.io/hostname level,
 // an implicit host level keyed on the node name is appended and flagged
-// Implicit (Kueue does the same).
+// Implicit, as Kueue >= 0.20 does internally.
 //
 // Everything is computed per GPU resource. Domains contain the labelled nodes
 // attributed to the resource (any state but unsupported and missing_labels),
@@ -58,7 +67,4 @@
 // by reason: unhealthy (capacity - allocatable on in_topology nodes), or the
 // capacity of unavailable, tainted, no_gpu_allocatable and missing_labels
 // nodes.
-//
-// A topology with no levels is invalid (Kueue requires at least one) and
-// yields an empty Result.
 package engine
