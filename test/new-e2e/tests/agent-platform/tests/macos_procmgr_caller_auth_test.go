@@ -41,6 +41,7 @@ func macosProcmgrDescribe(t *testing.T, client *common.MacOSTestClient, name str
 	require.NoError(t, err, "dd-procmgr describe %s failed:\n%s", name, out)
 	var detail macosProcmgrDetail
 	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &detail), "dd-procmgr describe output:\n%s", out)
+	assert.Equal(t, name, detail.Name, "dd-procmgr describe output:\n%s", out)
 	return detail
 }
 
@@ -76,8 +77,8 @@ func macosProcmgrListNames(t *testing.T, client *common.MacOSTestClient, command
 }
 
 // TestZXProcmgrRootOnlyMutations proves the installed daemon's root-only rule: root may run
-// every mutating RPC, _dd-agent may run none, and reads stay open. ZX sorts after the
-// read-only tests and before the ZY tests, which must find the shipped catalog.
+// every mutating RPC, _dd-agent may run none, and reads stay open. ZX sorts before the ZY
+// tests, which must find the shipped catalog.
 func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	t := m.T()
 	client := common.NewMacOSTestClient(m.Env().RemoteHost)
