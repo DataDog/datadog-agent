@@ -279,6 +279,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
           BRANCHES: ${{ steps.validate.outputs.branches }}
           EXPLANATION: ${{ steps.validate.outputs.explanation }}
           CONFIDENCE: ${{ steps.validate.outputs.confidence }}
@@ -372,6 +373,7 @@ jobs:
             });
             core.setOutput('title', pr.title);
             core.setOutput('url', pr.html_url);
+            core.setOutput('author_login', pr.user.login);
 
       - name: Ask the PR owner via Slack buttons
         id: slack
@@ -382,6 +384,7 @@ jobs:
           PR_NUMBER: ${{ inputs.pr }}
           PR_TITLE: ${{ steps.pr.outputs.title }}
           PR_URL: ${{ steps.pr.outputs.url }}
+          PR_AUTHOR_LOGIN: ${{ steps.pr.outputs.author_login }}
           BRANCHES: ${{ inputs.branches }}
           EXPLANATION: ${{ inputs.explanation }}
           CONFIDENCE: ${{ inputs.confidence }}
