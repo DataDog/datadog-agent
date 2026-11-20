@@ -7,7 +7,12 @@
 package traceimpl
 
 import (
+	"context"
+	"encoding/json"
+	"expvar"
 	"net"
+
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -62,6 +67,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 	pbcore.RegisterTelemetryProviderServer(remoteAgentServer.GetGRPCServer(),
 		helper.NewTelemetryProviderServer(reqs.Telemetry, coretelemetry.StaticMetricFilter(helper.APIServerRequestDurationMetric)))
 
+	// Expose the flare provider so flares built by the core agent collect this
+	// process's expvars through the remote-agent registry, instead of fetching
+	// the debug server's unauthenticated /debug/vars endpoint.
+	pbcore.RegisterFlareProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+
 	remoteAgentServer.Start()
 
 	provides := Provides{
@@ -76,4 +86,33 @@ type remoteagentImpl struct {
 	cfg config.Component
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
+	pbcore.UnimplementedFlareProviderServer
+}
+
+// GetFlareFiles returns this process's expvars so the core agent can include
+// them in flares through the remote-agent registry. The payload matches what
+// the debug server's /debug/vars endpoint used to serve (the same expvars,
+// YAML-marshaled), so the flare content is equivalent to the HTTP fetch it
+// replaces.
+func (r *remoteagentImpl) GetFlareFiles(_ context.Context, _ *pbcore.GetFlareFilesRequest) (*pbcore.GetFlareFilesResponse, error) {
+	variables := make(map[string]interface{})
+	expvar.Do(func(kv expvar.KeyValue) {
+		var value interface{}
+		if err := json.Unmarshal([]byte(kv.Value.String()), &value); err != nil {
+			// Keep the raw string so a single bad variable doesn't drop the rest.
+			value = kv.Value.String()
+		}
+		variables[kv.Key] = value
+	})
+
+	data, err := yaml.Marshal(variables)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pbcore.GetFlareFilesResponse{
+		Files: map[string][]byte{
+			"expvar.yaml": data,
+		},
+	}, nil
 }
