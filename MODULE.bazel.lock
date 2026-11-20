@@ -910,13 +910,13 @@
       }
     },
     "//deps/pulumi_plugins:extension.bzl%pulumi_plugins": {
-      "https://github.com/pulumi/pulumi-aws/releases/download/v7.54.0/pulumi-aws_7.54.0_checksums.txt": {
-        "pulumi-resource-aws-v7.54.0-darwin-amd64.tar.gz": "sha1-/+HUlGhd19b85DjjRICgl0PH1kY=",
-        "pulumi-resource-aws-v7.54.0-darwin-arm64.tar.gz": "sha1-HNoOD45jFpf8vYdopHbxCBYIgLQ=",
-        "pulumi-resource-aws-v7.54.0-linux-amd64.tar.gz": "sha1-+/KUfF6x8+p6sB/Z/xaZUOOk7Rc=",
-        "pulumi-resource-aws-v7.54.0-linux-arm64.tar.gz": "sha1-f4UWc1k/9cu5pLgkh0Y87qYAthI=",
-        "pulumi-resource-aws-v7.54.0-windows-amd64.tar.gz": "sha1-c0DGbvRXgwL/3kxf9sG7V6lBPA0=",
-        "pulumi-resource-aws-v7.54.0-windows-arm64.tar.gz": "sha1-ZcSXY4WHft34riBkDU/3W1t6muo="
+      "https://github.com/pulumi/pulumi-aws/releases/download/v7.55.0/pulumi-aws_7.55.0_checksums.txt": {
+        "pulumi-resource-aws-v7.55.0-darwin-amd64.tar.gz": "sha1-Gs2pYXprlQ1Zp6H/wzbbGONNfug=",
+        "pulumi-resource-aws-v7.55.0-darwin-arm64.tar.gz": "sha1-xD6C15449b+5R82YpWXn9inOxnU=",
+        "pulumi-resource-aws-v7.55.0-linux-amd64.tar.gz": "sha1-6FqtuqxAzHXR4++nC89nqWdQfeY=",
+        "pulumi-resource-aws-v7.55.0-linux-arm64.tar.gz": "sha1-c1ZpMIcWtGxilNSC/VaEks/5zvc=",
+        "pulumi-resource-aws-v7.55.0-windows-amd64.tar.gz": "sha1-MTqmuC7xgq+wolLVgxc7WPV9sJM=",
+        "pulumi-resource-aws-v7.55.0-windows-arm64.tar.gz": "sha1-HNhRIptWyRVJSn2kKou6j8mmH9U="
       },
       "https://github.com/pulumi/pulumi-awsx/releases/download/v3.13.0/pulumi-awsx_3.13.0_checksums.txt": {
         "pulumi-resource-awsx-v3.13.0-darwin-amd64.tar.gz": "sha1-4c+URGhfPt7KU85zqljfNLbmC64=",
@@ -1028,7 +1028,7 @@
         "pulumi-resource-time-v0.1.0-windows-amd64.tar.gz": "sha256-LcZni/wvXQJ4+fc4rPwuKi4y9hUpSc9GhJRykh6/i0c=",
         "pulumi-resource-time-v0.1.0-windows-arm64.tar.gz": "sha256-mjorlphPz5S4mz3/OjAt1iywnrF/WPxh/+2U81tj1Wc="
       },
-      "https://registry.npmjs.org/@pulumi/aws/7.54.0": {
+      "https://registry.npmjs.org/@pulumi/aws/7.55.0": {
         "dependencies": {},
         "name": "aws",
         "url": "https://github.com/pulumi/pulumi-aws"
