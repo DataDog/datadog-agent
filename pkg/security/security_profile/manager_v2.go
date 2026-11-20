@@ -140,6 +140,9 @@ type ManagerV2 struct {
 	kernelVersion *kernel.Version
 
 	sendAnomalyDetection func(*model.Event)
+	// beforeAnomalyClaim lets tests interleave a merge between the insertion of an event and the claim
+	// of its anomaly emission. Nil outside tests.
+	beforeAnomalyClaim func()
 
 	hostname string
 
@@ -965,6 +968,12 @@ func (m *ManagerV2) HasCooldownExpired(p *profile.Profile, nodes []*activity_tre
 
 	p.Lock()
 	defer p.Unlock()
+	return m.hasCooldownExpired(liveNodes(nodes), now)
+}
+
+// hasCooldownExpired is HasCooldownExpired for live nodes. Callers must hold the lock of their profile.
+func (m *ManagerV2) hasCooldownExpired(nodes []*activity_tree.NodeBase, now time.Time) bool {
+	cooldown := m.config.RuntimeSecurity.AnomalyDetectionEventCooldown
 	for _, node := range nodes {
 		lastSent, ok := node.GetLastAnomalySent()
 		if ok && now.Sub(lastSent) > cooldown {
@@ -972,6 +981,40 @@ func (m *ManagerV2) HasCooldownExpired(p *profile.Profile, nodes []*activity_tre
 		}
 	}
 	return false
+}
+
+// liveNodes returns the nodes of the tree that hold the observations of these nodes, which a merge may
+// have folded since they were returned by an insertion. Callers must hold the lock of their profile.
+func liveNodes(nodes []*activity_tree.NodeBase) []*activity_tree.NodeBase {
+	live := make([]*activity_tree.NodeBase, 0, len(nodes))
+	for _, node := range nodes {
+		if node = node.Live(); !slices.Contains(live, node) {
+			live = append(live, node)
+		}
+	}
+	return live
+}
+
+// claimAnomalyEmission starts the event cooldown of the activity nodes of an event about to be sent as an
+// anomaly. It re-evaluates the eligibility of a known activity under the profile lock, on the nodes that
+// hold it now: a merge may have folded the inserted nodes, and a concurrent emission may have claimed them.
+// Returns whether the anomaly should be sent.
+func (m *ManagerV2) claimAnomalyEmission(p *profile.Profile, eventType model.EventType, inserted bool, nodes []*activity_tree.NodeBase, now time.Time) bool {
+	if len(nodes) == 0 {
+		return true
+	}
+
+	p.Lock()
+	defer p.Unlock()
+	live := liveNodes(nodes)
+	if !inserted && !m.hasCooldownExpired(live, now) {
+		return false
+	}
+	for _, node := range live {
+		node.RecordAnomalySent(now)
+	}
+	m.scheduleCooldownExpiry(eventType, live, now)
+	return true
 }
 
 // sampleCookieFromEvent returns the kernel sample cookie carried by this event, or 0 when
@@ -1140,19 +1183,15 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 	event.SecurityProfileContext.ProfileAlreadySent = profile.HasAlreadyBeenSent()
 
 	if m.config.RuntimeSecurity.AnomalyDetectionEnabled {
+		if m.beforeAnomalyClaim != nil {
+			m.beforeAnomalyClaim()
+		}
+		if !m.claimAnomalyEmission(profile, event.GetEventType(), inserted, activityNodes, now) {
+			return
+		}
 		// Flag as an anomaly so the serializer emits the sampled syscall (mirrors the V1 path).
 		event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
 		m.sendAnomalyDetection(event)
-
-		// The emit starts the cooldown of these nodes
-		if len(activityNodes) > 0 {
-			profile.Lock()
-			for _, node := range activityNodes {
-				node.RecordAnomalySent(now)
-			}
-			m.scheduleCooldownExpiry(event.GetEventType(), activityNodes, now)
-			profile.Unlock()
-		}
 	}
 }
 
