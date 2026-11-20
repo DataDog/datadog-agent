@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: A slow stats write no longer blocks the trace-agent's intake of
+    client-computed stats. Before, the client stats aggregator held its lock
+    while it wrote flushed buckets, so incoming stats payloads could wait
+    past the receiver timeout and be rejected with
+    ``Error processing pb.ClientStatsPayload: context deadline exceeded``.
+    The aggregator now releases its lock before it writes.

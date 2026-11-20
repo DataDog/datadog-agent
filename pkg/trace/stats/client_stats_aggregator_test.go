@@ -9,7 +9,9 @@ import (
 	"math"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	fuzz "github.com/google/gofuzz"
@@ -281,6 +283,65 @@ func TestAggregatorForceFlush(t *testing.T) {
 		a.ForceFlush()
 		return len(msw.Reset()) > 0
 	}, time.Second, 10*time.Millisecond, "the aggregator must keep aggregating after ForceFlush")
+}
+
+type blockingStatsWriter struct {
+	writes  atomic.Int32
+	release chan struct{}
+}
+
+func (w *blockingStatsWriter) Write(*pb.StatsPayload) {
+	w.writes.Add(1)
+	<-w.release
+}
+
+// newBlockedWriterAggregator returns an aggregator whose writer blocks until
+// the test ends. Cleanup releases the writer and stops the aggregator.
+func newBlockedWriterAggregator(t *testing.T) (*ClientStatsAggregator, *blockingStatsWriter) {
+	a := newTestAggregator()
+	w := &blockingStatsWriter{release: make(chan struct{})}
+	a.writer = w
+	t.Cleanup(func() {
+		close(w.release)
+		a.Stop()
+	})
+	return a, w
+}
+
+// These tests check lock state with TryLock instead of blocking on a lock:
+// a goroutine blocked on a sync.Mutex is not durably blocked, so
+// synctest.Wait would never return.
+func TestAggregatorAddNotBlockedByWrite(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		a, w := newBlockedWriterAggregator(t)
+		now := time.Now()
+		a.add(now, getTestStatsWithStart(t, now, false))
+
+		go a.flushAll()
+		synctest.Wait()
+		require.EqualValues(t, 1, w.writes.Load(), "the flush must reach the writer")
+
+		require.True(t, a.mu.TryLock(), "add is blocked while the writer is busy")
+		a.mu.Unlock()
+		a.add(now, getTestStatsWithStart(t, now, false))
+	})
+}
+
+func TestAggregatorFlushesAreSerialized(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		a, w := newBlockedWriterAggregator(t)
+		now := time.Now()
+		a.add(now, getTestStatsWithStart(t, now, false))
+
+		go a.flushAll()
+		synctest.Wait()
+		require.EqualValues(t, 1, w.writes.Load(), "the flush must reach the writer")
+
+		if a.flushMu.TryLock() {
+			a.flushMu.Unlock()
+			t.Fatal("another flush can start before the flush in progress submits its payloads")
+		}
+	})
 }
 
 func TestMergeMany(t *testing.T) {
