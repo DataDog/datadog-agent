@@ -80,6 +80,11 @@ type Server struct {
 	urlMutex sync.RWMutex
 	url      string
 
+	// startMutex guards started, set by Start until the server stops listening or fails to, so a Start while the
+	// server is starting or running doesn't start other routines
+	startMutex sync.Mutex
+	started    bool
+
 	store serverstore.Store
 
 	responseOverridesMutex    sync.RWMutex
@@ -303,17 +308,25 @@ func withLogForwardEndpoint(endpoint string) Option {
 // Start Starts a fake intake server in a separate go-routine
 // Notifies when ready to the ready channel
 func (fi *Server) Start() {
-	if fi.IsRunning() {
-		log.Printf("Fake intake already running at %s", fi.URL())
-		if fi.ready != nil {
-			fi.ready <- true
+	fi.startMutex.Lock()
+	if fi.started {
+		fi.startMutex.Unlock()
+		// a Start in progress notifies its own readiness
+		if fi.IsRunning() {
+			log.Printf("Fake intake already running at %s", fi.URL())
+			if fi.ready != nil {
+				fi.ready <- true
+			}
 		}
 		return
 	}
+	fi.started = true
 	fi.shutdown = make(chan struct{})
 	fi.served = make(chan struct{})
+	served := fi.served
+	fi.startMutex.Unlock()
 
-	go fi.listenRoutine(fi.served)
+	go fi.listenRoutine(served)
 	go fi.cleanUpPayloadsRoutine()
 }
 
@@ -362,14 +375,13 @@ func (fi *Server) listenRoutine(served chan struct{}) {
 		listener, err = net.Listen("tcp", fi.server.Addr)
 		if err != nil {
 			log.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
+			// the server never ran: a later Start can try again
+			fi.startMutex.Lock()
+			fi.started = false
+			fi.startMutex.Unlock()
 
 			if fi.ready != nil {
-				// after overlapping Start calls, another routine may run the server: like the readiness below, give
-				// up on a notification nobody reads once that server stops, as Stop waits for this routine
-				select {
-				case fi.ready <- false:
-				case <-fi.shutdown:
-				}
+				fi.ready <- false
 			}
 
 			return

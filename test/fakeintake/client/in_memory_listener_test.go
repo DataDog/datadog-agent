@@ -27,10 +27,7 @@ import (
 func TestInMemoryListener(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		listener := newPipeListener()
-		ready := make(chan bool, 1)
-		fi := server.NewServer(server.WithListener(listener, "http://fakeintake.pipe"), server.WithReadyChannel(ready))
-		fi.Start()
-		require.True(t, <-ready, "fakeintake server did not become ready")
+		fi, stop := startInMemory(t, listener, "http://fakeintake.pipe")
 		assert.Equal(t, "http://fakeintake.pipe", fi.URL())
 
 		transport := &http.Transport{DialContext: listener.dial}
@@ -51,8 +48,27 @@ func TestInMemoryListener(t *testing.T) {
 		require.NoError(t, err)
 		assert.Zero(t, dequeues)
 
-		require.NoError(t, fi.Stop())
+		require.NoError(t, stop())
 		_, err = listener.dial(context.Background(), "tcp", "fakeintake.pipe:80")
+		assert.ErrorIs(t, err, net.ErrClosed, "the listener must be closed once Stop returns")
+	})
+}
+
+// TestInMemoryListenerStartedTwice checks that a second Start while the server is starting serves nothing more: the
+// server notifies its readiness once, and Stop closes the listener and stops every routine, or the bubble deadlocks.
+func TestInMemoryListenerStartedTwice(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		listener := newPipeListener()
+		ready := make(chan bool, 2)
+		fi := server.NewServer(server.WithListener(listener, "http://fakeintake.pipe"), server.WithReadyChannel(ready))
+		fi.Start()
+		fi.Start()
+		require.True(t, <-ready, "fakeintake server did not become ready")
+		synctest.Wait()
+		assert.Empty(t, ready, "the readiness must be notified once")
+
+		require.NoError(t, fi.Stop())
+		_, err := listener.dial(context.Background(), "tcp", "fakeintake.pipe:80")
 		assert.ErrorIs(t, err, net.ErrClosed, "the listener must be closed once Stop returns")
 	})
 }
@@ -65,15 +81,29 @@ func TestInMemoryListenerURL(t *testing.T) {
 		{url: "", expected: "http://pipe"},
 	} {
 		synctest.Test(t, func(t *testing.T) {
-			ready := make(chan bool, 1)
-			fi := server.NewServer(server.WithListener(newPipeListener(), tc.url), server.WithReadyChannel(ready))
-			fi.Start()
-			require.True(t, <-ready, "fakeintake server did not become ready")
+			fi, stop := startInMemory(t, newPipeListener(), tc.url)
 			assert.Equal(t, tc.expected, fi.URL())
 			assert.True(t, fi.IsRunning())
-			require.NoError(t, fi.Stop())
+			require.NoError(t, stop())
 		})
 	}
+}
+
+// startInMemory starts a fakeintake on the listener and waits for its readiness. It's stopped at the end of the test,
+// even when an assertion fails, as the bubble would otherwise deadlock on its routines; stop stops it earlier.
+func startInMemory(t *testing.T, listener net.Listener, url string) (fi *server.Server, stop func() error) {
+	ready := make(chan bool, 1)
+	fi = server.NewServer(server.WithListener(listener, url), server.WithReadyChannel(ready))
+	fi.Start()
+	require.True(t, <-ready, "fakeintake server did not become ready")
+	var once sync.Once
+	var err error
+	stop = func() error {
+		once.Do(func() { err = fi.Stop() })
+		return err
+	}
+	t.Cleanup(func() { _ = stop() })
+	return fi, stop
 }
 
 // pipeListener is an in-memory net.Listener made of net.Pipe connections, which are bubbled channels in a
