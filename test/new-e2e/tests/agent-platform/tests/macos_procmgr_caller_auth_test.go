@@ -21,8 +21,7 @@ import (
 const (
 	macosCallerAuthEntry      = "e2e-caller-auth"
 	macosCallerAuthAgentEntry = "e2e-caller-auth-agent"
-	// macosCallerAuthAgentCLI is the dd-procmgr CLI as the Agent account. _dd-agent is in
-	// group daemon, which can connect to the socket, and is not root.
+	// _dd-agent is in group daemon, so it can reach the socket, but it is not root.
 	macosCallerAuthAgentCLI = "sudo -u _dd-agent " + macosProcmgrCLI
 
 	macosProcmgrSocket = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
@@ -55,8 +54,6 @@ func assertMacosProcmgrRequiresRoot(t *testing.T, client *common.MacOSTestClient
 	return err.Error()
 }
 
-// macosProcmgrListNames runs list --json and returns the process names. A failed
-// list is reported and returns false so the rest of the test still runs.
 func macosProcmgrListNames(t *testing.T, client *common.MacOSTestClient, command string) ([]string, bool) {
 	t.Helper()
 	out, err := client.Execute(command)
@@ -76,26 +73,22 @@ func macosProcmgrListNames(t *testing.T, client *common.MacOSTestClient, command
 	return names, true
 }
 
-// TestZXProcmgrRootOnlyMutations proves the installed daemon's root-only rule: root may run
-// every mutating RPC, _dd-agent may run none, and reads stay open. ZX sorts before the ZY
-// tests, which must find the shipped catalog.
+// TestZXProcmgrRootOnlyMutations proves the root-only rule for mutating RPCs. ZX sorts
+// before the ZY tests, which must find the shipped catalog.
 func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	t := m.T()
 	client := common.NewMacOSTestClient(m.Env().RemoteHost)
-	// The duration is unique per run, so cleanup can match this child's command line after
-	// a daemon crash drops the runtime entry.
+	// Unique per run, so cleanup can match this child after a daemon crash drops the runtime entry.
 	sleepArg := strconv.Itoa(100000 + int(time.Now().UnixNano()%900000))
 
-	// Registered first so it runs after diagnostics. The stop is only on failure: the
-	// child has its own process group and can outlive the daemon restart, which drops
-	// the runtime entry.
+	// Registered first so it runs after diagnostics. On success the test has already stopped
+	// its child. On failure, stop and kill before the restart: each child has its own process
+	// group and would outlive the restart, which drops the runtime entry.
 	t.Cleanup(func() {
 		if t.Failed() {
 			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthEntry); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthEntry, err)
 			}
-			// The shipped entry's child has its own process group. A restarted daemon
-			// reloads that entry as skipped and does not see a child a failed denial started.
 			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosSysprobeProcess); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosSysprobeProcess, err)
 			}
@@ -181,6 +174,13 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		assert.Equal(t, "Stopped", stopped.State)
 		assert.Equal(t, 0, stopped.Pid)
 	}
-	_, err = client.Execute("sudo " + macosProcmgrCLI + " reload")
-	assert.NoError(t, err, "dd-procmgr reload")
+	reloadOut, err := client.Execute("sudo " + macosProcmgrCLI + " reload --json")
+	if assert.NoError(t, err, "dd-procmgr reload") {
+		var reload struct {
+			Unchanged []string `json:"unchanged"`
+		}
+		if assert.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(reloadOut)), &reload), "dd-procmgr reload output:\n%s", reloadOut) {
+			assert.Contains(t, reload.Unchanged, macosSysprobeProcess, "dd-procmgr reload output:\n%s", reloadOut)
+		}
+	}
 }
