@@ -311,8 +311,9 @@ func TestProcessWorkItem_PermanentErrorNotRetried(t *testing.T) {
 func TestProcessWorkItem_TransientForbiddenRetried(t *testing.T) {
 	gr := schema.GroupResource{Group: "gateway.networking.k8s.io", Resource: "referencegrants"}
 	for name, transientErr := range map[string]error{
-		"quota exceeded":    apierrors.NewForbidden(gr, "grant", errors.New("exceeded quota: grants, requested: count/referencegrants.gateway.networking.k8s.io=1, used: count/referencegrants.gateway.networking.k8s.io=10, limited: count/referencegrants.gateway.networking.k8s.io=10")),
-		"admission startup": apierrors.NewForbidden(gr, "grant", errors.New("not yet ready to handle request")),
+		"quota exceeded":     apierrors.NewForbidden(gr, "grant", errors.New("exceeded quota: grants, requested: count/referencegrants.gateway.networking.k8s.io=1, used: count/referencegrants.gateway.networking.k8s.io=10, limited: count/referencegrants.gateway.networking.k8s.io=10")),
+		"quota not computed": apierrors.NewForbidden(gr, "grant", errors.New("status unknown for quota: grants, resources: count/referencegrants.gateway.networking.k8s.io")),
+		"admission startup":  apierrors.NewForbidden(gr, "grant", errors.New("not yet ready to handle request")),
 	} {
 		t.Run(name, func(t *testing.T) {
 			ctx := context.Background()

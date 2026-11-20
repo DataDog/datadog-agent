@@ -429,7 +429,7 @@ func TestAdded_GatewaysInManyNamespacesGetOneReferenceGrantEach(t *testing.T) {
 	}
 	pattern := newTestEnvoyGatewayPattern(t, client, logger, config)
 
-	// More namespaces than the 16 spec.from entries a single ReferenceGrant accepts
+	// The fake client does not enforce the 16-entry spec.from limit, so check that each namespace gets its own grant
 	var namespaces []string
 	for i := range 20 {
 		namespaces = append(namespaces, fmt.Sprintf("test-ns%d", i))
@@ -1282,7 +1282,9 @@ func TestAddNamespaceToGrant_TerminatingGrantIsRetried(t *testing.T) {
 	}
 	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
 
-	require.Error(t, pattern.Added(ctx, newTestGateway("test-ns", "test-gateway")))
+	addErr := pattern.Added(ctx, newTestGateway("test-ns", "test-gateway"))
+	require.Error(t, addErr)
+	assert.False(t, apierrors.IsForbidden(addErr) || apierrors.IsInvalid(addErr), "the injector drops Forbidden and Invalid errors, so a terminating grant must report a retryable error")
 	_, err := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
 	assert.True(t, apierrors.IsNotFound(err), "no EnvoyExtensionPolicy must rely on a grant being deleted")
 }

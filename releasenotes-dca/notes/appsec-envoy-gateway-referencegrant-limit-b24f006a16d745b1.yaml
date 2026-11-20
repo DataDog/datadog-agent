@@ -8,6 +8,9 @@ fixes:
     ``datadog-appsec-extproc-<namespace>``, instead of a single shared grant limited
     to 16 namespaces. The shared ``datadog-appsec-extproc`` grant created by previous
     versions is removed as its namespaces lose their last Gateway.
-    Forbidden and invalid requests are no longer retried for hours, except Forbidden
-    errors caused by an exhausted ``ResourceQuota`` or by admission plugins still
-    starting up, which are still retried.
+  - |
+    The App and API Protection proxy injector no longer retries Forbidden and invalid
+    requests for hours, for every proxy type. Forbidden errors from a ``ResourceQuota``
+    (exhausted, or with its usage not computed yet) or from admission plugins still
+    starting up are still retried. After fixing the Cluster Agent RBAC or an admission
+    policy that rejected the injector, restart the Cluster Agent to apply the injection.

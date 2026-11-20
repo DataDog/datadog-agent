@@ -401,9 +401,9 @@ var knownFailureReasons = []metav1.StatusReason{
 }
 
 // retryableForbidden are messages of Forbidden errors that can clear without a change on the cluster
-// side: an exhausted ResourceQuota, and admission plugins whose caches are still syncing at API
-// server startup.
-var retryableForbidden = []string{"exceeded quota", "not yet ready to handle request"}
+// side: an exhausted ResourceQuota, a ResourceQuota whose usage is not computed yet, and admission
+// plugins whose caches are still syncing at API server startup.
+var retryableForbidden = []string{"exceeded quota", "status unknown for quota", "not yet ready to handle request"}
 
 // failureReason returns the Kubernetes API status reason (Forbidden, Invalid, ...) of err, keeping
 // the telemetry tag cardinality bounded.

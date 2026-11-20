@@ -581,7 +581,8 @@ Without the gcptrafficextensions permissions:
   - A WARN log is emitted and a Kubernetes event with reason GCPTrafficExtensionCreateFailed or
     GCPTrafficExtensionDeleteFailed is recorded on the Gateway object.
   - A Forbidden error from missing RBAC is not retried: the shared injector drops the work item
-    after the first attempt. No GCPTrafficExtension is installed.
+    after the first attempt. No GCPTrafficExtension is installed, and the Cluster Agent must be
+    restarted after the RBAC is fixed.
   - Customer traffic is unaffected (the missing extension is a silent pass-through at the LB layer).
   - This is NOT a silent no-op: failures are observable via events and cluster-agent logs.
 
@@ -616,9 +617,9 @@ The package emits telemetry metrics:
     Tags: proxy_type, operation, success, reason (Kubernetes API status reason such as Forbidden or
     Invalid, "unknown" for non-API errors and reasons outside the known Kubernetes set, "none" on
     success). Forbidden and Invalid errors are not retried since they need a change on the cluster
-    side, except Forbidden errors from an exhausted ResourceQuota or from admission plugins still
-    starting up, which can clear on their own and are retried. An error that joins several failures
-    is dropped only if all of them are permanent
+    side, except Forbidden errors from a ResourceQuota (exhausted, or with its usage not computed
+    yet) or from admission plugins still starting up, which can clear on their own and are retried.
+    An error that joins several failures is dropped only if all of them are permanent
 
   - appsec_injector.sidecar_mutations: Counter tracking sidecar injection outcomes on the
     CREATE (MutatePod) admission path, emitted once per admission for a pod owned by a sidecar
@@ -682,13 +683,16 @@ delimit injected directives, enabling idempotent updates and clean removal.
 The package implements robust error handling with:
 
   - Exponential backoff retry for transient failures
-  - Maximum retry limits (default: 5 attempts)
+  - A fixed limit of 5 retries
   - Detailed error logging with context
   - Event recording for operational awareness
   - Configuration validation at startup with detailed error messages
 
 Failed operations are requeued with exponential backoff, and after exceeding retry limits,
-errors are logged but do not crash the controller.
+errors are logged but do not crash the controller. Permanent errors (Invalid, and Forbidden apart
+from the ResourceQuota and admission startup cases) are logged and dropped after the first attempt.
+The informer has no update handler or periodic resync, so a dropped item is only replayed when the
+Cluster Agent restarts or leadership changes, for example once the RBAC or admission policy is fixed.
 
 In SIDECAR mode, webhook failures are handled gracefully:
   - Invalid configurations prevent webhook registration
