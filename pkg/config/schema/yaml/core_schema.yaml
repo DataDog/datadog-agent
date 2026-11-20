@@ -5561,12 +5561,9 @@ properties:
                 type: boolean
                 default: false
                 description: |
-                  Detect repeated application errors without statistical warmup: three errors across two
-                  five-second intervals within thirty seconds, per host, service, environment and Observer input.
-                  Errors are levels the application declares (for example a JSON level field or a leading ERROR).
-                  While enabled, logs below an input's min_severity are still admitted when they declare ERROR or higher.
-                  Container application logs reach the detector only when logs.containers.enabled is true.
-                  Like other detectors, follows baseline_analysis: scopes that qualify during the window are muted.
+                  Detect repeated application errors without statistical warmup: three or more ERROR-level
+                  logs across two five-second intervals within thirty seconds, per host, service and environment.
+                  While enabled, logs that declare ERROR or higher are admitted below an input's min_severity.
                   Does not activate Observer by itself.
               failure_weight:
                 node_type: setting
