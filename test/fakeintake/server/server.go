@@ -80,12 +80,6 @@ type Server struct {
 	urlMutex sync.RWMutex
 	url      string
 
-	// startMutex guards started, set by the first Start so a second one, even before the server is ready, doesn't
-	// start its routines again, and listening, closed once that first Start listens or failed to
-	startMutex sync.Mutex
-	started    bool
-	listening  chan struct{}
-
 	store serverstore.Store
 
 	responseOverridesMutex    sync.RWMutex
@@ -308,29 +302,17 @@ func withLogForwardEndpoint(endpoint string) Option {
 // Start Starts a fake intake server in a separate go-routine
 // Notifies when ready to the ready channel
 func (fi *Server) Start() {
-	fi.startMutex.Lock()
-	if fi.started {
-		listening := fi.listening
-		fi.startMutex.Unlock()
-		// report the outcome of the Start in progress, rather than a readiness it may not reach
-		<-listening
-		running := fi.IsRunning()
-		if running {
-			log.Printf("Fake intake already running at %s", fi.URL())
-		}
+	if fi.IsRunning() {
+		log.Printf("Fake intake already running at %s", fi.URL())
 		if fi.ready != nil {
-			fi.ready <- running
+			fi.ready <- true
 		}
 		return
 	}
-	fi.started = true
 	fi.shutdown = make(chan struct{})
 	fi.served = make(chan struct{})
-	fi.listening = make(chan struct{})
-	served, listening := fi.served, fi.listening
-	fi.startMutex.Unlock()
 
-	go fi.listenRoutine(served, listening)
+	go fi.listenRoutine(fi.served)
 	go fi.cleanUpPayloadsRoutine()
 }
 
@@ -370,9 +352,8 @@ func (fi *Server) Stop() error {
 	return nil
 }
 
-// listenRoutine closes listening once it listens or failed to, then serves the requests until the server stops, and
-// closes served
-func (fi *Server) listenRoutine(served, listening chan struct{}) {
+// listenRoutine serves the requests until the server stops, then closes served
+func (fi *Server) listenRoutine(served chan struct{}) {
 	defer close(served)
 	listener, url := fi.listener, fi.listenerURL
 	if listener == nil {
@@ -383,11 +364,6 @@ func (fi *Server) listenRoutine(served, listening chan struct{}) {
 		listener, err = net.Listen("tcp", fi.server.Addr)
 		if err != nil {
 			log.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
-			// the server never ran: a later Start can try again
-			fi.startMutex.Lock()
-			fi.started = false
-			fi.startMutex.Unlock()
-			close(listening)
 
 			if fi.ready != nil {
 				fi.ready <- false
@@ -398,7 +374,6 @@ func (fi *Server) listenRoutine(served, listening chan struct{}) {
 		url = "http://" + listener.Addr().String()
 	}
 	fi.setURL(url)
-	close(listening)
 	// notify server is ready, if anybody is listening
 	if fi.ready != nil {
 		select {
