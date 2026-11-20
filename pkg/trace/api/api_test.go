@@ -2813,9 +2813,23 @@ func TestDecodeErrorLogNamesClient(t *testing.T) {
 
 			_, line, found := strings.Cut(output.String(), "[ERROR] ")
 			require.True(t, found, "no error logged: %s", output.String())
-			assert.Equal(t, `Cannot decode v0.4 traces payload (content_length:3, remote_addr:"10.1.2.3:41234", container_id:"abc123", service:checkout, kube_namespace:shop, kube_deployment:checkout, pod_name:checkout-7d9f-x2, container_name:app, short_image:checkout): read limit reached`, line)
+			assert.Equal(t, `Cannot decode v0.4 traces payload (content_length:3, remote_addr:"10.1.2.3:41234", container_id:"abc123", service:"checkout", kube_namespace:"shop", kube_deployment:"checkout", pod_name:"checkout-7d9f-x2", container_name:"app", short_image:"checkout"): read limit reached`, line)
 		})
 	}
+}
+
+func TestDecodeErrorClientQuotesTagValues(t *testing.T) {
+	conf := newTestReceiverConfig()
+	conf.ContainerTags = func(string) ([]string, error) {
+		return []string{"service:fake\n2026-01-01 00:00:00 UTC | TRACE | ERROR | forged line"}, nil
+	}
+	r := newTestReceiverFromConfig(conf)
+	r.containerIDProvider = headerContainerIDProvider{}
+	req := httptest.NewRequest(http.MethodPost, "/v0.4/traces", nil)
+	req.Header.Set(header.ContainerID, "abc123")
+	got := r.decodeErrorClient(req)
+	assert.NotContains(t, got, "\n")
+	assert.Contains(t, got, `service:"fake\n2026-01-01 00:00:00 UTC | TRACE | ERROR | forged line"`)
 }
 
 func TestDecodeErrorLogWithoutContainer(t *testing.T) {

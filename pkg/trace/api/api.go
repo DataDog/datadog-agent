@@ -1140,10 +1140,11 @@ func (r *HTTPReceiver) decodeErrorClient(req *http.Request) string {
 		return b.String()
 	}
 	for _, tag := range getContainerTagsList(r.conf.ContainerTags, containerID) {
-		key, _, _ := strings.Cut(tag, ":")
+		key, value, _ := strings.Cut(tag, ":")
 		if slices.Contains(decodeErrorClientTagKeys, key) {
-			b.WriteString(", ")
-			b.WriteString(tag)
+			// Quote the value: it can come from the client's environment
+			// (for example DD_SERVICE) and must not break the log line.
+			fmt.Fprintf(&b, ", %s:%q", key, value)
 		}
 	}
 	return b.String()
