@@ -61,6 +61,8 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//pkg/clusteragent/appsec/config",
         "//pkg/clusteragent/appsec/istio",
         "@com_github_stretchr_testify//assert",

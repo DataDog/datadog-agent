@@ -3125,6 +3125,25 @@ func TestDefaultProfilesExportHealthPlatformMetrics(t *testing.T) {
 	}
 }
 
+func TestDefaultProfilesExportAppsecInjectorEnabledGauge(t *testing.T) {
+	tel := makeTelMock(t)
+	tel.NewGauge("appsec_injector", "enabled", []string{"proxy_type", "mode"}, "").Set(1, "envoy-gateway", "sidecar")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, ""), sender, nil, runner)
+	require.True(t, a.enabled)
+	a.start()
+	runner.(*runnerMock).run()
+
+	require.Len(t, sender.sentMetrics, 1)
+	require.Equal(t, "appsec_injector.enabled", sender.sentMetrics[0].name)
+	require.Len(t, sender.sentMetrics[0].metrics, 1)
+	metric := sender.sentMetrics[0].metrics[0]
+	assert.Equal(t, 1.0, metric.GetGauge().GetValue())
+	assert.Equal(t, map[string]string{"proxy_type": "envoy-gateway", "mode": "sidecar", "emitter": "agent"}, metricLabels(metric))
+}
+
 func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
 	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
 	require.NoError(t, err)

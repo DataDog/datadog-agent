@@ -635,6 +635,10 @@ profiles:
           - proxy_type
           - outcome
           - reason
+      - name: appsec_injector.enabled
+        preserve_tags:
+          - proxy_type
+          - mode
   schedule:
     start_after: 30
     iterations: 0

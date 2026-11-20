@@ -616,6 +616,11 @@ The package emits telemetry metrics:
     pattern. Not emitted on DELETE (pod deletion is a no-op).
     Tags: proxy_type, outcome, reason
 
+  - appsec_injector.enabled: Gauge set to 1 for each proxy type the injector runs for, on every
+    cluster-agent replica, whether or not it is the leader. Sidecar-mode proxy types are only
+    reported when the admission controller is enabled, since their pods are mutated by its webhook
+    Tags: proxy_type, mode
+
 # Configuration Validation
 
 The package performs comprehensive validation of configuration at startup:
