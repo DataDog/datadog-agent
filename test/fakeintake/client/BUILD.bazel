@@ -30,6 +30,7 @@ dd_agent_go_test(
         "client_integration_test.go",
         "client_sketches_test.go",
         "client_test.go",
+        "control_transport_test.go",
         "dbStatement_test.go",
         "idxTracePayload_test.go",
         "in_memory_listener_test.go",
