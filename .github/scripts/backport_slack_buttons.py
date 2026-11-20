@@ -95,7 +95,8 @@ def main() -> int:
         {
             "type": "button",
             "style": "primary",
-            "action_id": "add_label",
+            # action_id must be unique per element, so append the branch
+            "action_id": f"add_label:{b}",
             "text": {"type": "plain_text", "text": b},
             "value": b,
         }
@@ -151,7 +152,7 @@ def main() -> int:
         for action in payload.get("actions", []):
             if action["action_id"] == "dismiss":
                 result["outcome"] = "dismiss"
-            elif action["action_id"] == "add_label":
+            elif action["action_id"].startswith("add_label:"):
                 result["outcome"] = "add"
                 result["branch"] = action["value"]
             clicked.set()  # stop waiting as soon as a button on our message is clicked
