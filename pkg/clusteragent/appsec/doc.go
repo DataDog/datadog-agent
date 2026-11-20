@@ -616,8 +616,9 @@ The package emits telemetry metrics:
     Tags: proxy_type, operation, success, reason (Kubernetes API status reason such as Forbidden or
     Invalid, "unknown" for non-API errors and reasons outside the known Kubernetes set, "none" on
     success). Forbidden and Invalid errors are not retried since they need a change on the cluster
-    side, except Forbidden errors from an exhausted ResourceQuota, which can clear on their own and
-    are retried. An error that joins several failures is dropped only if all of them are permanent
+    side, except Forbidden errors from an exhausted ResourceQuota or from admission plugins still
+    starting up, which can clear on their own and are retried. An error that joins several failures
+    is dropped only if all of them are permanent
 
   - appsec_injector.sidecar_mutations: Counter tracking sidecar injection outcomes on the
     CREATE (MutatePod) admission path, emitted once per admission for a pod owned by a sidecar

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"maps"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,10 +22,12 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -441,7 +444,6 @@ func TestAdded_GatewaysInManyNamespacesGetOneReferenceGrantEach(t *testing.T) {
 		assert.Equal(t, []string{ns}, grantFromNamespaces(t, client, referenceGrantName(ns)))
 	}
 
-	// Removing a namespace keeps the others
 	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns2"))
 	_, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName("test-ns2"), metav1.GetOptions{})
 	assert.True(t, apierrors.IsNotFound(err), "ReferenceGrant of test-ns2 should be deleted")
@@ -466,7 +468,6 @@ func TestRemoveNamespaceToGrant_DrainsLegacySharedGrant(t *testing.T) {
 	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns1"))
 	assert.Equal(t, []string{"test-ns2"}, grantFromNamespaces(t, client, legacyReferenceGrantName))
 
-	// A namespace the legacy grant does not list leaves it untouched
 	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns3"))
 	assert.Equal(t, []string{"test-ns2"}, grantFromNamespaces(t, client, legacyReferenceGrantName))
 
@@ -1185,12 +1186,14 @@ func TestAddNamespaceToGrant_ExistingGrantMustAuthorizeTheReference(t *testing.T
 	}
 }
 
-func TestRemoveNamespaceToGrant_DeletesWithUIDPrecondition(t *testing.T) {
+func TestRemoveNamespaceToGrant_DeletesWithPreconditions(t *testing.T) {
 	ctx := context.Background()
 	grant := newTestReferenceGrant("datadog", "test-ns")
 	grant.SetUID("grant-uid")
+	grant.SetResourceVersion("11")
 	legacyGrant := newTestLegacyReferenceGrant("datadog", "test-ns")
 	legacyGrant.SetUID("legacy-grant-uid")
+	legacyGrant.SetResourceVersion("22")
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant, legacyGrant)
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
@@ -1199,17 +1202,20 @@ func TestRemoveNamespaceToGrant_DeletesWithUIDPrecondition(t *testing.T) {
 	}
 	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
 
-	preconditions := map[string]string{}
+	preconditions := map[string]metav1.Preconditions{}
 	client.PrependReactor("delete", "referencegrants", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 		deleteAction := action.(k8stesting.DeleteAction)
-		if p := deleteAction.GetDeleteOptions().Preconditions; p != nil && p.UID != nil {
-			preconditions[deleteAction.GetName()] = string(*p.UID)
+		if p := deleteAction.GetDeleteOptions().Preconditions; p != nil {
+			preconditions[deleteAction.GetName()] = *p
 		}
 		return false, nil, nil
 	})
 
 	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns"))
-	assert.Equal(t, map[string]string{referenceGrantName("test-ns"): "grant-uid", legacyReferenceGrantName: "legacy-grant-uid"}, preconditions)
+	assert.Equal(t, map[string]metav1.Preconditions{
+		referenceGrantName("test-ns"): {UID: ptr.To(types.UID("grant-uid")), ResourceVersion: ptr.To("11")},
+		legacyReferenceGrantName:      {UID: ptr.To(types.UID("legacy-grant-uid")), ResourceVersion: ptr.To("22")},
+	}, preconditions)
 }
 
 func TestDeleted_RetryCleansUpGrantAfterPolicyDeleted(t *testing.T) {
@@ -1242,4 +1248,71 @@ func TestDeleted_RetryCleansUpGrantAfterPolicyDeleted(t *testing.T) {
 	require.NoError(t, pattern.Deleted(ctx, gateway))
 	_, err = client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName("test-ns"), metav1.GetOptions{})
 	assert.True(t, apierrors.IsNotFound(err), "the retry must delete the grant even though the policy is gone")
+}
+
+func TestAddNamespaceToGrant_RetryDoesNotRecreateExistingGrant(t *testing.T) {
+	ctx := context.Background()
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), newTestReferenceGrant("datadog", "test-ns"))
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+	gr := schema.GroupResource{Group: referenceGrantGVR.Group, Resource: referenceGrantGVR.Resource}
+	client.PrependReactor("create", "referencegrants", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, nil, apierrors.NewForbidden(gr, referenceGrantName("test-ns"), errors.New("exceeded quota: grants"))
+	})
+
+	require.NoError(t, pattern.Added(ctx, newTestGateway("test-ns", "test-gateway")))
+	_, err := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.NoError(t, err)
+}
+
+func TestAddNamespaceToGrant_TerminatingGrantIsRetried(t *testing.T) {
+	ctx := context.Background()
+	grant := newTestReferenceGrant("datadog", "test-ns")
+	grant.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
+	grant.SetFinalizers([]string{"example.com/finalizer"})
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant)
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+	require.Error(t, pattern.Added(ctx, newTestGateway("test-ns", "test-gateway")))
+	_, err := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "no EnvoyExtensionPolicy must rely on a grant being deleted")
+}
+
+func TestRemoveNamespaceToGrant_LegacyPatchIsGuardedByResourceVersion(t *testing.T) {
+	ctx := context.Background()
+	legacyGrant := newTestLegacyReferenceGrant("datadog", "test-ns1", "test-ns2", "test-ns3")
+	legacyGrant.SetResourceVersion("42")
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), legacyGrant)
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+	var patch k8stesting.PatchAction
+	client.PrependReactor("patch", "referencegrants", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		patch = action.(k8stesting.PatchAction)
+		return true, legacyGrant, nil
+	})
+
+	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns2"))
+	require.NotNil(t, patch)
+	assert.Equal(t, types.MergePatchType, patch.GetPatchType())
+	assert.JSONEq(t, `{
+		"metadata": {"resourceVersion": "42"},
+		"spec": {"from": [
+			{"group": "gateway.envoyproxy.io", "kind": "EnvoyExtensionPolicy", "namespace": "test-ns1"},
+			{"group": "gateway.envoyproxy.io", "kind": "EnvoyExtensionPolicy", "namespace": "test-ns3"}
+		]}
+	}`, string(patch.GetPatch()))
 }

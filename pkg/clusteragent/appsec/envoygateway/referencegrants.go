@@ -87,6 +87,19 @@ func (g *grantManager) AddNamespaceToGrant(ctx context.Context, namespace string
 		},
 	}
 
+	// Look the grant up first: on a retry after policy creation failed, a redundant create could be
+	// rejected by quota admission before reaching AlreadyExists
+	existing, err := g.client.Resource(referenceGrantGVR).
+		Namespace(g.namespace).
+		Get(ctx, grant.Name, metav1.GetOptions{})
+	if err == nil {
+		return g.checkExistingGrant(existing, namespace, grant.Spec)
+	}
+
+	if !errors.IsNotFound(err) {
+		return err
+	}
+
 	unstructuredGrant, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&grant)
 	if err != nil {
 		return err
@@ -97,15 +110,22 @@ func (g *grantManager) AddNamespaceToGrant(ctx context.Context, namespace string
 		Create(ctx, &unstructured.Unstructured{Object: unstructuredGrant}, metav1.CreateOptions{})
 
 	if errors.IsAlreadyExists(err) {
-		return g.checkExistingGrant(ctx, namespace, grant.Spec)
+		// Created concurrently since the lookup
+		existing, err := g.client.Resource(referenceGrantGVR).
+			Namespace(g.namespace).
+			Get(ctx, grant.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		return g.checkExistingGrant(existing, namespace, grant.Spec)
 	}
 
 	if err != nil {
-		g.recordReferenceGrantCreateFailed(namespace, namespace, err)
+		g.recordReferenceGrantCreateFailed(namespace, err)
 		return err
 	}
 
-	g.recordReferenceGrantCreated(namespace, namespace)
+	g.recordReferenceGrantCreated(namespace)
 	return nil
 }
 
@@ -130,7 +150,7 @@ func (g *grantManager) RemoveNamespaceToGrant(ctx context.Context, namespace str
 	default:
 		err = g.client.Resource(referenceGrantGVR).
 			Namespace(g.namespace).
-			Delete(ctx, name, uidPrecondition(grant))
+			Delete(ctx, name, deletePreconditions(grant))
 		if errors.IsNotFound(err) {
 			err = nil
 		}
@@ -145,13 +165,11 @@ func (g *grantManager) RemoveNamespaceToGrant(ctx context.Context, namespace str
 
 // checkExistingGrant returns an error unless the existing grant for the namespace authorizes the
 // reference described by want, since a grant created by someone else may allow something else.
-func (g *grantManager) checkExistingGrant(ctx context.Context, namespace string, want gwapiv1beta1.ReferenceGrantSpec) error {
-	name := referenceGrantName(namespace)
-	unstructuredGrant, err := g.client.Resource(referenceGrantGVR).
-		Namespace(g.namespace).
-		Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return err
+func (g *grantManager) checkExistingGrant(unstructuredGrant *unstructured.Unstructured, namespace string, want gwapiv1beta1.ReferenceGrantSpec) error {
+	name := unstructuredGrant.GetName()
+	if unstructuredGrant.GetDeletionTimestamp() != nil {
+		// The policy would lose backend access once the grant is gone, so retry until it can be recreated
+		return fmt.Errorf("ReferenceGrant %s/%s is being deleted", g.namespace, name)
 	}
 
 	var existing gwapiv1beta1.ReferenceGrant
@@ -165,7 +183,7 @@ func (g *grantManager) checkExistingGrant(ctx context.Context, namespace string,
 	})
 	if !allowsTo || !slices.Contains(existing.Spec.From, want.From[0]) {
 		err := fmt.Errorf("ReferenceGrant %s/%s already exists but does not allow EnvoyExtensionPolicies in namespace %s to reference Service %s", g.namespace, name, namespace, g.serviceName)
-		g.recordReferenceGrantCreateFailed(namespace, namespace, err)
+		g.recordReferenceGrantCreateFailed(namespace, err)
 		return err
 	}
 
@@ -173,13 +191,21 @@ func (g *grantManager) checkExistingGrant(ctx context.Context, namespace string,
 	return nil
 }
 
-// uidPrecondition makes a delete fail with Conflict when obj was replaced after it was read, so a
-// resource recreated by someone else in between is not removed. A blank UID would reject every delete.
-func uidPrecondition(obj *unstructured.Unstructured) metav1.DeleteOptions {
+// deletePreconditions makes a delete fail with a retryable Conflict when obj was replaced or changed
+// after it was read, so a resource edited or recreated by someone else in between is not removed.
+// Blank values would reject every delete.
+func deletePreconditions(obj *unstructured.Unstructured) metav1.DeleteOptions {
+	var preconditions metav1.Preconditions
 	if uid := obj.GetUID(); uid != "" {
-		return metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &uid}}
+		preconditions.UID = &uid
 	}
-	return metav1.DeleteOptions{}
+	if resourceVersion := obj.GetResourceVersion(); resourceVersion != "" {
+		preconditions.ResourceVersion = &resourceVersion
+	}
+	if preconditions.UID == nil && preconditions.ResourceVersion == nil {
+		return metav1.DeleteOptions{}
+	}
+	return metav1.DeleteOptions{Preconditions: &preconditions}
 }
 
 // removeFromLegacyGrant removes the namespace from the legacy shared ReferenceGrant, deleting the
@@ -219,7 +245,7 @@ func (g *grantManager) removeFromLegacyGrant(ctx context.Context, namespace stri
 		// A ReferenceGrant cannot be patched to have no "from" entry
 		err := g.client.Resource(referenceGrantGVR).
 			Namespace(g.namespace).
-			Delete(ctx, legacyReferenceGrantName, uidPrecondition(unstructuredGrant))
+			Delete(ctx, legacyReferenceGrantName, deletePreconditions(unstructuredGrant))
 		if errors.IsNotFound(err) {
 			return nil
 		}
@@ -231,27 +257,32 @@ func (g *grantManager) removeFromLegacyGrant(ctx context.Context, namespace stri
 		return nil
 	}
 
-	jsonPatch := []map[string]string{{
-		"op":   "remove",
-		"path": fmt.Sprintf("/spec/from/%d", index),
-	}}
+	// Replace spec.from as read, guarded by the read resourceVersion: a concurrent edit makes the
+	// patch fail with a retryable Conflict instead of removing another namespace's entry
+	mergePatch := map[string]any{
+		"spec": map[string]any{"from": slices.Delete(grant.Spec.From, index, index+1)},
+	}
+	if resourceVersion := unstructuredGrant.GetResourceVersion(); resourceVersion != "" {
+		// An empty resourceVersion is a value in a merge patch, which the API server rejects
+		mergePatch["metadata"] = map[string]any{"resourceVersion": resourceVersion}
+	}
 
-	jsonPatchBytes, err := json.Marshal(jsonPatch)
+	mergePatchBytes, err := json.Marshal(mergePatch)
 	if err != nil {
 		return err
 	}
 
-	g.logger.Debug("Patching legacy ReferenceGrant to remove namespace: ", string(jsonPatchBytes))
+	g.logger.Debug("Patching legacy ReferenceGrant to remove namespace: ", string(mergePatchBytes))
 
 	_, err = g.client.Resource(referenceGrantGVR).
 		Namespace(g.namespace).
-		Patch(ctx, legacyReferenceGrantName, types.JSONPatchType, jsonPatchBytes, metav1.PatchOptions{})
+		Patch(ctx, legacyReferenceGrantName, types.MergePatchType, mergePatchBytes, metav1.PatchOptions{})
 
 	if err != nil {
-		g.recordNamespaceRemovalFailed(namespace, namespace, err)
+		g.recordNamespaceRemovalFailed(namespace, err)
 		return err
 	}
 
-	g.recordNamespaceRemovedFromGrant(namespace, namespace)
+	g.recordNamespaceRemovedFromGrant(namespace)
 	return nil
 }

@@ -62,55 +62,55 @@ func (e *eventRecorder) getExtensionPolicyReference(namespace string) *corev1.Ob
 
 // ReferenceGrant event recording methods (recorded on EnvoyExtensionPolicy)
 
-func (e *eventRecorder) recordReferenceGrantCreated(policyNamespace string, grantNamespace string) {
+func (e *eventRecorder) recordReferenceGrantCreated(sourceNamespace string) {
 	e.recorder.Eventf(
-		e.getExtensionPolicyReference(policyNamespace),
+		e.getExtensionPolicyReference(sourceNamespace),
 		corev1.EventTypeNormal,
 		EventReasonReferenceGrantCreated,
 		"Created ReferenceGrant %q to allow cross-namespace access from namespace %s",
-		referenceGrantName(grantNamespace),
-		grantNamespace,
+		referenceGrantName(sourceNamespace),
+		sourceNamespace,
 	)
 }
 
-func (e *eventRecorder) recordReferenceGrantCreateFailed(policyNamespace string, grantNamespace string, err error) {
+func (e *eventRecorder) recordReferenceGrantCreateFailed(sourceNamespace string, err error) {
 	e.recorder.Eventf(
-		e.getExtensionPolicyReference(policyNamespace),
+		e.getExtensionPolicyReference(sourceNamespace),
 		corev1.EventTypeWarning,
 		EventReasonReferenceGrantCreateFailed,
 		"Failed to create ReferenceGrant %q for namespace %q: %v",
-		referenceGrantName(grantNamespace),
-		grantNamespace,
+		referenceGrantName(sourceNamespace),
+		sourceNamespace,
 		err,
 	)
 }
 
-func (e *eventRecorder) recordNamespaceRemovedFromGrant(policyNamespace string, grantNamespace string) {
+func (e *eventRecorder) recordNamespaceRemovedFromGrant(sourceNamespace string) {
 	e.recorder.Eventf(
-		e.getExtensionPolicyReference(policyNamespace),
+		e.getExtensionPolicyReference(sourceNamespace),
 		corev1.EventTypeNormal,
 		EventReasonNamespaceRemoved,
 		"Removed namespace %q from ReferenceGrant %q",
-		grantNamespace,
+		sourceNamespace,
 		legacyReferenceGrantName,
 	)
 }
 
-func (e *eventRecorder) recordNamespaceRemovalFailed(policyNamespace string, grantNamespace string, err error) {
+func (e *eventRecorder) recordNamespaceRemovalFailed(sourceNamespace string, err error) {
 	e.recorder.Eventf(
-		e.getExtensionPolicyReference(policyNamespace),
+		e.getExtensionPolicyReference(sourceNamespace),
 		corev1.EventTypeWarning,
 		EventReasonReferenceGrantUpdateFailed,
 		"Failed to remove namespace %q from ReferenceGrant %q: %v",
-		grantNamespace,
+		sourceNamespace,
 		legacyReferenceGrantName,
 		err,
 	)
 }
 
-func (e *eventRecorder) recordReferenceGrantDeleteFailed(policyNamespace string, grantName string, err error) {
+func (e *eventRecorder) recordReferenceGrantDeleteFailed(sourceNamespace string, grantName string, err error) {
 	e.recorder.Eventf(
-		e.getExtensionPolicyReference(policyNamespace),
+		e.getExtensionPolicyReference(sourceNamespace),
 		corev1.EventTypeWarning,
 		EventReasonReferenceGrantDeleteFailed,
 		"Failed to delete ReferenceGrant %q: %v",

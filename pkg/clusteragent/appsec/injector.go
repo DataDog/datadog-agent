@@ -400,6 +400,11 @@ var knownFailureReasons = []metav1.StatusReason{
 	metav1.StatusReasonServiceUnavailable,
 }
 
+// retryableForbidden are messages of Forbidden errors that can clear without a change on the cluster
+// side: an exhausted ResourceQuota, and admission plugins whose caches are still syncing at API
+// server startup.
+var retryableForbidden = []string{"exceeded quota", "not yet ready to handle request"}
+
 // failureReason returns the Kubernetes API status reason (Forbidden, Invalid, ...) of err, keeping
 // the telemetry tag cardinality bounded.
 func failureReason(err error) string {
@@ -414,7 +419,8 @@ func failureReason(err error) string {
 
 // isPermanentError reports whether retrying err cannot succeed without a change on the cluster side
 // (RBAC, admission policies, schema validation), in which case the backoff only adds API calls.
-// An exhausted ResourceQuota is also reported as Forbidden but can clear on its own, so it is retried.
+// An exhausted ResourceQuota or admission still starting up is also reported as Forbidden but can
+// clear on its own, so it is retried.
 // A joined error is permanent only if all of its errors are.
 func isPermanentError(err error) bool {
 	switch e := err.(type) {
@@ -422,7 +428,8 @@ func isPermanentError(err error) bool {
 		errs := e.Unwrap()
 		return len(errs) > 0 && !slices.ContainsFunc(errs, func(err error) bool { return !isPermanentError(err) })
 	case apierrors.APIStatus:
-		return apierrors.IsInvalid(err) || apierrors.IsForbidden(err) && !strings.Contains(e.Status().Message, "exceeded quota")
+		message := e.Status().Message
+		return apierrors.IsInvalid(err) || apierrors.IsForbidden(err) && !slices.ContainsFunc(retryableForbidden, func(s string) bool { return strings.Contains(message, s) })
 	case interface{ Unwrap() error }:
 		return isPermanentError(e.Unwrap())
 	}

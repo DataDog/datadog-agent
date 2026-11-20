@@ -308,24 +308,30 @@ func TestProcessWorkItem_PermanentErrorNotRetried(t *testing.T) {
 	}
 }
 
-func TestProcessWorkItem_QuotaExceededRetried(t *testing.T) {
-	ctx := context.Background()
-	injector := newMockSecurityInjector(ctx, dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()), logmock.New(t), appsecconfig.Config{})
+func TestProcessWorkItem_TransientForbiddenRetried(t *testing.T) {
 	gr := schema.GroupResource{Group: "gateway.networking.k8s.io", Resource: "referencegrants"}
-	quotaErr := apierrors.NewForbidden(gr, "grant", errors.New("exceeded quota: grants, requested: count/referencegrants.gateway.networking.k8s.io=1, used: count/referencegrants.gateway.networking.k8s.io=10, limited: count/referencegrants.gateway.networking.k8s.io=10"))
-	mockPattern := &mockInjectionPattern{addedErr: fmt.Errorf("could not ensure ReferenceGrant: %w", quotaErr)}
+	for name, transientErr := range map[string]error{
+		"quota exceeded":    apierrors.NewForbidden(gr, "grant", errors.New("exceeded quota: grants, requested: count/referencegrants.gateway.networking.k8s.io=1, used: count/referencegrants.gateway.networking.k8s.io=10, limited: count/referencegrants.gateway.networking.k8s.io=10")),
+		"admission startup": apierrors.NewForbidden(gr, "grant", errors.New("not yet ready to handle request")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			injector := newMockSecurityInjector(ctx, dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()), logmock.New(t), appsecconfig.Config{})
+			mockPattern := &mockInjectionPattern{addedErr: fmt.Errorf("could not ensure ReferenceGrant: %w", transientErr)}
 
-	queue := workqueue.NewTypedRateLimitingQueue[workItem](
-		workqueue.NewTypedItemExponentialFailureRateLimiter[workItem](100*time.Millisecond, 1*time.Second),
-	)
-	defer queue.ShutDown()
+			queue := workqueue.NewTypedRateLimitingQueue[workItem](
+				workqueue.NewTypedItemExponentialFailureRateLimiter[workItem](100*time.Millisecond, 1*time.Second),
+			)
+			defer queue.ShutDown()
 
-	item := workItem{obj: &unstructured.Unstructured{}, typ: workItemAdded}
-	queue.Add(item)
+			item := workItem{obj: &unstructured.Unstructured{}, typ: workItemAdded}
+			queue.Add(item)
 
-	assert.False(t, injector.processWorkItem(ctx, appsecconfig.ProxyTypeEnvoyGateway, mockPattern, queue))
-	assert.Equal(t, 1, mockPattern.addedCalls)
-	assert.Equal(t, 1, queue.NumRequeues(item), "exhausted quotas can clear, so the item must be requeued")
+			assert.False(t, injector.processWorkItem(ctx, appsecconfig.ProxyTypeEnvoyGateway, mockPattern, queue))
+			assert.Equal(t, 1, mockPattern.addedCalls)
+			assert.Equal(t, 1, queue.NumRequeues(item), "transient denials can clear, so the item must be requeued")
+		})
+	}
 }
 
 func TestFailureReason(t *testing.T) {
