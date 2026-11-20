@@ -45,6 +45,23 @@ func TestAtomicRegistryWriterKeepsRegistryWhenEncodingFails(t *testing.T) {
 	assert.Empty(t, temporaryFiles)
 }
 
+func TestNonAtomicRegistryWriterKeepsRegistryWhenEncodingFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	registryPath := filepath.Join(tmpDir, "registry.json")
+	require.NoError(t, os.WriteFile(registryPath, []byte(`{"old": "data"}`), 0644))
+
+	writer := NewNonAtomicRegistryWriter()
+	err := writer.WriteRegistry(registryPath, tmpDir, "registry.json.tmp", func(w io.Writer) error {
+		_, _ = w.Write([]byte(`{"partial":`))
+		return errors.New("encoding failed")
+	})
+	require.Error(t, err)
+
+	content, err := os.ReadFile(registryPath)
+	require.NoError(t, err)
+	assert.Equal(t, `{"old": "data"}`, string(content))
+}
+
 func TestAtomicRegistryWriter(t *testing.T) {
 	// Create a temporary directory for testing
 	tmpDir := t.TempDir()

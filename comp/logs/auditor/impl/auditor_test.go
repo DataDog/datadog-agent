@@ -438,15 +438,139 @@ func (suite *AuditorTestSuite) TestFlushIfChangedDefersKeepAliveOnlyChanges() {
 	now := suite.a.lastWrite
 
 	suite.a.KeepAlive("file:/var/log/a.log")
-	suite.a.SetTailed("file:/var/log/a.log", true)
 	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(time.Second)))
-	suite.Equal(1, writer.writes, "a LastUpdated refresh alone was written before touchOnlyWritePeriod")
+	suite.Equal(1, writer.writes, "a KeepAlive refresh alone was written before touchOnlyWritePeriod")
 
 	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(touchOnlyWritePeriod)))
 	suite.Equal(2, writer.writes)
 
 	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(2 * touchOnlyWritePeriod)))
 	suite.Equal(2, writer.writes, "the registry was written again with nothing changed")
+}
+
+func (suite *AuditorTestSuite) TestFlushIfChangedIgnoresKeepAliveForUnknownEntries() {
+	writer := suite.newCountingAuditor()
+	suite.Require().NoError(suite.a.flushRegistry())
+	now := suite.a.lastWrite
+
+	suite.a.KeepAlive("file:/var/log/unknown.log")
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(touchOnlyWritePeriod)))
+	suite.Equal(1, writer.writes)
+}
+
+func (suite *AuditorTestSuite) TestFlushIfChangedWritesSetTailed() {
+	writer := suite.newCountingAuditor()
+	suite.Require().NoError(suite.a.flushRegistry())
+	now := suite.a.lastWrite
+
+	suite.a.SetTailed("file:/var/log/a.log", false)
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(time.Second)))
+	suite.Equal(2, writer.writes, "a SetTailed refresh restarts the entry's TTL and was not written")
+}
+
+func (suite *AuditorTestSuite) TestFlushIfChangedChangeWriteIncludesPendingKeepAlive() {
+	writer := suite.newCountingAuditor()
+	suite.Require().NoError(suite.a.flushRegistry())
+	now := suite.a.lastWrite
+
+	suite.a.KeepAlive("file:/var/log/a.log")
+	suite.a.SetOffset("file:/var/log/b.log", "1")
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(time.Second)))
+	suite.Equal(2, writer.writes)
+
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(time.Second + touchOnlyWritePeriod)))
+	suite.Equal(2, writer.writes, "a KeepAlive already written with a change was written again")
+}
+
+// hookRegistryWriter runs hook during the first write of an encode, while
+// encodeRegistry has released registryMutex between batches.
+type hookRegistryWriter struct {
+	countingRegistryWriter
+	hook func()
+}
+
+type hookWriter struct {
+	w    io.Writer
+	hook func()
+}
+
+func (h *hookWriter) Write(p []byte) (int, error) {
+	if h.hook != nil {
+		h.hook()
+		h.hook = nil
+	}
+	return h.w.Write(p)
+}
+
+func (w *hookRegistryWriter) WriteRegistry(path string, dir string, tmp string, encode func(io.Writer) error) error {
+	hook := w.hook
+	w.hook = nil
+	return w.countingRegistryWriter.WriteRegistry(path, dir, tmp, func(out io.Writer) error {
+		return encode(&hookWriter{w: out, hook: hook})
+	})
+}
+
+func (suite *AuditorTestSuite) TestFlushIfChangedWritesEntriesAddedDuringAWrite() {
+	writer := &hookRegistryWriter{}
+	suite.a.registryWriter = writer
+	suite.a.registry = map[string]*RegistryEntry{"file:/var/log/a.log": {LastUpdated: time.Now().UTC(), Offset: "10"}}
+	writer.hook = func() { suite.a.SetOffset("file:/var/log/added.log", "7") }
+
+	suite.Require().NoError(suite.a.flushRegistry())
+	now := suite.a.lastWrite
+	suite.NotContains(string(writer.last), "added.log", "the entry added after the identifiers were taken was expected in the next write")
+
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(time.Second)))
+	suite.Equal(2, writer.writes, "an entry added during a write was marked as written")
+	suite.Contains(string(writer.last), `"file:/var/log/added.log":{`)
+}
+
+func (suite *AuditorTestSuite) TestStopWritesUnchangedRegistry() {
+	suite.a.entryTTL = 23 * time.Hour
+	suite.a.Start()
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(time.Now()))
+	suite.Require().NoError(os.Remove(suite.testRegistryPath))
+
+	suite.a.Stop()
+	_, err := os.Stat(suite.testRegistryPath)
+	suite.NoError(err, "Stop did not write a registry that had not changed since the last write")
+}
+
+func (suite *AuditorTestSuite) TestFlushWritesUnchangedRegistry() {
+	suite.a.entryTTL = 23 * time.Hour
+	suite.a.Start()
+	defer suite.a.Stop()
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(time.Now()))
+	suite.Require().NoError(os.Remove(suite.testRegistryPath))
+
+	suite.a.Flush()
+	_, err := os.Stat(suite.testRegistryPath)
+	suite.NoError(err, "Flush did not write a registry that had not changed since the last write")
+}
+
+func (suite *AuditorTestSuite) TestFirstFlushAfterStartWritesRegistry() {
+	suite.a.entryTTL = 23 * time.Hour
+	suite.a.Start()
+	defer suite.a.Stop()
+	_, err := os.Stat(suite.testRegistryPath)
+	suite.Require().True(os.IsNotExist(err), "registry.json existed before the first flush")
+
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(time.Now()))
+	data, err := os.ReadFile(suite.testRegistryPath)
+	suite.Require().NoError(err, "the first flush after Start did not write an empty registry")
+	suite.Equal(`{"Version":2,"Registry":{}}`, string(data))
+}
+
+func (suite *AuditorTestSuite) TestFirstFlushAfterStartRewritesUnreadableRegistry() {
+	suite.Require().NoError(os.WriteFile(suite.testRegistryPath, []byte(`{"Version":2,"Regis`), 0644))
+	suite.a.entryTTL = 23 * time.Hour
+	suite.a.Start()
+	defer suite.a.Stop()
+
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(time.Now()))
+	data, err := os.ReadFile(suite.testRegistryPath)
+	suite.Require().NoError(err)
+	suite.Equal(`{"Version":2,"Registry":{}}`, string(data))
 }
 
 func (suite *AuditorTestSuite) TestFlushIfChangedRetriesAfterFailedWrite() {

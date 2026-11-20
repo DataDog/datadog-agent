@@ -24,17 +24,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-// defaultFlushPeriod is the default interval between registry writes while
-// the agent is running (logs_config.auditor_flush_interval). It also replaces
-// a configured value that is not positive. Stop writes once more after
-// acknowledgements queued at shutdown have been applied.
+// defaultFlushPeriod is the default interval at which the running auditor
+// writes the registry to disk if it has changed (see flushRegistryIfChanged),
+// set by logs_config.auditor_flush_interval. It also replaces a configured
+// value that is not positive. Stop writes once more after acknowledgements
+// queued at shutdown have been applied.
 const defaultFlushPeriod = 5 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
 
 // touchOnlyWritePeriod is the shortest interval between periodic registry
-// writes when the only changes are LastUpdated refreshes from KeepAlive and
-// SetTailed. LastUpdated is read only by cleanupRegistry, which runs on the
-// same period against a TTL measured in hours.
+// writes when the only changes are LastUpdated refreshes from KeepAlive.
+// LastUpdated is read only by cleanupRegistry, which runs on the same period
+// against a TTL measured in hours.
 const touchOnlyWritePeriod = defaultCleanupPeriod
 
 // latest version of the API used by the auditor to retrieve the registry from disk.
@@ -78,10 +79,11 @@ type registryAuditor struct {
 	messageChannelSize  int
 	registryWriter      auditor.RegistryWriter
 
-	// changeGeneration counts registry changes other than LastUpdated
-	// refreshes: entries added, updated or removed. touchGeneration counts
-	// LastUpdated refreshes from KeepAlive and SetTailed. Both are guarded by
-	// registryMutex.
+	// changeGeneration counts registry changes that the next periodic flush
+	// writes: entries added, updated or removed, SetTailed refreshes, and
+	// Start. touchGeneration counts LastUpdated refreshes from KeepAlive,
+	// which are written at most every touchOnlyWritePeriod. Both are guarded
+	// by registryMutex.
 	changeGeneration uint64
 	touchGeneration  uint64
 
@@ -165,7 +167,13 @@ func (a *registryAuditor) Start() {
 	a.health = a.kubeHealthRegistrar.RegisterLiveness("logs-agent")
 
 	a.createChannels()
-	a.registry = a.recoverRegistry()
+	registry := a.recoverRegistry()
+	a.registryMutex.Lock()
+	a.registry = registry
+	// The file on disk may be missing, unreadable or in an older format, so
+	// the first periodic flush always writes the recovered registry.
+	a.changeGeneration++
+	a.registryMutex.Unlock()
 	go a.run()
 }
 
@@ -285,10 +293,12 @@ func (a *registryAuditor) SetTailed(identifier string, isTailed bool) {
 	}
 
 	// entities that are no longer tailed should remain in the registry for the TTL period
-	// in case they are tailed again.
+	// in case they are tailed again. This refresh restarts the TTL of an entry
+	// whose tailer stopped, so it is persisted like any other change rather
+	// than deferred like KeepAlive.
 	if entry, ok := a.registry[identifier]; ok {
 		entry.LastUpdated = time.Now().UTC()
-		a.touchGeneration++
+		a.changeGeneration++
 	}
 }
 

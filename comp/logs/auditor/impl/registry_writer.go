@@ -7,6 +7,7 @@ package auditorimpl
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -72,7 +73,15 @@ func NewNonAtomicRegistryWriter() auditor.RegistryWriter {
 	return &nonAtomicRegistryWriter{}
 }
 
+// WriteRegistry encodes the whole registry in memory before truncating the
+// file, so the file is partial only for the length of a single write and an
+// encoding error leaves it untouched.
 func (w *nonAtomicRegistryWriter) WriteRegistry(registryPath string, _ string, _ string, encode func(io.Writer) error) error {
+	var data bytes.Buffer
+	if err := encode(&data); err != nil {
+		return err
+	}
+
 	// Ensure the directory exists
 	if err := os.MkdirAll(filepath.Dir(registryPath), 0755); err != nil {
 		return err
@@ -85,7 +94,7 @@ func (w *nonAtomicRegistryWriter) WriteRegistry(registryPath string, _ string, _
 	}
 	defer f.Close()
 
-	if err = encodeToFile(f, encode); err != nil {
+	if _, err = f.Write(data.Bytes()); err != nil {
 		return err
 	}
 	return f.Chmod(0644)

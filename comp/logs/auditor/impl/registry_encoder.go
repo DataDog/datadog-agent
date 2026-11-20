@@ -44,6 +44,10 @@ func (a *registryAuditor) encodeRegistry(w io.Writer) (changeGeneration, touchGe
 	buf := append(make([]byte, 0, 512*registryEncodeBatchSize), `{"Version":`...)
 	buf = strconv.AppendInt(buf, registryAPIVersion, 10)
 	buf = append(buf, `,"Registry":{`...)
+	if _, err = w.Write(buf); err != nil {
+		return 0, 0, err
+	}
+	buf = buf[:0]
 	first := true
 	for start := 0; start < len(identifiers); start += registryEncodeBatchSize {
 		batch := identifiers[start:min(start+registryEncodeBatchSize, len(identifiers))]
@@ -112,9 +116,11 @@ func appendFingerprintConfigJSON(buf []byte, config *types.FingerprintConfig) []
 }
 
 // appendJSONTime appends t the way time.Time.MarshalJSON writes it. Times
-// MarshalJSON rejects (years outside 0-9999) go through it to return its error.
+// MarshalJSON rejects, years outside 0-9999 and zone offsets of a day or
+// more, go through it to return its error.
 func appendJSONTime(buf []byte, t time.Time) ([]byte, error) {
-	if year := t.Year(); year < 0 || year > 9999 {
+	_, offset := t.Zone()
+	if year := t.Year(); year < 0 || year > 9999 || offset <= -24*3600 || offset >= 24*3600 {
 		b, err := t.MarshalJSON()
 		if err != nil {
 			return nil, err
@@ -127,16 +133,26 @@ func appendJSONTime(buf []byte, t time.Time) ([]byte, error) {
 }
 
 // appendJSONString appends s as encoding/json writes a string. Printable ASCII
-// with nothing encoding/json escapes is copied as is; any other string is
+// is copied with '"' and '\' backslash-escaped, as encoding/json escapes
+// them; a string with any other byte encoding/json escapes or rewrites
+// (control characters, '<', '>', '&', and everything outside ASCII) is
 // handed to encoding/json so escaping matches it exactly.
 func appendJSONString(buf []byte, s string) []byte {
 	for i := 0; i < len(s); i++ {
-		if c := s[i]; c < 0x20 || c > 0x7e || c == '"' || c == '\\' || c == '<' || c == '>' || c == '&' {
+		if c := s[i]; c < 0x20 || c > 0x7e || c == '<' || c == '>' || c == '&' {
 			b, _ := json.Marshal(s) // marshaling a string cannot fail
 			return append(buf, b...)
 		}
 	}
 	buf = append(buf, '"')
-	buf = append(buf, s...)
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c == '"' || c == '\\' {
+			buf = append(buf, s[start:i]...)
+			buf = append(buf, '\\', c)
+			start = i + 1
+		}
+	}
+	buf = append(buf, s[start:]...)
 	return append(buf, '"')
 }

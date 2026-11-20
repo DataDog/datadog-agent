@@ -95,6 +95,15 @@ func TestEncodeRegistryMatchesEncodingJSONPerEntry(t *testing.T) {
 			TailingMode: "forceEnd",
 		},
 		"journald:": {},
+		`file:C:\logs\app "quoted".log`: {
+			LastUpdated: time.Date(2026, time.March, 8, 2, 30, 0, 0, time.UTC),
+			Offset:      `C:\offset\"q"`,
+			TailingMode: "end",
+		},
+		"file:/var/log/del\x7f.log": {},
+		"file:/var/log/zone.log": {
+			LastUpdated: time.Date(2026, time.June, 1, 12, 0, 0, 5, time.FixedZone("", 23*3600+59*60)),
+		},
 	}
 	for identifier, entry := range cases {
 		t.Run(fmt.Sprintf("%q", identifier), func(t *testing.T) {
@@ -124,7 +133,8 @@ func TestEncodeRegistryAcrossBatchesDecodesToSameRegistry(t *testing.T) {
 }
 
 // removingWriter deletes entries from the auditor's registry on its first
-// write, the way cleanupRegistry can between two batches.
+// write, which carries the document header and comes after the identifiers
+// are taken and before any entry is encoded.
 type removingWriter struct {
 	a       *registryAuditor
 	remove  []string
@@ -143,28 +153,54 @@ func (w *removingWriter) Write(p []byte) (int, error) {
 	return w.written.Write(p)
 }
 
-func TestEncodeRegistrySkipsEntriesRemovedDuringTheWrite(t *testing.T) {
-	registry := manyEntries(3 * registryEncodeBatchSize)
+// encodeRemovingAllBut encodes a registry of n entries while all but keep of
+// them are removed, and returns the identifiers left and the registry written.
+func encodeRemovingAllBut(t *testing.T, n, keep int) (map[string]*RegistryEntry, JSONRegistry) {
+	t.Helper()
+	registry := manyEntries(n)
 	a := &registryAuditor{registry: registry}
 	var remove []string
 	for identifier := range registry {
-		if len(remove) == registryEncodeBatchSize {
+		if len(remove) == n-keep {
 			break
 		}
 		remove = append(remove, identifier)
 	}
 	w := &removingWriter{a: a, remove: remove}
-	before := len(registry)
 
 	_, _, err := a.encodeRegistry(w)
 	require.NoError(t, err)
 
 	var written JSONRegistry
-	require.NoError(t, json.Unmarshal(w.written.Bytes(), &written), "the registry written around removed entries is not valid JSON")
-	assert.Less(t, len(written.Registry), before, "entries removed before their batch was encoded were written")
-	for identifier := range registry {
+	require.NoError(t, json.Unmarshal(w.written.Bytes(), &written), "the registry written around removed entries is not valid JSON: %s", w.written.String())
+	return registry, written
+}
+
+func TestEncodeRegistrySkipsEntriesRemovedDuringTheWrite(t *testing.T) {
+	remaining, written := encodeRemovingAllBut(t, 3*registryEncodeBatchSize, 2*registryEncodeBatchSize)
+	assert.Len(t, written.Registry, len(remaining), "entries removed before their batch was encoded were written")
+	for identifier := range remaining {
 		assert.Contains(t, written.Registry, identifier)
 	}
+}
+
+// TestEncodeRegistryWithOnlyOneEntryLeft fails if skipping removed entries
+// misplaces the separator before the first entry written. Three registries in
+// random map order make it unlikely that the entry left is first in all of
+// them.
+func TestEncodeRegistryWithOnlyOneEntryLeft(t *testing.T) {
+	for range 3 {
+		remaining, written := encodeRemovingAllBut(t, 3*registryEncodeBatchSize, 1)
+		assert.Len(t, written.Registry, 1)
+		for identifier := range remaining {
+			assert.Contains(t, written.Registry, identifier)
+		}
+	}
+}
+
+func TestEncodeRegistryWithEveryEntryRemoved(t *testing.T) {
+	_, written := encodeRemovingAllBut(t, 2*registryEncodeBatchSize, 0)
+	assert.Empty(t, written.Registry)
 }
 
 func TestEncodeRegistryReportsGenerationsAtStart(t *testing.T) {
@@ -185,9 +221,20 @@ func TestEncodeRegistryReturnsWriteErrors(t *testing.T) {
 }
 
 func TestEncodeRegistryRejectsTimesEncodingJSONRejects(t *testing.T) {
-	a := &registryAuditor{registry: map[string]*RegistryEntry{"file:/var/log/app.log": {LastUpdated: time.Date(10000, time.January, 1, 0, 0, 0, 0, time.UTC)}}}
-	_, _, err := a.encodeRegistry(io.Discard)
-	assert.Error(t, err)
+	for name, lastUpdated := range map[string]time.Time{
+		"year 10000":  time.Date(10000, time.January, 1, 0, 0, 0, 0, time.UTC),
+		"year -1":     time.Date(-1, time.January, 1, 0, 0, 0, 0, time.UTC),
+		"zone +24:00": time.Date(2026, time.January, 1, 0, 0, 0, 0, time.FixedZone("", 24*3600)),
+		"zone -25:00": time.Date(2026, time.January, 1, 0, 0, 0, 0, time.FixedZone("", -25*3600)),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, wantErr := json.Marshal(lastUpdated)
+			require.Error(t, wantErr, "encoding/json accepts this time")
+			a := &registryAuditor{registry: map[string]*RegistryEntry{"file:/var/log/app.log": {LastUpdated: lastUpdated}}}
+			_, _, err := a.encodeRegistry(io.Discard)
+			assert.Error(t, err)
+		})
+	}
 }
 
 // TestEncodeRegistryCoversEveryField fails when a field is added to a type
