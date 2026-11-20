@@ -162,7 +162,8 @@ type Result struct {
 	Topology Topology
 	// Nodes has a count for every NodeState and every (GPU resource, GPU
 	// type) seen, zeros included, plus the unsupported counts per slicing or
-	// sharing mode. Sorted by state, resource, type, then modes.
+	// sharing mode (non-zero only). Sorted by state, resource, type, then
+	// modes.
 	Nodes       []NodeCount
 	Resources   []ResourceResult // sorted by resource, then GPU type
 	Overcommits []Overcommit     // sorted by node, then resource

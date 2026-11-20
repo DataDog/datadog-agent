@@ -832,6 +832,21 @@ func TestPluginGoneKeepsCapacity(t *testing.T) {
 	assert.Equal(t, 12, rr.UnschedulableGPUs[ReasonNoAllocatable], "capacity from gpu.count and instance-gpu-count")
 	assert.Equal(t, slots(4, 2, 1, 0), rr.Levels[0].LargestFreeSlots, "the 8-GPU size stays while the plugin is gone")
 
+	// The real shape: kubelet keeps the key at 0 after the plugin is removed.
+	zeroed := Node{Name: "zeroed", Ready: true,
+		Labels:      map[string]string{rackLabel: "rack-1", "nvidia.com/gpu.present": "true", "nvidia.com/gpu.count": "8"},
+		Capacity:    map[string]int{nvidia: 0},
+		Allocatable: map[string]int{nvidia: 0},
+	}
+	res = Compute(Topology{Levels: []string{rackLabel}}, []Node{zeroed, gpuNode("ok", rack, 4, nvidia)}, nil)
+	rr = res.Resources[0]
+	assert.Equal(t, []NodeCount{
+		{State: NodeInTopology, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 1},
+		{State: NodeNoGPUAllocatable, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 1},
+	}, nonZero(res.Nodes))
+	assert.Equal(t, 8, rr.UnschedulableGPUs[ReasonNoAllocatable], "capacity 0 is treated like absent")
+	assert.Equal(t, slots(4, 2, 1, 0), rr.Levels[0].LargestFreeSlots, "the 8-GPU size stays")
+
 	// Without a count label, the node is still no_gpu_allocatable with 0 GPUs.
 	res = Compute(Topology{Levels: []string{rackLabel}}, []Node{{Name: "n", Ready: true, Labels: map[string]string{rackLabel: "rack-1", "nvidia.com/gpu.present": "true"}}}, nil)
 	assert.Equal(t, []NodeCount{{State: NodeNoGPUAllocatable, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 1}}, nonZero(res.Nodes))

@@ -292,14 +292,15 @@ func attributedResources(n Node) []string {
 	return slices.Compact(res)
 }
 
-// gpuCapacity returns the node's capacity for a resource. When the resource
-// is gone from capacity (kubelet drops it about 5 minutes after the device
-// plugin dies), NVIDIA GPUs are counted from the nvidia.com/gpu.count GFD
-// label, or Karpenter's instance-gpu-count for NVIDIA instances, so the
-// unschedulable GPUs and pod sizes don't drop while the node is down.
+// gpuCapacity returns the node's capacity for a resource. When it is 0 or
+// absent (kubelet zeroes a removed device plugin resource about 5 minutes
+// after the plugin dies, and a re-registered node may not have it at all),
+// NVIDIA GPUs are counted from the nvidia.com/gpu.count GFD label, or
+// Karpenter's instance-gpu-count for NVIDIA instances, so unschedulable GPUs
+// and pod sizes don't drop while the node is down.
 func gpuCapacity(n Node, resource string) int {
-	if c, ok := n.Capacity[resource]; ok {
-		return max(c, 0)
+	if c := n.Capacity[resource]; c > 0 {
+		return c
 	}
 	if resource != string(gpu.GpuNvidiaGeneric) {
 		return 0
