@@ -6,9 +6,11 @@
 package auditorimpl
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -368,12 +370,16 @@ type countingRegistryWriter struct {
 	failing bool
 }
 
-func (w *countingRegistryWriter) WriteRegistry(_ string, _ string, _ string, data []byte) error {
+func (w *countingRegistryWriter) WriteRegistry(_ string, _ string, _ string, encode func(io.Writer) error) error {
 	if w.failing {
 		return errors.New("write failed")
 	}
+	var buf bytes.Buffer
+	if err := encode(&buf); err != nil {
+		return err
+	}
 	w.writes++
-	w.last = append(w.last[:0], data...)
+	w.last = buf.Bytes()
 	return nil
 }
 

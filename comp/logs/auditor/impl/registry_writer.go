@@ -6,11 +6,26 @@
 package auditorimpl
 
 import (
+	"bufio"
+	"io"
 	"os"
 	"path/filepath"
 
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 )
+
+// registryWriteBufferSize is the size of the buffer between the registry
+// encoder and the registry file.
+const registryWriteBufferSize = 64 << 10
+
+// encodeToFile runs encode against a buffered writer on f and flushes it.
+func encodeToFile(f *os.File, encode func(io.Writer) error) error {
+	w := bufio.NewWriterSize(f, registryWriteBufferSize)
+	if err := encode(w); err != nil {
+		return err
+	}
+	return w.Flush()
+}
 
 // atomicRegistryWriter implements atomic registry writing using a temporary file and rename
 type atomicRegistryWriter struct{}
@@ -20,7 +35,7 @@ func NewAtomicRegistryWriter() auditor.RegistryWriter {
 	return &atomicRegistryWriter{}
 }
 
-func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPath string, registryTmpFile string, data []byte) error {
+func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPath string, registryTmpFile string, encode func(io.Writer) error) error {
 	f, err := os.CreateTemp(registryDirPath, registryTmpFile)
 	if err != nil {
 		return err
@@ -31,7 +46,7 @@ func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPat
 		_ = os.Remove(tmpName)
 	}()
 
-	if _, err = f.Write(data); err != nil {
+	if err = encodeToFile(f, encode); err != nil {
 		return err
 	}
 	if err = f.Chmod(0644); err != nil {
@@ -57,7 +72,7 @@ func NewNonAtomicRegistryWriter() auditor.RegistryWriter {
 	return &nonAtomicRegistryWriter{}
 }
 
-func (w *nonAtomicRegistryWriter) WriteRegistry(registryPath string, _ string, _ string, data []byte) error {
+func (w *nonAtomicRegistryWriter) WriteRegistry(registryPath string, _ string, _ string, encode func(io.Writer) error) error {
 	// Ensure the directory exists
 	if err := os.MkdirAll(filepath.Dir(registryPath), 0755); err != nil {
 		return err
@@ -70,7 +85,7 @@ func (w *nonAtomicRegistryWriter) WriteRegistry(registryPath string, _ string, _
 	}
 	defer f.Close()
 
-	if _, err = f.Write(data); err != nil {
+	if err = encodeToFile(f, encode); err != nil {
 		return err
 	}
 	return f.Chmod(0644)

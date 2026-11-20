@@ -6,6 +6,8 @@
 package auditorimpl
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +16,34 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// writeBytes is an encode callback that writes data.
+func writeBytes(data []byte) func(io.Writer) error {
+	return func(w io.Writer) error {
+		_, err := w.Write(data)
+		return err
+	}
+}
+
+func TestAtomicRegistryWriterKeepsRegistryWhenEncodingFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	registryPath := filepath.Join(tmpDir, "registry.json")
+	require.NoError(t, os.WriteFile(registryPath, []byte(`{"old": "data"}`), 0644))
+
+	writer := NewAtomicRegistryWriter()
+	err := writer.WriteRegistry(registryPath, tmpDir, "registry.json.tmp", func(w io.Writer) error {
+		_, _ = w.Write([]byte(`{"partial":`))
+		return errors.New("encoding failed")
+	})
+	require.Error(t, err)
+
+	content, err := os.ReadFile(registryPath)
+	require.NoError(t, err)
+	assert.Equal(t, `{"old": "data"}`, string(content))
+	temporaryFiles, err := filepath.Glob(filepath.Join(tmpDir, "registry.json.tmp*"))
+	require.NoError(t, err)
+	assert.Empty(t, temporaryFiles)
+}
 
 func TestAtomicRegistryWriter(t *testing.T) {
 	// Create a temporary directory for testing
@@ -28,7 +58,7 @@ func TestAtomicRegistryWriter(t *testing.T) {
 	writer := NewAtomicRegistryWriter()
 
 	// Test writing registry
-	err := writer.WriteRegistry(registryPath, registryDirPath, registryTmpFile, testData)
+	err := writer.WriteRegistry(registryPath, registryDirPath, registryTmpFile, writeBytes(testData))
 	require.NoError(t, err)
 
 	// Verify file exists and has correct content
@@ -43,7 +73,7 @@ func TestAtomicRegistryWriterCleansUpTemporaryFileWhenReplacementFails(t *testin
 	require.NoError(t, os.Mkdir(registryPath, 0755))
 
 	writer := NewAtomicRegistryWriter()
-	err := writer.WriteRegistry(registryPath, tmpDir, "registry.json.tmp", []byte(`{"test": "data"}`))
+	err := writer.WriteRegistry(registryPath, tmpDir, "registry.json.tmp", writeBytes([]byte(`{"test": "data"}`)))
 	require.Error(t, err)
 
 	temporaryFiles, err := filepath.Glob(filepath.Join(tmpDir, "registry.json.tmp*"))
@@ -63,7 +93,7 @@ func TestAtomicRegistryWriterSupportsLongPaths(t *testing.T) {
 	require.NoError(t, os.WriteFile(registryPath, []byte(`{"old": "data"}`), 0644))
 
 	writer := NewAtomicRegistryWriter()
-	require.NoError(t, writer.WriteRegistry(registryPath, registryDirPath, "registry.json.tmp", testData))
+	require.NoError(t, writer.WriteRegistry(registryPath, registryDirPath, "registry.json.tmp", writeBytes(testData)))
 
 	content, err := os.ReadFile(registryPath)
 	require.NoError(t, err)
@@ -81,7 +111,7 @@ func TestNonAtomicRegistryWriter(t *testing.T) {
 	// Create non-atomic registry writer
 	writer := NewNonAtomicRegistryWriter()
 
-	err := writer.WriteRegistry(registryPath, registryDirPath, registryTmpFile, testData)
+	err := writer.WriteRegistry(registryPath, registryDirPath, registryTmpFile, writeBytes(testData))
 	require.NoError(t, err)
 
 	// Verify file exists and has correct content

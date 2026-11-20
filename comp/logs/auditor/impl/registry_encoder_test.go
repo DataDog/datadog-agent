@@ -6,8 +6,11 @@
 package auditorimpl
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"reflect"
 	"strconv"
 	"testing"
@@ -31,7 +34,38 @@ func marshalWithEncodingJSON(t *testing.T, registry map[string]*RegistryEntry) [
 	return b
 }
 
-func TestAppendRegistryJSONMatchesEncodingJSONPerEntry(t *testing.T) {
+// encodeRegistryToBytes is what encodeRegistry writes for registry.
+func encodeRegistryToBytes(t *testing.T, registry map[string]*RegistryEntry) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	_, _, err := (&registryAuditor{registry: registry}).encodeRegistry(&buf)
+	require.NoError(t, err)
+	return buf.Bytes()
+}
+
+// manyEntries is a registry of n entries, every other one fingerprinted.
+func manyEntries(n int) map[string]*RegistryEntry {
+	registry := make(map[string]*RegistryEntry, n)
+	for i := 0; i < n; i++ {
+		entry := &RegistryEntry{
+			LastUpdated:        time.Date(2026, time.November, 19, 0, 0, i%60, i*1000, time.UTC),
+			Offset:             strconv.Itoa(i * 17),
+			TailingMode:        "beginning",
+			IngestionTimestamp: int64(i) * 1e9,
+		}
+		if i%2 == 0 {
+			entry.Fingerprint = types.Fingerprint{Value: uint64(i), Config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+				MaxBytes:            i,
+				Source:              types.FingerprintConfigSourceGlobal,
+			}}
+		}
+		registry[fmt.Sprintf("file:/var/opt/apps/ims/log/msg2file/%06d.log", i)] = entry
+	}
+	return registry
+}
+
+func TestEncodeRegistryMatchesEncodingJSONPerEntry(t *testing.T) {
 	config := &types.FingerprintConfig{
 		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
 		Count:               3,
@@ -65,40 +99,19 @@ func TestAppendRegistryJSONMatchesEncodingJSONPerEntry(t *testing.T) {
 	for identifier, entry := range cases {
 		t.Run(fmt.Sprintf("%q", identifier), func(t *testing.T) {
 			registry := map[string]*RegistryEntry{identifier: entry}
-			got, err := appendRegistryJSON(nil, registry)
-			require.NoError(t, err)
-			assert.Equal(t, string(marshalWithEncodingJSON(t, registry)), string(got))
+			assert.Equal(t, string(marshalWithEncodingJSON(t, registry)), string(encodeRegistryToBytes(t, registry)))
 		})
 	}
 }
 
-func TestAppendRegistryJSONEmptyRegistry(t *testing.T) {
-	got, err := appendRegistryJSON(nil, map[string]*RegistryEntry{})
-	require.NoError(t, err)
-	assert.Equal(t, string(marshalWithEncodingJSON(t, map[string]*RegistryEntry{})), string(got))
+func TestEncodeRegistryEmptyRegistry(t *testing.T) {
+	registry := map[string]*RegistryEntry{}
+	assert.Equal(t, string(marshalWithEncodingJSON(t, registry)), string(encodeRegistryToBytes(t, registry)))
 }
 
-func TestAppendRegistryJSONDecodesToSameRegistry(t *testing.T) {
-	registry := make(map[string]*RegistryEntry)
-	for i := 0; i < 200; i++ {
-		entry := &RegistryEntry{
-			LastUpdated:        time.Date(2026, time.November, 19, 0, 0, i, i*1000, time.UTC),
-			Offset:             strconv.Itoa(i * 17),
-			TailingMode:        "beginning",
-			IngestionTimestamp: int64(i) * 1e9,
-		}
-		if i%2 == 0 {
-			entry.Fingerprint = types.Fingerprint{Value: uint64(i), Config: &types.FingerprintConfig{
-				FingerprintStrategy: types.FingerprintStrategyByteChecksum,
-				MaxBytes:            i,
-				Source:              types.FingerprintConfigSourceGlobal,
-			}}
-		}
-		registry[fmt.Sprintf("file:/var/opt/apps/ims/log/msg2file/%06d.log", i)] = entry
-	}
-
-	got, err := appendRegistryJSON(nil, registry)
-	require.NoError(t, err)
+func TestEncodeRegistryAcrossBatchesDecodesToSameRegistry(t *testing.T) {
+	registry := manyEntries(5*registryEncodeBatchSize + 7)
+	got := encodeRegistryToBytes(t, registry)
 
 	var fromEncoder, fromEncodingJSON JSONRegistry
 	require.NoError(t, json.Unmarshal(got, &fromEncoder))
@@ -110,30 +123,81 @@ func TestAppendRegistryJSONDecodesToSameRegistry(t *testing.T) {
 	assert.Len(t, recovered, len(registry))
 }
 
-func TestAppendRegistryJSONReusesBuffer(t *testing.T) {
-	registry := map[string]*RegistryEntry{"file:/var/log/app.log": {Offset: "1"}}
-	first, err := appendRegistryJSON(nil, registry)
-	require.NoError(t, err)
-	second, err := appendRegistryJSON(first[:0], registry)
-	require.NoError(t, err)
-	assert.Equal(t, string(first), string(second))
-	assert.Equal(t, &first[:1][0], &second[:1][0], "encoding into a buffer with enough capacity reallocated it")
+// removingWriter deletes entries from the auditor's registry on its first
+// write, the way cleanupRegistry can between two batches.
+type removingWriter struct {
+	a       *registryAuditor
+	remove  []string
+	written bytes.Buffer
 }
 
-func TestAppendRegistryJSONRejectsTimesEncodingJSONRejects(t *testing.T) {
-	registry := map[string]*RegistryEntry{"file:/var/log/app.log": {LastUpdated: time.Date(10000, time.January, 1, 0, 0, 0, 0, time.UTC)}}
-	_, err := appendRegistryJSON(nil, registry)
+func (w *removingWriter) Write(p []byte) (int, error) {
+	if w.remove != nil {
+		w.a.registryMutex.Lock()
+		for _, identifier := range w.remove {
+			delete(w.a.registry, identifier)
+		}
+		w.a.registryMutex.Unlock()
+		w.remove = nil
+	}
+	return w.written.Write(p)
+}
+
+func TestEncodeRegistrySkipsEntriesRemovedDuringTheWrite(t *testing.T) {
+	registry := manyEntries(3 * registryEncodeBatchSize)
+	a := &registryAuditor{registry: registry}
+	var remove []string
+	for identifier := range registry {
+		if len(remove) == registryEncodeBatchSize {
+			break
+		}
+		remove = append(remove, identifier)
+	}
+	w := &removingWriter{a: a, remove: remove}
+	before := len(registry)
+
+	_, _, err := a.encodeRegistry(w)
+	require.NoError(t, err)
+
+	var written JSONRegistry
+	require.NoError(t, json.Unmarshal(w.written.Bytes(), &written), "the registry written around removed entries is not valid JSON")
+	assert.Less(t, len(written.Registry), before, "entries removed before their batch was encoded were written")
+	for identifier := range registry {
+		assert.Contains(t, written.Registry, identifier)
+	}
+}
+
+func TestEncodeRegistryReportsGenerationsAtStart(t *testing.T) {
+	a := &registryAuditor{registry: manyEntries(2 * registryEncodeBatchSize), changeGeneration: 7, touchGeneration: 9}
+	changeGeneration, touchGeneration, err := a.encodeRegistry(io.Discard)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(7), changeGeneration)
+	assert.Equal(t, uint64(9), touchGeneration)
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("disk full") }
+
+func TestEncodeRegistryReturnsWriteErrors(t *testing.T) {
+	_, _, err := (&registryAuditor{registry: manyEntries(10)}).encodeRegistry(failingWriter{})
+	assert.EqualError(t, err, "disk full")
+}
+
+func TestEncodeRegistryRejectsTimesEncodingJSONRejects(t *testing.T) {
+	a := &registryAuditor{registry: map[string]*RegistryEntry{"file:/var/log/app.log": {LastUpdated: time.Date(10000, time.January, 1, 0, 0, 0, 0, time.UTC)}}}
+	_, _, err := a.encodeRegistry(io.Discard)
 	assert.Error(t, err)
 }
 
-// TestAppendRegistryJSONCoversEveryField fails when a field is added to a type
+// TestEncodeRegistryCoversEveryField fails when a field is added to a type
 // the registry encoder writes field by field, so the encoder and
-// TestAppendRegistryJSONMatchesEncodingJSONPerEntry are updated with it.
-func TestAppendRegistryJSONCoversEveryField(t *testing.T) {
+// TestEncodeRegistryMatchesEncodingJSONPerEntry are updated with it.
+func TestEncodeRegistryCoversEveryField(t *testing.T) {
 	assert.Equal(t, 5, reflect.TypeOf(RegistryEntry{}).NumField(), "update appendRegistryEntryJSON for the new RegistryEntry field")
 	assert.Equal(t, 2, reflect.TypeOf(types.Fingerprint{}).NumField(), "update appendRegistryEntryJSON for the new Fingerprint field")
 	assert.Equal(t, 5, reflect.TypeOf(types.FingerprintConfig{}).NumField(), "update appendFingerprintConfigJSON for the new FingerprintConfig field")
-	assert.Equal(t, 2, reflect.TypeOf(JSONRegistry{}).NumField(), "update appendRegistryJSON for the new JSONRegistry field")
+	assert.Equal(t, 2, reflect.TypeOf(JSONRegistry{}).NumField(), "update encodeRegistry for the new JSONRegistry field")
 }
 
 func BenchmarkRegistryEncoding(b *testing.B) {
@@ -157,11 +221,10 @@ func BenchmarkRegistryEncoding(b *testing.B) {
 			}
 		}
 	})
-	b.Run("appendRegistryJSON", func(b *testing.B) {
-		var buf []byte
+	b.Run("encodeRegistry", func(b *testing.B) {
+		a := &registryAuditor{registry: registry}
 		for b.Loop() {
-			var err error
-			if buf, err = appendRegistryJSON(buf[:0], registry); err != nil {
+			if _, _, err := a.encodeRegistry(io.Discard); err != nil {
 				b.Fatal(err)
 			}
 		}

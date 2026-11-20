@@ -7,37 +7,72 @@ package auditorimpl
 
 import (
 	"encoding/json"
+	"io"
 	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
-// appendRegistryJSON appends the on-disk form of registry to buf: the same
+// registryEncodeBatchSize is the number of entries encoded per hold of
+// registryMutex while the registry is written.
+const registryEncodeBatchSize = 256
+
+// encodeRegistry writes the on-disk form of the registry to w: the same
 // document encoding/json produces for a JSONRegistry, field for field, with
-// the registry's entries in map order rather than sorted by key. Readers
-// decode it with encoding/json, which does not depend on key order.
+// entries in map order rather than sorted by key. Readers decode it with
+// encoding/json, which does not depend on key order. Encoding each field
+// directly skips the reflection and the key sort that json.Marshal spends
+// most of its time on for a registry of many entries.
 //
-// Encoding each field directly skips the reflection and the key sort that
-// json.Marshal spends most of its time on for a registry of many entries.
-func appendRegistryJSON(buf []byte, registry map[string]*RegistryEntry) ([]byte, error) {
-	buf = append(buf, `{"Version":`...)
+// The identifiers are taken under registryMutex, then entries are encoded
+// registryEncodeBatchSize at a time, each batch under registryMutex and each
+// write to w outside it, so disk writes never hold the lock and the encoded
+// registry is never held in memory whole. Entries removed after the
+// identifiers are taken are left out; entries added after are written next
+// time. It returns changeGeneration and touchGeneration as they were when
+// the identifiers were taken.
+func (a *registryAuditor) encodeRegistry(w io.Writer) (changeGeneration, touchGeneration uint64, err error) {
+	a.registryMutex.Lock()
+	identifiers := make([]string, 0, len(a.registry))
+	for identifier := range a.registry {
+		identifiers = append(identifiers, identifier)
+	}
+	changeGeneration, touchGeneration = a.changeGeneration, a.touchGeneration
+	a.registryMutex.Unlock()
+
+	buf := append(make([]byte, 0, 512*registryEncodeBatchSize), `{"Version":`...)
 	buf = strconv.AppendInt(buf, registryAPIVersion, 10)
 	buf = append(buf, `,"Registry":{`...)
 	first := true
-	for identifier, entry := range registry {
-		if !first {
-			buf = append(buf, ',')
+	for start := 0; start < len(identifiers); start += registryEncodeBatchSize {
+		batch := identifiers[start:min(start+registryEncodeBatchSize, len(identifiers))]
+		a.registryMutex.Lock()
+		for _, identifier := range batch {
+			entry, ok := a.registry[identifier]
+			if !ok {
+				continue
+			}
+			if !first {
+				buf = append(buf, ',')
+			}
+			first = false
+			buf = appendJSONString(buf, identifier)
+			buf = append(buf, ':')
+			if buf, err = appendRegistryEntryJSON(buf, entry); err != nil {
+				a.registryMutex.Unlock()
+				return 0, 0, err
+			}
 		}
-		first = false
-		buf = appendJSONString(buf, identifier)
-		buf = append(buf, ':')
-		var err error
-		if buf, err = appendRegistryEntryJSON(buf, entry); err != nil {
-			return nil, err
+		a.registryMutex.Unlock()
+		if _, err = w.Write(buf); err != nil {
+			return 0, 0, err
 		}
+		buf = buf[:0]
 	}
-	return append(buf, "}}"...), nil
+	buf = append(buf, "}}"...)
+	_, err = w.Write(buf)
+	return changeGeneration, touchGeneration, err
 }
 
 func appendRegistryEntryJSON(buf []byte, entry *RegistryEntry) ([]byte, error) {

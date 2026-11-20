@@ -9,6 +9,7 @@ package auditorimpl
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -84,10 +85,9 @@ type registryAuditor struct {
 	changeGeneration uint64
 	touchGeneration  uint64
 
-	// flushMutex serializes registry writes. It guards the size, the
-	// generations and the time of the last write to disk.
+	// flushMutex serializes registry writes. It guards the generations and
+	// the time of the last write to disk.
 	flushMutex              sync.Mutex
-	lastWriteSize           int
 	writtenChangeGeneration uint64
 	writtenTouchGeneration  uint64
 	lastWrite               time.Time
@@ -483,25 +483,18 @@ func (a *registryAuditor) flushRegistryIfChanged(now time.Time) error {
 	return a.writeRegistry(now)
 }
 
-// writeRegistry encodes the registry while holding registryMutex, then
-// writes it to disk. The caller holds flushMutex.
-//
-// The encoded registry is not kept between writes: for a large registry it
-// is tens of megabytes, and writes are rare when nothing changes. It is
-// allocated at the size of the last write so encoding rarely grows it.
+// writeRegistry streams the registry to disk with encodeRegistry. The caller
+// holds flushMutex.
 func (a *registryAuditor) writeRegistry(now time.Time) error {
-	a.registryMutex.Lock()
-	changeGeneration, touchGeneration := a.changeGeneration, a.touchGeneration
-	buf, err := appendRegistryJSON(make([]byte, 0, a.lastWriteSize+a.lastWriteSize/8), a.registry)
-	a.registryMutex.Unlock()
+	var changeGeneration, touchGeneration uint64
+	err := a.registryWriter.WriteRegistry(a.registryPath, a.registryDirPath, a.registryTmpFile, func(w io.Writer) error {
+		var err error
+		changeGeneration, touchGeneration, err = a.encodeRegistry(w)
+		return err
+	})
 	if err != nil {
 		return err
 	}
-
-	if err := a.registryWriter.WriteRegistry(a.registryPath, a.registryDirPath, a.registryTmpFile, buf); err != nil {
-		return err
-	}
-	a.lastWriteSize = len(buf)
 	a.writtenChangeGeneration, a.writtenTouchGeneration = changeGeneration, touchGeneration
 	a.lastWrite = now
 	return nil
