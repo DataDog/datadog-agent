@@ -129,7 +129,7 @@ print(f"Running {len(tests_to_run)} tests, skipping {len(tests_to_skip)}")
 from tasks.libs.dynamic_test.evaluator import DatadogDynTestEvaluator
 
 # Create evaluator with executor (index not loaded yet)
-evaluator = DatadogDynTestEvaluator(ctx, IndexKind.PACKAGE, executor, pipeline_id)
+evaluator = DatadogDynTestEvaluator(ctx, IndexKind.PACKAGE, executor, pipeline_id, commit_sha)
 
 # Initialize index with error reporting to Datadog
 if evaluator.initialize():

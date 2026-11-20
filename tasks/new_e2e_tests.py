@@ -31,6 +31,7 @@ from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color
+from tasks.libs.common.feature_flags import is_enabled
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modified_files
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
@@ -47,6 +48,7 @@ from tasks.libs.common.utils import (
 from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
+from tasks.libs.dynamic_test.jev_selection import PR_SUMMARY_FILE_ENV, JevDynTestExecutor, read_pr_summary
 from tasks.libs.releasing.json import load_release_json
 from tasks.libs.releasing.version import get_version
 from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
@@ -442,10 +444,16 @@ def run(
     if impacted and running_in_ci():
         try:
             print(color_message("Using dynamic tests", "yellow"))
-            # DynTestExecutor needs to access build stable account to retrieve the index. Temporarly remove the AWS_PROFILE to avoid connecting on agent-qa account
+            # DynTestExecutor needs to access build stable account to retrieve the index. Temporarily remove the AWS_PROFILE to avoid connecting on agent-qa account
             with environ({"AWS_PROFILE": "DELETE"}):
                 backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
-                executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True))
+                if is_enabled(ctx, "agent-ci-jev-test-impact-analysis"):
+                    # The LLM PR summary (jev-pr-summary job artifact) replaces the raw diff in the
+                    # Jev calls, a much smaller input; no file: the raw diff
+                    pr_summary = read_pr_summary(os.environ.get(PR_SUMMARY_FILE_ENV, ""))
+                    executor = JevDynTestExecutor(ctx, pr_summary=pr_summary)
+                else:
+                    executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True))
                 changed_files = get_modified_files(ctx)
                 changed_packages = list({os.path.dirname(change) for change in changed_files})
                 print(color_message(f"The following changes were detected: {changed_files}", "yellow"))

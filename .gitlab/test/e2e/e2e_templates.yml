@@ -92,6 +92,7 @@
     E2E_LOGS_PROCESSING_TEST_DEPTH: 1
     FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml
     E2E_RESULT_JSON: $CI_PROJECT_DIR/e2e_test_output.json
+    JEV_PR_SUMMARY_FILE: $CI_PROJECT_DIR/jev-pr-summary.txt # jev-pr-summary artifact, absent: raw diff
     E2E_USE_AWS_PROFILE: "true"
     E2E_COVERAGE_OUT_DIR: $CI_PROJECT_DIR/coverage
     E2E_IMAGE_PULL_REGISTRY: 669783387624.dkr.ecr.us-east-1.amazonaws.com,us-central1-docker.pkg.dev
@@ -154,6 +155,9 @@
 .needs_new_e2e_template:
   - go_e2e_deps
   - job: new-e2e-base-coverage
+    optional: true
+  # The LLM PR summary passed to Jev instead of the raw diff (JEV_PR_SUMMARY_FILE)
+  - job: jev-pr-summary
     optional: true
   - !reference [.needs_fakeintake_publish]
 
