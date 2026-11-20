@@ -7,7 +7,7 @@
 
 use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
-use crate::grpc::caller_auth::require_mutating_pipe_client;
+use crate::grpc::caller_auth::{CallerPolicy, MutatingRpc, require_mutating_caller};
 use crate::grpc::proto;
 use crate::manager::{InvalidProcess, ProcessManager};
 use crate::platform;
@@ -21,6 +21,7 @@ pub struct ProcessManagerService {
     mgr: ProcessManager,
     started_at: Instant,
     cmd_tx: mpsc::Sender<Command>,
+    caller_policy: CallerPolicy,
 }
 
 impl ProcessManagerService {
@@ -29,6 +30,21 @@ impl ProcessManagerService {
             mgr,
             started_at: Instant::now(),
             cmd_tx,
+            caller_policy: CallerPolicy::from_process(),
+        }
+    }
+
+    #[cfg(all(test, unix))]
+    pub(crate) fn with_caller_policy(
+        mgr: ProcessManager,
+        cmd_tx: mpsc::Sender<Command>,
+        caller_policy: CallerPolicy,
+    ) -> Self {
+        Self {
+            mgr,
+            started_at: Instant::now(),
+            cmd_tx,
+            caller_policy,
         }
     }
 }
@@ -111,7 +127,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::CreateRequest>,
     ) -> Result<Response<proto::CreateResponse>, Status> {
-        require_mutating_pipe_client(&request)?;
+        require_mutating_caller(&request, MutatingRpc::Create, &self.caller_policy)?;
         let req = request.into_inner();
         let config = create_request_to_config(&req)?;
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -138,7 +154,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StartRequest>,
     ) -> Result<Response<proto::StartResponse>, Status> {
-        require_mutating_pipe_client(&request)?;
+        require_mutating_caller(&request, MutatingRpc::Start, &self.caller_policy)?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -164,7 +180,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StopRequest>,
     ) -> Result<Response<proto::StopResponse>, Status> {
-        require_mutating_pipe_client(&request)?;
+        require_mutating_caller(&request, MutatingRpc::Stop, &self.caller_policy)?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -189,7 +205,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::ReloadConfigRequest>,
     ) -> Result<Response<proto::ReloadConfigResponse>, Status> {
-        require_mutating_pipe_client(&request)?;
+        require_mutating_caller(&request, MutatingRpc::ReloadConfig, &self.caller_policy)?;
         let _ = request.into_inner();
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -653,6 +669,22 @@ mod tests {
             assert_eq!(list.user, proc.user());
             assert_eq!(detail.user, proc.user());
         }
+    }
+
+    #[test]
+    fn test_runtime_profile_for_datadog_agent_process() {
+        let proc = ManagedProcess::new_runtime(
+            "datadog-agent-process".to_string(),
+            test_helpers::test_uuid(),
+            ProcessConfig::default(),
+        );
+        let list = process_to_proto(&proc);
+        let detail = process_detail_fields(&proc);
+
+        assert_eq!(list.profile, "agent");
+        assert_eq!(detail.profile, "agent");
+        assert_eq!(list.user, proc.user());
+        assert_eq!(detail.user, proc.user());
     }
 
     #[tokio::test]

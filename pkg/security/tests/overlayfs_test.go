@@ -679,7 +679,7 @@ func TestOverlayOpOverride(t *testing.T) {
 	}
 	defer test.CloseTest()
 
-	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine", "")
+	dockerWrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "alpine", "")
 	if err != nil {
 		t.Fatalf("failed to create docker wrapper: %v", err)
 	}

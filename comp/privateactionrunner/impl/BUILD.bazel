@@ -59,6 +59,7 @@ dd_agent_go_test(
         "rollout_simulation_test.go",
         "standalone_enrollment_test.go",
         "workload_enrollment_test.go",
+        "workload_reenrollment_test.go",
     ],
     embed = [":impl"],
     gotags_sets = [[

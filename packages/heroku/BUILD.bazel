@@ -89,6 +89,7 @@ dd_collect_dependencies(
         "@curl//:curl_bin_pkg",
         "@freetds//:tdsodbc_pkg",
         "@jemalloc//:jemalloc_pkg",
+        "@openssl//:openssl_bin_pkg",
     ],
     target_compatible_with = select({
         "@platforms//os:linux": [],
@@ -130,6 +131,7 @@ pkg_filegroup(
         "//cmd/agent/dist:all_python_files",
         "//packages/agent/product:dirs",
         "//packages/agent/product:privateactionrunner_binary",
+        "//packages/agent/python-scripts:all_files",
     ],
 )
 
@@ -237,6 +239,7 @@ pkg_filegroup(
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
         "//packages/agent/product:dirs",
+        "//packages/agent/python-scripts:all_files",
     ],
 )
 

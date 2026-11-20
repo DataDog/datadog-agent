@@ -42,6 +42,8 @@ target
 /.cache/
 # Bazel convenience symlinks to output folders
 /bazel-*
+# Bazel invocation diagnostics (see .bazelrc); also written to the working directory when Bazel is run from a subdirectory
+bazel-invocation.*
 # User specific bazelrc file
 /user.bazelrc
 
@@ -68,6 +70,7 @@ security-agent.yaml
 dogstatsd.yaml
 cloudfoundry.yaml
 apm-inject.yaml
+Dockerfiles/agent/s6.tgz
 Dockerfiles/cluster-agent/datadog-cluster.yaml
 Dockerfiles/cluster-agent/dist
 Dockerfiles/cluster-agent/security-agent-policies

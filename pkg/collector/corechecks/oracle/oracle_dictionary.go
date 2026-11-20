@@ -8,13 +8,12 @@
 package oracle
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	go_ora "github.com/sijms/go-ora/v2"
 )
 
 func getFullSQLText(c *Check, SQLStatement *string, key string, value string) error {
@@ -22,42 +21,19 @@ func getFullSQLText(c *Check, SQLStatement *string, key string, value string) er
 	 * Due to the Oracle bug "V$SQLSTATS.SQL_FULLTEXT does not show full of sql statements (Doc ID 2398100.1)
 	 * we must retrieve `sql_fulltext` from `v$sql`.
 	 */
-	var err error
-	var query string
-	switch c.driver {
-	case common.Godror:
-		query = fmt.Sprintf("SELECT /* DD */ sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1", key)
-		err = c.db.Get(SQLStatement, query, value)
-		reconnectOnConnectionError(c, &c.db, err)
-		if errors.Is(err, sql.ErrNoRows) {
-			log.Warnf("%s The SQL text for the statement %s = %s couldn't be fetched because the SQL was evicted from shared pool", c.logPrompt, key, value)
-			err = nil
-		}
-	case common.GoOra:
-		var sqlFullText go_ora.Clob
-		query = fmt.Sprintf("BEGIN SELECT /* DD */ sql_fulltext INTO :sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1; END;", key)
-		_, err = c.connection.Exec(query, go_ora.Out{Dest: &sqlFullText, Size: 8000}, value)
-		if err == nil && sqlFullText.String != "" {
-			*SQLStatement = sqlFullText.String
-		} else if err != nil {
-			if !isConnectionError(err) {
-				return err
-			}
-			log.Debugf("%s Reconnecting", c.logPrompt)
-			if c.connection != nil {
-				closeGoOraConnection(c)
-			}
-			conn, errConnect := connectGoOra(c)
-			if errConnect != nil {
-				log.Errorf("%s failed to reconnect %s", c.logPrompt, err)
-				closeGoOraConnection(c)
-			} else {
-				c.connection = conn
-			}
-			return fmt.Errorf("failed to query sql full text for %s = %s %s", key, value, err)
-		} else if sqlFullText.String == "" {
-			log.Warnf("%s The SQL text for the statement %s = %s couldn't be fetched because the SQL was evicted from shared pool", c.logPrompt, key, value)
+	if c.db == nil {
+		if err := reconnectOnConnectionLose(c); err != nil {
+			return err
 		}
 	}
-	return err
+	query := fmt.Sprintf("SELECT /* DD */ sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1", key)
+	ctx, cancel := context.WithTimeout(context.Background(), c.config.QueryTimeoutDuration())
+	defer cancel()
+	err := c.db.GetContext(ctx, SQLStatement, query, value)
+	err = operationError(ctx, err)
+	if errors.Is(err, sql.ErrNoRows) && !shouldReconnect(err) {
+		log.Warnf("%s The SQL text for the statement %s = %s couldn't be fetched because the SQL was evicted from shared pool", c.logPrompt, key, value)
+		return nil
+	}
+	return handleError(c, &c.db, err)
 }

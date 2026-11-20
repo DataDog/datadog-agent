@@ -102,7 +102,7 @@ func dogtelGatewayProvisioner() provisioners.TypedProvisioner[environments.Kuber
 			}),
 		)
 	}
-	if isKindLocal() {
+	if provlocal.IsKindLocal() {
 		return provlocal.Provisioner(
 			provlocal.WithStandaloneOTelAgent(deployFn),
 			provlocal.WithAgentOptions(

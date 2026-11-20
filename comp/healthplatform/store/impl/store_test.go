@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -128,6 +129,8 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		metrics: telemetryMetrics{
 			issuesCounter: tel.NewCounter(
 				"health_platform", "issues_detected", []string{"issue_type", "severity"}, ""),
+			activeIssues:   tel.NewGauge("health_platform", "active_issues", []string{"issue_type"}, ""),
+			issuesResolved: tel.NewCounter("health_platform", "issues_resolved", []string{"issue_type"}, ""),
 		},
 	}
 }
@@ -564,24 +567,11 @@ func TestFillFlareWritesWhenNonEmpty(t *testing.T) {
 }
 
 func TestTelemetryCounterIncrements(t *testing.T) {
-	tel := telemetrymock.New(t)
-	counter := tel.NewCounter("health_platform", "issues_detected", []string{"issue_type", "severity"}, "")
-	h := &healthPlatformImpl{
-		log:              logmock.New(t),
-		telemetry:        tel,
-		hostnameProvider: &mockHostname{name: "test-host"},
-		agentFlavor:      "agent",
-		selfIdent:        selfident.New(nil),
-		issues:           make(map[string]*storedIssue),
-		issuesByName:     make(map[string][]string),
-		persistedIssues:  make(map[string]*PersistedIssue),
-		persistence:      &memPersistence{},
-		metrics:          telemetryMetrics{issuesCounter: counter},
-	}
+	h := newTestStore(t)
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
-	assert.Equal(t, 1.0, counter.WithValues("t", "ISSUE_SEVERITY_UNSPECIFIED").Get())
+	assert.Equal(t, 1.0, h.metrics.issuesCounter.WithValues("t", "ISSUE_SEVERITY_UNSPECIFIED").Get())
 }
 
 func TestGetActiveIssueIDsByIssueName(t *testing.T) {
@@ -595,6 +585,102 @@ func TestGetActiveIssueIDsByIssueName(t *testing.T) {
 	h.ResolveIssue("t:1")
 	ids = h.GetActiveIssueIDsByIssueName("t")
 	assert.ElementsMatch(t, []string{"t:2"}, ids)
+}
+
+func TestIssueLifecycleTelemetry(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newTestStore(t)
+		first := &healthplatformpayload.Issue{Id: "test:1", IssueName: "Test Issue", IssueType: "test_issue"}
+		second := &healthplatformpayload.Issue{Id: "test:2", IssueName: "Test Issue", IssueType: "test_issue"}
+		other := &healthplatformpayload.Issue{Id: "other:1", IssueName: "Other Issue", IssueType: "other_issue"}
+		gauge := h.metrics.activeIssues.WithValues("test_issue")
+		resolved := h.metrics.issuesResolved.WithValues("test_issue")
+
+		require.NoError(t, h.ReportIssue(first))
+		assert.Equal(t, 1.0, gauge.Get())
+		require.NoError(t, h.ReportIssue(first))
+		assert.Equal(t, 1.0, gauge.Get())
+		require.NoError(t, h.ReportIssue(second))
+		require.NoError(t, h.ReportIssue(other))
+		assert.Equal(t, 2.0, gauge.Get())
+		assert.Equal(t, 1.0, h.metrics.activeIssues.WithValues("other_issue").Get())
+
+		time.Sleep(time.Hour)
+		h.ResolveIssue(first.Id)
+		assert.Equal(t, 1.0, gauge.Get())
+		assert.Equal(t, 1.0, resolved.Get())
+
+		h.ResolveIssue(first.Id)
+		h.ResolveIssue("unknown")
+		assert.Equal(t, 1.0, resolved.Get())
+
+		h.ResolveAllIssues()
+		assert.Zero(t, gauge.Get())
+		assert.Zero(t, h.metrics.activeIssues.WithValues("other_issue").Get())
+		assert.Equal(t, 2.0, resolved.Get())
+		assert.Equal(t, 1.0, h.metrics.issuesResolved.WithValues("other_issue").Get())
+		h.ResolveAllIssues()
+		assert.Equal(t, 2.0, resolved.Get())
+
+		require.NoError(t, h.ReportIssue(first))
+		assert.Equal(t, 1.0, gauge.Get())
+		h.ResolveIssue(first.Id)
+		assert.Equal(t, 3.0, resolved.Get())
+	})
+}
+
+func TestRestoreActiveIssuesTelemetry(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.restorePersistedState(&PersistedState{
+		Version: persistedStateVersion,
+		Issues: map[string]*PersistedIssue{
+			"test:1":     {IssueType: "Test Issue", ProtoIssueType: "test_issue", State: IssueStateActive},
+			"test:2":     {IssueType: "Test Issue", ProtoIssueType: "test_issue", State: IssueStateActive},
+			"other:1":    {IssueType: "Other Issue", ProtoIssueType: "other_issue", State: IssueStateActive},
+			"resolved:1": {IssueType: "Resolved Issue", ProtoIssueType: "resolved_issue", State: IssueStateResolved},
+		},
+	}))
+	assert.Equal(t, 2.0, h.metrics.activeIssues.WithValues("test_issue").Get())
+	assert.Equal(t, 1.0, h.metrics.activeIssues.WithValues("other_issue").Get())
+	assert.Zero(t, h.metrics.activeIssues.WithValues("resolved_issue").Get())
+	assert.Zero(t, h.metrics.issuesResolved.WithValues("resolved_issue").Get())
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "test:1", IssueName: "Test Issue", IssueType: "test_issue"}))
+	assert.Equal(t, 2.0, h.metrics.activeIssues.WithValues("test_issue").Get())
+	h.ResolveIssue("test:2")
+	assert.Equal(t, 1.0, h.metrics.activeIssues.WithValues("test_issue").Get())
+	h.ResolveAllIssues()
+	assert.Zero(t, h.metrics.activeIssues.WithValues("test_issue").Get())
+	assert.Zero(t, h.metrics.activeIssues.WithValues("other_issue").Get())
+}
+
+func TestActiveGaugeTracksProtoTypeChanges(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.restorePersistedState(&PersistedState{
+		Version: persistedStateVersion,
+		Issues: map[string]*PersistedIssue{
+			"test:1":         {IssueType: "Test Issue", State: IssueStateActive},
+			"other:1":        {IssueType: "Other Issue", State: IssueStateActive},
+			"missing-name:1": {State: IssueStateActive},
+		},
+	}))
+	unknown := h.metrics.activeIssues.WithValues("unknown")
+	assert.Equal(t, 2.0, unknown.Get())
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "test:1", IssueName: "Test Issue", IssueType: "test_issue"}))
+	assert.Equal(t, 1.0, unknown.Get())
+	assert.Equal(t, 1.0, h.metrics.activeIssues.WithValues("test_issue").Get())
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "test:1", IssueName: "Changed Issue", IssueType: "changed_issue"}))
+	assert.Zero(t, h.metrics.activeIssues.WithValues("test_issue").Get())
+	assert.Equal(t, 1.0, h.metrics.activeIssues.WithValues("changed_issue").Get())
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "unknown:1", IssueName: "Unknown Issue"}))
+	assert.Equal(t, 2.0, unknown.Get())
+	h.ResolveIssue("other:1")
+	assert.Equal(t, 1.0, unknown.Get())
+	h.ResolveAllIssues()
+	assert.Zero(t, unknown.Get())
+	assert.Zero(t, h.metrics.activeIssues.WithValues("changed_issue").Get())
 }
 
 func newTestObserver(resolvedSz int) storedef.IssuesObserver {

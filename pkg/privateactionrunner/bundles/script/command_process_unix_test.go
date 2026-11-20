@@ -9,7 +9,14 @@ package com_datadoghq_script
 
 import (
 	"context"
+	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,4 +37,20 @@ func processTestConfig(exe string, args []string) ScriptBundleConfig {
 
 func timeoutTestConfig() ScriptBundleConfig {
 	return processTestConfig("/bin/sh", []string{"-c", "sleep 60"})
+}
+
+// processStopped counts a zombie as stopped, since container PID 1 may never reap it.
+func processStopped(pid int) bool {
+	if runtime.GOOS != "linux" {
+		return errors.Is(syscall.Kill(pid, 0), syscall.ESRCH)
+	}
+	data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat"))
+	if os.IsNotExist(err) {
+		return true
+	}
+	if err != nil {
+		return false
+	}
+	_, state, ok := strings.Cut(string(data), ") ")
+	return ok && strings.HasPrefix(state, "Z ")
 }
