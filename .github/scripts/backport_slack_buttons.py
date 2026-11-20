@@ -100,8 +100,9 @@ def main() -> int:
             f":rewind: Claude thinks <{env('PR_URL')}|#{pr_number} "
             f"({env('PR_TITLE')})> may need a backport "
             f"(confidence: {confidence}).\n{rationale}"
-            f"Buttons expire in about {hours} hour(s) — after that, add the "
-            "backport/<branch> label manually."
+            "Pick one or more branches, then hit *Apply selection* — the labels are only "
+            f"applied once you do. Buttons expire in about {hours} hour(s) — after that, "
+            "add the backport/<branch> label manually."
         )
 
     def action_block(remaining: list[str]) -> dict:
@@ -116,6 +117,14 @@ def main() -> int:
             }
             for b in remaining
         ]
+        elements.append(
+            {
+                "type": "button",
+                "action_id": "apply",
+                "text": {"type": "plain_text", "text": "Apply selection"},
+                "value": "apply",
+            }
+        )
         elements.append(
             {
                 "type": "button",
@@ -178,7 +187,12 @@ def main() -> int:
         if payload.get("container", {}).get("message_ts") != msg["ts"]:
             return
         for action in payload.get("actions", []):
-            if action["action_id"] == "dismiss":
+            if action["action_id"] == "apply":
+                if result["chosen"]:
+                    clicked.set()  # apply the selection and stop listening
+                else:
+                    thread_reply("No branch selected yet — pick at least one, or choose 'No backport needed'.")
+            elif action["action_id"] == "dismiss":
                 result["outcome"] = "dismiss"
                 set_buttons(None)  # remove the buttons, keep the section
                 thread_reply(f":no_entry_sign: No backport for <{env('PR_URL')}|#{pr_number}>.")
@@ -190,8 +204,8 @@ def main() -> int:
                     remaining = [b for b in branches if b not in result["chosen"]]
                     set_buttons(remaining)
                     thread_reply(
-                        f":white_check_mark: Backport to `{branch}` requested — "
-                        "the label is being added, the backport PR will follow."
+                        f":white_check_mark: Selected `{branch}`. Keep picking branches, or hit "
+                        "*Apply selection* — labels (and the backport PRs) follow from there."
                     )
                     if not remaining:
                         clicked.set()  # all candidate branches chosen, we're done
