@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/payload"
 	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
@@ -63,7 +64,7 @@ const (
 	probabilitySamplingV1 = 9
 
 	// tagDecisionMaker specifies the sampling decision maker
-	tagDecisionMaker = "_dd.p.dm"
+	tagDecisionMaker = string(semantics.ConceptDDDecisionMaker)
 
 	// tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
 	tagAPMMode = "_dd.apm_mode"

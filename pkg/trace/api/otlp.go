@@ -632,7 +632,7 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 		// `_dd.p.dm` must not be set even if a drop decision is applied to the trace here.
 		// Traces with a drop decision by the OTLPReceiver's probabilistic sampler are re-evaluated by ErrorsSampler later.
 		if samplingPriorty.IsKeep() {
-			traceutil.SetMeta(spans[0], "_dd.p.dm", decisionMaker)
+			traceutil.SetMeta(spans[0], string(semantics.ConceptDDDecisionMaker), decisionMaker)
 		}
 		chunk.Priority = int32(samplingPriorty)
 		traceChunks = append(traceChunks, chunk)
@@ -657,7 +657,7 @@ func tracerDecisionMaker(spans pb.Trace) (string, bool) {
 		return false
 	}
 	for _, s := range spans {
-		if dm, ok := s.Meta["_dd.p.dm"]; ok && isValidDecisionMaker(dm) && consider(dm) {
+		if dm, ok := s.Meta[string(semantics.ConceptDDDecisionMaker)]; ok && isValidDecisionMaker(dm) && consider(dm) {
 			return dm, true
 		}
 	}

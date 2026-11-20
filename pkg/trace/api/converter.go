@@ -226,7 +226,7 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 			// If the chunk has a priority set and none on any internal span then use the chunk's priority
 			idxChunk.Priority = chunk.Priority
 		}
-		if chunkDm, ok := idxChunk.GetAttributeAsString("_dd.p.dm"); ok && idxChunk.SamplingMechanism() == 0 {
+		if chunkDm, ok := idxChunk.GetAttributeAsString(string(semantics.ConceptDDDecisionMaker)); ok && idxChunk.SamplingMechanism() == 0 {
 			chunkDm, _ = strings.CutPrefix(chunkDm, "-")
 			if samplingMechanism, err := strconv.ParseUint(chunkDm, 10, 32); err != nil {
 				log.Debugf("Found invalid sampling mechanism %s: %v, Decision maker will be ignored", chunkDm, err)
