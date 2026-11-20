@@ -181,6 +181,7 @@ import (
 	rcservicemrffx "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/fx"
 	rctelemetryreporterfx "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	serializerdef "github.com/DataDog/datadog-agent/comp/serializer/serializer/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/fx"
@@ -545,11 +546,7 @@ func getSharedFxOption() fx.Option {
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 
-		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
-		// already migrated components to request it.
-		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
-			return demuxInstance.Serializer()
-		}),
+		fx.Provide(func(s serializerdef.Component) serializer.MetricSerializer { return s }),
 		fx.Provide(func(ms serializer.MetricSerializer) option.Option[serializer.MetricSerializer] {
 			return option.New[serializer.MetricSerializer](ms)
 		}),

@@ -181,6 +181,7 @@ go_library(
         "//comp/remote-config/rcservicemrf/fx",
         "//comp/remote-config/rctelemetryreporter/fx",
         "//comp/serializer/metricscompression/fx",
+        "//comp/serializer/serializer/def",
         "//comp/snmpscan/fx",
         "//comp/snmpscanmanager/def",
         "//comp/snmpscanmanager/fx",
