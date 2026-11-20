@@ -190,14 +190,12 @@ if [[ ${#custom_services[@]} -gt 0 ]]; then
             echo "/etc/services.d/$service_name/finish is not run. ENTRYPOINT=s6-all-in-one runs it." >&2
         fi
         printf '===== ADDING custom service /etc/services.d/%s =====\n' "$service_name"
-        command_path="$processes_dir/services/$service_name/run"
-        command_path=${command_path//\'/\'\'}
-        workdir_path="$processes_dir/services/$service_name"
-        workdir_path=${workdir_path//\'/\'\'}
+        # The placeholder is not expanded here. The backslash keeps bash from expanding it when the
+        # file is written. dd-procmgrd expands it once at spawn, to the staging directory.
         cat >"$processes_dir/$service_name.yaml" <<EOF
 description: Custom service /etc/services.d/$service_name
-command: '$command_path'
-working_dir: '$workdir_path'
+command: '\${DD_PM_CONFIG_DIR}/services/$service_name/run'
+working_dir: '\${DD_PM_CONFIG_DIR}/services/$service_name'
 auto_start: $auto_start
 restart: always
 restart_sec: 1

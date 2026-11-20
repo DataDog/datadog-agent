@@ -887,6 +887,30 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
 }
 
 #[test]
+fn procmgr_all_in_one_custom_services_keep_the_config_dir_placeholder() {
+    let script = ENTRYPOINT_PROCMGR_ALL_IN_ONE;
+    // The heredoc is unquoted, so the backslash is what keeps the placeholder in the file.
+    // Without it, bash expands the variable at write time to the catalog directory.
+    assert!(
+        script.contains(r"command: '\${DD_PM_CONFIG_DIR}/services/$service_name/run'"),
+        "the generated command must keep the escaped placeholder"
+    );
+    assert!(
+        script.contains(r"working_dir: '\${DD_PM_CONFIG_DIR}/services/$service_name'"),
+        "the generated working_dir must keep the escaped placeholder"
+    );
+    assert!(
+        !script.contains("command_path") && !script.contains("workdir_path"),
+        "the staging path must not be written into the generated YAML"
+    );
+    // A quoted heredoc would keep the backslash and leave $service_name unexpanded.
+    assert!(
+        script.contains(r#"cat >"$processes_dir/$service_name.yaml" <<EOF"#),
+        "the custom-service heredoc must stay unquoted"
+    );
+}
+
+#[test]
 fn split_entrypoint_leaves_the_ipc_cert_path_to_dd_procmgrd() {
     let script = ENTRYPOINT_PRIVATE_ACTION_RUNNER;
     assert!(
