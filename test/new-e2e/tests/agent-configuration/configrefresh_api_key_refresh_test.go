@@ -132,9 +132,8 @@ additional_endpoints:
 	)
 
 	// Verify initial API keys in status
-	status := v.Env().Agent.Client.Status()
-
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		status := v.Env().Agent.Client.Status()
 		assert.Contains(t, status.Content, "API key ending with 2345")
 		assert.Contains(t, status.Content, `intake - API Keys ending with:
       - 2345`)
@@ -159,8 +158,8 @@ additional_endpoints:
 	assert.Contains(v.T(), secretRefreshOutput, "- 'apikey4':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/api/v2/series/0'")
 
 	// Verify that the new API keys appear in status
-	status = v.Env().Agent.Client.Status()
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		status := v.Env().Agent.Client.Status()
 		// Check main API key
 		assert.Contains(t, status.Content, "API key ending with 4321")
 

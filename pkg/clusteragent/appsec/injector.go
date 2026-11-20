@@ -14,6 +14,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
@@ -356,9 +358,12 @@ func (si *securityInjector) processWorkItem(ctx context.Context, proxyType appse
 		err = pattern.Deleted(ctx, item.obj)
 	}
 
-	watchedChangesCounter.Inc(string(proxyType), item.typ.String(), strconv.FormatBool(err == nil))
+	watchedChangesCounter.Inc(string(proxyType), item.typ.String(), strconv.FormatBool(err == nil), failureReason(err))
 
 	if err == nil {
+		queue.Forget(item)
+	} else if isPermanentError(err) {
+		si.logger.Warnf("unable to process item, not retrying: %v", err)
 		queue.Forget(item)
 	} else if queue.NumRequeues(item) < 5 {
 		si.logger.Debugf("requeuing item after error: %v", err)
@@ -368,6 +373,66 @@ func (si *securityInjector) processWorkItem(ctx context.Context, proxyType appse
 		queue.Forget(item)
 	}
 
+	return false
+}
+
+// knownFailureReasons are the Kubernetes API status reasons reported as is in telemetry. An
+// admission webhook can return any reason, so the others are reported as "unknown".
+var knownFailureReasons = []metav1.StatusReason{
+	metav1.StatusReasonUnauthorized,
+	metav1.StatusReasonForbidden,
+	metav1.StatusReasonNotFound,
+	metav1.StatusReasonAlreadyExists,
+	metav1.StatusReasonConflict,
+	metav1.StatusReasonGone,
+	metav1.StatusReasonInvalid,
+	metav1.StatusReasonServerTimeout,
+	metav1.StatusReasonStoreReadError,
+	metav1.StatusReasonTimeout,
+	metav1.StatusReasonTooManyRequests,
+	metav1.StatusReasonBadRequest,
+	metav1.StatusReasonMethodNotAllowed,
+	metav1.StatusReasonNotAcceptable,
+	metav1.StatusReasonRequestEntityTooLarge,
+	metav1.StatusReasonUnsupportedMediaType,
+	metav1.StatusReasonInternalError,
+	metav1.StatusReasonExpired,
+	metav1.StatusReasonServiceUnavailable,
+}
+
+// retryableForbidden are messages of Forbidden errors that can clear without a change on the cluster
+// side: an exhausted ResourceQuota, a ResourceQuota whose usage is not computed yet, and admission
+// plugins whose caches are still syncing at API server startup.
+var retryableForbidden = []string{"exceeded quota", "status unknown for quota", "not yet ready to handle request"}
+
+// failureReason returns the Kubernetes API status reason (Forbidden, Invalid, ...) of err, keeping
+// the telemetry tag cardinality bounded.
+func failureReason(err error) string {
+	if err == nil {
+		return "none"
+	}
+	if reason := apierrors.ReasonForError(err); slices.Contains(knownFailureReasons, reason) {
+		return string(reason)
+	}
+	return "unknown"
+}
+
+// isPermanentError reports whether retrying err cannot succeed without a change on the cluster side
+// (RBAC, admission policies, schema validation), in which case the backoff only adds API calls.
+// An exhausted ResourceQuota or admission still starting up is also reported as Forbidden but can
+// clear on its own, so it is retried.
+// A joined error is permanent only if all of its errors are.
+func isPermanentError(err error) bool {
+	switch e := err.(type) {
+	case interface{ Unwrap() []error }:
+		errs := e.Unwrap()
+		return len(errs) > 0 && !slices.ContainsFunc(errs, func(err error) bool { return !isPermanentError(err) })
+	case apierrors.APIStatus:
+		message := e.Status().Message
+		return apierrors.IsInvalid(err) || apierrors.IsForbidden(err) && !slices.ContainsFunc(retryableForbidden, func(s string) bool { return strings.Contains(message, s) })
+	case interface{ Unwrap() error }:
+		return isPermanentError(e.Unwrap())
+	}
 	return false
 }
 

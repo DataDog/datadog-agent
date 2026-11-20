@@ -264,7 +264,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_service:service1",
 						"kube_service:service2",
 						"kueue_local_queue:batch",
-						"kube_scheduler:kueue",
+						"job_scheduler:kueue",
 						"kube_qos:guaranteed",
 						"kube_runtime_class:myclass",
 						"ns_team:containers",
@@ -2430,9 +2430,9 @@ func TestKueueSchedulerTags(t *testing.T) {
 			entities:    []workloadmeta.Entity{workload, localQueue},
 			annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "job-sample"},
 			expected: []string{
-				"kube_scheduler:kueue",
-				"kube_scheduler_queue:cluster-batch",
-				"kube_scheduler_workload:job-sample",
+				"job_scheduler:kueue",
+				"job_scheduler_queue:cluster-batch",
+				"job_scheduler_workload:job-sample",
 			},
 		},
 		{
@@ -2441,18 +2441,18 @@ func TestKueueSchedulerTags(t *testing.T) {
 			annotations: map[string]string{
 				kubernetes.KueueWorkloadAnnotationKey: "missing-workload",
 			},
-			expected: []string{"kube_scheduler:kueue", "kube_scheduler_queue:cluster-batch"},
+			expected: []string{"job_scheduler:kueue", "job_scheduler_queue:cluster-batch"},
 		},
 		{
 			name:     "with the ClusterQueue of the LocalQueue entity",
 			entities: []workloadmeta.Entity{localQueue},
 			labels:   map[string]string{kubernetes.KueueQueueNameLabelKey: "batch"},
-			expected: []string{"kube_scheduler:kueue", "kube_scheduler_queue:cluster-batch"},
+			expected: []string{"job_scheduler:kueue", "job_scheduler_queue:cluster-batch"},
 		},
 		{
 			name:     "with only a LocalQueue name",
 			labels:   map[string]string{kubernetes.KueueQueueNameLabelKey: "batch"},
-			expected: []string{"kube_scheduler:kueue"},
+			expected: []string{"job_scheduler:kueue"},
 		},
 		{
 			name:   "not for pods without Kueue information",
@@ -2490,7 +2490,7 @@ func TestKueueSchedulerTags(t *testing.T) {
 			for _, tagInfo := range tagInfos {
 				var schedulerTags []string
 				for _, tag := range append(tagInfo.LowCardTags, tagInfo.OrchestratorCardTags...) {
-					if strings.HasPrefix(tag, "kube_scheduler") {
+					if strings.HasPrefix(tag, "job_scheduler") {
 						schedulerTags = append(schedulerTags, tag)
 					}
 				}
@@ -2551,18 +2551,18 @@ func TestKAIPodGroupTagsPropagateToPodAndContainer(t *testing.T) {
 			require.Contains(t, tagInfos, entityID)
 			var kaiTags []string
 			for _, tag := range append(tagInfos[entityID].LowCardTags, tagInfos[entityID].OrchestratorCardTags...) {
-				if strings.HasPrefix(tag, "kube_scheduler") || strings.HasPrefix(tag, "kai_") {
+				if strings.HasPrefix(tag, "job_scheduler") || strings.HasPrefix(tag, "kai_") {
 					kaiTags = append(kaiTags, tag)
 				}
 			}
 			assert.ElementsMatch(t, expected, kaiTags, "tags of %s", entityID)
 		}
 	}
-	podLabelTags := []string{"kube_scheduler:kai", "kube_scheduler_queue:label-queue", "kai_queue:label-queue"}
+	podLabelTags := []string{"job_scheduler:kai", "job_scheduler_queue:label-queue", "kai_queue:label-queue"}
 	podGroupTags := func(queue string) []string {
 		return []string{
-			"kube_scheduler:kai", "kube_scheduler_queue:" + queue, "kai_queue:" + queue,
-			"kube_scheduler_workload:" + podGroupName, "kai_pod_group:" + podGroupName, "kai_team:ml",
+			"job_scheduler:kai", "job_scheduler_queue:" + queue, "kai_queue:" + queue,
+			"job_scheduler_workload:" + podGroupName, "kai_pod_group:" + podGroupName, "kai_team:ml",
 		}
 	}
 

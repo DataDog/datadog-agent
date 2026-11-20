@@ -1,5 +1,11 @@
 {
-  "source": "https://github.com/ddoghq/dd-source/blob/8d8ac212b4500f7f25c24023072e79f9b2178700/domains/redapl/shared/udm/specs/resources/generic/gpu_device.yaml",
+  "source": "dd-source commit e383684a690d5793950ff9c4c3dd884a8ee0c689 (verified locally; remote publication and deployment not verified)",
+  "schema_commit": "e383684a690d5793950ff9c4c3dd884a8ee0c689",
+  "schema_path": "domains/redapl/shared/udm/specs/resources/generic/gpu_device.yaml",
+  "schema_base_commit": "2e2b8eb3f9bb45453c9c9c1119a4180f5c168c58",
+  "schema_version_hash": "38e751c4c47a19b4",
+  "schema_changed_at": "2026-11-19T17:21:16Z",
+  "historical_source": "https://github.com/ddoghq/dd-source/blob/8d8ac212b4500f7f25c24023072e79f9b2178700/domains/redapl/shared/udm/specs/resources/generic/gpu_device.yaml",
   "resource_type": "gpu_device",
   "host_relationship": {
     "references": "host_v2",
@@ -76,7 +82,7 @@
     "gpu_fabric_clique_id": {
       "type": "int64"
     },
-    "nvlink_domain": {
+    "gpu_nvlink_partition": {
       "type": "string"
     },
     "nvlink_link_count": {
