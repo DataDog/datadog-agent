@@ -2448,18 +2448,18 @@ func TestKAIPodGroupTagsPropagateToPodAndContainer(t *testing.T) {
 			require.Contains(t, tagInfos, entityID)
 			var kaiTags []string
 			for _, tag := range append(tagInfos[entityID].LowCardTags, tagInfos[entityID].OrchestratorCardTags...) {
-				if strings.HasPrefix(tag, "kube_scheduler") || strings.HasPrefix(tag, "kai_") {
+				if strings.HasPrefix(tag, "job_scheduler") || strings.HasPrefix(tag, "kai_") {
 					kaiTags = append(kaiTags, tag)
 				}
 			}
 			assert.ElementsMatch(t, expected, kaiTags, "tags of %s", entityID)
 		}
 	}
-	podLabelTags := []string{"kube_scheduler:kai", "kube_scheduler_queue:label-queue", "kai_queue:label-queue"}
+	podLabelTags := []string{"job_scheduler:kai", "job_scheduler_queue:label-queue", "kai_queue:label-queue"}
 	podGroupTags := func(queue string) []string {
 		return []string{
-			"kube_scheduler:kai", "kube_scheduler_queue:" + queue, "kai_queue:" + queue,
-			"kube_scheduler_workload:" + podGroupName, "kai_pod_group:" + podGroupName, "kai_team:ml",
+			"job_scheduler:kai", "job_scheduler_queue:" + queue, "kai_queue:" + queue,
+			"job_scheduler_workload:" + podGroupName, "kai_pod_group:" + podGroupName, "kai_team:ml",
 		}
 	}
 
