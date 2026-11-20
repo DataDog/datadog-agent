@@ -904,24 +904,6 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			},
 		},
 		{
-			Name: "device_unhealthy_count",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-				if !env.IsFeaturePresent(env.KubernetesDevicePlugins) {
-					return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetUnhealthyDevices", nvml.ERROR_NOT_SUPPORTED)
-				}
-
-				gpu, err := deps.Workloadmeta.GetGPU(device.GetDeviceInfo().UUID)
-				if err != nil {
-					return nil, 0, err
-				}
-				var count float64
-				if !gpu.Healthy {
-					count = 1
-				}
-				return []Sample{&Metric{Name: "device.unhealthy", Value: count, Type: metrics.GaugeType}}, 0, nil
-			},
-		},
-		{
 			Name: "clock_throttle_reasons",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				reasons, err := device.GetCurrentClocksThrottleReasons()
