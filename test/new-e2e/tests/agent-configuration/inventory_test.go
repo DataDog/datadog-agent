@@ -41,6 +41,8 @@ func (v *inventoryAgentSuite) TestInventoryDefaultConfig() {
 	assert.Contains(v.T(), inventory, `"feature_cspm_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_cws_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_usm_enabled": false`)
+	assert.Contains(v.T(), inventory, `"feature_infra_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_autoscaling_cluster_enabled": false`)
 }
 
 func (v *inventoryAgentSuite) TestInventoryAllEnabled() {
@@ -58,6 +60,9 @@ network_path:
   remote_config:
     enabled: true
   connections_monitoring:
+    enabled: true
+autoscaling:
+  cluster:
     enabled: true`
 
 	systemProbeConfiguration := `runtime_security_config:
@@ -88,4 +93,6 @@ traceroute:
 	assert.Contains(v.T(), inventory, `"feature_cspm_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_cws_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_usm_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_infra_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_autoscaling_cluster_enabled": true`)
 }

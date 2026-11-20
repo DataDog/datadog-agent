@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"maps"
 	"net/http"
@@ -833,6 +834,26 @@ func TestFeatureInfraAndAutoscalingDefaults(t *testing.T) {
 	ia.fetchCoreAgentMetadata()
 	assert.Equal(t, true, ia.Get()["feature_infra_enabled"])
 	assert.Equal(t, false, ia.Get()["feature_autoscaling_cluster_enabled"])
+}
+
+// The backend derives these fields from full_configuration only when they are absent from the
+// payload, so they must be serialized even when false.
+func TestFeatureInfraAndAutoscalingSerializedWhenFalse(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{"enable_payloads.series": false}, nil)
+	ia.fetchCoreAgentMetadata()
+
+	raw, err := ia.data.GetPayload(nil, "test-uuid").MarshalJSON()
+	require.NoError(t, err)
+
+	var payload struct {
+		Metadata map[string]any `json:"agent_metadata"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &payload))
+	for _, key := range []string{"feature_infra_enabled", "feature_autoscaling_cluster_enabled"} {
+		value, ok := payload.Metadata[key]
+		require.True(t, ok, "%s missing from the serialized payload", key)
+		assert.Equal(t, false, value, key)
+	}
 }
 
 func TestFetchFleet(t *testing.T) {
