@@ -35,6 +35,10 @@ const (
 	maxStateSize = 4096
 )
 
+// errCorruptState is returned, wrapped, for a state file that is the installer's own but cannot be
+// parsed. Only RemoveExperiment, which settles the state file on the directories, recovers from it.
+var errCorruptState = errors.New("corrupt configuration state")
+
 // defaultStatePath is where the state file lives when Directories.StatePath is empty.
 var defaultStatePath = filepath.Join(paths.ConfigExperimentStatePath, StateFileName)
 
@@ -270,16 +274,24 @@ func (d *Directories) PromoteExperiment(ctx context.Context) error {
 
 // RemoveExperiment discards the deployed experiment, if any, and settles the state file on what
 // the directories hold, which also finishes a promote interrupted after its swap.
+//
+// A state file of the installer's own that cannot be parsed is replaced: nothing can be told from
+// it, and every other operation refuses it, so the experiment is discarded and the stable ID read
+// as on a host with no state file yet. A file that is not the installer's own is still refused.
 func (d *Directories) RemoveExperiment(_ context.Context) error {
 	recorded, settled, _, err := d.resolve()
-	if err != nil {
+	corrupt := errors.Is(err, errCorruptState)
+	if corrupt {
+		log.Warnf("discarding the configuration experiment and resetting its state: %v", err)
+		settled = configState{StableDeploymentID: d.legacyStableDeploymentID()}
+	} else if err != nil {
 		return err
 	}
 	if err := d.experimentLink().Rest(); err != nil {
 		return err
 	}
 	settled.Experiment = nil
-	if recorded.Experiment == nil && recorded.StableDeploymentID == settled.StableDeploymentID {
+	if !corrupt && recorded.Experiment == nil && recorded.StableDeploymentID == settled.StableDeploymentID {
 		// Nothing to change: a fresh install has no state file, and may have no state directory
 		// yet.
 		return nil
@@ -322,11 +334,11 @@ func (d *Directories) readState() (configState, error) {
 		return configState{}, fmt.Errorf("could not read the configuration state: %w", err)
 	}
 	if len(raw) > maxStateSize {
-		return configState{}, fmt.Errorf("refusing the configuration state %s: larger than %d bytes", path, maxStateSize)
+		return configState{}, fmt.Errorf("refusing the configuration state %s: larger than %d bytes: %w", path, maxStateSize, errCorruptState)
 	}
 	var state configState
 	if err := json.Unmarshal(raw, &state); err != nil {
-		return configState{}, fmt.Errorf("could not parse the configuration state: %w", err)
+		return configState{}, fmt.Errorf("could not parse the configuration state: %w: %w", errCorruptState, err)
 	}
 	return state, nil
 }

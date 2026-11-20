@@ -750,6 +750,27 @@ func TestReadStateRefusesWhatItShouldNotRead(t *testing.T) {
 	}
 }
 
+// TestRemoveExperimentResetsACorruptState pins the way out of a state file nothing can parse: every
+// other operation refuses it, and the stop or the reinstall's RemoveExperiment discards the
+// experiment and replaces the file. A file that is not the installer's own is still refused.
+func TestRemoveExperimentResetsACorruptState(t *testing.T) {
+	dirs := newTestDirectories(t)
+	require.NoError(t, dirs.WriteExperiment(context.Background(), mergePatch("experiment-1", `{"log_level":"debug"}`)))
+	require.NoError(t, os.WriteFile(dirs.StatePath, []byte("not json"), 0644))
+	_, err := dirs.GetState()
+	require.Error(t, err)
+
+	require.NoError(t, dirs.RemoveExperiment(context.Background()))
+
+	assertResting(t, dirs)
+	state, err := dirs.GetState()
+	require.NoError(t, err)
+	assert.Equal(t, State{}, state)
+
+	require.NoError(t, os.Chmod(dirs.StatePath, 0666))
+	assert.Error(t, dirs.RemoveExperiment(context.Background()), "a state file others can write must still be refused")
+}
+
 // TestReadStateRefusesAnotherOwner needs root: only root can create a file owned by another
 // account.
 func TestReadStateRefusesAnotherOwner(t *testing.T) {
