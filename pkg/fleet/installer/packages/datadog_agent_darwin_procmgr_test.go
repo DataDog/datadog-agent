@@ -40,9 +40,11 @@ func TestResolveProcmgrEnabled(t *testing.T) {
 		installSet bool
 		yaml       *string
 		missing    bool
+		unreadable bool
 		want       bool
 		source     string
 		wantWarn   bool
+		wantErr    bool
 	}{
 		{name: "nothing set", want: true, source: procmgrSourceDefault},
 		{name: "yaml flow false", yaml: strPtr("process_manager: {enabled: false}\n"), want: false, source: procmgrSourceDatadogYAML},
@@ -58,7 +60,8 @@ func TestResolveProcmgrEnabled(t *testing.T) {
 		{name: "yaml dotted null", yaml: strPtr("process_manager.enabled:\n"), want: true, source: procmgrSourceDefault},
 		{name: "yaml section without enabled keeps dotted false", yaml: strPtr("process_manager.enabled: false\nprocess_manager:\n  log_level: debug\n"), want: false, source: procmgrSourceDatadogYAML},
 		{name: "yaml duplicate enabled in one block", yaml: strPtr("process_manager:\n  enabled: true\n  enabled: false\n"), want: false, source: procmgrSourceDatadogYAML},
-		{name: "yaml scalar does not clear dotted false", yaml: strPtr("process_manager.enabled: false\nprocess_manager: true\n"), want: false, source: procmgrSourceDatadogYAML},
+		{name: "yaml scalar with dotted false is an error", yaml: strPtr("process_manager.enabled: false\nprocess_manager: true\n"), want: false, source: procmgrSourceDatadogYAML, wantErr: true},
+		{name: "yaml scalar with dotted true is an error", yaml: strPtr("process_manager.enabled: true\nprocess_manager: invalid\n"), want: false, source: procmgrSourceDatadogYAML, wantErr: true},
 		{name: "yaml top-level merge false", yaml: strPtr("defaults: &d\n  process_manager:\n    enabled: false\n<<: *d\n"), want: false, source: procmgrSourceDatadogYAML},
 		{name: "yaml nested merge false", yaml: strPtr("defaults: &d\n  enabled: false\nprocess_manager:\n  <<: *d\n"), want: false, source: procmgrSourceDatadogYAML},
 		{name: "yaml dotted last key wins", yaml: strPtr("process_manager.enabled: true\nprocess_manager.enabled: false\n"), want: false, source: procmgrSourceDatadogYAML},
@@ -71,12 +74,15 @@ func TestResolveProcmgrEnabled(t *testing.T) {
 		{name: "yaml unquoted no", yaml: strPtr("process_manager:\n  enabled: no\n"), want: false, source: procmgrSourceDatadogYAML},
 		{name: "yaml zero is off", yaml: strPtr("process_manager:\n  enabled: 0\n"), want: false, source: procmgrSourceDatadogYAML},
 		{name: "yaml quoted false", yaml: strPtr("process_manager:\n  enabled: \"false\"\n"), want: false, source: procmgrSourceDatadogYAML},
-		{name: "yaml quoted not a bool", yaml: strPtr("process_manager:\n  enabled: \"nope\"\n"), want: true, source: procmgrSourceDefault, wantWarn: true},
-		{name: "yaml scalar", yaml: strPtr("process_manager: true\n"), want: true, source: procmgrSourceDefault, wantWarn: true},
+		{name: "yaml quoted not a bool", yaml: strPtr("process_manager:\n  enabled: \"nope\"\n"), want: false, source: procmgrSourceDatadogYAML, wantErr: true},
+		{name: "yaml scalar", yaml: strPtr("process_manager: true\n"), want: false, source: procmgrSourceDatadogYAML, wantErr: true},
 		{name: "yaml last block wins", yaml: strPtr("process_manager:\n  enabled: true\nprocess_manager:\n  enabled: false\n"), want: false, source: procmgrSourceDatadogYAML},
 		{name: "yaml duplicate unrelated key", yaml: strPtr("api_key: a\napi_key: b\nprocess_manager:\n  enabled: false\n"), want: false, source: procmgrSourceDatadogYAML},
-		{name: "yaml unparsable", yaml: strPtr("process_manager: [\n"), want: true, source: procmgrSourceDefault, wantWarn: true},
+		{name: "yaml unparsable", yaml: strPtr("process_manager: [\n"), want: false, source: procmgrSourceDatadogYAML, wantErr: true},
+		{name: "yaml unreadable", unreadable: true, want: false, source: procmgrSourceDatadogYAML, wantErr: true},
 		{name: "missing file", missing: true, want: true, source: procmgrSourceDefault},
+		{name: "install script beats unparsable yaml", yaml: strPtr("process_manager: [\n"), install: "true", installSet: true, want: true, source: procmgrSourceInstallScript},
+		{name: "process env beats unparsable yaml", yaml: strPtr("process_manager: [\n"), process: "false", processSet: true, want: false, source: procmgrSourceEnvironment},
 		{name: "install script beats yaml", yaml: strPtr("process_manager:\n  enabled: true\n"), install: "false", installSet: true, want: false, source: procmgrSourceInstallScript},
 		{name: "install script true beats yaml false", yaml: strPtr("process_manager:\n  enabled: false\n"), install: "true", installSet: true, want: true, source: procmgrSourceInstallScript},
 		{name: "process env beats install script and yaml", yaml: strPtr("process_manager:\n  enabled: true\n"), install: "true", installSet: true, process: "false", processSet: true, want: false, source: procmgrSourceEnvironment},
@@ -90,11 +96,14 @@ func TestResolveProcmgrEnabled(t *testing.T) {
 			buf.Reset()
 			dir := t.TempDir()
 			path := filepath.Join(dir, "datadog.yaml")
-			if tt.missing {
+			switch {
+			case tt.unreadable:
+				require.NoError(t, os.Mkdir(path, 0o755))
+			case tt.missing:
 				path = filepath.Join(dir, "missing.yaml")
-			} else if tt.yaml != nil {
+			case tt.yaml != nil:
 				require.NoError(t, os.WriteFile(path, []byte(*tt.yaml), 0o644))
-			} else {
+			default:
 				path = filepath.Join(dir, "absent.yaml")
 			}
 			install := installEnv{}
@@ -108,8 +117,13 @@ func TestResolveProcmgrEnabled(t *testing.T) {
 				return "", false
 			}
 
-			enabled, source := resolveProcmgrEnabled(lookup, install, path)
+			enabled, source, resolveErr := resolveProcmgrEnabled(lookup, install, path)
 
+			if tt.wantErr {
+				require.Error(t, resolveErr)
+			} else {
+				require.NoError(t, resolveErr)
+			}
 			assert.Equal(t, tt.want, enabled)
 			assert.Equal(t, tt.source, source)
 			if tt.wantWarn {

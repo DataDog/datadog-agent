@@ -172,8 +172,9 @@ func postInstallDatadogAgent(ctx HookContext) error {
 // as a package, loading the stable job set, and installing the GUI LaunchAgents (startDMGGUI). If
 // it fails, the script fails the install. The catalog is written first, so dd-procmgrd reads it
 // when its job loads. A catalog write error is only logged. When process_manager.enabled is false,
-// com.datadoghq.procmgr and the catalog are removed instead, failing the hook if either remains, and
-// the other jobs still load.
+// or datadog.yaml cannot be read or parsed or its value is not a bool, com.datadoghq.procmgr and
+// the catalog are removed instead, failing the hook if either remains, and the other jobs still
+// load. That configuration failure also fails the hook, so a broken file cannot start dd-procmgrd.
 //
 // Every step runs even if an earlier one fails, and in this order so the installer daemon finds its
 // directories and the package registered when it starts: a failed registration only leaves Fleet
@@ -186,12 +187,18 @@ func postInstallDMG(ctx HookContext) error {
 	}
 	skip := map[string]bool{}
 	// Resolved after setUpDMGInstall, which restores datadog.yaml from the saved configuration on upgrade.
-	enabled, source := procmgrEnabled(os.LookupEnv, env, filepath.Join(defaultDmgLayout.confDir(), "datadog.yaml"))
+	enabled, source, resolveErr := procmgrEnabled(os.LookupEnv, env, filepath.Join(defaultDmgLayout.confDir(), "datadog.yaml"))
+	if resolveErr != nil {
+		errs = append(errs, fmt.Errorf("process_manager.enabled could not be read from %s: %w", source, resolveErr))
+		enabled = false
+	}
 	if span, ok := telemetry.SpanFromContext(ctx); ok {
 		span.SetTag("process_manager.enabled", enabled)
 		span.SetTag("process_manager.enabled_source", source)
 	}
-	log.Infof("process_manager.enabled is %t (from %s)", enabled, source)
+	if resolveErr == nil {
+		log.Infof("process_manager.enabled is %t (from %s)", enabled, source)
+	}
 	if enabled {
 		if err := writeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {
 			log.Warnf("failed to write the processes.d catalog: %v", err)
@@ -200,11 +207,23 @@ func postInstallDMG(ctx HookContext) error {
 		skip[procmgrLabel] = true
 		// dd-procmgrd runs as root, so the opt-out does not depend on the Agent's account.
 		if err := unloadStableJob(ctx, launchdClient(), procmgrLabel); err != nil {
-			errs = append(errs, fmt.Errorf("process_manager.enabled is false (from %s) but %s could not be fully removed: %w", source, procmgrLabel, err))
+			if resolveErr != nil {
+				errs = append(errs, fmt.Errorf("process_manager.enabled could not be read from %s and %s could not be fully removed: %w", source, procmgrLabel, err))
+			} else {
+				errs = append(errs, fmt.Errorf("process_manager.enabled is false (from %s) but %s could not be fully removed: %w", source, procmgrLabel, err))
+			}
 		} else {
-			log.Warnf("process_manager.enabled is false (from %s): %s is not loaded", source, procmgrLabel)
+			if resolveErr != nil {
+				log.Warnf("process_manager.enabled could not be read from %s: %s is not loaded", source, procmgrLabel)
+			} else {
+				log.Warnf("process_manager.enabled is false (from %s): %s is not loaded", source, procmgrLabel)
+			}
 			if err := removeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {
-				errs = append(errs, fmt.Errorf("process_manager.enabled is false (from %s) but the opt-out is incomplete: the processes.d catalog could not be removed: %w", source, err))
+				if resolveErr != nil {
+					errs = append(errs, fmt.Errorf("process_manager.enabled could not be read from %s and the processes.d catalog could not be removed: %w", source, err))
+				} else {
+					errs = append(errs, fmt.Errorf("process_manager.enabled is false (from %s) but the opt-out is incomplete: the processes.d catalog could not be removed: %w", source, err))
+				}
 			}
 		}
 	}

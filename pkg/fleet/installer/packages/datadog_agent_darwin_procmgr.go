@@ -8,6 +8,7 @@
 package packages
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -30,17 +31,23 @@ const (
 // procmgrEnabled is indirected so the hook tests do not depend on the host's environment or datadog.yaml.
 var procmgrEnabled = resolveProcmgrEnabled
 
-func resolveProcmgrEnabled(lookupEnv func(string) (string, bool), install installEnv, datadogYAML string) (enabled bool, source string) {
+func resolveProcmgrEnabled(lookupEnv func(string) (string, bool), install installEnv, datadogYAML string) (enabled bool, source string, err error) {
 	if enabled, ok := procmgrEnabledFromEnv(lookupEnv); ok {
-		return enabled, procmgrSourceEnvironment
+		return enabled, procmgrSourceEnvironment, nil
 	}
 	if enabled, ok := procmgrEnabledFromInstallScript(install); ok {
-		return enabled, procmgrSourceInstallScript
+		return enabled, procmgrSourceInstallScript, nil
 	}
-	if enabled, ok := procmgrEnabledFromYAML(datadogYAML); ok {
-		return enabled, procmgrSourceDatadogYAML
+	enabled, found, err := procmgrEnabledFromYAML(datadogYAML)
+	if err != nil {
+		// Fail closed: a file that cannot be read or parsed, or whose value is not
+		// a bool, may still contain an opt-out.
+		return false, procmgrSourceDatadogYAML, err
 	}
-	return true, procmgrSourceDefault
+	if found {
+		return enabled, procmgrSourceDatadogYAML, nil
+	}
+	return true, procmgrSourceDefault, nil
 }
 
 func procmgrEnabledFromEnv(lookupEnv func(string) (string, bool)) (bool, bool) {
@@ -71,30 +78,34 @@ func interpretProcmgrEnv(raw string) (bool, bool) {
 // same way as the Agent config loader: case is ignored, a dotted key is the same
 // setting as the nested mapping, and YAML merge keys are applied. A null value
 // does not clear the other form. When the two forms are both bools and disagree,
-// the installer keeps false and logs a warning.
-func procmgrEnabledFromYAML(path string) (bool, bool) {
+// the installer keeps false and logs a warning. A missing file is an absent
+// setting. A file that cannot be read or parsed, or a value that is not a bool,
+// is an error, so the caller can keep the process manager off.
+func procmgrEnabledFromYAML(path string) (enabled bool, found bool, err error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			log.Warnf("could not read %s: %v", path, err)
+		if os.IsNotExist(err) {
+			return false, false, nil
 		}
-		return false, false
+		return false, false, fmt.Errorf("could not read %s: %w", path, err)
 	}
 	// map[string]interface{} applies YAML merges. MapSlice keeps the "<<:" key
 	// literally, which would drop an opt-out inherited through a merge.
 	var root map[string]interface{}
 	if err := yaml.Unmarshal(data, &root); err != nil {
-		log.Warnf("could not parse %s: %v", path, err)
-		return false, false
+		return false, false, fmt.Errorf("could not parse %s: %w", path, err)
 	}
 	enabled, found, reason := procmgrEnabledInDocument(root)
+	if reason != "" && !found {
+		return false, false, fmt.Errorf("could not parse %s: %s", path, reason)
+	}
 	if reason != "" {
 		log.Warnf("could not parse %s: %s", path, reason)
 	}
 	if !found {
-		return false, false
+		return false, false, nil
 	}
-	return enabled, true
+	return enabled, true, nil
 }
 
 type procmgrFormValue struct {
@@ -144,14 +155,15 @@ func (forms *procmgrForms) add(value procmgrFormValue) {
 }
 
 func (forms procmgrForms) result() (enabled bool, found bool, reason string) {
+	// A malformed form wins over a valid bool: the malformed one may be the opt-out.
+	if forms.bad {
+		return false, false, "process_manager.enabled is not a bool"
+	}
 	if forms.conflict {
 		return false, true, "process_manager.enabled is both true and false"
 	}
 	if forms.sawBool {
 		return forms.enabled, true, ""
-	}
-	if forms.bad {
-		return false, false, "process_manager.enabled is not a bool"
 	}
 	return false, false, ""
 }

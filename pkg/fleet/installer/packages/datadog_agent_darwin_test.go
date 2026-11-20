@@ -148,8 +148,8 @@ func stubInstallerState(t *testing.T) string {
 	packagesRoot = root
 	ensureInstallerDataDir = func() error { return nil }
 	agentUserExists = func() bool { return true }
-	procmgrEnabled = func(func(string) (string, bool), installEnv, string) (bool, string) {
-		return true, procmgrSourceDefault
+	procmgrEnabled = func(func(string) (string, bool), installEnv, string) (bool, string, error) {
+		return true, procmgrSourceDefault, nil
 	}
 	t.Cleanup(func() {
 		packagesRoot, ensureInstallerDataDir, agentUserExists = originalRoot, originalEnsure, originalUserExists
@@ -922,8 +922,8 @@ func TestPreRemoveSucceedsWhenTheCatalogCannotBeRemoved(t *testing.T) {
 
 func stubProcmgrOff(t *testing.T) {
 	t.Helper()
-	procmgrEnabled = func(func(string) (string, bool), installEnv, string) (bool, string) {
-		return false, procmgrSourceDatadogYAML
+	procmgrEnabled = func(func(string) (string, bool), installEnv, string) (bool, string, error) {
+		return false, procmgrSourceDatadogYAML, nil
 	}
 }
 
@@ -1110,8 +1110,8 @@ func TestPostInstallDMGLoadsProcmgrAgainAfterAnOptOut(t *testing.T) {
 	ctx := dmgHookContext(t)
 	stubProcmgrOff(t)
 	require.NoError(t, postInstallDMG(ctx))
-	procmgrEnabled = func(func(string) (string, bool), installEnv, string) (bool, string) {
-		return true, procmgrSourceDefault
+	procmgrEnabled = func(func(string) (string, bool), installEnv, string) (bool, string, error) {
+		return true, procmgrSourceDefault, nil
 	}
 
 	require.NoError(t, postInstallDMG(ctx))
@@ -1211,4 +1211,40 @@ func TestPostInstallDMGOptOutIsIdempotent(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestPostInstallDMGOmitsProcmgrWhenDatadogYAMLIsBroken(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	procmgrEnabled = resolveProcmgrEnabled
+	t.Setenv(envProcessManagerEnabled, "")
+	logs := captureHookLog(t)
+	require.NoError(t, os.MkdirAll(defaultDmgLayout.savedConfDir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(defaultDmgLayout.savedConfDir(), "datadog.yaml"), []byte("process_manager: [\n"), 0o644))
+
+	err := postInstallDMG(testHookContext(t))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not be read")
+	assert.Contains(t, logs.String(), "process_manager.enabled could not be read from datadog.yaml: com.datadoghq.procmgr is not loaded")
+	assert.NotContains(t, logs.String(), "is false")
+	assertProcmgrOmitted(t, *calls, dir)
+}
+
+func TestPostInstallDMGInstallScriptOverridesABrokenDatadogYAML(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	procmgrEnabled = resolveProcmgrEnabled
+	t.Setenv(envProcessManagerEnabled, "")
+	require.NoError(t, os.MkdirAll(defaultDmgLayout.stagingDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(defaultDmgLayout.stagingDir, "env"), []byte(envProcessManagerEnabled+"=true\n"), 0o600))
+	require.NoError(t, os.MkdirAll(defaultDmgLayout.savedConfDir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(defaultDmgLayout.savedConfDir(), "datadog.yaml"), []byte("process_manager: [\n"), 0o644))
+
+	require.NoError(t, postInstallDMG(testHookContext(t)))
+
+	assert.FileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
+	assert.Contains(t, *calls, []string{"bootstrap", "system", filepath.Join(dir, procmgrLabel+".plist")})
 }
