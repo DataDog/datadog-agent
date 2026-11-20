@@ -133,7 +133,8 @@ func WithGetTimeout(timeout time.Duration) Option {
 }
 
 // WithHTTPTransport sets the transport of every request to fakeintake, for instance one dialing an in-memory listener
-// given to the server with server.WithListener.
+// given to the server with server.WithListener. The Remote Config and Private Action Runner control requests then use
+// the timeout set with WithGetTimeout too, rather than none as with http.DefaultClient.
 func WithHTTPTransport(transport http.RoundTripper) Option {
 	return func(c *Client) {
 		c.httpClient.Transport = transport

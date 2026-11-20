@@ -206,7 +206,8 @@ func WithAddress(addr string) Option {
 // WithListener makes the server accept connections from the given listener rather than listening on its address,
 // for instance an in-memory listener for a test running in a testing/synctest bubble, where network I/O must be faked.
 // url is the HTTP origin the clients reach the listener at, e.g. http://fakeintake.test, as a listener address isn't
-// always one. The listener is closed when the server stops.
+// always one: when empty, it is built from the listener address. The listener takes precedence over the address set
+// with WithAddress or WithPort, and is closed when the server stops.
 func WithListener(listener net.Listener, url string) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
@@ -214,7 +215,7 @@ func WithListener(listener net.Listener, url string) Option {
 			return
 		}
 		fi.listener = listener
-		fi.listenerURL = url
+		fi.listenerURL = strings.TrimSuffix(url, "/")
 	}
 }
 
@@ -343,13 +344,10 @@ func (fi *Server) Stop() error {
 	err := fi.server.Shutdown(context.Background())
 	// stop the background routines, including a listen routine still notifying its readiness
 	close(fi.shutdown)
-	if err != nil {
-		return err
-	}
 	// Serve may only start after Shutdown, as readiness is notified before: wait for the listen routine to return, as
 	// it closes the listener, so the listener is closed once Stop returns
 	<-fi.served
-	return nil
+	return err
 }
 
 // listenRoutine serves the requests until the server stops, then closes served
@@ -366,8 +364,8 @@ func (fi *Server) listenRoutine(served chan struct{}) {
 			log.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
 
 			if fi.ready != nil {
-				// like the readiness below, give up on a notification nobody reads once the server stops, as Stop
-				// waits for this routine
+				// after overlapping Start calls, another routine may run the server: like the readiness below, give
+				// up on a notification nobody reads once that server stops, as Stop waits for this routine
 				select {
 				case fi.ready <- false:
 				case <-fi.shutdown:
@@ -376,6 +374,9 @@ func (fi *Server) listenRoutine(served chan struct{}) {
 
 			return
 		}
+		url = "http://" + listener.Addr().String()
+	}
+	if url == "" {
 		url = "http://" + listener.Addr().String()
 	}
 	fi.setURL(url)
