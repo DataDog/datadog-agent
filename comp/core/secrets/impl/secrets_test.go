@@ -1604,6 +1604,7 @@ func TestRefreshOutputAdditionalEndpoints(t *testing.T) {
 		return secretValues, nil
 	}
 
+	// Match the E2E fixture, including a slash-containing endpoint key, to cover refresh path formatting.
 	conf := `api_key: ENC[api_key]
 additional_endpoints:
   "intake":
@@ -1625,12 +1626,14 @@ additional_endpoints:
 	res, err := resolver.RefreshNow()
 	require.NoError(t, err)
 	res = strings.ReplaceAll(res, "\r", "") // templates use OS line breaks, removes \r line breaks from windows
-	assert.Contains(t, res, "Number of secrets reloaded: 4")
-	assert.Contains(t, res, "Secrets handle reloaded:")
-	assert.Contains(t, res, "- 'api_key':\n\tused in 'datadog.yaml' configuration in entry 'api_key'")
-	assert.Contains(t, res, "- 'apikey2':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/intake/0'")
-	assert.Contains(t, res, "- 'apikey3':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/intake/1'")
-	assert.Contains(t, res, "- 'apikey4':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/api/v2/series/0'")
+	expected := "=== Secret stats ===\n" +
+		"Number of secrets reloaded: 4\n" +
+		"Secrets handle reloaded:\n\n" +
+		"- 'api_key':\n\tused in 'datadog.yaml' configuration in entry 'api_key'\n" +
+		"- 'apikey2':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/intake/0'\n" +
+		"- 'apikey3':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/intake/1'\n" +
+		"- 'apikey4':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/api/v2/series/0'\n"
+	assert.Equal(t, expected, res)
 }
 
 func TestResolveNoNotify(t *testing.T) {
