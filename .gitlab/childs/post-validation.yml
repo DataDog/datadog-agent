@@ -1,5 +1,6 @@
 ---
 include:
+  - local: .gitlab/common/checkout.yml
   - local: .gitlab/.pre/common/shared.yml
 
 workflow:
@@ -25,10 +26,6 @@ default:
 
 stages:
   - post_validation
-
-variables:
-  GIT_DEPTH: $POST_VALIDATION_GIT_DEPTH
-  GIT_STRATEGY: $POST_VALIDATION_GIT_STRATEGY
 
 jev-dyntest-evaluate:
   extends: .dd_octo_sts

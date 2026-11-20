@@ -36,9 +36,6 @@ post-validation:
     POST_VALIDATION_PARENT_TAG: $CI_COMMIT_TAG
     POST_VALIDATION_CLEANUP_ENABLED: "true"
     DDCI_REQUEST_ID: $DDCI_REQUEST_ID
-    # Keep these as child YAML defaults so Jev can override them per job.
-    POST_VALIDATION_GIT_DEPTH: !reference [variables, GIT_DEPTH]
-    POST_VALIDATION_GIT_STRATEGY: !reference [variables, GIT_STRATEGY]
   trigger:
     include:
       - local: .gitlab/childs/post-validation.yml

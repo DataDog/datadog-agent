@@ -1077,8 +1077,11 @@ def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_
     # Merge all files
     if return_config:
         full_configuration = {}
-        for yaml_file in includes:
-            full_configuration.update(yaml_file)
+        for config in includes:
+            # Later variable definitions override earlier defaults without dropping other keys.
+            if isinstance(full_configuration.get('variables'), dict) and isinstance(config.get('variables'), dict):
+                config = config | {'variables': full_configuration['variables'] | config['variables']}
+            full_configuration.update(config)
 
         return full_configuration
 

@@ -107,6 +107,26 @@ class TestChildLintContext(unittest.TestCase):
 
 
 class TestReadIncludes(unittest.TestCase):
+    @patch("tasks.libs.ciproviders.gitlab_api.read_content")
+    def test_merged_variables_preserve_defaults_and_later_overrides(self, read):
+        configs = {
+            "defaults.yml": {"variables": {"GIT_DEPTH": 1, "GIT_STRATEGY": "fetch"}},
+            "overrides.yml": {"variables": {"GIT_DEPTH": 2}},
+            "pipeline.yml": {"variables": {"GIT_DEPTH": 3, "OTHER": "value"}},
+        }
+        read.side_effect = lambda _, path, **kwargs: configs[path]
+        includes = []
+        config = read_includes(
+            MockContext(),
+            ["defaults.yml", "overrides.yml", "pipeline.yml"],
+            includes,
+            return_config=True,
+        )
+        self.assertEqual(config["variables"], {"GIT_DEPTH": 3, "GIT_STRATEGY": "fetch", "OTHER": "value"})
+        self.assertEqual(includes, list(configs.values()))
+        self.assertEqual(configs["defaults.yml"]["variables"], {"GIT_DEPTH": 1, "GIT_STRATEGY": "fetch"})
+        self.assertEqual(configs["overrides.yml"]["variables"], {"GIT_DEPTH": 2})
+
     def test_with_includes(self):
         includes = []
         read_includes(MockContext(), "tasks/unit_tests/testdata/in.yml", includes)
