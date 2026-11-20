@@ -240,8 +240,8 @@ func experimentConfigDeployed() bool {
 // When the lock itself cannot be taken, for any reason other than a running command, no installer
 // command can run either, so the last attempt reverts without it.
 //
-// A watcher stopped on purpose (ctx cancelled: the resume step replacing it) reverts nothing.
-// Whatever this cannot revert is left to the next daemon start (resumeConfigExperimentDatadogAgent).
+// A watcher stopped on purpose (ctx cancelled: a daemon start replacing it) reverts nothing.
+// Whatever this cannot revert is left to the next stable daemon start (settleConfigExperiment).
 func failSafeRevert(ctx context.Context, deadline launchd.Deadline, token string, cause error) error {
 	log.Errorf("watcher: cannot keep supervising the configuration experiment, reverting it: %v", cause)
 	stillOurs := func() (bool, error) {
@@ -266,7 +266,7 @@ func failSafeRevert(ctx context.Context, deadline launchd.Deadline, token string
 			return false, nil
 		}
 		log.Warnf("watcher: reverting configuration experiment: %v", cause)
-		return true, revertExperiment(ctx, configExperimentJobSet())
+		return true, revertExperiment(ctx, configExperiment{jobs: configExperimentJobSet()})
 	}
 
 	var err error
@@ -402,8 +402,7 @@ func exitedCleanly(status int) bool {
 // revertFromWatcher is revertExperimentIfStillPending for the detached watcher. It first takes the
 // lock every installer command holds for its whole run, so the deadline it re-reads can't be
 // cleared, and the directories it discards can't be swapped, by a stop or promote running at the
-// same time. The resume hook calls revertExperimentIfStillPending directly: it runs inside an
-// installer command that already holds the lock.
+// same time.
 func revertFromWatcher(ctx context.Context, deadline launchd.Deadline, token string, reason string) (bool, error) {
 	lock, ok, err := waitForInstaller(ctx, deadline, token)
 	if err != nil || !ok {
@@ -450,7 +449,7 @@ func revertExperimentIfStillPending(ctx context.Context, jobs launchd.JobSet, de
 		return false, nil
 	}
 	log.Warnf("watcher: reverting configuration experiment: %s", reason)
-	if err := revertExperiment(ctx, jobs); err != nil {
+	if err := revertExperiment(ctx, configExperiment{jobs: jobs}); err != nil {
 		return false, fmt.Errorf("watcher: %w", err)
 	}
 	return true, nil
@@ -461,20 +460,20 @@ func revertExperimentIfStillPending(ctx context.Context, jobs launchd.JobSet, de
 // reporting the experiment, with the stable daemon's config_id as the running configuration, so
 // Fleet's health check rolls it back.
 //
-// The watcher reverts every job (configExperimentJobSet). The resume hook, run by the stable
-// daemon, reverts the agent jobs only (see resumeConfigExperimentDatadogAgent).
+// The watcher reverts every job (configExperimentJobSet). The stable daemon settling the host
+// reverts the agent jobs only (see settleConfigExperiment).
 //
 // An experiment whose configuration is no longer deployed while its deadline is still pending is a
 // promote whose hook never ran: the configuration was promoted, the jobs were not handed back. It is
 // finished as a promote, so the process manager is restarted onto the promoted configuration.
-func revertExperiment(ctx context.Context, jobs launchd.JobSet) error {
+func revertExperiment(ctx context.Context, e configExperiment) error {
 	if !experimentConfigDeployed() {
-		if err := (configExperiment{jobs: jobs}).Promote(context.WithoutCancel(ctx)); err != nil {
+		if err := e.Promote(context.WithoutCancel(ctx)); err != nil {
 			return fmt.Errorf("could not finish the promoted experiment: %w", err)
 		}
 		return discardExperimentConfig(ctx)
 	}
-	if err := (configExperiment{jobs: jobs}).Fail(context.WithoutCancel(ctx)); err != nil {
+	if err := e.Fail(context.WithoutCancel(ctx)); err != nil {
 		return fmt.Errorf("could not revert experiment: %w", err)
 	}
 	return nil
@@ -484,8 +483,8 @@ func revertExperiment(ctx context.Context, jobs launchd.JobSet) error {
 // configuration, leaving the host as if no experiment had ever been started. It is for an
 // experiment whose start fails, or that nothing will ever report or stop: the installer does not
 // discard what it published when a start fails.
-func revertAndDiscardExperiment(ctx context.Context, jobs launchd.JobSet) error {
-	if err := (configExperiment{jobs: jobs}).Stop(context.WithoutCancel(ctx)); err != nil {
+func revertAndDiscardExperiment(ctx context.Context, e configExperiment) error {
+	if err := e.Stop(context.WithoutCancel(ctx)); err != nil {
 		return fmt.Errorf("could not revert experiment: %w", err)
 	}
 	return discardExperimentConfig(ctx)
