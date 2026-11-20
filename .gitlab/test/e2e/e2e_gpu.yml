@@ -53,4 +53,5 @@ new-e2e-gpu-mokka:
     matrix:
       - EXTRA_PARAMS: "--run TestGPUMokkaK8sSuite"
       - EXTRA_PARAMS: "--run TestGPUMokkaKAISuite" # KAI Scheduler tagging on GPUs simulated by Mokka
+      - EXTRA_PARAMS: "--run TestGPUMokkaKueueSuite" # Kueue tagging on GPUs simulated by Mokka
   retry: !reference [.retry_only_infra_failure, retry]
