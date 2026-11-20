@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -62,28 +63,41 @@ var installerLockPoll = time.Minute
 //     experiment job once the start command has exited, and arms on the experiment daemon too.
 //   - W2 is launched as the experiment daemon starts, by its job definition
 //     (startSupervisorRelay, com.datadoghq.installer.plist.tmpl). It arms on every experiment job,
-//     then tells W1 over the supervisor socket (config_experiment_supervisor_darwin.go), which stops
-//     listening and exits. Should W1 be gone already, W2 takes over on its own; should W2 never come,
-//     W1 goes on supervising alone.
+//     then stops every other watcher (stopOtherWatchers): W1, and any left from an earlier
+//     experiment. A watcher keeps running for its signal grace after SIGTERM, so for a few seconds
+//     both supervise.
 //
 // Which one a process is follows from the host: the experiment daemon running means this process is
-// W2. Whichever supervises, it ends the experiment the same way:
+// W2. Each failure has a single owner, so the two never race to revert the same experiment
+// (experimentSupervisor.owns):
+//
+//   - W1 owns the experiment daemon's exit for as long as it runs, and every other failure only
+//     while no other watcher runs: before W2 starts, when W2 never starts, or once W2 is gone.
+//   - W2 owns every failure, and the hand-back, except the experiment daemon's exit while W1 still
+//     runs.
+//
+// A failure a watcher does not own is deferred rather than dropped (deferFailure): the watcher waits
+// for the owner to end the experiment, and acts itself if the owner goes away first.
+//
+// Whichever supervises, it ends the experiment the same way:
 //
 //   - an experiment job exiting in a way that fails the experiment (exitFailsExperiment), or the
 //     deadline expiring, reverts every job, the daemon included (revertFromWatcher);
 //   - a stop or promote replaces the deadline with the reverting marker, hands the Agent back from
-//     its hook, clears the deadline, and sends "end": the supervisor waits for the hook's command to
-//     exit and hands the installer daemon back (handBackInstaller);
+//     its hook and clears the deadline; the supervisor sees the deadline change, waits for the
+//     hook's command to exit and hands the installer daemon back (handBackInstaller);
 //   - a stop or promote whose command died partway, leaving the reverting marker, is finished from
 //     here, once that command has released the installer lock (finishUnlessEnded).
 //
-// Every decision re-reads the deadline file, which stays the only source of truth; the socket only
-// makes the supervisor act at once instead of on its next tick. Every revert takes the lock every
-// installer command holds for its whole run, and re-checks the deadline under it.
+// The deadline file is the only coordination point: the supervisor re-reads it on every change to
+// its directory (watchExperimentState) and on a slower tick, and every revert takes the lock every
+// installer command holds for its whole run and re-checks the deadline under it. That lock also
+// keeps a misjudged ownership harmless: a second revert finds the deadline changed and does nothing.
 //
 // It fails safe: once the experiment is known to be running, any failure that keeps this process
 // from supervising it -- launchctl, the exit observers, the installer lock, the deadline file --
-// reverts the experiment rather than leaving it running with nothing watching (failSafeRevert).
+// reverts the experiment rather than leaving it running with nothing watching (failSafeRevert),
+// unless another watcher is supervising it.
 func watchExperiment(ctx context.Context) error {
 	deadline := experimentDeadline()
 
@@ -101,8 +115,11 @@ func watchExperiment(ctx context.Context) error {
 		return failSafeRevert(ctx, deadline, token, fmt.Errorf("watcher: could not tell which daemon runs: %w", err))
 	}
 	s := &experimentSupervisor{deadline: deadline, token: token, pids: map[int]string{}, handOver: make(chan handOverResult, 1)}
-	defer s.release()
 	if successor {
+		s.role = secondWatcher
+	}
+	defer s.release()
+	if s.role == secondWatcher {
 		err = s.takeOver(ctx)
 	} else {
 		err = s.lead(ctx)
@@ -111,6 +128,10 @@ func watchExperiment(ctx context.Context) error {
 		err = s.run(ctx)
 	}
 	if err != nil {
+		if running, lookupErr := watcherRunning(ctx); lookupErr == nil && running {
+			log.Warnf("watcher: cannot keep supervising, leaving the experiment to the other watcher: %v", err)
+			return nil
+		}
 		return failSafeRevert(ctx, deadline, token, err)
 	}
 	return nil
@@ -126,11 +147,26 @@ var experimentDaemonRunning = func(ctx context.Context) (bool, error) {
 	return status.PID != 0, nil
 }
 
-// experimentSupervisor is the state of the watcher that supervises an experiment.
+// watcherOverlap bounds how long W1 defers a failure it does not own to W2 before acting itself: the
+// grace a watcher gets after SIGTERM, after which W1 is gone anyway. A var so tests can shorten it.
+var watcherOverlap = 10 * time.Second
+
+// deferPoll is how often a deferring watcher checks on the other one. A var so tests can shorten it.
+var deferPoll = 200 * time.Millisecond
+
+// supervisorRole tells the watcher the start hook launched from the one the experiment daemon did.
+type supervisorRole int
+
+const (
+	firstWatcher supervisorRole = iota
+	secondWatcher
+)
+
+// experimentSupervisor is the state of a watcher that supervises an experiment.
 type experimentSupervisor struct {
 	deadline launchd.Deadline
 	token    string
-	listener *supervisorListener
+	role     supervisorRole
 
 	// mu keeps the hand-over's daemon swap and every revert or hand-back from running at once.
 	mu sync.Mutex
@@ -144,6 +180,13 @@ type experimentSupervisor struct {
 	agentArmed, daemonArmed         int
 	agentDelivered, daemonDelivered int
 
+	// stateChanges delivers a change to the deadline's directory; stopStateWatch ends the watch.
+	stateChanges   <-chan struct{}
+	stopStateWatch func()
+
+	// predecessorGone is set once W2 has stopped every other watcher.
+	predecessorGone atomic.Bool
+
 	// handOver delivers W1's hand-over outcome.
 	handOver chan handOverResult
 	// finished is set once the experiment has been ended from here, and nothing is left to supervise.
@@ -156,7 +199,7 @@ type handOverResult struct {
 	// over means the experiment ended during the hand-over, and the hand-over ended it.
 	over bool
 	// ended means the experiment was stopped or promoted before the swap: the daemon was not
-	// handed over, and the stop's "end", or the next tick, finishes it.
+	// handed over, and the next deadline check finishes it.
 	ended bool
 	// daemonGone means the experiment daemon was swapped in but exited before it could be armed on.
 	daemonGone bool
@@ -166,9 +209,11 @@ type handOverResult struct {
 	pid      int
 }
 
-// release stops listening and disarms the exit observers.
+// release stops watching the deadline's directory and disarms the exit observers.
 func (s *experimentSupervisor) release() {
-	s.listener.close()
+	if s.stopStateWatch != nil {
+		s.stopStateWatch()
+	}
 	for _, observer := range []*launchd.ExitObserver{s.agentObserver, s.daemonObserver} {
 		if observer == nil {
 			continue
@@ -179,23 +224,15 @@ func (s *experimentSupervisor) release() {
 	}
 }
 
-// listen starts listening on the supervisor socket. Not being able to only costs the shortcut: the
-// deadline tick still sees a stop or promote end, and the hooks fall back to launching the
-// hand-back.
-func (s *experimentSupervisor) listen(ctx context.Context) {
-	for attempt := 0; ; attempt++ {
-		listener, err := listenSupervisor()
-		if err == nil {
-			s.listener = listener
-			return
-		}
-		if attempt >= 20 || ctx.Err() != nil {
-			log.Warnf("watcher: supervising without the supervisor socket: %v", err)
-			return
-		}
-		// W1 stops listening just before it acks the handshake: retry briefly.
-		time.Sleep(100 * time.Millisecond)
+// watchState starts watching the deadline's directory. Not being able to only costs the shortcut:
+// the deadline tick still sees every change.
+func (s *experimentSupervisor) watchState() {
+	changes, stop, err := watchExperimentState()
+	if err != nil {
+		log.Warnf("watcher: supervising on the deadline tick only: %v", err)
+		return
 	}
+	s.stateChanges, s.stopStateWatch = changes, stop
 }
 
 // arm resolves and arms an exit observer on every experiment job of jobs. It reports a job that
@@ -225,15 +262,14 @@ func (s *experimentSupervisor) arm(ctx context.Context, jobs launchd.JobSet) (*l
 	return observer, exits, len(pids), "", nil
 }
 
-// lead is W1's start: listen, arm on the agent experiment jobs, and hand the installer daemon over
-// in the background, so a crash is caught while the hand-over waits for the start command.
+// lead is W1's start: arm on the agent experiment jobs, and hand the installer daemon over in the
+// background, so a crash is caught while the hand-over waits for the start command.
 func (s *experimentSupervisor) lead(ctx context.Context) error {
-	// A watcher an earlier experiment left behind would otherwise hold the socket and act on this
-	// experiment's stop. W2 never does this: it would stop W1.
+	// A watcher an earlier experiment left behind would otherwise act on this experiment's end. W2
+	// stops other watchers too, but only once the experiment daemon is up.
 	if err := stopSurvivingWatchers(ctx); err != nil {
 		log.Warnf("watcher: could not stop a previous watcher, supervising anyway: %v", err)
 	}
-	s.listen(ctx)
 	observer, exits, armed, reason, err := s.arm(ctx, agentJobSet())
 	if err != nil {
 		return err
@@ -242,6 +278,7 @@ func (s *experimentSupervisor) lead(ctx context.Context) error {
 		return s.endWithFailure(ctx, reason)
 	}
 	s.agentObserver, s.agentExits, s.agentArmed = observer, exits, armed
+	s.watchState()
 	go func() { s.handOver <- s.handOverInstaller(ctx) }()
 	return nil
 }
@@ -330,7 +367,9 @@ func (s *experimentSupervisor) handOverInstaller(ctx context.Context) handOverRe
 	return handOverResult{observer: observer, exits: exits, pid: pid}
 }
 
-// takeOver is W2's start: arm on every experiment job, then take supervision over from W1.
+// takeOver is W2's start: arm on every experiment job, then stop every other watcher, W1 included.
+// The stop runs in the background: W1 keeps supervising for its signal grace, and owns the
+// experiment daemon's exit until it is gone.
 func (s *experimentSupervisor) takeOver(ctx context.Context) error {
 	observer, exits, armed, reason, err := s.arm(ctx, configExperimentJobSet())
 	if err != nil {
@@ -340,32 +379,66 @@ func (s *experimentSupervisor) takeOver(ctx context.Context) error {
 		return s.endWithFailure(ctx, reason)
 	}
 	s.agentObserver, s.agentExits, s.agentArmed = observer, exits, armed
-
-	answer, err := askSupervisor(supervisorMsgArmed+" "+s.token, supervisorHandshakeTimeout)
-	switch {
-	case errors.Is(err, errNoSupervisor):
-		log.Infof("watcher: no watcher supervises the experiment, taking over")
-	case err != nil:
-		if supervisorListening() {
-			// W1 is alive but did not answer in time: it goes on supervising alone. It only exits
-			// once its ack is written, so an ack this process gave up on keeps it supervising.
-			log.Warnf("watcher: the supervising watcher did not answer, leaving the experiment to it: %v", err)
-			s.finished = true
-			return nil
+	s.watchState()
+	go func() {
+		if err := stopOtherWatchers(ctx); err != nil {
+			log.Warnf("watcher: could not stop the other watchers: %v", err)
 		}
-		log.Infof("watcher: the supervising watcher went away during the handshake, taking over")
-	case answer == supervisorReplyAck:
-		log.Infof("watcher: took supervision over from the watcher the start hook launched")
-	default:
-		log.Infof("watcher: the supervising watcher refused the handshake (%s), exiting", answer)
-		s.finished = true
-		return nil
-	}
-	s.listen(ctx)
+		s.predecessorGone.Store(true)
+	}()
+	log.Infof("watcher: took supervision over from the watcher the start hook launched")
 	return nil
 }
 
-// run is the supervisor's main loop, until the experiment ends or supervision passes on.
+// owns reports whether this watcher acts on a failure of the job label, without its variant suffix;
+// "" stands for a failure no job reported, like the deadline expiring. See watchExperiment.
+func (s *experimentSupervisor) owns(ctx context.Context, label string) bool {
+	if s.role == secondWatcher {
+		if label != installerJob || s.predecessorGone.Load() {
+			return true
+		}
+		running, err := watcherRunning(ctx)
+		return err != nil || !running
+	}
+	if label == installerJob {
+		return true
+	}
+	running, err := watcherRunning(ctx)
+	return err != nil || !running
+}
+
+// deferFailure leaves a failure this watcher does not own to the other watcher: it waits, for as
+// long as the other watcher can take to act, for the experiment to end, and acts itself once the
+// other watcher is gone and the experiment is still this one. It reports whether the experiment was
+// ended from here.
+func (s *experimentSupervisor) deferFailure(ctx context.Context, label, reason string) (bool, error) {
+	wait := watcherOverlap
+	if s.role == secondWatcher {
+		wait = watcherStopTimeout
+	}
+	giveUp := time.Now().Add(wait)
+	for time.Now().Before(giveUp) {
+		current, err := s.deadline.Read()
+		if err != nil {
+			return false, fmt.Errorf("watcher: could not read experiment deadline: %w", err)
+		}
+		if current != s.token {
+			// The owner ended it, or a stop or promote is under way: the next check decides.
+			return false, nil
+		}
+		if s.owns(ctx, label) {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return false, nil
+		case <-time.After(deferPoll):
+		}
+	}
+	return s.onFailingExit(ctx, reason)
+}
+
+// run is the supervisor's main loop, until the experiment ends.
 func (s *experimentSupervisor) run(ctx context.Context) error {
 	ticker := time.NewTicker(deadlineTickInterval)
 	defer ticker.Stop()
@@ -373,11 +446,6 @@ func (s *experimentSupervisor) run(ctx context.Context) error {
 	readFailures := 0
 	revertingTicks := 0
 	for {
-		// Read again on every turn: a handshake whose ack could not be written listens anew.
-		var requests <-chan supervisorRequest
-		if s.listener != nil {
-			requests = s.listener.requests
-		}
 		select {
 		case <-ctx.Done():
 			return nil
@@ -424,59 +492,63 @@ func (s *experimentSupervisor) run(ctx context.Context) error {
 			}
 			s.daemonObserver, s.daemonExits, s.daemonArmed = result.observer, result.exits, 1
 			s.pids[result.pid] = installerJob
-		case request := <-requests:
-			switch request.kind {
-			case supervisorMsgEnd:
-				return s.handBack(ctx)
-			case supervisorMsgArmed:
-				if s.handOff(ctx, request) {
-					return nil
-				}
+		case <-s.stateChanges:
+			if done, err := s.onDeadline(ctx, false, &readFailures, &revertingTicks); done || err != nil {
+				return err
 			}
 		case <-ticker.C:
-			current, err := s.deadline.Read()
-			if err != nil {
-				readFailures++
-				if readFailures >= watcherDeadlineReadFailures {
-					return fmt.Errorf("watcher: could not read experiment deadline %d times in a row: %w", readFailures, err)
-				}
-				log.Errorf("watcher: could not read experiment deadline: %v", err)
-				continue
-			}
-			readFailures = 0
-			switch current {
-			case s.token:
-				revertingTicks = 0
-				done, err := s.checkDeadline(ctx, &readFailures)
-				if done || err != nil {
-					return err
-				}
-			case launchd.DeadlineReverting:
-				// A stop or promote under way, or one whose command died partway. Seen on two ticks
-				// in a row, it is finished from here once no command holds the lock.
-				revertingTicks++
-				if revertingTicks < 2 {
-					continue
-				}
-				done, err := s.finishUnlessEnded(ctx, "a stop or promote left the jobs half handed back")
-				if done || err != nil {
-					return err
-				}
-			case "":
-				// A stop or promote finished handing the Agent back, and its "end" did not reach
-				// this process: hand the daemon back now.
-				return s.handBack(ctx)
-			default:
-				// Failed from elsewhere, or replaced by a newer experiment with its own watcher.
-				return nil
+			if done, err := s.onDeadline(ctx, true, &readFailures, &revertingTicks); done || err != nil {
+				return err
 			}
 		}
 	}
 }
 
-// checkDeadline acts on a tick that found the deadline still this experiment's: an expired deadline
-// reverts the experiment, and so does a configuration promoted by a promote whose hook never handed
-// the jobs back.
+// onDeadline acts on the deadline file, on every tick and on every change to its directory. It
+// reports whether supervision is over.
+func (s *experimentSupervisor) onDeadline(ctx context.Context, tick bool, readFailures, revertingTicks *int) (bool, error) {
+	current, err := s.deadline.Read()
+	if err != nil {
+		*readFailures++
+		if *readFailures >= watcherDeadlineReadFailures {
+			return false, fmt.Errorf("watcher: could not read experiment deadline %d times in a row: %w", *readFailures, err)
+		}
+		log.Errorf("watcher: could not read experiment deadline: %v", err)
+		return false, nil
+	}
+	*readFailures = 0
+	switch current {
+	case s.token:
+		*revertingTicks = 0
+		return s.checkDeadline(ctx, readFailures)
+	case launchd.DeadlineReverting:
+		// A stop or promote under way, or one whose command died partway. Seen on two ticks in a
+		// row, it is finished from here once no command holds the lock. A change to the directory
+		// alone is the hook at work, and is left to it.
+		if !tick {
+			return false, nil
+		}
+		*revertingTicks++
+		if *revertingTicks < 2 || !s.owns(ctx, "") {
+			return false, nil
+		}
+		return s.finishUnlessEnded(ctx, "a stop or promote left the jobs half handed back")
+	case "":
+		// A stop or promote finished handing the Agent back: hand the daemon back once its command
+		// has exited, unless the other watcher owns that.
+		if !s.owns(ctx, "") {
+			return false, nil
+		}
+		return true, s.handBack(ctx)
+	default:
+		// Failed from elsewhere, or replaced by a newer experiment with its own watcher.
+		return true, nil
+	}
+}
+
+// checkDeadline acts on a deadline still this experiment's: an expired deadline reverts the
+// experiment, and so does a configuration promoted by a promote whose hook never handed the jobs
+// back.
 func (s *experimentSupervisor) checkDeadline(ctx context.Context, readFailures *int) (bool, error) {
 	expired, err := s.deadline.Expired(configExperimentDeadlineWindow)
 	if err != nil {
@@ -487,33 +559,44 @@ func (s *experimentSupervisor) checkDeadline(ctx context.Context, readFailures *
 		log.Errorf("watcher: could not check experiment deadline: %v", err)
 		return false, nil
 	}
+	var reason string
 	switch {
 	case expired:
-		return s.onFailingExit(ctx, "experiment deadline expired")
+		reason = "experiment deadline expired"
 	case !experimentConfigDeployed():
 		// A promote that published the configuration but whose hook never handed the jobs back.
 		// The revert waits for a promote still under way.
-		return s.onFailingExit(ctx, "experiment configuration no longer deployed")
+		reason = "experiment configuration no longer deployed"
+	default:
+		return false, nil
 	}
-	return false, nil
+	if !s.owns(ctx, "") {
+		return s.deferFailure(ctx, "", reason)
+	}
+	return s.onFailingExit(ctx, reason)
 }
 
-// onExit acts on an armed job's exit: one that fails the experiment ends it (onFailingExit), any
-// other is part of the job's own lifecycle.
+// onExit acts on an armed job's exit: one that fails the experiment ends it, from here if this
+// watcher owns it (onFailingExit), from the other watcher otherwise (deferFailure); any other exit is
+// part of the job's own lifecycle.
 func (s *experimentSupervisor) onExit(ctx context.Context, ev launchd.ExitEvent) (bool, error) {
 	label := s.pids[ev.Pid]
 	if !exitFailsExperiment(label, exitedCleanly(ev.Status)) {
 		return false, nil
 	}
-	return s.onFailingExit(ctx, fmt.Sprintf("experiment job %s (pid %d) exited (status %d)", label, ev.Pid, ev.Status))
+	reason := fmt.Sprintf("experiment job %s (pid %d) exited (status %d)", label, ev.Pid, ev.Status)
+	if !s.owns(ctx, label) {
+		return s.deferFailure(ctx, label, reason)
+	}
+	return s.onFailingExit(ctx, reason)
 }
 
 // onFailingExit ends the experiment after something failed it, unless a stop or promote owns the
 // outcome. A deadline that still holds this experiment's token is reverted. The reverting marker is
 // a stop or promote under way, whose hook is what made the jobs exit, or one that died partway: it is
 // finished once no command holds the lock and the marker is still there (finishUnlessEnded). Any
-// other deadline means the experiment is over, and the stop's "end", or the next tick, hands the
-// daemon back. It reports whether the experiment was ended from here.
+// other deadline means the experiment is over, and the next deadline check hands the daemon back.
+// It reports whether the experiment was ended from here.
 func (s *experimentSupervisor) onFailingExit(ctx context.Context, reason string) (bool, error) {
 	for {
 		current, err := s.deadline.Read()
@@ -566,29 +649,6 @@ func (s *experimentSupervisor) handBack(ctx context.Context) error {
 		log.Errorf("watcher: could not hand the installer daemon back: %v", err)
 	}
 	return nil
-}
-
-// handOff answers W2's handshake. W2 is armed on every experiment job once it sends it, so W1 stops
-// listening, acks, and exits, as long as the experiment is still the one W2 armed for. An ack that
-// cannot be written -- W2 gave up waiting, or died -- leaves W1 supervising, listening again. It
-// reports whether supervision passed on.
-func (s *experimentSupervisor) handOff(ctx context.Context, request supervisorRequest) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	current, err := s.deadline.Read()
-	if err != nil || request.token != s.token || current != s.token {
-		_ = request.reply(supervisorReplyNak)
-		return false
-	}
-	s.listener.close()
-	if err := request.reply(supervisorReplyAck); err != nil {
-		log.Warnf("watcher: the second watcher did not take the handshake, going on supervising: %v", err)
-		s.listen(ctx)
-		return false
-	}
-	s.finished = true
-	log.Infof("watcher: supervision passed to the watcher the experiment daemon launched")
-	return true
 }
 
 // endWithFailure ends an experiment that failed before it could be armed on.

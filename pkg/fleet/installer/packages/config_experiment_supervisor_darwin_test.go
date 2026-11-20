@@ -10,26 +10,14 @@ package packages
 import (
 	"context"
 	"errors"
-	"net"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 )
-
-// listeningSupervisor is W1's state for the current deadline, listening on the supervisor socket.
-func listeningSupervisor(t *testing.T) *experimentSupervisor {
-	t.Helper()
-
-	s := newTestSupervisor(t)
-	listener, err := listenSupervisor()
-	require.NoError(t, err)
-	s.listener = listener
-	t.Cleanup(s.release)
-	return s
-}
 
 // runSupervisor runs s's main loop in the background and returns where its result arrives.
 func runSupervisor(ctx context.Context, s *experimentSupervisor) <-chan error {
@@ -50,145 +38,228 @@ func waitFor(t *testing.T, done <-chan error) error {
 	}
 }
 
-// TestSupervisorHandsOverToTheSecondWatcher pins the relay: once W2 reports it is armed for the
-// same experiment, W1 acks, stops listening so W2 can take the socket, and exits.
-func TestSupervisorHandsOverToTheSecondWatcher(t *testing.T) {
-	stubDeadlinePath(t)
-	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
-	s := listeningSupervisor(t)
-	done := runSupervisor(context.Background(), s)
+// stubStopOtherWatchers replaces W2's stop of the other watchers with a recorder.
+func stubStopOtherWatchers(t *testing.T) *int {
+	t.Helper()
 
-	answer, err := askSupervisor(supervisorMsgArmed+" "+s.token, time.Second)
-	require.NoError(t, err)
-	assert.Equal(t, supervisorReplyAck, answer)
-	require.NoError(t, waitFor(t, done))
-	assert.True(t, s.finished)
-	_, err = os.Lstat(configExperimentSupervisorSocketPath)
-	assert.True(t, os.IsNotExist(err), "W1 must stop listening before W2 takes the socket")
-}
-
-// TestSupervisorRefusesAHandshakeForAnotherExperiment pins that W1 keeps supervising when the
-// handshake is for an experiment other than its own.
-func TestSupervisorRefusesAHandshakeForAnotherExperiment(t *testing.T) {
-	stubDeadlinePath(t)
-	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
-	s := listeningSupervisor(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	done := runSupervisor(ctx, s)
-
-	answer, err := askSupervisor(supervisorMsgArmed+" another-experiment", time.Second)
-	require.NoError(t, err)
-	assert.Equal(t, supervisorReplyNak, answer)
-	select {
-	case <-done:
-		t.Fatal("W1 must keep supervising after refusing a handshake")
-	case <-time.After(100 * time.Millisecond):
+	calls := new(int)
+	original := stopOtherWatchers
+	stopOtherWatchers = func(context.Context) error {
+		*calls++
+		return nil
 	}
-	cancel()
-	require.NoError(t, waitFor(t, done))
+	t.Cleanup(func() { stopOtherWatchers = original })
+	return calls
 }
 
-// TestSupervisorKeepsSupervisingWhenTheAckIsLost covers a W2 that sends the handshake and goes away
-// before reading the answer: W1 must not leave the experiment to it, and listens again.
-func TestSupervisorKeepsSupervisingWhenTheAckIsLost(t *testing.T) {
-	stubDeadlinePath(t)
-	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
-	s := listeningSupervisor(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	done := runSupervisor(ctx, s)
+// shortOverlap shortens how long a watcher defers a failure it does not own.
+func shortOverlap(t *testing.T, overlap time.Duration) {
+	t.Helper()
 
-	conn, err := net.Dial("unix", configExperimentSupervisorSocketPath)
-	require.NoError(t, err)
-	_, err = conn.Write([]byte(supervisorMsgArmed + " " + s.token + "\n"))
-	require.NoError(t, err)
-	require.NoError(t, conn.Close())
-
-	select {
-	case <-done:
-		t.Fatal("W1 must not exit on a handshake whose ack was lost")
-	case <-time.After(300 * time.Millisecond):
-	}
-	assert.True(t, supervisorListening(), "W1 should listen again")
-	cancel()
-	require.NoError(t, waitFor(t, done))
+	originalOverlap, originalStop, originalPoll := watcherOverlap, watcherStopTimeout, deferPoll
+	watcherOverlap, watcherStopTimeout, deferPoll = overlap, overlap, 5*time.Millisecond
+	t.Cleanup(func() { watcherOverlap, watcherStopTimeout, deferPoll = originalOverlap, originalStop, originalPoll })
 }
 
-// TestSupervisorRefusesAnotherUser pins that only the owner of the experiment state may talk to the
-// supervisor.
-func TestSupervisorRefusesAnotherUser(t *testing.T) {
-	stubDeadlinePath(t)
-	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
-	s := listeningSupervisor(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	done := runSupervisor(ctx, s)
-	configExperimentStateOwner = os.Getuid() + 1
+// secondSupervisor is W2's state for the current deadline.
+func secondSupervisor(t *testing.T) *experimentSupervisor {
+	t.Helper()
 
-	_, err := askSupervisor(supervisorMsgEnd, time.Second)
-	require.Error(t, err)
-	assert.False(t, errors.Is(err, errNoSupervisor), "the supervisor listens, it refuses")
-	cancel()
-	require.NoError(t, waitFor(t, done))
-	assert.False(t, s.finished, "a refused request must not end supervision")
-}
-
-// TestSecondWatcherTakesOverWhenNoneSupervises covers W1 gone before the handshake: W2, armed on
-// every experiment job, finds no supervisor and becomes it.
-func TestSecondWatcherTakesOverWhenNoneSupervises(t *testing.T) {
-	runningExperiment(t)
 	s := newTestSupervisor(t)
+	s.role = secondWatcher
+	return s
+}
+
+// exitOf records pid as label's armed pid and returns a failing exit event for it.
+func exitOf(s *experimentSupervisor, pid int, label string) launchd.ExitEvent {
+	s.pids[pid] = label
+	return launchd.ExitEvent{Pid: pid, Status: 1 << 8}
+}
+
+// expectEvent waits for one change on the state watch.
+func expectEvent(t *testing.T, changes <-chan struct{}, what string) {
+	t.Helper()
+
+	select {
+	case <-changes:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("no change was seen when the deadline was %s", what)
+	}
+}
+
+// TestWatchExperimentStateSeesEveryDeadlineChange pins the end-of-experiment signal: writing the
+// deadline, marking it as reverting and clearing it each change the directory, and each is seen.
+func TestWatchExperimentStateSeesEveryDeadlineChange(t *testing.T) {
+	stubDeadlinePath(t)
+	original := stateWatchPoll
+	stateWatchPoll = 10 * time.Millisecond
+	t.Cleanup(func() { stateWatchPoll = original })
+	changes, stop, err := watchExperimentState()
+	require.NoError(t, err)
+	t.Cleanup(stop)
+
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
+	expectEvent(t, changes, "written")
+	require.NoError(t, experimentDeadline().MarkReverting())
+	expectEvent(t, changes, "marked as reverting")
+	require.NoError(t, experimentDeadline().Clear())
+	expectEvent(t, changes, "cleared")
+	stop()
+	stop()
+}
+
+// TestSecondWatcherStopsTheOtherWatchersOnceArmed pins W2's start: it arms on every experiment job,
+// then stops every other watcher, W1 included, and owns the experiment daemon's exit once they are
+// gone.
+func TestSecondWatcherStopsTheOtherWatchersOnceArmed(t *testing.T) {
+	runningExperiment(t)
+	stopped := stubStopOtherWatchers(t)
+	s := secondSupervisor(t)
 	t.Cleanup(s.release)
 
 	require.NoError(t, s.takeOver(context.Background()))
 	assert.False(t, s.finished)
-	require.NotNil(t, s.listener, "W2 should listen once it supervises")
 	assert.NotNil(t, s.agentObserver, "W2 should be armed on every experiment job")
-	assert.NotEmpty(t, s.pids)
+	require.Eventually(t, func() bool { return s.predecessorGone.Load() }, 5*time.Second, time.Millisecond)
+	assert.Equal(t, 1, *stopped)
 }
 
-// TestSecondWatcherLeavesTheExperimentToARefusingSupervisor covers a supervisor that refuses the
-// handshake: W2 exits and leaves the experiment to it.
-func TestSecondWatcherLeavesTheExperimentToARefusingSupervisor(t *testing.T) {
-	runningExperiment(t)
-	other, err := listenSupervisor()
-	require.NoError(t, err)
-	t.Cleanup(other.close)
-	go func() {
-		for request := range other.requests {
-			_ = request.reply(supervisorReplyNak)
-		}
-	}()
-	s := newTestSupervisor(t)
+// TestSecondWatcherDoesNotStopTheFirstWhenItCannotArm pins that W2 leaves W1 in place until it can
+// supervise itself.
+func TestSecondWatcherDoesNotStopTheFirstWhenItCannotArm(t *testing.T) {
+	l, _, _ := runningExperiment(t)
+	l.failPrint["system/"+agentJob+"-exp"] = true
+	stopped := stubStopOtherWatchers(t)
+	s := secondSupervisor(t)
 	t.Cleanup(s.release)
 
-	require.NoError(t, s.takeOver(context.Background()))
-	assert.True(t, s.finished, "W2 should leave the experiment to the supervisor that refused it")
-	assert.Nil(t, s.listener)
+	require.Error(t, s.takeOver(context.Background()))
+	assert.Zero(t, *stopped, "W1 must not be stopped by a W2 that could not arm")
 }
 
-// TestSupervisorHandsTheDaemonBackOnEnd pins the end of an experiment: the stop or promote hook
-// sends "end" once it has handed the Agent back, and the supervisor hands the installer daemon back
-// and exits.
-func TestSupervisorHandsTheDaemonBackOnEnd(t *testing.T) {
+// TestFirstWatcherDefersAnAgentFailureToARunningSecondWatcher pins (b1): with W2 running, an agent
+// job failing is W2's to revert; W1 waits, sees W2 end the experiment, and does nothing.
+func TestFirstWatcherDefersAnAgentFailureToARunningSecondWatcher(t *testing.T) {
+	l, _, _ := runningExperiment(t)
+	shortOverlap(t, 5*time.Second)
+	stubWatchers(t, true)
+	s := newTestSupervisor(t)
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		_ = experimentDeadline().MarkFailed()
+	}()
+
+	done, err := s.onExit(context.Background(), exitOf(s, 4242, agentJob))
+	require.NoError(t, err)
+	assert.False(t, done)
+	for _, label := range agentJobs {
+		assert.True(t, l.isLoaded(label+"-exp"), "W1 must leave %s to W2", label+"-exp")
+	}
+}
+
+// TestFirstWatcherRevertsAnAgentFailureOnceNoSecondWatcherIsLeft covers W2 dying with a failure it
+// owned still pending: W1 takes it back and reverts.
+func TestFirstWatcherRevertsAnAgentFailureOnceNoSecondWatcherIsLeft(t *testing.T) {
+	l, _, experimentPath := runningExperiment(t)
+	shortOverlap(t, 5*time.Second)
+	setRunning := stubWatchers(t, true)
+	s := newTestSupervisor(t)
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		setRunning(false)
+	}()
+
+	done, err := s.onExit(context.Background(), exitOf(s, 4242, agentJob))
+	require.NoError(t, err)
+	assert.True(t, done)
+	assertReverted(t, l, experimentPath)
+}
+
+// TestFirstWatcherAlwaysRevertsTheExperimentDaemonExit pins that the experiment daemon's exit is
+// W1's to revert for as long as W1 runs, even with W2 up: W2 may not have started at all.
+func TestFirstWatcherAlwaysRevertsTheExperimentDaemonExit(t *testing.T) {
+	l, _, experimentPath := runningExperiment(t)
+	stubWatchers(t, true)
+	s := newTestSupervisor(t)
+
+	done, err := s.onExit(context.Background(), exitOf(s, 4242, installerJob))
+	require.NoError(t, err)
+	assert.True(t, done)
+	assertReverted(t, l, experimentPath)
+}
+
+// TestSecondWatcherLeavesTheDaemonExitToARunningFirstWatcher is the other side: while W1 runs, W2
+// waits for it to act on the experiment daemon's exit.
+func TestSecondWatcherLeavesTheDaemonExitToARunningFirstWatcher(t *testing.T) {
+	l, _, _ := runningExperiment(t)
+	shortOverlap(t, 5*time.Second)
+	stubWatchers(t, true)
+	s := secondSupervisor(t)
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		_ = experimentDeadline().MarkFailed()
+	}()
+
+	done, err := s.onExit(context.Background(), exitOf(s, 4242, installerJob))
+	require.NoError(t, err)
+	assert.False(t, done)
+	for _, label := range agentJobs {
+		assert.True(t, l.isLoaded(label+"-exp"), "W2 must leave %s to W1", label+"-exp")
+	}
+}
+
+// TestSecondWatcherTakesTheDaemonExitOnceTheFirstIsGone pins that the experiment daemon's exit is
+// W2's once W1 has been stopped.
+func TestSecondWatcherTakesTheDaemonExitOnceTheFirstIsGone(t *testing.T) {
+	l, _, experimentPath := runningExperiment(t)
+	stubWatchers(t, true)
+	s := secondSupervisor(t)
+	s.predecessorGone.Store(true)
+
+	done, err := s.onExit(context.Background(), exitOf(s, 4242, installerJob))
+	require.NoError(t, err)
+	assert.True(t, done)
+	assertReverted(t, l, experimentPath)
+}
+
+// TestSecondWatcherRevertsAnAgentFailure pins that every failure other than the experiment daemon's
+// exit is W2's, W1 running or not.
+func TestSecondWatcherRevertsAnAgentFailure(t *testing.T) {
+	l, _, experimentPath := runningExperiment(t)
+	stubWatchers(t, true)
+	s := secondSupervisor(t)
+
+	done, err := s.onExit(context.Background(), exitOf(s, 4242, agentJob))
+	require.NoError(t, err)
+	assert.True(t, done)
+	assertReverted(t, l, experimentPath)
+}
+
+// TestSupervisorHandsTheDaemonBackOnceTheDeadlineIsCleared pins the end of an experiment: the stop
+// or promote hook clears the deadline once it has handed the Agent back, the supervisor sees the
+// change, hands the installer daemon back and exits.
+func TestSupervisorHandsTheDaemonBackOnceTheDeadlineIsCleared(t *testing.T) {
 	l := stubLiveLaunchd(t, installerJob+"-exp")
 	stubJobDir(t)
 	stubDeadlinePath(t)
 	stubConfigExperimentLock(t)
 	shortRestoreBackoff(t)
 	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
-	s := listeningSupervisor(t)
+	s := secondSupervisor(t)
+	s.watchState()
+	t.Cleanup(s.release)
+	require.NotNil(t, s.stateChanges, "the state directory should be watched")
 	done := runSupervisor(context.Background(), s)
-	// What the hook does before it sends "end".
-	require.NoError(t, experimentDeadline().Clear())
 
-	require.NoError(t, notifySupervisorEnd())
+	require.NoError(t, experimentDeadline().Clear())
 	require.NoError(t, waitFor(t, done))
 	assert.True(t, l.isLoaded(installerJob), "the stable daemon should be back")
 	assert.False(t, l.isLoaded(installerJob+"-exp"), "the experiment daemon should be gone")
 }
 
-// TestSupervisorHandsTheDaemonBackWhenEndNeverCame covers a stop whose "end" did not reach the
-// supervisor: its next tick sees the deadline cleared and hands the daemon back.
-func TestSupervisorHandsTheDaemonBackWhenEndNeverCame(t *testing.T) {
+// TestSupervisorHandsTheDaemonBackOnItsTick covers the same end with the directory unwatched: the
+// next tick sees the deadline cleared and hands the daemon back.
+func TestSupervisorHandsTheDaemonBackOnItsTick(t *testing.T) {
 	original := deadlineTickInterval
 	deadlineTickInterval = 5 * time.Millisecond
 	t.Cleanup(func() { deadlineTickInterval = original })
@@ -198,7 +269,7 @@ func TestSupervisorHandsTheDaemonBackWhenEndNeverCame(t *testing.T) {
 	stubConfigExperimentLock(t)
 	shortRestoreBackoff(t)
 	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
-	s := newTestSupervisor(t)
+	s := secondSupervisor(t)
 	done := runSupervisor(context.Background(), s)
 	require.NoError(t, experimentDeadline().Clear())
 
@@ -206,27 +277,46 @@ func TestSupervisorHandsTheDaemonBackWhenEndNeverCame(t *testing.T) {
 	assert.True(t, l.isLoaded(installerJob), "the stable daemon should be back")
 }
 
-// TestStopSendsEndToTheSupervisor pins the hook's side: with the experiment daemon running and a
-// supervisor listening, the stop hook sends "end" and launches no hand-back process.
-func TestStopSendsEndToTheSupervisor(t *testing.T) {
-	stubLaunchdWithExperimentDaemon(t, "", "")
+// TestFirstWatcherLeavesTheHandBackToTheSecond pins that W1, with W2 running, does not hand the
+// daemon back when the deadline is cleared: W2 does.
+func TestFirstWatcherLeavesTheHandBackToTheSecond(t *testing.T) {
+	calls := stubLaunchd(t)
 	stubJobDir(t)
 	stubDeadlinePath(t)
-	handBackCalls := stubInstallerHandBack(t, nil)
-	supervisor, err := listenSupervisor()
-	require.NoError(t, err)
-	t.Cleanup(supervisor.close)
+	stubWatchers(t, true)
 	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
+	s := newTestSupervisor(t)
+	require.NoError(t, experimentDeadline().Clear())
 
-	require.NoError(t, preStopConfigExperimentDatadogAgent(testHookContext(t)))
+	readFailures, revertingTicks := 0, 0
+	done, err := s.onDeadline(context.Background(), false, &readFailures, &revertingTicks)
+	require.NoError(t, err)
+	assert.False(t, done)
+	assert.Empty(t, launchctlCalls(*calls, "bootout"), "W1 must leave the hand-back to W2")
+}
 
-	select {
-	case request := <-supervisor.requests:
-		assert.Equal(t, supervisorMsgEnd, request.kind)
-	case <-time.After(5 * time.Second):
-		t.Fatal("the supervisor never got the end of the experiment")
+// TestStopLeavesTheHandBackToARunningWatcher pins the hook's side: with the experiment daemon and a
+// watcher running, the stop hook launches no hand-back process; without a watcher, it does.
+func TestStopLeavesTheHandBackToARunningWatcher(t *testing.T) {
+	for name, tc := range map[string]struct {
+		watcher bool
+		want    int
+	}{
+		"watcher running": {true, 0},
+		"no watcher":      {false, 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			stubLaunchdWithExperimentDaemon(t, "", "")
+			stubJobDir(t)
+			stubDeadlinePath(t)
+			stubWatchers(t, tc.watcher)
+			handBackCalls := stubInstallerHandBack(t, nil)
+			require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
+
+			require.NoError(t, preStopConfigExperimentDatadogAgent(testHookContext(t)))
+			assert.Equal(t, tc.want, *handBackCalls)
+		})
 	}
-	assert.Zero(t, *handBackCalls, "no hand-back process is needed when a supervisor takes the end")
 }
 
 // TestSupervisorFinishesAStopWhoseCommandDied covers the mid-stop crash: the stop's hook marked the
@@ -298,9 +388,10 @@ func TestSupervisorFinishesARestoreLeftRevertingOnItsTicks(t *testing.T) {
 	assertReverted(t, l, experimentPath)
 }
 
-// TestFirstWatcherHandsOverSupervisesAndHandsBack runs W1 through a whole experiment: it arms on the
-// agent jobs, hands the installer daemon over once the start command's lock is free, supervises, and
-// hands the daemon back on the stop's "end".
+// TestFirstWatcherHandsOverSupervisesAndHandsBack runs W1 through a whole experiment on its own, as
+// when the experiment daemon launches no W2: it arms on the agent jobs, hands the installer daemon
+// over once the start command's lock is free, supervises, and hands the daemon back once the stop's
+// hook clears the deadline.
 func TestFirstWatcherHandsOverSupervisesAndHandsBack(t *testing.T) {
 	running := []string{installerJob}
 	for _, label := range agentJobs {
@@ -320,14 +411,9 @@ func TestFirstWatcherHandsOverSupervisesAndHandsBack(t *testing.T) {
 	go func() { done <- watchExperiment(context.Background()) }()
 	require.Eventually(t, func() bool { return l.isLoaded(installerJob + "-exp") }, 5*time.Second, time.Millisecond,
 		"W1 should hand the installer daemon over")
-	require.Eventually(t, func() bool {
-		_, err := os.Lstat(configExperimentSupervisorSocketPath)
-		return err == nil
-	}, 5*time.Second, time.Millisecond, "W1 should listen on the supervisor socket")
 
-	// The stop's hook hands the Agent back, clears the deadline and sends "end".
+	// The stop's hook hands the Agent back and clears the deadline.
 	require.NoError(t, experimentDeadline().Clear())
-	require.NoError(t, notifySupervisorEnd())
 	require.NoError(t, waitFor(t, done))
 	assert.True(t, l.isLoaded(installerJob), "the stable daemon should be back")
 	assert.False(t, l.isLoaded(installerJob+"-exp"), "the experiment daemon should be gone")
@@ -363,7 +449,7 @@ func TestFirstWatcherCatchesACrashBeforeTheHandOver(t *testing.T) {
 	select {
 	case result := <-s.handOver:
 		disarmResult(t, result)
-		assert.False(t, result.observer != nil, "the daemon must not be handed over to a failed experiment")
+		assert.Nil(t, result.observer, "the daemon must not be handed over to a failed experiment")
 	case <-time.After(5 * time.Second):
 		t.Fatal("the hand-over should have given up")
 	}

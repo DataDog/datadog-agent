@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -134,25 +135,24 @@ func stubDeadlinePath(t *testing.T) string {
 		configExperimentDeadlinePath = original
 		configExperimentStateOwner = originalOwner
 	})
-	stubSupervisorSocket(t)
+	stubWatchers(t, false)
+	originalPoll := stateWatchPoll
+	stateWatchPoll = 10 * time.Millisecond
+	t.Cleanup(func() { stateWatchPoll = originalPoll })
 	return path
 }
 
-// stubSupervisorSocket points the supervisor socket at a temporary path short enough for a Unix
-// socket (104 bytes on macOS), which a t.TempDir path often is not.
-func stubSupervisorSocket(t *testing.T) string {
+// stubWatchers makes the lookup of other watcher processes report running, and returns a setter to
+// change it.
+func stubWatchers(t *testing.T, running bool) func(bool) {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("/tmp", "sup")
-	require.NoError(t, err)
-	path := filepath.Join(dir, "s.sock")
-	original := configExperimentSupervisorSocketPath
-	configExperimentSupervisorSocketPath = path
-	t.Cleanup(func() {
-		configExperimentSupervisorSocketPath = original
-		_ = os.RemoveAll(dir)
-	})
-	return path
+	var state atomic.Bool
+	state.Store(running)
+	original := watcherRunning
+	watcherRunning = func(context.Context) (bool, error) { return state.Load(), nil }
+	t.Cleanup(func() { watcherRunning = original })
+	return state.Store
 }
 
 // stubConfigExperimentDirs points the configuration directories at a temporary state root laid

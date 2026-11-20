@@ -858,10 +858,10 @@ func handBackInstallerBestEffort(ctx context.Context) {
 
 // handBackInstallerAfterHook has the installer daemon handed back when the experiment daemon is
 // running, whoever runs the hook: the experiment daemon itself, or an operator running the installer
-// by hand. It sends "end" to the supervising watcher, which hands the daemon back once this hook's
-// command has exited. When no watcher answers, it launches the detached hand-back process instead.
-// Either is done even when the Agent could not be handed back: the hand-back finishes a restore left
-// with the reverting marker (handBackInstaller).
+// by hand. A watcher that supervises the experiment sees the hook change the deadline, and hands the
+// daemon back once this hook's command has exited; with no watcher running, the detached hand-back
+// process is launched instead. Either is done even when the Agent could not be handed back: the
+// hand-back finishes a restore left with the reverting marker (handBackInstaller).
 //
 // With no experiment daemon running, as when the stable daemon runs the hook, there is nothing to
 // hand back: the installer daemon is already on its stable job. After a reboot mid-experiment
@@ -874,11 +874,11 @@ func handBackInstallerAfterHook(ctx context.Context) error {
 		return fmt.Errorf("could not tell whether the experiment daemon is running: %w", err)
 	}
 	if status.PID != 0 {
-		endErr := notifySupervisorEnd()
-		if endErr == nil {
+		running, err := watcherRunning(ctx)
+		if err == nil && running {
 			return nil
 		}
-		log.Warnf("no watcher took the end of the experiment, launching the installer daemon hand-back: %v", endErr)
+		log.Warnf("no watcher supervises the experiment, launching the installer daemon hand-back (lookup error: %v)", err)
 		if err := launchInstallerHandBack(ctx); err != nil {
 			return fmt.Errorf("could not launch the installer daemon hand-back: %w", err)
 		}
