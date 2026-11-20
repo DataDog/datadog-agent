@@ -4,7 +4,9 @@ Used by the "Assess backport" workflow (.github/workflows/assess-backport.yml).
 
 Sends the PR owner a Slack DM with one "backport" button per candidate release
 branch (as assessed by Claude), then listens over Socket Mode for up to
-SLACK_BUTTON_TTL_SECONDS for a click — no public endpoint needed. Button clicks
+SLACK_BUTTON_TTL_SECONDS for clicks — no public endpoint needed. Each branch
+button is acknowledged in the thread and removed from the message, so several
+branches can be chosen; "No backport needed" ends the exchange. Button clicks
 are applied back in the workflow with a dd-octo-sts token, never with a token
 held by this script.
 
@@ -20,11 +22,11 @@ Inputs (environment):
   BRANCHES               comma-separated candidate branches, e.g. "7.85.x,7.86.x"
   EXPLANATION            Claude's one-line rationale (may be empty)
   CONFIDENCE             HIGH|MEDIUM|LOW
-  SLACK_BUTTON_TTL_SECONDS  how long to wait for a click (default 7200)
+  SLACK_BUTTON_TTL_SECONDS  how long to wait for clicks (default 7200)
 
 Outputs (GITHUB_OUTPUT):
   outcome                add | dismiss | timeout | no_recipient
-  branch                 the branch chosen when outcome is "add"
+  branches               comma-separated clicked branches when outcome is "add"
 """
 
 import json
@@ -92,41 +94,42 @@ def main() -> int:
 
     hours = max(1, round(ttl / 3600))
     rationale = f"\n> {explanation}\n" if explanation else "\n"
-    buttons = [
-        {
-            "type": "button",
-            "style": "primary",
-            # action_id must be unique per element, so append the branch
-            "action_id": f"add_label:{b}",
-            "text": {"type": "plain_text", "text": b},
-            "value": b,
-        }
-        for b in branches
-    ]
-    buttons.append(
-        {
-            "type": "button",
-            "style": "danger",
-            "action_id": "dismiss",
-            "text": {"type": "plain_text", "text": "No backport needed"},
-            "value": "dismiss",
-        }
-    )
-    blocks = [
+
+    def section_text() -> str:
+        return (
+            f":rewind: Claude thinks <{env('PR_URL')}|#{pr_number} "
+            f"({env('PR_TITLE')})> may need a backport "
+            f"(confidence: {confidence}).\n{rationale}"
+            f"Buttons expire in about {hours} hour(s) — after that, add the "
+            "backport/<branch> label manually."
+        )
+
+    def action_block(remaining: list[str]) -> dict:
+        elements = [
             {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": (
-                        f":rewind: Claude thinks <{env('PR_URL')}|#{pr_number} "
-                        f"({env('PR_TITLE')})> may need a backport "
-                        f"(confidence: {confidence}).\n{rationale}"
-                        f"Buttons expire in about {hours} hour(s) — after that, add the "
-                        "backport/<branch> label manually."
-                    ),
-                },
-            },
-            {"type": "actions", "elements": buttons},
+                "type": "button",
+                "style": "primary",
+                # action_id must be unique per element, so append the branch
+                "action_id": f"add_label:{b}",
+                "text": {"type": "plain_text", "text": b},
+                "value": b,
+            }
+            for b in remaining
+        ]
+        elements.append(
+            {
+                "type": "button",
+                "style": "danger",
+                "action_id": "dismiss",
+                "text": {"type": "plain_text", "text": "No backport needed"},
+                "value": "dismiss",
+            }
+        )
+        return {"type": "actions", "elements": elements}
+
+    blocks = [
+        {"type": "section", "text": {"type": "mrkdwn", "text": section_text()}},
+        action_block(branches),
     ]
     msg = web.chat_postMessage(
         channel=web.conversations_open(users=[user_id])["channel"]["id"],
@@ -135,12 +138,32 @@ def main() -> int:
     )
     print(f"Sent: {msg['permalink']}", flush=True)
 
-    # Listen for the click over Socket Mode (no public endpoint required).
+    # Listen for clicks over Socket Mode (no public endpoint required).
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     sm = SocketModeClient(app_token=env("SLACK_APP_TOKEN"), web_client=web)
     clicked = Event()
-    result = {"outcome": "timeout", "branch": ""}
-    ts = msg["ts"]
+    result = {"outcome": "timeout", "chosen": []}
+
+    def thread_reply(text: str) -> None:
+        try:
+            web.chat_postMessage(channel=msg["channel"], thread_ts=msg["ts"], text=text)
+        except Exception as e:  # noqa: BLE001
+            print(f"Could not post a thread reply (non-fatal): {e}", flush=True)
+
+    def set_buttons(remaining: list[str] | None) -> None:
+        # remaining=None removes the actions block entirely (exchange is over)
+        blocks_now = [{"type": "section", "text": {"type": "mrkdwn", "text": section_text()}}]
+        if remaining is not None:
+            blocks_now.append(action_block(remaining))
+        try:
+            web.chat_update(
+                channel=msg["channel"],
+                ts=msg["ts"],
+                text=f":rewind: Backport assessment for #{pr_number}",
+                blocks=blocks_now,
+            )
+        except Exception as e:  # noqa: BLE001
+            print(f"Could not update the message (non-fatal): {e}", flush=True)
 
     def process(client: SocketModeClient, req: SocketModeRequest) -> None:
         print(f"[debug] socket event: type={req.type} payload={req.payload}", flush=True)
@@ -152,57 +175,52 @@ def main() -> int:
             return
         client.send_socket_mode_response(SocketModeResponse(envelope_id=req.envelope_id))
         # Another concurrent listener may receive this click — only act on ours.
-        if payload.get("container", {}).get("message_ts") != ts:
+        if payload.get("container", {}).get("message_ts") != msg["ts"]:
             return
         for action in payload.get("actions", []):
             if action["action_id"] == "dismiss":
                 result["outcome"] = "dismiss"
+                set_buttons(None)  # remove the buttons, keep the section
+                thread_reply(f":no_entry_sign: No backport for <{env('PR_URL')}|#{pr_number}>.")
             elif action["action_id"].startswith("add_label:"):
-                result["outcome"] = "add"
-                result["branch"] = action["value"]
-            clicked.set()  # stop waiting as soon as a button on our message is clicked
+                branch = action["value"]
+                if branch not in result["chosen"]:
+                    result["outcome"] = "add"
+                    result["chosen"].append(branch)
+                    remaining = [b for b in branches if b not in result["chosen"]]
+                    set_buttons(remaining)
+                    thread_reply(
+                        f":white_check_mark: Backport to `{branch}` requested — "
+                        "the label is being added, the backport PR will follow."
+                    )
+                    if not remaining:
+                        clicked.set()  # all candidate branches chosen, we're done
 
     sm.socket_mode_request_listeners.append(process)
     sm.connect()
     print(f"Socket Mode connected: {sm.is_connected()}", flush=True)
     clicked.wait(timeout=ttl)
 
-    # Remove the buttons from the original message (stale clicks can't pile up after the
-    # decision/expiry), then report the outcome as a reply in the message's thread.
+    # End of exchange: drop any remaining buttons so stale clicks can't pile up.
     if result["outcome"] == "add":
-        outcome_text = (
-            f":white_check_mark: Backport to `{result['branch']}` requested — "
-            "the label is being added, the backport PR will follow."
+        set_buttons(None)
+        thread_reply(
+            ":ok: Choice recorded — applying the backport labels now "
+            f"(`{', '.join(result['chosen'])}`)."
         )
-    elif result["outcome"] == "dismiss":
-        outcome_text = f":no_entry_sign: No backport for <{env('PR_URL')}|#{pr_number}>."
-    else:
-        outcome_text = (
+    elif result["outcome"] == "timeout" and not result["chosen"]:
+        set_buttons(None)
+        thread_reply(
             f":alarm_clock: No answer within {hours} hour(s) — to backport "
             f"<{env('PR_URL')}|#{pr_number}> manually, add a backport/<branch> label."
         )
-    for call in ("chat_update", "chat_postMessage"):
-        try:
-            if call == "chat_update":
-                # Keep the original section, drop the actions block
-                web.chat_update(
-                    channel=msg["channel"],
-                    ts=ts,
-                    text=f":rewind: Backport assessment for #{pr_number}",
-                    blocks=[b for b in blocks if b["type"] != "actions"],
-                )
-            else:
-                web.chat_postMessage(
-                    channel=msg["channel"],
-                    thread_ts=ts,
-                    text=outcome_text,
-                )
-        except Exception as e:  # noqa: BLE001
-            print(f"Could not {call} (non-fatal): {e}")
+    # On timeout with at least one click, the chosen buttons are already confirmed
+    # in the thread and removed; proceed with them.
 
-    output("outcome", result["outcome"])
-    output("branch", result["branch"])
-    print(f"Outcome: {result['outcome']} {result['branch']}", flush=True)
+    outcome = "add" if result["chosen"] else result["outcome"]
+    output("outcome", outcome)
+    output("branches", ",".join(result["chosen"]))
+    print(f"Outcome: {outcome} {','.join(result['chosen'])}", flush=True)
     return 0
 
 

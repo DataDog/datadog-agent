@@ -296,7 +296,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          BRANCHES: ${{ steps.validate.outputs.branches }}
+          BRANCHES: ${{ steps.slack.outputs.branches }}
           CONFIDENCE: ${{ steps.validate.outputs.confidence }}
           EXPLANATION: ${{ steps.validate.outputs.explanation }}
         with:
@@ -391,15 +391,15 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ inputs.pr }}
-          BRANCH: ${{ steps.slack.outputs.branch }}
+          BRANCHES: ${{ steps.slack.outputs.branches }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const label = `backport/${process.env.BRANCH}`;
+            const labels = process.env.BRANCHES.split(',').filter(Boolean).map(b => `backport/${b}`);
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: Number(process.env.PR_NUMBER),
-              labels: [label],
+              labels,
             });
-            core.info(`Added ${label} — remove it after the test so merging this PR does not trigger a backport.`);
+            core.info(`Added ${labels.join(', ')} — remove after the test so merging this PR does not trigger backports.`);
