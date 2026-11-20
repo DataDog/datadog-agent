@@ -19,6 +19,7 @@ import (
 	"path"
 	"runtime"
 	"slices"
+	"strings"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -49,6 +50,31 @@ const (
 // statFn is the function used to check path existence. It defaults to os.Stat
 // and can be overridden in tests.
 var statFn = os.Stat
+
+// maxSandboxWarningsInSummary is the number of sandbox warnings that the
+// per-run summary warning lists. The full list is logged at debug level.
+const maxSandboxWarningsInSummary = 5
+
+// logSandboxWarnings logs one warning line per run that gives the number of
+// sandbox warnings (for example allowed paths that rshell cannot open) and the
+// first few of them. When the list is truncated, the full list is logged at
+// debug level.
+func logSandboxWarnings(warnings []string) {
+	if len(warnings) == 0 {
+		return
+	}
+	shown := warnings
+	more := ""
+	if len(warnings) > maxSandboxWarningsInSummary {
+		shown = warnings[:maxSandboxWarningsInSummary]
+		more = fmt.Sprintf(" (and %d more, full list at debug level)", len(warnings)-maxSandboxWarningsInSummary)
+	}
+	log.Warnf("rshell sandbox: %d allowlist entries are not usable, rshell runs without them: %s%s",
+		len(warnings), strings.Join(shown, "; "), more)
+	if len(warnings) > maxSandboxWarningsInSummary {
+		log.Debugf("rshell sandbox warnings: %s", strings.Join(warnings, "; "))
+	}
+}
 
 // RunCommandHandlerConfig carries agent-side rshell policy settings.
 type RunCommandHandlerConfig struct {
@@ -367,9 +393,7 @@ func (h *RunCommandHandler) Run(
 	}
 	defer runner.Close()
 	sandboxWarnings := runner.Warnings()
-	if len(sandboxWarnings) > 0 {
-		log.Debugf("rshell sandbox warnings: %v", sandboxWarnings)
-	}
+	logSandboxWarnings(sandboxWarnings)
 
 	// Spans emitted by rshell inherit the rshell service via context.
 	runErr := runner.Run(telemetry.WithService(ctx, observability.RshellService), prog)

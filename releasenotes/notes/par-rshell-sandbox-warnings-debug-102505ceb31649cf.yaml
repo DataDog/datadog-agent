@@ -1,8 +1,0 @@
----
-fixes:
-  - |
-    Private Action Runner: the ``runCommand`` rshell action no longer logs a
-    "path not found" warning for each allowed path on every command. The
-    sandbox warnings, which give the exact reason a path is not usable, are
-    now logged once per command at debug level and are still returned in the
-    action output.

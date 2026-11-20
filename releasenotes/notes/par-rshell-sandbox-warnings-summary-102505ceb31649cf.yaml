@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Private Action Runner: the ``runCommand`` rshell action no longer logs a
+    "path not found" warning for each allowed path on every command, and no
+    longer reports existing files as "not found". It now logs one warning per
+    command that gives the number of unusable allowlist entries and the
+    exact reason for the first five. When there are more, the full list is
+    logged at debug level. The action output still returns the full list.
