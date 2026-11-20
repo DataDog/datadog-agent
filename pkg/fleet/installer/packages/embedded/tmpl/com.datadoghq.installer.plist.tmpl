@@ -5,8 +5,9 @@
         <key>Label</key>
         <string>com.datadoghq.installer{{.LabelSuffix}}</string>
 {{- /* Only the stable daemon starts at load and is relaunched by launchd: a reboot
-       mid-experiment brings back only the stable daemon, which resumes the experiment, and an
-       experiment daemon that exits stays down, so the watcher reverts the experiment. */}}
+       mid-experiment brings back only the stable daemon, which reports the experiment for Fleet
+       to stop, and an experiment daemon that exits stays down, so the watcher reverts the
+       experiment. */}}
         <key>RunAtLoad</key>
         <{{if .Supervised}}true{{else}}false{{end}}/>
 {{- if .Supervised}}
@@ -22,12 +23,6 @@
         <dict>
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
-{{- if not .Stable}}
-{{- /* Tells the daemon, and the installer commands and hooks it runs, that it is the
-       experiment's daemon rather than the stable one. */}}
-            <key>DD_INSTALLER_EXPERIMENT_DAEMON</key>
-            <string>true</string>
-{{- end}}
         </dict>
 {{- /* The daemon runs as root, so its pidfile goes in the root-only state directory rather than the
        Agent's run directory, which belongs to the Agent's account. */}}

@@ -214,13 +214,12 @@ func TestLaunchdExperimentJobsAreNotSupervised(t *testing.T) {
 	}
 	_, err := GetLaunchdJob("com.datadoghq.procmgr", LaunchdExperiment)
 	assert.Error(t, err, "the process manager must have no experiment variant")
-	installer, err := GetLaunchdJob("com.datadoghq.installer", LaunchdExperiment)
-	require.NoError(t, err)
-	assert.Regexp(t, `<key>DD_INSTALLER_EXPERIMENT_DAEMON</key>\s*<string>true</string>`, string(installer),
-		"the experiment daemon must know it is one")
-	stable, err := GetLaunchdJob("com.datadoghq.installer", LaunchdStable)
-	require.NoError(t, err)
-	assert.NotContains(t, string(stable), "DD_INSTALLER_EXPERIMENT_DAEMON")
+	// Both installer daemons run the same commands: neither needs to know which one it is.
+	for _, variant := range []LaunchdVariant{LaunchdStable, LaunchdExperiment} {
+		installer, err := GetLaunchdJob("com.datadoghq.installer", variant)
+		require.NoError(t, err)
+		assert.NotContains(t, string(installer), "DD_INSTALLER_EXPERIMENT_DAEMON")
+	}
 }
 
 // TestLaunchdExperimentJobsReadTheExperimentConfig pins that an experiment job reads etc-exp
