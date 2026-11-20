@@ -1,0 +1,22 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "testing_test",
+    srcs = [
+        "admission_actions_test.go",
+        "list_actions_test.go",
+        "required_inputs_test.go",
+    ],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/test",
+        "//pkg/privateactionrunner/bundles/kubernetes/admission",
+        "//pkg/privateactionrunner/bundles/kubernetes/apps",
+        "//pkg/privateactionrunner/bundles/kubernetes/batch",
+        "//pkg/privateactionrunner/bundles/kubernetes/core",
+        "//pkg/privateactionrunner/bundles/kubernetes/discovery",
+        "//pkg/privateactionrunner/bundles/kubernetes/networking",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//require",
+    ],
+)

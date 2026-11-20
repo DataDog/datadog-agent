@@ -474,6 +474,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
     shutil.copy2(latest_file, build_context)
 
     nosys_so_dest = build_nosys_so(arch, build_context)
+    bazel("run", f"//deps/s6_overlay:install_{arch}", "--", f"--destdir={build_context}")
 
     if tag is None:
         tag = AGENT_TAG
