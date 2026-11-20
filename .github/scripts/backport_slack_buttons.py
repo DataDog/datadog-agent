@@ -145,7 +145,8 @@ def main() -> int:
         print(f"[debug] socket event: type={req.type} payload={req.payload}", flush=True)
         if req.type != "interactive":
             return
-        payload = json.loads(req.payload)
+        # Newer slack_sdk versions parse the payload into a dict for us
+        payload = req.payload if isinstance(req.payload, dict) else json.loads(req.payload)
         if payload.get("type") != "block_actions":
             return
         client.send_socket_mode_response(SocketModeResponse(envelope_id=req.envelope_id))
