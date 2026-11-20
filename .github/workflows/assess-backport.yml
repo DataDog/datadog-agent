@@ -26,6 +26,24 @@ on:
     types: [closed]
     branches:
       - main
+  # Dry-run of the ask-owner flow on any PR from any branch (see test-ask-owner job).
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'PR number to simulate the assessment for'
+        default: '59984'
+      branches:
+        description: 'Comma-separated candidate branches (buttons)'
+        default: '7.85.x,7.86.x'
+      explanation:
+        description: 'Rationale shown in the DM'
+        default: 'Dry-run of the Slack backport buttons'
+      confidence:
+        description: 'Confidence shown in the DM (HIGH|MEDIUM|LOW)'
+        default: 'MEDIUM'
+      ttl:
+        description: 'How long (seconds) to wait for a click'
+        default: '600'
 
 permissions: {}
 
@@ -307,3 +325,82 @@ jobs:
                 'If this is wrong, close the created PR(s).',
               ].join('\n'),
             });
+
+  # Dry-run of the ask-owner flow, triggered manually. Unlike ask-owner it skips the
+  # Claude assessment (inputs stand in for its verdict) and reads the Socket Mode token
+  # as a repo-level secret, since the protected 'main' environment is whitelisted for the
+  # main branch only and would block a workflow_dispatch from a feature branch. Once the
+  # pilot is validated, SLACK_BACKPORT_APP_TOKEN should live in the 'main' environment and
+  # this job can be deleted.
+  test-ask-owner:
+    name: "TEST — ask-owner dry run"
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20 # covers the default 10-min input TTL plus overhead
+    permissions:
+      pull-requests: read # fetch the PR title/url and the owner's email
+      id-token: write # for dd-octo-sts (label application)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install slack_sdk
+        run: pip install --user slack_sdk requests
+
+      - name: Get PR details
+        id: pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER_INPUT: ${{ inputs.pr }}
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: Number(process.env.PR_NUMBER_INPUT),
+            });
+            core.setOutput('title', pr.title);
+            core.setOutput('url', pr.html_url);
+
+      - name: Ask the PR owner via Slack buttons
+        id: slack
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_BACKPORT_APP_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ inputs.pr }}
+          PR_TITLE: ${{ steps.pr.outputs.title }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+          BRANCHES: ${{ inputs.branches }}
+          EXPLANATION: ${{ inputs.explanation }}
+          CONFIDENCE: ${{ inputs.confidence }}
+          SLACK_BUTTON_TTL_SECONDS: ${{ inputs.ttl }}
+        run: python3 .github/scripts/backport_slack_buttons.py
+
+      - name: Get GitHub token
+        if: steps.slack.outputs.outcome == 'add'
+        uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
+        id: octo-sts
+        with:
+          scope: ${{ github.repository }}
+          policy: self.assess-backport.label-pr
+
+      - name: Apply backport label
+        if: steps.slack.outputs.outcome == 'add'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ inputs.pr }}
+          BRANCH: ${{ steps.slack.outputs.branch }}
+        with:
+          github-token: ${{ steps.octo-sts.outputs.token }}
+          script: |
+            const label = `backport/${process.env.BRANCH}`;
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(process.env.PR_NUMBER),
+              labels: [label],
+            });
+            core.info(`Added ${label} — remove it after the test so merging this PR does not trigger a backport.`);
