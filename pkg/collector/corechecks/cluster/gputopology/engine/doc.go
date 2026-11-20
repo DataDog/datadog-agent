@@ -12,16 +12,21 @@
 //
 // # Nodes
 //
-// Each node matched by the flavor is classified once, in this precedence:
+// Each node matched by the flavor is classified once, in this precedence
+// (per attributed GPU resource; only no_gpu_allocatable can differ between
+// resources, e.g. when one vendor's device plugin is down):
 //
 //  1. unsupported: GPUs v1 doesn't model. MIG is active (any
 //     nvidia.com/mig-* capacity, or a nvidia.com/gpu.product label containing
 //     -MIG-; nvidia.com/mig.strategy is never used: GPU Feature Discovery
-//     sets it to "none" on every node), or GPUs are shared (time-slicing
-//     renamed to nvidia.com/gpu.shared).
+//     sets it to "none" on every node), or GPUs are shared by time-slicing
+//     or MPS (nvidia.com/gpu.shared in capacity, or the GFD labels
+//     nvidia.com/gpu.replicas > 1, nvidia.com/gpu.sharing-strategy
+//     time-slicing/mps, or a -SHARED product suffix).
 //  2. missing_labels: lacks a topology level label.
 //  3. unavailable: NotReady or cordoned.
-//  4. no_gpu_allocatable: no allocatable GPU (e.g. device plugin down).
+//  4. no_gpu_allocatable: allocatable is 0 for the resource (e.g. device
+//     plugin down).
 //  5. tainted: a NoSchedule/NoExecute taint that is not tolerated. Tolerated
 //     means: by the flavor tolerations, by Topology.AssumedTolerations, or
 //     keyed on a GPU resource name (ExtendedResourceToleration; GKE taints
@@ -39,7 +44,9 @@
 //
 // Result.Nodes has a row for every node state and every attribution seen,
 // zeros included. It is empty when no flavor node has a GPU (e.g. a GPU pool
-// scaled to 0): the check then emits its own zero series. A topology with no
+// scaled to 0), because no attribution is known: the check should then emit
+// gpu.scheduling.topology.nodes = 0 for every NodeState without a
+// gpu_resource tag, so monitors see 0 rather than no data. A topology with no
 // levels is invalid (Kueue requires at least one) and yields an empty Result.
 //
 // # Domains
@@ -61,7 +68,9 @@
 //
 // Per level, the engine reports domains per state, GPUs by GPU state and
 // domain state, the most free GPUs in one domain, and, per pod size s in
-// PodSizes up to the largest in_topology host, the most pods of s GPUs that
+// PodSizes up to the largest host capacity of the resource (in any node
+// state, so the reported sizes don't change with node health), the most pods
+// of s GPUs that
 // fit in one domain: slots(domain, s) = sum over its hosts of floor(free/s),
 // as Kueue counts. Per resource, it reports the GPUs the scheduler can't use,
 // by reason: unhealthy (capacity - allocatable on in_topology nodes), or the

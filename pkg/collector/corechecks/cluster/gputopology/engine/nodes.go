@@ -7,6 +7,7 @@ package engine
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/gpu"
@@ -16,8 +17,10 @@ import (
 // deliberately ignores nvidia.com/mig.strategy: GFD sets it on every GPU
 // node, to "none" when MIG is off.
 const (
-	labelGPUProduct = "nvidia.com/gpu.product"
-	migResourcePfx  = string(gpu.GpuNvidiaMigPrefix) + "-"
+	labelGPUProduct         = "nvidia.com/gpu.product"
+	labelGPUReplicas        = "nvidia.com/gpu.replicas"
+	labelGPUSharingStrategy = "nvidia.com/gpu.sharing-strategy"
+	migResourcePfx          = string(gpu.GpuNvidiaMigPrefix) + "-"
 )
 
 // wholeGPUResources are the extended resources the engine models: one unit
@@ -85,63 +88,82 @@ func (s NodeState) String() string {
 // GPU resource attributions of unsupported nodes, in NodeCount.GPUResource.
 const (
 	GPUResourceMIG    = "mig"                              // any MIG strategy
-	GPUResourceShared = string(gpu.GpuNvidiaGenericShared) // time-slicing with renameByDefault
+	GPUResourceShared = string(gpu.GpuNvidiaGenericShared) // time-slicing or MPS
 )
 
 // classified is a node after classification.
 type classified struct {
-	node      Node
-	state     NodeState
-	resources []string // attributed GPU resources, sorted
-	path      []string // label values for every level, nil if missing_labels or unsupported
+	node Node
+	// states holds the node's state per attributed resource ("mig" or
+	// nvidia.com/gpu.shared for unsupported nodes). It only differs between
+	// resources for no_gpu_allocatable (e.g. one vendor's plugin down).
+	states map[string]NodeState
+	path   []string // label values for every level, nil if missing_labels or unsupported
 }
 
-// classify returns the node's state, or false for a node with no GPU at all.
+// classify returns the node's states, or false for a node with no GPU at all.
 func classify(n Node, levels []string, implicit bool, tols []Toleration) (classified, bool) {
-	c := classified{node: n}
+	c := classified{node: n, states: map[string]NodeState{}}
 	if attr := unsupported(n); attr != "" {
-		c.state, c.resources = NodeUnsupported, []string{attr}
+		c.states[attr] = NodeUnsupported
 		return c, true
 	}
-	c.resources = attributedResources(n)
-	if len(c.resources) == 0 {
+	resources := attributedResources(n)
+	if len(resources) == 0 {
 		return c, false
 	}
-	path, ok := nodePath(n, levels, implicit)
-	switch {
-	case !ok:
-		c.state = NodeMissingLabels
-		return c, true
-	case !n.Ready || n.Unschedulable:
-		c.state = NodeUnavailable
-	case !slices.ContainsFunc(c.resources, func(r string) bool { return n.Allocatable[r] > 0 }):
-		c.state = NodeNoGPUAllocatable
-	case !tolerated(n.Taints, tols):
-		c.state = NodeTainted
-	default:
-		c.state = NodeInTopology
+	path, labelled := nodePath(n, levels, implicit)
+	if labelled {
+		c.path = path
 	}
-	c.path = path
+	ok := tolerated(n.Taints, tols)
+	for _, r := range resources {
+		switch {
+		case !labelled:
+			c.states[r] = NodeMissingLabels
+		case !n.Ready || n.Unschedulable:
+			c.states[r] = NodeUnavailable
+		case n.Allocatable[r] <= 0:
+			c.states[r] = NodeNoGPUAllocatable
+		case !ok:
+			c.states[r] = NodeTainted
+		default:
+			c.states[r] = NodeInTopology
+		}
+	}
 	return c, true
 }
 
 // unsupported returns the attribution of a node whose GPUs v1 doesn't model,
-// or "":
+// or "". MIG is checked first.
 //   - MIG is active: any nvidia.com/mig-* capacity (mixed strategy), or a
 //     -MIG- product label (single strategy, incl. -MIG-INVALID).
-//   - GPUs are shared: nvidia.com/gpu.shared is in capacity (time-slicing
-//     with renameByDefault). Reporting them as no_gpu_allocatable would fire
-//     "broken node" monitors.
+//   - GPUs are shared (time-slicing or MPS): nvidia.com/gpu.shared in
+//     capacity (renameByDefault), or the GFD labels gpu.replicas > 1,
+//     gpu.sharing-strategy time-slicing/mps, or a -SHARED product suffix. By
+//     default the plugin advertises nvidia.com/gpu = GPUs x replicas, which
+//     would inflate capacity, free GPUs and slots.
 func unsupported(n Node) string {
 	for r, c := range n.Capacity {
 		if c > 0 && strings.HasPrefix(r, migResourcePfx) {
 			return GPUResourceMIG
 		}
 	}
-	if strings.Contains(n.Labels[labelGPUProduct], "-MIG-") {
+	product := n.Labels[labelGPUProduct]
+	if strings.Contains(product, "-MIG-") {
 		return GPUResourceMIG
 	}
 	if _, ok := n.Capacity[GPUResourceShared]; ok {
+		return GPUResourceShared
+	}
+	if replicas, err := strconv.Atoi(n.Labels[labelGPUReplicas]); err == nil && replicas > 1 {
+		return GPUResourceShared
+	}
+	switch n.Labels[labelGPUSharingStrategy] {
+	case "time-slicing", "mps":
+		return GPUResourceShared
+	}
+	if strings.HasSuffix(product, "-SHARED") {
 		return GPUResourceShared
 	}
 	return ""

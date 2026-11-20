@@ -199,7 +199,9 @@ type LevelResult struct {
 
 	LargestFreeGPUs int // most free GPUs in one domain
 	// LargestFreeSlots is, per pod size, the most pods of that size that fit
-	// in one domain. Pod sizes larger than the largest host are skipped.
+	// in one domain. Pod sizes larger than the largest host capacity of the
+	// resource (any node state) are skipped, so the sizes don't change with
+	// node health.
 	LargestFreeSlots []Slots
 
 	DomainStats []Domain // sorted by Path
@@ -255,8 +257,8 @@ func Compute(t Topology, nodes []Node, alloc Allocations) Result {
 			continue
 		}
 		all = append(all, c)
-		for _, r := range c.resources {
-			counts[NodeCount{State: c.state, GPUResource: r}]++
+		for r, state := range c.states {
+			counts[NodeCount{State: state, GPUResource: r}]++
 			if !slices.Contains(attributions, r) {
 				attributions = append(attributions, r)
 			}
@@ -287,13 +289,15 @@ func computeResource(resource string, nodes []classified, levels []string, alloc
 	rr := ResourceResult{Resource: resource}
 	var overcommits []Overcommit
 	var hosts []host
-	largestHost := 0
+	largestHost := 0 // bounds the pod sizes, independent of node health
 	for _, c := range nodes {
-		if c.state == NodeUnsupported || !slices.Contains(c.resources, resource) {
+		state, ok := c.states[resource]
+		if !ok {
 			continue
 		}
 		capacity := max(c.node.Capacity[resource], 0)
-		switch c.state {
+		largestHost = max(largestHost, capacity)
+		switch state {
 		case NodeMissingLabels:
 			rr.UnschedulableGPUs[ReasonMissingLabels] += capacity
 			continue
@@ -305,7 +309,7 @@ func computeResource(resource string, nodes []classified, levels []string, alloc
 			rr.UnschedulableGPUs[ReasonTainted] += capacity
 		}
 		h := host{path: c.path}
-		if c.state == NodeInTopology {
+		if state == NodeInTopology {
 			h.allocatable = min(max(c.node.Allocatable[resource], 0), capacity)
 			rr.UnschedulableGPUs[ReasonUnhealthy] += capacity - h.allocatable
 			h.allocated = max(alloc[c.node.Name][resource], 0)
@@ -313,7 +317,6 @@ func computeResource(resource string, nodes []classified, levels []string, alloc
 				overcommits = append(overcommits, Overcommit{Node: c.node.Name, Resource: resource, Allocatable: h.allocatable, Allocated: h.allocated})
 				h.allocated = h.allocatable
 			}
-			largestHost = max(largestHost, h.allocatable)
 		}
 		hosts = append(hosts, h)
 	}
@@ -382,11 +385,8 @@ func newSlots(sizes []int) []Slots {
 func resourceNames(nodes []classified) []string {
 	var names []string
 	for _, c := range nodes {
-		if c.state == NodeUnsupported {
-			continue
-		}
-		for _, r := range c.resources {
-			if !slices.Contains(names, r) {
+		for r, state := range c.states {
+			if state != NodeUnsupported && !slices.Contains(names, r) {
 				names = append(names, r)
 			}
 		}
