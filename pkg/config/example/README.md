@@ -1,5 +1,9 @@
 # Agent configuration examples
 
+<!-- agent-version:start -->
+The generated examples in this directory were last refreshed from Agent `7.85.5`.
+<!-- agent-version:end -->
+
 This directory holds a reference copy of the example configuration files
 (`*.yaml.example`) shipped with each Agent flavor on each platform.
 
