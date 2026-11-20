@@ -34,6 +34,9 @@ func DisableRuntimeSecurity(config *config.Config) {
 	config.RuntimeSecurity.SecurityProfileEnabled = false
 	config.RuntimeSecurity.SecurityProfileV2Enabled = false
 	config.RuntimeSecurity.SysCtlEnabled = false
+	// The task storage syscall cache allocates on every hooked syscall entry and frees on exit; the LRU hash costs
+	// less per syscall.
+	config.Probe.EventStreamUseSyscallTaskStorage = false
 }
 
 // platform specific init function
