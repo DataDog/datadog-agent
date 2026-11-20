@@ -478,6 +478,8 @@ type Process struct {
 	Envp          []string `field:"envp,handler:ResolveProcessEnvp,weight:100"`                                                                                                                                                                              // SECLDoc[envp] Definition:`Environment variables of the process`
 	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated"`                                                                                                                                                                      // SECLDoc[envs_truncated] Definition:`Indicator of environment variables truncation`
 
+	Env map[string]string `field:"env,handler:ResolveProcessEnv,weight:100"` // SECLDoc[env] Definition:`Environment variables of the process, read by name` Example:`exec.env["LD_PRELOAD"] != ""` Description:`Matches the execution of a process with the LD_PRELOAD environment variable set to a value.`
+
 	ArgsScrubbed string   `field:"args_scrubbed,handler:ResolveProcessArgsScrubbed,opts:getters_only"`
 	ArgvScrubbed []string `field:"argv_scrubbed,handler:ResolveProcessArgvScrubbed,opts:getters_only"`
 

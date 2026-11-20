@@ -293,6 +293,14 @@ func (fh *EBPFFieldHandlers) ResolveProcessEnvp(_ *model.Event, process *model.P
 	return envp
 }
 
+// ResolveProcessEnv resolves the environment variables of the process, by name
+func (fh *EBPFFieldHandlers) ResolveProcessEnv(_ *model.Event, process *model.Process) map[string]string {
+	if process.EnvsEntry == nil {
+		return nil
+	}
+	return process.EnvsEntry.KeyValues()
+}
+
 // ResolveProcessArgsTruncated returns whether the args are truncated
 func (fh *EBPFFieldHandlers) ResolveProcessArgsTruncated(_ *model.Event, process *model.Process) bool {
 	_, truncated := sprocess.GetProcessArgv(process)
