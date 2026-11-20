@@ -65,6 +65,15 @@ func TestIRGenAllProbes(t *testing.T) {
 			continue
 		}
 		t.Run(pkg, func(t *testing.T) {
+			// The sample program yields ~220k probes per configuration. Running
+			// those configurations in parallel repeatedly exhausts the memory of
+			// the KMT micro-VMs whose kernels use 64KiB pages (CentOS 7 and 8 on
+			// arm64), taking down gotestsum along with the test. The test only
+			// analyzes prebuilt binaries, so it keeps the same coverage on the
+			// hosts with 4KiB pages.
+			if pkg == "sample" && os.Getpagesize() > 4096 {
+				t.Skipf("skipping on a host with %d-byte pages: too memory hungry", os.Getpagesize())
+			}
 			for _, cfg := range cfgs {
 				t.Run(cfg.String(), func(t *testing.T) {
 					t.Parallel()
