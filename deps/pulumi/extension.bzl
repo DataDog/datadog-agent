@@ -1,9 +1,8 @@
-"""Fetches the Pulumi CLI and plugins matching the SDKs in a `go.sum`.
-
-`pulumi_cli` fetches the release of the CLI at the version of `github.com/pulumi/pulumi/sdk/v3`, so that the CLI the
-Automation API drives is never older than the SDK, as `@pulumi_cli//:pulumi`, which `//internal/tools:pulumi` runs.
-
-`pulumi_plugins` fetches the plugins of the SDKs, laid out as `pulumi plugin install` does.
+"""Fetches the Pulumi CLI and plugins matching the SDKs in a `go.sum`, as the `@pulumi` hub:
+- `@pulumi//:cli`, which `//internal/tools:pulumi` runs, is the CLI at the version of `github.com/pulumi/pulumi/sdk/v3`,
+  as the CLI and the SDKs are released together under one version, and the SDK's own installer defaults to the SDK's
+  version. Bumping the SDK bumps the CLI. `@pulumi//:bin/pulumi` is the CLI next to its bundled language hosts.
+- `@pulumi//:install` installs the plugins of the SDKs, laid out as `pulumi plugin install` does.
 
 Like `pulumi plugin install`, which asks each SDK which plugin it needs, this reads the npm package of each `pulumi-*`
 SDK in `go_sum`, at the SDK's version, e.g. `github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0` maps to
@@ -82,26 +81,74 @@ pkg_files(
     )
 
 def _hub_impl(rctx):
-    rctx.file("BUILD.bazel", """load("@rules_pkg//pkg:install.bzl", "pkg_install")
+    ext = ".exe" if repo_utils.is_windows(rctx) else ""
+    rctx.download_and_extract(
+        url = rctx.attr.cli_url,
+        integrity = rctx.attr.cli_integrity,
+        # The bundled `pulumi-language-*` hosts stay next to `pulumi`, where Pulumi looks them up.
+        output = "bin",
+        strip_prefix = "pulumi/bin" if ext else "pulumi",
+    )
+    rctx.file("BUILD.bazel", """load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+
+native_binary(
+    name = "cli",
+    src = "bin/pulumi{ext}",
+    out = "pulumi{ext}",
+    # Use the language hosts released with this CLI rather than any other on the PATH, e.g. a CI image's.
+    env = {{"PULUMI_IGNORE_AMBIENT_PLUGINS": "true"}},
+    visibility = ["//visibility:public"],
+)
 
 pkg_install(
     name = "install",
     srcs = [
-        "{}",
+        "{plugins}",
     ],
     visibility = ["//visibility:public"],
 )
-""".format('",\n        "'.join(rctx.attr.plugins)))
+""".format(ext = ext, plugins = '",\n        "'.join(rctx.attr.plugins)))
 
-_hub = repository_rule(implementation = _hub_impl, attrs = {"plugins": attr.string_list(mandatory = True)})
+_hub = repository_rule(implementation = _hub_impl, attrs = {
+    "cli_integrity": attr.string(mandatory = True),
+    "cli_url": attr.string(mandatory = True),
+    "plugins": attr.string_list(mandatory = True),
+})
+
+_CLI_SDK = "github.com/pulumi/pulumi/sdk/v3"
+
+def _cli(mctx, versions, facts):
+    """(url, integrity) of the CLI release for the host, at the only version in `versions`."""
+    if len(versions) != 1:
+        fail("expected one {} version in the go.sum files, got: {}".format(_CLI_SDK, sorted(versions)))
+    version = versions.keys()[0]
+    base_url = "https://github.com/pulumi/pulumi/releases/download/{}/".format(version)
+    filename = "pulumi-{}-{}-{}.{}".format(
+        version,
+        repo_utils.os(mctx),
+        {"amd64": "x64"}.get(repo_utils.arch(mctx), repo_utils.arch(mctx)),
+        "zip" if repo_utils.is_windows(mctx) else "tar.gz",
+    )
+    integrities = _fact(
+        mctx,
+        facts,
+        "{}pulumi-{}-checksums.txt".format(base_url, version.removeprefix("v")),
+        _integrities,
+    )
+    return "{}{}".format(base_url, filename), integrities[filename]
 
 def _impl(mctx):
     facts = {}
     plugins = {}
+    cli_versions = {}
     for tag in [tag for module in mctx.modules for tag in module.tags.from_file]:
         for line in mctx.read(tag.go_sum).splitlines():
             go_module, version, _ = line.split(" ")
             if version.endswith("/go.mod"):
+                continue
+            if go_module == _CLI_SDK:
+                cli_versions[version] = True
                 continue
             path = go_module.split("/")
             if len(path) < 3 or not path[2].startswith("pulumi-"):
@@ -124,8 +171,9 @@ def _impl(mctx):
                         plugins,
                         facts,
                     )
-    name = "pulumi_plugins"
-    _hub(name = name, plugins = sorted(plugins.values()))
+    cli_url, cli_integrity = _cli(mctx, cli_versions, facts)
+    name = "pulumi"
+    _hub(name = name, cli_integrity = cli_integrity, cli_url = cli_url, plugins = sorted(plugins.values()))
     return mctx.extension_metadata(
         facts = facts,
         reproducible = True,
@@ -133,70 +181,10 @@ def _impl(mctx):
         root_module_direct_dev_deps = [],
     )
 
-pulumi_plugins = module_extension(
+pulumi = module_extension(
     implementation = _impl,
     tag_classes = {"from_file": tag_class(attrs = {
         "go_sum": attr.label(mandatory = True),
         "npm_dependencies": attr.string_list(),
     })},
-)
-
-_CLI_SDK = "github.com/pulumi/pulumi/sdk/v3"
-
-def _cli_impl(mctx):
-    facts = {}
-    versions = [
-        version
-        for module in mctx.modules
-        for tag in module.tags.from_file
-        for go_module, version, _ in [line.split(" ") for line in mctx.read(tag.go_sum).splitlines()]
-        if go_module == _CLI_SDK and not version.endswith("/go.mod")
-    ]
-    if len(versions) != 1:
-        fail("expected one {} version in the go.sum files, got: {}".format(_CLI_SDK, versions))
-    version = versions[0]
-    base_url = "https://github.com/pulumi/pulumi/releases/download/{}/".format(version)
-    is_windows = repo_utils.is_windows(mctx)
-    filename = "pulumi-{}-{}-{}.{}".format(
-        version,
-        repo_utils.os(mctx),
-        {"amd64": "x64"}.get(repo_utils.arch(mctx), repo_utils.arch(mctx)),
-        "zip" if is_windows else "tar.gz",
-    )
-    ext = ".exe" if is_windows else ""
-    name = "pulumi_cli"
-    http_archive(
-        name = name,
-        build_file_content = """load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
-
-native_binary(
-    name = "pulumi",
-    src = "bin/pulumi{ext}",
-    out = "pulumi{ext}",
-    # Use the language hosts released with this CLI rather than any other on the PATH, e.g. a CI image's.
-    env = {{"PULUMI_IGNORE_AMBIENT_PLUGINS": "true"}},
-    visibility = ["//visibility:public"],
-)
-""".format(ext = ext),
-        integrity = _fact(
-            mctx,
-            facts,
-            "{}pulumi-{}-checksums.txt".format(base_url, version.removeprefix("v")),
-            _integrities,
-        )[filename],
-        # Frees the `pulumi` name for the target. `pulumi-language-go` stays next to `pulumi`, where Pulumi looks it up.
-        add_prefix = "bin",
-        strip_prefix = "pulumi/bin" if is_windows else "pulumi",
-        urls = ["{}{}".format(base_url, filename)],
-    )
-    return mctx.extension_metadata(
-        facts = facts,
-        reproducible = True,
-        root_module_direct_deps = [name],
-        root_module_direct_dev_deps = [],
-    )
-
-pulumi_cli = module_extension(
-    implementation = _cli_impl,
-    tag_classes = {"from_file": tag_class(attrs = {"go_sum": attr.label(mandatory = True)})},
 )
