@@ -18,6 +18,11 @@ import (
 // registryMutex while the registry is written.
 const registryEncodeBatchSize = 256
 
+// registryEntryBytesHint is the encoded size the batch buffer reserves per
+// entry. A file entry with fingerprint config is about 350 bytes; longer
+// entries grow the buffer.
+const registryEntryBytesHint = 512
+
 // encodeRegistry writes the on-disk form of the registry to w: the same
 // document encoding/json produces for a JSONRegistry, field for field, with
 // entries in map order rather than sorted by key. Readers decode it with
@@ -27,10 +32,10 @@ const registryEncodeBatchSize = 256
 //
 // The identifiers are taken under registryMutex, then entries are encoded
 // registryEncodeBatchSize at a time, each batch under registryMutex and each
-// write to w outside it, so disk writes never hold the lock and the encoded
-// registry is never held in memory whole. Entries removed after the
-// identifiers are taken are left out; entries added after are written by the
-// next flush.
+// write to w outside it. Writes to w never hold the lock, and encodeRegistry
+// holds at most one batch of the encoded registry at a time. Entries removed
+// after the identifiers are taken are left out; entries added after are not
+// in this write.
 func (a *registryAuditor) encodeRegistry(w io.Writer) error {
 	a.registryMutex.Lock()
 	identifiers := make([]string, 0, len(a.registry))
@@ -39,7 +44,7 @@ func (a *registryAuditor) encodeRegistry(w io.Writer) error {
 	}
 	a.registryMutex.Unlock()
 
-	buf := append(make([]byte, 0, 512*registryEncodeBatchSize), `{"Version":`...)
+	buf := append(make([]byte, 0, registryEntryBytesHint*min(len(identifiers)+1, registryEncodeBatchSize)), `{"Version":`...)
 	buf = strconv.AppendInt(buf, registryAPIVersion, 10)
 	buf = append(buf, `,"Registry":{`...)
 	if _, err := w.Write(buf); err != nil {

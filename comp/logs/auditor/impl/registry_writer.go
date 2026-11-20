@@ -16,8 +16,10 @@ import (
 )
 
 // registryWriteBufferSize is the size of the buffer between the registry
-// encoder and the registry file.
-const registryWriteBufferSize = 64 << 10
+// encoder and the registry file. It joins the encoder's small writes, such as
+// the document header and a small registry's single batch, into one write;
+// writes larger than the buffer go to the file directly.
+const registryWriteBufferSize = 4 << 10
 
 // encodeToFile runs encode against a buffered writer on f and flushes it.
 func encodeToFile(f *os.File, encode func(io.Writer) error) error {

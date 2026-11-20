@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
@@ -359,7 +362,7 @@ func (suite *AuditorTestSuite) TestStopWritesRegistry() {
 	suite.Equal("25", registry.Registry["file:/var/log/app.log"].Offset)
 }
 
-func (suite *AuditorTestSuite) TestStopWritesUnchangedRegistry() {
+func (suite *AuditorTestSuite) TestStopRewritesRegistry() {
 	suite.a.entryTTL = 23 * time.Hour
 	suite.a.Start()
 	suite.Require().NoError(suite.a.flushRegistry())
@@ -367,10 +370,10 @@ func (suite *AuditorTestSuite) TestStopWritesUnchangedRegistry() {
 
 	suite.a.Stop()
 	_, err := os.Stat(suite.testRegistryPath)
-	suite.NoError(err, "Stop did not write a registry that had not changed since the last write")
+	suite.NoError(err, "Stop did not rewrite the registry")
 }
 
-func (suite *AuditorTestSuite) TestFlushWritesUnchangedRegistry() {
+func (suite *AuditorTestSuite) TestFlushRewritesRegistry() {
 	suite.a.entryTTL = 23 * time.Hour
 	suite.a.Start()
 	defer suite.a.Stop()
@@ -379,7 +382,77 @@ func (suite *AuditorTestSuite) TestFlushWritesUnchangedRegistry() {
 
 	suite.a.Flush()
 	_, err := os.Stat(suite.testRegistryPath)
-	suite.NoError(err, "Flush did not write a registry that had not changed since the last write")
+	suite.NoError(err, "Flush did not rewrite the registry")
+}
+
+// TestFlushRegistryWithConcurrentUpdates flushes while tailers and the file
+// provider update entries, for the race detector to check that every entry
+// is read under registryMutex.
+func (suite *AuditorTestSuite) TestFlushRegistryWithConcurrentUpdates() {
+	suite.a.registry = manyEntries(4*registryEncodeBatchSize + 3)
+	identifiers := make([]string, 0, len(suite.a.registry))
+	for identifier := range suite.a.registry {
+		identifiers = append(identifiers, identifier)
+	}
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	for updater := 0; updater < 3; updater++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; ; i++ {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				identifier := identifiers[i%len(identifiers)]
+				switch updater {
+				case 0:
+					suite.a.SetOffset(identifier, strconv.Itoa(i))
+				case 1:
+					suite.a.SetTailed(identifier, i%2 == 0)
+				default:
+					suite.a.KeepAlive(identifier)
+				}
+			}
+		}()
+	}
+	for i := 0; i < 5; i++ {
+		suite.Require().NoError(suite.a.flushRegistry())
+	}
+	close(stop)
+	wg.Wait()
+
+	suite.Len(suite.a.recoverRegistry(), len(identifiers))
+}
+
+// TestFlushRegistryRoundTripsThroughEachWriter writes a registry larger than
+// the write buffer and the batch size with each writer and reads it back.
+func (suite *AuditorTestSuite) TestFlushRegistryRoundTripsThroughEachWriter() {
+	for name, writer := range map[string]auditor.RegistryWriter{
+		"atomic":     NewAtomicRegistryWriter(),
+		"non-atomic": NewNonAtomicRegistryWriter(),
+	} {
+		suite.Run(name, func() {
+			registry := manyEntries(3*registryEncodeBatchSize + 11)
+			suite.a.registryWriter = writer
+			suite.a.registry = registry
+			suite.Require().NoError(suite.a.flushRegistry())
+
+			info, err := os.Stat(suite.testRegistryPath)
+			suite.Require().NoError(err)
+			suite.Greater(info.Size(), int64(64<<10), "the registry was not larger than the write buffers")
+
+			recovered := suite.a.recoverRegistry()
+			suite.Require().Len(recovered, len(registry))
+			for identifier, entry := range registry {
+				suite.Require().Contains(recovered, identifier)
+				suite.Equal(*entry, *recovered[identifier])
+			}
+		})
+	}
 }
 
 func TestScannerTestSuite(t *testing.T) {
