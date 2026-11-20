@@ -18,8 +18,17 @@
 #define MSG_PEEK 2
 #endif
 
+// both_sides_marked reports whether both ends of a connection have marked the classification entry, which happens
+// only when both ends are on this host. Before the first end's tcp_close return hook clears its side, that means the
+// other end is still open and will need the conntrack entry when it closes.
+static __always_inline bool both_sides_marked(conn_tuple_t *norm) {
+    protocol_stack_t *stack = __get_protocol_stack_if_exists(norm);
+    return stack && (stack->flags & FLAG_SERVER_SIDE) && (stack->flags & FLAG_CLIENT_SIDE);
+}
+
 // store_tcp_close_args saves what the tcp_close return hook needs to clean up protocol classification. The packets'
-// tuple is resolved now, because userspace deletes a NAT'd connection's conntrack entry once it sees the close event.
+// tuple is resolved now, because userspace deletes a NAT'd connection's conntrack entry once it sees the close event,
+// unless the connection is marked as having an open peer on this host.
 static __always_inline void store_tcp_close_args(__u64 pid_tgid, conn_tuple_t *t) {
     tcp_close_args_t args = {};
     args.tup = *t;
@@ -29,6 +38,13 @@ static __always_inline void store_tcp_close_args(__u64 pid_tgid, conn_tuple_t *t
     normalize_tuple(&norm);
     args.has_skb_tup = get_skb_tuple(t, &norm, &args.skb_tup);
     bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &args, BPF_ANY);
+
+    if (args.has_skb_tup && (both_sides_marked(&norm) || both_sides_marked(&args.skb_tup))) {
+        conn_stats_ts_t *cst = bpf_map_lookup_elem(&conn_stats, t);
+        if (cst) {
+            set_protocol_flag(&cst->protocol_stack, FLAG_LOCAL_NAT_PEER_OPEN);
+        }
+    }
 }
 
 static __always_inline void clean_protocol_classification(tcp_close_args_t *args) {
