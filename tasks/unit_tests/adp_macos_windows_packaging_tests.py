@@ -110,12 +110,12 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertLess(handoff, fallback)
 
     def test_preinst_kills_every_detached_experiment_process(self):
-        # An upgrade must not leave a detached configuration experiment process (the watcher, or the
-        # installer daemon hand-over or hand-back) swapping jobs back in while the binaries it runs
-        # are replaced.
+        # An upgrade must not leave a detached configuration experiment process (the watchers, the
+        # relay that starts the second one, or the installer daemon hand-back) swapping jobs back in
+        # while the binaries it runs are replaced.
         preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
         pkill = next(line for line in preinst.splitlines() if "pkill -9 -f" in line and "package-command" in line)
-        for command in ("watchConfigExperiment", "handOverInstaller", "handBackInstaller"):
+        for command in ("watchConfigExperiment", "startSupervisorRelay", "handBackInstaller"):
             self.assertIn(command, pkill)
 
     def test_uninstall_without_installer_removes_the_experiment_jobs(self):
