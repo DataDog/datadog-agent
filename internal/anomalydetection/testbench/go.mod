@@ -27,7 +27,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.216 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.217 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.85.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.84.0-devel.0.20261030015547-4fcf7d423463 // indirect

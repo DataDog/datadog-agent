@@ -26,6 +26,7 @@ type testOpts struct {
 	securityProfileSampleRefreshPeriod      time.Duration
 	securityProfileMaxImageTags             int
 	enableAnomalyDetection                  bool
+	anomalyDetectionEventCooldown           time.Duration
 	workloadProfileStorageDir               string
 	workloadProfilePersistencePeriod        time.Duration
 	workloadProfileEventTypes               []string
@@ -33,6 +34,7 @@ type testOpts struct {
 	profilingStartupDelay                   time.Duration
 	profileReportingWaitPersistence         bool
 	eventSamplingOpenRateUnlimited          bool
+	disableEventSampling                    bool
 	disableDiscarders                       bool
 	disableERPCDentryResolution             bool
 	disableMapDentryResolution              bool
