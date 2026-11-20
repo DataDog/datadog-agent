@@ -2490,7 +2490,7 @@ func TestKueueSchedulerTags(t *testing.T) {
 			for _, tagInfo := range tagInfos {
 				var schedulerTags []string
 				for _, tag := range append(tagInfo.LowCardTags, tagInfo.OrchestratorCardTags...) {
-					if strings.HasPrefix(tag, "job_scheduler") {
+					if strings.HasPrefix(tag, "job_scheduler") || strings.HasPrefix(tag, "kube_scheduler") {
 						schedulerTags = append(schedulerTags, tag)
 					}
 				}
@@ -2551,7 +2551,7 @@ func TestKAIPodGroupTagsPropagateToPodAndContainer(t *testing.T) {
 			require.Contains(t, tagInfos, entityID)
 			var kaiTags []string
 			for _, tag := range append(tagInfos[entityID].LowCardTags, tagInfos[entityID].OrchestratorCardTags...) {
-				if strings.HasPrefix(tag, "job_scheduler") || strings.HasPrefix(tag, "kai_") {
+				if strings.HasPrefix(tag, "job_scheduler") || strings.HasPrefix(tag, "kube_scheduler") || strings.HasPrefix(tag, "kai_") {
 					kaiTags = append(kaiTags, tag)
 				}
 			}
