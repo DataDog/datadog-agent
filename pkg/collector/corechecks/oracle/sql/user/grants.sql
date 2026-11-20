@@ -90,7 +90,12 @@ declare
 begin
    if :connection_type = :connection_type_cdb then
       container_clause := ' container=all';
-      execute immediate 'grant set container to &&user container=all';
+      begin
+         execute immediate 'grant set container to &&user container=all';
+      exception
+         when others then
+            dbms_output.put_line('Could not grant SET CONTAINER to &&user: ' || sqlerrm);
+      end;
    end if;
 
    grant_views(monitoring_views, 'select');
