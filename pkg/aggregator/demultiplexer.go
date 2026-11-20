@@ -24,11 +24,6 @@ import (
 // and other data that need to be sent to the forwarders.
 // AgentDemultiplexerOptions let you configure which forwarders have to be started.
 type Demultiplexer interface {
-	// General
-	// --
-	// Serializer returns the serializer used by the Demultiplexer instance.
-	Serializer() serializer.MetricSerializer
-
 	// Samples API
 	// --
 

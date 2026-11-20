@@ -9,7 +9,6 @@ package demultiplexer
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 // team: agent-metric-pipelines
@@ -17,9 +16,6 @@ import (
 // Component is the component type.
 type Component interface {
 	sender.SenderManager
-
-	// TODO: (components) remove this method once the serializer is a component
-	Serializer() serializer.MetricSerializer
 
 	aggregator.DemultiplexerWithAggregator
 

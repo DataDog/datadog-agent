@@ -731,15 +731,6 @@ func (d *AgentDemultiplexer) GetDogStatsDPipelinesCount() int {
 	return d.statsd.pipelinesCount
 }
 
-// Serializer returns a serializer that anyone can use. This method exists
-// to keep compatibility with existing code while introducing the Demultiplexer,
-// however, the plan is to remove it anytime soon.
-//
-// Deprecated.
-func (d *AgentDemultiplexer) Serializer() serializer.MetricSerializer {
-	return d.dataOutputs.sharedSerializer
-}
-
 // Aggregator returns an aggregator that anyone can use. This method exists
 // to keep compatibility with existing code while introducing the Demultiplexer,
 // however, the plan is to remove it anytime soon.
