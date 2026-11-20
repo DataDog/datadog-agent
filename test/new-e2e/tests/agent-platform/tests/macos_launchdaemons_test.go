@@ -485,6 +485,12 @@ func (m *macosInstallSuite) TestZXProcessManagerOptOut() {
 			t.Logf("installer postinst output:\n%s", directHooks.String())
 		}
 	})
+	runHook := func(command string) {
+		t.Helper()
+		out, err := client.Execute(command)
+		fmt.Fprintf(&directHooks, "$ %s\n%s\n", command, out)
+		require.NoError(t, err, "%s failed:\n%s", command, out)
+	}
 
 	install.MacOS(t, client,
 		installparams.WithUsername(m.Env().RemoteHost.Username),
@@ -494,18 +500,15 @@ func (m *macosInstallSuite) TestZXProcessManagerOptOut() {
 	require.False(t, t.Failed(), "the opt-out install failed")
 	assertMacosProcessManagerOff(t, client, "install script")
 
+	runHook("sudo " + macosInstallerBinary + " postinst datadog-agent dmg")
+	assertMacosStableLaunchDaemons(t, client)
+
 	client.MustExecuteOn(t, fmt.Sprintf("printf '\\nprocess_manager:\\n  enabled: false\\n' | sudo tee -a %s >/dev/null", conf))
 	install.MacOS(t, client, installparams.WithUsername(m.Env().RemoteHost.Username), installparams.WithArch("x64"))
 	require.False(t, t.Failed(), "the datadog.yaml opt-out install failed")
 	assertMacosProcessManagerOff(t, client, "datadog.yaml")
 
 	client.MustExecuteOn(t, fmt.Sprintf("sudo cp -p %s %s", backup, conf))
-	runHook := func(command string) {
-		t.Helper()
-		out, err := client.Execute(command)
-		fmt.Fprintf(&directHooks, "$ %s\n%s\n", command, out)
-		require.NoError(t, err, "%s failed:\n%s", command, out)
-	}
 	runHook("sudo " + macosInstallerBinary + " postinst datadog-agent dmg")
 	assertMacosStableLaunchDaemons(t, client)
 
