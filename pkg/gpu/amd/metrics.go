@@ -52,6 +52,14 @@ type Metrics struct {
 	PCIeLinkSpeedGTs    Reading // current_link_speed, GT/s per lane
 	PCIeMaxLinkSpeedGTs Reading // max_link_speed, GT/s per lane
 
+	// ECC error counts summed over the RAS blocks, like the amd-smi totals.
+	// They are invalid when a block count cannot be read or parsed, or no
+	// enabled block has one, and the deferred count also when no block
+	// reports deferred errors.
+	ECCUncorrected Reading
+	ECCCorrected   Reading
+	ECCDeferred    Reading
+
 	// GPUMetrics is the decoded gpu_metrics table, nil when the device has
 	// none. When GPUMetricsErr is set (ErrGPUMetricsUnsupported or
 	// ErrGPUMetricsMalformed), it only holds the version from the header, or
@@ -101,9 +109,10 @@ func (d *Device) ReadMetricsWithOptions(opts ReadOptions) (Metrics, error) {
 	}
 	m.GraphicsClockMHz = r.clock(hwmonDir, hwmonEntries, "sclk", filepath.Join(d.devicePath, "pp_dpm_sclk"))
 	m.MemoryClockMHz = r.clock(hwmonDir, hwmonEntries, "mclk", filepath.Join(d.devicePath, "pp_dpm_mclk"))
+	r.readECC(filepath.Join(d.devicePath, "ras"), &m)
 
 	if !opts.SkipGPUMetrics {
-		m.GPUMetrics, m.GPUMetricsErr = r.gpuMetrics(filepath.Join(d.devicePath, "gpu_metrics"))
+		m.GPUMetrics, m.GPUMetricsErr = r.gpuMetrics(d.devicePath)
 		m.XGMIHiveSize = d.XGMIHiveSize()
 	}
 
@@ -179,8 +188,8 @@ func (r *reader) parseUint(path, content string, scale float64) Reading {
 var readActivityFile = os.ReadFile
 
 // activity reads a busy percentage. amdgpu returns EPERM for it while the
-// device is runtime-suspended, which reads as idle, but also during a GPU
-// reset, which stays an error.
+// device is runtime-suspended (or suspending or resuming), which reads as
+// idle, but also during a GPU reset, which stays an error.
 func (r *reader) activity(devicePath, name string) Reading {
 	path := filepath.Join(devicePath, name)
 	content, err := readActivityFile(path)
@@ -196,10 +205,18 @@ func (r *reader) activity(devicePath, name string) Reading {
 	return r.parseUint(path, sysfsValue(content), 1)
 }
 
-// runtimeSuspended reports whether the device is runtime-suspended.
+// runtimeSuspended reports whether the device is runtime-suspended, or
+// suspending or resuming, when amdgpu also returns EPERM.
 func runtimeSuspended(devicePath string) bool {
 	content, err := os.ReadFile(filepath.Join(devicePath, "power", "runtime_status"))
-	return err == nil && sysfsValue(content) == "suspended"
+	if err != nil {
+		return false
+	}
+	switch sysfsValue(content) {
+	case "suspended", "suspending", "resuming":
+		return true
+	}
+	return false
 }
 
 // linkWidth reads a PCI link width. A width of 0 (no link trained) is unavailable.
@@ -364,4 +381,116 @@ func (r *reader) hwmonClock(dir string, entries []os.DirEntry, label string) Rea
 		}
 	}
 	return Reading{}
+}
+
+// rasBlocks are the RAS blocks amd-smi adds up for its total ECC counts, with
+// their bit in ras/features (amdsmi_get_gpu_total_ecc_count and
+// rsmi_dev_ecc_count_get in ROCm/rocm-systems projects/amdsmi).
+var rasBlocks = []struct {
+	name string
+	bit  uint
+}{{"umc", 0}, {"sdma", 1}, {"gfx", 2}, {"mmhub", 3}, {"pcie_bif", 5}, {"hdp", 6}, {"xgmi_wafl", 7}}
+
+// rasQueryInaccessible is what amdgpu returns for an error count attribute
+// while it cannot query errors, such as during a GPU reset.
+const rasQueryInaccessible = "Query currently inaccessible"
+
+// readRASFile reads an error count attribute; tests replace it.
+var readRASFile = os.ReadFile
+
+// readECC sums the error counts of the RAS blocks enabled in ras/features, as
+// amd-smi does. A block without a count attribute is left out. Nothing is
+// reported when a count attribute cannot be read or parsed: the driver fails
+// the query during a GPU reset, and a partial sum would undercount.
+func (r *reader) readECC(rasDir string, m *Metrics) {
+	featuresPath := filepath.Join(rasDir, "features")
+	features, ok := r.read(featuresPath)
+	if !ok {
+		return
+	}
+	mask, err := parseRASFeatures(features)
+	if err != nil {
+		r.errs = append(r.errs, fmt.Errorf("parse %s: %w", featuresPath, err))
+		return
+	}
+
+	var uncorrected, corrected, deferred uint64
+	var found, foundDeferred bool
+	for _, block := range rasBlocks {
+		if mask&(1<<block.bit) == 0 {
+			continue
+		}
+		path := filepath.Join(rasDir, block.name+"_err_count")
+		data, err := readRASFile(path)
+		if errors.Is(err, os.ErrNotExist) {
+			// Linux 6.15 to 7.1 name it aca_<block> on MI300/MI350-class
+			// GPUs (ACA).
+			path = filepath.Join(rasDir, "aca_"+block.name)
+			data, err = readRASFile(path)
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			r.errs = append(r.errs, err)
+			return
+		}
+		content := sysfsValue(data)
+		if content == rasQueryInaccessible {
+			return
+		}
+		counts, err := parseErrCount(content)
+		if err != nil {
+			r.errs = append(r.errs, fmt.Errorf("parse %s: %w", path, err))
+			return
+		}
+		found = true
+		uncorrected += counts["ue"]
+		corrected += counts["ce"]
+		if de, ok := counts["de"]; ok {
+			foundDeferred = true
+			deferred += de
+		}
+	}
+	if found {
+		m.ECCUncorrected = valid(float64(uncorrected))
+		m.ECCCorrected = valid(float64(corrected))
+	}
+	if foundDeferred {
+		m.ECCDeferred = valid(float64(deferred))
+	}
+}
+
+// parseRASFeatures parses ras/features, such as "feature mask: 0x20065bff".
+func parseRASFeatures(content string) (uint64, error) {
+	value, found := strings.CutPrefix(content, "feature mask:")
+	if !found {
+		return 0, fmt.Errorf("invalid feature mask %q", content)
+	}
+	return strconv.ParseUint(strings.TrimPrefix(strings.TrimSpace(value), "0x"), 16, 64)
+}
+
+// parseErrCount parses an error count attribute, such as "ue: 0\nce: 2\nde: 0"
+// (de is only reported by UMC, or by all blocks with ACA). The ue and ce counts
+// are required.
+func parseErrCount(content string) (map[string]uint64, error) {
+	counts := make(map[string]uint64, 3)
+	for line := range strings.Lines(content) {
+		key, value, _ := strings.Cut(line, ":")
+		key = strings.TrimSpace(key)
+		if key != "ue" && key != "ce" && key != "de" {
+			continue
+		}
+		count, err := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("%s count: %w", key, err)
+		}
+		counts[key] = count
+	}
+	for _, key := range []string{"ue", "ce"} {
+		if _, ok := counts[key]; !ok {
+			return nil, fmt.Errorf("missing %s count", key)
+		}
+	}
+	return counts, nil
 }
