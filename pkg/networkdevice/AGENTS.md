@@ -8,17 +8,26 @@ Applies to `pkg/collector/corechecks/snmp/`, `pkg/networkdevice/`, `pkg/networkd
 
 All of these run on macOS, Linux, and Windows; none need a Linux kernel.
 
-- **Preferred:** `dda inv test --targets=./pkg/collector/corechecks/snmp,./comp/snmptraps,...` (or
-  `bazel test //pkg/collector/corechecks/snmp/...`). It applies the `test` tag, runs the `ncm` variants,
-  and includes the nested modules.
+- **Preferred:** Bazel, which applies the `test` tag, runs the `ncm` variants, and crosses nested
+  `go.mod` boundaries. The whole NDM scope:
+
+  ```sh
+  bazel test //pkg/collector/corechecks/snmp/... //pkg/networkdevice/... //pkg/networkdevices/... \
+    //pkg/snmp/... //comp/ndm/... //comp/ndmconnectivitycheck/... //comp/ndmdiscovery/... \
+    //comp/ndmtmp/... //comp/snmptraps/... //comp/snmpscan/... //comp/snmpscanmanager/... \
+    //comp/netflow/... //pkg/networkconfigmanagement/... //comp/networkconfigmanagement/... \
+    //pkg/collector/corechecks/networkconfigmanagement/...
+  ```
+
+  `dda inv test --targets=./pkg/networkdevice,...` runs the same recursive Bazel patterns.
 - **Plain `go test` needs `-tags test`.** Without it, mocks and helpers (`pkg/aggregator/mocksender`,
   `comp/*/mock`, `fake_session.go`) are excluded (`build constraints exclude all Go files`), and tests that
   set config panic with `can only call SetInTest from test code`.
 - **NCM needs `-tags test,ncm`.** The real check and component are behind `ncm`; without it you build
   the stub, `pkg/collector/corechecks/networkconfigmanagement` reports `[no test files]`, and about half
   of `comp/networkconfigmanagement/impl`'s tests silently don't run.
-- **Nested modules are skipped by parent patterns.** `go test ./pkg/networkdevice/...` doesn't include
-  `pkg/networkdevice/profile` (its own `go.mod`); test it explicitly. Same for `comp/netflow/payload`.
+- **Plain `go test` skips nested modules.** `go test ./pkg/networkdevice/...` doesn't include
+  `pkg/networkdevice/profile` (its own `go.mod`); test it explicitly. Bazel includes it.
 - **Fresh clone or worktree:** run any `dda inv` task (for example `dda inv schema.codegen`) before
   plain `go test`, or `pkg/config/setup` fails with `undefined: generatedsettings.InitCommonBase`.
 
@@ -47,9 +56,12 @@ All of these run on macOS, Linux, and Windows; none need a Linux kernel.
 - `test/new-e2e/tests/ndm/snmp` (agent plus snmpsim, replaying the `compose/data/*.snmprec` recordings) and
   `test/new-e2e/tests/ndm/netflow` provision cloud VMs; they don't run locally. Typecheck them with
   `go vet ./tests/ndm/...` from `test/new-e2e`, and see `test/new-e2e/AGENTS.md` to run them.
-- CI runs the SNMP e2e job automatically only when `pkg/collector/corechecks/snmp/` or the test
-  directory changes; for changes in `pkg/snmp/`, `pkg/networkdevice/`, or `comp/snmptraps/` it's manual.
-  The NetFlow job runs on `comp/netflow/` changes.
+- The SNMP and NetFlow e2e jobs always run on `main`, release branches, and RC tags, and when shared
+  e2e files such as `test/new-e2e/go.mod` change (`.on_e2e_main_release_or_rc` in `.gitlab-ci.yml`).
+  On other PRs, the SNMP job runs automatically only when `pkg/collector/corechecks/snmp/` or
+  `test/new-e2e/tests/ndm/snmp/` changes (`.on_ndm_snmp_or_e2e_changes` in
+  `.gitlab/test/e2e/e2e_ndm.yml`), so a change limited to `pkg/snmp/`, `pkg/networkdevice/`, or
+  `comp/snmptraps/` leaves it as a manual job. Start it by hand before trusting such a change.
 
 ## Pull requests
 
