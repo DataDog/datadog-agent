@@ -16,9 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	grpcstatus "google.golang.org/grpc/status"
 
 	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
@@ -74,7 +72,7 @@ func newStateEmitter(report, logState func(State)) func(State) {
 }
 
 func Enabled(cfg model.Reader) bool {
-	return runtime.GOOS != "windows" && cfg.GetBool(par.Enabled)
+	return cfg.GetBool(par.Enabled)
 }
 
 // Run watches supervisor registrations and authorizes each new lifecycle's initial startup.
@@ -86,7 +84,7 @@ func Run(ctx context.Context, cfg model.Reader, source Source, report func(State
 	}
 	mode, err := deployment.Resolve(cfg)
 	// Intentional ungated modes take precedence over gate-specific configuration warnings.
-	bypass := runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent ||
+	bypass := !supportedHost(runtime.GOOS, configenv.IsContainerized(), flavor.GetFlavor()) ||
 		(err == nil && mode != deployment.Split)
 	emit := newStateEmitter(report, newStateLogger(bypass))
 	if expvar.Get("par_phone_home") == nil {
@@ -97,11 +95,11 @@ func Run(ctx context.Context, cfg model.Reader, source Source, report func(State
 		return
 	}
 	socket := supervisorSocketPath()
-	if !filepath.IsAbs(socket) {
+	if !validSupervisorSocket(socket) {
 		emit(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonInvalidSupervisorSocket})
 		return
 	}
-	conn, err := grpc.NewClient("unix://"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := dialSupervisor(socket)
 	if err != nil {
 		emit(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonSupervisorConnectionFailed})
 		return
@@ -111,12 +109,15 @@ func Run(ctx context.Context, cfg model.Reader, source Source, report func(State
 	c.run(ctx)
 }
 
+func supportedHost(goos string, containerized bool, agentFlavor string) bool {
+	return (goos == "linux" || goos == "windows") && !containerized && agentFlavor == flavor.DefaultAgent
+}
+
 func supervisorSocketPath() string {
 	if socket := os.Getenv("DD_PM_SOCKET_PATH"); socket != "" {
 		return socket
 	}
-	// Match dd-procmgrd's Unix default in pkg/procmgr/rust/client/src/lib.rs.
-	return "/var/run/datadog-procmgrd/dd-procmgrd.sock"
+	return defaultSupervisorSocket
 }
 
 type controller struct {

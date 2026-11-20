@@ -16,6 +16,7 @@ go_library(
         "//comp/privateactionrunner/phonehome/def",
         "//comp/remote-config/rcservice/def",
         "//pkg/privateactionrunner/phonehome",
+        "//pkg/util/common",
         "//pkg/util/option",
     ],
 )

@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sys/windows/svc"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -154,11 +155,20 @@ func (s *Servicedef) Stop() error {
 // IsEnabled checks whether a dependent service should be started. When install policy
 // would suppress a legacy SCM service in favor of procmgr, suppression applies only if
 // dd-procmgr-service started successfully; otherwise the legacy service is used.
+// Split PAR is the exception: supervisor failure must not bypass its startup gate.
 //
 // This is the only place processes.d is read during a startup pass. procmgrGated says the
 // caller already waited for the dd-procmgr-service outcome, so procmgrStartedSuccessfully
 // is a real answer rather than an assumed one.
 func (s *Servicedef) IsEnabled(procmgrGated bool, procmgrStartedSuccessfully bool) bool {
+	if s.name == "private-action-runner" && s.isEnabledByConfig() {
+		mode, err := deployment.Resolve(s.configKeys["private_action_runner.enabled"])
+		if err != nil || mode == deployment.Split {
+			// A missing/failed supervisor must not bypass core's RC/AAA startup gate.
+			log.Info("Legacy PAR service suppressed; split startup belongs to the core startup gate")
+			return false
+		}
+	}
 	if procmgrGated && procmgrProcessDefinitionExists(s.procmgrDefinitionFile) {
 		if procmgrStartedSuccessfully {
 			log.Infof("Service %s suppressed (install policy)", s.name)

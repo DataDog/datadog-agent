@@ -312,6 +312,7 @@ go_library(
             "//comp/trace/etwtracer/def",
             "//comp/trace/etwtracer/fx",
             "//pkg/config/model",
+            "//pkg/privateactionrunner/deployment",
             "//pkg/util/winutil",
             "@org_golang_x_sys//windows/svc",
         ],
