@@ -1,6 +1,7 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
 
 # ============================================================================
 # Library
@@ -123,53 +124,35 @@ rust_binary(
     ],
 )
 
-pkg_files(
-    name = "all_files_linux",
-    srcs = [
-        ":dd-procmgr",
-        ":dd-procmgrd",
-    ],
-    attributes = pkg_attributes(
-        mode = "0755",
-    ),
-    prefix = "embedded/bin",
-    target_compatible_with = ["@platforms//os:linux"],
-    visibility = ["//packages:__subpackages__"],
+_BINARY_PREFIX = select({
+    "@platforms//os:windows": "bin/agent",
+    "//conditions:default": "embedded/bin",
+})
+
+agent_binary_for_package(
+    name = "dd_procmgr_binary",
+    prefix = _BINARY_PREFIX,
+    target = ":dd-procmgr",
 )
 
-pkg_files(
-    name = "all_files_windows",
-    srcs = [
-        ":dd-procmgr",
-        ":dd-procmgrd",
-    ],
-    prefix = "bin/agent",
-    target_compatible_with = ["@platforms//os:windows"],
-    visibility = ["//packages:__subpackages__"],
+agent_binary_for_package(
+    name = "dd_procmgrd_binary",
+    prefix = _BINARY_PREFIX,
+    target = ":dd-procmgrd",
 )
 
-pkg_files(
-    name = "all_files_macos",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
-        ":dd-procmgr",
-        ":dd-procmgrd",
+        ":dd_procmgr_binary",
+        ":dd_procmgrd_binary",
     ],
-    attributes = pkg_attributes(
-        mode = "0755",
-    ),
-    prefix = "embedded/bin",
-    target_compatible_with = ["@platforms//os:macos"],
     visibility = ["//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
-    srcs = select({
-        "@platforms//os:linux": [":all_files_linux"],
-        "@platforms//os:windows": [":all_files_windows"],
-        "@platforms//os:macos": [":all_files_macos"],
-        "//conditions:default": [],
-    }),
+    srcs = [":all_files"],
 )
 
 # ============================================================================

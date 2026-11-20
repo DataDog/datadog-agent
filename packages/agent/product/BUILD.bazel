@@ -63,7 +63,7 @@ pkg_filegroup(
             "//pkg/discovery/module/rust:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/privateactionrunner/rshell:all_files_linux",
-            "//pkg/procmgr/rust:all_files_linux",
+            "//pkg/procmgr/rust:all_files",
         ],
         "//packages/agent:linux_fips": [
             ":conf_dir_files",
@@ -72,7 +72,7 @@ pkg_filegroup(
             ":system_probe_files",
             ":system_probe_install_dir_files",
             "//pkg/discovery/module/rust:all_files",
-            "//pkg/procmgr/rust:all_files_linux",
+            "//pkg/procmgr/rust:all_files",
         ],
         "//conditions:default": [],
     }) + select({
@@ -82,7 +82,7 @@ pkg_filegroup(
         "@platforms//os:macos": [
             "//cmd/loader:trace_loader_all_files",
             "//packages/macos/app:all_files",
-            "//pkg/procmgr/rust:all_files_macos",
+            "//pkg/procmgr/rust:all_files",
             # TODO: systray
         ],
         "@platforms//os:windows": [
@@ -90,7 +90,7 @@ pkg_filegroup(
             ":systray_binary",
             "//packages/windows:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
-            "//pkg/procmgr/rust:all_files_windows",
+            "//pkg/procmgr/rust:all_files",
             "//rtloader:all_files",
         ],
         "//conditions:default": [],
@@ -287,11 +287,10 @@ pkg_install(
     visibility = ["//visibility:public"],
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "system_probe_binary",
-    srcs = ["//cmd/system-probe"],
-    attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+    target = "//cmd/system-probe",
 )
 
 pkg_files(
