@@ -60,6 +60,11 @@ build do
             delete "#{install_dir}/embedded/lib/dbus-1.0/include"
         end
 
+        # The rc-x509 Go bridge needs these static link inputs only while
+        # agent.build runs; none are needed at runtime.
+        delete "#{install_dir}/embedded/include/libdd_rc.h"
+        delete "#{install_dir}/embedded/lib/librc_x509_ffi.a"
+
         # Size cleanups for the Windows embedded Python (embedded3), mirroring
         # the ones done above for the Linux/macOS embedded Python.
         if windows_target?

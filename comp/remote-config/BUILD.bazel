@@ -9,6 +9,7 @@ go_library(
     deps = [
         "//comp/remote-config/rcclient/fx",
         "//comp/remote-config/rcstatus/fx",
+        "//comp/remote-config/rcx509client/fx",
         "//pkg/util/fxutil",
     ],
 )
