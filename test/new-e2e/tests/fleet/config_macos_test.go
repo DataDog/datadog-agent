@@ -1612,19 +1612,14 @@ func (s *configMacOSSuite) requireWatcherExits(after string) {
 	}, 90*time.Second, 5*time.Second)
 }
 
-// supervisorSocketPath is where the supervising watcher listens
-// (config_experiment_supervisor_darwin.go).
-const supervisorSocketPath = "/opt/datadog-packages/run/experiment-supervisor.sock"
-
-// requireSingleSupervisor waits for the relay to settle: the watcher the start hook launched (W1)
-// has handed supervision to the one the experiment daemon launched (W2) and exited, and W2 listens
-// on the supervisor socket. It returns W2's pid.
+// requireSingleSupervisor waits for the relay to settle: the watcher the experiment daemon launched
+// (W2) has stopped the one the start hook launched (W1), which keeps supervising for its signal
+// grace after SIGTERM, so up to about 15 seconds after W2 starts. It returns W2's pid.
 func (s *configMacOSSuite) requireSingleSupervisor() string {
 	var watcher string
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		assert.Equal(c, 1, s.watcherCount(), "exactly one watcher should supervise once the relay is done")
 		watcher = s.watcherPID()
-		assert.True(c, s.pathExists(supervisorSocketPath), "the supervising watcher should listen on its socket")
 	}, 60*time.Second, 2*time.Second)
 	require.LessOrEqual(s.T(), s.processElapsed(watcher), s.processElapsed(s.jobPID(installerDaemonExperimentLabel)),
 		"the watcher left supervising should be the one the experiment daemon launched")
@@ -1632,8 +1627,8 @@ func (s *configMacOSSuite) requireSingleSupervisor() string {
 }
 
 // TestSecondWatcherTakesSupervisionOverMacOS pins the relay end to end: once the experiment runs,
-// one watcher is left, younger than the experiment daemon that launched it, listening on the
-// supervisor socket; the stop then ends the experiment and the watcher with it.
+// one watcher is left, younger than the experiment daemon that launched it; the stop then ends the
+// experiment and the watcher with it.
 func (s *configMacOSSuite) TestSecondWatcherTakesSupervisionOverMacOS() {
 	s.requireResting()
 
@@ -1646,12 +1641,11 @@ func (s *configMacOSSuite) TestSecondWatcherTakesSupervisionOverMacOS() {
 	s.stopConfigExperimentRC()
 	s.requireInstallerDaemon(installerDaemonLabel, installerDaemonExperimentLabel)
 	s.requireWatcherExits("stopped")
-	require.False(s.T(), s.pathExists(supervisorSocketPath), "nothing should listen once the experiment is over")
 }
 
 // TestStopWithoutASupervisorFallsBackToTheHandBackMacOS covers the supervising watcher dying after
 // the relay: the experiment then runs unsupervised until Fleet stops it, and the stop, finding no
-// watcher on the socket, launches the hand-back process to return the installer daemon.
+// watcher running, launches the hand-back process to return the installer daemon.
 func (s *configMacOSSuite) TestStopWithoutASupervisorFallsBackToTheHandBackMacOS() {
 	s.requireResting()
 
@@ -1669,6 +1663,54 @@ func (s *configMacOSSuite) TestStopWithoutASupervisorFallsBackToTheHandBackMacOS
 	s.requireInstallerDaemon(installerDaemonLabel, installerDaemonExperimentLabel)
 	require.True(s.T(), s.etcExpResting(), "the stop should discard the experiment")
 	require.False(s.T(), s.pathExists(experimentDeadlinePath), "the stop should clear the deadline")
+}
+
+// TestStopDuringTheWatcherOverlapMacOS covers a stop that reaches the experiment daemon while both
+// watchers still run, W1 within its signal grace: only W2 hands the installer daemon back, and the
+// host ends resting with the stable daemon back.
+func (s *configMacOSSuite) TestStopDuringTheWatcherOverlapMacOS() {
+	s.requireResting()
+
+	s.startConfigExperimentRC(nextID("cfg-overlap-stop"), []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+	}, nil)
+	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+	s.T().Logf("watchers running when the stop is pushed: %d", s.watcherCount())
+
+	s.stopConfigExperimentRC()
+	s.requireInstallerDaemon(installerDaemonLabel, installerDaemonExperimentLabel)
+	require.True(s.T(), s.etcExpResting(), "the stop should discard the experiment")
+	require.False(s.T(), s.pathExists(experimentDeadlinePath), "the stop should clear the deadline")
+	s.requireWatcherExits("stopped during the overlap")
+}
+
+// TestAgentCrashDuringTheWatcherOverlapMacOS covers an agent experiment job failing while both
+// watchers run: W2 owns the failure, and the experiment ends failed for Fleet to stop, the same as
+// with a single watcher. Only the outcome is checked: the detached watchers keep no log.
+func (s *configMacOSSuite) TestAgentCrashDuringTheWatcherOverlapMacOS() {
+	s.requireResting()
+
+	deploymentID := nextID("cfg-overlap-crash")
+	s.startConfigExperimentRC(deploymentID, []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+	}, nil)
+	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+	// Land the crash while both watchers run if possible; the outcome is the same either way.
+	overlap := false
+	for i := 0; i < 20 && !overlap; i++ {
+		overlap = s.watcherCount() == 2
+		if !overlap {
+			time.Sleep(250 * time.Millisecond)
+		}
+	}
+	s.T().Logf("both watchers running when agent-exp is killed: %t", overlap)
+	s.clearPendingUpdaterTasks()
+	_, err := s.Env().RemoteHost.Execute("sudo launchctl kill SIGKILL system/com.datadoghq.agent-exp")
+	require.NoError(s.T(), err)
+
+	s.requireFailedOnHost(deploymentID)
+	s.requireWatcherExits("reverted the crashed experiment")
+	s.stopFailedExperimentRC()
 }
 
 // TestStopWhoseCommandDiesIsFinishedByTheWatcherMacOS covers the mid-stop crash: the experiment
