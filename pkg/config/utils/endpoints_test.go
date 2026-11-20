@@ -763,33 +763,39 @@ func TestIsDatadogURL(t *testing.T) {
 	}
 }
 
-func TestIsDatadogIntakeHost(t *testing.T) {
-	const prefix = "agent-http-intake.logs."
+func TestIsDatadogLogsHost(t *testing.T) {
 	tests := []struct {
 		host     string
 		expected bool
 	}{
-		{"agent-http-intake.logs.datadoghq.com", true},        // US1
+		{"agent-http-intake.logs.datadoghq.com", true},        // default prefix, US1
 		{"agent-http-intake.logs.us3.datadoghq.com", true},    // datacenter subdomain
 		{"agent-http-intake.logs.datadoghq.eu", true},         // EU
-		{"agent-http-intake.logs.ddog-gov.com", true},         // gov
 		{"agent-http-intake.logs.us2.ddog-gov.com", true},     // gov datacenter
-		{"agent-http-intake.logs.datad0g.com", true},          // staging
+		{"foobar.logs.datad0g.com", true},                     // non-default label, staging
+		{"blahblah-http-intake.logs.datadoghq.com", true},     // non-default label
+		{"http-intake.logs.us3.datadoghq.com", true},          // user HTTP intake
+		{"acme.agent-http-intake.logs.datadoghq.com", true},   // several labels
 		{"agent-http-intake.logs.datadoghq.com.", true},       // FQDN trailing dot
-		{"AGENT-HTTP-INTAKE.LOGS.DATADOGHQ.COM", true},        // case-insensitive
+		{"FOOBAR.LOGS.DATADOGHQ.COM", true},                   // case-insensitive
 		{"agent-http-intake.logs.datadoghq.com..", false},     // only one trailing dot
-		{"agent-http-intake-pl.logs.datadoghq.com", false},    // PrivateLink
-		{"x.agent-http-intake.logs.datadoghq.com", false},     // extra leading label
+		{"logs.datadoghq.com", false},                         // no label before logs
+		{".logs.datadoghq.com", false},                        // empty label
+		{"foo..logs.datadoghq.com", false},                    // empty label
+		{"foo_bar.logs.datadoghq.com", false},                 // invalid character
 		{"agent-http-intake.logs.x.us3.datadoghq.com", false}, // extra label before the site
 		{"agent-http-intake.logs.notdatadoghq.com", false},    // not a Datadog domain
 		{"agent-http-intake.logs.datadoghq.com.evil", false},  // Datadog domain not at the end
-		{"agent-intake.logs.datadoghq.com", false},            // TCP intake
+		{"agent-http-intake.notlogs.datadoghq.com", false},    // not the logs subdomain
+		{"agent-http-intake.logs-x.datadoghq.com", false},     // not the logs subdomain
+		{"agent-http-intake.datadoghq.com", false},            // no logs subdomain
+		{"agent-http-intake.logs.mrf.datadoghq.com", false},   // MRF is not a site
 		{"agent-http-intake.logs.", false},                    // no site
 		{"datadoghq.com", false},                              // bare site
 		{"", false},
 	}
 
 	for _, tc := range tests {
-		assert.Equal(t, tc.expected, IsDatadogIntakeHost(prefix, tc.host), "IsDatadogIntakeHost(%q, %q)", prefix, tc.host)
+		assert.Equal(t, tc.expected, IsDatadogLogsHost(tc.host), "IsDatadogLogsHost(%q)", tc.host)
 	}
 }

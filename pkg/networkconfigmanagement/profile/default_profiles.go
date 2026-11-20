@@ -196,29 +196,46 @@ var DefaultProfiles = Map{
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(snmp-server community).*`),
 			MkRedaction(`(?m)^(snmp-server host \S+( vrf \S+)?( informs?)?( version (1|2c))?) +\S+( .*)?$`, WithReplacement("$1 <secret hidden>$6")),
-			MkRedaction(`(?m)^(username .+ (password|secret) \d) .+`),
-			MkRedaction(`(?m)^(enable (password|secret)( level \d+)? \d) .+`),
-			MkRedaction(`(?m)^( +(?:password|secret)) (?:\d )?\S+`),
-			MkRedaction(`(?m)^(.*wpa-psk ascii \d) (\S+)`),
-			MkRedaction(`(?m)^(.*key 7) (\d.+)`),
-			MkRedaction(`(?m)^(tacacs-server (.+ )?key) .+`),
-			MkRedaction(`(?m)^(crypto isakmp key) (\S+) (.*)`, WithReplacement("$1 <secret hidden> $3")),
-			MkRedaction(`(?m)^( +ip ospf message-digest-key \d+ md5) .+`),
-			MkRedaction(`(?m)^( +ip ospf authentication-key) .+`),
-			MkRedaction(`(?m)^( +neighbor \S+ password) .+`),
-			MkRedaction(`(?m)^( +vrrp \d+ authentication text) .+`),
-			MkRedaction(`(?m)^( +standby \d+ authentication) .{1,8}$`),
-			MkRedaction(`(?m)^( +standby \d+ authentication md5 key-string) .+?( timeout \d+)?$`, WithReplacement("$1 <secret hidden> $2")),
-			MkRedaction(`(?m)^( +key-string) .+`),
-			MkRedaction(`(?m)^((tacacs|radius) server [^\n]+\n( +[^\n]+\n)* +key) [^\n]+$`),
-			MkRedaction(`(?m)^( +ppp (chap|pap) password \d) .+`),
-			MkRedaction(`(?m)^( +security wpa psk set-key (?:ascii|hex) \d) (.*)$`),
-			MkRedaction(`(?m)^( +dot1x username \S+ password \d) (.*)$`),
-			MkRedaction(`(?m)^( +mgmtuser username \S+ password \d) (.*) (secret \d) (.*)$`, WithReplacement("$1 <secret hidden> $3 <secret hidden>")),
-			MkRedaction(`(?m)^( +client \S+ server-key \d) (.*)$`),
-			MkRedaction(`(?m)^( +domain-password) \S+ ?(.*)`, WithReplacement("$1 <secret hidden> $2")),
-			MkRedaction(`(?m)^( +pre-shared-key).*`),
+			MkRedaction(`(?m)^( *username .+ (?:password|secret)(?: \d)?) .+`), // indented under dot1x credentials and ezvpn
+			MkRedaction(`(?m)^(enable (?:password|secret)(?: level \d+)?(?: \d)?) .+`),
+			MkRedaction(`(?m)^( +(?:password|secret)(?: \d)?) \S+`),
+			MkRedaction(`(?m)^(.*wpa-psk (?:ascii|hex)(?: \d)?) (\S+)`),
+			MkRedaction(`(?m)^([^!].*key 7) (\d.+)`), // type 7 obfuscated secrets; skip `!` comment lines
+			MkRedaction(`(?m)^(ntp authentication-key \d+ \S+) \S+( \d)?$`, WithReplacement("$1 <secret hidden>$2")),
+			MkRedaction(`(?m)^((?:tacacs|radius)-server (?:.+ )?key(?: \d)?) .+`),
+			MkRedaction(`(?m)^(.*server-private \S+ (?:.+ )?key(?: \d)?) .+`),
+			MkRedaction(`(?m)^( +authentication (?:local|remote) pre-share key(?: \d)?) .+`),
+			MkRedaction(`(?m)^(crypto isakmp key(?: \d)?) \S+ (.*)`, WithReplacement("$1 <secret hidden> $2")),
+			MkRedaction(`(?m)^( +ip ospf message-digest-key \d+ md5(?: \d)?) .+`),
+			MkRedaction(`(?m)^( +ip ospf authentication-key(?: \d)?) .+`),
+			MkRedaction(`(?m)^( +area \S+ virtual-link .*(?:authentication-key|message-digest-key \d+ md5)(?: \d)?) (?:<secret hidden>|\S+)(.*)$`, WithReplacement("$1 <secret hidden>$2")),
+			MkRedaction(`(?m)^(.*ipsec spi \d+ esp (?:aes-cbc \d+|3des|des)(?: \d)?) (?:<secret hidden>|\S+)(.*)$`, WithReplacement("$1 <secret hidden>$2")), // OSPFv3 encryption key
+			MkRedaction(`(?m)^(.*ipsec spi \d+ .*(?:md5|sha1)(?: \d)?) (?:<secret hidden>|\S+)(.*)$`, WithReplacement("$1 <secret hidden>$2")),               // OSPFv3 authentication key
+			MkRedaction(`(?m)^( +authentication mode hmac-sha-256(?: \d)?) .+`),                                                                              // named EIGRP
+			MkRedaction(`(?m)^( +(?:ip|ipv6) nhrp authentication) .+`),
+			MkRedaction(`(?m)^( +neighbor \S+ password(?: \d)?) .+`),
+			MkRedaction(`(?m)^( +(?:standby|vrrp|glbp) \d+ authentication text) .+`),
+			MkRedaction(`(?m)^( +standby \d+ authentication) \S{1,8}$`), // HSRP plain-text form without the `text` keyword
+			MkRedaction(`(?m)^( +(?:standby|vrrp|glbp) \d+ authentication md5 key-string(?: \d)?) .+?( timeout \d+)?$`, WithReplacement("$1 <secret hidden>$2")),
+			MkRedaction(`(?m)^( +key-string(?: \d)?) .+`),
+			MkRedaction(`(?m)^((?:tacacs|radius) server [^\n]+\n(?: +[^\n]+\n)* +key(?: \d)?) [^\n]+$`, WithMultiline()),
+			MkRedaction(`(?m)^(crypto isakmp client configuration group [^\n]+\n(?: +[^\n]+\n)* +key(?: \d)?) [^\n]+$`, WithMultiline()),
+			MkRedaction(`(?m)^( +group \S+ key(?: \d)?) .+`), // ezvpn client group key
+			MkRedaction(`(?m)^( +pac key(?: \d)?) .+`),
+			MkRedaction(`(?m)^( +ppp (?:chap|pap) password(?: \d)?) .+`),
+			MkRedaction(`(?m)^( +ppp pap sent-username \S+ password(?: \d)?) .+`),
+			MkRedaction(`(?m)^( +security wpa psk set-key (?:ascii|hex)(?: \d)?) (.*)$`),
+			MkRedaction(`(?m)^( +dot1x username \S+ password(?: \d)?) (.*)$`),
+			MkRedaction(`(?m)^( +mgmtuser username \S+ password(?: \d)?) (.*) (secret(?: \d)?) (.*)$`, WithReplacement("$1 <secret hidden> $3 <secret hidden>")),
+			MkRedaction(`(?m)^( +(?:area|domain)-password) \S+(.*)`, WithReplacement("$1 <secret hidden>$2")),
+			MkRedaction(`(?m)^( +isis password) \S+(.*)`, WithReplacement("$1 <secret hidden>$2")),
+			MkRedaction(`(?m)^( +pre-shared-key(?: local| remote)?(?: \d)?) .+`),
 			MkRedaction(`(?m)^(.*server-key(?: \d)?) \S+`),
+			MkRedaction(`(?m)^(ip (?:ftp|http client) password(?: \d)?) .+`),
+			MkRedaction(`\b([a-z][a-z0-9+.-]*://[^:/@\s]+):[^@\s]+@`, WithReplacement("$1:<secret hidden>@")), // credentials embedded in URLs
+			// Catch-all for typed credentials (`password 7 ...`, `secret 9 ...`) on commands without a
+			// specific rule. Matching `<secret hidden>` first keeps already-redacted values intact.
+			MkRedaction(`\b((?:password|secret) \d) (?:<secret hidden>|\S+)`),
 		},
 		MetadataRules: []MetadataRule{
 			{

@@ -24,12 +24,16 @@ import (
 )
 
 const (
-	enabledKey      = "intake_routing.enabled"
-	startupGraceKey = "intake_routing.startup_grace_period"
-	refreshKey      = "intake_routing.refresh_interval"
+	enabledKey       = "intake_routing.enabled"
+	startupGraceKey  = "intake_routing.startup_grace_period"
+	refreshKey       = "intake_routing.refresh_interval"
+	preflightPathKey = "intake_routing.preflight_path"
 
 	maxStartupGrace    = 30 * time.Second
 	minRefreshInterval = time.Minute
+	// defaultPreflightPath is used when intake_routing.preflight_path is not valid. It is the
+	// default of the setting in the schema: TestDefaultPreflightPathMatchesSchema checks it.
+	defaultPreflightPath = "/api/v1/validate"
 )
 
 // Requires defines the dependencies of the intake routing component.
@@ -49,21 +53,22 @@ type Provides struct {
 // a component that always reports the default endpoints and runs nothing.
 func NewComponent(reqs Requires) Provides {
 	if !reqs.Config.GetBool(enabledKey) {
+		reqs.Log.Debugf("Intake routing is disabled (%s is false)", enabledKey)
 		return Provides{Comp: disabledComponent{}}
 	}
 
-	grace, refresh := loadSettings(reqs.Config, reqs.Log)
+	s := loadSettings(reqs.Config, reqs.Log)
 	// The path checker reads the proxy settings of the transport, which are those telemetry is
 	// sent with.
 	transport := httputils.CreateHTTPTransport(reqs.Config)
 	r := newRouter(routerOptions{
 		log:        reqs.Log,
-		client:     newHTTPRoutingClientWithTransport(transport),
+		client:     newHTTPRoutingClientWithTransport(transport, s.preflightPath),
 		paths:      newNetPathChecker(transport),
 		clock:      clock.New(),
 		tlm:        newRoutingTelemetry(reqs.Telemetry),
-		grace:      grace,
-		refresh:    refresh,
+		grace:      s.grace,
+		refresh:    s.refresh,
 		keyRecheck: keyRecheckInterval,
 		jitter: func(d time.Duration) time.Duration {
 			return time.Duration(float64(d) * (1 + refreshJitter*(2*rand.Float64()-1)))
@@ -71,23 +76,39 @@ func NewComponent(reqs Requires) Provides {
 		startupBackoffRandomization: startupBackoffRandomization,
 	})
 	reqs.Lc.Append(compdef.Hook{OnStop: r.stop})
-	reqs.Log.Infof("Intake routing is enabled (startup grace period: %s, refresh interval: %s)", grace, refresh)
+	reqs.Log.Infof("Intake routing is enabled (startup grace period: %s, refresh interval: %s, pre-flight path: %s)", s.grace, s.refresh, s.preflightPath)
 	return Provides{Comp: r}
 }
 
-// loadSettings reads the tunables and clamps them to safe values.
-func loadSettings(cfg config.Component, logger log.Component) (grace, refresh time.Duration) {
-	grace = cfg.GetDuration(startupGraceKey)
-	if clamped := min(max(grace, 0), maxStartupGrace); clamped != grace {
-		logger.Warnf("%s is %s, using %s instead (allowed range: 0s to %s)", startupGraceKey, grace, clamped, maxStartupGrace)
-		grace = clamped
+// settings holds the tunables of intake routing.
+type settings struct {
+	grace   time.Duration
+	refresh time.Duration
+	// preflightPath is the escaped path of the pre-flight check.
+	preflightPath string
+}
+
+// loadSettings reads the tunables and changes the values that are not safe.
+func loadSettings(cfg config.Component, logger log.Component) settings {
+	var s settings
+	s.grace = cfg.GetDuration(startupGraceKey)
+	if clamped := min(max(s.grace, 0), maxStartupGrace); clamped != s.grace {
+		logger.Warnf("%s is %s, using %s instead (allowed range: 0s to %s)", startupGraceKey, s.grace, clamped, maxStartupGrace)
+		s.grace = clamped
 	}
-	refresh = cfg.GetDuration(refreshKey)
-	if refresh < minRefreshInterval {
-		logger.Warnf("%s is %s, using %s instead (minimum: %s)", refreshKey, refresh, minRefreshInterval, minRefreshInterval)
-		refresh = minRefreshInterval
+	s.refresh = cfg.GetDuration(refreshKey)
+	if s.refresh < minRefreshInterval {
+		logger.Warnf("%s is %s, using %s instead (minimum: %s)", refreshKey, s.refresh, minRefreshInterval, minRefreshInterval)
+		s.refresh = minRefreshInterval
 	}
-	return grace, refresh
+	configured := cfg.GetString(preflightPathKey)
+	path, err := parsePreflightPath(configured)
+	if err != nil {
+		path = defaultPreflightPath
+		logger.Warnf("%s is %q, using %s instead: %v", preflightPathKey, configured, path, err)
+	}
+	s.preflightPath = path
+	return s
 }
 
 // disabledComponent is used when intake routing is disabled.
@@ -214,6 +235,8 @@ type route struct {
 	// keyCheckAt is when to read the API key again, to pick up a key that becomes ready or is
 	// rotated.
 	keyCheckAt time.Time
+	// keyWaiting is true while the API key is not ready. It limits the logs to one per change.
+	keyWaiting bool
 	// pendingCached is true when the route joined a group that already has an answer, and that
 	// answer must be applied to it on the next pass.
 	pendingCached bool
@@ -240,6 +263,7 @@ func (r *router) Register(reqs []intakerouting.Request) intakerouting.Registrati
 	defer r.mu.Unlock()
 
 	if r.stopped {
+		r.log.Debugf("Intake routing: not routing %d endpoint(s) registered after the component stopped", len(reg.routes))
 		for _, rt := range reg.routes {
 			rt.decided = true
 		}
@@ -251,9 +275,11 @@ func (r *router) Register(reqs []intakerouting.Request) intakerouting.Registrati
 	for _, rt := range reg.routes {
 		r.types[rt.req.Type] = struct{}{}
 		if rt.site == "" {
+			r.log.Debugf("Intake routing: not routing the %s endpoint %s, its host is not under an official Datadog domain", rt.req.Type, hostPort(rt.req.Default))
 			rt.decided = true
 			continue
 		}
+		r.log.Debugf("Intake routing: registered the %s endpoint %s (site %s)", rt.req.Type, hostPort(rt.req.Default), rt.site)
 		r.attachLocked(rt, now)
 	}
 	r.checkInitialLocked(reg)
@@ -268,6 +294,7 @@ func (r *router) Register(reqs []intakerouting.Request) intakerouting.Registrati
 
 // stop is the OnStop hook. It aborts in-flight requests and waits for the loop to exit.
 func (r *router) stop(ctx context.Context) error {
+	r.log.Debug("Intake routing: stopping")
 	r.mu.Lock()
 	r.stopped = true
 	started := r.loopStarted
@@ -303,6 +330,14 @@ func (reg *registration) WaitInitial(ctx context.Context) []intakerouting.Endpoi
 		case <-ctx.Done():
 		}
 	}
+	select {
+	case <-reg.initialDone:
+	case <-reg.closedCh:
+	default:
+		if ctx.Err() == nil {
+			reg.router.log.Debugf("Intake routing: the startup grace period (%s) elapsed before every endpoint had its first routing decision, starting on the current endpoints", reg.router.grace)
+		}
+	}
 	return reg.Current()
 }
 
@@ -329,6 +364,7 @@ func (reg *registration) Close() {
 	}
 	reg.closed = true
 	close(reg.closedCh)
+	r.log.Debugf("Intake routing: no longer routing %d endpoint(s), their registration was closed", len(reg.routes))
 	delete(r.regs, reg)
 	for _, rt := range reg.routes {
 		r.detachLocked(rt)

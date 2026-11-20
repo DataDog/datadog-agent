@@ -53,7 +53,7 @@ The payload is a JSON dict with the following fields
 
 Here an example of an inventory payload:
 
-```
+```json
 {
     "check_metadata": {
         "cpu": [
@@ -61,7 +61,7 @@ Here an example of an inventory payload:
                 "config.hash": "cpu",
                 "config.provider": "file",
                 "init_config": "",
-                "instance_config: {}
+                "instance_config": "{}"
             }
         ],
         "disk": [
@@ -69,7 +69,7 @@ Here an example of an inventory payload:
                 "config.hash": "disk:e5dffb8bef24336f",
                 "config.provider": "file",
                 "init_config": "",
-                "instance_config: {}
+                "instance_config": "{}"
             }
         ],
         "file_handle": [
@@ -77,7 +77,7 @@ Here an example of an inventory payload:
                 "config.hash": "file_handle",
                 "config.provider": "file",
                 "init_config": "",
-                "instance_config: {}
+                "instance_config": "{}"
             }
         ],
         "io": [
@@ -85,7 +85,7 @@ Here an example of an inventory payload:
                 "config.hash": "io",
                 "config.provider": "file",
                 "init_config": "",
-                "instance_config: {}
+                "instance_config": "{}"
             }
         ],
         "load": [
@@ -93,7 +93,7 @@ Here an example of an inventory payload:
                 "config.hash": "load",
                 "config.provider": "file",
                 "init_config": "",
-                "instance_config: {}
+                "instance_config": "{}"
             }
         ],
         "redisdb": [
@@ -151,11 +151,41 @@ Here an example of an inventory payload:
     },
     "files_metadata": {
         "/opt/datadog-agent/etc/conf.d/hello.yaml": {
-            "hash": "1f212c68ca3118a626bbd6b2263e4a2148b9d25671cbcac73f601c02e2af24bd",
-            "raw_config": "init_config: {}\ninstances:\n- min_collection_interval: 15\n"
-        },
+            "hash": "28ba0e7e89db5773edfb8881bbe44af4bfc1217d14956030ae09671480930fa1",
+            "raw_config": "init_config: {}\ninstances:\n- min_collection_interval: 15\n  password: ENC[db_password]\n  headers:\n    Authorization: '********'\n",
+            "secrets": [
+                {"path": "instances.0.password", "kind": "enc", "handle": "db_password"},
+                {"path": "instances.0.headers.Authorization", "kind": "raw"}
+            ]
+        }
     },
     "hostname": "my-host",
     "timestamp": 1631281754507358895
 }
 ```
+
+### Secret declarations in configuration files
+
+This metadata is intended to support Fleet Automation for VM-based Agents and only
+covers configuration files reported in `files_metadata`. Secrets supplied only
+through other configuration sources, such as environment variables or Kubernetes
+Autodiscovery annotations, are not included. It is not a complete inventory of
+secrets in the effective configuration.
+
+Each `files_metadata[filename].secrets` array describes the secret declarations in
+that file. Entries have `kind` (`enc` or `raw`), `path` (a dotted path relative to the file,
+including list indexes), and, for ENC declarations, `handle`. For example,
+`{"kind":"enc","path":"instances.0.password","handle":"db_password"}`.
+The filename and path together identify a location, including when two files
+configure the same integration. Values and hashes are never included in these entries.
+Raw references identify the field replaced by a scrubbing rule. When a rule
+replaces a list or mapping, the reference identifies that whole field (for example,
+`snmp_traps.community_strings`), rather than reconstructing its original leaves.
+ENC references always retain their original indexed paths and handles, even inside
+a replaced container. Repeated handles retain one entry per location. These entries describe file
+contents; `agent_metadata.enc_info` continues reporting resolved handles and hashes.
+`metadata_skip_secrets` suppresses these entries as well as `enc_info`.
+
+Secret references are collected independently of the existing integration configuration
+loader and scrubbed file output. If a configuration accepted by the YAML v2 loader
+fails strict YAML validation, its file metadata is still reported without secret references.

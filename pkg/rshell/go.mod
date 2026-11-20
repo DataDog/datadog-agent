@@ -8,12 +8,12 @@ require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2
 	github.com/elastic/go-seccomp-bpf v1.6.0
 	github.com/godbus/dbus/v5 v5.2.4
-	github.com/klauspost/compress v1.20.3
-	github.com/landlock-lsm/go-landlock v0.11.0
+	github.com/klauspost/compress v1.20.4
+	github.com/landlock-lsm/go-landlock v0.11.2
 	github.com/pierrec/lz4/v4 v4.1.33
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/spf13/cobra v1.10.2
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/stretchr/testify v1.12.1
 	github.com/ulikunitz/xz v0.5.17
 	golang.org/x/sys v0.50.0
@@ -46,7 +46,7 @@ require (
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
-	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
+	kernel.org/pub/linux/libs/security/libcap/psx v1.2.78 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

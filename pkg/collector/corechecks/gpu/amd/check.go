@@ -470,7 +470,7 @@ func amdProcessSamples(m amdgpu.Metrics, processes []amdgpu.ProcessMemory) []nvi
 // names and units of the GPU metrics spec, and the activity values chosen by
 // chooseActivity. Values the device does not expose are not emitted.
 func amdSamples(m amdgpu.Metrics, act activity) []nvidia.Sample {
-	samples := make([]nvidia.Sample, 0, 17)
+	samples := make([]nvidia.Sample, 0, 20)
 	add := func(name string, r amdgpu.Reading) {
 		if r.Valid {
 			samples = append(samples, &nvidia.Metric{Name: name, Value: r.Value, Type: metrics.GaugeType})
@@ -515,6 +515,12 @@ func amdSamples(m amdgpu.Metrics, act activity) []nvidia.Sample {
 	add("pci.link.width.max", m.PCIeMaxLinkWidth)
 	add("pci.link.speed.current", pcieBandwidth(m.PCIeLinkSpeedGTs, m.PCIeLinkWidth))
 	add("pci.link.speed.max", pcieBandwidth(m.PCIeMaxLinkSpeedGTs, m.PCIeMaxLinkWidth))
+
+	// The driver's RAS error counts, summed over the blocks like the amd-smi
+	// totals, so without a memory_location tag.
+	add("errors.ecc.uncorrected.total", m.ECCUncorrected)
+	add("errors.ecc.corrected.total", m.ECCCorrected)
+	add("errors.ecc.deferred.total", m.ECCDeferred)
 
 	return samples
 }

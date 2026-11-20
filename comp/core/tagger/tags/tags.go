@@ -122,11 +122,11 @@ const (
 	// KueueWorkloadUID is the tag for the Kueue Workload UID
 	KueueWorkloadUID = "kueue_workload_uid"
 	// Scheduler is the tag for the batch scheduler that manages a pod, e.g. kai or kueue
-	Scheduler = "kube_scheduler"
+	Scheduler = "job_scheduler"
 	// SchedulerWorkload is the tag for the scheduling unit of a pod, e.g. the KAI PodGroup or Kueue Workload name
-	SchedulerWorkload = "kube_scheduler_workload"
+	SchedulerWorkload = "job_scheduler_workload"
 	// SchedulerQueue is the tag for the queue that manages the quota of a pod's scheduling unit
-	SchedulerQueue = "kube_scheduler_queue"
+	SchedulerQueue = "job_scheduler_queue"
 	// KAIPodGroup is the tag for the KAI PodGroup name
 	KAIPodGroup = "kai_pod_group"
 	// KAIQueue is the tag for the KAI queue name
@@ -165,10 +165,11 @@ const (
 	GPUArchitecture = "gpu_architecture"
 	// GPUType is the tag for the normalized GPU model type (e.g., a100, t4)
 	GPUType = "gpu_type"
-	// GPUSlicingMode is the tag for the GPU slicing mode (mig, none)
+	// GPUSlicingMode is the tag for the GPU slicing mode (mig, mig-parent, none)
 	GPUSlicingMode = "gpu_slicing_mode"
 	// GPUSharingMode is the tag for the mechanism through which the GPU is
-	// shared between workloads (none, kai_fraction)
+	// shared between workloads (none, kai-fraction, time-slicing, mps,
+	// unknown)
 	GPUSharingMode = "gpu_sharing_mode"
 	// GPUMIGProfile is the tag for the MIG profile of the GPU (e.g. 1g.35gb, 1g.24gb_me).
 	// Only set on MIG devices.

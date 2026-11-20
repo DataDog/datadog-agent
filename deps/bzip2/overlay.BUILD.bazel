@@ -56,7 +56,6 @@ cc_binary(
     name = "bzip2",
     srcs = ["bzip2.c"],
     copts = [
-        "-Wall",
         # -Winline is probably obsolete with modern compilers, but that is what
         # the upstream project uses.
         "-Winline",
@@ -82,7 +81,6 @@ cc_library(
     ],
     hdrs = _PUBLIC_HEADERS,
     copts = [
-        "-Wall",
         "-D_FILE_OFFSET_BITS=64",
     ] + select(
         {

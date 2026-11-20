@@ -364,6 +364,8 @@ func TestDNSExceedsMaxPortsTruncates(t *testing.T) {
 	cfg.CollectDNSStats = true
 	cfg.CollectLocalDNS = true
 	cfg.DNSTimeout = 1 * time.Second
+	// The checks below look for domain names, so don't rely on the default.
+	cfg.CollectDNSDomains = true
 
 	rdns, err := NewReverseDNS(cfg, nil)
 	require.NoError(t, err, "exceeding DNSPortsMax should truncate, not error")
@@ -373,22 +375,31 @@ func TestDNSExceedsMaxPortsTruncates(t *testing.T) {
 	defer reverseDNS.Close()
 	statKeeper := reverseDNS.statKeeper
 
+	// The stats Key has no server port, so the kept and dropped queries share a Key whenever the
+	// kernel reuses the ephemeral client port. Give each its own domain and check for that domain.
+	domainKept, domainDropped := "kept.example.com", "dropped.example.com"
+
+	// The snooper processes captured packets in order on one goroutine. Send the dropped query
+	// first, so that once the kept query shows up, a wrongly captured dropped query would
+	// already be in the stats when the Never check starts.
+
+	// Traffic to `portDropped` (the dropped port) MUST NOT be captured.
+	queryIPDropped, queryPortDropped, repsDropped, err := testdns.SendDNSQueriesOnPort([]string{domainDropped}, net.ParseIP(localhost), strconv.Itoa(portDropped), "udp")
+	require.NoError(t, err)
+	require.NotNil(t, repsDropped[0])
+
 	// Traffic to `portKept` (the last kept slot, index 7) MUST be captured.
-	queryIPKept, queryPortKept, repsKept, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(portKept), "udp")
+	queryIPKept, queryPortKept, repsKept, err := testdns.SendDNSQueriesOnPort([]string{domainKept}, net.ParseIP(localhost), strconv.Itoa(portKept), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, repsKept[0])
 	keyKept := getKey(queryIPKept, queryPortKept, localhost, syscall.IPPROTO_UDP)
 	require.Eventually(t, func() bool {
-		return statKeeper.Snapshot()[keyKept] != nil
+		return hasDomains(statKeeper.Snapshot()[keyKept], domainKept)
 	}, 3*time.Second, 10*time.Millisecond, "kept port %d (slot 7) should have been captured", portKept)
 
-	// Traffic to `portDropped` (the dropped port) MUST NOT be captured.
-	queryIPDropped, queryPortDropped, repsDropped, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(portDropped), "udp")
-	require.NoError(t, err)
-	require.NotNil(t, repsDropped[0])
 	keyDropped := getKey(queryIPDropped, queryPortDropped, localhost, syscall.IPPROTO_UDP)
 	require.Never(t, func() bool {
-		return statKeeper.Snapshot()[keyDropped] != nil
+		return hasDomains(statKeeper.Snapshot()[keyDropped], domainDropped)
 	}, 500*time.Millisecond, 10*time.Millisecond, "dropped port %d (beyond slot 7) should NOT be captured", portDropped)
 }
 
@@ -637,19 +648,32 @@ func TestDNSPortReconfiguration(t *testing.T) {
 	reverseDNS := rdns.(*dnsMonitor)
 
 	statKeeper := reverseDNS.statKeeper
-	domains := []string{"golang.org"}
+
+	// The stats Key has no server port, only the client IP and port. If the kernel hands the
+	// same ephemeral port to the query on the monitored port and to the query on the
+	// unmonitored one (each socket is closed before the next is opened), both queries have the
+	// same Key. A Key-only check then sees the monitored query's stats and wrongly concludes
+	// that the unmonitored query was captured. Use a distinct domain per server port, and check
+	// for that domain under the Key, so each assertion looks only at its own query.
+	domains5300 := []string{"port5300.example.com"}
+	domains5301 := []string{"port5301.example.com"}
 
 	// Start test servers on both ports
 	port5300 := newTestServerOnPort(t, localhost, "udp", 5300)
 	port5301 := newTestServerOnPort(t, localhost, "udp", 5301)
 
-	// Send queries to port 5300 (should be captured)
-	queryIP5300, queryPort5300, reps, err := testdns.SendDNSQueriesOnPort(domains, net.ParseIP(localhost), strconv.Itoa(int(port5300)), "udp")
+	// The snooper processes captured packets in order on one goroutine. In each half, send the
+	// unmonitored query first and wait for the monitored one before checking the unmonitored
+	// one. That way, a wrongly captured unmonitored query is already in the stats when the
+	// Never check starts.
+
+	// Send queries to port 5301 (should NOT be captured)
+	queryIP5301, queryPort5301, reps, err := testdns.SendDNSQueriesOnPort(domains5301, net.ParseIP(localhost), strconv.Itoa(int(port5301)), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, reps[0])
 
-	// Send queries to port 5301 (should NOT be captured)
-	queryIP5301, queryPort5301, reps, err := testdns.SendDNSQueriesOnPort(domains, net.ParseIP(localhost), strconv.Itoa(int(port5301)), "udp")
+	// Send queries to port 5300 (should be captured)
+	queryIP5300, queryPort5300, reps, err := testdns.SendDNSQueriesOnPort(domains5300, net.ParseIP(localhost), strconv.Itoa(int(port5300)), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, reps[0])
 
@@ -657,14 +681,14 @@ func TestDNSPortReconfiguration(t *testing.T) {
 	key5300 := getKey(queryIP5300, queryPort5300, localhost, syscall.IPPROTO_UDP)
 	require.Eventually(t, func() bool {
 		allStats := statKeeper.Snapshot()
-		return allStats[key5300] != nil
+		return hasDomains(allStats[key5300], domains5300...)
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for port 5300")
 
 	// Verify port 5301 is NOT captured
 	key5301 := getKey(queryIP5301, queryPort5301, localhost, syscall.IPPROTO_UDP)
 	require.Never(t, func() bool {
 		allStats := statKeeper.Snapshot()
-		return allStats[key5301] != nil
+		return hasDomains(allStats[key5301], domains5301...)
 	}, 500*time.Millisecond, 10*time.Millisecond, "found DNS data for port 5301 when it should be missing")
 
 	// Close the first DNS monitor
@@ -688,28 +712,28 @@ func TestDNSPortReconfiguration(t *testing.T) {
 	statKeeper2 := reverseDNS2.statKeeper
 
 	// Send queries to port 5300 (should NOT be captured this time)
-	queryIP5300_2, queryPort5300_2, reps, err := testdns.SendDNSQueriesOnPort(domains, net.ParseIP(localhost), strconv.Itoa(int(port5300)), "udp")
+	queryIP5300_2, queryPort5300_2, reps, err := testdns.SendDNSQueriesOnPort(domains5300, net.ParseIP(localhost), strconv.Itoa(int(port5300)), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, reps[0])
 
 	// Send queries to port 5301 (should be captured this time)
-	queryIP5301_2, queryPort5301_2, reps, err := testdns.SendDNSQueriesOnPort(domains, net.ParseIP(localhost), strconv.Itoa(int(port5301)), "udp")
+	queryIP5301_2, queryPort5301_2, reps, err := testdns.SendDNSQueriesOnPort(domains5301, net.ParseIP(localhost), strconv.Itoa(int(port5301)), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, reps[0])
+
+	// Verify port 5301 is captured (also the sync point for the check below)
+	key5301_2 := getKey(queryIP5301_2, queryPort5301_2, localhost, syscall.IPPROTO_UDP)
+	require.Eventually(t, func() bool {
+		allStats := statKeeper2.Snapshot()
+		return hasDomains(allStats[key5301_2], domains5301...)
+	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for port 5301")
 
 	// Verify port 5300 is NOT captured
 	key5300_2 := getKey(queryIP5300_2, queryPort5300_2, localhost, syscall.IPPROTO_UDP)
 	require.Never(t, func() bool {
 		allStats := statKeeper2.Snapshot()
-		return allStats[key5300_2] != nil
+		return hasDomains(allStats[key5300_2], domains5300...)
 	}, 500*time.Millisecond, 10*time.Millisecond, "found DNS data for port 5300 when it should be missing")
-
-	// Verify port 5301 is captured
-	key5301_2 := getKey(queryIP5301_2, queryPort5301_2, localhost, syscall.IPPROTO_UDP)
-	require.Eventually(t, func() bool {
-		allStats := statKeeper2.Snapshot()
-		return allStats[key5301_2] != nil
-	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for port 5301")
 }
 
 func testConfig() *config.Config {

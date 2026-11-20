@@ -139,16 +139,25 @@ func NewConntracker(config *config.Config, telemetrycomp telemetryComp.Component
 	}
 
 	done := make(chan struct{})
+	abandoned := make(chan struct{})
 
 	go func() {
 		conntracker, err = newConntrackerOnce(config, telemetrycomp)
-		done <- struct{}{}
+		select {
+		case done <- struct{}{}:
+			// The caller received ownership of the tracker.
+		case <-abandoned:
+			if conntracker != nil {
+				conntracker.Close()
+			}
+		}
 	}()
 
 	select {
 	case <-done:
 		return conntracker, err
 	case <-time.After(config.ConntrackInitTimeout):
+		close(abandoned)
 		return nil, fmt.Errorf("could not initialize conntrack after: %s", config.ConntrackInitTimeout)
 	}
 }

@@ -1,0 +1,36 @@
+# HELP accelerator_request Requested TPU chip count
+# TYPE accelerator_request gauge
+accelerator_request{container="jax",namespace="default",pod="jax-prof",resource_name="google.com/tpu"} 1
+# HELP duty_cycle Percent of time when the TPU was actively processing
+# TYPE duty_cycle gauge
+duty_cycle{accelerator_id="5197990447957134550-0",container="jax",make="cloud-tpu",model="tpu-v6e-slice",namespace="default",pod="jax-prof",tpu_topology="1x1"} 92.58528606287905
+# HELP duty_cycle_node Percent of time when the TPU was actively processing
+# TYPE duty_cycle_node gauge
+duty_cycle_node{accelerator_id="5197990447957134550-0",make="cloud-tpu",model="tpu-v6e-slice",tpu_topology="1x1"} 92.58528606287905
+# HELP memory_bandwidth_utilization Memory bandwidth utilization of the TPU device
+# TYPE memory_bandwidth_utilization gauge
+memory_bandwidth_utilization{accelerator_id="5197990447957134550-0",container="jax",make="cloud-tpu",model="tpu-v6e-slice",namespace="default",pod="jax-prof",tpu_topology="1x1"} 58.97031444973416
+# HELP memory_bandwidth_utilization_node Memory bandwidth utilization of the TPU device per node
+# TYPE memory_bandwidth_utilization_node gauge
+memory_bandwidth_utilization_node{accelerator_id="5197990447957134550-0",make="cloud-tpu",model="tpu-v6e-slice",tpu_topology="1x1"} 58.97031444973416
+# HELP memory_total Total memory available on the TPU in bytes
+# TYPE memory_total gauge
+memory_total{accelerator_id="5197990447957134550-0",container="jax",make="cloud-tpu",model="tpu-v6e-slice",namespace="default",pod="jax-prof",tpu_topology="1x1"} 3.3550237184e+10
+# HELP memory_total_node Total memory available on the TPU in bytes
+# TYPE memory_total_node gauge
+memory_total_node{accelerator_id="5197990447957134550-0",make="cloud-tpu",model="tpu-v6e-slice",tpu_topology="1x1"} 3.3550237184e+10
+# HELP memory_used Allocated TPU memory in bytes
+# TYPE memory_used gauge
+memory_used{accelerator_id="5197990447957134550-0",container="jax",make="cloud-tpu",model="tpu-v6e-slice",namespace="default",pod="jax-prof",tpu_topology="1x1"} 1.35183872e+08
+# HELP memory_used_node Allocated TPU memory in bytes
+# TYPE memory_used_node gauge
+memory_used_node{accelerator_id="5197990447957134550-0",make="cloud-tpu",model="tpu-v6e-slice",tpu_topology="1x1"} 1.35183872e+08
+# HELP node_token_broker_status Count of token source requests, broken down by status and mode.
+# TYPE node_token_broker_status counter
+node_token_broker_status{mode="MODE_TOKEN_BROKER_WITH_FALLBACK",status="GOT_NODE_P4SA_TOKEN"} 3
+# HELP tensorcore_utilization Tensorcore percent utilization of the TPU device
+# TYPE tensorcore_utilization gauge
+tensorcore_utilization{accelerator_id="5197990447957134550-0",container="jax",make="cloud-tpu",model="tpu-v6e-slice",namespace="default",pod="jax-prof",tpu_topology="1x1"} 80.39742702907986
+# HELP tensorcore_utilization_node Tensorcore percent utilization of the TPU device per node
+# TYPE tensorcore_utilization_node gauge
+tensorcore_utilization_node{accelerator_id="5197990447957134550-0",make="cloud-tpu",model="tpu-v6e-slice",tpu_topology="1x1"} 80.39742702907986
