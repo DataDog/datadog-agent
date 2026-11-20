@@ -36,10 +36,11 @@
 // A node is attributed to the whole-GPU resources (nvidia.com/gpu,
 // amd.com/gpu, gpu.intel.com/*) present in its capacity at any value, plus
 // those of its GPU presence labels for vendors missing from capacity: when a
-// device plugin dies, kubelet removes the resource from capacity after about
-// 5 minutes, and the node must stay visible as no_gpu_allocatable. Its NVIDIA
-// capacity is then read from the nvidia.com/gpu.count label (or Karpenter's
-// instance-gpu-count), so unschedulable GPUs and pod sizes don't drop. The Intel presence label maps
+// device plugin dies, kubelet zeroes the resource after about 5 minutes (a
+// re-registered node may not have it at all), and the node must stay visible
+// as no_gpu_allocatable. Its NVIDIA capacity is then read from the
+// nvidia.com/gpu.count label (or Karpenter's instance-gpu-count), so
+// unschedulable GPUs and pod sizes don't drop. The Intel presence label maps
 // to gpu.intel.com/i915 (it can't tell xe from i915). Unsupported nodes keep
 // a real resource key (nvidia.com/gpu, or nvidia.com/gpu.shared when the
 // device plugin renames shared GPUs) and carry a slicing mode ("mig") or a
@@ -48,7 +49,9 @@
 //
 // Result.Nodes has a row for every node state and every (resource, GPU
 // type) seen, zeros included, plus the unsupported counts per slicing or
-// sharing mode. Rows carry the GPU type. It is
+// sharing mode. Those mode rows are non-zero only, so they disappear with the
+// last MIG or shared node; the unsupported row without a mode is always
+// there, so "no data" monitors keep working. Rows carry the GPU type. It is
 // empty when no flavor node has a GPU (e.g. a GPU pool scaled to 0), because
 // no attribution is known: the check should then emit
 // gpu.scheduling.topology.nodes = 0 for every NodeState with
