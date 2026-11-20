@@ -8,6 +8,7 @@
 package amd
 
 import (
+	"embed"
 	"encoding/binary"
 	"math"
 	"os"
@@ -18,9 +19,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// The fuzzing infrastructure uploads only the compiled test binary, so keep
+// the fuzz seeds in the binary instead of depending on the worker's checkout.
+//
+//go:embed testdata/mi300x_vf/device/gpu_metrics testdata/mi350x_vf/device/gpu_metrics
+var gpuMetricsFuzzFixtures embed.FS
+
 func readGPUMetricsFixture(t testing.TB, dir string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("testdata", dir, "device", "gpu_metrics"))
+	require.NoError(t, err)
+	return data
+}
+
+func readEmbeddedGPUMetricsFixture(t testing.TB, dir string) []byte {
+	t.Helper()
+	data, err := gpuMetricsFuzzFixtures.ReadFile(filepath.Join("testdata", dir, "device", "gpu_metrics"))
 	require.NoError(t, err)
 	return data
 }
@@ -490,8 +504,8 @@ func TestXGMIHiveSize(t *testing.T) {
 // FuzzParseGPUMetrics checks that no table makes the decoder panic, and that
 // a table it rejects yields no value.
 func FuzzParseGPUMetrics(f *testing.F) {
-	f.Add(readGPUMetricsFixture(f, "mi300x_vf"))
-	f.Add(readGPUMetricsFixture(f, "mi350x_vf"))
+	f.Add(readEmbeddedGPUMetricsFixture(f, "mi300x_vf"))
+	f.Add(readEmbeddedGPUMetricsFixture(f, "mi350x_vf"))
 	f.Add(buildGPUMetrics(1, 9, pptAttr(1)))
 	f.Add(buildGPUMetrics(1, 8, pptAttr(1)))
 	f.Add([]byte{})

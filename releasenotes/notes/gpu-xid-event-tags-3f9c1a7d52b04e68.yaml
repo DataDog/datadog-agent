@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    GPU: XID events no longer have the ``nvlink_link_id`` tag; use ``nvlink_port`` (1-based).
+    The ``memory_location`` tag on XID 94 and 95 events is now ``sram`` or ``device_memory``.

@@ -46,10 +46,15 @@ func (f *controllerRevisionRolloutFactory) CreateClient(_ *rest.Config) (interfa
 	return f.client, nil
 }
 
+// ControllerRevisionRolloutTrackerFamily emits no metrics: its generator
+// only feeds the rollout tracker with StatefulSet- and DaemonSet-owned
+// ControllerRevisions.
+const ControllerRevisionRolloutTrackerFamily = "kube_controllerrevision_rollout_tracker"
+
 func (f *controllerRevisionRolloutFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
-			"kube_controllerrevision_rollout_tracker",
+			ControllerRevisionRolloutTrackerFamily,
 			"Tracks ControllerRevisions for StatefulSet rollout duration calculation",
 			metric.Gauge,
 			basemetrics.ALPHA,

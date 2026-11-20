@@ -472,24 +472,67 @@ func TestEnabledRegistersStopHook(t *testing.T) {
 	require.NoError(t, lc.Stop(context.Background()))
 }
 
+func TestEnabledUsesConfiguredPreflightPath(t *testing.T) {
+	lc := compdef.NewTestLifecycle(t)
+	provides := NewComponent(Requires{
+		Lc: lc,
+		Config: config.NewMockWithOverrides(t, map[string]interface{}{
+			"intake_routing.enabled": true,
+			preflightPathKey:         "/custom/probe",
+		}),
+		Log:       logmock.New(t),
+		Telemetry: telemetrymock.New(t),
+	})
+	t.Cleanup(func() { require.NoError(t, lc.Stop(context.Background())) })
+	require.IsType(t, &router{}, provides.Comp)
+	client, ok := provides.Comp.(*router).client.(*httpRoutingClient)
+	require.True(t, ok)
+	assert.Equal(t, "/custom/probe", client.preflightPath)
+}
+
+// warnRecorder records the warnings of a log component.
+type warnRecorder struct {
+	log.Component
+	messages []string
+}
+
+func (r *warnRecorder) Warnf(format string, params ...interface{}) error {
+	r.messages = append(r.messages, fmt.Sprintf(format, params...))
+	return nil
+}
+
+// TestDefaultPreflightPathMatchesSchema checks that the fallback of an invalid
+// intake_routing.preflight_path is the default of the setting.
+func TestDefaultPreflightPathMatchesSchema(t *testing.T) {
+	assert.Equal(t, "/api/v1/validate", defaultPreflightPath)
+	assert.Equal(t, defaultPreflightPath, config.NewMock(t).GetString(preflightPathKey))
+}
+
 func TestLoadSettings(t *testing.T) {
+	const defaultPath = "/api/v1/validate"
 	tests := []struct {
-		name            string
-		overrides       map[string]interface{}
-		expectedGrace   time.Duration
-		expectedRefresh time.Duration
+		name          string
+		overrides     map[string]interface{}
+		expected      settings
+		expectedWarns int
 	}{
-		{"defaults", nil, time.Second, 10 * time.Minute},
-		{"custom", map[string]interface{}{startupGraceKey: "3s", refreshKey: "30m"}, 3 * time.Second, 30 * time.Minute},
-		{"grace too long", map[string]interface{}{startupGraceKey: "45s"}, 30 * time.Second, 10 * time.Minute},
-		{"negative grace", map[string]interface{}{startupGraceKey: "-1s"}, 0, 10 * time.Minute},
-		{"refresh too short", map[string]interface{}{refreshKey: "10s"}, time.Second, time.Minute},
+		{"defaults", nil, settings{time.Second, 10 * time.Minute, defaultPath}, 0},
+		{"custom", map[string]interface{}{startupGraceKey: "3s", refreshKey: "30m", preflightPathKey: "/probe"}, settings{3 * time.Second, 30 * time.Minute, "/probe"}, 0},
+		{"grace too long", map[string]interface{}{startupGraceKey: "45s"}, settings{30 * time.Second, 10 * time.Minute, defaultPath}, 1},
+		{"negative grace", map[string]interface{}{startupGraceKey: "-1s"}, settings{0, 10 * time.Minute, defaultPath}, 1},
+		{"refresh too short", map[string]interface{}{refreshKey: "10s"}, settings{time.Second, time.Minute, defaultPath}, 1},
+		{"escaped preflight path", map[string]interface{}{preflightPathKey: "/a b"}, settings{time.Second, 10 * time.Minute, "/a%20b"}, 0},
+		{"empty preflight path", map[string]interface{}{preflightPathKey: ""}, settings{time.Second, 10 * time.Minute, defaultPath}, 1},
+		{"relative preflight path", map[string]interface{}{preflightPathKey: "probe"}, settings{time.Second, 10 * time.Minute, defaultPath}, 1},
+		{"preflight URL", map[string]interface{}{preflightPathKey: "https://example.com/probe"}, settings{time.Second, 10 * time.Minute, defaultPath}, 1},
+		{"preflight path with a query", map[string]interface{}{preflightPathKey: "/probe?a=b"}, settings{time.Second, 10 * time.Minute, defaultPath}, 1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			grace, refresh := loadSettings(config.NewMockWithOverrides(t, tc.overrides), logmock.New(t))
-			assert.Equal(t, tc.expectedGrace, grace)
-			assert.Equal(t, tc.expectedRefresh, refresh)
+			logger := &warnRecorder{Component: logmock.New(t)}
+			s := loadSettings(config.NewMockWithOverrides(t, tc.overrides), logger)
+			assert.Equal(t, tc.expected, s)
+			assert.Len(t, logger.messages, tc.expectedWarns, "%v", logger.messages)
 		})
 	}
 }
