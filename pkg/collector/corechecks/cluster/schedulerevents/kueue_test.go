@@ -228,11 +228,20 @@ func TestEventIndexStartsFromTheClockWhenNothingIsPersisted(t *testing.T) {
 	assert.Greater(t, later.next("uid-1"), firstIndex+1)
 }
 
-func TestEventIndexContinuesFromThePersistedCount(t *testing.T) {
+func TestEventIndexContinuesFromAPersistedCountAboveTheClock(t *testing.T) {
+	cache := memoryCache{"key": fmt.Sprintf(`{"uid-1": %d}`, firstIndex+100)}
+	index := newTestIndex(cache, "key")
+
+	assert.Equal(t, firstIndex+100, index.next("uid-1"))
+}
+
+func TestEventIndexJumpsToTheClockFromAnOldPersistedCount(t *testing.T) {
+	// A replica that leads again after another leader sent events must not
+	// continue below the indexes of that leader.
 	cache := memoryCache{"key": `{"uid-1": 7}`}
 	index := newTestIndex(cache, "key")
 
-	assert.Equal(t, 7, index.next("uid-1"))
+	assert.Equal(t, firstIndex, index.next("uid-1"))
 }
 
 func TestKueueEventIsSentWithoutEntityTagsWhenTheTaggerFails(t *testing.T) {

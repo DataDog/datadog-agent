@@ -281,3 +281,52 @@ func TestConfigureSubscribesToTheKindsWithEventsOn(t *testing.T) {
 		})
 	}
 }
+
+func TestCompactQueueKeepsTheLatestSetOfEachEntityAndEveryUnset(t *testing.T) {
+	first := kueueWorkload(after(5))
+	second := kueueWorkload(after(5), kueueCondition("Admitted", "True", "Admitted", after(10)))
+	other := kueueWorkload(after(5))
+	other.EntityID.ID = "team-a/job-2"
+	other.UID = "uid-2"
+	unset := workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: other}
+
+	compacted := compactQueue([]workloadmeta.Event{setKueue(first), setKueue(other), unset, setKueue(second)})
+
+	require.Len(t, compacted, 3)
+	assert.Same(t, other, compacted[0].Entity)
+	assert.Equal(t, workloadmeta.EventTypeSet, compacted[0].Type)
+	assert.Equal(t, workloadmeta.EventTypeUnset, compacted[1].Type)
+	assert.Same(t, second, compacted[2].Entity)
+}
+
+func TestRunDoesNotGrowTheQueueWhileTheLeaderIsUnknown(t *testing.T) {
+	c, _ := newTestCheck(t, func() (bool, error) { return false, errors.New("no answer") })
+
+	for i := 0; i < 50; i++ {
+		c.mu.Lock()
+		c.queue = append(c.queue, setKueue(kueueWorkload(after(5))))
+		c.mu.Unlock()
+		require.Error(t, c.Run())
+	}
+
+	assert.Len(t, c.queue, 1)
+}
+
+func TestPruneOnceDropsTheCountsOfWorkloadsThatDoNotExistAfterTheDelay(t *testing.T) {
+	c, _ := newTestCheck(t, func() (bool, error) { return true, nil })
+	c.kueue.index.loaded = true
+	c.kueue.index.counters = map[string]int{"uid-1": 5, "gone": 7}
+	c.queue = []workloadmeta.Event{setKueue(kueueWorkload(after(5)))}
+
+	// Too early to tell which Workloads are gone: they may not have arrived yet.
+	c.startedAt = time.Now()
+	require.NoError(t, c.Run())
+	assert.Contains(t, c.kueue.index.counters, "gone")
+	assert.False(t, c.pruned)
+
+	c.startedAt = time.Now().Add(-2 * pruneAfter)
+	require.NoError(t, c.Run())
+	assert.True(t, c.pruned)
+	assert.Contains(t, c.kueue.index.counters, "uid-1")
+	assert.NotContains(t, c.kueue.index.counters, "gone")
+}

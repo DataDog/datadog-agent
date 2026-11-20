@@ -20,11 +20,12 @@ import (
 // evictions for the same reason, are not merged by the aggregation key. It is
 // kept in the persistent cache, so that the count continues after a restart.
 //
-// The first index of a workload without a persisted count is the current time
-// in unix seconds, not zero. A new leader has no count for the workloads the
-// previous leader reported, and starting from zero would give its events the
-// same index, and so the same aggregation key and tags, as the earlier ones.
-// The index only has to grow, so the clock keeps it increasing across leaders.
+// The index of an event is the larger of the persisted count and the current
+// time in unix seconds, not a count from zero. A new leader has no count for the
+// workloads the previous leader reported, and a replica that leads again has an
+// old one. Either would give its events the same index, and so the same
+// aggregation key and tags, as the events of the leader in between. The index
+// only has to grow, so the clock keeps it increasing across leaders.
 type eventIndex struct {
 	cacheKey string
 	counters map[string]int
@@ -76,10 +77,9 @@ func (i *eventIndex) load() {
 // next returns the index of the next event of the workload.
 func (i *eventIndex) next(uid string) int {
 	i.load()
-	index, found := i.counters[uid]
-	if !found {
-		index = int(i.now().Unix())
-	}
+	// The clock keeps the index above the ones another leader sent meanwhile,
+	// also when this replica leads again with a count it persisted long ago.
+	index := max(i.counters[uid], int(i.now().Unix()))
 	i.counters[uid] = index + 1
 	i.dirty = true
 	return index
