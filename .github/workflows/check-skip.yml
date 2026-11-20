@@ -8,6 +8,7 @@ on:
 jobs:
   check_pr_content:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
       - name: Check PR title and description for CI skip tags
         env:

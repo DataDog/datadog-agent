@@ -15,7 +15,7 @@ jobs:
     name: Restricted Shell Analysis Review
     if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     steps:
       # No checkout: the PR's changed files come from the API, so no PR code or file is ever on disk.
       - name: Require human approval for analysis changes

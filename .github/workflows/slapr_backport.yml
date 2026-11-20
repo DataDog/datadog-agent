@@ -10,6 +10,7 @@ on:
 jobs:
   run_slapr:
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     permissions:
       pull-requests: read
     steps:
