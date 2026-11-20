@@ -800,29 +800,76 @@ func TestProcessInfoMatches(t *testing.T) {
 func TestInsertionErrorType(t *testing.T) {
 	cause := errors.New("cause")
 	tests := []struct {
-		name       string
-		err        error
-		want       string
-		insertable bool
+		name string
+		err  error
+		want string
 	}{
-		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, InsertionErrorBrokenLineage, true},
-		{"broken lineage in the tree", ErrBrokenLineage, InsertionErrorBrokenLineage, false},
-		{"no process context", model.ErrNoProcessContext, InsertionErrorNoProcessContext, false},
-		{"path resolution", &path.ErrPathResolution{Err: cause}, InsertionErrorPathResolution, false},
-		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), InsertionErrorPathResolution, false},
-		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, InsertionErrorPathResolutionNotCritical, false},
-		{"path resolution wrapping a non critical one", &path.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", &path.ErrPathResolutionNotCritical{Err: cause})}, InsertionErrorPathResolution, false},
-		{"dns decoding", model.ErrFailedDNSPacketDecoding, InsertionErrorDNSDecoding, false},
-		{"invalid generation type", fmt.Errorf("%w: %v", ErrInvalidGenerationType, 42), InsertionErrorInvalidGenerationType, false},
-		{"process node not created", ErrProcessNodeNotCreated, InsertionErrorProcessNodeNotCreated, false},
-		{"other", cause, InsertionErrorOther, false},
+		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, InsertionErrorBrokenLineage},
+		{"broken lineage in the tree", ErrBrokenLineage, InsertionErrorBrokenLineage},
+		{"no process context", model.ErrNoProcessContext, InsertionErrorNoProcessContext},
+		{"path resolution", &path.ErrPathResolution{Err: cause}, InsertionErrorPathResolution},
+		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), InsertionErrorPathResolution},
+		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, InsertionErrorPathResolutionNotCritical},
+		{"path resolution wrapping a non critical one", &path.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", &path.ErrPathResolutionNotCritical{Err: cause})}, InsertionErrorPathResolution},
+		{"dns decoding", model.ErrFailedDNSPacketDecoding, InsertionErrorDNSDecoding},
+		{"invalid generation type", fmt.Errorf("%w: %v", ErrInvalidGenerationType, 42), InsertionErrorInvalidGenerationType},
+		{"process node not created", ErrProcessNodeNotCreated, InsertionErrorProcessNodeNotCreated},
+		{"other", cause, InsertionErrorOther},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := InsertionErrorType(tt.err)
 			assert.Equal(t, tt.want, got)
 			assert.Contains(t, InsertionErrorTypes, got)
-			assert.Equal(t, tt.insertable, IsInsertableEventError(tt.err))
+		})
+	}
+}
+
+func TestEventInsertionError(t *testing.T) {
+	brokenLineage := &model.ErrProcessBrokenLineage{Err: errors.New("missing parent")}
+	critical := &path.ErrPathResolution{Err: errors.New("dentry not found")}
+	notCritical := &path.ErrPathResolutionNotCritical{Err: errors.New("kernel mount")}
+
+	tests := []struct {
+		name      string
+		eventType model.EventType
+		setError  func(event *model.Event)
+		want      error
+	}{
+		{"no error", model.FileOpenEventType, func(*model.Event) {}, nil},
+		{"broken lineage", model.FileOpenEventType, func(event *model.Event) { event.Error = brokenLineage }, nil},
+		{"path of the opened file", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.Open.File, critical)
+		}, critical},
+		{"path of the opened file hidden by a later error", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.Open.File, critical)
+			event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, notCritical)
+		}, critical},
+		{"path of the binary of an exec hidden by a broken lineage", model.ExecEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, critical)
+			event.Error = brokenLineage
+		}, critical},
+		{"path of another file", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, critical)
+		}, nil},
+		{"path of the opened file on a kernel-internal mount", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.Open.File, notCritical)
+		}, nil},
+		{"path error of a dns event", model.DNSEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, notCritical)
+		}, notCritical},
+		{"no process context", model.FileOpenEventType, func(event *model.Event) { event.Error = model.ErrNoProcessContext }, model.ErrNoProcessContext},
+		{"dns decoding", model.DNSEventType, func(event *model.Event) { event.Error = model.ErrFailedDNSPacketDecoding }, model.ErrFailedDNSPacketDecoding},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := model.NewFakeEvent()
+			event.Type = uint32(tt.eventType)
+			event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(42, 42, false)
+			event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+			tt.setError(event)
+
+			assert.Equal(t, tt.want, EventInsertionError(event))
 		})
 	}
 }
