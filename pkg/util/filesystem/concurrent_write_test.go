@@ -81,7 +81,7 @@ func TestArtifactRetryBackoff(t *testing.T) {
 	} {
 		t.Run(operation.name, func(t *testing.T) {
 			// Publish just after the preceding attempt and check when the next
-			// attempt finds the artifact. Include two retries at the 5s cap.
+			// attempt finds the artifact. Include two retries at the 500ms cap.
 			var previousAttempt time.Duration
 			for _, expected := range []time.Duration{
 				0, 100 * time.Millisecond, 200 * time.Millisecond,
@@ -90,9 +90,8 @@ func TestArtifactRetryBackoff(t *testing.T) {
 				700 * time.Millisecond, 800 * time.Millisecond,
 				900 * time.Millisecond, 1000 * time.Millisecond,
 				1200 * time.Millisecond, 1600 * time.Millisecond,
-				2400 * time.Millisecond, 4000 * time.Millisecond,
-				7200 * time.Millisecond, 12200 * time.Millisecond,
-				17200 * time.Millisecond,
+				2100 * time.Millisecond, 2600 * time.Millisecond,
+				3100 * time.Millisecond,
 			} {
 				t.Run(expected.String(), func(t *testing.T) {
 					synctest.Test(t, func(t *testing.T) {
