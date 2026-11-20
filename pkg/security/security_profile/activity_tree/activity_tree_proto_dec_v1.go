@@ -27,6 +27,10 @@ func ProtoDecodeActivityTree(dest *ActivityTree, nodes []*adproto.ProcessActivit
 	for _, node := range nodes {
 		dest.ProcessNodes = append(dest.ProcessNodes, protoDecodeProcessActivityNode(dest, node, getIDFromTag))
 	}
+	if dest.Stats != nil && dest.Stats.journal != nil {
+		dest.Stats.journal.Checkpoint(dest)
+		dest.Stats.journal.StripTree(dest)
+	}
 }
 
 // ProtoDecodeMounts decodes the workload's deduplicated mount table from its protobuf representation
@@ -188,6 +192,8 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) ProcessInfo {
 
 	copy(mp.Argv, p.Args)
 	copy(mp.Envs, p.Envs)
+	mp.argsHashed = true
+	mp.argsHash = hashProcessArgs(mp.Argv)
 	return mp
 }
 
@@ -267,8 +273,9 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode, getIDFromImageTa
 
 	pfan := &FileNode{
 		MatchedRules:   make([]*model.MatchedRule, 0, len(fan.MatchedRules)),
-		Name:           fan.Name,
+		Name:           stringInterner.Deduplicate(fan.Name),
 		IsPattern:      fan.IsPattern,
+		hasJournalFile: fan.File != nil,
 		File:           newFileInfo(protoDecodeFileEvent(fan.File)),
 		GenerationType: NodeGenerationType(fan.GenerationType),
 		Open:           protoDecodeOpenNode(fan.Open),

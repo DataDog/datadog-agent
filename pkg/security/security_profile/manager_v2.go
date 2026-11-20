@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"sync"
@@ -560,6 +561,7 @@ func (m *ManagerV2) cleanupPendingProfiles() {
 
 		seclog.Infof("removing profile [%s] after cleanup delay", selector.String())
 		m.purgeCookiesForProfile(prof)
+		prof.Close()
 		delete(m.profiles, selector)
 		delete(m.pendingProfileRemovals, selector)
 
@@ -1444,9 +1446,28 @@ func (m *ManagerV2) pathPatternConfig() activity_tree.PathPatternConfig {
 	return cfg
 }
 
+func (m *ManagerV2) journalConfig() (string, int64) {
+	if m.localStorage == nil {
+		return "", 0
+	}
+	dir := m.localStorage.DirectoryPath()
+	if dir == "" {
+		return "", 0
+	}
+	const minJournalMaxBytes = int64(64 << 20)
+	maxBytes := minJournalMaxBytes
+	if m.config != nil && m.config.RuntimeSecurity != nil && m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize != nil {
+		if cfgMax := int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) * 4; cfgMax > maxBytes {
+			maxBytes = cfgMax
+		}
+	}
+	return filepath.Join(dir, "journals"), maxBytes
+}
+
 // loadProfileFromStorage attempts to load a profile from local storage.
 // Returns the loaded profile and true if successful, otherwise nil and false.
 func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, bool) {
+	journalDir, journalMaxBytes := m.journalConfig()
 	// Create a base profile with the required options
 	secprof := profile.New(
 		profile.WithPathsReducer(m.pathsReducer),
@@ -1456,15 +1477,18 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
 		profile.WithPathPatterns(m.pathPatternConfig()),
+		profile.WithJournalDir(journalDir, journalMaxBytes),
 	)
 
 	// Try to load from local storage
 	ok, err := m.localStorage.Load(&selector, secprof)
 	if err != nil {
+		secprof.Close()
 		seclog.Warnf("couldn't load profile from local storage: %v", err)
 		return nil, false
 	}
 	if !ok {
+		secprof.Close()
 		return nil, false
 	}
 
@@ -1502,6 +1526,7 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 // createNewProfile initializes a new profile with all required metadata. The tags of the
 // workloads are held by the version contexts of the profile, see ensureVersionContext.
 func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, event *model.Event) *profile.Profile {
+	journalDir, journalMaxBytes := m.journalConfig()
 	secprof := profile.New(
 		profile.WithPathsReducer(m.pathsReducer),
 		profile.WithDifferentiateArgs(m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs),
@@ -1510,6 +1535,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
 		profile.WithPathPatterns(m.pathPatternConfig()),
+		profile.WithJournalDir(journalDir, journalMaxBytes),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 

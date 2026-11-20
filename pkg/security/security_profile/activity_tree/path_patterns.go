@@ -834,6 +834,15 @@ func (fn *FileNode) mergeInto(src *FileNode, stats *Stats) {
 	if fn.File == nil {
 		fn.File = src.File
 	}
+	if src.hasJournalFile {
+		fn.hasJournalFile = true
+	}
+	if src.minJournalSeq > 0 && (fn.minJournalSeq == 0 || src.minJournalSeq < fn.minJournalSeq) {
+		fn.minJournalSeq = src.minJournalSeq
+	}
+	if stats != nil && stats.journal != nil {
+		stats.journal.dirty = true
+	}
 
 	if src.Open != nil {
 		if fn.Open == nil {
