@@ -1,0 +1,18 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The APM Basic Single Step Instrumentation target now adds the C tracer
+    (dd-trace-c) to the libraries a pod already gets from Single Step
+    Instrumentation targets, inject-all, remote configuration, or library
+    annotations, instead of replacing them. A pod labeled
+    ``admission.datadoghq.com/apm-basic.enabled: "true"`` that also matches a
+    Python target keeps its Python tracer and gets RED metrics from dd-trace-c.
+    Pods whose libraries already include dd-trace-c, such as GPU tracing
+    workloads, are left unchanged.

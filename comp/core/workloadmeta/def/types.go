@@ -2530,7 +2530,7 @@ const (
 	GPUSharingModeNone GPUSharingMode = "none"
 	// GPUSharingModeKAIFraction means that KAI Scheduler shares the GPU
 	// between workloads that each request a fraction of it.
-	GPUSharingModeKAIFraction GPUSharingMode = "kai_fraction"
+	GPUSharingModeKAIFraction GPUSharingMode = "kai-fraction"
 	// GPUSharingModeTimeSlicing means that the NVIDIA device plugin shares the
 	// GPU between workloads as time-sliced replicas of it.
 	GPUSharingModeTimeSlicing GPUSharingMode = "time-slicing"

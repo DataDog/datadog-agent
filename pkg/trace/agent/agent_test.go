@@ -5380,3 +5380,181 @@ func TestEnrichTracesWithCtagsV1(t *testing.T) {
 		assert.False(t, ok)
 	})
 }
+
+func TestProcessV1ChunkEnvAppVersionOverride(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.RareSamplerEnabled = false
+	agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+
+	strs := idx.NewStringTable()
+	newChunk := func(id uint64, env, version string) *idx.InternalTraceChunk {
+		c := spansToChunkV1(idx.NewInternalSpan(strs, &idx.Span{SpanID: id, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")}))
+		c.Priority = 2 // user keep, so every chunk is forwarded
+		if env != "" {
+			c.SetEnv(env)
+		}
+		if version != "" {
+			c.SetAppVersion(version)
+		}
+		return c
+	}
+	payload := &api.PayloadV1{Source: info.NewReceiverStats(true).GetTagStats(info.Tags{}), TracerPayload: &idx.InternalTracerPayload{
+		Strings: strs,
+		Chunks:  []*idx.InternalTraceChunk{newChunk(1, "PROD", "v2"), newChunk(2, "staging", ""), newChunk(3, "", "")},
+	}}
+	payload.TracerPayload.SetEnv("payload-env")
+	payload.TracerPayload.SetAppVersion("v1")
+	payload.TracerPayload.SetChunkEnvVersionOverridesEnabled(true)
+
+	agent.ProcessV1(payload)
+	mco := agent.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.statsV1, 1)
+	traces := mco.statsV1[0].Traces
+	require.Len(t, traces, 3)
+	got := [][2]string{}
+	for _, pt := range traces {
+		got = append(got, [2]string{pt.TracerEnv, pt.AppVersion})
+	}
+	assert.ElementsMatch(t, [][2]string{{"prod", "v2"}, {"staging", "v1"}, {"payload-env", "v1"}}, got)
+
+	// The forwarded payload keeps its payload-level env/version and the chunk attributes.
+	payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+	require.Len(t, payloads, 1)
+	out := payloads[0].TracerPayload
+	assert.Equal(t, "payload-env", out.Env())
+	assert.Equal(t, "v1", out.AppVersion())
+	envs := []string{}
+	for _, c := range out.Chunks {
+		envs = append(envs, c.Env())
+	}
+	assert.ElementsMatch(t, []string{"prod", "staging", ""}, envs)
+}
+
+// TestProcessV1ConvertedPayloadIgnoresChunkEnvVersionTags checks that legacy chunk tags
+// carried as attributes on a converted payload do not override the payload env/version.
+func TestProcessV1ConvertedPayloadIgnoresChunkEnvVersionTags(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.RareSamplerEnabled = false
+	agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+
+	legacy := &pb.TracerPayload{
+		Env:        "prod",
+		AppVersion: "v1",
+		Chunks: []*pb.TraceChunk{{
+			Priority: 2,
+			Tags:     map[string]string{"env": "staging", "version": "v2"},
+			Spans:    []*pb.Span{{TraceID: 1, SpanID: 1, Service: "svc", Name: "op", Resource: "res", Duration: 1}},
+		}},
+	}
+	tp := api.ConvertToIdx(legacy, "v07-pb")
+	require.False(t, tp.ChunkEnvVersionOverridesEnabled())
+	require.Equal(t, "staging", tp.Chunks[0].Env(), "legacy chunk tags are kept as attributes")
+
+	agent.ProcessV1(&api.PayloadV1{Source: info.NewReceiverStats(true).GetTagStats(info.Tags{}), TracerPayload: tp})
+
+	mco := agent.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.statsV1, 1)
+	require.Len(t, mco.statsV1[0].Traces, 1)
+	pt := mco.statsV1[0].Traces[0]
+	assert.Equal(t, "prod", pt.TracerEnv)
+	assert.Equal(t, "v1", pt.AppVersion)
+
+	payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+	require.NotEmpty(t, payloads)
+	assert.Equal(t, "prod", payloads[0].TracerPayload.Env())
+	assert.Equal(t, "v1", payloads[0].TracerPayload.AppVersion())
+	assert.Equal(t, "staging", payloads[0].TracerPayload.Chunks[0].Env(), "chunk env tag is not normalized or rewritten")
+}
+
+// TestProcessV1CanonicalizesChunkEnvVersion checks that a forwarded native v1 chunk drops an
+// empty env override and carries the version used in stats through serialization.
+func TestProcessV1CanonicalizesChunkEnvVersion(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.RareSamplerEnabled = false
+	agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+
+	strs := idx.NewStringTable()
+	chunk := spansToChunkV1(idx.NewInternalSpan(strs, &idx.Span{SpanID: 1, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")}))
+	chunk.Priority = 2
+	chunk.SetEnv("") // empty: no override, dropped before forwarding
+	chunk.SetAppVersion("v2")
+	payload := &api.PayloadV1{Source: info.NewReceiverStats(true).GetTagStats(info.Tags{}), TracerPayload: &idx.InternalTracerPayload{
+		Strings: strs,
+		Chunks:  []*idx.InternalTraceChunk{chunk},
+	}}
+	payload.TracerPayload.SetEnv("payload-env")
+	payload.TracerPayload.SetAppVersion("v1")
+	payload.TracerPayload.SetChunkEnvVersionOverridesEnabled(true)
+
+	agent.ProcessV1(payload)
+
+	mco := agent.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.statsV1, 1)
+	require.Len(t, mco.statsV1[0].Traces, 1)
+	pt := mco.statsV1[0].Traces[0]
+	assert.Equal(t, "payload-env", pt.TracerEnv, "an empty env attribute is no override")
+	assert.Equal(t, "v2", pt.AppVersion)
+
+	payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+	require.Len(t, payloads, 1)
+	out := payloads[0].TracerPayload
+
+	// The forwarded chunk, once serialized, carries exactly the values used in stats.
+	bts, err := pb.MarshalAgentPayload(&pb.AgentPayload{IdxTracerPayloads: []*idx.TracerPayload{out.ToProto()}})
+	require.NoError(t, err)
+	var decoded pb.AgentPayload
+	require.NoError(t, proto.Unmarshal(bts, &decoded))
+	require.Len(t, decoded.IdxTracerPayloads, 1)
+	dtp := decoded.IdxTracerPayloads[0]
+	require.Len(t, dtp.Chunks, 1)
+	decodedValues := map[string][]string{}
+	for k, v := range dtp.Chunks[0].Attributes {
+		if name := dtp.Strings[k]; name == "env" || name == "version" {
+			decodedValues[name] = append(decodedValues[name], dtp.Strings[v.GetStringValueRef()])
+		}
+	}
+	assert.Equal(t, map[string][]string{"version": {"v2"}}, decodedValues)
+}
+
+// TestProcessV1ChunkEnvNormalizedToEmpty checks that a chunk env that normalizes to empty is
+// no override: stats use the payload env and the forwarded chunk has no env attribute.
+func TestProcessV1ChunkEnvNormalizedToEmpty(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.RareSamplerEnabled = false
+	agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+
+	strs := idx.NewStringTable()
+	chunk := spansToChunkV1(idx.NewInternalSpan(strs, &idx.Span{SpanID: 1, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")}))
+	chunk.Priority = 2
+	chunk.SetEnv("!!!")
+	payload := &api.PayloadV1{Source: info.NewReceiverStats(true).GetTagStats(info.Tags{}), TracerPayload: &idx.InternalTracerPayload{
+		Strings: strs,
+		Chunks:  []*idx.InternalTraceChunk{chunk},
+	}}
+	payload.TracerPayload.SetEnv("prod")
+	payload.TracerPayload.SetChunkEnvVersionOverridesEnabled(true)
+
+	agent.ProcessV1(payload)
+
+	mco := agent.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.statsV1, 1)
+	require.Len(t, mco.statsV1[0].Traces, 1)
+	assert.Equal(t, "prod", mco.statsV1[0].Traces[0].TracerEnv)
+
+	payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+	require.Len(t, payloads, 1)
+	bts, err := pb.MarshalAgentPayload(&pb.AgentPayload{IdxTracerPayloads: []*idx.TracerPayload{payloads[0].TracerPayload.ToProto()}})
+	require.NoError(t, err)
+	var decoded pb.AgentPayload
+	require.NoError(t, proto.Unmarshal(bts, &decoded))
+	require.Len(t, decoded.IdxTracerPayloads, 1)
+	dtp := decoded.IdxTracerPayloads[0]
+	require.Len(t, dtp.Chunks, 1)
+	for k := range dtp.Chunks[0].Attributes {
+		assert.NotEqual(t, "env", dtp.Strings[k], "the forwarded chunk has no env attribute")
+	}
+}

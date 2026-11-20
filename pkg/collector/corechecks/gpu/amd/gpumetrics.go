@@ -362,14 +362,15 @@ func xgmiSamples(previous, current *amdgpu.GPUMetrics) (samples []nvidia.Sample,
 
 // xgmiLinkBound returns the highest plausible rate, in KB/s, on one XGMI link
 // and in one direction: xgmiLinkMargin times the bandwidth of its speed (Gb/s
-// per lane) and width, or maxXGMILinkKBPerSecond without a sane speed and width.
+// per lane) and width, at most maxXGMILinkKBPerSecond, which is also the bound
+// without a sane speed and width.
 func xgmiLinkBound(gm *amdgpu.GPUMetrics) float64 {
 	speed, width := gm.XGMILinkSpeedGTs, gm.XGMILinkWidth
 	if !speed.Valid || !width.Valid || speed.Value == 0 || speed.Value > 1000 || width.Value == 0 || width.Value > 64 {
 		return maxXGMILinkKBPerSecond
 	}
 	const kbPerGbit = 1e9 / 8 / 1000
-	return xgmiLinkMargin * float64(speed.Value*width.Value) * kbPerGbit
+	return min(xgmiLinkMargin*float64(speed.Value*width.Value)*kbPerGbit, maxXGMILinkKBPerSecond)
 }
 
 // forget drops the state of devices that are no longer present, so that a

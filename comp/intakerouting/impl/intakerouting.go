@@ -24,12 +24,16 @@ import (
 )
 
 const (
-	enabledKey      = "intake_routing.enabled"
-	startupGraceKey = "intake_routing.startup_grace_period"
-	refreshKey      = "intake_routing.refresh_interval"
+	enabledKey       = "intake_routing.enabled"
+	startupGraceKey  = "intake_routing.startup_grace_period"
+	refreshKey       = "intake_routing.refresh_interval"
+	preflightPathKey = "intake_routing.preflight_path"
 
 	maxStartupGrace    = 30 * time.Second
 	minRefreshInterval = time.Minute
+	// defaultPreflightPath is used when intake_routing.preflight_path is not valid. It is the
+	// default of the setting in the schema: TestDefaultPreflightPathMatchesSchema checks it.
+	defaultPreflightPath = "/api/v1/validate"
 )
 
 // Requires defines the dependencies of the intake routing component.
@@ -53,18 +57,18 @@ func NewComponent(reqs Requires) Provides {
 		return Provides{Comp: disabledComponent{}}
 	}
 
-	grace, refresh := loadSettings(reqs.Config, reqs.Log)
+	s := loadSettings(reqs.Config, reqs.Log)
 	// The path checker reads the proxy settings of the transport, which are those telemetry is
 	// sent with.
 	transport := httputils.CreateHTTPTransport(reqs.Config)
 	r := newRouter(routerOptions{
 		log:        reqs.Log,
-		client:     newHTTPRoutingClientWithTransport(transport),
+		client:     newHTTPRoutingClientWithTransport(transport, s.preflightPath),
 		paths:      newNetPathChecker(transport),
 		clock:      clock.New(),
 		tlm:        newRoutingTelemetry(reqs.Telemetry),
-		grace:      grace,
-		refresh:    refresh,
+		grace:      s.grace,
+		refresh:    s.refresh,
 		keyRecheck: keyRecheckInterval,
 		jitter: func(d time.Duration) time.Duration {
 			return time.Duration(float64(d) * (1 + refreshJitter*(2*rand.Float64()-1)))
@@ -72,23 +76,39 @@ func NewComponent(reqs Requires) Provides {
 		startupBackoffRandomization: startupBackoffRandomization,
 	})
 	reqs.Lc.Append(compdef.Hook{OnStop: r.stop})
-	reqs.Log.Infof("Intake routing is enabled (startup grace period: %s, refresh interval: %s)", grace, refresh)
+	reqs.Log.Infof("Intake routing is enabled (startup grace period: %s, refresh interval: %s, pre-flight path: %s)", s.grace, s.refresh, s.preflightPath)
 	return Provides{Comp: r}
 }
 
-// loadSettings reads the tunables and clamps them to safe values.
-func loadSettings(cfg config.Component, logger log.Component) (grace, refresh time.Duration) {
-	grace = cfg.GetDuration(startupGraceKey)
-	if clamped := min(max(grace, 0), maxStartupGrace); clamped != grace {
-		logger.Warnf("%s is %s, using %s instead (allowed range: 0s to %s)", startupGraceKey, grace, clamped, maxStartupGrace)
-		grace = clamped
+// settings holds the tunables of intake routing.
+type settings struct {
+	grace   time.Duration
+	refresh time.Duration
+	// preflightPath is the escaped path of the pre-flight check.
+	preflightPath string
+}
+
+// loadSettings reads the tunables and changes the values that are not safe.
+func loadSettings(cfg config.Component, logger log.Component) settings {
+	var s settings
+	s.grace = cfg.GetDuration(startupGraceKey)
+	if clamped := min(max(s.grace, 0), maxStartupGrace); clamped != s.grace {
+		logger.Warnf("%s is %s, using %s instead (allowed range: 0s to %s)", startupGraceKey, s.grace, clamped, maxStartupGrace)
+		s.grace = clamped
 	}
-	refresh = cfg.GetDuration(refreshKey)
-	if refresh < minRefreshInterval {
-		logger.Warnf("%s is %s, using %s instead (minimum: %s)", refreshKey, refresh, minRefreshInterval, minRefreshInterval)
-		refresh = minRefreshInterval
+	s.refresh = cfg.GetDuration(refreshKey)
+	if s.refresh < minRefreshInterval {
+		logger.Warnf("%s is %s, using %s instead (minimum: %s)", refreshKey, s.refresh, minRefreshInterval, minRefreshInterval)
+		s.refresh = minRefreshInterval
 	}
-	return grace, refresh
+	configured := cfg.GetString(preflightPathKey)
+	path, err := parsePreflightPath(configured)
+	if err != nil {
+		path = defaultPreflightPath
+		logger.Warnf("%s is %q, using %s instead: %v", preflightPathKey, configured, path, err)
+	}
+	s.preflightPath = path
+	return s
 }
 
 // disabledComponent is used when intake routing is disabled.

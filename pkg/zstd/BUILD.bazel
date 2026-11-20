@@ -20,6 +20,7 @@ dd_agent_go_test(
     name = "zstd_test",
     srcs = [
         "writer_options_nocgo_test.go",
+        "zstd_compressor_test.go",
         "zstd_cross_test.go",
     ],
     embed = [":zstd"],

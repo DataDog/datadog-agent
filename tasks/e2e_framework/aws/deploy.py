@@ -7,10 +7,7 @@ from invoke.exceptions import Exit
 
 from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import deploy as common_deploy
-
-# The ECR registries the Agent images can be pulled from
-DATADOG_AGENT_QA_REGISTRY = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
-DATADOG_AGENT_SANDBOX_REGISTRY = "376334461865.dkr.ecr.us-east-1.amazonaws.com"
+from tasks.e2e_framework.image_pull import agent_qa_ecr_credential, agent_sandbox_ecr_credential
 
 
 def deploy(
@@ -58,7 +55,7 @@ def deploy(
 
     # Keep ~/.aws/config in sync: add the SSO profile if it's missing (e.g. after a role
     # rename like account-admin -> account-admin-8h). No-op if already present.
-    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION, ECR_CACHE_PROFILE, setup_aws_sso_config
+    from tasks.e2e_framework.setup.aws import setup_aws_sso_config
 
     setup_aws_sso_config(cfg, interactive=False)
 
@@ -86,28 +83,8 @@ def deploy(
     if key_pair_required and cfg.get_options().checkKeyPair:
         _check_key_pair(awsKeyPairName)
 
-    image_paths = [full_image_path, cluster_agent_full_image_path, *(extra_image_paths or [])]
-
-    def uses_registry(registry: str) -> bool:
-        return any(path and path.startswith(registry + "/") for path in image_paths)
-
-    # The registries to pull from, with the command printing their password: the images may
-    # come from both, e.g. two Agent versions compared by benchmarkeks.
-    pull_registries = {}
-    if needs_agent_containers and (pipeline_id is not None or uses_registry(DATADOG_AGENT_QA_REGISTRY)):
-        pull_registries[DATADOG_AGENT_QA_REGISTRY] = (
-            f"aws-vault exec {ECR_CACHE_PROFILE} -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}"
-        )
-    if uses_registry(DATADOG_AGENT_SANDBOX_REGISTRY):
-        pull_registries[DATADOG_AGENT_SANDBOX_REGISTRY] = (
-            f"aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}"
-        )
-    if pull_registries:
-        flags["ddagent:imagePullRegistry"] = ",".join(pull_registries)
-        flags["ddagent:imagePullUsername"] = ",".join("AWS" for _ in pull_registries)
-        flags["ddagent:imagePullPassword"] = ",".join(
-            ctx.run(command, hide=True).stdout.strip() for command in pull_registries.values()
-        )
+    if needs_agent_containers:
+        flags.update(_image_pull_flags(ctx, full_image_path, cluster_agent_full_image_path, *(extra_image_paths or [])))
     return common_deploy(
         ctx,
         scenario_name,
@@ -132,6 +109,19 @@ def deploy(
         pulumi_extra_args=pulumi_extra_args,
         pulumi_env=pulumi_env,
     )
+
+
+def _image_pull_flags(ctx: Context, *images: str | None) -> dict[str, str]:
+    """Pull secret flags for the cluster: agent-qa always, plus agent-sandbox when an image lives there."""
+    creds = [c for c in (agent_qa_ecr_credential(ctx), agent_sandbox_ecr_credential(ctx, *images)) if c is not None]
+    if not creds:
+        return {}
+    registries, usernames, passwords = zip(*creds, strict=True)
+    return {
+        "ddagent:imagePullRegistry": ",".join(registries),
+        "ddagent:imagePullUsername": ",".join(usernames),
+        "ddagent:imagePullPassword": ",".join(passwords),
+    }
 
 
 def _check_key_pair(key_pair_to_search: str | None):
