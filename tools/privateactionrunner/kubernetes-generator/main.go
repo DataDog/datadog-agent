@@ -9,7 +9,6 @@ package main
 import (
 	"bytes"
 	"embed"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"go/format"
@@ -19,15 +18,17 @@ import (
 	"strings"
 	"text/template"
 	"unicode"
+
+	"go.yaml.in/yaml/v3"
 )
 
-//go:embed config.json templates/*.tmpl
+//go:embed config.yaml templates/*.tmpl
 var assets embed.FS
 
 type targetConfig struct {
-	Version       string   `json:"version"`
-	CopyrightYear int      `json:"copyrightYear"`
-	Resources     []string `json:"resources"`
+	Version       string   `yaml:"version"`
+	CopyrightYear int      `yaml:"copyrightYear"`
+	Resources     []string `yaml:"resources"`
 }
 
 type action struct {
@@ -83,12 +84,12 @@ func run(sdkRoot, bundle, source, out string, check bool) error {
 	if sdkRoot == "" {
 		return fmt.Errorf("--sdk-root is required; use bazel run //tools/privateactionrunner/kubernetes-generator")
 	}
-	raw, err := assets.ReadFile("config.json")
+	raw, err := assets.ReadFile("config.yaml")
 	if err != nil {
 		return err
 	}
 	var targets map[string]targetConfig
-	if err := json.Unmarshal(raw, &targets); err != nil {
+	if err := yaml.Unmarshal(raw, &targets); err != nil {
 		return err
 	}
 	if bundle != "" {

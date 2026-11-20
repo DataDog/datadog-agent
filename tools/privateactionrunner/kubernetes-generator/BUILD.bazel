@@ -8,12 +8,13 @@ go_library(
         "parse.go",
     ],
     embedsrcs = [
-        "config.json",
+        "config.yaml",
         "templates/actions.go.tmpl",
         "templates/entrypoint.go.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/tools/privateactionrunner/kubernetes-generator",
     visibility = ["//visibility:private"],
+    deps = ["@in_yaml_go_yaml_v3//:yaml"],
 )
 
 go_binary(
@@ -45,4 +46,5 @@ dd_agent_go_test(
     name = "kubernetes-generator_test",
     srcs = ["generator_test.go"],
     embed = [":kubernetes-generator_lib"],
+    deps = ["@com_github_stretchr_testify//require"],
 )

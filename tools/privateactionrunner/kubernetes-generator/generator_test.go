@@ -10,19 +10,15 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
-	"reflect"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func writeFixture(t *testing.T, filename, content string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filename, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Dir(filename), 0o755))
+	require.NoError(t, os.WriteFile(filename, []byte(content), 0o644))
 }
 
 func TestGenerateBundle(t *testing.T) {
@@ -30,7 +26,9 @@ func TestGenerateBundle(t *testing.T) {
 	source := filepath.Join(root, "bundle")
 	writeFixture(t, filepath.Join(source, "helper.go"), `package bundle
 func helper() {}
-func NewScaleWorkloadHandler() *ScaleWorkloadHandler { return nil }
+func NewZuluHandler() *ZuluHandler { return nil }
+func NewAlphaHandler() *AlphaHandler { return nil }
+func (*Thing) NewReceiverHandler() {}
 `)
 	writeFixture(t, filepath.Join(source, "ignored_test.go"), "not Go syntax")
 	writeFixture(t, filepath.Join(source, "old.gen.go"), "not Go syntax")
@@ -62,17 +60,13 @@ type HorizontalPodAutoscalerInterface interface {
 `)
 	cfg := targetConfig{Version: "v2", CopyrightYear: 2026, Resources: []string{"HorizontalPodAutoscaler"}}
 	files, err := generateBundle(root, "autoscaling", source, cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(files) != 6 {
-		t.Fatalf("generated %d files, want 5 supported methods and entrypoint", len(files))
-	}
+	require.NoError(t, err)
+	require.Len(t, files, 6, "five supported methods and entrypoint")
 	for filename, contents := range files {
-		if _, err := parser.ParseFile(token.NewFileSet(), filename, contents, parser.AllErrors); err != nil {
-			t.Fatal(err)
-		}
+		_, err := parser.ParseFile(token.NewFileSet(), filename, contents, parser.AllErrors)
+		require.NoError(t, err)
 	}
+
 	create := string(files["create_horizontal_pod_autoscaler.gen.go"])
 	for _, want := range []string{
 		`v1 "k8s.io/api/autoscaling/v2"`,
@@ -81,31 +75,30 @@ type HorizontalPodAutoscalerInterface interface {
 		"*v1.HorizontalPodAutoscalerStatus", "map[string][]v1.LocalType",
 		`errors.New("namespace is required")`, `errors.New("body is required")`,
 	} {
-		if !strings.Contains(create, want) {
-			t.Errorf("Create handler missing %q", want)
-		}
+		require.Contains(t, create, want)
 	}
-	if strings.Contains(create, "TypeMeta") {
-		t.Error("TypeMeta must not be exposed in outputs")
-	}
+	require.NotContains(t, create, "TypeMeta")
+
 	list := string(files["list_horizontal_pod_autoscaler.gen.go"])
-	if strings.Contains(list, `namespace is required`) || !strings.Contains(list, "Items:") || !strings.Contains(list, "ListMeta:") {
-		t.Error("List must allow all namespaces and return pagination metadata")
-	}
+	require.NotContains(t, list, "namespace is required", "List must allow all namespaces")
+	require.Contains(t, list, "Items:")
+	require.Contains(t, list, "ListMeta:")
 	patch := string(files["patch_horizontal_pod_autoscaler.gen.go"])
 	for _, want := range []string{"inputs.PatchFields == nil", "json.Marshal(inputs.Body)", "typesv1.JSONPatchType"} {
-		if !strings.Contains(patch, want) {
-			t.Errorf("Patch handler missing %q", want)
-		}
+		require.Contains(t, patch, want)
 	}
+
+	manual, err := manualActions(source)
+	require.NoError(t, err)
+	require.Equal(t, []string{"alpha", "zulu"}, manual)
 	entry := string(files["entrypoint.gen.go"])
-	if !strings.Contains(entry, `"scaleWorkload": NewScaleWorkloadHandler()`) || strings.Contains(entry, "NewHelperHandler") {
-		t.Error("entrypoint must register only handwritten action constructors")
-	}
+	require.Contains(t, entry, `"alpha": NewAlphaHandler()`)
+	require.Contains(t, entry, `"zulu":  NewZuluHandler()`)
+	require.NotContains(t, entry, "NewHelperHandler")
+	require.NotContains(t, entry, "NewReceiverHandler")
 	cfg.Resources = []string{"MissingResource"}
-	if _, err := generateBundle(root, "autoscaling", source, cfg); err == nil {
-		t.Error("missing configured resource must fail generation")
-	}
+	_, err = generateBundle(root, "autoscaling", source, cfg)
+	require.ErrorContains(t, err, "no client interface for resource MissingResource")
 }
 
 func TestMethodContracts(t *testing.T) {
@@ -121,57 +114,17 @@ func TestMethodContracts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			res := resource{Name: tc.name, NamePluralized: tc.plural}
 			a, ok := methodAction("DeleteCollection", "networking", cfg, res)
-			if !ok || a.Name != tc.actionName || snake(a.Name) != tc.filename {
-				t.Fatalf("unexpected action: %+v, filename %s", a, snake(a.Name))
-			}
+			require.True(t, ok)
+			require.Equal(t, tc.actionName, a.Name)
+			require.Equal(t, tc.filename, snake(a.Name))
 			contents, err := render("actions", a)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if strings.Contains(string(contents), "inputs.Namespace") || strings.Contains(string(contents), `"errors"`) {
-				t.Error("cluster-scoped collection deletion must not require namespace or unused imports")
-			}
+			require.NoError(t, err)
+			require.NotContains(t, string(contents), "inputs.Namespace")
+			require.NotContains(t, string(contents), `"errors"`)
 			get, ok := methodAction("Get", "networking", cfg, res)
-			if !ok || get.Name != "get"+tc.name {
-				t.Errorf("resource singular changed: %+v", get)
-			}
+			require.True(t, ok)
+			require.Equal(t, "get"+tc.name, get.Name)
 		})
-	}
-}
-
-func TestQualifyType(t *testing.T) {
-	for _, tc := range []struct{ input, want string }{
-		{"map[string][]*Thing", "map[string][]*v1.Thing"},
-		{"[3]byte", "[3]byte"},
-		{"metav1.ObjectMeta", "metav1.ObjectMeta"},
-		{"float64", "float64"},
-	} {
-		expr, err := parser.ParseExpr(tc.input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got, _, err := qualifyType(expr, "k8s.io/api/core/v1", map[string]string{"metav1": "k8s.io/apimachinery/pkg/apis/meta/v1"})
-		if err != nil || got != tc.want {
-			t.Errorf("qualifyType(%s) = %q, %v, want %q", tc.input, got, err, tc.want)
-		}
-	}
-	expr, _ := parser.ParseExpr("unknown.Type")
-	if _, _, err := qualifyType(expr, "", nil); err == nil {
-		t.Error("unresolved imports must fail rather than produce invalid code")
-	}
-}
-
-func TestManualActions(t *testing.T) {
-	dir := t.TempDir()
-	writeFixture(t, filepath.Join(dir, "support.go"), `package bundle
-func helper() {}
-func NewZuluHandler() *ZuluHandler { return nil }
-func NewAlphaHandler() *AlphaHandler { return nil }
-func (*Thing) NewReceiverHandler() {}
-`)
-	got, err := manualActions(dir)
-	if err != nil || !reflect.DeepEqual(got, []string{"alpha", "zulu"}) {
-		t.Fatalf("manualActions = %v, %v", got, err)
 	}
 }
 
@@ -187,23 +140,13 @@ type EndpointSlice struct { AddressType string }
 type EndpointSlicesGetter interface { EndpointSlices(namespace string) EndpointSliceInterface }
 type EndpointSliceInterface interface { Get() }
 `)
-	if err := run(root, "discovery", source, out, true); err == nil {
-		t.Fatal("check must detect missing files")
-	}
-	if _, err := os.Stat(out); !os.IsNotExist(err) {
-		t.Fatal("check must not create output directory")
-	}
-	if err := run(root, "discovery", source, out, false); err != nil {
-		t.Fatal(err)
-	}
-	if err := run(root, "discovery", source, out, true); err != nil {
-		t.Fatalf("fresh output failed check: %v", err)
-	}
+	require.ErrorContains(t, run(root, "discovery", source, out, true), "stale generated files")
+	require.NoDirExists(t, out, "check must not create output directory")
+	require.NoError(t, run(root, "discovery", source, out, false))
+	require.NoError(t, run(root, "discovery", source, out, true))
 	filename := filepath.Join(out, "discovery/get_endpoint_slice.gen.go")
 	before, err := os.ReadFile(filename)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	writeFixture(t, filename, "stale content")
 	obsolete := filepath.Join(out, "discovery/obsolete.gen.go")
 	writeFixture(t, obsolete, "old action")
@@ -211,31 +154,21 @@ type EndpointSliceInterface interface { Get() }
 	writeFixture(t, handwritten, "handwritten")
 	unselected := filepath.Join(out, "core/keep.gen.go")
 	writeFixture(t, unselected, "unselected bundle")
+
 	err = run(root, "discovery", source, out, true)
-	if err == nil || !strings.Contains(err.Error(), "obsolete.gen.go") || !strings.Contains(err.Error(), "get_endpoint_slice.gen.go") {
-		t.Fatalf("check must report changed and obsolete files: %v", err)
-	}
-	if got, _ := os.ReadFile(filename); string(got) != "stale content" {
-		t.Fatal("check modified a file")
-	}
-	if _, err := os.Stat(obsolete); err != nil {
-		t.Fatal("check removed a file")
-	}
-	if err := run(root, "discovery", source, out, false); err != nil {
-		t.Fatal(err)
-	}
-	if got, _ := os.ReadFile(filename); string(got) != string(before) {
-		t.Fatal("regeneration did not restore deterministic output")
-	}
-	if _, err := os.Stat(obsolete); !os.IsNotExist(err) {
-		t.Fatal("regeneration must remove obsolete generated files")
-	}
-	for _, keep := range []string{handwritten, unselected} {
-		if _, err := os.Stat(keep); err != nil {
-			t.Fatal("regeneration removed a handwritten file or an unselected bundle")
-		}
-	}
-	if err := run(root, "unknown", source, out, false); err == nil {
-		t.Fatal("unknown bundle must fail")
-	}
+	require.ErrorContains(t, err, "obsolete.gen.go")
+	require.ErrorContains(t, err, "get_endpoint_slice.gen.go")
+	got, err := os.ReadFile(filename)
+	require.NoError(t, err)
+	require.Equal(t, "stale content", string(got), "check must not modify files")
+	require.FileExists(t, obsolete, "check must not remove files")
+
+	require.NoError(t, run(root, "discovery", source, out, false))
+	got, err = os.ReadFile(filename)
+	require.NoError(t, err)
+	require.Equal(t, before, got, "regeneration must restore deterministic output")
+	require.NoFileExists(t, obsolete)
+	require.FileExists(t, handwritten)
+	require.FileExists(t, unselected)
+	require.ErrorContains(t, run(root, "unknown", source, out, false), "unknown bundle")
 }

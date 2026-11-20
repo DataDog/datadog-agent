@@ -9,7 +9,7 @@ bazel run //tools/privateactionrunner/kubernetes-generator -- --bundle=core
 bazel run //tools/privateactionrunner/kubernetes-generator -- --check
 ```
 
-Edit `tools/privateactionrunner/kubernetes-generator/config.json` to select
+Edit `tools/privateactionrunner/kubernetes-generator/config.yaml` to select
 resources and API versions. Edit the templates to change generated handlers.
 Handwritten `New…Handler` constructors are registered alongside generated actions.
 Generation replaces and removes `*.gen.go` files only in selected bundles;
