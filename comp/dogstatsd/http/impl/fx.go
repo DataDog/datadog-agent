@@ -6,7 +6,6 @@
 package httpimpl
 
 import (
-	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -15,6 +14,7 @@ import (
 	comp "github.com/DataDog/datadog-agent/comp/def"
 	def "github.com/DataDog/datadog-agent/comp/dogstatsd/http/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	pkgserializer "github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 // Requires declares the inputs for NewComponent
@@ -24,7 +24,7 @@ type Requires struct {
 	Config     config.Component
 	Tagger     tagger.Component
 	Hostname   hostname.Component
-	Demux      demultiplexer.Component
+	Serializer pkgserializer.MetricsSerializer
 	FilterList filterlist.Component
 	Telemetry  telemetry.Component
 }
@@ -43,7 +43,7 @@ func NewComponent(req Requires) (Provides, error) {
 		filterList: req.FilterList,
 		telemetry:  newTelemetryStore(req.Telemetry),
 
-		out: req.Demux.Serializer(),
+		out: req.Serializer,
 	}
 
 	req.Lc.Append(comp.Hook{

@@ -64,6 +64,7 @@ import (
 	serverlessaasfx "github.com/DataDog/datadog-agent/comp/metadata/serverlessaas/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	serializerdef "github.com/DataDog/datadog-agent/comp/serializer/serializer/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -161,11 +162,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),
 		localTaggerfx.Module(),
-		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
-		// already migrated components to request it.
-		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
-			return demuxInstance.Serializer()
-		}),
+		fx.Provide(func(s serializerdef.Component) serializer.MetricSerializer { return s }),
 		metadataModules(),
 		ipcfx.ModuleReadWrite(),
 		fx.Provide(func(config config.Component) healthprobe.Options {

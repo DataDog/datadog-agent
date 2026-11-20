@@ -54,6 +54,7 @@ go_library(
         "//comp/metadata/serverlessaas/fx",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/fx",
+        "//comp/serializer/serializer/def",
         "//pkg/serializer",
         "//pkg/serverless/env",
         "//pkg/status/health",

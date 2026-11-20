@@ -90,6 +90,9 @@ type AgentDemultiplexerOptions struct {
 	// MetricsEndpointRouting must be validated before initialization.
 	MetricsEndpointRouting utils.MetricsEndpointRouting
 
+	// Serializer is used as the shared serializer when set; otherwise one is created.
+	Serializer serializer.MetricSerializer
+
 	DogStatsDLookback        DogStatsDLookback
 	DogStatsDLookbackFactory DogStatsDLookbackFactory
 
@@ -171,7 +174,10 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializerWithEndpointRouting(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname, options.MetricsEndpointRouting)
+	sharedSerializer := options.Serializer
+	if sharedSerializer == nil {
+		sharedSerializer = serializer.NewSerializerWithEndpointRouting(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname, options.MetricsEndpointRouting)
+	}
 	if options.DogStatsDLookback == nil && options.DogStatsDLookbackFactory != nil {
 		options.DogStatsDLookback = options.DogStatsDLookbackFactory(sharedSerializer)
 	}

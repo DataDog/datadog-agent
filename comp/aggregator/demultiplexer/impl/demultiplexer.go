@@ -26,17 +26,21 @@ import (
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	serializer "github.com/DataDog/datadog-agent/comp/serializer/serializer/def"
+	serializerfx "github.com/DataDog/datadog-agent/comp/serializer/serializer/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the fx options for this component.
+// Module defines the fx options for this component. It also includes the
+// serializer component, which the demultiplexer depends on.
 func Module(params Params) fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(NewComponent),
-		fx.Supply(params))
+		fx.Supply(params),
+		serializerfx.Module())
 }
 
 // Dependencies defines the dependencies required by the demultiplexer component.
@@ -53,6 +57,7 @@ type Dependencies struct {
 	Tagger                       tagger.Component
 	Hostname                     hostnameinterface.Component
 	FilterList                   filterlist.Component
+	Serializer                   serializer.Component
 	Observer                     observer.Component                       `optional:"true"`
 	DogStatsDLookbackFactory     aggregator.DogStatsDLookbackFactory      `optional:"true"`
 	FinalDogStatsDSerieObservers []aggregator.FinalDogStatsDSerieObserver `group:"dogstatsd_final_serie_observers"`
@@ -92,6 +97,7 @@ func NewComponent(deps Dependencies) (Provides, error) {
 	}
 	options := createAgentDemultiplexerOptions(deps.Config, deps.Params, deps.DogStatsDLookbackFactory, deps.FinalDogStatsDSerieObservers, deps.ClientDropDetector)
 	options.MetricsEndpointRouting = routing
+	options.Serializer = deps.Serializer
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,

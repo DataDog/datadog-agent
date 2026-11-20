@@ -16,7 +16,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/aggregator/demultiplexer/def",
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
@@ -31,6 +30,7 @@ go_library(
         "//pkg/metrics",
         "//pkg/metrics/metricname",
         "//pkg/proto/pbgo/dogstatsdhttp",
+        "//pkg/serializer",
         "//pkg/tagger/types",
         "//pkg/tagset",
     ],
