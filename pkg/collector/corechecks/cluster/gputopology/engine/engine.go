@@ -121,6 +121,7 @@ func stateOf(d Domain) DomainState {
 type StateCounts [4]int
 
 // UnschedulableReason is why GPUs in scope can't be used by the scheduler.
+// Its String() values are the unschedulable_reason tag values.
 type UnschedulableReason int
 
 // Unschedulable reasons. They index ReasonCounts.
@@ -159,9 +160,9 @@ type ReasonCounts [5]int
 // Result is the output of Compute.
 type Result struct {
 	Topology Topology
-	// Nodes has a count for every NodeState and every (GPU resource
-	// attribution, GPU type) seen, zeros included, sorted by state, resource,
-	// then type.
+	// Nodes has a count for every NodeState and every (GPU resource, GPU
+	// type) seen, zeros included, plus the unsupported counts per slicing or
+	// sharing mode. Sorted by state, resource, type, then modes.
 	Nodes       []NodeCount
 	Resources   []ResourceResult // sorted by resource, then GPU type
 	Overcommits []Overcommit     // sorted by node, then resource
@@ -171,8 +172,10 @@ type Result struct {
 // node with several GPU resources counts once for each.
 type NodeCount struct {
 	State       NodeState
-	GPUResource string // resource name, GPUResourceMIG or GPUResourceShared
+	GPUResource string // a real resource key, e.g. nvidia.com/gpu
 	GPUType     string // e.g. "h100", or GPUTypeUnknown
+	SlicingMode string // SlicingModeMIG on unsupported MIG rows, else ""
+	SharingMode string // SharingModeTimeSlicing or SharingModeMPS on unsupported shared rows, else ""
 	Count       int
 }
 
@@ -277,13 +280,12 @@ func Compute(t Topology, nodes []Node, alloc Allocations) Result {
 		}
 		all = append(all, c)
 		for r, state := range c.states {
-			counts[NodeCount{State: state, GPUResource: r, GPUType: c.gpuTypes[r]}]++
+			counts[NodeCount{State: state, GPUResource: r, GPUType: c.gpuTypes[r], SlicingMode: c.slicing, SharingMode: c.sharing}]++
 			if u := (unit{r, c.gpuTypes[r]}); !slices.Contains(seen, u) {
 				seen = append(seen, u)
 			}
 		}
 	}
-	slices.SortFunc(seen, compareUnits)
 	for _, state := range NodeStates() {
 		for _, u := range seen {
 			k := NodeCount{State: state, GPUResource: u.resource, GPUType: u.gpuType}
@@ -291,6 +293,16 @@ func Compute(t Topology, nodes []Node, alloc Allocations) Result {
 			res.Nodes = append(res.Nodes, k)
 		}
 	}
+	for k, v := range counts {
+		if k.SlicingMode != "" || k.SharingMode != "" {
+			k.Count = v
+			res.Nodes = append(res.Nodes, k)
+		}
+	}
+	slices.SortFunc(res.Nodes, func(a, b NodeCount) int {
+		return cmp.Or(cmp.Compare(a.State, b.State), cmp.Compare(a.GPUResource, b.GPUResource),
+			cmp.Compare(a.GPUType, b.GPUType), cmp.Compare(a.SlicingMode, b.SlicingMode), cmp.Compare(a.SharingMode, b.SharingMode))
+	})
 
 	for _, u := range units(all) {
 		rr, overcommits := computeUnit(u, all, levels, alloc)
@@ -322,7 +334,7 @@ func computeUnit(u unit, nodes []classified, levels []string, alloc Allocations)
 	largestHost := 0 // bounds the pod sizes, independent of node health
 	for _, c := range nodes {
 		state, ok := c.states[resource]
-		if !ok || c.gpuTypes[resource] != u.gpuType {
+		if !ok || state == NodeUnsupported || c.gpuTypes[resource] != u.gpuType {
 			continue
 		}
 		capacity := max(c.node.Capacity[resource], 0)

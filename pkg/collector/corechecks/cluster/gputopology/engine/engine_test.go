@@ -332,9 +332,16 @@ func TestNodeStates(t *testing.T) {
 	}
 	noLabels := func(n Node) Node { n.Labels = map[string]string{}; return n }
 	migMixed := func(n Node) Node { n.Capacity["nvidia.com/mig-1g.5gb"] = 7; return n }
+	// Expected attributions of unsupported nodes, expanded below.
+	const (
+		mig         = "<mig>"
+		timeSlicing = "<time_slicing>"
+		renamedTS   = "<renamed time_slicing>"
+		mps         = "<mps>"
+	)
 	shared := func(n Node) Node {
-		n.Capacity = map[string]int{GPUResourceShared: 16}
-		n.Allocatable = map[string]int{GPUResourceShared: 16}
+		n.Capacity = map[string]int{"nvidia.com/gpu.shared": 16}
+		n.Allocatable = map[string]int{"nvidia.com/gpu.shared": 16}
 		n.Labels = with(map[string]string{"nvidia.com/gpu.present": "true"})
 		return n
 	}
@@ -365,19 +372,19 @@ func TestNodeStates(t *testing.T) {
 
 		{"MIG strategy none", []func(Node) Node{labels(map[string]string{"nvidia.com/mig.strategy": "none", labelGPUProduct: "NVIDIA-A100-SXM4-80GB"})}, NodeInTopology, nvidia},
 		{"MIG single, MIG off", []func(Node) Node{labels(map[string]string{"nvidia.com/mig.strategy": "single", labelGPUProduct: "NVIDIA-A100-SXM4-80GB"})}, NodeInTopology, nvidia},
-		{"MIG single, MIG on", []func(Node) Node{labels(map[string]string{"nvidia.com/mig.strategy": "single", labelGPUProduct: "NVIDIA-A100-SXM4-40GB-MIG-1g.5gb"})}, NodeUnsupported, GPUResourceMIG},
-		{"MIG mixed", []func(Node) Node{labels(map[string]string{"nvidia.com/mig.strategy": "mixed"}), migMixed}, NodeUnsupported, GPUResourceMIG},
-		{"time-slicing renamed to gpu.shared", []func(Node) Node{shared}, NodeUnsupported, GPUResourceShared},
-		{"default time-slicing: 8 GPUs x 4 replicas", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.replicas": "4", "nvidia.com/gpu.sharing-strategy": "time-slicing", labelGPUProduct: "NVIDIA-H100-80GB-HBM3-SHARED"}), capacity(32)}, NodeUnsupported, GPUResourceShared},
-		{"replicas > 1 only", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.replicas": "2"})}, NodeUnsupported, GPUResourceShared},
-		{"MPS", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.sharing-strategy": "mps"})}, NodeUnsupported, GPUResourceShared},
-		{"-SHARED product only", []func(Node) Node{labels(map[string]string{labelGPUProduct: "Tesla-T4-SHARED"})}, NodeUnsupported, GPUResourceShared},
+		{"MIG single, MIG on", []func(Node) Node{labels(map[string]string{"nvidia.com/mig.strategy": "single", labelGPUProduct: "NVIDIA-A100-SXM4-40GB-MIG-1g.5gb"})}, NodeUnsupported, mig},
+		{"MIG mixed", []func(Node) Node{labels(map[string]string{"nvidia.com/mig.strategy": "mixed"}), migMixed}, NodeUnsupported, mig},
+		{"time-slicing renamed to gpu.shared", []func(Node) Node{shared}, NodeUnsupported, renamedTS},
+		{"default time-slicing: 8 GPUs x 4 replicas", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.replicas": "4", "nvidia.com/gpu.sharing-strategy": "time-slicing", labelGPUProduct: "NVIDIA-H100-80GB-HBM3-SHARED"}), capacity(32)}, NodeUnsupported, timeSlicing},
+		{"replicas > 1 only", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.replicas": "2"})}, NodeUnsupported, timeSlicing},
+		{"MPS", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.sharing-strategy": "mps"})}, NodeUnsupported, mps},
+		{"-SHARED product only", []func(Node) Node{labels(map[string]string{labelGPUProduct: "Tesla-T4-SHARED"})}, NodeUnsupported, timeSlicing},
 		{"sharing-strategy none, replicas 1", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.sharing-strategy": "none", "nvidia.com/gpu.replicas": "1", labelGPUProduct: "NVIDIA-H100-80GB-HBM3"})}, NodeInTopology, nvidia},
-		{"MIG checked before sharing", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.replicas": "2"}), migMixed}, NodeUnsupported, GPUResourceMIG},
-		{"gpu.shared with plugin down", []func(Node) Node{shared, func(n Node) Node { n.Allocatable = map[string]int{}; return n }}, NodeUnsupported, GPUResourceShared},
+		{"MIG checked before sharing", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.replicas": "2"}), migMixed}, NodeUnsupported, mig},
+		{"gpu.shared with plugin down", []func(Node) Node{shared, func(n Node) Node { n.Allocatable = map[string]int{}; return n }}, NodeUnsupported, renamedTS},
 
 		// Precedence: unsupported > missing_labels > unavailable > no_gpu_allocatable > tainted.
-		{"unsupported over missing labels", []func(Node) Node{migMixed, noLabels}, NodeUnsupported, GPUResourceMIG},
+		{"unsupported over missing labels", []func(Node) Node{migMixed, noLabels}, NodeUnsupported, mig},
 		{"missing labels over unavailable", []func(Node) Node{noLabels, cordon}, NodeMissingLabels, nvidia},
 		{"unavailable over no allocatable", []func(Node) Node{pluginDown, cordon}, NodeUnavailable, nvidia},
 		{"no allocatable over tainted", []func(Node) Node{pluginDown, taint("other", EffectNoSchedule)}, NodeNoGPUAllocatable, nvidia},
@@ -394,7 +401,18 @@ func TestNodeStates(t *testing.T) {
 				n = m(n)
 			}
 			res := Compute(topo, []Node{n}, Allocations{"n": {nvidia: 1}})
-			assert.Equal(t, []NodeCount{{State: tt.want, GPUResource: tt.attr, Count: 1}}, withoutType(nonZero(res.Nodes)))
+			want := NodeCount{State: tt.want, GPUResource: tt.attr, Count: 1}
+			switch tt.attr {
+			case mig:
+				want.GPUResource, want.SlicingMode = nvidia, SlicingModeMIG
+			case timeSlicing:
+				want.GPUResource, want.SharingMode = nvidia, SharingModeTimeSlicing
+			case renamedTS:
+				want.GPUResource, want.SharingMode = "nvidia.com/gpu.shared", SharingModeTimeSlicing
+			case mps:
+				want.GPUResource, want.SharingMode = nvidia, SharingModeMPS
+			}
+			assert.Equal(t, []NodeCount{want}, withoutType(nonZero(res.Nodes)))
 
 			if tt.want == NodeUnsupported {
 				assert.Empty(t, res.Resources, "unsupported nodes are only counted")
@@ -565,12 +583,12 @@ func TestNodeCountsIncludeZeros(t *testing.T) {
 	res := Compute(Topology{Levels: []string{rackLabel}}, append(nodes, mig), alloc)
 	var want []NodeCount
 	for _, s := range NodeStates() {
-		for _, r := range []string{GPUResourceMIG, nvidia} {
-			want = append(want, NodeCount{State: s, GPUResource: r, GPUType: GPUTypeUnknown})
-		}
+		want = append(want, NodeCount{State: s, GPUResource: nvidia, GPUType: GPUTypeUnknown})
 	}
-	want[1].Count = 1                      // in_topology, nvidia
-	want[2*int(NodeUnsupported)].Count = 1 // unsupported, mig
+	want[NodeInTopology].Count = 1
+	// The MIG node only adds its unsupported row with the slicing mode; the
+	// unsupported row without mode stays 0.
+	want = append(want, NodeCount{State: NodeUnsupported, GPUResource: nvidia, GPUType: GPUTypeUnknown, SlicingMode: SlicingModeMIG, Count: 1})
 	assert.Equal(t, want, res.Nodes)
 }
 
@@ -725,7 +743,7 @@ func TestGPUTypeSources(t *testing.T) {
 		{"GFD T4", nvidia, l(product, "Tesla-T4"), "t4"},
 		{"GFD RTX 3090", nvidia, l(product, "NVIDIA-GeForce-RTX-3090"), "rtx_3090"},
 		{"GFD -SHARED gives the base type", nvidia, l(product, "NVIDIA-H100-80GB-HBM3-SHARED"), "h100"},
-		{"GFD on a MIG node", GPUResourceMIG, l(product, "NVIDIA-A100-SXM4-40GB-MIG-1g.5gb"), "a100"},
+		{"GFD on a MIG node", nvidia, l(product, "NVIDIA-A100-SXM4-40GB-MIG-1g.5gb"), "a100"},
 		// GKE.
 		{"GKE nvidia-tesla-a100", nvidia, l(gke, "nvidia-tesla-a100"), "a100"},
 		{"GKE nvidia-tesla-t4", nvidia, l(gke, "nvidia-tesla-t4"), "t4"},
@@ -779,9 +797,12 @@ func TestUnsupportedRowsCarryGPUType(t *testing.T) {
 	res := Compute(Topology{Levels: []string{rackLabel}}, []Node{mig, shared, plain}, nil)
 	assert.Equal(t, []NodeCount{
 		{State: NodeInTopology, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 1},
-		{State: NodeUnsupported, GPUResource: GPUResourceMIG, GPUType: "a100", Count: 1},
-		{State: NodeUnsupported, GPUResource: GPUResourceShared, GPUType: "t4", Count: 1},
+		{State: NodeUnsupported, GPUResource: nvidia, GPUType: "a100", SlicingMode: SlicingModeMIG, Count: 1},
+		{State: NodeUnsupported, GPUResource: nvidia, GPUType: "t4", SharingMode: SharingModeTimeSlicing, Count: 1},
 	}, nonZero(res.Nodes))
+	require.Len(t, res.Resources, 1, "unsupported nodes never join the nvidia.com/gpu unit")
+	assert.Equal(t, GPUTypeUnknown, res.Resources[0].GPUType)
+	assert.Equal(t, 1, res.Resources[0].Levels[1].Domains[DomainFree])
 }
 
 func TestCPUOnlyNodesNeverCreateUnknown(t *testing.T) {
