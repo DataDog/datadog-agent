@@ -254,6 +254,7 @@ func serveAssets(w http.ResponseWriter, req *http.Request) {
 	path, err := securejoin.SecureJoin(staticFilePath, req.URL.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	data, err := os.ReadFile(path)
