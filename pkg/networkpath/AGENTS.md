@@ -46,10 +46,13 @@ module. Change it there, then bump its version in the root `go.mod`.
 Real probing is covered only by E2E in `test/new-e2e/tests/netpath/`
 (`network-path-integration` for scheduled tests on Linux and Windows hosts, `dynamic-tests` for
 CNM- and NetFlow-driven ones). They provision cloud hosts; see `test/new-e2e/AGENTS.md`, and ask
-before running them. In CI, `new-e2e-netpath` and `new-e2e-netpath-windows` run only for the paths
-in `.on_netpath_or_e2e_changes` in `.gitlab-ci.yml`. That list includes
+before running them. In CI, `new-e2e-netpath` and `new-e2e-netpath-windows` always run on `main`,
+release branches, and RC tags, and when shared e2e files change (`.on_e2e_main_release_or_rc`). On
+other PRs they run automatically only for the paths in `.on_netpath_or_e2e_changes` in
+`.gitlab-ci.yml`, and are otherwise left as manual jobs. That list includes
 `cmd/system-probe/modules/traceroute.go` but not `traceroute_{linux,windows,darwin}.go` or the root
-`go.mod`, so a driver change or a `datadog-traceroute` bump doesn't trigger them on its own.
+`go.mod`, so on a PR, a driver change or a `datadog-traceroute` bump doesn't start them; run them by
+hand.
 
 ## Keeping these instructions current
 
