@@ -8,6 +8,7 @@ package units
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,9 +31,11 @@ func TestWriteFileReplacesAtomically(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(dir, "a.yaml"))
 	require.NoError(t, err)
 	assert.Equal(t, "new", string(content))
-	info, err := os.Stat(filepath.Join(dir, "a.yaml"))
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(filepath.Join(dir, "a.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
+	}
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	assert.Len(t, entries, 1, "the temporary file must not be left behind")
