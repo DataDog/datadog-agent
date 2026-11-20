@@ -8,6 +8,7 @@
 package fxinstrumentationimpl
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -21,7 +22,7 @@ import (
 )
 
 func TestRecordFilePath(t *testing.T) {
-	assert.Equal(t, "/run/lifecycle-system-probe.json", RecordFilePath("/run", "system_probe"))
+	assert.Equal(t, filepath.Join("run", "lifecycle-system-probe.json"), RecordFilePath("run", "system_probe"))
 }
 
 func TestSetupLifecycleTelemetry(t *testing.T) {

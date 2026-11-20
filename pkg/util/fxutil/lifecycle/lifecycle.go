@@ -249,6 +249,10 @@ func (r *Recorder) RecordComponent(stage, name string, d time.Duration) {
 	defer r.mu.Unlock()
 
 	shutdown := stage == StageOnStop || stage == StageModuleStop
+	if shutdown && r.finished {
+		// A hook that kept running after a failed shutdown.
+		return
+	}
 	if shutdown && r.record.CurrentComponent == name {
 		r.record.CurrentComponent = ""
 	}
@@ -317,18 +321,26 @@ func (r *Recorder) StartShutdownPhase(phase string) func() {
 	}
 }
 
-// Finish marks the end of the shutdown. It does nothing if the shutdown has not begun, for instance
-// for short-lived commands.
-func (r *Recorder) Finish() {
+// Finish marks the end of the shutdown, with the error the shutdown returned, if any. It does nothing
+// if the shutdown has not begun, for instance for short-lived commands.
+//
+// When err is not nil, the shutdown is recorded as failed and the phase and component in progress
+// are kept: after a timed out Fx stop, they are the hook that did not return. Shutdown phases that
+// have not completed are not recorded.
+func (r *Recorder) Finish(err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.stopStart.IsZero() || r.finished {
 		return
 	}
 	r.finished = true
-	r.record.State = StateStopped
-	r.record.CurrentPhase = ""
-	r.record.CurrentComponent = ""
+	if err != nil {
+		r.record.State = StateStopFailed
+	} else {
+		r.record.State = StateStopped
+		r.record.CurrentPhase = ""
+		r.record.CurrentComponent = ""
+	}
 	r.record.Phases[PhaseTotal] = r.now().Sub(r.stopStart).Seconds()
 	r.persistLocked()
 }

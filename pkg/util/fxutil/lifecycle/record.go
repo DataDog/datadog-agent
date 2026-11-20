@@ -32,6 +32,9 @@ const (
 	StateStopping State = "stopping"
 	// StateStopped means the process completed its shutdown.
 	StateStopped State = "stopped"
+	// StateStopFailed means the shutdown of the process returned an error, for instance because the
+	// Fx stop timeout expired while a hook was still running.
+	StateStopFailed State = "stop_failed"
 )
 
 // Outcome is how the previous run of a process ended, derived from the state of its record.
@@ -44,6 +47,9 @@ const (
 	// OutcomeKilledDuringShutdown means the previous process began its shutdown but did not complete
 	// it: it was killed (for instance by a SIGKILL after a grace period) or crashed while stopping.
 	OutcomeKilledDuringShutdown Outcome = "killed_during_shutdown"
+	// OutcomeShutdownFailed means the previous process exited after its shutdown returned an error,
+	// for instance a timed out Fx stop, leaving components that did not stop.
+	OutcomeShutdownFailed Outcome = "shutdown_failed"
 	// OutcomeDiedWhileRunning means the previous process was ready but never began its shutdown: it
 	// crashed, was OOM-killed or was killed without a prior SIGTERM.
 	OutcomeDiedWhileRunning Outcome = "died_while_running"
@@ -74,6 +80,8 @@ func (r Record) Outcome() Outcome {
 		return OutcomeClean
 	case StateStopping:
 		return OutcomeKilledDuringShutdown
+	case StateStopFailed:
+		return OutcomeShutdownFailed
 	}
 	if r.ReadyAt.IsZero() {
 		return OutcomeDiedDuringStartup
@@ -97,27 +105,44 @@ func (r Record) ShutdownSeconds() (float64, bool) {
 // LoadPrevious reads and removes the lifecycle record left at path by the previous run of the
 // process. It returns false when there is no record.
 func LoadPrevious(path string) (Record, bool, error) {
-	f, err := os.Open(path)
+	data, err := readLimited(path, maxRecordSize)
 	if errors.Is(err, fs.ErrNotExist) {
 		return Record{}, false, nil
 	}
-	if err != nil {
-		return Record{}, false, err
-	}
-	defer f.Close()
 
-	// Remove the record so that it is reported once, even if it cannot be decoded.
+	// Remove the record so that it is reported once, even if it cannot be read or decoded. The file
+	// is closed at this point, as Windows does not allow removing an open file.
 	removeErr := os.Remove(path)
+	if err != nil {
+		return Record{}, false, errors.Join(err, removeErr)
+	}
 
 	var rec Record
-	dec := json.NewDecoder(io.LimitReader(f, maxRecordSize))
-	if err := dec.Decode(&rec); err != nil {
+	if err := json.Unmarshal(data, &rec); err != nil {
 		return Record{}, false, errors.Join(fmt.Errorf("invalid lifecycle record %s: %w", path, err), removeErr)
 	}
 	if rec.Version != recordVersion {
 		return Record{}, false, errors.Join(fmt.Errorf("unsupported lifecycle record version %d", rec.Version), removeErr)
 	}
 	return rec, true, removeErr
+}
+
+// readLimited reads the file at path, failing if it is larger than limit.
+func readLimited(path string, limit int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("lifecycle record %s is larger than %d bytes", path, limit)
+	}
+	return data, nil
 }
 
 // writeRecord atomically writes the record at path.

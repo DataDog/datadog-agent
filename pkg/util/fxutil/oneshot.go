@@ -74,17 +74,17 @@ func stopApp(app *fx.App) error {
 	// already, and completes it once the Fx application is stopped.
 	recorder := lifecycle.Default()
 	phaseDone := recorder.StartShutdownPhase(lifecycle.PhaseFxStop)
-	defer func() {
-		phaseDone()
-		recorder.Finish()
-	}()
 
 	// stop the app
 	stopCtx, cancel := context.WithTimeout(context.Background(), app.StopTimeout())
 	defer cancel()
 	if err := app.Stop(stopCtx); err != nil {
+		// Keep the hook that was running when the stop failed, e.g. on timeout.
+		recorder.Finish(err)
 		return err
 	}
 
+	phaseDone()
+	recorder.Finish(nil)
 	return nil
 }

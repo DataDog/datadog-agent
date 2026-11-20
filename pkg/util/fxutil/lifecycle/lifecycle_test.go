@@ -6,6 +6,7 @@
 package lifecycle
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -131,7 +132,7 @@ func TestCleanShutdownIsPersisted(t *testing.T) {
 	clock.advance(time.Second)
 	r.RecordComponent(StageOnStop, "comp/a.stop", time.Second)
 	done()
-	r.Finish()
+	r.Finish(nil)
 
 	rec = readRecord(t, path)
 	assert.Equal(t, OutcomeClean, rec.Outcome())
@@ -167,15 +168,39 @@ func TestKilledDuringShutdown(t *testing.T) {
 	assert.InDelta(t, 3, total, 1e-9, "lower bound of the shutdown duration")
 }
 
+func TestFailedShutdownKeepsStuckComponent(t *testing.T) {
+	r, clock := newTestRecorder()
+	path := filepath.Join(t.TempDir(), "lifecycle-agent.json")
+	r.Persist(path, nil)
+	r.MarkReady()
+	r.BeginStop(TriggerSignal)
+
+	done := r.StartShutdownPhase(PhaseFxStop)
+	r.ComponentStopping("comp/stuck.stop")
+	clock.advance(30 * time.Second)
+	// The Fx stop timed out: the phase is not completed.
+	r.Finish(errors.New("context deadline exceeded"))
+	// The hook returns after the end of the shutdown.
+	r.RecordComponent(StageOnStop, "comp/stuck.stop", 31*time.Second)
+	done()
+
+	rec := readRecord(t, path)
+	assert.Equal(t, OutcomeShutdownFailed, rec.Outcome())
+	assert.Equal(t, PhaseFxStop, rec.CurrentPhase)
+	assert.Equal(t, "comp/stuck.stop", rec.CurrentComponent)
+	assert.Equal(t, map[string]float64{PhaseTotal: 30}, roundPhases(rec.Phases))
+	assert.Empty(t, rec.SlowComponents)
+}
+
 func TestImplicitShutdown(t *testing.T) {
 	r, clock := newTestRecorder()
 	// Finish without a shutdown does nothing, e.g. for one-shot commands.
-	r.Finish()
+	r.Finish(nil)
 
 	done := r.StartShutdownPhase(PhaseFxStop)
 	clock.advance(time.Second)
 	done()
-	r.Finish()
+	r.Finish(nil)
 	assert.Equal(t, TriggerUnknown, r.record.Trigger)
 	assert.Equal(t, StateStopped, r.record.State)
 
@@ -206,6 +231,12 @@ func TestLoadPrevious(t *testing.T) {
 	assert.Error(t, err)
 	assert.False(t, found)
 	assert.NoFileExists(t, path, "an invalid record is removed")
+
+	require.NoError(t, os.WriteFile(path, make([]byte, maxRecordSize+1), 0o600))
+	_, found, err = LoadPrevious(path)
+	assert.Error(t, err)
+	assert.False(t, found)
+	assert.NoFileExists(t, path, "an oversized record is removed")
 
 	require.NoError(t, writeRecord(path, Record{Version: recordVersion + 1}))
 	_, found, err = LoadPrevious(path)

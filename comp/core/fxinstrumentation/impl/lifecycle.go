@@ -58,7 +58,7 @@ func NewLifecycleTelemetry(tm telemetry.Component) *LifecycleTelemetry {
 			durationBuckets),
 		previousExit: tm.NewCounter(subsystem, "previous_exit",
 			[]string{"outcome", "trigger", "phase", "component"},
-			"How the previous run of the process ended. For an unclean exit, phase and component are where the shutdown was stuck"),
+			"How the previous run of the process ended. For an unclean or failed shutdown, phase and component are where it was stuck"),
 	}
 }
 
@@ -78,7 +78,7 @@ func (t *LifecycleTelemetry) ReportPrevious(rec lifecycle.Record) {
 
 	trigger := rec.Trigger
 	phase, component := "", ""
-	if rec.Outcome() == lifecycle.OutcomeKilledDuringShutdown {
+	if o := rec.Outcome(); o == lifecycle.OutcomeKilledDuringShutdown || o == lifecycle.OutcomeShutdownFailed {
 		phase, component = rec.CurrentPhase, rec.CurrentComponent
 	}
 	t.previousExit.Inc(outcome, trigger, phase, component)
