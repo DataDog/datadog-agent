@@ -245,7 +245,7 @@ func ensureProcmgr(ctx context.Context, restart bool) {
 //
 // The file is only cleared once every stable job is back. A restore that fails, or that is
 // interrupted, leaves the marker behind, and whatever ends the experiment next -- a stop, the
-// watcher's fail-safe, or the hand-over (superviseHandedOverExperiment) -- hands the jobs back
+// supervising watcher, or the fallback hand-back (handBackInstaller) -- hands the jobs back
 // again instead of leaving the host half switched.
 func (e configExperiment) restoreStable(ctx context.Context) error {
 	return e.restoreStableThen(ctx, experimentDeadline().Clear)
@@ -275,100 +275,6 @@ func (e configExperiment) restoreStableThen(ctx context.Context, finish func() e
 	return errors.Join(removeErr, finish())
 }
 
-// runInstallerHandOver runs in a detached process, launched by the start hook, and hands the
-// installer daemon over from its stable job to its experiment one (handOverInstaller). It fails
-// safe like the watcher: an experiment this process can no longer see through is reverted rather
-// than left without a supervisor (failSafeRevert).
-func runInstallerHandOver(ctx context.Context) error {
-	deadline := experimentDeadline()
-	token, err := deadline.Read()
-	if err != nil {
-		// The experiment the hook just started would otherwise run with nothing watching it.
-		return failSafeRevert(ctx, deadline, "", fmt.Errorf("hand-over: could not read experiment deadline: %w", err))
-	}
-	if !experimentPending(token) {
-		// Stopped or promoted before this process got to run: nothing left to hand over.
-		return nil
-	}
-	if err := handOverInstaller(ctx, deadline, token); err != nil {
-		return failSafeRevert(ctx, deadline, token, err)
-	}
-	return nil
-}
-
-// handOverInstaller hands the installer daemon over from its stable job to its experiment one, then
-// launches the watcher that supervises the experiment (superviseHandedOverExperiment), so an
-// experiment never runs without one.
-//
-// It first waits for the installer command that ran the start hook to exit
-// (waitForInstallerCommand): its process is in the stable daemon's job, so swapping the daemon
-// earlier would kill it halfway. The lock is released again before the swap. The daemon still has
-// to finish the request that command was part of once it exits -- read the package states, through
-// an installer command that takes the same lock, and record the task as done -- and a swap made
-// under the lock would stop it with that request stuck, reported as running forever. The swap
-// stops the stable daemon once the request is done, and the experiment daemon picks up from there
-// and reports the experiment.
-//
-// With the lock released, a stop or promote can come in before the swap. The deadline is read
-// again once the swap is done, and if the experiment is over, the daemon is handed straight back.
-// One that the stable daemon is still running when the swap stops it is killed partway through,
-// with the reverting marker left behind: this process finishes it, but that stop is never reported
-// as done. The window is the time between the deadline check and the swap.
-//
-// A failed swap may have left the host with no daemon at all, so it reverts every job, the daemon
-// included.
-func handOverInstaller(ctx context.Context, deadline launchd.Deadline, token string) error {
-	pending, err := waitForInstallerCommand(ctx, deadline, token)
-	if err != nil || !pending {
-		return err
-	}
-	swapErr := installerJobSet().Swap(context.WithoutCancel(ctx), installerJob, launchd.Stable, launchd.Experiment)
-	if swapErr != nil {
-		reason := fmt.Sprintf("could not hand the installer daemon over to the experiment: %v", swapErr)
-		if _, err := revertFromWatcher(ctx, deadline, token, reason); err != nil {
-			return fmt.Errorf("%s, and %w", reason, err)
-		}
-		return nil
-	}
-	return superviseHandedOverExperiment(ctx, deadline, token)
-}
-
-// superviseHandedOverExperiment launches the watcher once the installer daemon has been handed over
-// to the experiment, after stopping any watcher an earlier experiment left behind. The watcher
-// arms on every experiment job, the experiment daemon included, so an experiment daemon that does
-// not come up -- its configuration can be what stops it, an invalid value or remote_updates turned
-// off -- fails the experiment like any other essential job (exitFailsExperiment).
-//
-// The deadline is read again first: a stop or promote may have started while the daemon was being
-// swapped. One that finished cleared the deadline, and the daemon is handed straight back. One the
-// swap killed partway through left the reverting marker, and is finished here, every job with it.
-// An error makes the caller revert the experiment (failSafeRevert).
-func superviseHandedOverExperiment(ctx context.Context, deadline launchd.Deadline, token string) error {
-	current, err := deadline.Read()
-	if err != nil {
-		return fmt.Errorf("hand-over: could not read experiment deadline: %w", err)
-	}
-	switch current {
-	case token:
-	case launchd.DeadlineReverting:
-		log.Warnf("hand-over: a stop or promote was interrupted while the installer daemon was handed over, finishing it")
-		if _, err := revertFromWatcher(ctx, deadline, current, "a stop or promote was interrupted by the installer daemon hand-over"); err != nil {
-			return fmt.Errorf("hand-over: %w", err)
-		}
-		return nil
-	default:
-		log.Infof("hand-over: the experiment ended while the installer daemon was handed over, handing it back")
-		return handBackInstaller(ctx)
-	}
-	if err := stopSurvivingWatchers(ctx); err != nil {
-		log.Warnf("hand-over: could not stop a previous watcher, launching a new one anyway: %v", err)
-	}
-	if err := launchConfigExperimentWatcher(ctx); err != nil {
-		return fmt.Errorf("hand-over: could not launch the configuration experiment watcher: %w", err)
-	}
-	return nil
-}
-
 // waitForInstallerCommand waits for any installer command holding the installer's lock to exit,
 // and reports whether the deadline still holds token once it has. The lock is released before it
 // returns: it is only taken to know that no command is running.
@@ -387,24 +293,25 @@ func waitForInstallerCommand(ctx context.Context, deadline launchd.Deadline, tok
 	return current == token, nil
 }
 
-// handBackInstaller runs in a detached process, launched by the stop and promote hooks when the
-// experiment daemon is loaded (handBackInstallerAfterHook). It hands the installer daemon back from
-// its experiment job to its stable one.
+// handBackInstaller hands the installer daemon back from its experiment job to its stable one once
+// a stop or promote has handed the Agent back. The supervising watcher runs it, told by the hook's
+// "end" or by its next deadline tick (experimentSupervisor.handBack); a detached process launched
+// by the hook runs it when no watcher answers (handBackInstallerAfterHook). Both run outside the
+// experiment daemon's job, which the swap stops.
 //
 // It first waits for the installer command that ran the hook to exit: it holds the installer's
 // lock for its whole run, and only once it exits has the experiment configuration directory been
 // discarded or promoted. Swapping the daemon earlier would kill that command halfway, its process
-// being in the daemon's job. The swap itself kills the experiment daemon, which is why it runs from
-// here, and it is made with the lock released, for the reason handOverInstaller gives: the daemon
-// must be able to finish the request the command was part of, or that request is reported as
-// running forever.
+// being in the daemon's job. The swap is made with the lock released, for the reason
+// experimentSupervisor.handOverInstaller gives: the daemon must be able to finish the request the
+// command was part of, or that request is reported as running forever.
 //
-// A deadline present by the time the command has exited means the experiment daemon started a new
-// experiment after the one this process was launched for. Its hand-over moves the daemon to that
-// experiment, so there is nothing to hand back.
+// A deadline present by the time the command has exited means a new experiment started after the
+// one this hand-back is for. Its own watcher moves the daemon to that experiment, so there is
+// nothing to hand back.
 //
-// The reverting marker means the hook could not hand every agent job back. With no stable daemon
-// start to finish it any more, this process does, as the watcher would (revertFromWatcher).
+// The reverting marker means the hook could not hand every agent job back. This finishes it, every
+// job and the daemon with it (revertFromWatcher).
 func handBackInstaller(ctx context.Context) (err error) {
 	lock, err := waitForInstallerLock(ctx, func() (bool, error) { return true, nil })
 	if err != nil {
