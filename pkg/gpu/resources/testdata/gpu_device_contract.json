@@ -62,7 +62,10 @@
       "type": "string"
     },
     "pcie_path": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "gpu_numa_node": {
       "type": "int32"
@@ -101,10 +104,42 @@
       "type": "int32"
     },
     "platform": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "host_id": {
+          "type": "int32"
+        }
+      }
     },
     "host_link": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "type": "string",
+          "enum": [
+            "pcie",
+            "nvlink_c2c"
+          ]
+        },
+        "pcie_max_generation": {
+          "type": "int32"
+        },
+        "pcie_gpu_max_generation": {
+          "type": "int32"
+        },
+        "pcie_max_width": {
+          "type": "int32"
+        },
+        "pcie_max_bandwidth_bytes_per_second": {
+          "type": "int64"
+        },
+        "c2c_link_count": {
+          "type": "int32"
+        },
+        "c2c_max_bandwidth_mbps": {
+          "type": "int64"
+        }
+      }
     },
     "gpu_peers": {
       "type": "array"

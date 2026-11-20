@@ -884,6 +884,7 @@
 /pkg/util/kubernetes/                                                 @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/autoscalers/                                     @DataDog/container-integrations @Datadog/container-autoscaling @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/nodename/                                        @DataDog/opentelemetry-agent
+/pkg/util/pci/                                                         @DataDog/accelerator-telemetry
 /pkg/util/podman/                                                     @DataDog/container-integrations
 /pkg/util/port/                                                       @DataDog/cloud-network-monitoring
 /pkg/util/port/portlist/*windows*.go                                  @DataDog/windows-products
