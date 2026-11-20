@@ -393,8 +393,9 @@ func experimentPending(token string) bool {
 // The labels are swapped one at a time: a stable job is started only once its experiment twin has
 // left the domain, so the two never run at once, and a label that fails does not keep the others
 // from coming back. Only the labels that failed are retried, after a doubling backoff. Once the
-// retries are exhausted the error is reported; restoreStable leaves the reverting marker behind,
-// so whatever ends the experiment next retries.
+// retries are exhausted, or ctx is cancelled between attempts, the error is reported;
+// restoreStable leaves the reverting marker behind, so whatever ends the experiment next retries.
+// Callers that must see the restore through pass a context without cancellation.
 //
 // The stable definitions are only written when the one on disk differs: they never change during
 // an experiment, so a restore normally writes nothing and still works on a full disk.
@@ -407,7 +408,14 @@ func (e configExperiment) restoreStableJobs(ctx context.Context) error {
 	backoff := configExperimentRestoreBackoff
 	for attempt := 0; attempt < configExperimentRestoreRetries && len(pending) > 0; attempt++ {
 		if attempt > 0 {
-			time.Sleep(backoff)
+			select {
+			case <-ctx.Done():
+				// Every swap would fail now. The reverting marker stays, so whatever ends the
+				// experiment next retries.
+				errs = append(errs, ctx.Err())
+				return fmt.Errorf("could not restore %s: %w", strings.Join(pending, ", "), errors.Join(errs...))
+			case <-time.After(backoff):
+			}
 			backoff *= 2
 		}
 		var failed []string
