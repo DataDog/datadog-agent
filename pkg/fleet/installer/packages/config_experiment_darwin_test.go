@@ -629,6 +629,56 @@ func TestRestoreStableSwapsTheOtherLabelsWhenOneCannotBeUnloaded(t *testing.T) {
 	assert.Equal(t, 1, counts["com.datadoghq.data-plane"])
 }
 
+// TestRestoreStableStopsRetryingOnceCancelled pins that a restore whose context is cancelled, a
+// watcher being stopped, does not sleep through the rest of its backoff: every swap would fail, so
+// it reports at once and leaves the reverting marker for whatever ends the experiment next.
+func TestRestoreStableStopsRetryingOnceCancelled(t *testing.T) {
+	originalBackoff := configExperimentRestoreBackoff
+	configExperimentRestoreBackoff = time.Hour
+	t.Cleanup(func() { configExperimentRestoreBackoff = originalBackoff })
+
+	originalClient := launchdClient
+	t.Cleanup(func() { launchdClient = originalClient })
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var bootstrapAttempts int
+	launchdClient = func() *launchd.Client {
+		client := launchd.NewClient(launchd.System)
+		client.BootoutSettlePollInterval = time.Millisecond
+		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+			if len(args) > 0 && args[0] == "print" {
+				return []byte(notLoadedOutput), exitError(113)
+			}
+			if len(args) > 0 && args[0] == "bootstrap" && !strings.Contains(strings.Join(args, " "), "-exp") && !namesProcmgr(args) {
+				bootstrapAttempts++
+				cancel()
+				return nil, errors.New("injected failure")
+			}
+			return nil, nil
+		}
+		return client
+	}
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
+	hookCtx := testHookContext(t)
+	hookCtx.Context = ctx
+
+	done := make(chan error, 1)
+	go func() { done <- configExperiment{jobs: agentJobSet()}.Stop(hookCtx) }()
+	select {
+	case err := <-done:
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+	case <-time.After(30 * time.Second):
+		t.Fatal("the restore kept waiting for its backoff after its context was cancelled")
+	}
+	assert.Equal(t, len(agentJobs), bootstrapAttempts, "no label may be retried after the cancellation")
+	token, err := experimentDeadline().Read()
+	require.NoError(t, err)
+	assert.Equal(t, launchd.DeadlineReverting, token)
+}
+
 // TestRestoreStableRetriesOnlyTheFailingLabel pins that a retry does not restart the labels that
 // were already handed back.
 func TestRestoreStableRetriesOnlyTheFailingLabel(t *testing.T) {
