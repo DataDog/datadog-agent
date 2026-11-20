@@ -651,6 +651,45 @@ func TestGPUTypes(t *testing.T) {
 	assert.Equal(t, StateCounts{1, 0, 1, 0}, res.Resources[1].Levels[1].Domains, "h100 hosts")
 }
 
+func TestGPUTypeSources(t *testing.T) {
+	tests := []struct {
+		name   string
+		labels map[string]string
+		want   string
+	}{
+		{"GFD", map[string]string{labelGPUProduct: "NVIDIA-H100-80GB-HBM3"}, "h100"},
+		{"GFD A10G variant", map[string]string{labelGPUProduct: "NVIDIA-A10G"}, "a10"},
+		{"GKE nvidia-tesla-", map[string]string{"cloud.google.com/gke-accelerator": "nvidia-tesla-a100"}, "a100"},
+		{"GKE nvidia-", map[string]string{"cloud.google.com/gke-accelerator": "nvidia-h100-80gb"}, "h100"},
+		{"EKS Karpenter", map[string]string{"karpenter.k8s.aws/instance-gpu-name": "h100"}, "h100"},
+		{"AMD node labeller", map[string]string{"amd.com/gpu.product-name": "AMD_Instinct_MI300X"}, "mi300x"},
+		{"AMD without vendor prefix", map[string]string{"amd.com/gpu.product-name": "Instinct_MI210"}, "mi210"},
+		{"GFD wins over GKE", map[string]string{labelGPUProduct: "NVIDIA-A100-SXM4-80GB", "cloud.google.com/gke-accelerator": "nvidia-h100-80gb"}, "a100"},
+		{"unparseable falls through", map[string]string{labelGPUProduct: "garbage", "karpenter.k8s.aws/instance-gpu-name": "l4"}, "l4"},
+		{"none", map[string]string{}, GPUTypeUnknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, gpuType(Node{Labels: tt.labels}))
+		})
+	}
+}
+
+func TestCPUOnlyNodesNeverCreateUnknown(t *testing.T) {
+	cpu := Node{Name: "cpu", Labels: map[string]string{rackLabel: "rack-1"}, Ready: true, Capacity: map[string]int{"cpu": 64}}
+	h100 := gpuNode("h100", map[string]string{rackLabel: "rack-1", labelGPUProduct: "NVIDIA-H100-80GB-HBM3"}, 8, nvidia)
+	res := Compute(Topology{Levels: []string{rackLabel}}, []Node{cpu, h100}, nil)
+	require.Len(t, res.Resources, 1)
+	assert.Equal(t, "h100", res.Resources[0].GPUType)
+	for _, c := range res.Nodes {
+		assert.Equal(t, "h100", c.GPUType)
+	}
+
+	res = Compute(Topology{Levels: []string{rackLabel}}, []Node{cpu}, nil)
+	assert.Empty(t, res.Nodes, "CPU-only flavor: the check emits gpu_resource:none")
+	assert.Empty(t, res.Resources)
+}
+
 func TestEmpty(t *testing.T) {
 	nodes, alloc := cluster(map[string]map[string][]int{"b": {"rack-1": {1}}})
 
