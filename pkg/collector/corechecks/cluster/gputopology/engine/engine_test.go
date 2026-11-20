@@ -665,35 +665,79 @@ func TestGPUTypes(t *testing.T) {
 }
 
 func TestGPUTypeSources(t *testing.T) {
+	const (
+		product     = labelGPUProduct
+		gke         = "cloud.google.com/gke-accelerator"
+		karpenter   = "karpenter.k8s.aws/instance-gpu-name"
+		manufactur  = "karpenter.k8s.aws/instance-gpu-manufacturer"
+		amdProduct  = "amd.com/gpu.product-name"
+		intelXe     = "gpu.intel.com/xe"
+		amdPresence = "feature.node.kubernetes.io/amd-gpu"
+	)
+	l := func(kv ...string) map[string]string {
+		m := map[string]string{}
+		for i := 0; i < len(kv); i += 2 {
+			m[kv[i]] = kv[i+1]
+		}
+		return m
+	}
 	tests := []struct {
-		name   string
-		labels map[string]string
-		want   string
+		name     string
+		resource string
+		labels   map[string]string
+		want     string
 	}{
-		{"GFD", map[string]string{labelGPUProduct: "NVIDIA-H100-80GB-HBM3"}, "h100"},
-		{"GFD A10G variant", map[string]string{labelGPUProduct: "NVIDIA-A10G"}, "a10"},
-		{"GKE nvidia-tesla-", map[string]string{"cloud.google.com/gke-accelerator": "nvidia-tesla-a100"}, "a100"},
-		{"GKE nvidia-", map[string]string{"cloud.google.com/gke-accelerator": "nvidia-h100-80gb"}, "h100"},
-		{"EKS Karpenter", map[string]string{"karpenter.k8s.aws/instance-gpu-name": "h100"}, "h100"},
-		{"AMD node labeller", map[string]string{"amd.com/gpu.product-name": "AMD_Instinct_MI300X"}, "mi300x"},
-		{"AMD without vendor prefix", map[string]string{"amd.com/gpu.product-name": "Instinct_MI210"}, "mi210"},
-		{"GFD A100", map[string]string{labelGPUProduct: "NVIDIA-A100-SXM4-80GB"}, "a100"},
-		{"GFD T4", map[string]string{labelGPUProduct: "Tesla-T4"}, "t4"},
-		{"GFD RTX 3090", map[string]string{labelGPUProduct: "NVIDIA-GeForce-RTX-3090"}, "rtx_3090"},
-		{"GFD -SHARED gives the base type", map[string]string{labelGPUProduct: "NVIDIA-H100-80GB-HBM3-SHARED"}, "h100"},
-		{"AMD node without product-name label", map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"}, GPUTypeUnknown},
-		{"GFD wins over GKE", map[string]string{labelGPUProduct: "NVIDIA-A100-SXM4-80GB", "cloud.google.com/gke-accelerator": "nvidia-h100-80gb"}, "a100"},
-		{"EKS Karpenter a10g joins the node check's a10", map[string]string{"karpenter.k8s.aws/instance-gpu-name": "a10g"}, "a10"},
-		{"GKE l40s joins the node check's l40", map[string]string{"cloud.google.com/gke-accelerator": "nvidia-l40s"}, "l40"},
-		{"GKE nvidia-l4", map[string]string{"cloud.google.com/gke-accelerator": "nvidia-l4"}, "l4"},
-		{"unparseable falls through", map[string]string{labelGPUProduct: "garbage", "karpenter.k8s.aws/instance-gpu-name": "l4"}, "l4"},
-		{"none", map[string]string{}, GPUTypeUnknown},
+		// NVIDIA GPU Feature Discovery.
+		{"GFD H100", nvidia, l(product, "NVIDIA-H100-80GB-HBM3"), "h100"},
+		{"GFD A100", nvidia, l(product, "NVIDIA-A100-SXM4-80GB"), "a100"},
+		{"GFD A10G variant", nvidia, l(product, "NVIDIA-A10G"), "a10"},
+		{"GFD T4", nvidia, l(product, "Tesla-T4"), "t4"},
+		{"GFD RTX 3090", nvidia, l(product, "NVIDIA-GeForce-RTX-3090"), "rtx_3090"},
+		{"GFD -SHARED gives the base type", nvidia, l(product, "NVIDIA-H100-80GB-HBM3-SHARED"), "h100"},
+		{"GFD on a MIG node", GPUResourceMIG, l(product, "NVIDIA-A100-SXM4-40GB-MIG-1g.5gb"), "a100"},
+		// GKE.
+		{"GKE nvidia-tesla-a100", nvidia, l(gke, "nvidia-tesla-a100"), "a100"},
+		{"GKE nvidia-tesla-t4", nvidia, l(gke, "nvidia-tesla-t4"), "t4"},
+		{"GKE nvidia-h100-80gb", nvidia, l(gke, "nvidia-h100-80gb"), "h100"},
+		{"GKE nvidia-h100-mega-80gb", nvidia, l(gke, "nvidia-h100-mega-80gb"), "h100"},
+		{"GKE nvidia-a100-80gb", nvidia, l(gke, "nvidia-a100-80gb"), "a100"},
+		{"GKE nvidia-l4", nvidia, l(gke, "nvidia-l4"), "l4"},
+		{"GKE l40s joins the node check's l40", nvidia, l(gke, "nvidia-l40s"), "l40"},
+		// EKS Karpenter, NVIDIA manufacturer only.
+		{"Karpenter h100", nvidia, l(karpenter, "h100", manufactur, "nvidia"), "h100"},
+		{"Karpenter t4", nvidia, l(karpenter, "t4", manufactur, "nvidia"), "t4"},
+		{"Karpenter a10g joins the node check's a10", nvidia, l(karpenter, "a10g", manufactur, "nvidia"), "a10"},
+		{"Karpenter l40s joins the node check's l40", nvidia, l(karpenter, "l40s", manufactur, "nvidia"), "l40"},
+		{"Karpenter without manufacturer ignored", nvidia, l(karpenter, "h100"), GPUTypeUnknown},
+		{"Karpenter non-NVIDIA ignored", nvidia, l(karpenter, "radeon-pro-v520", manufactur, "amd"), GPUTypeUnknown},
+		// AMD node labeller.
+		{"AMD MI300X", amd, l(amdProduct, "AMD_Instinct_MI300X"), "mi300x"},
+		{"AMD OAM", amd, l(amdProduct, "AMD_Instinct_MI300X_OAM"), "mi300x"},
+		{"AMD without vendor prefix", amd, l(amdProduct, "Instinct_MI210"), "mi210"},
+		{"AMD node without product-name label", amd, l(amdPresence, "true"), GPUTypeUnknown},
+		// Sources are picked by the resource's vendor.
+		{"NVIDIA label ignored for amd.com/gpu", amd, l(product, "NVIDIA-H100-80GB-HBM3"), GPUTypeUnknown},
+		{"AMD label ignored for nvidia.com/gpu", nvidia, l(amdProduct, "AMD_Instinct_MI300X"), GPUTypeUnknown},
+		{"Intel is always unknown", intelXe, l(product, "NVIDIA-H100-80GB-HBM3"), GPUTypeUnknown},
+		// Order and fallbacks.
+		{"GFD wins over GKE", nvidia, l(product, "NVIDIA-A100-SXM4-80GB", gke, "nvidia-h100-80gb"), "a100"},
+		{"unparseable falls through", nvidia, l(product, "garbage", karpenter, "l4", manufactur, "nvidia"), "l4"},
+		{"none", nvidia, l(), GPUTypeUnknown},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, gpuType(Node{Labels: tt.labels}))
+			assert.Equal(t, tt.want, gpuType(Node{Labels: tt.labels}, tt.resource))
 		})
 	}
+}
+
+func TestMixedVendorNodeGPUTypes(t *testing.T) {
+	n := gpuNode("n", map[string]string{rackLabel: "rack-1", labelGPUProduct: "NVIDIA-H100-80GB-HBM3", "amd.com/gpu.product-name": "AMD_Instinct_MI300X"}, 8, nvidia, amd)
+	res := Compute(Topology{Levels: []string{rackLabel}}, []Node{n}, nil)
+	assert.Equal(t, []NodeCount{
+		{State: NodeInTopology, GPUResource: amd, GPUType: "mi300x", Count: 1},
+		{State: NodeInTopology, GPUResource: nvidia, GPUType: "h100", Count: 1},
+	}, nonZero(res.Nodes))
 }
 
 func TestUnsupportedRowsCarryGPUType(t *testing.T) {
@@ -760,6 +804,7 @@ func TestDeterministicOrder(t *testing.T) {
 		nodes[i].Capacity[amd], nodes[i].Allocatable[amd] = 2, 2
 		if strings.HasSuffix(nodes[i].Name, "-h1") {
 			nodes[i].Labels[labelGPUProduct] = "NVIDIA-H100-80GB-HBM3" // two GPU types
+			nodes[i].Labels["amd.com/gpu.product-name"] = "AMD_Instinct_MI300X"
 		}
 		if nodes[i].Name == "block-a-rack-1-h0" {
 			nodes[i].Unschedulable = true
@@ -771,7 +816,7 @@ func TestDeterministicOrder(t *testing.T) {
 	for _, rr := range want.Resources {
 		units = append(units, rr.Resource+"/"+rr.GPUType)
 	}
-	assert.Equal(t, []string{amd + "/h100", amd + "/unknown", nvidia + "/h100", nvidia + "/unknown"}, units)
+	assert.Equal(t, []string{amd + "/mi300x", amd + "/unknown", nvidia + "/h100", nvidia + "/unknown"}, units)
 
 	rng := rand.New(rand.NewSource(1))
 	for range 20 {

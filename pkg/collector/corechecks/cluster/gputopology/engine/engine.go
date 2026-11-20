@@ -262,8 +262,8 @@ func Compute(t Topology, nodes []Node, alloc Allocations) Result {
 		}
 		all = append(all, c)
 		for r, state := range c.states {
-			counts[NodeCount{State: state, GPUResource: r, GPUType: c.gpuType}]++
-			if u := (unit{r, c.gpuType}); !slices.Contains(seen, u) {
+			counts[NodeCount{State: state, GPUResource: r, GPUType: c.gpuTypes[r]}]++
+			if u := (unit{r, c.gpuTypes[r]}); !slices.Contains(seen, u) {
 				seen = append(seen, u)
 			}
 		}
@@ -307,7 +307,7 @@ func computeUnit(u unit, nodes []classified, levels []string, alloc Allocations)
 	largestHost := 0 // bounds the pod sizes, independent of node health
 	for _, c := range nodes {
 		state, ok := c.states[resource]
-		if !ok || c.gpuType != u.gpuType {
+		if !ok || c.gpuTypes[resource] != u.gpuType {
 			continue
 		}
 		capacity := max(c.node.Capacity[resource], 0)
@@ -401,7 +401,7 @@ func units(nodes []classified) []unit {
 	var out []unit
 	for _, c := range nodes {
 		for r, state := range c.states {
-			if u := (unit{r, c.gpuType}); state != NodeUnsupported && !slices.Contains(out, u) {
+			if u := (unit{r, c.gpuTypes[r]}); state != NodeUnsupported && !slices.Contains(out, u) {
 				out = append(out, u)
 			}
 		}
