@@ -22,11 +22,17 @@ import (
 
 // ToProto encodes an activity tree to its protobuf representation
 func ToProto(at *ActivityTree) []*adproto.ProcessActivityNode {
-	out := make([]*adproto.ProcessActivityNode, 0, len(at.ProcessNodes))
-
-	for _, node := range at.ProcessNodes {
-		out = append(out, processActivityNodeToProto(node, at.GetTagFromID))
+	var out []*adproto.ProcessActivityNode
+	var j *TreeJournal
+	if at != nil && at.Stats != nil {
+		j = at.Stats.journal
 	}
+	j.withMaterializedTree(at, func() {
+		out = make([]*adproto.ProcessActivityNode, 0, len(at.ProcessNodes))
+		for _, node := range at.ProcessNodes {
+			out = append(out, processActivityNodeToProto(node, at.GetTagFromID))
+		}
+	})
 	return out
 }
 

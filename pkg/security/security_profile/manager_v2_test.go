@@ -1786,3 +1786,52 @@ func TestManagerV2_ProcessEventDrainsWhenTagsResolveDuringInitialQueue(t *testin
 	require.NotNil(t, p)
 	assert.NotNil(t, findTestEventNode(p, model.ExecEventType, "known"))
 }
+
+func TestManagerV2_journalEndToEndLifecycle(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	dir := m.localStorage.DirectoryPath()
+	m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+		config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+	})
+
+	fileEv := newTestEventV2(model.FileOpenEventType, "v1", "known")
+	fileEv.ProcessCacheEntry.ArgsEntry = &model.ArgsEntry{Values: []string{"proc", "--serve", "--port=8080"}}
+	fileEv.Open.File.PkgName = "test-pkg"
+	fileEv.Open.File.Hashes = []string{"sha256:0123456789abcdef"}
+
+	p, inserted := m.insertEventIntoProfile(fileEv)
+	require.NotNil(t, p)
+	require.True(t, inserted)
+	assert.True(t, p.ActivityTree.HasJournal())
+	assert.Positive(t, p.ActivityTree.JournalSize())
+
+	require.Len(t, p.ActivityTree.ProcessNodes, 1)
+	assert.Empty(t, p.ActivityTree.ProcessNodes[0].Process.Argv)
+	assert.Nil(t, p.ActivityTree.ProcessNodes[0].Files["tmp"].Children["known"].File)
+
+	m.persistProfile(p)
+	assert.Empty(t, p.ActivityTree.ProcessNodes[0].Process.Argv)
+	assert.Nil(t, p.ActivityTree.ProcessNodes[0].Files["tmp"].Children["known"].File)
+
+	p.Close()
+	delete(m.profiles, testSelector)
+
+	reloaded, inserted := m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v1", "known"))
+	require.NotNil(t, reloaded)
+	assert.False(t, inserted, "reloaded profile must recognize already-learned file open")
+	assert.True(t, reloaded.ActivityTree.HasJournal(), "reloaded profile must attach a fresh journal and strip cold fields")
+	assert.Empty(t, reloaded.ActivityTree.ProcessNodes[0].Process.Argv)
+	assert.Nil(t, reloaded.ActivityTree.ProcessNodes[0].Files["tmp"].Children["known"].File)
+
+	encoded, err := reloaded.Encode(config.Profile)
+	require.NoError(t, err)
+	inspected := profile.New()
+	require.NoError(t, inspected.DecodeFromReader(encoded, config.Profile))
+	require.Len(t, inspected.ActivityTree.ProcessNodes, 1)
+	assert.Equal(t, []string{"--serve", "--port=8080"}, inspected.ActivityTree.ProcessNodes[0].Process.Argv)
+	leaf := inspected.ActivityTree.ProcessNodes[0].Files["tmp"].Children["known"]
+	require.NotNil(t, leaf)
+	require.NotNil(t, leaf.File)
+	assert.Equal(t, "test-pkg", leaf.File.PkgName)
+	assert.Equal(t, []string{"sha256:0123456789abcdef"}, leaf.File.Hashes)
+}

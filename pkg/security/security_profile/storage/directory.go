@@ -76,6 +76,7 @@ func fileHasStorageExtension(path string) bool {
 // ClearLocalProfilesOnStart deletes every locally stored security profile in directoryPath. Unlike
 // a persisted marker it clears on every start, which is the behavior wanted for tests.
 func ClearLocalProfilesOnStart(directoryPath string) error {
+	_ = os.RemoveAll(filepath.Join(directoryPath, "journals"))
 	entries, err := os.ReadDir(directoryPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -137,6 +138,8 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LRU cache: %w", err)
 	}
+
+	_ = os.RemoveAll(filepath.Join(directoryPath, "journals"))
 
 	files, err := os.ReadDir(directoryPath)
 	if err != nil {
@@ -345,6 +348,14 @@ func (d *Directory) SizesBySelector() map[cgroupModel.WorkloadSelector]int64 {
 	}
 
 	return result
+}
+
+// DirectoryPath returns the on-disk directory path used by this storage.
+func (d *Directory) DirectoryPath() string {
+	if d == nil {
+		return ""
+	}
+	return d.directoryPath
 }
 
 // GetStorageType returns the storage type
