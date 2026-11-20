@@ -432,6 +432,7 @@ func TestEndpointRoutingPrimaryPredicateOptionalOnlyAndErrors(t *testing.T) {
 	us5 := newMockEndpointIntake(t, "us5-key", false)
 
 	var optErrCount atomic.Int32
+	var relErrMsg atomic.Value
 	policy, err := routing.NewEndpointPolicyFromTargets([]routing.EndpointTarget{
 		{
 			ID:       "us1",
@@ -440,7 +441,7 @@ func TestEndpointRoutingPrimaryPredicateOptionalOnlyAndErrors(t *testing.T) {
 			Evaluator: routing.EvaluatorFunc(func(v routing.RecordView) (bool, error) {
 				s := string(v.Content())
 				if strings.Contains(s, "REL_ERR") {
-					return false, errors.New("reliable eval error")
+					return false, errors.New("eval failed on SECRET_ATTR_VALUE")
 				}
 				return strings.Contains(s, "US1"), nil
 			}),
@@ -484,6 +485,7 @@ func TestEndpointRoutingPrimaryPredicateOptionalOnlyAndErrors(t *testing.T) {
 		Sink:                      sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		EndpointPolicy:            policy,
+		OnError:                   func(e error) { relErrMsg.Store(e.Error()) },
 		OnOptionalError:           func(routing.OptionalEvalError) { optErrCount.Add(1) },
 		DestinationsContext:       destCtx,
 		Config:                    cfg,
@@ -528,6 +530,9 @@ func TestEndpointRoutingPrimaryPredicateOptionalOnlyAndErrors(t *testing.T) {
 	waitForCondition(t, "US1 received record after err", func() bool { return len(us1.messages()) == 2 })
 	require.Equal(t, "30", lastOffset.Load().(string), "reliable evaluation error must hold source checkpoint")
 	require.Equal(t, 1, len(us5.messages()), "reliable eval error must not partially deliver to US5")
+	gotErr, _ := relErrMsg.Load().(string)
+	require.Contains(t, gotErr, "us1")
+	require.NotContains(t, gotErr, "SECRET_ATTR_VALUE", "reliable eval diagnostics must not leak record content")
 }
 
 func TestEndpointRoutingMultiReliableORD4EdgeCases(t *testing.T) {
@@ -790,4 +795,166 @@ func TestEndpointRoutingRotatedEmptyIdentifierAndSharedIngressChurn(t *testing.T
 	waitForCondition(t, "all 51 checkpointed records advanced", func() bool {
 		return checkpoints.Load() == 51
 	})
+}
+
+func TestEndpointRoutingSharedIngressPressureFlush(t *testing.T) {
+	us1 := newMockEndpointIntake(t, "us1-key", false)
+	// Long 10s batch_wait and large 1000 batch_max_size so delivery in <3s proves pressure flush fired.
+	policy, err := routing.NewEndpointPolicyFromTargets([]routing.EndpointTarget{
+		{ID: "us1", Endpoint: us1.endpoint, Reliable: true, Evaluator: routing.MatchAllEvaluator{}},
+	}, newBatchTemplate(us1.endpoint, 10*time.Second, 1000), 4, nil)
+	require.NoError(t, err)
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.payload_channel_size", 16)
+	destCtx := client.NewDestinationsContext()
+	destCtx.Start()
+	defer destCtx.Stop()
+
+	sink := &routedTestSink{ch: make(chan *message.Payload, 256)}
+	var checkpoints atomic.Int64
+	var sinkWg sync.WaitGroup
+	sinkWg.Add(1)
+	go func() {
+		defer sinkWg.Done()
+		for p := range sink.ch {
+			checkpoints.Add(p.Count())
+		}
+	}()
+
+	provider, err := NewRoutedProvider(RoutedOptions{
+		NumberOfPipelines:         1,
+		Sink:                      sink,
+		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
+		EndpointPolicy:            policy,
+		AutoRetireSharedIngress:   true,
+		Generation: func(m *message.Message) (uint64, error) {
+			if m == nil || m.Origin == nil || m.Origin.Identifier == "" {
+				return 0, nil
+			}
+			return 1, nil
+		},
+		DestinationsContext: destCtx,
+		Config:              cfg,
+		Compression:         realGzipCompression{},
+		Secrets:             secretsnoopimpl.NewComponent().Comp,
+	})
+	require.NoError(t, err)
+	provider.Start()
+	defer func() {
+		provider.Stop()
+		close(sink.ch)
+		sinkWg.Wait()
+	}()
+
+	sharedCh := provider.NextPipelineChan()
+	cSrc := sources.NewLogSource("docker", &config.LogsConfig{Type: config.DockerType})
+	started := time.Now()
+	for i := 0; i < routing.SourcePendingLimit; i++ {
+		m := message.NewMessageWithSource([]byte("shared-win-"+strconv.Itoa(i)), message.StatusInfo, cSrc, 0)
+		m.Origin.Identifier = "docker:pressure-cid"
+		m.Origin.Offset = strconv.Itoa(i + 1)
+		sharedCh <- m
+	}
+
+	require.Eventually(t, func() bool {
+		return len(us1.messages()) == routing.SourcePendingLimit && checkpoints.Load() == routing.SourcePendingLimit
+	}, 4*time.Second, 20*time.Millisecond, "shared ingress pressure flush must deliver full 64-record window well before 10s batch timer")
+	require.Less(t, time.Since(started), 4*time.Second)
+}
+
+func TestEndpointRoutingDisabledReliableEndpointDoesNotHangShutdown(t *testing.T) {
+	us1 := newMockEndpointIntake(t, "us1-key", false)
+	r2 := newMockEndpointIntake(t, "r2-key", false)
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("api_key", "us1-key")
+	cfg.SetInTest("logs_config.use_http", true)
+	cfg.SetInTest("logs_config.force_use_http", true)
+	cfg.SetInTest("logs_config.logs_dd_url", us1.endpoint.Host+":"+strconv.Itoa(us1.endpoint.Port))
+	cfg.SetInTest("logs_config.logs_no_ssl", true)
+	cfg.SetInTest("logs_config.batch_wait", 0.1)
+	cfg.SetInTest("logs_config.batch_max_size", 1)
+	cfg.SetInTest("logs_config.payload_channel_size", 2)
+	cfg.SetInTest("logs_config.additional_endpoints", []map[string]any{
+		{
+			"api_key":     "r2-key",
+			"host":        r2.endpoint.Host,
+			"port":        r2.endpoint.Port,
+			"is_reliable": true,
+			"use_ssl":     false,
+		},
+	})
+
+	eps, err := config.BuildHTTPEndpoints(cfg, "logs", config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	require.NoError(t, err)
+	policy, err := routing.NewEndpointPolicy(routing.PolicyOptions{Endpoints: eps})
+	require.NoError(t, err)
+
+	destCtx := client.NewDestinationsContext()
+	destCtx.Start()
+	defer destCtx.Stop()
+
+	sink := &routedTestSink{ch: make(chan *message.Payload, 64)}
+	var checkpoints atomic.Int64
+	var sinkWg sync.WaitGroup
+	sinkWg.Add(1)
+	go func() {
+		defer sinkWg.Done()
+		for p := range sink.ch {
+			checkpoints.Add(p.Count())
+		}
+	}()
+
+	provider, err := NewRoutedProvider(RoutedOptions{
+		NumberOfPipelines:         1,
+		Sink:                      sink,
+		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
+		EndpointPolicy:            policy,
+		DestinationsContext:       destCtx,
+		Config:                    cfg,
+		Compression:               realGzipCompression{},
+		Secrets:                   secretsnoopimpl.NewComponent().Comp,
+	})
+	require.NoError(t, err)
+	provider.Start()
+
+	src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType})
+	ch, err := provider.SourceInput("file:/tmp/invalidate.log", 1)
+	require.NoError(t, err)
+
+	// Send initial record while both reliable endpoints are valid.
+	m1 := message.NewMessageWithSource([]byte("before-invalidate"), message.StatusInfo, src, 0)
+	m1.Origin.Identifier = "file:/tmp/invalidate.log"
+	m1.Origin.Offset = "1"
+	ch <- m1
+	waitForCondition(t, "initial record delivered", func() bool { return checkpoints.Load() >= 1 })
+
+	// Runtime config change removing/changing additional_endpoints invalidates R2's credential.
+	cfg.SetInTest("logs_config.additional_endpoints", []map[string]any{})
+
+	// Send additional records: US1 stays healthy and completes them, while R2's sole
+	// destination enters disabled/retrying state on the first invalidated payload and
+	// subsequent payloads hit worker's retry loop.
+	for i := 2; i <= 6; i++ {
+		m := message.NewMessageWithSource([]byte("after-invalidate-"+strconv.Itoa(i)), message.StatusInfo, src, 0)
+		m.Origin.Identifier = "file:/tmp/invalidate.log"
+		m.Origin.Offset = strconv.Itoa(i)
+		ch <- m
+	}
+	waitForCondition(t, "US1 still delivers and checkpoints while R2 is disabled", func() bool { return checkpoints.Load() >= 6 })
+
+	// Stop MUST complete cleanly within bounded time without hanging on disabled R2.
+	stopped := make(chan struct{})
+	go func() {
+		provider.Stop()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-time.After(10 * time.Second):
+		t.Fatal("RoutedProvider.Stop() hung with a permanently invalidated additional reliable endpoint")
+	}
+	close(sink.ch)
+	sinkWg.Wait()
 }

@@ -453,12 +453,18 @@ func (d *Destination) unconditionalSendWithContext(ctx context.Context, payload 
 	defer resp.Body.Close()
 	response, err := io.ReadAll(resp.Body)
 	if err != nil {
+		if d.terminalLossOutput == nil {
+			// Preserve exact pre-existing legacy and base-group behavior outside
+			// routed endpoint-policy outcome mode.
+			log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
+			return err
+		}
 		if errors.Is(err, context.Canceled) || ctx.Err() == context.Canceled {
 			return context.Canceled
 		}
 		if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
-			// The read failed because the server closed or terminated the connection
-			// while sending a 2xx response. Treat as retryable rather than terminal loss.
+			// In routed endpoint-policy mode, treat a truncated 2xx body read as
+			// retryable rather than permanent terminal loss.
 			log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
 			return client.NewRetryableError(err)
 		}
@@ -484,7 +490,9 @@ func (d *Destination) unconditionalSendWithContext(ctx context.Context, payload 
 		resp.StatusCode == http.StatusRequestEntityTooLarge {
 		tlmDropped.Inc()
 		return fmt.Errorf("%w: %s", errClient, resp.Status)
-	} else if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+	} else if d.terminalLossOutput != nil && (resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices) {
+		return client.NewRetryableError(fmt.Errorf("%w: %s", errServer, resp.Status))
+	} else if resp.StatusCode > http.StatusBadRequest {
 		return client.NewRetryableError(fmt.Errorf("%w: %s", errServer, resp.Status))
 	}
 	d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)

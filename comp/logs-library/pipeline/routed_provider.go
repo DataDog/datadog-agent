@@ -49,6 +49,7 @@ const (
 	routedHTTPRequests           = 64
 	routedStopGrace              = 5 * time.Second
 	routedErrorLogInterval       = 10 * time.Second
+	sharedIngressDispatchKey     = "\x02shared"
 )
 
 var (
@@ -389,6 +390,20 @@ func (p *RoutedProvider) reportOptionalError(optErr routing.OptionalEvalError) {
 	}
 }
 
+func (p *RoutedProvider) reportReliableEvalError(err error) {
+	endpointID := "reliable"
+	var relErr *routing.ReliableEvalError
+	if errors.As(err, &relErr) && relErr.EndpointID != "" {
+		endpointID = relErr.EndpointID
+	}
+	tlmEvalErrors.Inc(endpointID, "reliable")
+	if p.opts.OnError != nil {
+		p.opts.OnError(err)
+	} else if p.errLimiter.allow("reliable:" + endpointID) {
+		log.Warnf("logs routing: reliable endpoint %q selector evaluation error (source progress held)", endpointID)
+	}
+}
+
 func (p *RoutedProvider) Start() {
 	p.lifecycle.Lock()
 	defer p.lifecycle.Unlock()
@@ -555,6 +570,12 @@ func (p *RoutedProvider) requestSourceFlush(identifier string) {
 	if identifier != "" {
 		if lane := p.sourceDispatch["\x01"+identifier]; lane != nil {
 			request(lane)
+			return
+		}
+		if p.opts.AutoRetireSharedIngress {
+			if lane := p.sourceDispatch[sharedIngressDispatchKey]; lane != nil {
+				request(lane)
+			}
 		}
 		return
 	}
@@ -567,7 +588,12 @@ func (p *RoutedProvider) requestSourceFlush(identifier string) {
 // one marker, and a blocked stream cannot prevent offering markers to healthy
 // streams. Checkpoints still depend exclusively on terminal outcomes.
 func (p *RoutedProvider) flushSource(identifier string) {
-	groups := p.progress.PendingGroups(identifier)
+	var groups []string
+	if identifier == sharedIngressDispatchKey {
+		groups = p.progress.PendingSharedGroups()
+	} else {
+		groups = p.progress.PendingGroups(identifier)
+	}
 	seen := make(map[*routedStream]struct{}, len(groups))
 	if p.policy != nil {
 		// In endpoint-policy mode, flush pending reliable streams non-blockingly so
@@ -620,9 +646,8 @@ func (p *RoutedProvider) selectProcessed(msg *message.Message) processor.Routing
 			p.reportOptionalError(optErr)
 		}
 		if err != nil {
-			tlmEvalErrors.Inc("reliable", "reliable")
 			p.progress.Invalidate(msg.RoutingToken())
-			p.report(err)
+			p.reportReliableEvalError(err)
 			return processor.RoutingUnresolved
 		}
 		excluded, attachErr := p.progress.AttachEndpointSelection(msg.RoutingToken(), sel)
@@ -756,8 +781,8 @@ func (p *RoutedProvider) dispatchProcessed() {
 		if identifier == "" {
 			identifier = "\x00"
 		} else if p.opts.AutoRetireSharedIngress && p.progress.IsEphemeralSource(identifier) {
-			identifier = "\x02shared"
-			sourceIdentifier = ""
+			identifier = sharedIngressDispatchKey
+			sourceIdentifier = sharedIngressDispatchKey
 		} else {
 			identifier = "\x01" + identifier
 		}
@@ -765,7 +790,7 @@ func (p *RoutedProvider) dispatchProcessed() {
 		lane := p.sourceDispatch[identifier]
 		if lane == nil {
 			capacity := routing.SourcePendingLimit
-			if sourceIdentifier == "" {
+			if sourceIdentifier == "" || sourceIdentifier == sharedIngressDispatchKey {
 				// Anonymous/shared admission uses the aggregate budget. Its shared lane
 				// must hold that window without blocking isolated SourceInput dispatch.
 				capacity = routedProgressCapacity

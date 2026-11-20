@@ -192,6 +192,10 @@ func TestPolicyEvaluationErrorsReliableHoldVsOptionalSuppress(t *testing.T) {
 
 		sel, optErrs, err := policy.Evaluate(msg)
 		require.Error(t, err)
+		var relErr *ReliableEvalError
+		require.ErrorAs(t, err, &relErr)
+		require.Equal(t, "r2", relErr.EndpointID)
+		require.NotContains(t, err.Error(), "boom", "ReliableEvalError.Error() must not expose raw evaluator error text")
 		require.Empty(t, sel.Reliable)
 		require.Empty(t, sel.Optional)
 		require.Empty(t, optErrs)
@@ -363,4 +367,23 @@ func TestProgressReserveSharedReclaimsChurningIdentifiers(t *testing.T) {
 	// Explicit file source registration must still have full capacity available.
 	require.NoError(t, progress.RegisterSource("file:/tmp/active.log", 1))
 	require.True(t, progress.OwnsSource("file:/tmp/active.log"))
+
+	// PendingSharedGroups returns unresolved groups for ephemeral shared-ingress
+	// sources while PendingGroups("") remains strictly anonymous.
+	anonMsg := message.NewMessageWithSource([]byte("anon"), message.StatusInfo, src, 0)
+	anonTok, err := progress.Reserve(context.Background(), anonMsg, 0)
+	require.NoError(t, err)
+	_, err = progress.AttachEndpointSelection(anonTok, EndpointSelection{Reliable: []string{"anon-ep"}})
+	require.NoError(t, err)
+
+	sharedMsg := message.NewMessageWithSource([]byte("shared"), message.StatusInfo, src, 0)
+	sharedMsg.Origin.Identifier = "docker:pending-shared"
+	sharedMsg.Origin.Offset = "1"
+	sharedTok, err := progress.ReserveShared(context.Background(), sharedMsg, 1)
+	require.NoError(t, err)
+	_, err = progress.AttachEndpointSelection(sharedTok, EndpointSelection{Reliable: []string{"shared-ep"}})
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"anon-ep"}, progress.PendingGroups(""))
+	require.Equal(t, []string{"shared-ep"}, progress.PendingSharedGroups())
 }

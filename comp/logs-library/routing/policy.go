@@ -63,6 +63,22 @@ type OptionalEvalError struct {
 	Err        error
 }
 
+// ReliableEvalError captures a reliable endpoint selector evaluation error.
+// Its Error() string intentionally reports only endpoint ID and category,
+// never raw evaluator error text that could quote record contents or secrets.
+type ReliableEvalError struct {
+	EndpointID string
+	Err        error
+}
+
+// Error returns a sanitized diagnostic string without raw evaluator error details.
+func (e *ReliableEvalError) Error() string {
+	return fmt.Sprintf("reliable endpoint %q selector evaluation failed", e.EndpointID)
+}
+
+// Unwrap returns the underlying evaluator error for programmatic inspection.
+func (e *ReliableEvalError) Unwrap() error { return e.Err }
+
 // EndpointPolicy holds validated, compiled endpoint targets for reliable-set OR
 // delivery with independent optional (unreliable) endpoints.
 type EndpointPolicy struct {
@@ -231,7 +247,7 @@ func (p *EndpointPolicy) Evaluate(msg *message.Message) (EndpointSelection, []Op
 		ep := p.endpoints[idx]
 		matched, err := ep.Evaluator.Match(view)
 		if err != nil {
-			return EndpointSelection{}, nil, fmt.Errorf("reliable endpoint %q evaluation failed: %w", ep.ID, err)
+			return EndpointSelection{}, nil, &ReliableEvalError{EndpointID: ep.ID, Err: err}
 		}
 		if matched {
 			reliable = append(reliable, ep.ID)

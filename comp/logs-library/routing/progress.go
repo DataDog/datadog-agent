@@ -325,6 +325,35 @@ func (p *Progress) PendingGroups(identifier string) []string {
 	return groups
 }
 
+// PendingSharedGroups returns unresolved recipients across all auto-retired
+// shared-ingress sources for pressure flushing of the shared dispatch lane.
+func (p *Progress) PendingSharedGroups() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	seen := make(map[string]struct{})
+	var groups []string
+	for _, source := range p.sources {
+		if !source.ephemeral {
+			continue
+		}
+		for _, r := range source.queue {
+			if r.done || r.selectionPending {
+				continue
+			}
+			for id := range r.remaining {
+				if id == "" {
+					continue
+				}
+				if _, duplicate := seen[id]; !duplicate {
+					seen[id] = struct{}{}
+					groups = append(groups, id)
+				}
+			}
+		}
+	}
+	return groups
+}
+
 // Attach installs validated group obligations exactly once after processing.
 // A nonzero selection generation must agree with the reserved producer identity.
 // On error the caller must invalidate the pending reservation.

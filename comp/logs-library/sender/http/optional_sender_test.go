@@ -208,3 +208,84 @@ func TestHTTPSenderTruncated503And304RetryInsteadOfTerminalLossOrSuccess(t *test
 		t.Fatal("timed out waiting for retry recovery to 200 OK")
 	}
 }
+
+type legacyOnlySink struct {
+	ch chan *message.Payload
+}
+
+func (s *legacyOnlySink) Channel() chan *message.Payload { return s.ch }
+
+func TestHTTPSenderLegacyModePreservesPreChange304AndTruncated2xxBehavior(t *testing.T) {
+	t.Run("legacy sink treats 304 without retrying", func(t *testing.T) {
+		var attempts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = io.Copy(io.Discard, r.Body)
+			_ = r.Body.Close()
+			attempts.Add(1)
+			w.WriteHeader(http.StatusNotModified)
+		}))
+		defer server.Close()
+
+		cfg := configmock.New(t)
+		destCtx := client.NewDestinationsContext()
+		destCtx.Start()
+		defer destCtx.Stop()
+
+		ep := endpointFromServer(t, server)
+		eps := config.NewEndpointsWithBatchSettings(ep, nil, false, true, time.Second, 1, 10, 1024*1024, 16)
+		sink := &legacyOnlySink{ch: make(chan *message.Payload, 4)}
+		s := NewHTTPSender(cfg, sink, 8, sender.NewServerlessMeta(false), eps, destCtx, "test-legacy-304", httpclient.JSONContentType, "", 1, 1, 1, 1, secretsnoopimpl.NewComponent().Comp, metrics.NewNoopPipelineMonitor(""))
+		s.Start()
+		defer s.Stop()
+
+		s.In() <- message.NewPayload([]*message.MessageMetadata{{}}, []byte(`[{"message":"legacy"}]`), "", 22)
+		select {
+		case <-sink.ch:
+			require.Equal(t, int32(1), attempts.Load(), "legacy sender must not retry 304")
+		case <-time.After(5 * time.Second):
+			t.Fatal("legacy sender did not complete 304")
+		}
+	})
+
+	t.Run("legacy sink treats truncated 200 as terminal without retrying", func(t *testing.T) {
+		var attempts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = io.Copy(io.Discard, r.Body)
+			_ = r.Body.Close()
+			attempts.Add(1)
+			hj, ok := w.(http.Hijacker)
+			if !ok {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			conn, buf, err := hj.Hijack()
+			if err != nil {
+				return
+			}
+			_, _ = buf.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\nshort")
+			_ = buf.Flush()
+			_ = conn.Close()
+		}))
+		defer server.Close()
+
+		cfg := configmock.New(t)
+		destCtx := client.NewDestinationsContext()
+		destCtx.Start()
+		defer destCtx.Stop()
+
+		ep := endpointFromServer(t, server)
+		eps := config.NewEndpointsWithBatchSettings(ep, nil, false, true, time.Second, 1, 10, 1024*1024, 16)
+		sink := &legacyOnlySink{ch: make(chan *message.Payload, 4)}
+		s := NewHTTPSender(cfg, sink, 8, sender.NewServerlessMeta(false), eps, destCtx, "test-legacy-trunc200", httpclient.JSONContentType, "", 1, 1, 1, 1, secretsnoopimpl.NewComponent().Comp, metrics.NewNoopPipelineMonitor(""))
+		s.Start()
+		defer s.Stop()
+
+		s.In() <- message.NewPayload([]*message.MessageMetadata{{}}, []byte(`[{"message":"legacy"}]`), "", 22)
+		select {
+		case <-sink.ch:
+			require.Equal(t, int32(1), attempts.Load(), "legacy sender must not retry truncated 200")
+		case <-time.After(5 * time.Second):
+			t.Fatal("legacy sender did not complete truncated 200")
+		}
+	})
+}
