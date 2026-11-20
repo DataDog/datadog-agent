@@ -3,6 +3,7 @@
 
 #include "ktypes.h"
 #include "bpf_helpers.h"
+#include "bpf_core_read.h"
 
 #include "defs.h"
 #include "sk.h"
@@ -107,6 +108,10 @@ int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
     if (sk->sk_protocol == IPPROTO_TCP || sk->sk_protocol == IPPROTO_MPTCP) {
         log_debug("iterate tcp: sk=%p pid=%d", sk, task->tgid);
         sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, 0);
+        if (sk_stats && sk_stats->close_sent) {
+            // the connection was disconnected and reported closed, and the socket not connected again
+            return 0;
+        }
         if (!create_tcp_conn(&conn, sk, sk_stats, task)) {
             return 0;
         }
@@ -122,6 +127,41 @@ int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
         conn.tup.pid = task->tgid;
     }
     bpf_seq_write(seq, &conn, sizeof(conn_t));
+    return 0;
+}
+
+static __always_inline bool is_sock_dead(struct sock *sk) {
+    unsigned long flags = BPF_CORE_READ(sk, __sk_common.skc_flags);
+    return flags & (1UL << SOCK_DEAD);
+}
+
+// bpf_iter__sk_storage_map_tcp_orphans lists the TCP sockets the application has closed, but
+// the kernel is still tearing down (FIN_WAIT, CLOSING, LAST_ACK). They have no file anymore,
+// so bpf_iter__task_file_socket doesn't find them, and their close event is only sent once
+// they are destroyed, see send_tcp_close_event. It is attached to the sk_tcp_stats map.
+SEC("iter/bpf_sk_storage_map")
+int bpf_iter__sk_storage_map_tcp_orphans(struct bpf_iter__bpf_sk_storage_map *ctx) {
+    struct sock *sk = ctx->sk;
+    sk_tcp_stats_t *sk_stats = ctx->value;
+    if (!sk || !sk_stats) {
+        return 0;
+    }
+    if (sk_stats->close_sent) {
+        return 0;
+    }
+    // SOCK_DEAD is set by sock_orphan, when the socket is detached from its file in tcp_close
+    if (!is_sock_dead(sk)) {
+        return 0;
+    }
+    if (!is_protocol_family_enabled(sk)) {
+        return 0;
+    }
+
+    conn_t conn = {};
+    if (!create_tcp_conn(&conn, sk, sk_stats, NULL)) {
+        return 0;
+    }
+    bpf_seq_write(ctx->meta->seq, &conn, sizeof(conn_t));
     return 0;
 }
 

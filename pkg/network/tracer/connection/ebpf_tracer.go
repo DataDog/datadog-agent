@@ -9,6 +9,7 @@
 package connection
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +23,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
@@ -138,6 +140,7 @@ type ebpfTracer struct {
 	ch *cookieHasher
 
 	socketDumpIter         *manager.Probe
+	orphanSocketIter       *link.Iter
 	initialSocketIter      *manager.Probe
 	initialPortBindingIter *manager.Probe
 }
@@ -373,6 +376,14 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component, opts o
 			return nil, errors.New("error retrieving socket dump iter")
 		}
 
+		if sk.OrphanSocketsIteratorEnabled(config) {
+			tr.orphanSocketIter, err = sk.AttachOrphanSocketsIterator(m.Manager)
+			if err != nil {
+				tr.Stop()
+				return nil, err
+			}
+		}
+
 		tr.initialSocketIter, ok = m.Manager.GetProbe(manager.ProbeIdentificationPair{
 			EBPFFuncName: "bpf_iter__task_file_initial_sockets",
 			UID:          "net",
@@ -566,6 +577,9 @@ func (t *ebpfTracer) Stop() {
 		if t.sslProgram != nil {
 			t.sslProgram.Stop()
 		}
+		if t.orphanSocketIter != nil {
+			_ = t.orphanSocketIter.Close()
+		}
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		t.ongoingConnectCleaner.Stop()
@@ -596,22 +610,62 @@ func (t *ebpfTracer) getConnectionsIterator(buffer *network.ConnectionBuffer, fi
 		return nil
 	}
 
+	var counts connCounts
 	connIter, err := t.socketDumpIter.Iterator()
 	if err != nil {
 		return err
 	}
-	defer connIter.Close()
+	err = t.readIteratorConnections(connIter, buffer, filter, &counts)
+	connIter.Close()
+	if err != nil {
+		return err
+	}
 
-	var tcp4, tcp6, udp4, udp6 float64
+	// sockets closed by the application stay active until the kernel is done with them
+	if t.orphanSocketIter != nil {
+		orphanIter, err := t.orphanSocketIter.Open()
+		if err != nil {
+			return fmt.Errorf("error opening orphan socket iterator: %w", err)
+		}
+		err = t.readIteratorConnections(orphanIter, buffer, filter, &counts)
+		orphanIter.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	// A TCP socket's close event is sent just before the iterators stop listing it, so a close that
+	// happens during the iteration is only in the ring buffer. Flush it now, so that this check sees
+	// the connection as closed instead of missing it (and the next check reporting all of its stats
+	// again, as if it were new).
+	t.closeConsumer.FlushPending()
+
+	EbpfTracerTelemetry.connections.Set(counts.tcp4, "tcp", "v4")
+	EbpfTracerTelemetry.connections.Set(counts.tcp6, "tcp", "v6")
+	EbpfTracerTelemetry.connections.Set(counts.udp4, "udp", "v4")
+	EbpfTracerTelemetry.connections.Set(counts.udp6, "udp", "v6")
+	return nil
+}
+
+type connCounts struct {
+	tcp4, tcp6, udp4, udp6 float64
+}
+
+func (t *ebpfTracer) readIteratorConnections(r io.Reader, buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool, counts *connCounts) error {
+	// The kernel stops a read() on an iterator once it has filled the caller's buffer, and the next
+	// read() restarts the iterator from its saved position. Some iterators make that restart costly
+	// (the sk_storage map iterator walks its bucket again from the head), so read more than one
+	// record at a time. The kernel's seq buffer is PAGE_SIZE << 3 bytes.
+	br := bufio.NewReaderSize(eagainRetryReader{r: r}, 64<<10)
 	conn := new(network.ConnectionStats)
 	buf := make([]byte, netebpf.SizeofConn)
 	for {
-		_, err := io.ReadFull(connIter, buf)
+		_, err := io.ReadFull(br, buf)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				break
+				return nil
 			}
-			return fmt.Errorf("error reading data from iterator: %s", err)
+			return fmt.Errorf("error reading data from iterator: %w", err)
 		}
 
 		if err := conn.UnmarshalBinary(buf); err != nil {
@@ -622,15 +676,15 @@ func (t *ebpfTracer) getConnectionsIterator(buffer *network.ConnectionBuffer, fi
 		switch conn.Family {
 		case network.AFINET6:
 			if isTCP {
-				tcp6++
+				counts.tcp6++
 			} else {
-				udp6++
+				counts.udp6++
 			}
 		case network.AFINET:
 			if isTCP {
-				tcp4++
+				counts.tcp4++
 			} else {
-				udp4++
+				counts.udp4++
 			}
 		}
 
@@ -639,12 +693,6 @@ func (t *ebpfTracer) getConnectionsIterator(buffer *network.ConnectionBuffer, fi
 		}
 		*buffer.Next() = *conn
 	}
-
-	EbpfTracerTelemetry.connections.Set(tcp4, "tcp", "v4")
-	EbpfTracerTelemetry.connections.Set(tcp6, "tcp", "v6")
-	EbpfTracerTelemetry.connections.Set(udp4, "udp", "v4")
-	EbpfTracerTelemetry.connections.Set(udp6, "udp", "v6")
-	return nil
 }
 
 func (t *ebpfTracer) getConnectionsHashmap(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
