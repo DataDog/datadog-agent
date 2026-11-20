@@ -22,6 +22,7 @@ import (
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
@@ -57,6 +58,57 @@ func TestNewCorrelatedDNSEvent(t *testing.T) {
 	assert.Equal(t, uint16(0x1234), ev.DNS.ID)
 	assert.Equal(t, question, ev.DNS.Question)
 	assert.Same(t, response, ev.DNS.Response)
+}
+
+func newDNSTestEvent(containerID containerutils.ContainerID, source uint64, err error) *model.Event {
+	entry := model.NewPlaceholderProcessCacheEntry(42, 42, false)
+	entry.ContainerContext.ContainerID = containerID
+	entry.Source = source
+	ev := model.NewFakeEvent()
+	ev.ProcessCacheEntry = entry
+	ev.ProcessContext = &entry.ProcessContext
+	ev.Error = err
+	return ev
+}
+
+func TestNeedsDNSResponseCorrelation(t *testing.T) {
+	tests := []struct {
+		name        string
+		containerID containerutils.ContainerID
+		source      uint64
+		err         error
+		want        bool
+	}{
+		{"host process", "", model.ProcessCacheEntryFromEvent, nil, true},
+		{"unresolved process outside of a container", "", model.ProcessCacheEntryFromPlaceholder, model.ErrNoProcessContext, true},
+		{"unresolved process in a container", "abc", model.ProcessCacheEntryFromPlaceholder, model.ErrNoProcessContext, true},
+		{"resolved process in a container", "abc", model.ProcessCacheEntryFromEvent, nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, needsDNSResponseCorrelation(newDNSTestEvent(tt.containerID, tt.source, tt.err)))
+		})
+	}
+}
+
+func TestNeedsDNSRequestTracking(t *testing.T) {
+	tests := []struct {
+		name        string
+		containerID containerutils.ContainerID
+		source      uint64
+		err         error
+		want        bool
+	}{
+		{"resolved process in a container", "abc", model.ProcessCacheEntryFromEvent, nil, true},
+		{"host process", "", model.ProcessCacheEntryFromEvent, nil, false},
+		{"unresolved process in a container", "abc", model.ProcessCacheEntryFromPlaceholder, nil, false},
+		{"undecoded request", "abc", model.ProcessCacheEntryFromEvent, model.ErrFailedDNSPacketDecoding, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, needsDNSRequestTracking(newDNSTestEvent(tt.containerID, tt.source, tt.err)))
+		})
+	}
 }
 
 // capturedDNSEvent holds everything the assertions need from a correlated event. It has to be
