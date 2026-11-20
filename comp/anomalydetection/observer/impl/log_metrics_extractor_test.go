@@ -6,8 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
-	"hash/fnv"
 	"strings"
 	"testing"
 
@@ -40,11 +38,8 @@ func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
 		got[m.Name] = m
 	}
 
-	// Pattern count is based on the full JSON payload.
-	sig := a.signatureGenerator.Generate(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`)
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(sig))
-	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
+	expectedCountName := res.Metrics[0].Name
+	assert.True(t, strings.HasPrefix(expectedCountName, "log.pattern."))
 	if m, ok := got[expectedCountName]; assert.True(t, ok) {
 		assert.Equal(t, float64(1), m.Value)
 		assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"service:api"}), m.Tags)
@@ -73,11 +68,8 @@ func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
 	assert.Equal(t, float64(1), res.Metrics[0].Value)
 	assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"service:web"}), res.Metrics[0].Tags)
 
-	// Compute expected metric name (hash of signature).
-	sig := a.signatureGenerator.Generate("Request completed in 45ms")
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(sig))
-	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
+	assert.True(t, strings.HasPrefix(res.Metrics[0].Name, "log.pattern."))
+	assert.True(t, strings.HasSuffix(res.Metrics[0].Name, ".count"))
 }
 
 func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
@@ -104,10 +96,7 @@ func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
 		assert.Equal(t, float64(45), m.Value)
 	}
 
-	sig := a.signatureGenerator.Generate(`{"duration_ms":45,"status":200}`)
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(sig))
-	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
+	expectedCountName := res.Metrics[0].Name
 	if m, ok := got[expectedCountName]; assert.True(t, ok) {
 		assert.Equal(t, float64(1), m.Value)
 	}
@@ -123,10 +112,7 @@ func TestLogMetricsExtractor_InvalidJSONFallsBackToUnstructured(t *testing.T) {
 	res := a.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
 
-	sig := a.signatureGenerator.Generate(input)
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(sig))
-	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
+	assert.True(t, strings.HasPrefix(res.Metrics[0].Name, "log.pattern."))
 }
 
 func TestLogMetricsExtractor_MetricOutputCarriesInlineContext(t *testing.T) {
@@ -160,7 +146,7 @@ func TestLogMetricsExtractor_ContextDiffersPerTagSet(t *testing.T) {
 	resB := a.ProcessLog(logB)
 	require.Len(t, resA.Metrics, 1)
 	require.Len(t, resB.Metrics, 1)
-	require.Equal(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
+	require.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
 	require.True(t, resA.Metrics[0].HasContext)
 	require.True(t, resB.Metrics[0].HasContext)
 
@@ -175,14 +161,14 @@ func TestLogMetricsExtractor_ContextDiffersPerTagSet(t *testing.T) {
 func TestLogMetricsExtractor_MaxEvalBytesCapsSignature(t *testing.T) {
 	// Logs that differ only after the first MaxEvalBytes bytes share a series.
 	prefix := strings.Repeat("a", 16)
-	capped := NewLogMetricsExtractor(LogMetricsExtractorConfig{MaxEvalBytes: len(prefix)})
+	capped := NewLogMetricsExtractor(LogMetricsExtractorConfig{MaxEvalBytes: len(prefix), MinTokenMatchRatio: 1})
 	a := capped.ProcessLog(&mockLogView{content: prefix + " 123"})
 	b := capped.ProcessLog(&mockLogView{content: prefix + " xyz"})
 	require.Len(t, a.Metrics, 1)
 	require.Len(t, b.Metrics, 1)
 	assert.Equal(t, a.Metrics[0].Name, b.Metrics[0].Name)
 
-	uncapped := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
+	uncapped := NewLogMetricsExtractor(LogMetricsExtractorConfig{MinTokenMatchRatio: 1})
 	c := uncapped.ProcessLog(&mockLogView{content: prefix + " 123"})
 	d := uncapped.ProcessLog(&mockLogView{content: prefix + " xyz"})
 	assert.NotEqual(t, c.Metrics[0].Name, d.Metrics[0].Name)

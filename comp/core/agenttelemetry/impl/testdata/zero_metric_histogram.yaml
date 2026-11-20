@@ -1,0 +1,9 @@
+agent_telemetry:
+  enabled: true
+  profiles:
+    - name: xxx
+      metric:
+        exclude:
+          zero_metric: true
+        metrics:
+          - name: foo.bar

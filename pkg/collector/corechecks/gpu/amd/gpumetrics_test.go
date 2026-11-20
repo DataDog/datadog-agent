@@ -204,6 +204,8 @@ func TestXGMISamples(t *testing.T) {
 		"absent":     parseTable(t, map[string][]uint64{"xgmi_link_speed": {32}}),
 		"zero width": parseTable(t, map[string][]uint64{"xgmi_link_speed": {32}, "xgmi_link_width": {0}}),
 		"unfilled":   parseTable(t, map[string][]uint64{"xgmi_link_speed": {math.MaxUint16}, "xgmi_link_width": {16}}),
+		// 2 x 500 Gb/s x 64 lanes is above the spec maximum of a link.
+		"over the maximum": parseTable(t, map[string][]uint64{"xgmi_link_speed": {500}, "xgmi_link_width": {64}}),
 	} {
 		assert.Equal(t, float64(maxXGMILinkKBPerSecond), xgmiLinkBound(gm), name)
 	}

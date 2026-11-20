@@ -76,6 +76,9 @@ type specScenario struct {
 	// startWorkload starts a GPU workload on the devices and returns the calibrated values to validate
 	// against, keyed by lowercase UUID; nil disables calibrated validation.
 	startWorkload func(t *testing.T, lib safenvml.SafeNVML) map[string]map[string]*float64
+	// configFeatures are the Agent configuration features enabled for the check, such as
+	// system-probe with the GPU eBPF probes.
+	configFeatures map[gpuspec.ConfigFeature]bool
 }
 
 func runSpecScenario(t *testing.T, specs *gpuspec.Specs, scenario specScenario) {
@@ -102,8 +105,7 @@ func runSpecScenario(t *testing.T, specs *gpuspec.Specs, scenario specScenario) 
 			injectXIDDevices: scenario.xidDevices,
 		})
 		validateCollectedMetrics(t, specs, uuids, scenario.configs, metricsByUUID, smiSamples, nil, gpuspec.ValidationOptions{
-			// This test does not configure system-probe.
-			ConfigFeatures: nil,
+			ConfigFeatures: scenario.configFeatures,
 		})
 	})
 
@@ -121,11 +123,11 @@ func runSpecScenario(t *testing.T, specs *gpuspec.Specs, scenario specScenario) 
 		})
 		validateCollectedMetrics(t, specs, workloadUUIDs, scenario.configs, metricsByUUID, smiSamples, calibratedValuesByUUID, gpuspec.ValidationOptions{
 			WorkloadActive:  true,
-			ConfigFeatures:  nil,
+			ConfigFeatures:  scenario.configFeatures,
 			WorkloadTagsets: map[string]bool{"process": true},
 		})
 		validateCollectedMetrics(t, specs, workloadFreeUUIDs, scenario.configs, metricsByUUID, smiSamples, nil, gpuspec.ValidationOptions{
-			ConfigFeatures: nil,
+			ConfigFeatures: scenario.configFeatures,
 		})
 	})
 }
@@ -142,12 +144,14 @@ func TestSpec(t *testing.T) {
 	if len(devices) == 0 {
 		t.Skip("all GPUs are in MIG mode, see TestSpecMIG")
 	}
+	configFeatures := startSystemProbeIfRequested(t)
 
 	runSpecScenario(t, specs, specScenario{
-		devices:    devices,
-		configs:    deviceConfigs(t, specs, devices, gpuspec.DeviceModePhysical),
-		smiOptions: smiOptionsForPhysicalDevices(t, devices),
-		xidDevices: devices,
+		configFeatures: configFeatures,
+		devices:        devices,
+		configs:        deviceConfigs(t, specs, devices, gpuspec.DeviceModePhysical),
+		smiOptions:     smiOptionsForPhysicalDevices(t, devices),
+		xidDevices:     devices,
 		startWorkload: func(t *testing.T, lib safenvml.SafeNVML) map[string]map[string]*float64 {
 			indices := make([]int, len(devices))
 			for i, device := range devices {
@@ -175,14 +179,18 @@ func TestSpecMIG(t *testing.T) {
 	if len(grouped.migParents) == 0 {
 		t.Skipf("no GPU in MIG mode, enable it or set %s to let the test configure one", configureMIGEnv)
 	}
+	// Started after configureMIG, so system-probe sees the MIG devices and stops before the MIG
+	// configuration is restored.
+	configFeatures := startSystemProbeIfRequested(t)
 
 	devices := slices.Concat(grouped.migParents, grouped.migChildren)
 	configs := deviceConfigs(t, specs, grouped.migParents, gpuspec.DeviceModeMIGParent)
 	maps.Copy(configs, deviceConfigs(t, specs, grouped.migChildren, gpuspec.DeviceModeMIG))
 
 	runSpecScenario(t, specs, specScenario{
-		devices: devices,
-		configs: configs,
+		configFeatures: configFeatures,
+		devices:        devices,
+		configs:        configs,
 		// nvidia-smi dmon cannot sample MIG devices, and a parent in MIG mode reports no usable utilization.
 		smiOptions: nil,
 		// The XID metrics are not supported in MIG mode.

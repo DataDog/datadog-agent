@@ -205,6 +205,69 @@ func TestFilterOpenBasenamePrefixApprover(t *testing.T) {
 	}
 }
 
+func TestFilterOpenBasenameSuffixApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// longer than the kernel basename buffer, so the suffix is only visible in the full dentry name
+	basename := strings.Repeat("a", 64) + ".php"
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.name =~ "*.php"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	var fd1, fd2 int
+	var testFile1, testFile2 string
+
+	testFile1, _, err = test.Path(basename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile1)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd1, err = openTestFile(test, testFile1, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd1)
+	}, testFile1); err != nil {
+		t.Fatal(err)
+	}
+
+	// stats
+	err = retry(t, func() error {
+		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
+		}
+		return nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
+	assert.NoError(t, err)
+
+	testFile2, _, err = test.Path("test-obs-2.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile2)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd2, err = openTestFile(test, testFile2, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd2)
+	}, testFile2); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
+}
+
 func TestFilterOpenParentBasenameApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
 
