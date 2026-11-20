@@ -16,8 +16,11 @@ module. Change it there, then bump its version in the root `go.mod`.
   `network_config.direct_send: false` it runs in process-agent (connections check) and uses
   `fx-remote`. With direct send (Linux only) it runs inside system-probe and uses `fx-local`, with no
   HTTP hop. NetFlow-sourced tests come from `comp/netflow/flowaggregator`.
-- **system-probe `traceroute.enabled`:** if it isn't set, it turns on automatically when dynamic tests
-  are enabled. An explicit `false` wins and disables basic dynamic tests.
+- **system-probe `traceroute.enabled`:** if it isn't set, it turns on automatically only when CNM is
+  enabled together with `network_path.connections_monitoring.enabled` (or `basic_tests_enabled`
+  outside end-user-device mode), or when `eudm_basic_tests_enabled` is set in `end_user_device`
+  mode (`tracerouteEnabled` in `pkg/system-probe/config/config.go`). The dynamic-test setting
+  alone leaves it off. An explicit `false` wins and disables basic dynamic tests.
 - A request parameter added to the remote component must also be parsed in
   `cmd/system-probe/modules/traceroute.go` (`parseParams`).
 
@@ -52,7 +55,8 @@ other PRs they run automatically only for the paths in `.on_netpath_or_e2e_chang
 `.gitlab-ci.yml`, and are otherwise left as manual jobs. That list includes
 `cmd/system-probe/modules/traceroute.go` but not `traceroute_{linux,windows,darwin}.go` or the root
 `go.mod`, so on a PR, a driver change or a `datadog-traceroute` bump doesn't start them; run them by
-hand.
+hand. `RUN_E2E_TESTS=on` starts them on any PR, and light pipelines or pipelines with e2e disabled
+skip them.
 
 ## Keeping these instructions current
 
