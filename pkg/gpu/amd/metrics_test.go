@@ -335,3 +335,140 @@ func TestReadMetricsZeroLinkWidthIsUnavailable(t *testing.T) {
 	assert.False(t, m.PCIeLinkWidth.Valid)
 	assert.False(t, m.PCIeMaxLinkWidth.Valid)
 }
+
+// The contents follow amdgpu_ras_sysfs_read, amdgpu_ras_aca_sysfs_read and
+// amdgpu_ras_sysfs_features_read in amdgpu_ras.c.
+func TestReadMetricsECC(t *testing.T) {
+	const features = "feature mask: 0x20065bff\n" // MI300X VF: every block amd-smi counts
+	for name, tc := range map[string]struct {
+		ras                              map[string]string // no ras directory when nil
+		uncorrected, corrected, deferred Reading
+		wantErr                          string
+	}{
+		"no ras directory":   {},
+		"no count attribute": {ras: map[string]string{"features": features}},
+		"MI300X VF without errors": {
+			ras: map[string]string{
+				"features":           features,
+				"umc_err_count":      "ue: 0\nce: 0\nde: 0\n",
+				"gfx_err_count":      "ue: 0\nce: 0\n",
+				"sdma_err_count":     "ue: 0\nce: 0\n",
+				"mmhub_err_count":    "ue: 0\nce: 0\n",
+				"pcie_bif_err_count": "ue: 0\nce: 0\n",
+			},
+			uncorrected: valid(0), corrected: valid(0), deferred: valid(0),
+		},
+		"errors in several blocks": {
+			ras: map[string]string{
+				"features":            features,
+				"umc_err_count":       "ue: 2\nce: 7\nde: 1\n",
+				"gfx_err_count":       "ue: 1\nce: 0\n",
+				"sdma_err_count":      "ue: 0\nce: 3\n",
+				"xgmi_wafl_err_count": "ue: 0\nce: 4\n",
+				"vcn_err_count":       "ue: 5\nce: 5\n", // not counted by amd-smi
+			},
+			uncorrected: valid(3), corrected: valid(14), deferred: valid(1),
+		},
+		"ACA attributes only": { // fallback when <block>_err_count is absent
+			ras: map[string]string{
+				"features":  features,
+				"aca_umc":   "ue: 1\nce: 6\nde: 2\n",
+				"aca_gfx":   "ue: 0\nce: 1\nde: 1\n",
+				"aca_mmhub": "ue: 0\nce: 0\nde: 0\n",
+			},
+			uncorrected: valid(1), corrected: valid(7), deferred: valid(3),
+		},
+		"block disabled in the feature mask": {
+			ras: map[string]string{
+				"features":      "feature mask: 0x1\n", // UMC only
+				"umc_err_count": "ue: 1\nce: 2\nde: 0\n",
+				"gfx_err_count": "ue: 5\nce: 5\n",
+			},
+			uncorrected: valid(1), corrected: valid(2), deferred: valid(0),
+		},
+		"no feature mask": {
+			ras: map[string]string{"umc_err_count": "ue: 1\nce: 2\nde: 0\n"},
+		},
+		"unparsable feature mask": {
+			ras: map[string]string{
+				"features":      "garbage\n",
+				"umc_err_count": "ue: 1\nce: 2\nde: 0\n",
+			},
+			wantErr: "features",
+		},
+		"no deferred count": {
+			ras:         map[string]string{"features": features, "gfx_err_count": "ue: 1\nce: 2\n"},
+			uncorrected: valid(1), corrected: valid(2),
+		},
+		"reset starting during the scan": {
+			ras: map[string]string{
+				"features":      features,
+				"umc_err_count": "ue: 1\nce: 2\nde: 0\n",
+				"gfx_err_count": "Query currently inaccessible\n",
+			},
+		},
+		"unparsable block": {
+			ras: map[string]string{
+				"features":      features,
+				"umc_err_count": "ue: 2\nce: many\nde: 0\n",
+				"gfx_err_count": "ue: 1\nce: 2\n",
+			},
+			wantErr: "umc_err_count",
+		},
+		"unparsable later block": {
+			ras: map[string]string{
+				"features":      features,
+				"umc_err_count": "ue: 2\nce: 0\nde: 0\n",
+				"gfx_err_count": "ue: 1\n",
+			},
+			wantErr: "gfx_err_count",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fs := NewFakeSysfs(t)
+			devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", MI300XAttributes(""))
+			fs.AddCard("card0", devDir)
+			if tc.ras != nil {
+				fs.WriteFiles(filepath.Join(devDir, "ras"), tc.ras)
+			}
+
+			m, err := discoverSingle(t, fs).ReadMetrics()
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.uncorrected, m.ECCUncorrected)
+			assert.Equal(t, tc.corrected, m.ECCCorrected)
+			assert.Equal(t, tc.deferred, m.ECCDeferred)
+			assert.Equal(t, valid(37), m.GPUBusyPercent, "other metrics are unaffected")
+		})
+	}
+}
+
+// amdgpu_ras_sysfs_read fails with EINVAL when the error query fails, such as
+// during a GPU reset: no partial sum is reported.
+func TestReadMetricsECCReadFailure(t *testing.T) {
+	fs := NewFakeSysfs(t)
+	devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", MI300XAttributes(""))
+	fs.AddCard("card0", devDir)
+	fs.WriteFiles(filepath.Join(devDir, "ras"), map[string]string{
+		"features":      "feature mask: 0x20065bff\n",
+		"umc_err_count": "ue: 1\nce: 2\nde: 0\n",
+		"gfx_err_count": "ue: 0\nce: 0\n",
+	})
+	readRASFile = func(path string) ([]byte, error) {
+		if filepath.Base(path) == "gfx_err_count" {
+			return nil, &os.PathError{Op: "read", Path: path, Err: syscall.EINVAL}
+		}
+		return os.ReadFile(path)
+	}
+	t.Cleanup(func() { readRASFile = os.ReadFile })
+
+	m, err := discoverSingle(t, fs).ReadMetrics()
+	require.ErrorIs(t, err, syscall.EINVAL)
+	assert.False(t, m.ECCUncorrected.Valid)
+	assert.False(t, m.ECCCorrected.Valid)
+	assert.False(t, m.ECCDeferred.Valid)
+	assert.Equal(t, valid(37), m.GPUBusyPercent, "other metrics are unaffected")
+}
