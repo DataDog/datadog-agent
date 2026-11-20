@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -1212,9 +1213,10 @@ const installerDaemonPlistPath = "/Library/LaunchDaemons/com.datadoghq.installer
 // a separate, explicit restartInstallerDaemon call, which starts the stable daemon as a reboot
 // would.
 //
-// Only the stable job set is restarted here, mirroring what actually comes back unsupervised after
-// a real reboot: the experiment job set and the watcher stay down until the daemon's resume-or-
-// revert logic (pkg/fleet/installer/packages/config_experiment_resume_darwin.go) decides their fate.
+// Only the stable job set is restarted here, mirroring what launchd starts at boot: the experiment
+// job set and the watcher stay down, and the stable daemon's settle
+// (pkg/fleet/installer/packages/config_experiment_resume_darwin.go) decides what is left of the
+// experiment.
 func (s *configMacOSSuite) killAllServicesSimulatingShutdown() {
 	// Every detached process dies with the host, not only the watcher: a hand-over still waiting
 	// for the experiment daemon would otherwise revert the experiment under the test.
@@ -1315,83 +1317,143 @@ func (s *configMacOSSuite) watcherPID() string {
 	return strings.TrimSpace(out)
 }
 
-// TestShutdownMidExperimentResumesWatcherMacOS regression-tests
-// pkg/fleet/installer/packages/config_experiment_resume_darwin.go: an abrupt shutdown mid-experiment,
-// with the experiment's deadline still valid, must be recovered on the daemon's next start by
-// re-establishing the experiment job set and relaunching its watcher, not by reverting to stable.
-func (s *configMacOSSuite) TestShutdownMidExperimentResumesWatcherMacOS() {
-	s.requireResting()
+// TestShutdownMidExperimentFailsForFleetMacOS regression-tests the stable daemon's settle
+// (settleConfigExperiment, pkg/fleet/installer/packages/config_experiment_resume_darwin.go): after
+// an abrupt shutdown mid-experiment, which leaves the deadline in place and no watcher, the next
+// stable daemon start never brings the experiment back. It fails it for Fleet to stop, whether or
+// not its deadline has expired by then, and leaves alone the stable jobs the boot already started.
+func (s *configMacOSSuite) TestShutdownMidExperimentFailsForFleetMacOS() {
+	for _, expired := range []bool{false, true} {
+		s.Run(fmt.Sprintf("expired=%t", expired), func() {
+			s.requireResting()
 
-	deploymentID := nextID("cfg-shutdown-resume")
-	s.startConfigExperimentRC(deploymentID, []backend.FileOperation{
-		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/system-probe.yaml", Patch: []byte(`{"network_config": {"enabled": true}}`)},
-	}, nil)
+			deploymentID := nextID("cfg-shutdown")
+			s.startConfigExperimentRC(deploymentID, []backend.FileOperation{
+				{FileOperationType: backend.FileOperationMergePatch, FilePath: "/system-probe.yaml", Patch: []byte(`{"network_config": {"enabled": true}}`)},
+			}, nil)
+			s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+			s.requireWatcherRunning("the experiment is live")
 
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		loaded := s.launchdLabelsLoaded("com.datadoghq.sysprobe-exp")
-		assert.True(c, loaded["com.datadoghq.sysprobe-exp"], "sysprobe experiment job should be loaded")
-	}, 60*time.Second, 5*time.Second)
-	s.requireWatcherRunning("the experiment is live")
+			s.killAllServicesSimulatingShutdown()
+			require.False(s.T(), s.watcherRunning(), "the watcher process must be gone before the daemon starts")
+			if expired {
+				_, err := s.Env().RemoteHost.Execute(
+					`sudo sh -c 'date -u -v-2H +"%Y-%m-%dT%H:%M:%SZ" > ` + experimentDeadlinePath + `'`)
+				require.NoError(s.T(), err, "forcing the experiment deadline into the past should succeed")
+			}
+			// See clearPendingUpdaterTasks: the start task pushed above would otherwise be redelivered
+			// to the restarted daemon.
+			s.clearPendingUpdaterTasks()
+			agentPID := s.jobPID("com.datadoghq.agent")
+			require.NotEmpty(s.T(), agentPID, "the stable Agent should be running, as after a boot")
 
-	s.killAllServicesSimulatingShutdown()
-	require.False(s.T(), s.watcherRunning(), "the watcher process must be gone before the daemon is asked to resume it")
+			s.restartInstallerDaemon()
 
-	s.restartInstallerDaemon()
-
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		loaded := s.launchdLabelsLoaded("com.datadoghq.sysprobe-exp")
-		assert.True(c, loaded["com.datadoghq.sysprobe-exp"], "sysprobe experiment job should be loaded again after resume")
-		assert.True(c, s.watcherRunning(), "a new watcher process should be supervising the resumed experiment")
-	}, 60*time.Second, 5*time.Second)
-	// The stable daemon resumed the agent jobs and had the daemon handed over; the experiment daemon
-	// it started launched the new watcher.
-	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
-
-	require.False(s.T(), s.etcExpResting(), "etc-exp should still be a real directory: the experiment must not have been reverted")
-	require.Equal(s.T(), deploymentID, s.packageState(s.readStatus()).ExperimentConfigVersion,
-		"experiment_config_version should still reflect the resumed experiment, not a revert")
-
-	s.stopConfigExperimentRC()
+			s.requireFailedOnHost(deploymentID)
+			require.Equal(s.T(), agentPID, s.jobPID("com.datadoghq.agent"), "the settle must not restart the stable Agent the boot started")
+			require.Zero(s.T(), s.watcherCount(), "the stable daemon must not launch a watcher")
+			s.requireInstallerDaemon(installerDaemonLabel, installerDaemonExperimentLabel)
+			s.stopFailedExperimentRC()
+		})
+	}
 }
 
-// TestShutdownAfterDeadlineExpiryRevertsMacOS regression-tests
-// pkg/fleet/installer/packages/config_experiment_resume_darwin.go: an abrupt shutdown mid-experiment
-// whose deadline has already expired by the time the daemon restarts must be reverted to stable, not
-// resumed -- the unsupervised window guaranteed by configExperimentDeadlineWindow was exceeded before
-// the daemon got a chance to recover it. The deadline file is forced into the past directly on disk
-// (rather than waiting out the real window) while the daemon is down, so there is no race with the
-// daemon reading it.
-func (s *configMacOSSuite) TestShutdownAfterDeadlineExpiryRevertsMacOS() {
+// TestGracefulShutdownMidExperimentFailsForFleetMacOS covers what a graceful shutdown does to a live
+// experiment: launchd sends SIGTERM to every process, the watcher keeps supervising for the grace
+// its signal handler gives it, sees the essential experiment jobs exit, and fails the experiment
+// before the host goes down. The stable daemon starting next finds the failed marker and leaves the
+// host as it is, for Fleet to stop.
+func (s *configMacOSSuite) TestGracefulShutdownMidExperimentFailsForFleetMacOS() {
 	s.requireResting()
 
-	deploymentID := nextID("cfg-shutdown-expire")
+	deploymentID := nextID("cfg-graceful-shutdown")
 	s.startConfigExperimentRC(deploymentID, []backend.FileOperation{
-		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/system-probe.yaml", Patch: []byte(`{"network_config": {"enabled": true}}`)},
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
 	}, nil)
-
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		loaded := s.launchdLabelsLoaded("com.datadoghq.sysprobe-exp")
-		assert.True(c, loaded["com.datadoghq.sysprobe-exp"], "sysprobe experiment job should be loaded")
-	}, 60*time.Second, 5*time.Second)
-
-	s.killAllServicesSimulatingShutdown()
-
-	_, err := s.Env().RemoteHost.Execute(
-		`sudo sh -c 'date -u -v-2H +"%Y-%m-%dT%H:%M:%SZ" > /opt/datadog-packages/run/experiment-deadline'`)
-	require.NoError(s.T(), err, "forcing the experiment deadline into the past should succeed")
-
-	// See clearPendingUpdaterTasks: without this, the start_experiment_config task pushed above gets
-	// redelivered right after restart and re-applied, undoing the revert this test is asserting on.
+	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+	s.requireWatcherRunning("the experiment is live")
 	s.clearPendingUpdaterTasks()
 
-	s.restartInstallerDaemon()
+	_, err := s.Env().RemoteHost.Execute(
+		"sudo pkill -TERM -f 'package-command datadog-agent watchConfigExperiment'; " +
+			"sudo launchctl kill SIGTERM system/com.datadoghq.agent-exp")
+	require.NoError(s.T(), err, "signalling the watcher and the experiment Agent should succeed")
 
-	// An already-expired deadline is reverted, not resumed, and the experiment kept for Fleet's stop.
 	s.requireFailedOnHost(deploymentID)
-	loadedStable := s.launchdLabelsLoaded("com.datadoghq.sysprobe")
-	require.True(s.T(), loadedStable["com.datadoghq.sysprobe"], "sysprobe stable job should be loaded again after the revert")
-	require.False(s.T(), s.watcherRunning(), "no watcher process should be left running for a reverted experiment")
+	s.requireWatcherExits("failed on shutdown")
+
+	// The stable daemon starting again, as on the next boot, finds the failed marker.
+	agentPID := s.jobPID("com.datadoghq.agent")
+	_, err = s.Env().RemoteHost.Execute("sudo launchctl kickstart -k system/" + installerDaemonLabel)
+	require.NoError(s.T(), err, "restarting the stable installer daemon should succeed")
+	s.waitForDaemon()
+	s.requireFailedOnHost(deploymentID)
+	require.Equal(s.T(), agentPID, s.jobPID("com.datadoghq.agent"), "the settle must not restart the stable Agent")
+	require.Zero(s.T(), s.watcherCount(), "the stable daemon must not launch a watcher")
 	s.stopFailedExperimentRC()
+}
+
+// TestRebootMidExperimentFailsForFleetMacOS reboots the host in the middle of an experiment, with
+// shutdown(8): the experiment fails, the host boots on the stable job set, and the stable daemon
+// leaves every job launchd started at boot running. The experiment daemon's job, which launchd
+// loads at boot without starting it, is unloaded.
+//
+// It is skipped on a LOCAL_VM host: the suite's fakeintake runs there as a container
+// (byohost.LocalVMProvisioner) that does not come back after a reboot, and the Agent would lose the
+// Remote Config server this suite drives it through.
+func (s *configMacOSSuite) TestRebootMidExperimentFailsForFleetMacOS() {
+	if os.Getenv("LOCAL_VM") != "" {
+		s.T().Skip("the LOCAL_VM fakeintake container does not survive a reboot of its host")
+	}
+	s.requireResting()
+
+	deploymentID := nextID("cfg-reboot")
+	s.startConfigExperimentRC(deploymentID, []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+	}, nil)
+	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+	s.requireWatcherRunning("the experiment is live")
+	s.clearPendingUpdaterTasks()
+
+	s.rebootHost()
+	s.waitForDaemon()
+
+	s.requireFailedOnHost(deploymentID)
+	require.Equal(s.T(), "1", s.jobRuns("com.datadoghq.agent"), "the settle must not restart the stable Agent launchd started at boot")
+	require.Zero(s.T(), s.watcherCount(), "the stable daemon must not launch a watcher")
+	require.False(s.T(), s.pathExists("/Library/LaunchDaemons/"+installerDaemonExperimentLabel+".plist"),
+		"the experiment daemon's job definition should be removed")
+	s.stopFailedExperimentRC()
+}
+
+// rebootHost reboots the host gracefully and waits until it is back on a new boot session.
+// shutdown(8) can drop the ssh session before it returns, so its result is ignored: the boot
+// session is what tells the host has rebooted.
+func (s *configMacOSSuite) rebootHost() {
+	host := s.Env().RemoteHost
+	before := strings.TrimSpace(host.MustExecute("sysctl -n kern.bootsessionuuid"))
+	if _, err := host.Execute("sudo shutdown -r now"); err != nil {
+		s.T().Logf("reboot request: %v", err)
+	}
+	time.Sleep(20 * time.Second)
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		if !assert.NoError(c, host.Reconnect()) {
+			return
+		}
+		after, err := host.Execute("sysctl -n kern.bootsessionuuid")
+		if assert.NoError(c, err) {
+			assert.NotEqual(c, before, strings.TrimSpace(after), "the host should be on a new boot session")
+		}
+	}, 20*time.Minute, 15*time.Second)
+}
+
+// jobRuns returns how many times launchd has started the job since it was loaded, as launchctl
+// print reports it.
+func (s *configMacOSSuite) jobRuns(label string) string {
+	out, err := s.Env().RemoteHost.Execute(
+		"sudo launchctl print system/" + label + ` 2>/dev/null | awk '$1 == "runs" && $2 == "=" { print $3; exit }' || true`)
+	require.NoError(s.T(), err)
+	return strings.TrimSpace(out)
 }
 
 // --- Set 15: daemon socket, watcher lifecycle and upgrades (macOS-specific) --------------------
@@ -1537,9 +1599,8 @@ func (s *configMacOSSuite) TestWatcherExitsWithItsExperimentMacOS() {
 // TestUpgradeMidExperimentClearsDeadlineMacOS regression-tests the .dmg install over a live
 // configuration experiment: the installed version's pre-remove takes the -exp jobs down, and
 // `installer postinst datadog-agent dmg` removes the experiment's deadline (removeOldInstallFiles)
-// and collapses etc-exp back onto etc (restExperimentConfig). A deadline left behind still inside
-// its window has the next daemon resume the experiment job set on top of the stable configuration,
-// from resumeConfigExperimentDatadogAgent.
+// and collapses etc-exp back onto etc (restExperimentConfig). A deadline left behind would have the
+// next stable daemon start fail an experiment the upgrade already discarded (settleConfigExperiment).
 //
 // The upgrade is a reinstall of the same .dmg over the running host, which is what runs the
 // preinstall script's existing-installation path. It is the slowest test in the suite for that
@@ -1567,7 +1628,7 @@ func (s *configMacOSSuite) TestUpgradeMidExperimentClearsDeadlineMacOS() {
 		assert.Empty(c, s.packageState(s.readStatus()).ExperimentConfigVersion,
 			"the daemon must not report the discarded experiment")
 		for label, loaded := range s.launchdLabelsLoaded(experimentLabels()...) {
-			assert.False(c, loaded, "%s must not be resumed after the upgrade", label)
+			assert.False(c, loaded, "%s must not be loaded after the upgrade", label)
 		}
 		loaded := s.launchdLabelsLoaded("com.datadoghq.agent")
 		assert.True(c, loaded["com.datadoghq.agent"], "the stable Agent job should be running after the upgrade")
@@ -1795,9 +1856,8 @@ func (s *configMacOSSuite) TestDeadlineFileLifecycleMacOS() {
 // TestExperimentDaemonCrashRevertsMacOS covers the installer daemon dying in the middle of an
 // experiment. The daemon runs on its experiment job then, which launchd does not relaunch, so the
 // watcher treats its exit like any other experiment job's crash: it reverts every job, the daemon
-// included, and keeps the experiment for Fleet's stop. Resuming after a daemon start is covered by
-// TestShutdownMidExperimentResumesWatcherMacOS, the only path where the stable daemon starts while
-// an experiment is live.
+// included, and keeps the experiment for Fleet's stop. A stable daemon start with an experiment
+// left unfinished is covered by TestShutdownMidExperimentFailsForFleetMacOS.
 func (s *configMacOSSuite) TestExperimentDaemonCrashRevertsMacOS() {
 	s.requireResting()
 
@@ -1823,11 +1883,12 @@ func (s *configMacOSSuite) TestExperimentDaemonCrashRevertsMacOS() {
 	s.stopFailedExperimentRC()
 }
 
-// TestOrphanExperimentWithoutDeadlineRevertsMacOS pins the orphan branch of pkg/fleet/installer/
-// packages/config_experiment_resume_darwin.go: an experiment still deployed in etc-exp with no
-// deadline left to bound it is reverted the next time the daemon starts. Removing the deadline
-// tells the watcher a deliberate end has begun, so it exits without reverting and leaves exactly
-// that orphan behind.
+// TestOrphanExperimentWithoutDeadlineRevertsMacOS pins the orphan branch of the stable daemon's
+// settle (pkg/fleet/installer/packages/config_experiment_resume_darwin.go): an experiment still
+// deployed in etc-exp with no deadline left to bound it -- a stop interrupted between clearing the
+// deadline and discarding the configuration -- is reverted and discarded the next time the daemon
+// starts. Removing the deadline tells the watcher a deliberate end has begun, so it exits without
+// reverting and leaves exactly that orphan behind.
 func (s *configMacOSSuite) TestOrphanExperimentWithoutDeadlineRevertsMacOS() {
 	s.requireResting()
 
@@ -1843,8 +1904,8 @@ func (s *configMacOSSuite) TestOrphanExperimentWithoutDeadlineRevertsMacOS() {
 	s.requireWatcherExits("left without a deadline")
 	require.False(s.T(), s.etcExpResting(), "the experiment should still be deployed once its watcher has exited")
 
-	// The stable daemon starting is what resumes or reverts an experiment, as after a reboot. The
-	// experiment daemon is booted out first: with its watcher gone, nothing reverts on its exit.
+	// The stable daemon starting is what settles an experiment, as after a reboot. The experiment
+	// daemon is booted out first: with its watcher gone, nothing reverts on its exit.
 	s.clearPendingUpdaterTasks()
 	_, err = s.Env().RemoteHost.Execute("sudo launchctl bootout system/" + installerDaemonExperimentLabel)
 	require.NoError(s.T(), err)
