@@ -433,7 +433,9 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			m.persistAllProfilesLocal()
+			if m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+				m.persistAllProfilesLocal()
+			}
 			return
 		case <-sendTickerChan:
 			m.persistAllProfiles()
