@@ -96,9 +96,9 @@ func (s DomainState) String() string {
 	case DomainFree:
 		return "free"
 	case DomainPartial:
-		return "partial"
+		return "partially_occupied"
 	case DomainFull:
-		return "full"
+		return "fully_occupied"
 	case DomainUnavailable:
 		return "unavailable"
 	}

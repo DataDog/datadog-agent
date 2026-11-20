@@ -58,13 +58,16 @@
 // an implicit host level keyed on the node name is appended and flagged
 // Implicit, as Kueue >= 0.20 does internally.
 //
-// Everything is computed per GPU resource. Domains contain the labelled nodes
+// Everything is computed per GPU resource. The engine doesn't split by GPU
+// type: the caller runs Compute once per gpu_type (nodes partitioned by the
+// normalized nvidia.com/gpu.product label), so a rack with H100 and A100
+// nodes is one rack per type. Domains contain the labelled nodes
 // attributed to the resource (any state but unsupported and missing_labels),
 // but only in_topology nodes contribute capacity (= allocatable). Free =
 // allocatable - allocated, clamped at 0 per node (overcommit is reported in
 // Result.Overcommits for logging). A domain is unavailable when it has no
-// in_topology capacity, else full when nothing is free, free when nothing is
-// allocated, partial otherwise. Keeping unavailable domains stops "% free
+// in_topology capacity, else fully_occupied when nothing is free, free when
+// nothing is allocated, partially_occupied otherwise. Keeping unavailable domains stops "% free
 // racks" from going up when racks fail.
 //
 // Per level, the engine reports domains per state, GPUs by GPU state and
