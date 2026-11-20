@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/go-tuf/data"
@@ -407,19 +408,23 @@ func TestUpdateTransportErrorDoesNotResetTUFState(t *testing.T) {
 }
 
 func TestPollLoopStopsWithoutErrorWhenClosedDuringUpdate(t *testing.T) {
-	embeddedRoot, dcA, _ := newDCRepositories(17, "datadog/2/CWS_DD/id1/config")
-	client, fetcher := newDCClient(t, embeddedRoot)
-	client.pollInterval = time.Millisecond
+	// synctest runs the poll timer on virtual time, so the test does not
+	// depend on wall-clock scheduling.
+	synctest.Test(t, func(t *testing.T) {
+		embeddedRoot, dcA, _ := newDCRepositories(17, "datadog/2/CWS_DD/id1/config")
+		client, fetcher := newDCClient(t, embeddedRoot)
+		client.pollInterval = time.Millisecond
 
-	fetcher.answer = func(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
-		if len(fetcher.requests) == 1 {
-			return dcResponse(dcA, request.Client.State.RootVersion == 17), nil
+		fetcher.answer = func(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+			if len(fetcher.requests) == 1 {
+				return dcResponse(dcA, request.Client.State.RootVersion == 17), nil
+			}
+			client.Close()
+			return nil, status.Error(codes.Canceled, "context canceled")
 		}
-		client.Close()
-		return nil, status.Error(codes.Canceled, "context canceled")
-	}
-	client.pollLoop()
+		client.pollLoop()
 
-	assert.Len(t, fetcher.requests, 2)
-	assert.NoError(t, client.lastUpdateError)
+		assert.Len(t, fetcher.requests, 2)
+		assert.NoError(t, client.lastUpdateError)
+	})
 }

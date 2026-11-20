@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    System-probe no longer logs an unknown configuration key warning for
+    ``compliance_config.run_in_system_probe`` at startup. The Remote
+    Configuration client no longer logs an error, or reports a failed update,
+    when an update is cancelled because the client is shutting down.
