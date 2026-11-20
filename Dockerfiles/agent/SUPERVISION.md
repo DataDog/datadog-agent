@@ -65,8 +65,11 @@ Rules for custom scripts:
 - Environment variables exported in a script do not reach the Agent. Set container
   environment variables instead.
 
-A script runs as a background child of the entrypoint, so it starts with SIGINT and SIGQUIT
-ignored. Stopping the container during cont-init sends the script SIGTERM.
+A script runs as a background child of the entrypoint, in its own session, so it starts
+with SIGINT and SIGQUIT ignored. Stopping the container during cont-init sends SIGTERM to
+that session, including a child the script forked. The entrypoint waits for the script to exit
+before it exits. A script that ignores SIGTERM therefore delays the stop until Docker's stop
+timeout, and the container then exits with code 137.
 
 You can use custom scripts to:
 
@@ -92,8 +95,9 @@ the s6 behavior.
 
 The copy is staged under `/var/run/s6` when that directory is writable and executable.
 Otherwise it is staged under `${TMPDIR:-/tmp}`, then under `/opt/datadog-agent/run`.
-`/opt/datadog-agent/run` is a VOLUME, so a fallback directory left by a successful start
-remains until that volume is removed.
+`/opt/datadog-agent/run` is a VOLUME. A graceful stop removes the fallback directory this
+start created. If `dd-procmgrd` is killed before that, the directory remains until the
+volume is removed.
 
 ## Useful commands
 

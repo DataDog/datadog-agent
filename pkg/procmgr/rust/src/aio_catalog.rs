@@ -709,7 +709,8 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         "cont_init_pid=",
         "cleanup_dir=",
         "on_term() {",
-        r#"kill -TERM "$cont_init_pid" 2>/dev/null || true"#,
+        r#"kill -TERM -"$cont_init_pid" 2>/dev/null || kill -TERM "$cont_init_pid" 2>/dev/null || true"#,
+        r#"wait "$cont_init_pid" 2>/dev/null || true"#,
         "exit 143",
         "trap on_term TERM INT",
         r#"trap 'if [[ -n "$cleanup_dir" ]]; then chmod -R u+w "$cleanup_dir" 2>/dev/null || true; rm -rf "$cleanup_dir" 2>/dev/null || true; fi' EXIT"#,
@@ -755,7 +756,7 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         "done",
         r#"for init in "${selected[@]}"; do"#,
         r#"printf '===== RUNNING %s =====\n' "$init""#,
-        r#""$copy_dir/${init##*/}" <&0 &"#,
+        r#"setsid "$copy_dir/${init##*/}" <&0 &"#,
         "cont_init_pid=$!",
         r#"wait "$cont_init_pid""#,
         "cont_init_pid=",
@@ -825,6 +826,11 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     assert!(script.contains(
         r#"DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}""#
     ));
+    assert!(
+        script.contains("unset DD_PM_CLEANUP_DIR")
+            && script.contains("export DD_PM_CLEANUP_DIR=$cleanup_dir"),
+        "the daemon removes only the fallback directory this start created"
+    );
     assert!(
         !script.contains("IPC_CERT_FILE_PATH"),
         "an exported DD_IPC_CERT_FILE_PATH would override ipc_cert_file_path in datadog.yaml, \

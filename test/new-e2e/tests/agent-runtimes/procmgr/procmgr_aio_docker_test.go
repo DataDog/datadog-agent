@@ -420,6 +420,61 @@ EOS
 	s.Equal("143", exitCode, "docker stop during cont-init should exit 143, not 137")
 }
 
+// The entrypoint sends SIGTERM to the cont-init script's process group, so a child the
+// script forked gets TERM too. The child writes a marker from its TERM trap, and the
+// script waits for it before exiting. Without the group signal, the child never sees
+// TERM and the marker is missing.
+func (s *procmgrAIODockerSuite) TestDockerStopDuringContInitKillsForkedChild() {
+	image := s.agentImage(s.T())
+	name := "aio-stop-during-cont-init-fork"
+	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(`bash -s <<'EOS'
+set -euo pipefail
+dir=$(mktemp -d)
+cat > "$dir/90-block" <<'EOF'
+#!/bin/sh
+trap 'wait "$child"; exit 0' TERM
+/bin/sh -c 'trap "echo term > /fork-marker/child.term; exit 0" TERM; echo ready > /fork-marker/child.ready; while :; do sleep 1; done' &
+child=$!
+wait "$child"
+EOF
+chmod 0755 "$dir/90-block"
+printf '%s\n' "$dir"
+EOS
+`))
+	s.Require().NotEmpty(dir)
+
+	t := s.T()
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "rm -rf "+shSingleQuote(dir))
+	})
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro -v %s:/fork-marker %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(dir+"/90-block"),
+		shSingleQuote(dir),
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs := s.Env().RemoteHost.MustExecuteOn(c, "docker logs "+shSingleQuote(name)+" 2>&1")
+		assert.Contains(c, logs, "===== RUNNING /etc/cont-init.d/90-block =====")
+		ready := s.Env().RemoteHost.MustExecuteOn(c, "test -f "+shSingleQuote(dir+"/child.ready")+" && echo yes || echo no")
+		assert.Equal(c, "yes", strings.TrimSpace(ready))
+	}, 2*time.Minute, 2*time.Second)
+
+	s.Env().RemoteHost.MustExecute("docker stop -t 20 " + shSingleQuote(name))
+	exitCode := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
+		"docker inspect -f '{{.State.ExitCode}}' " + shSingleQuote(name)))
+	s.Equal("143", exitCode, "docker stop during a forked cont-init should exit 143")
+	term := s.Env().RemoteHost.MustExecute("cat " + shSingleQuote(dir+"/child.term") + " 2>/dev/null || echo missing")
+	s.Equal("term", strings.TrimSpace(term), "the forked child should receive SIGTERM from the cont-init process group")
+}
+
 // timeout 30: reaching dd-procmgrd would hang docker run.
 func (s *procmgrAIODockerSuite) TestContInitFailsFastWithoutAPIKey() {
 	image := s.agentImage(s.T())

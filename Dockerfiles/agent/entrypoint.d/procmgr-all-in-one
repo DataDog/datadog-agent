@@ -8,8 +8,10 @@ set -euo pipefail
 # Otherwise use ${TMPDIR:-/tmp}, then /opt/datadog-agent/run, which may be shared: plain
 # --read-only leaves /tmp read-only and --tmpfs /tmp defaults to noexec. /tmp comes first so a
 # SIGKILL leftover stays in the container's own /tmp. bash as PID 1 ignores an unhandled
-# SIGTERM, so TERM is caught for the whole script. A fallback directory is removed on the way
-# out, including when exec of dd-procmgrd fails.
+# SIGTERM, so TERM is caught for the whole script. Each cont-init script runs in its own
+# session, so that signal reaches children it forked. A fallback directory is removed on the
+# way out, including when exec of dd-procmgrd fails. A custom-service fallback that survives
+# exec is removed by dd-procmgrd after the children stop.
 stage_executes() {
     local probe="$1/.procmgr-exec-probe" status=1
     if printf '#!/bin/sh\nexit 0\n' >"$probe" && chmod 0755 "$probe" && "$probe" 2>/dev/null; then
@@ -23,7 +25,10 @@ cont_init_pid=
 cleanup_dir=
 on_term() {
     if [[ -n "$cont_init_pid" ]]; then
-        kill -TERM "$cont_init_pid" 2>/dev/null || true
+        # Once setsid has run, the pid is the session leader and a negative pid signals the
+        # whole group. Before that the group does not exist yet, so signal the pid itself.
+        kill -TERM -"$cont_init_pid" 2>/dev/null || kill -TERM "$cont_init_pid" 2>/dev/null || true
+        wait "$cont_init_pid" 2>/dev/null || true
     fi
     exit 143
 }
@@ -77,8 +82,9 @@ for init in "${inits[@]}"; do
 done
 for init in "${selected[@]}"; do
     printf '===== RUNNING %s =====\n' "$init"
-    # Background the script so the TERM handler runs while it blocks. <&0 keeps its stdin.
-    "$copy_dir/${init##*/}" <&0 &
+    # setsid makes the script a session leader. Background it so the TERM handler runs
+    # while it blocks. <&0 keeps its stdin. Job control stays off, so setsid does not fork.
+    setsid "$copy_dir/${init##*/}" <&0 &
     cont_init_pid=$!
     wait "$cont_init_pid"
     cont_init_pid=
@@ -179,6 +185,12 @@ EOF
 fi
 # The image VOLUME keeps this directory writable under Docker --read-only.
 export DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}"
+# Only the fallback directory this start created. Unset a caller-supplied value so the
+# daemon cannot remove some other path. Children do not inherit DD_PM_*.
+unset DD_PM_CLEANUP_DIR
+if [[ -n "$cleanup_dir" ]]; then
+    export DD_PM_CLEANUP_DIR=$cleanup_dir
+fi
 printf '===== STARTING dd-procmgrd =====\n'
 # set -e skips the EXIT trap when exec fails. execfail makes a failed exec return.
 set +e
