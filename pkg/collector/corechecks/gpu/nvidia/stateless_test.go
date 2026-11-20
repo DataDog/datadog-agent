@@ -874,54 +874,6 @@ func TestProcessDetailListArchitectureSupport(t *testing.T) {
 	}
 }
 
-func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
-	tests := []struct {
-		name          string
-		features      []env.Feature
-		expectMetrics bool
-		expectError   bool
-	}{
-		{
-			name:          "not emitted when kubernetes device plugins feature is absent",
-			features:      nil,
-			expectMetrics: false,
-			expectError:   true,
-		},
-		{
-			name:          "emitted when kubernetes device plugins feature is present",
-			features:      []env.Feature{env.KubernetesDevicePlugins},
-			expectMetrics: true,
-			expectError:   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			env.SetFeatures(t, tt.features...)
-
-			device := setupMockDevice(t)
-			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
-			apis := createStatelessAPIs(&CollectorDependencies{Workloadmeta: wmeta})
-			deviceUnhealthyAPI := findAPICallByName(t, apis, "device_unhealthy_count")
-
-			gotSamples, _, err := deviceUnhealthyAPI.Handler(device, 0)
-			if tt.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			if tt.expectMetrics {
-				gotMetrics := requireMetrics(t, gotSamples)
-				require.Len(t, gotMetrics, 1)
-				require.Equal(t, "device.unhealthy", gotMetrics[0].Name)
-			} else {
-				require.Empty(t, gotSamples)
-			}
-		})
-	}
-}
-
 // fakeNodeSource stands in for the cluster agent.
 type fakeNodeSource struct{}
 
@@ -1530,4 +1482,23 @@ func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInf
 
 	require.FailNowf(t, "api call not found", "expected API call %q to exist", name)
 	return apiCallInfo{}
+}
+
+func TestRecoveryActionTagValue(t *testing.T) {
+	for _, tc := range []struct {
+		code     int64
+		expected string
+	}{
+		{0, "none"},
+		{1, "reset"},
+		{2, "reboot"},
+		{3, "drain"},
+		{4, "drain_and_reset"},
+		{99, "unknown_99"},
+		{-1, "unknown_-1"},
+	} {
+		t.Run(tc.expected, func(t *testing.T) {
+			require.Equal(t, tc.expected, recoveryActionTagValue(tc.code))
+		})
+	}
 }

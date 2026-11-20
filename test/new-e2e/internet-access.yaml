@@ -320,10 +320,6 @@ entries:
   function: TestGUIWindowsSuite
   status: untriaged
   reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-configuration/inventory_test.go
-  function: TestInventoryAgentSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-configuration/secret_nix_test.go
   function: TestSecretLinuxRuntimeSuite
   status: untriaged
