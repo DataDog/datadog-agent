@@ -8,6 +8,8 @@
 package kubernetesresourceparsers
 
 import (
+	"time"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -15,7 +17,8 @@ import (
 
 // kaiPodGroupExcludedAnnotations are dropped rather than streamed to every node:
 // the first is copied by KAI from the top owner and holds its whole spec, the
-// second changes every time the PodGroup is scheduled again.
+// second changes every time the PodGroup is scheduled again. The Cluster Agent
+// reads the times they hold before they are dropped when it has to send events.
 var kaiPodGroupExcludedAnnotations = []string{
 	"kubectl.kubernetes.io/last-applied-configuration",
 	kaiLastStartAnnotation,
@@ -26,11 +29,17 @@ const (
 	kaiLastEvictionAnnotation = "kai.scheduler/last-eviction-timestamp"
 )
 
-type kaiPodGroupParser struct{}
+type kaiPodGroupParser struct {
+	events bool
+}
 
 // NewKAIPodGroupParser returns a parser for KAI Scheduler PodGroup resources.
-func NewKAIPodGroupParser() ObjectParser {
-	return kaiPodGroupParser{}
+// events fills the start and eviction times and the scheduling conditions that
+// the events of the Cluster Agent are built from. They change on every status
+// update, so they are left out when nothing needs them, to keep the store from
+// notifying its subscribers for them.
+func NewKAIPodGroupParser(events bool) ObjectParser {
+	return kaiPodGroupParser{events: events}
 }
 
 func (p kaiPodGroupParser) Parse(obj interface{}) workloadmeta.Entity {
@@ -38,8 +47,13 @@ func (p kaiPodGroupParser) Parse(obj interface{}) workloadmeta.Entity {
 	annotations := u.GetAnnotations()
 	// The excluded annotations are dropped from the entity metadata, but the
 	// Cluster Agent still needs the times they hold to emit events.
-	lastStartTime := parseRFC3339(annotations[kaiLastStartAnnotation])
-	lastEvictionTime := parseRFC3339(annotations[kaiLastEvictionAnnotation])
+	var lastStartTime, lastEvictionTime time.Time
+	var schedulingConditions []workloadmeta.KAISchedulingCondition
+	if p.events {
+		lastStartTime = parseRFC3339(annotations[kaiLastStartAnnotation])
+		lastEvictionTime = parseRFC3339(annotations[kaiLastEvictionAnnotation])
+		schedulingConditions = kaiSchedulingConditions(u)
+	}
 	for _, annotation := range kaiPodGroupExcludedAnnotations {
 		delete(annotations, annotation)
 	}
@@ -64,7 +78,7 @@ func (p kaiPodGroupParser) Parse(obj interface{}) workloadmeta.Entity {
 		PriorityClassName:    priorityClassName,
 		LastStartTime:        lastStartTime,
 		LastEvictionTime:     lastEvictionTime,
-		SchedulingConditions: kaiSchedulingConditions(u),
+		SchedulingConditions: schedulingConditions,
 	}
 }
 

@@ -248,10 +248,10 @@ func TestKueueWorkloadParser(t *testing.T) {
 		},
 	}
 
-	parser := NewKueueWorkloadParser(true)
+	parser := NewKueueWorkloadParser(true, true)
 	assert.Equal(t, expected, parser.Parse(obj))
 
-	disabled := NewKueueWorkloadParser(false)
+	disabled := NewKueueWorkloadParser(false, true)
 	expected.PodTemplateLabels = nil
 	expected.PodTemplateAnnotations = nil
 	assert.Equal(t, expected, disabled.Parse(obj))
@@ -317,7 +317,7 @@ func TestKueueWorkloadParserDeprecatedPriorityClassName(t *testing.T) {
 		},
 	}
 
-	workload := NewKueueWorkloadParser(false).Parse(obj).(*workloadmeta.KubernetesKueueWorkload)
+	workload := NewKueueWorkloadParser(false, true).Parse(obj).(*workloadmeta.KubernetesKueueWorkload)
 
 	assert.Equal(t, "legacy", workload.PriorityClassName)
 	assert.Nil(t, workload.Priority)
@@ -329,4 +329,21 @@ func TestParseRFC3339(t *testing.T) {
 	assert.True(t, parseRFC3339("").IsZero())
 	assert.True(t, parseRFC3339("yesterday").IsZero(), "a malformed value gives the zero time")
 	assert.Equal(t, time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC), parseRFC3339("2026-11-19T10:00:00Z"))
+}
+
+func TestKueueWorkloadParserWithoutEventsLeavesOutConditions(t *testing.T) {
+	obj := &unstructured.Unstructured{Object: map[string]interface{}{
+		"metadata": map[string]interface{}{"name": "job-1", "namespace": "team-a", "uid": "uid-1"},
+		"status": map[string]interface{}{
+			"conditions": []interface{}{
+				map[string]interface{}{"type": "Admitted", "status": "True", "lastTransitionTime": "2026-11-19T10:00:00Z"},
+			},
+		},
+	}}
+
+	with := NewKueueWorkloadParser(false, true).Parse(obj).(*workloadmeta.KubernetesKueueWorkload)
+	assert.Len(t, with.Conditions, 1)
+
+	without := NewKueueWorkloadParser(false, false).Parse(obj).(*workloadmeta.KubernetesKueueWorkload)
+	assert.Empty(t, without.Conditions)
 }

@@ -30,7 +30,7 @@ func TestKAIPodGroupParserFixtures(t *testing.T) {
 	require.NoError(t, list.UnmarshalJSON(jsonList))
 	require.NotEmpty(t, list.Items)
 
-	podGroup := NewKAIPodGroupParser().Parse(&list.Items[0]).(*workloadmeta.KubernetesKAIPodGroup)
+	podGroup := NewKAIPodGroupParser(true).Parse(&list.Items[0]).(*workloadmeta.KubernetesKAIPodGroup)
 	assert.Equal(t, &workloadmeta.KubernetesKAIPodGroup{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesKAIPodGroup,
@@ -84,7 +84,7 @@ func TestKAIPodGroupParserSchedulingState(t *testing.T) {
 		},
 	}
 
-	podGroup := NewKAIPodGroupParser().Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
+	podGroup := NewKAIPodGroupParser(true).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
 
 	assert.Equal(t, time.Date(2026, 10, 14, 14, 49, 10, 0, time.UTC), podGroup.LastStartTime)
 	assert.Equal(t, time.Date(2026, 10, 14, 14, 50, 0, 0, time.UTC), podGroup.LastEvictionTime)
@@ -117,7 +117,7 @@ func TestKAIPodGroupParserMalformedTimes(t *testing.T) {
 		"spec": map[string]interface{}{"queue": "research"},
 	}
 
-	podGroup := NewKAIPodGroupParser().Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
+	podGroup := NewKAIPodGroupParser(true).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
 
 	assert.True(t, podGroup.LastStartTime.IsZero())
 	assert.True(t, podGroup.LastEvictionTime.IsZero())
@@ -143,9 +143,37 @@ func TestKAIPodGroupParserInvalidQueue(t *testing.T) {
 				"spec": test.spec,
 			}
 
-			podGroup := NewKAIPodGroupParser().Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
+			podGroup := NewKAIPodGroupParser(true).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
 			assert.Equal(t, "ns/pg", podGroup.ID)
 			assert.Empty(t, podGroup.QueueName)
 		})
 	}
+}
+
+func TestKAIPodGroupParserWithoutEventsLeavesOutStatusFields(t *testing.T) {
+	obj := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"name": "pg", "namespace": "ns", "uid": "uid-1",
+			"annotations": map[string]interface{}{
+				kaiLastStartAnnotation:    "2026-11-19T10:00:00Z",
+				kaiLastEvictionAnnotation: "2026-11-19T10:05:00Z",
+			},
+		},
+		"status": map[string]interface{}{
+			"schedulingConditions": []interface{}{
+				map[string]interface{}{"type": "Unschedulable", "status": "True", "nodePool": "default"},
+			},
+		},
+	}
+
+	with := NewKAIPodGroupParser(true).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
+	assert.False(t, with.LastStartTime.IsZero())
+	assert.False(t, with.LastEvictionTime.IsZero())
+	assert.Len(t, with.SchedulingConditions, 1)
+
+	without := NewKAIPodGroupParser(false).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
+	assert.True(t, without.LastStartTime.IsZero())
+	assert.True(t, without.LastEvictionTime.IsZero())
+	assert.Empty(t, without.SchedulingConditions)
+	assert.NotContains(t, without.Annotations, kaiLastStartAnnotation)
 }

@@ -27,6 +27,7 @@ type kueueResourceFlavorParser struct{}
 
 type kueueWorkloadParser struct {
 	podTemplateTags bool
+	events          bool
 }
 
 // NewKueueQueueParser returns a parser for Kueue queue resources.
@@ -44,9 +45,12 @@ func NewKueueResourceFlavorParser() ObjectParser {
 
 // NewKueueWorkloadParser returns a parser for Kueue Workload resources.
 // podTemplateTags copies labels and annotations shared by every pod set template
-// onto the workload entity.
-func NewKueueWorkloadParser(podTemplateTags bool) ObjectParser {
-	return kueueWorkloadParser{podTemplateTags: podTemplateTags}
+// onto the workload entity. events fills the conditions that the events of the
+// Cluster Agent are built from. They change on every status update, so they are
+// left out when nothing needs them, to keep the store from notifying its
+// subscribers for them.
+func NewKueueWorkloadParser(podTemplateTags, events bool) ObjectParser {
+	return kueueWorkloadParser{podTemplateTags: podTemplateTags, events: events}
 }
 
 func (p kueueQueueParser) Parse(obj interface{}) workloadmeta.Entity {
@@ -134,6 +138,11 @@ func (p kueueWorkloadParser) Parse(obj interface{}) workloadmeta.Entity {
 		priorityClassName, _, _ = unstructured.NestedString(u.Object, "spec", "priorityClassName")
 	}
 
+	var conditions []workloadmeta.KueueWorkloadCondition
+	if p.events {
+		conditions = kueueWorkloadConditions(u)
+	}
+
 	return &workloadmeta.KubernetesKueueWorkload{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesKueueWorkload,
@@ -148,7 +157,7 @@ func (p kueueWorkloadParser) Parse(obj interface{}) workloadmeta.Entity {
 		CreationTimestamp:      u.GetCreationTimestamp().UTC(),
 		Priority:               priority,
 		PriorityClassName:      priorityClassName,
-		Conditions:             kueueWorkloadConditions(u),
+		Conditions:             conditions,
 	}
 }
 
