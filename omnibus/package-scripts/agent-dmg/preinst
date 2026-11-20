@@ -192,7 +192,8 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     # The configuration belongs to the account that owns it, the Agent's on current installs, so
     # each file is read as that account and written as root into the root-only staging directory:
     # the saved copy holds nothing that account could not read itself. Links are saved as links,
-    # never followed.
+    # never followed. A file that account cannot read is reported and not saved; nothing removes it
+    # from the configuration directory, so it stays as it is.
     CONF_OWNER=$(stat -f %Su "$CONF_DIR")
     (
         cd "$CONF_DIR" || exit 0
@@ -210,6 +211,7 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
                         echo "saved $rel"
                     else
                         rm -f "$dst"
+                        echo "WARNING: not saving $rel: $owner cannot read it. It is left in place in the configuration directory."
                     fi
                 done
             ' sh "$SAVED_CONF_DIR" "$CONF_OWNER" {} + 2>/dev/null || true
