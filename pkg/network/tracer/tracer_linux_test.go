@@ -3744,7 +3744,7 @@ func (s *TracerSuite) TestNATFromEbpfConntracker() {
 		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
 			t.Skip("the sk tracer doesn't classify with the net_dev_queue map")
 		}
-		require.Nil(t, sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane))
+		require.Nil(t, sharedConntrackNATMap(cfg, tr.conntracker, kprobe.ClassificationSupported(cfg), hostBPFNATDataplane))
 		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 		require.NoError(t, err)
 		assert.Equal(t, cfg.MaxTrackedConnections, m.MaxEntries())
@@ -3815,7 +3815,10 @@ func requireConntrackNATMapShared(t *testing.T, cfg *config.Config, tr *Tracer) 
 	if !slices.ContainsFunc(ctks, func(c netlink.Conntracker) bool { _, ok := c.(*ebpfConntracker); return ok }) {
 		t.Skip("ebpf conntracker not loaded")
 	}
-	natMap := sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane)
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported, so the map isn't shared")
+	}
+	natMap := sharedConntrackNATMap(cfg, tr.conntracker, true, hostBPFNATDataplane)
 	require.NotNil(t, natMap, "ebpf conntracker map not shared")
 	m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 	require.NoError(t, err)
