@@ -491,7 +491,7 @@ func TestUnschedulableGPUs(t *testing.T) {
 	assert.Equal(t, want, rr.UnschedulableGPUs, "MIG GPUs are not counted")
 
 	host := rr.Levels[1]
-	assert.Equal(t, StateCounts{1, 0, 1, 3}, host.Domains, "degraded host is full on its allocatable")
+	assert.Equal(t, StateCounts{1, 0, 1, 3}, host.Domains, "degraded host is fully occupied on its allocatable")
 	assert.Equal(t, 14, rr.Levels[0].DomainStats[0].Allocatable)
 }
 
@@ -650,6 +650,18 @@ func TestGPUTypes(t *testing.T) {
 	assert.Equal(t, StateCounts{1, 0, 0, 0}, unknown.Domains)
 	assert.Equal(t, slots(8, 4, 2), unknown.LargestFreeSlots, "pod sizes are bounded per type")
 	assert.Equal(t, StateCounts{1, 0, 1, 0}, res.Resources[1].Levels[1].Domains, "h100 hosts")
+
+	// Unschedulable GPUs and pod sizes are per type too.
+	cordoned := gpuNode("a100-cordoned", product("NVIDIA-A100-SXM4-80GB"), 8, nvidia)
+	cordoned.Unschedulable = true
+	small := gpuNode("t4", product("Tesla-T4"), 1, nvidia)
+	res = Compute(Topology{Levels: []string{rackLabel}}, append(nodes, cordoned, small), alloc)
+	require.Len(t, res.Resources, 4)
+	assert.Equal(t, "a100", res.Resources[0].GPUType)
+	assert.Equal(t, 8, res.Resources[0].UnschedulableGPUs[ReasonNodeUnavailable])
+	assert.Equal(t, 0, res.Resources[1].UnschedulableGPUs[ReasonNodeUnavailable], "h100")
+	assert.Equal(t, "t4", res.Resources[2].GPUType)
+	assert.Equal(t, slots(1), res.Resources[2].Levels[0].LargestFreeSlots, "t4 hosts bound their own sizes")
 }
 
 func TestGPUTypeSources(t *testing.T) {
@@ -665,6 +677,11 @@ func TestGPUTypeSources(t *testing.T) {
 		{"EKS Karpenter", map[string]string{"karpenter.k8s.aws/instance-gpu-name": "h100"}, "h100"},
 		{"AMD node labeller", map[string]string{"amd.com/gpu.product-name": "AMD_Instinct_MI300X"}, "mi300x"},
 		{"AMD without vendor prefix", map[string]string{"amd.com/gpu.product-name": "Instinct_MI210"}, "mi210"},
+		{"GFD A100", map[string]string{labelGPUProduct: "NVIDIA-A100-SXM4-80GB"}, "a100"},
+		{"GFD T4", map[string]string{labelGPUProduct: "Tesla-T4"}, "t4"},
+		{"GFD RTX 3090", map[string]string{labelGPUProduct: "NVIDIA-GeForce-RTX-3090"}, "rtx_3090"},
+		{"GFD -SHARED gives the base type", map[string]string{labelGPUProduct: "NVIDIA-H100-80GB-HBM3-SHARED"}, "h100"},
+		{"AMD node without product-name label", map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"}, GPUTypeUnknown},
 		{"GFD wins over GKE", map[string]string{labelGPUProduct: "NVIDIA-A100-SXM4-80GB", "cloud.google.com/gke-accelerator": "nvidia-h100-80gb"}, "a100"},
 		{"EKS Karpenter a10g joins the node check's a10", map[string]string{"karpenter.k8s.aws/instance-gpu-name": "a10g"}, "a10"},
 		{"GKE l40s joins the node check's l40", map[string]string{"cloud.google.com/gke-accelerator": "nvidia-l40s"}, "l40"},
