@@ -312,7 +312,7 @@ func waitForInstallerCommand(ctx context.Context, deadline launchd.Deadline, tok
 //
 // The reverting marker means the hook could not hand every agent job back. This finishes it, every
 // job and the daemon with it (revertFromWatcher).
-func handBackInstaller(ctx context.Context) (err error) {
+func handBackInstaller(ctx context.Context) error {
 	lock, err := waitForInstallerLock(ctx, func() (bool, error) { return true, nil })
 	if err != nil {
 		return fmt.Errorf("hand-back: %w", err)
@@ -338,7 +338,7 @@ func handBackInstaller(ctx context.Context) (err error) {
 		return nil
 	}
 	e := configExperiment{jobs: installerJobSet()}
-	if handedBack, err := installerOnStableJob(ctx); err != nil {
+	if handedBack, err := e.onStableJob(ctx, installerJob); err != nil {
 		log.Warnf("hand-back: could not tell which job the installer daemon is on, handing it back: %v", err)
 	} else if handedBack {
 		// Another hand-back got there first. Swapping again would stop the stable daemon it just
@@ -355,18 +355,6 @@ func handBackInstaller(ctx context.Context) (err error) {
 		return fmt.Errorf("hand-back: %w", err)
 	}
 	return nil
-}
-
-// installerOnStableJob reports whether the installer daemon is on its stable job only: the stable
-// job loaded and the experiment one not. With neither loaded -- a swap that failed halfway -- the
-// daemon is not on its stable job, and a hand-back still has to start it.
-func installerOnStableJob(ctx context.Context) (bool, error) {
-	client := launchdClient()
-	experiment, err := client.Loaded(ctx, installerJob+string(launchd.Experiment))
-	if err != nil || experiment {
-		return false, err
-	}
-	return client.Loaded(ctx, installerJob)
 }
 
 // errInstallerLock wraps every failure to take the installer's lock other than a timeout.
@@ -425,8 +413,11 @@ func (e configExperiment) restoreStableJobs(ctx context.Context) error {
 		var failed []string
 		errs = nil
 		for _, label := range pending {
-			if e.keepRunningStable && e.onStableJob(ctx, label) {
-				continue
+			if e.keepRunningStable {
+				// A label launchctl cannot tell about is handed back as usual.
+				if onStable, err := e.onStableJob(ctx, label); err == nil && onStable {
+					continue
+				}
 			}
 			if err := e.jobs.Swap(ctx, label, launchd.Experiment, launchd.Stable); err != nil {
 				failed = append(failed, label)
@@ -441,13 +432,13 @@ func (e configExperiment) restoreStableJobs(ctx context.Context) error {
 	return fmt.Errorf("could not restore %s after %d attempts: %w", strings.Join(pending, ", "), configExperimentRestoreRetries, errors.Join(errs...))
 }
 
-// onStableJob reports whether label is already on its stable job: the stable job loaded and the
-// experiment one not. A label launchctl cannot tell about is not, so it is handed back as usual.
-func (e configExperiment) onStableJob(ctx context.Context, label string) bool {
-	stable, err := e.jobs.Client.Print(ctx, label+string(launchd.Stable))
-	if err != nil || !stable.Loaded {
-		return false
+// onStableJob reports whether label is on its stable job only: the stable job loaded and the
+// experiment one not. With neither loaded -- a swap that failed halfway -- the label is not on its
+// stable job, and a hand-back still has to start it.
+func (e configExperiment) onStableJob(ctx context.Context, label string) (bool, error) {
+	experiment, err := e.jobs.Client.Loaded(ctx, label+string(launchd.Experiment))
+	if err != nil || experiment {
+		return false, err
 	}
-	experiment, err := e.jobs.Client.Print(ctx, label+string(launchd.Experiment))
-	return err == nil && !experiment.Loaded
+	return e.jobs.Client.Loaded(ctx, label+string(launchd.Stable))
 }

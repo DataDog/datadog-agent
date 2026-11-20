@@ -270,17 +270,26 @@ func (s *experimentSupervisor) lead(ctx context.Context) error {
 	if err := stopSurvivingWatchers(ctx); err != nil {
 		log.Warnf("watcher: could not stop a previous watcher, supervising anyway: %v", err)
 	}
-	observer, exits, armed, reason, err := s.arm(ctx, agentJobSet())
-	if err != nil {
+	if armed, err := s.armFirst(ctx, agentJobSet()); err != nil || !armed {
 		return err
 	}
+	go func() { s.handOver <- s.handOverInstaller(ctx) }()
+	return nil
+}
+
+// armFirst arms on jobs, the first stage of either watcher, and starts watching the deadline's
+// directory. A job that already failed the experiment ends it from here, and reports false.
+func (s *experimentSupervisor) armFirst(ctx context.Context, jobs launchd.JobSet) (bool, error) {
+	observer, exits, armed, reason, err := s.arm(ctx, jobs)
+	if err != nil {
+		return false, err
+	}
 	if reason != "" {
-		return s.endWithFailure(ctx, reason)
+		return false, s.endWithFailure(ctx, reason)
 	}
 	s.agentObserver, s.agentExits, s.agentArmed = observer, exits, armed
 	s.watchState()
-	go func() { s.handOver <- s.handOverInstaller(ctx) }()
-	return nil
+	return true, nil
 }
 
 // handOverInstaller hands the installer daemon over from its stable job to its experiment one, and
@@ -371,15 +380,9 @@ func (s *experimentSupervisor) handOverInstaller(ctx context.Context) handOverRe
 // The stop runs in the background: W1 keeps supervising for its signal grace, and owns the
 // experiment daemon's exit until it is gone.
 func (s *experimentSupervisor) takeOver(ctx context.Context) error {
-	observer, exits, armed, reason, err := s.arm(ctx, configExperimentJobSet())
-	if err != nil {
+	if armed, err := s.armFirst(ctx, configExperimentJobSet()); err != nil || !armed {
 		return err
 	}
-	if reason != "" {
-		return s.endWithFailure(ctx, reason)
-	}
-	s.agentObserver, s.agentExits, s.agentArmed = observer, exits, armed
-	s.watchState()
 	go func() {
 		if err := stopOtherWatchers(ctx); err != nil {
 			log.Warnf("watcher: could not stop the other watchers: %v", err)
@@ -393,14 +396,11 @@ func (s *experimentSupervisor) takeOver(ctx context.Context) error {
 // owns reports whether this watcher acts on a failure of the job label, without its variant suffix;
 // "" stands for a failure no job reported, like the deadline expiring. See watchExperiment.
 func (s *experimentSupervisor) owns(ctx context.Context, label string) bool {
-	if s.role == secondWatcher {
-		if label != installerJob || s.predecessorGone.Load() {
-			return true
-		}
-		running, err := watcherRunning(ctx)
-		return err != nil || !running
+	daemonExit := label == installerJob
+	if s.role == firstWatcher && daemonExit {
+		return true
 	}
-	if label == installerJob {
+	if s.role == secondWatcher && (!daemonExit || s.predecessorGone.Load()) {
 		return true
 	}
 	running, err := watcherRunning(ctx)
