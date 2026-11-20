@@ -81,10 +81,6 @@ fn open_stdio_file(path: &Path) -> io::Result<File> {
 fn stdio_file_type_name(file_type: &std::fs::FileType) -> &'static str {
     if file_type.is_fifo() {
         "fifo"
-    } else if file_type.is_socket() {
-        "socket"
-    } else if file_type.is_dir() {
-        "directory"
     } else if file_type.is_block_device() {
         "block device"
     } else {
@@ -327,15 +323,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("stdio.fifo");
         make_fifo(&path);
-        let c_path = c_string(&path);
-        // SAFETY: `c_path` is a NUL-terminated path and outlives the call.
-        let reader = unsafe { libc::open(c_path.as_ptr(), libc::O_RDONLY | libc::O_NONBLOCK) };
-        assert!(reader >= 0, "open reader: {}", io::Error::last_os_error());
-        let result = open_stdio_file(&path);
-        // SAFETY: `reader` is the descriptor opened above.
-        unsafe { libc::close(reader) };
-
-        let err = result.unwrap_err();
+        let _reader = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(&path)
+            .unwrap();
+        let err = open_stdio_file(&path).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
         assert!(err.to_string().contains("fifo"), "{err}");
     }
