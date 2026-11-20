@@ -35,8 +35,8 @@ const (
 
 	// configExperimentRestoreRetries bounds restoreStableJobs's attempts at handing each label back
 	// to its stable job. A transient disk or launchd hiccup is the most plausible failure here;
-	// anything that still fails after this many attempts is reported and left for the next daemon
-	// start to retry (see restoreStable), not retried forever here.
+	// anything that still fails after this many attempts is reported and left, with the reverting
+	// marker, for whatever ends the experiment next to retry (see restoreStable).
 	configExperimentRestoreRetries = 4
 )
 

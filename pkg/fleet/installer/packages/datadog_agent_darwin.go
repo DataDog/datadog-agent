@@ -44,7 +44,7 @@ const startSupervisorRelayCommand = "startSupervisorRelay"
 
 // handBackInstallerCommand is the package-command name of the detached process that hands the
 // installer daemon back to its stable job after a configuration experiment is stopped or promoted,
-// when no watcher answers on the supervisor socket (handBackInstallerAfterHook).
+// when no watcher is running to do it (handBackInstallerAfterHook).
 const handBackInstallerCommand = "handBackInstaller"
 
 var datadogAgentPackage = hooks{
