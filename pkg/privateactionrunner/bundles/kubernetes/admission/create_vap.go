@@ -7,6 +7,7 @@ package com_datadoghq_kubernetes_admissionregistration
 
 import (
 	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 
@@ -41,6 +42,10 @@ func (h *CreateValidatingAdmissionPolicyHandler) Run(
 	inputs, err := types.ExtractInputs[CreateValidatingAdmissionPolicyInputs](task)
 	if err != nil {
 		return nil, err
+	}
+
+	if inputs.Body == nil {
+		return nil, errors.New("body is required")
 	}
 
 	client, err := support.KubeClient(credential)

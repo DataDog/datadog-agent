@@ -44,6 +44,7 @@ dd_agent_go_test(
     name = "impl-pipeline_test",
     srcs = [
         "flare_filler_test.go",
+        "pipeline_test.go",
         "status_test.go",
     ],
     embed = [":impl-pipeline"],
@@ -53,7 +54,9 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/flare/helpers",
         "//comp/core/ipc/mock",
+        "//comp/core/log/mock",
         "//comp/def",
+        "//comp/otelcol/otlp/configcheck",
         "//pkg/config/mock",
         "//pkg/config/model",
         "@com_github_stretchr_testify//assert",
