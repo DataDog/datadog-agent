@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix Agent upgrades and configuration changes through Fleet Automation on Linux
+    sometimes reporting a ``context canceled`` failure after the change had completed.
+    Starting, promoting or stopping an experiment restarts the installer daemon's own
+    systemd unit, and the installer stopped waiting for its hooks 10 seconds after
+    being signaled.

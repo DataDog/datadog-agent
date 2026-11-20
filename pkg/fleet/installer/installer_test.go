@@ -324,6 +324,33 @@ func TestUninstallExperiment(t *testing.T) {
 	})
 }
 
+func TestUninstallAgentExperimentSurvivesUnitStop(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("only the Linux experiment hooks stop the unit running the installer")
+	}
+	s := fixtures.NewServer(t)
+	installer := newTestPackageManager(t, s, t.TempDir())
+	defer installer.db.Close()
+	assert.NoError(t, installer.packages.Create(testCtx, packageDatadogAgent, "7.0.0", t.TempDir()))
+	assert.NoError(t, installer.packages.Get(packageDatadogAgent).SetExperiment(testCtx, "7.1.0", t.TempDir()))
+
+	// preStopExperiment stops the unit running the installer, and systemd's SIGTERM cancels the command context.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	preStopExperimentCall := installer.testHooks.On("PreStopExperiment", mock.Anything, packageDatadogAgent).Run(func(mock.Arguments) { cancel() })
+	installer.testHooks.On("PostStopExperiment", mock.Anything, packageDatadogAgent).Run(func(args mock.Arguments) {
+		assert.NoError(t, args.Get(0).(context.Context).Err())
+	}).NotBefore(preStopExperimentCall)
+
+	err := installer.RemoveExperiment(ctx, packageDatadogAgent)
+	assert.NoError(t, err)
+	installer.testHooks.AssertExpectations(t)
+	state, err := installer.packages.Get(packageDatadogAgent).GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, "7.0.0", state.Stable)
+	assert.False(t, state.HasExperiment())
+}
+
 func TestInstallSkippedWhenAlreadyInstalled(t *testing.T) {
 	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir())
