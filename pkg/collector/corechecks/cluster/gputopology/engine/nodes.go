@@ -89,8 +89,8 @@ func (s NodeState) String() string {
 const (
 	GPUResourceMIG    = "mig"                              // any MIG strategy
 	GPUResourceShared = string(gpu.GpuNvidiaGenericShared) // time-slicing or MPS
-	// GPUTypeUnknown is the GPU type of nodes without a parseable
-	// nvidia.com/gpu.product label.
+	// GPUTypeUnknown is the GPU type of nodes without a parseable GPU type
+	// label (see gpuTypeLabels).
 	GPUTypeUnknown = "unknown"
 	// GPUResourceNone is not produced by the engine: the check tags its zero
 	// node counts with it when Result.Nodes is empty.
@@ -176,11 +176,42 @@ func unsupported(n Node) string {
 	return ""
 }
 
-// gpuType returns the node's GPU type from its GFD product label, with the
-// same normalization as the gpu_type tag of the node GPU check.
+// gpuTypeLabels are the node labels the GPU type is read from, in order: the
+// first one present with a parseable value wins. Each value is turned into a device name that gpu.ExtractGPUType
+// parses, so the type matches the gpu_type tag of the node GPU check.
+var gpuTypeLabels = []struct {
+	label    string
+	toDevice func(string) string
+}{
+	// NVIDIA GPU Feature Discovery, e.g. NVIDIA-H100-80GB-HBM3.
+	{labelGPUProduct, gpu.GFDLabelToGPUDeviceName},
+	// GKE without the GPU Operator, e.g. nvidia-tesla-a100, nvidia-h100-80gb.
+	{"cloud.google.com/gke-accelerator", func(v string) string {
+		v = strings.TrimPrefix(v, "nvidia-tesla-")
+		return "nvidia " + strings.TrimPrefix(v, "nvidia-")
+	}},
+	// EKS with Karpenter, e.g. h100, a10g (NVIDIA names).
+	{"karpenter.k8s.aws/instance-gpu-name", func(v string) string { return "nvidia " + v }},
+	// AMD GPU node labeller, e.g. AMD_Instinct_MI300X or Instinct_MI300X.
+	{"amd.com/gpu.product-name", func(v string) string {
+		if strings.HasPrefix(strings.ToLower(v), "amd") {
+			return v
+		}
+		return "amd " + v
+	}},
+}
+
+// gpuType returns the node's GPU type from the first parseable
+// gpuTypeLabels label, or GPUTypeUnknown.
 func gpuType(n Node) string {
-	if t := gpu.ExtractGPUType(gpu.GFDLabelToGPUDeviceName(n.Labels[labelGPUProduct])); t != "" {
-		return t
+	for _, l := range gpuTypeLabels {
+		v, ok := n.Labels[l.label]
+		if !ok || v == "" {
+			continue
+		}
+		if t := gpu.ExtractGPUType(l.toDevice(v)); t != "" {
+			return t
+		}
 	}
 	return GPUTypeUnknown
 }

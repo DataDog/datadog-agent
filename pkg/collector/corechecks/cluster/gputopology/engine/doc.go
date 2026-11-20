@@ -58,10 +58,14 @@
 // an implicit host level keyed on the node name is appended and flagged
 // Implicit, as Kueue >= 0.20 does internally.
 //
-// Everything is computed per (GPU resource, GPU type). The GPU type comes
-// from the nvidia.com/gpu.product label, normalized like the gpu_type tag of
-// the node GPU check ("unknown" when missing), so a rack with H100 and A100
-// nodes is one rack per type. Domains contain the labelled nodes
+// Everything is computed per (GPU resource, GPU type), so a rack with H100
+// and A100 nodes is one rack per type. The GPU type is read from the first
+// parseable label among nvidia.com/gpu.product (GFD),
+// cloud.google.com/gke-accelerator (GKE), karpenter.k8s.aws/instance-gpu-name
+// (EKS Karpenter) and amd.com/gpu.product-name (AMD node labeller), see
+// gpuTypeLabels, normalized like the gpu_type tag of the node GPU check. It is
+// "unknown" otherwise. Nodes with no GPU evidence (CPU-only) are ignored
+// entirely, so they never create an "unknown" partition. Domains contain the labelled nodes
 // attributed to the resource (any state but unsupported and missing_labels),
 // but only in_topology nodes contribute capacity (= allocatable). Free =
 // allocatable - allocated, clamped at 0 per node (overcommit is reported in
