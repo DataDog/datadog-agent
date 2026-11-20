@@ -358,7 +358,10 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 		chunk.Origin = semantics.LookupString(reg, semantics.NewStringMapAccessor(root.Meta), semantics.ConceptDDOrigin)
 	}
 
-	if _, ok := chunk.Tags[tagDecisionMaker]; !ok {
+	// A chunk-level decision maker of mechanism 0 ("-0" or "0", the tracer's startup fallback) is
+	// treated as missing, so that a real decision found on the spans still replaces it. When the spans
+	// carry no decision maker, the chunk's own value is left untouched.
+	if chunkDM, ok := chunk.Tags[tagDecisionMaker]; !ok || isDefaultDecisionMaker(chunkDM) {
 		// There are downstream systems that rely on this tag being on the span,
 		// so it is copied rather than moved.
 		if dm, ok := chunkDecisionMaker(chunk.Spans); ok {
@@ -384,9 +387,8 @@ func chunkDecisionMaker(spans []*pb.Span) (string, bool) {
 		if !ok {
 			continue
 		}
-		digits, _ := strings.CutPrefix(dm, "-")
-		mechanism, err := strconv.ParseUint(digits, 10, 32)
-		if err != nil {
+		mechanism, ok := decisionMakerMechanism(dm)
+		if !ok {
 			continue
 		}
 		if mechanism != 0 {
@@ -397,6 +399,21 @@ func chunkDecisionMaker(spans []*pb.Span) (string, bool) {
 		}
 	}
 	return fallback, hasFallback
+}
+
+// decisionMakerMechanism parses a decision maker (digits, normally prefixed by "-") into its
+// sampling mechanism. It reports false when dm isn't a valid uint32 mechanism.
+func decisionMakerMechanism(dm string) (uint64, bool) {
+	digits, _ := strings.CutPrefix(dm, "-")
+	mechanism, err := strconv.ParseUint(digits, 10, 32)
+	return mechanism, err == nil
+}
+
+// isDefaultDecisionMaker reports whether dm is sampling mechanism 0 ("-0" or "0"), the tracer's
+// startup fallback, which says nothing about how the chunk was actually sampled.
+func isDefaultDecisionMaker(dm string) bool {
+	mechanism, ok := decisionMakerMechanism(dm)
+	return ok && mechanism == 0
 }
 
 // normalizeTrace takes a trace and

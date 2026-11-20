@@ -729,6 +729,44 @@ func TestTagDecisionMakerPrefersRealDecision(t *testing.T) {
 	}
 }
 
+// TestTagDecisionMakerChunkDefault checks that a chunk-level decision maker of mechanism 0 ("-0" or
+// "0") is treated as missing, so that a real decision on the spans replaces it, while any other
+// chunk-level value is kept.
+func TestTagDecisionMakerChunkDefault(t *testing.T) {
+	tests := []struct {
+		name     string
+		chunkDM  string
+		spanDMs  []string
+		expected string
+	}{
+		{"default replaced by span decision", "-0", []string{"-0", "-3"}, "-3"},
+		{"bare zero replaced by span decision", "0", []string{"-3"}, "-3"},
+		{"zero-valued default replaced", "-00", []string{"-8"}, "-8"},
+		{"default kept without span decision", "-0", []string{""}, "-0"},
+		{"default kept when spans only have invalid", "-0", []string{"invalid"}, "-0"},
+		{"default kept when spans only have default", "-0", []string{"-0"}, "-0"},
+		{"real chunk decision kept", "-3", []string{"-8"}, "-3"},
+		{"real chunk decision kept over span default", "-3", []string{"-0"}, "-3"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := newTestSpan()
+			chunk := testutil.TraceChunkWithSpan(root)
+			chunk.Tags = map[string]string{tagDecisionMaker: tt.chunkDM}
+			chunk.Spans = nil
+			for _, dm := range tt.spanDMs {
+				s := newTestSpan()
+				if dm != "" {
+					traceutil.SetMeta(s, tagDecisionMaker, dm)
+				}
+				chunk.Spans = append(chunk.Spans, s)
+			}
+			setChunkAttributes(chunk, root)
+			assert.Equal(t, tt.expected, chunk.Tags[tagDecisionMaker])
+		})
+	}
+}
+
 // TestTagDecisionMakerNilChunkTags covers a v0.7 payload that omits the chunk
 // "tags" key entirely: the decoder leaves Tags nil, and promoting the span-level
 // decision maker into it must not panic.
