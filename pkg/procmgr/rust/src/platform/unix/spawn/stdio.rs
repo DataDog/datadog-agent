@@ -267,7 +267,8 @@ mod tests {
         std::fs::write(&target, "original").unwrap();
         let link = dir.path().join("link.log");
         std::os::unix::fs::symlink(&target, &link).unwrap();
-        assert!(open_stdio_file(&link).is_err());
+        let err = open_stdio_file(&link).unwrap_err();
+        assert_eq!(err.raw_os_error(), Some(libc::ELOOP), "{err}");
         assert_eq!(std::fs::read_to_string(&target).unwrap(), "original");
     }
 
@@ -277,7 +278,8 @@ mod tests {
         let missing = dir.path().join("missing.log");
         let link = dir.path().join("link.log");
         std::os::unix::fs::symlink(&missing, &link).unwrap();
-        assert!(open_stdio_file(&link).is_err());
+        let err = open_stdio_file(&link).unwrap_err();
+        assert_eq!(err.raw_os_error(), Some(libc::ELOOP), "{err}");
         assert!(!missing.exists());
     }
 
@@ -315,7 +317,8 @@ mod tests {
         let result = rx
             .recv_timeout(Duration::from_secs(5))
             .expect("open_stdio_file blocked on a FIFO with no reader");
-        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.raw_os_error(), Some(libc::ENXIO), "{err}");
     }
 
     #[test]
@@ -352,7 +355,8 @@ mod tests {
     #[test]
     fn directory_is_rejected() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(open_stdio_file(dir.path()).is_err());
+        let err = open_stdio_file(dir.path()).unwrap_err();
+        assert_eq!(err.raw_os_error(), Some(libc::EISDIR), "{err}");
     }
 
     #[test]
