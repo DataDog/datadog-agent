@@ -16,7 +16,6 @@ unless do_repackage?
   # creates required build directories
   dependency 'datadog-agent-prepare'
 
-  # <<<<< HEAD
   dependency "python3"
   dependency 'datadog-agent-integrations-py3'
 
@@ -39,9 +38,6 @@ unless do_repackage?
       # still want to keep
       command "find #{install_dir} -type d -empty -delete"
   end
-  # MAIN =======
-  dependency 'datadog-agent-dependencies'
-  #  END dd555376b8 (Remove unneeded python spec in legcay omnibus)
 end
 
 source path: '..',
