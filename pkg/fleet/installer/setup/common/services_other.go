@@ -3,16 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !linux && !windows
+
 package common
 
 import "context"
 
-// restartServices is a no-op: the macOS package hooks restart the LaunchDaemons.
+// restartServices is a no-op: outside Linux, the package hooks restart the services.
 func (s *Setup) restartServices(_ context.Context, _ []packageWithVersion) error {
 	return nil
 }
 
-// stopServices is a no-op: the macOS package hooks stop the LaunchDaemons.
+// stopServices is a no-op: outside Linux, the package hooks stop the services.
 func (s *Setup) stopServices(_ context.Context, _ []packageWithVersion) error {
 	return nil
 }
