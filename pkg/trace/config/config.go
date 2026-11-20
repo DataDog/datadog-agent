@@ -476,7 +476,8 @@ type AgentConfig struct {
 	PipeBufferSize         int
 	PipeSecurityDescriptor string
 
-	GUIPort string // the port of the Datadog Agent GUI (for control access)
+	// Deprecated: unused; the trace-agent does not talk to the GUI.
+	GUIPort string
 
 	// Writers
 	SynchronousFlushing     bool // Mode where traces are only submitted when FlushAsync is called, used for Serverless Extension
@@ -752,7 +753,6 @@ func New() *AgentConfig {
 		},
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
-		GUIPort:                "5002",
 
 		StatsWriter:             new(WriterConfig),
 		TraceWriter:             new(WriterConfig),
