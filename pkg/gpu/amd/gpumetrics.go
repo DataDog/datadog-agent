@@ -76,11 +76,10 @@ const (
 	// maxGPUMetricsSize bounds a table: structure_size is 16-bit, and amdgpu
 	// returns at most one page.
 	maxGPUMetricsSize = math.MaxUint16
-	// gfxBusySkewPeriods and gfxBusyDriftPeriods bound the difference between
-	// the increases of GFX_ACTIVITY_ACC and of the mean of GFX_BUSY_ACC, in
-	// periods at 100%; see gfxBusyTolerance.
-	gfxBusySkewPeriods  = 4
-	gfxBusyDriftPeriods = 1000
+	// gfxBusyTolerance is the largest difference, in percent-periods, between
+	// GFX_ACTIVITY_ACC and the mean of GFX_BUSY_ACC: 100 periods at 100%. The
+	// real MI300X and MI350X tables differ by at most 1 and 131.
+	gfxBusyTolerance = 100 * 100
 )
 
 // gpuMetricsAttrID is an attribute ID of the dynamic gpu_metrics format, from
@@ -324,10 +323,6 @@ type GPUMetrics struct {
 	// period.
 	GFXActivityAcc Counter
 	MemActivityAcc Counter
-	// gfxBusyMean is the mean of the filled per-XCD GFX_BUSY_ACC, invalid when
-	// none is filled, and gfxActivityMask the width of GFX_ACTIVITY_ACC.
-	gfxBusyMean     Counter
-	gfxActivityMask uint64
 
 	// PCIeReplayCount is a cumulative firmware counter of PCIe replays; on a
 	// VF it can persist across guest driver loads.
@@ -345,6 +340,9 @@ type GPUMetrics struct {
 
 	// Skipped lists the used fields left out for their instance count.
 	Skipped []SkippedField
+	// Implausible lists the fields dropped because they contradict another
+	// field of the table.
+	Implausible []string
 }
 
 // gpuMetricsAttr is a decoded attribute: its encoding and the raw bits of
@@ -418,9 +416,9 @@ func ParseGPUMetrics(data []byte) (*GPUMetrics, error) {
 	gm.XGMIWriteKB = values[attrXGMIWriteDataAcc]
 	gm.XGMILinkSpeedGTs = scalar(attrXGMILinkSpeed)
 	gm.XGMILinkWidth = scalar(attrXGMILinkWidth)
-	if gm.GFXActivityAcc.Valid {
-		gm.gfxActivityMask = uint64(math.MaxUint64) >> (64 - 8*attrs[attrGFXActivityAcc].typ.size())
-		gm.gfxBusyMean = meanCounter(values[attrGFXBusyAcc])
+	if gm.GFXActivityAcc.Valid && !gfxActivityMatchesBusy(gm.GFXActivityAcc.Value, attrs[attrGFXActivityAcc].typ, values[attrGFXBusyAcc]) {
+		gm.GFXActivityAcc = Counter{}
+		gm.Implausible = append(gm.Implausible, "gfx_activity_acc")
 	}
 	return gm, nil
 }
@@ -436,46 +434,26 @@ func counterValues(attr *gpuMetricsAttr) []Counter {
 	return values
 }
 
-// meanCounter returns the mean of the valid values, invalid when there is none.
-func meanCounter(values []Counter) Counter {
+// gfxActivityMatchesBusy reports whether GFX_ACTIVITY_ACC, of the given type,
+// is the mean of the filled per-XCD GFX_BUSY_ACC, modulo its width, within
+// gfxBusyTolerance. It is true when no XCD value is filled.
+func gfxActivityMatchesBusy(activity uint64, typ gpuMetricsType, busy []Counter) bool {
 	var hi, lo, n uint64
-	for _, v := range values {
-		if v.Valid {
+	for _, b := range busy {
+		if b.Valid {
 			var carry uint64
-			lo, carry = bits.Add64(lo, v.Value, 0)
+			lo, carry = bits.Add64(lo, b.Value, 0)
 			hi += carry
 			n++
 		}
 	}
 	if n == 0 {
-		return Counter{}
-	}
-	mean, _ := bits.Div64(hi, lo, n) // hi < n, as n values of 64 bits were added
-	return Counter{Value: mean, Valid: true}
-}
-
-// GFXActivityMatchesBusy reports whether GFX_ACTIVITY_ACC increased between
-// two tables, over periods accumulation periods, as the mean of the per-XCD
-// GFX_BUSY_ACC did, modulo its width and within gfxBusyTolerance. It is true
-// when either table has no GFX_BUSY_ACC to compare with.
-func GFXActivityMatchesBusy(previous, current *GPUMetrics, periods uint64) bool {
-	if !previous.gfxBusyMean.Valid || !current.gfxBusyMean.Valid || previous.gfxActivityMask != current.gfxActivityMask {
 		return true
 	}
-	mask := current.gfxActivityMask
-	activity := (current.GFXActivityAcc.Value - previous.GFXActivityAcc.Value) & mask
-	busy := (current.gfxBusyMean.Value - previous.gfxBusyMean.Value) & mask
-	diff := (activity - busy) & mask
-	return min(diff, (mask-diff+1)&mask) <= gfxBusyTolerance(periods)
-}
-
-// gfxBusyTolerance is the largest difference, in percent-periods, between the
-// increases of GFX_ACTIVITY_ACC and of the mean of GFX_BUSY_ACC over periods.
-// Counters sampled up to a period apart at each end of the interval differ by
-// up to gfxBusySkewPeriods at 100%; rounding drift adds a 1/gfxBusyDriftPeriods
-// share of the interval, far above the 131 over 36M periods of a real MI350X.
-func gfxBusyTolerance(periods uint64) uint64 {
-	return 100*gfxBusySkewPeriods + 100*periods/gfxBusyDriftPeriods
+	mean, _ := bits.Div64(hi, lo, n) // hi < n, as n values of 64 bits were added
+	mask := uint64(math.MaxUint64) >> (64 - 8*typ.size())
+	diff := (activity - mean) & mask
+	return min(diff, (mask-diff+1)&mask) <= gfxBusyTolerance
 }
 
 // decodeGPUMetricsAttrs decodes the attributes of a dynamic table. The table

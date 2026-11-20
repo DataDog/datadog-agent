@@ -173,7 +173,7 @@ func (c *gpuMetricsCollector) samples(dev *amdgpu.Device, m *amdgpu.Metrics, rea
 	previous := state.previous
 	state.previous = gm
 	samples, act, implausible := intervalSamples(previous, gm, m.XGMIHiveSize >= 2)
-	if implausible {
+	if implausible || len(gm.Implausible) > 0 {
 		c.telemetry.failures.Inc(dev.UUID, string(failureImplausibleValue))
 	}
 	return samples, act
@@ -242,9 +242,8 @@ type activity struct {
 // increase of each activity accumulator divided by the increase of the
 // accumulation counter. The graphics activity is the socket mean over its
 // XCDs, the same statistic as gpu_busy_percent. A decreased accumulator (a
-// reset or a 32-bit wrap) leaves the value invalid; so does an average over
-// 100% beyond the tolerated overshoot or a graphics activity that increased
-// unlike GFX_BUSY_ACC, which implausible reports.
+// reset or a 32-bit wrap) or an average over 100% beyond the tolerated
+// overshoot leaves the value invalid; implausible reports the latter.
 func activityAverages(previous, current *amdgpu.GPUMetrics) (act activity, implausible bool) {
 	periods, ok := increase(previous.AccumulationCounter, current.AccumulationCounter)
 	// Over a longer interval a 32-bit accumulator can wrap and still end higher.
@@ -264,9 +263,6 @@ func activityAverages(previous, current *amdgpu.GPUMetrics) (act activity, impla
 		return amdgpu.Reading{Value: 100 * f, Valid: true}
 	}
 	act.graphics = average(previous.GFXActivityAcc, current.GFXActivityAcc)
-	if act.graphics.Valid && !amdgpu.GFXActivityMatchesBusy(previous, current, periods) {
-		act.graphics, implausible = amdgpu.Reading{}, true
-	}
 	act.memory = average(previous.MemActivityAcc, current.MemActivityAcc)
 	return act, implausible
 }
