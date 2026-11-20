@@ -133,6 +133,7 @@ Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table abo
 Both go through Bazel, so a new package has no test target until `bazel run //:gazelle -- <dir>` generates its `BUILD.bazel`.
 Run the same command after adding, removing, or renaming a `.go` file (tests included) or changing imports in an existing package, and commit the `BUILD.bazel` diff with it; otherwise the `bazel:run-gazelle` CI job fails.
 After adding a package or changing imports or build constraints, also run `dda inv go.write-tag-manifest` and commit the generated `bazel/go_tags/closure_tags.bzl` diff. A stale manifest can drop required build tags and cause duplicate-package linker errors; see `bazel/AGENTS.md` for details.
+To decide whether a change needs a unit, integration or E2E test and write it, use the `/write-test` skill.
 
 ### System-probe and eBPF Tests
 Kernel code needs a Linux kernel to test, and results hold only for the build modes and kernels that ran; see `pkg/ebpf/AGENTS.md` before testing or claiming a system-probe or eBPF change works.
