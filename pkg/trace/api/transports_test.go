@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -144,113 +145,137 @@ func TestForwardingTransport_MultipleTargets(t *testing.T) {
 	}
 }
 
-type recordingTransport struct {
-	rt   http.RoundTripper
-	mu   sync.Mutex
-	errs map[string]error
+// blockingAdditionalTransport answers the main endpoint at once. For any other
+// endpoint it reads the body, then blocks until release is closed or the
+// request context ends.
+type blockingAdditionalTransport struct {
+	mainHost string
+	release  chan struct{}
+
+	mu       sync.Mutex
+	reached  bool
+	finished bool
+	body     string
+	err      error
 }
 
-func (r *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	resp, err := r.rt.RoundTrip(req)
-	r.mu.Lock()
-	r.errs[req.URL.Host] = err
-	r.mu.Unlock()
-	return resp, err
+func (f *blockingAdditionalTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.URL.Host == f.mainHost {
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody, Request: req}, nil
+	}
+	b, _ := io.ReadAll(req.Body)
+	f.mu.Lock()
+	f.reached = true
+	f.body = string(b)
+	f.mu.Unlock()
+
+	var err error
+	select {
+	case <-f.release:
+	case <-req.Context().Done():
+		err = req.Context().Err()
+	}
+	f.mu.Lock()
+	f.finished = true
+	f.err = err
+	f.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody, Request: req}, nil
+}
+
+// newBlockingForwardingTransport returns a forwarding transport with one
+// additional endpoint served by a blockingAdditionalTransport, and a function
+// that releases the additional request. Cleanup releases it too.
+func newBlockingForwardingTransport(t *testing.T) (*forwardingTransport, *blockingAdditionalTransport, func()) {
+	mainEndpoint, _ := url.Parse("https://main.example")
+	fake := &blockingAdditionalTransport{mainHost: mainEndpoint.Host, release: make(chan struct{})}
+	var once sync.Once
+	release := func() { once.Do(func() { close(fake.release) }) }
+	t.Cleanup(release)
+	ft := newForwardingTransport(fake, mainEndpoint, "test-key", map[string][]string{"https://additional.example": {"key1"}}, 25*1024*1024)
+	return ft, fake, release
 }
 
 func TestForwardingTransport_AdditionalSurvivesClientCancel(t *testing.T) {
-	received := make(chan struct{})
-	release := make(chan struct{})
-	mainServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte("ok"))
-	}))
-	t.Cleanup(mainServer.Close)
-	var additionalBody string
-	additionalServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		b, _ := io.ReadAll(r.Body)
-		additionalBody = string(b)
-		close(received)
-		<-release
-		w.Write([]byte("ok"))
-	}))
-	t.Cleanup(additionalServer.Close)
+	synctest.Test(t, func(t *testing.T) {
+		ft, fake, release := newBlockingForwardingTransport(t)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost:8080/debugger/v1/input", strings.NewReader("payload"))
+		if err != nil {
+			t.Fatalf("failed to create request: %v", err)
+		}
 
-	mainEndpoint, _ := url.Parse(mainServer.URL)
-	additionalEndpoint, _ := url.Parse(additionalServer.URL)
-	rt := &recordingTransport{rt: http.DefaultTransport, errs: map[string]error{}}
-	ft := newForwardingTransport(rt, mainEndpoint, "test-key", map[string][]string{additionalEndpoint.String(): {"key1"}}, 25*1024*1024)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			resp, _ := ft.RoundTrip(req)
+			if resp != nil && resp.Body != nil {
+				resp.Body.Close()
+			}
+		}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost:8080/debugger/v1/input", strings.NewReader("payload"))
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
+		synctest.Wait()
+		fake.mu.Lock()
+		reached := fake.reached
+		fake.mu.Unlock()
+		if !reached {
+			t.Fatal("the additional endpoint was not reached")
+		}
 
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
+		cancel()
+		synctest.Wait()
+		fake.mu.Lock()
+		finished := fake.finished
+		fake.mu.Unlock()
+		if finished {
+			t.Fatal("the additional endpoint request ended when the client went away")
+		}
+
+		release()
+		synctest.Wait()
+		select {
+		case <-done:
+		default:
+			t.Fatal("RoundTrip did not return after the additional endpoint answered")
+		}
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		if fake.err != nil {
+			t.Errorf("expected the additional endpoint request to complete after the client went away, got %v", fake.err)
+		}
+		if fake.body != "payload" {
+			t.Errorf("expected the additional endpoint to receive the payload, got %q", fake.body)
+		}
+	})
+}
+
+func TestForwardingTransport_AdditionalKeepsDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ft, fake, _ := newBlockingForwardingTransport(t)
+		const timeout = 200 * time.Millisecond
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost:8080/debugger/v1/input", strings.NewReader("payload"))
+		if err != nil {
+			t.Fatalf("failed to create request: %v", err)
+		}
+
+		start := time.Now()
 		resp, _ := ft.RoundTrip(req)
 		if resp != nil && resp.Body != nil {
 			resp.Body.Close()
 		}
-	}()
-
-	<-received
-	cancel()
-	close(release)
-	<-done
-
-	rt.mu.Lock()
-	defer rt.mu.Unlock()
-	if err := rt.errs[additionalEndpoint.Host]; err != nil {
-		t.Errorf("expected the additional endpoint request to complete after the client went away, got %v", err)
-	}
-	if additionalBody != "payload" {
-		t.Errorf("expected the additional endpoint to receive the payload, got %q", additionalBody)
-	}
-}
-
-func TestForwardingTransport_AdditionalKeepsDeadline(t *testing.T) {
-	release := make(chan struct{})
-	t.Cleanup(func() { close(release) })
-	mainServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte("ok"))
-	}))
-	t.Cleanup(mainServer.Close)
-	additionalServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		select {
-		case <-release:
-		case <-time.After(5 * time.Second):
+		if elapsed := time.Since(start); elapsed != timeout {
+			t.Errorf("expected the additional endpoint request to stop at the request deadline (%s), took %s", timeout, elapsed)
 		}
-		w.Write([]byte("ok"))
-	}))
-	t.Cleanup(additionalServer.Close)
 
-	mainEndpoint, _ := url.Parse(mainServer.URL)
-	additionalEndpoint, _ := url.Parse(additionalServer.URL)
-	rt := &recordingTransport{rt: http.DefaultTransport, errs: map[string]error{}}
-	ft := newForwardingTransport(rt, mainEndpoint, "test-key", map[string][]string{additionalEndpoint.String(): {"key1"}}, 25*1024*1024)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost:8080/debugger/v1/input", strings.NewReader("payload"))
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
-
-	start := time.Now()
-	resp, _ := ft.RoundTrip(req)
-	if resp != nil && resp.Body != nil {
-		resp.Body.Close()
-	}
-	if elapsed := time.Since(start); elapsed > 3*time.Second {
-		t.Errorf("expected the additional endpoint request to stop at the request deadline, took %s", elapsed)
-	}
-
-	rt.mu.Lock()
-	defer rt.mu.Unlock()
-	if err := rt.errs[additionalEndpoint.Host]; !errors.Is(err, context.DeadlineExceeded) {
-		t.Errorf("expected the additional endpoint request to hit the request deadline, got %v", err)
-	}
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		if !errors.Is(fake.err, context.DeadlineExceeded) {
+			t.Errorf("expected the additional endpoint request to hit the request deadline, got %v", fake.err)
+		}
+	})
 }
