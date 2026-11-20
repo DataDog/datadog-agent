@@ -89,6 +89,9 @@ func (s NodeState) String() string {
 const (
 	GPUResourceMIG    = "mig"                              // any MIG strategy
 	GPUResourceShared = string(gpu.GpuNvidiaGenericShared) // time-slicing or MPS
+	// GPUResourceNone is not produced by the engine: the check tags its zero
+	// node counts with it when Result.Nodes is empty.
+	GPUResourceNone = "none"
 )
 
 // classified is a node after classification.

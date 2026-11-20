@@ -46,9 +46,9 @@
 // zeros included. It is empty when no flavor node has a GPU (e.g. a GPU pool
 // scaled to 0), because no attribution is known: the check should then emit
 // gpu.scheduling.topology.nodes = 0 for every NodeState with
-// gpu_resource:none, so monitors see 0 rather than no data and every nodes
-// series has the same tag set. A topology with no
-// levels is invalid (Kueue requires at least one) and yields an empty Result.
+// gpu_resource:none (GPUResourceNone), so monitors see 0 rather than no
+// data and every nodes series has the same tag set. A topology with no levels
+// is invalid (Kueue requires at least one) and yields an empty Result.
 //
 // # Domains
 //
