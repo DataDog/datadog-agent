@@ -31,7 +31,6 @@ type telemetryDefinitions struct {
 	probeAttachErrors       telemetryComponent.Counter
 	createdProbes           telemetryComponent.Counter
 	attachedProbes          telemetryComponent.Counter
-	createdMultiLinks       telemetryComponent.Counter
 	binaryInspectionBuckets []float64
 }
 
@@ -84,7 +83,6 @@ func (td *telemetryDefinitions) init(tm telemetryComponent.Component) {
 			[]string{"attacher"},
 			"Number of probes created by the uprobe attacher.",
 		)
-		td.createdMultiLinks = tm.NewCounter(uprobeAttacherTelemetrySubsystem, "multi_links__created", []string{"attacher"}, "Number of multi-uprobe links created (each can contain multiple probe locations).")
 		td.attachedProbes = tm.NewCounter(
 			uprobeAttacherTelemetrySubsystem,
 			"probes__attached",
@@ -112,9 +110,8 @@ type uprobeAttacherTelemetry struct {
 	probeAttachErrorsAddHook        telemetryComponent.SimpleCounter
 	probeAttachErrorsValidate       telemetryComponent.SimpleCounter
 
-	createdProbes     telemetryComponent.SimpleCounter
-	attachedProbes    telemetryComponent.SimpleCounter
-	createdMultiLinks telemetryComponent.SimpleCounter
+	createdProbes  telemetryComponent.SimpleCounter
+	attachedProbes telemetryComponent.SimpleCounter
 }
 
 // newUprobeAttacherTelemetry creates a new uprobeAttacherTelemetry instance. if tm is nil, will return a valid instance of the telemetry counters
@@ -148,8 +145,7 @@ func newUprobeAttacherTelemetry(tm telemetryComponent.Component, attacherName st
 		probeAttachErrorsAddHook:        definitions.probeAttachErrors.WithValues(attacherName, "add_hook"),
 		probeAttachErrorsValidate:       definitions.probeAttachErrors.WithValues(attacherName, "validate"),
 
-		createdProbes:     definitions.createdProbes.WithValues(attacherName),
-		createdMultiLinks: definitions.createdMultiLinks.WithValues(attacherName),
-		attachedProbes:    definitions.attachedProbes.WithValues(attacherName),
+		createdProbes:  definitions.createdProbes.WithValues(attacherName),
+		attachedProbes: definitions.attachedProbes.WithValues(attacherName),
 	}
 }

@@ -122,12 +122,6 @@ Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table abo
 Both go through Bazel, so a new package has no test target until `bazel run //:gazelle -- <dir>` generates its `BUILD.bazel`.
 Run the same command after adding, removing, or renaming a `.go` file (tests included) or changing imports in an existing package, and commit the `BUILD.bazel` diff with it; otherwise the `bazel:run-gazelle` CI job fails.
 
-Bazel excludes specialized build-tag variants such as `bpf` by default. For a
-focused eBPF package, pass `--bazel-args='--test_tag_filters=dd_agent_go_test'`
-to `dda inv test`, or select its explicit `*_bpf` Bazel test target and override
-the test tag filter. Check that the intended tests actually ran; an empty test
-selection does not validate build-tagged code.
-
 ### End-to-End Tests
 - E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`
 - Tests provision real AWS, GCP or Azure infrastructure, deploy the agent, and assert payloads

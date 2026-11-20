@@ -32,11 +32,24 @@ type multiProbeKey struct {
 	ret     bool
 }
 
+type multiUprobeAttacher struct {
+	programs map[string]*ebpf.Program
+	links    map[utils.PathIdentifier]map[multiProbeKey]multiAttachment
+	attach   func(string, *ebpf.Program, []uint64, bool) (io.Closer, error)
+}
+
 // UseUprobeMultiPrograms selects the multi-uprobe backend. Programs must have
 // AttachTraceUprobeMulti and remain alive until after Stop. Call before Start;
 // the attacher owns its links, but not these shared programs or their maps.
 func (ua *UprobeAttacher) UseUprobeMultiPrograms(programs map[string]*ebpf.Program) {
-	ua.multiPrograms = programs
+	ua.multi = nil
+	if programs != nil {
+		ua.multi = &multiUprobeAttacher{
+			programs: programs,
+			links:    make(map[utils.PathIdentifier]map[multiProbeKey]multiAttachment),
+			attach:   attachUprobeMulti,
+		}
+	}
 }
 
 func attachUprobeMulti(path string, program *ebpf.Program, offsets []uint64, ret bool) (io.Closer, error) {
@@ -78,42 +91,41 @@ func (ua *UprobeAttacher) attachMultiProbeSelector(selector manager.ProbesSelect
 		// Go's manual return locations are ordinary uprobes at return
 		// instructions, not native uretprobes.
 		key := multiProbeKey{program: id.EBPFFuncName, ret: !opts.IsManualReturn && strings.Contains(id.EBPFFuncName, "uretprobe__")}
-		groups := ua.fileIDToMultiLinks[path.ID]
+		groups := ua.multi.links[path.ID]
 		if attached, ok := groups[key]; ok {
 			if !slices.Equal(attached.offsets, offsets) {
 				return fmt.Errorf("conflicting locations for %s in %s", id.EBPFFuncName, path.HostPath)
 			}
 			continue
 		}
-		program := ua.multiPrograms[id.EBPFFuncName]
+		program := ua.multi.programs[id.EBPFFuncName]
 		if program == nil {
 			return fmt.Errorf("missing multi-uprobe program %s", id.EBPFFuncName)
 		}
-		attached, err := ua.attachMulti(path.HostPath, program, offsets, key.ret)
+		attached, err := ua.multi.attach(path.HostPath, program, offsets, key.ret)
 		if err != nil {
 			ua.telemetry.probeAttachErrorsAddHook.Inc()
 			return fmt.Errorf("attach multi-uprobe %s: %w", id.EBPFFuncName, err)
 		}
 		if groups == nil {
 			groups = make(map[multiProbeKey]multiAttachment)
-			ua.fileIDToMultiLinks[path.ID] = groups
+			ua.multi.links[path.ID] = groups
 		}
 		groups[key] = multiAttachment{link: attached, offsets: slices.Clone(offsets)}
 		ua.telemetry.createdProbes.Add(float64(len(offsets)))
 		ua.telemetry.attachedProbes.Add(float64(len(offsets)))
-		ua.telemetry.createdMultiLinks.Inc()
 	}
 	return nil
 }
 
 func (ua *UprobeAttacher) detachMultiProbes(path utils.FilePath) error {
 	var errs error
-	for key, attached := range ua.fileIDToMultiLinks[path.ID] {
+	for key, attached := range ua.multi.links[path.ID] {
 		// Attempt every close even when another one failed.
 		if err := attached.link.Close(); err != nil {
 			errs = errors.Join(errs, fmt.Errorf("detach multi-uprobe %s: %w", key.program, err))
 		}
 	}
-	delete(ua.fileIDToMultiLinks, path.ID)
+	delete(ua.multi.links, path.ID)
 	return errs
 }
