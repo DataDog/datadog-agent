@@ -71,12 +71,14 @@ var tracerTelemetry = struct {
 	closedConns          *telemetryComponent.StatCounterWrapper
 	connStatsMapSize     telemetryComponent.Gauge
 	payloadSizePerClient telemetryComponent.Gauge
+	natDeletes           telemetryComponent.Counter
 }{
 	telemetryimpl.GetCompatComponent().NewCounter(tracerModuleName, "skipped_conns", []string{"ip_proto"}, "Counter measuring skipped connections"),
 	telemetryimpl.GetCompatComponent().NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
 	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
 	telemetryimpl.GetCompatComponent().NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
 	telemetryimpl.GetCompatComponent().NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id", "ip_proto"}, "Gauge measuring the number of connections in the system-probe payload"),
+	telemetryimpl.GetCompatComponent().NewCounter(tracerModuleName, "closed_nat_translation_deletes", []string{"when"}, "Counter measuring closed NAT'd connections' conntrack deletes, immediate or deferred"),
 }
 
 // Tracer implements the functionality of the network tracer
@@ -403,10 +405,19 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 	cs.IPTranslation = t.conntracker.GetTranslationForConn(&cs.ConnectionTuple)
 	t.connVia(cs)
 	if cs.IPTranslation != nil {
-		if evicted, queued := t.closedNATTranslations.add(cs.ConnectionTuple, time.Now()); !queued {
+		var evicted *network.ConnectionTuple
+		queued := false
+		if cs.LocalNATPeerOpen {
+			evicted, queued = t.closedNATTranslations.add(cs.ConnectionTuple, time.Now())
+		}
+		if !queued {
+			tracerTelemetry.natDeletes.Inc("immediate")
 			t.conntracker.DeleteTranslation(&cs.ConnectionTuple)
-		} else if evicted != nil {
-			t.deleteUnlessReused(evicted)
+		} else {
+			tracerTelemetry.natDeletes.Inc("deferred")
+			if evicted != nil {
+				t.deleteUnlessReused(evicted)
+			}
 		}
 	}
 
