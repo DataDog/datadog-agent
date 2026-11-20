@@ -376,13 +376,37 @@ func (si *securityInjector) processWorkItem(ctx context.Context, proxyType appse
 	return false
 }
 
+// knownFailureReasons are the Kubernetes API status reasons reported as is in telemetry. An
+// admission webhook can return any reason, so the others are reported as "unknown".
+var knownFailureReasons = []metav1.StatusReason{
+	metav1.StatusReasonUnauthorized,
+	metav1.StatusReasonForbidden,
+	metav1.StatusReasonNotFound,
+	metav1.StatusReasonAlreadyExists,
+	metav1.StatusReasonConflict,
+	metav1.StatusReasonGone,
+	metav1.StatusReasonInvalid,
+	metav1.StatusReasonServerTimeout,
+	metav1.StatusReasonStoreReadError,
+	metav1.StatusReasonTimeout,
+	metav1.StatusReasonTooManyRequests,
+	metav1.StatusReasonBadRequest,
+	metav1.StatusReasonMethodNotAllowed,
+	metav1.StatusReasonNotAcceptable,
+	metav1.StatusReasonRequestEntityTooLarge,
+	metav1.StatusReasonUnsupportedMediaType,
+	metav1.StatusReasonInternalError,
+	metav1.StatusReasonExpired,
+	metav1.StatusReasonServiceUnavailable,
+}
+
 // failureReason returns the Kubernetes API status reason (Forbidden, Invalid, ...) of err, keeping
 // the telemetry tag cardinality bounded.
 func failureReason(err error) string {
 	if err == nil {
 		return "none"
 	}
-	if reason := apierrors.ReasonForError(err); reason != metav1.StatusReasonUnknown {
+	if reason := apierrors.ReasonForError(err); slices.Contains(knownFailureReasons, reason) {
 		return string(reason)
 	}
 	return "unknown"
@@ -391,12 +415,18 @@ func failureReason(err error) string {
 // isPermanentError reports whether retrying err cannot succeed without a change on the cluster side
 // (RBAC, admission policies, schema validation), in which case the backoff only adds API calls.
 // An exhausted ResourceQuota is also reported as Forbidden but can clear on its own, so it is retried.
+// A joined error is permanent only if all of its errors are.
 func isPermanentError(err error) bool {
-	if apierrors.IsInvalid(err) {
-		return true
+	switch e := err.(type) {
+	case interface{ Unwrap() []error }:
+		errs := e.Unwrap()
+		return len(errs) > 0 && !slices.ContainsFunc(errs, func(err error) bool { return !isPermanentError(err) })
+	case apierrors.APIStatus:
+		return apierrors.IsInvalid(err) || apierrors.IsForbidden(err) && !strings.Contains(e.Status().Message, "exceeded quota")
+	case interface{ Unwrap() error }:
+		return isPermanentError(e.Unwrap())
 	}
-	var status apierrors.APIStatus
-	return apierrors.IsForbidden(err) && !(errors.As(err, &status) && strings.Contains(status.Status().Message, "exceeded quota"))
+	return false
 }
 
 func instantiatePatterns(config appsecconfig.Config, logger logComp.Component, k8sClient dynamic.Interface, recorder record.EventRecorder) map[appsecconfig.ProxyType]appsecconfig.InjectionPattern {

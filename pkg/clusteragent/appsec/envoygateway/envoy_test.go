@@ -494,7 +494,7 @@ func TestAdded_RetryAfterPolicyFailureKeepsSingleGrant(t *testing.T) {
 
 	require.NoError(t, pattern.Added(ctx, gateway1))
 
-	// The first policy creation in test-ns2 fails after the grant was created, then the item is retried
+	// The retry exercises the existing-grant path after policy creation fails
 	failOnce := true
 	client.PrependReactor("create", "envoyextensionpolicies", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 		if failOnce && action.GetNamespace() == "test-ns2" {
@@ -507,7 +507,6 @@ func TestAdded_RetryAfterPolicyFailureKeepsSingleGrant(t *testing.T) {
 	require.NoError(t, pattern.Added(ctx, gateway2))
 	assert.Equal(t, []string{"test-ns2"}, grantFromNamespaces(t, client, referenceGrantName("test-ns2")))
 
-	// Deleting the last Gateway of test-ns2 removes its grant only
 	client.PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*gateway2}}, nil
 	})
@@ -769,7 +768,7 @@ func TestDeleted_PolicyAlreadyDeleted(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
-	client := dynamicfake.NewSimpleDynamicClient(scheme) // No existing policy
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, envoyGatewayListKinds()) // No existing policy
 
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
@@ -1144,4 +1143,103 @@ func TestAddNamespaceToGrant_ForeignLegacyGrant(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"test-ns"}, grantFromNamespaces(t, client, referenceGrantName("test-ns")))
 	assert.Equal(t, []string{"other-ns"}, grantFromNamespaces(t, client, legacyReferenceGrantName), "legacy ReferenceGrant not created by the injector must be left untouched")
+}
+
+func TestAddNamespaceToGrant_ExistingGrantMustAuthorizeTheReference(t *testing.T) {
+	from := func(namespace string) []any {
+		return []any{map[string]any{"group": "gateway.envoyproxy.io", "kind": "EnvoyExtensionPolicy", "namespace": namespace}}
+	}
+	to := func(service map[string]any) []any { return []any{service} }
+	for name, tc := range map[string]struct {
+		from, to []any
+		wantErr  bool
+	}{
+		"matching grant":               {from: from("test-ns"), to: to(map[string]any{"kind": "Service", "name": "appsec-processor"})},
+		"grant for any Service":        {from: from("test-ns"), to: to(map[string]any{"kind": "Service"})},
+		"grant from another namespace": {from: from("other-ns"), to: to(map[string]any{"kind": "Service", "name": "appsec-processor"}), wantErr: true},
+		"grant to another Service":     {from: from("test-ns"), to: to(map[string]any{"kind": "Service", "name": "other-service"}), wantErr: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			grant := newTestReferenceGrant("datadog", "test-ns")
+			grant.Object["spec"] = map[string]any{"from": tc.from, "to": tc.to}
+			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant)
+			config := appsecconfig.Config{
+				Product: appsecconfig.Product{
+					Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+				},
+			}
+			pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+			err := pattern.Added(ctx, newTestGateway("test-ns", "test-gateway"))
+
+			_, getErr := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.True(t, apierrors.IsNotFound(getErr), "no EnvoyExtensionPolicy must be created when the grant does not authorize it")
+			} else {
+				require.NoError(t, err)
+				require.NoError(t, getErr)
+			}
+		})
+	}
+}
+
+func TestRemoveNamespaceToGrant_DeletesWithUIDPrecondition(t *testing.T) {
+	ctx := context.Background()
+	grant := newTestReferenceGrant("datadog", "test-ns")
+	grant.SetUID("grant-uid")
+	legacyGrant := newTestLegacyReferenceGrant("datadog", "test-ns")
+	legacyGrant.SetUID("legacy-grant-uid")
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant, legacyGrant)
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+	preconditions := map[string]string{}
+	client.PrependReactor("delete", "referencegrants", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		deleteAction := action.(k8stesting.DeleteAction)
+		if p := deleteAction.GetDeleteOptions().Preconditions; p != nil && p.UID != nil {
+			preconditions[deleteAction.GetName()] = string(*p.UID)
+		}
+		return false, nil, nil
+	})
+
+	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns"))
+	assert.Equal(t, map[string]string{referenceGrantName("test-ns"): "grant-uid", legacyReferenceGrantName: "legacy-grant-uid"}, preconditions)
+}
+
+func TestDeleted_RetryCleansUpGrantAfterPolicyDeleted(t *testing.T) {
+	ctx := context.Background()
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(),
+		newTestEnvoyExtensionPolicy("test-ns"), newTestReferenceGrant("datadog", "test-ns"))
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+	gateway := newTestGateway("test-ns", "test-gateway")
+	client.PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*gateway}}, nil
+	})
+	failOnce := true
+	client.PrependReactor("delete", "referencegrants", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		if failOnce {
+			failOnce = false
+			return true, nil, errors.New("transient error")
+		}
+		return false, nil, nil
+	})
+
+	require.Error(t, pattern.Deleted(ctx, gateway))
+	_, err := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.True(t, apierrors.IsNotFound(err), "the first attempt deletes the policy")
+
+	require.NoError(t, pattern.Deleted(ctx, gateway))
+	_, err = client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName("test-ns"), metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "the retry must delete the grant even though the policy is gone")
 }

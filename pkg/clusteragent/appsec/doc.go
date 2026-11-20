@@ -31,7 +31,7 @@ The appsec injector follows a controller pattern with these key components:
   - ConfigMapReconciler: Watches original ConfigMaps for changes and re-syncs DD-owned copies (nginx only)
 
 The controller watches proxy resources using Kubernetes informers and maintains a work queue for
-processing add/modify/delete events with exponential backoff retry logic.
+processing add/delete events with exponential backoff retry logic.
 
 # Supported Proxies
 
@@ -580,8 +580,8 @@ Without the gcptrafficextensions permissions:
   - Any non-NotFound error on Get/Create/Delete (e.g. Forbidden) causes the reconcile to fail.
   - A WARN log is emitted and a Kubernetes event with reason GCPTrafficExtensionCreateFailed or
     GCPTrafficExtensionDeleteFailed is recorded on the Gateway object.
-  - The work item is retried under the shared injector's requeue policy and then dropped. No
-    GCPTrafficExtension is installed.
+  - A Forbidden error from missing RBAC is not retried: the shared injector drops the work item
+    after the first attempt. No GCPTrafficExtension is installed.
   - Customer traffic is unaffected (the missing extension is a silent pass-through at the LB layer).
   - This is NOT a silent no-op: failures are observable via events and cluster-agent logs.
 
@@ -590,8 +590,8 @@ Without the gcptrafficextensions permissions:
 The package records Kubernetes events for important operations:
 
   - EnvoyExtensionPolicy creation/deletion
-  - ReferenceGrant creation/update/deletion
-  - Namespace additions/removals from grants
+  - ReferenceGrant creation
+  - Namespace removals from the legacy shared grant
   - Failure conditions
 
 Events are recorded on the relevant resources (Gateway, EnvoyExtensionPolicy) to provide
@@ -611,11 +611,13 @@ that is monitored by the Cluster Agent's health probe system.
 
 The package emits telemetry metrics:
 
-  - appsec_injector.watched_changes: Counter tracking add/modify/delete operations, incremented on
-    every attempt (retries included)
+  - appsec_injector.watched_changes: Counter tracking added and deleted operations (there is no
+    update handler), incremented on every attempt (retries included)
     Tags: proxy_type, operation, success, reason (Kubernetes API status reason such as Forbidden or
-    Invalid, "unknown" for non-API errors, "none" on success). Forbidden and Invalid errors are not
-    retried since they need a change on the cluster side
+    Invalid, "unknown" for non-API errors and reasons outside the known Kubernetes set, "none" on
+    success). Forbidden and Invalid errors are not retried since they need a change on the cluster
+    side, except Forbidden errors from an exhausted ResourceQuota, which can clear on their own and
+    are retried. An error that joins several failures is dropped only if all of them are permanent
 
   - appsec_injector.sidecar_mutations: Counter tracking sidecar injection outcomes on the
     CREATE (MutatePod) admission path, emitted once per admission for a pod owned by a sidecar

@@ -97,8 +97,7 @@ func (g *grantManager) AddNamespaceToGrant(ctx context.Context, namespace string
 		Create(ctx, &unstructured.Unstructured{Object: unstructuredGrant}, metav1.CreateOptions{})
 
 	if errors.IsAlreadyExists(err) {
-		g.logger.Debugf("ReferenceGrant %q already exists", referenceGrantName(namespace))
-		return nil
+		return g.checkExistingGrant(ctx, namespace, grant.Spec)
 	}
 
 	if err != nil {
@@ -131,7 +130,7 @@ func (g *grantManager) RemoveNamespaceToGrant(ctx context.Context, namespace str
 	default:
 		err = g.client.Resource(referenceGrantGVR).
 			Namespace(g.namespace).
-			Delete(ctx, name, metav1.DeleteOptions{})
+			Delete(ctx, name, uidPrecondition(grant))
 		if errors.IsNotFound(err) {
 			err = nil
 		}
@@ -142,6 +141,45 @@ func (g *grantManager) RemoveNamespaceToGrant(ctx context.Context, namespace str
 	}
 
 	return stdErrors.Join(err, g.removeFromLegacyGrant(ctx, namespace))
+}
+
+// checkExistingGrant returns an error unless the existing grant for the namespace authorizes the
+// reference described by want, since a grant created by someone else may allow something else.
+func (g *grantManager) checkExistingGrant(ctx context.Context, namespace string, want gwapiv1beta1.ReferenceGrantSpec) error {
+	name := referenceGrantName(namespace)
+	unstructuredGrant, err := g.client.Resource(referenceGrantGVR).
+		Namespace(g.namespace).
+		Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	var existing gwapiv1beta1.ReferenceGrant
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredGrant.Object, &existing); err != nil {
+		return err
+	}
+
+	wantTo := want.To[0]
+	allowsTo := slices.ContainsFunc(existing.Spec.To, func(to gwapiv1beta1.ReferenceGrantTo) bool {
+		return to.Group == wantTo.Group && to.Kind == wantTo.Kind && (to.Name == nil || *to.Name == *wantTo.Name)
+	})
+	if !allowsTo || !slices.Contains(existing.Spec.From, want.From[0]) {
+		err := fmt.Errorf("ReferenceGrant %s/%s already exists but does not allow EnvoyExtensionPolicies in namespace %s to reference Service %s", g.namespace, name, namespace, g.serviceName)
+		g.recordReferenceGrantCreateFailed(namespace, namespace, err)
+		return err
+	}
+
+	g.logger.Debugf("ReferenceGrant %q already exists", name)
+	return nil
+}
+
+// uidPrecondition makes a delete fail with Conflict when obj was replaced after it was read, so a
+// resource recreated by someone else in between is not removed. A blank UID would reject every delete.
+func uidPrecondition(obj *unstructured.Unstructured) metav1.DeleteOptions {
+	if uid := obj.GetUID(); uid != "" {
+		return metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &uid}}
+	}
+	return metav1.DeleteOptions{}
 }
 
 // removeFromLegacyGrant removes the namespace from the legacy shared ReferenceGrant, deleting the
@@ -181,7 +219,7 @@ func (g *grantManager) removeFromLegacyGrant(ctx context.Context, namespace stri
 		// A ReferenceGrant cannot be patched to have no "from" entry
 		err := g.client.Resource(referenceGrantGVR).
 			Namespace(g.namespace).
-			Delete(ctx, legacyReferenceGrantName, metav1.DeleteOptions{})
+			Delete(ctx, legacyReferenceGrantName, uidPrecondition(unstructuredGrant))
 		if errors.IsNotFound(err) {
 			return nil
 		}
