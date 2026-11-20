@@ -2342,7 +2342,7 @@ func TestReleaseNVMLRebuildsCollectorsOfDevicesPendingRetry(t *testing.T) {
 }
 
 func TestMetricsFollowSpec(t *testing.T) {
-	// - KubernetesDevicePlugins required for gpu.device.unhealthy metric
+	// - KubernetesDevicePlugins enables device-plugin health reporting for gpu.device.unavailable
 	// - NVML required to ensure the NVML workloadmeta collector starts up
 	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
 	nvidia.WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)

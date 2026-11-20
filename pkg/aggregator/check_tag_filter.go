@@ -6,10 +6,10 @@
 package aggregator
 
 import (
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -98,21 +98,19 @@ func (t *filteredIdentityTable) get(ref uint32) *filteredIdentity {
 // rules change. Context keys don't include the metric type, so samples of other types can share the context; they
 // change nothing, as only output that adds up across sources is merged. The resolver's buffers must hold the
 // context's tags.
-func (cr *contextResolver) trackOutput(context *Context, metricSampleContext metrics.MetricSampleContext, filterList filterlist.TagMatcher) {
+func (cr *contextResolver) trackOutput(context *Context, metricSampleContext metrics.MetricSampleContext, filterList metricname.TagMatcher) {
 	if cr.filteredIdentities == nil || !cr.tagFilterEnabled || context.filterable || !typeFiltersAtOutput(metricSampleContext.GetMetricType()) {
 		return
 	}
 	context.filterable = true
-	if filterList != nil {
-		cr.filterAtOutput(context, filterList)
-	}
+	cr.filterAtOutput(context, filterList)
 }
 
 // filterAtOutput records the identity a context filters to, if a rule matches it. The resolver's buffers must hold the
 // context's tags.
-func (cr *contextResolver) filterAtOutput(context *Context, filterList filterlist.TagMatcher) {
-	if tagMatcher, filter := filterList.ShouldStripTags(context.Name); filter {
-		ref, removed := cr.acquireFiltered(context.Name, context.Host, tagMatcher)
+func (cr *contextResolver) filterAtOutput(context *Context, filterList metricname.TagMatcher) {
+	if tagList, filter := filterList.ShouldStripTags(context.Name); filter {
+		ref, removed := cr.acquireFiltered(context.Name, context.Host, tagList)
 		context.filteredIdentityRef = ref
 		tlmFilteredTags.Add(float64(removed))
 	}
@@ -120,8 +118,8 @@ func (cr *contextResolver) filterAtOutput(context *Context, filterList filterlis
 
 // acquireFiltered filters the tags in the resolver's buffers, which must already be stored for the context, and
 // returns a reference to the identity they filter to, and how many tags it removed.
-func (cr *contextResolver) acquireFiltered(name, host string, tagMatcher func(tag string) bool) (uint32, int) {
-	removed := cr.taggerBuffer.RetainFunc(tagMatcher) + cr.metricBuffer.RetainFunc(tagMatcher)
+func (cr *contextResolver) acquireFiltered(name, host string, tagList metricname.HashedMetricTagList) (uint32, int) {
+	removed := cr.taggerBuffer.RetainFunc(tagList.KeepTag) + cr.metricBuffer.RetainFunc(tagList.KeepTag)
 	key, taggerKey, metricKey := cr.keyGenerator.GenerateWithTags2(name, host, cr.taggerBuffer, cr.metricBuffer)
 	return cr.filteredIdentities.acquire(key, func() (*tags.Entry, *tags.Entry) {
 		return cr.tagsCache.Insert(taggerKey, cr.taggerBuffer), cr.tagsCache.Insert(metricKey, cr.metricBuffer)
@@ -146,24 +144,24 @@ func (cr *contextResolver) filteredIdentityOf(context *Context) (*filteredIdenti
 }
 
 // refilter updates the identity every context filters to at output, after the rules changed.
-func (cr *contextResolver) refilter(filterList filterlist.TagMatcher) {
+func (cr *contextResolver) refilter(filterList metricname.TagMatcher) {
 	if cr.filteredIdentities == nil || !cr.tagFilterEnabled {
 		return
 	}
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
 	type rule struct {
-		tagMatcher func(tag string) bool
-		filter     bool
+		tagList metricname.HashedMetricTagList
+		filter  bool
 	}
 	rulesByName := make(map[string]rule)
 	for _, entry := range cr.contextsByKey {
 		context := entry.context
 		var ref uint32
-		if filterList != nil && context.filterable {
+		if context.filterable {
 			r, ok := rulesByName[context.Name]
 			if !ok {
-				r.tagMatcher, r.filter = filterList.ShouldStripTags(context.Name)
+				r.tagList, r.filter = filterList.ShouldStripTags(context.Name)
 				rulesByName[context.Name] = r
 			}
 			if r.filter {
@@ -171,7 +169,7 @@ func (cr *contextResolver) refilter(filterList filterlist.TagMatcher) {
 				cr.metricBuffer.Reset()
 				cr.taggerBuffer.Append(context.taggerTags.Tags()...)
 				cr.metricBuffer.Append(context.metricTags.Tags()...)
-				ref, _ = cr.acquireFiltered(context.Name, context.Host, r.tagMatcher)
+				ref, _ = cr.acquireFiltered(context.Name, context.Host, r.tagList)
 			}
 		}
 		cr.releaseFiltered(context)

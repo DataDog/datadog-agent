@@ -12,7 +12,6 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
@@ -87,7 +86,7 @@ func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
 	cs.observerHandle = h
 }
 
-func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
+func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList metricname.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if cs.observerHandle != nil {
 		// The observer sees each source with its full tags, even when its output is filtered.
@@ -130,7 +129,7 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 	return ss, ctx
 }
 
-func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList filterlist.TagMatcher) {
+func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList metricname.TagMatcher) {
 	if bucket.Value < 0 {
 		if !cs.logThrottling.ShouldThrottle() {
 			log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
@@ -463,7 +462,7 @@ func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
 }
 
 // refilter updates the identity every context filters to at output, after the rules changed.
-func (cs *CheckSampler) refilter(filterList filterlist.TagMatcher) {
+func (cs *CheckSampler) refilter(filterList metricname.TagMatcher) {
 	cs.contextResolver.resolver.refilter(filterList)
 }
 

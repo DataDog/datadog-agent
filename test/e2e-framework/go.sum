@@ -567,8 +567,8 @@ github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 h1:mc9IbrRi1pWSg9HWEFT6EcQ274WnZ9
 github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2/go.mod h1:gPNbbz+ywFqnRRQMDxQQbMp4nXJIk43QBUj0N+xWXbw=
 github.com/pulumi/pulumi-docker/sdk/v5 v5.3.0 h1:0eu0s03FHn6kdLAZxGEQBW/NGvh0VNaca9ZwEz9gsHU=
 github.com/pulumi/pulumi-docker/sdk/v5 v5.3.0/go.mod h1:kUMbxRc+j4IW55sdaX6HsPLUzHrSe+BV+pU7xxo6fvg=
-github.com/pulumi/pulumi-eks/sdk/v4 v4.5.0 h1:/l5MvkdQLb0575YE9UoyzvsUkKCL8rabYU54oMAT8OA=
-github.com/pulumi/pulumi-eks/sdk/v4 v4.5.0/go.mod h1:W/jRMGvQSKB15Mi+ln4TnV0viqwSWFw8Urq8+AgYqKc=
+github.com/pulumi/pulumi-eks/sdk/v4 v4.6.0 h1:6JLhTXNyTmMFXg/1R+DSZK9OqKWmQ7ExPQBYLE4wX38=
+github.com/pulumi/pulumi-eks/sdk/v4 v4.6.0/go.mod h1:W/jRMGvQSKB15Mi+ln4TnV0viqwSWFw8Urq8+AgYqKc=
 github.com/pulumi/pulumi-gcp/sdk/v10 v10.3.0 h1:IvH4LQ3rNhJcfLTA70bykwedht4tv99puMJf0z3k5lM=
 github.com/pulumi/pulumi-gcp/sdk/v10 v10.3.0/go.mod h1:JfEHD9pMb2aL+6eS+4UI3GcE0KbaBV8djr5j+vYoktI=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.3 h1:hMRlxnnO+zNPMbfJGQNist96TXqOKi+zgjcLUmiKYl0=
@@ -579,8 +579,8 @@ github.com/pulumi/pulumi-random/sdk/v4 v4.21.6 h1:BJwl6OVO9rVhHeiqJaujCOG7R4ZXBr
 github.com/pulumi/pulumi-random/sdk/v4 v4.21.6/go.mod h1:DEp9uhlSMfmPZZ1qFBzUUv9K2fWZa9bB+e0bpjsE5IY=
 github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3 h1:u1vhOzJ+RyiHhjF+XY3QLDUO9dtU+LH6NTZ31J5RRb4=
 github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3/go.mod h1:4TsIx6Z2fZlhidjfQ1l3P7Hq2Whx5Aqaas6VQb2ykHE=
-github.com/pulumi/pulumi/sdk/v3 v3.275.0 h1:WPQ6zZG5vSRSu7HMMwV3Lk0aFjHnlr3guq3aXc60m9k=
-github.com/pulumi/pulumi/sdk/v3 v3.275.0/go.mod h1:WnPO90tGSd4h5BDTfK4BeDZ/b2Rsq7bhZ2yEcfvScEc=
+github.com/pulumi/pulumi/sdk/v3 v3.276.0 h1:xkrmwkmAaHC2wilul4RTcPVrGfA6yQetstZpeQrvRWI=
+github.com/pulumi/pulumi/sdk/v3 v3.276.0/go.mod h1:WnPO90tGSd4h5BDTfK4BeDZ/b2Rsq7bhZ2yEcfvScEc=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0 h1:xfi9HKDgV+GgDxQ23oSv9KxC3DQqViGTcMrJICRgJv0=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0/go.mod h1:NUa1zA74DF002WrM6iF111A6UjX9knPpXufVRvBwNyg=
 github.com/puzpuzpuz/xsync/v4 v4.5.0 h1:vOSWu6b57/emh+L/Cw0BeQfvxa/cogFywXHeGUxQxAg=
@@ -878,8 +878,8 @@ gopkg.in/zorkian/go-datadog-api.v2 v2.30.0 h1:umQdVO0Ytx+kYadhuJNjFtDgIsIEBnKrOT
 gopkg.in/zorkian/go-datadog-api.v2 v2.30.0/go.mod h1:kx0CSMRpzEZfx/nFH62GLU4stZjparh/BRpM89t4XCQ=
 gotest.tools/v3 v3.5.2 h1:7koQfIKdy+I8UTetycgUqXWSDwpgv193Ka+qRsmBY8Q=
 gotest.tools/v3 v3.5.2/go.mod h1:LtdLGcnqToBH83WByAAi/wiwSFCArdFIUV/xxN4pcjA=
-helm.sh/helm/v4 v4.3.1 h1:UndCoLe9UPmNoL7IvWzaUXveL7T5t/ijoorEmgJdI9g=
-helm.sh/helm/v4 v4.3.1/go.mod h1:Z663D/wNQG1UsG3X7svSEBPvosFVel4SIw4YIMZwmuY=
+helm.sh/helm/v4 v4.3.2 h1:zdd8DgKTlLrlYIzdoAntDHLH0V3RkgNIpQ3yjzuD84M=
+helm.sh/helm/v4 v4.3.2/go.mod h1:BJQR7djmSuM0wKBYqrU+UQAoaLagLPF8MaZ5cIiYv4k=
 k8s.io/api v0.37.2 h1:PnxqnUFy93jr2GcpWDkKOm8wfy25kT9wa572MuQS8oc=
 k8s.io/api v0.37.2/go.mod h1:+NVRLft99kx+Jg9v34GmHw867Dapim89TSyCsn2hK+M=
 k8s.io/apiextensions-apiserver v0.37.2 h1:myaUiAlm1NRLYdpAvWYTqdgeiCepFupJiRFVVueMUYw=
