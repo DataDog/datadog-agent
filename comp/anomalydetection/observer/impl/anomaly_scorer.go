@@ -258,15 +258,19 @@ func newTopAnomalyBuffer(displayCount int) *topAnomalyBuffer {
 func (b *topAnomalyBuffer) update(sec int64, anomalies []observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) {
 	b.expire(sec)
 	for _, anomaly := range anomalies {
-		if anomaly.SourceRef == nil {
-			continue
-		}
-		b.insert(topAnomaly{
-			handle:    *anomaly.SourceRef,
-			timestamp: sec,
-			weight:    contributorWeight(anomaly, cfg),
-		})
+		b.consider(sec, anomaly, cfg)
 	}
+}
+
+func (b *topAnomalyBuffer) consider(sec int64, anomaly observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) {
+	if anomaly.SourceRef == nil {
+		return
+	}
+	b.insert(topAnomaly{
+		handle:    *anomaly.SourceRef,
+		timestamp: sec,
+		weight:    contributorWeight(anomaly, cfg),
+	})
 }
 
 func (b *topAnomalyBuffer) expire(sec int64) {
@@ -926,9 +930,6 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 	var missedHigh int64
 	if len(late) > 0 {
 		missedHigh = s.replayLateInputs(dataTime, replayStart, late, states)
-		if s.topAnomalies != nil {
-			s.topAnomalies.update(dataTime, late, s.config.AnomalyScorerConfig)
-		}
 	}
 	s.mu.Unlock()
 
@@ -1347,11 +1348,16 @@ func (s *anomalyScorer) takeLateInputs(dataTime int64) ([]observerdef.Anomaly, i
 func (s *anomalyScorer) replayLateInputs(dataTime, start int64, late []observerdef.Anomaly, forward []secState) int64 {
 	h := s.replay
 	oldest := dataTime - h.windowSecs() + 1
+	cfg := s.config.AnomalyScorerConfig
 	h.ensureJournal()
 	for _, a := range late {
 		sec := max(a.Timestamp, oldest)
-		h.journal[sec] = append(h.journal[sec], scoringEvidence(a, s.config.AnomalyScorerConfig))
+		h.journal[sec] = append(h.journal[sec], scoringEvidence(a, cfg))
 		s.recordAnomaly(a, sec)
+		// Forward scoring already expired the contributor buffer through dataTime.
+		if s.topAnomalies != nil && sec > dataTime-topAnomalyWindowSecs {
+			s.topAnomalies.consider(sec, a, cfg)
+		}
 	}
 	return s.replayScoredSeconds(start, forward)
 }

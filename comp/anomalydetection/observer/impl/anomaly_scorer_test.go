@@ -779,14 +779,38 @@ func TestReplayLateInputsUsesNextAdvanceCutoff(t *testing.T) {
 	require.Len(t, history.Inputs, 1)
 	require.Equal(t, int64(cutoff+1), history.Inputs[0].ScoringSecond)
 	require.Len(t, s.openEpisode.Anomalies, 1)
+	require.Empty(t, s.topAnomalies.entries)
+}
+
+func TestReplayContributorExpiresFromScoringSecond(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 600
+	cfg.CorrelationEvents = true
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	const now = int64(1700)
+	const cutoff = now - topAnomalyWindowSecs
+	s.Advance(cutoff - 1)
+	s.Advance(now - 1)
+
+	for _, sec := range []int64{cutoff, cutoff + 1} {
+		a := makeAnomaly("bocpd", sec, nil)
+		a.SourceRef = &observer.QueryHandle{Ref: observer.SeriesRef(sec)}
+		s.ProcessAnomaly(a)
+	}
+	s.Advance(now)
+
+	require.Len(t, s.replay.journal[cutoff], 1, "expired contributors still count in replay")
 	require.Len(t, s.topAnomalies.entries, 1)
-	require.Equal(t, latest, s.topAnomalies.entries[0].timestamp)
+	require.Equal(t, cutoff+1, s.topAnomalies.entries[0].timestamp)
+	s.Advance(now + 1)
+	require.Empty(t, s.topAnomalies.entries)
 }
 
 func TestClampUsesOldestSecondOfNextAdvance(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
 	cfg.ReorderingWindowSecs = 4
 	cfg.LateAnomalyBehavior = "clamp"
+	cfg.CorrelationEvents = true
 	s := NewAnomalyScorer(cfg).(*anomalyScorer)
 	s.enableHistory()
 	s.Advance(1002)
@@ -809,6 +833,11 @@ func TestClampUsesOldestSecondOfNextAdvance(t *testing.T) {
 	require.EqualValues(t, 1000, history.Inputs[0].Anomaly.Timestamp)
 	require.EqualValues(t, 1006, history.Inputs[1].ScoringSecond)
 	require.EqualValues(t, 1007, history.Inputs[2].ScoringSecond)
+	contributorSeconds := make(map[observer.SeriesRef]int64)
+	for _, entry := range s.topAnomalies.entries {
+		contributorSeconds[entry.handle.Ref] = entry.timestamp
+	}
+	require.Equal(t, map[observer.SeriesRef]int64{1000: 1006, 1005: 1006, 1007: 1007}, contributorSeconds)
 }
 
 func TestClampAcrossCatchupTriggersAtDiscovery(t *testing.T) {
