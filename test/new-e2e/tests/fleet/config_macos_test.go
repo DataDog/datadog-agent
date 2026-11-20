@@ -1258,8 +1258,8 @@ const installerDaemonPlistPath = "/Library/LaunchDaemons/com.datadoghq.installer
 // Only the stable job set is restarted here, mirroring what launchd starts at boot: the experiment
 // job set and the watcher stay down, and the experiment is left for Fleet's stop to end.
 func (s *configMacOSSuite) killAllServicesSimulatingShutdown() {
-	// Every detached process dies with the host, not only the watcher: a hand-over still waiting
-	// for the experiment daemon would otherwise revert the experiment under the test.
+	// Every detached process dies with the host, not only one watcher: another one still around
+	// would otherwise revert the experiment under the test.
 	_, _ = s.Env().RemoteHost.Execute("sudo pkill -SIGKILL -f '" + detachedProcessPattern + "' || true")
 
 	_, err := s.Env().RemoteHost.Execute("sudo launchctl bootout system/com.datadoghq.installer || true")
@@ -1337,16 +1337,16 @@ func parseElapsed(etime string) time.Duration {
 }
 
 // detachedProcessPattern matches every detached process a configuration experiment runs outside of
-// any launchd job: the installer daemon hand-over, the watcher that supervises the experiment, and
-// the hand-back.
-const detachedProcessPattern = "package-command datadog-agent (watchConfigExperiment|handOverInstaller|handBackInstaller)"
+// any launchd job: the watchers that supervise the experiment, the launcher of the second one, and
+// the fallback hand-back.
+const detachedProcessPattern = "package-command datadog-agent (watchConfigExperiment|startSupervisorRelay|handBackInstaller)"
 
-// requireWatcherRunning waits for the hand-over to launch the watcher. The daemon is handed over to
-// the experiment once the start command exits, and the hand-over launches the watcher right after,
-// so the watcher appears several seconds after the experiment's jobs do.
+// requireWatcherRunning waits for a watcher to supervise the experiment. The start hook launches the
+// first one; once the installer daemon is handed over, the experiment daemon launches the second,
+// which takes over.
 func (s *configMacOSSuite) requireWatcherRunning(why string) {
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		assert.True(c, s.watcherRunning(), "the hand-over should have launched the watcher: %s", why)
+		assert.True(c, s.watcherRunning(), "a watcher should supervise the experiment: %s", why)
 	}, 60*time.Second, 2*time.Second)
 }
 
@@ -1612,6 +1612,96 @@ func (s *configMacOSSuite) requireWatcherExits(after string) {
 	}, 90*time.Second, 5*time.Second)
 }
 
+// supervisorSocketPath is where the supervising watcher listens
+// (config_experiment_supervisor_darwin.go).
+const supervisorSocketPath = "/opt/datadog-packages/run/experiment-supervisor.sock"
+
+// requireSingleSupervisor waits for the relay to settle: the watcher the start hook launched (W1)
+// has handed supervision to the one the experiment daemon launched (W2) and exited, and W2 listens
+// on the supervisor socket. It returns W2's pid.
+func (s *configMacOSSuite) requireSingleSupervisor() string {
+	var watcher string
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.Equal(c, 1, s.watcherCount(), "exactly one watcher should supervise once the relay is done")
+		watcher = s.watcherPID()
+		assert.True(c, s.pathExists(supervisorSocketPath), "the supervising watcher should listen on its socket")
+	}, 60*time.Second, 2*time.Second)
+	require.LessOrEqual(s.T(), s.processElapsed(watcher), s.processElapsed(s.jobPID(installerDaemonExperimentLabel)),
+		"the watcher left supervising should be the one the experiment daemon launched")
+	return watcher
+}
+
+// TestSecondWatcherTakesSupervisionOverMacOS pins the relay end to end: once the experiment runs,
+// one watcher is left, younger than the experiment daemon that launched it, listening on the
+// supervisor socket; the stop then ends the experiment and the watcher with it.
+func (s *configMacOSSuite) TestSecondWatcherTakesSupervisionOverMacOS() {
+	s.requireResting()
+
+	s.startConfigExperimentRC(nextID("cfg-relay"), []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+	}, nil)
+	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+	s.requireSingleSupervisor()
+
+	s.stopConfigExperimentRC()
+	s.requireInstallerDaemon(installerDaemonLabel, installerDaemonExperimentLabel)
+	s.requireWatcherExits("stopped")
+	require.False(s.T(), s.pathExists(supervisorSocketPath), "nothing should listen once the experiment is over")
+}
+
+// TestStopWithoutASupervisorFallsBackToTheHandBackMacOS covers the supervising watcher dying after
+// the relay: the experiment then runs unsupervised until Fleet stops it, and the stop, finding no
+// watcher on the socket, launches the hand-back process to return the installer daemon.
+func (s *configMacOSSuite) TestStopWithoutASupervisorFallsBackToTheHandBackMacOS() {
+	s.requireResting()
+
+	s.startConfigExperimentRC(nextID("cfg-no-supervisor"), []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+	}, nil)
+	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+	watcher := s.requireSingleSupervisor()
+	_, err := s.Env().RemoteHost.Execute("sudo kill -9 " + watcher)
+	require.NoError(s.T(), err)
+	s.requireWatcherExits("killed")
+	require.False(s.T(), s.etcExpResting(), "killing the watcher must not end the experiment")
+
+	s.stopConfigExperimentRC()
+	s.requireInstallerDaemon(installerDaemonLabel, installerDaemonExperimentLabel)
+	require.True(s.T(), s.etcExpResting(), "the stop should discard the experiment")
+	require.False(s.T(), s.pathExists(experimentDeadlinePath), "the stop should clear the deadline")
+}
+
+// TestStopWhoseCommandDiesIsFinishedByTheWatcherMacOS covers the mid-stop crash: the experiment
+// daemon, and the stop command it runs, die once the stop has marked the deadline as reverting,
+// with the jobs half handed back. The watcher sees the daemon go, waits for the lock the dead command
+// held, and finishes the restore, every job and the daemon with it, keeping the experiment for Fleet
+// to stop again.
+func (s *configMacOSSuite) TestStopWhoseCommandDiesIsFinishedByTheWatcherMacOS() {
+	s.requireResting()
+
+	deploymentID := nextID("cfg-mid-stop-crash")
+	s.startConfigExperimentRC(deploymentID, []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+	}, nil)
+	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+	s.requireSingleSupervisor()
+
+	// Kill the experiment daemon and its stop command as soon as the stop marks the deadline as
+	// reverting, from a background shell on the host, so the kill lands inside the stop.
+	_, err := s.Env().RemoteHost.Execute(`sudo sh -c 'nohup sh -c "` +
+		`for i in \$(seq 1 1200); do [ \"\$(cat ` + experimentDeadlinePath + ` 2>/dev/null)\" = reverting ] && break; sleep 0.05; done; ` +
+		`pkill -9 -f \"installer remove-config-experiment\"; launchctl kill SIGKILL system/` + installerDaemonExperimentLabel +
+		`" >/dev/null 2>&1 &'`)
+	require.NoError(s.T(), err)
+	s.pushTask("stop_experiment_config", s.currentExpectedState(), nil)
+
+	s.requireFailedOnHost(deploymentID)
+	s.requireWatcherExits("finished the interrupted stop")
+	// See clearPendingUpdaterTasks: the killed stop is never reported as done.
+	s.clearPendingUpdaterTasks()
+	s.stopFailedExperimentRC()
+}
+
 // TestWatcherExitsWithItsExperimentMacOS regression-tests
 // pkg/fleet/installer/packages/config_experiment_watcher_darwin.go: a deliberate stop or promote
 // lets the experiment jobs exit cleanly, which gives the watcher no exit event to act on, so it has
@@ -1786,19 +1876,29 @@ func (s *configMacOSSuite) TestExperimentJobDefinitionsMacOS() {
 		require.Equal(s.T(), stable["UserName"], experiment["UserName"], "%s should run as its stable twin's account", path)
 		require.Equal(s.T(), stable["GroupName"], experiment["GroupName"], "%s should run as its stable twin's group", path)
 
-		// Mapping etc-exp back to etc must give exactly the stable job's command line: the same
-		// program, with only the configuration directory swapped.
 		experimentArgs, ok := experiment["ProgramArguments"].([]any)
 		require.True(s.T(), ok, "%s should have ProgramArguments", path)
-		var mapped []any
-		var readsExperiment bool
-		for _, arg := range experimentArgs {
-			str, _ := arg.(string)
-			readsExperiment = readsExperiment || strings.Contains(str, "/opt/datadog-agent/etc-exp")
-			mapped = append(mapped, strings.ReplaceAll(str, "/opt/datadog-agent/etc-exp", "/opt/datadog-agent/etc"))
+		if label == installerDaemonLabel {
+			// The experiment daemon launches the second watcher, then becomes the daemon its stable
+			// twin runs, on etc-exp.
+			require.Len(s.T(), experimentArgs, 3, "%s should run through a shell", path)
+			require.Equal(s.T(), "/bin/sh", experimentArgs[0], "%s should run through a shell", path)
+			script, _ := experimentArgs[2].(string)
+			require.Contains(s.T(), script, "package-command datadog-agent startSupervisorRelay;", "%s should launch the second watcher first", path)
+			require.Contains(s.T(), script, "exec '/opt/datadog-agent/embedded/bin/installer' run -c '/opt/datadog-agent/etc-exp'", "%s should then become the daemon on etc-exp", path)
+		} else {
+			// Mapping etc-exp back to etc must give exactly the stable job's command line: the same
+			// program, with only the configuration directory swapped.
+			var mapped []any
+			var readsExperiment bool
+			for _, arg := range experimentArgs {
+				str, _ := arg.(string)
+				readsExperiment = readsExperiment || strings.Contains(str, "/opt/datadog-agent/etc-exp")
+				mapped = append(mapped, strings.ReplaceAll(str, "/opt/datadog-agent/etc-exp", "/opt/datadog-agent/etc"))
+			}
+			require.True(s.T(), readsExperiment, "%s should read its configuration from etc-exp", path)
+			require.Equal(s.T(), stable["ProgramArguments"], mapped, "%s should run its stable twin's program on etc-exp", path)
 		}
-		require.True(s.T(), readsExperiment, "%s should read its configuration from etc-exp", path)
-		require.Equal(s.T(), stable["ProgramArguments"], mapped, "%s should run its stable twin's program on etc-exp", path)
 
 		env, _ := experiment["EnvironmentVariables"].(map[string]any)
 		require.NotContains(s.T(), env, "DD_FLEET_POLICIES_DIR", "%s must not point policies outside the configuration directory", path)
@@ -1989,15 +2089,9 @@ func (s *configMacOSSuite) TestInstallerDaemonSwappedWithTheExperimentMacOS() {
 	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
 	require.Equal(s.T(), deploymentID, s.packageState(s.readStatus()).ExperimentConfigVersion,
 		"the experiment daemon should report the experiment")
-	// The hand-over launches the watcher once it has started the experiment daemon, so the watcher
-	// is no older than that daemon: a watcher launched before the swap would be older.
-	var watcher string
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		watcher = s.watcherPID()
-		assert.NotEmpty(c, watcher, "the hand-over should have launched the watcher")
-	}, 30*time.Second, time.Second)
-	require.LessOrEqual(s.T(), s.processElapsed(watcher), s.processElapsed(s.jobPID(installerDaemonExperimentLabel)),
-		"the watcher should have been launched after the experiment daemon started")
+	// The experiment daemon launches the watcher left supervising, so it is no older than that
+	// daemon: the first watcher, launched before the swap, would be older.
+	s.requireSingleSupervisor()
 
 	s.promoteConfigExperimentRC()
 	s.requireInstallerDaemon(installerDaemonLabel, installerDaemonExperimentLabel)
@@ -2169,13 +2263,14 @@ func (s *configMacOSSuite) startExperimentAndCrashIt(prefix string) (string, exp
 		pid = s.jobPID("com.datadoghq.agent-exp")
 		assert.NotEmpty(c, pid, "the experiment Agent should be running")
 	}, 30*time.Second, 2*time.Second)
-	// The installer daemon is handed over once the start command exits, and the hand-over then
-	// launches the watcher, so both must be done before the lock is taken: the revert is what this
-	// sets up to wait on, not the hand-over.
+	// The first watcher hands the installer daemon over once the start command exits, and the second
+	// takes supervision over, so both must be done before the lock is taken: the revert is what this
+	// sets up to wait on, not the relay.
 	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		assert.True(c, s.watcherRunning(), "the hand-over should have launched the watcher")
+		assert.True(c, s.watcherRunning(), "a watcher should supervise the experiment")
 	}, 30*time.Second, time.Second)
+	s.requireSingleSupervisor()
 	// Read before the lock is taken: the daemon's /status waits on it.
 	expected := s.currentExpectedState()
 
