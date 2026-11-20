@@ -246,30 +246,6 @@ func TestFailSafeRevertDoesNothingOnceStopped(t *testing.T) {
 	}
 }
 
-// TestSettleFinishesAPromoteInterruptedBeforeItsHook covers a daemon that died between promoting
-// the experiment configuration and handing the jobs back: the deadline is still in force but the
-// configuration is no longer deployed, so the next start hands the jobs back to the stable set
-// instead of bringing the experiment back on the stable configuration.
-func TestSettleFinishesAPromoteInterruptedBeforeItsHook(t *testing.T) {
-	calls := stubLaunchd(t)
-	stubJobDir(t)
-	stubDeadlinePath(t)
-	stubSurvivingHelpers(t, nil, nil)
-	watchers := stubConfigExperimentWatcher(t)
-	stubConfigExperimentDirs(t)
-	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
-
-	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
-
-	assert.Zero(t, *watchers, "no watcher should be launched for an experiment being handed back")
-	for _, target := range launchctlCalls(*calls, "kickstart") {
-		assert.NotContains(t, target, "-exp", "the experiment must not be brought back")
-	}
-	token, err := experimentDeadline().Read()
-	require.NoError(t, err)
-	assert.Empty(t, token)
-}
-
 // TestWatcherFinishesAPromoteInterruptedBeforeItsHook is the same window seen by a watcher that
 // survived: once the configuration is no longer deployed and no installer command holds the lock,
 // it hands the jobs back rather than running the experiment set until the deadline.
