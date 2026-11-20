@@ -80,11 +80,17 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	client := common.NewMacOSTestClient(m.Env().RemoteHost)
 	// Unique per run, so cleanup can match this child after a daemon crash drops the runtime entry.
 	sleepArg := strconv.Itoa(100000 + int(time.Now().UnixNano()%900000))
+	// Cleanup runs only after the preconditions pass. Before that the test has changed nothing,
+	// and the restart would stop every managed process, including one this test did not start.
+	preconditionsPassed := false
 
 	// Registered first so it runs after diagnostics. On success the test has already stopped
 	// its child. On failure, stop and kill before the restart: each child has its own process
 	// group and would outlive the restart, which drops the runtime entry.
 	t.Cleanup(func() {
+		if !preconditionsPassed {
+			return
+		}
 		if t.Failed() {
 			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthEntry); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthEntry, err)
@@ -108,6 +114,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	require.False(t, t.Failed(), "preconditions failed")
 	require.NoError(t, statErr, "stat %s failed:\n%s", macosProcmgrSocket, statOut)
 	require.Equal(t, "root:daemon 660", strings.TrimSpace(statOut), "socket owner or mode")
+	preconditionsPassed = true
 
 	_, err := client.Execute("sudo " + macosProcmgrCLI + " create --name " + macosCallerAuthEntry + " --command /bin/sleep --args " + sleepArg + " --no-auto-start --restart-policy never")
 	require.NoError(t, err)
