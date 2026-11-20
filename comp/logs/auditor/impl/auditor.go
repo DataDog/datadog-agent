@@ -9,7 +9,6 @@ package auditorimpl
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -24,19 +23,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-// defaultFlushPeriod is the default interval at which the running auditor
-// writes the registry to disk if it has changed (see flushRegistryIfChanged),
-// set by logs_config.auditor_flush_interval. It also replaces a configured
-// value that is not positive. Stop writes once more after acknowledgements
-// queued at shutdown have been applied.
+// defaultFlushPeriod is the default interval between registry writes while
+// the agent is running (logs_config.auditor_flush_interval). It also replaces
+// a configured value that is not positive. Stop writes once more after
+// acknowledgements queued at shutdown have been applied.
 const defaultFlushPeriod = 5 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
-
-// touchOnlyWritePeriod is the shortest interval between periodic registry
-// writes when the only changes are LastUpdated refreshes from KeepAlive.
-// LastUpdated is read only by cleanupRegistry, which runs on the same period
-// against a TTL measured in hours.
-const touchOnlyWritePeriod = defaultCleanupPeriod
 
 // latest version of the API used by the auditor to retrieve the registry from disk.
 const registryAPIVersion = 2
@@ -78,21 +70,6 @@ type registryAuditor struct {
 	done                chan struct{}
 	messageChannelSize  int
 	registryWriter      auditor.RegistryWriter
-
-	// changeGeneration counts registry changes that the next periodic flush
-	// writes: entries added, updated or removed, SetTailed refreshes, and
-	// Start. touchGeneration counts LastUpdated refreshes from KeepAlive,
-	// which are written at most every touchOnlyWritePeriod. Both are guarded
-	// by registryMutex.
-	changeGeneration uint64
-	touchGeneration  uint64
-
-	// flushMutex serializes registry writes. It guards the generations and
-	// the time of the last write to disk.
-	flushMutex              sync.Mutex
-	writtenChangeGeneration uint64
-	writtenTouchGeneration  uint64
-	lastWrite               time.Time
 
 	log log.Component
 }
@@ -167,13 +144,7 @@ func (a *registryAuditor) Start() {
 	a.health = a.kubeHealthRegistrar.RegisterLiveness("logs-agent")
 
 	a.createChannels()
-	registry := a.recoverRegistry()
-	a.registryMutex.Lock()
-	a.registry = registry
-	// The file on disk may be missing, unreadable or in an older format, so
-	// the first periodic flush always writes the recovered registry.
-	a.changeGeneration++
-	a.registryMutex.Unlock()
+	a.registry = a.recoverRegistry()
 	go a.run()
 }
 
@@ -276,9 +247,8 @@ func (a *registryAuditor) GetTailingMode(identifier string) string {
 func (a *registryAuditor) KeepAlive(identifier string) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
-	if entry, ok := a.registry[identifier]; ok {
-		entry.LastUpdated = time.Now().UTC()
-		a.touchGeneration++
+	if _, ok := a.registry[identifier]; ok {
+		a.registry[identifier].LastUpdated = time.Now().UTC()
 	}
 }
 
@@ -293,12 +263,9 @@ func (a *registryAuditor) SetTailed(identifier string, isTailed bool) {
 	}
 
 	// entities that are no longer tailed should remain in the registry for the TTL period
-	// in case they are tailed again. This refresh restarts the TTL of an entry
-	// whose tailer stopped, so it is persisted like any other change rather
-	// than deferred like KeepAlive.
-	if entry, ok := a.registry[identifier]; ok {
-		entry.LastUpdated = time.Now().UTC()
-		a.changeGeneration++
+	// in case they are tailed again.
+	if _, ok := a.registry[identifier]; ok {
+		a.registry[identifier].LastUpdated = time.Now().UTC()
 	}
 }
 
@@ -306,7 +273,6 @@ func (a *registryAuditor) SetTailed(identifier string, isTailed bool) {
 func (a *registryAuditor) SetOffset(identifier string, offset string) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
-	a.changeGeneration++
 	if entry, exists := a.registry[identifier]; exists {
 		entry.Offset = offset
 		entry.LastUpdated = time.Now().UTC()
@@ -356,8 +322,8 @@ func (a *registryAuditor) run() {
 			// remove expired offsets from the registry
 			a.cleanupRegistry()
 		case <-flushTicker.C:
-			// saves the current registry into disk when it has changed
-			err := a.flushRegistryIfChanged(time.Now())
+			// saves the current registry into disk
+			err := a.flushRegistry()
 			if err != nil {
 				if os.IsPermission(err) || os.IsNotExist(err) {
 					fileError.Do(func() {
@@ -422,7 +388,6 @@ func (a *registryAuditor) cleanupRegistry() {
 			} else {
 				a.log.Debugf("TTL for %s is expired, removing from registry.", path)
 				delete(a.registry, path)
-				a.changeGeneration++
 			}
 		}
 	}
@@ -453,7 +418,6 @@ func (a *registryAuditor) updateRegistry(identifier string, offset string, taili
 		IngestionTimestamp: ingestionTimestamp,
 		Fingerprint:        fingerprint,
 	}
-	a.changeGeneration++
 }
 
 func (a *registryAuditor) readOnlyRegistryEntryCopy(identifier string) (RegistryEntry, bool) {
@@ -466,48 +430,9 @@ func (a *registryAuditor) readOnlyRegistryEntryCopy(identifier string) (Registry
 	return *entry, true
 }
 
-// flushRegistry writes the registry to disk, whether or not it has changed
-// since the last write.
+// flushRegistry streams the registry to disk with encodeRegistry.
 func (a *registryAuditor) flushRegistry() error {
-	a.flushMutex.Lock()
-	defer a.flushMutex.Unlock()
-	return a.writeRegistry(time.Now())
-}
-
-// flushRegistryIfChanged writes the registry to disk when an entry has been
-// added, updated or removed since the last write, or when entries have only
-// had LastUpdated refreshed and the last write is at least
-// touchOnlyWritePeriod old.
-func (a *registryAuditor) flushRegistryIfChanged(now time.Time) error {
-	a.flushMutex.Lock()
-	defer a.flushMutex.Unlock()
-
-	a.registryMutex.Lock()
-	changed := a.changeGeneration != a.writtenChangeGeneration
-	touched := a.touchGeneration != a.writtenTouchGeneration
-	a.registryMutex.Unlock()
-
-	if !changed && !(touched && now.Sub(a.lastWrite) >= touchOnlyWritePeriod) {
-		return nil
-	}
-	return a.writeRegistry(now)
-}
-
-// writeRegistry streams the registry to disk with encodeRegistry. The caller
-// holds flushMutex.
-func (a *registryAuditor) writeRegistry(now time.Time) error {
-	var changeGeneration, touchGeneration uint64
-	err := a.registryWriter.WriteRegistry(a.registryPath, a.registryDirPath, a.registryTmpFile, func(w io.Writer) error {
-		var err error
-		changeGeneration, touchGeneration, err = a.encodeRegistry(w)
-		return err
-	})
-	if err != nil {
-		return err
-	}
-	a.writtenChangeGeneration, a.writtenTouchGeneration = changeGeneration, touchGeneration
-	a.lastWrite = now
-	return nil
+	return a.registryWriter.WriteRegistry(a.registryPath, a.registryDirPath, a.registryTmpFile, a.encodeRegistry)
 }
 
 // unmarshalRegistry unmarshals a registry

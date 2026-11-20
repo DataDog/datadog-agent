@@ -29,23 +29,21 @@ const registryEncodeBatchSize = 256
 // registryEncodeBatchSize at a time, each batch under registryMutex and each
 // write to w outside it, so disk writes never hold the lock and the encoded
 // registry is never held in memory whole. Entries removed after the
-// identifiers are taken are left out; entries added after are written next
-// time. It returns changeGeneration and touchGeneration as they were when
-// the identifiers were taken.
-func (a *registryAuditor) encodeRegistry(w io.Writer) (changeGeneration, touchGeneration uint64, err error) {
+// identifiers are taken are left out; entries added after are written by the
+// next flush.
+func (a *registryAuditor) encodeRegistry(w io.Writer) error {
 	a.registryMutex.Lock()
 	identifiers := make([]string, 0, len(a.registry))
 	for identifier := range a.registry {
 		identifiers = append(identifiers, identifier)
 	}
-	changeGeneration, touchGeneration = a.changeGeneration, a.touchGeneration
 	a.registryMutex.Unlock()
 
 	buf := append(make([]byte, 0, 512*registryEncodeBatchSize), `{"Version":`...)
 	buf = strconv.AppendInt(buf, registryAPIVersion, 10)
 	buf = append(buf, `,"Registry":{`...)
-	if _, err = w.Write(buf); err != nil {
-		return 0, 0, err
+	if _, err := w.Write(buf); err != nil {
+		return err
 	}
 	buf = buf[:0]
 	first := true
@@ -63,20 +61,21 @@ func (a *registryAuditor) encodeRegistry(w io.Writer) (changeGeneration, touchGe
 			first = false
 			buf = appendJSONString(buf, identifier)
 			buf = append(buf, ':')
+			var err error
 			if buf, err = appendRegistryEntryJSON(buf, entry); err != nil {
 				a.registryMutex.Unlock()
-				return 0, 0, err
+				return err
 			}
 		}
 		a.registryMutex.Unlock()
-		if _, err = w.Write(buf); err != nil {
-			return 0, 0, err
+		if _, err := w.Write(buf); err != nil {
+			return err
 		}
 		buf = buf[:0]
 	}
 	buf = append(buf, "}}"...)
-	_, err = w.Write(buf)
-	return changeGeneration, touchGeneration, err
+	_, err := w.Write(buf)
+	return err
 }
 
 func appendRegistryEntryJSON(buf []byte, entry *RegistryEntry) ([]byte, error) {

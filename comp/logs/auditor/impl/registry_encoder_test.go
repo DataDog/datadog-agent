@@ -38,7 +38,7 @@ func marshalWithEncodingJSON(t *testing.T, registry map[string]*RegistryEntry) [
 func encodeRegistryToBytes(t *testing.T, registry map[string]*RegistryEntry) []byte {
 	t.Helper()
 	var buf bytes.Buffer
-	_, _, err := (&registryAuditor{registry: registry}).encodeRegistry(&buf)
+	err := (&registryAuditor{registry: registry}).encodeRegistry(&buf)
 	require.NoError(t, err)
 	return buf.Bytes()
 }
@@ -168,7 +168,7 @@ func encodeRemovingAllBut(t *testing.T, n, keep int) (map[string]*RegistryEntry,
 	}
 	w := &removingWriter{a: a, remove: remove}
 
-	_, _, err := a.encodeRegistry(w)
+	err := a.encodeRegistry(w)
 	require.NoError(t, err)
 
 	var written JSONRegistry
@@ -203,12 +203,29 @@ func TestEncodeRegistryWithEveryEntryRemoved(t *testing.T) {
 	assert.Empty(t, written.Registry)
 }
 
-func TestEncodeRegistryReportsGenerationsAtStart(t *testing.T) {
-	a := &registryAuditor{registry: manyEntries(2 * registryEncodeBatchSize), changeGeneration: 7, touchGeneration: 9}
-	changeGeneration, touchGeneration, err := a.encodeRegistry(io.Discard)
-	require.NoError(t, err)
-	assert.Equal(t, uint64(7), changeGeneration)
-	assert.Equal(t, uint64(9), touchGeneration)
+// lockCheckingWriter records whether registryMutex was free on every write.
+type lockCheckingWriter struct {
+	a          *registryAuditor
+	writes     int
+	writesHeld int
+}
+
+func (w *lockCheckingWriter) Write(p []byte) (int, error) {
+	w.writes++
+	if w.a.registryMutex.TryLock() {
+		w.a.registryMutex.Unlock()
+	} else {
+		w.writesHeld++
+	}
+	return len(p), nil
+}
+
+func TestEncodeRegistryWritesWithoutHoldingTheLock(t *testing.T) {
+	a := &registryAuditor{registry: manyEntries(3*registryEncodeBatchSize + 1)}
+	w := &lockCheckingWriter{a: a}
+	require.NoError(t, a.encodeRegistry(w))
+	assert.Greater(t, w.writes, 4, "the registry was not written in batches")
+	assert.Zero(t, w.writesHeld, "registryMutex was held during a write to the registry file")
 }
 
 type failingWriter struct{}
@@ -216,7 +233,7 @@ type failingWriter struct{}
 func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("disk full") }
 
 func TestEncodeRegistryReturnsWriteErrors(t *testing.T) {
-	_, _, err := (&registryAuditor{registry: manyEntries(10)}).encodeRegistry(failingWriter{})
+	err := (&registryAuditor{registry: manyEntries(10)}).encodeRegistry(failingWriter{})
 	assert.EqualError(t, err, "disk full")
 }
 
@@ -231,7 +248,7 @@ func TestEncodeRegistryRejectsTimesEncodingJSONRejects(t *testing.T) {
 			_, wantErr := json.Marshal(lastUpdated)
 			require.Error(t, wantErr, "encoding/json accepts this time")
 			a := &registryAuditor{registry: map[string]*RegistryEntry{"file:/var/log/app.log": {LastUpdated: lastUpdated}}}
-			_, _, err := a.encodeRegistry(io.Discard)
+			err := a.encodeRegistry(io.Discard)
 			assert.Error(t, err)
 		})
 	}
@@ -271,7 +288,7 @@ func BenchmarkRegistryEncoding(b *testing.B) {
 	b.Run("encodeRegistry", func(b *testing.B) {
 		a := &registryAuditor{registry: registry}
 		for b.Loop() {
-			if _, _, err := a.encodeRegistry(io.Discard); err != nil {
+			if err := a.encodeRegistry(io.Discard); err != nil {
 				b.Fatal(err)
 			}
 		}
