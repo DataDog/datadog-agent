@@ -1076,6 +1076,17 @@ func TestStreamingProvider_podAffectedByKueueUpdate(t *testing.T) {
 				},
 				Type: pb.KubeMetadataEventType_SET,
 			},
+			{
+				// Claims the managed pod below by job-uid, which the
+				// stream must ignore.
+				Namespace: "default",
+				Name:      "pod-worker-12345",
+				Labels:    map[string]string{kubernetes.KueueJobUIDLabelKey: "managed-uid"},
+				PodSetAssignments: []*pb.KueuePodSetAssignment{
+					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "h100"}},
+				},
+				Type: pb.KubeMetadataEventType_SET,
+			},
 		},
 	})
 	provider.dcaStream.drainPendingUpdate()
@@ -1090,6 +1101,12 @@ func TestStreamingProvider_podAffectedByKueueUpdate(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Namespace: "default",
 			Labels:    map[string]string{kubernetes.KueuePodGroupNameLabelKey: "job-sample"},
+		},
+	}
+	podWithPrebuiltWorkloadLabel := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Namespace: "default",
+			Labels:    map[string]string{kubernetes.KueuePrebuiltWorkloadNameKey: "job-sample"},
 		},
 	}
 	podWithoutKueue := &workloadmeta.KubernetesPod{
@@ -1119,6 +1136,34 @@ func TestStreamingProvider_podAffectedByKueueUpdate(t *testing.T) {
 			pod:      podWithPodGroupLabel,
 			update:   streamUpdate{updatedKueueWorkloads: map[string]struct{}{"default/job-sample": {}}},
 			expected: true,
+		},
+		{
+			name:     "pod joins updated Workload via prebuilt Workload label",
+			pod:      podWithPrebuiltWorkloadLabel,
+			update:   streamUpdate{updatedKueueWorkloads: map[string]struct{}{"default/job-sample": {}}},
+			expected: true,
+		},
+		{
+			name:     "pod with prebuilt Workload label affected transitively by updated ResourceFlavor",
+			pod:      podWithPrebuiltWorkloadLabel,
+			update:   streamUpdate{updatedKueueResourceFlavors: map[string]struct{}{"a100": {}}},
+			expected: true,
+		},
+		{
+			// The tagger retags pods joined to their Workload by job-uid itself.
+			name: "managed pod joined only by job-uid is not re-enriched",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "managed-uid"},
+				EntityMeta: workloadmeta.EntityMeta{
+					Namespace: "default",
+					Labels:    map[string]string{kubernetes.KueueManagedLabelKey: "true"},
+				},
+			},
+			update: streamUpdate{
+				updatedKueueWorkloads:       map[string]struct{}{"default/pod-worker-12345": {}},
+				updatedKueueResourceFlavors: map[string]struct{}{"h100": {}},
+			},
+			expected: false,
 		},
 		{
 			name:     "pod joins a different Workload than the updated one",

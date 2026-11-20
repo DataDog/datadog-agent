@@ -7,6 +7,7 @@ package com_datadoghq_kubernetes_apps
 
 import (
 	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 
@@ -43,6 +44,13 @@ func (h *CreateControllerRevisionHandler) Run(
 	inputs, err := types.ExtractInputs[CreateControllerRevisionInputs](task)
 	if err != nil {
 		return nil, err
+	}
+
+	if inputs.Namespace == "" {
+		return nil, errors.New("namespace is required")
+	}
+	if inputs.Body == nil {
+		return nil, errors.New("body is required")
 	}
 
 	client, err := support.KubeClient(credential)

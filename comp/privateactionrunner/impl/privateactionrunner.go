@@ -250,7 +250,10 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		persistedIdentity != nil && !persistedIdentity.MatchesWIFConfig(p.coreConfig) {
 		persistedIdentity = nil
 	}
-	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
+	if persistedIdentity != nil && !persistedIdentity.MatchesPAROverrides(p.coreConfig) {
+		persistedIdentity = nil
+	}
+	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, par.EnrollmentAPIKey(p.coreConfig)) {
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
@@ -365,7 +368,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 
 	// The executor has its own span buffer; start its sender only after setup succeeds.
 	if cfg != nil {
-		p.startTelemetry(cfg)
+		p.startTelemetry()
 	}
 
 	go func() {
@@ -514,7 +517,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	// runner_id is only finalized after enrollment.
 	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
 
-	p.startTelemetry(cfg)
+	p.startTelemetry()
 
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
@@ -581,11 +584,11 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 	return stopErr
 }
 
-func (p *PrivateActionRunner) startTelemetry(cfg *parconfig.Config) {
+func (p *PrivateActionRunner) startTelemetry() {
 	p.telemetry = telemetry.NewTelemetry(
 		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
 		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
-		cfg.DatadogSite,
+		par.AgentSite(p.coreConfig),
 		observability.ParService,
 	)
 }
@@ -607,8 +610,8 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 	return nil
 }
 
-// wifEnrollmentEnabled follows primary intake authentication. WIF configured
-// only for another endpoint (for example logs) does not select PAR enrollment.
+// wifEnrollmentEnabled follows primary intake authentication unless PAR overrides its API key.
+// WIF configured only for another endpoint (for example logs) does not select PAR enrollment.
 func (p *PrivateActionRunner) wifEnrollmentEnabled() bool {
 	return enrollment.UsesWIF(p.coreConfig)
 }
@@ -629,7 +632,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		}
 		return p.saveEnrollmentIdentity(ctx, cfg, result)
 	}
-	apiKey := p.coreConfig.GetString("api_key")
+	apiKey := par.EnrollmentAPIKey(p.coreConfig)
 	apiKeyOnlyEnrollment := p.coreConfig.GetBool(par.APIKeyOnlyEnrollment)
 
 	if apiKeyOK, err := util.ValidateAPIKey(apiKey); err != nil {

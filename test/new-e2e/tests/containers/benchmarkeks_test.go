@@ -622,7 +622,7 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 		reportDir = s.SessionOutputDir()
 	}
 	s.Require().NoError(report.Write(reportDir))
-	s.T().Logf("Report written to %s (%s only when a metric changed or couldn't be compared):\n%s", reportDir, benchmark.MarkdownReportFile, report.Markdown())
+	s.T().Logf("Report written to %s:\n%s", reportDir, report.Markdown())
 
 	for _, result := range report.Results {
 		s.Emptyf(result.Error, "%s %s couldn't be compared", result.Component, result.Name())
