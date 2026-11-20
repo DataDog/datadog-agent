@@ -65,10 +65,13 @@ type Option func(*Server)
 type Server struct {
 	uuid               uuid.UUID
 	server             http.Server
+	listener           net.Listener
+	listenerURL        string
 	ready              chan bool
 	clock              clock.Clock
 	retention          time.Duration
 	shutdown           chan struct{}
+	served             chan struct{}
 	dddevForward       bool
 	forwardEndpoint    string
 	logForwardEndpoint string
@@ -76,6 +79,11 @@ type Server struct {
 
 	urlMutex sync.RWMutex
 	url      string
+
+	// startMutex guards started, set by Start until the server stops listening or fails to, so a Start while the
+	// server is starting or running doesn't start other routines
+	startMutex sync.Mutex
+	started    bool
 
 	store serverstore.Store
 
@@ -200,6 +208,22 @@ func WithAddress(addr string) Option {
 	}
 }
 
+// WithListener makes the server accept connections from the given listener rather than listening on its address,
+// for instance an in-memory listener for a test running in a testing/synctest bubble, where network I/O must be faked.
+// url is the HTTP origin the clients reach the listener at, e.g. http://fakeintake.test, as a listener address isn't
+// always one: when empty, it is built from the listener address. The listener takes precedence over the address set
+// with WithAddress or WithPort, and is closed when the server stops.
+func WithListener(listener net.Listener, url string) Option {
+	return func(fi *Server) {
+		if fi.IsRunning() {
+			log.Println("Fake intake is already running. Stop it and try again to change the listener.")
+			return
+		}
+		fi.listener = listener
+		fi.listenerURL = strings.TrimSuffix(url, "/")
+	}
+}
+
 // WithPort changes the server port.
 // If the port is 0, a port number is automatically chosen
 func WithPort(port int) Option {
@@ -284,16 +308,25 @@ func withLogForwardEndpoint(endpoint string) Option {
 // Start Starts a fake intake server in a separate go-routine
 // Notifies when ready to the ready channel
 func (fi *Server) Start() {
-	if fi.IsRunning() {
-		log.Printf("Fake intake already running at %s", fi.URL())
-		if fi.ready != nil {
-			fi.ready <- true
+	fi.startMutex.Lock()
+	if fi.started {
+		fi.startMutex.Unlock()
+		// a Start in progress notifies its own readiness
+		if fi.IsRunning() {
+			log.Printf("Fake intake already running at %s", fi.URL())
+			if fi.ready != nil {
+				fi.ready <- true
+			}
 		}
 		return
 	}
+	fi.started = true
 	fi.shutdown = make(chan struct{})
+	fi.served = make(chan struct{})
+	served := fi.served
+	fi.startMutex.Unlock()
 
-	go fi.listenRoutine()
+	go fi.listenRoutine(served)
 	go fi.cleanUpPayloadsRoutine()
 }
 
@@ -320,36 +353,57 @@ func (fi *Server) Stop() error {
 	if !fi.IsRunning() {
 		return errors.New("server not running")
 	}
-	defer close(fi.shutdown)
 	defer fi.store.Close()
 	err := fi.server.Shutdown(context.Background())
-	if err != nil {
-		return err
-	}
-	return nil
+	// stop the background routines, including a listen routine still notifying its readiness
+	close(fi.shutdown)
+	// Serve may only start after Shutdown, as readiness is notified before: wait for the listen routine to return, as
+	// it closes the listener, so the listener is closed once Stop returns
+	<-fi.served
+	return err
 }
 
-func (fi *Server) listenRoutine() {
-	// explicitly creating a listener to get the actual port
-	// as http.Server.ListenAndServe hides this information
-	// https://github.com/golang/go/blob/go1.19.6/src/net/http/server.go#L2987-L3000
-	listener, err := net.Listen("tcp", fi.server.Addr)
-	if err != nil {
-		log.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
+// listenRoutine serves the requests until the server stops, then closes served
+func (fi *Server) listenRoutine(served chan struct{}) {
+	defer close(served)
+	listener, url := fi.listener, fi.listenerURL
+	if listener == nil {
+		// explicitly creating a listener to get the actual port
+		// as http.Server.ListenAndServe hides this information
+		// https://github.com/golang/go/blob/go1.19.6/src/net/http/server.go#L2987-L3000
+		var err error
+		listener, err = net.Listen("tcp", fi.server.Addr)
+		if err != nil {
+			log.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
+			// the server never ran: a later Start can try again
+			fi.startMutex.Lock()
+			fi.started = false
+			fi.startMutex.Unlock()
 
-		if fi.ready != nil {
-			fi.ready <- false
+			if fi.ready != nil {
+				fi.ready <- false
+			}
+
+			return
 		}
-
-		return
+		url = "http://" + listener.Addr().String()
 	}
-	fi.setURL("http://" + listener.Addr().String())
+	if url == "" {
+		url = "http://" + listener.Addr().String()
+	}
+	fi.setURL(url)
 	// notify server is ready, if anybody is listening
 	if fi.ready != nil {
-		fi.ready <- true
+		select {
+		case fi.ready <- true:
+		case <-fi.shutdown:
+			// stopped before its readiness was read: Serve won't close the listener
+			_ = listener.Close()
+			return
+		}
 	}
 	// server.Serve blocks and listens to requests
-	err = fi.server.Serve(listener)
+	err := fi.server.Serve(listener)
 	if err != nil && err != http.ErrServerClosed {
 		log.Printf("Error listening at %s: %v", listener.Addr().String(), err)
 		return
