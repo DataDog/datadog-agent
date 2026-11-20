@@ -253,6 +253,27 @@ func TestSlots(t *testing.T) {
 	}
 }
 
+func TestSlotSizesIndependentOfHealth(t *testing.T) {
+	// All nodes cordoned: sizes stay, with 0 slots.
+	nodes, alloc := cluster(map[string]map[string][]int{"b": {"rack-1": {0, 0}}})
+	for i := range nodes {
+		nodes[i].Unschedulable = true
+	}
+	lvl := Compute(Topology{Levels: []string{rackLabel}}, nodes, alloc).Resources[0].Levels[0]
+	assert.Equal(t, slots(0, 0, 0), lvl.LargestFreeSlots)
+
+	// 8-GPU hosts with one unhealthy GPU each: the 8-GPU size is still reported.
+	rack := map[string]string{rackLabel: "rack-1"}
+	var degraded []Node
+	for i := range 2 {
+		n := gpuNode(fmt.Sprintf("h%d", i), rack, 8, nvidia)
+		n.Allocatable[nvidia] = 7
+		degraded = append(degraded, n)
+	}
+	lvl = Compute(Topology{Levels: []string{rackLabel}}, degraded, nil).Resources[0].Levels[0]
+	assert.Equal(t, slots(14, 6, 2, 0), lvl.LargestFreeSlots)
+}
+
 func TestRepeatedRackNamesAcrossBlocks(t *testing.T) {
 	nodes, alloc := cluster(map[string]map[string][]int{
 		"block-a": {"rack-1": {0, 0}},
@@ -309,6 +330,9 @@ func TestNodeStates(t *testing.T) {
 		n.Labels = with(map[string]string{"nvidia.com/gpu.present": "true"})
 		return n
 	}
+	capacity := func(c int) func(Node) Node {
+		return func(n Node) Node { n.Capacity[nvidia], n.Allocatable[nvidia] = c, c; return n }
+	}
 	labels := func(extra map[string]string) func(Node) Node {
 		return func(n Node) Node { n.Labels = with(extra); return n }
 	}
@@ -336,6 +360,12 @@ func TestNodeStates(t *testing.T) {
 		{"MIG single, MIG on", []func(Node) Node{labels(map[string]string{"nvidia.com/mig.strategy": "single", labelGPUProduct: "NVIDIA-A100-SXM4-40GB-MIG-1g.5gb"})}, NodeUnsupported, GPUResourceMIG},
 		{"MIG mixed", []func(Node) Node{labels(map[string]string{"nvidia.com/mig.strategy": "mixed"}), migMixed}, NodeUnsupported, GPUResourceMIG},
 		{"time-slicing renamed to gpu.shared", []func(Node) Node{shared}, NodeUnsupported, GPUResourceShared},
+		{"default time-slicing: 8 GPUs x 4 replicas", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.replicas": "4", "nvidia.com/gpu.sharing-strategy": "time-slicing", labelGPUProduct: "NVIDIA-H100-80GB-HBM3-SHARED"}), capacity(32)}, NodeUnsupported, GPUResourceShared},
+		{"replicas > 1 only", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.replicas": "2"})}, NodeUnsupported, GPUResourceShared},
+		{"MPS", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.sharing-strategy": "mps"})}, NodeUnsupported, GPUResourceShared},
+		{"-SHARED product only", []func(Node) Node{labels(map[string]string{labelGPUProduct: "Tesla-T4-SHARED"})}, NodeUnsupported, GPUResourceShared},
+		{"sharing-strategy none, replicas 1", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.sharing-strategy": "none", "nvidia.com/gpu.replicas": "1", labelGPUProduct: "NVIDIA-H100-80GB-HBM3"})}, NodeInTopology, nvidia},
+		{"MIG checked before sharing", []func(Node) Node{labels(map[string]string{"nvidia.com/gpu.replicas": "2"}), migMixed}, NodeUnsupported, GPUResourceMIG},
 		{"gpu.shared with plugin down", []func(Node) Node{shared, func(n Node) Node { n.Allocatable = map[string]int{}; return n }}, NodeUnsupported, GPUResourceShared},
 
 		// Precedence: unsupported > missing_labels > unavailable > no_gpu_allocatable > tainted.
@@ -560,6 +590,20 @@ func TestMixedVendors(t *testing.T) {
 	assert.Equal(t, StateCounts{1, 0, 1, 0}, n.Levels[1].Domains)
 	assert.Equal(t, slots(4, 2, 1), n.Levels[0].LargestFreeSlots)
 	assert.Empty(t, res.Overcommits)
+}
+
+func TestOneVendorPluginDown(t *testing.T) {
+	n := gpuNode("n", map[string]string{rackLabel: "rack-1"}, 4, nvidia)
+	n.Capacity[amd], n.Allocatable[amd] = 8, 0
+	res := Compute(Topology{Levels: []string{rackLabel}}, []Node{n}, nil)
+	assert.Equal(t, []NodeCount{
+		{State: NodeInTopology, GPUResource: nvidia, Count: 1},
+		{State: NodeNoGPUAllocatable, GPUResource: amd, Count: 1},
+	}, nonZero(res.Nodes))
+	require.Len(t, res.Resources, 2)
+	assert.Equal(t, StateCounts{0, 0, 0, 1}, res.Resources[0].Levels[0].Domains, "amd")
+	assert.Equal(t, 8, res.Resources[0].UnschedulableGPUs[ReasonNoAllocatable])
+	assert.Equal(t, StateCounts{1, 0, 0, 0}, res.Resources[1].Levels[0].Domains, "nvidia")
 }
 
 func TestEmpty(t *testing.T) {
