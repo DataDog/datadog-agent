@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix the ``Failed to remove PID file: Permission denied (os error 13)``
+    error that system-probe-lite logged on every stop or restart on Linux
+    hosts. After dropping its capabilities, system-probe-lite can no longer
+    delete the PID file from the ``dd-agent`` owned run directory, so it now
+    truncates the file instead. The service manager still removes the file.
