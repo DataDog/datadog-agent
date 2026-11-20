@@ -15,8 +15,8 @@ import (
 // host level is reported with this key too.
 const HostnameLabel = "kubernetes.io/hostname"
 
-// PodSizes are the pod sizes, in GPUs, for which free slots are reported.
-var PodSizes = []int{1, 2, 4, 8}
+// PodSizes returns the pod sizes, in GPUs, for which free slots are reported.
+func PodSizes() []int { return []int{1, 2, 4, 8} }
 
 // Topology describes a scheduler topology as seen by one resource flavor.
 type Topology struct {
@@ -86,8 +86,10 @@ const (
 	DomainUnavailable // no in_topology capacity
 )
 
-// DomainStates lists all domain states in reporting order.
-var DomainStates = []DomainState{DomainFree, DomainPartial, DomainFull, DomainUnavailable}
+// DomainStates returns all domain states in reporting order.
+func DomainStates() []DomainState {
+	return []DomainState{DomainFree, DomainPartial, DomainFull, DomainUnavailable}
+}
 
 func (s DomainState) String() string {
 	switch s {
@@ -130,8 +132,10 @@ const (
 	ReasonMissingLabels                              // capacity of missing_labels nodes
 )
 
-// UnschedulableReasons lists all reasons in reporting order.
-var UnschedulableReasons = []UnschedulableReason{ReasonUnhealthy, ReasonNodeUnavailable, ReasonTainted, ReasonNoAllocatable, ReasonMissingLabels}
+// UnschedulableReasons returns all reasons in reporting order.
+func UnschedulableReasons() []UnschedulableReason {
+	return []UnschedulableReason{ReasonUnhealthy, ReasonNodeUnavailable, ReasonTainted, ReasonNoAllocatable, ReasonMissingLabels}
+}
 
 func (r UnschedulableReason) String() string {
 	switch r {
@@ -154,8 +158,10 @@ type ReasonCounts [5]int
 
 // Result is the output of Compute.
 type Result struct {
-	Topology    Topology
-	Nodes       []NodeCount      // non-zero counts, sorted by state then resource
+	Topology Topology
+	// Nodes has a count for every NodeState and every GPU resource
+	// attribution seen, zeros included, sorted by state then resource.
+	Nodes       []NodeCount
 	Resources   []ResourceResult // sorted by resource name
 	Overcommits []Overcommit     // sorted by node, then resource
 }
@@ -241,6 +247,7 @@ func Compute(t Topology, nodes []Node, alloc Allocations) Result {
 	tols := slices.Concat(t.Tolerations, t.AssumedTolerations)
 
 	var all []classified
+	var attributions []string
 	counts := map[NodeCount]int{}
 	for _, n := range nodes {
 		c, ok := classify(n, levels, implicit, tols)
@@ -250,15 +257,19 @@ func Compute(t Topology, nodes []Node, alloc Allocations) Result {
 		all = append(all, c)
 		for _, r := range c.resources {
 			counts[NodeCount{State: c.state, GPUResource: r}]++
+			if !slices.Contains(attributions, r) {
+				attributions = append(attributions, r)
+			}
 		}
 	}
-	for k, v := range counts {
-		k.Count = v
-		res.Nodes = append(res.Nodes, k)
+	slices.Sort(attributions)
+	for _, state := range NodeStates() {
+		for _, r := range attributions {
+			k := NodeCount{State: state, GPUResource: r}
+			k.Count = counts[k]
+			res.Nodes = append(res.Nodes, k)
+		}
 	}
-	slices.SortFunc(res.Nodes, func(a, b NodeCount) int {
-		return cmp.Or(cmp.Compare(a.State, b.State), cmp.Compare(a.GPUResource, b.GPUResource))
-	})
 
 	for _, resource := range resourceNames(all) {
 		rr, overcommits := computeResource(resource, all, levels, alloc)
@@ -308,7 +319,7 @@ func computeResource(resource string, nodes []classified, levels []string, alloc
 	}
 
 	var sizes []int
-	for _, s := range PodSizes {
+	for _, s := range PodSizes() {
 		if s <= largestHost {
 			sizes = append(sizes, s)
 		}

@@ -52,7 +52,7 @@ func cluster(used map[string]map[string][]int) ([]Node, Allocations) {
 func slots(counts ...int) []Slots {
 	out := make([]Slots, len(counts))
 	for i, c := range counts {
-		out[i] = Slots{PodGPUs: PodSizes[i], Count: c}
+		out[i] = Slots{PodGPUs: PodSizes()[i], Count: c}
 	}
 	return out
 }
@@ -61,6 +61,16 @@ func slots(counts ...int) []Slots {
 func summary(l LevelResult) LevelResult {
 	l.DomainStats = nil
 	return l
+}
+
+func nonZero(counts []NodeCount) []NodeCount {
+	var out []NodeCount
+	for _, c := range counts {
+		if c.Count > 0 {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func paths(l LevelResult) [][]string {
@@ -192,7 +202,7 @@ func TestWorkedExamples(t *testing.T) {
 			nodes, alloc := cluster(map[string]map[string][]int{"b": tt.used})
 			res := Compute(topo, nodes, alloc)
 
-			assert.Equal(t, []NodeCount{{State: NodeInTopology, GPUResource: nvidia, Count: len(nodes)}}, res.Nodes)
+			assert.Equal(t, []NodeCount{{State: NodeInTopology, GPUResource: nvidia, Count: len(nodes)}}, nonZero(res.Nodes))
 			require.Len(t, res.Resources, 1)
 			rr := res.Resources[0]
 			assert.Equal(t, nvidia, rr.Resource)
@@ -293,6 +303,12 @@ func TestNodeStates(t *testing.T) {
 	}
 	noLabels := func(n Node) Node { n.Labels = map[string]string{}; return n }
 	migMixed := func(n Node) Node { n.Capacity["nvidia.com/mig-1g.5gb"] = 7; return n }
+	shared := func(n Node) Node {
+		n.Capacity = map[string]int{GPUResourceShared: 16}
+		n.Allocatable = map[string]int{GPUResourceShared: 16}
+		n.Labels = with(map[string]string{"nvidia.com/gpu.present": "true"})
+		return n
+	}
 	labels := func(extra map[string]string) func(Node) Node {
 		return func(n Node) Node { n.Labels = with(extra); return n }
 	}
@@ -319,6 +335,8 @@ func TestNodeStates(t *testing.T) {
 		{"MIG single, MIG off", []func(Node) Node{labels(map[string]string{"nvidia.com/mig.strategy": "single", labelGPUProduct: "NVIDIA-A100-SXM4-80GB"})}, NodeInTopology, nvidia},
 		{"MIG single, MIG on", []func(Node) Node{labels(map[string]string{"nvidia.com/mig.strategy": "single", labelGPUProduct: "NVIDIA-A100-SXM4-40GB-MIG-1g.5gb"})}, NodeUnsupported, GPUResourceMIG},
 		{"MIG mixed", []func(Node) Node{labels(map[string]string{"nvidia.com/mig.strategy": "mixed"}), migMixed}, NodeUnsupported, GPUResourceMIG},
+		{"time-slicing renamed to gpu.shared", []func(Node) Node{shared}, NodeUnsupported, GPUResourceShared},
+		{"gpu.shared with plugin down", []func(Node) Node{shared, func(n Node) Node { n.Allocatable = map[string]int{}; return n }}, NodeUnsupported, GPUResourceShared},
 
 		// Precedence: unsupported > missing_labels > unavailable > no_gpu_allocatable > tainted.
 		{"unsupported over missing labels", []func(Node) Node{migMixed, noLabels}, NodeUnsupported, GPUResourceMIG},
@@ -338,7 +356,7 @@ func TestNodeStates(t *testing.T) {
 				n = m(n)
 			}
 			res := Compute(topo, []Node{n}, Allocations{"n": {nvidia: 1}})
-			assert.Equal(t, []NodeCount{{State: tt.want, GPUResource: tt.attr, Count: 1}}, res.Nodes)
+			assert.Equal(t, []NodeCount{{State: tt.want, GPUResource: tt.attr, Count: 1}}, nonZero(res.Nodes))
 
 			if tt.want == NodeUnsupported {
 				assert.Empty(t, res.Resources, "unsupported nodes are only counted")
@@ -372,23 +390,35 @@ func TestNoGPUEvidenceIgnored(t *testing.T) {
 func TestFullyDownRack(t *testing.T) {
 	nodes, alloc := cluster(map[string]map[string][]int{"b": {"rack-1": {1, 0, 0}, "rack-2": {0, 0, 0}}})
 	for i := range nodes {
-		if nodes[i].Labels[rackLabel] == "rack-2" {
+		switch nodes[i].Name {
+		case "b-rack-2-h0":
 			nodes[i].Unschedulable = true // e.g. GPU operator upgrade
+		case "b-rack-2-h1":
+			nodes[i].Taints = []Taint{{Key: "maintenance", Effect: EffectNoExecute}}
+		case "b-rack-2-h2":
+			nodes[i].Allocatable[nvidia] = 0
 		}
 	}
+	alloc["b-rack-2-h0"][nvidia] = 2 // usage on down nodes is ignored
 	res := Compute(Topology{Levels: []string{rackLabel}}, nodes, alloc)
 	assert.Equal(t, []NodeCount{
 		{State: NodeInTopology, GPUResource: nvidia, Count: 3},
-		{State: NodeUnavailable, GPUResource: nvidia, Count: 3},
-	}, res.Nodes)
+		{State: NodeUnavailable, GPUResource: nvidia, Count: 1},
+		{State: NodeTainted, GPUResource: nvidia, Count: 1},
+		{State: NodeNoGPUAllocatable, GPUResource: nvidia, Count: 1},
+	}, nonZero(res.Nodes))
 
 	rr := res.Resources[0]
 	rack, host := rr.Levels[0], rr.Levels[1]
 	assert.Equal(t, StateCounts{0, 1, 0, 1}, rack.Domains, "the down rack is unavailable, not free")
 	assert.Equal(t, StateCounts{2, 1, 0, 3}, host.Domains)
 	assert.Equal(t, 11, rack.LargestFreeGPUs)
+	assert.Equal(t, StateCounts{0, 11, 0, 0}, rack.FreeGPUs, "down nodes add nothing")
+	assert.Equal(t, StateCounts{0, 1, 0, 0}, rack.AllocatedGPUs)
 	assert.Equal(t, Domain{Path: []string{"rack-2"}, Hosts: 3, FreeSlots: slots(0, 0, 0), State: DomainUnavailable}, rack.DomainStats[1])
-	assert.Equal(t, 12, rr.UnschedulableGPUs[ReasonNodeUnavailable])
+	assert.Equal(t, 4, rr.UnschedulableGPUs[ReasonNodeUnavailable])
+	assert.Equal(t, 4, rr.UnschedulableGPUs[ReasonTainted])
+	assert.Equal(t, 4, rr.UnschedulableGPUs[ReasonNoAllocatable])
 }
 
 func TestUnschedulableGPUs(t *testing.T) {
@@ -445,6 +475,45 @@ func TestTolerations(t *testing.T) {
 	for _, tt := range tests {
 		assert.Equal(t, tt.want, tt.tol.tolerates(taint), "%+v", tt.tol)
 	}
+
+	assert.True(t, Toleration{Key: "k", Operator: OpExists}.tolerates(Taint{Key: "k", Effect: EffectNoExecute}), "empty effect matches all")
+	assert.False(t, Toleration{Key: "k", Operator: "Lt", Value: "v"}.tolerates(taint), "unknown operator")
+	two := []Taint{taint, {Key: "other", Effect: EffectNoSchedule}}
+	assert.False(t, tolerated(two, []Toleration{{Key: "k", Operator: OpExists}}), "every taint must be tolerated")
+	assert.True(t, tolerated(two, []Toleration{{Key: "k", Operator: OpExists}, {Key: "other", Operator: OpExists}}))
+}
+
+func TestStateOf(t *testing.T) {
+	assert.Equal(t, DomainUnavailable, stateOf(Domain{}))
+	assert.Equal(t, DomainFull, stateOf(Domain{Allocatable: 4, Allocated: 4}))
+	assert.Equal(t, DomainFree, stateOf(Domain{Allocatable: 4, Free: 4}))
+	assert.Equal(t, DomainPartial, stateOf(Domain{Allocatable: 4, Allocated: 1, Free: 3}))
+}
+
+func TestNodeCountsIncludeZeros(t *testing.T) {
+	nodes, alloc := cluster(map[string]map[string][]int{"b": {"rack-1": {0}}})
+	mig := gpuNode("mig", map[string]string{rackLabel: "rack-1"}, 7, "nvidia.com/mig-1g.5gb")
+	res := Compute(Topology{Levels: []string{rackLabel}}, append(nodes, mig), alloc)
+	var want []NodeCount
+	for _, s := range NodeStates() {
+		for _, r := range []string{GPUResourceMIG, nvidia} {
+			want = append(want, NodeCount{State: s, GPUResource: r})
+		}
+	}
+	want[1].Count = 1                      // in_topology, nvidia
+	want[2*int(NodeUnsupported)].Count = 1 // unsupported, mig
+	assert.Equal(t, want, res.Nodes)
+}
+
+func TestDeclaredHostnameLabelDiffersFromNodeName(t *testing.T) {
+	n := gpuNode("ip-10-0-0-1.ec2.internal", map[string]string{rackLabel: "rack-1", HostnameLabel: "ip-10-0-0-1"}, 4, nvidia)
+	res := Compute(Topology{Levels: []string{rackLabel, HostnameLabel}}, []Node{n}, nil)
+	host := res.Resources[0].Levels[1]
+	assert.False(t, host.Implicit)
+	assert.Equal(t, [][]string{{"rack-1", "ip-10-0-0-1"}}, paths(host))
+
+	res = Compute(Topology{Levels: []string{rackLabel}}, []Node{n}, nil)
+	assert.Equal(t, [][]string{{"rack-1", "ip-10-0-0-1.ec2.internal"}}, paths(res.Resources[0].Levels[1]), "implicit level uses the node name")
 }
 
 func TestOvercommit(t *testing.T) {
@@ -476,7 +545,7 @@ func TestMixedVendors(t *testing.T) {
 		{State: NodeInTopology, GPUResource: amd, Count: 1},
 		{State: NodeInTopology, GPUResource: nvidia, Count: 2},
 		{State: NodeMissingLabels, GPUResource: amd, Count: 1},
-	}, res.Nodes)
+	}, nonZero(res.Nodes))
 	require.Len(t, res.Resources, 2)
 	a, n := res.Resources[0], res.Resources[1]
 	assert.Equal(t, amd, a.Resource)
@@ -545,19 +614,19 @@ func TestDeterministicOrder(t *testing.T) {
 
 func TestStateStrings(t *testing.T) {
 	var got []string
-	for _, s := range DomainStates {
+	for _, s := range DomainStates() {
 		got = append(got, s.String())
 	}
 	assert.Equal(t, []string{"free", "partial", "full", "unavailable"}, got)
 
 	got = nil
-	for _, s := range NodeStates {
+	for _, s := range NodeStates() {
 		got = append(got, s.String())
 	}
 	assert.Equal(t, []string{"in_topology", "unavailable", "tainted", "no_gpu_allocatable", "missing_labels", "unsupported"}, got)
 
 	got = nil
-	for _, r := range UnschedulableReasons {
+	for _, r := range UnschedulableReasons() {
 		got = append(got, r.String())
 	}
 	assert.Equal(t, []string{"unhealthy", "node_unavailable", "tainted", "no_allocatable", "missing_labels"}, got)

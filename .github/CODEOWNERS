@@ -721,11 +721,11 @@
 /pkg/clusteragent/orchestrator/                                       @DataDog/kubernetes-experiences
 /pkg/clusteragent/telemetry/                                          @DataDog/apm-trace-storage
 /pkg/collector/corechecks/cluster/                                    @DataDog/container-integrations
+/pkg/collector/corechecks/cluster/gputopology/                        @DataDog/accelerator-telemetry
 /pkg/collector/corechecks/cluster/orchestrator                        @DataDog/kubernetes-experiences
 /pkg/collector/corechecks/cluster/orchestrator/collectors/ecs/        @DataDog/ecs-experiences
 /pkg/collector/corechecks/cluster/orchestrator/processors/ecs/        @DataDog/ecs-experiences
 /pkg/collector/corechecks/cluster/orchestrator/transformers/ecs/      @DataDog/ecs-experiences
-/pkg/collector/corechecks/cluster/gputopology/                        @DataDog/accelerator-telemetry
 /pkg/collector/corechecks/containers/                                 @DataDog/container-integrations
 /pkg/collector/corechecks/containers/csi_driver/                      @DataDog/container-platform
 /pkg/collector/corechecks/containerimage/                             @DataDog/container-integrations
