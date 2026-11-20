@@ -10,6 +10,7 @@ package modules
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -71,8 +72,11 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		}
 
 		// Run traceroute
-		path, err := t.runner.Run(context.Background(), cfg)
+		path, err := t.runner.Run(req.Context(), cfg)
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
 			classified := traceroutelib.ClassifyError(err)
 			errResp := traceroutelib.ErrorResponse{
 				Code:    classified.Code,
@@ -84,11 +88,14 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 
 		resp, err := json.Marshal(path)
 		if err != nil {
-			handleTracerouteReqError(w, http.StatusInternalServerError, fmt.Sprintf("unable to marshall traceroute response: %s", err))
+			handleTracerouteReqError(w, http.StatusInternalServerError, fmt.Sprintf("unable to marshal traceroute response: %s", err))
 			return
 		}
 		_, err = w.Write(resp)
 		if err != nil {
+			if errors.Is(req.Context().Err(), context.Canceled) {
+				return
+			}
 			log.Errorf("unable to write traceroute response: %s", err)
 		}
 
