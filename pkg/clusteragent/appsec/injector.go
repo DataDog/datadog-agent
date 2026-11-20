@@ -208,6 +208,9 @@ func (si *securityInjector) run(ctx context.Context, proxyType appsecconfig.Prox
 		return
 	}
 
+	enabledGauge.Set(1, string(proxyType), string(pattern.Mode()))
+	defer enabledGauge.Delete(string(proxyType), string(pattern.Mode()))
+
 	leaderNotifChange, isLeader := si.leaderSub()
 
 	ctx, cancel := context.WithCancel(ctx)

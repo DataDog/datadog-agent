@@ -22,4 +22,15 @@ var (
 		"Tracks the number of changes detected by the appsec injector for the watched resources",
 		telemetry.DefaultOptions,
 	)
+
+	// enabledGauge is 1 for each proxy type the appsec injector runs for, on every cluster-agent
+	// replica, so that it is reported even when the injector sees no changes
+	// Tags: proxy_type, mode
+	enabledGauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
+		"appsec_injector",
+		"enabled",
+		[]string{"proxy_type", "mode"},
+		"Set to 1 for each proxy type the appsec injector runs for",
+		telemetry.DefaultOptions,
+	)
 )

@@ -30,6 +30,8 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/istio"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -616,9 +618,78 @@ func TestRun_logsNotApplicableSkipAtInfo(t *testing.T) {
 	// When
 	injector.run(context.Background(), appsecconfig.ProxyTypeGKEGateway, pattern)
 
-	// Then the skip is reported at info level, never as a failure
+	// Then the skip is reported at info level, never as a failure, and not as enabled
 	require.Zero(t, logger.errorfCalls)
 	require.Equal(t, 1, logger.infofCalls)
+	_, reported := enabledGaugeValue(t, appsecconfig.ProxyTypeGKEGateway)
+	require.False(t, reported)
+}
+
+func TestRun_reportsEnabledGaugeWhileRunning(t *testing.T) {
+	// Given an injector that is not the leader, and signals when run reaches the leader wait
+	injector := newMockSecurityInjector(context.Background(),
+		dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()),
+		logmock.New(t),
+		appsecconfig.Config{},
+	)
+	waiting := make(chan struct{})
+	injector.leaderSub = func() (<-chan struct{}, func() bool) {
+		close(waiting)
+		return make(chan struct{}), func() bool { return false }
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+
+	// When it runs for a proxy type
+	go func() {
+		defer close(done)
+		injector.run(ctx, appsecconfig.ProxyTypeEnvoyGateway, &mockInjectionPattern{})
+	}()
+	select {
+	case <-waiting:
+	case <-time.After(10 * time.Second):
+		t.Fatal("run did not reach the leader wait")
+	}
+
+	// Then the gauge is 1 while it runs, even as a non-leader, and removed once it stops
+	value, reported := enabledGaugeValue(t, appsecconfig.ProxyTypeEnvoyGateway)
+	require.True(t, reported)
+	require.Equal(t, 1.0, value)
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("run did not stop after cancel")
+	}
+	_, reported = enabledGaugeValue(t, appsecconfig.ProxyTypeEnvoyGateway)
+	require.False(t, reported)
+}
+
+// enabledGaugeValue returns the appsec_injector.enabled value of a proxy type in external mode,
+// and whether it is reported at all
+func enabledGaugeValue(t *testing.T, proxyType appsecconfig.ProxyType) (float64, bool) {
+	t.Helper()
+
+	families, err := telemetryimpl.GetCompatComponent().Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+
+	for _, family := range families {
+		if family.GetName() != "appsec_injector__enabled" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			tags := make(map[string]string)
+			for _, label := range metric.GetLabel() {
+				tags[label.GetName()] = label.GetValue()
+			}
+			if tags["proxy_type"] == string(proxyType) && tags["mode"] == string(appsecconfig.InjectionModeExternal) {
+				return metric.GetGauge().GetValue(), true
+			}
+		}
+	}
+
+	return 0, false
 }
 
 func TestRun_logsGenuineFailureAtError(t *testing.T) {
