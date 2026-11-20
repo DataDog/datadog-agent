@@ -829,10 +829,6 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range configAndPackageStates.States {
-		// d.env.ConfigID is the config_id the daemon read at startup. Every platform starts a
-		// separate daemon on the experiment's configuration for a config experiment (installer-exp
-		// on macOS), so it reports the configuration this daemon actually runs.
-		runningConfigVersion := runningConfigVersions[pkg]
 		p := &pbgo.PackageState{
 			Package:                 pkg,
 			StableVersion:           s.Stable,
@@ -840,7 +836,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			StableConfigVersion:     configAndPackageStates.ConfigStates[pkg].Stable,
 			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
 			RunningVersion:          runningVersions[pkg],
-			RunningConfigVersion:    runningConfigVersion,
+			RunningConfigVersion:    runningConfigVersions[pkg],
 			HeartbeatTimestamp:      uint64(time.Now().Unix()),
 		}
 		if pkg == "datadog-agent" {

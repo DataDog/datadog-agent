@@ -118,11 +118,6 @@ func (m *testPackageManager) PromoteConfigExperiment(ctx context.Context, pkg st
 	return args.Error(0)
 }
 
-func (m *testPackageManager) ResumeConfigExperiments(ctx context.Context) error {
-	args := m.Called(ctx)
-	return args.Error(0)
-}
-
 func (m *testPackageManager) GarbageCollect(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
@@ -747,53 +742,4 @@ func TestDecryptSecrets(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "could not decrypt secret")
 	})
-}
-
-// TestStartDoesNotResumeConfigExperiments pins that Start runs no configuration-experiment step
-// before its first state refresh, on any platform. On macOS the watcher is launched by the hand-over
-// and an experiment a reboot interrupted is ended by Fleet's stop, so there is nothing to recover
-// on start. No ResumeConfigExperiments expectation is registered, so a call fails the test.
-func TestStartDoesNotResumeConfigExperiments(t *testing.T) {
-	var mu sync.Mutex
-	var order []string
-	pm := &testPackageManager{}
-	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	pm.On("ConfigAndPackageStates", mock.Anything).Run(func(mock.Arguments) {
-		mu.Lock()
-		defer mu.Unlock()
-		order = append(order, "refresh")
-	}).Return(&repository.PackageStates{
-		States:       map[string]repository.State{},
-		ConfigStates: map[string]repository.State{},
-	}, nil)
-
-	startTestDaemon(t, pm)
-
-	mu.Lock()
-	defer mu.Unlock()
-	require.NotEmpty(t, order)
-	pm.AssertNotCalled(t, "ResumeConfigExperiments", mock.Anything)
-}
-
-// startTestDaemon starts a daemon over pm with a test remote config client and stops it when the
-// test ends.
-func startTestDaemon(t *testing.T, pm *testPackageManager) {
-	t.Helper()
-	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
-	require.NoError(t, err)
-	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
-	require.NoError(t, err)
-
-	daemon := newDaemon(
-		&remoteConfig{client: newTestRemoteConfigClient(t)},
-		func(_ *env.Env) installer.Installer { return pm },
-		&env.Env{RemoteUpdates: true},
-		taskDB,
-		30*time.Second,
-		1*time.Hour,
-		secretsPubKey,
-		secretsPrivKey,
-	)
-	require.NoError(t, daemon.Start(context.Background()))
-	t.Cleanup(func() { daemon.Stop(context.Background()) })
 }
