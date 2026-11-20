@@ -54,6 +54,7 @@
 /.agents/skills/update-3rd-party-libs           @DataDog/agent-build
 /.agents/skills/update-otel-deps/               @DataDog/opentelemetry-agent
 /.agents/skills/write-e2e/                      @DataDog/agent-devx
+/.agents/skills/write-test/                     @DataDog/agent-devx
 /.agents/skills/locate-config-setting/          @DataDog/fleet-automation
 # changing the config of mockery will regenerate the mocks, so owners will have to review anyway
 /.mockery.yaml                                  # do not notify anyone
