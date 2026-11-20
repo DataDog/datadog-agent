@@ -9,6 +9,7 @@
 package connection
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -582,15 +583,20 @@ type connCounts struct {
 }
 
 func (t *ebpfTracer) readIteratorConnections(r io.Reader, buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool, counts *connCounts) error {
+	// The kernel stops a read() on an iterator once it has filled the caller's buffer, and the next
+	// read() restarts the iterator from its saved position. Some iterators make that restart costly
+	// (the sk_storage map iterator walks its bucket again from the head), so read more than one
+	// record at a time. The kernel's seq buffer is PAGE_SIZE << 3 bytes.
+	br := bufio.NewReaderSize(eagainRetryReader{r: r}, 64<<10)
 	conn := new(network.ConnectionStats)
 	buf := make([]byte, netebpf.SizeofConn)
 	for {
-		_, err := io.ReadFull(r, buf)
+		_, err := io.ReadFull(br, buf)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
-			return fmt.Errorf("error reading data from iterator: %s", err)
+			return fmt.Errorf("error reading data from iterator: %w", err)
 		}
 
 		if err := conn.UnmarshalBinary(buf); err != nil {
