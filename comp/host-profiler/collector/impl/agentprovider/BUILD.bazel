@@ -61,6 +61,7 @@ dd_agent_go_test(
             "@io_opentelemetry_go_collector_otelcol_otelcoltest//:otelcoltest",
             "@io_opentelemetry_go_collector_receiver_otlpreceiver//:otlpreceiver",
             "@io_opentelemetry_go_collector_service//telemetry/otelconftelemetry",
+            "@io_opentelemetry_go_ebpf_profiler//probes/oom",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/host-profiler/collector/impl/extensions/hpflareextension",
@@ -87,6 +88,7 @@ dd_agent_go_test(
             "@io_opentelemetry_go_collector_otelcol_otelcoltest//:otelcoltest",
             "@io_opentelemetry_go_collector_receiver_otlpreceiver//:otlpreceiver",
             "@io_opentelemetry_go_collector_service//telemetry/otelconftelemetry",
+            "@io_opentelemetry_go_ebpf_profiler//probes/oom",
         ],
         "//conditions:default": [],
     }),
