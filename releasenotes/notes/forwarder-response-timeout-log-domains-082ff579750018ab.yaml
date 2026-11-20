@@ -3,4 +3,4 @@ enhancements:
   - |
     The forwarder error logged when a process, container or connections
     payload gets no response within 30 seconds now names the payload's
-    endpoint and the intake domains that did not respond.
+    endpoint and the intake domains that still have responses pending.

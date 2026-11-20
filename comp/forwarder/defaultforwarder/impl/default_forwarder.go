@@ -808,7 +808,7 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 					delete(pendingDomains, r.Domain)
 				}
 			case <-time.After(defaultResponseTimeout):
-				f.log.Errorf("timed out waiting for %s responses, received %d/%d, no response from: %s", ep.Name, receivedResponses, expectedResponses, strings.Join(slices.Sorted(maps.Keys(pendingDomains)), ", "))
+				f.log.Errorf("timed out waiting for %s responses, received %d/%d, still waiting for responses from: %s", ep.Name, receivedResponses, expectedResponses, strings.Join(slices.Sorted(maps.Keys(pendingDomains)), ", "))
 				close(results)
 				return
 			}
