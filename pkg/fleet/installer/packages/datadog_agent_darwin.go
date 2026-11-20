@@ -17,12 +17,13 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/darwinunits"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -32,34 +33,26 @@ var datadogAgentPackage = hooks{
 	postInstall: postInstallDatadogAgent,
 }
 
-// datadogAgentLaunchdJobs are the launchd jobs of the Agent package, in the shape of
-// datadogAgentService on Linux.
-type datadogAgentLaunchdJobs struct {
-	// LaunchdMainJobStable is the core Agent's job.
-	LaunchdMainJobStable string
-	// LaunchdJobsStable are the jobs that run normally, in the order they are loaded.
-	LaunchdJobsStable []string
-}
-
-// agentLaunchdJobs are the jobs the Agent package installs.
+// agentLaunchdJobs are the jobs the Agent package installs, in the order they are loaded.
 //
 // The process manager is loaded first, so it is up before the processes it will supervise. It
 // is a stable job only: unlike on Linux, it will get no experiment variant, since a configuration
 // experiment swaps the Agent's own jobs, not the daemon that supervises them.
 //
 // The root installer daemon is loaded last, once the Agent it reports on is up.
-var agentLaunchdJobs = datadogAgentLaunchdJobs{
-	LaunchdMainJobStable: "com.datadoghq.agent",
-	LaunchdJobsStable: []string{
-		procmgrLabel,
-		"com.datadoghq.agent",
-		"com.datadoghq.sysprobe",
-		"com.datadoghq.data-plane",
-		"com.datadoghq.installer",
-	},
+var agentLaunchdJobs = []units.Unit{
+	darwinunits.Launchd.Procmgr,
+	darwinunits.Launchd.Agent,
+	darwinunits.Launchd.Sysprobe,
+	darwinunits.Launchd.DataPlane,
+	darwinunits.Launchd.Installer,
 }
 
-const procmgrLabel = "com.datadoghq.procmgr"
+// guiAgents are the per-user LaunchAgents of the Agent package.
+var guiAgents = units.Fields(darwinunits.LaunchdGUI)
+
+// agentProcmgrProcesses are the processes.d entries the Agent package installs.
+var agentProcmgrProcesses = []units.Unit{darwinunits.Procmgr.Sysprobe}
 
 // ensureInstallerDataDir creates the installer's root-owned state directories. Indirected so the
 // hook tests can run unprivileged.
@@ -84,9 +77,31 @@ var (
 
 // Indirected so the hook tests never touch the real install root.
 var (
-	writeProcmgrCatalog  = processmanager.WriteDarwinProcmgrCatalog
-	removeProcmgrCatalog = processmanager.RemoveDarwinProcmgrCatalog
+	writeProcmgrCatalog  = writeAgentProcmgrProcesses
+	removeProcmgrCatalog = removeAgentProcmgrProcesses
 )
+
+func writeAgentProcmgrProcesses(installRoot string) error {
+	dir := service.ConfigDir(installRoot)
+	var errs []error
+	for _, u := range agentProcmgrProcesses {
+		content, err := darwinunits.Content(u)
+		if err == nil {
+			err = units.WriteFile(dir, u.Name, content)
+		}
+		errs = append(errs, err)
+	}
+	// Chmod undoes the umask so processes.d is 0755 on a root install.
+	if err := os.Chmod(dir, 0o755); err != nil && !errors.Is(err, os.ErrNotExist) {
+		errs = append(errs, fmt.Errorf("failed to set the mode of %s: %w", dir, err))
+	}
+	return errors.Join(errs...)
+}
+
+func removeAgentProcmgrProcesses(installRoot string) error {
+	dir := service.ConfigDir(installRoot)
+	return errors.Join(units.RemoveFiles(dir, units.Names(agentProcmgrProcesses, false)...), units.RemoveDirIfEmpty(dir))
+}
 
 // installStableJobs writes and loads the stable launchd job set from the embedded definitions.
 //
@@ -100,8 +115,8 @@ func installStableJobs(ctx HookContext) (err error) {
 
 	client := launchdClient()
 	var errs []error
-	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
-		if err := loadStableJob(ctx, client, label); err != nil {
+	for _, job := range agentLaunchdJobs {
+		if err := loadStableJob(ctx, client, job); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -109,8 +124,9 @@ func installStableJobs(ctx HookContext) (err error) {
 }
 
 // loadStableJob writes one stable job definition from the embedded copy and loads it.
-func loadStableJob(ctx context.Context, client *launchd.Client, label string) error {
-	definition, err := embedded.GetLaunchdJob(label)
+func loadStableJob(ctx context.Context, client *launchd.Client, unit units.Unit) error {
+	label := unit.Name
+	definition, err := darwinunits.Content(unit)
 	if err != nil {
 		return fmt.Errorf("failed to read job definition %s: %w", label, err)
 	}
@@ -347,7 +363,7 @@ func removeOtherEntries(dir string, keep ...string) {
 func preRemoveDatadogAgent(ctx HookContext) error {
 	client := launchdClient()
 	var errs []error
-	for _, label := range slices.Backward(agentLaunchdJobs.LaunchdJobsStable) {
+	for _, label := range slices.Backward(units.Names(agentLaunchdJobs, false)) {
 		if err := client.Bootout(ctx, label); err != nil {
 			// As in loadStableJob, a job that can't be unloaded keeps its definition, so launchd is
 			// never left running a job whose file is gone, and the postinstall script reloads it.
@@ -385,20 +401,13 @@ type uninstallLayout struct {
 }
 
 var defaultUninstallLayout = uninstallLayout{
-	guiLabels: []string{
-		"com.datadoghq.gui",
-		"com.datadoghq.ai-usage-agent.desktop-monitor",
-		"com.datadoghq.ai-prompt-logger.desktop-monitor",
-	},
+	guiLabels: units.Names(guiAgents, false),
 	processPatterns: []string{
 		"Datadog Agent.app",
 		"ai-usage-agent-native-host.*--desktop-monitor",
 		"ai-prompt-logger-native-host.*--desktop-monitor",
 	},
-	paths: []string{
-		"/Library/LaunchAgents/com.datadoghq.gui.plist",
-		"/Library/LaunchAgents/com.datadoghq.ai-usage-agent.desktop-monitor.plist",
-		"/Library/LaunchAgents/com.datadoghq.ai-prompt-logger.desktop-monitor.plist",
+	paths: append(guiAgentPlists(defaultDmgLayout.launchAgentsDir),
 		"/Applications/Datadog Agent.app",
 		"/usr/local/bin/datadog-agent",
 		"/usr/local/bin/datadog-installer",
@@ -406,7 +415,15 @@ var defaultUninstallLayout = uninstallLayout{
 		"/private/var/root/datadog-install",
 		paths.PackagesPath,
 		filepath.Dir(paths.AgentConfigDir),
-	},
+	),
+}
+
+func guiAgentPlists(launchAgentsDir string) []string {
+	var plists []string
+	for _, label := range units.Names(guiAgents, false) {
+		plists = append(plists, filepath.Join(launchAgentsDir, label+".plist"))
+	}
+	return plists
 }
 
 // hostCommand runs the system commands the install and uninstall need: launchctl, dscl, chmod,

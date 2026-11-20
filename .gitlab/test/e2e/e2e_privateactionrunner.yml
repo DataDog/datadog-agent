@@ -37,14 +37,14 @@
         # The runner's control plane and executor are dd-procmgrd processes: procmgr
         # spawns them, and par-control drives the executor over the procmgr socket.
         - pkg/procmgr/**/*
-        - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor*.yaml.tmpl
-        - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-par-control*.yaml.tmpl
-        - pkg/fleet/installer/packages/processmanager/par_procmgr_config_windows.go
+        - pkg/fleet/installer/units/generator/tmpl/datadog-agent-action-executor*.yaml.tmpl
+        - pkg/fleet/installer/units/generator/tmpl/datadog-agent-par-control*.yaml.tmpl
+        - pkg/fleet/installer/packages/procmgr_windows.go
         - pkg/fleet/installer/packages/datadog_agent_linux.go
-        - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-rshell-privileged.service.tmpl
-        - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-rshell-privileged.socket.tmpl
-        - pkg/fleet/installer/packages/embedded/tmpl/gen/**/datadog-agent-rshell-privileged*.service
-        - pkg/fleet/installer/packages/embedded/tmpl/gen/**/datadog-agent-rshell-privileged*.socket
+        - pkg/fleet/installer/units/generator/tmpl/datadog-agent-rshell-privileged.service.tmpl
+        - pkg/fleet/installer/units/generator/tmpl/datadog-agent-rshell-privileged.socket.tmpl
+        - pkg/fleet/installer/units/linuxunits/gen/**/datadog-agent-rshell-privileged*.service
+        - pkg/fleet/installer/units/linuxunits/gen/**/datadog-agent-rshell-privileged*.socket
         - omnibus/config/software/datadog-agent.rb
         - packages/agent/product/BUILD.bazel
         - pkg/proto/datadog/privateactionrunner/**/*

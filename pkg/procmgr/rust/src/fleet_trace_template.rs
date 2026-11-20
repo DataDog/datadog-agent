@@ -17,7 +17,7 @@ use std::path::Path;
 const TRACE_NAME: &str = "datadog-agent-trace";
 
 const TRACE_TEMPLATE: &str = include_str!(
-    "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-trace-windows.yaml.tmpl"
+    "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-trace-windows.yaml.tmpl"
 );
 
 /// Gate keys all absent, so each one falls through to the Agent's schema default.

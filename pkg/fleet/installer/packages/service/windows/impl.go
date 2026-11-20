@@ -19,6 +19,8 @@ import (
 	"golang.org/x/sys/windows/svc"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/windowsunits"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -143,17 +145,8 @@ func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, service
 //
 // Returns nil if the Agent service does not exist.
 func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error) {
-	allAgentServices := []string{
-		"datadog-otel-agent",
-		"dd-procmgr-service",
-		"datadog-trace-agent",
-		"datadog-process-agent",
-		"datadog-security-agent",
-		"datadog-system-probe",
-		"datadog-agent-action",
-		"Datadog Installer",
-		"datadogagent",
-	}
+	scm := windowsunits.SCM
+	allAgentServices := units.Names([]units.Unit{scm.OTel, scm.Procmgr, scm.Trace, scm.Process, scm.Security, scm.Sysprobe, scm.Action, scm.Installer, scm.CoreAgent}, false)
 
 	span, _ := telemetry.StartSpanFromContext(ctx, "stop_all_agent_services")
 	defer func() { span.Finish(err) }()
@@ -161,7 +154,7 @@ func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error
 
 	// First, try to stop the main datadogagent service
 	// In the normal case, this will stop all other services as well
-	err = w.api.StopService("datadogagent")
+	err = w.api.StopService(windowsunits.SCM.CoreAgent.Name)
 	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
 		return nil
 	}
@@ -219,9 +212,9 @@ func (w *WinServiceManager) StartAgentServices(ctx context.Context) (err error) 
 	span, _ := telemetry.StartSpanFromContext(ctx, "start_agent_service")
 	defer func() { span.Finish(err) }()
 
-	err = w.api.StartService("datadogagent")
+	err = w.api.StartService(windowsunits.SCM.CoreAgent.Name)
 	if err != nil {
-		return fmt.Errorf("failed to start datadogagent service: %w", err)
+		return fmt.Errorf("failed to start %s service: %w", windowsunits.SCM.CoreAgent.Name, err)
 	}
 
 	return nil

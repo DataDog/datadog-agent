@@ -83,12 +83,6 @@ check_modules_replace:
   script:
     - dda inv -- -e modules.check-all-replace
 
-validate_experiment_systemd_units:
-  extends: .lint
-  rules: !reference [.on_installer_systemd_changes]
-  script:
-    - dda inv -- -e installer.generate-experiment-units --check
-
 lint_releasenotes_rst:
   extends: .lint
   rules: !reference [.on_releasenotes_changes]

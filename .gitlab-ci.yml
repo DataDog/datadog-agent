@@ -932,9 +932,9 @@ workflow:
       # entries, and the core Agent skips the legacy SCM service each one replaces.
       - pkg/procmgr/**/*
       - pkg/fleet/installer/packages/datadog_agent_windows.go
-      - pkg/fleet/installer/packages/embedded/tmpl/*-windows.yaml.tmpl
-      - pkg/fleet/installer/packages/embedded/tmpl/gen/windows/**/*
-      - pkg/fleet/installer/packages/processmanager/*_windows.go
+      - pkg/fleet/installer/packages/procmgr_windows.go
+      - pkg/fleet/installer/units/generator/tmpl/*-windows.yaml.tmpl
+      - pkg/fleet/installer/units/windowsunits/**/*
       - cmd/agent/subcommands/run/dependent_services_windows.go
     compare_to: $COMPARE_TO_BRANCH
 
@@ -1411,16 +1411,6 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - !reference [.manual]
-
-.on_installer_systemd_changes:
-  - <<: *if_main_branch
-  - !reference [.except_light_pipeline]
-  - changes:
-      paths:
-        - pkg/fleet/installer/packages/embedded/tmpl/**/*.service
-      compare_to: $COMPARE_TO_BRANCH
-  - when: manual
-    allow_failure: true
 
 .on_releasenotes_changes:
   - <<: *if_main_branch

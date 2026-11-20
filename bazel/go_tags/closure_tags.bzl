@@ -1337,7 +1337,6 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/integrations": ["goexperiment.systemcrypto", "requirefips", "test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd": ["test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager": ["test"],
-    "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager": ["goexperiment.systemcrypto", "requirefips", "test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/selinux": ["test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service": ["goexperiment.systemcrypto", "requirefips"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd": ["test"],

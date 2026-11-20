@@ -19,7 +19,7 @@ use std::path::Path;
 const SYSPROBE_NAME: &str = "datadog-agent-sysprobe";
 
 const SYSPROBE_TEMPLATE: &str = include_str!(
-    "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-sysprobe-windows.yaml.tmpl"
+    "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-sysprobe-windows.yaml.tmpl"
 );
 
 /// Gate keys all absent, so each one falls through to the Agent's schema default.
