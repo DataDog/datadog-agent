@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cast"
 	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -155,12 +156,15 @@ func (forms procmgrForms) result() (enabled bool, found bool, reason string) {
 	return false, false, ""
 }
 
+// procmgrFormFromValue classifies one process_manager.enabled value. Null stays
+// unset. Any other value is converted with the Agent's bool cast, so a quoted
+// "false" and a 0 are false. A value the cast cannot convert is malformed.
 func procmgrFormFromValue(value interface{}) procmgrFormValue {
 	if value == nil {
 		return procmgrFormValue{kind: procmgrFormNull}
 	}
-	enabled, ok := value.(bool)
-	if !ok {
+	enabled, err := cast.ToBoolE(value)
+	if err != nil {
 		return procmgrFormValue{kind: procmgrFormBad}
 	}
 	return procmgrFormValue{kind: procmgrFormBool, enabled: enabled}

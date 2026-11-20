@@ -435,15 +435,15 @@ func (m *macosInstallSuite) TestZYReinstallSameVersion() {
 func assertMacosProcessManagerOff(t *testing.T, client *common.MacOSTestClient, wantPostinstallSource string) {
 	t.Helper()
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		_, err := client.Execute("sudo launchctl print system/com.datadoghq.procmgr")
-		assert.Error(c, err, "com.datadoghq.procmgr is loaded")
-		_, err = client.Execute("sudo " + macosProcmgrCLI + " status")
-		assert.Error(c, err, "dd-procmgr status succeeded")
+		out, err := client.Execute("sudo launchctl print system/com.datadoghq.procmgr")
+		assertMacosReportsAbsence(c, out, err, "Could not find service")
+		out, err = client.Execute("sudo " + macosProcmgrCLI + " status")
+		assertMacosReportsAbsence(c, out, err, "failed to connect to")
 	}, 60*time.Second, 2*time.Second)
-	_, err := client.Execute("sudo test -e " + macosLaunchDaemonPath("com.datadoghq.procmgr"))
-	assert.Error(t, err, "com.datadoghq.procmgr has a job definition")
-	_, err = client.Execute("sudo test -e " + macosProcessesDir)
-	assert.Error(t, err, "processes.d is present")
+	out, err := client.Execute("sudo test -e " + macosLaunchDaemonPath("com.datadoghq.procmgr"))
+	assertMacosReportsAbsence(t, out, err, "Process exited with status 1")
+	out, err = client.Execute("sudo test -e " + macosProcessesDir)
+	assertMacosReportsAbsence(t, out, err, "Process exited with status 1")
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		for _, label := range []string{"com.datadoghq.sysprobe", "com.datadoghq.data-plane", "com.datadoghq.agent", macosInstallerLaunchDaemon} {

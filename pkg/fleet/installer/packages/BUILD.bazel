@@ -59,6 +59,7 @@ go_library(
             "//pkg/fleet/installer/packages/launchd",
             "//pkg/fleet/installer/packages/processmanager",
             "//pkg/fleet/installer/symlink",
+            "@com_github_spf13_cast//:cast",
             "@in_yaml_go_yaml_v2//:yaml",
         ],
         "@rules_go//go/platform:ios": [
@@ -66,6 +67,7 @@ go_library(
             "//pkg/fleet/installer/packages/launchd",
             "//pkg/fleet/installer/packages/processmanager",
             "//pkg/fleet/installer/symlink",
+            "@com_github_spf13_cast//:cast",
             "@in_yaml_go_yaml_v2//:yaml",
         ],
         "@rules_go//go/platform:linux": [
