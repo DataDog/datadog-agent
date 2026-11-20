@@ -427,14 +427,13 @@ func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
 	const window = 15
 	return AnomalyScorerConfig{
 		AnomalyScorerConfig: observerdef.AnomalyScorerConfig{
-			Alpha:                0.014,
-			SaturationK:          5.0,
-			WindowSecs:           window,
-			ReorderingWindowSecs: defaultAnomalyReorderingWindowSecs,
-			LateAnomalyBehavior:  lateAnomalyIgnore,
-			LowThreshold:         0.15,
-			HighThreshold:        0.40,
-			MarginPct:            0.20,
+			Alpha:               0.014,
+			SaturationK:         5.0,
+			WindowSecs:          window,
+			LateAnomalyBehavior: lateAnomalyClamp,
+			LowThreshold:        0.15,
+			HighThreshold:       0.40,
+			MarginPct:           0.20,
 			// MaxBuckets intentionally left at zero: the trim logic defaults to WindowSecs.
 			DetectorThresholds: map[string][4]float64{
 				// tukey_biweight scores cap hard at ~50 across all scenarios.
@@ -491,7 +490,7 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	key = prefix + "anomaly_reordering_window"
 	d = r.GetDuration(key)
 	if seconds := int64(d / time.Second); d%time.Second != 0 || !validReorderingWindow(seconds) {
-		logging.Warnf("anomaly scorer: %s must be a whole number of seconds from 1s to 1h, got %s; using %s",
+		logging.Warnf("anomaly scorer: %s must be a whole number of seconds from 0s to 1h, got %s; using %s",
 			key, d, time.Duration(defaults.ReorderingWindowSecs)*time.Second)
 	} else {
 		ewma.ReorderingWindowSecs = seconds
@@ -852,19 +851,26 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 
 func (s *anomalyScorer) Name() string { return "anomaly_scorer" }
 
-// ProcessAnomaly buffers evidence by its original timestamp.
+// ProcessAnomaly buffers evidence at its original or clamped scoring second.
 func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.replay != nil && a.Timestamp <= s.lastAdvancedSec {
-		if a.Timestamp > 0 && (s.config.LateAnomalyBehavior == lateAnomalyClamp ||
-			a.Timestamp > s.lastAdvancedSec-s.replay.windowSecs()) {
-			s.late = append(s.late, a)
+	sec := a.Timestamp
+	if s.score.initialized && sec <= s.lastAdvancedSec {
+		if s.replay != nil {
+			if sec > 0 && (s.config.LateAnomalyBehavior == lateAnomalyClamp ||
+				sec > s.lastAdvancedSec-s.replay.windowSecs()) {
+				s.late = append(s.late, a)
+			}
+			return
 		}
-		return
+		if s.config.LateAnomalyBehavior == lateAnomalyIgnore {
+			return
+		}
+		sec = s.lastAdvancedSec + 1
 	}
-	s.pending[a.Timestamp] = append(s.pending[a.Timestamp], a)
-	s.recordAnomaly(a, a.Timestamp)
+	s.pending[sec] = append(s.pending[sec], a)
+	s.recordAnomaly(a, sec)
 }
 
 // recordAnomaly tracks accepted evidence for history and an open episode.
@@ -891,13 +897,13 @@ func (s *anomalyScorer) recordAnomaly(a observerdef.Anomaly, scoringSecond int64
 // the dispatcher, which may call listeners on resulting transitions.
 func (s *anomalyScorer) Advance(dataTime int64) {
 	s.mu.Lock()
-	if s.replay != nil && dataTime <= s.lastAdvancedSec {
+	if s.score.initialized && dataTime <= s.lastAdvancedSec {
 		s.mu.Unlock()
 		return
 	}
 
 	start := s.lastAdvancedSec + 1
-	if s.replay == nil {
+	if !s.score.initialized {
 		// First Advance: start from the earliest pending anomaly (or dataTime if
 		// no anomalies), to avoid emitting empty buckets for all seconds since epoch.
 		start = dataTime
@@ -1110,7 +1116,7 @@ func (s *anomalyScorer) advanceSecond(sec int64, recognizeHigh bool) secState {
 			inputs[i] = scoringEvidence(a, cfg)
 		}
 	}
-	if s.replay == nil {
+	if cfg.ReorderingWindowSecs > 0 && s.replay == nil {
 		s.replay = newScorerReplayHistory(cfg.ReorderingWindowSecs, cfg.WindowSecs)
 		s.replay.firstSecond = sec
 		s.replay.saveCheckpoint(sec-1, s.score, true)
@@ -1120,7 +1126,9 @@ func (s *anomalyScorer) advanceSecond(sec int64, recognizeHigh bool) secState {
 	if next.level == severityeventsdef.SeverityHigh && s.score.level != next.level {
 		highCrossing = sec
 	}
-	s.replay.recordSecond(sec, inputs, next, recognizeHigh)
+	if s.replay != nil {
+		s.replay.recordSecond(sec, inputs, next, recognizeHigh)
+	}
 	s.score = next
 	s.buckets = append(s.buckets, bucket)
 
@@ -1217,10 +1225,9 @@ func scoreSecond(sec int64, inputs []scoringInput, cfg observerdef.AnomalyScorer
 }
 
 const (
-	defaultAnomalyReorderingWindowSecs = 10 * 60
-	maxAnomalyReorderingWindowSecs     = 60 * 60
-	lateAnomalyIgnore                  = "ignore"
-	lateAnomalyClamp                   = "clamp"
+	maxAnomalyReorderingWindowSecs = 60 * 60
+	lateAnomalyIgnore              = "ignore"
+	lateAnomalyClamp               = "clamp"
 )
 
 func validLateAnomalyBehavior(behavior string) bool {
@@ -1228,7 +1235,7 @@ func validLateAnomalyBehavior(behavior string) bool {
 }
 
 func validReorderingWindow(seconds int64) bool {
-	return seconds >= 1 && seconds <= maxAnomalyReorderingWindowSecs
+	return seconds >= 0 && seconds <= maxAnomalyReorderingWindowSecs
 }
 
 // scoringInput is the evidence needed to score an anomaly. It retains no payload or attribution.

@@ -465,7 +465,7 @@ type AnomalyScorerConfig struct {
 	// function is applied to the number of unique series in the window, not to the
 	// per-second event count.
 	WindowSecs int64 `json:"window_secs"`
-	// ReorderingWindowSecs bounds how far late evidence can revise the score.
+	// ReorderingWindowSecs bounds how far late evidence can revise the score; zero disables replay.
 	ReorderingWindowSecs int64 `json:"anomaly_reordering_window_secs"`
 	// LateAnomalyBehavior controls late evidence older than the reordering window.
 	LateAnomalyBehavior string `json:"late_anomaly_behavior"`

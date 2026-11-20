@@ -56,14 +56,14 @@ func TestReadAnomalyScorerReorderingWindow(t *testing.T) {
 		duration time.Duration
 		want     int64
 	}{
-		{0, 600},
-		{-time.Second, 600},
-		{500 * time.Millisecond, 600},
-		{1500 * time.Millisecond, 600},
+		{0, 0},
+		{-time.Second, 0},
+		{500 * time.Millisecond, 0},
+		{1500 * time.Millisecond, 0},
 		{time.Second, 1},
 		{3 * time.Minute, 180},
 		{time.Hour, 3600},
-		{time.Hour + time.Second, 600},
+		{time.Hour + time.Second, 0},
 	} {
 		t.Run(tc.duration.String(), func(t *testing.T) {
 			cfg := readAnomalyScorerConfig(scorerConfigReader{
@@ -78,6 +78,7 @@ func TestReadAnomalyScorerReorderingWindow(t *testing.T) {
 func TestScorerUsesConfiguredReorderingWindow(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
 	cfg.ReorderingWindowSecs = 3
+	cfg.LateAnomalyBehavior = "ignore"
 	s := NewAnomalyScorer(cfg).(*anomalyScorer)
 	s.Advance(1000)
 	s.Advance(1003)
@@ -91,14 +92,14 @@ func TestScorerUsesConfiguredReorderingWindow(t *testing.T) {
 	for _, seconds := range []int64{0, -1, 3601} {
 		cfg.ReorderingWindowSecs = seconds
 		s := NewAnomalyScorer(cfg).(*anomalyScorer)
-		require.EqualValues(t, 600, s.ScoreState().Config.ReorderingWindowSecs)
+		require.Zero(t, s.ScoreState().Config.ReorderingWindowSecs)
 	}
 }
 
 func TestScorerLateAnomalyBehaviorConfig(t *testing.T) {
 	const prefix = "anomaly_detection.anomaly_scorer."
 	for _, tc := range []struct{ input, want string }{
-		{"", "ignore"}, {"unknown", "ignore"}, {"ignore", "ignore"}, {"clamp", "clamp"},
+		{"", "clamp"}, {"unknown", "clamp"}, {"ignore", "ignore"}, {"clamp", "clamp"},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
 			cfg := readAnomalyScorerConfig(scorerConfigReader{
@@ -107,6 +108,45 @@ func TestScorerLateAnomalyBehaviorConfig(t *testing.T) {
 			require.Equal(t, tc.want, cfg.LateAnomalyBehavior)
 			cfg.LateAnomalyBehavior = tc.input
 			require.Equal(t, tc.want, NewAnomalyScorer(cfg).ScoreState().Config.LateAnomalyBehavior)
+		})
+	}
+}
+
+func TestScorerZeroReorderingWindow(t *testing.T) {
+	for _, behavior := range []string{"clamp", "ignore"} {
+		t.Run(behavior, func(t *testing.T) {
+			cfg := DefaultAnomalyScorerConfig()
+			require.Zero(t, cfg.ReorderingWindowSecs)
+			require.Equal(t, "clamp", cfg.LateAnomalyBehavior)
+			cfg.LateAnomalyBehavior = behavior
+			s := NewAnomalyScorer(cfg).(*anomalyScorer)
+			s.enableHistory()
+			s.Advance(1000)
+			first := s.ScoreState().Buckets[0]
+			s.ProcessAnomaly(makeAnomaly("scanmw", 900, scorePtr(30)))
+			s.Advance(1000)
+			s.Advance(1005)
+
+			buckets := s.ScoreState().Buckets
+			require.Equal(t, first, buckets[0])
+			require.EqualValues(t, 1001, buckets[1].Second)
+			require.Nil(t, s.replay)
+			require.Empty(t, s.pending)
+			history := s.historyState()
+			if behavior == "clamp" {
+				require.Equal(t, 1, buckets[1].Count)
+				require.Len(t, history.Inputs, 1)
+				require.EqualValues(t, 1001, history.Inputs[0].ScoringSecond)
+				require.EqualValues(t, 900, history.Inputs[0].Anomaly.Timestamp)
+				baseline := NewAnomalyScorer(cfg)
+				baseline.Advance(1000)
+				baseline.ProcessAnomaly(makeAnomaly("scanmw", 1001, scorePtr(30)))
+				baseline.Advance(1005)
+				require.Equal(t, baseline.ScoreState().Buckets, buckets)
+			} else {
+				require.Zero(t, buckets[1].Count)
+				require.Empty(t, history.Inputs)
+			}
 		})
 	}
 }
@@ -657,6 +697,7 @@ func TestReset(t *testing.T) {
 
 func TestReplayLateInputsMatchesChronologicalScoring(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 600
 	cfg.WindowSecs = 3
 	cfg.MaxBuckets = 50
 	chronological := NewAnomalyScorer(cfg).(*anomalyScorer)
@@ -705,12 +746,15 @@ func TestReplayLateInputsMatchesChronologicalScoring(t *testing.T) {
 
 func TestReplayLateInputsUsesNextAdvanceCutoff(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
+	const window = 600
+	cfg.ReorderingWindowSecs = window
+	cfg.LateAnomalyBehavior = "ignore"
 	cfg.MaxBuckets = 1000
 	cfg.CorrelationEvents = true
 	s := NewAnomalyScorer(cfg).(*anomalyScorer)
 	s.enableHistory()
 	const latest = int64(1700)
-	const cutoff = latest - defaultAnomalyReorderingWindowSecs
+	const cutoff = latest - window
 	s.Advance(cutoff - 3)
 	s.Advance(latest - 2)
 	s.openEpisode = &observer.ActiveCorrelation{}
@@ -787,6 +831,7 @@ func TestClampAcrossCatchupTriggersAtDiscovery(t *testing.T) {
 
 func TestReplayDoesNotRedeliverScoredTransitions(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 600
 	cfg.Alpha = 0.99
 	cfg.SaturationK = 1
 	s := NewAnomalyScorer(cfg)
@@ -804,11 +849,12 @@ func TestReplayDoesNotRedeliverScoredTransitions(t *testing.T) {
 
 func TestReplayDoesNotDropUnscoredCatchupInputs(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 600
 	cfg.MaxBuckets = 1000
 	s := NewAnomalyScorer(cfg).(*anomalyScorer)
 	s.Advance(1000)
 	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
-	s.Advance(1001 + defaultAnomalyReorderingWindowSecs)
+	s.Advance(1001 + cfg.ReorderingWindowSecs)
 	buckets := s.ScoreState().Buckets
 	require.Equal(t, int64(1001), buckets[1].Second)
 	require.Equal(t, 1, buckets[1].Count)
@@ -821,6 +867,7 @@ func TestReplayDoesNotDropUnscoredCatchupInputs(t *testing.T) {
 
 func highDiscoveryConfig() AnomalyScorerConfig {
 	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 600
 	cfg.WindowSecs = 1
 	cfg.Alpha = 0.99
 	cfg.SaturationK = 1
@@ -1133,6 +1180,7 @@ func TestScorerChronologicalBaseline(t *testing.T) {
 
 func TestScorerReplayHistoryRetention(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 5
 	cfg.WindowSecs = 3
 	scorer := NewAnomalyScorer(cfg).(*anomalyScorer)
 	const first = int64(1000)
@@ -1141,7 +1189,7 @@ func TestScorerReplayHistoryRetention(t *testing.T) {
 	scorer.ProcessAnomaly(a)
 	scorer.Advance(first)
 	h := scorer.replay
-	require.Len(t, h.checkpoints, defaultAnomalyReorderingWindowSecs+1)
+	require.Len(t, h.checkpoints, int(cfg.ReorderingWindowSecs+1))
 	require.Len(t, h.journal, 1)
 	require.Equal(t, scoringCheckpoint{second: first - 1, present: true},
 		h.checkpoints[replaySlot(first-1, len(h.checkpoints))])
@@ -1154,7 +1202,7 @@ func TestScorerReplayHistoryRetention(t *testing.T) {
 
 	// Catch up through a quiet tail, wrapping the ring. The seed predates the
 	// first replayable second, whose evidence still includes the second input.
-	latest := first + 2 + defaultAnomalyReorderingWindowSecs
+	latest := first + 2 + cfg.ReorderingWindowSecs
 	scorer.Advance(latest)
 	require.Equal(t, scoringCheckpoint{second: first + 2, state: boundary, present: true},
 		h.checkpoints[replaySlot(first+2, len(h.checkpoints))])
@@ -1175,6 +1223,7 @@ func TestScorerReplayHistoryRetention(t *testing.T) {
 
 func TestScorerHistoryCapturesOriginalRun(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 600
 	cfg.Alpha = 0.99
 	cfg.SaturationK = 1
 	cfg.WindowSecs = 15

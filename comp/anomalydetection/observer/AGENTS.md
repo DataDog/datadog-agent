@@ -99,8 +99,8 @@ anomaly_detection:
     enabled: true
     alpha: 0.3
     window: 30s
-    anomaly_reordering_window: 10m
-    late_anomaly_behavior: ignore # or clamp
+    anomaly_reordering_window: 0s
+    late_anomaly_behavior: clamp # or ignore
     low_threshold: 0.030
     high_threshold: 0.060
     output:
@@ -112,11 +112,13 @@ anomaly_detection:
 
 `window` controls how long an anomaly contributes evidence (default `15s`).
 `anomaly_reordering_window` controls how far back the scorer can place a
-late arrival at its original timestamp. It accepts whole seconds from `1s`
-through `1h`; invalid values use `10m`. At advance `T`, the oldest replayable
-second is `T - anomaly_reordering_window + 1s`. For late arrivals older than
-that, `late_anomaly_behavior: ignore` drops the evidence and `clamp` scores it
-at that oldest second. Unscored inputs keep their original timestamp.
+late arrival at its original timestamp. It accepts whole seconds from `0s`
+through `1h`; invalid values use `0s`. At advance `T` with replay enabled, the
+oldest replayable second is `T - anomaly_reordering_window + 1s`. For late arrivals
+older than that, `late_anomaly_behavior: ignore` drops the evidence and `clamp`
+scores it at that oldest second. With the default `0s`, replay is disabled and
+`clamp` scores late arrivals at the next unscored second. Inputs whose second
+has not been scored yet keep their original scoring time.
 The scorer uses the same per-second calculation for forward scoring and replay.
 
 The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/`.

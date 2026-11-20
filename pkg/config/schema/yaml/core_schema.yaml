@@ -5397,11 +5397,11 @@ properties:
           anomaly_reordering_window:
             node_type: setting
             type: string
-            default: 10m
+            default: 0s
             format: duration
             description: >
               How far back late anomalies can revise the score. Use whole
-              seconds from 1s through 1h. Invalid values use the 10m default.
+              seconds from 0s through 1h. The 0s default disables replay.
           dry_run:
             node_type: section
             type: object
@@ -5417,14 +5417,15 @@ properties:
           late_anomaly_behavior:
             node_type: setting
             type: string
-            default: ignore
+            default: clamp
             enum:
             - ignore
             - clamp
             description: >
               How to handle late anomalies outside the reordering window.
               Use ignore to discard them or clamp to score them at the oldest
-              second inside the window.
+              second inside the window. When the window is 0s, clamp scores
+              late anomalies at the next unscored second.
           low_threshold:
             node_type: setting
             type: number
