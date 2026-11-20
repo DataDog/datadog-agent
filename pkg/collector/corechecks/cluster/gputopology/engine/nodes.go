@@ -99,8 +99,9 @@ const (
 
 // classified is a node after classification.
 type classified struct {
-	node    Node
-	gpuType string
+	node Node
+	// gpuTypes holds the GPU type per key of states.
+	gpuTypes map[string]string
 	// states holds the node's state per attributed resource ("mig" or
 	// nvidia.com/gpu.shared for unsupported nodes). It only differs between
 	// resources for no_gpu_allocatable (e.g. one vendor's plugin down).
@@ -110,9 +111,10 @@ type classified struct {
 
 // classify returns the node's states, or false for a node with no GPU at all.
 func classify(n Node, levels []string, implicit bool, tols []Toleration) (classified, bool) {
-	c := classified{node: n, gpuType: gpuType(n), states: map[string]NodeState{}}
+	c := classified{node: n, states: map[string]NodeState{}, gpuTypes: map[string]string{}}
 	if attr := unsupported(n); attr != "" {
 		c.states[attr] = NodeUnsupported
+		c.gpuTypes[attr] = gpuType(n, attr)
 		return c, true
 	}
 	resources := attributedResources(n)
@@ -125,6 +127,7 @@ func classify(n Node, levels []string, implicit bool, tols []Toleration) (classi
 	}
 	ok := tolerated(n.Taints, tols)
 	for _, r := range resources {
+		c.gpuTypes[r] = gpuType(n, r)
 		switch {
 		case !labelled:
 			c.states[r] = NodeMissingLabels
@@ -176,24 +179,39 @@ func unsupported(n Node) string {
 	return ""
 }
 
+// GPU vendors, to pick the GPU type labels of a resource.
+const (
+	vendorNVIDIA = "nvidia"
+	vendorAMD    = "amd"
+)
+
 // gpuTypeLabels are the node labels the GPU type is read from, in order: the
-// first one present with a parseable value wins. Each value is turned into a device name that gpu.ExtractGPUType
-// parses, so the type matches the gpu_type tag of the node GPU check.
+// first one of the resource's vendor present with a parseable value wins.
+// Each value is turned into a device name that gpu.ExtractGPUType parses, so
+// the type matches the gpu_type tag of the node GPU check. There is no Intel
+// label: Intel resources are always "unknown".
 var gpuTypeLabels = []struct {
+	vendor   string
 	label    string
-	toDevice func(string) string
+	toDevice func(value string, labels map[string]string) string
 }{
 	// NVIDIA GPU Feature Discovery, e.g. NVIDIA-H100-80GB-HBM3.
-	{labelGPUProduct, gpu.GFDLabelToGPUDeviceName},
+	{vendorNVIDIA, labelGPUProduct, func(v string, _ map[string]string) string { return gpu.GFDLabelToGPUDeviceName(v) }},
 	// GKE without the GPU Operator, e.g. nvidia-tesla-a100, nvidia-h100-80gb.
-	{"cloud.google.com/gke-accelerator", func(v string) string {
+	{vendorNVIDIA, "cloud.google.com/gke-accelerator", func(v string, _ map[string]string) string {
 		v = strings.TrimPrefix(v, "nvidia-tesla-")
 		return "nvidia " + strings.TrimPrefix(v, "nvidia-")
 	}},
-	// EKS with Karpenter, e.g. h100, a10g (NVIDIA names).
-	{"karpenter.k8s.aws/instance-gpu-name", func(v string) string { return "nvidia " + v }},
+	// EKS with Karpenter, e.g. h100, a10g, only when the manufacturer label
+	// says nvidia.
+	{vendorNVIDIA, "karpenter.k8s.aws/instance-gpu-name", func(v string, labels map[string]string) string {
+		if !strings.EqualFold(labels["karpenter.k8s.aws/instance-gpu-manufacturer"], "nvidia") {
+			return ""
+		}
+		return "nvidia " + v
+	}},
 	// AMD GPU node labeller, e.g. AMD_Instinct_MI300X or Instinct_MI300X.
-	{"amd.com/gpu.product-name", func(v string) string {
+	{vendorAMD, "amd.com/gpu.product-name", func(v string, _ map[string]string) string {
 		if strings.HasPrefix(strings.ToLower(v), "amd") {
 			return v
 		}
@@ -201,15 +219,27 @@ var gpuTypeLabels = []struct {
 	}},
 }
 
-// gpuType returns the node's GPU type from the first parseable
-// gpuTypeLabels label, or GPUTypeUnknown.
-func gpuType(n Node) string {
+// vendorOf returns the vendor of a resource or unsupported attribution.
+func vendorOf(resource string) string {
+	switch {
+	case resource == GPUResourceMIG || strings.HasPrefix(resource, "nvidia.com/"):
+		return vendorNVIDIA
+	case strings.HasPrefix(resource, "amd.com/"):
+		return vendorAMD
+	}
+	return ""
+}
+
+// gpuType returns the GPU type of a node's resource from the first parseable
+// gpuTypeLabels label of the resource's vendor, or GPUTypeUnknown.
+func gpuType(n Node, resource string) string {
+	vendor := vendorOf(resource)
 	for _, l := range gpuTypeLabels {
 		v, ok := n.Labels[l.label]
-		if !ok || v == "" {
+		if l.vendor != vendor || !ok || v == "" {
 			continue
 		}
-		if t := gpu.ExtractGPUType(l.toDevice(v)); t != "" {
+		if t := gpu.ExtractGPUType(l.toDevice(v, n.Labels)); t != "" {
 			return t
 		}
 	}
