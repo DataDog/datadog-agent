@@ -3,3 +3,5 @@ fixes:
   - |
     Reduce system-probe shutdown latency when USM TLS monitoring instruments many
     probe locations, by using grouped attachments on supported Linux kernels.
+    This optimization is disabled by default. Set
+    ``service_monitoring_config.enable_uprobe_multi`` to ``true`` to enable it.

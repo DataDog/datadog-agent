@@ -55,8 +55,8 @@ properties:
   enable_uprobe_multi:
     node_type: setting
     type: boolean
-    default: true
-    description: Use grouped USM TLS probe attachments on supported Linux kernels to reduce shutdown latency. Set to false to use individual perf-event attachments.
+    default: false
+    description: Set to true to opt in to grouped USM TLS probe attachments on supported Linux kernels to reduce shutdown latency. Disabled by default; uses individual perf-event attachments unless enabled.
   enable_go_tls_support:
     node_type: setting
     type: boolean
