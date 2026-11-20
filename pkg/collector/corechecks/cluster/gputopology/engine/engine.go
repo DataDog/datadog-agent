@@ -337,7 +337,7 @@ func computeUnit(u unit, nodes []classified, levels []string, alloc Allocations)
 		if !ok || state == NodeUnsupported || c.gpuTypes[resource] != u.gpuType {
 			continue
 		}
-		capacity := max(c.node.Capacity[resource], 0)
+		capacity := gpuCapacity(c.node, resource)
 		largestHost = max(largestHost, capacity)
 		switch state {
 		case NodeMissingLabels:

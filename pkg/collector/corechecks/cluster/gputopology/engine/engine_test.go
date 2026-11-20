@@ -820,6 +820,43 @@ func TestCPUOnlyNodesNeverCreateUnknown(t *testing.T) {
 	assert.Empty(t, res.Resources)
 }
 
+func TestPluginGoneKeepsCapacity(t *testing.T) {
+	rack := map[string]string{rackLabel: "rack-1"}
+	gone := Node{Name: "gone", Ready: true, Labels: map[string]string{rackLabel: "rack-1", "nvidia.com/gpu.present": "true", "nvidia.com/gpu.count": "8"}}
+	karpenter := Node{Name: "karpenter", Ready: true, Labels: map[string]string{
+		rackLabel: "rack-1", "nvidia.com/gpu.present": "true",
+		"karpenter.k8s.aws/instance-gpu-manufacturer": "nvidia", "karpenter.k8s.aws/instance-gpu-count": "4",
+	}}
+	res := Compute(Topology{Levels: []string{rackLabel}}, []Node{gone, karpenter, gpuNode("ok", rack, 4, nvidia)}, nil)
+	rr := res.Resources[0]
+	assert.Equal(t, 12, rr.UnschedulableGPUs[ReasonNoAllocatable], "capacity from gpu.count and instance-gpu-count")
+	assert.Equal(t, slots(4, 2, 1, 0), rr.Levels[0].LargestFreeSlots, "the 8-GPU size stays while the plugin is gone")
+
+	// Without a count label, the node is still no_gpu_allocatable with 0 GPUs.
+	res = Compute(Topology{Levels: []string{rackLabel}}, []Node{{Name: "n", Ready: true, Labels: map[string]string{rackLabel: "rack-1", "nvidia.com/gpu.present": "true"}}}, nil)
+	assert.Equal(t, []NodeCount{{State: NodeNoGPUAllocatable, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 1}}, nonZero(res.Nodes))
+	assert.Equal(t, 0, res.Resources[0].UnschedulableGPUs[ReasonNoAllocatable])
+}
+
+func TestOneVendorPluginGone(t *testing.T) {
+	// The NVIDIA plugin died > 5 min ago: only the presence label is left,
+	// while amd.com/gpu is still in capacity.
+	n := gpuNode("n", map[string]string{rackLabel: "rack-1", "nvidia.com/gpu.present": "true", "nvidia.com/gpu.count": "4"}, 8, amd)
+	res := Compute(Topology{Levels: []string{rackLabel}}, []Node{n}, nil)
+	assert.Equal(t, []NodeCount{
+		{State: NodeInTopology, GPUResource: amd, GPUType: GPUTypeUnknown, Count: 1},
+		{State: NodeNoGPUAllocatable, GPUResource: nvidia, GPUType: GPUTypeUnknown, Count: 1},
+	}, nonZero(res.Nodes))
+	require.Len(t, res.Resources, 2)
+	assert.Equal(t, 4, res.Resources[1].UnschedulableGPUs[ReasonNoAllocatable])
+
+	// A presence label doesn't add a second resource of a vendor already in
+	// capacity (e.g. Intel xe vs the i915 the label maps to).
+	intel := gpuNode("intel", map[string]string{rackLabel: "rack-1", "intel.feature.node.kubernetes.io/gpu": "true"}, 2, "gpu.intel.com/xe")
+	res = Compute(Topology{Levels: []string{rackLabel}}, []Node{intel}, nil)
+	assert.Equal(t, []NodeCount{{State: NodeInTopology, GPUResource: "gpu.intel.com/xe", GPUType: GPUTypeUnknown, Count: 1}}, nonZero(res.Nodes))
+}
+
 func TestEmpty(t *testing.T) {
 	nodes, alloc := cluster(map[string]map[string][]int{"b": {"rack-1": {1}}})
 

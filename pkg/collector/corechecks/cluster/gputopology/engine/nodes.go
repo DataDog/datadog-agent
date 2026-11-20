@@ -20,7 +20,11 @@ const (
 	labelGPUProduct         = "nvidia.com/gpu.product"
 	labelGPUReplicas        = "nvidia.com/gpu.replicas"
 	labelGPUSharingStrategy = "nvidia.com/gpu.sharing-strategy"
-	migResourcePfx          = string(gpu.GpuNvidiaMigPrefix) + "-"
+	labelGPUCount           = "nvidia.com/gpu.count"
+
+	labelKarpenterGPUManufacturer = "karpenter.k8s.aws/instance-gpu-manufacturer"
+	labelKarpenterGPUCount        = "karpenter.k8s.aws/instance-gpu-count"
+	migResourcePfx                = string(gpu.GpuNvidiaMigPrefix) + "-"
 )
 
 // wholeGPUResources are the extended resources the engine models: one unit
@@ -200,6 +204,7 @@ func unsupported(n Node) (resource, slicing, sharing string) {
 const (
 	vendorNVIDIA = "nvidia"
 	vendorAMD    = "amd"
+	vendorIntel  = "intel"
 )
 
 // gpuTypeLabels are the node labels the GPU type is read from, in order: the
@@ -222,7 +227,7 @@ var gpuTypeLabels = []struct {
 	// EKS with Karpenter, e.g. h100, a10g, only when the manufacturer label
 	// says nvidia.
 	{vendorNVIDIA, "karpenter.k8s.aws/instance-gpu-name", func(v string, labels map[string]string) string {
-		if !strings.EqualFold(labels["karpenter.k8s.aws/instance-gpu-manufacturer"], "nvidia") {
+		if !strings.EqualFold(labels[labelKarpenterGPUManufacturer], "nvidia") {
 			return ""
 		}
 		return "nvidia " + v
@@ -243,6 +248,8 @@ func vendorOf(resource string) string {
 		return vendorNVIDIA
 	case strings.HasPrefix(resource, "amd.com/"):
 		return vendorAMD
+	case strings.HasPrefix(resource, "gpu.intel.com/"):
+		return vendorIntel
 	}
 	return ""
 }
@@ -272,15 +279,40 @@ func attributedResources(n Node) []string {
 			res = append(res, r)
 		}
 	}
-	if len(res) == 0 {
-		for _, p := range presenceLabels {
-			if n.Labels[p.label] == "true" {
-				res = append(res, p.resource)
-			}
+	// Presence labels add the vendors missing from capacity, so a node keeps
+	// a vendor whose plugin is gone even when another vendor's resource is
+	// still in capacity.
+	for _, p := range presenceLabels {
+		vendor := vendorOf(p.resource)
+		if n.Labels[p.label] == "true" && !slices.ContainsFunc(res, func(r string) bool { return vendorOf(r) == vendor }) {
+			res = append(res, p.resource)
 		}
 	}
 	slices.Sort(res)
 	return slices.Compact(res)
+}
+
+// gpuCapacity returns the node's capacity for a resource. When the resource
+// is gone from capacity (kubelet drops it about 5 minutes after the device
+// plugin dies), NVIDIA GPUs are counted from the nvidia.com/gpu.count GFD
+// label, or Karpenter's instance-gpu-count for NVIDIA instances, so the
+// unschedulable GPUs and pod sizes don't drop while the node is down.
+func gpuCapacity(n Node, resource string) int {
+	if c, ok := n.Capacity[resource]; ok {
+		return max(c, 0)
+	}
+	if resource != string(gpu.GpuNvidiaGeneric) {
+		return 0
+	}
+	if c, err := strconv.Atoi(n.Labels[labelGPUCount]); err == nil {
+		return max(c, 0)
+	}
+	if strings.EqualFold(n.Labels[labelKarpenterGPUManufacturer], "nvidia") {
+		if c, err := strconv.Atoi(n.Labels[labelKarpenterGPUCount]); err == nil {
+			return max(c, 0)
+		}
+	}
+	return 0
 }
 
 // nodePath returns the node's label values for every level. The implicit
