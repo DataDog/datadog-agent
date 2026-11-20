@@ -454,18 +454,40 @@ func deductAndUpdatePrevValue(key string, prevPromMetricValues map[string]uint64
 	prevPromMetricValues[key] = origCurValue
 }
 
+// isCumulativeCountLower reports whether a cumulative count went down since the previous period.
+func isCumulativeCountLower(key string, prevPromMetricValues map[string]uint64, curValue uint64) bool {
+	prevValue, ok := prevPromMetricValues[key]
+	return ok && curValue < prevValue
+}
+
 func convertPromHistogramsToDatadogHistogramsValues(metrics []*dto.Metric, prevPromMetricValues map[string]uint64, keyNames []string) {
 	if len(metrics) > 0 {
 		bucketCount := len(metrics[0].Histogram.GetBucket())
 		var prevValue uint64
 
 		for i, m := range metrics {
+			infKey := keyNames[((i+1)*(bucketCount+1))-1]
+
+			// A lower cumulative count in any bucket marks a producer reset (e.g. the series was deleted
+			// and recreated). The whole series is then reset: its current values are the deltas. Handling
+			// buckets independently would mix reset and non-reset buckets and underflow in step 3.
+			reset := isCumulativeCountLower(infKey, prevPromMetricValues, m.Histogram.GetSampleCount())
+			for j, b := range m.Histogram.GetBucket() {
+				reset = reset || isCumulativeCountLower(keyNames[(i*(bucketCount+1))+j], prevPromMetricValues, b.GetCumulativeCount())
+			}
+			if reset {
+				for j := range m.Histogram.GetBucket() {
+					delete(prevPromMetricValues, keyNames[(i*(bucketCount+1))+j])
+				}
+				delete(prevPromMetricValues, infKey)
+			}
+
 			// 1. deduct the previous cumulative count from each explicit  buckets
 			for j, b := range m.Histogram.GetBucket() {
 				deductAndUpdatePrevValue(keyNames[(i*(bucketCount+1))+j], prevPromMetricValues, b.CumulativeCount)
 			}
 			// 2. deduct the previous cumulative count from the implicit  "+Inf" bucket
-			deductAndUpdatePrevValue(keyNames[((i+1)*(bucketCount+1))-1], prevPromMetricValues, m.Histogram.SampleCount)
+			deductAndUpdatePrevValue(infKey, prevPromMetricValues, m.Histogram.SampleCount)
 
 			// 3. "De-cumulate" next explicit bucket value from the preceding bucket value
 			prevValue = 0
@@ -513,12 +535,10 @@ func (a *atel) convertPromMetricToDatadogMetricsValues(mt dto.MetricType, metric
 	}
 }
 
-func isMetricFiltered(p *Profile, mCfg *MetricConfig, mt dto.MetricType, m *dto.Metric) bool {
-	// filter out zero values if specified in the profile
-	if p.excludeZeroMetric && isZeroValueMetric(mt, m) {
-		return false
-	}
-
+// isMetricFiltered reports whether a metric passes the profile's tag filters. The zero_metric filter
+// is not applied here: for counters and histograms it must see the per-period delta, which is only
+// known after convertPromMetricToDatadogMetricsValues (see transformMetricFamily).
+func isMetricFiltered(p *Profile, mCfg *MetricConfig, m *dto.Metric) bool {
 	// filter out if contains excluded tags
 	if len(p.excludeTagsMap) > 0 && areTagsMatching(m.GetLabel(), p.excludeTagsMap) {
 		return false
@@ -549,11 +569,10 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 		return nil
 	}
 
-	// Filter the metric according to the profile configuration
-	// Currently we only support filtering out zero values if specified in the profile
+	// Filter the metric according to the profile's tag filters
 	var fm []*dto.Metric
 	for _, m := range mfam.Metric {
-		if isMetricFiltered(p, mCfg, mt, m) {
+		if isMetricFiltered(p, mCfg, m) {
 			fm = append(fm, m)
 		}
 	}
@@ -569,6 +588,17 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 	// value encodes the timeseries count and changes when timeseries appear/disappear.
 	// Mathematically: sum(deltas) == delta(sums), so aggregating deltas is equivalent.
 	a.convertPromMetricToDatadogMetricsValues(mt, mCfg.Name, fm)
+
+	// Filter out zero values if specified in the profile. This must happen AFTER the conversion:
+	// a counter keeps a non-zero cumulative value once incremented, so checking it before would
+	// report it with a zero delta in every later payload. All metrics still go through the
+	// conversion so their previous-value cache stays up to date while they are excluded.
+	if p.excludeZeroMetric {
+		fm = slices.DeleteFunc(fm, func(m *dto.Metric) bool { return isZeroValueMetric(mt, m) })
+		if len(fm) == 0 {
+			return nil
+		}
+	}
 
 	// Aggregate the metric tags (now operating on deltas rather than cumulative values)
 	amt := a.aggregateMetricTags(mCfg, mt, fm)
