@@ -1,0 +1,368 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
+
+package activitytree
+
+import (
+	"fmt"
+	"net"
+	"syscall"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+)
+
+func newJournalTestProcessEntry(pid uint32, pathStr, baseStr, argv0 string, argv, envs []string, ancestor *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+	entry := model.NewPlaceholderProcessCacheEntry(pid, pid, false)
+	entry.ContainerContext.ContainerID = "123"
+	entry.FileEvent.PathnameStr = pathStr
+	entry.FileEvent.BasenameStr = baseStr
+	entry.FileEvent.Inode = uint64(pid) + 100
+	entry.FileEvent.MountID = 1
+	entry.FileEvent.Filesystem = "overlay"
+	entry.FileEvent.PkgName = "test-pkg"
+	entry.FileEvent.PkgVersion = "1.2.3-4"
+	entry.FileEvent.Hashes = []string{
+		"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		"sha1:0123456789abcdef0123456789abcdef01234567",
+	}
+	entry.Argv0 = argv0
+	entry.ArgsEntry = &model.ArgsEntry{Values: argv}
+	entry.EnvsEntry = &model.EnvsEntry{Values: envs}
+	entry.Envs = envs
+	entry.Credentials = model.Credentials{
+		UID: 1000, GID: 1000,
+		User: "appuser", Group: "appgroup",
+		EUser: "appuser", EGroup: "appgroup",
+		FSUser: "appuser", FSGroup: "appgroup",
+	}
+	entry.Ancestor = ancestor
+	return entry
+}
+
+func newJournalTestFileOpenEvent(entry *model.ProcessCacheEntry, pathStr string, flags uint32, mode uint16, ts time.Time) *model.Event {
+	ev := model.NewFakeEvent()
+	ev.Type = uint32(model.FileOpenEventType)
+	ev.Timestamp = ts
+	ev.TimestampRaw = uint64(ts.UnixNano())
+	ev.ProcessCacheEntry = entry
+	ev.ProcessContext = &entry.ProcessContext
+	ev.Open.File.PathnameStr = pathStr
+	ev.Open.File.BasenameStr = pathStr[stringsLastSlash(pathStr)+1:]
+	ev.Open.File.Inode = 999
+	ev.Open.File.MountID = 1
+	ev.Open.File.Mode = mode
+	ev.Open.File.FileFields.Mode = mode
+	ev.Open.File.Filesystem = "ext4"
+	ev.Open.File.User = "appuser"
+	ev.Open.File.Group = "appgroup"
+	ev.Open.File.PkgName = "libssl3"
+	ev.Open.File.PkgVersion = "3.0.11-1~deb12u2"
+	ev.Open.File.Hashes = []string{
+		"sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+	}
+	ev.Open.Flags = flags
+	ev.Open.Mode = uint32(mode)
+	return ev
+}
+
+func stringsLastSlash(s string) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == '/' {
+			return i
+		}
+	}
+	return -1
+}
+
+func journalIPv4Net(ip string) net.IPNet {
+	parsed := net.ParseIP(ip).To4()
+	return net.IPNet{IP: parsed, Mask: net.CIDRMask(32, 32)}
+}
+
+func TestActivityTreeJournal_ParityWithInMemoryAndPatterns(t *testing.T) {
+	reducer := NewPathsReducer()
+
+	memTree := NewActivityTree(activityTreeInsertTestValidator{}, reducer, "security_profile")
+	memTree.DifferentiateArgs()
+	memTree.Stats.SetPathPatternConfig(DefaultPathPatternConfig())
+
+	jTree := NewActivityTree(activityTreeInsertTestValidator{}, reducer, "security_profile")
+	jTree.DifferentiateArgs()
+	jTree.Stats.SetPathPatternConfig(DefaultPathPatternConfig())
+	require.NoError(t, jTree.EnableJournal(t.TempDir(), "nginx:v1", 0))
+	t.Cleanup(func() { _ = jTree.CloseJournal() })
+
+	shim := newJournalTestProcessEntry(1, "/usr/bin/containerd-shim-runc-v2", "containerd-shim-runc-v2", "containerd-shim-runc-v2", nil, nil, nil)
+	worker := newJournalTestProcessEntry(
+		100,
+		"/usr/bin/nginx",
+		"nginx",
+		"nginx",
+		[]string{"-c", "/etc/nginx/nginx.conf", "-g", "daemon off;"},
+		[]string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin", "NGINX_VERSION=1.25.3"},
+		shim,
+	)
+
+	t1 := time.Unix(1700000000, 0)
+	t2 := t1.Add(10 * time.Second)
+
+	execEv := model.NewFakeEvent()
+	execEv.Type = uint32(model.ExecEventType)
+	execEv.Timestamp = t1
+	execEv.TimestampRaw = uint64(t1.UnixNano())
+	execEv.ProcessCacheEntry = worker
+	execEv.ProcessContext = &worker.ProcessContext
+	execEv.Exec.Process = &worker.Process
+	execEv.Rules = []*model.MatchedRule{{RuleID: "exec_rule_1", RuleVersion: "1.0"}}
+
+	insMem, _, _, err := memTree.Insert(execEv, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	insJ, _, _, err := jTree.Insert(execEv, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.Equal(t, insMem, insJ)
+
+	require.Len(t, jTree.ProcessNodes, 1)
+	assert.Empty(t, jTree.ProcessNodes[0].Process.Argv)
+	assert.Empty(t, jTree.ProcessNodes[0].Process.Envs)
+	assert.Empty(t, jTree.ProcessNodes[0].MatchedRules)
+
+	contains, err := jTree.Contains(execEv, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, contains)
+
+	for i := 1; i <= 4; i++ {
+		fEv := newJournalTestFileOpenEvent(worker, fmt.Sprintf("/var/job/%d/out.log", i), syscall.O_RDONLY, syscall.S_IFREG|0644, t1)
+		ins1, _, _, err := memTree.Insert(fEv, true, "v1", Runtime, nil)
+		require.NoError(t, err)
+		ins2, _, _, err := jTree.Insert(fEv, true, "v1", Runtime, nil)
+		require.NoError(t, err)
+		assert.Equal(t, ins1, ins2)
+	}
+
+	fEvEnrich := newJournalTestFileOpenEvent(worker, "/var/job/1/out.log", syscall.O_WRONLY|syscall.O_APPEND, syscall.S_IFREG|0644, t2)
+	fEvEnrich.Rules = []*model.MatchedRule{{RuleID: "fim_write_rule", RuleVersion: "1.0"}}
+	ins1, _, _, err := memTree.Insert(fEvEnrich, true, "v2", Runtime, nil)
+	require.NoError(t, err)
+	ins2, _, _, err := jTree.Insert(fEvEnrich, true, "v2", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, ins1)
+	assert.False(t, ins2)
+
+	var headNodeBase, foldedNodeBase *NodeBase
+	for i := 1; i <= 16; i++ {
+		fEv := newJournalTestFileOpenEvent(worker, fmt.Sprintf("/var/cache/item-%d.dat", i), syscall.O_RDONLY, syscall.S_IFREG|0644, t1)
+		_, _, _, err := memTree.Insert(fEv, true, "v1", Runtime, nil)
+		require.NoError(t, err)
+		_, _, nb, err := jTree.Insert(fEv, true, "v1", Runtime, nil)
+		require.NoError(t, err)
+		if i == 1 {
+			headNodeBase = nb
+		} else if i == 2 {
+			foldedNodeBase = nb
+		}
+	}
+	moved := jTree.Stats.TakeMovedNodes()
+	require.NotEmpty(t, moved)
+	assert.Same(t, headNodeBase, moved[foldedNodeBase], "merged pattern node must record moved NodeBase for sample cookie retargeting")
+
+	fEv999 := newJournalTestFileOpenEvent(worker, "/var/cache/item-999.dat", syscall.O_RDONLY, syscall.S_IFREG|0644, t2)
+	contains, err = jTree.Contains(fEv999, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, contains)
+
+	dnsEv1 := model.NewFakeEvent()
+	dnsEv1.Type = uint32(model.DNSEventType)
+	dnsEv1.Timestamp = t1
+	dnsEv1.ProcessCacheEntry = worker
+	dnsEv1.ProcessContext = &worker.ProcessContext
+	dnsEv1.DNS.Question = model.DNSQuestion{Name: "api.datadoghq.com", Type: 1, Class: 1, Size: 32, Count: 1}
+	dnsEv1.DNS.Response = &model.DNSResponse{
+		IPs:    []net.IPNet{journalIPv4Net("10.0.0.1")},
+		CNames: []string{"edge.datadoghq.com"},
+	}
+	_, _, _, err = memTree.Insert(dnsEv1, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	_, _, _, err = jTree.Insert(dnsEv1, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+
+	dnsEv2 := *dnsEv1
+	dnsEv2.Timestamp = t2
+	dnsEv2.DNS.Response = &model.DNSResponse{
+		IPs:    []net.IPNet{journalIPv4Net("10.0.0.2")},
+		CNames: []string{"edge.datadoghq.com"},
+	}
+	_, _, _, err = memTree.Insert(&dnsEv2, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	_, _, _, err = jTree.Insert(&dnsEv2, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+
+	assert.Nil(t, jTree.ProcessNodes[0].DNSNames["api.datadoghq.com"].Requests[0].Response)
+
+	memTree.FinalizePatterns()
+	jTree.FinalizePatterns()
+
+	memProto := ToProto(memTree)
+	jProto := ToProto(jTree)
+	require.Len(t, memProto, 1)
+	require.Len(t, jProto, 1)
+
+	assert.Empty(t, jTree.ProcessNodes[0].Process.Argv)
+	assert.Nil(t, jTree.ProcessNodes[0].DNSNames["api.datadoghq.com"].Requests[0].Response)
+	assert.Less(t, jTree.Stats.HeapSize(), memTree.Stats.HeapSize())
+
+	decoded := NewActivityTree(activityTreeInsertTestValidator{}, reducer, "security_profile")
+	ProtoDecodeActivityTree(decoded, jProto)
+	require.Len(t, decoded.ProcessNodes, 1)
+	dp := decoded.ProcessNodes[0]
+	mp := memTree.ProcessNodes[0]
+
+	assert.Equal(t, mp.Process.FileEvent.PathnameStr, dp.Process.FileEvent.PathnameStr)
+	assert.Equal(t, mp.Process.Argv, dp.Process.Argv)
+	assert.Equal(t, mp.Process.Envs, dp.Process.Envs)
+	assert.Equal(t, mp.Process.Credentials, dp.Process.Credentials)
+	assert.Equal(t, mp.Process.FileEvent.Hashes, dp.Process.FileEvent.Hashes)
+	require.Len(t, dp.MatchedRules, 1)
+	assert.Equal(t, "exec_rule_1", dp.MatchedRules[0].RuleID)
+
+	numNode := dp.Files["var"].Children["job"].Children["<num>"]
+	require.NotNil(t, numNode)
+	assert.True(t, numNode.IsPattern)
+	outLog := numNode.Children["out.log"]
+	require.NotNil(t, outLog)
+	require.NotNil(t, outLog.File)
+	assert.Equal(t, "/var/job/<num>/out.log", outLog.File.PathnameStr)
+	assert.Equal(t, "libssl3", outLog.File.PkgName)
+	require.NotNil(t, outLog.Open)
+	assert.Equal(t, uint32(syscall.O_RDONLY|syscall.O_WRONLY|syscall.O_APPEND), outLog.Open.Flags)
+	require.Len(t, outLog.MatchedRules, 1)
+	assert.Equal(t, "fim_write_rule", outLog.MatchedRules[0].RuleID)
+
+	dnsNode := dp.DNSNames["api.datadoghq.com"]
+	require.NotNil(t, dnsNode)
+	require.Len(t, dnsNode.Requests, 1)
+	require.NotNil(t, dnsNode.Requests[0].Response)
+	assert.ElementsMatch(t, []net.IPNet{journalIPv4Net("10.0.0.1"), journalIPv4Net("10.0.0.2")}, dnsNode.Requests[0].Response.IPs)
+	assert.Equal(t, []string{"edge.datadoghq.com"}, dnsNode.Requests[0].Response.CNames)
+}
+
+func TestActivityTreeJournal_EvictionAndABARecreation(t *testing.T) {
+	jTree := NewActivityTree(activityTreeInsertTestValidator{}, NewPathsReducer(), "security_profile")
+	require.NoError(t, jTree.EnableJournal(t.TempDir(), "aba:v1", 0))
+	t.Cleanup(func() { _ = jTree.CloseJournal() })
+
+	shim := newJournalTestProcessEntry(1, "/usr/bin/containerd-shim-runc-v2", "containerd-shim-runc-v2", "containerd-shim-runc-v2", nil, nil, nil)
+	worker := newJournalTestProcessEntry(100, "/usr/bin/app", "app", "app", []string{"--serve"}, nil, shim)
+
+	t1 := time.Unix(1700000000, 0)
+	t2 := t1.Add(time.Minute)
+
+	evV1 := newJournalTestFileOpenEvent(worker, "/tmp/ephemeral.txt", syscall.O_CREAT|syscall.O_WRONLY, syscall.S_IFREG|0600, t1)
+	evV1.Rules = []*model.MatchedRule{{RuleID: "v1_stale_rule", RuleVersion: "1.0"}}
+	_, _, _, err := jTree.Insert(evV1, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+
+	evV2 := newJournalTestFileOpenEvent(worker, "/tmp/keep.txt", syscall.O_RDONLY, syscall.S_IFREG|0644, t2)
+	_, _, _, err = jTree.Insert(evV2, true, "v2", Runtime, nil)
+	require.NoError(t, err)
+
+	jTree.EvictImageTag("v1")
+
+	protoAfterEvict := ToProto(jTree)
+	decoded1 := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+	ProtoDecodeActivityTree(decoded1, protoAfterEvict)
+	require.Len(t, decoded1.ProcessNodes, 1)
+	assert.Nil(t, decoded1.ProcessNodes[0].Files["tmp"].Children["ephemeral.txt"], "evicted v1 file must not be rehydrated from journal")
+	assert.NotNil(t, decoded1.ProcessNodes[0].Files["tmp"].Children["keep.txt"])
+
+	evV2Recreate := newJournalTestFileOpenEvent(worker, "/tmp/ephemeral.txt", syscall.O_RDONLY, syscall.S_IFREG|0644, t2)
+	_, _, _, err = jTree.Insert(evV2Recreate, true, "v2", Runtime, nil)
+	require.NoError(t, err)
+
+	protoAfterRecreate := ToProto(jTree)
+	decoded2 := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+	ProtoDecodeActivityTree(decoded2, protoAfterRecreate)
+	ephemeral := decoded2.ProcessNodes[0].Files["tmp"].Children["ephemeral.txt"]
+	require.NotNil(t, ephemeral)
+	require.NotNil(t, ephemeral.Open)
+	assert.Equal(t, uint32(syscall.O_RDONLY), ephemeral.Open.Flags, "stale pre-eviction flags must not leak into recreated node")
+	assert.Empty(t, ephemeral.MatchedRules, "stale pre-eviction rules must not leak into recreated node")
+}
+
+func TestActivityTreeJournal_MemoryReductionAndSizeBytesInvariants(t *testing.T) {
+	reducer := NewPathsReducer()
+	memTree := NewActivityTree(activityTreeInsertTestValidator{}, reducer, "security_profile")
+	jTree := NewActivityTree(activityTreeInsertTestValidator{}, reducer, "security_profile")
+	require.NoError(t, jTree.EnableJournal(t.TempDir(), "mem-bench:v1", 0))
+	t.Cleanup(func() { _ = jTree.CloseJournal() })
+
+	shim := newJournalTestProcessEntry(1, "/usr/bin/containerd-shim-runc-v2", "containerd-shim-runc-v2", "containerd-shim-runc-v2", nil, nil, nil)
+	ts := time.Unix(1700000000, 0)
+
+	for p := 0; p < 25; p++ {
+		proc := newJournalTestProcessEntry(
+			uint32(100+p),
+			fmt.Sprintf("/usr/local/bin/service-worker-%d", p),
+			fmt.Sprintf("service-worker-%d", p),
+			fmt.Sprintf("service-worker-%d", p),
+			[]string{"--config", "/etc/service/config.yaml", "--workers", "8", "--log-level", "info"},
+			[]string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin", "DD_ENV=prod", "DD_SERVICE=checkout"},
+			shim,
+		)
+		for f := 0; f < 40; f++ {
+			fEv := newJournalTestFileOpenEvent(proc, fmt.Sprintf("/var/lib/service/worker-%d/shard-%d/data-%d.db", p, f%5, f), syscall.O_RDWR, syscall.S_IFREG|0640, ts)
+			_, _, _, err := memTree.Insert(fEv, true, "v1", Runtime, nil)
+			require.NoError(t, err)
+			_, _, _, err = jTree.Insert(fEv, true, "v1", Runtime, nil)
+			require.NoError(t, err)
+		}
+		for d := 0; d < 10; d++ {
+			dnsEv := model.NewFakeEvent()
+			dnsEv.Type = uint32(model.DNSEventType)
+			dnsEv.Timestamp = ts
+			dnsEv.ProcessCacheEntry = proc
+			dnsEv.ProcessContext = &proc.ProcessContext
+			dnsEv.DNS.Question = model.DNSQuestion{Name: fmt.Sprintf("dep-%d.internal.example.com", d), Type: 1, Class: 1, Size: 40, Count: 1}
+			dnsEv.DNS.Response = &model.DNSResponse{
+				IPs: []net.IPNet{
+					journalIPv4Net(fmt.Sprintf("10.%d.%d.1", p, d)),
+					journalIPv4Net(fmt.Sprintf("10.%d.%d.2", p, d)),
+					journalIPv4Net(fmt.Sprintf("10.%d.%d.3", p, d)),
+					journalIPv4Net(fmt.Sprintf("10.%d.%d.4", p, d)),
+				},
+				CNames: []string{fmt.Sprintf("cname-%d.internal.example.com", d)},
+			}
+			_, _, _, err := memTree.Insert(dnsEv, true, "v1", Runtime, nil)
+			require.NoError(t, err)
+			_, _, _, err = jTree.Insert(dnsEv, true, "v1", Runtime, nil)
+			require.NoError(t, err)
+		}
+	}
+
+	memIncremental := memTree.Stats.SizeBytes
+	memTree.recomputeSizeBytes()
+	memCanonical := memTree.Stats.SizeBytes
+
+	jIncremental := jTree.Stats.SizeBytes
+	jTree.recomputeSizeBytes()
+	jCanonical := jTree.Stats.SizeBytes
+
+	t.Logf("Unjournaled ActivityTree HeapSize: %d bytes (%.2f KB, incremental=%d)", memCanonical, float64(memCanonical)/1024.0, memIncremental)
+	t.Logf("Journaled ActivityTree HeapSize:   %d bytes (%.2f KB, incremental=%d, savings=%.1f%%)",
+		jCanonical, float64(jCanonical)/1024.0, jIncremental, 100.0*(1.0-float64(jCanonical)/float64(memCanonical)))
+
+	assert.LessOrEqual(t, jIncremental, jCanonical, "incremental SizeBytes on journaled tree must never exceed recompute")
+	assert.Less(t, jCanonical, memCanonical*60/100, "journaled ActivityTree should use at least 40%% less RAM")
+
+	jTree.EvictImageTag("v1")
+	jTree.recomputeSizeBytes()
+	assert.Equal(t, int64(0), jTree.Stats.SizeBytes)
+}

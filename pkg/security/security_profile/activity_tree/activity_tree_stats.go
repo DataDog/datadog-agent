@@ -42,6 +42,7 @@ type Stats struct {
 	// movedNodes maps the NodeBase of every node folded by a merge to the
 	// NodeBase that absorbed it, until drained by TakeMovedNodes.
 	movedNodes map[*NodeBase]*NodeBase
+	journal    *TreeJournal
 
 	counts map[model.EventType]*statsPerEventType
 }

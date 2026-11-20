@@ -33,14 +33,17 @@ type DNSNode struct {
 	NodeBase
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
+	minJournalSeq  uint32
 	Requests       []DNSRequestNode
 }
 
 // DNSRequestNode is one question observed for a domain, together with everything that came back
 // for it. A DNSNode holds at most one of these per question type.
 type DNSRequestNode struct {
-	Question model.DNSQuestion
-	Response *DNSResponseAggregate
+	Question          model.DNSQuestion
+	Response          *DNSResponseAggregate
+	journalIPCount    uint8
+	journalCNameCount uint8
 }
 
 // DNSResponseAggregate is what a single DNS question resolved to, unioned across every response
@@ -151,8 +154,10 @@ func containsIPNet(list []net.IPNet, target net.IPNet) bool {
 // newDNSRequestEntry builds the node-owned entry for a DNS event. Events are pooled and reused by
 // the probe, so nothing may be retained by reference.
 func newDNSRequestEntry(event *model.DNSEvent) DNSRequestNode {
+	q := event.Question
+	q.Name = stringInterner.Deduplicate(q.Name)
 	return DNSRequestNode{
-		Question: event.Question,
+		Question: q,
 		Response: newDNSResponseAggregate(event.Response),
 	}
 }

@@ -15,6 +15,7 @@ go_library(
         "file_node.go",
         "flow_node.go",
         "imds_node.go",
+        "journal.go",
         "mount_node.go",
         "network_device_node.go",
         "path_patterns.go",
@@ -82,6 +83,7 @@ dd_agent_go_test(
     srcs = [
         "activity_tree_test.go",
         "dns_node_test.go",
+        "journal_test.go",
         "mount_node_test.go",
         "path_patterns_test.go",
         "paths_reducer_test.go",
@@ -102,6 +104,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:linux": [
             "//pkg/security/probe/procfs/procmaps",
             "//pkg/security/secl/model",
+            "@com_github_datadog_agent_payload_v5//cws/dumpsv1",
             "@com_github_shirou_gopsutil_v4//process",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",

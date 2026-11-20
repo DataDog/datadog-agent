@@ -24,6 +24,7 @@ type BindNode struct {
 
 	GenerationType NodeGenerationType
 	Port           uint16
+	minJournalSeq  uint32
 	IP             string
 	Protocol       uint16
 }
@@ -36,6 +37,7 @@ type ConnectNode struct {
 
 	GenerationType NodeGenerationType
 	Port           uint16
+	minJournalSeq  uint32
 	IP             string
 	Protocol       uint16
 }
@@ -188,7 +190,11 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, 
 	for _, n := range sn.Bind {
 		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
 			if !dryRun {
-				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
+				if stats != nil && stats.journal != nil && stats.journal.recordSocketRules(sn.Family, false, n.Port, n.IP, n.Protocol, &n.minJournalSeq, rules) {
+					n.MatchedRules = nil
+				} else {
+					n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
+				}
 			}
 			if imageTagID == 0 || n.HasImageTag(imageTagID) {
 				return false, &n.NodeBase
@@ -207,6 +213,9 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, 
 			Protocol:       evt.Protocol,
 		}
 		node.NodeBase = NewNodeBase()
+		if stats != nil && stats.journal != nil && stats.journal.recordSocketRules(sn.Family, false, node.Port, node.IP, node.Protocol, &node.minJournalSeq, rules) {
+			node.MatchedRules = nil
+		}
 
 		node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 		sn.Bind = append(sn.Bind, node)
@@ -233,7 +242,11 @@ func (sn *SocketNode) InsertConnectEvent(evt *model.ConnectEvent, event *model.E
 	for _, n := range sn.Connect {
 		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
 			if !dryRun {
-				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
+				if stats != nil && stats.journal != nil && stats.journal.recordSocketRules(sn.Family, true, n.Port, n.IP, n.Protocol, &n.minJournalSeq, rules) {
+					n.MatchedRules = nil
+				} else {
+					n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
+				}
 			}
 			if imageTagID == 0 || n.HasImageTag(imageTagID) {
 				return false, &n.NodeBase
@@ -252,6 +265,9 @@ func (sn *SocketNode) InsertConnectEvent(evt *model.ConnectEvent, event *model.E
 			Protocol:       evt.Protocol,
 		}
 		node.NodeBase = NewNodeBase()
+		if stats != nil && stats.journal != nil && stats.journal.recordSocketRules(sn.Family, true, node.Port, node.IP, node.Protocol, &node.minJournalSeq, rules) {
+			node.MatchedRules = nil
+		}
 
 		node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 		sn.Connect = append(sn.Connect, node)
