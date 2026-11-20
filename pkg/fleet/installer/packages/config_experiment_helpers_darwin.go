@@ -27,8 +27,8 @@ import (
 const helperStopTimeout = 5 * time.Second
 
 // experimentHelperCommands are the package commands of every detached process an experiment
-// launches: the watcher, and the processes that hand the installer daemon over and back.
-var experimentHelperCommands = []string{watchConfigExperimentCommand, handOverInstallerCommand, handBackInstallerCommand}
+// launches: the watchers, and the fallback hand-back.
+var experimentHelperCommands = []string{watchConfigExperimentCommand, handBackInstallerCommand}
 
 // listHelperPIDs returns the pids of the detached experiment processes running any of commands,
 // other than this one. They are found by listing processes, and only root-owned processes running
@@ -41,20 +41,18 @@ func listHelperPIDs(ctx context.Context, commands ...string) ([]int, error) {
 	return parseHelperPIDs(string(out), os.Getpid(), commands...), nil
 }
 
-// stopSurvivingWatchers terminates the watcher processes an earlier experiment left behind, and
-// waits for them to exit. The hand-over calls it before it launches the watcher of the experiment
-// it has just handed the installer daemon over to, so there is never more than one. Only watchers
-// are stopped: the hand-over is itself one of the other helpers. A var so tests can observe when it
-// is called.
+// stopSurvivingWatchers terminates the watcher processes an earlier experiment left behind, other
+// than this one, and waits for them to exit. W1 calls it as it starts, so a watcher still around
+// from an earlier experiment never holds the supervisor socket or acts on this experiment's end. W2
+// never does: it would stop W1. A var so tests can observe when it is called.
 var stopSurvivingWatchers = func(ctx context.Context) error {
 	return stopHelpers(ctx, watchConfigExperimentCommand)
 }
 
-// stopSurvivingHelpers terminates every detached experiment process a previous run left behind:
-// the watcher, and any hand-over or hand-back still pending. The post-install calls it before it
-// discards an experiment: a surviving watcher would read the jobs going away as a crash and revert
-// on top of the install, and a surviving hand-over would swap the installer daemon under it. A var
-// so tests can observe when it is called.
+// stopSurvivingHelpers terminates every detached experiment process a previous run left behind: the
+// watchers, and any hand-back still pending. The post-install calls it before it discards an
+// experiment: a surviving watcher would read the jobs going away as a crash and revert on top of the
+// install, or swap the installer daemon under it. A var so tests can observe when it is called.
 var stopSurvivingHelpers = func(ctx context.Context) error {
 	return stopHelpers(ctx, experimentHelperCommands...)
 }

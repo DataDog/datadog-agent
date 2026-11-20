@@ -31,16 +31,19 @@ import (
 )
 
 // watchConfigExperimentCommand is the package-command name the detached watcher process runs,
-// dispatched through runDatadogAgentPackageCommand (see packages_darwin.go's packageCommands).
+// dispatched through runDatadogAgentPackageCommand (see packages_darwin.go's packageCommands). The
+// start hook launches the first watcher (W1), and the experiment daemon's job the second (W2), see
+// watchExperiment.
 const watchConfigExperimentCommand = "watchConfigExperiment"
 
-// handOverInstallerCommand is the package-command name of the detached process that hands the
-// installer daemon over from its stable job to its experiment one when a configuration experiment
-// starts. The experiment daemon then launches the watcher that supervises the experiment.
-const handOverInstallerCommand = "handOverInstaller"
+// startSupervisorRelayCommand is the package-command name the experiment daemon's job definition
+// runs before the daemon itself (com.datadoghq.installer.plist.tmpl): it launches the second
+// watcher, detached, and returns at once.
+const startSupervisorRelayCommand = "startSupervisorRelay"
 
 // handBackInstallerCommand is the package-command name of the detached process that hands the
-// installer daemon back to its stable job after a configuration experiment is stopped or promoted.
+// installer daemon back to its stable job after a configuration experiment is stopped or promoted,
+// when no watcher answers on the supervisor socket (handBackInstallerAfterHook).
 const handBackInstallerCommand = "handBackInstaller"
 
 var datadogAgentPackage = hooks{
@@ -73,14 +76,13 @@ const agentJob = "com.datadoghq.agent"
 // A configuration experiment swaps it too, so the daemon runs under the experiment configuration
 // like the Agent, but never from a hook: a hook runs inside the daemon's own job, and launchd kills
 // everything left in a job's process group when it stops the job, so a hook that swapped the daemon
-// would stop itself halfway through. A detached process does it instead: the hand-over process
-// moves the daemon to the experiment (handOverInstaller), and a hand-back process returns it once
-// the experiment is stopped or promoted (handBackInstaller).
-//
-// The hand-over process launches the watcher that supervises the experiment once it has moved the
-// daemon (superviseHandedOverExperiment). A configuration experiment never changes the installer
-// binary -- version experiments are refused on macOS (preStartExperimentDatadogAgent) -- so the
-// hand-over, both daemons and the watcher all know the same jobs the experiment swaps.
+// would stop itself halfway through. A detached watcher does it instead, and moves the daemon to the
+// experiment and back: the first watcher (W1) hands it over once the start
+// command has exited, and the watcher supervising at the end hands it back once the experiment is
+// stopped or promoted (handBackInstaller). See watchExperiment. A configuration experiment never
+// changes the installer binary -- version experiments are refused on macOS
+// (preStartExperimentDatadogAgent) -- so both daemons and both watchers know the same jobs the
+// experiment swaps.
 const installerJob = "com.datadoghq.installer"
 
 // procmgrJob is the process manager. It is loaded first, so it is up before the processes it will
@@ -325,9 +327,9 @@ func postInstallDMG(ctx HookContext) error {
 
 // collapseConfigExperiment discards whatever is left of a configuration experiment before the
 // install, so running the post-install twice is harmless: it stops a surviving watcher, which would
-// read the experiment going away as a crash and revert on top of the install, and any hand-over or
-// hand-back still pending, which would swap the installer daemon under the install, and clears the
-// deadline, so nothing later takes the experiment the install discards for one still running.
+// read the experiment going away as a crash and revert on top of the install (W1 would also swap the
+// installer daemon under it), and any hand-back still pending, and clears the deadline, so nothing
+// later takes the experiment the install discards for one still running.
 // setUpDMGInstall then discards the experiment configuration (restExperimentConfig), and
 // unloadExperimentJobs its jobs.
 //
@@ -657,14 +659,12 @@ func prePromoteExperimentDatadogAgent(_ HookContext) error {
 }
 
 // postStartConfigExperimentDatadogAgent hands the Agent over to the experiment job set, then
-// launches the detached process that hands the installer daemon over too, once this hook's
-// installer command has finished (handOverInstaller), and then launches the watcher that
-// supervises the whole set. The installer has already published the experiment configuration
-// directory by the time it runs.
+// launches the first watcher (W1), which supervises the agent jobs at once and hands the installer
+// daemon over too, once this hook's installer command has finished (watchExperiment). The
+// installer has already published the experiment configuration directory by the time it runs.
 //
-// A hand-over that fails to launch is treated the same as a failed start: with no daemon to launch
-// it, an experiment would have no watcher, so it is reverted rather than left running
-// unsupervised.
+// A watcher that fails to launch is treated the same as a failed start: the experiment would run
+// unsupervised, and its daemon would never be handed over, so it is reverted.
 //
 // Every failure hands the Agent back to the stable job set, so the experiment configuration
 // directory the installer published is discarded with it: the installer returns the error without
@@ -681,22 +681,22 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) (err error) {
 	if err = (configExperiment{jobs: agentJobSet()}).Start(ctx); err != nil {
 		return err
 	}
-	if handOverErr := launchInstallerHandOver(ctx); handOverErr != nil {
-		return revertFailedHandOver(ctx, handOverErr)
+	if launchErr := launchConfigExperimentWatcher(ctx); launchErr != nil {
+		return revertFailedWatcherLaunch(ctx, launchErr)
 	}
 	return nil
 }
 
-// revertFailedHandOver reverts an experiment whose installer hand-over could not be launched from
-// the post-start hook: the agent jobs go back to the stable set and the experiment configuration is
+// revertFailedWatcherLaunch reverts an experiment whose watcher could not be launched from the
+// post-start hook: the agent jobs go back to the stable set and the experiment configuration is
 // discarded, as for any other failed start.
-func revertFailedHandOver(ctx context.Context, handOverErr error) error {
-	log.Errorf("could not launch the installer daemon hand-over, reverting: %v", handOverErr)
+func revertFailedWatcherLaunch(ctx context.Context, launchErr error) error {
+	log.Errorf("could not launch the configuration experiment watcher, reverting: %v", launchErr)
 	if err := revertAndDiscardExperiment(ctx, configExperiment{jobs: agentJobSet()}); err != nil {
-		return fmt.Errorf("hand-over failed to launch (%w) and the experiment could not be reverted: %w", handOverErr, err)
+		return fmt.Errorf("watcher failed to launch (%w) and the experiment could not be reverted: %w", launchErr, err)
 	}
 	removeInstallerExperimentJob()
-	return fmt.Errorf("hand-over failed to launch, experiment reverted: %w", handOverErr)
+	return fmt.Errorf("watcher failed to launch, experiment reverted: %w", launchErr)
 }
 
 // experimentFailedOnHost reports whether the experiment failed on the host and is back on the stable
@@ -722,19 +722,29 @@ func installerExecutable() (string, error) {
 	return installerBin, nil
 }
 
-// launchConfigExperimentWatcher starts the detached watcher process. Only the hand-over launches
-// it (superviseHandedOverExperiment).
+// launchConfigExperimentWatcher starts a detached watcher process: W1 from the start hook, W2 from
+// the experiment daemon's job (startSupervisorRelay).
 //
 // Indirected so tests can stub it without spawning a real process.
 var launchConfigExperimentWatcher = func(ctx context.Context) error {
 	return startDetachedPackageCommand(ctx, watchConfigExperimentCommand)
 }
 
-// launchInstallerHandOver starts the detached process that hands the installer daemon over from
-// its stable job to its experiment one. Indirected for the same reason as
-// launchConfigExperimentWatcher.
-var launchInstallerHandOver = func(ctx context.Context) error {
-	return startDetachedPackageCommand(ctx, handOverInstallerCommand)
+// startSupervisorRelay launches the second watcher (W2) as the experiment daemon starts: its job
+// definition runs this command, then the daemon. It returns at once, and never fails the daemon's
+// start: with no W2, the first watcher goes on supervising alone. Nothing is launched when no
+// experiment is pending, as when the daemon starts after the experiment ended during the hand-over.
+func startSupervisorRelay(ctx context.Context) error {
+	token, err := experimentDeadline().Read()
+	if err != nil {
+		log.Warnf("supervisor relay: could not read experiment deadline, launching the watcher anyway: %v", err)
+	} else if !experimentPending(token) {
+		return nil
+	}
+	if err := launchConfigExperimentWatcher(ctx); err != nil {
+		log.Errorf("supervisor relay: could not launch the second watcher, the first one goes on supervising: %v", err)
+	}
+	return nil
 }
 
 // launchInstallerHandBack starts the detached process that hands the installer daemon back to its
@@ -765,8 +775,8 @@ func runDatadogAgentPackageCommand(ctx context.Context, command string) (err err
 	switch command {
 	case watchConfigExperimentCommand:
 		return watchExperiment(ctx)
-	case handOverInstallerCommand:
-		return runInstallerHandOver(ctx)
+	case startSupervisorRelayCommand:
+		return startSupervisorRelay(ctx)
 	case handBackInstallerCommand:
 		return handBackInstaller(ctx)
 	default:
@@ -830,10 +840,12 @@ func handBackInstallerBestEffort(ctx context.Context) {
 	}
 }
 
-// handBackInstallerAfterHook launches the detached hand-back process when the experiment daemon is
+// handBackInstallerAfterHook has the installer daemon handed back when the experiment daemon is
 // running, whoever runs the hook: the experiment daemon itself, or an operator running the installer
-// by hand. It is launched even when the Agent could not be handed back: the hand-back finishes a
-// restore left with the reverting marker (handBackInstaller).
+// by hand. It sends "end" to the supervising watcher, which hands the daemon back once this hook's
+// command has exited. When no watcher answers, it launches the detached hand-back process instead.
+// Either is done even when the Agent could not be handed back: the hand-back finishes a restore left
+// with the reverting marker (handBackInstaller).
 //
 // With no experiment daemon running, as when the stable daemon runs the hook, there is nothing to
 // hand back: the installer daemon is already on its stable job. After a reboot mid-experiment
@@ -846,6 +858,11 @@ func handBackInstallerAfterHook(ctx context.Context) error {
 		return fmt.Errorf("could not tell whether the experiment daemon is running: %w", err)
 	}
 	if status.PID != 0 {
+		endErr := notifySupervisorEnd()
+		if endErr == nil {
+			return nil
+		}
+		log.Warnf("no watcher took the end of the experiment, launching the installer daemon hand-back: %v", endErr)
 		if err := launchInstallerHandBack(ctx); err != nil {
 			return fmt.Errorf("could not launch the installer daemon hand-back: %w", err)
 		}
