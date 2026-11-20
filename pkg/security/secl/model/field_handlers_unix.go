@@ -36,6 +36,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
 	_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
+	_ = ev.FieldHandlers.ResolveProcessEnv(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -81,6 +82,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.BaseEvent.ProcessContext.Parent)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent)
+		_ = ev.FieldHandlers.ResolveProcessEnv(ev, ev.BaseEvent.ProcessContext.Parent)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
@@ -266,6 +268,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Exec.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnv(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exec.Process)
@@ -333,6 +336,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Exit.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnv(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exit.Process)
@@ -540,6 +544,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.PTrace.Tracee.Process)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.PTrace.Tracee.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.PTrace.Tracee.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnv(ev, &ev.PTrace.Tracee.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.PTrace.Tracee.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.PTrace.Tracee.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.PTrace.Tracee.Process)
@@ -576,6 +581,7 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.PTrace.Tracee.Parent)
 			_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.PTrace.Tracee.Parent.CGroup)
 			_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.PTrace.Tracee.Parent)
+			_ = ev.FieldHandlers.ResolveProcessEnv(ev, ev.PTrace.Tracee.Parent)
 			_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.PTrace.Tracee.Parent)
 			_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.PTrace.Tracee.Parent)
 			_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.PTrace.Tracee.Parent)
@@ -738,6 +744,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.Setrlimit.Target.Process)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Setrlimit.Target.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.Setrlimit.Target.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnv(ev, &ev.Setrlimit.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Setrlimit.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Setrlimit.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.Setrlimit.Target.Process)
@@ -774,6 +781,7 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Setrlimit.Target.Parent)
 			_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Setrlimit.Target.Parent.CGroup)
 			_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Setrlimit.Target.Parent)
+			_ = ev.FieldHandlers.ResolveProcessEnv(ev, ev.Setrlimit.Target.Parent)
 			_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Setrlimit.Target.Parent)
 			_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Setrlimit.Target.Parent)
 			_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Setrlimit.Target.Parent)
@@ -883,6 +891,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.Signal.Target.Process)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Signal.Target.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.Signal.Target.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnv(ev, &ev.Signal.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Signal.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Signal.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.Signal.Target.Process)
@@ -919,6 +928,7 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Signal.Target.Parent)
 			_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Signal.Target.Parent.CGroup)
 			_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Signal.Target.Parent)
+			_ = ev.FieldHandlers.ResolveProcessEnv(ev, ev.Signal.Target.Parent)
 			_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Signal.Target.Parent)
 			_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Signal.Target.Parent)
 			_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Signal.Target.Parent)
@@ -1130,6 +1140,7 @@ type FieldHandlers interface {
 	ResolveProcessArgvScrubbed(ev *Event, e *Process) []string
 	ResolveProcessCmdArgv(ev *Event, e *Process) []string
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
+	ResolveProcessEnv(ev *Event, e *Process) map[string]string
 	ResolveProcessEnvp(ev *Event, e *Process) []string
 	ResolveProcessEnvs(ev *Event, e *Process) []string
 	ResolveProcessEnvsTruncated(ev *Event, e *Process) bool
@@ -1369,6 +1380,9 @@ func (dfh *FakeFieldHandlers) ResolveProcessCmdArgv(ev *Event, e *Process) []str
 }
 func (dfh *FakeFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
 	return int(e.CreatedAt)
+}
+func (dfh *FakeFieldHandlers) ResolveProcessEnv(ev *Event, e *Process) map[string]string {
+	return map[string]string(e.Env)
 }
 func (dfh *FakeFieldHandlers) ResolveProcessEnvp(ev *Event, e *Process) []string {
 	return []string(e.Envp)

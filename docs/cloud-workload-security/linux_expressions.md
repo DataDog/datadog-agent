@@ -219,6 +219,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`process.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`process.ancestors.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`process.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`process.ancestors.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`process.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -343,6 +344,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`process.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`process.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`process.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`process.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`process.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -444,6 +446,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`process.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`process.parent.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`process.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`process.parent.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`process.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -860,6 +863,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exec.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`exec.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`exec.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`exec.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`exec.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`exec.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -1001,6 +1005,7 @@ A process was terminated
 | [`exit.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exit.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`exit.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`exit.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`exit.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`exit.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`exit.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -1478,6 +1483,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`ptrace.tracee.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`ptrace.tracee.ancestors.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`ptrace.tracee.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`ptrace.tracee.ancestors.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`ptrace.tracee.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -1602,6 +1608,7 @@ A ptrace command was executed
 | [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`ptrace.tracee.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`ptrace.tracee.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`ptrace.tracee.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`ptrace.tracee.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`ptrace.tracee.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -1703,6 +1710,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`ptrace.tracee.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`ptrace.tracee.parent.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`ptrace.tracee.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`ptrace.tracee.parent.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`ptrace.tracee.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -2041,6 +2049,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`setrlimit.target.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`setrlimit.target.ancestors.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`setrlimit.target.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`setrlimit.target.ancestors.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`setrlimit.target.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -2165,6 +2174,7 @@ A setrlimit command was executed
 | [`setrlimit.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`setrlimit.target.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`setrlimit.target.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`setrlimit.target.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`setrlimit.target.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`setrlimit.target.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -2266,6 +2276,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`setrlimit.target.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`setrlimit.target.parent.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`setrlimit.target.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`setrlimit.target.parent.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`setrlimit.target.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -2482,6 +2493,7 @@ A signal was sent
 | [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`signal.target.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`signal.target.ancestors.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`signal.target.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`signal.target.ancestors.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`signal.target.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -2606,6 +2618,7 @@ A signal was sent
 | [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`signal.target.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`signal.target.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`signal.target.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`signal.target.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`signal.target.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -2707,6 +2720,7 @@ A signal was sent
 | [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`signal.target.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`signal.target.parent.env`](#common-process-env-doc) | Environment variables of the process, read by name |
 | [`signal.target.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`signal.target.parent.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`signal.target.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
@@ -3276,6 +3290,24 @@ Definition: Effective group of the process
 `*.egroup` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
+
+### `*.env` {#common-process-env-doc}
+Type: string
+
+Definition: Environment variables of the process, read by name
+
+`*.env` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.env["LD_PRELOAD"] != ""
+{{< /code-block >}}
+
+Matches the execution of a process with the LD_PRELOAD environment variable set to a value.
 
 ### `*.envp` {#common-process-envp-doc}
 Type: string
