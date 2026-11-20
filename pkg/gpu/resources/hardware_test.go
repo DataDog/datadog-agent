@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
@@ -110,10 +111,11 @@ func TestNVLinkPeersOnRealHardware(t *testing.T) {
 		raw = append(raw, gpu)
 	}
 
+	peering := NewPeeringScanner(0).Scan(time.Now(), devices)
 	dump, err := json.MarshalIndent(map[string]any{
-		"nvml_raw":        raw,
-		"resource_fields": Snapshot(devices),
-		"topology_status": SnapshotTopologyStatus(devices),
+		"nvml_raw":           raw,
+		"resource_fields":    Snapshot(devices, peering),
+		"incomplete_peering": IncompletePeering(devices, peering),
 	}, "", " ")
 	require.NoError(t, err)
 	t.Logf("HWDUMP-BEGIN\n%s\nHWDUMP-END", dump)

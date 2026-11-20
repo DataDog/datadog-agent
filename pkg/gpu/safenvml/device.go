@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"sync/atomic"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -283,22 +282,6 @@ type PhysicalDevice struct {
 	// concepts, and a mismatch silently attributes a container to the wrong
 	// physical card.
 	MinorNumber int
-
-	// peerTopology is the NVLink and P2P view of this device, replaced whenever the device cache
-	// is refreshed. Nil until the first scan.
-	peerTopology atomic.Pointer[PeerTopology]
-}
-
-// PeerTopology returns the last known NVLink and P2P view of the device, or nil before the
-// first device cache refresh scanned it. The result must not be modified.
-func (d *PhysicalDevice) PeerTopology() *PeerTopology {
-	return d.peerTopology.Load()
-}
-
-// SetPeerTopology replaces the NVLink and P2P view of the device. The device cache calls it
-// after each scan; tests use it to give a device a topology without an NVML mock.
-func (d *PhysicalDevice) SetPeerTopology(topology *PeerTopology) {
-	d.peerTopology.Store(topology)
 }
 
 var _ Device = &PhysicalDevice{}
@@ -655,9 +638,9 @@ func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
 		}
 
 		if d.NVLinkVersion == "" {
-			d.NVLinkVersion = nvlinkVersionString(version)
-		} else if d.NVLinkVersion != nvlinkVersionString(version) {
-			singleton.logDeviceWarning(d.UUID, "NVLink version %s for link %d differs from version %s reported by another link", nvlinkVersionString(version), link, d.NVLinkVersion)
+			d.NVLinkVersion = NVLinkVersionString(version)
+		} else if d.NVLinkVersion != NVLinkVersionString(version) {
+			singleton.logDeviceWarning(d.UUID, "NVLink version %s for link %d differs from version %s reported by another link", NVLinkVersionString(version), link, d.NVLinkVersion)
 		}
 	}
 }
@@ -681,7 +664,8 @@ func nvmlFieldValueToInt(fv nvml.FieldValue) (int, error) {
 	}
 }
 
-func nvlinkVersionString(version int) string {
+// NVLinkVersionString maps the NVML NVLink version enum to the protocol version (e.g. 6 -> "4.0").
+func NVLinkVersionString(version int) string {
 	switch version {
 	case 1:
 		return "1.0"

@@ -9,7 +9,6 @@ package safenvml
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -169,11 +168,6 @@ func (c *deviceCache) Refresh() error {
 		}
 	}
 
-	// NVLink peers and P2P are static, so they are scanned once per refresh, never per
-	// metric collection. Lost GPUs keep their previous object, and with it their last
-	// known topology, which the scan then carries forward.
-	c.scanPeerTopology(allPhysicalDevices)
-
 	// Devices reported but none enumerated is a transient fault (release
 	// window, driver reload, permissions), not "the GPUs are gone". Publishing
 	// zero would make the workloadmeta pull unset every known GPU and drop the
@@ -202,31 +196,6 @@ func (c *deviceCache) Refresh() error {
 	c.initialized = true
 	c.lib = lib
 	return nil
-}
-
-// scanPeerTopology refreshes the NVLink and P2P view of the given physical devices, using the
-// previous view of the same GPUs to keep last-known facts when a query fails.
-func (c *deviceCache) scanPeerTopology(allPhysicalDevices []Device) {
-	physical := make([]*PhysicalDevice, 0, len(allPhysicalDevices))
-	previous := make(map[string]*PeerTopology, len(allPhysicalDevices))
-	for _, device := range allPhysicalDevices {
-		dev, ok := device.(*PhysicalDevice)
-		if !ok {
-			continue
-		}
-		physical = append(physical, dev)
-		if old, ok := c.uuidToDevice[dev.UUID].(*PhysicalDevice); ok {
-			if topology := old.PeerTopology(); topology != nil {
-				previous[strings.ToLower(dev.UUID)] = topology
-			}
-		}
-	}
-	scanned := scanPeerTopology(physical, previous)
-	for _, dev := range physical {
-		if topology, ok := scanned[strings.ToLower(dev.UUID)]; ok {
-			dev.SetPeerTopology(topology)
-		}
-	}
 }
 
 // GetByUUID returns a device by its UUID

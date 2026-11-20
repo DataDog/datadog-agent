@@ -71,6 +71,7 @@ var _ check.IssueAwareCheck = (*Check)(nil)
 type Check struct {
 	core.CheckBase
 	resourcePublisher   *gpuresources.Publisher
+	peeringScanner      *gpuresources.PeeringScanner
 	readiness           *Readiness
 	collectors          []nvidia.Collector               // collectors for NVML metrics
 	collectorBuilder    *nvidia.CollectorBuilder         // collectorBuilder builds the collectors and retries the ones that failed to be created

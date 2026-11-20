@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "resources",
     srcs = [
+        "peering.go",
         "publisher.go",
         "snapshot.go",
         "types.go",
@@ -35,9 +36,9 @@ dd_agent_go_test(
     srcs = [
         "contract_test.go",
         "hardware_test.go",
+        "peering_test.go",
         "publisher_test.go",
         "snapshot_test.go",
-        "topology_test.go",
     ],
     data = [
         "testdata/gpu_device_contract.json",
@@ -55,6 +56,7 @@ dd_agent_go_test(
             "//comp/core/tagger/taglist",
             "//comp/core/workloadmeta/def",
             "//pkg/gpu/safenvml",
+            "//pkg/gpu/testutil",
             "//pkg/util/gpu",
             "@com_github_nvidia_go_nvml//pkg/nvml",
         ],
@@ -63,6 +65,7 @@ dd_agent_go_test(
             "//comp/core/tagger/taglist",
             "//comp/core/workloadmeta/def",
             "//pkg/gpu/safenvml",
+            "//pkg/gpu/testutil",
             "//pkg/util/gpu",
             "@com_github_nvidia_go_nvml//pkg/nvml",
         ],

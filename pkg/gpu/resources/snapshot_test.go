@@ -25,7 +25,7 @@ func TestSnapshotUsesCachedAttributes(t *testing.T) {
 		BoardSerial: "BOARD", ChassisSerial: "CHASSIS", FabricGUID: "0x00000000000000ab",
 		FabricClusterUUID: "01020304-0506-0708-090a-0b0c0d0e0f10",
 	}}
-	snapshot := Snapshot([]safenvml.Device{physical, &safenvml.MIGDevice{}})
+	snapshot := Snapshot([]safenvml.Device{physical, &safenvml.MIGDevice{}}, nil)
 	require.Len(t, snapshot, 1)
 	d := snapshot[0]
 	require.Equal(t, "tesla_t4", d.Model)
@@ -54,7 +54,7 @@ func TestSnapshotUsesCachedAttributes(t *testing.T) {
 
 func TestSnapshotExcludesVirtualDevices(t *testing.T) {
 	physical := &safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{VirtualizationMode: nvml.GPU_VIRTUALIZATION_MODE_VGPU}}
-	require.Empty(t, Snapshot([]safenvml.Device{physical, &safenvml.MIGDevice{}}))
+	require.Empty(t, Snapshot([]safenvml.Device{physical, &safenvml.MIGDevice{}}, nil))
 }
 
 func TestSnapshotFabricMembership(t *testing.T) {
@@ -71,12 +71,12 @@ func TestSnapshotFabricMembership(t *testing.T) {
 			device := &safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{
 				FabricClusterUUID: cluster, FabricCliqueID: tc.clique,
 			}}
-			result := Snapshot([]safenvml.Device{device})
+			result := Snapshot([]safenvml.Device{device}, nil)
 			require.Equal(t, &tc.clique, result[0].FabricCliqueID)
 			require.Equal(t, tc.domain, result[0].NVLinkDomain)
 		})
 	}
-	result := Snapshot([]safenvml.Device{&safenvml.PhysicalDevice{}})
+	result := Snapshot([]safenvml.Device{&safenvml.PhysicalDevice{}}, nil)
 	require.Nil(t, result[0].FabricCliqueID)
 	require.Empty(t, result[0].NVLinkDomain)
 }
