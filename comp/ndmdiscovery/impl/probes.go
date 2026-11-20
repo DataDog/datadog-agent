@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -78,6 +79,8 @@ type snmpParams struct {
 type probeParams struct {
 	Ping *pingprobe.Options
 	SNMP *snmpParams
+	// Dropped is why each requested probe that is not in the params was left out.
+	Dropped []string
 }
 
 // credentialStore reads the credentials of one kind from the Agent configuration.
@@ -94,23 +97,30 @@ func parseProbes(rangeID string, raw map[string]json.RawMessage, logger log.Comp
 		case kindPing:
 			opts, err := parsePing(body, logger)
 			if err != nil {
-				logger.Warnf("ndmdiscovery: range %s: dropping the ping probe: %v", rangeID, err)
+				params.drop(logger, rangeID, fmt.Sprintf("dropping the ping probe: %v", err))
 				continue
 			}
 			params.Ping = opts
 		case kindSNMP:
 			opts, err := parseSNMP(body, logger)
 			if err != nil {
-				logger.Warnf("ndmdiscovery: range %s: dropping the snmp probe: %v", rangeID, err)
+				params.drop(logger, rangeID, fmt.Sprintf("dropping the snmp probe: %v", err))
 				continue
 			}
 			params.SNMP = opts
 		default:
-			logger.Warnf("ndmdiscovery: range %s: dropping the unknown probe %q", rangeID, kind)
+			params.drop(logger, rangeID, fmt.Sprintf("dropping the unknown probe %q", kind))
 		}
 	}
+	sort.Strings(params.Dropped)
 
 	return params
+}
+
+// drop logs why a requested probe was left out and records the reason for the status.
+func (p *probeParams) drop(logger log.Component, rangeID, reason string) {
+	logger.Warnf("ndmdiscovery: range %s: %s", rangeID, reason)
+	p.Dropped = append(p.Dropped, reason)
 }
 
 func parsePing(body json.RawMessage, logger log.Component) (*pingprobe.Options, error) {
