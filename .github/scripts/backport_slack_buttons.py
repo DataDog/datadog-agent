@@ -137,8 +137,6 @@ def main() -> int:
     # Listen for the click over Socket Mode (no public endpoint required).
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     sm = SocketModeClient(app_token=env("SLACK_APP_TOKEN"), web_client=web)
-    sm.connect()
-    print(f"Socket Mode connected: {sm.is_connected()}", flush=True)
     clicked = Event()
     result = {"outcome": "timeout", "branch": ""}
     ts = msg["ts"]
@@ -163,6 +161,8 @@ def main() -> int:
             clicked.set()  # stop waiting as soon as a button on our message is clicked
 
     sm.socket_mode_request_listeners.append(process)
+    sm.connect()
+    print(f"Socket Mode connected: {sm.is_connected()}", flush=True)
     clicked.wait(timeout=ttl)
 
     # Always remove the buttons so stale clicks can't pile up after expiry/choice.
