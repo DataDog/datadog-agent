@@ -10,7 +10,7 @@ import (
 )
 
 // Probe fetches process related info on current host.
-// Only the Linux implementation is guaranteed safe for concurrent use.
+// Only the Linux implementation is guaranteed safe for concurrent use, apart from Close.
 type Probe interface {
 	Close()
 	StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error)
