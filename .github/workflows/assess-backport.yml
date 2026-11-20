@@ -5,8 +5,11 @@
 #   1. list-active-branches — find release branches with automated backport-PR labels
 #   2. assess               — Claude reads the merged diff + candidate branches, decides if/where to
 #                              backport (sandboxed: no repo write access, no id-token)
-#   3. apply-labels         — validates Claude's output, applies backport/<branch> label(s) with a
-#                              dd-octo-sts token so backport-pr.yml's `labeled` trigger fires
+#   3. ask-owner            — validates Claude's output, DMs the PR owner on Slack with one
+#                              button per candidate branch and listens (Socket Mode, no public
+#                              endpoint) for up to 2h; on click it applies the backport/<branch>
+#                              label with a dd-octo-sts token so backport-pr.yml's `labeled`
+#                              trigger fires
 #
 # `gh label list --search` does unanchored fuzzy text search, not a prefix/regex filter (e.g.
 # `--search "backport/7"` also matches `backport/6.53.x`), so active branches are resolved here by
@@ -162,14 +165,32 @@ jobs:
           path: claude.txt
           retention-days: 1
 
-  apply-labels:
-    name: Apply backport labels
+  ask-owner:
+    name: Ask PR owner about backport via Slack
     needs: [list-active-branches, assess]
     if: always() && needs.assess.result == 'success'
     runs-on: ubuntu-latest
+    # Covers the 2h button TTL plus overhead; the Slack listener is the long pole.
+    timeout-minutes: 135
+    # The 'main' protected environment (branch whitelist: main) holds the Slack secrets:
+    #   SLACK_BACKPORT_BOT_TOKEN  xoxb-... bot token of the dedicated Slack app
+    #   SLACK_BACKPORT_APP_TOKEN  xapp-... app-level token with connections:write (Socket Mode)
+    # The app needs interactivity over Socket Mode and the bot scopes
+    # chat:write, im:write, users:read.email — see .github/scripts/backport_slack_buttons.py.
+    environment:
+      name: main
     permissions:
-      id-token: write # for dd-octo-sts
+      pull-requests: read # resolve the PR owner's email from their commits
+      id-token: write # for dd-octo-sts (label application)
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install slack_sdk
+        run: pip install --user slack_sdk requests
+
       - name: Download analysis output
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -199,7 +220,7 @@ jobs:
 
             # Keep only branches that are both well-formed and in the active set — never trust
             # the model to name a branch outside what list-active-branches already vetted.
-            IFS=',' read -ra ACTIVE_ARR <<< "$(echo "$ACTIVE_BRANCHES" | tr -d '[]"')"
+            IFS=',' read -ra ACTIVE_ARR <<< "$(echo "$ACTIVE_BRANCHES" | tr -d '[]\"')"
             IFS=',' read -ra CANDIDATE_ARR <<< "$BRANCHES"
             valid=()
             for b in "${CANDIDATE_ARR[@]}"; do
@@ -226,11 +247,27 @@ jobs:
       - name: Fail on unsafe Claude output
         if: steps.validate.outputs.safe != 'true'
         run: |
-          echo "Claude output failed safety check — aborting label application."
+          echo "Claude output failed safety check — aborting."
           exit 1
 
-      - name: Get GitHub token
+      - name: Ask the PR owner via Slack buttons
+        id: slack
         if: steps.validate.outputs.needed == 'true'
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BACKPORT_BOT_TOKEN }}
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_BACKPORT_APP_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          BRANCHES: ${{ steps.validate.outputs.branches }}
+          EXPLANATION: ${{ steps.validate.outputs.explanation }}
+          CONFIDENCE: ${{ steps.validate.outputs.confidence }}
+          SLACK_BUTTON_TTL_SECONDS: '7200'
+        run: python3 .github/scripts/backport_slack_buttons.py
+
+      - name: Get GitHub token
+        if: steps.slack.outputs.outcome == 'add'
         uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
@@ -238,7 +275,7 @@ jobs:
           policy: self.assess-backport.label-pr
 
       - name: Apply backport labels
-        if: steps.validate.outputs.needed == 'true'
+        if: steps.slack.outputs.outcome == 'add'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
