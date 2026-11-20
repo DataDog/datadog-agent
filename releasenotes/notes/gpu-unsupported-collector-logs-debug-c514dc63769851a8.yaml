@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    GPU Monitoring: the GPU check no longer logs a warning at startup for each
+    NVML collector or NVLink field that a device does not support. These
+    expected messages are now logged at debug level.
