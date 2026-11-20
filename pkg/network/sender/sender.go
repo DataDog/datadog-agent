@@ -681,11 +681,24 @@ func addConnectionListeners(listeners map[listenKey]int32, conns []network.Conne
 	}
 }
 
-func compareConnections(a, b network.ConnectionStats) int {
+// compareConnections takes pointers because ConnectionStats is large and the sort calls this
+// once per comparison; passing by value copies both records every time.
+func compareConnections(a, b *network.ConnectionStats) int {
 	if a.Dest.Addr != b.Dest.Addr {
 		return a.Dest.Addr.Compare(b.Dest.Addr)
 	}
 	return int(a.Pid) - int(b.Pid)
+}
+
+// isSortedConnections reports whether conns is already in compareConnections order. It is
+// slices.IsSortedFunc with pointers, which avoids copying a ConnectionStats per element.
+func isSortedConnections(conns []network.ConnectionStats) bool {
+	for i := 1; i < len(conns); i++ {
+		if compareConnections(&conns[i], &conns[i-1]) < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // sortConnections sorts conns by remote IP, then PID. It sorts an index slice and then permutes
@@ -696,7 +709,7 @@ func compareConnections(a, b network.ConnectionStats) int {
 // sorts before pairing each connection with its Network Path decision by position, and batches
 // reads those decisions back by the same position, so that permutation would misattribute them.
 func sortConnections(conns []network.ConnectionStats) {
-	if slices.IsSortedFunc(conns, compareConnections) {
+	if isSortedConnections(conns) {
 		return
 	}
 
@@ -705,7 +718,7 @@ func sortConnections(conns []network.ConnectionStats) {
 		idx[i] = int32(i)
 	}
 	slices.SortFunc(idx, func(i, j int32) int {
-		return compareConnections(conns[i], conns[j])
+		return compareConnections(&conns[i], &conns[j])
 	})
 
 	// position i takes conns[idx[i]]; follow each cycle once, marking visited positions with -1
