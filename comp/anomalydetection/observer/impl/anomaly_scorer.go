@@ -808,10 +808,11 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 		if evt.FromLevel < threshold && evt.ToLevel >= threshold {
 			thresholdName := s.config.CorrelationEventThreshold
 			s.openEpisode = &observerdef.ActiveCorrelation{
-				Pattern:     fmt.Sprintf("anomaly_scorer_%s:%d", thresholdName, evt.Timestamp),
-				Title:       fmt.Sprintf("Anomaly scorer: %s-or-higher severity period", thresholdName),
-				FirstSeen:   evt.Timestamp,
-				LastUpdated: evt.Timestamp,
+				Pattern:             fmt.Sprintf("anomaly_scorer_%s:%d", thresholdName, evt.Timestamp),
+				Title:               fmt.Sprintf("Anomaly scorer: %s-or-higher severity period", thresholdName),
+				FirstSeen:           evt.Timestamp,
+				LastUpdated:         evt.Timestamp,
+				HistoricalFirstSeen: evt.HistoricalTimestamp,
 			}
 			contributors := s.topAnomalies.contributors(s.config.MaxReportedItems)
 			s.pendingEvents = append(s.pendingEvents, observerdef.CorrelatorEvent{

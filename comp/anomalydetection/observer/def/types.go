@@ -525,6 +525,10 @@ type ActiveCorrelation struct {
 	Anomalies   []Anomaly // the actual anomalies that triggered this correlation
 	FirstSeen   int64     // when pattern first matched (unix seconds, from data)
 	LastUpdated int64     // most recent contributing signal (unix seconds, from data)
+	// HistoricalFirstSeen is the corrected historical onset, when the episode
+	// was delivered later than the data time that crossed the threshold. Zero
+	// means the delivered FirstSeen is already historical.
+	HistoricalFirstSeen int64
 }
 
 // RawAnomalyState provides read access to raw anomalies before correlation processing.

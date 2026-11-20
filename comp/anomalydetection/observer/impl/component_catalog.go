@@ -162,6 +162,10 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 	if _, explicitlyConfigured := settings.configs["anomaly_scorer"]; !explicitlyConfigured {
 		scorer := DefaultAnomalyScorerConfig()
 		scorer.CorrelationEvents = true
+		// Replay evaluation should recover late evidence: 10m reordering with
+		// clamping. Production defaults remain 0s + clamp.
+		scorer.ReorderingWindowSecs = 600
+		scorer.LateAnomalyBehavior = "clamp"
 		// Keep the live cooldown default; set cooldown_secs: 0 in --config
 		// when inspecting severity transitions without the de-escalation hold.
 		settings.configs["anomaly_scorer"] = scorer
@@ -395,6 +399,12 @@ func defaultCatalog() *componentCatalog {
 						return nil, fmt.Errorf("anomaly_scorer: invalid correlation_event_threshold: %w", err)
 					}
 					cfg.CorrelationEventThreshold = threshold
+					if !validReorderingWindow(cfg.ReorderingWindowSecs) {
+						return nil, fmt.Errorf("anomaly_scorer: invalid anomaly_reordering_window_secs: %d", cfg.ReorderingWindowSecs)
+					}
+					if !validLateAnomalyBehavior(cfg.LateAnomalyBehavior) {
+						return nil, fmt.Errorf("anomaly_scorer: invalid late_anomaly_behavior: %q", cfg.LateAnomalyBehavior)
+					}
 					return cfg, nil
 				},
 			},
