@@ -476,9 +476,6 @@ type AgentConfig struct {
 	PipeBufferSize         int
 	PipeSecurityDescriptor string
 
-	// Deprecated: unused; the trace-agent does not talk to the GUI.
-	GUIPort string
-
 	// Writers
 	SynchronousFlushing     bool // Mode where traces are only submitted when FlushAsync is called, used for Serverless Extension
 	StatsWriter             *WriterConfig
