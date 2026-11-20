@@ -1,0 +1,33 @@
+.if_deploy_installer:
+  if: $COMPRESS_AB_NEVER == "true"
+
+bazel:compress-ab:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  stage: source_test
+  needs: []
+  rules:
+    - when: manual
+  timeout: 3h
+  retry: 0
+  id_tokens:
+    BUILDBARN_ID_TOKEN:
+      aud: buildbarn.us1.ddbuild.io
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
+  variables:
+    XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
+    BAZELISK_HOME: "$XDG_CACHE_HOME/bazelisk"
+    BAZEL: bazel
+    KUBERNETES_CPU_REQUEST: 8
+    KUBERNETES_CPU_LIMIT: 16
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
+  script:
+    - mkdir -p "$XDG_CACHE_HOME"
+    - cache-exp/tools/ab.sh
+  artifacts:
+    when: always
+    expire_in: 2 weeks
+    paths:
+      - cache-exp/data/ab/
