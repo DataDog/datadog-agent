@@ -682,7 +682,8 @@ func experimentConfigDeployed() bool {
 // When the lock itself cannot be taken, for any reason other than a running command, no installer
 // command can run either, so the last attempt reverts without it.
 //
-// A watcher stopped on purpose (ctx cancelled: a daemon start replacing it) reverts nothing.
+// A watcher stopped on purpose (ctx cancelled: another watcher or the post-install stopping it)
+// reverts nothing.
 // Whatever this cannot revert is left with the reverting marker, for Fleet's stop to finish.
 func failSafeRevert(ctx context.Context, deadline launchd.Deadline, token string, cause error) error {
 	log.Errorf("watcher: cannot keep supervising the configuration experiment, reverting it: %v", cause)
@@ -773,7 +774,7 @@ func failSafeRevert(ctx context.Context, deadline launchd.Deadline, token string
 // siblings' state: that is a durable fact recorded by launchd, not something more waiting would
 // resolve. Any other job recorded as having exited cleanly (LastExitStatus zero) is not: a job
 // whose feature is off exits that way the instant it is kickstarted, same as the stable set, and
-// this pre-check must tolerate it, or every experiment with one disabled feature reverts itself on
+// this wait must tolerate it, or every experiment with one disabled feature reverts itself on
 // startup before the caller ever gets a chance to observe it running. Unlike exitedCleanly's
 // wait(2) status word, LastExitStatus is launchd's own simple signed code, so a direct zero check
 // is what it takes to tell a clean exit apart here.
