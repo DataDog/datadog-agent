@@ -123,6 +123,13 @@ func TestStreamTailer_Unstructured_SourceHostTag(t *testing.T) {
 	clientConn.Write([]byte("foo\n"))
 	msg := recvMsg(t, outputChan)
 	assert.Contains(t, msg.Origin.Tags(), "source_host:192.168.1.100")
+	assert.NoError(t, message.CheckTagSnapshot(msg.Origin))
+
+	clientConn.Write([]byte("bar\n"))
+	next := recvMsg(t, outputChan)
+	first, _, _, _ := msg.Origin.TagSnapshot()
+	second, _, _, _ := next.Origin.TagSnapshot()
+	assert.Same(t, first, second)
 
 	clientConn.Close()
 	tailer.Stop()
