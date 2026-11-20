@@ -89,6 +89,7 @@ var (
 		{Path: "inject", Owner: "root", Group: "root", Recursive: true},
 		{Path: "compliance.d", Owner: "root", Group: "root", Recursive: true},
 		{Path: "runtime-security.d", Owner: "root", Group: "root", Recursive: true},
+		{Path: "datadog.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 		{Path: "system-probe.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
 		{Path: "system-probe.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
 		{Path: "security-agent.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
