@@ -47,18 +47,28 @@ var (
 // expected key, tolerating transient errors while the non-core agents finish starting up.
 func assertAgentsEventuallyUseKey(t *testing.T, host *components.RemoteHost, authtoken, key string) {
 	t.Helper()
+
+	// The trace-agent debug server requires mTLS: present the IPC certificate.
+	// Fetched inside the retry loop: ipc_cert.pem may not exist yet on the
+	// first attempts.
+	var hostHTTPClient *http.Client
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assertAgentsUseKey(c, host, authtoken, key)
+		var err error
+		hostHTTPClient, err = hostHTTPClientWithIPCCert(host)
+		if !assert.NoError(c, err, "could not build the IPC certificate HTTP client") {
+			return
+		}
+
+		assertAgentsUseKey(c, hostHTTPClient, authtoken, key)
 	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
 }
 
 // assertAgentsUseKey checks that all agents are using the given key.
-func assertAgentsUseKey(t assert.TestingT, host *components.RemoteHost, authtoken, key string) {
+func assertAgentsUseKey(t assert.TestingT, hostHTTPClient *http.Client, authtoken, key string) {
 	if h, ok := t.(testing.TB); ok {
 		h.Helper()
 	}
 
-	hostHTTPClient := host.NewHTTPClient()
 	for _, endpoint := range []agentConfigEndpointInfo{
 		traceConfigEndpoint(apmCmdPort),
 		processConfigEndpoint(processCmdPort),

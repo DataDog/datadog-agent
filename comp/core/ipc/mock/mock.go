@@ -119,6 +119,15 @@ func (m *IPCMock) GetTLSServerConfig() *tls.Config {
 	return tlsServerConfig.Clone()
 }
 
+// GetMTLSServerConfig is a mock of the fetchonly GetMTLSServerConfig function.
+// It always requires client certificates, like the real component unless the
+// insecure rollback setting is enabled.
+func (m *IPCMock) GetMTLSServerConfig() *tls.Config {
+	conf := tlsServerConfig.Clone()
+	conf.ClientAuth = tls.RequireAndVerifyClientCert
+	return conf
+}
+
 // HTTPMiddleware is a mock of the ipc.Component HTTPMiddleware method
 func (m *IPCMock) HTTPMiddleware(next http.Handler) http.Handler {
 	return ipchttp.NewHTTPMiddleware(m.t.Logf, m.GetAuthToken())(next)

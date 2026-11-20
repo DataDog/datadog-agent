@@ -1,0 +1,15 @@
+---
+security:
+  - |
+    The trace-agent debug server (``apm_config.debug.port``) now requires mutual
+    TLS: clients must present the IPC certificate. Token-authenticated endpoints
+    (``/config``, ``/config/set``, ``/secret/refresh``) still check the token;
+    ``/debug/*`` endpoints, which had no authentication, now require the
+    certificate too.
+upgrade:
+  - |
+    Local clients of the trace-agent debug server (``apm_config.debug.port``,
+    e.g. scrapers of ``/debug/pprof`` or ``/debug/vars``) must present the IPC
+    certificate from ``ipc_cert.pem``. To keep token-only or unauthenticated
+    access, set the temporary ``insecure_temporarily_disable_ipc_mtls`` setting
+    to ``true`` (insecure, will be removed).

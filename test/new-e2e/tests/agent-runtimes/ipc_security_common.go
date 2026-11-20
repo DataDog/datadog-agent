@@ -96,6 +96,22 @@ func assertAgentUseCert(t *assert.CollectT, host *components.RemoteHost, ipcCert
 		require.NotNilf(t, resp.TLS, "connection to %v didn't used TLS", endpoint.Name)
 		require.Lenf(t, resp.TLS.PeerCertificates, 1, "server of %v server multiple certficiate", endpoint.Name)
 	}
+
+	// mTLS-enforcing servers (core IPC, trace-agent debug) reject clients without
+	// the IPC certificate
+	trNoClientCert := client.Transport.(*http.Transport).Clone()
+	trNoClientCert.TLSClientConfig = &tls.Config{
+		RootCAs: CA,
+	}
+	clientNoCert := host.NewHTTPClient()
+	clientNoCert.Transport = trNoClientCert
+	for _, endpoint := range []ipcEndpoint{
+		{"coreIPC", coreIPCPort},
+		{"traceAgentDebug", apmCmdPort},
+	} {
+		_, err := clientNoCert.Get(fmt.Sprintf("https://127.0.0.1:%d", endpoint.Port)) // nolint: bodyclose
+		require.ErrorContainsf(t, err, "certificate required", "connection to %v without a client certificate", endpoint.Name)
+	}
 }
 
 // fillTmplConfig fills the template with the given variables and returns the result.

@@ -15,6 +15,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration",
     visibility = ["//visibility:public"],
     deps = [
+        "//test/e2e-framework/components/os",
         "//test/e2e-framework/testing/components",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

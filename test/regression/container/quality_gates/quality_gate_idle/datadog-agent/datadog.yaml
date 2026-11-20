@@ -1,5 +1,10 @@
 auth_token_file_path: /tmp/agent-auth-token
 
+# Lading's expvar scraper does not support client certificates, so keep the
+# trace-agent debug server on token-only auth for the quality gates.
+# Remove once lading can present the IPC certificate.
+insecure_temporarily_disable_ipc_mtls: true
+
 dd_url: http://127.0.0.1:9091
 process_config.process_dd_url: http://localhost:9092
 

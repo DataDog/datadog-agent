@@ -146,6 +146,17 @@ func (ipc *ipcComp) GetTLSServerConfig() *tls.Config {
 	return ipc.tlsServerConfig.Clone()
 }
 
+// GetMTLSServerConfig return a TLS configuration for http.Server that requires
+// client certificates (mTLS). Can be temporarily disabled with the insecure
+// insecure_temporarily_disable_ipc_mtls rollback setting.
+func (ipc *ipcComp) GetMTLSServerConfig() *tls.Config {
+	conf := ipc.tlsServerConfig.Clone()
+	if !ipc.conf.GetBool("insecure_temporarily_disable_ipc_mtls") {
+		conf.ClientAuth = tls.RequireAndVerifyClientCert
+	}
+	return conf
+}
+
 func (ipc *ipcComp) HTTPMiddleware(next http.Handler) http.Handler {
 	return ipchttp.NewHTTPMiddleware(func(format string, params ...interface{}) {
 		ipc.logger.Errorf(format, params...)
