@@ -33,6 +33,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/kaischeduler"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/mokka"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
 	resAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -186,7 +187,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		dependsOnArgoRollout = utils.PulumiDependsOn(argoHelm)
 	}
 
-	preAgentWorkloads := make([]pulumi.Resource, 0, len(params.preAgentWorkloadAppFuncs)+len(params.mokkaInstallations))
+	preAgentWorkloads := make([]pulumi.Resource, 0, len(params.preAgentWorkloadAppFuncs)+len(params.mokkaInstallations)+1)
 	// Mokka must be running before the Agent starts: its NRI plugin only injects the mock GPU
 	// driver into containers created after it, so it is handled like a pre-Agent workload.
 	for _, mokkaOpts := range params.mokkaInstallations {
@@ -199,6 +200,18 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 			return err
 		}
 		preAgentWorkloads = append(preAgentWorkloads, mokkaComp)
+	}
+	// The Cluster Agent watches KAI PodGroups, whose CRD comes with the KAI chart.
+	if params.kaiSchedulerOptions != nil {
+		kaiParams, err := kaischeduler.NewParams(params.kaiSchedulerOptions...)
+		if err != nil {
+			return err
+		}
+		kaiComp, err := kaischeduler.NewInstallation(&awsEnv, kaiParams, kubeProvider)
+		if err != nil {
+			return err
+		}
+		preAgentWorkloads = append(preAgentWorkloads, kaiComp)
 	}
 	for _, appFunc := range params.preAgentWorkloadAppFuncs {
 		workload, err := appFunc(&awsEnv, kubeProvider)
@@ -235,6 +248,13 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		if len(params.mokkaInstallations) > 0 {
 			// Before the test options, so that a suite can still override these values.
 			newOpts = append(newOpts, kubernetesagentparams.WithHelmValues(mokka.AgentHelmValues()))
+		}
+		if params.kaiSchedulerOptions != nil {
+			newOpts = append(newOpts, kubernetesagentparams.WithHelmValues(kaischeduler.AgentHelmValues()))
+			// Older charts silently ignore datadog.kaiScheduler: bump the chart if the default is older.
+			if semver.MustParse(agent.HelmVersion).LessThan(semver.MustParse(kaischeduler.MinDatadogChartVersion)) {
+				newOpts = append(newOpts, kubernetesagentparams.WithHelmChartVersion(kaischeduler.MinDatadogChartVersion))
+			}
 		}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)

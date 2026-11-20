@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operatorparams"
 	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/kaischeduler"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/mokka"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -45,6 +46,9 @@ type RunParams struct {
 	// mokkaInstallations holds one set of options per Mokka installation (simulated GPU pool).
 	// See WithMokka.
 	mokkaInstallations [][]mokka.Option
+
+	// kaiSchedulerOptions, when non-nil, deploys the KAI Scheduler. See WithKAIScheduler.
+	kaiSchedulerOptions []kaischeduler.Option
 
 	// standaloneDdotFunc, when non-nil, deploys a standalone DDOT (Datadog
 	// Distribution of OpenTelemetry) agent DaemonSet using raw Kubernetes
@@ -236,6 +240,18 @@ func WithDeployArgoRollout() RunOption {
 func WithMokka(opts ...mokka.Option) RunOption {
 	return func(p *RunParams) error {
 		p.mokkaInstallations = append(p.mokkaInstallations, opts)
+		return nil
+	}
+}
+
+// WithKAIScheduler installs the NVIDIA KAI Scheduler (and its queues, see kaischeduler.WithQueues)
+// before the Agent, and enables the KAI integration of the Helm-deployed Agent
+// (see kaischeduler.AgentHelmValues). Combine it with WithMokka to schedule GPU workloads.
+//
+// The chart is pulled from ghcr.io, so the VM needs internet access (WithInternetAccess).
+func WithKAIScheduler(opts ...kaischeduler.Option) RunOption {
+	return func(p *RunParams) error {
+		p.kaiSchedulerOptions = append([]kaischeduler.Option{}, opts...)
 		return nil
 	}
 }
