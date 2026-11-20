@@ -492,6 +492,9 @@ def _sample_component_params(trial, component: str) -> dict:
         },
         "holt_residual": sample_holt_residual,
         "tukey_biweight": sample_tukey_biweight,
+        "log_metrics_extractor": lambda: {
+            "min_token_match_ratio": trial.suggest_float("log_metrics_extractor.min_token_match_ratio", 0.2, 0.95),
+        },
         "log_pattern_extractor": lambda: {
             # "disable_optimizations": trial.suggest_categorical(...),
             # "min_cluster_size_before_emit": trial.suggest_int(...),

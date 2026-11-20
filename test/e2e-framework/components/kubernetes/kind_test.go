@@ -58,6 +58,12 @@ nodes:
   extraMounts:
   - hostPath: /proc
     containerPath: /host/proc
+kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    apiServer:
+      extraArgs:
+        enable-aggregator-routing: "true"
 containerdConfigPatches:
   - |-
     [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
@@ -91,6 +97,12 @@ nodes:
           - key: "spot"
             value: "true"
             effect: "NoSchedule"
+kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    apiServer:
+      extraArgs:
+        enable-aggregator-routing: "true"
 containerdConfigPatches:
   - |-
     [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]

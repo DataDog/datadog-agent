@@ -113,7 +113,6 @@ def get_ebpf_runtime_dir() -> Path:
 
 def ninja_define_ebpf_compiler(
     nw: NinjaWriter,
-    strip_object_files=False,
     kernel_release=None,
     with_unit_test=False,
     arch: Arch | None = None,
@@ -131,15 +130,6 @@ def ninja_define_ebpf_compiler(
         name="ebpfclang",
         command="/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
         depfile="$out.d",
-    )
-
-    strip = "/opt/datadog-agent/embedded/bin/llvm-strip -g --remove-section=.rel.BTF.ext $out"
-    strip_lbb = "/opt/datadog-agent/embedded/bin/llvm-strip -w -N \"LBB*\" $out"
-    strip_part = f"&& {strip} && {strip_lbb}" if strip_object_files else ""
-
-    nw.rule(
-        name="llc",
-        command=f"/opt/datadog-agent/embedded/bin/llc-bpf -march=bpf -filetype=obj -o $out $in {strip_part}",
     )
 
 
@@ -688,7 +678,6 @@ def setup_runtime_clang(
 
     runtime_binaries = {
         "clang-bpf": {"url_prefix": "clang", "version_line": 0, "needs_download": False},
-        "llc-bpf": {"url_prefix": "llc", "version_line": 1, "needs_download": False},
         "llvm-strip": {"url_prefix": "llvm-strip", "version_line": 2, "needs_download": False},
     }
 
@@ -700,7 +689,7 @@ def setup_runtime_clang(
                 runtime_binaries[binary]["needs_download"] = True
                 continue
 
-            # We can check the version of clang and llc on the system, we have the same arch and can
+            # We can check the version of the LLVM tools on the system, we have the same arch and can
             # execute the binaries. This way we can omit the download if the binaries exist and the version
             # matches the desired one
             res = ctx.run(f"{sudo} {binary_path} --version", warn=True, hide=True)
@@ -710,7 +699,7 @@ def setup_runtime_clang(
                     print(f"'{binary}' version '{version_str}' is not required version '{clang_version}'")
                     runtime_binaries[binary]["needs_download"] = True
         else:
-            # If we're cross-compiling we cannot check the version of clang and llc on the system,
+            # If we're cross-compiling we cannot check the version of the LLVM tools on the system,
             # so we download them only if they don't exist
             runtime_binaries[binary]["needs_download"] = not binary_path.exists() or binary_path.stat().st_size == 0
 
@@ -783,6 +772,7 @@ _BAZEL_RUNTIME_GEN_TARGETS = [
     "//pkg/ebpf/bytecode:conntrack_gen",
     "//pkg/ebpf/bytecode:tracer_gen",
     "//pkg/ebpf/bytecode:offsetguess-test_gen",
+    "//pkg/ebpf/bytecode:skb-parse-test_gen",
     "//pkg/ebpf/bytecode:runtime-security_gen",
     "//pkg/ebpf/bytecode:gpu_gen",
 ]
@@ -1462,7 +1452,6 @@ def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | N
     ctx.run(f"cp {runtime_dir}/*.c {target}")
     ctx.run(f"chmod 0444 {target}/*.o {target}/*.c {target}/co-re/*.o")
     ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {target}")
-    ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {target}")
 
 
 @task

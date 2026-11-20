@@ -48,6 +48,8 @@
     "compile_policy_windows_x86_64": "Pending tracking in Phase 2a. Shares VERSION with compile_policy_x86_64; tracked together.",
     "gstatus_binary": "Pending tracking in Phase 2a (github-releases batch). Released at github.com/gluster/gstatus.",
     "gstatus_license": "Intentionally untracked. License text only, pinned to the gstatus_binary version.",
+    "s6_overlay_aarch64": "Intentionally untracked. s6-overlay v3 changed the tarball layout, so bumps beyond v2 need Dockerfiles/agent changes. Released at github.com/just-containers/s6-overlay.",
+    "s6_overlay_amd64": "Intentionally untracked. Shares VERSION with s6_overlay_aarch64; bumped together.",
     "snmp_traps": "Intentionally untracked. Datadog-internal SNMP traps DB published to dd-agent-omnibus S3; no public upstream to watch. Bumped manually when the traps DB is regenerated.",
     "cacert_pem": "Intentionally untracked. Bumped via a separate Datadog Synthetics-driven workflow (see deps/cacerts/cacerts.MODULE.bazel) that alerts team-agent-build on header changes; auto-PRs from Renovate would race that flow.",
     "cacert_license": "Intentionally untracked. Mozilla MPL-2.0 license text accompanying cacert_pem; updated together with cacert_pem via the same out-of-band flow.",
