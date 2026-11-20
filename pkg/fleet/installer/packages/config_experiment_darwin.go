@@ -294,10 +294,10 @@ func waitForInstallerCommand(ctx context.Context, deadline launchd.Deadline, tok
 }
 
 // handBackInstaller hands the installer daemon back from its experiment job to its stable one once
-// a stop or promote has handed the Agent back. The supervising watcher runs it, told by the hook's
-// "end" or by its next deadline tick (experimentSupervisor.handBack); a detached process launched
-// by the hook runs it when no watcher answers (handBackInstallerAfterHook). Both run outside the
-// experiment daemon's job, which the swap stops.
+// a stop or promote has handed the Agent back. The supervising watcher runs it once it sees the hook
+// clear the deadline (experimentSupervisor.handBack); a detached process launched by the hook runs
+// it when no watcher runs (handBackInstallerAfterHook). Both run outside the experiment daemon's
+// job, which the swap stops.
 //
 // It first waits for the installer command that ran the hook to exit: it holds the installer's
 // lock for its whole run, and only once it exits has the experiment configuration directory been
