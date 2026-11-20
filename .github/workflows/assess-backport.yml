@@ -174,11 +174,10 @@ jobs:
     runs-on: ubuntu-latest
     # Covers the 2h button TTL plus overhead; the Slack listener is the long pole.
     timeout-minutes: 135
-    # The 'main' protected environment (branch whitelist: main) holds the Slack secrets:
-    #   SLACK_BACKPORT_BOT_TOKEN  xoxb-... bot token of the dedicated Slack app
-    #   SLACK_BACKPORT_APP_TOKEN  xapp-... app-level token with connections:write (Socket Mode)
-    # The app needs interactivity over Socket Mode and the bot scopes
-    # chat:write, im:write, users:read.email — see .github/scripts/backport_slack_buttons.py.
+    # The 'main' protected environment (branch whitelist: main) holds the Socket Mode token:
+    #   SLACK_BACKPORT_APP_TOKEN  xapp-... app-level token with connections:write
+    # The DM is sent with the repo-level SLACK_DATADOG_AGENT_BOT_TOKEN (same Slack app:
+    # bot scopes chat:write, im:write, users:read.email, interactivity over Socket Mode).
     environment:
       name: main
     permissions:
@@ -256,7 +255,7 @@ jobs:
         id: slack
         if: steps.validate.outputs.needed == 'true'
         env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BACKPORT_BOT_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
           SLACK_APP_TOKEN: ${{ secrets.SLACK_BACKPORT_APP_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
