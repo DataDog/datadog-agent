@@ -36,9 +36,9 @@ new-e2e-adp-preflight-mode-windows:
     TEAM: agent-data-plane
     EXTRA_PARAMS: --run "TestPreflightModeWindowsSuite"
 
-# Agent Data Plane startup on each supported Windows Server release. The Windows Server 2016 suite
-# fails until rustls-cng-crypto stops requiring native CNG HKDF, which Windows Server 2016 lacks.
-# The default-image suite is its control. Manual and allowed to fail until the fix ships.
+# Agent Data Plane startup on each supported Windows Server release (2016, 2019, 2022, 2025). The
+# Windows Server 2016 subtest fails until rustls-cng-crypto stops requiring native CNG HKDF, which
+# Windows Server 2016 lacks. Manual and allowed to fail until the fix ships.
 new-e2e-adp-windows-startup:
   extends: .new_e2e_template_needs_windows_x64
   rules:

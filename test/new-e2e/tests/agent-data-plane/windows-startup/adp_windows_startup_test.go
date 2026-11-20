@@ -15,6 +15,7 @@ package windowsstartup
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -63,35 +64,39 @@ type adpWindowsStartupSuite struct {
 	procmgrCLI string
 }
 
-// TestADPStartupWindowsServer2016Suite runs the check on Windows Server 2016.
+// windowsPlatforms is every supported Windows Server release. It matches the Windows platforms of the fleet suite.
 //
-// CNG on Windows Server 2016 has no native HKDF. The CNG rustls provider uses native HKDF in every TLS 1.3
-// handshake and panics when it is missing, so ADP crashes on its first IPC connection to the Core Agent. This suite
-// fails until the provider has a fallback.
-func TestADPStartupWindowsServer2016Suite(t *testing.T) {
-	t.Parallel()
-	e2e.Run(t, &adpWindowsStartupSuite{}, suiteOptions(e2eos.WindowsServer2016)...)
+// Windows Server 2016 currently fails: its CNG has no native HKDF, and the CNG rustls provider uses native HKDF in
+// every TLS 1.3 handshake and panics when it is missing, so ADP crashes on its first IPC connection to the Core
+// Agent. The other releases have native HKDF, so they show that a 2016 failure comes from the OS release and not
+// from the test or the build.
+var windowsPlatforms = []e2eos.Descriptor{
+	e2eos.WindowsServer2016,
+	e2eos.WindowsServer2019,
+	e2eos.WindowsServer2022,
+	e2eos.WindowsServer2025,
 }
 
-// TestADPStartupWindowsServerDefaultSuite runs the same check on the default Windows Server image.
-//
-// It is the control for the Windows Server 2016 suite: when only the 2016 suite fails, the failure comes from the
-// OS release and not from the test or the build.
-func TestADPStartupWindowsServerDefaultSuite(t *testing.T) {
-	t.Parallel()
-	e2e.Run(t, &adpWindowsStartupSuite{}, suiteOptions(e2eos.WindowsServerDefault)...)
-}
-
-func suiteOptions(descriptor e2eos.Descriptor) []e2e.SuiteOption {
-	return []e2e.SuiteOption{
-		e2e.WithProvisioner(
-			awshost.ProvisionerNoFakeIntake(
-				awshost.WithRunOptions(
-					ec2.WithEC2InstanceOptions(ec2.WithOS(descriptor)),
-					ec2.WithAgentOptions(agentparams.WithAgentConfig("data_plane.enabled: true")),
+// TestADPStartupWindowsServerSuite runs the check once per Windows Server release, each on its own host and as its
+// own subtest, so a failure names the release.
+func TestADPStartupWindowsServerSuite(t *testing.T) {
+	for _, platform := range windowsPlatforms {
+		t.Run(platform.Version, func(t *testing.T) {
+			t.Parallel()
+			// Parallel subtests share the parent test's name, so give each its own stack.
+			stackName := regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(t.Name(), "_")
+			e2e.Run(t, &adpWindowsStartupSuite{},
+				e2e.WithProvisioner(
+					awshost.ProvisionerNoFakeIntake(
+						awshost.WithRunOptions(
+							ec2.WithEC2InstanceOptions(ec2.WithOS(platform)),
+							ec2.WithAgentOptions(agentparams.WithAgentConfig("data_plane.enabled: true")),
+						),
+					),
 				),
-			),
-		),
+				e2e.WithStackName(stackName),
+			)
+		})
 	}
 }
 
