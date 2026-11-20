@@ -911,6 +911,22 @@ fn procmgr_all_in_one_custom_services_keep_the_config_dir_placeholder() {
         script.contains(r#"cat >"$processes_dir/$service_name.yaml" <<EOF"#),
         "the custom-service heredoc must stay unquoted"
     );
+    assert!(
+        script.contains(
+            r#"for catalog_yaml in /opt/datadog-agent/processes.d/aio/*.yaml /opt/datadog-agent/processes.d/aio/*.yml; do"#
+        ),
+        "staging must copy both catalog extensions"
+    );
+    assert!(
+        script.contains(r#"[[ -e "$catalog_yaml" ]] || continue"#),
+        "an unmatched *.yml glob must not abort startup"
+    );
+    assert!(
+        script.contains(
+            r#"[[ -e "$processes_dir/$service_name.yaml" || -e "$processes_dir/$service_name.yml" ]]"#
+        ),
+        "a custom service must not replace a .yml catalog process of the same name"
+    );
 }
 
 #[test]

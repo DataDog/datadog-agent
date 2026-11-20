@@ -168,13 +168,16 @@ if [[ ${#custom_services[@]} -gt 0 ]]; then
         echo "cannot stage custom /etc/services.d services: no writable executable directory in /var/run/s6, ${TMPDIR:-/tmp}, or /opt/datadog-agent/run" >&2
         exit 1
     fi
-    for catalog_yaml in /opt/datadog-agent/processes.d/aio/*.yaml; do
+    # load_configs reads .yaml and .yml. An unmatched *.yml is the literal pattern, and cp
+    # would abort startup on the shipped catalog, which has no .yml file.
+    for catalog_yaml in /opt/datadog-agent/processes.d/aio/*.yaml /opt/datadog-agent/processes.d/aio/*.yml; do
+        [[ -e "$catalog_yaml" ]] || continue
         cp -L -- "$catalog_yaml" "$processes_dir/${catalog_yaml##*/}"
     done
     mkdir "$processes_dir/services"
     for service_name in "${custom_services[@]}"; do
         service_dir=/etc/services.d/$service_name
-        if [[ -e "$processes_dir/$service_name.yaml" ]]; then
+        if [[ -e "$processes_dir/$service_name.yaml" || -e "$processes_dir/$service_name.yml" ]]; then
             echo "skipping /etc/services.d/$service_name: $service_name is already a catalog process" >&2
             continue
         fi
