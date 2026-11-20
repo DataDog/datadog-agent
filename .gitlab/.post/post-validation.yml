@@ -9,7 +9,6 @@ post-validation:
       - CI_IMAGE_LINUX
       - CI_IMAGE_LINUX_SUFFIX
       - AGENT_API_KEY_ORG2
-      - AGENT_APP_KEY_ORG2
       - AGENT_QA_E2E
       - COMPARE_TO_BRANCH
       - DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND

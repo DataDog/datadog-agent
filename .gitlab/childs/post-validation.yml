@@ -1,7 +1,6 @@
 ---
 include:
   - local: .gitlab/common/checkout.yml
-  - local: .gitlab/.pre/common/shared.yml
 
 workflow:
   # An already-created child survives parent-only graceful cancellation.
@@ -26,30 +25,6 @@ default:
 
 stages:
   - post_validation
-
-jev-dyntest-evaluate:
-  extends: .dd_octo_sts
-  stage: post_validation
-  tags: ["arch:arm64"]
-  # Evaluation only: Jev does not select the tests that run in the parent.
-  allow_failure: true
-  variables:
-    GIT_DEPTH: 0
-    GIT_STRATEGY: clone
-  rules:
-    - if: >-
-        $POST_VALIDATION_PARENT_BRANCH == "main" ||
-        $POST_VALIDATION_PARENT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/ ||
-        $POST_VALIDATION_PARENT_BRANCH =~ /^mq-working-branch-/ ||
-        $POST_VALIDATION_PARENT_TAG
-      when: never
-    - when: always
-  before_script:
-    - !reference [.setup_github_token_read]
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY
-  script:
-    - dda inv -- -e dyntest.evaluate-index --selector jev --commit-sha "$CI_COMMIT_SHA" --pipeline-id "$POST_VALIDATION_PARENT_ID" --pr-summary-from-pipeline
 
 new-e2e-cleanup-on-failure:
   stage: post_validation
