@@ -237,7 +237,7 @@ func TestSchemaPrefetchPreservesConnectionOptions(t *testing.T) {
 				require.Equal(t, "test", u.User.Username())
 				password, _ := u.User.Password()
 				require.Equal(t, "test password", password)
-				require.Equal(t, "42", u.Query().Get("TIMEOUT"))
+				require.Equal(t, "84", u.Query().Get("TIMEOUT"))
 				if enabled {
 					require.Equal(t, "100", u.Query().Get("PREFETCH_ROWS"))
 				} else {

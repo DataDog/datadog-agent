@@ -107,6 +107,7 @@ func otelSpanToDDSpanMinimal(
 	// TODO(DSEM-658): migrate peer tag lookups to use the semantics library.
 	// Use direct lookup only: the peer tag keys already list every precursor from peer_tags.ini (semantic-core).
 	copyOTelAttributeTags(sattr, rattr, tagKeys.peer, ddspan.Meta)
+	setDynamoDBTableName(sattr, rattr, ddspan)
 	// This path bypasses the trace-agent's normalization step so we explicitly do it here.
 	if pSvc, ok := ddspan.Meta[string(semantics.ConceptPeerService)]; ok {
 		ddspan.Meta[string(semantics.ConceptPeerService)], _ = normalizeutil.NormalizePeerService(pSvc)
@@ -213,6 +214,26 @@ func copyOTelAttributeTags(sattr, rattr pcommon.Map, keys map[string]struct{}, m
 	}
 }
 
+// setDynamoDBTableName sets the Datadog "tablename" tag, the only source of the
+// peer.aws.dynamodb.table peer tag, from the OTel aws.dynamodb.table_names attribute.
+// The attribute is a string array while "tablename" holds one name, so only a call that
+// targets a single table is mapped. A "tablename" attribute set by the producer is kept.
+// This can't be declared as an equivalent in the semantics library, which only maps
+// scalar attributes.
+func setDynamoDBTableName(sattr, rattr pcommon.Map, ddspan *pb.Span) {
+	const tablenameKey = "tablename"
+	if GetOTelAttrFromEitherMap(sattr, rattr, false, tablenameKey) != "" {
+		return
+	}
+	names, ok := sattr.Get(string(semconv.AWSDynamoDBTableNamesKey))
+	if !ok || names.Type() != pcommon.ValueTypeSlice || names.Slice().Len() != 1 {
+		return
+	}
+	if name := names.Slice().At(0).Str(); name != "" {
+		ddspan.Meta[tablenameKey] = name
+	}
+}
+
 func isDatadogAPMConventionKey(k string) bool {
 	return k == "service.name" || k == "operation.name" || k == "resource.name" || k == "span.type"
 }
@@ -274,7 +295,6 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 		if v := GetOTelAttrValInResAndSpanAttrs(span, res, false, "_dd.hostname"); v != "" {
 			src = source.Source{
 				Kind:             source.HostnameKind,
-				Identifier:       v, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{Primary: v},
 			}
 			srcok = true
@@ -283,7 +303,7 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			return src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			return src.SourceIdentifier.Primary
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			return ""

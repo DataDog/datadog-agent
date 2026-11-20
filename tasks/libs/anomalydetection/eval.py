@@ -31,9 +31,9 @@ DETECTORS = ["bocpd", "holt_residual", "scanmw", "scanwelch", "tukey_biweight"]
 # explicitly: otherwise an enabled-only entry would lock the Go parser to its
 # production defaults and bypass the testbench profile.
 TESTBENCH_WARMUP_PARAMS = {
-    "bocpd": {"warmup_points": 40},
+    "bocpd": {"warmup_points": 20},
     "holt_residual": {"warmup_points": 15, "residual_window": 25},
-    "tukey_biweight": {"window_size": 40, "min_points": 40},
+    "tukey_biweight": {"window_size": 40, "min_points": 20},
 }
 ABLATION_CORRELATORS = ["anomaly_scorer"]
 SUPPORTED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
@@ -492,6 +492,9 @@ def _sample_component_params(trial, component: str) -> dict:
         },
         "holt_residual": sample_holt_residual,
         "tukey_biweight": sample_tukey_biweight,
+        "log_metrics_extractor": lambda: {
+            "min_token_match_ratio": trial.suggest_float("log_metrics_extractor.min_token_match_ratio", 0.2, 0.95),
+        },
         "log_pattern_extractor": lambda: {
             # "disable_optimizations": trial.suggest_categorical(...),
             # "min_cluster_size_before_emit": trial.suggest_int(...),

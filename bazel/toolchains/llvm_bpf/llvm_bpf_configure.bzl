@@ -5,7 +5,6 @@ NAME = "llvm_bpf"
 # Maps installed binary name -> S3 URL prefix.
 _BINARIES = {
     "clang-bpf": "clang",
-    "llc-bpf": "llc",
     "llvm-strip": "llvm-strip",
 }
 
@@ -61,10 +60,8 @@ def _download_llvm_bpf_impl(rctx):
     ],
 """.format(cpu = cpu_constraint)
         binary_attrs = """    clang_bpf = "{clang}",
-    llc_bpf = "{llc}",
     llvm_strip = "{strip}",""".format(
             clang = downloaded["clang-bpf"],
-            llc = downloaded["llc-bpf"],
             strip = downloaded["llvm-strip"],
         )
         install_target = """

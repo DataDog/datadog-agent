@@ -1204,7 +1204,7 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 	case metrics.MetricSourceCrossplane:
 		return 538
 	case metrics.MetricSourceLlmD:
-		return 539
+		return 541
 	case metrics.MetricSourceDynamo:
 		return 540
 	default:
