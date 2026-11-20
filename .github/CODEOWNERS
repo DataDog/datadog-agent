@@ -1226,6 +1226,7 @@
 /test/regression/container/selection.yaml                         @DataDog/single-machine-performance
 /test/regression/container/logs/                                  @DataDog/agent-log-pipelines
 /test/regression/container/agent-metric-pipelines/                @DataDog/agent-metric-pipelines
+/test/regression/container/openmetrics/                         @DataDog/single-machine-performance @DataDog/agent-integrations
 
 /tools/                                                              @DataDog/agent-devx
 /tools/host-profiler/                                                @DataDog/profiling-full-host
