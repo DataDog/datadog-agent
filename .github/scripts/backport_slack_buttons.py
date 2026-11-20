@@ -28,6 +28,7 @@ Outputs (GITHUB_OUTPUT):
 """
 
 import json
+import logging
 import os
 import sys
 from threading import Event
@@ -131,15 +132,19 @@ def main() -> int:
             {"type": "actions", "elements": buttons},
         ],
     )
-    print(f"Sent: {msg['permalink']}")
+    print(f"Sent: {msg['permalink']}", flush=True)
 
     # Listen for the click over Socket Mode (no public endpoint required).
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     sm = SocketModeClient(app_token=env("SLACK_APP_TOKEN"), web_client=web)
+    sm.connect()
+    print(f"Socket Mode connected: {sm.is_connected()}", flush=True)
     clicked = Event()
     result = {"outcome": "timeout", "branch": ""}
     ts = msg["ts"]
 
     def process(client: SocketModeClient, req: SocketModeRequest) -> None:
+        print(f"[debug] socket event: type={req.type} payload={req.payload}", flush=True)
         if req.type != "interactive":
             return
         payload = json.loads(req.payload)
@@ -158,7 +163,6 @@ def main() -> int:
             clicked.set()  # stop waiting as soon as a button on our message is clicked
 
     sm.socket_mode_request_listeners.append(process)
-    sm.connect()
     clicked.wait(timeout=ttl)
 
     # Always remove the buttons so stale clicks can't pile up after expiry/choice.
@@ -190,7 +194,7 @@ def main() -> int:
 
     output("outcome", result["outcome"])
     output("branch", result["branch"])
-    print(f"Outcome: {result['outcome']} {result['branch']}")
+    print(f"Outcome: {result['outcome']} {result['branch']}", flush=True)
     return 0
 
 
