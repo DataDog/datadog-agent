@@ -9,7 +9,9 @@ import (
 	"math"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	fuzz "github.com/google/gofuzz"
@@ -284,44 +286,62 @@ func TestAggregatorForceFlush(t *testing.T) {
 }
 
 type blockingStatsWriter struct {
-	writing chan struct{}
+	writes  atomic.Int32
 	release chan struct{}
 }
 
 func (w *blockingStatsWriter) Write(*pb.StatsPayload) {
-	w.writing <- struct{}{}
+	w.writes.Add(1)
 	<-w.release
 }
 
-func TestAggregatorAddNotBlockedByWrite(t *testing.T) {
+// newBlockedWriterAggregator returns an aggregator whose writer blocks until
+// the test ends. Cleanup releases the writer and stops the aggregator.
+func newBlockedWriterAggregator(t *testing.T) (*ClientStatsAggregator, *blockingStatsWriter) {
 	a := newTestAggregator()
-	w := &blockingStatsWriter{writing: make(chan struct{}, 1), release: make(chan struct{})}
+	w := &blockingStatsWriter{release: make(chan struct{})}
 	a.writer = w
-	now := time.Now()
-	a.add(now, getTestStatsWithStart(t, now, false))
+	t.Cleanup(func() {
+		close(w.release)
+		a.Stop()
+	})
+	return a, w
+}
 
-	flushed := make(chan struct{})
-	go func() {
-		a.flushAll()
-		close(flushed)
-	}()
-	<-w.writing
-
-	added := make(chan struct{})
-	go func() {
+// These tests check lock state with TryLock instead of blocking on a lock:
+// a goroutine blocked on a sync.Mutex is not durably blocked, so
+// synctest.Wait would never return.
+func TestAggregatorAddNotBlockedByWrite(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		a, w := newBlockedWriterAggregator(t)
+		now := time.Now()
 		a.add(now, getTestStatsWithStart(t, now, false))
-		close(added)
-	}()
-	select {
-	case <-added:
-	case <-time.After(5 * time.Second):
-		t.Fatal("add is blocked while the writer is busy")
-	}
 
-	close(w.release)
-	<-flushed
-	a.writer = noopStatsWriter{}
-	a.Stop()
+		go a.flushAll()
+		synctest.Wait()
+		require.EqualValues(t, 1, w.writes.Load(), "the flush must reach the writer")
+
+		require.True(t, a.mu.TryLock(), "add is blocked while the writer is busy")
+		a.mu.Unlock()
+		a.add(now, getTestStatsWithStart(t, now, false))
+	})
+}
+
+func TestAggregatorFlushesAreSerialized(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		a, w := newBlockedWriterAggregator(t)
+		now := time.Now()
+		a.add(now, getTestStatsWithStart(t, now, false))
+
+		go a.flushAll()
+		synctest.Wait()
+		require.EqualValues(t, 1, w.writes.Load(), "the flush must reach the writer")
+
+		if a.flushMu.TryLock() {
+			a.flushMu.Unlock()
+			t.Fatal("another flush can start before the flush in progress submits its payloads")
+		}
+	})
 }
 
 func TestMergeMany(t *testing.T) {

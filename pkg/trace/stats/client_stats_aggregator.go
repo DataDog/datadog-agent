@@ -67,6 +67,9 @@ type ClientStatsAggregator struct {
 
 	exitWG sync.WaitGroup
 	mu     sync.Mutex
+	// flushMu serializes flushes from bucket collection through writer
+	// submission. It is separate from mu so add() is not blocked by a write.
+	flushMu sync.Mutex
 
 	statsd statsd.ClientInterface
 }
@@ -154,6 +157,9 @@ func (a *ClientStatsAggregator) flushAll() {
 
 func (a *ClientStatsAggregator) flush(now time.Time, force bool) {
 	flushTs := alignAggTs(now.Add(bucketDuration - oldestBucketStart))
+
+	a.flushMu.Lock()
+	defer a.flushMu.Unlock()
 
 	a.mu.Lock()
 	var toFlush [][]*pb.ClientStatsPayload
