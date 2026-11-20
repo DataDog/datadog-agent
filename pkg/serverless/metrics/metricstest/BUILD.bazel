@@ -34,6 +34,7 @@ go_library(
         "//comp/haagent/fx",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/fx",
+        "//comp/serializer/serializer/def",
         "//pkg/aggregator",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",

@@ -43,6 +43,7 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	serializerdef "github.com/DataDog/datadog-agent/comp/serializer/serializer/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -56,6 +57,7 @@ type Deps struct {
 	Demultiplexer   demultiplexer.Component
 	Demux           aggregator.Demultiplexer
 	Forwarder       defaultforwarder.Component
+	Serializer      serializerdef.Component
 }
 
 // bundleOptions returns the shared module graph used by both New and StartBundle.
