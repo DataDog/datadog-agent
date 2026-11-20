@@ -8,6 +8,8 @@
 package ebpf
 
 import (
+	"errors"
+	"os"
 	"testing"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -47,15 +49,43 @@ func TestKprobeMultiBackendDisabled(t *testing.T) {
 		t.Run(value, func(t *testing.T) {
 			t.Setenv("DD_CWS_KPROBE_MULTI_EXPERIMENT", value)
 			// A disabled backend must neither query the kernel nor access the manager.
-			require.NoError(t, (&kprobeMultiBackend{}).BeforeInit(nil, names.ModuleName{}, nil))
+			backend := &kprobeMultiBackend{checkSupport: func() error {
+				t.Fatal("disabled backend must not check support")
+				return nil
+			}}
+			require.NoError(t, backend.BeforeInit(nil, names.ModuleName{}, nil))
 		})
 	}
 }
 
-func TestKprobeMultiBackendRequiresDependencySupport(t *testing.T) {
-	if _, ok := any(&manager.Probe{}).(interface{ SupportsKprobeMulti() bool }); ok {
-		t.Skip("this check exercises the unpatched dependency")
+func TestKprobeMultiBackendFallsBackBeforeRetargeting(t *testing.T) {
+	for name, supportErr := range map[string]error{
+		"unsupported_kernel": lib.ErrNotSupported,
+		"missing_dependency": errors.New("companion ebpf-manager patch unavailable"),
+		"permission_denied":  os.ErrPermission,
+		"probe_failure":      errors.New("unexpected capability probe failure"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("DD_CWS_KPROBE_MULTI_EXPERIMENT", "true")
+			checked := false
+			backend := &kprobeMultiBackend{checkSupport: func() error {
+				checked = true
+				return supportErr
+			}}
+			// A nil manager proves fallback happens before accessing or changing
+			// any program specs, keeping callers and tail-call targets on legacy.
+			require.NoError(t, backend.BeforeInit(nil, names.ModuleName{}, nil))
+			require.True(t, checked)
+		})
 	}
+}
+
+func TestKprobeMultiBackendPreservesManagerErrors(t *testing.T) {
 	t.Setenv("DD_CWS_KPROBE_MULTI_EXPERIMENT", "true")
-	require.ErrorContains(t, (&kprobeMultiBackend{}).BeforeInit(nil, names.ModuleName{}, nil), "companion ebpf-manager patch")
+	backend := &kprobeMultiBackend{checkSupport: func() error { return nil }}
+	m := &manager.Manager{}
+	_, expectedErr := m.GetProgramSpecs()
+	require.Error(t, expectedErr)
+	// Capability fallback must not hide unrelated initialization failures.
+	require.ErrorIs(t, backend.BeforeInit(m, names.ModuleName{}, nil), expectedErr)
 }
