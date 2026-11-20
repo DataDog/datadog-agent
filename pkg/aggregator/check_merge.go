@@ -30,8 +30,15 @@ import (
 // Points are held per timestamp, of which there are only a few at a time: a flush checks each timestamp once, and
 // drops the series it sends along with their map.
 type checkOutputMerger struct {
-	series   map[int64]map[ckey.ContextKey]*metrics.Serie
+	series   map[int64]map[serieKey]*metrics.Serie
 	sketches map[int64]map[ckey.ContextKey]*metrics.SketchSeries
+}
+
+// serieKey identifies a merged series at a timestamp: points of different types are never added up. Both are sent,
+// and the intake keeps one, as for any two sources of a series with different types.
+type serieKey struct {
+	contextKey ckey.ContextKey
+	mtype      metrics.APIMetricType
 }
 
 // mergedSketch is a sketch series handed to the merger, with the key of the series it merges into.
@@ -47,16 +54,16 @@ const maxHold = int64(time.Hour / time.Second)
 // newCheckOutputMerger returns an empty merger.
 func newCheckOutputMerger() *checkOutputMerger {
 	return &checkOutputMerger{
-		series:   make(map[int64]map[ckey.ContextKey]*metrics.Serie),
+		series:   make(map[int64]map[serieKey]*metrics.Serie),
 		sketches: make(map[int64]map[ckey.ContextKey]*metrics.SketchSeries),
 	}
 }
 
 // heldAt returns the map of what's held for a timestamp, creating it if there is none.
-func heldAt[T any](held map[int64]map[ckey.ContextKey]T, timestamp int64) map[ckey.ContextKey]T {
+func heldAt[K comparable, T any](held map[int64]map[K]T, timestamp int64) map[K]T {
 	byKey, ok := held[timestamp]
 	if !ok {
-		byKey = make(map[ckey.ContextKey]T)
+		byKey = make(map[K]T)
 		held[timestamp] = byKey
 	}
 	return byKey
@@ -68,12 +75,13 @@ func (m *checkOutputMerger) mergeSeries(series []*metrics.Serie) {
 		for _, point := range serie.Points {
 			timestamp := int64(point.Ts)
 			byKey := heldAt(m.series, timestamp)
-			merged, held := byKey[serie.ContextKey]
+			key := serieKey{contextKey: serie.ContextKey, mtype: serie.MType}
+			merged, held := byKey[key]
 			if !held {
 				merged = new(metrics.Serie)
 				*merged = *serie
 				merged.Points = []metrics.Point{{Ts: float64(timestamp)}}
-				byKey[serie.ContextKey] = merged
+				byKey[key] = merged
 			} else {
 				merged.NoIndex = merged.NoIndex || serie.NoIndex
 				merged.Source = min(merged.Source, serie.Source)

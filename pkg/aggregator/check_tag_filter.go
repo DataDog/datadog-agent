@@ -18,11 +18,14 @@ import (
 // identity it filters to, which the contexts of every check sampler that filter to it share.
 
 // typeFiltersAtOutput returns whether check samplers can filter the tags of a metric type from their output: the types
-// whose sources' points add up.
-func typeFiltersAtOutput(mtype metrics.MetricType) bool {
+// whose sources' points add up. Histogram buckets report HistogramType, like ordinary histograms, whose statistics
+// don't add up.
+func typeFiltersAtOutput(mtype metrics.MetricType, fromHistogramBuckets bool) bool {
 	switch mtype {
-	case metrics.DistributionType, metrics.CounterType:
+	case metrics.DistributionType, metrics.CounterType, metrics.CountType, metrics.MonotonicCountType:
 		return true
+	case metrics.HistogramType:
+		return fromHistogramBuckets
 	}
 	return false
 }
@@ -99,7 +102,10 @@ func (t *filteredIdentityTable) get(ref uint32) *filteredIdentity {
 // change nothing, as only output that adds up across sources is merged. The resolver's buffers must hold the
 // context's tags.
 func (cr *contextResolver) trackOutput(context *Context, metricSampleContext metrics.MetricSampleContext, filterList metricname.TagMatcher) {
-	if cr.filteredIdentities == nil || !cr.tagFilterEnabled || context.filterable || !typeFiltersAtOutput(metricSampleContext.GetMetricType()) {
+	if cr.filteredIdentities == nil || !cr.tagFilterEnabled || context.filterable {
+		return
+	}
+	if _, fromBuckets := metricSampleContext.(*metrics.HistogramBucket); !typeFiltersAtOutput(metricSampleContext.GetMetricType(), fromBuckets) {
 		return
 	}
 	context.filterable = true

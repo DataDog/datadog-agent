@@ -466,10 +466,10 @@ func (cs *CheckSampler) refilter(filterList metricname.TagMatcher) {
 	cs.contextResolver.resolver.refilter(filterList)
 }
 
-// addsUp returns whether a series' points add up across sources, so that it can be merged: only a counter's own
-// series. A filtered context can also send other series, which keep their tags: those of another metric type sharing
-// its name and tags, such as a histogram's statistics, and those of metric state that an earlier context with the
-// same key left behind.
+// addsUp returns whether a series' points add up across sources, so that it can be merged: only the own series of a
+// counter, count or monotonic count. A filtered context can also send other series, which keep their tags: those of
+// another metric type sharing its name and tags, such as a histogram's statistics, and those of metric state that an
+// earlier context with the same key left behind.
 func addsUp(serie *metrics.Serie) bool {
-	return serie.NameSuffix == "" && serie.MType == metrics.APIRateType
+	return serie.NameSuffix == "" && (serie.MType == metrics.APICountType || serie.MType == metrics.APIRateType)
 }
