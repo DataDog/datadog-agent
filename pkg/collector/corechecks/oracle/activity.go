@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -324,14 +325,17 @@ AND status = 'ACTIVE'`)
 		sessionRow.OpFlags = sample.OpFlags
 
 		statement := ""
+		var statementLength int64
 		obfuscate := true
 		var hasRealSQLText bool
 		if sample.Statement.Valid && sample.Statement.String != "" && !previousSQL {
 			// If we captured the statement, we are assigning the value
 			statement = sample.Statement.String
+			statementLength = sample.StatementLength.Int64
 			hasRealSQLText = true
 		} else if previousSQL && sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
 			statement = sample.PrevSQLFullText.String
+			statementLength = sample.PrevSQLFullTextLength.Int64
 			hasRealSQLText = true
 		} else if (sample.OpFlags & 8) == 8 {
 			statement = "LOG ON/LOG OFF"
@@ -349,12 +353,9 @@ AND status = 'ACTIVE'`)
 		}
 
 		if hasRealSQLText {
-			/*
-			 * If the statement length is maxSQLTextLength characters, we are assuming that the statement was truncated,
-			 * so we are trying to fetch it complete. The full statement is stored in a LOB, so we are calling
-			 * getFullSQLText which doesn't leak PGA memory
-			 */
-			if len(statement) == maxSQLTextLength {
+			// Compare the source length with the returned characters, not UTF-8 bytes.
+			// A substring can also end early to avoid splitting a surrogate pair.
+			if statementLength > int64(utf8.RuneCountInString(statement)) {
 				var fetchedStatement string
 				err = getFullSQLText(c, &fetchedStatement, "sql_id", sessionRow.SQLID)
 				if err != nil {
