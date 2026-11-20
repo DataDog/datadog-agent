@@ -58,8 +58,9 @@ const (
 
 	sourceMapEndpoint = "/api/v2/srcmap"
 
-	symbolCopyTimeout = 10 * time.Second
-	uploadTimeout     = 15 * time.Second
+	symbolCopyTimeout       = 10 * time.Second
+	uploadTimeout           = 15 * time.Second
+	minUploadBytesPerSecond = 1024 * 1024
 	// DefaultMemoryBudget is the symbol upload memory budget used when the
 	// process runs without a cgroup memory limit.
 	//
@@ -118,7 +119,7 @@ func NewDatadogSymbolUploader(ctx context.Context, cfg *SymbolUploaderConfig) (*
 
 	compressDebugSections := !cfg.DisableDebugSectionCompression && CheckObjcopyZstdSupport(ctx)
 
-	httpClient := &http.Client{Timeout: uploadTimeout}
+	httpClient := &http.Client{}
 	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
 	if ok && !cfg.UseHTTP2 {
 		// This is a copy of http.DefaultTransport, but with the TLSNextProto map removed
@@ -545,6 +546,13 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 	}
 	defer symbolFile.Close()
 
+	symbolFileInfo, err := symbolFile.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat symbol file: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, uploadDeadline(symbolFileInfo.Size()))
+	defer cancel()
+
 	pipeR, pipeW := io.Pipe()
 
 	var compressed io.WriteCloser
@@ -604,6 +612,10 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 	}
 
 	return nil
+}
+
+func uploadDeadline(size int64) time.Duration {
+	return uploadTimeout + time.Duration(size/minUploadBytesPerSecond)*time.Second
 }
 
 func streamRequestBody(symbolFile *os.File, e *symbolUploadRequestMetadata, mw *multipart.Writer) error {
