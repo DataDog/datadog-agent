@@ -1600,8 +1600,14 @@ func TestRefreshOutputAdditionalEndpoints(t *testing.T) {
 
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
-	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
-		return secretValues, nil
+	resolver.fetchHookFunc = func(handles []string) (map[string]string, error) {
+		values := make(map[string]string, len(handles))
+		for _, handle := range handles {
+			if value, found := secretValues[handle]; found {
+				values[handle] = value
+			}
+		}
+		return values, nil
 	}
 
 	// Match the E2E fixture, including a slash-containing endpoint key, to cover refresh path formatting.
