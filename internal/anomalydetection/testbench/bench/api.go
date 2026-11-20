@@ -1364,6 +1364,7 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 
 	defaults := observerimpl.DefaultAnomalyScorerConfig()
 	req := replayRequest{AnomalyScorerConfig: defaults.AnomalyScorerConfig, CooldownSecs: defaults.CooldownSecs}
+	req.ReorderingWindowSecs = testbenchReorderWindowSecs
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		api.writeError(w, http.StatusBadRequest, "invalid config: "+err.Error())
 		return
@@ -1374,6 +1375,10 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 	mode := req.Mode
 	if mode != scorerReplayReordered && mode != scorerReplayDetection {
 		mode = scorerReplayChangePoint
+	}
+	if mode != scorerReplayReordered {
+		req.ReorderingWindowSecs = 0
+		req.LateAnomalyBehavior = "clamp"
 	}
 
 	sv := api.tb.getStateView()
@@ -1415,35 +1420,13 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 			})
 			return
 		}
-		if mode == scorerReplayDetection {
-			req.AnomalyScorerConfig.ReorderingWindowSecs = 0
-			req.AnomalyScorerConfig.LateAnomalyBehavior = "clamp"
-		} else if req.AnomalyScorerConfig.ReorderingWindowSecs <= 0 {
-			// The UI asks for reordered replay with a positive window; fall back
-			// to the testbench default so an omitted field still exercises replay.
-			req.AnomalyScorerConfig.ReorderingWindowSecs = testbenchReorderWindowSecs
-		}
-		if req.AnomalyScorerConfig.LateAnomalyBehavior == "" {
-			req.AnomalyScorerConfig.LateAnomalyBehavior = "clamp"
-		}
 		api.writeJSON(w, api.replayScoresFromArrivals(req, history, mode))
 		return
 	}
 
-	// Sort anomalies by timestamp so the scorer processes time monotonically.
-	//
-	// Known limitation: scan detectors (scanmw, scanwelch) emit changepoint timestamps
-	// that are historically earlier than the engine tick at which the anomaly was
-	// produced. In the live agent, ProcessAnomaly clamps such anomalies to
-	// lastAdvancedSec+1 via the engine detection tick. Faithfully replicating that
-	// requires storing the engine arrival time alongside the anomaly timestamp, which
-	// Anomaly.Timestamp does not currently encode. Sorting by Timestamp places scan
-	// anomalies at their changepoint second rather than their detection second; this
-	// is a known approximation in the Scorer tab for scan-detector scenarios.
-	sorted := make([]observerdef.Anomaly, len(anomalies))
-	copy(sorted, anomalies)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Timestamp < sorted[j].Timestamp
+	// Change-point replay ignores arrival order.
+	sort.Slice(anomalies, func(i, j int) bool {
+		return anomalies[i].Timestamp < anomalies[j].Timestamp
 	})
 
 	scorerCfg := observerimpl.DefaultAnomalyScorerConfig()
@@ -1452,8 +1435,8 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 	scorerCfg.CooldownSecs = req.CooldownSecs
 	scorer := observerimpl.NewAnomalyScorer(scorerCfg)
 
-	first := sorted[0].Timestamp
-	lastAnalyzed := sorted[len(sorted)-1].Timestamp
+	first := anomalies[0].Timestamp
+	lastAnalyzed := anomalies[len(anomalies)-1].Timestamp
 	history := sv.ScorerHistory()
 	if history.Available {
 		if len(history.Buckets) > 0 && history.Buckets[0].Second < first {
@@ -1479,8 +1462,8 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 	var reports []scorerReport
 	storage := api.tb.debug.StorageReader()
 	for sec := first; sec <= last; sec++ {
-		for ai < len(sorted) && sorted[ai].Timestamp == sec {
-			scorer.ProcessAnomaly(sorted[ai])
+		for ai < len(anomalies) && anomalies[ai].Timestamp == sec {
+			scorer.ProcessAnomaly(anomalies[ai])
 			ai++
 		}
 		scorer.Advance(sec)
@@ -1539,6 +1522,7 @@ func (api *BenchAPI) replayScoresFromArrivals(
 	for _, advance := range history.Advances {
 		for arrivalIdx < advance.ArrivalEnd && arrivalIdx < len(history.Arrivals) {
 			anomaly := history.Arrivals[arrivalIdx]
+			scorer.ProcessAnomaly(anomaly)
 			scoringSecond, lateAction := effectiveScoringSecond(
 				anomaly.Timestamp, prevDataTime, advance.DataTime, windowSecs, behavior,
 			)
@@ -1591,6 +1575,9 @@ func effectiveScoringSecond(anomalyTS, prevDataTime, dataTime, windowSecs int64,
 		return anomalyTS, ""
 	}
 	if windowSecs <= 0 {
+		if behavior == "ignore" {
+			return 0, "ignored"
+		}
 		return prevDataTime + 1, "clamped"
 	}
 	oldest := dataTime - windowSecs + 1
