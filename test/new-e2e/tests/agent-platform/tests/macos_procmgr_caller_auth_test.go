@@ -21,6 +21,7 @@ import (
 const (
 	macosCallerAuthEntry      = "e2e-caller-auth"
 	macosCallerAuthAgentEntry = "e2e-caller-auth-agent"
+	macosCallerAuthStartEntry = "e2e-caller-auth-start"
 	// _dd-agent is in group daemon, so it can reach the socket, but it is not root.
 	macosCallerAuthAgentCLI = "sudo -u _dd-agent " + macosProcmgrCLI
 
@@ -96,8 +97,8 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthEntry); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthEntry, err)
 			}
-			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosSysprobeProcess); err != nil {
-				t.Logf("cleanup: failed to stop %s: %v", macosSysprobeProcess, err)
+			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthStartEntry); err != nil {
+				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthStartEntry, err)
 			}
 			if _, err := client.Execute("sudo pkill -f '^/bin/sleep " + sleepArg + "$'"); err != nil {
 				t.Logf("cleanup: no leftover child for /bin/sleep %s or pkill failed: %v", sleepArg, err)
@@ -155,8 +156,16 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		assert.NoError(t, err, "dd-procmgr %s as _dd-agent", args)
 	}
 
+	// A skipped sleep, not the shipped system-probe. A regression must not launch a second
+	// system-probe next to the legacy LaunchDaemon, which cleanup cannot tell apart.
+	_, err = client.Execute("sudo " + macosProcmgrCLI + " create --name " + macosCallerAuthStartEntry + " --command /bin/sleep --args " + sleepArg + " --no-auto-start --restart-policy never")
+	require.NoError(t, err)
+	deniedTarget := macosProcmgrDescribe(t, client, macosCallerAuthStartEntry)
+	assert.Equal(t, "Skipped", deniedTarget.State)
+	assert.Equal(t, 0, deniedTarget.Pid)
+
 	assertMacosProcmgrRequiresRoot(t, client, macosCallerAuthAgentCLI+" create --name "+macosCallerAuthAgentEntry+" --command /bin/sleep --args 600 --no-auto-start")
-	assertMacosProcmgrRequiresRoot(t, client, macosCallerAuthAgentCLI+" start "+macosSysprobeProcess)
+	assertMacosProcmgrRequiresRoot(t, client, macosCallerAuthAgentCLI+" start "+macosCallerAuthStartEntry)
 	assertMacosProcmgrRequiresRoot(t, client, macosCallerAuthAgentCLI+" stop "+macosCallerAuthEntry)
 	denied := assertMacosProcmgrRequiresRoot(t, client, macosCallerAuthAgentCLI+" start does-not-exist")
 	deniedLower := strings.ToLower(denied)
@@ -167,6 +176,9 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	stillRunning := macosProcmgrDescribe(t, client, macosCallerAuthEntry)
 	assert.Equal(t, "Running", stillRunning.State)
 	assert.Equal(t, running.Pid, stillRunning.Pid)
+	stillSkipped := macosProcmgrDescribe(t, client, macosCallerAuthStartEntry)
+	assert.Equal(t, "Skipped", stillSkipped.State)
+	assert.Equal(t, 0, stillSkipped.Pid)
 	if names, ok := macosProcmgrListNames(t, client, "sudo "+macosProcmgrCLI+" list --json"); ok {
 		assert.NotContains(t, names, macosCallerAuthAgentEntry)
 	}
