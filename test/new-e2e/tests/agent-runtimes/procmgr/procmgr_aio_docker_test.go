@@ -475,6 +475,61 @@ EOS
 	s.Equal("term", strings.TrimSpace(term), "the forked child should receive SIGTERM from the cont-init process group")
 }
 
+// The script exits on TERM and leaves a child that ignores it. The entrypoint has to keep the
+// 5 second SIGKILL watchdog until that process group is empty. A stop well under 4 seconds means
+// the watchdog was cancelled when the script exited. Exit 137 means Docker's own timeout won.
+func (s *procmgrAIODockerSuite) TestDockerStopDuringContInitKillsTermIgnoringChild() {
+	image := s.agentImage(s.T())
+	name := "aio-stop-during-cont-init-ignore"
+	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(`bash -s <<'EOS'
+set -euo pipefail
+dir=$(mktemp -d)
+cat > "$dir/90-block" <<'EOF'
+#!/bin/sh
+trap 'exit 0' TERM
+/bin/sh -c 'trap "" TERM; echo ready > /fork-marker/child.ready; while :; do sleep 1; done' &
+while :; do sleep 1; done
+EOF
+chmod 0755 "$dir/90-block"
+printf '%s\n' "$dir"
+EOS
+`))
+	s.Require().NotEmpty(dir)
+
+	t := s.T()
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "rm -rf "+shSingleQuote(dir))
+	})
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro -v %s:/fork-marker %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(dir+"/90-block"),
+		shSingleQuote(dir),
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs := s.Env().RemoteHost.MustExecuteOn(c, "docker logs "+shSingleQuote(name)+" 2>&1")
+		assert.Contains(c, logs, "===== RUNNING /etc/cont-init.d/90-block =====")
+		ready := s.Env().RemoteHost.MustExecuteOn(c, "test -f "+shSingleQuote(dir+"/child.ready")+" && echo yes || echo no")
+		assert.Equal(c, "yes", strings.TrimSpace(ready))
+	}, 2*time.Minute, 2*time.Second)
+
+	started := time.Now()
+	s.Env().RemoteHost.MustExecute("docker stop -t 20 " + shSingleQuote(name))
+	elapsed := time.Since(started)
+	exitCode := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
+		"docker inspect -f '{{.State.ExitCode}}' " + shSingleQuote(name)))
+	s.Equal("143", exitCode, "docker stop during a TERM-ignoring cont-init child should exit 143")
+	s.GreaterOrEqual(elapsed, 4*time.Second, "the watchdog should stay until it SIGKILLs the child")
+	s.Less(elapsed, 15*time.Second, "the 5 second SIGKILL should finish before Docker's stop timeout")
+}
+
 // timeout 30: reaching dd-procmgrd would hang docker run.
 func (s *procmgrAIODockerSuite) TestContInitFailsFastWithoutAPIKey() {
 	image := s.agentImage(s.T())
