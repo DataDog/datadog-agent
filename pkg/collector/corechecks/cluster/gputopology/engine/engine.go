@@ -208,18 +208,32 @@ type LevelResult struct {
 	// node health.
 	LargestFreeSlots []Slots
 
+	// DegradedDomains counts, per state, the domains with usable capacity
+	// that also contain unusable nodes or unhealthy GPUs (see
+	// Domain.Degraded). The unavailable entry is always 0.
+	DegradedDomains StateCounts
+
 	DomainStats []Domain // sorted by Path
 }
 
 // Domain holds the stats of one domain.
 type Domain struct {
 	Path        []string // label values of levels 0..Depth
+	ID          string   // Path joined by "/", e.g. "block-a/rack-2"
 	Hosts       int      // labelled nodes attributed to the resource, in any state but missing_labels/unsupported
 	Allocatable int      // of in_topology nodes
 	Allocated   int      // clamped at Allocatable per node
 	Free        int
-	FreeSlots   []Slots // sum over hosts of floor(free/size), same sizes as the level
-	State       DomainState
+	// Unschedulable is the capacity of the domain's nodes that aren't
+	// in_topology, plus capacity - allocatable of its in_topology nodes.
+	Unschedulable int
+	FreeSlots     []Slots // sum over hosts of floor(free/size), same sizes as the level
+	State         DomainState
+	// Degraded is set when the domain has usable capacity but also contains
+	// a node that isn't in_topology or an unhealthy GPU. The state is
+	// measured on usable capacity only, so a rack with one cordoned host and
+	// nothing allocated is free and degraded.
+	Degraded bool
 }
 
 // Overcommit reports a node with more GPUs allocated than allocatable.
@@ -232,9 +246,10 @@ type Overcommit struct {
 
 // host is one labelled node, for one resource.
 type host struct {
-	path        []string // label values for every level
-	allocatable int      // 0 unless in_topology
-	allocated   int      // clamped at allocatable
+	path          []string // label values for every level
+	allocatable   int      // 0 unless in_topology
+	allocated     int      // clamped at allocatable
+	unschedulable int      // capacity if not in_topology, else capacity - allocatable
 }
 
 // Compute classifies the nodes, then groups them into domains for every
@@ -323,10 +338,11 @@ func computeUnit(u unit, nodes []classified, levels []string, alloc Allocations)
 		case NodeTainted:
 			rr.UnschedulableGPUs[ReasonTainted] += capacity
 		}
-		h := host{path: c.path}
+		h := host{path: c.path, unschedulable: capacity}
 		if state == NodeInTopology {
 			h.allocatable = min(max(c.node.Allocatable[resource], 0), capacity)
-			rr.UnschedulableGPUs[ReasonUnhealthy] += capacity - h.allocatable
+			h.unschedulable = capacity - h.allocatable
+			rr.UnschedulableGPUs[ReasonUnhealthy] += h.unschedulable
 			h.allocated = max(alloc[c.node.Name][resource], 0)
 			if h.allocated > h.allocatable {
 				overcommits = append(overcommits, Overcommit{Node: c.node.Name, Resource: resource, Allocatable: h.allocatable, Allocated: h.allocated})
@@ -358,9 +374,13 @@ func computeLevel(hosts []host, depth int, sizes []int) LevelResult {
 		key := strings.Join(path, "\x00")
 		d, ok := byKey[key]
 		if !ok {
-			d = &Domain{Path: slices.Clone(path), FreeSlots: newSlots(sizes)}
+			d = &Domain{Path: slices.Clone(path), ID: strings.Join(path, "/"), FreeSlots: newSlots(sizes)}
 			byKey[key] = d
 		}
+		if h.unschedulable > 0 || h.allocatable == 0 {
+			d.Degraded = true // reset below for domains without usable capacity
+		}
+		d.Unschedulable += h.unschedulable
 		free := h.allocatable - h.allocated
 		d.Hosts++
 		d.Allocatable += h.allocatable
@@ -374,7 +394,11 @@ func computeLevel(hosts []host, depth int, sizes []int) LevelResult {
 	lvl := LevelResult{Depth: depth, LargestFreeSlots: newSlots(sizes)}
 	for _, d := range byKey {
 		d.State = stateOf(*d)
+		d.Degraded = d.Degraded && d.State != DomainUnavailable
 		lvl.Domains[d.State]++
+		if d.Degraded {
+			lvl.DegradedDomains[d.State]++
+		}
 		lvl.FreeGPUs[d.State] += d.Free
 		lvl.AllocatedGPUs[d.State] += d.Allocated
 		lvl.LargestFreeGPUs = max(lvl.LargestFreeGPUs, d.Free)
