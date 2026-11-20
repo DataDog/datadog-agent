@@ -119,6 +119,12 @@ func (r *Resolver) ResolveFullFilePath(e *model.FileFields, pidCtx *model.PIDCon
 
 // SetMountRoot set the mount point information
 func (r *Resolver) SetMountRoot(_ *model.Event, e *model.Mount) error {
+	// a namespace dentry has an empty name before Linux 5.2 (4.19.y aside), which reads as a failed resolution
+	if e.GetFSType() == "nsfs" {
+		e.RootStr = "/"
+		return nil
+	}
+
 	var err error
 
 	e.RootStr, err = r.dentryResolver.Resolve(e.RootPathKey, true, dentry.CallerMountRoot)

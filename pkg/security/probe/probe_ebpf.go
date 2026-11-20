@@ -668,7 +668,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.probe.startTime, p.opts.FilterStore)
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.triggerNopEvent, p.hostname, p.probe.startTime, p.opts.FilterStore)
 		if err != nil {
 			return err
 		}
@@ -1774,8 +1774,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
-				netNSPath := utils.NewNSPathFromPath(mountPath, utils.NetNsType)
-				_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, netNSPath)
+				p.Resolvers.NamespaceResolver.PushNetworkNamespaceMountRequest(nsid, event.PIDContext.Pid, mountPath)
 			}
 		}
 
@@ -1788,8 +1787,11 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
-			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
-				p.FlushNetworkNamespace(namespace)
+			// a dropped release would leave our handle keeping the namespace alive, so flush it here instead
+			if !p.Resolvers.NamespaceResolver.PushNetworkNamespaceUnmountRequest(nsid) {
+				if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
+					p.FlushNetworkNamespace(namespace)
+				}
 			}
 		}
 
@@ -2325,6 +2327,9 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		}
 		return false
 	case model.NopEventType:
+		if p.profileManager != nil {
+			p.profileManager.DrainPendingEvents()
+		}
 		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
 		seclog.Debugf("nop event received, skipping further event handling")
 		return false
@@ -2817,6 +2822,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 func (p *EBPFProbe) updateEBPFCheckMapping() {
 	ddebpf.ClearProgramIDMappings("cws")
 	p.Manager.AddNameMappings("cws")
+	p.Resolvers.TCResolver.AddProgramNameMappings()
 	ddebpf.AddProbeFDMappings(p.Manager.Get())
 
 }
@@ -4396,6 +4402,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDInode, "struct dentry", "d_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDName, "struct dentry", "d_name")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameQstrName, "struct qstr", "name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameQstrLen, "struct qstr", "len")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDParent, "struct dentry", "d_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathDentry, "struct path", "dentry")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathMnt, "struct path", "mnt")

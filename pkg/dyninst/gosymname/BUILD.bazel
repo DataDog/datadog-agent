@@ -33,6 +33,7 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":gosymname"],
+    embedsrcs = ["testdata/symbols.yaml"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

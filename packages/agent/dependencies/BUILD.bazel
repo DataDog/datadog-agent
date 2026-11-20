@@ -84,6 +84,7 @@ dd_collect_dependencies(
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
             "@krb5//:kinit_pkg",
+            "@openssl//:openssl_bin_pkg",
         ],
         "//packages/agent:linux_fips": [
             "//cmd/agent",
@@ -96,6 +97,7 @@ dd_collect_dependencies(
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
             "@krb5//:kinit_pkg",
+            "@openssl//:openssl_bin_pkg",
         ],
         "@platforms//os:macos": [
             "//cmd/agent",
@@ -103,6 +105,7 @@ dd_collect_dependencies(
             "//cmd/process-agent",
             "//cmd/security-agent",
             "//cmd/trace-agent",
+            "@openssl//:openssl_bin_pkg",
         ],
         "//conditions:default": [],
     }),

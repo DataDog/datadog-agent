@@ -468,7 +468,7 @@ func (s *baseAgentMSISuite) hasInstallOnlyOption(installOptions ...windowsAgent.
 	for _, opt := range installOptions {
 		_ = opt(params)
 	}
-	return params.InstallOnly == "true"
+	return params.InstallOnly == "1" || strings.EqualFold(params.InstallOnly, "true")
 }
 
 // waitForServiceRunning waits for a service to reach Running status

@@ -47,6 +47,9 @@ func (c *ntmConfig) ReadInConfig() error {
 	c.file = newInnerNode(nil)
 
 	c.findConfigFile()
+	if _, err := os.Stat(c.configFile); errors.Is(err, os.ErrNotExist) {
+		return model.NewMissingConfigFileError(err)
+	}
 	if err := c.readInConfig(c.configFile); err != nil {
 		// For compatibility with Viper, we wrap the error with ErrConfigFileNotFound. Note
 		// that this case can be reached even if the config file *is* found. For example,

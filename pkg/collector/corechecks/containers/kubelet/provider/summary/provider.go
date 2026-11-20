@@ -242,7 +242,7 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 			continue
 		}
 		ctr, found := containerData[containerName]
-		if !found || ctr == nil && ctr.ID == "" {
+		if !found || ctr == nil || ctr.ID == "" {
 			log.Debugf(
 				"Container id not found from /pods for container: %s/%s/%s - no metrics will be sent",
 				podStats.PodRef.Namespace, podStats.PodRef.Name, containerName)
@@ -267,6 +267,9 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 		}
 		if containerStats.Memory != nil {
 			reportMetric(sender.Gauge, "memory.working_set", containerStats.Memory.WorkingSetBytes, tags)
+			// On Windows, kubelet reports container usageBytes (commit bytes) only when the runtime provides them,
+			// which containerd does from 2.2. Without them, memory.usage is not reported; use container.memory.usage,
+			// which the container checks read from the runtime.
 			reportMetric(sender.Gauge, "memory.usage", containerStats.Memory.UsageBytes, tags)
 		}
 		reportFsMetric(sender, containerStats.Rootfs, "", tags)

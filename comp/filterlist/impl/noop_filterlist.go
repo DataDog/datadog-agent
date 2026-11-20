@@ -21,10 +21,10 @@ func NewNoopFilterList() filterlist.Component {
 func (*noopFilterList) OnUpdateMetricFilterList(_ func(metricname.Matcher, metricname.Matcher)) {}
 
 // OnUpdateTagFilterList does nothing.
-func (*noopFilterList) OnUpdateTagFilterList(_ func(filterlist.TagMatcher)) {}
+func (*noopFilterList) OnUpdateTagFilterList(_ func(metricname.TagMatcher)) {}
 
 // GetTagFilterList does nothing.
-func (*noopFilterList) GetTagFilterList() filterlist.TagMatcher {
+func (*noopFilterList) GetTagFilterList() metricname.TagMatcher {
 	return NewNoopTagMatcher()
 }
 
@@ -38,14 +38,6 @@ func (*noopFilterList) GetHistoFilterList() metricname.Matcher {
 	return metricname.NewMatcher([]string{}, false)
 }
 
-type noopTagMatcher struct{}
-
-func NewNoopTagMatcher() filterlist.TagMatcher {
-	return &noopTagMatcher{}
-}
-
-func (*noopTagMatcher) ShouldStripTags(_ string) (func(tag string) bool, bool) {
-	return func(_ string) bool {
-		return true
-	}, false
+func NewNoopTagMatcher() metricname.TagMatcher {
+	return metricname.TagMatcher{}
 }

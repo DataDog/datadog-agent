@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fix ECS Fargate tasks missing from Cloud Network Monitoring on Agent
+    7.85+, where ``network_config.direct_send`` is enabled by default. On
+    ECS Fargate, CNM connections payloads now include the Agent's global
+    tags (such as ``task_arn``, ``ecs_cluster_name`` and ``task_family``)
+    as host tags, so the task can be identified without a hostname. This
+    applies to payloads from both system-probe and the process-agent.

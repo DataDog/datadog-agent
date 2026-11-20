@@ -9,7 +9,9 @@ package marshaler
 // `DD-Payload-Type` HTTP header so that payloads can be attributed without decompressing them.
 //
 // The list of values is bounded and append-only: a value is never renamed nor reused for a
-// different payload. Adding one requires notifying the intake before the Agent release that ships it.
+// different payload. The intake keeps its own list of recognized values, so a new value must be
+// registered there before, or together with, the Agent release that sends it. See AGENTS.md in
+// this directory.
 type MetadataPayloadType string
 
 const (

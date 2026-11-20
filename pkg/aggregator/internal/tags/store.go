@@ -70,15 +70,13 @@ func (e *Entry) Release() {
 type Store struct {
 	tagsByKey map[ckey.TagsKey]*Entry
 	cap       int
-	enabled   bool
 	telemetry storeTelemetry
 }
 
 // NewStore returns new empty Store.
-func NewStore(enabled bool, name string) *Store {
+func NewStore(name string) *Store {
 	return &Store{
 		tagsByKey: map[ckey.TagsKey]*Entry{},
-		enabled:   enabled,
 		telemetry: newStoreTelemetry(name),
 	}
 }
@@ -92,12 +90,6 @@ func NewStore(enabled bool, name string) *Store {
 // Store is generally not thread-safe, except Release may be called
 // concurrently with other methods.
 func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumulator) *Entry {
-	if !tc.enabled {
-		return &Entry{
-			tags: tagsBuffer.Copy(),
-		}
-	}
-
 	entry := tc.tagsByKey[key]
 	if entry != nil {
 		// Can happen concurrently with Release().
