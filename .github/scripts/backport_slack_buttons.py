@@ -42,6 +42,9 @@ from slack_sdk.socket_mode.request import SocketModeRequest
 from slack_sdk.socket_mode.response import SocketModeResponse
 
 
+DEVX_OPS_CHANNEL = "#agent-devx-ops"
+
+
 def github_get(token: str, url: str) -> dict:
     resp = requests.get(
         url,
@@ -81,14 +84,24 @@ def main() -> int:
         owner_email = commits[-1]["commit"]["author"]["email"]
     except Exception as e:  # noqa: BLE001
         print(f"Could not resolve the PR owner's email: {e}")
+        notify_devx(
+            web, pr_number, env("PR_URL"), branches,
+            f"Could not resolve the PR owner's email from their commits ({e}).",
+        )
         output("outcome", "no_recipient")
         return 0
 
     try:
         user_id = web.users_lookupByEmail(email=owner_email)["user"]["id"]
     except Exception as e:  # noqa: BLE001
-        # External contributor or no Slack account: nobody to ask, skip silently.
+        # External contributor or no Slack account: nobody to DM, ask agent-devx-ops
+        # to handle the backport decision (e.g. by adding the label manually).
         print(f"No Slack user for {owner_email}: {e}")
+        notify_devx(
+            web, pr_number, env("PR_URL"), branches,
+            f"Could not DM the PR owner (no Slack user for {owner_email}). "
+            "Please assess the backport yourself and add the label if warranted.",
+        )
         output("outcome", "no_recipient")
         return 0
 
@@ -240,3 +253,18 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+
+def notify_devx(web, pr_number: str, pr_url: str, branches: list[str], problem: str) -> None:
+    """Tell #agent-devx-ops when the PR owner cannot be reached, so the backport
+    decision is not silently dropped."""
+    message = (
+        f":warning: Backport assessment could not reach the owner of "
+        f"<{pr_url}|#{pr_number}> (candidates: {', '.join(f'`{b}`' for b in branches)}). "
+        f"{problem}"
+    )
+    try:
+        web.chat_postMessage(channel=DEVX_OPS_CHANNEL, text=message)
+    except Exception as e:  # noqa: BLE001
+        print(f"Could not notify {DEVX_OPS_CHANNEL} (non-fatal): {e}", flush=True)
