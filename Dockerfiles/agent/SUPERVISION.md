@@ -96,8 +96,9 @@ the s6 behavior.
 The copy is staged under `/var/run/s6` when that directory is writable and executable.
 Otherwise it is staged under `${TMPDIR:-/tmp}`, then under `/opt/datadog-agent/run`.
 `/opt/datadog-agent/run` is a VOLUME. A graceful stop removes the fallback directory this
-start created. If `dd-procmgrd` is killed before that, the directory remains until the
-volume is removed.
+start created, and only when the token written into that directory at start still matches.
+If `dd-procmgrd` is killed or crashes before that, the directory remains until the volume
+is removed.
 
 ## Useful commands
 

@@ -836,10 +836,22 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     assert!(script.contains(
         r#"DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}""#
     ));
-    assert!(
-        script.contains("unset DD_PM_CLEANUP_DIR")
-            && script.contains("export DD_PM_CLEANUP_DIR=$cleanup_dir"),
-        "the daemon removes only the fallback directory this start created"
+    let cleanup_block = [
+        "unset DD_PM_CLEANUP_DIR",
+        "unset DD_PM_CLEANUP_TOKEN",
+        r#"if [[ -n "$cleanup_dir" ]]; then"#,
+        "token=$(cat /proc/sys/kernel/random/uuid)",
+        r#"printf '%s\n' "$token" >"$cleanup_dir/.dd-procmgr-cleanup""#,
+        r#"chmod 0600 "$cleanup_dir/.dd-procmgr-cleanup""#,
+        "export DD_PM_CLEANUP_DIR=$cleanup_dir",
+        "export DD_PM_CLEANUP_TOKEN=$token",
+        "fi",
+    ];
+    let cleanup_at = pos(cleanup_block[0]);
+    assert_eq!(
+        &code_lines[cleanup_at..cleanup_at + cleanup_block.len()],
+        &cleanup_block[..],
+        "unset both variables before the fallback check, and export both only inside it"
     );
     assert!(
         !script.contains("IPC_CERT_FILE_PATH"),

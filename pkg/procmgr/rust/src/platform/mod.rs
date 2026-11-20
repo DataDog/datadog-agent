@@ -37,12 +37,17 @@ pub(crate) fn initial_spawn_identity(
 #[cfg(unix)]
 const STARTUP_STAGING_PREFIX: &str = "procmgr-processes.d.";
 
+/// File the entrypoint writes into the fallback directory for this launch.
+#[cfg(unix)]
+const STAGING_TOKEN_FILE: &str = ".dd-procmgr-cleanup";
+
 /// Remove `DD_PM_CLEANUP_DIR` after the children have stopped.
 ///
 /// The entrypoint sets that variable to the one fallback directory this start
-/// created. The name check refuses a primary path, a caller-supplied path, and
-/// anything that is not that `mktemp` directory. Only the Linux container
-/// entrypoint sets the variable, so other platforms do nothing.
+/// created, and `DD_PM_CLEANUP_TOKEN` to the token it wrote into that directory.
+/// Removal also requires the directory to be owned by this process. A stale path
+/// or a directory owned by someone else is left in place. Only the Linux
+/// container entrypoint sets the variables, so other platforms do nothing.
 #[cfg(unix)]
 pub fn remove_startup_staging_dir() {
     let Ok(raw) = std::env::var("DD_PM_CLEANUP_DIR") else {
@@ -52,7 +57,14 @@ pub fn remove_startup_staging_dir() {
         return;
     }
     let path = Path::new(&raw);
-    if let Err(err) = remove_checked_staging_dir(path) {
+    let Ok(token) = std::env::var("DD_PM_CLEANUP_TOKEN") else {
+        log::warn!(
+            "refusing to remove DD_PM_CLEANUP_DIR {}: no cleanup token",
+            path.display()
+        );
+        return;
+    };
+    if let Err(err) = remove_checked_staging_dir(path, &token) {
         log::warn!(
             "refusing to remove DD_PM_CLEANUP_DIR {}: {err}",
             path.display()
@@ -64,11 +76,49 @@ pub fn remove_startup_staging_dir() {
 pub fn remove_startup_staging_dir() {}
 
 #[cfg(unix)]
-fn remove_checked_staging_dir(path: &Path) -> Result<(), String> {
+fn remove_checked_staging_dir(path: &Path, token: &str) -> Result<(), String> {
     check_startup_staging_dir(path).map_err(str::to_string)?;
+    check_staging_launch_token(path, token).map_err(str::to_string)?;
     make_tree_removable(path).map_err(|err| err.to_string())?;
     std::fs::remove_dir_all(path).map_err(|err| err.to_string())?;
     log::info!("removed staging directory {}", path.display());
+    Ok(())
+}
+
+/// The token and the owner are what tie the path to the directory this launch created.
+#[cfg(unix)]
+fn check_staging_launch_token(path: &Path, token: &str) -> Result<(), &'static str> {
+    use std::os::unix::fs::MetadataExt;
+    if token.len() < 32
+        || !token
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    {
+        return Err("cleanup token is not a launch token");
+    }
+    let meta = std::fs::symlink_metadata(path).map_err(|_| "path metadata could not be read")?;
+    if meta.uid() != nix::unistd::Uid::effective().as_raw() {
+        return Err("directory is not owned by this process");
+    }
+    let token_path = path.join(STAGING_TOKEN_FILE);
+    let file_meta = match std::fs::symlink_metadata(&token_path) {
+        Ok(meta) => meta,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Err("cleanup token file is missing");
+        }
+        Err(_) => return Err("cleanup token file could not be read"),
+    };
+    if file_meta.file_type().is_symlink() {
+        return Err("cleanup token file is a symlink");
+    }
+    if !file_meta.file_type().is_file() {
+        return Err("cleanup token file is not a regular file");
+    }
+    let bytes = std::fs::read(&token_path).map_err(|_| "cleanup token file could not be read")?;
+    let stored = bytes.strip_suffix(b"\n").unwrap_or(&bytes);
+    if stored != token.as_bytes() {
+        return Err("cleanup token does not match this directory");
+    }
     Ok(())
 }
 
@@ -129,7 +179,10 @@ fn make_tree_removable(path: &Path) -> std::io::Result<()> {
 
 #[cfg(all(test, unix))]
 mod startup_staging_tests {
-    use super::{STARTUP_STAGING_PREFIX, check_startup_staging_dir, remove_checked_staging_dir};
+    use super::{
+        STAGING_TOKEN_FILE, STARTUP_STAGING_PREFIX, check_startup_staging_dir,
+        remove_checked_staging_dir,
+    };
     use std::fs;
     use std::path::Path;
 
@@ -160,7 +213,9 @@ mod startup_staging_tests {
         let other = root.join("procmgr-processes.d");
         fs::create_dir_all(&other).unwrap();
 
-        remove_checked_staging_dir(&ours).unwrap();
+        let token = "01234567-89ab-cdef-0123-456789abcdef";
+        fs::write(ours.join(STAGING_TOKEN_FILE), format!("{token}\n")).unwrap();
+        remove_checked_staging_dir(&ours, token).unwrap();
         assert!(!ours.exists());
         assert!(other.exists());
         assert!(check_startup_staging_dir(&other).is_err());
@@ -190,6 +245,49 @@ mod startup_staging_tests {
             assert!(check_startup_staging_dir(Path::new(&raw)).is_err(), "{raw}");
         }
         assert!(target.join("keep").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn refuses_a_directory_without_this_launch_token() {
+        let root =
+            std::env::temp_dir().join(format!("procmgr-staging-token-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let ours = root.join(staging_name());
+        fs::create_dir_all(&ours).unwrap();
+        let token = "0123456789abcdef0123456789abcdef";
+        fs::write(ours.join(STAGING_TOKEN_FILE), format!("{token}\n")).unwrap();
+        let wrong = "fedcba9876543210fedcba9876543210";
+
+        assert!(remove_checked_staging_dir(&ours, wrong).is_err());
+        assert!(ours.exists());
+        assert!(remove_checked_staging_dir(&ours, "").is_err());
+        assert!(ours.exists());
+        fs::remove_file(ours.join(STAGING_TOKEN_FILE)).unwrap();
+        assert!(remove_checked_staging_dir(&ours, token).is_err());
+        assert!(ours.exists());
+
+        let short = "short";
+        fs::write(ours.join(STAGING_TOKEN_FILE), format!("{short}\n")).unwrap();
+        assert!(remove_checked_staging_dir(&ours, short).is_err());
+        assert!(ours.exists());
+
+        fs::remove_file(ours.join(STAGING_TOKEN_FILE)).unwrap();
+        let token_target = root.join("token-target");
+        fs::write(&token_target, format!("{token}\n")).unwrap();
+        std::os::unix::fs::symlink(&token_target, ours.join(STAGING_TOKEN_FILE)).unwrap();
+        assert!(remove_checked_staging_dir(&ours, token).is_err());
+        assert!(ours.exists());
+        assert!(token_target.exists());
+
+        fs::remove_file(ours.join(STAGING_TOKEN_FILE)).unwrap();
+        fs::create_dir(ours.join(STAGING_TOKEN_FILE)).unwrap();
+        assert_eq!(
+            remove_checked_staging_dir(&ours, token).unwrap_err(),
+            "cleanup token file is not a regular file"
+        );
+        assert!(ours.exists());
         let _ = fs::remove_dir_all(&root);
     }
 }

@@ -199,11 +199,17 @@ EOF
 fi
 # The image VOLUME keeps this directory writable under Docker --read-only.
 export DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}"
-# Only the fallback directory this start created. Unset a caller-supplied value so the
-# daemon cannot remove some other path. Children do not inherit DD_PM_*.
+# Only the fallback directory this start created. Unset a caller-supplied path and token so
+# the daemon cannot remove some other directory. The token file is what ties the path to
+# this launch. Children do not inherit DD_PM_*.
 unset DD_PM_CLEANUP_DIR
+unset DD_PM_CLEANUP_TOKEN
 if [[ -n "$cleanup_dir" ]]; then
+    token=$(cat /proc/sys/kernel/random/uuid)
+    printf '%s\n' "$token" >"$cleanup_dir/.dd-procmgr-cleanup"
+    chmod 0600 "$cleanup_dir/.dd-procmgr-cleanup"
     export DD_PM_CLEANUP_DIR=$cleanup_dir
+    export DD_PM_CLEANUP_TOKEN=$token
 fi
 printf '===== STARTING dd-procmgrd =====\n'
 # set -e skips the EXIT trap when exec fails. execfail makes a failed exec return.
