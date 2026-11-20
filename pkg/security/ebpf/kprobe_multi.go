@@ -9,13 +9,13 @@ package ebpf
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
@@ -31,7 +31,7 @@ type kprobeMultiBackend struct {
 func (*kprobeMultiBackend) String() string { return "KprobeMultiBackend" }
 
 func (b *kprobeMultiBackend) BeforeInit(m *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
-	if os.Getenv("DD_CWS_KPROBE_MULTI_EXPERIMENT") != "true" {
+	if !pkgconfigsetup.SystemProbe().GetBool("event_monitoring_config.event_stream.use_kprobe_multi") {
 		return nil
 	}
 	checkSupport := b.checkSupport

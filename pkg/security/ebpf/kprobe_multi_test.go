@@ -10,6 +10,7 @@ package ebpf
 import (
 	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -17,6 +18,7 @@ import (
 	"github.com/cilium/ebpf/asm"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 )
 
@@ -45,9 +47,11 @@ func TestKprobeMultiBackendPreservesPrograms(t *testing.T) {
 }
 
 func TestKprobeMultiBackendDisabled(t *testing.T) {
+	t.Setenv("DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_KPROBE_MULTI", "")
 	for _, value := range []string{"", "false", "grouped", "grouped-return"} {
 		t.Run(value, func(t *testing.T) {
 			t.Setenv("DD_CWS_KPROBE_MULTI_EXPERIMENT", value)
+			configmock.NewSystemProbe(t)
 			// A disabled backend must neither query the kernel nor access the manager.
 			backend := &kprobeMultiBackend{checkSupport: func() error {
 				t.Fatal("disabled backend must not check support")
@@ -59,6 +63,7 @@ func TestKprobeMultiBackendDisabled(t *testing.T) {
 }
 
 func TestKprobeMultiBackendFallsBackBeforeRetargeting(t *testing.T) {
+	t.Setenv("DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_KPROBE_MULTI", "")
 	for name, supportErr := range map[string]error{
 		"unsupported_kernel": lib.ErrNotSupported,
 		"permission_denied":  os.ErrPermission,
@@ -66,6 +71,7 @@ func TestKprobeMultiBackendFallsBackBeforeRetargeting(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Setenv("DD_CWS_KPROBE_MULTI_EXPERIMENT", "true")
+			configmock.NewSystemProbe(t)
 			checked := false
 			backend := &kprobeMultiBackend{checkSupport: func() error {
 				checked = true
@@ -80,11 +86,50 @@ func TestKprobeMultiBackendFallsBackBeforeRetargeting(t *testing.T) {
 }
 
 func TestKprobeMultiBackendPreservesManagerErrors(t *testing.T) {
+	t.Setenv("DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_KPROBE_MULTI", "")
 	t.Setenv("DD_CWS_KPROBE_MULTI_EXPERIMENT", "true")
+	configmock.NewSystemProbe(t)
 	backend := &kprobeMultiBackend{checkSupport: func() error { return nil }}
 	m := &manager.Manager{}
 	_, expectedErr := m.GetProgramSpecs()
 	require.Error(t, expectedErr)
 	// Capability fallback must not hide unrelated initialization failures.
 	require.ErrorIs(t, backend.BeforeInit(m, names.ModuleName{}, nil), expectedErr)
+}
+
+func TestKprobeMultiBackendConfig(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		yamlValue string
+		envValue  string
+		legacyEnv string
+		wantCheck bool
+	}{
+		{name: "default"},
+		{name: "yaml_enabled", yamlValue: "true", wantCheck: true},
+		{name: "yaml_disabled", yamlValue: "false"},
+		{name: "env_enabled", envValue: "true", wantCheck: true},
+		{name: "legacy_env_enabled", legacyEnv: "true", wantCheck: true},
+		{name: "env_overrides_yaml_enabled", yamlValue: "true", envValue: "false"},
+		{name: "env_overrides_yaml_disabled", yamlValue: "false", envValue: "true", wantCheck: true},
+		{name: "legacy_env_overrides_yaml", yamlValue: "true", legacyEnv: "false"},
+		{name: "canonical_env_precedes_legacy", envValue: "false", legacyEnv: "true"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_KPROBE_MULTI", tt.envValue)
+			t.Setenv("DD_CWS_KPROBE_MULTI_EXPERIMENT", tt.legacyEnv)
+			cfg := configmock.NewSystemProbe(t)
+			if tt.yamlValue != "" {
+				cfg.SetConfigType("yaml")
+				require.NoError(t, cfg.ReadConfig(strings.NewReader("event_monitoring_config:\n  event_stream:\n    use_kprobe_multi: "+tt.yamlValue)))
+			}
+			checked := false
+			backend := &kprobeMultiBackend{checkSupport: func() error {
+				checked = true
+				return lib.ErrNotSupported
+			}}
+			require.NoError(t, backend.BeforeInit(nil, names.ModuleName{}, nil))
+			require.Equal(t, tt.wantCheck, checked)
+		})
+	}
 }
