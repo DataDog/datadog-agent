@@ -1,0 +1,145 @@
+name: Backport Slack confirm
+
+# DMs the PR owner on Slack when backport PRs are created for their merged PR.
+#
+# This uses pull_request_target (not pull_request) so the Slack token is available for
+# PRs merged from forks — GitHub withholds repository secrets on plain pull_request
+# events from forks. Like notify-community-pr.yml, this workflow never checks out or
+# runs code from the PR: it only reads the event payload and calls the GitHub and
+# Slack APIs.
+
+on:
+  pull_request_target:
+    types: [closed, labeled]
+
+permissions: {}
+
+jobs:
+  get-backport-targets:
+    name: Get backport targets
+    runs-on: ubuntu-latest
+    if: github.event.action == 'labeled' || github.event.pull_request.merged
+    outputs:
+      targets: ${{ steps.get-targets.outputs.targets }}
+    steps:
+      - name: Get backport targets
+        id: get-targets
+        env:
+          EVENT_ACTION: ${{ github.event.action }}
+          EVENT_LABEL_NAME: ${{ github.event.label.name }}
+          PR_LABEL_NAMES_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          # For 'labeled' event, use just the added label
+          # For 'closed' event, use all backport labels
+          if [[ "$EVENT_ACTION" == "labeled" ]]; then
+            if [[ "$EVENT_LABEL_NAME" =~ ^backport/([0-9]+\.[0-9]+\.x|main)$ ]]; then
+              targets=$(jq -cn --arg label "$EVENT_LABEL_NAME" '[$label]')
+              echo "targets=$targets" >> "$GITHUB_OUTPUT"
+            else
+              echo "targets=[]" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            # Extract all well-formed backport/* labels as JSON array
+            targets=$(jq -c '[.[] | select(test("^backport/([0-9]+\.[0-9]+\.x|main)$"))]' <<< "$PR_LABEL_NAMES_JSON")
+            echo "targets=$targets" >> "$GITHUB_OUTPUT"
+          fi
+
+  notify-backport-slack:
+    name: Notify PR owner on Slack
+    needs: get-backport-targets
+    if: needs.get-backport-targets.outputs.targets != '[]' && needs.get-backport-targets.outputs.targets != ''
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read # to look up the created backport PRs and the PR owner's commits
+    steps:
+      - name: Send Slack DM to PR owner
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          TARGET_BRANCHES: ${{ needs.get-backport-targets.outputs.targets }}
+        run: |
+          set -eu
+
+          # This workflow triggers as soon as the label lands or the PR closes, which
+          # races the Backport PR workflow that creates the backport PRs. Poll for up
+          # to 10 minutes until every target branch has one (a failed cherry-pick leg
+          # never gets one, so stop waiting for a branch once found or on timeout).
+          # Only PRs that are still open and created in the last hour are accepted:
+          # an older PR with the same deterministic head branch name (left over from
+          # a previous run) must not be announced as "just created".
+          deadline=$(( $(date +%s) + 600 ))
+          created=""
+          remaining="$TARGET_BRANCHES"
+          while (( $(date +%s) < deadline )); do
+            next=""
+            for target in $(jq -r '.[]' <<< "$remaining"); do
+              branch="${target/backport\//}" # strip the 'backport/' prefix
+              head="backport-${PR_NUMBER}-to-${branch}"
+              # The pulls endpoint is used instead of the search API: GitHub's search
+              # index updates asynchronously, so a just-created PR can be missing there.
+              url=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls?head=${GITHUB_REPOSITORY%%/*}:${head}&state=open&per_page=1" \
+                | jq -r --argjson cutoff "$(date -u -d '1 hour ago' +%s)" \
+                  '.[0] | select((.created_at | sub("\\.[0-9]+Z?$"; "Z") | fromdateiso8601) >= $cutoff) | .html_url // empty')
+              if [[ -n "$url" ]]; then
+                created+="${branch}|${url} "
+              else
+                next+="\"${target}\" "
+              fi
+            done
+            remaining="[${next% }]"
+            # Every target branch has an open, recently-created PR: we are done.
+            [[ "$remaining" == "[]" ]] && break
+            echo "Waiting for backport PRs of ${remaining}..."
+            sleep 30
+          done
+          created="${created% }"
+
+          # No backport PR appeared within the window (e.g. cherry-pick conflicts);
+          # stay quiet — the Backport PR workflow already comments on the failure.
+          if [[ -z "$created" ]]; then
+            echo "No backport PR found for this run, skipping notification"
+            exit 0
+          fi
+
+          # Resolve the PR owner's email from their own commits on the PR: prefer a
+          # commit authored by the PR owner (the last commit may have been pushed by
+          # someone else), fall back to the last commit's author.
+          pr=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")
+          author_login=$(jq -r '.user.login' <<< "$pr")
+          owner_email=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/commits" \
+            | jq -r --arg author "$author_login" \
+              '([.[] | select(.author.login == $author) | .commit.author.email] | last) // (.[-1].commit.author.email // empty)')
+
+          # Look up the Slack user by email (same approach as tasks/pipeline.py changelog)
+          user_id=""
+          if [[ -n "$owner_email" ]]; then
+            user_id=$(curl -sf -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              "https://slack.com/api/users.lookupByEmail?email=$(jq -rn --arg v "$owner_email" '$v|@uri')" \
+              | jq -r 'if .ok then .user.id else empty end')
+          fi
+
+          # Build the list of created backports as Slack links, e.g. '<url|7.64.x>'
+          links=$(tr ' ' '\n' <<< "$created" | jq -Rr 'split("|") as [$branch, $url] | "<\($url)|\($branch)>"' | jq -sRr 'split("\n") | map(select(length > 0)) | join(", ")')
+          pr_url=$(jq -r '.html_url' <<< "$pr")
+          message=":rewind: A backport of <${pr_url}|#${PR_NUMBER}> to ${links} was just created. Keep an eye on it in case it needs attention."
+
+          if [[ -n "$user_id" ]]; then
+            # DM the PR owner
+            channel="$user_id"
+          else
+            # PR owner has no resolvable email or no Slack account (e.g. external
+            # contributor); notify agent-devx-ops instead
+            echo "No Slack user found for $owner_email, notifying #agent-devx-ops instead"
+            message="${message}\n:warning: Could not DM the PR owner (no Slack user for ${owner_email:-unknown email}). Please reach out to them if needed."
+            channel="#agent-devx-ops"
+          fi
+
+          curl -sf -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -X POST https://slack.com/api/chat.postMessage \
+            -d "$(jq -n --arg channel "$channel" --arg text "$message" '{channel: $channel, text: $text}')" \
+            | jq -e '.ok' > /dev/null

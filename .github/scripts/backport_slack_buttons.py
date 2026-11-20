@@ -18,7 +18,7 @@ Inputs (environment):
   SLACK_BOT_TOKEN        xoxb-... bot token of the Slack app above
   SLACK_APP_TOKEN        xapp-... app-level token (connections:write)
   GITHUB_TOKEN           read-only, to resolve the PR owner's email from their commits
-  PR_NUMBER, PR_TITLE, PR_URL
+  PR_NUMBER, PR_TITLE, PR_URL, PR_AUTHOR_LOGIN (the PR owner's GitHub login)
   BRANCHES               comma-separated candidate branches, e.g. "7.85.x,7.86.x"
   EXPLANATION            Claude's one-line rationale (may be empty)
   CONFIDENCE             HIGH|MEDIUM|LOW
@@ -74,14 +74,22 @@ def main() -> int:
 
     web = WebClient(token=env("SLACK_BOT_TOKEN"))
 
-    # Resolve the PR owner's email from the original PR's commits (the last commit's
-    # author is the PR owner, even when the commit results from a suggested change).
+    # Resolve the PR owner's email from their own commits on the PR: prefer a commit
+    # authored by the PR owner (the last commit may have been pushed by someone else),
+    # fall back to the last commit's author.
     try:
         commits = github_get(
             env("GITHUB_TOKEN"),
             f"https://api.github.com/repos/{env('GITHUB_REPOSITORY')}/pulls/{pr_number}/commits",
         )
-        owner_email = commits[-1]["commit"]["author"]["email"]
+        owner_email = next(
+            (
+                c["commit"]["author"]["email"]
+                for c in reversed(commits)
+                if c.get("author", {}).get("login") == env("PR_AUTHOR_LOGIN")
+            ),
+            commits[-1]["commit"]["author"]["email"],
+        )
     except Exception as e:  # noqa: BLE001
         print(f"Could not resolve the PR owner's email: {e}")
         notify_devx(
