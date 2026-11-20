@@ -25,82 +25,22 @@ type Topology struct {
 	Flavor      string
 	Levels      []string     // node label keys, coarsest -> finest
 	Tolerations []Toleration // flavor tolerations
+	// AssumedTolerations are tolerated on top of the flavor's (from config),
+	// for taints every workload is known to tolerate.
+	AssumedTolerations []Toleration
 }
 
 // Node is a node selected by the flavor.
 type Node struct {
-	Name          string
-	Labels        map[string]string
-	GPUs          map[string]GPUCount // per GPU resource name
+	Name   string
+	Labels map[string]string
+	// Capacity and Allocatable are the node's extended resources
+	// (status.capacity, status.allocatable). Non-GPU resources are ignored.
+	Capacity      map[string]int
+	Allocatable   map[string]int
 	Ready         bool
 	Unschedulable bool
 	Taints        []Taint
-	// Unsupported is set by the caller for nodes the engine can't model
-	// (e.g. MIG nodes).
-	Unsupported bool
-}
-
-// GPUCount is the GPU capacity and allocatable of a node for one resource.
-type GPUCount struct {
-	Capacity    int
-	Allocatable int
-}
-
-// Taint effects and toleration operators, with their Kubernetes values.
-const (
-	EffectNoSchedule       = "NoSchedule"
-	EffectPreferNoSchedule = "PreferNoSchedule"
-	EffectNoExecute        = "NoExecute"
-	OpExists               = "Exists"
-	OpEqual                = "Equal"
-)
-
-// Taint is a node taint.
-type Taint struct {
-	Key    string
-	Value  string
-	Effect string
-}
-
-// Toleration is a pod or flavor toleration.
-type Toleration struct {
-	Key      string
-	Operator string // OpExists or OpEqual (default)
-	Value    string
-	Effect   string // empty matches all effects
-}
-
-// tolerates follows the Kubernetes matching rules.
-func (t Toleration) tolerates(taint Taint) bool {
-	if t.Effect != "" && t.Effect != taint.Effect {
-		return false
-	}
-	if t.Key == "" {
-		return t.Operator == OpExists
-	}
-	if t.Key != taint.Key {
-		return false
-	}
-	switch t.Operator {
-	case OpExists:
-		return true
-	case "", OpEqual:
-		return t.Value == taint.Value
-	}
-	return false
-}
-
-// tolerated reports whether every NoSchedule/NoExecute taint is tolerated.
-func tolerated(taints []Taint, tols []Toleration) bool {
-	for _, taint := range taints {
-		if taint.Effect != EffectNoSchedule && taint.Effect != EffectNoExecute {
-			continue
-		}
-		if !slices.ContainsFunc(tols, func(t Toleration) bool { return t.tolerates(taint) }) {
-			return false
-		}
-	}
-	return true
 }
 
 // Allocations holds the allocated GPUs per node name, then per resource name.
@@ -143,10 +83,11 @@ const (
 	DomainFree DomainState = iota
 	DomainPartial
 	DomainFull
+	DomainUnavailable // no in_topology capacity
 )
 
 // DomainStates lists all domain states in reporting order.
-var DomainStates = []DomainState{DomainFree, DomainPartial, DomainFull}
+var DomainStates = []DomainState{DomainFree, DomainPartial, DomainFull, DomainUnavailable}
 
 func (s DomainState) String() string {
 	switch s {
@@ -156,50 +97,88 @@ func (s DomainState) String() string {
 		return "partial"
 	case DomainFull:
 		return "full"
+	case DomainUnavailable:
+		return "unavailable"
 	}
 	return "unknown"
 }
 
-// stateOf checks full first, so a domain with nothing free never looks free.
-func stateOf(allocated, free int) DomainState {
+func stateOf(d Domain) DomainState {
 	switch {
-	case free == 0:
+	case d.Allocatable == 0:
+		return DomainUnavailable
+	case d.Free == 0:
 		return DomainFull
-	case allocated == 0:
+	case d.Allocated == 0:
 		return DomainFree
 	}
 	return DomainPartial
 }
 
 // StateCounts holds one count per DomainState, indexed by it.
-type StateCounts [3]int
+type StateCounts [4]int
+
+// UnschedulableReason is why GPUs in scope can't be used by the scheduler.
+type UnschedulableReason int
+
+// Unschedulable reasons. They index ReasonCounts.
+const (
+	ReasonUnhealthy       UnschedulableReason = iota // capacity - allocatable on in_topology nodes
+	ReasonNodeUnavailable                            // capacity of unavailable nodes
+	ReasonTainted                                    // capacity of tainted nodes
+	ReasonNoAllocatable                              // capacity of no_gpu_allocatable nodes
+	ReasonMissingLabels                              // capacity of missing_labels nodes
+)
+
+// UnschedulableReasons lists all reasons in reporting order.
+var UnschedulableReasons = []UnschedulableReason{ReasonUnhealthy, ReasonNodeUnavailable, ReasonTainted, ReasonNoAllocatable, ReasonMissingLabels}
+
+func (r UnschedulableReason) String() string {
+	switch r {
+	case ReasonUnhealthy:
+		return "unhealthy"
+	case ReasonNodeUnavailable:
+		return "node_unavailable"
+	case ReasonTainted:
+		return "tainted"
+	case ReasonNoAllocatable:
+		return "no_allocatable"
+	case ReasonMissingLabels:
+		return "missing_labels"
+	}
+	return "unknown"
+}
+
+// ReasonCounts holds one GPU count per UnschedulableReason, indexed by it.
+type ReasonCounts [5]int
 
 // Result is the output of Compute.
 type Result struct {
 	Topology    Topology
+	Nodes       []NodeCount      // non-zero counts, sorted by state then resource
 	Resources   []ResourceResult // sorted by resource name
 	Overcommits []Overcommit     // sorted by node, then resource
 }
 
-// ResourceResult holds the results for one GPU resource name.
-type ResourceResult struct {
-	Resource string
-	Nodes    NodeCoverage
-	// UnavailableGPUs is the sum of capacity - allocatable over in_topology
-	// and no_gpu_allocatable nodes (e.g. unhealthy GPUs, device plugin down).
-	UnavailableGPUs int
-	Levels          []LevelResult // coarsest -> finest, host level included
+// NodeCount is the number of nodes in a state for a GPU resource. A node
+// with several GPU resources counts once for each.
+type NodeCount struct {
+	State       NodeState
+	GPUResource string // resource name, or GPUResourceMIG
+	Count       int
 }
 
-// NodeCoverage counts the nodes in scope for a resource (capacity > 0) by
-// node state. Each node has exactly one state, see doc.go for precedence.
-type NodeCoverage struct {
-	InTopology       int
-	Unavailable      int // NotReady or cordoned
-	Tainted          int // untolerated NoSchedule/NoExecute taint
-	NoGPUAllocatable int // capacity > 0 but allocatable = 0
-	MissingLabels    int // missing at least one level label
-	Unsupported      int // flagged by the caller (e.g. MIG)
+// ResourceResult holds the results for one GPU resource name.
+type ResourceResult struct {
+	Resource          string
+	UnschedulableGPUs ReasonCounts
+	Levels            []LevelResult // coarsest -> finest, host level included
+}
+
+// Slots is the number of pods of PodGPUs GPUs that fit.
+type Slots struct {
+	PodGPUs int
+	Count   int
 }
 
 // LevelResult holds the results for one level.
@@ -211,14 +190,11 @@ type LevelResult struct {
 	Domains       StateCounts // number of domains per state
 	FreeGPUs      StateCounts // free GPUs per state of their domain
 	AllocatedGPUs StateCounts // allocated GPUs per state of their domain
-	// UnavailableGPUs is capacity - allocatable (e.g. unhealthy GPUs), per
-	// state of their domain.
-	UnavailableGPUs StateCounts
 
 	LargestFreeGPUs int // most free GPUs in one domain
-	// LargestFreeSlots is, per pod size (indexed like PodSizes), the most pods
-	// of that size that fit in one domain.
-	LargestFreeSlots []int
+	// LargestFreeSlots is, per pod size, the most pods of that size that fit
+	// in one domain. Pod sizes larger than the largest host are skipped.
+	LargestFreeSlots []Slots
 
 	DomainStats []Domain // sorted by Path
 }
@@ -226,12 +202,11 @@ type LevelResult struct {
 // Domain holds the stats of one domain.
 type Domain struct {
 	Path        []string // label values of levels 0..Depth
-	Hosts       int
-	Allocatable int
-	Allocated   int // clamped at Allocatable
+	Hosts       int      // labelled nodes attributed to the resource, in any state but missing_labels/unsupported
+	Allocatable int      // of in_topology nodes
+	Allocated   int      // clamped at Allocatable per node
 	Free        int
-	Unavailable int   // capacity - allocatable
-	FreeSlots   []int // sum over hosts of floor(free/size), indexed like PodSizes
+	FreeSlots   []Slots // sum over hosts of floor(free/size), same sizes as the level
 	State       DomainState
 }
 
@@ -243,15 +218,15 @@ type Overcommit struct {
 	Allocated   int
 }
 
-// host is one in-topology node, for one resource.
+// host is one labelled node, for one resource.
 type host struct {
 	path        []string // label values for every level
-	allocatable int
-	allocated   int // clamped at allocatable
-	unavailable int
+	allocatable int      // 0 unless in_topology
+	allocated   int      // clamped at allocatable
 }
 
-// Compute groups nodes into domains for every level and every GPU resource.
+// Compute classifies the nodes, then groups them into domains for every
+// level and every GPU resource.
 func Compute(t Topology, nodes []Node, alloc Allocations) Result {
 	res := Result{Topology: t}
 	if len(t.Levels) == 0 {
@@ -263,73 +238,98 @@ func Compute(t Topology, nodes []Node, alloc Allocations) Result {
 	if implicit {
 		levels = append(levels, HostnameLabel)
 	}
+	tols := slices.Concat(t.Tolerations, t.AssumedTolerations)
 
-	for _, resource := range resourceNames(nodes) {
-		rr := ResourceResult{Resource: resource}
-		var hosts []host
-		for _, n := range nodes {
-			gpus := n.GPUs[resource]
-			if gpus.Capacity <= 0 {
-				continue
-			}
-			path, ok := nodePath(n, levels, implicit)
-			switch {
-			case n.Unsupported:
-				rr.Nodes.Unsupported++
-				continue
-			case !ok:
-				rr.Nodes.MissingLabels++
-				continue
-			case gpus.Allocatable <= 0:
-				rr.Nodes.NoGPUAllocatable++
-				rr.UnavailableGPUs += gpus.Capacity
-				continue
-			case !n.Ready || n.Unschedulable:
-				rr.Nodes.Unavailable++
-				continue
-			case !tolerated(n.Taints, t.Tolerations):
-				rr.Nodes.Tainted++
-				continue
-			}
-			rr.Nodes.InTopology++
-			unavailable := max(gpus.Capacity-gpus.Allocatable, 0)
-			rr.UnavailableGPUs += unavailable
-			used := max(alloc[n.Name][resource], 0)
-			if used > gpus.Allocatable {
-				res.Overcommits = append(res.Overcommits, Overcommit{Node: n.Name, Resource: resource, Allocatable: gpus.Allocatable, Allocated: used})
-				used = gpus.Allocatable
-			}
-			hosts = append(hosts, host{
-				path:        path,
-				allocatable: gpus.Allocatable,
-				allocated:   used,
-				unavailable: unavailable,
-			})
+	var all []classified
+	counts := map[NodeCount]int{}
+	for _, n := range nodes {
+		c, ok := classify(n, levels, implicit, tols)
+		if !ok {
+			continue
 		}
-		for depth, label := range levels {
-			lvl := computeLevel(hosts, depth)
-			lvl.Label = label
-			lvl.Implicit = implicit && depth == len(levels)-1
-			rr.Levels = append(rr.Levels, lvl)
+		all = append(all, c)
+		for _, r := range c.resources {
+			counts[NodeCount{State: c.state, GPUResource: r}]++
 		}
-		res.Resources = append(res.Resources, rr)
 	}
+	for k, v := range counts {
+		k.Count = v
+		res.Nodes = append(res.Nodes, k)
+	}
+	slices.SortFunc(res.Nodes, func(a, b NodeCount) int {
+		return cmp.Or(cmp.Compare(a.State, b.State), cmp.Compare(a.GPUResource, b.GPUResource))
+	})
 
+	for _, resource := range resourceNames(all) {
+		rr, overcommits := computeResource(resource, all, levels, alloc)
+		rr.Levels[len(levels)-1].Implicit = implicit
+		res.Resources = append(res.Resources, rr)
+		res.Overcommits = append(res.Overcommits, overcommits...)
+	}
 	slices.SortFunc(res.Overcommits, func(a, b Overcommit) int {
 		return cmp.Or(cmp.Compare(a.Node, b.Node), cmp.Compare(a.Resource, b.Resource))
 	})
 	return res
 }
 
+func computeResource(resource string, nodes []classified, levels []string, alloc Allocations) (ResourceResult, []Overcommit) {
+	rr := ResourceResult{Resource: resource}
+	var overcommits []Overcommit
+	var hosts []host
+	largestHost := 0
+	for _, c := range nodes {
+		if c.state == NodeUnsupported || !slices.Contains(c.resources, resource) {
+			continue
+		}
+		capacity := max(c.node.Capacity[resource], 0)
+		switch c.state {
+		case NodeMissingLabels:
+			rr.UnschedulableGPUs[ReasonMissingLabels] += capacity
+			continue
+		case NodeUnavailable:
+			rr.UnschedulableGPUs[ReasonNodeUnavailable] += capacity
+		case NodeNoGPUAllocatable:
+			rr.UnschedulableGPUs[ReasonNoAllocatable] += capacity
+		case NodeTainted:
+			rr.UnschedulableGPUs[ReasonTainted] += capacity
+		}
+		h := host{path: c.path}
+		if c.state == NodeInTopology {
+			h.allocatable = min(max(c.node.Allocatable[resource], 0), capacity)
+			rr.UnschedulableGPUs[ReasonUnhealthy] += capacity - h.allocatable
+			h.allocated = max(alloc[c.node.Name][resource], 0)
+			if h.allocated > h.allocatable {
+				overcommits = append(overcommits, Overcommit{Node: c.node.Name, Resource: resource, Allocatable: h.allocatable, Allocated: h.allocated})
+				h.allocated = h.allocatable
+			}
+			largestHost = max(largestHost, h.allocatable)
+		}
+		hosts = append(hosts, h)
+	}
+
+	var sizes []int
+	for _, s := range PodSizes {
+		if s <= largestHost {
+			sizes = append(sizes, s)
+		}
+	}
+	for depth, label := range levels {
+		lvl := computeLevel(hosts, depth, sizes)
+		lvl.Label = label
+		rr.Levels = append(rr.Levels, lvl)
+	}
+	return rr, overcommits
+}
+
 // computeLevel aggregates hosts into the domains of one level.
-func computeLevel(hosts []host, depth int) LevelResult {
+func computeLevel(hosts []host, depth int, sizes []int) LevelResult {
 	byKey := map[string]*Domain{}
 	for _, h := range hosts {
 		path := h.path[:depth+1]
 		key := strings.Join(path, "\x00")
 		d, ok := byKey[key]
 		if !ok {
-			d = &Domain{Path: slices.Clone(path), FreeSlots: make([]int, len(PodSizes))}
+			d = &Domain{Path: slices.Clone(path), FreeSlots: newSlots(sizes)}
 			byKey[key] = d
 		}
 		free := h.allocatable - h.allocated
@@ -337,25 +337,20 @@ func computeLevel(hosts []host, depth int) LevelResult {
 		d.Allocatable += h.allocatable
 		d.Allocated += h.allocated
 		d.Free += free
-		d.Unavailable += h.unavailable
-		for i, size := range PodSizes {
-			d.FreeSlots[i] += free / size
+		for i := range d.FreeSlots {
+			d.FreeSlots[i].Count += free / d.FreeSlots[i].PodGPUs
 		}
 	}
 
-	lvl := LevelResult{Depth: depth, LargestFreeSlots: make([]int, len(PodSizes))}
+	lvl := LevelResult{Depth: depth, LargestFreeSlots: newSlots(sizes)}
 	for _, d := range byKey {
-		if d.Allocatable == 0 {
-			continue // can't happen with allocatable > 0 hosts, but never report empty domains
-		}
-		d.State = stateOf(d.Allocated, d.Free)
+		d.State = stateOf(*d)
 		lvl.Domains[d.State]++
 		lvl.FreeGPUs[d.State] += d.Free
 		lvl.AllocatedGPUs[d.State] += d.Allocated
-		lvl.UnavailableGPUs[d.State] += d.Unavailable
 		lvl.LargestFreeGPUs = max(lvl.LargestFreeGPUs, d.Free)
-		for i := range PodSizes {
-			lvl.LargestFreeSlots[i] = max(lvl.LargestFreeSlots[i], d.FreeSlots[i])
+		for i, s := range d.FreeSlots {
+			lvl.LargestFreeSlots[i].Count = max(lvl.LargestFreeSlots[i].Count, s.Count)
 		}
 		lvl.DomainStats = append(lvl.DomainStats, *d)
 	}
@@ -363,30 +358,24 @@ func computeLevel(hosts []host, depth int) LevelResult {
 	return lvl
 }
 
-// nodePath returns the node's label values for every level. The implicit
-// host level (last) uses the node name.
-func nodePath(n Node, levels []string, implicit bool) ([]string, bool) {
-	path := make([]string, len(levels))
-	for i, label := range levels {
-		if implicit && i == len(levels)-1 {
-			path[i] = n.Name
-			continue
-		}
-		v, ok := n.Labels[label]
-		if !ok {
-			return nil, false
-		}
-		path[i] = v
+func newSlots(sizes []int) []Slots {
+	slots := make([]Slots, len(sizes))
+	for i, s := range sizes {
+		slots[i].PodGPUs = s
 	}
-	return path, true
+	return slots
 }
 
-// resourceNames returns the sorted GPU resource names with capacity on any node.
-func resourceNames(nodes []Node) []string {
+// resourceNames returns the sorted GPU resources attributed to the
+// classified nodes, unsupported nodes excluded.
+func resourceNames(nodes []classified) []string {
 	var names []string
-	for _, n := range nodes {
-		for r, c := range n.GPUs {
-			if c.Capacity > 0 && !slices.Contains(names, r) {
+	for _, c := range nodes {
+		if c.state == NodeUnsupported {
+			continue
+		}
+		for _, r := range c.resources {
+			if !slices.Contains(names, r) {
 				names = append(names, r)
 			}
 		}

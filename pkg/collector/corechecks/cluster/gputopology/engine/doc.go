@@ -6,45 +6,58 @@
 // Package engine computes how free GPUs are spread over a scheduler topology
 // (Kueue TAS, KAI), for the gpu.scheduling.topology.* metrics.
 //
-// It is pure Go on purpose: no Kubernetes or workloadmeta types, so it can be
+// It has no Kubernetes or workloadmeta dependency on purpose, so it can be
 // tested on synthetic clusters. The caller (the gpu_topology Cluster Agent
-// check) converts nodes and pods into the input types below.
+// check) converts nodes and pods into the input types.
 //
-// # Model
+// # Nodes
 //
-// A Topology is an ordered list of node label keys, coarsest first (for
-// example block, rack, host). Nodes are grouped into domains per level:
+// Each node matched by the flavor is classified once, in this precedence:
 //
-//   - A domain at level k is the tuple of the node's label values for levels
-//     0..k, so "rack-1" in two different blocks are two different racks.
-//   - A host level is always present. If the topology does not declare
-//     kubernetes.io/hostname, an implicit level keyed on the node name is
-//     appended as the finest one and flagged Implicit (Kueue does the same).
+//  1. unsupported: MIG is active (any nvidia.com/mig-* capacity, or a
+//     nvidia.com/gpu.product label containing -MIG-). nvidia.com/mig.strategy
+//     is never used: GPU Feature Discovery sets it to "none" on every node.
+//  2. missing_labels: lacks a topology level label.
+//  3. unavailable: NotReady or cordoned.
+//  4. no_gpu_allocatable: no allocatable GPU (e.g. device plugin down).
+//  5. tainted: a NoSchedule/NoExecute taint that is not tolerated. Tolerated
+//     means: by the flavor tolerations, by Topology.AssumedTolerations, or
+//     keyed on a GPU resource name (ExtendedResourceToleration; GKE taints
+//     GPU pools nvidia.com/gpu=present:NoSchedule).
+//  6. in_topology.
 //
-// Everything is computed separately per GPU resource name (nvidia.com/gpu,
-// amd.com/gpu), so one vendor never makes another vendor's domain look used.
-// A node is in scope for a resource when its capacity for it is > 0. Each
-// node in scope gets exactly one state, the first that applies:
+// A node is attributed to the whole-GPU resources (nvidia.com/gpu,
+// amd.com/gpu, gpu.intel.com/*) present in its capacity at any value, or
+// else to those of its GPU presence labels: when a device plugin dies,
+// kubelet removes the resource from capacity after about 5 minutes, and the
+// node must stay visible as no_gpu_allocatable. MIG nodes are attributed to
+// "mig". Nodes with no GPU evidence are ignored.
 //
-//  1. unsupported: flagged by the caller (e.g. MIG nodes)
-//  2. missing_labels: missing any level label
-//  3. no_gpu_allocatable: allocatable is 0
-//  4. unavailable: NotReady or cordoned
-//  5. tainted: a NoSchedule/NoExecute taint not tolerated by the flavor
-//  6. in_topology
+// # Domains
 //
-// Only in_topology nodes contribute. A domain's capacity is the allocatable
-// of its nodes; capacity - allocatable is reported as unavailable GPUs, per
-// domain and as a per-resource total that also covers no_gpu_allocatable
-// nodes (e.g. device plugin down). Free
-// = allocatable - allocated, clamped at 0 per node (overcommit is reported in
-// Result.Overcommits for logging). A domain is full when nothing is free,
-// free when nothing is allocated, partial otherwise.
+// A Topology is an ordered list of node label keys, coarsest first. A domain
+// at level k is the tuple of label values for levels 0..k, so "rack-1" in two
+// blocks are two racks. If the topology has no kubernetes.io/hostname level,
+// an implicit host level keyed on the node name is appended and flagged
+// Implicit (Kueue does the same).
 //
-// Per level, the engine reports the number of domains per state, the GPUs by
-// GPU state and domain state, the most free GPUs in one domain, and, for each
-// pod size s in PodSizes, the most pods of s GPUs that fit in one domain:
-// slots(domain, s) = sum over its hosts of floor(free/s), as Kueue counts.
+// Everything is computed per GPU resource. Domains contain the labelled nodes
+// attributed to the resource (any state but unsupported and missing_labels),
+// but only in_topology nodes contribute capacity (= allocatable). Free =
+// allocatable - allocated, clamped at 0 per node (overcommit is reported in
+// Result.Overcommits for logging). A domain is unavailable when it has no
+// in_topology capacity, else full when nothing is free, free when nothing is
+// allocated, partial otherwise. Keeping unavailable domains stops "% free
+// racks" from going up when racks fail.
+//
+// Per level, the engine reports domains per state, GPUs by GPU state and
+// domain state, the most free GPUs in one domain, and, per pod size s in
+// PodSizes up to the largest in_topology host, the most pods of s GPUs that
+// fit in one domain: slots(domain, s) = sum over its hosts of floor(free/s),
+// as Kueue counts. Per resource, it reports the GPUs the scheduler can't use,
+// by reason: unhealthy (capacity - allocatable on in_topology nodes), or the
+// capacity of unavailable, tainted, no_gpu_allocatable and missing_labels
+// nodes.
 //
 // A topology with no levels is invalid (Kueue requires at least one) and
 // yields an empty Result.
