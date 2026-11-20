@@ -6,8 +6,8 @@
  * This component performs ONLY Step 6 (display-window aggregation) for chart rendering.
  *
  * Config values are read-only; they are driven by the server-returned ScoreState.config.
- * On each scenarioDataVersion bump the component POSTs the default config to
- * /api/scores/replay and replaces its local ScoreState with the response.
+ * Detection-time mode reads the original replay. Change-point mode posts the
+ * effective config to /api/scores/replay.
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
@@ -21,7 +21,7 @@ const LEVEL_WEIGHTS = [0.2, 0.5, 1.0, 2.0, 3.0] as const;
 const LEVEL_LABELS = ['VeryLow', 'Low', 'Medium', 'High', 'XHigh'] as const;
 const LEVEL_COLORS = ['#64748b', '#eab308', '#f97316', '#ef4444', '#c026d3'] as const;
 
-// Fallback used only while GET /api/scores/config is in-flight.
+// Fallback used only while the scorer result is in-flight.
 // These values are never sent to the backend for replay.
 const DISPLAY_FALLBACK_CONFIG: ScorerConfig = {
   alpha: 0.014,
@@ -109,8 +109,12 @@ interface TimeRange {
   end: number;
 }
 
+export type ScorerTimeMode = 'detection' | 'change-point';
+
 export function AnomalyScoreTimeline({
   scenarioDataVersion,
+  timeMode,
+  onTimeModeChange,
   phaseMarkers = [],
   timeRange,
   hoveredEvent,
@@ -118,24 +122,18 @@ export function AnomalyScoreTimeline({
   onScoreState,
 }: {
   scenarioDataVersion: number;
+  timeMode: ScorerTimeMode;
+  onTimeModeChange: (mode: ScorerTimeMode) => void;
   phaseMarkers?: PhaseMarker[];
   timeRange?: TimeRange | null;
   hoveredEvent?: SeverityEvent | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
-  onScoreState?: (ss: ScoreState) => void;
+  onScoreState?: (ss: ScoreState | null) => void;
 }) {
   const [scoreState, setScoreState] = useState<ScoreState | null>(null);
-  const [replayConfig, setReplayConfig] = useState<ScorerConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Fetch the canonical default config from the backend once on mount so we
-  // never need to duplicate threshold values in the frontend.
-  useEffect(() => {
-    api.getScoresConfig()
-      .then(cfg => setReplayConfig(cfg))
-      .catch(() => setReplayConfig(DISPLAY_FALLBACK_CONFIG));
-  }, []);
+  const requestIDRef = useRef(0);
 
   // Responsive chart width via ResizeObserver
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -153,23 +151,65 @@ export function AnomalyScoreTimeline({
     return () => ro.disconnect();
   }, []);
 
-  // Replay whenever a new scenario is loaded or the config first arrives.
+  // Load the selected timing view whenever the scenario or mode changes.
   useEffect(() => {
-    if (scenarioDataVersion === 0 || !replayConfig) return;
-    setLoading(true);
-    api.replayScores(replayConfig)
-      .then(st => { setScoreState(st); setError(null); onScoreState?.(st); })
-      .catch(e => setError(String(e)))
-      .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scenarioDataVersion, replayConfig]);
+    if (scenarioDataVersion === 0) {
+      return;
+    }
+    const requestID = ++requestIDRef.current;
+
+    const request = Promise.resolve().then(() => {
+      if (requestID !== requestIDRef.current) return null;
+      setScoreState(null);
+      onScoreState?.(null);
+      setLoading(true);
+      setError(null);
+      return api.getScores();
+    }).then(original => {
+      if (!original || requestID !== requestIDRef.current || !original.available || timeMode === 'detection') {
+        return original;
+      }
+      return api.replayScores({
+        ...original.config,
+        cooldown_secs: original.cooldown_secs!,
+      });
+    });
+    request
+      .then(st => {
+        if (!st || requestID !== requestIDRef.current) return;
+        setScoreState(st);
+        onScoreState?.(st);
+      })
+      .catch(e => {
+        if (requestID !== requestIDRef.current) return;
+        setError(String(e));
+      })
+      .finally(() => {
+        if (requestID === requestIDRef.current) setLoading(false);
+      });
+    return () => { requestIDRef.current += 1; };
+  }, [scenarioDataVersion, timeMode, onScoreState]);
 
   const allBuckets = scoreState?.buckets ?? [];
   const allEvents = scoreState?.events ?? [];
-  // Merge: use replayConfig (fetched from /api/scores/config) as the base so that
-  // cooldown_secs is always present, then overlay EWMA fields from scoreState.config.
-  // scoreState.config only contains the def-level AnomalyScorerConfig (no cooldown).
-  const cfg: ScorerConfig = { ...(replayConfig ?? DISPLAY_FALLBACK_CONFIG), ...(scoreState?.config ?? {}) };
+  const cfg: ScorerConfig = {
+    ...DISPLAY_FALLBACK_CONFIG,
+    ...(scoreState?.available === false ? {} : scoreState?.config ?? {}),
+    ...(scoreState?.available !== false && scoreState?.cooldown_secs !== undefined
+      ? { cooldown_secs: scoreState.cooldown_secs }
+      : {}),
+  };
+  const scorerUnavailable = scoreState?.available === false;
+
+  const changeTimeMode = useCallback((mode: ScorerTimeMode) => {
+    if (mode === timeMode) return;
+    requestIDRef.current += 1;
+    setScoreState(null);
+    onScoreState?.(null);
+    setError(null);
+    setLoading(false);
+    onTimeModeChange(mode);
+  }, [timeMode, onScoreState, onTimeModeChange]);
 
   // Filter buckets to the selected time range (client-side zoom)
   const buckets = useMemo(() => {
@@ -358,6 +398,8 @@ export function AnomalyScoreTimeline({
               ? 'Updating…'
               : error
               ? <span className="text-red-400">{error}</span>
+              : scorerUnavailable
+              ? <span className="text-amber-300">Scorer unavailable for this run</span>
               : allBuckets.length === 0
               ? 'No data'
               : `${totalAnomalies} anomalies · ${buckets.length}s · ${upEvents}↑ ${downEvents}↓ severity transitions`}
@@ -368,6 +410,35 @@ export function AnomalyScoreTimeline({
           <div className="text-cyan-300">EWMA end: {ewmaEnd.toFixed(3)}</div>
           <div className="text-cyan-400 font-medium">EWMA peak: {ewmaPeak.toFixed(3)}</div>
         </div>
+      </div>
+
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Timing</span>
+        <div className="inline-flex rounded-md border border-slate-600 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => changeTimeMode('detection')}
+            className={`px-2.5 py-1 text-xs transition-colors ${
+              timeMode === 'detection' ? 'bg-cyan-700 text-white' : 'text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            Detection time
+          </button>
+          <button
+            type="button"
+            onClick={() => changeTimeMode('change-point')}
+            className={`px-2.5 py-1 text-xs transition-colors ${
+              timeMode === 'change-point' ? 'bg-cyan-700 text-white' : 'text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            Change-point time
+          </button>
+        </div>
+        <span className="text-xs text-slate-400">
+          {timeMode === 'detection'
+            ? 'When the scorer actually received the evidence.'
+            : 'Recomputed at estimated change points; excludes detection delay.'}
+        </span>
       </div>
 
       {/* Read-only config */}
@@ -389,7 +460,13 @@ export function AnomalyScoreTimeline({
       {/* Chart */}
       {displayBuckets.length === 0 ? (
         <div className="h-24 flex items-center justify-center text-slate-500 text-sm">
-          {scenarioDataVersion === 0 ? 'Load a scenario to see the timeline' : 'No anomalies detected yet'}
+          {scenarioDataVersion === 0
+            ? 'Load a scenario to see the timeline'
+            : loading
+            ? 'Loading scorer timeline…'
+            : scorerUnavailable
+            ? 'Scorer unavailable for this run'
+            : 'No anomalies detected yet'}
         </div>
       ) : (
         <div ref={chartContainerRef} className="relative select-none">

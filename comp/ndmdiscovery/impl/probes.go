@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -85,17 +86,13 @@ type credentialStore interface {
 }
 
 // parseProbes validates one range's probes object, dropping and logging each unusable probe.
-func parseProbes(rangeID string, raw map[string]json.RawMessage, ping pingprobe.Capability, logger log.Component) probeParams {
+func parseProbes(rangeID string, raw map[string]json.RawMessage, logger log.Component) probeParams {
 	var params probeParams
 
 	for kind, body := range raw {
 		switch kind {
 		case kindPing:
-			if !ping.Available {
-				logger.Warnf("ndmdiscovery: range %s: dropping the ping probe, it is not available on this agent: %s", rangeID, ping.Reason)
-				continue
-			}
-			opts, err := parsePing(body, ping, logger)
+			opts, err := parsePing(body, logger)
 			if err != nil {
 				logger.Warnf("ndmdiscovery: range %s: dropping the ping probe: %v", rangeID, err)
 				continue
@@ -116,7 +113,7 @@ func parseProbes(rangeID string, raw map[string]json.RawMessage, ping pingprobe.
 	return params
 }
 
-func parsePing(body json.RawMessage, ping pingprobe.Capability, logger log.Component) (*pingprobe.Options, error) {
+func parsePing(body json.RawMessage, logger log.Component) (*pingprobe.Options, error) {
 	var opts pingJSON
 	if err := json.Unmarshal(body, &opts); err != nil {
 		return nil, fmt.Errorf("the ping options are not an object: %w", err)
@@ -149,17 +146,16 @@ func parsePing(body json.RawMessage, ping pingprobe.Capability, logger log.Compo
 		}
 	}
 
-	// The document can only turn the raw socket off, never on.
-	useRawSocket := ping.UseRawSocket
-	if opts.Linux != nil && opts.Linux.UseRawSocket != nil && !*opts.Linux.UseRawSocket {
-		useRawSocket = false
+	var override *bool
+	if opts.Linux != nil {
+		override = opts.Linux.UseRawSocket
 	}
 
 	return &pingprobe.Options{
 		Count:        count,
 		Interval:     time.Duration(intervalMs) * time.Millisecond,
 		Timeout:      time.Duration(timeoutMs) * time.Millisecond,
-		UseRawSocket: useRawSocket,
+		UseRawSocket: pingprobe.ResolveRawSocket(runtime.GOOS, override),
 	}, nil
 }
 

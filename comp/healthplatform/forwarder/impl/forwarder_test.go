@@ -10,6 +10,7 @@ package forwarderimpl
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,17 +22,64 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
+	utiltelemetry "github.com/DataDog/datadog-agent/pkg/util/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func newTestForwarder(t *testing.T, cfg config.Component) *forwarder {
 	t.Helper()
+	return newTestForwarderWithTelemetry(t, cfg, telemetrymock.New(t))
+}
+
+func newTestForwarderWithTelemetry(t *testing.T, cfg config.Component, tel telemetry.Component) *forwarder {
+	t.Helper()
+	domain := buildIntakeDomain(cfg)
 	return &forwarder{
-		cfg:        cfg,
-		intakeURL:  buildIntakeURL(cfg),
-		httpClient: buildHTTPClient(cfg),
-		log:        logmock.New(t),
+		cfg:          cfg,
+		intakeDomain: domain,
+		intakeURL:    domain + intakeEndpointPath,
+		httpClient:   buildHTTPClient(cfg),
+		log:          logmock.New(t),
+		httpErrors:   utiltelemetry.NewForwarderHTTPErrors(tel),
 	}
+}
+
+func TestSendCountsHTTPErrors(t *testing.T) {
+	statuses := []int{http.StatusNotFound, http.StatusNotFound, http.StatusForbidden, http.StatusServiceUnavailable, http.StatusMovedPermanently}
+	next := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(statuses[next])
+		next++
+	}))
+	defer server.Close()
+
+	cfg := config.NewMock(t)
+	cfg.SetInTest("api_key", "test-api-key")
+	cfg.SetInTest("health_platform.forwarder.dd_url", server.URL)
+	tel := telemetrymock.New(t)
+	fwd := newTestForwarderWithTelemetry(t, cfg, tel)
+	// Don't follow the 301, so the forwarder sees it as a non-2xx response.
+	fwd.httpClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+
+	for range statuses {
+		_, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+		require.Error(t, err)
+	}
+
+	metrics, err := tel.GetCountMetric("forwarder", "http_errors")
+	require.NoError(t, err)
+	got := map[string]float64{}
+	for _, m := range metrics {
+		assert.Equal(t, server.URL, m.Tags()["domain"])
+		assert.Equal(t, "agenthealth", m.Tags()["endpoint"])
+		assert.Equal(t, "health_platform", m.Tags()["forwarder"])
+		got[m.Tags()["code"]] = m.Value()
+	}
+	// Exact status codes, like transactions.http_errors; 3xx is not an HTTP error and is not counted.
+	assert.Equal(t, map[string]float64{"404": 2, "403": 1, "503": 1}, got)
 }
 
 func TestSend(t *testing.T) {
@@ -77,21 +125,26 @@ func TestSend(t *testing.T) {
 }
 
 func TestSendHTTPError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer server.Close()
+	for _, code := range []int{http.StatusBadRequest, http.StatusInternalServerError, http.StatusMultipleChoices} {
+		t.Run(http.StatusText(code), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(code)
+			}))
+			defer server.Close()
 
-	cfg := config.NewMock(t)
-	cfg.SetInTest("api_key", "test-api-key")
+			cfg := config.NewMock(t)
+			cfg.SetInTest("api_key", "test-api-key")
+			fwd := newTestForwarder(t, cfg)
+			fwd.intakeURL = server.URL
 
-	fwd := newTestForwarder(t, cfg)
-	fwd.intakeURL = server.URL
-
-	n, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unexpected status code: 500")
-	assert.Zero(t, n)
+			n, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+			var status *forwarderdef.StatusCodeError
+			require.ErrorAs(t, err, &status)
+			assert.Equal(t, code, status.Code)
+			assert.EqualError(t, err, fmt.Sprintf("unexpected status code: %d", code))
+			assert.Zero(t, n)
+		})
+	}
 }
 
 func TestSendNoAPIKey(t *testing.T) {

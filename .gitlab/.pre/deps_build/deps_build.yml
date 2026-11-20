@@ -67,34 +67,27 @@
       -DCMAKE_SKIP_RPATH=ON \
       -Wno-dev \
       ../llvm
-    - cmake --build . --target install
+    - cmake --build . --target install-clang install-llvm-strip
     # fail if references to glibc >= 2.18
     - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
-    - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/llc | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
     # fail if any binary has a library search path: system-probe runs clang-bpf as root, and
     # LLVM's default $ORIGIN/../lib would resolve to the dd-agent-writable embedded/lib
-    - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip | egrep '^\s*(RPATH|RUNPATH)\s' && exit 1
-    # fail if clang or llc targets anything other than bpf
+    - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip | egrep '^\s*(RPATH|RUNPATH)\s' && exit 1
+    # fail if clang targets anything other than bpf
     - $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} -print-targets > clang_targets.txt
     - diff $CI_PROJECT_DIR/pkg/ebpf/c/expected_targets.txt clang_targets.txt
-    - $DATADOG_AGENT_EMBEDDED_PATH/bin/llc --version | tail -n +7 > llc_targets.txt # remove first 6 lines of llc version output; we only care about the registered targets
-    - diff $CI_PROJECT_DIR/pkg/ebpf/c/expected_targets.txt llc_targets.txt
     - ${S3_CP_CMD} "${DATADOG_AGENT_EMBEDDED_PATH}/bin/clang-${CLANG_MAJOR_VER}" "${S3_PERMANENT_ARTIFACTS_URI}/clang-${CLANG_LLVM_VER}.${ARCH}.${BUILD_VERSION}"
-    - ${S3_CP_CMD} "${DATADOG_AGENT_EMBEDDED_PATH}/bin/llc" "${S3_PERMANENT_ARTIFACTS_URI}/llc-${CLANG_LLVM_VER}.${ARCH}.${BUILD_VERSION}"
     - ${S3_CP_CMD} "${DATADOG_AGENT_EMBEDDED_PATH}/bin/llvm-strip" "${S3_PERMANENT_ARTIFACTS_URI}/llvm-strip-${CLANG_LLVM_VER}.${ARCH}.${BUILD_VERSION}"
     - ${S3_CP_CMD} "${DATADOG_AGENT_EMBEDDED_PATH}/bin/clang-${CLANG_MAJOR_VER}" "${S3_DD_AGENT_OMNIBUS_LLVM_URI}/clang-${CLANG_LLVM_VER}.${ARCH}.${BUILD_VERSION}" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
-    - ${S3_CP_CMD} "${DATADOG_AGENT_EMBEDDED_PATH}/bin/llc" "${S3_DD_AGENT_OMNIBUS_LLVM_URI}/llc-${CLANG_LLVM_VER}.${ARCH}.${BUILD_VERSION}" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
     - ${S3_CP_CMD} "${DATADOG_AGENT_EMBEDDED_PATH}/bin/llvm-strip" "${S3_DD_AGENT_OMNIBUS_LLVM_URI}/llvm-strip-${CLANG_LLVM_VER}.${ARCH}.${BUILD_VERSION}" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
     - mkdir -p $CI_PROJECT_DIR/.tmp
     - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $CI_PROJECT_DIR/.tmp/clang
-    - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $CI_PROJECT_DIR/.tmp/llc
     - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip $CI_PROJECT_DIR/.tmp/llvm-strip
   timeout: 2h 00m
   artifacts:
     expire_in: 2 weeks
     paths:
       - $CI_PROJECT_DIR/.tmp/clang
-      - $CI_PROJECT_DIR/.tmp/llc
       - $CI_PROJECT_DIR/.tmp/llvm-strip
 
 build_clang_x64:

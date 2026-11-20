@@ -174,7 +174,6 @@ cc_library(
         "-Wdeclaration-after-statement",
         "-Wstrict-prototypes",
         "-Wmissing-prototypes",
-        "-Wno-long-long",
         "-Wpointer-arith",
     ],
     implementation_deps = [

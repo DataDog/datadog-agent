@@ -1018,8 +1018,9 @@ func (suite *k8sSuite) TestCPU() {
 				`^short_image:apps-stress-ng$`,
 			}, sourceCodeIntegrationTags),
 			Value: &testMetricExpectValueArgs{
-				Max: 160000000,
-				Min: 140000000,
+				Max:          160000000,
+				Min:          140000000,
+				RecentWindow: time.Minute,
 			},
 		},
 		Timeout: 6 * time.Minute,
@@ -1810,7 +1811,7 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile("^image_name:.*/apps-nginx-server$"),
 				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^os_name:linux$`),
-				regexp.MustCompile(`^scan_method:(filesystem|tarball|overlayfs)$`),
+				regexp.MustCompile(`^scan_method:(tarball|overlayfs)$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
 			err = assertTags(image.GetTags(), expectedTags, []*regexp.Regexp{}, false)

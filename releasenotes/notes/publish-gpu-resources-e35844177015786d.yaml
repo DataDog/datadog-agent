@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add opt-in physical NVIDIA GPU inventory publication with
+    ``gpu.resources.enabled``. Inventory retention can be configured with
+    ``gpu.resources.ttl`` and defaults to 15 minutes.

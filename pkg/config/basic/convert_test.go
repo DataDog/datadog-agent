@@ -49,6 +49,8 @@ func TestConvertToDefaultType(t *testing.T) {
 		{"map pass-through when coerceMaps=false", map[string]interface{}{"k": "v"}, map[string]string{}, false, map[string]interface{}{"k": "v"}},
 		{"map[string]string reshape when coerceMaps=true", map[string]interface{}{"k": "v"}, map[string]string{}, true, map[string]string{"k": "v"}},
 		{"map[string][]string reshape when coerceMaps=true", map[string]interface{}{"k": []interface{}{"a", "b"}}, map[string][]string{}, true, map[string][]string{"k": {"a", "b"}}},
+		{"map[string][]string from yaml v2 map", map[interface{}]interface{}{"k": []interface{}{"a"}}, map[string][]string{}, true, map[string][]string{"k": {"a"}}},
+		{"map[string][]string from JSON string", `{"k": ["a"]}`, map[string][]string{}, true, map[string][]string{"k": {"a"}}},
 		{"map[string]interface{} reshape when coerceMaps=true", map[string]interface{}{"k": "v"}, map[string]interface{}{}, true, map[string]interface{}{"k": "v"}},
 	}
 	for _, tc := range tests {

@@ -8,12 +8,14 @@ package util
 import (
 	"context"
 	"errors"
+	"math/rand/v2"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -393,6 +395,8 @@ func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
 }
 
 func TestCollectRetainsFullAgentTiming(t *testing.T) {
+	// The largest jitter draw keeps the next payload MaxInterval after an unscheduled one.
+	stubRandFloat(t, 1)
 	synctest.Test(t, func(t *testing.T) {
 		i := getTestInventoryPayload(t, map[string]any{
 			"inventories_first_run_delay": 60,
@@ -419,4 +423,97 @@ func TestCollectRetainsFullAgentTiming(t *testing.T) {
 		i.Collect(t.Context())
 		s.AssertNumberOfCalls(t, "SendMetadata", 3)
 	})
+}
+
+// stubRandFloat makes randFloat return r for the rest of the test.
+func stubRandFloat(t *testing.T, r float64) {
+	t.Helper()
+	previous := randFloat
+	randFloat = func() float64 { return r }
+	t.Cleanup(func() { randFloat = previous })
+}
+
+func expectSendMetadata(i *InventoryPayload) {
+	i.serializer.(*serializermock.MetricSerializer).On("SendMetadata", mock.Anything).Return(nil)
+}
+
+func TestScheduleNext(t *testing.T) {
+	i := getTestInventoryPayload(t, nil)
+	assert.Equal(t, i.MaxInterval, i.dueInterval(), "MaxInterval until a payload is scheduled")
+
+	for _, r := range []float64{0, 0.5, 0.999} {
+		stubRandFloat(t, r)
+
+		i.scheduleNext(false)
+		assert.Equal(t, i.MinInterval+time.Duration(r*float64(i.MaxInterval-i.MinInterval)), i.dueInterval(),
+			"after an unscheduled payload, anywhere between MinInterval and MaxInterval")
+
+		i.scheduleNext(true)
+		assert.Equal(t, i.MaxInterval-time.Duration(r*scheduledJitter*float64(i.MaxInterval)), i.dueInterval(),
+			"after a scheduled payload, MaxInterval minus up to scheduledJitter")
+	}
+}
+
+func TestCollectJittersTheNextPayload(t *testing.T) {
+	stubRandFloat(t, 0.5)
+	i := getTestInventoryPayload(t, nil)
+	i.createdAt = time.Now().Add(-2 * time.Minute)
+	expectSendMetadata(i)
+	sent := func() int { return len(i.serializer.(*serializermock.MetricSerializer).Calls) }
+
+	// The first payload is unscheduled: the next one is due halfway between MinInterval and MaxInterval.
+	i.Collect(context.Background())
+	require.Equal(t, 1, sent())
+	unscheduled := i.MinInterval + (i.MaxInterval-i.MinInterval)/2
+	assert.Equal(t, unscheduled, i.dueInterval())
+
+	i.LastCollect = time.Now().Add(-unscheduled + time.Second)
+	i.Collect(context.Background())
+	assert.Equal(t, 1, sent(), "not due yet")
+
+	// A scheduled payload: the next one is due after MaxInterval minus half of scheduledJitter.
+	i.LastCollect = time.Now().Add(-unscheduled - time.Second)
+	i.Collect(context.Background())
+	require.Equal(t, 2, sent())
+	assert.Equal(t, i.MaxInterval-time.Duration(0.5*scheduledJitter*float64(i.MaxInterval)), i.dueInterval())
+
+	// A refresh is unscheduled again, like the first payload.
+	i.Refresh()
+	i.Collect(context.Background())
+	require.Equal(t, 3, sent())
+	assert.Equal(t, unscheduled, i.dueInterval())
+}
+
+func TestSubmitJittersTheNextPayload(t *testing.T) {
+	stubRandFloat(t, 0.25)
+	i := getTestInventoryPayload(t, nil)
+	expectSendMetadata(i)
+	i.nextInterval = i.MaxInterval
+
+	require.NoError(t, i.Submit())
+	assert.Equal(t, i.MinInterval+(i.MaxInterval-i.MinInterval)/4, i.dueInterval())
+}
+
+// TestScheduleNextSpreadsAFleet checks that agents sending their first payload at the same time send their next one
+// spread over the whole interval rather than in lockstep.
+func TestScheduleNextSpreadsAFleet(t *testing.T) {
+	rng := rand.New(rand.NewPCG(1, 2))
+	previous := randFloat
+	randFloat = rng.Float64
+	t.Cleanup(func() { randFloat = previous })
+
+	const agents = 1000
+	i := getTestInventoryPayload(t, nil)
+	perMinute := make(map[time.Duration]int)
+	for range agents {
+		i.scheduleNext(false)
+		require.GreaterOrEqual(t, i.dueInterval(), i.MinInterval)
+		require.LessOrEqual(t, i.dueInterval(), i.MaxInterval)
+		perMinute[i.dueInterval().Truncate(time.Minute)]++
+	}
+	minutes := int((i.MaxInterval - i.MinInterval) / time.Minute)
+	assert.Len(t, perMinute, minutes, "every minute of the interval gets payloads")
+	for minute, n := range perMinute {
+		assert.Less(t, n, 2*agents/minutes, "minute %v gets about its share, not the whole fleet", minute)
+	}
 }

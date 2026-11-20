@@ -44,6 +44,14 @@ class MinimumTrial:
 
 
 class TestAblationConfig(unittest.TestCase):
+    def test_both_log_extractors_have_independent_tuning_parameters(self):
+        for component in ("log_pattern_extractor", "log_metrics_extractor"):
+            with self.subTest(component=component):
+                trial = Mock()
+                trial.suggest_float.return_value = 0.9
+                self.assertEqual(_sample_component_params(trial, component), {"min_token_match_ratio": 0.9})
+                trial.suggest_float.assert_called_once_with(f"{component}.min_token_match_ratio", 0.2, 0.95)
+
     def test_generated_configs_enable_scorer_and_disable_time_cluster(self):
         self.assertEqual(ABLATION_CORRELATORS, ["anomaly_scorer"])
         self.assertEqual(SUPPORTED_CORRELATORS, ["anomaly_scorer", "time_cluster"])
@@ -111,11 +119,11 @@ class TestAblationConfig(unittest.TestCase):
             locked={"anomaly_scorer"},
         )["components"]
 
-        self.assertEqual(components["bocpd"]["warmup_points"], 40)
+        self.assertEqual(components["bocpd"]["warmup_points"], 20)
         self.assertEqual(components["holt_residual"]["warmup_points"], 15)
         self.assertEqual(components["holt_residual"]["residual_window"], 25)
         self.assertEqual(components["tukey_biweight"]["window_size"], 40)
-        self.assertEqual(components["tukey_biweight"]["min_points"], 40)
+        self.assertEqual(components["tukey_biweight"]["min_points"], 20)
 
     def test_optuna_cannot_override_testbench_warmup_profile(self):
         components = _build_optuna_config(
@@ -124,11 +132,11 @@ class TestAblationConfig(unittest.TestCase):
             locked=set(),
         )["components"]
 
-        self.assertEqual(components["bocpd"]["warmup_points"], 40)
+        self.assertEqual(components["bocpd"]["warmup_points"], 20)
         self.assertEqual(components["holt_residual"]["warmup_points"], 15)
         self.assertEqual(components["holt_residual"]["residual_window"], 25)
         self.assertEqual(components["tukey_biweight"]["window_size"], 40)
-        self.assertEqual(components["tukey_biweight"]["min_points"], 40)
+        self.assertEqual(components["tukey_biweight"]["min_points"], 20)
 
 
 class TestPipelineResume(unittest.TestCase):
