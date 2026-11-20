@@ -9,5 +9,5 @@
 enhancements:
   - |
     APM: The trace-agent error ``Cannot decode <version> traces payload`` now includes
-    the language, tracer version and Content-Length of the rejected request, so the
-    client that sends oversized, truncated or slow payloads can be identified.
+    the language, tracer version and Content-Length of the rejected request, to help
+    diagnose oversized, truncated or slow payloads.
