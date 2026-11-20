@@ -6,9 +6,11 @@ container, the image includes `dd-procmgrd`, the Datadog process manager.
 
 When the `ENTRYPOINT` environment variable is not set, `/opt/entrypoints/_default` runs
 `/opt/entrypoints/procmgr-all-in-one` when `dd-procmgrd` is executable and
-`/opt/datadog-agent/processes.d/aio` exists. Otherwise it runs `s6-all-in-one`. That is how
-`agent-ddot` stays on s6 when it copies these entrypoints onto an older base that has no aio
-catalog. `procmgr-all-in-one` runs the cont-init scripts, then execs `dd-procmgrd`.
+`/opt/datadog-agent/processes.d/aio/.procmgr-default` exists. Otherwise it runs
+`s6-all-in-one`. The marker ships with the catalog that matches this entrypoint.
+`agent-ddot` copies these entrypoints onto an older base that already has the opt-in
+catalog and does not have the marker, so that base stays on s6. `procmgr-all-in-one`
+runs the cont-init scripts, then execs `dd-procmgrd`.
 `dd-procmgrd` is PID 1, or the container's main process when the container shares the host
 PID namespace (`pid: host`). It reads its process catalog from
 `/opt/datadog-agent/processes.d/aio/`. When a custom service is added, the entrypoint copies

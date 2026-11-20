@@ -374,9 +374,9 @@ func (s *procmgrAIODockerSuite) TestNonRootUserRunsProcmgr() {
 	}, 3*time.Minute, 2*time.Second)
 }
 
-// The blocking script is reached only after the shipped cont-init scripts, so the stop
-// lands while bash is still PID 1. Exit 143 means the TERM handler ran. Exit 137 means
-// Docker's grace period expired.
+// The blocking script writes script.ready before it sleeps. The RUNNING line is printed
+// before setsid, so the stop waits for the marker. Exit 143 means the TERM handler ran.
+// Exit 137 means Docker's grace period expired.
 func (s *procmgrAIODockerSuite) TestDockerStopDuringContInit() {
 	image := s.agentImage(s.T())
 	name := "aio-stop-during-cont-init"
@@ -385,6 +385,7 @@ set -euo pipefail
 dir=$(mktemp -d)
 cat > "$dir/90-block" <<'EOF'
 #!/bin/sh
+echo ready > /fork-marker/script.ready
 exec /bin/sleep 300
 EOF
 chmod 0755 "$dir/90-block"
@@ -398,11 +399,12 @@ EOS
 		s.Env().RemoteHost.MustExecuteOn(t, "rm -rf "+shSingleQuote(dir))
 	})
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro %s",
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro -v %s:/fork-marker %s",
 		shSingleQuote(name),
 		shSingleQuote(aioThrowawayAPIKey),
 		shSingleQuote(aioBareHostname),
 		shSingleQuote(dir+"/90-block"),
+		shSingleQuote(dir),
 		shSingleQuote(image),
 	))
 	t.Cleanup(func() {
@@ -412,6 +414,8 @@ EOS
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		logs := s.Env().RemoteHost.MustExecuteOn(c, "docker logs "+shSingleQuote(name)+" 2>&1")
 		assert.Contains(c, logs, "===== RUNNING /etc/cont-init.d/90-block =====")
+		ready := s.Env().RemoteHost.MustExecuteOn(c, "test -f "+shSingleQuote(dir+"/script.ready")+" && echo yes || echo no")
+		assert.Equal(c, "yes", strings.TrimSpace(ready))
 	}, 2*time.Minute, 2*time.Second)
 
 	s.Env().RemoteHost.MustExecute("docker stop -t 20 " + shSingleQuote(name))

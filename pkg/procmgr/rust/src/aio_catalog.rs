@@ -954,9 +954,13 @@ fn default_entrypoint_execs_procmgr_all_in_one() {
         "_default must check for dd-procmgrd before selecting it"
     );
     assert!(
-        ENTRYPOINT_DEFAULT.contains("-d /opt/datadog-agent/processes.d/aio"),
-        "_default must check for the all-in-one catalog before selecting procmgr"
+        ENTRYPOINT_DEFAULT.contains("-f /opt/datadog-agent/processes.d/aio/.procmgr-default"),
+        "_default must require the catalog marker before selecting procmgr"
     );
+    // The marker is not YAML, so the catalog scan does not see it. Including it here
+    // fails the build if the file is removed.
+    let _marker: &str =
+        include_str!("../../../../Dockerfiles/agent/processes.d/aio/.procmgr-default");
     assert_eq!(
         ENTRYPOINT_DEFAULT.lines().last().map(str::trim),
         Some("exec /opt/entrypoints/s6-all-in-one"),

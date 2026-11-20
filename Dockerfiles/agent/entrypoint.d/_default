@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Only bases whose dd-procmgrd can run the aio catalog ship processes.d/aio. agent-ddot copies
-# these entrypoints onto older bases, so it must not copy processes.d/aio. Other bases keep s6.
-if [[ -x /opt/datadog-agent/embedded/bin/dd-procmgrd && -d /opt/datadog-agent/processes.d/aio ]]; then
+# agent-ddot copies these entrypoints onto an older base that already has dd-procmgrd and
+# processes.d/aio for opt-in supervision. The marker ships with the catalog that matches
+# this entrypoint, so that base stays on s6.
+if [[ -x /opt/datadog-agent/embedded/bin/dd-procmgrd && -f /opt/datadog-agent/processes.d/aio/.procmgr-default ]]; then
   exec /opt/entrypoints/procmgr-all-in-one
 fi
 exec /opt/entrypoints/s6-all-in-one
