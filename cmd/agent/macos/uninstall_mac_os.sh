@@ -55,6 +55,9 @@ printf "${BLUE}* Uninstalling Datadog Agent, you might be asked for your sudo pa
 # left things behind. Every step is a no-op for what is already gone.
 uninstall_without_installer() {
     printf "${BLUE}\n    - Stopping system services...\n${NC}"
+    # A configuration experiment's detached watchers and hand-back first: a watcher would read the
+    # experiment jobs going away as a crash and load the stable jobs again.
+    $sudo_cmd pkill -9 -f "/opt/datadog-agent/embedded/bin/installer package-command datadog-agent (watchConfigExperiment|startSupervisorRelay|handBackInstaller)" 2>/dev/null || true
     # A configuration experiment's jobs first, so none outlives the configuration it reads.
     $sudo_cmd launchctl bootout system/com.datadoghq.installer-exp 2>/dev/null || true
     $sudo_cmd launchctl bootout system/com.datadoghq.agent-exp 2>/dev/null || true

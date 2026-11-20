@@ -451,6 +451,39 @@ func TestPreRemoveReportsAFailedBootoutOnUninstall(t *testing.T) {
 	assert.FileExists(t, filepath.Join(dir, failing+".plist"), "the job that could not be unloaded keeps its definition")
 }
 
+// TestUninstallStopsAConfigExperimentFirst pins that an uninstall stops a configuration
+// experiment's watchers and clears its deadline before it unloads the experiment jobs: a watcher
+// left running would read those jobs going away as a crash and load the stable jobs back on a host
+// being uninstalled. An upgrade leaves that to the .dmg's preinstall script.
+func TestUninstallStopsAConfigExperimentFirst(t *testing.T) {
+	for _, upgrade := range []bool{false, true} {
+		calls := stubLaunchd(t)
+		stubJobDir(t)
+		stubUninstall(t)
+		stubDeadlinePath(t)
+		require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
+		stoppedAt := -1
+		originalStop := stopSurvivingHelpers
+		stopSurvivingHelpers = func(context.Context) error { stoppedAt = len(*calls); return nil }
+		t.Cleanup(func() { stopSurvivingHelpers = originalStop })
+		ctx := testHookContext(t)
+		ctx.PackageType = PackageTypeDMG
+		ctx.Upgrade = upgrade
+
+		require.NoError(t, preRemoveDatadogAgent(ctx))
+
+		token, err := experimentDeadline().Read()
+		require.NoError(t, err)
+		if upgrade {
+			assert.Equal(t, -1, stoppedAt, "an upgrade leaves the watchers to the preinstall script")
+			assert.NotEmpty(t, token, "an upgrade leaves the deadline to the preinstall script")
+			continue
+		}
+		assert.Equal(t, 0, stoppedAt, "the watchers must be stopped before any job is unloaded")
+		assert.Empty(t, token, "the deadline must be cleared")
+	}
+}
+
 // TestPreRemoveIsIdempotent pins that the pre-remove succeeds on a host with nothing installed, and
 // behaves the same whatever the package type and whether it is an upgrade.
 func TestPreRemoveIsIdempotent(t *testing.T) {
