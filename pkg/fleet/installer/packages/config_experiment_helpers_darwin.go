@@ -43,10 +43,30 @@ func listHelperPIDs(ctx context.Context, commands ...string) ([]int, error) {
 
 // stopSurvivingWatchers terminates the watcher processes an earlier experiment left behind, other
 // than this one, and waits for them to exit. W1 calls it as it starts, so a watcher still around
-// from an earlier experiment never holds the supervisor socket or acts on this experiment's end. W2
-// never does: it would stop W1. A var so tests can observe when it is called.
+// from an earlier experiment never acts on this experiment. A var so tests can observe when it is
+// called.
 var stopSurvivingWatchers = func(ctx context.Context) error {
 	return stopHelpers(ctx, watchConfigExperimentCommand)
+}
+
+// watcherStopTimeout bounds how long W2 waits for the other watchers to exit after SIGTERM before it
+// kills them: longer than the grace a watcher keeps supervising for after SIGTERM, so that a watcher
+// in the middle of a revert or a hand-back finishes it. A var so tests can shorten it.
+var watcherStopTimeout = 15 * time.Second
+
+// stopOtherWatchers terminates every watcher process other than this one, and waits for them to
+// exit. W2 calls it once it is armed on every experiment job: W1, and any watcher an earlier
+// experiment left behind, stop supervising. A var so tests can observe when it is called.
+var stopOtherWatchers = func(ctx context.Context) error {
+	return stopHelpersWithin(ctx, watcherStopTimeout, watchConfigExperimentCommand)
+}
+
+// watcherRunning reports whether a watcher process other than this one runs. A watcher asks it to
+// tell whether the other one owns a failure; a stop or promote hook asks it to tell whether a
+// watcher will hand the installer daemon back. A var so tests can stub it.
+var watcherRunning = func(ctx context.Context) (bool, error) {
+	pids, err := listHelperPIDs(ctx, watchConfigExperimentCommand)
+	return len(pids) > 0, err
 }
 
 // stopSurvivingHelpers terminates every detached experiment process a previous run left behind: the
@@ -60,6 +80,11 @@ var stopSurvivingHelpers = func(ctx context.Context) error {
 // stopHelpers terminates the detached experiment processes running any of commands, and waits for
 // them to exit, killing those that ignore SIGTERM.
 func stopHelpers(ctx context.Context, commands ...string) error {
+	return stopHelpersWithin(ctx, helperStopTimeout, commands...)
+}
+
+// stopHelpersWithin is stopHelpers with timeout as the wait after SIGTERM.
+func stopHelpersWithin(ctx context.Context, timeout time.Duration, commands ...string) error {
 	pids, err := listHelperPIDs(ctx, commands...)
 	if err != nil {
 		return err
@@ -67,7 +92,7 @@ func stopHelpers(ctx context.Context, commands ...string) error {
 	for _, pid := range pids {
 		log.Infof("stopping a previous configuration experiment process (pid %d)", pid)
 		_ = syscall.Kill(pid, syscall.SIGTERM)
-		stopped := time.Now().Add(helperStopTimeout)
+		stopped := time.Now().Add(timeout)
 		for time.Now().Before(stopped) && syscall.Kill(pid, 0) == nil {
 			time.Sleep(100 * time.Millisecond)
 		}
