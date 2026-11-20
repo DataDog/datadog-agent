@@ -52,12 +52,12 @@ unavailable
 {% endfor %}
 {% if hidden.count == 1 %} (1 check has no result){% elif hidden.count > 1 %} ({{ hidden.count }} checks have no result){% endif %}
 {%- endmacro %}
-{#- The cell shows the series without the target.memory. prefix. A tooltip shows the full series. -#}
+{#- The cell shows only the metric name of a memory series. The check name tells the container. A tooltip shows the full series. -#}
 {% macro metric(series) -%}
 {% if series is startingwith("target.memory.") -%}
-<abbr title="{{ series | e }}">`{{ series[14:] }}`</abbr>
+<abbr title="{{ series | e }}">{{ series[14:] | split("{") | first }}</abbr>
 {%- else -%}
-`{{ series }}`
+{{ series }}
 {%- endif %}
 {%- endmacro %}
 {{ summary }}
@@ -119,6 +119,7 @@ unavailable
 
 {% if rows %}
 {% set unit = " (MiB)" if units.memory_only else "" %}
+{#- The table cells have no code spans, because a code span makes a column wider. -#}
 {#- Failed rows come first. Inside each group, the rows keep the order of the report. -#}
 {% set table = namespace(rows=[]) %}
 {% for passed in [false, true] %}
@@ -126,17 +127,16 @@ unavailable
 {% for check in experiment.checks if check.passed == passed %}
 {% set table.rows = table.rows + [{
     "result": ("✅ " if check.passed else "❌ ") ~ check.passed_replicates ~ "/" ~ check.expected_replicates,
-    "experiment": "`" ~ experiment.name ~ "`",
-    "check": "`" ~ check.name ~ "`",
+    "experiment": experiment.name,
+    "check": check.name,
     "metric": metric(check.series) | replace("|", "\\|"),
     "bound": bound(check),
-    "min_observed": observed(check, check.min_observed),
-    "max_observed": observed(check, check.max_observed),
+    "max_observed": ("**" ~ observed(check, check.max_observed) ~ "**") if (check.upper_bound is not none and check.max_observed is not none and check.max_observed > check.upper_bound) else observed(check, check.max_observed),
 }] %}
 {% endfor %}
 {% endfor %}
 {% endfor %}
-{{ table.rows | table([["result", "result"], ["experiment", "experiment"], ["check", "check"], ["metric", "metric"], ["bound" ~ unit, "bound"], ["min observed" ~ unit, "min_observed"], ["max observed" ~ unit, "max_observed"]]) }}
+{{ table.rows | table([["result", "result"], ["experiment", "experiment"], ["check", "check"], ["metric", "metric"], ["bound" ~ unit, "bound"], ["max" ~ unit, "max_observed"]]) }}
 {% if experiments_without_checks %}
 
 Experiments without bounds checks: {% for name in experiments_without_checks %}`{{ name }}`{% if not loop.last %}, {% endif %}{% endfor %}
@@ -149,4 +149,4 @@ There are no bounds checks in the experiments run.
 </details>
 {% endif %}
 
-<sub><i>Commit <a href="https://github.com/DataDog/datadog-agent/commit/{{ extra.commit }}">{{ extra.commit[:11] }}</a> · <a href="{{ extra.job_url }}">CI job</a>{% if links is not none %} · <a href="{{ links.logs }}" title="Datadog logs of the target containers in all replicates of this run">Target logs</a> · <a href="{{ links.metrics }}" title="Datadog notebook with the metrics of all replicates of this run">Metrics</a>{% endif %}</i></sub>
+<sub><i><a href="https://github.com/DataDog/datadog-agent/commit/{{ extra.commit }}">Commit {{ extra.commit[:11] }}</a> · <a href="{{ extra.job_url }}">CI job</a>{% if links is not none %} · <a href="{{ links.logs }}" title="Datadog logs of the target containers in all replicates of this run">Target logs</a> · <a href="{{ links.metrics }}" title="Datadog notebook with the metrics of all replicates of this run">Metrics</a>{% endif %}</i></sub>

@@ -152,7 +152,7 @@ single_machine_performance-kjob:
         elif [[ -z "${KJOB_NO_RESULT_REASON}" ]]; then
           KJOB_NO_RESULT_REASON="the CI job could not read the result of the run"
         fi
-        printf '**⚠️ No result:** %s\n\n<sub><i>Commit <a href="https://github.com/DataDog/datadog-agent/commit/%s">%s</a> · <a href="%s">CI job</a></i></sub>\n' \
+        printf '**⚠️ No result:** %s\n\n<sub><i><a href="https://github.com/DataDog/datadog-agent/commit/%s">Commit %s</a> · <a href="%s">CI job</a></i></sub>\n' \
           "${KJOB_NO_RESULT_REASON}" "${CI_COMMIT_SHA}" "${CI_COMMIT_SHA:0:11}" "${CI_JOB_URL}" > outputs/report.md
       fi
       jq -n --arg commit "${CI_COMMIT_SHA}" --rawfile message outputs/report.md \
