@@ -1036,7 +1036,6 @@ func (p *RoutedProvider) dispatchSourceEndpointPolicy(identifier string, lane *r
 			flushWhileStalled()
 			for !admittedAny && !p.progress.IsRecordDone(token) {
 				if drainPending(token) {
-					admittedAny = true
 					break
 				}
 				if p.progress.IsRecordDone(token) {

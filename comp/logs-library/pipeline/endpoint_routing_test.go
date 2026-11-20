@@ -75,7 +75,6 @@ func newMockEndpointIntake(t *testing.T, apiKey string, useGzip bool) *mockEndpo
 		m.mu.Lock()
 		block := m.blockCh
 		delay := m.delay
-		code := m.statusCode
 		m.mu.Unlock()
 
 		if block != nil {
@@ -93,9 +92,9 @@ func newMockEndpointIntake(t *testing.T, apiKey string, useGzip bool) *mockEndpo
 			}
 		}
 
-		// Re-read status code after unblock/delay so tests can switch status before unblocking.
+		// Read status code after unblock/delay so tests can switch status before unblocking.
 		m.mu.Lock()
-		code = m.statusCode
+		code := m.statusCode
 		m.mu.Unlock()
 
 		var recs []map[string]any
