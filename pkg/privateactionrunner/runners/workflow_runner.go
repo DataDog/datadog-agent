@@ -69,7 +69,7 @@ func NewWorkflowRunner(
 		keysManager:     keysManager,
 		taskExecutor:    taskExecutor,
 		encryptionStore: encryptionStore,
-		sem:             make(chan struct{}, configuration.RunnerPoolSize), // todo: we may consider moving to the semaphore before release.
+		sem:             make(chan struct{}, configuration.RunnerPoolSize),
 		shutdownChannel: make(chan struct{}),
 	}, nil
 }
@@ -142,6 +142,15 @@ func (n *WorkflowRunner) run(parentCtx context.Context) {
 		default:
 		}
 
+		// Acquire capacity before leasing work: a dequeued task that waits for a
+		// slot gets no heartbeats, so its lease and signature can expire.
+		select {
+		case <-n.shutdownChannel:
+			logger.Info("Stopping loop")
+			return
+		case n.sem <- struct{}{}:
+		}
+
 		var task *types.Task
 		var retryAfterDuration time.Duration
 		breaker.Do(
@@ -160,6 +169,7 @@ func (n *WorkflowRunner) run(parentCtx context.Context) {
 		)
 
 		if task == nil {
+			<-n.sem
 			sleepDuration := n.config.LoopInterval
 			if retryAfterDuration > 0 {
 				sleepDuration = retryAfterDuration
@@ -175,11 +185,11 @@ func (n *WorkflowRunner) run(parentCtx context.Context) {
 
 		preparedTask, failureTask, err := n.taskExecutor.PrepareTask(pollCtx, task)
 		if err != nil {
+			<-n.sem
 			n.publishFailure(taskCtx, failureTask, err)
 			continue
 		}
 
-		n.sem <- struct{}{}
 		n.wg.Add(1)
 		go func() {
 			defer n.wg.Done()

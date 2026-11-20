@@ -410,6 +410,90 @@ func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {
 	}
 }
 
+func TestWorkflowRunnerDoesNotDequeueWhilePoolIsFull(t *testing.T) {
+	dequeued := make(chan struct{}, 2)
+	shutdown := make(chan struct{})
+	opmsClient := &testopms.FakeOpmsClient{
+		DequeueTaskFn: func(_ context.Context) (*types.Task, time.Duration, error) {
+			select {
+			case dequeued <- struct{}{}:
+			default:
+			}
+			return nil, 0, nil
+		},
+	}
+	runner := &WorkflowRunner{
+		config: &config.Config{
+			LoopInterval: time.Millisecond,
+			MaxAttempts:  1,
+		},
+		opmsClient:      opmsClient,
+		sem:             make(chan struct{}, 1),
+		shutdownChannel: shutdown,
+	}
+	runner.sem <- struct{}{}
+	done := make(chan struct{})
+	go func() {
+		runner.run(context.Background())
+		close(done)
+	}()
+
+	select {
+	case <-dequeued:
+		t.Fatal("dequeued a task while the pool was full")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	<-runner.sem
+	for range 2 {
+		select {
+		case <-dequeued:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for dequeue after a slot was freed")
+		}
+	}
+
+	close(shutdown)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for runner loop to stop")
+	}
+}
+
+func TestWorkflowRunnerStopsWhileWaitingForPoolSlot(t *testing.T) {
+	shutdown := make(chan struct{})
+	runner := &WorkflowRunner{
+		config: &config.Config{
+			LoopInterval: time.Hour,
+			MaxAttempts:  1,
+		},
+		opmsClient: &testopms.FakeOpmsClient{
+			DequeueTaskFn: func(_ context.Context) (*types.Task, time.Duration, error) {
+				t.Error("dequeued a task while the pool was full")
+				return nil, 0, nil
+			},
+		},
+		sem:             make(chan struct{}, 1),
+		shutdownChannel: shutdown,
+	}
+	runner.sem <- struct{}{}
+	done := make(chan struct{})
+	go func() {
+		runner.run(context.Background())
+		close(done)
+	}()
+
+	// Let the loop reach the slot wait before requesting shutdown.
+	time.Sleep(100 * time.Millisecond)
+	close(shutdown)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for runner loop to stop")
+	}
+}
+
 func TestWorkflowRunner_StartHeartbeat_StopsOnJobNotFound(t *testing.T) {
 	runner := &WorkflowRunner{
 		config: &config.Config{HeartbeatInterval: 10 * time.Millisecond},
