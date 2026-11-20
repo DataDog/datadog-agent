@@ -8,6 +8,7 @@ go_library(
         "compile_unsupported.go",
         "features_ebpf.go",
         "features_unsupported.go",
+        "kprobe_multi.go",
         "loader.go",
         "manager.go",
         "manager_ebpf.go",
@@ -21,6 +22,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
             "//pkg/ebpf",
             "//pkg/ebpf/btf",
             "//pkg/ebpf/bytecode",
@@ -34,9 +36,11 @@ go_library(
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_cilium_ebpf//asm",
             "@com_github_cilium_ebpf//btf",
+            "@com_github_cilium_ebpf//features",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
             "//pkg/ebpf",
             "//pkg/ebpf/btf",
             "//pkg/ebpf/bytecode",
@@ -50,6 +54,7 @@ go_library(
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_cilium_ebpf//asm",
             "@com_github_cilium_ebpf//btf",
+            "@com_github_cilium_ebpf//features",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "//conditions:default": [],
@@ -60,6 +65,7 @@ dd_agent_go_test(
     name = "ebpf_test",
     srcs = [
         "compile_test.go",
+        "kprobe_multi_test.go",
         "syscall_aliases_test.go",
         "tailcall_groups_test.go",
     ],
@@ -70,7 +76,9 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/core/schema/noop-impl",
+            "//pkg/config/mock",
             "//pkg/ebpf/ebpftest",
+            "//pkg/ebpf/names",
             "//pkg/security/ebpf/probes",
             "//pkg/security/probe/config",
             "//pkg/system-probe/config",
@@ -83,7 +91,9 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/schema/noop-impl",
+            "//pkg/config/mock",
             "//pkg/ebpf/ebpftest",
+            "//pkg/ebpf/names",
             "//pkg/security/ebpf/probes",
             "//pkg/security/probe/config",
             "//pkg/system-probe/config",

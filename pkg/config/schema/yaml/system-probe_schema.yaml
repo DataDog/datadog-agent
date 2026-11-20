@@ -1286,6 +1286,14 @@ properties:
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_KPROBE_FALLBACK
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_KPROBE_FALLBACK
+          use_kprobe_multi:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_KPROBE_MULTI
+            - DD_CWS_KPROBE_MULTI_EXPERIMENT
+            description: Enables the experimental CWS multi-kprobe backend on supported kernels, with one link per existing hook.
           use_ring_buffer:
             node_type: setting
             type: boolean

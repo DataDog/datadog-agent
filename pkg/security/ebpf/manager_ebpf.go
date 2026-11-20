@@ -77,6 +77,7 @@ func NewRuntimeSecurityManager(supportsRingBuffers bool, supportsTaskStorage boo
 		modifiers = append(modifiers, ddmodifiers.NewHelperCallRemover(asm.FnTaskStorageGet, asm.FnTaskStorageDelete, asm.FnGetCurrentTaskBtf))
 	}
 	modifiers = append(modifiers, newSyscallAliasesModifier())
+	modifiers = append(modifiers, &kprobeMultiBackend{})
 	// must be the last modifier, so that the tail call targets it copies include the changes of the other modifiers
 	tailCallGroups := newTailCallGroupsModifier(probes.GetOnDemandFuncNames()...)
 	modifiers = append(modifiers, tailCallGroups)
