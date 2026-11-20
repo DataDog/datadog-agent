@@ -121,6 +121,7 @@ eBPF programs, runtime-compilation bundles, and cgo godefs are built with Bazel 
 Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table above) or `bazel test //pkg/... //comp/...`; Python checks use pytest.
 Both go through Bazel, so a new package has no test target until `bazel run //:gazelle -- <dir>` generates its `BUILD.bazel`.
 Run the same command after adding, removing, or renaming a `.go` file (tests included) or changing imports in an existing package, and commit the `BUILD.bazel` diff with it; otherwise the `bazel:run-gazelle` CI job fails.
+After adding a package or changing imports or build constraints, also run `dda inv go.write-tag-manifest` and commit the generated `bazel/go_tags/closure_tags.bzl` diff. A stale manifest can drop required build tags and cause duplicate-package linker errors; see `bazel/AGENTS.md` for details.
 
 ### End-to-End Tests
 - E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`

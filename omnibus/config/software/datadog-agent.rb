@@ -252,7 +252,7 @@ build do
     delete "#{install_dir}/embedded/share/system-probe/ebpf/usm_events_test*.o"
     copy "pkg/ebpf/bytecode/build/#{arch}/co-re/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/"
     copy "pkg/ebpf/bytecode/build/runtime/*.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
-    copy "#{ENV['SYSTEM_PROBE_BIN']}/clang-bpf", "#{install_dir}/embedded/bin/clang-bpf"
+    command "bazel run #{omnibazel_flags} //packages/agent/product:install_system_probe_llvm_bpf -- --destdir=\"#{install_dir}\"", env: env
     copy "#{ENV['SYSTEM_PROBE_BIN']}/minimized-btfs.tar.xz", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf/minimized-btfs.tar.xz"
 
     copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
@@ -340,16 +340,6 @@ build do
 
       LINUX_BINARIES.each do |bin|
         fips_check_binary_for_expected_symbol(File.join(install_dir, bin))
-      end
-    end
-  end
-
-  block do
-    python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
-    mkdir "#{install_dir}/python-scripts"
-    Dir.glob("#{python_scripts_dir}/*").each do |file|
-      unless File.basename(file).end_with?('_tests.py')
-        copy file, "#{install_dir}/python-scripts"
       end
     end
   end

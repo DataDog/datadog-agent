@@ -149,6 +149,10 @@ type InternalTracerPayload struct {
 	Chunks []*InternalTraceChunk
 	// ContainerDebug holds debug information about the container tags resolution.
 	ContainerDebug *ContainerDebug
+	// chunkEnvVersionOverrides reports whether chunk "env"/"version" attributes override the
+	// payload-level env/app version. Only native v1 payloads opt in: payloads converted from
+	// legacy formats carry legacy chunk tags as attributes, which must keep today's behavior.
+	chunkEnvVersionOverrides bool
 }
 
 // Msgsize returns the size of the message when serialized to messagepack.
@@ -767,6 +771,89 @@ func (c *InternalTraceChunk) Origin() string {
 // SetOrigin sets the origin for the trace chunk.
 func (c *InternalTraceChunk) SetOrigin(origin string) {
 	c.originRef = c.Strings.Add(origin)
+}
+
+// Chunk attribute keys that override the payload-level env and app version for a single chunk.
+// No shared constant exists for these keys in this module, so they are defined locally.
+const (
+	chunkEnvAttributeKey     = "env"
+	chunkVersionAttributeKey = "version"
+)
+
+// stringAttributeRef returns the string-table ref of the chunk attribute key and its string
+// value. The value is "" when the attribute is missing or not string-valued.
+func (c *InternalTraceChunk) stringAttributeRef(key string) (uint32, string) {
+	ref := c.Strings.Lookup(key)
+	if ref == 0 {
+		return 0, ""
+	}
+	v, ok := c.Attributes[ref]
+	if !ok {
+		return 0, ""
+	}
+	if s, isString := v.GetValue().(*AnyValue_StringValueRef); isString {
+		return ref, c.Strings.Get(s.StringValueRef)
+	}
+	return ref, ""
+}
+
+// ChunkEnvVersionOverridesEnabled reports whether chunk "env"/"version" attributes override
+// the payload-level env and app version. It is true for payloads decoded from native v1 msgpack.
+func (tp *InternalTracerPayload) ChunkEnvVersionOverridesEnabled() bool {
+	return tp.chunkEnvVersionOverrides
+}
+
+// SetChunkEnvVersionOverridesEnabled sets whether chunk "env"/"version" attributes override
+// the payload-level env and app version.
+func (tp *InternalTracerPayload) SetChunkEnvVersionOverridesEnabled(enabled bool) {
+	tp.chunkEnvVersionOverrides = enabled
+}
+
+// Env returns the chunk-level env override (the string "env" chunk attribute), or "" when
+// the chunk uses the payload-level env.
+func (c *InternalTraceChunk) Env() string {
+	_, v := c.stringAttributeRef(chunkEnvAttributeKey)
+	return v
+}
+
+// SetEnv sets the chunk-level env override (the "env" chunk attribute).
+func (c *InternalTraceChunk) SetEnv(env string) {
+	c.SetStringAttribute(chunkEnvAttributeKey, env)
+}
+
+// AppVersion returns the chunk-level app version override (the string "version" chunk
+// attribute), or "" when the chunk uses the payload-level app version.
+func (c *InternalTraceChunk) AppVersion() string {
+	_, v := c.stringAttributeRef(chunkVersionAttributeKey)
+	return v
+}
+
+// SetAppVersion sets the chunk-level app version override (the "version" chunk attribute).
+func (c *InternalTraceChunk) SetAppVersion(version string) {
+	c.SetStringAttribute(chunkVersionAttributeKey, version)
+}
+
+// CanonicalizeEnvVersion makes the chunk "env" and "version" attributes match Env() and
+// AppVersion(): a non-empty string value is kept (env passed through normalizeEnv when
+// non-nil), and an empty or non-string value, which means "no override", is removed.
+func (c *InternalTraceChunk) CanonicalizeEnvVersion(normalizeEnv func(string) string) {
+	if len(c.Attributes) == 0 {
+		return
+	}
+	if ref, env := c.stringAttributeRef(chunkEnvAttributeKey); ref != 0 {
+		if env != "" && normalizeEnv != nil {
+			env = normalizeEnv(env)
+		}
+		// Check emptiness after normalization: an env that normalizes to "" is no override.
+		if env == "" {
+			delete(c.Attributes, ref)
+		} else {
+			c.SetEnv(env)
+		}
+	}
+	if ref, version := c.stringAttributeRef(chunkVersionAttributeKey); ref != 0 && version == "" {
+		delete(c.Attributes, ref)
+	}
 }
 
 // SamplingMechanism returns the sampling mechanism from the trace chunk.

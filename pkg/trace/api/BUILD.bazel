@@ -153,6 +153,7 @@ dd_agent_go_test(
         "listener_test.go",
         "openlineage_test.go",
         "opm_test.go",
+        "otlp_nix_test.go",
         "otlp_test.go",
         "pipeline_stats_test.go",
         "profiles_bodyclose_test.go",

@@ -10,7 +10,6 @@ import (
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 )
 
@@ -48,7 +47,7 @@ func credsByID(creds []connectivity.SNMPCredential, ids []string) []connectivity
 
 // scanTargets probes the request's targets with all its credentials.
 func (c *connectivityCheck) scanTargets(ctx context.Context, req connectivity.Request) (connectivity.Result, error) {
-	opts, err := toProbeOptions(req, c.pingCapability())
+	opts, err := toProbeOptions(req)
 	if err != nil {
 		return connectivity.Result{}, err
 	}
@@ -67,15 +66,4 @@ func workers(hint int) int {
 		return 1
 	}
 	return hint
-}
-
-// pingCapability detects whether this agent can ping, once.
-func (c *connectivityCheck) pingCapability() pingprobe.Capability {
-	c.pingOnce.Do(func() {
-		c.ping = pingprobe.Detect()
-		if !c.ping.Available {
-			c.logger.Warnf("ndmconnectivitycheck: the ping probe is not available on this agent: %s", c.ping.Reason)
-		}
-	})
-	return c.ping
 }

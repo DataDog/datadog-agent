@@ -13,7 +13,13 @@ bazel:package:linux-amd64:
     - BAZEL_PACKAGE_BIN="$(bazel info bazel-bin)/packages/agent/linux"
     - cp -L "$BAZEL_PACKAGE_BIN"/datadog-agent_*.deb bazel-packages/
     - cp -L "$BAZEL_PACKAGE_BIN"/datadog-agent-*.rpm bazel-packages/
+    - !reference [.log_dd_pkg_version]
+    - dd-pkg lint bazel-packages/*.deb bazel-packages/*.rpm
+    - dd-pkg check-files --required-files test/required_files/agent-deb.txt bazel-packages/*.deb
+    - dd-pkg check-files --required-files test/required_files/agent-rpm.txt bazel-packages/*.rpm
+    - dd-pkg sign --key-id "${PIPELINE_KEY_ALIAS}" bazel-packages
   artifacts:
+    when: always
     expire_in: 2 weeks
     paths:
       - bazel-packages/
