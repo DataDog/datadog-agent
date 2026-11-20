@@ -172,6 +172,7 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 	// Protocol classification setup
 	var closeProtocolClassifierSocketFilterFn func()
 	util.AddBoolConst(&o, "protocol_classification_enabled", isClassificationSupported)
+	util.AddBoolConst(&o, "cert_collection_enabled", config.EnableCertCollection)
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if isClassificationSupported {

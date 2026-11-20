@@ -21,6 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -344,6 +346,7 @@ func TestIdentitySecretStoreLoad(t *testing.T) {
 			client := fake.NewSimpleClientset(secretWithHash(tt.secretHash))
 			leader := newFakeLeader(tt.leader)
 			storage := &k8sIdentityStorage{
+				cfg:          configmock.New(t),
 				kubeClient:   func() (kubernetes.Interface, error) { return client, nil },
 				namespace:    ns,
 				secretName:   name,
