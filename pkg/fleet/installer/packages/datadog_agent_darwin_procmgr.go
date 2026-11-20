@@ -20,10 +20,11 @@ import (
 )
 
 const (
-	procmgrSourceEnvironment   = "environment"
-	procmgrSourceInstallScript = "install script"
-	procmgrSourceDatadogYAML   = "datadog.yaml"
-	procmgrSourceDefault       = "default"
+	procmgrSourceEnvironment      = "environment"
+	procmgrSourceInstallScript    = "install script"
+	procmgrSourceDatadogYAML      = "datadog.yaml"
+	procmgrSourceSavedDatadogYAML = "saved datadog.yaml"
+	procmgrSourceDefault          = "default"
 
 	envProcessManagerEnabled = "DD_PROCESS_MANAGER_ENABLED"
 )

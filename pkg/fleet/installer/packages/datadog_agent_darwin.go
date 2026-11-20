@@ -166,6 +166,22 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	}
 }
 
+// procmgrDatadogYAML returns the datadog.yaml to read. A live file that is present, including
+// one that cannot be read, is returned as-is. Only a missing live file falls back to the copy in
+// saved-conf, and only when that copy is present or its stat fails for a reason other than
+// absence. fromSaved reports that the saved copy was selected.
+func procmgrDatadogYAML(layout dmgLayout) (path string, fromSaved bool) {
+	live := filepath.Join(layout.confDir(), "datadog.yaml")
+	if _, err := os.Stat(live); !os.IsNotExist(err) {
+		return live, false
+	}
+	saved := filepath.Join(layout.savedConfDir(), "datadog.yaml")
+	if _, err := os.Stat(saved); os.IsNotExist(err) {
+		return live, false
+	}
+	return saved, true
+}
+
 // postInstallDMG is the post-install the .dmg's postinstall script delegates to
 // `installer postinst datadog-agent dmg`: setting up the account, directories, configuration,
 // application and links (setUpDMGInstall), writing the processes.d catalog, registering the Agent
@@ -175,6 +191,8 @@ func postInstallDatadogAgent(ctx HookContext) error {
 // or datadog.yaml cannot be read or parsed or its value is not a bool, com.datadoghq.procmgr and
 // the catalog are removed instead, failing the hook if either remains, and the other jobs still
 // load. That configuration failure also fails the hook, so a broken file cannot start dd-procmgrd.
+// A missing live datadog.yaml is read from the copy the preinstall script saved. If that copy is
+// missing too, the process manager stays on by default.
 //
 // Every step runs even if an earlier one fails, and in this order so the installer daemon finds its
 // directories and the package registered when it starts: a failed registration only leaves Fleet
@@ -186,8 +204,14 @@ func postInstallDMG(ctx HookContext) error {
 		errs = append(errs, err)
 	}
 	skip := map[string]bool{}
-	// Resolved after setUpDMGInstall, which restores datadog.yaml from the saved configuration on upgrade.
-	enabled, source, resolveErr := procmgrEnabled(os.LookupEnv, env, filepath.Join(defaultDmgLayout.confDir(), "datadog.yaml"))
+	// Resolved after setUpDMGInstall, which restores datadog.yaml from the saved configuration on
+	// upgrade. If that restore did not happen and the live file is absent, the saved copy is read
+	// directly so an opt-out there is not treated as a first install.
+	datadogYAML, fromSaved := procmgrDatadogYAML(defaultDmgLayout)
+	enabled, source, resolveErr := procmgrEnabled(os.LookupEnv, env, datadogYAML)
+	if fromSaved && source == procmgrSourceDatadogYAML {
+		source = procmgrSourceSavedDatadogYAML
+	}
 	if resolveErr != nil {
 		errs = append(errs, fmt.Errorf("process_manager.enabled could not be read from %s: %w", source, resolveErr))
 		enabled = false

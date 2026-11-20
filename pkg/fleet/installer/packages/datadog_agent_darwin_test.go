@@ -1171,6 +1171,26 @@ func TestPostInstallDMGHonorsSavedConfig(t *testing.T) {
 	assertProcmgrOmitted(t, *calls, dir)
 }
 
+func TestPostInstallDMGHonorsSavedConfigWhenSetupFails(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	procmgrEnabled = resolveProcmgrEnabled
+	t.Setenv(envProcessManagerEnabled, "")
+	logs := captureHookLog(t)
+	require.NoError(t, os.MkdirAll(defaultDmgLayout.savedConfDir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(defaultDmgLayout.savedConfDir(), "datadog.yaml"), []byte("process_manager:\n  enabled: false\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Dir(defaultDmgLayout.logDir()), 0o755))
+	require.NoError(t, os.WriteFile(defaultDmgLayout.logDir(), []byte("not a directory"), 0o644))
+
+	err := postInstallDMG(testHookContext(t))
+
+	require.Error(t, err)
+	assert.NoFileExists(t, filepath.Join(defaultDmgLayout.confDir(), "datadog.yaml"))
+	assert.Contains(t, logs.String(), "process_manager.enabled is false (from saved datadog.yaml): com.datadoghq.procmgr is not loaded")
+	assertProcmgrOmitted(t, *calls, dir)
+}
+
 func TestPostInstallDMGHonorsTheInstallScriptEnv(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
