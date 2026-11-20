@@ -100,12 +100,29 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthStartEntry); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthStartEntry, err)
 			}
-			// pkill exits 1 when nothing matches, and Execute hides that code, so pgrep is what
-			// shows a child that outlived the stop.
+			// pkill sends SIGTERM and returns before the process exits. Poll, then SIGKILL a
+			// survivor, so a retry does not inherit it after the daemon drops the entry.
+			check := "sudo sh -c 'pgrep -f \"^/bin/sleep " + sleepArg + "$\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
 			if _, err := client.Execute("sudo pkill -f '^/bin/sleep " + sleepArg + "$'"); err != nil {
 				t.Logf("cleanup: pkill /bin/sleep %s: %v", sleepArg, err)
 			}
-			left, err := client.Execute("sudo sh -c 'pgrep -f \"^/bin/sleep " + sleepArg + "$\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'")
+			deadline := time.Now().Add(5 * time.Second)
+			var left string
+			var err error
+			for {
+				left, err = client.Execute(check)
+				if err != nil || strings.TrimSpace(left) == "" || time.Now().After(deadline) {
+					break
+				}
+				time.Sleep(250 * time.Millisecond)
+			}
+			confirmedGone := err == nil && strings.TrimSpace(left) == ""
+			if !confirmedGone {
+				if _, killErr := client.Execute("sudo pkill -9 -f '^/bin/sleep " + sleepArg + "$'"); killErr != nil {
+					t.Logf("cleanup: pkill -9 /bin/sleep %s: %v", sleepArg, killErr)
+				}
+				left, err = client.Execute(check)
+			}
 			if err != nil {
 				t.Errorf("cleanup: failed to check for /bin/sleep %s: %v", sleepArg, err)
 			} else if strings.TrimSpace(left) != "" {
