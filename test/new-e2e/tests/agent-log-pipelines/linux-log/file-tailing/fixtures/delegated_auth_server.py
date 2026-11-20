@@ -27,7 +27,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             if proof.startswith("oidc-"):
                 provider, api_key = "oidc", "dela-e2e-oidc-api-key"
-                valid = oidc_token_audience(proof[len("oidc-"):]) == OIDC_AUDIENCE
+                valid = oidc_token_audience(proof[len("oidc-") :]) == OIDC_AUDIENCE
             else:
                 provider, api_key = "aws", "dela-e2e-api-key"
                 proof_parts = proof.split("|")
