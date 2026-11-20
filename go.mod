@@ -218,7 +218,7 @@ require (
 	github.com/DataDog/ddtrivy v0.0.0-20261116172154-483f6de3e3e7
 	github.com/DataDog/ebpf-manager v0.8.7
 	github.com/DataDog/go-acl v1.0.1
-	github.com/DataDog/go-sqllexer v0.2.6
+	github.com/DataDog/go-sqllexer v0.2.7
 	github.com/DataDog/jsonapi v0.14.0
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20260917081843-fe016948e308
