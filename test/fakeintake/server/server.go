@@ -323,11 +323,12 @@ func (fi *Server) Start() {
 	fi.started = true
 	fi.shutdown = make(chan struct{})
 	fi.served = make(chan struct{})
-	served := fi.served
+	// the routines get the channels of this start, as a Start after a failed listen replaces them
+	shutdown, served := fi.shutdown, fi.served
 	fi.startMutex.Unlock()
 
-	go fi.listenRoutine(served)
-	go fi.cleanUpPayloadsRoutine()
+	go fi.listenRoutine(served, shutdown)
+	go fi.cleanUpPayloadsRoutine(shutdown)
 }
 
 // URL returns the URL of the fakeintake server
@@ -363,8 +364,9 @@ func (fi *Server) Stop() error {
 	return err
 }
 
-// listenRoutine serves the requests until the server stops, then closes served
-func (fi *Server) listenRoutine(served chan struct{}) {
+// listenRoutine serves the requests until the server stops, or closes shutdown when it fails to listen, then closes
+// served
+func (fi *Server) listenRoutine(served, shutdown chan struct{}) {
 	defer close(served)
 	listener, url := fi.listener, fi.listenerURL
 	if listener == nil {
@@ -375,7 +377,8 @@ func (fi *Server) listenRoutine(served chan struct{}) {
 		listener, err = net.Listen("tcp", fi.server.Addr)
 		if err != nil {
 			log.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
-			// the server never ran: a later Start can try again
+			// the server never ran: stop the routines of this start, and let a later Start try again
+			close(shutdown)
 			fi.startMutex.Lock()
 			fi.started = false
 			fi.startMutex.Unlock()
@@ -396,7 +399,7 @@ func (fi *Server) listenRoutine(served chan struct{}) {
 	if fi.ready != nil {
 		select {
 		case fi.ready <- true:
-		case <-fi.shutdown:
+		case <-shutdown:
 			// stopped before its readiness was read: Serve won't close the listener
 			_ = listener.Close()
 			return
@@ -410,12 +413,12 @@ func (fi *Server) listenRoutine(served chan struct{}) {
 	}
 }
 
-func (fi *Server) cleanUpPayloadsRoutine() {
+func (fi *Server) cleanUpPayloadsRoutine(shutdown chan struct{}) {
 	ticker := fi.clock.Ticker(1 * time.Minute)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-fi.shutdown:
+		case <-shutdown:
 			return
 		case <-ticker.C:
 			now := fi.clock.Now()
