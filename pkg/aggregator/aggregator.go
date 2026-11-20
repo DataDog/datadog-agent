@@ -323,8 +323,8 @@ type BufferedAggregator struct {
 	filterListChan  chan metricname.Matcher
 	flushFilterList metricname.Matcher
 
-	tagFilterListChan chan filterlist.TagMatcher
-	tagFilterList     filterlist.TagMatcher
+	tagFilterListChan chan metricname.TagMatcher
+	tagFilterList     metricname.TagMatcher
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -401,7 +401,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		filterListChan:    make(chan metricname.Matcher),
 		flushFilterList:   filterList.GetMetricFilterList(),
-		tagFilterListChan: make(chan filterlist.TagMatcher),
+		tagFilterListChan: make(chan metricname.TagMatcher),
 		tagFilterList:     filterList.GetTagFilterList(),
 	}
 
@@ -975,7 +975,7 @@ func (agg *BufferedAggregator) run() {
 }
 
 // setFilterList applies new metric_tag_filterlist rules: check samplers refilter their contexts.
-func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
+func (agg *BufferedAggregator) setFilterList(matcher metricname.TagMatcher) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	agg.tagFilterList = matcher

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Improve required-input validation for Kubernetes actions, returning clear
+    errors for missing names, namespaces, or request bodies.

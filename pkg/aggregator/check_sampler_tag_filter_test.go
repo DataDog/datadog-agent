@@ -20,7 +20,6 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
-	filterlistdef "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -30,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 )
 
-func filterPodMatcher(t *testing.T, names ...string) filterlistdef.TagMatcher {
+func filterPodMatcher(t *testing.T, names ...string) metricname.TagMatcher {
 	rules := map[string]filterlistimpl.MetricTagList{}
 	for _, name := range names {
 		rules[name] = filterlistimpl.MetricTagList{Tags: []string{"pod"}, Action: "exclude"}

@@ -13,11 +13,11 @@ import (
 	"time"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 )
 
 // The check output benchmarks compare the aggregator's check path without filtering, with a rule that filters the
@@ -178,7 +178,7 @@ func BenchmarkCheckOutputRuleChange(b *testing.B) {
 				{benchMetric: {Tags: []string{"pod"}, Action: "exclude"}},
 				{benchMetric: {Tags: []string{"ctx"}, Action: "exclude"}},
 			}
-			matchers := []filterlist.TagMatcher{filterlistimpl.NewTagMatcher(rules[0], logmock.New(b)), filterlistimpl.NewTagMatcher(rules[1], logmock.New(b))}
+			matchers := []metricname.TagMatcher{filterlistimpl.NewTagMatcher(rules[0], logmock.New(b)), filterlistimpl.NewTagMatcher(rules[1], logmock.New(b))}
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {

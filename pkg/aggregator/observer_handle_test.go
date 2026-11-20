@@ -21,7 +21,6 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	coretaggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	filterlistdef "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -161,14 +161,14 @@ func TestTimeSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 	type samplerCase struct {
 		name    string
-		observe func(*testing.T, tagger.Component, *metrics.MetricSample, filterlistdef.TagMatcher) recordedCall
+		observe func(*testing.T, tagger.Component, *metrics.MetricSample, metricname.TagMatcher) recordedCall
 		// filteredTags are the tags observed with a rule that excludes env and pod_name.
 		filteredTags []string
 	}
 	cases := []samplerCase{
 		{
 			name: "time sampler",
-			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher filterlistdef.TagMatcher) recordedCall {
+			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher metricname.TagMatcher) recordedCall {
 				t.Helper()
 				sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore("test"), tagger, "host")
 				handle := &recordingHandle{}
@@ -181,7 +181,7 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 		},
 		{
 			name: "check sampler",
-			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher filterlistdef.TagMatcher) recordedCall {
+			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher metricname.TagMatcher) recordedCall {
 				t.Helper()
 				sampler := newCheckSampler(10, false, false, 0, false, true, tags.NewStore("test"), "test-check", tagger, newFilteredIdentityTable())
 				handle := &recordingHandle{}

@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 // The gpu_metrics sysfs attribute holds a binary table the amdgpu driver fills
@@ -530,23 +531,32 @@ func readUnsigned(b []byte, width int) uint64 {
 	}
 }
 
-// gpuMetrics reads and decodes the gpu_metrics attribute of a device in a
-// single read. It returns nil without an error when the device has none.
-func (r *reader) gpuMetrics(path string) (*GPUMetrics, error) {
+// readGPUMetricsFile reads the gpu_metrics attribute; tests replace it.
+var readGPUMetricsFile = readFileLimited
+
+// readFileLimited reads at most limit bytes of a file through one file
+// descriptor: amdgpu generates the whole table on the first read, so the
+// table is consistent.
+func readFileLimited(path string, limit int64) ([]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		if !isUnsupported(err) {
-			r.errs = append(r.errs, err)
-		}
-		return nil, nil
+		return nil, err
 	}
 	defer f.Close()
-	// The attribute is generated in full by the first read: reading it
-	// through one file descriptor returns one consistent table.
-	data, err := io.ReadAll(io.LimitReader(f, maxGPUMetricsSize+1))
+	return io.ReadAll(io.LimitReader(f, limit))
+}
+
+// gpuMetrics reads and decodes the gpu_metrics attribute of a device in a
+// single read. It returns nil without an error when the device has none or is
+// runtime-suspended.
+func (r *reader) gpuMetrics(devicePath string) (*GPUMetrics, error) {
+	path := filepath.Join(devicePath, "gpu_metrics")
+	data, err := readGPUMetricsFile(path, maxGPUMetricsSize+1)
 	if err != nil {
-		if !isUnsupported(err) {
-			r.errs = append(r.errs, fmt.Errorf("read %s: %w", path, err))
+		// amdgpu returns EPERM while the device is runtime-suspended, as for
+		// the busy percentages; during a GPU reset it stays an error.
+		if !isUnsupported(err) && (!errors.Is(err, syscall.EPERM) || !runtimeSuspended(devicePath)) {
+			r.errs = append(r.errs, err)
 		}
 		return nil, nil
 	}
