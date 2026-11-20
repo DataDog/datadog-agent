@@ -17,6 +17,7 @@ import (
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	httpclient "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
@@ -35,20 +36,48 @@ import (
 )
 
 const (
-	routedIngressCapacity   = 256
-	routedProcessedCapacity = 256
-	routedStreamCapacity    = 128
-	routedPayloadCapacity   = 4
-	routedGroupCapacity     = 32
-	routedOutcomeCapacity   = 128
-	routedProgressCapacity  = 4096
-	routedDestinationBuffer = 128
-	routedHTTPRequests      = 64
-	routedStopGrace         = 5 * time.Second
+	routedIngressCapacity        = 256
+	routedProcessedCapacity      = 256
+	routedStreamCapacity         = 128
+	routedOptionalStreamCapacity = 128
+	routedOptionalQueueCapacity  = 32
+	routedPayloadCapacity        = 4
+	routedGroupCapacity          = 32
+	routedOutcomeCapacity        = 128
+	routedProgressCapacity       = 4096
+	routedDestinationBuffer      = 128
+	routedHTTPRequests           = 64
+	routedStopGrace              = 5 * time.Second
+	routedErrorLogInterval       = 10 * time.Second
 )
 
-// RoutedOptions is the injection boundary for the normal HTTP routing
-// mechanism. No Agent startup path constructs this provider automatically.
+var (
+	tlmOptionalStreamDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_routing", "optional_stream_dropped", []string{"endpoint"}, "Optional routed messages dropped before batching due to queue saturation")
+	tlmEvalErrors            = telemetryimpl.GetCompatComponent().NewCounter("logs_routing", "eval_errors", []string{"endpoint", "reliability"}, "Endpoint selector evaluation errors")
+)
+
+type errorRateLimiter struct {
+	mu   sync.Mutex
+	last map[string]time.Time
+}
+
+func (l *errorRateLimiter) allow(key string) bool {
+	now := time.Now()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.last == nil {
+		l.last = make(map[string]time.Time)
+	}
+	if prev, ok := l.last[key]; ok && now.Sub(prev) < routedErrorLogInterval {
+		return false
+	}
+	l.last[key] = now
+	return true
+}
+
+// RoutedOptions is the configuration boundary for the normal HTTP routing
+// mechanism. Either Groups+Resolve (base per-group AND mode) or EndpointPolicy
+// (Layout B reliable-set OR + optional endpoints mode) must be supplied.
 type RoutedOptions struct {
 	NumberOfPipelines         int
 	Sink                      sender.Sink
@@ -56,13 +85,20 @@ type RoutedOptions struct {
 	ProcessingRules           []*config.ProcessingRule
 	TagFilters                *tagfilter.Filters
 	Groups                    []routing.Group
+	// EndpointPolicy activates Layout B per-endpoint batching with reliable-set OR
+	// completion and non-blocking optional endpoints. Mutually exclusive with Groups.
+	EndpointPolicy *routing.EndpointPolicy
+	// OptionalQueueSize bounds per-optional-endpoint stream/sender queues when
+	// EndpointPolicy is set. Zero uses safe bounded defaults.
+	OptionalQueueSize int
 	// Generation identifies checkpointed records on shared ingress before processing.
 	// SourceInput supplies its bound generation instead. Anonymous records need none.
 	// The callback must be local and bounded, as must Resolve.
 	Generation func(*message.Message) (uint64, error)
-	// Resolve sees the commonly processed record before rendering or encoding.
+	// Resolve sees the commonly processed record before rendering or encoding (Groups mode).
 	Resolve             func(*message.Message) (routing.Selection, error)
 	OnError             func(error)
+	OnOptionalError     func(routing.OptionalEvalError)
 	DestinationsContext *client.DestinationsContext
 	Hostname            hostnameinterface.Component
 	Config              pkgconfigmodel.Reader
@@ -72,6 +108,7 @@ type RoutedOptions struct {
 
 type routedStream struct {
 	pressureFlush bool // Single-record batches already flush immediately.
+	optional      bool
 	groups        []string
 	input         chan *message.Message
 	output        chan *message.Payload
@@ -111,6 +148,7 @@ type RoutedProvider struct {
 	opts             RoutedOptions
 	destinationsCtx  *client.DestinationsContext
 	defs             *routing.Definitions
+	policy           *routing.EndpointPolicy
 	progress         *routing.Progress
 	monitor          metrics.PipelineMonitor
 	ingress          chan *message.Message
@@ -121,8 +159,12 @@ type RoutedProvider struct {
 	processors       []*processor.Processor
 	streams          map[string]*routedStream
 	senders          map[string]*sender.Sender
+	optionalSenders  map[string]*httpsender.OptionalSender
 	groupInputs      map[string]chan *message.Payload
 	sinks            map[string]*routing.GroupSink
+	endpointSinks    map[string]*routing.EndpointSink
+	reliableOrder    []string
+	errLimiter       errorRateLimiter
 	ctx              context.Context
 	cancel           context.CancelFunc
 	ingressDone      sync.WaitGroup
@@ -140,15 +182,25 @@ type RoutedProvider struct {
 	pressureFlush    bool
 }
 
-// NewRoutedProvider validates injected groups before constructing workers. It
-// reads the group limit once at startup and leaves the default provider alone.
+// NewRoutedProvider validates injected groups or endpoint policy before constructing
+// workers. It leaves the default provider untouched.
 func NewRoutedProvider(opts RoutedOptions) (*RoutedProvider, error) {
-	if opts.Config == nil || opts.Sink == nil || opts.Resolve == nil || opts.Compression == nil || opts.DestinationsContext == nil || opts.Secrets == nil || opts.DiagnosticMessageReceiver == nil || opts.NumberOfPipelines < 1 || opts.NumberOfPipelines > 16 {
+	if opts.Config == nil || opts.Sink == nil || opts.Compression == nil || opts.DestinationsContext == nil || opts.Secrets == nil || opts.DiagnosticMessageReceiver == nil || opts.NumberOfPipelines < 1 || opts.NumberOfPipelines > 16 {
 		return nil, errors.New("invalid routed provider dependencies")
 	}
-	defs, err := routing.NewDefinitions(opts.Groups, opts.Config.GetInt("logs_config.routing.max_groups"))
-	if err != nil {
-		return nil, err
+	if opts.EndpointPolicy != nil && len(opts.Groups) > 0 {
+		return nil, errors.New("cannot specify both EndpointPolicy and Groups")
+	}
+	if opts.EndpointPolicy == nil && opts.Resolve == nil {
+		return nil, errors.New("invalid routed provider dependencies")
+	}
+	var defs *routing.Definitions
+	var err error
+	if opts.EndpointPolicy == nil {
+		defs, err = routing.NewDefinitions(opts.Groups, opts.Config.GetInt("logs_config.routing.max_groups"))
+		if err != nil {
+			return nil, err
+		}
 	}
 	progress, err := routing.NewProgress(routedProgressCapacity, opts.Sink)
 	if err != nil {
@@ -157,13 +209,17 @@ func NewRoutedProvider(opts RoutedOptions) (*RoutedProvider, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	context.AfterFunc(ctx, progress.StopForwarding)
 	p := &RoutedProvider{
-		opts: opts, defs: defs, progress: progress,
+		opts: opts, defs: defs, policy: opts.EndpointPolicy, progress: progress,
 		destinationsCtx: client.NewDestinationsContext(),
 		ingress:         make(chan *message.Message, routedIngressCapacity),
 		processed:       make(chan *message.Message, routedProcessedCapacity),
-		streams:         make(map[string]*routedStream), senders: make(map[string]*sender.Sender),
-		groupInputs: make(map[string]chan *message.Payload),
-		sinks:       make(map[string]*routing.GroupSink), ctx: ctx, cancel: cancel,
+		streams:         make(map[string]*routedStream),
+		senders:         make(map[string]*sender.Sender),
+		optionalSenders: make(map[string]*httpsender.OptionalSender),
+		groupInputs:     make(map[string]chan *message.Payload),
+		sinks:           make(map[string]*routing.GroupSink),
+		endpointSinks:   make(map[string]*routing.EndpointSink),
+		ctx:             ctx, cancel: cancel,
 		sourceDispatch: make(map[string]*routedSourceDispatch),
 		sourceInputs:   make(map[sourceInputKey]chan *message.Message),
 		inputKeys:      make(map[chan *message.Message]sourceInputKey),
@@ -171,66 +227,136 @@ func NewRoutedProvider(opts RoutedOptions) (*RoutedProvider, error) {
 		stopRequested:  make(chan struct{}),
 	}
 	p.inputs = append(p.inputs, p.ingress)
-	endpointCount := 0
-	for _, group := range defs.Groups() {
-		endpointCount += len(group.Endpoints.Endpoints)
-	}
-	perEndpointCap := routedHTTPRequests / endpointCount
-	if perEndpointCap < 1 {
-		perEndpointCap = 1
-	}
 	bufferSize := opts.Config.GetInt("logs_config.payload_channel_size")
 	if bufferSize < 1 {
 		bufferSize = 1
 	} else if bufferSize > routedDestinationBuffer {
 		bufferSize = routedDestinationBuffer
 	}
-	for _, group := range defs.Groups() {
-		groupSink := progress.NewGroupSink(group.ID, routedOutcomeCapacity)
-		p.sinks[group.ID] = groupSink
-		// One sender and its reliable-first optional endpoint behavior per group.
-		// The cap includes every primary and optional endpoint across all groups.
-		concurrency := maxConcurrencyPerPipeline
-		if group.Endpoints.BatchMaxConcurrentSend > 0 {
-			concurrency = group.Endpoints.BatchMaxConcurrentSend
+
+	if p.policy != nil {
+		endpoints := p.policy.Endpoints()
+		perEndpointCap := routedHTTPRequests / len(endpoints)
+		if perEndpointCap < 1 {
+			perEndpointCap = 1
 		}
-		if concurrency < 1 {
-			concurrency = 1
-		} else if concurrency > perEndpointCap {
-			concurrency = perEndpointCap
+		optStreamCap := routedOptionalStreamCapacity
+		optQueueCap := routedOptionalQueueCapacity
+		if opts.OptionalQueueSize > 0 {
+			optStreamCap = min(opts.OptionalQueueSize, routedOptionalStreamCapacity)
+			optQueueCap = min(opts.OptionalQueueSize, routedDestinationBuffer)
 		}
-		p.senders[group.ID] = httpsender.NewHTTPSender(opts.Config, groupSink, bufferSize, sender.NewServerlessMeta(false), group.Endpoints, p.destinationsCtx, "logs-routing-"+group.ID, httpclient.JSONContentType, "", sender.DefaultQueuesCount, sender.DefaultWorkersPerQueue, concurrency, concurrency, opts.Secrets, metrics.NewTelemetryPipelineMonitor())
-		p.groupInputs[group.ID] = make(chan *message.Payload, routedGroupCapacity)
-		key := group.Stream
-		if key == "" {
-			key = "group:" + group.ID
-		} else {
-			key = "stream:" + key
-		}
-		stream := p.streams[key]
-		if stream == nil {
-			stream = &routedStream{input: make(chan *message.Message, routedStreamCapacity), output: make(chan *message.Payload, routedPayloadCapacity), flush: make(chan struct{}), pressureFlush: group.Endpoints.BatchMaxSize > 1}
-			p.pressureFlush = p.pressureFlush || stream.pressureFlush
-			p.streams[key] = stream
-		}
-		stream.groups = append(stream.groups, group.ID)
-	}
-	for key, stream := range p.streams {
-		first, _ := defs.Group(stream.groups[0])
-		endpoints := first.Endpoints
-		compressor := opts.Compression.NewCompressor(compressioncommon.NoneKind, 0)
-		if endpoints.Main.UseCompression {
-			compressor = opts.Compression.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
-		}
-		groups := append([]string(nil), stream.groups...)
-		stream.strategy = sender.NewBatchStrategyWithTerminalLoss(stream.input, stream.output, stream.flush, sender.NewServerlessMeta(false), endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs-routing", compressor, p.senders[groups[0]].PipelineMonitor(), key, func(metas []*message.MessageMetadata) {
-			payload := message.NewPayload(metas, nil, "", 0)
-			for _, id := range groups {
-				p.progress.CompleteGroup(id, payload)
+		for _, ep := range endpoints {
+			concurrency := maxConcurrencyPerPipeline
+			if ep.Endpoints.BatchMaxConcurrentSend > 0 {
+				concurrency = ep.Endpoints.BatchMaxConcurrentSend
 			}
-		})
+			if concurrency < 1 {
+				concurrency = 1
+			} else if concurrency > perEndpointCap {
+				concurrency = perEndpointCap
+			}
+			key := "endpoint:" + ep.ID
+			compressor := opts.Compression.NewCompressor(compressioncommon.NoneKind, 0)
+			if ep.Endpoint.UseCompression {
+				compressor = opts.Compression.NewCompressor(ep.Endpoint.CompressionKind, ep.Endpoint.CompressionLevel)
+			}
+			if ep.Reliable {
+				p.reliableOrder = append(p.reliableOrder, ep.ID)
+				epSink := progress.NewEndpointSink(ep.ID, routedOutcomeCapacity)
+				p.endpointSinks[ep.ID] = epSink
+				p.senders[ep.ID] = httpsender.NewHTTPSender(opts.Config, epSink, bufferSize, sender.NewServerlessMeta(false), ep.Endpoints, p.destinationsCtx, "logs-routing-"+ep.ID, httpclient.JSONContentType, "", sender.DefaultQueuesCount, sender.DefaultWorkersPerQueue, concurrency, concurrency, opts.Secrets, metrics.NewTelemetryPipelineMonitor())
+				p.groupInputs[ep.ID] = make(chan *message.Payload, routedGroupCapacity)
+				stream := &routedStream{
+					input:         make(chan *message.Message, routedStreamCapacity),
+					output:        make(chan *message.Payload, routedPayloadCapacity),
+					flush:         make(chan struct{}),
+					pressureFlush: ep.Endpoints.BatchMaxSize > 1,
+					groups:        []string{ep.ID},
+				}
+				p.pressureFlush = p.pressureFlush || stream.pressureFlush
+				epID := ep.ID
+				stream.strategy = sender.NewBatchStrategyWithTerminalLoss(stream.input, stream.output, stream.flush, sender.NewServerlessMeta(false), ep.Endpoints.BatchWait, ep.Endpoints.BatchMaxSize, ep.Endpoints.BatchMaxContentSize, "logs-routing", compressor, p.senders[ep.ID].PipelineMonitor(), key, func(metas []*message.MessageMetadata) {
+					p.progress.CompleteReliableTerminalLoss(epID, message.NewPayload(metas, nil, "", 0))
+				})
+				p.streams[key] = stream
+				if p.monitor == nil {
+					p.monitor = p.senders[ep.ID].PipelineMonitor()
+				}
+			} else {
+				optSender := httpsender.NewOptionalHTTPSender(opts.Config, ep.ID, ep.Endpoint, p.destinationsCtx, "logs-routing-"+ep.ID, httpclient.JSONContentType, optQueueCap, concurrency, opts.Secrets, metrics.NewTelemetryPipelineMonitor())
+				p.optionalSenders[ep.ID] = optSender
+				stream := &routedStream{
+					input:         make(chan *message.Message, optStreamCap),
+					output:        make(chan *message.Payload, routedPayloadCapacity),
+					flush:         make(chan struct{}),
+					pressureFlush: false,
+					optional:      true,
+					groups:        []string{ep.ID},
+				}
+				stream.strategy = sender.NewBatchStrategyWithTerminalLoss(stream.input, stream.output, stream.flush, sender.NewServerlessMeta(false), ep.Endpoints.BatchWait, ep.Endpoints.BatchMaxSize, ep.Endpoints.BatchMaxContentSize, "logs-routing", compressor, optSender.PipelineMonitor(), key, nil)
+				p.streams[key] = stream
+			}
+		}
+		if p.monitor == nil && len(endpoints) > 0 {
+			p.monitor = p.optionalSenders[endpoints[0].ID].PipelineMonitor()
+		}
+	} else {
+		endpointCount := 0
+		for _, group := range defs.Groups() {
+			endpointCount += len(group.Endpoints.Endpoints)
+		}
+		perEndpointCap := routedHTTPRequests / endpointCount
+		if perEndpointCap < 1 {
+			perEndpointCap = 1
+		}
+		for _, group := range defs.Groups() {
+			groupSink := progress.NewGroupSink(group.ID, routedOutcomeCapacity)
+			p.sinks[group.ID] = groupSink
+			// One sender and its reliable-first optional endpoint behavior per group.
+			// The cap includes every primary and optional endpoint across all groups.
+			concurrency := maxConcurrencyPerPipeline
+			if group.Endpoints.BatchMaxConcurrentSend > 0 {
+				concurrency = group.Endpoints.BatchMaxConcurrentSend
+			}
+			if concurrency < 1 {
+				concurrency = 1
+			} else if concurrency > perEndpointCap {
+				concurrency = perEndpointCap
+			}
+			p.senders[group.ID] = httpsender.NewHTTPSender(opts.Config, groupSink, bufferSize, sender.NewServerlessMeta(false), group.Endpoints, p.destinationsCtx, "logs-routing-"+group.ID, httpclient.JSONContentType, "", sender.DefaultQueuesCount, sender.DefaultWorkersPerQueue, concurrency, concurrency, opts.Secrets, metrics.NewTelemetryPipelineMonitor())
+			p.groupInputs[group.ID] = make(chan *message.Payload, routedGroupCapacity)
+			key := group.Stream
+			if key == "" {
+				key = "group:" + group.ID
+			} else {
+				key = "stream:" + key
+			}
+			stream := p.streams[key]
+			if stream == nil {
+				stream = &routedStream{input: make(chan *message.Message, routedStreamCapacity), output: make(chan *message.Payload, routedPayloadCapacity), flush: make(chan struct{}), pressureFlush: group.Endpoints.BatchMaxSize > 1}
+				p.pressureFlush = p.pressureFlush || stream.pressureFlush
+				p.streams[key] = stream
+			}
+			stream.groups = append(stream.groups, group.ID)
+		}
+		for key, stream := range p.streams {
+			first, _ := defs.Group(stream.groups[0])
+			endpoints := first.Endpoints
+			compressor := opts.Compression.NewCompressor(compressioncommon.NoneKind, 0)
+			if endpoints.Main.UseCompression {
+				compressor = opts.Compression.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
+			}
+			groups := append([]string(nil), stream.groups...)
+			stream.strategy = sender.NewBatchStrategyWithTerminalLoss(stream.input, stream.output, stream.flush, sender.NewServerlessMeta(false), endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs-routing", compressor, p.senders[groups[0]].PipelineMonitor(), key, func(metas []*message.MessageMetadata) {
+				payload := message.NewPayload(metas, nil, "", 0)
+				for _, id := range groups {
+					p.progress.CompleteGroup(id, payload)
+				}
+			})
+		}
+		p.monitor = p.senders[defs.Groups()[0].ID].PipelineMonitor()
 	}
-	p.monitor = p.senders[defs.Groups()[0].ID].PipelineMonitor()
 	for i := 0; i < opts.NumberOfPipelines; i++ {
 		input := make(chan *message.Message, routedStreamCapacity)
 		proc := processor.NewForRouting(opts.Config, input, p.processed, opts.ProcessingRules, opts.TagFilters, processor.NewJSONEncoder(opts.Config.GetBool("logs_config.use_container_timestamp")), opts.DiagnosticMessageReceiver, opts.Hostname, p.monitor, fmt.Sprintf("routed-%d", i), func(msg *message.Message) {
@@ -244,8 +370,17 @@ func NewRoutedProvider(opts RoutedOptions) (*RoutedProvider, error) {
 func (p *RoutedProvider) report(err error) {
 	if p.opts.OnError != nil {
 		p.opts.OnError(err)
-	} else {
+	} else if p.errLimiter.allow("routing") {
 		log.Warnf("logs routing: %v", err)
+	}
+}
+
+func (p *RoutedProvider) reportOptionalError(optErr routing.OptionalEvalError) {
+	tlmEvalErrors.Inc(optErr.EndpointID, "optional")
+	if p.opts.OnOptionalError != nil {
+		p.opts.OnOptionalError(optErr)
+	} else if p.errLimiter.allow("optional:" + optErr.EndpointID) {
+		log.Warnf("logs routing: optional endpoint %q selector evaluation error (copy suppressed)", optErr.EndpointID)
 	}
 }
 
@@ -267,10 +402,13 @@ func (p *RoutedProvider) Start() {
 		case <-p.ctx.Done():
 		}
 	}()
-	for _, group := range p.defs.Groups() {
-		p.senders[group.ID].Start()
+	for id, s := range p.senders {
+		s.Start()
 		p.groupDone.Add(1)
-		go p.dispatchGroup(group.ID)
+		go p.dispatchGroup(id)
+	}
+	for _, optSender := range p.optionalSenders {
+		optSender.Start()
 	}
 	for _, stream := range p.streams {
 		stream.strategy.Start()
@@ -419,6 +557,27 @@ func (p *RoutedProvider) requestSourceFlush(identifier string) {
 func (p *RoutedProvider) flushSource(identifier string) {
 	groups := p.progress.PendingGroups(identifier)
 	seen := make(map[*routedStream]struct{}, len(groups))
+	if p.policy != nil {
+		// In endpoint-policy mode, flush pending reliable streams non-blockingly so
+		// a saturated sibling stream cannot delay flushing a healthy reliable stream.
+		for _, id := range groups {
+			stream := p.streams["endpoint:"+id]
+			if stream == nil || !stream.pressureFlush || stream.optional {
+				continue
+			}
+			if _, duplicate := seen[stream]; duplicate {
+				continue
+			}
+			seen[stream] = struct{}{}
+			marker := &message.Message{}
+			marker.SetRoutingBarrier(make(chan struct{}))
+			select {
+			case stream.input <- marker:
+			default:
+			}
+		}
+		return
+	}
 	offers := make([]channelOffer[*message.Message], 0, len(groups))
 	for _, id := range groups {
 		group, _ := p.defs.Group(id)
@@ -443,6 +602,28 @@ func (p *RoutedProvider) flushSource(identifier string) {
 
 // selectProcessed never waits for delivery or allocates a second reservation.
 func (p *RoutedProvider) selectProcessed(msg *message.Message) processor.RoutingDecision {
+	if p.policy != nil {
+		sel, optErrs, err := p.policy.Evaluate(msg)
+		for _, optErr := range optErrs {
+			p.reportOptionalError(optErr)
+		}
+		if err != nil {
+			tlmEvalErrors.Inc("reliable", "reliable")
+			p.progress.Invalidate(msg.RoutingToken())
+			p.report(err)
+			return processor.RoutingUnresolved
+		}
+		excluded, attachErr := p.progress.AttachEndpointSelection(msg.RoutingToken(), sel)
+		if attachErr != nil {
+			p.progress.Invalidate(msg.RoutingToken())
+			p.report(attachErr)
+			return processor.RoutingUnresolved
+		}
+		if excluded {
+			return processor.RoutingExcluded
+		}
+		return processor.RoutingContinue
+	}
 	selection, err := p.opts.Resolve(msg)
 	var groups []string
 	if err == nil {
@@ -596,6 +777,10 @@ func (p *RoutedProvider) dispatchProcessed() {
 
 func (p *RoutedProvider) dispatchSource(identifier string, lane *routedSourceDispatch) {
 	defer p.sourceDone.Done()
+	if p.policy != nil {
+		p.dispatchSourceEndpointPolicy(identifier, lane)
+		return
+	}
 	var flushed, stalled uint64
 	flushWhileStalled := func() {
 		// Only a blocked fanout needs an early partial flush. Healthy windows
@@ -643,8 +828,272 @@ func (p *RoutedProvider) dispatchSource(identifier string, lane *routedSourceDis
 	}
 }
 
+// dispatchSourceEndpointPolicy implements Layout B per-endpoint dispatch with:
+//   - Optional admission first, strictly non-blocking end to end.
+//   - Optional-only records completing locally right after non-blocking offer.
+//   - Bounded per-endpoint FIFO sibling backlog so a saturated reliable sibling
+//     never stalls a healthy reliable endpoint's batching, while retaining
+//     unadmitted copies until actual success or all-terminal-loss.
+func (p *RoutedProvider) dispatchSourceEndpointPolicy(identifier string, lane *routedSourceDispatch) {
+	pending := make(map[string][]*message.Message, len(p.reliableOrder))
+	var flushed, stalled uint64
+	flushWhileStalled := func() {
+		if target := lane.flushAfter.Load(); target > flushed && target > stalled {
+			p.flushSource(identifier)
+			stalled = target
+		}
+	}
+	hasPending := func() bool {
+		for _, id := range p.reliableOrder {
+			if len(pending[id]) > 0 {
+				return true
+			}
+		}
+		return false
+	}
+	drainPending := func(watchToken uint64) bool {
+		admittedWatch := false
+		for _, id := range p.reliableOrder {
+			q := pending[id]
+			if len(q) == 0 {
+				continue
+			}
+			stream := p.streams["endpoint:"+id]
+			for len(q) > 0 {
+				head := q[0]
+				if p.progress.IsRecordDone(head.RoutingToken()) {
+					q[0] = nil
+					q = q[1:]
+					continue
+				}
+				select {
+				case stream.input <- head:
+					if watchToken != 0 && head.RoutingToken() == watchToken {
+						admittedWatch = true
+					}
+					q[0] = nil
+					q = q[1:]
+				default:
+					goto nextEndpoint
+				}
+			}
+		nextEndpoint:
+			if len(q) == 0 {
+				delete(pending, id)
+			} else {
+				pending[id] = q
+			}
+		}
+		return admittedWatch
+	}
+
+	inputOpen := true
+	for {
+		drainPending(0)
+		if target := lane.flushAfter.Load(); target > flushed && lane.completed.Load() >= target {
+			p.flushSource(identifier)
+			flushed = target
+		}
+		if !inputOpen && !hasPending() {
+			return
+		}
+
+		var msg *message.Message
+		var gotMsg bool
+
+		if !hasPending() {
+			select {
+			case m, open := <-lane.input:
+				if !open {
+					return
+				}
+				msg, gotMsg = m, true
+			case <-lane.flushRequested:
+				continue
+			case <-p.ctx.Done():
+				return
+			}
+		} else {
+			// Select on pending sibling sends, outcome signals, flush requests, and
+			// (if open) new input records so healthy endpoints keep receiving batches.
+			activeIDs := make([]string, 0, len(p.reliableOrder))
+			for _, id := range p.reliableOrder {
+				if len(pending[id]) > 0 {
+					activeIDs = append(activeIDs, id)
+				}
+			}
+			// Cases: 0=ctx.Done, 1=flushRequested, 2=outcomeSignal, 3=lane.input (optional), 4+=pending sends
+			base := 3
+			extra := 0
+			if inputOpen {
+				extra = 1
+			}
+			cases := make([]reflect.SelectCase, base+extra, base+extra+len(activeIDs))
+			cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(p.ctx.Done())}
+			cases[1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(lane.flushRequested)}
+			cases[2] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(p.progress.OutcomeSignal())}
+			if inputOpen {
+				cases[3] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(lane.input)}
+			}
+			for _, id := range activeIDs {
+				cases = append(cases, reflect.SelectCase{
+					Dir:  reflect.SelectSend,
+					Chan: reflect.ValueOf(p.streams["endpoint:"+id].input),
+					Send: reflect.ValueOf(pending[id][0]),
+				})
+			}
+			chosen, recv, ok := reflect.Select(cases)
+			switch {
+			case chosen == 0:
+				return
+			case chosen == 1:
+				continue
+			case chosen == 2:
+				continue
+			case inputOpen && chosen == 3:
+				if !ok {
+					inputOpen = false
+					continue
+				}
+				msg, gotMsg = recv.Interface().(*message.Message), true
+			default:
+				id := activeIDs[chosen-(base+extra)]
+				q := pending[id]
+				q[0] = nil
+				q = q[1:]
+				if len(q) == 0 {
+					delete(pending, id)
+				} else {
+					pending[id] = q
+				}
+				continue
+			}
+		}
+
+		if !gotMsg {
+			continue
+		}
+
+		token := msg.RoutingToken()
+		reliableIDs, optionalIDs, optionalOnly := p.progress.EndpointRecipients(token)
+
+		// 1. Optional admission first, strictly non-blocking.
+		for _, optID := range optionalIDs {
+			stream := p.streams["endpoint:"+optID]
+			select {
+			case stream.input <- msg:
+			default:
+				tlmOptionalStreamDropped.Inc(optID)
+			}
+		}
+
+		// 2. Optional-only records complete locally immediately after non-blocking offer.
+		if optionalOnly || len(reliableIDs) == 0 {
+			p.progress.CompleteLocal(token)
+			lane.completed.Add(1)
+			select {
+			case lane.advanced <- struct{}{}:
+			default:
+			}
+			continue
+		}
+
+		// 3. Reliable admission: try all available matching reliable endpoints.
+		drainPending(0)
+		admittedAny := p.progress.IsRecordDone(token)
+		for _, id := range reliableIDs {
+			if len(pending[id]) == 0 {
+				stream := p.streams["endpoint:"+id]
+				select {
+				case stream.input <- msg:
+					admittedAny = true
+				default:
+					pending[id] = append(pending[id], msg)
+				}
+			} else {
+				pending[id] = append(pending[id], msg)
+			}
+		}
+
+		// Block only if NO matching reliable endpoint could accept this record yet.
+		if !admittedAny {
+			flushWhileStalled()
+			for !admittedAny && !p.progress.IsRecordDone(token) {
+				if drainPending(token) {
+					admittedAny = true
+					break
+				}
+				if p.progress.IsRecordDone(token) {
+					break
+				}
+				activeIDs := make([]string, 0, len(p.reliableOrder))
+				for _, id := range p.reliableOrder {
+					if len(pending[id]) > 0 {
+						activeIDs = append(activeIDs, id)
+					}
+				}
+				if len(activeIDs) == 0 {
+					break
+				}
+				cases := make([]reflect.SelectCase, 3, 3+len(activeIDs))
+				cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(p.ctx.Done())}
+				cases[1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(lane.flushRequested)}
+				cases[2] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(p.progress.OutcomeSignal())}
+				for _, id := range activeIDs {
+					cases = append(cases, reflect.SelectCase{
+						Dir:  reflect.SelectSend,
+						Chan: reflect.ValueOf(p.streams["endpoint:"+id].input),
+						Send: reflect.ValueOf(pending[id][0]),
+					})
+				}
+				chosen, _, _ := reflect.Select(cases)
+				switch chosen {
+				case 0:
+					return
+				case 1:
+					flushWhileStalled()
+				case 2:
+					// Outcome changed; next iteration drains done heads and rechecks IsRecordDone.
+				default:
+					id := activeIDs[chosen-3]
+					q := pending[id]
+					sentMsg := q[0]
+					q[0] = nil
+					q = q[1:]
+					if len(q) == 0 {
+						delete(pending, id)
+					} else {
+						pending[id] = q
+					}
+					if sentMsg.RoutingToken() == token {
+						admittedAny = true
+					}
+				}
+			}
+		}
+
+		lane.completed.Add(1)
+		select {
+		case lane.advanced <- struct{}{}:
+		default:
+		}
+	}
+}
+
 func (p *RoutedProvider) dispatchPayloads(stream *routedStream) {
 	defer p.dispatchDone.Done()
+	if stream.optional {
+		optID := stream.groups[0]
+		optIn := p.optionalSenders[optID].In()
+		for payload := range stream.output {
+			select {
+			case optIn <- payload:
+			default:
+				tlmOptionalStreamDropped.Inc(optID)
+			}
+		}
+		return
+	}
 	for payload := range stream.output {
 		offerPayloadToGroups(p.ctx, payload, stream.groups, p.groupInputs)
 	}
@@ -747,6 +1196,12 @@ func (p *RoutedProvider) Stop() {
 			for _, sink := range p.sinks {
 				sink.Stop()
 			}
+			for _, epSink := range p.endpointSinks {
+				epSink.Stop()
+			}
+			for _, optSender := range p.optionalSenders {
+				optSender.Stop()
+			}
 			p.progress.Close()
 			p.cancel()
 		}
@@ -774,9 +1229,17 @@ func (p *RoutedProvider) Stop() {
 		close(input)
 	}
 	p.groupDone.Wait()
-	for _, group := range p.defs.Groups() {
-		p.senders[group.ID].Stop()
-		p.sinks[group.ID].Stop()
+	for id, s := range p.senders {
+		s.Stop()
+		if sink := p.sinks[id]; sink != nil {
+			sink.Stop()
+		}
+		if epSink := p.endpointSinks[id]; epSink != nil {
+			epSink.Stop()
+		}
+	}
+	for _, optSender := range p.optionalSenders {
+		optSender.Stop()
 	}
 	p.progress.Close()
 	p.cancel()

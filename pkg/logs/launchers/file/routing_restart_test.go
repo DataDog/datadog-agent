@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,12 +20,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/routing"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	filetailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 )
@@ -132,5 +136,136 @@ func TestRoutedProgressReplaysFileFromPersistedPrefix(t *testing.T) {
 		require.Equal(t, strconv.Itoa(len("first\nsecond\n")), checkpoint.MessageMetas[0].Origin.Offset)
 	case <-time.After(5 * time.Second):
 		t.Fatal("replayed file checkpoint did not advance")
+	}
+}
+
+type fakeRoutedFileProvider struct {
+	mu          sync.Mutex
+	guarded     bool
+	inputs      map[sourceGeneration]chan *message.Message
+	retired     map[sourceGeneration]bool
+	received    chan *message.Message
+	retireEvent chan sourceGeneration
+}
+
+func newFakeRoutedFileProvider() *fakeRoutedFileProvider {
+	return &fakeRoutedFileProvider{
+		inputs:      make(map[sourceGeneration]chan *message.Message),
+		retired:     make(map[sourceGeneration]bool),
+		received:    make(chan *message.Message, 64),
+		retireEvent: make(chan sourceGeneration, 16),
+	}
+}
+
+func (f *fakeRoutedFileProvider) Start()                                  {}
+func (f *fakeRoutedFileProvider) Stop()                                   {}
+func (f *fakeRoutedFileProvider) NextPipelineChan() chan *message.Message { return f.received }
+func (f *fakeRoutedFileProvider) GetOutputChan() chan *message.Message    { return nil }
+func (f *fakeRoutedFileProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
+	return f.received, nil
+}
+func (f *fakeRoutedFileProvider) GetPipelineMonitor() metrics.PipelineMonitor {
+	return metrics.NewNoopPipelineMonitor("")
+}
+func (f *fakeRoutedFileProvider) Flush(context.Context) {}
+
+func (f *fakeRoutedFileProvider) SourceInput(identifier string, generation uint64) (chan *message.Message, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	ch := make(chan *message.Message, 16)
+	sg := sourceGeneration{identifier: identifier, generation: generation}
+	f.inputs[sg] = ch
+	go func() {
+		for m := range ch {
+			f.received <- m
+		}
+	}()
+	return ch, nil
+}
+
+func (f *fakeRoutedFileProvider) RetireSource(_ context.Context, identifier string, generation uint64) error {
+	f.mu.Lock()
+	sg := sourceGeneration{identifier: identifier, generation: generation}
+	if ch, ok := f.inputs[sg]; ok {
+		delete(f.inputs, sg)
+		close(ch)
+	}
+	f.retired[sg] = true
+	f.mu.Unlock()
+	f.retireEvent <- sg
+	return nil
+}
+
+func (f *fakeRoutedFileProvider) GuardRegistry(reg routing.Registry) routing.Registry {
+	f.mu.Lock()
+	f.guarded = true
+	f.mu.Unlock()
+	return reg
+}
+
+func TestFileLauncherAdoptsRoutedSourceInputAndRetiresGenerations(t *testing.T) {
+	mockCfg := configmock.New(t)
+	mockCfg.SetInTest("logs_config.close_timeout", 1)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "app.log")
+	require.NoError(t, os.WriteFile(path, []byte("gen1-line\n"), 0o600))
+	identifier := "file:" + path
+
+	prov := newFakeRoutedFileProvider()
+	reg := auditorMock.NewMockRegistry()
+	logSources := sources.NewLogSources()
+	tracker := tailers.NewTailerTracker()
+
+	l := NewLauncher(10, 10*time.Millisecond, false, 20*time.Millisecond, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
+	l.Start(logSources, prov, reg, tracker)
+
+	src := sources.NewLogSource("app", &config.LogsConfig{
+		Type:        config.FileType,
+		Path:        path,
+		TailingMode: "beginning",
+	})
+	logSources.AddSource(src)
+
+	select {
+	case msg := <-prov.received:
+		require.Equal(t, "gen1-line", string(msg.GetContent()))
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for gen1 line")
+	}
+
+	prov.mu.Lock()
+	require.True(t, prov.guarded, "launcher must wrap registry with GuardRegistry")
+	require.Len(t, prov.inputs, 1)
+	prov.mu.Unlock()
+
+	// Rotate the file: rename old file and create a new file at the same path.
+	require.NoError(t, os.Rename(path, path+".1"))
+	require.NoError(t, os.WriteFile(path, []byte("gen2-line\n"), 0o600))
+
+	select {
+	case msg := <-prov.received:
+		require.Equal(t, "gen2-line", string(msg.GetContent()))
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for gen2 line after rotation")
+	}
+
+	// Old generation (1) should retire while new generation (2) remains active until Stop.
+	select {
+	case sg := <-prov.retireEvent:
+		require.Equal(t, identifier, sg.identifier)
+		require.Equal(t, uint64(1), sg.generation)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for gen1 retirement after rotation")
+	}
+
+	l.Stop()
+
+	// New generation (2) retires on Stop.
+	select {
+	case sg := <-prov.retireEvent:
+		require.Equal(t, identifier, sg.identifier)
+		require.Equal(t, uint64(2), sg.generation)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for gen2 retirement on Stop")
 	}
 }

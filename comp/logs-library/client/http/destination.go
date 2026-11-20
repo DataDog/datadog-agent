@@ -104,6 +104,10 @@ type Destination struct {
 	// Secrets
 	secrets secrets.Component
 
+	// Optional terminal-loss output channel (set before Start) to distinguish
+	// permanent HTTP rejection from actual delivery success.
+	terminalLossOutput chan *message.Payload
+
 	// Telemetry
 	expVars         *expvar.Map
 	destMeta        *client.DestinationMetadata
@@ -140,6 +144,13 @@ func NewDestination(endpoint config.Endpoint,
 		pipelineMonitor,
 		instanceID,
 		secretsComp)
+}
+
+// SetTerminalLossOutput configures an optional output channel for permanent HTTP
+// rejections so callers can distinguish terminal loss from delivery success.
+// Must be called before Start.
+func (d *Destination) SetTerminalLossOutput(output chan *message.Payload) {
+	d.terminalLossOutput = output
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -346,6 +357,10 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			// Permanent error, increment the logs dropped metric
 			metrics.DestinationLogsDropped.Add(d.host, payload.Count())
 			metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
+			if d.terminalLossOutput != nil {
+				d.terminalLossOutput <- payload
+				return result
+			}
 		} else {
 			metrics.LogsSent.Add(payload.Count())
 			metrics.TlmLogsSent.Add(float64(payload.Count()))

@@ -36,6 +36,12 @@ type Sink interface {
 	Channel() chan *message.Payload
 }
 
+// OutcomeSink extends Sink to distinguish permanent terminal loss from actual delivery success.
+type OutcomeSink interface {
+	Sink
+	TerminalLossChannel() chan *message.Payload
+}
+
 // NoopSink is a Sink implementation that does nothing
 // This is used when there is no need to hook an auditor to the sender
 type NoopSink struct{}

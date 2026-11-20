@@ -8,6 +8,7 @@
 package agentimpl
 
 import (
+	"errors"
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -36,6 +37,14 @@ func (*logAgent) startTagFiltering() {}
 // Note: Building the logs-agent for serverless separately removes the
 // dependency on autodiscovery, file launchers, and some schedulers
 // thereby decreasing the binary size.
+
+// validateRoutingConfig rejects endpoint routing in serverless mode.
+func (a *logAgent) validateRoutingConfig() error {
+	if a.config.GetBool("logs_config.routing.enabled") {
+		return errors.New("logs_config.routing.enabled is not supported in serverless mode")
+	}
+	return nil
+}
 
 // SetupPipeline returns a Logs Agent instance to run in a serverless environment.
 // The Serverless Logs Agent has only one input being the channel to receive the logs to process.

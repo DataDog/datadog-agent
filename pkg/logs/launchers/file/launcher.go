@@ -11,11 +11,13 @@ import (
 	"regexp"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/routing"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -37,6 +39,20 @@ import (
 
 // DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
 const DefaultSleepDuration = 1 * time.Second
+
+// routedSourceProvider is the narrow optional interface implemented by
+// *pipeline.RoutedProvider for per-source isolated channels, producer
+// generation retirement, and direct checkpoint write guarding.
+type routedSourceProvider interface {
+	SourceInput(identifier string, generation uint64) (chan *message.Message, error)
+	RetireSource(ctx context.Context, identifier string, generation uint64) error
+	GuardRegistry(registry routing.Registry) routing.Registry
+}
+
+type sourceGeneration struct {
+	identifier string
+	generation uint64
+}
 
 // Launcher checks all files provided by fileProvider and create new tailers
 // or update the old ones if needed
@@ -78,6 +94,13 @@ type Launcher struct {
 	// Keep the exact message recipients: a tailer's ReplaceableSource can change before cleanup.
 	fingerprintRotationErrors map[string]*config.Messages
 	stopOnce                  sync.Once
+
+	// Per-tailer generation ownership for routedSourceProvider.
+	routedProvider     routedSourceProvider
+	nextGeneration     atomic.Uint64
+	routingMu          sync.Mutex
+	tailerGenerations  map[*tailer.Tailer]sourceGeneration
+	pendingRetirements []sourceGeneration
 }
 
 const (
@@ -135,6 +158,7 @@ func NewLauncher(
 		fingerprintSkips:       make(map[string]*fingerprintSkip),
 		fileOpener:             fileOpener,
 		fingerprinter:          fingerprinter,
+		tailerGenerations:      make(map[*tailer.Tailer]sourceGeneration),
 	}
 }
 
@@ -143,6 +167,12 @@ func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	s.pipelineProvider = pipelineProvider
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType, s.addedSourcesDone, s.removedSourcesDone)
 	s.registry = registry
+	if routed, ok := pipelineProvider.(routedSourceProvider); ok {
+		s.routedProvider = routed
+		if registry != nil {
+			s.registry = routed.GuardRegistry(registry)
+		}
+	}
 	tracker.Add(s.tailers)
 	go s.run()
 }
@@ -214,15 +244,22 @@ func (s *Launcher) cleanup() {
 	s.clearFingerprintRotationErrors()
 	stopper := startstop.NewParallelStopper()
 	s.cleanUpRotatedTailers()
-	for _, tailer := range s.rotatedTailers {
-		stopper.Add(tailer)
+	var stoppedTailers []*tailer.Tailer
+	for _, t := range s.rotatedTailers {
+		stoppedTailers = append(stoppedTailers, t)
+		stopper.Add(t)
 	}
 	s.rotatedTailers = []*tailer.Tailer{}
-	for _, tailer := range s.tailers.All() {
-		stopper.Add(tailer)
-		s.tailers.Remove(tailer)
+	for _, t := range s.tailers.All() {
+		stoppedTailers = append(stoppedTailers, t)
+		stopper.Add(t)
+		s.tailers.Remove(t)
 	}
 	stopper.Stop()
+	for _, t := range stoppedTailers {
+		s.retireTailer(t)
+	}
+	s.flushPendingRetirements(time.Second)
 
 	// Clean up old info map to prevent memory leaks
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
@@ -478,9 +515,96 @@ func (s *Launcher) cleanUpRotatedTailers() {
 	for _, tailer := range s.rotatedTailers {
 		if !tailer.IsFinished() {
 			pendingTailers = append(pendingTailers, tailer)
+		} else {
+			s.retireTailer(tailer)
 		}
 	}
 	s.rotatedTailers = pendingTailers
+	s.flushPendingRetirements(50 * time.Millisecond)
+}
+
+func (s *Launcher) acquireSourceInput(file *tailer.File) (chan *message.Message, *metrics.CapacityMonitor, uint64, error) {
+	if s.routedProvider != nil {
+		gen := s.nextGeneration.Add(1)
+		ch, err := s.routedProvider.SourceInput(file.Identifier(), gen)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+		return ch, nil, gen, nil
+	}
+	ch, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	return ch, monitor, 0, nil
+}
+
+func (s *Launcher) bindTailerGeneration(t *tailer.Tailer, identifier string, gen uint64) {
+	if s.routedProvider == nil || gen == 0 {
+		return
+	}
+	s.routingMu.Lock()
+	if s.tailerGenerations == nil {
+		s.tailerGenerations = make(map[*tailer.Tailer]sourceGeneration)
+	}
+	s.tailerGenerations[t] = sourceGeneration{identifier: identifier, generation: gen}
+	s.routingMu.Unlock()
+}
+
+func (s *Launcher) retireTailer(t *tailer.Tailer) {
+	if s.routedProvider == nil {
+		return
+	}
+	s.routingMu.Lock()
+	sg, ok := s.tailerGenerations[t]
+	if ok {
+		delete(s.tailerGenerations, t)
+	}
+	s.routingMu.Unlock()
+	if ok {
+		s.retireGeneration(sg.identifier, sg.generation)
+	}
+}
+
+func (s *Launcher) retireGeneration(identifier string, gen uint64) {
+	if s.routedProvider == nil || gen == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	err := s.routedProvider.RetireSource(ctx, identifier, gen)
+	cancel()
+	if err == nil || err == routing.ErrStopped || err == routing.ErrUnknownGeneration {
+		return
+	}
+	s.routingMu.Lock()
+	s.pendingRetirements = append(s.pendingRetirements, sourceGeneration{identifier: identifier, generation: gen})
+	s.routingMu.Unlock()
+}
+
+func (s *Launcher) flushPendingRetirements(timeout time.Duration) {
+	if s.routedProvider == nil {
+		return
+	}
+	s.routingMu.Lock()
+	if len(s.pendingRetirements) == 0 {
+		s.routingMu.Unlock()
+		return
+	}
+	pending := s.pendingRetirements
+	s.pendingRetirements = nil
+	s.routingMu.Unlock()
+
+	var remaining []sourceGeneration
+	for _, sg := range pending {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		err := s.routedProvider.RetireSource(ctx, sg.identifier, sg.generation)
+		cancel()
+		if err != nil && err != routing.ErrStopped && err != routing.ErrUnknownGeneration {
+			remaining = append(remaining, sg)
+		}
+	}
+	if len(remaining) > 0 {
+		s.routingMu.Lock()
+		s.pendingRetirements = append(s.pendingRetirements, remaining...)
+		s.routingMu.Unlock()
+	}
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
@@ -590,17 +714,23 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 		return false
 	}
 
-	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	channel, monitor, gen, err := s.acquireSourceInput(file)
+	if err != nil {
+		log.Warnf("Could not acquire routed pipeline input for %s, will retry on next scan: %v", file.Path, err)
+		return false
+	}
 	tailer := s.createTailer(file, channel, monitor, fingerprint)
 
 	offset, whence := s.tailerPosition(file, tailer, m, fingerprint)
 
 	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, file.GetScanKey())
 	if err := tailer.Start(offset, whence); err != nil {
+		s.retireGeneration(file.Identifier(), gen)
 		log.Warnf("Could not start the tailer for %s, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
 	}
 
+	s.bindTailerGeneration(tailer, file.Identifier(), gen)
 	s.tailers.Add(tailer)
 	return true
 }
@@ -612,7 +742,11 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		return false
 	}
 
-	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	channel, monitor, gen, err := s.acquireSourceInput(file)
+	if err != nil {
+		log.Warnf("Could not acquire routed pipeline input for %s after rotation, will retry on next scan: %v", file.Path, err)
+		return false
+	}
 
 	// Use stored InfoRegistry if available, otherwise create new one
 	var tailerInfo *status.InfoRegistry
@@ -659,10 +793,12 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	log.Infof("Starting new tailer with stored info (pattern: %v) for: %s (offset: %d, whence: %d)",
 		oldInfo.Pattern != nil, file.Path, offset, whence)
 	if err := tailer.Start(offset, whence); err != nil {
+		s.retireGeneration(file.Identifier(), gen)
 		log.Warnf("Could not start the tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
 	}
 
+	s.bindTailerGeneration(tailer, file.Identifier(), gen)
 	s.tailers.Add(tailer)
 	return true
 }
@@ -692,8 +828,11 @@ func (s *Launcher) handleTailingModeChange(tailerID string, currentTailingMode c
 // stopTailer stops the tailer
 func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 	s.clearFingerprintRotationError(tailer.GetID())
-	go tailer.Stop()
 	s.tailers.Remove(tailer)
+	go func() {
+		tailer.Stop()
+		s.retireTailer(tailer)
+	}()
 }
 
 func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *tailer.File) bool {
@@ -736,16 +875,24 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 
-	newTailer := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
-	// force reading file from beginning since it has been log-rotated
-	err := newTailer.StartFromBeginning()
+	newTailer, gen, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
 	if err != nil {
+		log.Warnf("Could not acquire routed pipeline input for replacement tailer %s after log rotation: %v", file.Path, err)
+		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
+		return false
+	}
+	// force reading file from beginning since it has been log-rotated
+	err = newTailer.StartFromBeginning()
+	if err != nil {
+		s.retireGeneration(file.Identifier(), gen)
+		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 		log.Warnf("Could not start the replacement tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
 	}
 
 	// Since newTailer and oldTailer share the same ID, tailers.Add will replace the old tailer.
 	// We will keep track of the rotated tailer until it is finished.
+	s.bindTailerGeneration(newTailer, file.Identifier(), gen)
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 	s.tailers.Add(newTailer)
 
@@ -781,9 +928,12 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 	return t
 }
 
-func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp, fingerprint *types.Fingerprint) *tailer.Tailer {
+func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp, fingerprint *types.Fingerprint) (*tailer.Tailer, uint64, error) {
 	tailerInfo := t.GetInfo()
-	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	channel, monitor, gen, err := s.acquireSourceInput(file)
+	if err != nil {
+		return nil, 0, err
+	}
 	if fingerprint != nil {
 		log.Debugf("Creating new tailer for %s with fingerprint 0x%x (configuration: %v)", file.Path, fingerprint.Value, fingerprint.Config)
 	} else {
@@ -792,7 +942,7 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 	newTailer := t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.fingerprinter, s.registry)
 	addFingerprintConfigToTailerInfo(newTailer)
 
-	return newTailer
+	return newTailer, gen, nil
 }
 
 // addFingerprintConfigToTailerInfo adds fingerprint configuration info to the tailer's status display
