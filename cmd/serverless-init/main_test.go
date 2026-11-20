@@ -196,9 +196,8 @@ func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), &schemanoopimpl.SchemaNoop{})
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	bundle := metricstest.New(t, fakeTagger)
-	metricAgent := metrics.New(bundle.Demux, metrics.Tags{})
 
-	assert.NotPanics(t, func() { setupOtlpAgent(metricAgent, fakeTagger) })
+	assert.NotPanics(t, func() { setupOtlpAgent(bundle.Serializer, fakeTagger) })
 
 	// Timeout to allow the goroutine in ServerlessOTLPAgent.Start() to run.
 	// If it panics the process crashes. Without this the test can pass flakily when the goroutine hasn't run yet.

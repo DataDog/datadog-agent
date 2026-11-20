@@ -55,6 +55,7 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	serializerdef "github.com/DataDog/datadog-agent/comp/serializer/serializer/def"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -361,7 +362,7 @@ func main() {
 			Tags:           tagConfig.Tags,
 			WrappedCommand: wrappedCommand(),
 		}),
-		fx.Provide(func(d aggregator.Demultiplexer) serializer.MetricSerializer { return d.Serializer() }),
+		fx.Provide(func(s serializerdef.Component) serializer.MetricSerializer { return s }),
 		serverlessinitfx.Module(),
 		runnerfx.Module(),
 		delegatedauthfx.Module(),
@@ -427,10 +428,11 @@ func run(
 	metricTags metrics.Tags,
 	_ runner.Component,
 	metadata serverlessdef.Component,
+	metricSerializer serializerdef.Component,
 ) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(
 		modeConf, tagger, logsCompression, hostname,
-		cloudService, tagConfig, metricTags, demux, metadata,
+		cloudService, tagConfig, metricTags, demux, metadata, metricSerializer,
 	)
 
 	err := cloudService.Run(modeConf, logConfig)
@@ -509,6 +511,7 @@ func setup(
 	metricTags metrics.Tags,
 	demux aggregator.Demultiplexer,
 	metadata serverlessdef.Component,
+	metricSerializer serializer.MetricSerializer,
 ) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
@@ -612,7 +615,7 @@ func setup(
 		cloudService.AddStartMetric(metricAgent)
 	}
 
-	setupOtlpAgent(metricAgent, tagger)
+	setupOtlpAgent(metricSerializer, tagger)
 
 	var enhancedMetricsCollector *enhancedmetrics.Collector
 	if enhancedMetricsEnabled {
@@ -741,18 +744,13 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 	return traceAgent
 }
 
-func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Component) {
+func setupOtlpAgent(metricSerializer serializer.MetricSerializer, tagger tagger.Component) {
 	if !otlp.IsEnabled() {
 		log.Debugf("otlp endpoint disabled")
 		return
 	}
 
-	if metricAgent == nil || metricAgent.Demux == nil {
-		log.Warn("metric agent or demux not ready, skipping OTLP agent setup")
-		return
-	}
-
-	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger)
+	otlpAgent := otlp.NewServerlessOTLPAgent(metricSerializer, tagger)
 	otlpAgent.Start()
 }
 
