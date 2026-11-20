@@ -33,10 +33,22 @@ on_term() {
         return
     fi
     if [[ -n "$cont_init_pid" ]]; then
+        # Ignore further TERM and INT. Each one would re-run this handler and start another watchdog.
+        trap "" TERM INT
         # Once setsid has run, the pid is the session leader and a negative pid signals the
         # whole group. Before that the group does not exist yet, so signal the pid itself.
         kill -TERM -"$cont_init_pid" 2>/dev/null || kill -TERM "$cont_init_pid" 2>/dev/null || true
+        # A script that ignores TERM would hold the container until Docker's own stop timeout,
+        # which ends it with 137 and skips the fallback cleanup. After 5 seconds, SIGKILL the group.
+        # The subshell closes its own standard streams, so a leftover sleep does not hold the log pipes.
+        (
+            sleep 5
+            kill -KILL -"$cont_init_pid" 2>/dev/null || kill -KILL "$cont_init_pid" 2>/dev/null || true
+        ) </dev/null >/dev/null 2>&1 &
+        watchdog=$!
         wait "$cont_init_pid" 2>/dev/null || true
+        kill -KILL "$watchdog" 2>/dev/null || true
+        wait "$watchdog" 2>/dev/null || true
     fi
     exit 143
 }

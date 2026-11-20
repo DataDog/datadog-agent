@@ -711,12 +711,6 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         "stop_requested=",
         "cleanup_dir=",
         "on_term() {",
-        r#"if [[ -n "$launching" ]]; then"#,
-        "stop_requested=1",
-        "return",
-        r#"kill -TERM -"$cont_init_pid" 2>/dev/null || kill -TERM "$cont_init_pid" 2>/dev/null || true"#,
-        r#"wait "$cont_init_pid" 2>/dev/null || true"#,
-        "exit 143",
         "trap on_term TERM INT",
         r#"trap 'if [[ -n "$cleanup_dir" ]]; then chmod -R u+w "$cleanup_dir" 2>/dev/null || true; rm -rf "$cleanup_dir" 2>/dev/null || true; fi' EXIT"#,
         "copy_dir=",
@@ -750,6 +744,34 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
             steps[index + 1]
         );
     }
+    // The handler is one slice. Its `fi` and `)` lines are not unique in the script.
+    let on_term_block = [
+        "on_term() {",
+        r#"if [[ -n "$launching" ]]; then"#,
+        "stop_requested=1",
+        "return",
+        "fi",
+        r#"if [[ -n "$cont_init_pid" ]]; then"#,
+        r#"trap "" TERM INT"#,
+        r#"kill -TERM -"$cont_init_pid" 2>/dev/null || kill -TERM "$cont_init_pid" 2>/dev/null || true"#,
+        "(",
+        "sleep 5",
+        r#"kill -KILL -"$cont_init_pid" 2>/dev/null || kill -KILL "$cont_init_pid" 2>/dev/null || true"#,
+        r#") </dev/null >/dev/null 2>&1 &"#,
+        "watchdog=$!",
+        r#"wait "$cont_init_pid" 2>/dev/null || true"#,
+        r#"kill -KILL "$watchdog" 2>/dev/null || true"#,
+        r#"wait "$watchdog" 2>/dev/null || true"#,
+        "fi",
+        "exit 143",
+        "}",
+    ];
+    let on_term_at = pos(on_term_block[0]);
+    assert_eq!(
+        &code_lines[on_term_at..on_term_at + on_term_block.len()],
+        &on_term_block[..],
+        "the TERM handler is compared as one block, so its generic lines stay in place"
+    );
     let loops = [
         r#"for init in "${inits[@]}"; do"#,
         r#"if [[ -f "$init" ]]; then"#,

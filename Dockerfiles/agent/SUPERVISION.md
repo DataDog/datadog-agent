@@ -68,8 +68,9 @@ Rules for custom scripts:
 A script runs as a background child of the entrypoint, in its own session, so it starts
 with SIGINT and SIGQUIT ignored. Stopping the container during cont-init sends SIGTERM to
 that session, including a child the script forked. The entrypoint waits for the script to exit
-before it exits. A script that ignores SIGTERM therefore delays the stop until Docker's stop
-timeout, and the container then exits with code 137.
+before it exits. A script that ignores SIGTERM gets SIGKILL 5 seconds after the signal, so the
+container exits with code 143 before Docker's default 10-second stop timeout. A `docker stop -t`
+value under 5 seconds still ends the container first, with code 137.
 
 You can use custom scripts to:
 
