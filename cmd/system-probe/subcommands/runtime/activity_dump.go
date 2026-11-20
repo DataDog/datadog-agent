@@ -88,7 +88,7 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	activityDumpStopCmd := &cobra.Command{
 		Use:   "stop",
-		Short: "stops the first activity dump that matches the provided selector",
+		Short: "stops the first activity dump or flushes the security profile that matches the provided selector",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
