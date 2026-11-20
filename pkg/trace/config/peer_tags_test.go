@@ -109,6 +109,16 @@ func TestPeerTagConceptKeysInOrder(t *testing.T) {
 		assert.NotContains(t, basePeerTags(r), "statemachinearn")
 	})
 
+	t.Run("peer.db.system takes db.system.name last", func(t *testing.T) {
+		var names []string
+		for _, info := range r.GetAttributePrecedence(semantics.ConceptPeerDBSystem) {
+			names = append(names, info.Name)
+		}
+		// Same order as the backend peer tags config. db.system.name holds OTel values (microsoft.sql_server),
+		// so the sources holding Datadog values (mssql) come first.
+		assert.Equal(t, []string{"db.system", "active_record.db.vendor", "db.type", "sequel.db.vendor", "db.system.name"}, names)
+	})
+
 	t.Run("peer.aws.sqs.queue.url contains queue URLs", func(t *testing.T) {
 		var names []string
 		for _, info := range r.GetAttributePrecedence(semantics.ConceptPeerAWSSQSQueueURL) {
