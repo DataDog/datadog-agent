@@ -168,8 +168,8 @@
     "https://bcr.bazel.build/modules/rules_android/0.1.1/MODULE.bazel": "48809ab0091b07ad0182defb787c4c5328bd3a278938415c00a7b69b50c4d3a8",
     "https://bcr.bazel.build/modules/rules_android/0.7.1/MODULE.bazel": "a806fc382a774252f228a40e3b11b9fcc6276f8778c7fb33e9f72937c6258363",
     "https://bcr.bazel.build/modules/rules_android/0.7.1/source.json": "151440aed3f0f73a00d4ed5cec5d31f63a6fef9b95d8fab1eb1810150fa525f2",
-    "https://bcr.bazel.build/modules/rules_bison/0.4.bcr.1/MODULE.bazel": "533fafa678511503c661f36fd36f21d860da785c79116a013ec763668e320bbb",
-    "https://bcr.bazel.build/modules/rules_bison/0.4.bcr.1/source.json": "a59670370c902b0a1bc901303e3783b6247c3df73b1554a32cc00927c5c38504",
+    "https://bcr.bazel.build/modules/rules_bison/0.4.bcr.2/MODULE.bazel": "00343be2efe5151e9fca09ed0a0c8e3fdcc44e1947176e160de498eace57e074",
+    "https://bcr.bazel.build/modules/rules_bison/0.4.bcr.2/source.json": "f9109721e7a20b8cd79930436502d85fa3901375d45f386176fbcb2beb26db3f",
     "https://bcr.bazel.build/modules/rules_cc/0.2.27/MODULE.bazel": "99483699eeba3ec1159e938d724134762e748e8dc16dd0d8cbcc3d01a3d19440",
     "https://bcr.bazel.build/modules/rules_cc/0.2.27/source.json": "a1e5e45c8a56ec19fadf109ef34abb06979982badf55a504d3f82a1258d83e3f",
     "https://bcr.bazel.build/modules/rules_cc_autoconf/0.26.0/MODULE.bazel": "bbde86042066b179c51ff1e2bfb4e3de0690cd17dba8642c705a07a283dd0e28",
@@ -574,7 +574,7 @@
     "@@rules_bison+//bison/internal:default_toolchain_ext.bzl%default_toolchain_ext": {
       "general": {
         "bzlTransitiveDigest": "dlrkPesfcnFwHilepqP9ieGdcn6SnaxA/FRcRn9l774=",
-        "usagesDigest": "kBaCLGnVttF2Hz+6YD1dzUpcKdWLHSFl/3h0+mPfxMw=",
+        "usagesDigest": "1MQhSiHx+LXQc+cTQKDM73nmZN4qYbhZgTqao7Iwz3U=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "bison_v3.3.2": {
