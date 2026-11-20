@@ -6,9 +6,11 @@ go_library(
     srcs = [
         "doc.go",
         "engine.go",
+        "nodes.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/gputopology/engine",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/util/gpu"],
 )
 
 dd_agent_go_test(

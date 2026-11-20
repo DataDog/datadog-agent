@@ -1,0 +1,234 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package engine
+
+import (
+	"slices"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/gpu"
+)
+
+// labelGPUProduct is set by NVIDIA GPU Feature Discovery. The MIG rule
+// deliberately ignores nvidia.com/mig.strategy: GFD sets it on every GPU
+// node, to "none" when MIG is off.
+const (
+	labelGPUProduct = "nvidia.com/gpu.product"
+	migResourcePfx  = string(gpu.GpuNvidiaMigPrefix) + "-"
+)
+
+// wholeGPUResources are the extended resources the engine models: one unit
+// is one whole GPU.
+var wholeGPUResources = []string{
+	string(gpu.GpuNvidiaGeneric),
+	string(gpu.GpuAMD),
+	string(gpu.GpuIntelXe),
+	string(gpu.GpuInteli915),
+}
+
+// presenceLabels are node labels (set to "true") that show a node has GPUs
+// even when the device plugin is gone: kubelet drops the resource from
+// capacity and allocatable about 5 minutes after the plugin dies. Each maps
+// to the resource the node is attributed to.
+var presenceLabels = []struct{ label, resource string }{
+	{"nvidia.com/gpu.present", string(gpu.GpuNvidiaGeneric)},           // NVIDIA GFD
+	{"feature.node.kubernetes.io/amd-gpu", string(gpu.GpuAMD)},         // AMD GPU operator NFD rule
+	{"intel.feature.node.kubernetes.io/gpu", string(gpu.GpuInteli915)}, // Intel device plugins NFD rule
+}
+
+// isGPUResourceName reports whether name is any GPU extended resource,
+// modelled or not (MIG slices, shared GPUs).
+func isGPUResourceName(name string) bool {
+	return slices.Contains(wholeGPUResources, name) || gpu.IsNvidiaKubernetesResource(name)
+}
+
+// NodeState is the state of a node in the topology. Each node has exactly
+// one, see doc.go for the precedence.
+type NodeState int
+
+// Node states, in reporting order.
+const (
+	NodeInTopology NodeState = iota
+	NodeUnavailable
+	NodeTainted
+	NodeNoGPUAllocatable
+	NodeMissingLabels
+	NodeUnsupported
+)
+
+// NodeStates lists all node states in reporting order.
+var NodeStates = []NodeState{NodeInTopology, NodeUnavailable, NodeTainted, NodeNoGPUAllocatable, NodeMissingLabels, NodeUnsupported}
+
+func (s NodeState) String() string {
+	switch s {
+	case NodeInTopology:
+		return "in_topology"
+	case NodeUnavailable:
+		return "unavailable"
+	case NodeTainted:
+		return "tainted"
+	case NodeNoGPUAllocatable:
+		return "no_gpu_allocatable"
+	case NodeMissingLabels:
+		return "missing_labels"
+	case NodeUnsupported:
+		return "unsupported"
+	}
+	return "unknown"
+}
+
+// GPUResourceMIG is the GPU resource attribution of MIG nodes, used instead
+// of a resource name in NodeCount.GPUResource.
+const GPUResourceMIG = "mig"
+
+// classified is a node after classification.
+type classified struct {
+	node      Node
+	state     NodeState
+	resources []string // attributed GPU resources, sorted
+	path      []string // label values for every level, nil if missing_labels or unsupported
+}
+
+// classify returns the node's state, or false for a node with no GPU at all.
+func classify(n Node, levels []string, implicit bool, tols []Toleration) (classified, bool) {
+	c := classified{node: n}
+	if isMIG(n) {
+		c.state, c.resources = NodeUnsupported, []string{GPUResourceMIG}
+		return c, true
+	}
+	c.resources = attributedResources(n)
+	if len(c.resources) == 0 {
+		return c, false
+	}
+	path, ok := nodePath(n, levels, implicit)
+	switch {
+	case !ok:
+		c.state = NodeMissingLabels
+		return c, true
+	case !n.Ready || n.Unschedulable:
+		c.state = NodeUnavailable
+	case !slices.ContainsFunc(c.resources, func(r string) bool { return n.Allocatable[r] > 0 }):
+		c.state = NodeNoGPUAllocatable
+	case !tolerated(n.Taints, tols):
+		c.state = NodeTainted
+	default:
+		c.state = NodeInTopology
+	}
+	c.path = path
+	return c, true
+}
+
+// isMIG reports whether MIG is active: any nvidia.com/mig-* capacity (mixed
+// strategy), or a -MIG- product label (single strategy, incl. -MIG-INVALID).
+func isMIG(n Node) bool {
+	for r, c := range n.Capacity {
+		if c > 0 && strings.HasPrefix(r, migResourcePfx) {
+			return true
+		}
+	}
+	return strings.Contains(n.Labels[labelGPUProduct], "-MIG-")
+}
+
+// attributedResources returns the modelled GPU resources present in the
+// node's capacity at any value, or else those of its presence labels.
+func attributedResources(n Node) []string {
+	var res []string
+	for _, r := range wholeGPUResources {
+		if _, ok := n.Capacity[r]; ok {
+			res = append(res, r)
+		}
+	}
+	if len(res) == 0 {
+		for _, p := range presenceLabels {
+			if n.Labels[p.label] == "true" {
+				res = append(res, p.resource)
+			}
+		}
+	}
+	slices.Sort(res)
+	return slices.Compact(res)
+}
+
+// nodePath returns the node's label values for every level. The implicit
+// host level (last) uses the node name.
+func nodePath(n Node, levels []string, implicit bool) ([]string, bool) {
+	path := make([]string, len(levels))
+	for i, label := range levels {
+		if implicit && i == len(levels)-1 {
+			path[i] = n.Name
+			continue
+		}
+		v, ok := n.Labels[label]
+		if !ok {
+			return nil, false
+		}
+		path[i] = v
+	}
+	return path, true
+}
+
+// Taint effects and toleration operators, with their Kubernetes values.
+const (
+	EffectNoSchedule       = "NoSchedule"
+	EffectPreferNoSchedule = "PreferNoSchedule"
+	EffectNoExecute        = "NoExecute"
+	OpExists               = "Exists"
+	OpEqual                = "Equal"
+)
+
+// Taint is a node taint.
+type Taint struct {
+	Key    string
+	Value  string
+	Effect string
+}
+
+// Toleration is a flavor or assumed toleration.
+type Toleration struct {
+	Key      string
+	Operator string // OpExists or OpEqual (default)
+	Value    string
+	Effect   string // empty matches all effects
+}
+
+// tolerates follows Kubernetes ToleratesTaint.
+func (t Toleration) tolerates(taint Taint) bool {
+	if t.Effect != "" && t.Effect != taint.Effect {
+		return false
+	}
+	if t.Key == "" {
+		return t.Operator == OpExists
+	}
+	if t.Key != taint.Key {
+		return false
+	}
+	switch t.Operator {
+	case OpExists:
+		return true
+	case "", OpEqual:
+		return t.Value == taint.Value
+	}
+	return false
+}
+
+// tolerated reports whether every NoSchedule/NoExecute taint is tolerated.
+// A taint keyed on a GPU resource name is always tolerated: the
+// ExtendedResourceToleration admission plugin adds that toleration to pods
+// requesting the resource (GKE taints GPU pools nvidia.com/gpu=present).
+func tolerated(taints []Taint, tols []Toleration) bool {
+	for _, taint := range taints {
+		if taint.Effect != EffectNoSchedule && taint.Effect != EffectNoExecute {
+			continue
+		}
+		if isGPUResourceName(taint.Key) {
+			continue
+		}
+		if !slices.ContainsFunc(tols, func(t Toleration) bool { return t.tolerates(taint) }) {
+			return false
+		}
+	}
+	return true
+}
