@@ -274,6 +274,35 @@ func (suite *AuditorTestSuite) TestAuditorRegistryWriterSelection() {
 	suite.Equal("*auditorimpl.nonAtomicRegistryWriter", fmt.Sprintf("%T", auditor.registryWriter))
 }
 
+func (suite *AuditorTestSuite) TestAuditorFlushPeriodFromConfig() {
+	tests := []struct {
+		name     string
+		set      bool
+		seconds  float64
+		expected time.Duration
+	}{
+		{name: "unset uses the schema default", expected: defaultFlushPeriod},
+		{name: "whole seconds", set: true, seconds: 30, expected: 30 * time.Second},
+		{name: "fractional seconds", set: true, seconds: 0.25, expected: 250 * time.Millisecond},
+		{name: "zero falls back to the default", set: true, seconds: 0, expected: defaultFlushPeriod},
+		{name: "negative falls back to the default", set: true, seconds: -1, expected: defaultFlushPeriod},
+	}
+	for _, tt := range tests {
+		suite.Run(tt.name, func() {
+			configComponent := configmock.NewMock(suite.T())
+			configComponent.SetInTest("logs_config.run_path", suite.testRunPathDir)
+			if tt.set {
+				configComponent.SetInTest("logs_config.auditor_flush_interval", tt.seconds)
+			}
+			auditor := newAuditor(Dependencies{
+				Config: configComponent,
+				Log:    logmock.New(suite.T()),
+			})
+			suite.Equal(tt.expected, auditor.flushPeriod)
+		})
+	}
+}
+
 func (suite *AuditorTestSuite) ackPayload(identifier, offset string, ingestionTimestamp int64) *message.Payload {
 	origin := message.NewOrigin(suite.source)
 	origin.Identifier = identifier
