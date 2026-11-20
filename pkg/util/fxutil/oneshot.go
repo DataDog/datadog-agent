@@ -8,8 +8,11 @@ package fxutil
 import (
 	"context"
 	"errors"
+	"time"
 
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/lifecycle"
 )
 
 // OneShot runs the given function in an fx.App using the supplied options.
@@ -41,18 +44,25 @@ func OneShot(oneShotFunc interface{}, opts ...fx.Option) error {
 		[]fx.Option{TemporaryAppTimeouts()},
 		opts...,
 	)
+	recorder := lifecycle.Default()
+	recorder.BeforeFxNew()
 	app := fx.New(opts...)
+	recorder.FxConstructed()
 
 	// start the app
 	startCtx, cancel := context.WithTimeout(context.Background(), app.StartTimeout())
 	defer cancel()
+	startBegin := time.Now()
 	if err := app.Start(startCtx); err != nil {
+		recorder.BeginStop(lifecycle.TriggerError)
 		return errors.Join(UnwrapIfErrArgumentsFailed(err), stopApp(app))
 	}
+	recorder.FxStarted(startBegin)
 
 	// call the original oneShotFunc with the args captured during app startup
 	err := delayedCall.call()
 	if err != nil {
+		recorder.BeginStop(lifecycle.TriggerError)
 		return errors.Join(err, stopApp(app))
 	}
 
@@ -60,6 +70,15 @@ func OneShot(oneShotFunc interface{}, opts ...fx.Option) error {
 }
 
 func stopApp(app *fx.App) error {
+	// Record the Fx stop as a shutdown phase. It begins the shutdown if the process did not do it
+	// already, and completes it once the Fx application is stopped.
+	recorder := lifecycle.Default()
+	phaseDone := recorder.StartShutdownPhase(lifecycle.PhaseFxStop)
+	defer func() {
+		phaseDone()
+		recorder.Finish()
+	}()
+
 	// stop the app
 	stopCtx, cancel := context.WithTimeout(context.Background(), app.StopTimeout())
 	defer cancel()

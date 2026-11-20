@@ -12,6 +12,8 @@ import (
 
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/lifecycle"
 )
 
 // DefaultFxLoggingOption creates an fx.Option to configure the Fx logger, either to do nothing
@@ -25,7 +27,7 @@ func DefaultFxLoggingOption() fx.Option {
 				if os.Getenv("TRACE_FX") == "1" {
 					logger = &fxevent.ConsoleLogger{W: os.Stderr}
 				}
-				return withFxTracer(logger, starttime, os.Stderr)
+				return withLifecycleRecorder(withFxTracer(logger, starttime, os.Stderr), lifecycle.Default())
 			},
 		),
 	)
@@ -46,15 +48,29 @@ func EnableFxLoggingOnDebug[T Logger]() fx.Option {
 			return originalFxLogger
 		}
 
-		// In order to keep track of fx event in the tracer, we need to update the inner loggers
-		// instead of replacing it with a new logger
-		if instrumentedLogger, ok := originalFxLogger.(*FxTracingLogger); ok {
-			agentLogger := fxEventLogger{logger: logger}
-			instrumentedLogger.UpdateInnerLoggers(&fxevent.ConsoleLogger{W: agentLogger}, agentLogger)
-			return instrumentedLogger
+		// Keep recording the lifecycle events: decorate the logger the recorder forwards to.
+		if lifecycleLogger, ok := originalFxLogger.(*LifecycleLogger); ok {
+			next := lifecycleLogger.Next()
+			decorated := decorateFxLogger(next, logger)
+			if decorated == next {
+				// The logger was updated in place.
+				return lifecycleLogger
+			}
+			return withLifecycleRecorder(decorated, lifecycleLogger.recorder)
 		}
-		return &fxevent.ConsoleLogger{W: fxEventLogger{logger: logger}}
+		return decorateFxLogger(originalFxLogger, logger)
 	})
+}
+
+func decorateFxLogger[T Logger](originalFxLogger fxevent.Logger, logger T) fxevent.Logger {
+	// In order to keep track of fx event in the tracer, we need to update the inner loggers
+	// instead of replacing it with a new logger
+	if instrumentedLogger, ok := originalFxLogger.(*FxTracingLogger); ok {
+		agentLogger := fxEventLogger{logger: logger}
+		instrumentedLogger.UpdateInnerLoggers(&fxevent.ConsoleLogger{W: agentLogger}, agentLogger)
+		return instrumentedLogger
+	}
+	return &fxevent.ConsoleLogger{W: fxEventLogger{logger: logger}}
 }
 
 type fxEventLogger struct {

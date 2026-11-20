@@ -7,7 +7,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/fxinstrumentation/impl",
+        "//comp/core/log/def",
+        "//comp/core/telemetry/def",
+        "//pkg/util/flavor",
         "//pkg/util/fxutil",
+        "//pkg/util/fxutil/lifecycle",
         "//pkg/util/fxutil/logging",
         "@org_uber_go_fx//:fx",
         "@org_uber_go_fx//fxevent",

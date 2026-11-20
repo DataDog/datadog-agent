@@ -210,6 +210,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/lifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -241,6 +242,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
 			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
 		}
+		// Most of the startup happens in startAgent, after the Fx application has started.
+		lifecycle.Default().ExpectReadyMarker()
 		return fxutil.OneShot(run,
 			fx.Invoke(func(_ log.Component) {
 				ddruntime.SetMaxProcs()
@@ -351,12 +354,15 @@ func run(log log.Component,
 		// Set up the signals async so we can Start the agent
 		select {
 		case <-signals.Stopper:
+			lifecycle.Default().BeginStop(lifecycle.TriggerCommand)
 			log.Info("Received stop command, shutting down...")
 			stopCh <- nil
 		case <-signals.ErrorStopper:
+			lifecycle.Default().BeginStop(lifecycle.TriggerError)
 			_ = log.Critical("The Agent has encountered an error, shutting down...")
 			stopCh <- errors.New("shutting down because of an error")
 		case sig := <-signalCh:
+			lifecycle.Default().BeginStop(lifecycle.TriggerSignal)
 			log.Infof("Received signal '%s', shutting down...", sig)
 			stopCh <- nil
 		}
@@ -788,6 +794,7 @@ func startAgent(
 	// and not service running yet, and as such, the call will block or fail
 	startDependentServicesAsync(cfg, sysprobeConf)
 
+	lifecycle.Default().MarkReady()
 	return nil
 }
 
@@ -798,6 +805,8 @@ func StopAgentWithDefaults(cfg config.Component, sysprobeConf sysprobeconfig.Com
 
 // stopAgent Tears down the agent process
 func stopAgent(cfg config.Component, sysprobeConf sysprobeconfig.Component) {
+	defer lifecycle.Default().StartShutdownPhase(lifecycle.PhaseAppStop)()
+
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
