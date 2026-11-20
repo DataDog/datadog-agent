@@ -13,11 +13,14 @@ import (
 )
 
 // atomicRegistryWriter implements atomic registry writing using a temporary file and rename
-type atomicRegistryWriter struct{}
+type atomicRegistryWriter struct {
+	// removeFile is os.Remove; tests replace it to observe temporary file cleanup.
+	removeFile func(name string) error
+}
 
 // NewAtomicRegistryWriter returns a new atomic registry writer
 func NewAtomicRegistryWriter() auditor.RegistryWriter {
-	return &atomicRegistryWriter{}
+	return &atomicRegistryWriter{removeFile: os.Remove}
 }
 
 func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPath string, registryTmpFile string, data []byte) (err error) {
@@ -29,7 +32,7 @@ func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPat
 	defer func() {
 		if err != nil {
 			_ = f.Close()
-			_ = os.Remove(tmpName)
+			_ = w.removeFile(tmpName)
 		}
 	}()
 
