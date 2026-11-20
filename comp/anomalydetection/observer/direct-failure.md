@@ -55,6 +55,9 @@ anomaly_detection:
   anomaly_scorer:
     dry_run:
       enabled: true
+  logs:
+    containers:
+      enabled: true
   detectors:
     log_failure:
       enabled: true
@@ -63,6 +66,8 @@ anomaly_detection:
 The detector is disabled by default. The error-count extractor runs exactly when
 the detector is enabled and has no setting of its own. Enabling the detector does
 not activate Observer without an existing consumer or the scorer's dry-run consumer.
+Container application logs reach the detector only when `logs.containers.enabled`
+is true.
 
 Ingress severity gates, processing rules and rate limits apply before extraction.
 Container stdout is transported as info. While the detector is
