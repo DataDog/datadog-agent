@@ -219,6 +219,31 @@ func TestStateChangesKeepsStatesAcrossStop(t *testing.T) {
 	})
 }
 
+// Run can start the gatherer while Cancel stops it.
+func TestStateChangesConcurrentStartStop(t *testing.T) {
+	_, _, g := setupStateChangesTest(t, 2)
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			g.Start()
+		}()
+		go func() {
+			defer wg.Done()
+			g.Stop()
+		}()
+	}
+	wg.Wait()
+
+	g.Stop()
+	require.False(t, g.Started())
+	g.Start()
+	require.True(t, g.Started())
+	g.Stop()
+	require.False(t, g.Started())
+}
+
 func TestStateChangesDoesNotReadUnsupportedAgain(t *testing.T) {
 	// Link 1 doesn't support its state, and the recovery action field isn't supported: with
 	// no device plugins, the GPU has no health source.

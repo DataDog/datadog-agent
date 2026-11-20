@@ -48,9 +48,12 @@ type StateChangesGatherer struct {
 	deviceCache ddnvml.DeviceCache
 	deps        *CollectorDependencies
 
-	running atomic.Bool
-	stop    chan struct{}
-	wg      sync.WaitGroup
+	// lifecycleMu makes Start and Stop safe to call concurrently, e.g. Cancel while Run starts
+	// the gatherer. The worker doesn't take it, so Stop can wait for the worker while holding it.
+	lifecycleMu sync.Mutex
+	running     atomic.Bool
+	stop        chan struct{}
+	wg          sync.WaitGroup
 
 	mu   sync.Mutex
 	gpus map[string]*gpuStates // uuid -> states
@@ -80,23 +83,29 @@ func (g *StateChangesGatherer) Started() bool {
 
 // Start starts the worker.
 func (g *StateChangesGatherer) Start() {
-	if g.running.Swap(true) {
+	g.lifecycleMu.Lock()
+	defer g.lifecycleMu.Unlock()
+	if g.running.Load() {
 		return
 	}
 	g.stop = make(chan struct{})
 	g.wg.Add(1)
 	go g.worker()
+	g.running.Store(true)
 }
 
 // Stop stops the worker and waits for it. The states and pending events are kept, by GPU
 // UUID: after a restart, e.g. once an NVML release for a GPU reset ends, the first read is
 // compared with the states from before, so a change during the stop is still reported.
 func (g *StateChangesGatherer) Stop() {
-	if !g.running.Swap(false) {
+	g.lifecycleMu.Lock()
+	defer g.lifecycleMu.Unlock()
+	if !g.running.Load() {
 		return
 	}
 	close(g.stop)
 	g.wg.Wait()
+	g.running.Store(false)
 }
 
 // takeEvents returns the events of the GPU since the previous call.
