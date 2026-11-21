@@ -2,6 +2,79 @@
 Release Notes
 =============
 
+.. _Release Notes_7.85.3:
+
+7.85.3
+======
+
+.. _Release Notes_7.85.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-11-11
+
+- Please refer to the `7.85.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7853>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.85.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On AIX, the ``dd-agent`` user is now created with a 512MiB data-segment
+  limit instead of the 128MiB system default, which agent-data-plane could
+  exhaust on busy hosts, causing allocation failures and repeated restarts.
+  Higher or unlimited limits are left unchanged.
+
+- APM: The trace-agent's ``/v0.4/traces``, ``/v0.5/traces``, and
+  ``/v1.0/traces`` payload decoders now check that a payload is long enough
+  to contain the elements an array or map header declares before allocating
+  memory for them. Previously, a request of a few bytes could make the
+  trace-agent allocate hundreds of megabytes or more. Array and map headers
+  in these payloads, other than string tables, are now also limited to
+  500,000 elements, matching the limit already applied to the v0.4 msgpack
+  decoder used when trace conversion is disabled.
+
+- CWS: Short DNS responses that cannot be decoded, and all short DNS
+  responses when DNS resolution is disabled, are no longer handled as regular
+  events, which decoded process, span and cgroup context from the DNS packet.
+  The ``failed_dns`` internal monitoring event is still sent for responses
+  that cannot be decoded.
+
+- Fix the bundled OpenTelemetry Collector failing to start after a Linux FIPS
+  Agent upgrade through Fleet Automation. The Collector now loads the FIPS
+  libraries from its Agent package instead of the previous installation directory.
+
+- Fix a system-probe crash when reading DNS packets from the AF_PACKET ring
+  buffer. The TPACKET_V3 reader could read a block header before the kernel
+  had handed the block over; on a newly created ring the header could still
+  be zero, causing the reader to walk past the end of the block and crash.
+  Corrupted frames are now detected and skipped instead.
+
+- Fix Cloud Network Monitoring failing to start on GKE nodes running
+  Container-Optimized OS (Standard and Autopilot) with
+  ``could not start ebpf manager: probes activation validation failed:
+  {UID:net EBPFFuncName:socket__classifier_entry}: cannot allocate memory``.
+  The protocol classification socket filter no longer exceeds the
+  ``net.core.optmem_max`` limit of 20 KiB on these nodes. If the socket
+  filter still can't be attached for lack of memory, the error now
+  suggests raising ``net.core.optmem_max`` or disabling protocol
+  classification.
+
+- The Private Action Runner no longer crashes when an HTTP action decodes
+  an odd-length response body as ``utf16le`` or ``ucs2``. The trailing
+  byte is now ignored.
+
+- Health Platform: health reports are no longer sent to ``dd_url``, which
+  only overrides the metrics intake and rejected them with a 404, logging a
+  ``Health platform egress: failed to send`` warning on every report. They
+  now go to the health platform intake of the configured ``site``, and can
+  be redirected with the new ``health_platform.forwarder.dd_url`` setting,
+  like the other dedicated intakes (``apm_config.apm_dd_url``,
+  ``logs_config.logs_dd_url``).
+
+
 .. _Release Notes_7.85.2:
 
 7.85.2
