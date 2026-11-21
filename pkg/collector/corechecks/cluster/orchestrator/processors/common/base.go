@@ -80,6 +80,7 @@ func ExtractModelManifests(ctx processors.ProcessorContext, resourceManifests []
 		Tags:            pctx.Cfg.ExtraTags,
 		HostName:        pctx.HostName,
 		SystemInfo:      pctx.SystemInfo,
+		GpuDevices:      pctx.GPUDevices,
 		AgentVersion:    ctx.GetAgentVersion(),
 		OriginCollector: model.OriginCollector_datadogAgent,
 	}

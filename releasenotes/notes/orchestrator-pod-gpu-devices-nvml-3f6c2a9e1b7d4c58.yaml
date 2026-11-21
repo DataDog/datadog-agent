@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Adds ``orchestrator_explorer.gpu_devices.enabled`` (default ``false``). When
+    set, the NVML workloadmeta collector runs without GPU Monitoring, and the
+    orchestrator pod check sends the node's GPUs (UUID, device minor, model,
+    architecture, memory, driver version, MIG profile and parent, sharing mode)
+    with its Pod manifests, so Kubernetes Explorer can show the GPUs of Pods
+    and inference workloads without GPU Feature Discovery. It requires the NVML
+    library and the GPU devices in the Agent container.
