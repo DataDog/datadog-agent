@@ -73,7 +73,7 @@ func TestSamplingProbFromTracestate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			prob, ok := samplingProbFromTracestate(tt.traceState)
+			prob, ok := SamplingProbFromTracestate(tt.traceState)
 			assert.Equal(t, tt.wantOK, ok)
 			if tt.wantOK {
 				assert.InDelta(t, tt.wantProb, prob, 1e-9)
@@ -88,7 +88,7 @@ func TestSamplingProbFromTracestate_Malformed(t *testing.T) {
 	// the th field, so NewW3CTraceState may return an error or silently skip;
 	// either way ok=false.
 	assert.NotPanics(t, func() {
-		prob, ok := samplingProbFromTracestate("ot=th:zz")
+		prob, ok := SamplingProbFromTracestate("ot=th:zz")
 		assert.False(t, ok)
 		assert.Equal(t, float64(0), prob)
 	})
