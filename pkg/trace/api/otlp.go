@@ -632,7 +632,7 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 		// `_dd.p.dm` must not be set even if a drop decision is applied to the trace here.
 		// Traces with a drop decision by the OTLPReceiver's probabilistic sampler are re-evaluated by ErrorsSampler later.
 		if samplingPriorty.IsKeep() {
-			traceutil.SetMeta(spans[0], "_dd.p.dm", decisionMaker)
+			traceutil.SetMeta(spans[0], string(semantics.ConceptDDDecisionMaker), decisionMaker)
 		}
 		chunk.Priority = int32(samplingPriorty)
 		traceChunks = append(traceChunks, chunk)
@@ -643,18 +643,36 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 // tracerDecisionMaker returns the sampling decision maker set upstream by the tracer on
 // any span of the chunk, either as a `_dd.p.dm` attribute or, failing that, as the `t.dm`
 // field of the `dd` member of the W3C tracestate. Only well-formed values are returned.
+// Any decision maker is preferred over "-0", the tracer's startup fallback, which is returned
+// only when no other decision maker is present.
 func tracerDecisionMaker(spans pb.Trace) (string, bool) {
+	fallback, hasFallback := "", false
+	consider := func(dm string) bool {
+		if !isDefaultDecisionMaker(dm) {
+			return true
+		}
+		if !hasFallback {
+			fallback, hasFallback = dm, true
+		}
+		return false
+	}
 	for _, s := range spans {
-		if dm, ok := s.Meta["_dd.p.dm"]; ok && isValidDecisionMaker(dm) {
+		if dm, ok := s.Meta[string(semantics.ConceptDDDecisionMaker)]; ok && isValidDecisionMaker(dm) && consider(dm) {
 			return dm, true
 		}
 	}
 	for _, s := range spans {
-		if dm, ok := decisionMakerFromTracestate(s.Meta["w3c.tracestate"]); ok {
+		if dm, ok := decisionMakerFromTracestate(s.Meta["w3c.tracestate"]); ok && consider(dm) {
 			return dm, true
 		}
 	}
-	return "", false
+	return fallback, hasFallback
+}
+
+// isDefaultDecisionMaker reports whether a valid decision maker is sampling mechanism 0, the
+// tracer's startup fallback (normally "-0").
+func isDefaultDecisionMaker(dm string) bool {
+	return strings.Trim(dm[1:], "0") == ""
 }
 
 // decisionMakerFromTracestate extracts `t.dm` from the `dd` member of a W3C tracestate,
@@ -679,17 +697,15 @@ func decisionMakerFromTracestate(ts string) (string, bool) {
 	return "", false
 }
 
-// isValidDecisionMaker reports whether dm looks like a sampling decision maker: "-" followed by digits.
+// isValidDecisionMaker reports whether dm looks like a sampling decision maker: "-" followed by digits
+// forming a sampling mechanism that fits in a uint32, as the V1 conversion paths require.
 func isValidDecisionMaker(dm string) bool {
-	if len(dm) < 2 || dm[0] != '-' {
+	digits, ok := strings.CutPrefix(dm, "-")
+	if !ok {
 		return false
 	}
-	for i := 1; i < len(dm); i++ {
-		if dm[i] < '0' || dm[i] > '9' {
-			return false
-		}
-	}
-	return true
+	_, err := strconv.ParseUint(digits, 10, 32)
+	return err == nil
 }
 
 // convertSpan converts the span in to a Datadog span, and uses the res resource and the lib instrumentation
