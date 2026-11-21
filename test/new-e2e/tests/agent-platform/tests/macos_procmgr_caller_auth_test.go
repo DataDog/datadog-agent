@@ -100,28 +100,31 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthStartEntry); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthStartEntry, err)
 			}
-			// pkill sends SIGTERM and returns before the process exits. Poll, then SIGKILL a
-			// survivor, so a retry does not inherit it after the daemon drops the entry.
+			// pkill returns before the process exits, after SIGTERM and after SIGKILL alike. Poll,
+			// then SIGKILL a survivor and poll again, so a retry does not inherit it after the
+			// daemon drops the entry.
 			check := "sudo sh -c 'pgrep -f \"^/bin/sleep " + sleepArg + "$\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
 			if _, err := client.Execute("sudo pkill -f '^/bin/sleep " + sleepArg + "$'"); err != nil {
 				t.Logf("cleanup: pkill /bin/sleep %s: %v", sleepArg, err)
 			}
-			deadline := time.Now().Add(5 * time.Second)
-			var left string
-			var err error
-			for {
-				left, err = client.Execute(check)
-				if err != nil || strings.TrimSpace(left) == "" || time.Now().After(deadline) {
-					break
+			// waitGone polls until the check reports no pid, the check fails, or the timeout passes.
+			waitGone := func(timeout time.Duration) (string, error) {
+				deadline := time.Now().Add(timeout)
+				for {
+					left, err := client.Execute(check)
+					if err != nil || strings.TrimSpace(left) == "" || time.Now().After(deadline) {
+						return left, err
+					}
+					time.Sleep(250 * time.Millisecond)
 				}
-				time.Sleep(250 * time.Millisecond)
 			}
+			left, err := waitGone(5 * time.Second)
 			confirmedGone := err == nil && strings.TrimSpace(left) == ""
 			if !confirmedGone {
 				if _, killErr := client.Execute("sudo pkill -9 -f '^/bin/sleep " + sleepArg + "$'"); killErr != nil {
 					t.Logf("cleanup: pkill -9 /bin/sleep %s: %v", sleepArg, killErr)
 				}
-				left, err = client.Execute(check)
+				left, err = waitGone(2 * time.Second)
 			}
 			if err != nil {
 				t.Errorf("cleanup: failed to check for /bin/sleep %s: %v", sleepArg, err)
