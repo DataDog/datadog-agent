@@ -249,7 +249,10 @@ func TestIntegration(t *testing.T) {
 	sendTraces(t)
 
 	// 4. Validate traces and APM stats from the mock server
-	var spans []*pb.Span
+	// spans holds the resource name of every received span. The trace-agent
+	// emits OTLP traffic as v1 (idx) tracer payloads by default and as legacy
+	// tracer payloads when convert-traces is disabled, so both are read.
+	var spans []string
 	var stats []*pb.ClientGroupedStats
 
 	// 3 sampled spans + APM stats on 8 spans are sent to datadog exporter (TestSpan0 and TestSpan1 are dropped).
@@ -272,10 +275,19 @@ func TestIntegration(t *testing.T) {
 			require.NoError(t, proto.Unmarshal(slurp, &traces))
 			for _, tps := range traces.TracerPayloads {
 				for _, chunks := range tps.Chunks {
-					spans = append(spans, chunks.Spans...)
 					for _, span := range chunks.Spans {
-						assert.NotEqual(t, "TestSpan0", span.Resource)
-						assert.NotEqual(t, "TestSpan1", span.Resource)
+						spans = append(spans, span.Resource)
+					}
+				}
+			}
+			for _, tps := range traces.IdxTracerPayloads {
+				for _, chunks := range tps.Chunks {
+					for _, span := range chunks.Spans {
+						var resource string
+						if ref := span.ResourceRef; int(ref) < len(tps.Strings) {
+							resource = tps.Strings[ref]
+						}
+						spans = append(spans, resource)
 					}
 				}
 			}
@@ -303,6 +315,10 @@ func TestIntegration(t *testing.T) {
 
 	// Verify we don't receive more than the expected numbers
 	assert.Len(t, spans, 3)
+	for _, resource := range spans {
+		assert.NotEqual(t, "TestSpan0", resource)
+		assert.NotEqual(t, "TestSpan1", resource)
+	}
 	assert.Len(t, stats, 8)
 
 	// Validate metrics ship zstd on the wire too. The datadog/connector turns the
