@@ -32,11 +32,12 @@ import (
 )
 
 // setField is the field a set action reads its value from: a field,
-// `open.file.path`, or an index in an array field, `process.argv[0]`.
+// `open.file.path`, an index in an array field, `process.argv[0]`, or a key in a
+// dictionary field, `process.env["PATH"]`.
 type setField struct {
-	// name is the name of the field, without its index
+	// name is the name of the field, without its index or its key
 	name string
-	// indexed is whether the value is an index in the field
+	// indexed is whether the value is at an index or a key in the field
 	indexed bool
 }
 
@@ -60,7 +61,7 @@ func (rs *RuleSet) parseSetField(field string) (*setField, error) {
 			return &setField{name: ref.Name, indexed: true}, nil
 		}
 	}
-	return nil, fmt.Errorf("invalid field '%s': not a field or an index in an array field", field)
+	return nil, fmt.Errorf("invalid field '%s': not a field, an index in an array field or a key in a dictionary field", field)
 }
 
 // Rule presents a rule in a ruleset
@@ -482,6 +483,11 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					if _, kind, goType, isArray, err = rs.eventCtor().GetFieldMetadata(field.name); err != nil {
 						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("failed to get field '%s': %w", field.name, err))
 						continue
+					}
+
+					// the values of a dictionary are strings
+					if field.indexed && kind == reflect.Map {
+						kind, goType = reflect.String, "string"
 					}
 				}
 
