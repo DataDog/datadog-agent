@@ -14,6 +14,7 @@ go_library(
     deps = [
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/secrets/def",
+        "//comp/core/telemetry/impl",
         "//comp/logs-library/client",
         "//comp/logs-library/client/http",
         "//comp/logs-library/diagnostic",
@@ -29,6 +30,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/setup/constants",
         "//pkg/logs/message",
+        "//pkg/logs/sources",
         "//pkg/logs/status/statusinterface",
         "//pkg/util/compression",
         "//pkg/util/log",
@@ -40,6 +42,7 @@ go_library(
 dd_agent_go_test(
     name = "pipeline_test",
     srcs = [
+        "endpoint_routing_test.go",
         "provider_failover_integration_test.go",
         "provider_failover_test.go",
         "provider_test.go",
@@ -56,6 +59,7 @@ dd_agent_go_test(
         "//comp/logs-library/routing",
         "//comp/logs-library/sender",
         "//comp/logs/agent/config",
+        "//comp/serializer/logscompression/def",
         "//comp/serializer/logscompression/fx-mock",
         "//pkg/config/mock",
         "//pkg/config/model",

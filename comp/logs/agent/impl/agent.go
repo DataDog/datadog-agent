@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/routing"
 	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
@@ -59,6 +60,7 @@ const (
 	invalidProcessingRules   = "invalid_global_processing_rules"
 	invalidEndpoints         = "invalid_endpoints"
 	invalidFingerprintConfig = "invalid_fingerprint_config"
+	invalidRoutingConfig     = "invalid_routing_config"
 	invalidTagFilters        = "invalid_global_tag_filters"
 	intakeTrackType          = "logs"
 
@@ -131,6 +133,12 @@ type logAgent struct {
 	// transport-only pipeline restarts
 	tagFiltersConfigured    bool
 	tagFilterSubscriberDone chan struct{}
+
+	// routingPolicy holds the compiled endpoint routing policy when logs_config.routing.enabled is true.
+	// routingPolicyBuilder is an injectable seam for tests (and future OTTL integration) to supply
+	// compiled selectors through normal Agent initialization.
+	routingPolicy        *routing.EndpointPolicy
+	routingPolicyBuilder func(*config.Endpoints) (*routing.EndpointPolicy, error)
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -307,6 +315,12 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *tagfilter.Filter
 	if !a.tagFiltersConfigured {
 		a.tagFiltersConfigured = true
 		a.configureTagFilters()
+	}
+
+	if err := a.validateRoutingConfig(); err != nil {
+		message := fmt.Sprintf("Invalid routing config: %v", err)
+		status.AddGlobalError(invalidRoutingConfig, message)
+		return nil, nil, nil, fmt.Errorf("Invalid routing config: %w", err)
 	}
 
 	return processingRules, a.tagFilters, fingerprintConfig, nil

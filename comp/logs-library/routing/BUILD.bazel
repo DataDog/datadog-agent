@@ -5,6 +5,8 @@ go_library(
     name = "routing",
     srcs = [
         "definitions.go",
+        "evaluator.go",
+        "policy.go",
         "progress.go",
         "registry.go",
     ],
@@ -14,6 +16,7 @@ go_library(
         "//comp/logs-library/sender",
         "//comp/logs/agent/config",
         "//pkg/logs/message",
+        "//pkg/logs/sources",
         "//pkg/logs/types",
     ],
 )
@@ -22,6 +25,7 @@ dd_agent_go_test(
     name = "routing_test",
     srcs = [
         "definitions_test.go",
+        "policy_test.go",
         "progress_test.go",
     ],
     embed = [":routing"],
@@ -30,5 +34,7 @@ dd_agent_go_test(
         "//comp/logs/agent/config",
         "//pkg/logs/message",
         "//pkg/logs/sources",
+        "//pkg/logs/types",
+        "@com_github_stretchr_testify//require",
     ],
 )

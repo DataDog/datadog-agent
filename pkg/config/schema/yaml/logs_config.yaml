@@ -769,16 +769,27 @@ properties:
     node_type: section
     type: object
     visibility: public
-    description: Limits for log delivery groups supplied by an integration.
+    description: Endpoint routing and delivery group configuration for normal-mode HTTP JSON logs.
     properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Enable endpoint routing/filtering pipeline for normal-mode HTTP JSON logs.
+          When disabled (default), the legacy logs pipeline provider is used unchanged.
+          Customer-configurable OTTL endpoint filter expressions are pending upstream
+          OTTL integration; when enabled without selectors, all configured HTTP
+          endpoints match all records with reliable-set semantics.
       max_groups:
         node_type: setting
         type: integer
         default: 4
         visibility: public
         description: |-
-          Maximum number of log delivery groups accepted when an integration starts.
-          This setting does not activate a routing policy.
+          Maximum number of log delivery groups or routed endpoints accepted when
+          routing starts.
         minimum: 1
   process_exclude_agent:
     node_type: setting

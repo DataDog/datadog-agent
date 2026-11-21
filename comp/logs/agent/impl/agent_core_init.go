@@ -8,6 +8,7 @@
 package agentimpl
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -19,8 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/routing"
 	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -30,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
@@ -68,8 +72,8 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, tagFi
 	// setup the pipeline provider that Provides pairs of processor and sender
 	pipelineProvider := buildPipelineProvider(a, processingRules, tagFilters, diagnosticMessageReceiver, destinationsCtx)
 
-	// setup the launchers
-	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
+	// setup the launchers (guard direct checkpoint writes when routed provider is active)
+	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, guardRegistryForProvider(pipelineProvider, a.auditor), a.tracker)
 
 	a.addLauncherInstances(lnchrs, wmeta, integrationsLogs, fingerprintConfig)
 
@@ -125,8 +129,110 @@ func buildHTTPEndpointsForRestart(coreConfig model.Reader) (*config.Endpoints, e
 	return config.BuildEndpointsWithVectorOverride(coreConfig, config.HTTPConnectivitySuccess, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
+// validateRoutingConfig validates endpoint routing configuration and builds the
+// endpoint policy when logs_config.routing.enabled is true.
+func (a *logAgent) validateRoutingConfig() error {
+	if !a.config.GetBool("logs_config.routing.enabled") {
+		a.routingPolicy = nil
+		return nil
+	}
+	if a.endpoints == nil || !a.endpoints.UseHTTP {
+		return errors.New("logs_config.routing.enabled requires HTTP transport (set logs_config.use_http or logs_config.force_use_http)")
+	}
+	if a.endpoints.UseProto {
+		return errors.New("logs_config.routing.enabled is not supported with protobuf transport")
+	}
+	if a.config.GetBool("logs_config.disable_distributed_senders") {
+		return errors.New("logs_config.routing.enabled is not supported with logs_config.disable_distributed_senders")
+	}
+	if a.config.GetBool("multi_region_failover.enabled") {
+		return errors.New("logs_config.routing.enabled is not supported with multi_region_failover.enabled")
+	}
+	policy, err := a.buildRoutingPolicy(a.endpoints)
+	if err != nil {
+		return err
+	}
+	a.routingPolicy = policy
+	return nil
+}
+
+func (a *logAgent) buildRoutingPolicy(endpoints *config.Endpoints) (*routing.EndpointPolicy, error) {
+	if a.routingPolicyBuilder != nil {
+		return a.routingPolicyBuilder(endpoints)
+	}
+	maxEndpoints := a.config.GetInt("logs_config.routing.max_groups")
+	if maxEndpoints < 1 {
+		maxEndpoints = routing.MaxEndpoints
+	}
+	return routing.NewEndpointPolicy(routing.PolicyOptions{
+		Endpoints:    endpoints,
+		Compiler:     routing.StubCompiler{},
+		MaxEndpoints: maxEndpoints,
+	})
+}
+
+func guardRegistryForProvider(provider pipeline.Provider, registry auditor.Registry) auditor.Registry {
+	if routed, ok := provider.(*pipeline.RoutedProvider); ok && registry != nil {
+		return routed.GuardRegistry(registry)
+	}
+	return registry
+}
+
+// sharedIngressGeneration supplies a constant generation for shared-ingress
+// launchers (such as container/journald/listener) whose sources are auto-reclaimed
+// once their in-flight records complete.
+func sharedIngressGeneration(msg *message.Message) (uint64, error) {
+	if msg == nil || msg.Origin == nil || msg.Origin.Identifier == "" {
+		return 0, nil
+	}
+	return 1, nil
+}
+
 // buildPipelineProvider builds a new pipeline provider with the given configuration
 func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule, tagFilters *tagfilter.Filters, diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver, destinationsCtx *client.DestinationsContext) pipeline.Provider {
+	if a.config.GetBool("logs_config.routing.enabled") {
+		policy := a.routingPolicy
+		if policy == nil {
+			var err error
+			policy, err = a.buildRoutingPolicy(a.endpoints)
+			if err != nil {
+				a.log.Errorf("Failed to build logs routing policy: %v", err)
+			}
+		} else if len(a.endpoints.Endpoints) > 0 && a.routingPolicyBuilder == nil {
+			// Rebuild when endpoints changed (e.g. intake routing update) while preserving policy validation.
+			if refreshed, err := a.buildRoutingPolicy(a.endpoints); err == nil {
+				policy = refreshed
+				a.routingPolicy = refreshed
+			}
+		}
+		if policy != nil {
+			numPipelines := a.config.GetInt("logs_config.pipelines")
+			if numPipelines < 1 {
+				numPipelines = 1
+			} else if numPipelines > 16 {
+				numPipelines = 16
+			}
+			routedProvider, err := pipeline.NewRoutedProvider(pipeline.RoutedOptions{
+				NumberOfPipelines:         numPipelines,
+				Sink:                      a.auditor,
+				DiagnosticMessageReceiver: diagnosticMessageReceiver,
+				ProcessingRules:           processingRules,
+				TagFilters:                tagFilters,
+				EndpointPolicy:            policy,
+				AutoRetireSharedIngress:   true,
+				Generation:                sharedIngressGeneration,
+				DestinationsContext:       destinationsCtx,
+				Hostname:                  a.hostname,
+				Config:                    a.config,
+				Compression:               a.compression,
+				Secrets:                   a.secrets,
+			})
+			if err == nil {
+				return routedProvider
+			}
+			a.log.Errorf("Failed to construct routed pipeline provider: %v", err)
+		}
+	}
 	pipelineProvider := pipeline.NewProvider(
 		a.config.GetInt("logs_config.pipelines"),
 		a.auditor,
@@ -158,7 +264,7 @@ func (a *logAgent) rebuildTransientComponents(processingRules []*config.Processi
 
 	// recreate launchers with new pipelineProvider
 	// use OLD: sources, auditor, tracker
-	lnchers := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
+	lnchers := launchers.NewLaunchers(a.sources, pipelineProvider, guardRegistryForProvider(pipelineProvider, a.auditor), a.tracker)
 	a.addLauncherInstances(lnchers, wmeta, integrationsLogs, fingerprintConfig)
 
 	// update agent with new components
