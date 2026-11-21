@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
@@ -106,6 +108,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 			LogParams:    log.ForDaemon(command.LoggerName, par.LogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile()),
 		}),
 		core.Bundle(core.WithSecrets()),
+		configStreamOptions(confPath),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
@@ -136,6 +139,13 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		return nil
 	}
 	return err
+}
+
+func configStreamOptions(confPath string) fx.Option {
+	return fx.Options(
+		fx.Supply(configstreamconsumer.NewParams("private-action-runner", confPath)),
+		configstreamconsumerfx.Module(),
+	)
 }
 
 // Commands returns a slice of subcommands for the 'private-action-runner' command.

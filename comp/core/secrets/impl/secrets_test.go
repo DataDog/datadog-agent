@@ -901,6 +901,54 @@ func TestRefreshAllowlist(t *testing.T) {
 	assert.Equal(t, changes, []string{"second_value"})
 }
 
+func TestRefreshPrivateActionRunnerCredentials(t *testing.T) {
+	resolver := newEnabledSecretResolver(nooptelemetry.GetCompatComponent())
+	resolver.backendCommand = "some_command"
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
+		return map[string]string{"password": "startup", "policy": "original-policy"}, nil
+	}
+	_, err := resolver.Resolve([]byte(`
+private_action_runner:
+  credentials:
+    values:
+      database_password:
+        value: ENC[password]
+        allowed_actions:
+          - ENC[policy]
+      other_password:
+        value: ENC[password]
+  other_setting: ENC[password]
+other_component:
+  credentials:
+    values:
+      password:
+        value: ENC[password]
+`), "datadog.yaml", "", "", true)
+	require.NoError(t, err)
+
+	var changedPaths []string
+	resolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
+		assert.Equal(t, "datadog.yaml", origin)
+		assert.Equal(t, map[string]string{"password": "startup", "policy": "original-policy"}[handle], oldValue)
+		assert.Equal(t, map[string]string{"password": "rotated", "policy": "updated-policy"}[handle], newValue)
+		changedPaths = append(changedPaths, strings.Join(path, "."))
+	})
+	resolver.fetchHookFunc = func(handles []string) (map[string]string, error) {
+		assert.ElementsMatch(t, []string{"password", "policy"}, handles)
+		return map[string]string{"password": "rotated", "policy": "updated-policy"}, nil
+	}
+
+	_, err = resolver.RefreshNow()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{
+		"private_action_runner.credentials.values.database_password.value",
+		"private_action_runner.credentials.values.database_password.allowed_actions.0",
+		"private_action_runner.credentials.values.other_password.value",
+	}, changedPaths)
+	assert.Equal(t, "rotated", resolver.cache["password"])
+	assert.Equal(t, "updated-policy", resolver.cache["policy"])
+}
+
 // Check that the allowListOrigin works well
 func TestRefreshAllowlistFromContainer(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
