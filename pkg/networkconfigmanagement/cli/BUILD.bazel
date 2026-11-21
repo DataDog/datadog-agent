@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "cli",
+    srcs = [
+        "cli.go",
+        "dialects.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/cli",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/networkconfigmanagement/profile"],
+)
+
+dd_agent_go_test(
+    name = "cli_test",
+    srcs = [
+        "cli_test.go",
+        "dialects_test.go",
+    ],
+    embed = [":cli"],
+    deps = [
+        "//pkg/networkconfigmanagement/profile",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

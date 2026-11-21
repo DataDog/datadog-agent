@@ -197,3 +197,29 @@ func TestStartShell_ContextEndsDuringSetup(t *testing.T) {
 		t.Fatal("cancellation should have happened while the pty request was pending")
 	}
 }
+
+func TestShell_SendAfterCloseWrite(t *testing.T) {
+	sh := startTestShell(t, func(*ShellContext) ShellFunc {
+		return func(string, *ShellContext) uint32 { return 0 }
+	})
+	require.NoError(t, sh.CloseWrite())
+	require.NoError(t, sh.CloseWrite(), "closing input twice is harmless")
+	assert.ErrorIs(t, sh.Send(t.Context(), "show version\n"), errInputClosed)
+}
+
+func TestShell_SendWithEndedContextWritesNothing(t *testing.T) {
+	srv := StartFakeSSHServerWithFactory(t, func(*ShellContext) ShellFunc {
+		return func(string, *ShellContext) uint32 { return 0 }
+	}, WithEcho())
+	sh := connectTestShell(t, srv)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	assert.ErrorIs(t, sh.Send(ctx, "first\n"), context.Canceled)
+
+	// The shell is still usable, and the device only ever saw the second line.
+	require.NoError(t, sh.Send(t.Context(), "second\n"))
+	_, err := sh.ReadUntil(t.Context(), through("second\n"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"second"}, srv.Received())
+}
