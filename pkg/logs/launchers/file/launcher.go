@@ -446,10 +446,11 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 				s.oldInfoMap[scanKey] = oldInfo
 			}
 		} else {
-			// Normal case - no stored info (unless routed rotation pending map overflowed,
-			// in which case ForceBeginning prefers at-least-once delivery over prefix loss).
+			// Normal case - no stored info (unless routed rotation pending map overflowed
+			// and this file has a saved offset that could belong to an untracked rotated
+			// inode, in which case ForceBeginning prefers at-least-once over prefix loss).
 			var mode config.TailingMode = config.Beginning
-			if s.routedProvider != nil && s.routedRotationOverflow {
+			if s.shouldForceBeginningOnOverflow(file, mode) {
 				mode = config.ForceBeginning
 			}
 			if s.startNewTailer(file, mode, fingerprint) {
@@ -715,7 +716,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 					s.clearRoutedRotationPending(file.GetScanKey())
 				}
 			} else {
-				if s.routedRotationOverflow {
+				if s.shouldForceBeginningOnOverflow(file, mode) {
 					mode = config.ForceBeginning
 				}
 				newTailerStarted = s.startNewTailer(file, mode, fingerprint)
@@ -940,9 +941,22 @@ func (s *Launcher) clearRoutedRotationPending(scanKey string) {
 		return
 	}
 	delete(s.routedRotationPending, scanKey)
-	if len(s.routedRotationPending) == 0 {
-		s.routedRotationOverflow = false
+	// Do NOT clear s.routedRotationOverflow here: draining tracked entries does
+	// not prove that any untracked overflow path has restarted. Overflow stays
+	// latched until cleanup().
+}
+
+// shouldForceBeginningOnOverflow reports whether routed rotation overflow should
+// upgrade mode to ForceBeginning. It only applies to files with an existing saved
+// offset (potential untracked rotated paths) and never overrides explicit ForceEnd.
+func (s *Launcher) shouldForceBeginningOnOverflow(file *tailer.File, mode config.TailingMode) bool {
+	if s.routedProvider == nil || !s.routedRotationOverflow || file == nil {
+		return false
 	}
+	if mode == config.ForceEnd {
+		return false
+	}
+	return s.registry != nil && s.registry.GetOffset(file.Identifier()) != ""
 }
 
 // restartTailer safely stops tailer and starts a new one

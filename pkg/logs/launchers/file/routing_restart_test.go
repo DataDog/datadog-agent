@@ -475,14 +475,17 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		l.cleanup()
 	})
 
-	t.Run("bounded overflow falls back to ForceBeginning without skipping replacement prefix", func(t *testing.T) {
+	t.Run("bounded overflow survives tracked-set drain and preserves unrelated forceEnd", func(t *testing.T) {
 		dir := t.TempDir()
 		pathOverflow := filepath.Join(dir, "overflow.log")
+		pathForceEnd := filepath.Join(dir, "force_end.log")
 		require.NoError(t, os.WriteFile(pathOverflow, []byte("new-prefix-line-1\nnew-suffix-line-2\n"), 0o600))
+		require.NoError(t, os.WriteFile(pathForceEnd, []byte("pre-existing-should-skip\n"), 0o600))
 
 		prov := newFakeRoutedFileProvider()
 		reg := auditorMock.NewMockRegistry()
 		reg.SetOffset("file:"+pathOverflow, "18")
+		reg.SetOffset("file:"+pathForceEnd, "5")
 
 		l := NewLauncher(10, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
 		l.pipelineProvider = prov
@@ -502,7 +505,30 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		require.True(t, l.routedRotationOverflow)
 		require.Len(t, l.routedRotationPending, 256, "map size must stay strictly bounded")
 
-		// Starting overflow file must still deliver full prefix+suffix via ForceBeginning fallback.
+		// Drain ALL 256 tracked entries before overflow path returns: overflow MUST stay latched!
+		for i := 0; i < 256; i++ {
+			l.clearRoutedRotationPending("dummy-" + strconv.Itoa(i))
+		}
+		require.Empty(t, l.routedRotationPending)
+		require.True(t, l.routedRotationOverflow, "overflow must stay latched after tracked entries drain")
+
+		// Unrelated forceEnd source must NOT be overridden to ForceBeginning.
+		srcForceEnd := sources.NewLogSource("force-end", &config.LogsConfig{Type: config.FileType, Path: pathForceEnd, TailingMode: "forceEnd"})
+		l.launchTailers(srcForceEnd)
+		f, err := os.OpenFile(pathForceEnd, os.O_WRONLY|os.O_APPEND, 0o600)
+		require.NoError(t, err)
+		_, err = f.WriteString("after-force-end\n")
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		select {
+		case msg := <-prov.received:
+			require.Equal(t, "after-force-end", string(msg.GetContent()), "forceEnd must not read pre-existing content under overflow")
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for after-force-end line")
+		}
+
+		// Now absent overflow file returns AFTER tracked entries drained -> must still deliver full prefix+suffix!
 		l.resolveActiveTailers([]*filetailer.File{fileO})
 		got := make(map[string]bool)
 		deadline := time.After(5 * time.Second)
@@ -511,9 +537,10 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 			case msg := <-prov.received:
 				got[string(msg.GetContent())] = true
 			case <-deadline:
-				t.Fatalf("timed out waiting for replacement prefix+suffix under overflow; got=%v", got)
+				t.Fatalf("timed out waiting for replacement prefix+suffix after tracked drain; got=%v", got)
 			}
 		}
 		l.cleanup()
+		require.False(t, l.routedRotationOverflow, "cleanup must reset overflow state")
 	})
 }
