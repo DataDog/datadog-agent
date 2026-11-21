@@ -236,3 +236,23 @@ func TestNetworkFilterDefinitionEmptyScopeDefaultOnRuleLoad(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "process", actionDef.NetworkFilter.Scope)
 }
+
+func TestKillDefinitionEmptyScopeDefault(t *testing.T) {
+	k := &KillDefinition{
+		Signal: "SIGKILL",
+	}
+	err := k.PreCheck(PolicyLoaderOpts{})
+	assert.NoError(t, err)
+	assert.Equal(t, "process", k.Scope)
+}
+
+func TestKillDefinitionEmptyScopeDefaultOnRuleLoad(t *testing.T) {
+	actionDef := &ActionDefinition{
+		Kill: &KillDefinition{
+			Signal: "SIGKILL",
+		},
+	}
+	err := actionDef.PreCheck(PolicyLoaderOpts{})
+	assert.NoError(t, err)
+	assert.Equal(t, "process", actionDef.Kill.Scope)
+}
