@@ -440,6 +440,24 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 			}
 		}
 	}
+	// When the scan hit open_files_limit, a rotated file may be temporarily omitted
+	// from this scan's top-N selection. Preserve its ForceBeginning handoff state
+	// (bounded) so a later scan does not fall back to the old inode's saved offset.
+	if hitFileLimit {
+		maxOldInfo := max(s.tailingLimit*2, 256)
+		for scanKey, oldInfo := range lastIterationOldInfo {
+			if len(s.oldInfoMap) >= maxOldInfo {
+				break
+			}
+			if _, seen := filesExpected[scanKey]; seen {
+				continue
+			}
+			if _, tailed := s.tailers.Get(scanKey); tailed {
+				continue
+			}
+			s.oldInfoMap[scanKey] = oldInfo
+		}
+	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
 
 	// Files that are no longer expected to be tailed can't recover, so drop their skip state.
@@ -682,7 +700,15 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			source.SetTailingMode(mode.String())
 		}
 
-		newTailerStarted := s.startNewTailer(file, mode, fingerprint)
+		var newTailerStarted bool
+		if oldInfo, hasOldInfo := s.oldInfoMap[file.GetScanKey()]; hasOldInfo {
+			newTailerStarted = s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint)
+			if newTailerStarted {
+				delete(s.oldInfoMap, file.GetScanKey())
+			}
+		} else {
+			newTailerStarted = s.startNewTailer(file, mode, fingerprint)
+		}
 		if newTailerStarted {
 			s.resolveFingerprintSkip(file)
 			s.filesTailedBetweenScans = append(s.filesTailedBetweenScans, file)

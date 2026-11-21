@@ -373,3 +373,37 @@ func TestHTTPSenderRedirectRoutedRetriesWhileLegacyFollows(t *testing.T) {
 		}
 	})
 }
+
+func TestOptionalHTTPSenderTrySendCountsDroppedPayloadsAndMessages(t *testing.T) {
+	cfg := configmock.New(t)
+	destCtx := client.NewDestinationsContext()
+	ep := config.NewEndpoint("test-key", "", "127.0.0.1", 1, "", false)
+
+	const epID = "us5-telemetry-test"
+	optSender := NewOptionalHTTPSender(
+		cfg,
+		epID,
+		ep,
+		destCtx,
+		"logs-routing-"+epID,
+		httpclient.JSONContentType,
+		1, // capacity 1, unstarted so second TrySend overflows deterministically
+		1,
+		secretsnoopimpl.NewComponent().Comp,
+		metrics.NewNoopPipelineMonitor(""),
+	)
+	defer optSender.Stop()
+
+	metas64 := make([]*message.MessageMetadata, 64)
+	for i := range metas64 {
+		metas64[i] = &message.MessageMetadata{}
+	}
+	p1 := message.NewPayload([]*message.MessageMetadata{{}}, []byte(`[{"message":"first"}]`), "", 21)
+	p64 := message.NewPayload(metas64, []byte(`[{"message":"batch64"}]`), "", 23)
+
+	require.True(t, optSender.TrySend(p1))
+	require.False(t, optSender.TrySend(p64))
+
+	require.Equal(t, float64(1), tlmOptionalPayloadsDropped.WithValues(epID).Get())
+	require.Equal(t, float64(64), tlmOptionalMessagesDropped.WithValues(epID).Get())
+}

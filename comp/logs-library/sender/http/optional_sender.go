@@ -77,6 +77,26 @@ func NewOptionalHTTPSender(
 // In returns the bounded input channel for best-effort payloads.
 func (s *OptionalSender) In() chan *message.Payload { return s.input }
 
+// TrySend attempts a non-blocking enqueue to the optional sender. If the queue
+// is full, it records payload and message drop telemetry once and returns false.
+func (s *OptionalSender) TrySend(payload *message.Payload) bool {
+	if payload == nil {
+		return true
+	}
+	select {
+	case s.input <- payload:
+		return true
+	default:
+		s.recordDrop(payload)
+		return false
+	}
+}
+
+func (s *OptionalSender) recordDrop(payload *message.Payload) {
+	tlmOptionalPayloadsDropped.Inc(s.endpointID)
+	tlmOptionalMessagesDropped.Add(float64(payload.Count()), s.endpointID)
+}
+
 // PipelineMonitor returns the sender's pipeline monitor.
 func (s *OptionalSender) PipelineMonitor() metrics.PipelineMonitor { return s.pipelineMonitor }
 
@@ -104,8 +124,7 @@ func (s *OptionalSender) run() {
 	defer close(s.done)
 	for payload := range s.input {
 		if !s.destSender.NonBlockingSend(payload) {
-			tlmOptionalPayloadsDropped.Inc(s.endpointID)
-			tlmOptionalMessagesDropped.Add(float64(payload.Count()), s.endpointID)
+			s.recordDrop(payload)
 		}
 	}
 }

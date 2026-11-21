@@ -1165,14 +1165,9 @@ func (p *RoutedProvider) dispatchSourceEndpointPolicy(identifier string, lane *r
 func (p *RoutedProvider) dispatchPayloads(stream *routedStream) {
 	defer p.dispatchDone.Done()
 	if stream.optional {
-		optID := stream.groups[0]
-		optIn := p.optionalSenders[optID].In()
+		optSender := p.optionalSenders[stream.groups[0]]
 		for payload := range stream.output {
-			select {
-			case optIn <- payload:
-			default:
-				tlmOptionalStreamDropped.Inc(optID)
-			}
+			optSender.TrySend(payload)
 		}
 		return
 	}

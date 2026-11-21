@@ -356,3 +356,83 @@ func TestFileLauncherFailedRotationHandoffPreservesReplacementPrefix(t *testing.
 	require.Equal(t, 1, prov.failedInputs, "rotation must have experienced the forced SourceInput failure before retrying")
 	prov.mu.Unlock()
 }
+
+func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
+	t.Run("oldInfoMap entry survives a hitFileLimit scan omission", func(t *testing.T) {
+		dir := t.TempDir()
+		pathA := filepath.Join(dir, "a.log")
+		pathB := filepath.Join(dir, "b.log")
+		require.NoError(t, os.WriteFile(pathA, []byte("new-prefix-line-1\nnew-suffix-line-2\n"), 0o600))
+		require.NoError(t, os.WriteFile(pathB, []byte("other-file-line\n"), 0o600))
+
+		prov := newFakeRoutedFileProvider()
+		reg := auditorMock.NewMockRegistry()
+		// Saved offset from old rotated inode of a.log (18 bytes == len("new-prefix-line-1\n")).
+		reg.SetOffset("file:"+pathA, "18")
+
+		l := NewLauncher(1, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
+		l.pipelineProvider = prov
+		l.routedProvider = prov
+		l.registry = reg
+
+		srcA := sources.NewLogSource("a", &config.LogsConfig{Type: config.FileType, Path: pathA, TailingMode: "beginning"})
+		srcB := sources.NewLogSource("b", &config.LogsConfig{Type: config.FileType, Path: pathB, TailingMode: "beginning"})
+		fileA := filetailer.NewFile(pathA, srcA, false)
+		fileB := filetailer.NewFile(pathB, srcB, false)
+
+		// Record pending rotation handoff for fileA.
+		l.oldInfoMap[fileA.GetScanKey()] = &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}
+
+		// Scan 1 hits open_files_limit (tailingLimit=1) with only fileB selected.
+		l.resolveActiveTailers([]*filetailer.File{fileB})
+		require.Contains(t, l.oldInfoMap, fileA.GetScanKey(), "hitFileLimit omission must preserve oldInfoMap entry")
+
+		// Scan 2 selects fileA -> must read from beginning (both prefix and suffix).
+		l.resolveActiveTailers([]*filetailer.File{fileA})
+		got := make(map[string]bool)
+		deadline := time.After(5 * time.Second)
+		for !(got["new-prefix-line-1"] && got["new-suffix-line-2"]) {
+			select {
+			case msg := <-prov.received:
+				got[string(msg.GetContent())] = true
+			case <-deadline:
+				t.Fatalf("timed out waiting for replacement prefix+suffix after hitFileLimit; got=%v", got)
+			}
+		}
+		l.cleanup()
+	})
+
+	t.Run("launchTailers honors pending oldInfoMap entry with ForceBeginning", func(t *testing.T) {
+		dir := t.TempDir()
+		pathA := filepath.Join(dir, "a.log")
+		require.NoError(t, os.WriteFile(pathA, []byte("new-prefix-line-1\nnew-suffix-line-2\n"), 0o600))
+
+		prov := newFakeRoutedFileProvider()
+		reg := auditorMock.NewMockRegistry()
+		reg.SetOffset("file:"+pathA, "18")
+
+		l := NewLauncher(10, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
+		l.pipelineProvider = prov
+		l.routedProvider = prov
+		l.registry = reg
+
+		srcA := sources.NewLogSource("a", &config.LogsConfig{Type: config.FileType, Path: pathA, TailingMode: "beginning"})
+		fileA := filetailer.NewFile(pathA, srcA, false)
+		l.oldInfoMap[fileA.GetScanKey()] = &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}
+
+		l.launchTailers(srcA)
+		require.NotContains(t, l.oldInfoMap, fileA.GetScanKey(), "consumed oldInfoMap entry must be removed")
+
+		got := make(map[string]bool)
+		deadline := time.After(5 * time.Second)
+		for !(got["new-prefix-line-1"] && got["new-suffix-line-2"]) {
+			select {
+			case msg := <-prov.received:
+				got[string(msg.GetContent())] = true
+			case <-deadline:
+				t.Fatalf("timed out waiting for replacement prefix+suffix in launchTailers; got=%v", got)
+			}
+		}
+		l.cleanup()
+	})
+}
