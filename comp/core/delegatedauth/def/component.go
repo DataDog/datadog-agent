@@ -109,4 +109,15 @@ type Component interface {
 	// support workload tokens. It never falls back to another instance or API key.
 	// Each call makes one attempt; it does not cache tokens or change intake keys.
 	GetWorkloadToken(ctx context.Context, apiKeyConfigKey string, request common.WorkloadTokenRequest) (string, error)
+
+	// GetWorkloadTokenWithExpiry requests a fresh workload token along with its
+	// server-reported expiration timestamp (zero if omitted or unparseable).
+	// Like GetWorkloadToken, it makes one attempt without caching tokens or
+	// changing intake keys.
+	GetWorkloadTokenWithExpiry(ctx context.Context, apiKeyConfigKey string, request common.WorkloadTokenRequest) (common.WorkloadToken, error)
+
+	// IsInstanceManaged reports whether apiKeyConfigKey (e.g. "api_key") is
+	// currently managed by delegated auth, including while async startup
+	// recovery is retrying in the background.
+	IsInstanceManaged(apiKeyConfigKey string) bool
 }

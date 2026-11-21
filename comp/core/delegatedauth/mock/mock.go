@@ -17,8 +17,10 @@ import (
 
 // Mock is a mock implementation of the delegatedauth.Component interface
 type Mock struct {
-	GetWorkloadTokenFunc func(context.Context, string, common.WorkloadTokenRequest) (string, error)
-	AddInstanceFunc      func(context.Context, delegatedauth.InstanceParams) error
+	GetWorkloadTokenFunc           func(context.Context, string, common.WorkloadTokenRequest) (string, error)
+	GetWorkloadTokenWithExpiryFunc func(context.Context, string, common.WorkloadTokenRequest) (common.WorkloadToken, error)
+	IsInstanceManagedFunc          func(string) bool
+	AddInstanceFunc                func(context.Context, delegatedauth.InstanceParams) error
 }
 
 var _ delegatedauth.Component = (*Mock)(nil)
@@ -46,5 +48,36 @@ func (m *Mock) GetWorkloadToken(ctx context.Context, key string, request common.
 	if m.GetWorkloadTokenFunc != nil {
 		return m.GetWorkloadTokenFunc(ctx, key, request)
 	}
+	if m.GetWorkloadTokenWithExpiryFunc != nil {
+		tok, err := m.GetWorkloadTokenWithExpiryFunc(ctx, key, request)
+		if err != nil {
+			return "", err
+		}
+		return tok.Token, nil
+	}
 	return "", errors.New("workload tokens are unavailable in the delegated auth mock")
+}
+
+// GetWorkloadTokenWithExpiry calls the mock function if set, falling back to
+// GetWorkloadTokenFunc if only that hook is configured.
+func (m *Mock) GetWorkloadTokenWithExpiry(ctx context.Context, key string, request common.WorkloadTokenRequest) (common.WorkloadToken, error) {
+	if m.GetWorkloadTokenWithExpiryFunc != nil {
+		return m.GetWorkloadTokenWithExpiryFunc(ctx, key, request)
+	}
+	if m.GetWorkloadTokenFunc != nil {
+		tok, err := m.GetWorkloadTokenFunc(ctx, key, request)
+		if err != nil {
+			return common.WorkloadToken{}, err
+		}
+		return common.WorkloadToken{Token: tok}, nil
+	}
+	return common.WorkloadToken{}, errors.New("workload tokens are unavailable in the delegated auth mock")
+}
+
+// IsInstanceManaged calls the mock function if set, otherwise returns false.
+func (m *Mock) IsInstanceManaged(key string) bool {
+	if m.IsInstanceManagedFunc != nil {
+		return m.IsInstanceManagedFunc(key)
+	}
+	return false
 }

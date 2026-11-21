@@ -28,3 +28,13 @@ func (r *DelegatedAuthNoop) AddInstance(_ context.Context, _ delegatedauth.Insta
 func (r *DelegatedAuthNoop) GetWorkloadToken(_ context.Context, _ string, _ common.WorkloadTokenRequest) (string, error) {
 	return "", errors.New("delegated authentication is not enabled")
 }
+
+// GetWorkloadTokenWithExpiry reports that delegated authentication is disabled.
+func (r *DelegatedAuthNoop) GetWorkloadTokenWithExpiry(_ context.Context, _ string, _ common.WorkloadTokenRequest) (common.WorkloadToken, error) {
+	return common.WorkloadToken{}, errors.New("delegated authentication is not enabled")
+}
+
+// IsInstanceManaged reports false because delegated authentication is disabled.
+func (r *DelegatedAuthNoop) IsInstanceManaged(_ string) bool {
+	return false
+}
