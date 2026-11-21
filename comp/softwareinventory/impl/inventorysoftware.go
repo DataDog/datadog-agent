@@ -31,6 +31,7 @@ import (
 
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
+	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -89,7 +90,11 @@ type softwareInventory struct {
 	sysProbeClient sysProbeClient
 	// cachedInventory stores the most recently collected software inventory data
 	cachedInventory []software.Entry
-	// cachedInventoryMu protects concurrent access to cachedInventory
+	// serialNumber is included in snapshots and protected by cachedInventoryMu.
+	serialNumber string
+	// getSerialNumber returns the process-cached serial and can be replaced in tests.
+	getSerialNumber func() (string, error)
+	// cachedInventoryMu protects concurrent access to cachedInventory and serialNumber.
 	cachedInventoryMu sync.RWMutex
 	// hostname identifies the system where the inventory was collected
 	hostname string
@@ -143,23 +148,24 @@ func NewComponent(reqs Requires) (Provides, error) {
 		clientFn: func() *sysprobeclient.CheckClient {
 			return sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(reqs.SysprobeConfig.GetString("system_probe_config.sysprobe_socket")))
 		},
-	}, time.Sleep)
+	}, time.Sleep, systeminfo.GetSerialNumber)
 }
 
-// newWithClient creates a new inventory software component with a custom sysprobeclient and sleep function
-func newWithClient(reqs Requires, client sysProbeClient, sleepFunc func(time.Duration)) (Provides, error) {
+// newWithClient creates the component with replaceable clients and collection functions.
+func newWithClient(reqs Requires, client sysProbeClient, sleepFunc func(time.Duration), getSerialNumber func() (string, error)) (Provides, error) {
 	hname, err := reqs.Hostname.Get(context.Background())
 	if err != nil {
 		return Provides{}, err
 	}
 
 	is := &softwareInventory{
-		enabled:        reqs.Config.GetBool("software_inventory.enabled"),
-		log:            reqs.Log,
-		sysProbeClient: client,
-		hostname:       hname,
-		eventPlatform:  reqs.EventPlatform,
-		sleepFunc:      sleepFunc,
+		enabled:         reqs.Config.GetBool("software_inventory.enabled"),
+		log:             reqs.Log,
+		sysProbeClient:  client,
+		hostname:        hname,
+		eventPlatform:   reqs.EventPlatform,
+		sleepFunc:       sleepFunc,
+		getSerialNumber: getSerialNumber,
 	}
 
 	if !is.enabled {
@@ -228,6 +234,7 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 	// Send the initial collection with a random jitter
 	is.log.Debugf("Sending initial software inventory collection with %v jitter", is.jitter)
 	is.sleepFunc(is.jitter)
+	is.collectSerialNumber()
 
 	// Always send the initial payload on start-up.
 	// We'll send the follow-up payloads only on change.
@@ -254,6 +261,7 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 			is.cachedInventory = newInventory
 			is.cachedInventoryMu.Unlock()
 
+			is.collectSerialNumber()
 			err = is.sendPayload()
 			if err != nil {
 				_ = is.log.Errorf("Failed to send software inventory: %v", err)
@@ -264,6 +272,19 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 			return
 		}
 	}
+}
+
+// collectSerialNumber refreshes the payload field from the shared serial getter.
+// Missing serials and collection errors do not prevent sending software inventory.
+func (is *softwareInventory) collectSerialNumber() {
+	serial, err := is.getSerialNumber()
+	if err != nil {
+		is.log.Debugf("Software inventory serial number unavailable: %v", err)
+		return
+	}
+	is.cachedInventoryMu.Lock()
+	is.serialNumber = serial
+	is.cachedInventoryMu.Unlock()
 }
 
 func (is *softwareInventory) sendPayload() error {
@@ -292,9 +313,7 @@ func (is *softwareInventory) sendPayload() error {
 	return nil
 }
 
-// getPayload creates and returns a new software inventory payload.
-// This method triggers a refresh of the cached data and returns a properly
-// formatted payload for transmission to the backend.
+// getPayload creates a software inventory payload from the cached collection.
 func (is *softwareInventory) getPayload() marshaler.JSONMarshaler {
 	is.cachedInventoryMu.RLock()
 	defer is.cachedInventoryMu.RUnlock()
@@ -304,7 +323,8 @@ func (is *softwareInventory) getPayload() marshaler.JSONMarshaler {
 	}
 
 	return &Payload{
-		Hostname: is.hostname, // Set from the component's hostname field
+		Hostname:     is.hostname, // Set from the component's hostname field
+		SerialNumber: is.serialNumber,
 		Metadata: HostSoftware{
 			Software: is.cachedInventory,
 		},
