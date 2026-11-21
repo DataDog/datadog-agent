@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    GPU monitoring: GPU metrics now carry the ``gpu_index`` tag, the
+    GPU index that ``nvidia-smi`` or ``amd-smi`` reports, except on MIG
+    devices. An AMD GPU split into compute
+    partitions takes the index of its first partition, since
+    ``amd-smi`` numbers every partition. The tag is omitted on AMD
+    GPUs when the KFD topology (``/sys/class/kfd``) is not fully
+    readable.

@@ -178,6 +178,8 @@ const (
 	GPUParentGPUUUID = "gpu_parent_uuid"
 	// GPUPCIBusID is the tag for the PCI bus ID of the GPU
 	GPUPCIBusID = "gpu_pci_bus_id"
+	// GPUIndex is the tag for the host index of the GPU, as nvidia-smi or amd-smi number it
+	GPUIndex = "gpu_index"
 	// GPUFabricClusterUUID is the tag for the NVLink fabric cluster UUID of the GPU
 	GPUFabricClusterUUID = "gpu_fabric_cluster_uuid"
 	// GPUFabricCliqueID is the tag for the NVLink fabric clique ID of the GPU
