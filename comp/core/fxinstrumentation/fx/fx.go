@@ -11,19 +11,47 @@ import (
 	"go.uber.org/fx/fxevent"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	fxinstrumentationimpl "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/impl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/lifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
 
-// Module enables the Fx initialization spans to be sent to Datadog.
-// The tracer is implemented in pkg/util/fxutil/logging/tracer.go.
-// Traces are sent only when the environment variable DD_FX_TRACING_ENABLED is set to true and this module added to the Fx application.
+type dependencies struct {
+	fx.In
+
+	FxLogger  fxevent.Logger
+	Config    config.Component
+	Log       log.Component       `optional:"true"`
+	Telemetry telemetry.Component `optional:"true"`
+}
+
+// Module instruments the startup and shutdown of the process:
+//   - It enables the Fx initialization spans to be sent to Datadog. The tracer is implemented in
+//     pkg/util/fxutil/logging/tracer.go. Traces are sent only when the environment variable
+//     DD_FX_TRACING_ENABLED is set to true.
+//   - It publishes the startup and shutdown timings recorded by pkg/util/fxutil/lifecycle as
+//     internal telemetry, reported by agent telemetry, and persists the shutdown record of the
+//     process in the run path so that the next run reports it.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		// No need to call ProvideComponentConstructor because this module is not a component.
-		fx.Invoke(func(logger fxevent.Logger, config config.Component) {
-			if instrumentedLogger, ok := logger.(*logging.FxTracingLogger); ok {
-				instrumentedLogger.EnableSpansSending(config.GetString("apm_config.receiver_port"))
+		fx.Invoke(func(deps dependencies) {
+			if instrumentedLogger, ok := logging.TracingLogger(deps.FxLogger); ok {
+				instrumentedLogger.EnableSpansSending(deps.Config.GetString("apm_config.receiver_port"))
+			}
+
+			if deps.Telemetry != nil && deps.Log != nil {
+				fxinstrumentationimpl.SetupLifecycleTelemetry(
+					lifecycle.Default(),
+					deps.Telemetry,
+					deps.Log,
+					deps.Config.GetString("run_path"),
+					flavor.GetFlavor(),
+				)
 			}
 		}),
 	)

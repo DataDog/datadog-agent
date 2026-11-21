@@ -391,6 +391,45 @@ profiles:
       zero_metric: true
     metrics:
       - name: runtime.running
+# Startup and shutdown timings of every process, see pkg/util/fxutil/lifecycle and
+# comp/core/fxinstrumentation. Each value is observed once per process run (histograms are
+# delta-converted, and zero_metric drops them from later payloads). The previous_* metrics describe
+# the previous run of the same process, read from its record in the run path at startup.
+#
+# `component` is a code path (Fx constructor or hook) or a system-probe module name, so it is bounded
+# by the code base. Only the 5 slowest components over 250ms are reported.
+- name: lifecycle
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: runtime.startup_duration_seconds
+        preserve_tags:
+          - phase
+      - name: runtime.startup_slow_component_seconds
+        preserve_tags:
+          - stage
+          - component
+      - name: runtime.previous_shutdown_seconds
+        preserve_tags:
+          - phase
+          - outcome
+      - name: runtime.previous_shutdown_slow_component_seconds
+        preserve_tags:
+          - stage
+          - component
+          - outcome
+      - name: runtime.previous_exit
+        preserve_tags:
+          - outcome
+          - trigger
+          - phase
+          - component
+  schedule:
+    # Recurring so that a slow startup (past the first flush) is still reported.
+    start_after: 60
+    iterations: 0
+    period: 900
 - name: hostname
   metric:
     exclude:

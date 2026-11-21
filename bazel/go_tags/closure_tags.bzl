@@ -346,6 +346,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/comp/core/flare/flareimpl": ["cel", "clusterchecks", "containerd", "cri", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/core/flare/helpers": ["cel", "clusterchecks", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/impl": ["functionaltests", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/core/gui/fx": None,
     "github.com/DataDog/datadog-agent/comp/core/gui/impl": None,
     "github.com/DataDog/datadog-agent/comp/core/gui/mock": ["test"],

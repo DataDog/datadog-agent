@@ -87,6 +87,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/lifecycle"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -166,6 +167,8 @@ func commands(globalParams *command.GlobalParams, execFn spliteExecFunc, executa
 					configstreamconsumerfx.Module(),
 				)
 			}
+			// Modules are loaded in run, after the Fx application has started.
+			lifecycle.Default().ExpectReadyMarker()
 			return fxutil.OneShot(run, opts...)
 		},
 	}
@@ -318,12 +321,15 @@ func run(
 		// Set up the signals async, so we can start the system-probe
 		select {
 		case <-signals.Stopper:
+			lifecycle.Default().BeginStop(lifecycle.TriggerCommand)
 			deps.Log.Info("Received stop command, shutting down...")
 			stopCh <- nil
 		case <-signals.ErrorStopper:
+			lifecycle.Default().BeginStop(lifecycle.TriggerError)
 			_ = deps.Log.Critical("system-probe has encountered an error, shutting down...")
 			stopCh <- errors.New("shutting down because of an error")
 		case sig := <-signalCh:
+			lifecycle.Default().BeginStop(lifecycle.TriggerSignal)
 			deps.Log.Infof("Received signal '%s', shutting down...", sig)
 			stopCh <- nil
 		}
@@ -351,6 +357,7 @@ func run(
 		}
 		return err
 	}
+	lifecycle.Default().MarkReady()
 	return <-stopCh
 }
 
@@ -419,6 +426,8 @@ func startSystemProbe(rcclient rcclient.Component, settings settings.Component, 
 
 // stopSystemProbe Tears down the system-probe process
 func stopSystemProbe() {
+	defer lifecycle.Default().StartShutdownPhase(lifecycle.PhaseAppStop)()
+
 	module.Close()
 	if common.ExpvarServer != nil {
 		if err := common.ExpvarServer.Shutdown(context.Background()); err != nil {
