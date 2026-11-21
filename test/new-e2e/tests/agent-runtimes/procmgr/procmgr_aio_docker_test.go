@@ -392,6 +392,84 @@ func (s *procmgrAIODockerSuite) TestCustomServiceStarts() {
 	}, time.Minute, 2*time.Second)
 }
 
+// A service run script with the s6 with-contenv shebang reads /var/run/s6/container_environment
+// when S6_KEEP_ENV is 0, and only s6 /init creates it. The generated service sets
+// S6_KEEP_ENV=1 in its own environment, so the script starts, sees the container environment,
+// and stays up. Without that, the script fails and restarts every second.
+func (s *procmgrAIODockerSuite) TestCustomServiceWithContenvRunsWhenS6KeepEnvIsZero() {
+	const service = "custom-with-contenv"
+	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(`bash -s <<'EOS'
+set -euo pipefail
+dir=$(mktemp -d)
+mkdir "$dir/service" "$dir/marker"
+cat > "$dir/service/run" <<'EOF'
+#!/usr/bin/with-contenv sh
+printf '%s' "$AIO_CONTENV_VALUE" > /marker/value.tmp
+mv /marker/value.tmp /marker/value
+exec /bin/sleep 3600
+EOF
+chmod 0755 "$dir/service/run"
+printf '%s\n' "$dir"
+EOS
+`))
+	s.Require().NotEmpty(dir)
+	image := s.agentImage(s.T())
+	name := "aio-svc-contenv-" + path.Base(dir)
+
+	t := s.T()
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "rm -rf "+shSingleQuote(dir))
+	})
+
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -e S6_KEEP_ENV=0 -e AIO_CONTENV_VALUE=from-container -v %s:/etc/services.d/%s:ro -v %s:/marker %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(dir+"/service"),
+		service,
+		shSingleQuote(dir+"/marker"),
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	describe := func(c require.TestingT) string {
+		stdout, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
+			name,
+			"env", "DD_PM_SOCKET_PATH="+aioSocket, linuxCLIBin, "describe", service,
+		)
+		require.NoError(c, err, stderr)
+		return stdout
+	}
+
+	var pid string
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs := s.Env().RemoteHost.MustExecuteOn(c, "docker logs "+shSingleQuote(name)+" 2>&1")
+		assertLogLinesInOrder(c, logs,
+			"===== ADDING custom service /etc/services.d/"+service+" =====",
+			"===== STARTING dd-procmgrd =====",
+		)
+		value := s.Env().RemoteHost.MustExecuteOn(c, "cat "+shSingleQuote(dir+"/marker/value")+" 2>/dev/null || true")
+		assert.Equal(c, "from-container", strings.TrimSpace(value))
+		out := describe(c)
+		assertField(c, out, "State", "Running")
+		assertField(c, out, "Restarts", "0")
+		pid = fieldValue(out, "PID")
+		assert.NotEmpty(c, pid)
+	}, 2*time.Minute, 2*time.Second)
+
+	// restart_sec is 1 second, so a failing script would restart within this window.
+	require.Never(t, func() bool {
+		stdout, _, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
+			name,
+			"env", "DD_PM_SOCKET_PATH="+aioSocket, linuxCLIBin, "describe", service,
+		)
+		return err != nil || fieldValue(stdout, "Restarts") != "0" || fieldValue(stdout, "PID") != pid
+	}, 5*time.Second, 500*time.Millisecond, "the with-contenv service must not restart")
+}
+
 // UID 100 is dd-agent. Group 0 is root, which can write to the group-writable runtime directories.
 func (s *procmgrAIODockerSuite) TestNonRootUserRunsProcmgr() {
 	image := s.agentImage(s.T())

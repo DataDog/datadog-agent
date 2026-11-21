@@ -96,6 +96,11 @@ second after every exit, including exit 0, with no limit. A `down` file leaves i
 until `dd-procmgr start <name>`. The shipped directories are already in the catalog, so their
 `run` files are not started again.
 
+A custom service always runs with `S6_KEEP_ENV=1`, so a `run` script with a
+`#!/usr/bin/with-contenv` shebang sees the container environment even if you set
+`S6_KEEP_ENV=0`. The entrypoint does not create `/var/run/s6/container_environment`. To get the
+s6 environment directory behavior, select `ENTRYPOINT=s6-all-in-one`.
+
 A `finish` script is not run. `notification-fd` and a nested `log/` directory are not used.
 Editing the `run` file of a shipped service has no effect. `ENTRYPOINT=s6-all-in-one` keeps
 the s6 behavior.

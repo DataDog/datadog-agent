@@ -947,6 +947,18 @@ fn procmgr_all_in_one_custom_services_keep_the_config_dir_placeholder() {
         mktemp < resolve && resolve < adopt && adopt < track,
         "resolve the custom-service staging path before cleanup_dir uses it"
     );
+    // When S6_KEEP_ENV is 0, a #!/usr/bin/with-contenv run script reads
+    // /var/run/s6/container_environment, which only s6 /init creates. The service gets the value
+    // in its own env, which wins over the inherited one. An export before dd-procmgrd would
+    // change every supervised process.
+    assert!(
+        script.contains("stderr: inherit\nenv:\n  S6_KEEP_ENV: \"1\"\nEOF\n"),
+        "the generated custom-service YAML must set S6_KEEP_ENV to the string \"1\""
+    );
+    assert!(
+        !script.contains("export S6_KEEP_ENV"),
+        "S6_KEEP_ENV must stay out of the supervisor environment"
+    );
 }
 
 #[test]

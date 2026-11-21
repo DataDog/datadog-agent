@@ -222,6 +222,8 @@ restart_max_delay_sec: 1
 start_limit_interval_sec: 0
 stdout: inherit
 stderr: inherit
+env:
+  S6_KEEP_ENV: "1"
 EOF
     done
     export DD_PM_CONFIG_DIR=$processes_dir
