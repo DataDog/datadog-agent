@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    On Linux, package install and upgrade now enforce mode ``0640`` (owner
+    ``dd-agent:dd-agent``) on ``/etc/datadog-agent/datadog.yaml``. Users outside
+    the ``dd-agent`` group can no longer read it.
