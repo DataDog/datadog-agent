@@ -12,16 +12,16 @@ By "distribution package", we mean an artifact used by end users to install the 
 | Linux   | `.deb` (Debian-based) / `.rpm` (RHEL-based) |
 | Windows | `.msi`                                      |
 | macOS   | `.dmg`                                      |
+| AIX     | `.bff`                                      |
 
 
 These distribution packages contain [a binary of the Agent](standalone.md), along with any supporting libraries needed for the agent to function properly.
 
 ### Omnibus
 
-Agent packages for all the supported platforms are built using [Omnibus](https://github.com/chef/omnibus).
-/// info
-There is an ongoing effort to migrate our build system to [Bazel](https://bazel.build/), so this may change in the near-to-mid future.
-///
+Distribution packages for Linux, Windows, and macOS are built using [Omnibus](https://github.com/chef/omnibus), with an ongoing effort to migrate those builds to [Bazel](https://bazel.build/) — both systems are currently used side by side.
+
+The AIX package is not built with Omnibus or Bazel: it uses the dedicated staging pipeline in <<<repo("packaging/aix", "`packaging/aix`")>>>, see [Building for AIX](#building-for-aix).
 
 /// warning
 Omnibus creates a package **for the operating system it runs on**, so you'll get a `.deb` package on Debian-based distros, an `msi` installer on Windows etc.
@@ -234,3 +234,18 @@ docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e TARGET_ARCH=x64
 ///
 
 If the build succeeds, the build artifacts can be found under `omnibus\pkg` in the repo.
+
+## Building for AIX
+
+The AIX `.bff` package is built by the staging pipeline in <<<repo("packaging/aix", "`packaging/aix`")>>>. Unlike the other platforms, there is no build container image: the build runs on a real AIX 7.3 host (PowerPC).
+
+Both commands below must be run as root, from a checkout of this repository:
+
+1. Prepare the host by running <<<repo("packaging/aix/setup-host.sh", "`packaging/aix/setup-host.sh`")>>>. The script is idempotent and installs the required toolchain (Go, GCC, Python, dnf packages). It grows `/opt` to about 40 GiB, and requires the IBM MQ Client archive at `/opt/dd-build/mqclient.tar.Z` (an installp fileset downloaded from IBM Fix Central) unless the MQ client is already installed on the host.
+2. Run the build orchestrator, which executes every stage up to the final `package.sh`:
+    ```sh
+    AGENT_BUILD=1 ./packaging/aix/build.sh
+    ```
+    `AGENT_BUILD` is the installp build counter; it must increase with each release so that package upgrades are ordered correctly. `AGENT_VERSION` is auto-detected when not set.
+
+The resulting artifact is written to `/opt/dd-build/datadog-agent-<AGENT_VERSION>-<AGENT_BUILD>.aix.ppc64.bff`, alongside the per-stage logs in `/opt/dd-build/logs/`.
