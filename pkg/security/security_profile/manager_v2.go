@@ -421,6 +421,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			m.closeAllProfiles()
 			return
 		case <-sendTickerChan:
 			m.persistAllProfiles()
@@ -580,10 +581,23 @@ func (m *ManagerV2) profileHasActiveInstances(prof *profile.Profile) bool {
 // persistAllProfiles encodes and persists all profiles to configured storage backends
 func (m *ManagerV2) persistAllProfiles() {
 	m.profilesLock.Lock()
+	profiles := make([]*profile.Profile, 0, len(m.profiles))
+	for _, p := range m.profiles {
+		profiles = append(profiles, p)
+	}
+	m.profilesLock.Unlock()
+
+	for _, p := range profiles {
+		m.persistProfile(p)
+	}
+}
+
+func (m *ManagerV2) closeAllProfiles() {
+	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
 	for _, p := range m.profiles {
-		m.persistProfile(p)
+		p.Close()
 	}
 }
 

@@ -497,6 +497,16 @@ func (p *Profile) ComputeHeapSize() int64 {
 	return p.ActivityTree.Stats.HeapSize()
 }
 
+// JournalSize returns the current size in bytes of the profile's on-disk journal.
+func (p *Profile) JournalSize() int64 {
+	p.Lock()
+	defer p.Unlock()
+	if p.ActivityTree == nil {
+		return 0
+	}
+	return p.ActivityTree.JournalSize()
+}
+
 // FakeOverweight fakes an overweight profile
 func (p *Profile) FakeOverweight() {
 	p.Lock()

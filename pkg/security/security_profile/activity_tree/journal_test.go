@@ -296,6 +296,30 @@ func TestActivityTreeJournal_EvictionAndABARecreation(t *testing.T) {
 	require.NotNil(t, ephemeral.Open)
 	assert.Equal(t, uint32(syscall.O_RDONLY), ephemeral.Open.Flags, "stale pre-eviction flags must not leak into recreated node")
 	assert.Empty(t, ephemeral.MatchedRules, "stale pre-eviction rules must not leak into recreated node")
+
+	jTree.Stats.SetPathPatternConfig(DefaultPathPatternConfig())
+	for i := 1; i <= 3; i++ {
+		fEv := newJournalTestFileOpenEvent(worker, fmt.Sprintf("/tmp/fold-%d.log", i), syscall.O_RDONLY, syscall.S_IFREG|0644, t2)
+		_, _, _, err = jTree.Insert(fEv, true, "v2", Runtime, nil)
+		require.NoError(t, err)
+	}
+	evStaleFold := newJournalTestFileOpenEvent(worker, "/tmp/fold-4.log", syscall.O_WRONLY, syscall.S_IFREG|0644, t1)
+	evStaleFold.Rules = []*model.MatchedRule{{RuleID: "v1_stale_fold_rule", RuleVersion: "1.0"}}
+	_, _, _, err = jTree.Insert(evStaleFold, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	jTree.EvictImageTag("v1")
+
+	evFreshFold := newJournalTestFileOpenEvent(worker, "/tmp/fold-4.log", syscall.O_RDONLY, syscall.S_IFREG|0644, t2)
+	_, _, _, err = jTree.Insert(evFreshFold, true, "v2", Runtime, nil)
+	require.NoError(t, err)
+
+	jTree.FinalizePatterns()
+	protoAfterFold := ToProto(jTree)
+	decoded3 := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+	ProtoDecodeActivityTree(decoded3, protoAfterFold)
+	folded := decoded3.ProcessNodes[0].Files["tmp"].Children["fold-<num>.log"]
+	require.NotNil(t, folded)
+	assert.Empty(t, folded.MatchedRules, "evicted sibling rule must not be replayed onto folded pattern node")
 }
 
 func TestActivityTreeJournal_MemoryReductionAndSizeBytesInvariants(t *testing.T) {
