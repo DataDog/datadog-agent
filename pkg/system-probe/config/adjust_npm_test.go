@@ -21,7 +21,7 @@ func TestAdjustConnectionRollup(t *testing.T) {
 		npmAdjusted, usmAdjusted bool
 	}{
 		{false, false, false, false},
-		{true, false, false, false}, // this is the only case where the configs are "adjusted"
+		{true, false, true, false}, // NPM rollup stays enabled; it does not require the USM rollup setting
 		{false, true, false, true},
 		{true, true, true, true},
 	}

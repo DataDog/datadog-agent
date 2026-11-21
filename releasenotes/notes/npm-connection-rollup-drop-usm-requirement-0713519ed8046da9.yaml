@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Cloud Network Monitoring connection rollup
+    (``network_config.enable_connection_rollup``) no longer requires enabling
+    the Universal Service Monitoring rollup setting
+    (``service_monitoring_config.enable_connection_rollup``). The NPM rollup
+    is now controlled solely by its own setting and process event monitoring.
