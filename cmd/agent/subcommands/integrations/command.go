@@ -20,11 +20,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -107,14 +110,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	_ = integrationCmd.PersistentFlags().MarkDeprecated("python", "the python flag is now deprecated, python3 is always used")
 
 	// all subcommands use the same provided components, with a different oneShot callback
-	runOneShot := func(callback interface{}) error {
+	runOneShot := func(callback interface{}, opts ...fx.Option) error {
 		return fxutil.OneShot(callback,
-			fx.Supply(cliParams),
-			fx.Supply(core.BundleParams{
-				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-				LogParams:    log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true),
-			}),
-			core.Bundle(),
+			append([]fx.Option{
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					LogParams:    log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true),
+				}),
+				core.Bundle(),
+			}, opts...)...,
 		)
 	}
 
@@ -127,7 +132,7 @@ You must specify a version of the package to install using the syntax: <package>
  - <version> of the form x.y.z`,
 		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
-			return runOneShot(install)
+			return runOneShot(install, agenttelemetryfx.EventsOnlyModule())
 		},
 	}
 	installCmd.Flags().BoolVarP(
@@ -284,14 +289,14 @@ func getCommandPython(useSysPython bool) (string, error) {
 
 func validateArgs(args []string, local bool) error {
 	if len(args) > 1 {
-		return errors.New("Too many arguments")
+		return withCategory(categoryInvalidArguments, errors.New("Too many arguments"))
 	} else if len(args) == 0 {
-		return errors.New("Missing package argument")
+		return withCategory(categoryInvalidArguments, errors.New("Missing package argument"))
 	}
 
 	if !local {
 		if !datadogPkgNameRe.MatchString(args[0]) {
-			return fmt.Errorf("invalid package name - this manager only handles datadog packages. Did you mean `datadog-%s`?", args[0])
+			return withCategory(categoryNotDatadogPackage, fmt.Errorf("invalid package name - this manager only handles datadog packages. Did you mean `datadog-%s`?", args[0]))
 		}
 	} else {
 		// Validate the wheel we try to install exists
@@ -299,9 +304,9 @@ func validateArgs(args []string, local bool) error {
 		if _, err = os.Stat(args[0]); err == nil {
 			return nil
 		} else if os.IsNotExist(err) {
-			return fmt.Errorf("local wheel %s does not exist", args[0])
+			return withCategory(categoryLocalWheelUnreadable, fmt.Errorf("local wheel %s does not exist", args[0]))
 		}
-		return fmt.Errorf("cannot read local wheel %s: %v", args[0], err)
+		return withCategory(categoryLocalWheelUnreadable, fmt.Errorf("cannot read local wheel %s: %v", args[0], err))
 	}
 
 	return nil
@@ -359,14 +364,27 @@ func pip(cliParams *cliParams, args []string, stdout io.Writer, stderr io.Writer
 	return nil
 }
 
-func install(cliParams *cliParams, _ log.Component) error {
+// install runs the install and then reports it as one integration-install Agent telemetry event,
+// whatever its outcome.
+func install(cliParams *cliParams, _ log.Component, atel agenttelemetry.Component) error {
+	start := time.Now()
+	ev := newInstallEvent(cliParams)
+	err := runInstall(cliParams, &ev)
+	ev.finish(err, time.Since(start))
+	sendInstallEvent(atel, ev, installEventTimeout)
+	return err
+}
+
+// runInstall installs the requested integration, recording in ev what the event reports. Its
+// errors carry their category with withCategory, and ev.step tracks the step that is running.
+func runInstall(cliParams *cliParams, ev *installEvent) error {
 	if err := loadPythonInfo(); err != nil {
-		return err
+		return withCategory(categoryEnvironmentError, err)
 	}
 
 	err := validateUser(cliParams.allowRoot)
 	if err != nil {
-		return err
+		return withCategory(categoryUserNotAllowed, err)
 	}
 
 	if err := validateArgs(cliParams.args, cliParams.localWheel); err != nil {
@@ -392,27 +410,29 @@ func install(cliParams *cliParams, _ log.Component) error {
 
 		fmt.Println(disclaimer)
 		if ok, err := validateBaseDependency(wheelPath, nil); err != nil {
-			return fmt.Errorf("error while reading the wheel %s: %v", wheelPath, err)
+			return withCategory(categoryLocalWheelUnreadable, fmt.Errorf("error while reading the wheel %s: %v", wheelPath, err))
 		} else if !ok {
-			return fmt.Errorf("the wheel %s is not an agent check, it will not be installed", wheelPath)
+			return withCategory(categoryNotAgentCheck, fmt.Errorf("the wheel %s is not an agent check, it will not be installed", wheelPath))
 		}
 
 		// Parse the package name from metadata contained within the zip file
 		integration, err := parseWheelPackageName(wheelPath)
 		if err != nil {
-			return err
+			return withCategory(categoryLocalWheelUnreadable, err)
 		}
 		integration = normalizePackageName(strings.TrimSpace(integration))
 
 		// Install the wheel
+		ev.step = stepPipInstall
 		if err := pip(cliParams, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
-			return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
+			return withCategory(categoryPipFailed, fmt.Errorf("error installing wheel %s: %v", wheelPath, err))
 		}
 
 		// Move configuration files
+		ev.step = stepConfigMove
 		if err := moveConfigurationFilesOf(cliParams, integration); err != nil {
 			fmt.Printf("Installed %s from %s\n", integration, wheelPath)
-			return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
+			return withCategory(categoryConfigMoveFailed, fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err))
 		}
 
 		fmt.Println(color.GreenString("Successfully completed the installation of " + integration))
@@ -422,21 +442,27 @@ func install(cliParams *cliParams, _ log.Component) error {
 
 	// Additional verification for installation
 	if len(strings.Split(cliParams.args[0], "==")) != 2 {
-		return errors.New("you must specify a version to install with <package>==<version>")
+		return withCategory(categoryInvalidArguments, errors.New("you must specify a version to install with <package>==<version>"))
 	}
 
 	intVer := strings.Split(cliParams.args[0], "==")
 	integration := normalizePackageName(strings.TrimSpace(intVer[0]))
 	if integration == "datadog-checks-base" {
-		return errors.New("this command does not allow installing datadog-checks-base")
+		return withCategory(categoryBasePackageRefused, errors.New("this command does not allow installing datadog-checks-base"))
 	}
 	versionToInstall, err := semver.NewVersion(strings.TrimSpace(intVer[1]))
 	if err != nil || versionToInstall == nil {
-		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
+		return withCategory(categoryInvalidArguments, fmt.Errorf("unable to get version of %s to install: %v", integration, err))
 	}
+	ev.IntegrationName = integration
+	ev.IntegrationVersion = semverToPEP440(versionToInstall)
 	currentVersion, found, err := installedVersion(cliParams, integration)
 	if err != nil {
-		return fmt.Errorf("could not get current version of %s: %v", integration, err)
+		return withCategory(categoryEnvironmentError, fmt.Errorf("could not get current version of %s: %v", integration, err))
+	}
+	ev.InstallType = installTypeFor(versionToInstall, currentVersion, found)
+	if found {
+		ev.PreviousIntegrationVersion = semverToPEP440(currentVersion)
 	}
 	if found && versionToInstall.Equal(*currentVersion) {
 		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
@@ -445,13 +471,13 @@ func install(cliParams *cliParams, _ log.Component) error {
 
 	minVersion, found, err := minAllowedVersion(integration)
 	if err != nil {
-		return fmt.Errorf("unable to get minimal version of %s: %v", integration, err)
+		return withCategory(categoryEnvironmentError, fmt.Errorf("unable to get minimal version of %s: %v", integration, err))
 	}
 	if found && versionToInstall.LessThan(*minVersion) {
-		return fmt.Errorf(
+		return withCategory(categoryVersionBelowShipped, fmt.Errorf(
 			"this command does not allow installing version %s of %s older than version %s shipped with the agent",
 			versionToInstall, integration, minVersion,
-		)
+		))
 	}
 
 	rootLayoutType := "core"
@@ -460,34 +486,40 @@ func install(cliParams *cliParams, _ log.Component) error {
 	}
 
 	// Download the wheel
-	wheelPath, err := downloadWheel(cliParams, integration, semverToPEP440(versionToInstall), rootLayoutType)
+	ev.step = stepDownload
+	downloadStart := time.Now()
+	wheelPath, result, err := downloadWheel(cliParams, integration, semverToPEP440(versionToInstall), rootLayoutType)
+	ev.recordDownload(result, time.Since(downloadStart))
 	if err != nil {
-		return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
+		return withCategory(downloadCategory(result), fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err))
 	}
 
 	// Verify datadog-checks-base is compatible with the requirements
+	ev.step = stepCompatibility
 	shippedBaseVersion, found, err := installedVersion(cliParams, "datadog-checks-base")
 	if err != nil {
-		return fmt.Errorf("unable to get the version of datadog-checks-base: %v", err)
+		return withCategory(categoryEnvironmentError, fmt.Errorf("unable to get the version of datadog-checks-base: %v", err))
 	}
 	if ok, err := validateBaseDependency(wheelPath, shippedBaseVersion); found && err != nil {
-		return fmt.Errorf("unable to validate compatibility of %s with the agent: %v", wheelPath, err)
+		return withCategory(categoryWheelUnreadable, fmt.Errorf("unable to validate compatibility of %s with the agent: %v", wheelPath, err))
 	} else if !ok {
-		return fmt.Errorf(
+		return withCategory(baseIncompatibilityCategory(wheelPath), fmt.Errorf(
 			"%s %s is not compatible with datadog-checks-base %s shipped in the agent",
 			integration, versionToInstall, shippedBaseVersion,
-		)
+		))
 	}
 
 	// Install the wheel
+	ev.step = stepPipInstall
 	if err := pip(cliParams, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
-		return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
+		return withCategory(categoryPipFailed, fmt.Errorf("error installing wheel %s: %v", wheelPath, err))
 	}
 
 	// Move configuration files
+	ev.step = stepConfigMove
 	if err := moveConfigurationFilesOf(cliParams, integration); err != nil {
 		fmt.Printf("Installed %s %s", integration, versionToInstall)
-		return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
+		return withCategory(categoryConfigMoveFailed, fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err))
 	}
 
 	fmt.Println(color.GreenString(fmt.Sprintf(
@@ -496,11 +528,14 @@ func install(cliParams *cliParams, _ log.Component) error {
 	return nil
 }
 
-func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType string) (string, error) {
+// downloadWheel downloads the wheel with the downloader and returns its path, along with the
+// downloader's summary of the download, which is also returned when the download fails, and is nil
+// when the downloader didn't write one.
+func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType string) (string, *downloaderResult, error) {
 	// We use python 3 to invoke the downloader regardless of config
 	pyPath, err := getCommandPython(cliParams.useSysPython)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	args := []string{
@@ -515,6 +550,16 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 
 	if cliParams.unsafeDisableVerification {
 		args = append(args, "--unsafe-disable-verification")
+	}
+
+	// Ask the downloader for a summary of the download, for the install telemetry event. Reporting
+	// is best effort: if the file can't be created, the event simply lacks these fields.
+	var resultPath string
+	if resultFile, err := os.CreateTemp("", "datadog-downloader-result-*.json"); err == nil {
+		resultPath = resultFile.Name()
+		resultFile.Close()
+		defer os.Remove(resultPath)
+		args = append(args, downloaderResultFileFlag, resultPath)
 	}
 
 	downloaderCmd := exec.Command(pyPath, args...)
@@ -556,7 +601,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	// forward the standard error to stderr
 	stderr, err := downloaderCmd.StderrPipe()
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	go func() {
 		in := bufio.NewScanner(stderr)
@@ -567,10 +612,10 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 
 	stdout, err := downloaderCmd.StdoutPipe()
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if err := downloaderCmd.Start(); err != nil {
-		return "", fmt.Errorf("error running command: %v", err)
+		return "", nil, fmt.Errorf("error running command: %v", err)
 	}
 	// Buffered so the goroutine can send even if we return early on error.
 	lastLineCh := make(chan string, 1)
@@ -584,8 +629,13 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 		lastLineCh <- last
 	}()
 
-	if err := downloaderCmd.Wait(); err != nil {
-		return "", fmt.Errorf("error running command: %v", err)
+	err = downloaderCmd.Wait()
+	var result *downloaderResult
+	if resultPath != "" {
+		result = readDownloaderResult(resultPath)
+	}
+	if err != nil {
+		return "", result, fmt.Errorf("error running command: %v", err)
 	}
 
 	// The path to the wheel will be at the last line of the output
@@ -594,10 +644,10 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	// Verify the availability of the wheel file
 	if _, err := os.Stat(wheelPath); err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("wheel %s does not exist", wheelPath)
+			return "", result, fmt.Errorf("wheel %s does not exist", wheelPath)
 		}
 	}
-	return wheelPath, nil
+	return wheelPath, result, nil
 }
 
 func parseWheelPackageName(wheelPath string) (string, error) {
