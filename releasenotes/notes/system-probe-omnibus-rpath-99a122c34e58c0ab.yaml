@@ -1,0 +1,7 @@
+---
+security:
+  - |
+    On Linux, system-probe no longer searches the Agent's ``embedded/lib``
+    directory when loading shared libraries. system-probe runs as root, and
+    that directory is writable by ``dd-agent``. FIPS builds still search it,
+    so system-probe can load the embedded OpenSSL.
