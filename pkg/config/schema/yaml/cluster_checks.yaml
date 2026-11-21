@@ -103,6 +103,14 @@ properties:
     default: []
     items:
       type: string
+  kafka_consumer_sharding_enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: 'kafka_consumer consumer-group sharding: splits a kafka_consumer instance
+      that sets consumer_groups_shard_count into one config per shard index, spread
+      across cluster-check runners. Requires a kafka_consumer check that supports
+      consumer_groups_shard_index on the runners'
   ksm_sharding_enabled:
     node_type: setting
     type: boolean
