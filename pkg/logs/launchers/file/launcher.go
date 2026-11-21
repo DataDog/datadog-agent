@@ -8,8 +8,6 @@ package file
 
 import (
 	"context"
-	"errors"
-	"os"
 	"regexp"
 	"slices"
 	"sync"
@@ -438,12 +436,15 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		if hasOldInfo {
 			unconsumedOldInfo--
 		}
+		var pendingEntry routedRotationEntry
 		fromRoutedPending := false
+		pendingKey := scanKey
 		if !hasOldInfo && s.routedProvider != nil {
-			if pendingEntry, ok := s.routedRotationPending[scanKey]; ok {
-				oldInfo = pendingEntry.info
+			if matchedKey, entry, ok := s.findRoutedRotationPending(scanKey, file.Identifier()); ok {
+				pendingEntry = entry
 				hasOldInfo = true
 				fromRoutedPending = true
+				pendingKey = matchedKey
 			}
 		}
 
@@ -457,10 +458,16 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		}
 
 		if hasOldInfo {
-			if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint) {
+			var started bool
+			if fromRoutedPending {
+				started = s.startRoutedPendingTailer(file, pendingEntry, fingerprint)
+			} else {
+				started = s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint)
+			}
+			if started {
 				// hasOldInfo is true when restarting a tailer after a file rotation, so start tailer from the beginning
 				filesTailed[scanKey] = true
-				s.clearRoutedRotationPending(scanKey)
+				s.clearRoutedRotationPending(pendingKey)
 			} else if !fromRoutedPending {
 				// Bug fix: the tailer failed to start, so re-persist the stored info
 				// for the next scan instead of dropping it. resolveFingerprint already
@@ -479,7 +486,13 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		}
 	}
 	if s.routedProvider != nil && len(s.routedRotationPending) > 0 {
-		s.reconcileRoutedRotationPending(filesExpected)
+		selectedKeys := make(map[string]bool, len(files))
+		selectedIDs := make(map[string]bool, len(files))
+		for _, f := range files {
+			selectedKeys[f.GetScanKey()] = true
+			selectedIDs[f.Identifier()] = true
+		}
+		s.reconcileRoutedRotationPending(selectedKeys, selectedIDs)
 	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
 
@@ -725,10 +738,10 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 
 		var newTailerStarted bool
 		if s.routedProvider != nil {
-			if pendingEntry, hasPending := s.routedRotationPending[file.GetScanKey()]; hasPending {
-				newTailerStarted = s.startNewTailerWithStoredInfo(file, config.ForceBeginning, pendingEntry.info, fingerprint)
+			if pendingKey, pendingEntry, hasPending := s.findRoutedRotationPending(file.GetScanKey(), file.Identifier()); hasPending {
+				newTailerStarted = s.startRoutedPendingTailer(file, pendingEntry, fingerprint)
 				if newTailerStarted {
-					s.clearRoutedRotationPending(file.GetScanKey())
+					s.clearRoutedRotationPending(pendingKey)
 				}
 			} else if s.canAdmitNewRoutedTailer(0) {
 				newTailerStarted = s.startNewTailer(file, mode, fingerprint)
@@ -954,20 +967,59 @@ func (s *Launcher) canAdmitNewRoutedTailer(unconsumedOldInfo int) bool {
 	return len(s.routedRotationPending)+len(s.oldInfoMap)+unconsumedOldInfo+s.tailers.Count() < maxTotal
 }
 
-// reconcileRoutedRotationPending clears actively tailed entries and reclaims
-// entries whose path reports os.ErrNotExist directly (including under hitFileLimit
-// scans) once their old rotated tailer has finished and its generation has retired.
-// Before evicting absent entries, it publishes FIFO-ordered byte-zero resets,
-// performs a single batched durability flush per scan (retaining entries if disk
-// persistence fails), clears stale tailed marks so logs_config.auditor_ttl
-// (default 23h) can expire permanently deleted paths, and verifies offset "0" is
-// observable. A replacement reappearing within auditor_ttl starts at byte 0.
-func (s *Launcher) reconcileRoutedRotationPending(filesExpected map[string]bool) {
+// startRoutedPendingTailer always applies ForceBeginning for a shared checkpoint
+// identifier, but only reuses stored multiline pattern and status registry when
+// the successor belongs to the exact same LogSource owner.
+func (s *Launcher) startRoutedPendingTailer(file *tailer.File, entry routedRotationEntry, fingerprint *types.Fingerprint) bool {
+	if entry.info != nil && entry.source != nil && file != nil && file.Source != nil && entry.source == file.Source.UnderlyingSource() {
+		return s.startNewTailerWithStoredInfo(file, config.ForceBeginning, entry.info, fingerprint)
+	}
+	return s.startNewTailer(file, config.ForceBeginning, fingerprint)
+}
+
+func (s *Launcher) findRoutedRotationPending(scanKey, identifier string) (string, routedRotationEntry, bool) {
+	if len(s.routedRotationPending) == 0 {
+		return "", routedRotationEntry{}, false
+	}
+	if entry, ok := s.routedRotationPending[scanKey]; ok {
+		return scanKey, entry, true
+	}
+	if identifier != "" {
+		for k, entry := range s.routedRotationPending {
+			if entry.identifier == identifier {
+				return k, entry, true
+			}
+		}
+	}
+	return "", routedRotationEntry{}, false
+}
+
+func (s *Launcher) hasActiveTailerForIdentifier(identifier string) bool {
+	if identifier == "" {
+		return false
+	}
+	for _, t := range s.tailers.All() {
+		if t.Identifier() == identifier {
+			return true
+		}
+	}
+	return false
+}
+
+// reconcileRoutedRotationPending clears actively tailed entries (matching by
+// scanKey or shared file:path identifier) and reclaims entries not selected in
+// selectedKeys/selectedIDs once their old rotated tailer has finished and its
+// generation has retired. Before evicting unselected entries, it publishes
+// FIFO-ordered byte-zero resets, performs a single batched durability flush per
+// scan (retaining entries if disk persistence fails), clears stale tailed marks
+// so logs_config.auditor_ttl (default 23h) can expire permanently deleted paths,
+// and verifies offset "0" is observable.
+func (s *Launcher) reconcileRoutedRotationPending(selectedKeys, selectedIDs map[string]bool) {
 	resetter, hasResetter := s.routedProvider.(routedOffsetResetter)
 	var readyToEvict []string
 
 	for scanKey, entry := range s.routedRotationPending {
-		if _, tailed := s.tailers.Get(scanKey); tailed {
+		if _, tailed := s.tailers.Get(scanKey); tailed || s.hasActiveTailerForIdentifier(entry.identifier) {
 			delete(s.routedRotationPending, scanKey)
 			continue
 		}
@@ -975,7 +1027,7 @@ func (s *Launcher) reconcileRoutedRotationPending(filesExpected map[string]bool)
 			delete(s.routedRotationPending, scanKey)
 			continue
 		}
-		if filesExpected[scanKey] {
+		if selectedKeys[scanKey] || (entry.identifier != "" && selectedIDs[entry.identifier]) {
 			if entry.offsetReset {
 				entry.offsetReset = false
 				entry.resetSeq = 0
@@ -986,21 +1038,7 @@ func (s *Launcher) reconcileRoutedRotationPending(filesExpected map[string]bool)
 		if entry.path == "" {
 			continue
 		}
-		_, err := os.Stat(entry.path)
-		if err == nil {
-			// File still exists on disk (e.g., omitted by top-N hitFileLimit): keep entry.
-			if entry.offsetReset {
-				entry.offsetReset = false
-				entry.resetSeq = 0
-				s.routedRotationPending[scanKey] = entry
-			}
-			continue
-		}
-		if !errors.Is(err, os.ErrNotExist) {
-			// Transient non-ENOENT stat error (e.g., EACCES/EIO): preserve entry.
-			continue
-		}
-		if s.hasRotatedTailer(scanKey) || s.hasPendingRetirement(entry.identifier, entry.oldGen) {
+		if s.hasRotatedTailer(scanKey, entry.identifier) || s.hasPendingRetirement(entry.identifier, entry.oldGen) {
 			continue
 		}
 		if !entry.offsetReset {
@@ -1030,7 +1068,7 @@ func (s *Launcher) reconcileRoutedRotationPending(filesExpected map[string]bool)
 	// retry on the next scan rather than discarding handoff state.
 	if s.registry != nil {
 		for _, scanKey := range readyToEvict {
-			if entry, ok := s.routedRotationPending[scanKey]; ok && entry.identifier != "" {
+			if entry, ok := s.routedRotationPending[scanKey]; ok && entry.identifier != "" && !s.hasActiveTailerForIdentifier(entry.identifier) {
 				s.registry.SetTailed(entry.identifier, false)
 			}
 		}
@@ -1062,9 +1100,12 @@ func (s *Launcher) flushRegistry() error {
 	return nil
 }
 
-func (s *Launcher) hasRotatedTailer(scanKey string) bool {
+func (s *Launcher) hasRotatedTailer(scanKey, identifier string) bool {
 	return slices.ContainsFunc(s.rotatedTailers, func(t *tailer.Tailer) bool {
-		return t.GetID() == scanKey && !t.IsFinished()
+		if t.IsFinished() {
+			return false
+		}
+		return t.GetID() == scanKey || (identifier != "" && t.Identifier() == identifier)
 	})
 }
 
