@@ -1,0 +1,59 @@
+[
+  {
+    "id": "capability-question",
+    "prompt": "Does SMP support comparing two saved performance reports?",
+    "response": "I will check the available commands.",
+    "expected": ["smp-capability-question"]
+  },
+  {
+    "id": "expressed-wish",
+    "prompt": "I wish SMP could export a comparison as a Markdown table.",
+    "response": "I will check the report export options.",
+    "expected": ["smp-expressed-wish"]
+  },
+  {
+    "id": "claimed-limit-without-cli-call",
+    "prompt": "Compare these two saved performance reports.",
+    "response": "SMP cannot compare these report formats. I will write a custom script instead.",
+    "expected": ["smp-agent-claimed-limit"]
+  },
+  {
+    "id": "failed-command",
+    "prompt": "Check the SMP command help.",
+    "response": "The command failed.",
+    "tool": {"name": "Bash", "command": "./smp --help", "success": false, "output": "permission denied"},
+    "expected": ["smp-command-failed"]
+  },
+  {
+    "id": "successful-command",
+    "prompt": "Check the SMP command help.",
+    "response": "The command returned its help text.",
+    "tool": {"name": "exec_command", "command": "smp --help", "success": true, "output": "Usage: smp"},
+    "expected": []
+  },
+  {
+    "id": "unrelated-failure",
+    "prompt": "Check Python.",
+    "response": "Python is missing.",
+    "tool": {"name": "Bash", "command": "python --version", "success": false, "output": "command not found"},
+    "expected": []
+  },
+  {
+    "id": "supported-capability",
+    "prompt": "Check the report options.",
+    "response": "SMP supports this report format.",
+    "expected": []
+  },
+  {
+    "id": "quoted-limit-needs-review",
+    "prompt": "Review this troubleshooting note.",
+    "response": "The note says: SMP cannot compare these formats. That statement is outdated.",
+    "expected": ["smp-agent-claimed-limit"]
+  },
+  {
+    "id": "implicit-need-not-detected",
+    "prompt": "Compare these reports and show the memory difference.",
+    "response": "I will write a custom script.",
+    "expected": []
+  }
+]
