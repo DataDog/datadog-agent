@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    The inventory checks metadata payload now reports at most 1000 logs sources per
+    logs source name (for example ``container_collect_all``), preferring sources that
+    are not in error. The number of sources left out is reported in the new
+    ``logs_metadata_truncated`` field. This keeps the payload under the intake size
+    limit on hosts with a very large number of logs sources.
