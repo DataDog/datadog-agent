@@ -104,7 +104,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:linux": [
             "//pkg/security/probe/procfs/procmaps",
             "//pkg/security/secl/model",
-            "@com_github_datadog_agent_payload_v5//cws/dumpsv1",
             "@com_github_shirou_gopsutil_v4//process",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",

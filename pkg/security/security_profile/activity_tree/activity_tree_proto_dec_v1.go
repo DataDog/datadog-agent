@@ -28,8 +28,11 @@ func ProtoDecodeActivityTree(dest *ActivityTree, nodes []*adproto.ProcessActivit
 		dest.ProcessNodes = append(dest.ProcessNodes, protoDecodeProcessActivityNode(dest, node, getIDFromTag))
 	}
 	if dest.Stats != nil && dest.Stats.journal != nil {
-		dest.Stats.journal.Checkpoint(dest)
-		dest.Stats.journal.StripTree(dest)
+		if err := dest.Stats.journal.Checkpoint(dest); err != nil {
+			dest.Stats.journal.fail("initial checkpoint after decode failed: " + err.Error())
+		} else {
+			dest.Stats.journal.StripTree(dest)
+		}
 	}
 }
 

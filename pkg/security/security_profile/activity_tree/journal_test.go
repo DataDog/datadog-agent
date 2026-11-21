@@ -10,6 +10,7 @@ package activitytree
 import (
 	"fmt"
 	"net"
+	"os"
 	"syscall"
 	"testing"
 	"time"
@@ -365,4 +366,138 @@ func TestActivityTreeJournal_MemoryReductionAndSizeBytesInvariants(t *testing.T)
 	jTree.EvictImageTag("v1")
 	jTree.recomputeSizeBytes()
 	assert.Equal(t, int64(0), jTree.Stats.SizeBytes)
+}
+
+func TestActivityTreeJournal_IMDSRulesAndRuleVersionIdentity(t *testing.T) {
+	jTree := NewActivityTree(activityTreeInsertTestValidator{}, NewPathsReducer(), "security_profile")
+	require.NoError(t, jTree.EnableJournal(t.TempDir(), "imds-rules:v1", 0))
+	t.Cleanup(func() { _ = jTree.CloseJournal() })
+
+	shim := newJournalTestProcessEntry(1, "/usr/bin/containerd-shim-runc-v2", "containerd-shim-runc-v2", "containerd-shim-runc-v2", nil, nil, nil)
+	worker := newJournalTestProcessEntry(100, "/usr/bin/app", "app", "app", []string{"--serve"}, nil, shim)
+	ts := time.Unix(1700000000, 0)
+
+	imdsEv1 := model.NewFakeEvent()
+	imdsEv1.Type = uint32(model.IMDSEventType)
+	imdsEv1.Timestamp = ts
+	imdsEv1.ProcessCacheEntry = worker
+	imdsEv1.ProcessContext = &worker.ProcessContext
+	imdsEv1.IMDS = model.IMDSEvent{
+		Type:          "request",
+		CloudProvider: "aws",
+		URL:           "http://169.254.169.254/latest/meta-data/iam/security-credentials/role",
+	}
+	imdsEv1.Rules = []*model.MatchedRule{
+		{RuleID: "imds_access", RuleVersion: "1.0", PolicyName: "default", PolicyVersion: "1"},
+	}
+
+	_, _, _, err := jTree.Insert(imdsEv1, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+
+	imdsEv2 := *imdsEv1
+	imdsEv2.Timestamp = ts.Add(time.Second)
+	imdsEv2.Rules = []*model.MatchedRule{
+		{RuleID: "imds_access", RuleVersion: "2.0", PolicyName: "default", PolicyVersion: "2"},
+	}
+	_, _, _, err = jTree.Insert(&imdsEv2, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+
+	jTree.Stats.journal.dirty = true
+	protoNodes := ToProto(jTree)
+	require.Len(t, protoNodes, 1)
+
+	decoded := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+	ProtoDecodeActivityTree(decoded, protoNodes)
+	require.Len(t, decoded.ProcessNodes, 1)
+	require.Len(t, decoded.ProcessNodes[0].IMDSEvents, 1)
+	for _, in := range decoded.ProcessNodes[0].IMDSEvents {
+		require.Len(t, in.MatchedRules, 2)
+		assert.ElementsMatch(t, []string{"1.0", "2.0"}, []string{
+			in.MatchedRules[0].RuleVersion,
+			in.MatchedRules[1].RuleVersion,
+		})
+	}
+}
+
+func TestActivityTreeJournal_CapFallbackPreservesDNSEnrichment(t *testing.T) {
+	jTree := NewActivityTree(activityTreeInsertTestValidator{}, NewPathsReducer(), "security_profile")
+	require.NoError(t, jTree.EnableJournal(t.TempDir(), "cap-fallback:v1", 350))
+	t.Cleanup(func() { _ = jTree.CloseJournal() })
+
+	shim := newJournalTestProcessEntry(1, "/usr/bin/containerd-shim-runc-v2", "containerd-shim-runc-v2", "containerd-shim-runc-v2", nil, nil, nil)
+	worker := newJournalTestProcessEntry(100, "/usr/bin/app", "app", "app", []string{"--serve"}, nil, shim)
+	ts := time.Unix(1700000000, 0)
+
+	dnsEv1 := model.NewFakeEvent()
+	dnsEv1.Type = uint32(model.DNSEventType)
+	dnsEv1.Timestamp = ts
+	dnsEv1.ProcessCacheEntry = worker
+	dnsEv1.ProcessContext = &worker.ProcessContext
+	dnsEv1.DNS.Question = model.DNSQuestion{Name: "api.datadoghq.com", Type: 1, Class: 1, Size: 32, Count: 1}
+	dnsEv1.DNS.Response = &model.DNSResponse{
+		IPs: []net.IPNet{journalIPv4Net("10.0.0.1")},
+	}
+	_, _, _, err := jTree.Insert(dnsEv1, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		fEv := newJournalTestFileOpenEvent(worker, fmt.Sprintf("/var/lib/large-payload-path-%d/file.txt", i), syscall.O_RDONLY, syscall.S_IFREG|0644, ts)
+		_, _, _, err = jTree.Insert(fEv, true, "v1", Runtime, nil)
+		require.NoError(t, err)
+	}
+	require.False(t, jTree.HasJournal())
+
+	dnsEv2 := *dnsEv1
+	dnsEv2.Timestamp = ts.Add(time.Second)
+	dnsEv2.DNS.Response = &model.DNSResponse{
+		IPs: []net.IPNet{journalIPv4Net("10.0.0.2")},
+	}
+	dnsEv2.Rules = []*model.MatchedRule{{RuleID: "dns_post_cap_rule", RuleVersion: "1.0"}}
+	_, _, _, err = jTree.Insert(&dnsEv2, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+
+	protoNodes := ToProto(jTree)
+	decoded := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+	ProtoDecodeActivityTree(decoded, protoNodes)
+	require.Len(t, decoded.ProcessNodes, 1)
+	dn := decoded.ProcessNodes[0].DNSNames["api.datadoghq.com"]
+	require.NotNil(t, dn)
+	require.Len(t, dn.MatchedRules, 1)
+	assert.Equal(t, "dns_post_cap_rule", dn.MatchedRules[0].RuleID)
+	require.Len(t, dn.Requests, 1)
+	require.NotNil(t, dn.Requests[0].Response)
+	assert.ElementsMatch(t, []net.IPNet{journalIPv4Net("10.0.0.1"), journalIPv4Net("10.0.0.2")}, dn.Requests[0].Response.IPs)
+}
+
+func TestActivityTreeJournal_NonUTF8ArgsHashAndCheckpointRollback(t *testing.T) {
+	dir := t.TempDir()
+	jTree := NewActivityTree(activityTreeInsertTestValidator{}, NewPathsReducer(), "security_profile")
+	jTree.DifferentiateArgs()
+	require.NoError(t, jTree.EnableJournal(dir, "non-utf8:v1", 0))
+	t.Cleanup(func() {
+		_ = os.Chmod(dir, 0750)
+		_ = jTree.CloseJournal()
+	})
+
+	shim := newJournalTestProcessEntry(1, "/usr/bin/containerd-shim-runc-v2", "containerd-shim-runc-v2", "containerd-shim-runc-v2", nil, nil, nil)
+	rawArgs := []string{"--raw=\xff\xfe\xfd", "--mode=prod"}
+	worker := newJournalTestProcessEntry(100, "/usr/bin/app", "app", "app", rawArgs, []string{"ENV=1"}, shim)
+	ts := time.Unix(1700000000, 0)
+
+	fEv := newJournalTestFileOpenEvent(worker, "/etc/app.conf", syscall.O_RDONLY, syscall.S_IFREG|0644, ts)
+	_, _, _, err := jTree.Insert(fEv, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+
+	_ = ToProto(jTree)
+
+	contains, err := jTree.Contains(fEv, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, contains, "non-UTF-8 process argv must continue matching its existing ProcessNode after ToProto")
+
+	jTree.Stats.journal.dirty = true
+	require.NoError(t, os.Chmod(dir, 0500))
+
+	protoNodes := ToProto(jTree)
+	require.Len(t, protoNodes, 1)
+	assert.NotEmpty(t, jTree.ProcessNodes[0].Process.Envs, "failed checkpoint must keep materialized payloads in RAM instead of stripping")
 }

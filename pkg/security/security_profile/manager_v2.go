@@ -1261,13 +1261,16 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	}
 
 	// Same lock as FinalizePatterns, so eventNodeBase can't be folded before its cookie exists.
-	secprof.Lock()
-	inserted, processNode, eventNodeBase, err := secprof.InsertLocked(event, true, imageTag, activity_tree.Runtime, m.resolvers)
-	if err == nil {
-		m.retargetSampleCookies(secprof, secprof.ActivityTree.Stats.TakeMovedNodes())
-		m.registerSampleCookie(event, secprof, processNode, eventNodeBase, imageTag)
-	}
-	secprof.Unlock()
+	inserted, err := func() (bool, error) {
+		secprof.Lock()
+		defer secprof.Unlock()
+		ins, processNode, eventNodeBase, insertErr := secprof.InsertLocked(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+		if insertErr == nil {
+			m.retargetSampleCookies(secprof, secprof.ActivityTree.Stats.TakeMovedNodes())
+			m.registerSampleCookie(event, secprof, processNode, eventNodeBase, imageTag)
+		}
+		return ins, insertErr
+	}()
 	if err != nil {
 		if !activity_tree.IsExpectedFilterError(err) {
 			m.incrementInsertionError(event.GetEventType(), err)
@@ -1596,10 +1599,10 @@ func (m *ManagerV2) journalConfig() (string, int64) {
 	if dir == "" {
 		return "", 0
 	}
-	const minJournalMaxBytes = int64(64 << 20)
+	const minJournalMaxBytes = int64(4 << 20)
 	maxBytes := minJournalMaxBytes
 	if m.config != nil && m.config.RuntimeSecurity != nil && m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize != nil {
-		if cfgMax := int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) * 4; cfgMax > maxBytes {
+		if cfgMax := int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) * 2; cfgMax > maxBytes {
 			maxBytes = cfgMax
 		}
 	}
