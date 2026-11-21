@@ -69,7 +69,7 @@ type ProcessInfo struct {
 	Envs          []string
 	EnvsTruncated bool
 	argsHashed    bool
-	argsHash      uint64
+	argsHash      [16]byte
 }
 
 // newProcessInfo builds the slim ProcessInfo from a model.Process. Args and envs are

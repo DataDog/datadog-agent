@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -108,6 +109,9 @@ func sanitizeJournalKey(key string) string {
 func (at *ActivityTree) EnableJournal(dir, key string, maxBytes int64) error {
 	if at == nil || at.Stats == nil {
 		return nil
+	}
+	if at.Stats.journal != nil {
+		_ = at.Stats.journal.Materialize(at)
 	}
 	_ = at.CloseJournal()
 	j, err := newTreeJournal(dir, key, maxBytes)
@@ -237,6 +241,8 @@ func (j *TreeJournal) writeFrame(kind uint8, seq, procID, subID uint32, msg *adp
 		return false
 	}
 	if _, err := j.file.Write(j.scratchBuf); err != nil {
+		_ = j.file.Truncate(j.writtenBytes)
+		_, _ = j.file.Seek(j.writtenBytes, io.SeekStart)
 		j.fail(fmt.Sprintf("write error: %v", err))
 		return false
 	}
@@ -652,7 +658,7 @@ func (j *TreeJournal) recordNetworkDeviceRules(ndn *NetworkDeviceNode, rules []*
 		return
 	}
 	minSeq := ndn.minJournalSeq
-	key := fmt.Sprintf("%d:%d", ndn.Context.NetNS, ndn.Context.IfIndex)
+	key := fmt.Sprintf("%d:%d:%s", ndn.Context.NetNS, ndn.Context.IfIndex, ndn.Context.IfName)
 	newRules, hashes := j.filterNewRules(j.currentProcID, minSeq, "netdev_rule", key, rules)
 	if len(newRules) == 0 {
 		ndn.minJournalSeq = minSeq
@@ -665,6 +671,7 @@ func (j *TreeJournal) recordNetworkDeviceRules(ndn *NetworkDeviceNode, rules []*
 			{
 				Netns:        ndn.Context.NetNS,
 				Ifindex:      ndn.Context.IfIndex,
+				Ifname:       ndn.Context.IfName,
 				MatchedRules: newRules,
 			},
 		},
@@ -990,7 +997,7 @@ func (j *TreeJournal) Materialize(at *ActivityTree) error {
 					continue
 				}
 				for ctx, ndn := range pn.NetworkDevices {
-					if ctx.NetNS == ndProto.Netns && ctx.IfIndex == ndProto.Ifindex {
+					if ctx.NetNS == ndProto.Netns && ctx.IfIndex == ndProto.Ifindex && ctx.IfName == ndProto.Ifname {
 						if ndn.minJournalSeq == 0 || seq >= ndn.minJournalSeq {
 							for _, r := range ndProto.MatchedRules {
 								ndn.MatchedRules = model.AppendMatchedRule(ndn.MatchedRules, []*model.MatchedRule{protoDecodeProtoMatchedRule(r)})
@@ -1360,7 +1367,7 @@ func (j *TreeJournal) Checkpoint(at *ActivityTree) error {
 			}
 			ndSeq := staged.nextSeq()
 			if len(ndn.MatchedRules) > 0 {
-				key := fmt.Sprintf("%d:%d", ndn.Context.NetNS, ndn.Context.IfIndex)
+				key := fmt.Sprintf("%d:%d:%s", ndn.Context.NetNS, ndn.Context.IfIndex, ndn.Context.IfName)
 				ndRules, ndHashes := staged.filterNewRules(procID, ndSeq, "netdev_rule", key, ndn.MatchedRules)
 				if len(ndRules) > 0 {
 					rSeq := staged.nextSeq()
@@ -1369,6 +1376,7 @@ func (j *TreeJournal) Checkpoint(at *ActivityTree) error {
 							{
 								Netns:        ndn.Context.NetNS,
 								Ifindex:      ndn.Context.IfIndex,
+								Ifname:       ndn.Context.IfName,
 								MatchedRules: ndRules,
 							},
 						},
@@ -1497,8 +1505,8 @@ func (j *TreeJournal) StripTree(at *ActivityTree) {
 	at.recomputeSizeBytes()
 }
 
-func hashProcessArgs(argv []string) uint64 {
-	h := fnv.New64a()
+func hashProcessArgs(argv []string) [16]byte {
+	h := sha256.New()
 	var lenBuf [4]byte
 	binary.LittleEndian.PutUint32(lenBuf[:], uint32(len(argv)))
 	_, _ = h.Write(lenBuf[:])
@@ -1507,5 +1515,8 @@ func hashProcessArgs(argv []string) uint64 {
 		_, _ = h.Write(lenBuf[:])
 		_, _ = h.Write([]byte(arg))
 	}
-	return h.Sum64()
+	sum := h.Sum(nil)
+	var out [16]byte
+	copy(out[:], sum[:16])
+	return out
 }
