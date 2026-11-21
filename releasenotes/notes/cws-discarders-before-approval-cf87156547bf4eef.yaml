@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CWS: Restored the in-kernel filtering of setxattr, removexattr, mmap and splice
+    events, reducing CPU usage.
