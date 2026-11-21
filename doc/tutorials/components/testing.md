@@ -196,6 +196,8 @@ dda inv test --targets=./comp/lifecycleexample/impl --verbose
 
 Expect `TestLifecycleHooks` to pass. Its assertions verify that construction leaves the component stopped, startup makes it running, and shutdown stops it again. The test observes these changes through the public interface.
 
+The running flag is specific to this exercise, not a state model every component must implement. This test checks one hook's behavior; `TestLifecycle` does not emulate Fx's hook ordering, rollback, or timeout behavior. Use an Fx-backed test when correctness depends on those [framework guarantees](../../architecture/components/fx.md#lifecycle), and observe component-owned asynchronous work through its actual completion mechanism.
+
 ## Next steps
 
 See how to [use components in a binary](../../how-to/components/using-components.md), or read about [Fx lifecycle behavior](../../architecture/components/fx.md#lifecycle) and the [component lifecycle requirements](../../guidelines/components.md#concurrency-and-lifecycle).

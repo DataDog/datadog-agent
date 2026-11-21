@@ -83,7 +83,7 @@ Flag a new `clock.Clock` parameter or field whose only purpose is testability
 when `synctest` would cover the test. Flag a `synctest` test that waits on a
 real mutex, socket or subprocess: those are not durably blocking, so they stall
 virtual time and need a fake instead. The mechanics of both patterns are in
-`docs/public/guidelines/languages/go.md` § Testing → Time.
+`doc/guidelines/languages/go.md` § Testing → Time.
 
 ### Logging: log level misuse
 Flag log statements that use the wrong level:
