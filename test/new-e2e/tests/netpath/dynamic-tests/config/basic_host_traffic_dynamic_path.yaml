@@ -1,4 +1,6 @@
 network_path:
+  connections_monitoring:
+    basic_tests_enabled: true
   collector:
     flush_interval: 2s
     filters:

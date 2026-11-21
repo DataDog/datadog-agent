@@ -10,7 +10,7 @@ network_devices:
 
 network_path:
   connections_monitoring:
-    # Isolate this suite from connection-based Dynamic Tests (default-on when CNM is enabled).
+    # Isolate this suite from connection-based Dynamic Tests.
     basic_tests_enabled: false
   netflow_monitoring:
     enabled: false
