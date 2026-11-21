@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add opt-in Azure Virtual Desktop session metrics to the Windows VDI check.
+    Configure ``vdi.enabled: true`` and ``provider: azure_virtual_desktop`` to
+    collect session counts, presence, duration, and idle time, with optional
+    session and user tags.

@@ -136,7 +136,7 @@ fn fleet_sysprobe_template_gate_closed_on_default_install() {
     ));
 }
 
-/// Each of the five SCM keys opens the gate on its own, from the file the SCM reads it
+/// Each of the SCM keys opens the gate on its own, from the file the SCM reads it
 /// from.
 #[test]
 fn fleet_sysprobe_template_gate_opens_on_each_scm_key() {
@@ -155,6 +155,7 @@ fn fleet_sysprobe_template_gate_opens_on_each_scm_key() {
             "software_inventory:\n  enabled: true\n",
             EMPTY_SYSPROBE_YAML,
         ),
+        ("vdi:\n  enabled: true\n", EMPTY_SYSPROBE_YAML),
     ] {
         let _env = test_env_guard();
         let etc = tempfile::tempdir().expect("tempdir");
