@@ -248,3 +248,50 @@ func (w *WinServiceManager) RestartAgentServices(ctx context.Context) (err error
 
 	return nil
 }
+
+// DeleteAgentServices removes the registrations retained by a Fleet MSI removal.
+// Only call this during explicit purge when the Agent MSI is no longer installed.
+// Missing services and services already marked for deletion are harmless on retries.
+func (w *WinServiceManager) DeleteAgentServices(ctx context.Context) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "delete_agent_services")
+	defer func() { span.Finish(err) }()
+
+	// Match the MSI's ServiceInstall entries, including optional services. Driver
+	// and extension services have separate removal paths and are not retained here.
+	services := []string{
+		"datadog-trace-agent",
+		"datadog-process-agent",
+		"datadog-security-agent",
+		"datadog-system-probe",
+		"datadog-agent-action",
+		"dd-procmgr-service",
+		"Datadog Installer",
+		"datadogagent",
+	}
+	var failures []error
+	for _, name := range services {
+		// Query the target directly. StopService walks its dependents, which
+		// may still be marked for deletion while another process holds a handle.
+		state, err := w.api.GetServiceState(name)
+		if err != nil {
+			if !isServiceRemoved(err) {
+				failures = append(failures, fmt.Errorf("could not query service %s: %w", name, err))
+			}
+			continue
+		}
+		if state != svc.Stopped {
+			if err := w.api.StopService(name); err != nil {
+				failures = append(failures, fmt.Errorf("could not stop service %s: %w", name, err))
+				continue
+			}
+		}
+		if err := w.api.DeleteService(name); err != nil && !isServiceRemoved(err) {
+			failures = append(failures, fmt.Errorf("could not delete service %s: %w", name, err))
+		}
+	}
+	return errors.Join(failures...)
+}
+
+func isServiceRemoved(err error) bool {
+	return errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) || errors.Is(err, windows.ERROR_SERVICE_MARKED_FOR_DELETE)
+}

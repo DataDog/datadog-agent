@@ -19,4 +19,5 @@ type ServiceManager interface {
 	StopAllAgentServices(ctx context.Context) error
 	StartAgentServices(ctx context.Context) error
 	RestartAgentServices(ctx context.Context) error
+	DeleteAgentServices(ctx context.Context) error
 }

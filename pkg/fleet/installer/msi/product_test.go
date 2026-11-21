@@ -55,3 +55,38 @@ func TestCheckAgentFlavorPropagatesLookupError(t *testing.T) {
 	})
 	require.ErrorIs(t, err, lookupErr)
 }
+
+func TestIsAgentInstalled(t *testing.T) {
+	lookupErr := errors.New("Windows Installer query failed")
+	for _, tt := range []struct {
+		name         string
+		installed    string
+		lookupErr    error
+		errorProduct string
+	}{
+		{name: "neither flavor installed"},
+		{name: "standard installed", installed: AgentProductName(false)},
+		{name: "FIPS installed", installed: AgentProductName(true)},
+		{name: "standard lookup failure", lookupErr: lookupErr, errorProduct: AgentProductName(false)},
+		{name: "FIPS lookup failure", lookupErr: lookupErr, errorProduct: AgentProductName(true)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			installed, err := isAgentInstalled(func(name string) ([]Product, error) {
+				if name == tt.errorProduct {
+					return nil, tt.lookupErr
+				}
+				if name == tt.installed {
+					return []Product{{Code: "{test-product}"}}, nil
+				}
+				return nil, errProductNotFound
+			})
+			if tt.lookupErr != nil {
+				require.ErrorIs(t, err, tt.lookupErr)
+				require.False(t, installed)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.installed != "", installed)
+		})
+	}
+}
