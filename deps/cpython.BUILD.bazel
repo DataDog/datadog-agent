@@ -31,7 +31,7 @@ package_metadata(
     ],
     purl = purl_for_generic(
         download_url = PYTHON_SOURCE_URL,
-        package = "cpython",
+        package = "python3",
         version = PYTHON_VERSION,
     ),
 )
