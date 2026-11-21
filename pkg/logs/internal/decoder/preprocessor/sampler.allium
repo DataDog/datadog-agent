@@ -11,9 +11,9 @@
 --   call — the output of the upstream Aggregator stage — and
 --   decides whether to forward it downstream or drop it. Each
 --   call returns either the message (possibly with augmented
---   tags) or null. Different sampler implementations apply
---   different drop strategies: rate-limited pattern matching,
---   uniform random, always-keep (trivial passthrough).
+--   tags) or null. Different sampler implementations may apply
+--   different drop strategies (currently rate-limited pattern
+--   matching and always-keep pass-through).
 --
 --   This module describes only the abstract contract every
 --   sampler must honour; specific strategies live in their own
@@ -97,14 +97,15 @@ contract Sampler {
 
     @invariant Determinism
         -- For a given sampler instance in a given internal state,
-        -- equal (msg, tokens) inputs to process produce equal
-        -- outputs, and equivalently for flush. Samplers may not
-        -- branch on randomness or external state. Random-sampling
-        -- strategies (uniform / probabilistic) honour this by
-        -- treating their pseudo-random generator's state as part
-        -- of the sampler's own state. This is the stateful
-        -- analogue of pure-function determinism: pure given
-        -- state.
+        -- equal (msg, tokens) inputs to process, observed at the
+        -- same time and under the same injected environment
+        -- signals (for example AdaptiveSampler's severity level
+        -- and source-disabled flag), produce equal outputs, and
+        -- equivalently for flush. Samplers may not branch on
+        -- randomness, except on pseudo-random generator state
+        -- held as part of the sampler's own state. This is the
+        -- stateful analogue of pure-function determinism: pure
+        -- given state, time and injected signals.
 
     @invariant Totality
         -- Every call to process returns either a Message value or
@@ -142,14 +143,22 @@ contract Sampler {
         -- messages from scratch — the drop-or-keep decision is
         -- over the input set, not extended by it.
 
+    @invariant FlushDrainsBuffer
+        -- flush returns the sampler's buffered message, if any,
+        -- and clears it, so a following flush with no intervening
+        -- process call returns null. With nothing buffered, flush
+        -- returns null. Both current implementations (NoopSampler
+        -- and AdaptiveSampler) buffer nothing and always return
+        -- null.
+
     @guidance
         -- The tokens argument is the pre-computed first-line
         -- tokens forwarded from the upstream Aggregator stage's
         -- AggregatedMessageWithTokens.tokens. Token-aware
         -- samplers (pattern-matching strategies like
         -- AdaptiveSampler) use these tokens to classify the
-        -- message; token-agnostic samplers (NoopSampler,
-        -- uniform-random samplers) may ignore them. The
+        -- message; token-agnostic samplers (NoopSampler)
+        -- may ignore them. The
         -- contract permits both styles.
         --
         -- The flush observable corresponds to the

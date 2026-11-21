@@ -56,6 +56,15 @@ func TestSimpleJsonObjects(t *testing.T) {
 	}
 }
 
+func TestTopLevelArrayIsInvalid(t *testing.T) {
+	// A top-level array is never aggregated, even when only partially written.
+	for _, input := range []string{`[1`, `[{"a":1}`, `[{"a":1},`, `[{"a":1,`, `[{"a":1}]`} {
+		t.Run(input, func(t *testing.T) {
+			assert.Equal(t, Invalid, NewIncrementalJSONValidator().Write([]byte(input)))
+		})
+	}
+}
+
 func TestPrettyPrintedJson(t *testing.T) {
 	jsonString := `{
     "name": "test",

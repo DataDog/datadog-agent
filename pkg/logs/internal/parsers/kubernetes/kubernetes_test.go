@@ -88,6 +88,15 @@ func TestKubernetesParserKeepsIngestionTimestampOfUnparseableLine(t *testing.T) 
 	assert.True(t, msg.ParsingExtra.IsTruncated)
 }
 
+func TestKubernetesParserKeepsTruncationFlagOfParsedLine(t *testing.T) {
+	logMessage := message.NewMessage([]byte(partialContainerdHeaderOut+" anything"), nil, "", 0)
+	logMessage.ParsingExtra.IsTruncated = true
+	msg, err := New().Parse(logMessage)
+	assert.NoError(t, err)
+	assert.True(t, msg.ParsingExtra.IsPartial)
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+}
+
 func TestKubernetesParserPreservesStderrStream(t *testing.T) {
 	logMessage := message.NewMessage([]byte("2018-09-20T11:54:11.753589172Z stderr P anything"), nil, "", 0)
 	msg, err := New().Parse(logMessage)

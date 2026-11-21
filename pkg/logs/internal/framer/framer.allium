@@ -19,7 +19,8 @@
 --   @guarantees below rather than by contract fulfilment.
 -- Includes: The Framer entity (truncation-relevant configuration),
 --   the Framing enum, the FramerTruncation surface and its
---   @guarantees covering: the framer's response to matcher
+--   @guarantees covering: the structured-input bypass, the
+--   framer's response to matcher
 --   outputs (truncated, found, nil), the buffer-overflow
 --   force-cut fallback path, end-of-stream Flush behaviour, the
 --   per-framing categorisation (enforcing vs non-enforcing
@@ -121,6 +122,15 @@ surface FramerTruncation {
 
     context fr: Framer
 
+    @guarantee StructuredInputBypass
+        -- An input message that is not unstructured (i.e.
+        -- already structured) bypasses framing: it is
+        -- forwarded unchanged as one emission — the same
+        -- message, with its ParsingExtra.IsTruncated
+        -- untouched, no content_len_limit enforcement, and
+        -- no force-cut. The remaining guarantees describe
+        -- unstructured input only.
+
     @guarantee EmissionFromMatcherTruncated
         -- When the FrameMatcher's FindFrame returns a non-nil
         -- content with wasTruncated=true, the framer emits that
@@ -141,8 +151,12 @@ surface FramerTruncation {
         -- the matcher.
 
     @guarantee ForceCutOnMatcherNil
-        -- When the FrameMatcher's FindFrame returns nil content,
-        -- the framer checks whether the un-framed portion of
+        -- When the FrameMatcher's FindFrame returns nil content
+        -- with rawDataLen > 0 (e.g. a stray syslog delimiter),
+        -- the framer consumes those bytes without emitting a
+        -- frame and continues the Process loop. Only when
+        -- FindFrame returns nil content with rawDataLen = 0
+        -- does the framer check whether the un-framed portion of
         -- the buffer has length >= content_len_limit. If so,
         -- the framer cuts the first content_len_limit bytes of
         -- the un-framed portion and emits them with
@@ -161,8 +175,15 @@ surface FramerTruncation {
         -- wasTruncated=true).
         --
         -- Enforcing framings (matcher returns wasTruncated=true
-        -- on over-limit frames, cutting the content at
-        -- content_len_limit):
+        -- on over-limit frames, cutting the content to at most
+        -- content_len_limit bytes; for syslog_framing's
+        -- octet-counted frames, once the buffer reaches the
+        -- limit before the frame completes, the first chunk
+        -- strips the MSG-LEN header and carries
+        -- min(len(buf) - header length, content_len_limit)
+        -- bytes, so it may be shorter than the limit and is
+        -- flagged truncated even when the declared body is
+        -- within the limit):
         --   - utf8_newline
         --   - utf16_be_newline
         --   - utf16_le_newline
@@ -200,8 +221,10 @@ surface FramerTruncation {
         -- FlushFrame returns nil, the loop terminates.
         --
         -- Two matchers produce non-nil Flush-time content:
-        --   - syslogFrameMatcher's FlushFrame (always, when
-        --     buffer is non-empty)
+        --   - syslogFrameMatcher's FlushFrame (whenever the
+        --     remainder is non-empty after stripping one
+        --     trailing LF or NUL and then one CR; a remainder
+        --     that is only such a trailer yields nil)
         --   - oneByteNewLineMatcher's FlushFrame when constructed
         --     with flushPartial=true (utf8_newline_stream framing
         --     only). With flushPartial=false (utf8_newline,
@@ -232,15 +255,21 @@ surface FramerTruncation {
         -- via this end-of-Process flush.
 
     @guarantee IsTruncatedOnEmittedFrame
-        -- The IsTruncated flag is set on the EMITTED frame's
-        -- ParsingExtra.IsTruncated field, on a new
-        -- *message.Message constructed by emitFrame. The
-        -- emitted frame inherits Origin, Status,
-        -- IngestionTimestamp, and ServerlessExtra from the
-        -- input message, but its ParsingExtra is a copy with
-        -- IsTruncated overwritten to the value determined by
-        -- the emission path. The original input message's
-        -- IsTruncated flag is not modified by the framer.
+        -- The IsTruncated flag is set on the EMITTED
+        -- unstructured frame's ParsingExtra.IsTruncated
+        -- field, on a new *message.Message constructed by
+        -- emitFrame. The emitted frame inherits Origin,
+        -- Status, IngestionTimestamp, and ServerlessExtra
+        -- from the input message, but its ParsingExtra is a
+        -- copy with IsTruncated set to the logical OR of the
+        -- value determined by the emission path (as stated
+        -- in the guarantees above) and the input message's
+        -- own ParsingExtra.IsTruncated (for Flush, the last
+        -- input passed to Process). A flag set by the
+        -- producer before framing therefore survives on
+        -- every frame emitted from that input. The original
+        -- input message's IsTruncated flag is not modified
+        -- by the framer.
         -- Each emitted frame's flag is independent of any
         -- other frame's flag emitted from the same Process
         -- call.
@@ -256,14 +285,23 @@ surface FramerTruncation {
         -- flag on the emitted frame's ParsingExtra.
 
     @guarantee NoCarryOverBetweenEmissions
-        -- The truncation flag on emission N+1 is
-        -- independent of the truncation flag on emission N.
-        -- Each emitted frame's IsTruncated is determined
-        -- solely by the buffer state and matcher response
-        -- at the time of that emission. There is no "carry"
+        -- Except as noted below for syslog_framing, the
+        -- truncation flag on emission N+1 is independent of
+        -- the truncation flag on emission N. Each emitted
+        -- frame's IsTruncated is determined solely by the
+        -- buffer state and matcher response at the time of
+        -- that emission (ORed with the input message's flag;
+        -- see IsTruncatedOnEmittedFrame). There is no "carry"
         -- state for truncation analogous to Truncatable's
-        -- prior_carryover; the framer holds no truncation-
-        -- specific state across emissions.
+        -- prior_carryover, and no head-marker carry exists.
+        --
+        -- Exception: syslog_framing's matcher keeps
+        -- oversized-frame state across emissions (the
+        -- overflow mode and, for octet-counted frames, the
+        -- remaining declared body length), and that state
+        -- decides the IsTruncated of the continuation chunks
+        -- of a split frame. Apart from this, the framer holds
+        -- no truncation-specific state across emissions.
 
     @guidance
         -- Configuration immutability: content_len_limit is
@@ -279,9 +317,12 @@ surface FramerTruncation {
         -- package privacy (the field has no exported setter)
         -- rather than a runtime invariant.
         --
-        -- The framer is the upstream signal source for
-        -- truncation in the logs pipeline. Its emitted
-        -- frame's ParsingExtra.IsTruncated is later
+        -- The framer is the main upstream signal source for
+        -- truncation in the logs pipeline. A producer may
+        -- also flag a message before framing (e.g. the
+        -- Windows event tailer in raw mode), and the framer
+        -- preserves that flag on the frames it emits. Its
+        -- emitted frame's ParsingExtra.IsTruncated is later
         -- consumed by Truncatable fulfillers downstream
         -- (legacy decoder handlers, preprocessor
         -- aggregators) via their upstream_truncated input.
@@ -294,3 +335,9 @@ surface FramerTruncation {
         -- category alters the emitted-frame distribution for
         -- that framing.
 }
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "ForceCutPendingTerminator: the force-cut fallback fires when len(buf) >= content_len_limit, so a line of exactly content_len_limit bytes whose newline arrives in a later read is emitted flagged truncated, and the lone newline then yields an empty frame. framer.go's own docs say 'Over this size' and matcher.go says 'A frame that fits whole is never truncated'. The chunked subtests in framer_test.go do not catch this because the chunk() helper's condition is inverted (size <= len(iter)) and never splits input. Should the force-cut wait for a possibly pending terminator (e.g. > limit + terminator length), with chunk() fixed?"

@@ -17,9 +17,9 @@
 --     The chains' contents are runtime configuration; this spec
 --     describes only the evaluation semantics that apply to any
 --     configured pair of chains.
---   - Other Labeler implementations. A trivial passthrough labeller
---     used by log sources that do not enable auto-multiline detection
---     is documented separately.
+--   - Other Labeler implementations. NoopLabeler (always returns
+--     no_aggregate), used by the regex and pass-through pipelines,
+--     has no spec yet.
 
 use "./labeler.allium" as labeler
 
@@ -87,10 +87,11 @@ surface AutoMultilineLabeling {
         -- if the caller violates it. This appears here as a
         -- precondition rather than a positive @guarantee
         -- because there is no defined observable behaviour on
-        -- violation. The Preprocessor's tokenize step is the
-        -- caller in practice; see preprocessor.allium step 2a
-        -- (which produces aligned (tokens, indices) by
-        -- construction).
+        -- violation. The Preprocessor is the caller in practice:
+        -- tokenization is preprocessor.allium step 3a (which
+        -- produces aligned (tokens, indices) by construction),
+        -- and the labeler receives the step-3b labeler window
+        -- (the prefix of those tokens below labeler_max_bytes).
         --
         -- Chain evaluation procedure when label() is invoked on an
         -- AutoMultilineLabeler instance with arguments (content,

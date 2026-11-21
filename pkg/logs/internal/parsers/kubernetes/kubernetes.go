@@ -66,7 +66,9 @@ func parseKubernetes(msg *message.Message) (*message.Message, error) {
 	msg.Status = status
 	msg.ParsingExtra = message.ParsingExtra{
 		IsPartial: isPartial(flag),
-		Stream:    stream,
+		// Keep the framer's truncation signal so downstream handlers can mark the line.
+		IsTruncated: msg.ParsingExtra.IsTruncated,
+		Stream:      stream,
 	}
 	// Optionally tag the stream (stdout/stderr) so downstream consumers can filter by origin.
 	// Controlled by logs_config.add_logsource_tag (disabled by default).
