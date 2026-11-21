@@ -8,6 +8,7 @@ package listeners
 
 import (
 	"net"
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -21,6 +22,8 @@ type ConnectionTracker struct {
 	connToTrack       chan net.Conn
 	connToClose       chan net.Conn
 	stopChan          chan struct{}
+	stopOnce          sync.Once
+	startOnce         sync.Once
 	stoppedChan       chan struct{}
 	closeDelay        time.Duration
 	activeConnections *atomic.Int32
@@ -46,22 +49,33 @@ func NewConnectionTracker(name string, closeDelay time.Duration) *ConnectionTrac
 
 // Start starts the connection tracker.
 func (t *ConnectionTracker) Start() {
-	go t.HandleConnections()
+	t.startOnce.Do(func() { go t.HandleConnections() })
 }
 
 // Track tracks a connection.
 func (t *ConnectionTracker) Track(conn net.Conn) {
-	t.connToTrack <- conn
+	select {
+	case t.connToTrack <- conn:
+	case <-t.stopChan:
+		conn.Close()
+	}
 }
 
 // Close closes a connection.
 func (t *ConnectionTracker) Close(conn net.Conn) {
-	t.connToClose <- conn
+	select {
+	case t.connToClose <- conn:
+	case <-t.stoppedChan:
+		if conn != nil {
+			conn.Close()
+		}
+	}
 }
 
 // HandleConnections handles connections.
 func (t *ConnectionTracker) HandleConnections() {
 	requestStop := false
+	stopChan := t.stopChan
 	for stop := false; !stop; {
 		select {
 		case conn := <-t.connToTrack:
@@ -87,7 +101,8 @@ func (t *ConnectionTracker) HandleConnections() {
 				delete(t.connections, conn)
 				t.activeConnections.Dec()
 			}
-		case <-t.stopChan:
+		case <-stopChan:
+			stopChan = nil
 			log.Infof("dogstatsd-%s: stopping connections", t.name)
 			requestStop = true
 
@@ -108,7 +123,9 @@ func (t *ConnectionTracker) HandleConnections() {
 				}
 			}
 
-			time.Sleep(t.closeDelay)
+			if len(t.connections) != 0 {
+				time.Sleep(t.closeDelay)
+			}
 
 			for c := range t.connections {
 				// Then, we finish closing the connection.
@@ -138,19 +155,13 @@ func (t *ConnectionTracker) HandleConnections() {
 			stop = true
 		}
 	}
-	t.stoppedChan <- struct{}{}
+	close(t.stoppedChan)
 }
 
 // Stop stops the connection tracker.
-// To be called one the listener is stopped, after the server socket has been close.
+// To be called once the listener is stopped, after the server socket has been closed.
 func (t *ConnectionTracker) Stop() {
-	if t.activeConnections.Load() == 0 {
-		return
-	}
-
-	// Request closing connections
-	t.stopChan <- struct{}{}
-
-	// Wait until all connections are closed
+	t.stopOnce.Do(func() { close(t.stopChan) })
+	t.Start()
 	<-t.stoppedChan
 }
