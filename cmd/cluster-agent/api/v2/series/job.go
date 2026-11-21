@@ -73,11 +73,14 @@ func newJobQueue(ctx context.Context) *jobQueue {
 func (jq *jobQueue) start(ctx context.Context) {
 	jq.m.Lock()
 	if jq.isStarted {
+		jq.m.Unlock()
 		return
 	}
 	jq.isStarted = true
 	jq.m.Unlock()
 	defer jq.taskQueue.ShutDown()
+	stopShutdown := context.AfterFunc(ctx, jq.taskQueue.ShutDown)
+	defer stopShutdown()
 	jq.reportTelemetry(ctx)
 	for {
 		select {
@@ -85,7 +88,9 @@ func (jq *jobQueue) start(ctx context.Context) {
 			log.Infof("Stopping series payload job queue")
 			return
 		default:
-			jq.processNextWorkItem()
+			if !jq.processNextWorkItem() {
+				return
+			}
 		}
 	}
 }
@@ -109,6 +114,7 @@ func (jq *jobQueue) addJob(payload *gogen.MetricPayload) {
 func (jq *jobQueue) reportTelemetry(ctx context.Context) {
 	go func() {
 		infoTicker := time.NewTicker(60 * time.Second)
+		defer infoTicker.Stop()
 		for {
 			select {
 			case <-ctx.Done():

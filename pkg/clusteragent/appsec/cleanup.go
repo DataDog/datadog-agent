@@ -42,9 +42,16 @@ func Cleanup(ctx context.Context, logger log.Component, datadogConfig config.Com
 	go func() {
 		// Wait to become leader
 		for !isLeader() {
-			<-leaderNotifChange
+			select {
+			case <-leaderNotifChange:
+			case <-ctx.Done():
+				return
+			}
 		}
 
+		if ctx.Err() != nil {
+			return
+		}
 		for _, pattern := range cleanupInjector.patterns {
 			cleanupPattern(ctx, logger, apiClient.DynamicCl, pattern)
 		}
