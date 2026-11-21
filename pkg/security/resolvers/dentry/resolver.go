@@ -44,7 +44,7 @@ type Caller string
 const (
 	// CallerFile is used for the resolution of the path of a file
 	CallerFile Caller = "file"
-	// CallerFileHardLink is used for the resolution of the path of a file with hard links, which bypasses the cache
+	// CallerFileHardLink is used for the resolution of the path of a file with hard links
 	CallerFileHardLink Caller = "file_hard_link"
 	// CallerMountRoot is used for the resolution of the root of a mount
 	CallerMountRoot Caller = "mount_root"
@@ -392,6 +392,27 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool, caller Cal
 		var pathLeaf model.PathLeaf
 		pathKey.Write(keyBuffer)
 		if err := dr.pathnames.Lookup(keyBuffer, &pathLeaf); err != nil {
+			if cache && depth > 0 {
+				if cachedEntry, cacheErr := dr.lookupInodeFromCache(pathKey); cacheErr == nil {
+					depth++
+					var name []byte
+					if len(cachedEntry.Name) > 0 && cachedEntry.Name[0] == '/' {
+						name = []byte("/")
+					} else if len(cachedEntry.Name) > 0 && cachedEntry.Name[0] != '\x00' {
+						name = []byte(cachedEntry.Name)
+						dr.filenameParts = append(dr.filenameParts, name)
+					}
+					if !model.IsFakeInode(pathKey.Inode) {
+						dr.keys = append(dr.keys, pathKey)
+						dr.cacheNameEntries = append(dr.cacheNameEntries, name)
+					}
+					if cachedEntry.Parent.Inode == 0 {
+						break
+					}
+					pathKey = cachedEntry.Parent
+					continue
+				}
+			}
 			dr.filenameParts = dr.filenameParts[:0]
 			resolutionErr = &ErrDentryPathKeyNotFound{LeafKey: leafKey, PathKey: pathKey, Depth: depth, Caller: caller}
 			break

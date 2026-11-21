@@ -28,8 +28,6 @@ int hook_security_inode_setattr(ctx_t *ctx) {
         iattr = (struct iattr *)param2;
     }
 
-    fill_file(dentry, &syscall->setattr.file);
-
     if (iattr != NULL) {
         int valid;
         bpf_probe_read(&valid, sizeof(valid), &iattr->ia_valid);
@@ -54,6 +52,8 @@ int hook_security_inode_setattr(ctx_t *ctx) {
         pop_syscall_with(security_inode_predicate);
         return 0;
     }
+
+    fill_file(dentry, &syscall->setattr.file);
 
     syscall->setattr.dentry = dentry;
 

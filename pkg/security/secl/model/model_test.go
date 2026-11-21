@@ -13,6 +13,7 @@ import (
 	"net"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -306,4 +307,21 @@ func TestProcessAWSSecurityCredentials(t *testing.T) {
 			t.Errorf("unexpected credentials types: %v", values)
 		}
 	})
+}
+
+func TestFileFieldsHasHardLinks(t *testing.T) {
+	regSingle := FileFields{Mode: syscall.S_IFREG | 0o644, NLink: 1}
+	if regSingle.HasHardLinks() {
+		t.Fatal("expected single-link regular file not to have hardlinks")
+	}
+
+	regHardLink := FileFields{Mode: syscall.S_IFREG | 0o644, NLink: 2}
+	if !regHardLink.HasHardLinks() {
+		t.Fatal("expected multi-link regular file to have hardlinks")
+	}
+
+	dir := FileFields{Mode: syscall.S_IFDIR | 0o755, NLink: 2}
+	if dir.HasHardLinks() {
+		t.Fatal("expected directory with NLink=2 not to have hardlinks")
+	}
 }
