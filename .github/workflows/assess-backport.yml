@@ -5,8 +5,11 @@
 #   1. list-active-branches — find release branches with automated backport-PR labels
 #   2. assess               — Claude reads the merged diff + candidate branches, decides if/where to
 #                              backport (sandboxed: no repo write access, no id-token)
-#   3. apply-labels         — validates Claude's output, applies backport/<branch> label(s) with a
-#                              dd-octo-sts token so backport-pr.yml's `labeled` trigger fires
+#   3. ask-owner            — validates Claude's output, DMs the PR owner on Slack with one
+#                              button per candidate branch and listens (Socket Mode, no public
+#                              endpoint) for up to 2h; on click it applies the backport/<branch>
+#                              label with a dd-octo-sts token so backport-pr.yml's `labeled`
+#                              trigger fires
 #
 # `gh label list --search` does unanchored fuzzy text search, not a prefix/regex filter (e.g.
 # `--search "backport/7"` also matches `backport/6.53.x`), so active branches are resolved here by
@@ -23,6 +26,24 @@ on:
     types: [closed]
     branches:
       - main
+  # Dry-run of the ask-owner flow on any PR from any branch (see test-ask-owner job).
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'PR number to simulate the assessment for'
+        default: '59984'
+      branches:
+        description: 'Comma-separated candidate branches (buttons)'
+        default: '7.85.x,7.86.x'
+      explanation:
+        description: 'Rationale shown in the DM'
+        default: 'Dry-run of the Slack backport buttons'
+      confidence:
+        description: 'Confidence shown in the DM (HIGH|MEDIUM|LOW)'
+        default: 'MEDIUM'
+      ttl:
+        description: 'How long (seconds) to wait for a click'
+        default: '600'
 
 permissions: {}
 
@@ -163,14 +184,31 @@ jobs:
           path: claude.txt
           retention-days: 1
 
-  apply-labels:
-    name: Apply backport labels
+  ask-owner:
+    name: Ask PR owner about backport via Slack
     needs: [list-active-branches, assess]
     if: always() && needs.assess.result == 'success'
     runs-on: ubuntu-latest
+    # Covers the 2h button TTL plus overhead; the Slack listener is the long pole.
+    timeout-minutes: 135
+    # The 'main' protected environment (branch whitelist: main) holds the Socket Mode token:
+    #   SLACK_BACKPORT_APP_TOKEN  xapp-... app-level token with connections:write
+    # The DM is sent with the repo-level SLACK_DATADOG_AGENT_BOT_TOKEN (same Slack app:
+    # bot scopes chat:write, im:write, users:read.email, interactivity over Socket Mode).
+    environment:
+      name: main
     permissions:
-      id-token: write # for dd-octo-sts
+      pull-requests: read # resolve the PR owner's email from their commits
+      id-token: write # for dd-octo-sts (label application)
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install slack_sdk
+        run: pip install --user slack_sdk requests
+
       - name: Download analysis output
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -200,7 +238,7 @@ jobs:
 
             # Keep only branches that are both well-formed and in the active set — never trust
             # the model to name a branch outside what list-active-branches already vetted.
-            IFS=',' read -ra ACTIVE_ARR <<< "$(echo "$ACTIVE_BRANCHES" | tr -d '[]"')"
+            IFS=',' read -ra ACTIVE_ARR <<< "$(echo "$ACTIVE_BRANCHES" | tr -d '[]\"')"
             IFS=',' read -ra CANDIDATE_ARR <<< "$BRANCHES"
             valid=()
             for b in "${CANDIDATE_ARR[@]}"; do
@@ -227,11 +265,28 @@ jobs:
       - name: Fail on unsafe Claude output
         if: steps.validate.outputs.safe != 'true'
         run: |
-          echo "Claude output failed safety check — aborting label application."
+          echo "Claude output failed safety check — aborting."
           exit 1
 
-      - name: Get GitHub token
+      - name: Ask the PR owner via Slack buttons
+        id: slack
         if: steps.validate.outputs.needed == 'true'
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_BACKPORT_APP_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
+          BRANCHES: ${{ steps.validate.outputs.branches }}
+          EXPLANATION: ${{ steps.validate.outputs.explanation }}
+          CONFIDENCE: ${{ steps.validate.outputs.confidence }}
+          SLACK_BUTTON_TTL_SECONDS: '7200'
+        run: python3 .github/scripts/backport_slack_buttons.py
+
+      - name: Get GitHub token
+        if: steps.slack.outputs.outcome == 'add'
         uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
@@ -239,11 +294,11 @@ jobs:
           policy: self.assess-backport.label-pr
 
       - name: Apply backport labels
-        if: steps.validate.outputs.needed == 'true'
+        if: steps.slack.outputs.outcome == 'add'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          BRANCHES: ${{ steps.validate.outputs.branches }}
+          BRANCHES: ${{ steps.slack.outputs.branches }}
           CONFIDENCE: ${{ steps.validate.outputs.confidence }}
           EXPLANATION: ${{ steps.validate.outputs.explanation }}
         with:
@@ -272,3 +327,83 @@ jobs:
                 'If this is wrong, close the created PR(s).',
               ].join('\n'),
             });
+
+  # Dry-run of the ask-owner flow, triggered manually. Unlike ask-owner it skips the
+  # Claude assessment (inputs stand in for its verdict) and reads the Socket Mode token
+  # as a repo-level secret, since the protected 'main' environment is whitelisted for the
+  # main branch only and would block a workflow_dispatch from a feature branch. Once the
+  # pilot is validated, SLACK_BACKPORT_APP_TOKEN should live in the 'main' environment and
+  # this job can be deleted.
+  test-ask-owner:
+    name: "TEST — ask-owner dry run"
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20 # covers the default 10-min input TTL plus overhead
+    # Same protected environment as ask-owner for the Socket Mode token. If the
+    # environment's deployment branch policy only allows main, a dispatch from a
+    # feature branch is blocked — allowlist the test branch temporarily or run the
+    # dry-run after merge.
+    environment:
+      name: main
+    permissions:
+      # addLabels on a PR needs both scopes with GITHUB_TOKEN in practice
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install slack_sdk
+        run: pip install --user slack_sdk requests
+
+      - name: Get PR details
+        id: pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER_INPUT: ${{ inputs.pr }}
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: Number(process.env.PR_NUMBER_INPUT),
+            });
+            core.setOutput('title', pr.title);
+            core.setOutput('url', pr.html_url);
+            core.setOutput('author_login', pr.user.login);
+
+      - name: Ask the PR owner via Slack buttons
+        id: slack
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_BACKPORT_APP_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ inputs.pr }}
+          PR_TITLE: ${{ steps.pr.outputs.title }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+          PR_AUTHOR_LOGIN: ${{ steps.pr.outputs.author_login }}
+          BRANCHES: ${{ inputs.branches }}
+          EXPLANATION: ${{ inputs.explanation }}
+          CONFIDENCE: ${{ inputs.confidence }}
+          SLACK_BUTTON_TTL_SECONDS: ${{ inputs.ttl }}
+        run: python3 .github/scripts/backport_slack_buttons.py
+
+      - name: Apply backport label
+        if: steps.slack.outputs.outcome == 'add'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ inputs.pr }}
+          BRANCHES: ${{ steps.slack.outputs.branches }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const labels = process.env.BRANCHES.split(',').filter(Boolean).map(b => `backport/${b}`);
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(process.env.PR_NUMBER),
+              labels,
+            });
+            core.info(`Added ${labels.join(', ')} — remove after the test so merging this PR does not trigger backports.`);
