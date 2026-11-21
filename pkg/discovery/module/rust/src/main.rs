@@ -53,21 +53,41 @@ static SERVICES_SEMAPHORE: Semaphore = Semaphore::const_new(2);
 static BADREQUEST: &[u8] = b"Bad request";
 static NOTFOUND: &[u8] = b"Not found";
 
-fn remove_pid_file(path: &Path) {
+#[derive(Debug, PartialEq, Eq)]
+enum PidFileRemoval {
+    /// Logged at info.
+    Removed,
+    /// Logged at info.
+    NotPermitted,
+    /// Logged at error.
+    Failed,
+}
+
+fn remove_pid_file(path: &Path) -> PidFileRemoval {
     match std::fs::remove_file(path) {
-        Ok(()) => info!("Removed PID file at {}", path.display()),
+        Ok(()) => {
+            info!("Removed PID file at {}", path.display());
+            PidFileRemoval::Removed
+        }
         // After drop_capabilities() we no longer hold CAP_DAC_OVERRIDE, so
         // unlinking fails when the parent directory is not writable by us (the
         // default run directory is owned by dd-agent). The service manager
-        // removes the file (systemd PIDFile=, upstart post-stop), so this is
-        // expected. Do not fall back to writing through the path: the directory
+        // removes the file (systemd PIDFile=, upstart post-stop), and otherwise
+        // the next start overwrites it since the PID it holds is no longer
+        // running. Do not fall back to writing through the path: the directory
         // owner could have replaced it with a symlink to a root-owned file.
-        Err(e) if e.kind() == ErrorKind::PermissionDenied => info!(
-            "PID file at {} not removed ({}), leaving it to the service manager",
-            path.display(),
-            e
-        ),
-        Err(e) => error!("Failed to remove PID file: {}", e),
+        Err(e) if e.kind() == ErrorKind::PermissionDenied => {
+            info!(
+                "PID file at {} not removed ({}); the service manager removes it, or the next start overwrites it",
+                path.display(),
+                e
+            );
+            PidFileRemoval::NotPermitted
+        }
+        Err(e) => {
+            error!("Failed to remove PID file: {}", e);
+            PidFileRemoval::Failed
+        }
     }
 }
 
@@ -539,7 +559,7 @@ mod tests {
         assert!(pid_path.exists(), "Test file should exist before removal");
 
         // Remove it
-        remove_pid_file(&pid_path);
+        assert_eq!(remove_pid_file(&pid_path), PidFileRemoval::Removed);
 
         assert!(!pid_path.exists(), "PID file should be deleted");
     }
@@ -551,7 +571,7 @@ mod tests {
         let nonexistent_path = temp_dir.path().join("nonexistent.pid");
 
         // Should not panic
-        remove_pid_file(&nonexistent_path);
+        assert_eq!(remove_pid_file(&nonexistent_path), PidFileRemoval::Failed);
 
         // Should still not exist
         assert!(
@@ -579,7 +599,7 @@ mod tests {
         fs::set_permissions(temp_dir.path(), Permissions::from_mode(0o555))
             .unwrap_or_else(|e| panic!("Failed to chmod temp dir: {}", e));
 
-        remove_pid_file(&pid_path);
+        let outcome = remove_pid_file(&pid_path);
 
         let contents = fs::read_to_string(&pid_path)
             .unwrap_or_else(|e| panic!("PID file should still exist: {}", e));
@@ -588,6 +608,9 @@ mod tests {
         fs::set_permissions(temp_dir.path(), Permissions::from_mode(0o755))
             .unwrap_or_else(|e| panic!("Failed to restore temp dir permissions: {}", e));
 
+        // Must not take the error path: this is the expected case after the
+        // capability drop.
+        assert_eq!(outcome, PidFileRemoval::NotPermitted);
         assert_eq!(contents, "12345", "PID file should be left untouched");
     }
 }
