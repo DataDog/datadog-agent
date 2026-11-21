@@ -15,6 +15,7 @@ import (
 	"time"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -54,6 +55,7 @@ type Dependencies struct {
 	Cfg                   cfgcomp.Component
 	Logger                log.Component
 	Tagger                option.Option[tagger.Component]
+	DelegatedAuth         delegatedauth.Component `optional:"true"`
 }
 
 // Provides defines the output of the rcservice component.
@@ -100,6 +102,9 @@ func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
 		remoteconfig.WithConfigRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.config_root")),
 		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.director_root")),
 		remoteconfig.WithRcKey(deps.Cfg.GetString("remote_configuration.key")),
+	}
+	if deps.DelegatedAuth != nil && !deps.Cfg.IsConfigured("remote_configuration.api_key") {
+		options = append(options, remoteconfig.WithWorkloadTokenProvider(deps.DelegatedAuth))
 	}
 	if deps.Params != nil {
 		options = append(options, deps.Params.Options...)

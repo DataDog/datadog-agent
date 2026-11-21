@@ -152,9 +152,10 @@ type CoreAgentService struct {
 	// request that may bypass the usual refresh loop's interval.
 	refreshBypassCh chan<- chan<- struct{}
 
-	clients         *clients
-	orgStatusPoller *orgStatusPoller
-	status          StatusInstance
+	clients                *clients
+	orgStatusPoller        *orgStatusPoller
+	workloadTokenRefresher *workloadTokenRefresher
+	status                 StatusInstance
 
 	// Channels to stop the services main goroutines
 	stopConfigPoller chan struct{}
@@ -285,6 +286,7 @@ func (expvarStatusInstance) SetLastError(err error) {
 type orgStatusPoller struct {
 	refreshInterval time.Duration
 	stopChan        chan struct{}
+	triggerChan     chan struct{}
 
 	mu struct {
 		sync.Mutex
@@ -299,8 +301,17 @@ func newOrgStatusPoller(refreshInterval time.Duration) *orgStatusPoller {
 	p := &orgStatusPoller{
 		refreshInterval: refreshInterval,
 		stopChan:        make(chan struct{}),
+		triggerChan:     make(chan struct{}, 1),
 	}
 	return p
+}
+
+// trigger requests an immediate /api/v0.1/status poll without blocking.
+func (p *orgStatusPoller) trigger() {
+	select {
+	case p.triggerChan <- struct{}{}:
+	default:
+	}
 }
 
 // start begins the periodic polling of org status
@@ -312,6 +323,15 @@ func (p *orgStatusPoller) start(clock clock.Clock, apiClient api.API, rcType str
 			select {
 			case <-timer.C:
 				p.poll(apiClient, rcType, status)
+				timer.Reset(p.refreshInterval)
+			case <-p.triggerChan:
+				p.poll(apiClient, rcType, status)
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
 				timer.Reset(p.refreshInterval)
 			case <-p.stopChan:
 				log.Infof("[%s] Stopping Remote Config org status poller", rcType)
@@ -399,6 +419,7 @@ type options struct {
 	rcKey                          string
 	apiKey                         string
 	parJWT                         string
+	workloadTokenProvider          WorkloadTokenProvider
 	traceAgentEnv                  string
 	databaseFileName               string
 	databaseFilePath               string
@@ -564,6 +585,14 @@ func WithPARJWT(jwt string) func(s *options) {
 	return func(s *options) { s.parJWT = jwt }
 }
 
+// WithWorkloadTokenProvider configures delegated auth workload tokens for
+// ordinary Agent Remote Configuration ("remote_config" grant). Ignored if a
+// PAR JWT or explicit remote_configuration.api_key is configured, or if
+// delegated auth is not managing "api_key".
+func WithWorkloadTokenProvider(provider WorkloadTokenProvider) func(s *options) {
+	return func(s *options) { s.workloadTokenProvider = provider }
+}
+
 // WithClientCacheBypassLimit validates and sets the service client cache bypass limit
 func WithClientCacheBypassLimit(limit int, cfgPath string) func(s *options) {
 	if limit < minCacheBypassLimit || limit > maxCacheBypassLimit {
@@ -716,6 +745,12 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval),
 		status:                              options.statusInstance,
 	}
+	if options.workloadTokenProvider != nil &&
+		options.parJWT == "" &&
+		!cfg.IsConfigured("remote_configuration.api_key") &&
+		options.workloadTokenProvider.IsInstanceManaged(delegatedAuthPrimaryAPIKey) {
+		cas.workloadTokenRefresher = newWorkloadTokenRefresher(options.workloadTokenProvider)
+	}
 	cas.mu.subscriptions = newSubscriptions(
 		options.subscriptionProductMappings,
 		options.maxSubscriptionQueueSize,
@@ -759,6 +794,9 @@ func (s *CoreAgentService) Start() {
 	refreshBypassCh := make(chan chan<- struct{})
 	s.refreshBypassCh = refreshBypassCh
 	s.orgStatusPoller.start(s.clock, s.api, s.rcType, s.status)
+	if s.workloadTokenRefresher != nil {
+		s.workloadTokenRefresher.start(s.clock, s.api, s.rcType, s.orgStatusPoller.trigger)
+	}
 
 	go func() {
 		if s.disableConfigPollLoop {
@@ -772,6 +810,10 @@ func (s *CoreAgentService) Start() {
 // UpdatePARJWT updates the stored JWT for Private Action Runners
 // for authentication to the remote config backend.
 func (s *CoreAgentService) UpdatePARJWT(jwt string) {
+	if jwt != "" && s.workloadTokenRefresher != nil {
+		s.workloadTokenRefresher.stop()
+		s.api.UpdateWorkloadToken("")
+	}
 	s.api.UpdatePARJWT(jwt)
 }
 
@@ -849,6 +891,9 @@ func (s *CoreAgentService) logRefreshError(err error) {
 func (s *CoreAgentService) Stop() error {
 	var err error
 	s.stopOnce.Do(func() {
+		if s.workloadTokenRefresher != nil {
+			s.workloadTokenRefresher.stop()
+		}
 		s.orgStatusPoller.stop()
 		close(s.stopConfigPoller)
 

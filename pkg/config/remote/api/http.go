@@ -32,6 +32,8 @@ const (
 	pollEndpoint      = "/api/v0.1/configurations"
 	orgDataEndpoint   = "/api/v0.1/org"
 	orgStatusEndpoint = "/api/v0.1/status"
+
+	workloadTokenHeader = "DD-Workload-Token"
 )
 
 var (
@@ -56,6 +58,7 @@ type API interface {
 	FetchOrgStatus(context.Context) (*pbgo.OrgStatusResponse, error)
 	UpdatePARJWT(string)
 	UpdateAPIKey(string)
+	UpdateWorkloadToken(string)
 }
 
 // Auth defines the possible Authentication data to access the RC backend
@@ -255,11 +258,24 @@ func (c *HTTPClient) UpdatePARJWT(jwt string) {
 	c.headerLock.Unlock()
 }
 
-// UpdateAPIKey allows for dynamic setting of a Private Action Runners JWT
-// Token for authentication to the RC backend.
+// UpdateAPIKey allows for dynamic setting of the API key used for
+// authentication to the RC backend.
 func (c *HTTPClient) UpdateAPIKey(apiKey string) {
 	c.headerLock.Lock()
 	c.header["DD-Api-Key"] = []string{apiKey}
+	c.headerLock.Unlock()
+}
+
+// UpdateWorkloadToken sets or clears the DD-Workload-Token header used to
+// authorize Remote Configuration for WIF intake mappings (distinct from
+// DD-Api-Key and DD-PAR-JWT). Passing an empty string removes the header.
+func (c *HTTPClient) UpdateWorkloadToken(token string) {
+	c.headerLock.Lock()
+	if token == "" {
+		c.header.Del(workloadTokenHeader)
+	} else {
+		c.header.Set(workloadTokenHeader, token)
+	}
 	c.headerLock.Unlock()
 }
 
