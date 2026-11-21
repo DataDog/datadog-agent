@@ -182,6 +182,30 @@ func TestTickErrorDoesNotResolveActiveIssues(t *testing.T) {
 	s.checkMux.RUnlock()
 }
 
+func TestTickNotReadyKeepsRestoredIssues(t *testing.T) {
+	store := storemock.New(t)
+	runner := runnermock.New(t, store, runnermock.WithRunFunc(
+		func(_ string, _ runnerdef.HealthCheckFunc) ([]string, error) {
+			return nil, runnerdef.ErrNotReady
+		},
+	))
+	s := newTestScheduler(t, runner, store)
+
+	check := &registeredHealthCheck{
+		source:       "mycomp",
+		fn:           func() ([]runnerdef.IssueReport, error) { return nil, nil },
+		lastIssueIDs: map[string]struct{}{"restored": {}},
+		stopCh:       make(chan struct{}),
+	}
+	s.checks["mycomp"] = check
+
+	s.tick(check)
+	assert.Empty(t, store.ResolvedIDs(), "a not-ready check must not resolve issues restored from a previous run")
+	s.checkMux.RLock()
+	assert.Equal(t, map[string]struct{}{"restored": {}}, check.lastIssueIDs)
+	s.checkMux.RUnlock()
+}
+
 func TestSchedulerLifecycle(t *testing.T) {
 	var callCount int32
 	store := storemock.New(t)
