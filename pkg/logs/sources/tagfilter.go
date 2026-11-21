@@ -6,7 +6,8 @@
 package sources
 
 // TagFilter removes tags before intake encoding. It lives here to avoid an import
-// cycle; implementations must be immutable and must not mutate Keep's input.
+// cycle; implementations must be immutable, must not mutate Keep's input, and
+// must decide each tag from its own key and value alone.
 type TagFilter interface {
 	// Keep returns the tags that survive the filter, preserving order. It may
 	// return the input slice itself when nothing is removed.

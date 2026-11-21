@@ -44,6 +44,7 @@ type DatagramTailer struct {
 	onError         func() // called when tail() exits due to a transient read error; used by listeners to reset the connection
 	ipFilter        *ipfilter.Filter
 	denialInfo      *ipfilter.DenialInfo
+	tagSnapshots    message.TagSnapshotter
 }
 
 // NewDatagramTailer returns a new DatagramTailer.
@@ -112,7 +113,7 @@ func (t *DatagramTailer) forwardMessages() {
 	for output := range t.decoder.OutputChan() {
 		if output.HasContent() {
 			origin := message.NewOrigin(t.source)
-			origin.SetTags(output.ParsingExtra.Tags)
+			origin.SetTagsWithSnapshot(output.ParsingExtra.Tags, t.tagSnapshots.Get(t.source, nil, nil), output.ParsingExtra.Tags)
 
 			output.Origin = origin
 			t.outputChan <- output
