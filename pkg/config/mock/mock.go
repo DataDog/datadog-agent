@@ -100,11 +100,13 @@ func NewSystemProbe(t testing.TB) model.BuildableConfig {
 	}
 
 	// Configure Datadog global configuration
-	setup.SetSystemProbe(create.NewConfig("system-probe")) // nolint forbidigo legitimate use of SetSystemProbe
+	newCfg := create.NewConfig("system-probe")
 	// Configuration defaults
-	setup.InitSystemProbeConfig(setup.GlobalSystemProbeConfigBuilder())
-	setup.SystemProbe().SetTestOnlyDynamicSchema(true)
-	return &mockConfig{setup.GlobalSystemProbeConfigBuilder()}
+	setup.SetSystemProbe(newCfg) // nolint forbidigo legitimate use of SetSystemProbe
+	setup.InitSystemProbeConfig(newCfg)
+	newCfg.BuildSchema()
+	newCfg.SetTestOnlyDynamicSchema(true)
+	return &mockConfig{newCfg}
 }
 
 // SetDefaultConfigType sets the config type for the mock config in use
