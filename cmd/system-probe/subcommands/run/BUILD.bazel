@@ -79,12 +79,14 @@ go_library(
         "//pkg/system-probe/utils",
         "//pkg/util/coredump",
         "//pkg/util/fxutil",
+        "//pkg/util/fxutil/logging",
         "//pkg/util/log",
         "//pkg/util/profiling",
         "//pkg/version",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",
+        "@org_uber_go_fx//fxevent",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/discovery/module/splite",

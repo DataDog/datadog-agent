@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -71,7 +72,8 @@ func withModule(name sysconfigtypes.ModuleName, fn func()) {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
-func Register(cfg *sysconfigtypes.Config, httpMux *http.ServeMux, factories []*Factory, rcclient rcclient.Component, deps FactoryDependencies) error {
+func Register(cfg *sysconfigtypes.Config, httpMux *http.ServeMux, factories []*Factory, rcclient rcclient.Component, deps FactoryDependencies, startupPhase *logging.StartupPhase) error {
+	phase := startupPhase.StartPhase("modules.select_enabled")
 	var enabledModulesFactories []*Factory
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
@@ -80,38 +82,23 @@ func Register(cfg *sysconfigtypes.Config, httpMux *http.ServeMux, factories []*F
 		}
 		enabledModulesFactories = append(enabledModulesFactories, factory)
 	}
+	phase.Finish(nil)
 
-	if err := preRegister(cfg, rcclient, deps.Telemetry, enabledModulesFactories); err != nil {
+	phase = startupPhase.StartPhase("modules.preRegister")
+	err := preRegister(cfg, rcclient, deps.Telemetry, enabledModulesFactories)
+	phase.Finish(err)
+	if err != nil {
 		return fmt.Errorf("error in pre-register hook: %w", err)
 	}
 
 	for _, factory := range enabledModulesFactories {
-		var err error
-		var module Module
-		withModule(factory.Name, func() {
-			module, err = factory.Fn(cfg, deps)
-		})
-
-		// In case a module failed to be started, do not make the whole `system-probe` abort.
-		// Let `system-probe` run the other modules.
-		if err != nil {
-			l.moduleError(factory.Name, err)
-			log.Errorf("error creating module %s: %s", factory.Name, err)
-			continue
-		}
-
-		subRouter := NewRouter(string(factory.Name), httpMux)
-		if err = module.Register(subRouter); err != nil {
-			l.moduleError(factory.Name, err)
-			log.Errorf("error registering HTTP endpoints for module %s: %s", factory.Name, err)
-			continue
-		}
-
-		l.registerModule(factory.Name, module, subRouter)
-		log.Infof("module %s started", factory.Name)
+		l.registerFactory(cfg, httpMux, factory, deps, startupPhase)
 	}
 
-	if err := postRegister(cfg, enabledModulesFactories); err != nil {
+	phase = startupPhase.StartPhase("modules.postRegister")
+	err = postRegister(cfg, enabledModulesFactories)
+	phase.Finish(err)
+	if err != nil {
 		return fmt.Errorf("error in post-register hook: %w", err)
 	}
 
@@ -123,8 +110,11 @@ func Register(cfg *sysconfigtypes.Config, httpMux *http.ServeMux, factories []*F
 	}
 	l.Unlock()
 
+	phase = startupPhase.StartPhase("modules.configure_telemetry")
 	l.configureTelemetry(deps.Telemetry)
+	phase.Finish(nil)
 
+	phase = startupPhase.StartPhase("modules.stats.launch")
 	l.Lock()
 	l.stats = make(map[string]any)
 	l.forEachModule(func(name sysconfigtypes.ModuleName, mod Module) {
@@ -132,8 +122,40 @@ func Register(cfg *sysconfigtypes.Config, httpMux *http.ServeMux, factories []*F
 	})
 	l.Unlock()
 	go updateGlobalStats()
+	phase.Finish(nil)
 
 	return nil
+}
+
+func (l *loader) registerFactory(cfg *sysconfigtypes.Config, httpMux *http.ServeMux, factory *Factory, deps FactoryDependencies, startupPhase *logging.StartupPhase) {
+	// Factory names are fixed module identifiers, not configuration values.
+	phase := startupPhase.StartPhase("module." + string(factory.Name) + ".create")
+	var err error
+	var module Module
+	withModule(factory.Name, func() {
+		module, err = factory.Fn(cfg, deps)
+	})
+	phase.Finish(err)
+
+	// A failed module must not prevent other modules from starting.
+	if err != nil {
+		l.moduleError(factory.Name, err)
+		log.Errorf("error creating module %s: %s", factory.Name, err)
+		return
+	}
+
+	phase = startupPhase.StartPhase("module." + string(factory.Name) + ".register")
+	subRouter := NewRouter(string(factory.Name), httpMux)
+	err = module.Register(subRouter)
+	phase.Finish(err)
+	if err != nil {
+		l.moduleError(factory.Name, err)
+		log.Errorf("error registering HTTP endpoints for module %s: %s", factory.Name, err)
+		return
+	}
+
+	l.registerModule(factory.Name, module, subRouter)
+	log.Infof("module %s started", factory.Name)
 }
 
 func (l *loader) registerModule(name sysconfigtypes.ModuleName, module Module, subRouter *Router) {
@@ -169,6 +191,11 @@ func GetStats() map[string]any {
 
 // Close each registered module
 func Close() {
+	CloseWithTrace(nil)
+}
+
+// CloseWithTrace records each module teardown without changing the close order.
+func CloseWithTrace(trace *logging.StartupPhase) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -180,9 +207,17 @@ func Close() {
 	l.forEachModule(func(name sysconfigtypes.ModuleName, mod Module) {
 		currentRouter, ok := l.routers[name]
 		if ok {
+			phase := trace.StartPhase("module." + string(name) + ".unregister")
 			currentRouter.Unregister()
+			phase.Finish(nil)
 		}
-		mod.Close()
+		phase := trace.StartPhase("module." + string(name) + ".close")
+		if traced, ok := mod.(interface{ CloseWithTrace(*logging.StartupPhase) }); ok {
+			traced.CloseWithTrace(phase)
+		} else {
+			mod.Close()
+		}
+		phase.Finish(nil)
 		delete(l.modules, name)
 	})
 }

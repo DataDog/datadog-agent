@@ -20,6 +20,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
 
 	"github.com/DataDog/dd-trace-go/v2/profiler"
 
@@ -278,6 +279,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 // run starts the main loop.
 func run(log log.Component,
+	fxLogger fxevent.Logger,
 	cfg config.Component,
 	flare flare.Component,
 	tlm telemetry.Component,
@@ -334,7 +336,7 @@ func run(log log.Component,
 	gpuReadiness *gpu.Readiness,
 ) error {
 	defer func() {
-		stopAgent(cfg, sysprobeConf)
+		stopAgentWithTrace(cfg, sysprobeConf, logging.StartShutdownTrace(fxLogger))
 	}()
 
 	// Handle SIGDANGER (AIX paging space low); no-op on other platforms.
@@ -376,6 +378,7 @@ func run(log log.Component,
 
 	if err := startAgent(
 		log,
+		fxLogger,
 		flare,
 		tlm,
 		server,
@@ -624,6 +627,7 @@ func getSharedFxOption() fx.Option {
 // startAgent Initializes the agent process
 func startAgent(
 	log log.Component,
+	fxLogger fxevent.Logger,
 	flare flare.Component,
 	tlm telemetry.Component,
 	server dogstatsdServer.Component,
@@ -649,41 +653,57 @@ func startAgent(
 	healthplatformComp healthplatformdef.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
 	gpuReadiness *gpu.Readiness,
-) error {
-	var err error
-
+) (err error) {
+	startupTrace := logging.StartStartupTrace(fxLogger, "startAgent", version.AgentVersion)
 	span, _ := agenttelemetryComponent.StartStartupSpan("agent.startAgent")
 	defer func() {
+		startupTrace.Finish(err)
 		span.Finish(err)
 	}()
 
+	phase := startupTrace.StartPhase("startup.log")
 	if flavor.GetFlavor() == flavor.IotAgent {
 		log.Infof("Starting Datadog IoT Agent v%v", version.AgentVersion)
 	} else {
 		log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	}
+	phase.Finish(nil)
 
-	if err := coredump.Setup(cfg); err != nil {
-		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	phase = startupTrace.StartPhase("coredump.Setup")
+	coredumpErr := coredump.Setup(cfg)
+	phase.Finish(coredumpErr)
+	if coredumpErr != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", coredumpErr)
 	}
 
+	phase = startupTrace.StartPhase("profiling.configure_allocations")
 	if v := cfg.GetBool("internal_profiling.capture_all_allocations"); v {
 		runtime.MemProfileRate = 1
 		log.Infof("MemProfileRate set to 1, capturing every single memory allocation!")
 	}
+	phase.Finish(nil)
 
 	// Setup Internal Profiling
+	phase = startupTrace.StartPhase("common.SetupInternalProfiling")
 	common.SetupInternalProfiling(settings, cfg, "")
+	phase.Finish(nil)
 
+	phase = startupTrace.StartPhase("common.GetMainCtxCancel")
 	ctx, _ := pkgcommon.GetMainCtxCancel()
+	phase.Finish(nil)
+	phase = startupTrace.StartPhase("procmgr.StartReporter")
 	procmgrcoat.StartReporter(ctx, tlm)
+	phase.Finish(nil)
 
 	// Setup expvar server
+	phase = startupTrace.StartPhase("telemetry.Handler")
 	telemetryHandler := tlm.Handler()
-
 	http.Handle("/telemetry", telemetryHandler)
+	phase.Finish(nil)
 
+	phase = startupTrace.StartPhase("hostname.Get")
 	hostnameDetected, err := hostname.Get(context.TODO())
+	phase.Finish(err)
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
@@ -692,64 +712,108 @@ func startAgent(
 	// start remote configuration management
 	if configUtils.IsRemoteConfigEnabled(cfg) {
 		// Subscribe to `AGENT_TASK` product
+		phase = startupTrace.StartPhase("rcclient.SubscribeAgentTask")
 		rcclient.SubscribeAgentTask()
+		phase.Finish(nil)
+		phase = startupTrace.StartPhase("datastreams.NewActionsController")
 		actionsController := datastreams.NewActionsController(ac, rcclient)
+		phase.Finish(nil)
+		phase = startupTrace.StartPhase("autodiscovery.AddConfigProvider.agent_tasks")
 		ac.AddConfigProvider(actionsController, false, 0)
+		phase.Finish(nil)
 
 		if configUtils.IsDataSecurityEnabled(cfg) {
+			phase = startupTrace.StartPhase("datasecurity.NewController")
 			dataSecurityController := datasecurity.NewController(ac, rcclient, cfg.GetBool("data_security.enforce_ssl"))
+			phase.Finish(nil)
+			phase = startupTrace.StartPhase("autodiscovery.AddConfigProvider.data_security")
 			ac.AddConfigProvider(dataSecurityController, false, 0)
+			phase.Finish(nil)
 		}
 	}
 
 	// start clc runner server
 	// only start when the cluster agent is enabled and a cluster check runner host is enabled
 	if cfg.GetBool("cluster_agent.enabled") && cfg.GetBool("clc_runner_enabled") {
-		if err = clcrunnerapi.StartCLCRunnerServer(map[string]http.Handler{
+		phase = startupTrace.StartPhase("clcrunnerapi.StartCLCRunnerServer")
+		err = clcrunnerapi.StartCLCRunnerServer(map[string]http.Handler{
 			"/telemetry": telemetryHandler,
-		}, ac, ipc); err != nil {
+		}, ac, ipc)
+		phase.Finish(err)
+		if err != nil {
 			return log.Errorf("Error while starting clc runner api server, exiting: %v", err)
 		}
 	}
 
 	// Create the Leader election engine without initializing it
 	if cfg.GetBool("leader_election") {
+		phase = startupTrace.StartPhase("leaderelection.CreateGlobalLeaderEngine")
 		leaderelection.CreateGlobalLeaderEngine(ctx)
+		phase.Finish(nil)
 	}
 
 	// Setup stats telemetry handler
-	if sender, err := demultiplexer.GetDefaultSender(); err == nil {
+	phase = startupTrace.StartPhase("demultiplexer.GetDefaultSender")
+	sender, senderErr := demultiplexer.GetDefaultSender()
+	phase.Finish(senderErr)
+	if senderErr == nil {
 		// TODO: to be removed when default telemetry is enabled.
+		phase = startupTrace.StartPhase("telemetry.RegisterStatsSender")
 		telemetry.RegisterStatsSender(sender)
+		phase.Finish(nil)
 	}
 
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
+	phase = startupTrace.StartPhase("installinfo.LogVersionHistory")
 	installinfo.LogVersionHistory()
+	phase.Finish(nil)
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
+	phase = startupTrace.StartPhase("check.InitializeInventoryChecksContext")
 	check.InitializeInventoryChecksContext(invChecks)
+	phase.Finish(nil)
 
 	// Init JMX runner and inject dogstatsd component
+	phase = startupTrace.StartPhase("jmxfetch.InitRunner")
 	jmxfetch.InitRunner(server, jmxLogger, ipc)
+	phase.Finish(nil)
+	phase = startupTrace.StartPhase("jmxfetch.RegisterWith")
 	jmxfetch.RegisterWith(ac)
+	phase.Finish(nil)
 
 	// Set up check collector
+	phase = startupTrace.StartPhase("commonchecks.RegisterChecks")
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp, gpuReadiness)
+	phase.Finish(nil)
+	phase = startupTrace.StartPhase("collector.InitCheckScheduler")
 	checkScheduler := pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore)
+	phase.Finish(nil)
+	phase = startupTrace.StartPhase("metriclookback.NewSenderManager")
 	checkScheduler.SetMetricLookbackShadowSenderManager(metricLookback.NewSenderManager(ctx, hostnameDetected))
+	phase.Finish(nil)
+	phase = startupTrace.StartPhase("autodiscovery.AddScheduler")
 	ac.AddScheduler("check", checkScheduler, true)
+	phase.Finish(nil)
 
+	phase = startupTrace.StartPhase("demultiplexer.AddAgentStartupTelemetry")
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
+	phase.Finish(nil)
 
 	// LoadAndRun joins preloading before snapshotting and starting the providers.
-	if err = ac.LoadAndRun(ctx); err != nil {
+	phase = startupTrace.StartPhase("autodiscovery.LoadAndRun")
+	err = ac.LoadAndRun(ctx)
+	phase.Finish(err)
+	if err != nil {
 		return err
 	}
 
 	// check for common misconfigurations and report them to log
+	phase = startupTrace.StartPhase("misconfig.ToLog")
 	misconfig.ToLog(misconfig.CoreAgent)
+	phase.Finish(nil)
 
 	// Register Diagnose functions
+	phase = startupTrace.StartPhase("diagnose.register")
 	diagnosecatalog := diagnose.GetCatalog()
 
 	diagnosecatalog.Register(diagnose.CheckDatadog, func(_ diagnose.Config) []diagnose.Diagnosis {
@@ -782,11 +846,14 @@ func startAgent(
 		}
 		return healthplatform.Diagnose(healthplatformComp, diagCfg)
 	})
+	phase.Finish(nil)
 
 	// start dependent services
 	// runs in the background because the agent might be in service start pending
 	// and not service running yet, and as such, the call will block or fail
+	phase = startupTrace.StartPhase("startDependentServicesAsync.launch")
 	startDependentServicesAsync(cfg, sysprobeConf)
+	phase.Finish(nil)
 
 	return nil
 }
@@ -798,27 +865,45 @@ func StopAgentWithDefaults(cfg config.Component, sysprobeConf sysprobeconfig.Com
 
 // stopAgent Tears down the agent process
 func stopAgent(cfg config.Component, sysprobeConf sysprobeconfig.Component) {
+	stopAgentWithTrace(cfg, sysprobeConf, nil)
+}
+
+func stopAgentWithTrace(cfg config.Component, sysprobeConf sysprobeconfig.Component, trace *logging.StartupTrace) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
+	phase := trace.StartPhase("health.GetReadyNonBlocking")
 	health, err := health.GetReadyNonBlocking()
+	phase.Finish(err)
 	if err != nil {
 		pkglog.Warnf("Agent health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {
 		pkglog.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
 
+	phase = trace.StartPhase("clcrunnerapi.StopCLCRunnerServer")
 	clcrunnerapi.StopCLCRunnerServer()
+	phase.Finish(nil)
+	phase = trace.StartPhase("jmxfetch.StopJmxfetch")
 	jmxfetch.StopJmxfetch()
+	phase.Finish(nil)
 
+	phase = trace.StartPhase("profiler.Stop")
 	profiler.Stop()
+	phase.Finish(nil)
 
 	// gracefully shut down any component
+	phase = trace.StartPhase("main_context.cancel")
 	_, cancel := pkgcommon.GetMainCtxCancel()
 	cancel()
+	phase.Finish(nil)
 
 	// shutdown dependent services
+	phase = trace.StartPhase("stopDependentServices")
 	stopDependentServices(cfg, sysprobeConf)
+	phase.Finish(nil)
 
+	phase = trace.StartPhase("log.Flush")
 	pkglog.Info("See ya!")
 	pkglog.Flush()
+	phase.Finish(nil)
 }

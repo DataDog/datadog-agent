@@ -233,6 +233,7 @@ go_library(
         "@com_github_datadog_dd_trace_go_v2//profiler",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",
+        "@org_uber_go_fx//fxevent",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//comp/softwareinventory/fx",

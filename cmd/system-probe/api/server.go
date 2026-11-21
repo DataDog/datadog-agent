@@ -24,19 +24,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
-func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclient rcclient.Component, deps module.FactoryDependencies) error {
+func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclient rcclient.Component, deps module.FactoryDependencies, startupPhase *logging.StartupPhase) error {
+	phase := startupPhase.StartPhase("server.NewListener")
 	conn, err := server.NewListener(cfg.SocketAddress)
+	phase.Finish(err)
 	if err != nil {
 		return err
 	}
 
 	mux := http.NewServeMux()
 
-	err = module.Register(cfg, mux, modules.All(), rcclient, deps)
+	phase = startupPhase.StartPhase("module.Register")
+	err = module.Register(cfg, mux, modules.All(), rcclient, deps, phase)
+	phase.Finish(err)
 	if err != nil {
 		_ = conn.Close()
 		return fmt.Errorf("failed to create system probe: %s", err)
@@ -45,6 +50,7 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 	// Register stats endpoint. Note that this endpoint is also used by core
 	// agent checks as a means to check if system-probe is ready to serve
 	// requests, see pkg/system-probe/api/client.
+	phase = startupPhase.StartPhase("api.register_handlers")
 	mux.HandleFunc("/debug/stats", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		utils.WriteAsJSON(req, w, module.GetStats(), utils.CompactOutput)
 	}))
@@ -73,17 +79,22 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 
 	// Register /coverage endpoint for computing code coverage (e2ecoverage build only).
 	coverage.SetupCoverageHandler(mux)
+	phase.Finish(nil)
 
 	if cfg.PacketCaptureSocket != "" {
+		phase = startupPhase.StartPhase("startPacketCaptureServer")
 		startPacketCaptureServer(cfg.PacketCaptureSocket, mux)
+		phase.Finish(nil)
 	}
 
+	phase = startupPhase.StartPhase("http.Serve.launch")
 	go func() {
-		err = http.Serve(conn, mux)
+		err := http.Serve(conn, mux)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Errorf("error creating HTTP server: %s", err)
 		}
 	}()
+	phase.Finish(nil)
 
 	return nil
 }

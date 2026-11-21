@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
 
 const (
@@ -204,17 +205,42 @@ func (p *Probe) SendStats() error {
 
 // Close the probe
 func (p *Probe) Close() error {
+	return p.CloseWithTrace(nil)
+}
+
+// CloseWithTrace records platform probe cleanup when the platform supports it.
+func (p *Probe) CloseWithTrace(trace *logging.StartupPhase) error {
+	if traced, ok := p.PlatformProbe.(interface {
+		CloseWithTrace(*logging.StartupPhase) error
+	}); ok {
+		return traced.CloseWithTrace(trace)
+	}
 	return p.PlatformProbe.Close()
 }
 
 // Stop the probe
 func (p *Probe) Stop() {
+	p.StopWithTrace(nil)
+}
+
+// StopWithTrace records producer shutdown before event consumers are stopped.
+func (p *Probe) StopWithTrace(trace *logging.StartupPhase) {
+	phase := trace.StartPhase("probe.cancel")
 	if p.cancelFnc != nil {
 		p.cancelFnc()
 	}
+	phase.Finish(nil)
+	phase = trace.StartPhase("probe.workers.Wait")
 	p.wg.Wait()
+	phase.Finish(nil)
 
-	p.PlatformProbe.Stop()
+	phase = trace.StartPhase("probe.PlatformProbe.Stop")
+	if traced, ok := p.PlatformProbe.(interface{ StopWithTrace(*logging.StartupPhase) }); ok {
+		traced.StopWithTrace(phase)
+	} else {
+		p.PlatformProbe.Stop()
+	}
+	phase.Finish(nil)
 }
 
 // FlushDiscarders invalidates all the discarders

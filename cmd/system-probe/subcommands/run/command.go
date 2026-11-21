@@ -21,6 +21,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
@@ -87,6 +88,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -291,6 +293,7 @@ func coreAgentFxOptions(coreAgentIPC bool) fx.Option {
 // run starts the main loop.
 func run(
 	_ config.Component,
+	fxLogger fxevent.Logger,
 	rcclient rcclient.Component,
 	_ pid.Component,
 	_ healthprobe.Component,
@@ -299,14 +302,19 @@ func run(
 	_ ipc.Component,
 	deps module.FactoryDependencies,
 ) error {
-	defer stopSystemProbe()
+	defer func() { stopSystemProbe(logging.StartShutdownTrace(fxLogger)) }()
 
+	startupTrace := logging.StartStartupTrace(fxLogger, "startSystemProbe", version.AgentVersion)
 	if deps.SysprobeConfig.GetBool("system_probe_config.disable_thp") {
-		if err := ddruntime.DisableTransparentHugePages(); err != nil {
+		phase := startupTrace.StartPhase("runtime.DisableTransparentHugePages")
+		err := ddruntime.DisableTransparentHugePages()
+		phase.Finish(err)
+		if err != nil {
 			deps.Log.Warnf("cannot disable transparent huge pages, performance may be degraded: %s", err)
 		}
 	}
 
+	phase := startupTrace.StartPhase("signals.setup")
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
@@ -341,7 +349,8 @@ func run(
 		}
 	}()
 
-	if err := startSystemProbe(rcclient, settings, deps); err != nil {
+	phase.Finish(nil)
+	if err := startSystemProbe(rcclient, settings, deps, startupTrace); err != nil {
 		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -355,39 +364,62 @@ func run(
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(rcclient rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
-	var err error
+func startSystemProbe(rcclient rcclient.Component, settings settings.Component, deps module.FactoryDependencies, startupTrace *logging.StartupTrace) (err error) {
+	defer func() {
+		// A disabled or externally managed system-probe is an expected exit.
+		if errors.Is(err, ErrNotEnabled) {
+			startupTrace.Finish(nil)
+		} else {
+			startupTrace.Finish(err)
+		}
+	}()
+	phase := startupTrace.StartPhase("sysprobeconfig.SysProbeObject")
 	cfg := deps.SysprobeConfig.SysProbeObject()
+	phase.Finish(nil)
 
+	phase = startupTrace.StartPhase("startup.log")
 	deps.Log.Infof("starting system-probe v%v", version.AgentVersion)
+	phase.Finish(nil)
 
+	phase = startupTrace.StartPhase("logUserAndGroupID")
 	logUserAndGroupID(deps.Log)
+	phase.Finish(nil)
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
 		deps.Log.Info("system probe not enabled. exiting")
 		return ErrNotEnabled
 	}
 
-	if err := coredump.Setup(deps.SysprobeConfig); err != nil {
-		deps.Log.Warnf("cannot setup core dumps: %s, core dumps might not be available after a crash", err)
+	phase = startupTrace.StartPhase("coredump.Setup")
+	coredumpErr := coredump.Setup(deps.SysprobeConfig)
+	phase.Finish(coredumpErr)
+	if coredumpErr != nil {
+		deps.Log.Warnf("cannot setup core dumps: %s, core dumps might not be available after a crash", coredumpErr)
 	}
 
 	if deps.SysprobeConfig.GetBool("system_probe_config.memory_controller.enabled") {
+		phase = startupTrace.StartPhase("utils.NewMemoryMonitor")
 		memoryPressureLevels := deps.SysprobeConfig.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
 		memoryThresholds := deps.SysprobeConfig.GetStringMapString("system_probe_config.memory_controller.thresholds")
 		hierarchy := deps.SysprobeConfig.GetString("system_probe_config.memory_controller.hierarchy")
 		common.MemoryMonitor, err = utils.NewMemoryMonitor(hierarchy, env.IsContainerized(), memoryPressureLevels, memoryThresholds)
+		phase.Finish(err)
 		if err != nil {
 			deps.Log.Warnf("cannot set up memory controller: %s", err)
 		} else {
+			phase = startupTrace.StartPhase("MemoryMonitor.Start")
 			common.MemoryMonitor.Start()
+			phase.Finish(nil)
 		}
 	}
 
+	phase = startupTrace.StartPhase("setupInternalProfiling")
 	setupInternalProfiling(settings, deps.SysprobeConfig, configPrefix, deps.Log)
+	phase.Finish(nil)
 
 	if isValidPort(cfg.DebugPort) {
 		if cfg.TelemetryEnabled {
+			phase = startupTrace.StartPhase("telemetry.register_collectors")
 			http.Handle("/telemetry", deps.Telemetry.Handler())
 			deps.Telemetry.RegisterCollector(ebpftelemetry.NewDebugFsStatCollector())
 			if pc := ebpftelemetry.NewPerfUsageCollector(); pc != nil {
@@ -399,7 +431,9 @@ func startSystemProbe(rcclient rcclient.Component, settings settings.Component, 
 			if ec := ebpftelemetry.NewEBPFErrorsCollector(); ec != nil {
 				deps.Telemetry.RegisterCollector(ec)
 			}
+			phase.Finish(nil)
 		}
+		phase = startupTrace.StartPhase("expvar.launch")
 		go func() {
 			common.ExpvarServer = &http.Server{
 				Addr:    fmt.Sprintf("127.0.0.1:%d", cfg.DebugPort),
@@ -409,28 +443,43 @@ func startSystemProbe(rcclient rcclient.Component, settings settings.Component, 
 				deps.Log.Errorf("error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
 			}
 		}()
+		phase.Finish(nil)
 	}
 
-	if err = api.StartServer(cfg, settings, rcclient, deps); err != nil {
+	phase = startupTrace.StartPhase("api.StartServer")
+	err = api.StartServer(cfg, settings, rcclient, deps, phase)
+	phase.Finish(err)
+	if err != nil {
 		return deps.Log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil
 }
 
 // stopSystemProbe Tears down the system-probe process
-func stopSystemProbe() {
-	module.Close()
+func stopSystemProbe(trace *logging.StartupTrace) {
+	phase := trace.StartPhase("module.Close")
+	module.CloseWithTrace(phase)
+	phase.Finish(nil)
 	if common.ExpvarServer != nil {
-		if err := common.ExpvarServer.Shutdown(context.Background()); err != nil {
+		phase = trace.StartPhase("ExpvarServer.Shutdown")
+		err := common.ExpvarServer.Shutdown(context.Background())
+		phase.Finish(err)
+		if err != nil {
 			pkglog.Errorf("error shutting down expvar server: %s", err)
 		}
 	}
+	phase = trace.StartPhase("profiling.Stop")
 	profiling.Stop()
+	phase.Finish(nil)
 	if common.MemoryMonitor != nil {
+		phase = trace.StartPhase("MemoryMonitor.Stop")
 		common.MemoryMonitor.Stop()
+		phase.Finish(nil)
 	}
 
+	phase = trace.StartPhase("log.Flush")
 	pkglog.Flush()
+	phase.Finish(nil)
 }
 
 // setupInternalProfiling is a common helper to configure runtime settings for internal profiling.

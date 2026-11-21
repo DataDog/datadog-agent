@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -19,6 +20,8 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // StartSystemProbeWithDefaults is a temporary way for windows to use startSystemProbe.
@@ -54,13 +57,15 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
 		func(
 			_ config.Component,
+			fxLogger fxevent.Logger,
 			rcclient rcclient.Component,
 			_ healthprobe.Component,
 			settings settings.Component,
 			deps module.FactoryDependencies,
 		) error {
-			defer stopSystemProbe()
-			err := startSystemProbe(rcclient, settings, deps)
+			defer func() { stopSystemProbe(logging.StartShutdownTrace(fxLogger)) }()
+			startupTrace := logging.StartStartupTrace(fxLogger, "startSystemProbe", version.AgentVersion)
+			err := startSystemProbe(rcclient, settings, deps, startupTrace)
 			if err != nil {
 				return err
 			}
