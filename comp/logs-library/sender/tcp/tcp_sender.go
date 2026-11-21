@@ -8,6 +8,7 @@ package tcp
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/droppedlogs"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/tcp"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
@@ -57,8 +58,11 @@ func tcpDestinationFactory(
 	return func(_ string) *client.Destinations {
 		reliable := []client.Destination{}
 		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.GetReliableEndpoints() {
-			reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, !isServerless, status))
+		for i, endpoint := range endpoints.GetReliableEndpoints() {
+			destination := tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, !isServerless, status)
+			// Serverless destinations don't retry, so the sender says which is the main one.
+			destination.SetDropTarget(droppedlogs.Target(endpoint.Host, true, i, endpoint.IsMRF))
+			reliable = append(reliable, destination)
 		}
 		for _, endpoint := range endpoints.GetUnReliableEndpoints() {
 			additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, false, status))

@@ -12,6 +12,7 @@ import (
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/droppedlogs"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -106,6 +107,8 @@ func (s *worker) run() {
 
 	reliableDestinations := buildDestinationSenders(s.config, s.destinations.Reliable, reliableOutputChan, s.bufferSize)
 	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, noopSink, s.bufferSize)
+	reliableDropTargets := workerDropTargets(s.destinations.Reliable, true)
+	unreliableDropTargets := workerDropTargets(s.destinations.Unreliable, false)
 	continueLoop := true
 	for continueLoop {
 		select {
@@ -159,6 +162,7 @@ func (s *worker) run() {
 					if !destSender.NonBlockingSend(payload) {
 						tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
 						tlmMessagesDropped.Add(float64(payload.Count()), "true", strconv.Itoa(i))
+						droppedlogs.RecordPayload(payload, metrics.DropReasonBufferFull, reliableDropTargets[i])
 					}
 				}
 			}
@@ -174,6 +178,7 @@ func (s *worker) run() {
 				if !destSender.NonBlockingSend(payload) {
 					tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
 					tlmMessagesDropped.Add(float64(payload.Count()), "false", strconv.Itoa(i))
+					droppedlogs.RecordPayload(payload, metrics.DropReasonBufferFull, unreliableDropTargets[i])
 					if s.senderDoneChan != nil {
 						senderDoneWg.Add(1)
 						s.senderDoneChan <- senderDoneWg

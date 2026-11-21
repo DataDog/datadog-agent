@@ -8,6 +8,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs-library/client",
+        "//comp/logs-library/client/droppedlogs",
         "//comp/logs-library/client/tcp",
         "//comp/logs-library/metrics",
         "//comp/logs-library/sender",
