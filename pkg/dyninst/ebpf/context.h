@@ -192,6 +192,13 @@ typedef struct stack_machine {
   // condition evaluation to abort. Used together with condition_eval_error
   // to distinguish nil-caused failures from other evaluation errors.
   bool condition_nil_deref;
+  // The condition's own error (0, 1, 2), saved when it ends so capture and
+  // template any/all faults, which reuse condition_eval_error, can't change it.
+  uint8_t condition_error;
+  // in_condition: a condition is running or aborted; condition_prelude: the
+  // next SM_OP_EXPR_PREPARE is the condition's own.
+  bool in_condition;
+  bool condition_prelude;
   // condition_state packs up to 8 per-leaf 2-bit statuses for a split-
   // event-kind condition. Bits [2*i, 2*i+1] hold leaf i's status (one of
   // the LEAF_STATUS_* values). Reset to 0 by SM_OP_CONDITION_STATE_INIT
@@ -395,6 +402,10 @@ typedef struct stack_machine {
   buf_offset_t cur_loop_it_start;
 } stack_machine_t;
 
+static __always_inline uint8_t sm_condition_error(const stack_machine_t* sm) {
+  return sm->condition_eval_error ? (sm->condition_nil_deref ? 2 : 1) : 0;
+}
+
 // filter_loop_state_t holds per-iteration state for the deferred
 // filter() loop. It lives in its own per-CPU map (filter_loop_state_buf
 // below) rather than inside stack_machine_t so that:
@@ -493,6 +504,9 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   stack_machine->condition_failed = false;
   stack_machine->condition_eval_error = false;
   stack_machine->condition_nil_deref = false;
+  stack_machine->condition_error = 0;
+  stack_machine->in_condition = false;
+  stack_machine->condition_prelude = false;
   stack_machine->condition_state = 0;
   chased_pointers_trie_init(&stack_machine->chased);
   chased_slices_init(&stack_machine->chased_slices);

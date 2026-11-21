@@ -103,7 +103,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "not(any(xs, {@it == 42}))",
+            "message": "error evaluating condition"
+          }
+        ]
       },
       "type": "snapshot"
     },
@@ -131,7 +137,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "not(any(xs, {@it == 42}))",
+            "message": "error evaluating condition"
+          }
+        ]
       },
       "type": "snapshot"
     },

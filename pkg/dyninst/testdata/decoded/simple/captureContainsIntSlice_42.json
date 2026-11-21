@@ -405,13 +405,7 @@
               }
             }
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@when",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       }
     },
     "timestamp": "[ts]",
@@ -528,13 +522,7 @@
               }
             }
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@when",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       }
     },
     "timestamp": "[ts]",
