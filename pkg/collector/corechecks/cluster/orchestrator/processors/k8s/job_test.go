@@ -50,7 +50,7 @@ func TestJobHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewJobHandlers(tagger)
 
-	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -118,16 +118,16 @@ func TestJobHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify raw informer references are returned
+	// Verify deep copy was made
 	resource1, ok := resources[0].(*batchv1.Job)
 	assert.True(t, ok)
 	assert.Equal(t, "job-1", resource1.Name)
-	assert.Same(t, job1, resource1) // ResourceList returns raw informer references
+	assert.NotSame(t, job1, resource1) // Should be a copy
 
 	resource2, ok := resources[1].(*batchv1.Job)
 	assert.True(t, ok)
 	assert.Equal(t, "job-2", resource2.Name)
-	assert.Same(t, job2, resource2) // ResourceList returns raw informer references
+	assert.NotSame(t, job2, resource2) // Should be a copy
 }
 
 func TestJobHandlers_ResourceUID(t *testing.T) {
@@ -484,14 +484,4 @@ func createTestJob(name, namespace string) *batchv1.Job {
 			},
 		},
 	}
-}
-
-func TestJobHandlers_CloneResource(t *testing.T) {
-	handlers := &JobHandlers{}
-	original := createTestJob("test", "ns")
-	cloned := handlers.CloneResource(original)
-	clonedTyped, ok := cloned.(*batchv1.Job)
-	assert.True(t, ok)
-	assert.NotSame(t, original, clonedTyped)
-	assert.Equal(t, original, clonedTyped)
 }

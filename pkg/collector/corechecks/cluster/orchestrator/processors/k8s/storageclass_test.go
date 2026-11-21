@@ -50,7 +50,7 @@ func TestStorageClassHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewStorageClassHandlers(tagger)
 
-	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -125,16 +125,16 @@ func TestStorageClassHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify raw informer references are returned
+	// Verify deep copy was made
 	resource1, ok := resources[0].(*storagev1.StorageClass)
 	assert.True(t, ok)
 	assert.Equal(t, "test-storageclass", resource1.Name)
-	assert.Same(t, storageClass1, resource1) // ResourceList returns raw informer references
+	assert.NotSame(t, storageClass1, resource1) // Should be a copy
 
 	resource2, ok := resources[1].(*storagev1.StorageClass)
 	assert.True(t, ok)
 	assert.Equal(t, "storageclass2", resource2.Name)
-	assert.Same(t, storageClass2, resource2) // ResourceList returns raw informer references
+	assert.NotSame(t, storageClass2, resource2) // Should be a copy
 }
 
 func TestStorageClassHandlers_ResourceUID(t *testing.T) {
@@ -438,14 +438,4 @@ func createTestStorageClass() *storagev1.StorageClass {
 			},
 		},
 	}
-}
-
-func TestStorageClassHandlers_CloneResource(t *testing.T) {
-	handlers := &StorageClassHandlers{}
-	original := createTestStorageClass()
-	cloned := handlers.CloneResource(original)
-	clonedTyped, ok := cloned.(*storagev1.StorageClass)
-	assert.True(t, ok)
-	assert.NotSame(t, original, clonedTyped)
-	assert.Equal(t, original, clonedTyped)
 }
