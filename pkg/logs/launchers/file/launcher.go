@@ -96,14 +96,14 @@ type Launcher struct {
 	stopOnce                  sync.Once
 
 	// Per-tailer generation ownership for routedSourceProvider.
-	routedProvider         routedSourceProvider
-	nextGeneration         atomic.Uint64
-	routingMu              sync.Mutex
-	tailerGenerations      map[*tailer.Tailer]sourceGeneration
-	pendingRetirements     []sourceGeneration
-	stoppingTailers        sync.WaitGroup
-	routedRotationPending  map[string]*oldTailerInfo
-	routedRotationOverflow bool
+	routedProvider        routedSourceProvider
+	nextGeneration        atomic.Uint64
+	routingMu             sync.Mutex
+	tailerGenerations     map[*tailer.Tailer]sourceGeneration
+	pendingRetirements    []sourceGeneration
+	stoppingTailers       sync.WaitGroup
+	routedRotationPending map[string]*oldTailerInfo
+	deferredRotations     map[string]struct{}
 }
 
 const (
@@ -268,7 +268,7 @@ func (s *Launcher) cleanup() {
 	// Clean up old info map to prevent memory leaks
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
 	s.routedRotationPending = nil
-	s.routedRotationOverflow = false
+	s.deferredRotations = nil
 	if stillSkipped := len(s.fingerprintSkips); stillSkipped > 0 {
 		log.Warnf("Stopping with %d file(s) still not tailed because their fingerprint was unusable.", stillSkipped)
 		for _, skip := range s.fingerprintSkips {
@@ -375,9 +375,9 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 				}
 				if didRotate {
 					// restart tailer because of file-rotation on file
-					succeeded := s.restartTailerAfterFileRotation(tailered, file)
-					if !succeeded {
-						// the setup failed, let's try to tail this file in the next scan
+					succeeded, deferred := s.restartTailerAfterFileRotation(tailered, file)
+					if !succeeded && !deferred {
+						// the setup failed and handoff state was recorded, let's try to tail this file in the next scan
 						continue
 					}
 				}
@@ -396,6 +396,27 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		// stop all tailers which have not been selected
 		_, shouldTail := filesTailed[tailer.GetID()]
 		if !shouldTail {
+			if s.routedProvider != nil {
+				if _, deferred := s.deferredRotations[tailer.GetID()]; deferred {
+					if s.tryRecordRoutedRotationPending(tailer.GetID(), &oldTailerInfo{
+						InfoRegistry: tailer.GetInfo(),
+						Pattern:      tailer.GetDetectedPattern(),
+					}) {
+						delete(s.deferredRotations, tailer.GetID())
+						tailer.StopAfterFileRotation()
+						s.tailers.Remove(tailer)
+						s.rotatedTailers = append(s.rotatedTailers, tailer)
+						continue
+					}
+					if s.isSourceActive(tailer.Source()) {
+						// Keep the deferred tailer in s.tailers while its source is still
+						// configured and routedRotationPending is at cap, so exact identity
+						// is never dropped across a temporary path absence.
+						continue
+					}
+					delete(s.deferredRotations, tailer.GetID())
+				}
+			}
 			s.stopTailer(tailer)
 		}
 	}
@@ -446,14 +467,8 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 				s.oldInfoMap[scanKey] = oldInfo
 			}
 		} else {
-			// Normal case - no stored info (unless routed rotation pending map overflowed
-			// and this file has a saved offset that could belong to an untracked rotated
-			// inode, in which case ForceBeginning prefers at-least-once over prefix loss).
-			var mode config.TailingMode = config.Beginning
-			if s.shouldForceBeginningOnOverflow(file, mode) {
-				mode = config.ForceBeginning
-			}
-			if s.startNewTailer(file, mode, fingerprint) {
+			// Normal case - no stored info
+			if s.startNewTailer(file, config.Beginning, fingerprint) {
 				filesTailed[scanKey] = true
 				s.resolveFingerprintSkip(file)
 			}
@@ -716,9 +731,6 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 					s.clearRoutedRotationPending(file.GetScanKey())
 				}
 			} else {
-				if s.shouldForceBeginningOnOverflow(file, mode) {
-					mode = config.ForceBeginning
-				}
 				newTailerStarted = s.startNewTailer(file, mode, fingerprint)
 			}
 		} else {
@@ -871,6 +883,7 @@ func (s *Launcher) handleTailingModeChange(tailerID string, currentTailingMode c
 // stopTailer stops the tailer
 func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 	s.clearFingerprintRotationError(tailer.GetID())
+	delete(s.deferredRotations, tailer.GetID())
 	s.tailers.Remove(tailer)
 	s.stoppingTailers.Add(1)
 	go func() {
@@ -908,16 +921,16 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 	return false // Will return false regardless and we will let scan() handle it
 }
 
-func (s *Launcher) recordRoutedRotationPending(scanKey string, info *oldTailerInfo) {
+func (s *Launcher) tryRecordRoutedRotationPending(scanKey string, info *oldTailerInfo) bool {
 	if s.routedProvider == nil {
-		return
+		return false
 	}
 	if s.routedRotationPending == nil {
 		s.routedRotationPending = make(map[string]*oldTailerInfo)
 	}
 	if _, exists := s.routedRotationPending[scanKey]; exists {
 		s.routedRotationPending[scanKey] = info
-		return
+		return true
 	}
 	maxEntries := max(s.tailingLimit*2, 256)
 	if len(s.routedRotationPending) >= maxEntries {
@@ -928,12 +941,10 @@ func (s *Launcher) recordRoutedRotationPending(scanKey string, info *oldTailerIn
 		}
 	}
 	if len(s.routedRotationPending) >= maxEntries {
-		// Bounded map is full: mark overflow so newly started untailed files fall
-		// back to ForceBeginning rather than silently dropping rotation state.
-		s.routedRotationOverflow = true
-		return
+		return false
 	}
 	s.routedRotationPending[scanKey] = info
+	return true
 }
 
 func (s *Launcher) clearRoutedRotationPending(scanKey string) {
@@ -941,66 +952,89 @@ func (s *Launcher) clearRoutedRotationPending(scanKey string) {
 		return
 	}
 	delete(s.routedRotationPending, scanKey)
-	// Do NOT clear s.routedRotationOverflow here: draining tracked entries does
-	// not prove that any untracked overflow path has restarted. Overflow stays
-	// latched until cleanup().
 }
 
-// shouldForceBeginningOnOverflow reports whether routed rotation overflow should
-// upgrade mode to ForceBeginning. It only applies to files with an existing saved
-// offset (potential untracked rotated paths) and never overrides explicit ForceEnd.
-func (s *Launcher) shouldForceBeginningOnOverflow(file *tailer.File, mode config.TailingMode) bool {
-	if s.routedProvider == nil || !s.routedRotationOverflow || file == nil {
+func (s *Launcher) isSourceActive(src *sources.LogSource) bool {
+	if src == nil {
 		return false
 	}
-	if mode == config.ForceEnd {
-		return false
-	}
-	return s.registry != nil && s.registry.GetOffset(file.Identifier()) != ""
+	return slices.Contains(s.activeSources, src)
 }
 
-// restartTailer safely stops tailer and starts a new one
-// returns true if the new tailer is up and running, false if an error occurred
-func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file *tailer.File) bool {
+// restartTailer safely stops tailer and starts a new one.
+// Returns (restarted, deferred): in routed mode, if replacement creation fails
+// and routedRotationPending is at its bounded cap, deferred=true keeps oldTailer
+// in s.tailers to preserve exact rotation identity without a global flag.
+func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file *tailer.File) (bool, bool) {
 	log.Info("Log rotation happened to ", file.Path)
+	oldRegexPattern := oldTailer.GetDetectedPattern()
+
+	if s.routedProvider != nil {
+		newTailer, gen, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
+		if err == nil {
+			err = newTailer.StartFromBeginning()
+			if err != nil {
+				s.retireGeneration(file.Identifier(), gen)
+			}
+		}
+		if err != nil {
+			log.Warnf("Could not start replacement tailer for %s after log rotation: %v", file.Path, err)
+			if s.tryRecordRoutedRotationPending(file.GetScanKey(), &oldTailerInfo{
+				InfoRegistry: oldTailer.GetInfo(),
+				Pattern:      oldRegexPattern,
+			}) {
+				delete(s.deferredRotations, file.GetScanKey())
+				oldTailer.StopAfterFileRotation()
+				s.tailers.Remove(oldTailer)
+				s.rotatedTailers = append(s.rotatedTailers, oldTailer)
+				return false, false
+			}
+			// Bounded routedRotationPending is full: defer rotation in-place by
+			// keeping oldTailer in s.tailers so exact identity is preserved without
+			// affecting unrelated files.
+			if s.deferredRotations == nil {
+				s.deferredRotations = make(map[string]struct{})
+			}
+			s.deferredRotations[file.GetScanKey()] = struct{}{}
+			return false, true
+		}
+
+		delete(s.deferredRotations, file.GetScanKey())
+		s.clearRoutedRotationPending(file.GetScanKey())
+		oldTailer.StopAfterFileRotation()
+		s.tailers.Remove(oldTailer)
+		s.bindTailerGeneration(newTailer, file.Identifier(), gen)
+		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
+		s.tailers.Add(newTailer)
+		return true, false
+	}
+
 	oldTailer.StopAfterFileRotation()
 
 	// Remove the rotated tailer from the active container so a fresh tailer can
 	// be created for the new file while this one finishes draining the old file.
 	s.tailers.Remove(oldTailer)
 
-	oldRegexPattern := oldTailer.GetDetectedPattern()
-
-	newTailer, gen, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
+	newTailer, _, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
 	if err != nil {
-		log.Warnf("Could not acquire routed pipeline input for replacement tailer %s after log rotation: %v", file.Path, err)
-		s.recordRoutedRotationPending(file.GetScanKey(), &oldTailerInfo{
-			InfoRegistry: oldTailer.GetInfo(),
-			Pattern:      oldRegexPattern,
-		})
+		log.Warnf("Could not acquire pipeline input for replacement tailer %s after log rotation: %v", file.Path, err)
 		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
-		return false
+		return false, false
 	}
 	// force reading file from beginning since it has been log-rotated
 	err = newTailer.StartFromBeginning()
 	if err != nil {
-		s.retireGeneration(file.Identifier(), gen)
-		s.recordRoutedRotationPending(file.GetScanKey(), &oldTailerInfo{
-			InfoRegistry: oldTailer.GetInfo(),
-			Pattern:      oldRegexPattern,
-		})
 		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 		log.Warnf("Could not start the replacement tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
-		return false
+		return false, false
 	}
 
 	// Since newTailer and oldTailer share the same ID, tailers.Add will replace the old tailer.
 	// We will keep track of the rotated tailer until it is finished.
-	s.bindTailerGeneration(newTailer, file.Identifier(), gen)
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 	s.tailers.Add(newTailer)
 
-	return true
+	return true, false
 }
 
 // createTailer returns a new initialized tailer
