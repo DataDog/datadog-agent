@@ -30,6 +30,12 @@ var peerTagConcepts = []semantics.Concept{
 	semantics.ConceptPeerAWSSQSQueue,
 	semantics.ConceptPeerAWSDynamoDBTable,
 	semantics.ConceptPeerAWSKinesisStream,
+	semantics.ConceptPeerAWSARN,
+	semantics.ConceptPeerAWSSQSQueueURL,
+	semantics.ConceptPeerGCPProjectID,
+	semantics.ConceptPeerKafkaClusterID,
+	semantics.ConceptPeerGCPPubSubTopicName,
+	semantics.ConceptPeerGCPPubSubSubscriptionName,
 }
 
 // PeerTagsCache is a snapshot of the peer-tag attribute key set together with
