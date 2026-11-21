@@ -90,6 +90,14 @@ func (f *extendedPodFactory) MetricFamilyGenerators() []generator.FamilyGenerato
 			}),
 		),
 		*generator.NewFamilyGeneratorWithStability(
+			"kube_pod_status_unready",
+			"Whether the pod is not ready to serve requests: 1 while its Ready condition is absent or not true. Not emitted for pods that have completed.",
+			metric.Gauge,
+			basemetrics.ALPHA,
+			"",
+			wrapPodFunc(unreadyMetricFamily),
+		),
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_pod_container_extended_resource_limits",
 			"The number of additional requested limit resource by a container, which otherwise might have been filtered out by kube-state-metrics.",
 			metric.Gauge,
@@ -140,6 +148,25 @@ func (f *extendedPodFactory) MetricFamilyGenerators() []generator.FamilyGenerato
 			}),
 		),
 	}
+}
+
+// unreadyMetricFamily emits a single sparse value-1 metric while the pod's Ready
+// condition is absent or not true. Unlike kube_pod_status_ready, which only reports a
+// series once the kubelet has set the Ready condition, a missing condition counts as unready.
+// Pods that ran to completion (Succeeded/Failed, e.g. Job pods) are never ready by
+// design, so they are skipped to keep the series scoped to pods that are starting up or unhealthy.
+func unreadyMetricFamily(p *v1.Pod) *metric.Family {
+	if p.Status.Phase == v1.PodSucceeded || p.Status.Phase == v1.PodFailed {
+		return &metric.Family{}
+	}
+
+	for _, c := range p.Status.Conditions {
+		if c.Type == v1.PodReady && c.Status == v1.ConditionTrue {
+			return &metric.Family{}
+		}
+	}
+
+	return &metric.Family{Metrics: []*metric.Metric{{Value: 1}}}
 }
 
 func effectiveContainerResourceRequestsMetricFamily(p *v1.Pod) *metric.Family {
