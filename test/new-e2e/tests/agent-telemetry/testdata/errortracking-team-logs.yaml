@@ -1,0 +1,7 @@
+# Port 22 is always bound by sshd on the test host, so the logs agent's TCP
+# listener fails to start and logs an error from pkg/logs.
+logs:
+  - type: tcp
+    port: 22
+    service: errortracking-team
+    source: errortracking-team

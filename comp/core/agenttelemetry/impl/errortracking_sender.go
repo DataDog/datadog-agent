@@ -91,7 +91,10 @@ func (s *senderImpl) sendLogsBatch(ctx context.Context, logs []Log) error {
 //   - Count  -> 1 today; the Bouncer populates the suppressed-duplicate
 //     count here.
 //   - Tags   -> git.repository_url + git.commit.sha + agent.flavor for
-//     Source Code Integration and cross-binary origin identification
+//     Source Code Integration and cross-binary origin identification, plus
+//     the agent.version and agent.rc identity tags (see errortracking_identity.go)
+//   - Tags   -> also owner_team:<slug> naming the CODEOWNERS owner of the root-cause
+//     frame, when one resolves (see teamTag)
 //   - Message, TraceID, SpanID -> "" (not populated)
 //   - IsCrash -> false (this path does not emit crash logs)
 func enrichErrorLog(e errortracking.ErrorLog) Log {
@@ -108,9 +111,10 @@ func enrichErrorLog(e errortracking.ErrorLog) Log {
 		Count:      count,
 		IsCrash:    false,
 		ErrorKind:  e.ErrorKind,
-		Tags:       "git.repository_url:https://github.com/DataDog/datadog-agent,git.commit.sha:" + commitSHAPlaceholder + ",agent.flavor:" + flavor.GetFlavor(),
+		Tags:       "git.repository_url:https://github.com/DataDog/datadog-agent,git.commit.sha:" + commitSHAPlaceholder + ",agent.flavor:" + flavor.GetFlavor() + identityTags(),
 	}
 	out.StackTrace = symbolizeStackFrames(e)
+	out.Tags += teamTag(e)
 	return out
 }
 

@@ -4,7 +4,9 @@ dd_agent_go_test(
     name = "agent-telemetry_test",
     srcs = [
         "errortracking_cluster_agent_test.go",
+        "errortracking_identity_test.go",
         "errortracking_otel_agent_test.go",
+        "errortracking_team_test.go",
         "errortracking_test.go",
     ],
     data = [
@@ -14,6 +16,8 @@ dd_agent_go_test(
         "testdata/errortracking-enabled.yaml",
         "testdata/errortracking-security-agent.yaml",
         "testdata/errortracking-system-probe.yaml",
+        "testdata/errortracking-team.yaml",
+        "testdata/errortracking-team-logs.yaml",
     ],
     embedsrcs = [
         "testdata/error_check.py",
@@ -25,6 +29,8 @@ dd_agent_go_test(
         "testdata/errortracking-otel-agent-collector-config.yaml",
         "testdata/errortracking-security-agent.yaml",
         "testdata/errortracking-system-probe.yaml",
+        "testdata/errortracking-team-logs.yaml",
+        "testdata/errortracking-team.yaml",
     ],
     tags = ["manual"],
     deps = [
@@ -39,6 +45,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
+        "//test/new-e2e/tests/agent-telemetry/newerrors",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

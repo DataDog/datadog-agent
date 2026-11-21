@@ -57,3 +57,5 @@ bazel/go_tags/closure_tags.bzl linguist-generated=true
 *.ODF diff
 *.odt diff
 *.ODT diff
+comp/core/agenttelemetry/impl/errortracking_owners_gen.go linguist-generated=true
+comp/core/agenttelemetry/impl/testdata/errortracking_owners_parity.tsv linguist-generated=true
