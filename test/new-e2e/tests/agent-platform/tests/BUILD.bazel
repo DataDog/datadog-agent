@@ -1,4 +1,7 @@
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:exclude macos_absence_test.go
 
 dd_agent_go_test(
     name = "tests_test",
@@ -15,6 +18,7 @@ dd_agent_go_test(
         "step_by_step_test.go",
         "upgrade_test.go",
     ],
+    embed = [":tests"],
     tags = ["manual"],
     deps = [
         "//cmd/agent/macos",
@@ -43,4 +47,22 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
+)
+
+go_library(
+    name = "tests",
+    srcs = ["macos_absence.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/tests",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@org_golang_x_crypto//ssh",
+    ],
+)
+
+dd_agent_go_test(
+    name = "macos_absence_test",
+    srcs = ["macos_absence_test.go"],
+    embed = [":tests"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -8,6 +8,8 @@ package install
 
 import (
 	"fmt"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -94,23 +96,50 @@ func MacOSPipelineRepoURL(pipelineID, arch string) string {
 	return fmt.Sprintf("https://dd-agent-macostesting.s3.amazonaws.com/ci/datadog-agent/pipeline-%s-%s", pipelineID, arch)
 }
 
-// MacOS install the agent from install script, by default will install the agent 7 build corresponding to the CI if running in the CI, else the latest Agent 7 version
-func MacOS(t *testing.T, client ExecutorWithRetry, options ...installparams.Option) {
-	params := installparams.NewParams(options...)
-	exports := []string{}
+var macOSEnvKey = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
 
-	scriptURL := "https://install.datadoghq.com/scripts/install_mac_os.sh"
+// macOSExports returns the assignments MacOS prefixes onto the install script. Values are
+// single-quoted so the remote shell cannot expand them.
+func macOSExports(params *installparams.Params) ([]string, error) {
+	var exports []string
 	if params.PipelineID != "" {
-		repoURL := MacOSPipelineRepoURL(params.PipelineID, params.Arch)
-		exports = append(exports, "DD_REPO_URL="+repoURL)
-		scriptURL = repoURL + "/install_mac_os.sh"
+		exports = append(exports, "DD_REPO_URL="+shellSingleQuote(MacOSPipelineRepoURL(params.PipelineID, params.Arch)))
 	}
-
 	apikey := params.APIKey
 	if apikey == "" {
 		apikey = "aaaaaaaaaa"
 	}
-	exports = append(exports, "DD_API_KEY="+apikey)
+	exports = append(exports, "DD_API_KEY="+shellSingleQuote(apikey))
+
+	keys := make([]string, 0, len(params.ExtraEnvVars))
+	for key := range params.ExtraEnvVars {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	for _, key := range keys {
+		if !macOSEnvKey.MatchString(key) {
+			return nil, fmt.Errorf("invalid install environment variable %q", key)
+		}
+		exports = append(exports, key+"="+shellSingleQuote(params.ExtraEnvVars[key]))
+	}
+	return exports, nil
+}
+
+func shellSingleQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+}
+
+// MacOS install the agent from install script, by default will install the agent 7 build corresponding to the CI if running in the CI, else the latest Agent 7 version
+func MacOS(t *testing.T, client ExecutorWithRetry, options ...installparams.Option) {
+	params := installparams.NewParams(options...)
+
+	scriptURL := "https://install.datadoghq.com/scripts/install_mac_os.sh"
+	if params.PipelineID != "" {
+		scriptURL = MacOSPipelineRepoURL(params.PipelineID, params.Arch) + "/install_mac_os.sh"
+	}
+
+	exports, err := macOSExports(params)
+	require.NoError(t, err)
 	env := strings.Join(exports, " ")
 	// Download the install script (up to 5 attempts), then run it (up to 3 attempts), with exponential backoff.
 	cmd := fmt.Sprintf(`

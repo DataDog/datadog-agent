@@ -9,6 +9,7 @@ go_library(
         "apm_library_dotnet_windows.go",
         "datadog_agent_darwin.go",
         "datadog_agent_darwin_dmg.go",
+        "datadog_agent_darwin_procmgr.go",
         "datadog_agent_ddot_linux.go",
         "datadog_agent_ddot_windows.go",
         "datadog_agent_eudm_windows.go",
@@ -58,12 +59,16 @@ go_library(
             "//pkg/fleet/installer/packages/launchd",
             "//pkg/fleet/installer/packages/processmanager",
             "//pkg/fleet/installer/symlink",
+            "@com_github_spf13_cast//:cast",
+            "@in_yaml_go_yaml_v2//:yaml",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/packages/launchd",
             "//pkg/fleet/installer/packages/processmanager",
             "//pkg/fleet/installer/symlink",
+            "@com_github_spf13_cast//:cast",
+            "@in_yaml_go_yaml_v2//:yaml",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/installinfo",
@@ -106,6 +111,7 @@ dd_agent_go_test(
     srcs = [
         "apm_inject_windows_test.go",
         "datadog_agent_darwin_dmg_test.go",
+        "datadog_agent_darwin_procmgr_test.go",
         "datadog_agent_darwin_test.go",
         "datadog_agent_eudm_windows_test.go",
         "datadog_agent_extensions_test.go",
@@ -128,11 +134,13 @@ dd_agent_go_test(
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/packages/launchd",
             "//pkg/fleet/installer/repository",
+            "//pkg/util/log",
             "//pkg/version",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/packages/launchd",
             "//pkg/fleet/installer/repository",
+            "//pkg/util/log",
             "//pkg/version",
         ],
         "@rules_go//go/platform:linux": [

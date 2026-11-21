@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "install",
@@ -7,6 +8,17 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//test/new-e2e/tests/agent-platform/install/installparams",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "install_test",
+    srcs = ["install_test.go"],
+    embed = [":install"],
+    deps = [
+        "//test/new-e2e/tests/agent-platform/install/installparams",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
 )

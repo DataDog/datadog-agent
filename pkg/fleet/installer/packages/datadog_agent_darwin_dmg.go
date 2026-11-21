@@ -334,9 +334,14 @@ func readInstallEnv(layout dmgLayout) installEnv {
 	return env
 }
 
+// errDatadogYAMLRestore is returned when the saved datadog.yaml exists but cannot be restored.
+// A missing saved file is not this error.
+var errDatadogYAMLRestore = errors.New("could not restore datadog.yaml")
+
 // setUpConfig restores the configuration saved by the preinstall script, or creates the default one
 // on a first install, applies what the install script was given, writes the install info, and gives
-// the configuration to the Agent's account.
+// the configuration to the Agent's account. A failure restoring datadog.yaml is returned before the
+// example default is written.
 func setUpConfig(ctx context.Context, layout dmgLayout, env installEnv) error {
 	conf := layout.confDir()
 	if err := os.MkdirAll(filepath.Join(conf, "checks.d"), 0o755); err != nil {
@@ -344,9 +349,10 @@ func setUpConfig(ctx context.Context, layout dmgLayout, env installEnv) error {
 	}
 	saved := layout.savedConfDir()
 	if info, err := os.Stat(saved); err == nil && info.IsDir() {
-		for _, name := range []string{"datadog.yaml", "system-probe.yaml"} {
-			_ = copyFile(filepath.Join(saved, name), filepath.Join(conf, name))
+		if err := restoreSavedDatadogYAML(filepath.Join(saved, "datadog.yaml"), filepath.Join(conf, "datadog.yaml")); err != nil {
+			return err
 		}
+		_ = copyFile(filepath.Join(saved, "system-probe.yaml"), filepath.Join(conf, "system-probe.yaml"))
 		_ = copyTree(filepath.Join(saved, "conf.d"), filepath.Join(conf, "conf.d"), true)
 		_ = copyTree(filepath.Join(saved, "checks.d"), filepath.Join(conf, "checks.d"), false)
 	}
@@ -814,6 +820,53 @@ func copyTree(src string, dst string, overwrite bool) error {
 		}
 		return copyFile(path, target)
 	})
+}
+
+// restoreSavedDatadogYAML copies the saved datadog.yaml onto the live path. A missing source is
+// not an error. Any other failure is errDatadogYAMLRestore and stops the rest of setUpConfig. A
+// source that cannot be opened, stat'ed, or is not a regular file leaves the live file untouched.
+// Once writing starts, the live file has already been removed.
+func restoreSavedDatadogYAML(src string, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("%w: %w", errDatadogYAMLRestore, err)
+	}
+	defer in.Close()
+	info, err := in.Stat()
+	if err != nil {
+		return fmt.Errorf("%w: %w", errDatadogYAMLRestore, err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%w: %s is not a regular file", errDatadogYAMLRestore, src)
+	}
+	if err := writeRestoredFile(dst, info.Mode().Perm(), in); err != nil {
+		return fmt.Errorf("%w: %w", errDatadogYAMLRestore, err)
+	}
+	return nil
+}
+
+// writeRestoredFile removes dst, then creates it with the contents of in. If dst cannot be
+// removed (for example a non-empty directory), it is left and creation fails. If the copy or
+// close fails, the partial file is removed, so dst is left absent.
+func writeRestoredFile(dst string, mode fs.FileMode, in io.Reader) error {
+	_ = os.Remove(dst)
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	if copyErr == nil && closeErr == nil {
+		return nil
+	}
+	err = errors.Join(copyErr, closeErr)
+	if rmErr := os.Remove(dst); rmErr != nil {
+		err = errors.Join(err, rmErr)
+	}
+	return err
 }
 
 // copyFile copies a regular file, keeping its mode.

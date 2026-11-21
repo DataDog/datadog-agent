@@ -144,6 +144,97 @@ func TestSetUpConfigRestoresTheSavedConfiguration(t *testing.T) {
 	}
 }
 
+// TestSetUpConfigCreatesTheDefaultWhenSavedDatadogYAMLIsMissing pins a saved-conf directory that
+// has no datadog.yaml: that is a first install, and the example is written.
+func TestSetUpConfigCreatesTheDefaultWhenSavedDatadogYAMLIsMissing(t *testing.T) {
+	layout := stubDmgLayout(t)
+	require.NoError(t, os.MkdirAll(layout.savedConfDir(), 0o755))
+
+	require.NoError(t, setUpConfig(t.Context(), layout, installEnv{}))
+
+	content, err := os.ReadFile(filepath.Join(layout.confDir(), "datadog.yaml"))
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(string(content), "api_key: APIKEY\n"))
+}
+
+// TestSetUpConfigReturnsTheDatadogYAMLRestoreError pins a saved datadog.yaml that cannot be copied.
+// The live file is left as it was, and the rest of the restore does not run.
+func TestSetUpConfigReturnsTheDatadogYAMLRestoreError(t *testing.T) {
+	layout := stubDmgLayout(t)
+	conf, saved := layout.confDir(), layout.savedConfDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(saved, "datadog.yaml"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(conf, "datadog.yaml"), []byte("api_key: live\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(saved, "system-probe.yaml"), []byte("probe: saved\n"), 0o644))
+
+	err := setUpConfig(t.Context(), layout, installEnv{})
+
+	require.ErrorIs(t, err, errDatadogYAMLRestore)
+	content, readErr := os.ReadFile(filepath.Join(conf, "datadog.yaml"))
+	require.NoError(t, readErr)
+	assert.Equal(t, "api_key: live\n", string(content))
+	assert.NoFileExists(t, filepath.Join(conf, "system-probe.yaml"))
+}
+
+func TestSetUpConfigDoesNotWriteTheExampleWhenRestoreFails(t *testing.T) {
+	layout := stubDmgLayout(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(layout.savedConfDir(), "datadog.yaml"), 0o755))
+
+	err := setUpConfig(t.Context(), layout, installEnv{})
+
+	require.ErrorIs(t, err, errDatadogYAMLRestore)
+	assert.NoFileExists(t, filepath.Join(layout.confDir(), "datadog.yaml"))
+}
+
+func TestRestoreSavedDatadogYAMLLeavesTheLiveFileWhenOpenFails(t *testing.T) {
+	layout := stubDmgLayout(t)
+	conf, saved := layout.confDir(), layout.savedConfDir()
+	require.NoError(t, os.MkdirAll(saved, 0o755))
+	src := filepath.Join(saved, "datadog.yaml")
+	require.NoError(t, os.Symlink(src, src))
+	live := filepath.Join(conf, "datadog.yaml")
+	require.NoError(t, os.WriteFile(live, []byte("api_key: live\n"), 0o644))
+
+	err := setUpConfig(t.Context(), layout, installEnv{})
+
+	require.ErrorIs(t, err, errDatadogYAMLRestore)
+	content, readErr := os.ReadFile(live)
+	require.NoError(t, readErr)
+	assert.Equal(t, "api_key: live\n", string(content))
+}
+
+type shortCopy struct {
+	wrote bool
+}
+
+func (r *shortCopy) Read(p []byte) (int, error) {
+	if r.wrote || len(p) == 0 {
+		return 0, errors.New("short copy")
+	}
+	r.wrote = true
+	p[0] = 'x'
+	return 1, nil
+}
+
+func TestWriteRestoredFileRemovesAPartialFile(t *testing.T) {
+	dst := filepath.Join(t.TempDir(), "datadog.yaml")
+
+	err := writeRestoredFile(dst, 0o644, &shortCopy{})
+
+	require.Error(t, err)
+	assert.NoFileExists(t, dst)
+}
+
+func TestWriteRestoredFileLeavesADestinationItDidNotCreate(t *testing.T) {
+	dst := filepath.Join(t.TempDir(), "datadog.yaml")
+	require.NoError(t, os.MkdirAll(dst, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dst, "keep"), []byte("x"), 0o644))
+
+	err := writeRestoredFile(dst, 0o644, strings.NewReader("api_key: saved\n"))
+
+	require.Error(t, err)
+	assert.FileExists(t, filepath.Join(dst, "keep"))
+}
+
 // TestEnsureLogLink pins the /var/log/datadog link: created when missing, an old real directory
 // migrated into the install root, and an existing link left alone.
 func TestEnsureLogLink(t *testing.T) {

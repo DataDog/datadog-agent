@@ -17,6 +17,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/itchyny/gojq v0.12.20
 	github.com/shirou/gopsutil/v4 v4.26.10
+	github.com/spf13/cast v1.10.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
 	go.etcd.io/bbolt v1.5.0
@@ -44,6 +45,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
+	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/sirupsen/logrus v1.10.2 // indirect
 	github.com/spf13/pflag v1.1.0 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
@@ -56,6 +58,9 @@ require (
 	golang.org/x/time v0.16.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )
+
+// Internal deps fix version
+replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template

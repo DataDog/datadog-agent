@@ -430,3 +430,91 @@ func (m *macosInstallSuite) TestZYReinstallSameVersion() {
 	assert.Contains(t, macosReadRemoteFile(t, macosTestClient, confFilePath), marker, "the reinstall should keep datadog.yaml")
 	assertNoMacosUnexpectedLaunchDaemons(t, macosTestClient)
 }
+
+// assertMacosProcessManagerOff checks the process-manager opt-out state.
+func assertMacosProcessManagerOff(t *testing.T, client *common.MacOSTestClient, wantPostinstallSource string) {
+	t.Helper()
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		out, err := client.Execute("sudo launchctl print system/com.datadoghq.procmgr")
+		assertMacosReportsAbsence(c, out, err, "Could not find service")
+		out, err = client.Execute("sudo " + macosProcmgrCLI + " status")
+		assertMacosReportsAbsence(c, out, err, "failed to connect to")
+	}, 60*time.Second, 2*time.Second)
+	out, err := client.Execute("sudo test -e " + macosLaunchDaemonPath("com.datadoghq.procmgr"))
+	assertMacosExitStatus(t, out, err, 1)
+	out, err = client.Execute("sudo test -e " + macosProcessesDir)
+	assertMacosExitStatus(t, out, err, 1)
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		for _, label := range []string{"com.datadoghq.sysprobe", "com.datadoghq.data-plane", "com.datadoghq.agent", macosInstallerLaunchDaemon} {
+			_, launchErr := client.Execute("sudo launchctl print system/" + label)
+			assert.NoError(c, launchErr, "%s is not loaded", label)
+		}
+	}, 60*time.Second, 2*time.Second)
+	waitForHealthyMacosAgent(t, client, 60*time.Second)
+	if wantPostinstallSource != "" {
+		postinstallLog := macosReadRemoteFile(t, client, macosPostinstallLogPath)
+		assert.Contains(t, postinstallLog, fmt.Sprintf("process_manager.enabled is false (from %s): com.datadoghq.procmgr is not loaded", wantPostinstallSource))
+	}
+}
+
+// The ZX prefix runs this after the read-only tests and before the ZY tests. Its cleanup reloads
+// procmgr, which they expect.
+func (m *macosInstallSuite) TestZXProcessManagerOptOut() {
+	if installparams.NewParams().PipelineID == "" {
+		m.T().Skip("E2E_PIPELINE_ID is not set: there is no pipeline build to test the process manager opt-out against")
+	}
+	t := m.T()
+	client := common.NewMacOSTestClient(m.Env().RemoteHost)
+	conf := macosConfDefaultConfPath + "/datadog.yaml"
+	backup := conf + ".e2e-orig"
+	client.MustExecuteOn(t, fmt.Sprintf("sudo cp -p %s %s", conf, backup))
+
+	var directHooks strings.Builder
+	t.Cleanup(func() {
+		_, err := client.Execute(fmt.Sprintf("sudo mv -f %s %s", backup, conf))
+		assert.NoError(t, err, "cleanup: failed to restore %s", conf)
+		out, err := client.Execute("sudo " + macosInstallerBinary + " postinst datadog-agent dmg")
+		assert.NoError(t, err, "cleanup: failed to rerun the postinst hook:\n%s", out)
+		assertMacosStableLaunchDaemons(t, client)
+		waitForHealthyMacosAgent(t, client, 60*time.Second)
+	})
+	macosLogDiagnosticsOnFailure(t, client)
+	t.Cleanup(func() {
+		if t.Failed() && directHooks.Len() > 0 {
+			t.Logf("installer postinst output:\n%s", directHooks.String())
+		}
+	})
+	runHook := func(command string) {
+		t.Helper()
+		out, err := client.Execute(command)
+		fmt.Fprintf(&directHooks, "$ %s\n%s\n", command, out)
+		require.NoError(t, err, "%s failed:\n%s", command, out)
+	}
+
+	install.MacOS(t, client,
+		installparams.WithUsername(m.Env().RemoteHost.Username),
+		installparams.WithArch("x64"),
+		installparams.WithExtraEnvVars(map[string]string{"DD_PROCESS_MANAGER_ENABLED": "false"}),
+	)
+	require.False(t, t.Failed(), "the opt-out install failed")
+	assertMacosProcessManagerOff(t, client, "install script")
+
+	runHook("sudo " + macosInstallerBinary + " postinst datadog-agent dmg")
+	assertMacosStableLaunchDaemons(t, client)
+
+	client.MustExecuteOn(t, fmt.Sprintf("printf '\\nprocess_manager:\\n  enabled: false\\n' | sudo tee -a %s >/dev/null", conf))
+	install.MacOS(t, client, installparams.WithUsername(m.Env().RemoteHost.Username), installparams.WithArch("x64"))
+	require.False(t, t.Failed(), "the datadog.yaml opt-out install failed")
+	assertMacosProcessManagerOff(t, client, "datadog.yaml")
+
+	client.MustExecuteOn(t, fmt.Sprintf("sudo cp -p %s %s", backup, conf))
+	runHook("sudo " + macosInstallerBinary + " postinst datadog-agent dmg")
+	assertMacosStableLaunchDaemons(t, client)
+
+	runHook("sudo env DD_PROCESS_MANAGER_ENABLED=false " + macosInstallerBinary + " postinst datadog-agent dmg")
+	assertMacosProcessManagerOff(t, client, "")
+
+	runHook("sudo " + macosInstallerBinary + " postinst datadog-agent dmg")
+	assertMacosStableLaunchDaemons(t, client)
+}
