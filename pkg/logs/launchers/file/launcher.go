@@ -882,6 +882,10 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	newTailer, gen, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
 	if err != nil {
 		log.Warnf("Could not acquire routed pipeline input for replacement tailer %s after log rotation: %v", file.Path, err)
+		s.oldInfoMap[file.GetScanKey()] = &oldTailerInfo{
+			InfoRegistry: oldTailer.GetInfo(),
+			Pattern:      oldRegexPattern,
+		}
 		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 		return false
 	}
@@ -889,6 +893,10 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	err = newTailer.StartFromBeginning()
 	if err != nil {
 		s.retireGeneration(file.Identifier(), gen)
+		s.oldInfoMap[file.GetScanKey()] = &oldTailerInfo{
+			InfoRegistry: oldTailer.GetInfo(),
+			Pattern:      oldRegexPattern,
+		}
 		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 		log.Warnf("Could not start the replacement tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false

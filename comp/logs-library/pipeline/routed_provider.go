@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"reflect"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -180,6 +181,7 @@ type RoutedProvider struct {
 	sourceDispatchMu sync.Mutex
 	sourceDispatch   map[string]*routedSourceDispatch
 	sourceDone       sync.WaitGroup
+	pendingSiblings  atomic.Int64 // Total unadmitted reliable sibling copies retained across dispatch lanes.
 	lifecycle        sync.RWMutex
 	stopOnce         sync.Once
 	stopRequested    chan struct{}
@@ -877,7 +879,17 @@ func (p *RoutedProvider) dispatchSource(identifier string, lane *routedSourceDis
 //     unadmitted copies until actual success or all-terminal-loss.
 func (p *RoutedProvider) dispatchSourceEndpointPolicy(identifier string, lane *routedSourceDispatch) {
 	pending := make(map[string][]*message.Message, len(p.reliableOrder))
+	defer func() {
+		var leftover int64
+		for _, q := range pending {
+			leftover += int64(len(q))
+		}
+		if leftover > 0 {
+			p.pendingSiblings.Add(-leftover)
+		}
+	}()
 	var flushed, stalled uint64
+	var lastCompactedSeq uint64
 	flushWhileStalled := func() {
 		if target := lane.flushAfter.Load(); target > flushed && target > stalled {
 			p.flushSource(identifier)
@@ -894,11 +906,14 @@ func (p *RoutedProvider) dispatchSourceEndpointPolicy(identifier string, lane *r
 	}
 	drainPending := func(watchToken uint64) bool {
 		admittedWatch := false
+		currentSeq := p.progress.OutcomeSeq()
+		shouldCompact := currentSeq != lastCompactedSeq
 		for _, id := range p.reliableOrder {
 			q := pending[id]
 			if len(q) == 0 {
 				continue
 			}
+			beforeLen := len(q)
 			stream := p.streams["endpoint:"+id]
 			for len(q) > 0 {
 				head := q[0]
@@ -915,15 +930,38 @@ func (p *RoutedProvider) dispatchSourceEndpointPolicy(identifier string, lane *r
 					q[0] = nil
 					q = q[1:]
 				default:
+					// Compact completed copies behind the blocked unfinished head so
+					// finished sibling copies cannot accumulate unboundedly during an outage.
+					if shouldCompact && len(q) > 1 {
+						kept := q[:1]
+						for _, m := range q[1:] {
+							if !p.progress.IsRecordDone(m.RoutingToken()) {
+								kept = append(kept, m)
+							}
+						}
+						if len(kept) < len(q) {
+							clear(q[len(kept):])
+							q = kept
+						}
+						if cap(q) > 2*len(q) && cap(q) > routing.SourcePendingLimit {
+							q = slices.Clone(q)
+						}
+					}
 					goto nextEndpoint
 				}
 			}
 		nextEndpoint:
+			if delta := int64(len(q) - beforeLen); delta != 0 {
+				p.pendingSiblings.Add(delta)
+			}
 			if len(q) == 0 {
 				delete(pending, id)
 			} else {
 				pending[id] = q
 			}
+		}
+		if shouldCompact {
+			lastCompactedSeq = currentSeq
 		}
 		return admittedWatch
 	}
@@ -1002,6 +1040,7 @@ func (p *RoutedProvider) dispatchSourceEndpointPolicy(identifier string, lane *r
 				q := pending[id]
 				q[0] = nil
 				q = q[1:]
+				p.pendingSiblings.Add(-1)
 				if len(q) == 0 {
 					delete(pending, id)
 				} else {
@@ -1050,9 +1089,11 @@ func (p *RoutedProvider) dispatchSourceEndpointPolicy(identifier string, lane *r
 					admittedAny = true
 				default:
 					pending[id] = append(pending[id], msg)
+					p.pendingSiblings.Add(1)
 				}
 			} else {
 				pending[id] = append(pending[id], msg)
+				p.pendingSiblings.Add(1)
 			}
 		}
 
@@ -1100,6 +1141,7 @@ func (p *RoutedProvider) dispatchSourceEndpointPolicy(identifier string, lane *r
 					sentMsg := q[0]
 					q[0] = nil
 					q = q[1:]
+					p.pendingSiblings.Add(-1)
 					if len(q) == 0 {
 						delete(pending, id)
 					} else {

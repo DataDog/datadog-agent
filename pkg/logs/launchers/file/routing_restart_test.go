@@ -140,12 +140,14 @@ func TestRoutedProgressReplaysFileFromPersistedPrefix(t *testing.T) {
 }
 
 type fakeRoutedFileProvider struct {
-	mu          sync.Mutex
-	guarded     bool
-	inputs      map[sourceGeneration]chan *message.Message
-	retired     map[sourceGeneration]bool
-	received    chan *message.Message
-	retireEvent chan sourceGeneration
+	mu            sync.Mutex
+	guarded       bool
+	failNextInput int
+	failedInputs  int
+	inputs        map[sourceGeneration]chan *message.Message
+	retired       map[sourceGeneration]bool
+	received      chan *message.Message
+	retireEvent   chan sourceGeneration
 }
 
 func newFakeRoutedFileProvider() *fakeRoutedFileProvider {
@@ -172,6 +174,11 @@ func (f *fakeRoutedFileProvider) Flush(context.Context) {}
 func (f *fakeRoutedFileProvider) SourceInput(identifier string, generation uint64) (chan *message.Message, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.failNextInput > 0 {
+		f.failNextInput--
+		f.failedInputs++
+		return nil, routing.ErrSourceCapacity
+	}
 	ch := make(chan *message.Message, 16)
 	sg := sourceGeneration{identifier: identifier, generation: generation}
 	f.inputs[sg] = ch
@@ -288,4 +295,64 @@ func TestFileLauncherAdoptsRoutedSourceInputAndRetiresGenerations(t *testing.T) 
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for gen2 retirement on Stop")
 	}
+}
+
+func TestFileLauncherFailedRotationHandoffPreservesReplacementPrefix(t *testing.T) {
+	mockCfg := configmock.New(t)
+	mockCfg.SetInTest("logs_config.close_timeout", 1)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "app.log")
+	initialContent := "old-prefix-line-1\n"
+	require.NoError(t, os.WriteFile(path, []byte(initialContent), 0o600))
+	identifier := "file:" + path
+
+	prov := newFakeRoutedFileProvider()
+	reg := auditorMock.NewMockRegistry()
+	logSources := sources.NewLogSources()
+	tracker := tailers.NewTailerTracker()
+
+	l := NewLauncher(10, 10*time.Millisecond, false, 20*time.Millisecond, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
+	l.Start(logSources, prov, reg, tracker)
+	defer l.Stop()
+
+	src := sources.NewLogSource("app", &config.LogsConfig{
+		Type:        config.FileType,
+		Path:        path,
+		TailingMode: "beginning",
+	})
+	logSources.AddSource(src)
+
+	select {
+	case msg := <-prov.received:
+		require.Equal(t, "old-prefix-line-1", string(msg.GetContent()))
+		// Simulate persisted checkpoint at the end of the old file.
+		reg.SetOffset(identifier, strconv.Itoa(len(initialContent)))
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for initial line")
+	}
+
+	// Force the next SourceInput call (during rotation) to fail with ErrSourceCapacity.
+	prov.mu.Lock()
+	prov.failNextInput = 1
+	prov.mu.Unlock()
+
+	// Rotate the file and write a replacement file LARGER than the old saved offset.
+	require.NoError(t, os.Rename(path, path+".1"))
+	require.NoError(t, os.WriteFile(path, []byte("new-prefix-line-1\nnew-suffix-line-2\n"), 0o600))
+
+	// Both the replacement prefix (before old offset 18) and suffix MUST be delivered
+	// once SourceInput succeeds on the retry scan.
+	got := make(map[string]bool)
+	deadline := time.After(5 * time.Second)
+	for !(got["new-prefix-line-1"] && got["new-suffix-line-2"]) {
+		select {
+		case msg := <-prov.received:
+			got[string(msg.GetContent())] = true
+		case <-deadline:
+			t.Fatalf("timed out waiting for full replacement file prefix+suffix; got=%v", got)
+		}
+	}
+	prov.mu.Lock()
+	require.Equal(t, 1, prov.failedInputs, "rotation must have experienced the forced SourceInput failure before retrying")
+	prov.mu.Unlock()
 }

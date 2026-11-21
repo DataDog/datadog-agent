@@ -289,3 +289,87 @@ func TestHTTPSenderLegacyModePreservesPreChange304AndTruncated2xxBehavior(t *tes
 		}
 	})
 }
+
+func TestHTTPSenderRedirectRoutedRetriesWhileLegacyFollows(t *testing.T) {
+	t.Run("routed OutcomeSink does not follow 302 redirect and retries until POST 200", func(t *testing.T) {
+		var postAttempts, getAttempts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = io.Copy(io.Discard, r.Body)
+			_ = r.Body.Close()
+			if r.Method == http.MethodGet {
+				getAttempts.Add(1)
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			if postAttempts.Add(1) == 1 {
+				w.Header().Set("Location", "/redirected")
+				w.WriteHeader(http.StatusFound)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		cfg := configmock.New(t)
+		destCtx := client.NewDestinationsContext()
+		destCtx.Start()
+		defer destCtx.Stop()
+
+		ep := endpointFromServer(t, server)
+		eps := config.NewEndpointsWithBatchSettings(ep, nil, false, true, time.Second, 1, 10, 1024*1024, 16)
+		sink := &testOutcomeSink{
+			success: make(chan *message.Payload, 4),
+			loss:    make(chan *message.Payload, 4),
+		}
+		s := NewHTTPSender(cfg, sink, 8, sender.NewServerlessMeta(false), eps, destCtx, "test-routed-redirect", httpclient.JSONContentType, "", 1, 1, 1, 1, secretsnoopimpl.NewComponent().Comp, metrics.NewNoopPipelineMonitor(""))
+		s.Start()
+		defer s.Stop()
+
+		s.In() <- message.NewPayload([]*message.MessageMetadata{{}}, []byte(`[{"message":"no-redirect"}]`), "", 27)
+		select {
+		case <-sink.success:
+			require.Equal(t, int32(0), getAttempts.Load(), "routed reliable endpoint must not follow 302 into bodyless GET")
+			require.GreaterOrEqual(t, postAttempts.Load(), int32(2), "302 redirect must retry until POST 200")
+		case <-sink.loss:
+			t.Fatal("302 redirect must not be reported as terminal loss")
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for POST 200 recovery after 302")
+		}
+	})
+
+	t.Run("legacy Sink preserves default redirect following", func(t *testing.T) {
+		var getAttempts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = io.Copy(io.Discard, r.Body)
+			_ = r.Body.Close()
+			if r.Method == http.MethodGet {
+				getAttempts.Add(1)
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			w.Header().Set("Location", "/redirected")
+			w.WriteHeader(http.StatusFound)
+		}))
+		defer server.Close()
+
+		cfg := configmock.New(t)
+		destCtx := client.NewDestinationsContext()
+		destCtx.Start()
+		defer destCtx.Stop()
+
+		ep := endpointFromServer(t, server)
+		eps := config.NewEndpointsWithBatchSettings(ep, nil, false, true, time.Second, 1, 10, 1024*1024, 16)
+		sink := &legacyOnlySink{ch: make(chan *message.Payload, 4)}
+		s := NewHTTPSender(cfg, sink, 8, sender.NewServerlessMeta(false), eps, destCtx, "test-legacy-redirect", httpclient.JSONContentType, "", 1, 1, 1, 1, secretsnoopimpl.NewComponent().Comp, metrics.NewNoopPipelineMonitor(""))
+		s.Start()
+		defer s.Stop()
+
+		s.In() <- message.NewPayload([]*message.MessageMetadata{{}}, []byte(`[{"message":"legacy-redirect"}]`), "", 31)
+		select {
+		case <-sink.ch:
+			require.Equal(t, int32(1), getAttempts.Load(), "legacy sender must preserve default redirect behavior")
+		case <-time.After(5 * time.Second):
+			t.Fatal("legacy sender did not complete redirect")
+		}
+	})
+}

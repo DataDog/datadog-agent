@@ -958,3 +958,88 @@ func TestEndpointRoutingDisabledReliableEndpointDoesNotHangShutdown(t *testing.T
 	close(sink.ch)
 	sinkWg.Wait()
 }
+
+func TestEndpointRoutingSiblingBacklogCompactsBehindBlockedHead(t *testing.T) {
+	var r1Accepted atomic.Int64
+	r1Srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = r.Body.Close()
+		if strings.Contains(string(raw), "BLOCK_HEAD") {
+			w.WriteHeader(http.StatusBadRequest) // Permanent 400 -> stays pending in Progress for R2!
+			return
+		}
+		var recs []map[string]any
+		_ = json.Unmarshal(raw, &recs)
+		r1Accepted.Add(int64(len(recs)))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer r1Srv.Close()
+	parsed, err := url.Parse(r1Srv.URL)
+	require.NoError(t, err)
+	port, err := strconv.Atoi(parsed.Port())
+	require.NoError(t, err)
+	r1Ep := config.NewEndpoint("r1-key", "", parsed.Hostname(), port, "", false)
+
+	r2 := newMockEndpointIntake(t, "r2-key", false)
+	r2Block := make(chan struct{})
+	r2.setBlock(r2Block)
+	defer close(r2Block)
+
+	policy, err := routing.NewEndpointPolicyFromTargets([]routing.EndpointTarget{
+		{ID: "r1", Endpoint: r1Ep, Reliable: true, Evaluator: routing.MatchAllEvaluator{}},
+		{ID: "r2", Endpoint: r2.endpoint, Reliable: true, Evaluator: routing.MatchAllEvaluator{}},
+	}, newBatchTemplate(r1Ep, 20*time.Millisecond, 1), 4, nil)
+	require.NoError(t, err)
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.payload_channel_size", 2)
+	destCtx := client.NewDestinationsContext()
+	destCtx.Start()
+	defer destCtx.Stop()
+
+	sink := &routedTestSink{ch: make(chan *message.Payload, 64)}
+	provider, err := NewRoutedProvider(RoutedOptions{
+		NumberOfPipelines:         1,
+		Sink:                      sink,
+		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
+		EndpointPolicy:            policy,
+		DestinationsContext:       destCtx,
+		Config:                    cfg,
+		Compression:               realGzipCompression{},
+		Secrets:                   secretsnoopimpl.NewComponent().Comp,
+	})
+	require.NoError(t, err)
+	provider.Start()
+	defer func() {
+		provider.Stop()
+		close(sink.ch)
+	}()
+
+	src := sources.NewLogSource("anon", &config.LogsConfig{Type: config.StringChannelType})
+	in := provider.NextPipelineChan()
+
+	// Saturate R2's stream + sender buffers with 200 anonymous records.
+	for i := 0; i < 200; i++ {
+		in <- message.NewMessageWithSource([]byte("fill-"+strconv.Itoa(i)), message.StatusInfo, src, 0)
+	}
+	waitForCondition(t, "initial 200 fill records delivered to R1", func() bool { return r1Accepted.Load() == 200 })
+
+	// Inject an unfinished head record (R1 returns 400; R2 is saturated and blocked).
+	in <- message.NewMessageWithSource([]byte("BLOCK_HEAD"), message.StatusInfo, src, 0)
+
+	// Send 500 more anonymous records that all succeed on R1.
+	for i := 0; i < 500; i++ {
+		in <- message.NewMessageWithSource([]byte("after-head-"+strconv.Itoa(i)), message.StatusInfo, src, 0)
+	}
+	waitForCondition(t, "all 500 subsequent records delivered to R1", func() bool { return r1Accepted.Load() == 700 })
+
+	// Send one more record to trigger final compaction after the 500th completes.
+	in <- message.NewMessageWithSource([]byte("trigger-compact"), message.StatusInfo, src, 0)
+	waitForCondition(t, "trigger record delivered to R1", func() bool { return r1Accepted.Load() == 701 })
+
+	// Retained sibling copies behind the blocked head must be compacted (strictly bounded,
+	// nowhere near 500).
+	require.Eventually(t, func() bool {
+		return provider.pendingSiblings.Load() <= 5
+	}, 5*time.Second, 10*time.Millisecond, "completed sibling copies must be compacted behind an unfinished head")
+}

@@ -85,6 +85,7 @@ type Destination struct {
 	contentType         string
 	host                string
 	client              *httputils.ResetClient
+	clientFactory       func() *http.Client
 	destinationsContext *client.DestinationsContext
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
@@ -148,9 +149,21 @@ func NewDestination(endpoint config.Endpoint,
 
 // SetTerminalLossOutput configures an optional output channel for permanent HTTP
 // rejections so callers can distinguish terminal loss from delivery success.
+// Also disables automatic HTTP redirect following so 3xx responses cannot be
+// rewritten to bodyless GET requests that falsely satisfy reliable checkpoints.
 // Must be called before Start.
 func (d *Destination) SetTerminalLossOutput(output chan *message.Payload) {
 	d.terminalLossOutput = output
+	if output != nil && d.clientFactory != nil {
+		baseFactory := d.clientFactory
+		d.client = httputils.NewResetClient(d.endpoint.ConnectionResetInterval, func() *http.Client {
+			c := baseFactory()
+			c.CheckRedirect = func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			}
+			return c
+		})
+	}
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -185,13 +198,15 @@ func newDestination(endpoint config.Endpoint,
 	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
 
 	workerPool := newDefaultWorkerPool(minConcurrency, maxConcurrency, destMeta)
+	clientFactory := httpClientFactory(cfg, timeoutOverride)
 
 	return &Destination{
 		host:                endpoint.Host,
 		url:                 buildURL(endpoint),
 		endpoint:            endpoint,
 		contentType:         contentType,
-		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(cfg, timeoutOverride)),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, clientFactory),
+		clientFactory:       clientFactory,
 		destinationsContext: destinationsContext,
 		workerPool:          workerPool,
 		wg:                  sync.WaitGroup{},

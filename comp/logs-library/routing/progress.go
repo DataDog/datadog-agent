@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -41,6 +42,7 @@ type Progress struct {
 	histories    int
 	space        chan struct{} // Allocated when admission must wait; guarded by mu.
 	outcomeCh    chan struct{} // Broadcast when any record completes; guarded by mu.
+	outcomeSeq   atomic.Uint64 // Monotonic completion sequence for O(1) sibling compaction checks.
 	ready        chan *message.Payload
 	shutdown     chan struct{}
 	shutdownOnce sync.Once
@@ -437,6 +439,11 @@ func (p *Progress) IsRecordDone(token uint64) bool {
 	return r == nil || r.done
 }
 
+// OutcomeSeq returns a monotonic counter incremented on every record completion.
+func (p *Progress) OutcomeSeq() uint64 {
+	return p.outcomeSeq.Load()
+}
+
 // OutcomeSignal returns a channel that closes when any record completes or the
 // coordinator stops. Callers waiting on blocked sibling offers can select on it.
 func (p *Progress) OutcomeSignal() <-chan struct{} {
@@ -710,6 +717,7 @@ func (p *Progress) notifySpace() {
 }
 
 func (p *Progress) notifyOutcome() {
+	p.outcomeSeq.Add(1)
 	if p.outcomeCh != nil {
 		close(p.outcomeCh)
 		p.outcomeCh = nil
