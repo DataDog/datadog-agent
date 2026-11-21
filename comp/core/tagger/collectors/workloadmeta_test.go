@@ -7432,7 +7432,7 @@ func TestKueuePodUIDTagsPropagate(t *testing.T) {
 				"unresolved": {kubernetes.KueueManagedLabelKey: "true"},
 				"queue-only": {kubernetes.KueueQueueNameLabelKey: "batch"},
 			} {
-				store.Set(&workloadmeta.KubernetesPod{
+				process(workloadmeta.EventTypeSet, &workloadmeta.KubernetesPod{
 					EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: id},
 					EntityMeta: workloadmeta.EntityMeta{Namespace: "team-a", Labels: labels},
 				})
