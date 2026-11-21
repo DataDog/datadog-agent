@@ -23,7 +23,11 @@ type Registry interface {
 // Windows event log's initial bookmark save. Direct writes are allowed before
 // the first producer admits records. Once records or replacement producers
 // exist, only ordinary auditor output may advance the safe prefix.
+// GuardRegistry is idempotent for the same Progress coordinator.
 func (p *Progress) GuardRegistry(registry Registry) Registry {
+	if existing, ok := registry.(*guardedRegistry); ok && existing.progress == p {
+		return registry
+	}
 	return &guardedRegistry{Registry: registry, progress: p}
 }
 
@@ -41,4 +45,24 @@ func (r *guardedRegistry) SetOffset(identifier, offset string) {
 		return
 	}
 	r.Registry.SetOffset(identifier, offset)
+}
+
+// Flush forwards a synchronous durability flush to the underlying registry/auditor
+// when it implements Flush (e.g. comp/logs/auditor).
+func (r *guardedRegistry) Flush() {
+	if flusher, ok := r.Registry.(interface{ Flush() }); ok {
+		flusher.Flush()
+	}
+}
+
+// FlushWithError forwards a synchronous durability flush with error reporting
+// when the underlying registry/auditor implements FlushWithError.
+func (r *guardedRegistry) FlushWithError() error {
+	if flusher, ok := r.Registry.(interface{ FlushWithError() error }); ok {
+		return flusher.FlushWithError()
+	}
+	if flusher, ok := r.Registry.(interface{ Flush() }); ok {
+		flusher.Flush()
+	}
+	return nil
 }

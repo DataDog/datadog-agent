@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 type stubTagFilter struct {
@@ -386,4 +387,84 @@ func TestProgressReserveSharedReclaimsChurningIdentifiers(t *testing.T) {
 
 	require.Equal(t, []string{"anon-ep"}, progress.PendingGroups(""))
 	require.Equal(t, []string{"shared-ep"}, progress.PendingSharedGroups())
+}
+
+type stubRegistry struct {
+	offsets map[string]string
+}
+
+func (r *stubRegistry) GetOffset(id string) string               { return r.offsets[id] }
+func (r *stubRegistry) GetTailingMode(string) string             { return "" }
+func (r *stubRegistry) GetFingerprint(string) *types.Fingerprint { return nil }
+func (r *stubRegistry) KeepAlive(string)                         {}
+func (r *stubRegistry) SetTailed(string, bool)                   {}
+func (r *stubRegistry) SetOffset(id, off string)                 { r.offsets[id] = off }
+
+func TestGuardRegistryIsIdempotentAndPublishOffsetResetIsFIFO(t *testing.T) {
+	sink := &policyTestSink{ch: make(chan *message.Payload, 16)}
+	progress, err := NewProgress(8, sink)
+	require.NoError(t, err)
+	defer progress.Close()
+
+	// Double-wrapping GuardRegistry (as in Agent SetupPipeline + file.Launcher.Start)
+	// must be idempotent and never self-deadlock on SetOffset.
+	base := &stubRegistry{offsets: make(map[string]string)}
+	doubleGuarded := progress.GuardRegistry(progress.GuardRegistry(base))
+	doubleGuarded.SetOffset("file:/tmp/x.log", "42")
+	require.Equal(t, "42", base.offsets["file:/tmp/x.log"])
+
+	// PublishOffsetReset is strictly FIFO-ordered behind retired oldGen completions
+	// and ahead of future newGen completions, and rejected while oldGen owns the source.
+	src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType})
+	id := "file:/tmp/fifo.log"
+	require.NoError(t, progress.RegisterSource(id, 1))
+	m1 := message.NewMessageWithSource([]byte("old"), message.StatusInfo, src, 0)
+	m1.Origin.Identifier = id
+	m1.Origin.Offset = "1024"
+	tok1, err := progress.Reserve(context.Background(), m1, 1)
+	require.NoError(t, err)
+	_, err = progress.AttachEndpointSelection(tok1, EndpointSelection{Reliable: []string{"us1"}})
+	require.NoError(t, err)
+	meta1 := m1.MessageMetadata
+	progress.CompleteReliableSuccess("us1", message.NewPayload([]*message.MessageMetadata{&meta1}, nil, "", 0))
+
+	// Rejected while generation 1 is still owned (not yet retired).
+	_, ok := progress.PublishOffsetReset(id, src)
+	require.False(t, ok)
+
+	// Retire generation 1 -> PublishOffsetReset succeeds and enqueues strictly after "1024".
+	require.NoError(t, progress.RetireSource(id, 1))
+	resetSeq, ok := progress.PublishOffsetReset(id, src)
+	require.True(t, ok)
+	require.NotZero(t, resetSeq)
+
+	// Register generation 2 and complete offset "200" -> strictly after "0".
+	require.NoError(t, progress.RegisterSource(id, 2))
+	m2 := message.NewMessageWithSource([]byte("new"), message.StatusInfo, src, 0)
+	m2.Origin.Identifier = id
+	m2.Origin.Offset = "200"
+	tok2, err := progress.Reserve(context.Background(), m2, 2)
+	require.NoError(t, err)
+	_, err = progress.AttachEndpointSelection(tok2, EndpointSelection{Reliable: []string{"us1"}})
+	require.NoError(t, err)
+	meta2 := m2.MessageMetadata
+	progress.CompleteReliableSuccess("us1", message.NewPayload([]*message.MessageMetadata{&meta2}, nil, "", 0))
+
+	var got []string
+	for range 3 {
+		select {
+		case p := <-sink.ch:
+			meta := p.MessageMetas[0]
+			got = append(got, meta.Origin.Offset)
+			if meta.Origin.Offset == "0" {
+				require.NotZero(t, meta.IngestionTimestamp)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out reading FIFO checkpoints; got=%v", got)
+		}
+	}
+	require.Equal(t, []string{"1024", "0", "200"}, got)
+	require.Eventually(t, func() bool {
+		return progress.IsOffsetResetForwarded(resetSeq)
+	}, 2*time.Second, 5*time.Millisecond)
 }

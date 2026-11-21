@@ -19,6 +19,8 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
@@ -270,6 +272,44 @@ func (suite *AuditorTestSuite) TestAuditorRegistryWriterSelection() {
 	}
 	auditor = newAuditor(deps)
 	suite.Equal("*auditorimpl.nonAtomicRegistryWriter", fmt.Sprintf("%T", auditor.registryWriter))
+}
+
+type failingRegistryWriter struct {
+	fail  bool
+	inner auditor.RegistryWriter
+}
+
+func (w *failingRegistryWriter) WriteRegistry(registryPath, registryDirPath, registryTmpFile string, data []byte) error {
+	if w.fail {
+		return os.ErrPermission
+	}
+	return w.inner.WriteRegistry(registryPath, registryDirPath, registryTmpFile, data)
+}
+
+func (suite *AuditorTestSuite) TestAuditorFlushWithErrorReportsDiskFailureAndRecovers() {
+	writer := &failingRegistryWriter{fail: true, inner: NewAtomicRegistryWriter()}
+	suite.a.registryWriter = writer
+	suite.a.Start()
+	defer suite.a.Stop()
+
+	origin := message.NewOrigin(suite.source)
+	origin.Identifier = "file:/tmp/flush-err.log"
+	origin.Offset = "0"
+	meta := &message.MessageMetadata{Origin: origin, IngestionTimestamp: time.Now().UnixNano()}
+	suite.a.Channel() <- message.NewPayload([]*message.MessageMetadata{meta}, nil, "", 0)
+
+	// Disk failure MUST be returned by FlushWithError.
+	err := suite.a.FlushWithError()
+	suite.ErrorIs(err, os.ErrPermission)
+
+	// Once disk recovers, FlushWithError returns nil and persists offset "0" to disk.
+	writer.fail = false
+	suite.NoError(suite.a.FlushWithError())
+
+	recovered := suite.a.recoverRegistry()
+	entry, ok := recovered["file:/tmp/flush-err.log"]
+	suite.True(ok)
+	suite.Equal("0", entry.Offset)
 }
 
 func TestScannerTestSuite(t *testing.T) {

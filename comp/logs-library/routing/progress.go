@@ -11,9 +11,11 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 var (
@@ -43,6 +45,8 @@ type Progress struct {
 	space        chan struct{} // Allocated when admission must wait; guarded by mu.
 	outcomeCh    chan struct{} // Broadcast when any record completes; guarded by mu.
 	outcomeSeq   atomic.Uint64 // Monotonic completion sequence for O(1) sibling compaction checks.
+	enqueuedSeq  uint64        // Monotonic count of payloads pushed to ready; guarded by mu.
+	forwardedSeq atomic.Uint64 // Monotonic count of payloads forwarded from ready to sink.
 	ready        chan *message.Payload
 	shutdown     chan struct{}
 	shutdownOnce sync.Once
@@ -97,10 +101,12 @@ func (p *Progress) forward() {
 		// channel is acquired only when terminal progress is ready to publish.
 		output := p.sink.Channel()
 		if output == nil {
+			p.forwardedSeq.Add(1)
 			continue // Match the default sender's no-op sink behavior.
 		}
 		select {
 		case output <- payload:
+			p.forwardedSeq.Add(1)
 		case <-p.shutdown:
 			return // A blocked sink must not prevent shutdown.
 		}
@@ -608,6 +614,7 @@ func (p *Progress) advance(r *record) {
 		if front.generation == source.currentGeneration {
 			select {
 			case p.ready <- message.NewPayload([]*message.MessageMetadata{front.meta}, nil, "", 0):
+				p.enqueuedSeq++
 			case <-p.shutdown:
 			}
 		}
@@ -737,6 +744,45 @@ func (p *Progress) OwnsSource(identifier string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.sources[identifier] != nil
+}
+
+// PublishOffsetReset enqueues an ordered byte-zero checkpoint onto the same FIFO
+// auditor channel (p.ready) strictly after all retired generations for identifier
+// have drained and before any replacement generation can register. Returns the
+// FIFO sequence number and true when accepted, or (0, false) if identifier is
+// still owned or p.ready is momentarily full.
+func (p *Progress) PublishOffsetReset(identifier string, source *sources.LogSource) (uint64, bool) {
+	if identifier == "" || source == nil {
+		return 0, true
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.stopped || p.sources[identifier] != nil {
+		return 0, false
+	}
+	origin := message.NewOrigin(source)
+	origin.Identifier = identifier
+	origin.Offset = "0"
+	meta := &message.MessageMetadata{
+		Origin:             origin,
+		IngestionTimestamp: time.Now().UnixNano(),
+	}
+	select {
+	case p.ready <- message.NewPayload([]*message.MessageMetadata{meta}, nil, "", 0):
+		p.enqueuedSeq++
+		return p.enqueuedSeq, true
+	default:
+		return 0, false
+	}
+}
+
+// IsOffsetResetForwarded reports whether the FIFO payload at seq (returned by
+// PublishOffsetReset) has been delivered by forward() into the downstream sink.
+func (p *Progress) IsOffsetResetForwarded(seq uint64) bool {
+	if seq == 0 {
+		return true
+	}
+	return p.forwardedSeq.Load() >= seq
 }
 
 // StopForwarding interrupts checkpoint publication when the downstream auditor

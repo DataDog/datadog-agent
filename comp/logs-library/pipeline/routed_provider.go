@@ -32,6 +32,7 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -1366,6 +1367,19 @@ func (p *RoutedProvider) NextPipelineChan() chan *message.Message { return p.ing
 // prevents source-owned writes from bypassing outstanding group obligations.
 func (p *RoutedProvider) GuardRegistry(registry routing.Registry) routing.Registry {
 	return p.progress.GuardRegistry(registry)
+}
+
+// ResetSourceOffset publishes a FIFO-ordered byte-zero checkpoint reset for an
+// unowned identifier onto the provider's auditor stream, returning its FIFO
+// sequence number for observability.
+func (p *RoutedProvider) ResetSourceOffset(identifier string, source *sources.LogSource) (uint64, bool) {
+	return p.progress.PublishOffsetReset(identifier, source)
+}
+
+// IsOffsetResetForwarded reports whether the reset payload at seq has been
+// forwarded into the downstream auditor channel.
+func (p *RoutedProvider) IsOffsetResetForwarded(seq uint64) bool {
+	return p.progress.IsOffsetResetForwarded(seq)
 }
 
 // RetireSource waits for admission before releasing a stopped producer's ownership.

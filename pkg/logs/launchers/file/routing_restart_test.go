@@ -145,6 +145,11 @@ type fakeRoutedFileProvider struct {
 	failNextInput   int
 	failedInputs    int
 	maxActiveInputs int // If >0, SourceInput returns ErrSourceCapacity whenever len(inputs) >= maxActiveInputs.
+	registry        auditor.Registry
+	delayReset      bool
+	nextResetSeq    uint64
+	forwardedSeq    uint64
+	pendingResets   []string
 	inputs          map[sourceGeneration]chan *message.Message
 	retired         map[sourceGeneration]bool
 	received        chan *message.Message
@@ -213,6 +218,42 @@ func (f *fakeRoutedFileProvider) GuardRegistry(reg routing.Registry) routing.Reg
 	f.guarded = true
 	f.mu.Unlock()
 	return reg
+}
+
+func (f *fakeRoutedFileProvider) ResetSourceOffset(identifier string, _ *sources.LogSource) (uint64, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nextResetSeq++
+	seq := f.nextResetSeq
+	if f.delayReset {
+		f.pendingResets = append(f.pendingResets, identifier)
+		return seq, true
+	}
+	if f.registry != nil && identifier != "" {
+		f.registry.SetOffset(identifier, "0")
+	}
+	f.forwardedSeq = seq
+	return seq, true
+}
+
+func (f *fakeRoutedFileProvider) IsOffsetResetForwarded(seq uint64) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.forwardedSeq >= seq
+}
+
+func (f *fakeRoutedFileProvider) flushDelayedResets() {
+	f.mu.Lock()
+	resets := f.pendingResets
+	f.pendingResets = nil
+	reg := f.registry
+	f.forwardedSeq = f.nextResetSeq
+	f.mu.Unlock()
+	if reg != nil {
+		for _, id := range resets {
+			reg.SetOffset(id, "0")
+		}
+	}
 }
 
 func TestFileLauncherAdoptsRoutedSourceInputAndRetiresGenerations(t *testing.T) {
@@ -387,7 +428,7 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 
 		// Record pending rotation handoff for fileA.
 		l.activeSources = []*sources.LogSource{srcA, srcB}
-		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA, pathA)
+		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA, fileA.Identifier(), 0, pathA)
 
 		// Scan 1 hits open_files_limit (tailingLimit=1) with only fileB selected.
 		l.resolveActiveTailers([]*filetailer.File{fileB})
@@ -426,7 +467,7 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		srcA := sources.NewLogSource("a", &config.LogsConfig{Type: config.FileType, Path: pathA, TailingMode: "beginning"})
 		l.activeSources = []*sources.LogSource{srcA}
 		fileA := filetailer.NewFile(pathA, srcA, false)
-		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA, pathA)
+		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA, fileA.Identifier(), 0, pathA)
 
 		// Under-limit scan omits fileA (simulating rename/create gap or transient stat error).
 		l.resolveActiveTailers(nil)
@@ -465,7 +506,7 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		srcA := sources.NewLogSource("a", &config.LogsConfig{Type: config.FileType, Path: pathA, TailingMode: "beginning"})
 		l.activeSources = []*sources.LogSource{srcA}
 		fileA := filetailer.NewFile(pathA, srcA, false)
-		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA, pathA)
+		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA, fileA.Identifier(), 0, pathA)
 
 		l.launchTailers(srcA)
 		require.NotContains(t, l.routedRotationPending, fileA.GetScanKey(), "consumed routedRotationPending entry must be removed")
@@ -525,7 +566,7 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 
 		// Fill routedRotationPending to max-1 (255 + 1 active tailer == 256 conservation cap).
 		for i := 0; i < 255; i++ {
-			l.recordRoutedRotationPending("dummy-"+strconv.Itoa(i), &oldTailerInfo{}, srcCT, "")
+			l.recordRoutedRotationPending("dummy-"+strconv.Itoa(i), &oldTailerInfo{}, srcCT, "", 0, "")
 		}
 		require.Equal(t, 256, len(l.routedRotationPending)+l.tailers.Count())
 
@@ -610,17 +651,24 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		l.cleanup()
 	})
 
-	t.Run("permanently deleted wildcard paths are reclaimed automatically to admit new files", func(t *testing.T) {
+	t.Run("permanently deleted wildcard paths are reclaimed even under repeated hitFileLimit scans", func(t *testing.T) {
 		dir := t.TempDir()
 		freshPath := filepath.Join(dir, "fresh.log")
 		require.NoError(t, os.WriteFile(freshPath, []byte("fresh-after-churn\n"), 0o600))
 
 		prov := newFakeRoutedFileProvider()
-		reg := auditorMock.NewMockRegistry()
-		l := NewLauncher(10, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
+		baseReg := auditorMock.NewMockRegistry()
+		var flushCalls int
+		flushReg := &trackingFlushRegistry{
+			Registry: baseReg,
+			onFlush:  func() error { flushCalls++; return nil },
+		}
+		prov.registry = flushReg
+		// tailingLimit=1 so every scan with [freshFile] hits hitFileLimit=true!
+		l := NewLauncher(1, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
 		l.pipelineProvider = prov
 		l.routedProvider = prov
-		l.registry = reg
+		l.registry = flushReg
 
 		// Active wildcard source remains configured throughout.
 		srcWildcard := sources.NewLogSource("wild", &config.LogsConfig{Type: config.FileType, Path: filepath.Join(dir, "*.log"), TailingMode: "beginning"})
@@ -629,27 +677,24 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		// Fill routedRotationPending to cap (256) with permanently deleted paths belonging to the active wildcard source.
 		for i := 0; i < 256; i++ {
 			deletedPath := filepath.Join(dir, "deleted-"+strconv.Itoa(i)+".log")
-			l.recordRoutedRotationPending(deletedPath, &oldTailerInfo{}, srcWildcard, deletedPath)
+			l.recordRoutedRotationPending(deletedPath, &oldTailerInfo{}, srcWildcard, "file:"+deletedPath, 0, deletedPath)
 		}
 		require.Len(t, l.routedRotationPending, 256)
 
 		freshFile := filetailer.NewFile(freshPath, srcWildcard, false)
 
-		// Scans 1 & 2: deleted paths are still within the transient-absence grace window (missedScans 1, 2 < 3),
-		// so freshFile is not yet admitted and pending entries are preserved.
+		// Scan 1 (hitFileLimit=true): publishes FIFO offset "0" reset for absent deleted paths.
 		l.resolveActiveTailers([]*filetailer.File{freshFile})
 		require.Equal(t, 0, l.tailers.Count())
 		require.Len(t, l.routedRotationPending, 256)
+		require.Equal(t, 0, flushCalls)
 
+		// Scan 2 (hitFileLimit=true): performs ONE batched FlushWithError for all 256 entries and reclaims them!
 		l.resolveActiveTailers([]*filetailer.File{freshFile})
-		require.Equal(t, 0, l.tailers.Count())
-		require.Len(t, l.routedRotationPending, 256)
+		require.Empty(t, l.routedRotationPending, "permanently deleted wildcard paths must be reclaimed even under hitFileLimit")
+		require.Equal(t, 1, flushCalls, "reclaiming 256 pending entries must trigger exactly one batched registry flush")
 
-		// Scan 3: deleted paths hit routedRotationAbsentScans (3) and are automatically pruned!
-		l.resolveActiveTailers([]*filetailer.File{freshFile})
-		require.Empty(t, l.routedRotationPending, "permanently deleted wildcard paths must be reclaimed automatically")
-
-		// Scan 4: freshFile is now admitted without any manual map clearing!
+		// Scan 3 (hitFileLimit=true): freshFile is now admitted without any manual map clearing!
 		l.resolveActiveTailers([]*filetailer.File{freshFile})
 		require.Equal(t, 1, l.tailers.Count())
 		select {
@@ -657,6 +702,60 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 			require.Equal(t, "fresh-after-churn", string(msg.GetContent()))
 		case <-time.After(5 * time.Second):
 			t.Fatal("timed out waiting for fresh wildcard file after deleted entries were reclaimed")
+		}
+		l.cleanup()
+	})
+
+	t.Run("delayed replacement reappearing after reclamation still starts at byte zero (with or without prior checkpoint and on end-mode launchTailers)", func(t *testing.T) {
+		dir := t.TempDir()
+		pathWithCkpt := filepath.Join(dir, "delayed_ckpt.log")
+		pathNoCkpt := filepath.Join(dir, "delayed_nockpt.log")
+
+		prov := newFakeRoutedFileProvider()
+		reg := auditorMock.NewMockRegistry()
+		prov.registry = reg
+		// pathWithCkpt had an old inode offset 18; pathNoCkpt had NO prior checkpoint ("").
+		reg.SetOffset("file:"+pathWithCkpt, "18")
+
+		l := NewLauncher(10, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
+		l.pipelineProvider = prov
+		l.routedProvider = prov
+		l.registry = reg
+
+		srcWithCkpt := sources.NewLogSource("ckpt", &config.LogsConfig{Type: config.FileType, Path: pathWithCkpt, TailingMode: "beginning"})
+		srcNoCkpt := sources.NewLogSource("nockpt", &config.LogsConfig{Type: config.FileType, Path: pathNoCkpt}) // default end mode!
+		l.activeSources = []*sources.LogSource{srcWithCkpt, srcNoCkpt}
+
+		fileWithCkpt := filetailer.NewFile(pathWithCkpt, srcWithCkpt, false)
+		fileNoCkpt := filetailer.NewFile(pathNoCkpt, srcNoCkpt, false)
+		l.recordRoutedRotationPending(fileWithCkpt.GetScanKey(), &oldTailerInfo{}, srcWithCkpt, fileWithCkpt.Identifier(), 0, pathWithCkpt)
+		l.recordRoutedRotationPending(fileNoCkpt.GetScanKey(), &oldTailerInfo{}, srcNoCkpt, fileNoCkpt.Identifier(), 0, pathNoCkpt)
+
+		// Both files are absent across multiple scans -> reclaimed after verified offset "0" reset!
+		l.resolveActiveTailers(nil)
+		l.resolveActiveTailers(nil)
+		require.Empty(t, l.routedRotationPending)
+		require.Equal(t, "0", reg.GetOffset(fileWithCkpt.Identifier()))
+		require.Equal(t, "0", reg.GetOffset(fileNoCkpt.Identifier()))
+
+		// Long after reclamation, both replacement files appear larger than old offset 18.
+		require.NoError(t, os.WriteFile(pathWithCkpt, []byte("ckpt-prefix-12345\nckpt-suffix-67890\n"), 0o600))
+		require.NoError(t, os.WriteFile(pathNoCkpt, []byte("nockpt-prefix-123\nnockpt-suffix-456\n"), 0o600))
+
+		// Re-add no-checkpoint file in default end mode via launchTailers BEFORE scan,
+		// and start with-checkpoint file via ordinary scan!
+		l.launchTailers(srcNoCkpt)
+		l.resolveActiveTailers([]*filetailer.File{fileWithCkpt, fileNoCkpt})
+
+		got := make(map[string]bool)
+		deadline := time.After(5 * time.Second)
+		for !(got["ckpt-prefix-12345"] && got["ckpt-suffix-67890"] && got["nockpt-prefix-123"] && got["nockpt-suffix-456"]) {
+			select {
+			case msg := <-prov.received:
+				got[string(msg.GetContent())] = true
+			case <-deadline:
+				t.Fatalf("timed out waiting for delayed replacement prefixes+suffixes; got=%v", got)
+			}
 		}
 		l.cleanup()
 	})
@@ -680,7 +779,7 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 
 		// 255 routedRotationPending entries + 1 fingerprint oldInfoMap entry == 256 conservation cap.
 		for i := 0; i < 255; i++ {
-			l.recordRoutedRotationPending("dummy-"+strconv.Itoa(i), &oldTailerInfo{}, src, "")
+			l.recordRoutedRotationPending("dummy-"+strconv.Itoa(i), &oldTailerInfo{}, src, "", 0, "")
 		}
 		freshFile := filetailer.NewFile(freshPath, src, false)
 		fpFile := filetailer.NewFile(fpPath, src, false)
@@ -696,4 +795,98 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		require.LessOrEqual(t, len(l.routedRotationPending)+len(l.oldInfoMap)+l.tailers.Count(), l.maxRoutedRotationPending())
 		l.cleanup()
 	})
+
+	t.Run("delayed auditor apply retains pending entry until forwarded, flushed, and untailed", func(t *testing.T) {
+		dir := t.TempDir()
+		pathDelayed := filepath.Join(dir, "delayed_auditor.log")
+
+		prov := newFakeRoutedFileProvider()
+		prov.delayReset = true
+		baseReg := auditorMock.NewMockRegistry()
+		baseReg.SetOffset("file:"+pathDelayed, "18")
+		baseReg.SetTailed("file:"+pathDelayed, true)
+
+		var flushedCount int
+		var failFlush bool
+		var untailed bool
+		flushReg := &trackingFlushRegistry{
+			Registry: baseReg,
+			onFlush: func() error {
+				flushedCount++
+				if failFlush {
+					return os.ErrPermission
+				}
+				return nil
+			},
+			onTailed: func(id string, isTailed bool) {
+				if id == "file:"+pathDelayed && !isTailed {
+					untailed = true
+				}
+			},
+		}
+		prov.registry = flushReg
+
+		l := NewLauncher(10, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
+		l.pipelineProvider = prov
+		l.routedProvider = prov
+		l.registry = flushReg
+
+		src := sources.NewLogSource("delayed", &config.LogsConfig{Type: config.FileType, Path: pathDelayed})
+		l.activeSources = []*sources.LogSource{src}
+		fileDelayed := filetailer.NewFile(pathDelayed, src, false)
+		l.recordRoutedRotationPending(fileDelayed.GetScanKey(), &oldTailerInfo{}, src, fileDelayed.Identifier(), 0, pathDelayed)
+
+		// Scan 1: enqueues reset, but auditor is delayed.
+		l.resolveActiveTailers(nil)
+		require.Contains(t, l.routedRotationPending, fileDelayed.GetScanKey())
+
+		// Scans 2 & 3 while auditor is STILL delayed: entry MUST NOT be evicted!
+		l.resolveActiveTailers(nil)
+		l.resolveActiveTailers(nil)
+		require.Contains(t, l.routedRotationPending, fileDelayed.GetScanKey(), "pending entry must not be evicted before auditor applies offset 0")
+		require.Equal(t, "18", baseReg.GetOffset(fileDelayed.Identifier()))
+
+		// Now auditor applies the reset, but disk persistence FAILS: entry MUST NOT be evicted!
+		prov.flushDelayedResets()
+		failFlush = true
+		l.resolveActiveTailers(nil)
+		require.Contains(t, l.routedRotationPending, fileDelayed.GetScanKey(), "pending entry must not be evicted when registry FlushWithError fails")
+		require.Equal(t, 1, flushedCount)
+
+		// Disk persistence recovers -> next scan flushes cleanly, clears tailed mark, verifies "0", and evicts!
+		failFlush = false
+		l.resolveActiveTailers(nil)
+		require.Empty(t, l.routedRotationPending)
+		require.Equal(t, "0", baseReg.GetOffset(fileDelayed.Identifier()))
+		require.Equal(t, 2, flushedCount, "registry FlushWithError must retry and succeed before evicting pending entry")
+		require.True(t, untailed, "stale tailed mark must be cleared so auditor_ttl can expire deleted paths")
+
+		// Simulate restart/reappearance larger than old offset 18 in default end mode: starts at byte 0!
+		require.NoError(t, os.WriteFile(pathDelayed, []byte("restarted-prefix-1\nrestarted-suffix-2\n"), 0o600))
+		offset, whence, err := Position(baseReg, fileDelayed.Identifier(), config.End, filetailer.NewFingerprinterMock(), opener.NewFileOpener(), nil)
+		require.NoError(t, err)
+		require.Equal(t, int64(0), offset)
+		require.Equal(t, io.SeekStart, whence)
+		l.cleanup()
+	})
+}
+
+type trackingFlushRegistry struct {
+	auditor.Registry
+	onFlush  func() error
+	onTailed func(string, bool)
+}
+
+func (r *trackingFlushRegistry) FlushWithError() error {
+	if r.onFlush != nil {
+		return r.onFlush()
+	}
+	return nil
+}
+
+func (r *trackingFlushRegistry) SetTailed(id string, isTailed bool) {
+	if r.onTailed != nil {
+		r.onTailed(id, isTailed)
+	}
+	r.Registry.SetTailed(id, isTailed)
 }

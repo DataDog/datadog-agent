@@ -54,7 +54,7 @@ type registryAuditor struct {
 	kubeHealthRegistrar kubehealthdef.Component
 	chansMutex          sync.Mutex
 	inputChan           chan *message.Payload
-	flushRequestChan    chan chan struct{}
+	flushRequestChan    chan chan error
 	registry            map[string]*RegistryEntry
 	tailedSources       map[string]bool
 	registryPath        string
@@ -144,27 +144,44 @@ func (a *registryAuditor) Stop() {
 //
 // Must not be called concurrently with Stop.
 func (a *registryAuditor) Flush() {
+	_ = a.FlushWithError()
+}
+
+// FlushWithError behaves like Flush and returns any disk persistence error so
+// callers that depend on durable checkpoint writes can retry instead of assuming
+// persistence succeeded.
+func (a *registryAuditor) FlushWithError() error {
 	a.chansMutex.Lock()
 	reqChan := a.flushRequestChan
+	doneChan := a.done
 	a.chansMutex.Unlock()
 
 	if reqChan == nil {
 		if err := a.flushRegistry(); err != nil {
 			a.log.Warnf("Failed to flush auditor registry: %v", err)
+			return err
 		}
-		return
+		return nil
 	}
 
-	done := make(chan struct{})
-	reqChan <- done
-	<-done
+	done := make(chan error, 1)
+	select {
+	case reqChan <- done:
+		return <-done
+	case <-doneChan:
+		if err := a.flushRegistry(); err != nil {
+			a.log.Warnf("Failed to flush auditor registry: %v", err)
+			return err
+		}
+		return nil
+	}
 }
 
 func (a *registryAuditor) createChannels() {
 	a.chansMutex.Lock()
 	defer a.chansMutex.Unlock()
 	a.inputChan = make(chan *message.Payload, a.messageChannelSize)
-	a.flushRequestChan = make(chan chan struct{})
+	a.flushRequestChan = make(chan chan error)
 	a.done = make(chan struct{})
 }
 
@@ -325,9 +342,11 @@ func (a *registryAuditor) run() {
 				default:
 				}
 			}
-			if err := a.flushRegistry(); err != nil {
+			err := a.flushRegistry()
+			if err != nil {
 				a.log.Warnf("Flush: failed to flush registry: %v", err)
 			}
+			responseChan <- err
 			close(responseChan)
 		}
 	}

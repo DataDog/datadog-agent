@@ -51,21 +51,24 @@ type routedSourceProvider interface {
 	GuardRegistry(registry routing.Registry) routing.Registry
 }
 
+type routedOffsetResetter interface {
+	ResetSourceOffset(identifier string, source *sources.LogSource) (uint64, bool)
+	IsOffsetResetForwarded(seq uint64) bool
+}
+
 type sourceGeneration struct {
 	identifier string
 	generation uint64
 }
 
-// routedRotationAbsentScans is the number of consecutive under-limit scans
-// where a pending rotated path must report os.ErrNotExist (with no draining
-// old tailer remaining) before being pruned as permanently deleted.
-const routedRotationAbsentScans = 3
-
 type routedRotationEntry struct {
 	info        *oldTailerInfo
 	source      *sources.LogSource
+	identifier  string
+	oldGen      uint64
 	path        string
-	missedScans int
+	offsetReset bool
+	resetSeq    uint64
 }
 
 // Launcher checks all files provided by fileProvider and create new tailers
@@ -476,7 +479,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		}
 	}
 	if s.routedProvider != nil && len(s.routedRotationPending) > 0 {
-		s.reconcileRoutedRotationPending(filesExpected, hitFileLimit)
+		s.reconcileRoutedRotationPending(filesExpected)
 	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
 
@@ -951,12 +954,18 @@ func (s *Launcher) canAdmitNewRoutedTailer(unconsumedOldInfo int) bool {
 	return len(s.routedRotationPending)+len(s.oldInfoMap)+unconsumedOldInfo+s.tailers.Count() < maxTotal
 }
 
-// reconcileRoutedRotationPending clears actively tailed entries and prunes
-// entries whose path has reported os.ErrNotExist across routedRotationAbsentScans
-// consecutive under-limit scans (with no draining rotated tailer remaining),
-// allowing permanently deleted wildcard paths to free capacity while preserving
-// entries across transient rename/create gaps, stat errors, and hitFileLimit scans.
-func (s *Launcher) reconcileRoutedRotationPending(filesExpected map[string]bool, hitFileLimit bool) {
+// reconcileRoutedRotationPending clears actively tailed entries and reclaims
+// entries whose path reports os.ErrNotExist directly (including under hitFileLimit
+// scans) once their old rotated tailer has finished and its generation has retired.
+// Before evicting absent entries, it publishes FIFO-ordered byte-zero resets,
+// performs a single batched durability flush per scan (retaining entries if disk
+// persistence fails), clears stale tailed marks so logs_config.auditor_ttl
+// (default 23h) can expire permanently deleted paths, and verifies offset "0" is
+// observable. A replacement reappearing within auditor_ttl starts at byte 0.
+func (s *Launcher) reconcileRoutedRotationPending(filesExpected map[string]bool) {
+	resetter, hasResetter := s.routedProvider.(routedOffsetResetter)
+	var readyToEvict []string
+
 	for scanKey, entry := range s.routedRotationPending {
 		if _, tailed := s.tailers.Get(scanKey); tailed {
 			delete(s.routedRotationPending, scanKey)
@@ -967,35 +976,90 @@ func (s *Launcher) reconcileRoutedRotationPending(filesExpected map[string]bool,
 			continue
 		}
 		if filesExpected[scanKey] {
-			if entry.missedScans != 0 {
-				entry.missedScans = 0
+			if entry.offsetReset {
+				entry.offsetReset = false
+				entry.resetSeq = 0
 				s.routedRotationPending[scanKey] = entry
 			}
 			continue
 		}
-		if hitFileLimit || entry.path == "" {
-			continue
-		}
-		if s.hasRotatedTailer(scanKey) {
+		if entry.path == "" {
 			continue
 		}
 		_, err := os.Stat(entry.path)
 		if err == nil {
-			if entry.missedScans != 0 {
-				entry.missedScans = 0
+			// File still exists on disk (e.g., omitted by top-N hitFileLimit): keep entry.
+			if entry.offsetReset {
+				entry.offsetReset = false
+				entry.resetSeq = 0
 				s.routedRotationPending[scanKey] = entry
 			}
 			continue
 		}
-		if errors.Is(err, os.ErrNotExist) {
-			entry.missedScans++
-			if entry.missedScans >= routedRotationAbsentScans {
-				delete(s.routedRotationPending, scanKey)
-			} else {
-				s.routedRotationPending[scanKey] = entry
+		if !errors.Is(err, os.ErrNotExist) {
+			// Transient non-ENOENT stat error (e.g., EACCES/EIO): preserve entry.
+			continue
+		}
+		if s.hasRotatedTailer(scanKey) || s.hasPendingRetirement(entry.identifier, entry.oldGen) {
+			continue
+		}
+		if !entry.offsetReset {
+			if hasResetter && entry.identifier != "" && entry.source != nil {
+				seq, ok := resetter.ResetSourceOffset(entry.identifier, entry.source)
+				if !ok {
+					continue
+				}
+				entry.resetSeq = seq
+			}
+			entry.offsetReset = true
+			s.routedRotationPending[scanKey] = entry
+			continue
+		}
+		if hasResetter && !resetter.IsOffsetResetForwarded(entry.resetSeq) {
+			continue
+		}
+		readyToEvict = append(readyToEvict, scanKey)
+	}
+
+	if len(readyToEvict) == 0 {
+		return
+	}
+
+	// Clear stale tailed marks and flush the auditor registry ONCE for the entire
+	// batch of ready entries. If disk persistence fails, retain all entries for
+	// retry on the next scan rather than discarding handoff state.
+	if s.registry != nil {
+		for _, scanKey := range readyToEvict {
+			if entry, ok := s.routedRotationPending[scanKey]; ok && entry.identifier != "" {
+				s.registry.SetTailed(entry.identifier, false)
 			}
 		}
+		if err := s.flushRegistry(); err != nil {
+			log.Debugf("deferring routed rotation pending eviction until registry flush succeeds: %v", err)
+			return
+		}
 	}
+
+	for _, scanKey := range readyToEvict {
+		entry, ok := s.routedRotationPending[scanKey]
+		if !ok {
+			continue
+		}
+		if s.registry != nil && entry.identifier != "" && s.registry.GetOffset(entry.identifier) != "0" {
+			continue
+		}
+		delete(s.routedRotationPending, scanKey)
+	}
+}
+
+func (s *Launcher) flushRegistry() error {
+	if flusher, ok := s.registry.(interface{ FlushWithError() error }); ok {
+		return flusher.FlushWithError()
+	}
+	if flusher, ok := s.registry.(interface{ Flush() }); ok {
+		flusher.Flush()
+	}
+	return nil
 }
 
 func (s *Launcher) hasRotatedTailer(scanKey string) bool {
@@ -1004,14 +1068,43 @@ func (s *Launcher) hasRotatedTailer(scanKey string) bool {
 	})
 }
 
-func (s *Launcher) recordRoutedRotationPending(scanKey string, info *oldTailerInfo, src *sources.LogSource, path string) {
+func (s *Launcher) hasPendingRetirement(identifier string, gen uint64) bool {
+	if identifier == "" || gen == 0 {
+		return false
+	}
+	s.routingMu.Lock()
+	defer s.routingMu.Unlock()
+	for _, sg := range s.pendingRetirements {
+		if sg.identifier == identifier && sg.generation == gen {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Launcher) tailerGeneration(t *tailer.Tailer) uint64 {
+	if s.routedProvider == nil || t == nil {
+		return 0
+	}
+	s.routingMu.Lock()
+	defer s.routingMu.Unlock()
+	return s.tailerGenerations[t].generation
+}
+
+func (s *Launcher) recordRoutedRotationPending(scanKey string, info *oldTailerInfo, src *sources.LogSource, identifier string, oldGen uint64, path string) {
 	if s.routedProvider == nil {
 		return
 	}
 	if s.routedRotationPending == nil {
 		s.routedRotationPending = make(map[string]routedRotationEntry)
 	}
-	s.routedRotationPending[scanKey] = routedRotationEntry{info: info, source: src, path: path}
+	s.routedRotationPending[scanKey] = routedRotationEntry{
+		info:       info,
+		source:     src,
+		identifier: identifier,
+		oldGen:     oldGen,
+		path:       path,
+	}
 }
 
 func (s *Launcher) clearRoutedRotationPending(scanKey string) {
@@ -1042,6 +1135,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	s.tailers.Remove(oldTailer)
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
+	oldGen := s.tailerGeneration(oldTailer)
 
 	newTailer, gen, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
 	if err != nil {
@@ -1049,7 +1143,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 		s.recordRoutedRotationPending(file.GetScanKey(), &oldTailerInfo{
 			InfoRegistry: oldTailer.GetInfo(),
 			Pattern:      oldRegexPattern,
-		}, file.Source.UnderlyingSource(), file.Path)
+		}, file.Source.UnderlyingSource(), file.Identifier(), oldGen, file.Path)
 		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 		return false
 	}
@@ -1060,7 +1154,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 		s.recordRoutedRotationPending(file.GetScanKey(), &oldTailerInfo{
 			InfoRegistry: oldTailer.GetInfo(),
 			Pattern:      oldRegexPattern,
-		}, file.Source.UnderlyingSource(), file.Path)
+		}, file.Source.UnderlyingSource(), file.Identifier(), oldGen, file.Path)
 		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 		log.Warnf("Could not start the replacement tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false

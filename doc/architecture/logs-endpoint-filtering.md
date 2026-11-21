@@ -51,7 +51,7 @@ When `logs_config.routing.enabled` is `true`, Agent startup fails explicitly (no
 
 ## Source Isolation and Verified Limits
 
-- **File launcher (`pkg/logs/launchers/file`):** Adopts `SourceInput`, `RetireSource`, and `GuardRegistry` via a narrow optional provider interface. Each file tailer gets a dedicated input channel and monotonic generation across creation and rotation, giving per-file isolation (a blocked file pauses at 64 pending records while unrelated files continue).
+- **File launcher (`pkg/logs/launchers/file`):** Adopts `SourceInput`, `RetireSource`, and `GuardRegistry` via a narrow optional provider interface. Each file tailer gets a dedicated input channel and monotonic generation across creation and rotation, giving per-file isolation (a blocked file pauses at 64 pending records while unrelated files continue). Failed routed rotation handoffs are bounded by `len(pending) + active <= max(open_files_limit*2, 256)`; absent paths whose old generation has retired publish a FIFO-ordered `"0"` checkpoint reset and flush it once per scan before eviction (retaining entries on disk flush failure), so replacements reappearing within `logs_config.auditor_ttl` (default 23h) start from byte 0 while permanently deleted paths expire normally under `auditor_ttl`.
 - **Other launchers:** Remain on bounded shared ingress with per-identifier generation tracking and `GuardRegistry` protection; shared ingress does not yet provide cross-source head-of-line isolation.
 - **Bounds:**
   - `routing.MaxEndpoints = 32` (further capped by `logs_config.routing.max_groups`, default 4)

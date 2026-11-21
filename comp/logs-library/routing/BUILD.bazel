@@ -16,6 +16,7 @@ go_library(
         "//comp/logs-library/sender",
         "//comp/logs/agent/config",
         "//pkg/logs/message",
+        "//pkg/logs/sources",
         "//pkg/logs/types",
     ],
 )
@@ -33,6 +34,7 @@ dd_agent_go_test(
         "//comp/logs/agent/config",
         "//pkg/logs/message",
         "//pkg/logs/sources",
+        "//pkg/logs/types",
         "@com_github_stretchr_testify//require",
     ],
 )
