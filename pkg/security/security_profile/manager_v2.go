@@ -101,7 +101,7 @@ const (
 	metricSourceCount
 )
 
-// insertionErrorKey identifies an unexpected activity-tree insertion failure by
+// insertionErrorKey identifies an event error or an unexpected activity-tree insertion failure by
 // event type and a bounded error-type label.
 type insertionErrorKey struct {
 	eventType model.EventType
@@ -692,7 +692,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		// A host/systemd cgroup that slipped a syscall sample through before being excluded: exclude it now.
-		if m.excludedCgroupsMap != nil && event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
+		if event.Error == nil && m.excludedCgroupsMap != nil && event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 			if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
 				if err := m.excludedCgroupsMap.Put(inode, uint8(1)); err != nil {
 					seclog.Debugf("couldn't exclude cgroup inode %d from sampling: %v", inode, err)
@@ -707,12 +707,18 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	}
 
 	// Filter out events that are not in the configured V2 event types
-	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.EventType(event.Type)) {
+	eventType := profileEventType(event)
+	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, eventType) {
 		return
 	}
 
 	workloadID := getWorkloadIDFromEvent(event)
 	if workloadID == nil {
+		return
+	}
+
+	if event.Error != nil {
+		m.incrementInsertionError(eventType, event.Error)
 		return
 	}
 
@@ -1131,7 +1137,7 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
-	// Activity-tree insertion errors (unexpected failures only)
+	// Event errors and unexpected activity-tree insertion failures
 	for key, count := range m.insertionErrors {
 		if value := count.Swap(0); value > 0 {
 			tags := []string{"event_type:" + key.eventType.String(), "error_type:" + key.errorType}
@@ -1267,9 +1273,12 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	}
 	secprof.Unlock()
 	if err != nil {
-		if !activity_tree.IsExpectedFilterError(err) {
+		switch {
+		case !activity_tree.IsExpectedFilterError(err):
 			m.incrementInsertionError(event.GetEventType(), err)
 			seclog.Debugf("couldn't insert event into profile: %v", err)
+		case event.Error != nil:
+			m.incrementInsertionError(profileEventType(event), event.Error)
 		}
 		return nil, false
 	}
@@ -1306,6 +1315,15 @@ func (m *ManagerV2) registerSampleCookie(event *model.Event, prof *profile.Profi
 func (m *ManagerV2) buildWorkloadSelector(event *model.Event) (cgroupModel.WorkloadSelector, error) {
 	imageName := utils.GetTagValue("image_name", event.ProcessContext.Process.ContainerContext.Tags)
 	return cgroupModel.NewWorkloadSelector(imageName, "*")
+}
+
+// profileEventType returns the type of the event in profiles: a full DNS response is only remapped to a DNS event once
+// decoded, so one that failed decoding is still a DNS event of the profile
+func profileEventType(event *model.Event) model.EventType {
+	if event.GetEventType() == model.FullDNSResponseEventType && errors.Is(event.Error, model.ErrFailedDNSPacketDecoding) {
+		return model.DNSEventType
+	}
+	return event.GetEventType()
 }
 
 // getWorkloadIDFromEvent extracts the workload ID from an event, preferring container ID over cgroup ID
@@ -1748,8 +1766,8 @@ func (m *ManagerV2) incrementEventFilteringStat(eventType model.EventType, state
 	}
 }
 
-// incrementInsertionError records an unexpected activity-tree insertion failure for the given
-// event type, categorizing err into a bounded error-type label.
+// incrementInsertionError records an event error or an unexpected activity-tree insertion failure
+// for the given event type, categorizing err into a bounded error-type label.
 func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error) {
 	key := insertionErrorKey{eventType: eventType, errorType: activity_tree.InsertionErrorType(err)}
 	if entry, ok := m.insertionErrors[key]; ok {

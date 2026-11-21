@@ -9,6 +9,7 @@
 package securityprofile
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -33,6 +34,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -1313,6 +1315,105 @@ func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
 	assert.EqualValues(t, maxPending, m.queueSize.Load())
 	assert.EqualValues(t, 1, m.tagResolutionCappedTotal.Load())
 	assert.Zero(t, m.tagResolutionCappedCgroup.Load())
+}
+
+func TestManagerV2_eventsWithError(t *testing.T) {
+	brokenLineage := &model.ErrProcessBrokenLineage{Err: errors.New("missing parent")}
+	countOf := func(m *ManagerV2, eventType model.EventType, errorType string) uint64 {
+		return m.insertionErrors[insertionErrorKey{eventType: eventType, errorType: errorType}].Load()
+	}
+	total := func(m *ManagerV2) uint64 {
+		var total uint64
+		for _, count := range m.insertionErrors {
+			total += count.Load()
+		}
+		return total
+	}
+
+	t.Run("counted and dropped", func(t *testing.T) {
+		m := newTagResolutionTestManagerV2(t, 10, 10)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		event.Error = brokenLineage
+
+		m.ProcessEvent(event)
+
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage))
+		assert.EqualValues(t, 1, total(m))
+		assert.Empty(t, m.profiles)
+		assert.Empty(t, m.resolvedCgroups)
+		assert.Empty(t, m.profilePendingEvents)
+	})
+
+	for _, tt := range []struct {
+		name  string
+		setup func(*model.Event)
+	}{
+		{"host process", func(e *model.Event) { e.ProcessContext.Process.ContainerContext.ContainerID = "" }},
+		{"untraced event type", func(e *model.Event) { e.Type = uint32(model.FileChmodEventType) }},
+		{"full DNS response with another error", func(e *model.Event) {
+			e.Type = uint32(model.FullDNSResponseEventType)
+			e.Error = model.ErrNoProcessContext
+		}},
+	} {
+		t.Run("not counted: "+tt.name, func(t *testing.T) {
+			m := newTagResolutionTestManagerV2(t, 10, 10)
+			event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+			event.Error = brokenLineage
+			tt.setup(event)
+
+			m.ProcessEvent(event)
+
+			assert.Zero(t, total(m))
+		})
+	}
+
+	t.Run("undecoded full DNS response counted as dns", func(t *testing.T) {
+		m := newTagResolutionTestManagerV2(t, 10, 10)
+		event := newTestEventV2(model.FullDNSResponseEventType, "v1", "known")
+		event.Error = model.ErrFailedDNSPacketDecoding
+
+		m.ProcessEvent(event)
+
+		assert.EqualValues(t, 1, countOf(m, model.DNSEventType, activity_tree.InsertionErrorDNSDecoding))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("raised during insertion", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		event.Error = &path.ErrPathResolution{Err: errors.New("dentry not found")}
+
+		_, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorPathResolution))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("insertion failure unrelated to the error of the event", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.ExecEventType, "v1", "known")
+		event.Error = &path.ErrPathResolution{Err: errors.New("dentry not found")}
+		event.ProcessCacheEntry.Ancestor = nil
+
+		_, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.ExecEventType, activity_tree.InsertionErrorBrokenLineage))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("undecoded full DNS response failing insertion counted as dns", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FullDNSResponseEventType, "v1", "known")
+		event.Error = model.ErrFailedDNSPacketDecoding
+
+		_, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.DNSEventType, activity_tree.InsertionErrorDNSDecoding))
+		assert.EqualValues(t, 1, total(m))
+	})
 }
 
 func TestManagerV2_seedMountsForWorkload(t *testing.T) {
