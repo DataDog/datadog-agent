@@ -1243,7 +1243,7 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 	at.removeImageTag(imageTag)
 	at.Stats.SizeBytes -= removedBytes
 	if at.Stats != nil && at.Stats.journal != nil && removedBytes > 0 {
-		at.Stats.journal.dirty = true
+		at.Stats.journal.onEviction(at)
 	}
 }
 
@@ -1400,6 +1400,7 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 	}
 
 	// Iterate through all process nodes and evict unused nodes
+	var evictedAny bool
 	for i := len(at.ProcessNodes) - 1; i >= 0; i-- {
 		node := at.ProcessNodes[i]
 		if node == nil {
@@ -1409,8 +1410,8 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 		evicted, removedBytes := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, imageTags)
 		totalEvicted += evicted
 		at.Stats.SizeBytes -= removedBytes
-		if removedBytes > 0 && at.Stats != nil && at.Stats.journal != nil {
-			at.Stats.journal.dirty = true
+		if removedBytes > 0 {
+			evictedAny = true
 		}
 
 		// If the process node itself has no image tags left after eviction, remove it entirely.
@@ -1418,11 +1419,12 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 			at.Stats.SizeBytes -= processSubtreeSizeBytes(node)
 			at.ProcessNodes = append(at.ProcessNodes[:i], at.ProcessNodes[i+1:]...)
 			totalEvicted++
+			evictedAny = true
 		}
 	}
 
-	if totalEvicted > 0 && at.Stats != nil && at.Stats.journal != nil {
-		at.Stats.journal.dirty = true
+	if (totalEvicted > 0 || evictedAny) && at.Stats != nil && at.Stats.journal != nil {
+		at.Stats.journal.onEviction(at)
 	}
 
 	return totalEvicted

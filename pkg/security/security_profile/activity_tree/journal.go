@@ -55,6 +55,7 @@ type TreeJournal struct {
 
 	scratchBuf       []byte
 	enrichmentHashes map[uint64]struct{}
+	mergedFileSeqs   map[uint32]uint32
 }
 
 func newTreeJournal(dir, key string, maxBytes int64) (*TreeJournal, error) {
@@ -81,6 +82,7 @@ func newTreeJournal(dir, key string, maxBytes int64) (*TreeJournal, error) {
 		maxBytes:         maxBytes,
 		scratchBuf:       make([]byte, 0, 4096),
 		enrichmentHashes: make(map[uint64]struct{}),
+		mergedFileSeqs:   make(map[uint32]uint32),
 	}, nil
 }
 
@@ -357,17 +359,18 @@ func (j *TreeJournal) recordFileNode(fn *FileNode, reducedPath string) {
 	if j == nil || j.failed || fn == nil || j.currentProcID == 0 {
 		return
 	}
-	if fn.File == nil && len(fn.MatchedRules) == 0 {
-		return
-	}
 	seq := j.nextSeq()
 	minSeq := fn.minJournalSeq
 	if minSeq == 0 {
 		minSeq = seq
+		fn.minJournalSeq = minSeq
 	}
-	var subID uint32
-	if fn.File != nil && fn.File.IsDir() {
-		subID = 1
+	if fn.File == nil && len(fn.MatchedRules) == 0 {
+		return
+	}
+	subID := minSeq << 1
+	if (fn.File != nil && fn.File.IsDir()) || len(fn.Children) > 0 {
+		subID |= 1
 	}
 	newRules, hashes := j.filterNewRules(j.currentProcID, minSeq, "file_rule", reducedPath, fn.MatchedRules)
 	msg := adproto.ProcessActivityNode{
@@ -407,6 +410,10 @@ func (j *TreeJournal) recordFileRules(fn *FileNode, reducedPath string, rules []
 		return
 	}
 	seq := j.nextSeq()
+	subID := minSeq << 1
+	if (fn.File != nil && fn.File.IsDir()) || len(fn.Children) > 0 {
+		subID |= 1
+	}
 	msg := adproto.ProcessActivityNode{
 		Files: []*adproto.FileActivityNode{
 			{
@@ -415,11 +422,35 @@ func (j *TreeJournal) recordFileRules(fn *FileNode, reducedPath string, rules []
 			},
 		},
 	}
-	if j.writeFrame(journalKindFile, seq, j.currentProcID, 0, &msg) {
+	if j.writeFrame(journalKindFile, seq, j.currentProcID, subID, &msg) {
 		fn.minJournalSeq = minSeq
 		j.commitEnrichments(hashes)
 	} else {
 		fn.MatchedRules = model.AppendMatchedRule(fn.MatchedRules, rules)
+	}
+}
+
+func (j *TreeJournal) recordMergedFileNode(dst, src *FileNode) {
+	if j == nil || dst == nil || src == nil {
+		return
+	}
+	j.dirty = true
+	if dst.minJournalSeq == 0 {
+		dst.minJournalSeq = src.minJournalSeq
+		return
+	}
+	if src.minJournalSeq != 0 && src.minJournalSeq != dst.minJournalSeq {
+		j.mergedFileSeqs[src.minJournalSeq] = dst.minJournalSeq
+	}
+}
+
+func (j *TreeJournal) onEviction(at *ActivityTree) {
+	if j == nil {
+		return
+	}
+	j.dirty = true
+	if !j.failed && j.writtenBytes >= j.maxBytes/2 && at != nil {
+		j.withMaterializedTree(at, func() {})
 	}
 }
 
@@ -510,10 +541,16 @@ func (j *TreeJournal) recordDNSEnrichment(pn *ProcessNode, dn *DNSNode, qIdx int
 }
 
 func (j *TreeJournal) recordIMDSRules(pn *ProcessNode, in *IMDSNode, rules []*model.MatchedRule) {
-	if j == nil || j.failed || pn == nil || in == nil || len(rules) == 0 {
+	if j == nil || j.failed || pn == nil || in == nil {
 		if in != nil && len(rules) > 0 {
 			in.MatchedRules = model.AppendMatchedRule(in.MatchedRules, rules)
 		}
+		return
+	}
+	if in.minJournalSeq == 0 {
+		in.minJournalSeq = j.nextSeq()
+	}
+	if len(rules) == 0 {
 		return
 	}
 	j.setCurrentProc(pn)
@@ -522,13 +559,9 @@ func (j *TreeJournal) recordIMDSRules(pn *ProcessNode, in *IMDSNode, rules []*mo
 		return
 	}
 	minSeq := in.minJournalSeq
-	if minSeq == 0 {
-		minSeq = j.nextSeq()
-	}
 	key := in.Event.URL + "|" + in.Event.AWS.SecurityCredentials.AccessKeyID
 	newRules, hashes := j.filterNewRules(pn.journalID, minSeq, "imds_rule", key, rules)
 	if len(newRules) == 0 {
-		in.minJournalSeq = minSeq
 		in.MatchedRules = nil
 		return
 	}
@@ -542,7 +575,6 @@ func (j *TreeJournal) recordIMDSRules(pn *ProcessNode, in *IMDSNode, rules []*mo
 		},
 	}
 	if j.writeFrame(journalKindIMDS, seq, pn.journalID, 0, &msg) {
-		in.minJournalSeq = minSeq
 		j.commitEnrichments(hashes)
 		in.MatchedRules = nil
 	} else {
@@ -551,17 +583,22 @@ func (j *TreeJournal) recordIMDSRules(pn *ProcessNode, in *IMDSNode, rules []*mo
 }
 
 func (j *TreeJournal) recordSocketRules(family string, isConnect bool, port uint16, ip string, protocol uint16, minSeq *uint32, rules []*model.MatchedRule) bool {
-	if j == nil || j.failed || j.currentProcID == 0 || len(rules) == 0 {
+	if j == nil || j.failed || minSeq == nil {
+		return false
+	}
+	if *minSeq == 0 {
+		*minSeq = j.nextSeq()
+	}
+	if len(rules) == 0 {
+		return true
+	}
+	if j.currentProcID == 0 {
 		return false
 	}
 	curMinSeq := *minSeq
-	if curMinSeq == 0 {
-		curMinSeq = j.nextSeq()
-	}
 	key := fmt.Sprintf("%s:%v:%s:%d:%d", family, isConnect, ip, port, protocol)
 	newRules, hashes := j.filterNewRules(j.currentProcID, curMinSeq, "sock_rule", key, rules)
 	if len(newRules) == 0 {
-		*minSeq = curMinSeq
 		return true
 	}
 	seq := j.nextSeq()
@@ -593,22 +630,28 @@ func (j *TreeJournal) recordSocketRules(family string, isConnect bool, port uint
 	if !j.writeFrame(journalKindSocket, seq, j.currentProcID, subID, &msg) {
 		return false
 	}
-	*minSeq = curMinSeq
 	j.commitEnrichments(hashes)
 	return true
 }
 
 func (j *TreeJournal) recordNetworkDeviceRules(ndn *NetworkDeviceNode, rules []*model.MatchedRule) {
-	if j == nil || j.failed || ndn == nil || j.currentProcID == 0 || len(rules) == 0 {
+	if j == nil || j.failed || ndn == nil {
 		if ndn != nil && len(rules) > 0 {
 			ndn.MatchedRules = model.AppendMatchedRule(ndn.MatchedRules, rules)
 		}
 		return
 	}
-	minSeq := ndn.minJournalSeq
-	if minSeq == 0 {
-		minSeq = j.nextSeq()
+	if ndn.minJournalSeq == 0 {
+		ndn.minJournalSeq = j.nextSeq()
 	}
+	if len(rules) == 0 {
+		return
+	}
+	if j.currentProcID == 0 {
+		ndn.MatchedRules = model.AppendMatchedRule(ndn.MatchedRules, rules)
+		return
+	}
+	minSeq := ndn.minJournalSeq
 	key := fmt.Sprintf("%d:%d", ndn.Context.NetNS, ndn.Context.IfIndex)
 	newRules, hashes := j.filterNewRules(j.currentProcID, minSeq, "netdev_rule", key, rules)
 	if len(newRules) == 0 {
@@ -659,13 +702,13 @@ func (j *TreeJournal) withMaterializedTree(at *ActivityTree, fn func()) {
 		fn()
 		return
 	}
-	matErr := j.Materialize(at)
+	if matErr := j.Materialize(at); matErr != nil {
+		j.fail(fmt.Sprintf("materialize failed: %v", matErr))
+		at.recomputeSizeBytes()
+		fn()
+		return
+	}
 	defer func() {
-		if matErr != nil {
-			j.fail(fmt.Sprintf("materialize failed: %v", matErr))
-			at.recomputeSizeBytes()
-			return
-		}
 		if j.dirty && !j.failed {
 			if err := j.Checkpoint(at); err != nil {
 				j.fail(fmt.Sprintf("checkpoint failed: %v", err))
@@ -692,6 +735,19 @@ func (j *TreeJournal) Materialize(at *ActivityTree) error {
 	}
 
 	liveProcs := make(map[uint32]*ProcessNode)
+	liveFileSeqs := make(map[uint32]struct{})
+	var collectFiles func(fn *FileNode)
+	collectFiles = func(fn *FileNode) {
+		if fn == nil {
+			return
+		}
+		if fn.minJournalSeq != 0 {
+			liveFileSeqs[fn.minJournalSeq] = struct{}{}
+		}
+		for _, child := range fn.Children {
+			collectFiles(child)
+		}
+	}
 	var collectProcs func(nodes []*ProcessNode)
 	collectProcs = func(nodes []*ProcessNode) {
 		for _, pn := range nodes {
@@ -701,12 +757,29 @@ func (j *TreeJournal) Materialize(at *ActivityTree) error {
 			if pn.journalID != 0 {
 				liveProcs[pn.journalID] = pn
 			}
+			for _, fn := range pn.Files {
+				collectFiles(fn)
+			}
 			collectProcs(pn.Children)
 		}
 	}
 	collectProcs(at.ProcessNodes)
+	for len(j.mergedFileSeqs) > 0 {
+		added := false
+		for srcSeq, dstSeq := range j.mergedFileSeqs {
+			if _, srcIn := liveFileSeqs[srcSeq]; srcIn {
+				continue
+			}
+			if _, dstIn := liveFileSeqs[dstSeq]; dstIn {
+				liveFileSeqs[srcSeq] = struct{}{}
+				added = true
+			}
+		}
+		if !added {
+			break
+		}
+	}
 
-	bestOrigPath := make(map[*FileNode]string)
 	reader := bufio.NewReaderSize(j.file, journalDefaultBufSize)
 	var hdr [journalHeaderSize]byte
 	var payloadBuf []byte
@@ -803,18 +876,22 @@ func (j *TreeJournal) Materialize(at *ActivityTree) error {
 				if fan == nil {
 					continue
 				}
-				isDir := subID == 1 || (fan.File != nil && (fan.File.Mode&0170000) == 0040000)
+				birthSeq := subID >> 1
+				if birthSeq != 0 {
+					if _, alive := liveFileSeqs[birthSeq]; !alive {
+						continue
+					}
+				}
+				isDir := (subID&1) == 1 || (fan.File != nil && (fan.File.Mode&0170000) == 0040000)
 				fn, resolvedPath := resolveLiveFileNode(pn.Files, fan.Name, !isDir)
-				if fn == nil || (fn.minJournalSeq > 0 && seq < fn.minJournalSeq) {
+				if fn == nil || (birthSeq == 0 && fn.minJournalSeq > 0 && seq < fn.minJournalSeq) {
 					continue
 				}
 				if fan.File != nil && fn.hasJournalFile {
-					prevBest, hasBest := bestOrigPath[fn]
-					if fn.File == nil || !hasBest || fan.Name < prevBest {
+					if fn.File == nil || birthSeq == fn.minJournalSeq {
 						fn.File = newFileInfo(protoDecodeFileEvent(fan.File))
 						fn.File.PathnameStr = resolvedPath
 						fn.File.BasenameStr = fn.Name
-						bestOrigPath[fn] = fan.Name
 					}
 				}
 				for _, r := range fan.MatchedRules {
@@ -1089,9 +1166,9 @@ func (j *TreeJournal) Checkpoint(at *ActivityTree) error {
 			fSeq := staged.nextSeq()
 			hasFile := fn.File != nil
 			if hasFile || len(fn.MatchedRules) > 0 {
-				var subID uint32
-				if fn.File != nil && fn.File.IsDir() {
-					subID = 1
+				subID := fSeq << 1
+				if (fn.File != nil && fn.File.IsDir()) || len(fn.Children) > 0 {
+					subID |= 1
 				}
 				fRules, fHashes := staged.filterNewRules(procID, fSeq, "file_rule", fullPath, fn.MatchedRules)
 				fMsg := adproto.ProcessActivityNode{
@@ -1336,6 +1413,7 @@ func (j *TreeJournal) Checkpoint(at *ActivityTree) error {
 	j.currentProcID = staged.currentProcID
 	j.writtenBytes = staged.writtenBytes
 	j.enrichmentHashes = staged.enrichmentHashes
+	clear(j.mergedFileSeqs)
 	j.scratchBuf = staged.scratchBuf
 	j.dirty = false
 	j.failed = false
