@@ -30,6 +30,10 @@ func TestInstallSignature(t *testing.T) {
 	testInstallType := "manual_update_via_apt"
 	require.NoError(t, writeInstallSignature(testInstallType))
 
+	stat, err := os.Stat(installSigFile)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0640), stat.Mode().Perm())
+
 	content, err := os.ReadFile(installSigFile)
 	if err != nil {
 		require.NoError(t, err)
