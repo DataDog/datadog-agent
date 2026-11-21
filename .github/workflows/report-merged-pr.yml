@@ -48,15 +48,16 @@ jobs:
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
 
       - name: Get Datadog credentials
-        id: dd-sts
-        uses: DataDog/dd-sts-action@639d841c72f15e4e77747bd726ef8105ce971da2 # v1.0.5
+        id: wif
+        uses: DataDog/datadog-workload-identity-federation-github-action/intake@c9456387851248e0a5452f99085b16ad14fc3acb # v1.0.0
         with:
-          policy: datadog-agent-report-pr
+          org_uuid: ${{ secrets.DATADOG_ORG_UUID }}
+          site: datadoghq.com
 
       - name: Send merge event to Datadog
         env:
           PR_NUMBER: ${{ steps.extract_pr.outputs.pr_number }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DD_API_KEY: ${{ steps.dd-sts.outputs.api_key }}
+          DD_API_KEY: ${{ steps.wif.outputs.api_key }}
         run: |
           dda inv -- -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"
