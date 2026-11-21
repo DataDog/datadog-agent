@@ -196,6 +196,7 @@ func (c *Check) Run() error {
 		},
 		HostName:   c.hostName,
 		SystemInfo: c.systemInfo,
+		GPUDevices: collectGPUDevices(),
 	}
 
 	processResult, listed, processed := c.processor.Process(ctx, podList)

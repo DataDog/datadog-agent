@@ -4,6 +4,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "pod",
     srcs = [
+        "gpu_devices_linux.go",
+        "gpu_devices_others.go",
         "pod.go",
         "stub.go",
     ],
@@ -35,7 +37,17 @@ go_library(
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_datadog_agent_payload_v5//process",
         "@org_uber_go_atomic//:atomic",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/gpu",
+            "//pkg/util/kernel",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/gpu",
+            "//pkg/util/kernel",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
