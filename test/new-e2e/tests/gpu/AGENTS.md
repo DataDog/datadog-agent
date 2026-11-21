@@ -13,6 +13,7 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 
 ### Kubernetes Tests
 - `TestGPUK8sSuiteUbuntu2204`: Tests GPU monitoring in Kubernetes on Ubuntu 22.04
+- `TestGPUMokkaK8sSuite`: Tests GPU monitoring in Kubernetes on a CPU-only kind cluster, with two NVIDIA T4 GPUs simulated by Mokka (see [Mokka (simulated GPUs)](#mokka-simulated-gpus))
 
 ## Key Components
 
@@ -20,6 +21,7 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 - `gpu_test.go`: Main test suite definitions and test cases
 - `provisioner.go`: Infrastructure provisioning logic
 - `capabilities.go`: Environment-specific capabilities (host vs k8s)
+- `mokka_provisioner.go`, `mokka_test.go`: Mokka suite (simulated GPUs)
 
 ### Test Cases
 
@@ -31,6 +33,7 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 6. **TestWorkloadmetaHasGPUs**: Checks workloadmeta contains GPU entities
 7. **TestCOATMetricsReported**: Checks the COAT `gpu` profile selects the GPU check telemetry, using `diagnose show-metadata agent-telemetry` (core agent only)
 8. **TestZZAgentDidNotRestart**: Ensures agent didn't restart during tests
+9. **TestMockGPUAllocationTags** (Mokka suite only): A pod requesting one GPU gets its tags on the metrics of exactly one GPU
 
 ## Provisioning
 
@@ -122,6 +125,39 @@ GPU AMI IDs are maintained in `test/e2e-framework/resources/aws/platforms.json`
 under Ubuntu x86_64 (`22-04-gpu`, `18-04-gpu-driver-430`, and
 `18-04-gpu-driver-510`). Both provisioners resolve `amiDescriptor` through
 `aws.GetAMI`; the separate `os` field preserves runtime compatibility settings.
+
+## Mokka (simulated GPUs)
+
+[Mokka](https://nvidia.github.io/k8s-test-infra/) (NVIDIA `nvml-mock`) makes CPU-only nodes look like
+GPU nodes: it stages a mock driver (`libnvidia-ml`, `/dev/nvidiaN`, sysfs) from a GPU profile and
+injects it into containers with an NRI plugin. The reusable pieces live in the e2e framework:
+
+- `components/kubernetes/mokka`: installs the `nvml-mock` chart (pinned version) and the NVIDIA
+  device plugin, so nodes advertise `nvidia.com/gpu`.
+- `kindvm.WithMokka(...)`: installs it before the Agent and adds `mokka.AgentHelmValues()`
+  (the `nvml-mock.nvidia.com/devices` pod annotation, and an empty `gpuMonitoring.runtimeClassName`).
+  Call it once per GPU pool (`mokka.WithName`, `mokka.WithNodeSelector`) to mix profiles.
+
+What it covers: NVML inventory and metrics, workloadmeta GPUs, GPU tags, GPU allocation to pods
+(kubelet pod-resources), and scheduler/queue tagging of GPU pods. What it does not: CUDA
+execution, eBPF/system-probe probes, per-process metrics, real values (they are synthetic, assert
+presence and tags only). Keep those in the `g4dn` suites.
+
+Gotchas:
+- The NRI plugin never injects into `kube-system` or the Mokka namespace, and only into containers
+  created after it runs: the Agent must be deployed after Mokka (`kindvm.WithMokka` handles it).
+- The Mokka and device plugin images come from `ghcr.io` and `nvcr.io`, so the suite uses
+  `kindvm.WithInternetAccess()`.
+- The Mokka chart is pulled by Pulumi on the CI runner, which can't reach `ghcr.io`. Until the
+  `ghcr.io` ECR pull-through cache exists (ddoghq/cloud-inventory#3478), the Mokka suites run in the
+  manual `new-e2e-gpu-mokka` job instead of `new-e2e-gpu`. Locally they work as long as your machine
+  can reach `ghcr.io`.
+- Set `E2E_GPU_CHART_MIRROR` to a registry that mirrors `ghcr.io` and `registry.k8s.io` under the
+  `ghcr` and `k8s` prefixes (the internal ECR, once the caches exist) to pull the charts through it.
+  If the registry is one of the `imagePullRegistry` ones, the charts are pulled with their credentials.
+- With NVLink profiles (`gb200`, `gb300`), the `nvlink_fec` collector sends FEC histogram buckets
+  with counts of ~10^12 per run, and the aggregator sketch OOM-kills the core Agent within seconds.
+  Use `DD_GPU_DISABLED_COLLECTORS=nvlink_fec` with those profiles until that is fixed.
 
 ## GPU Instance Type
 
