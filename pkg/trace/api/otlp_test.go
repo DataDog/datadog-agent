@@ -886,6 +886,54 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 	})
 }
 
+func TestOTLPReceiveStructuredBytes(t *testing.T) {
+	for _, legacy := range []bool{false, true} {
+		t.Run(fmt.Sprintf("legacy=%t", legacy), func(t *testing.T) {
+			cfg := NewTestConfig(t)
+			if legacy {
+				cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+			}
+			out := make(chan *Payload, 1)
+			rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			report := []byte{0x81, 0xa8, 't', 'r', 'i', 'g', 'g', 'e', 'r', 's', 0x90}
+			rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{{
+				Attributes: map[string]interface{}{"telemetry.sdk.name": "opentelemetry", "appsec": "resource fallback"},
+				Spans: []*testutil.OTLPSpan{{Attributes: map[string]interface{}{
+					"appsec.event": "true", "_dd.appsec.enabled": 1,
+				}}},
+			}}).Traces().ResourceSpans().At(0)
+			inputSpan := rspans.ScopeSpans().At(0).Spans().At(0)
+			inputSpan.Attributes().PutEmptyBytes("appsec").FromRaw(report)
+			inputSpan.Attributes().PutEmptyBytes("_dd.stack").FromRaw(report)
+			inputSpan.Attributes().PutEmptyBytes("custom.report").FromRaw(report)
+			if legacy {
+				inputSpan.Attributes().PutStr("http.request.method", "GET")
+				inputSpan.Attributes().PutEmptyBytes("http.method").FromRaw([]byte{1})
+			}
+			_, err := rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
+			require.NoError(t, err)
+			select {
+			case p := <-out:
+				require.Len(t, p.TracerPayload.Chunks, 1)
+				require.Len(t, p.TracerPayload.Chunks[0].Spans, 1)
+				span := p.TracerPayload.Chunks[0].Spans[0]
+				assert.Equal(t, report, span.MetaStruct["appsec"])
+				assert.Equal(t, report, span.MetaStruct["_dd.stack"])
+				assert.NotContains(t, span.MetaStruct, "custom.report")
+				assert.Equal(t, "gah0cmlnZ2Vyc5A=", span.Meta["custom.report"])
+				assert.NotContains(t, span.Meta, "appsec")
+				assert.Equal(t, "true", span.Meta["appsec.event"])
+				assert.Equal(t, float64(1), span.Metrics["_dd.appsec.enabled"])
+				if legacy {
+					assert.Equal(t, "GET", span.Meta["http.method"])
+				}
+			default:
+				t.Fatal("the OTLP receiver did not emit the converted trace")
+			}
+		})
+	}
+}
+
 func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	t.Helper()
 	cfg := NewTestConfig(t)
