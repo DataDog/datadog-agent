@@ -94,6 +94,18 @@ var DefaultClusterAgentActionFQNs = append([]string{
 	"com.datadoghq.kubernetes.batch.listJob",
 	"com.datadoghq.kubernetes.batch.getCronJob",
 	"com.datadoghq.kubernetes.batch.listCronJob",
+	// remediation write actions
+	"com.datadoghq.kubernetes.apps.scaleDeployment",
+	"com.datadoghq.kubernetes.apps.scaleDeploymentVertically",
+	"com.datadoghq.kubernetes.apps.rollbackDeployment",
+	"com.datadoghq.kubernetes.apps.restartDeployment",
+	"com.datadoghq.kubernetes.apps.scaleStatefulSetHorizontally",
+	"com.datadoghq.kubernetes.apps.scaleStatefulSetVertically",
+	"com.datadoghq.kubernetes.autoscaling.updateAutoscalerLimits",
+	"com.datadoghq.kubernetes.batch.deleteJob",
+	"com.datadoghq.kubernetes.batch.updateCronJobSchedule",
+	"com.datadoghq.kubernetes.core.deletePod",
+	"com.datadoghq.kubernetes.watermarkpodautoscaler.updateWatermarkAutoscalerLimits",
 }, defaultCommonActionFQNs...)
 
 // DefaultActionFQNs is a list of action FQNs that are enabled by default
