@@ -555,6 +555,7 @@
 /comp/anomalydetection/observer @DataDog/agent-anomaly-detection
 /comp/anomalydetection/recorder @DataDog/agent-anomaly-detection
 /comp/anomalydetection/reporter @DataDog/agent-anomaly-detection
+/comp/apmattach @DataDog/injection-platform
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/connectivitychecker @DataDog/fleet
 /comp/dataobs/queryactions @DataDog/data-observability

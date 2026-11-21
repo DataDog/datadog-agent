@@ -33,6 +33,7 @@ import (
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
 	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx"
 	reporterfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx"
+	apmattachfx "github.com/DataDog/datadog-agent/comp/apmattach/fx"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datasecurity"
@@ -612,6 +613,7 @@ func getSharedFxOption() fx.Option {
 		ipcfx.ModuleReadWrite(),
 		ssistatusfx.Module(),
 		workloadselectionfx.Module(),
+		apmattachfx.Module(),
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
