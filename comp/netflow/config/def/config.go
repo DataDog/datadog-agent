@@ -34,6 +34,20 @@ type NetflowConfig struct {
 	PrometheusListenerEnabled bool   `mapstructure:"prometheus_listener_enabled"`
 
 	ReverseDNSEnrichmentEnabled bool `mapstructure:"reverse_dns_enrichment_enabled"`
+
+	Entropy EntropyConfig `mapstructure:"entropy"`
+}
+
+// EntropyConfig contains configuration for the per-interface entropy computation.
+type EntropyConfig struct {
+	Enabled                  bool   `mapstructure:"enabled"`
+	Interval                 int    `mapstructure:"interval"`
+	MinRecords               uint64 `mapstructure:"min_records"`
+	MinBytes                 uint64 `mapstructure:"min_bytes"`
+	MaxExporters             int    `mapstructure:"max_exporters"`
+	MaxInterfacesPerExporter int    `mapstructure:"max_interfaces_per_exporter"`
+	MaxPeersPerInterface     int    `mapstructure:"max_peers_per_interface"`
+	MaxTotalEntries          int    `mapstructure:"max_total_entries"`
 }
 
 // ListenerConfig contains configuration for a single flow listener

@@ -20,6 +20,14 @@ import (
 
 func TestReadConfig(t *testing.T) {
 	logger := logmock.New(t)
+	defaultEntropy := EntropyConfig{
+		Interval:                 300,
+		MinRecords:               10,
+		MaxExporters:             1000,
+		MaxInterfacesPerExporter: 2000,
+		MaxPeersPerInterface:     50000,
+		MaxTotalEntries:          2000000,
+	}
 
 	var tests = []struct {
 		name           string
@@ -57,6 +65,10 @@ network_devices:
           my-ns2<abc
           zz
     reverse_dns_enrichment_enabled: true
+    entropy:
+      enabled: true
+      interval: 60
+      max_peers_per_interface: 100
 `,
 			expectedConfig: NetflowConfig{
 				Enabled:                                true,
@@ -86,6 +98,15 @@ network_devices:
 					},
 				},
 				ReverseDNSEnrichmentEnabled: true,
+				Entropy: EntropyConfig{
+					Enabled:                  true,
+					Interval:                 60,
+					MinRecords:               10,
+					MaxExporters:             1000,
+					MaxInterfacesPerExporter: 2000,
+					MaxPeersPerInterface:     100,
+					MaxTotalEntries:          2000000,
+				},
 			},
 		},
 		{
@@ -116,6 +137,7 @@ network_devices:
 					},
 				},
 				ReverseDNSEnrichmentEnabled: false,
+				Entropy:                     defaultEntropy,
 			},
 		},
 		{
@@ -147,6 +169,7 @@ network_devices:
 					},
 				},
 				ReverseDNSEnrichmentEnabled: false,
+				Entropy:                     defaultEntropy,
 			},
 		},
 		{
@@ -212,6 +235,7 @@ network_devices:
 					},
 				},
 				ReverseDNSEnrichmentEnabled: false,
+				Entropy:                     defaultEntropy,
 			},
 		},
 	}
