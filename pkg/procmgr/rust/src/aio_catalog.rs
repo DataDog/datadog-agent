@@ -927,6 +927,26 @@ fn procmgr_all_in_one_custom_services_keep_the_config_dir_placeholder() {
         ),
         "a custom service must not replace a .yml catalog process of the same name"
     );
+    // A relative TMPDIR makes mktemp return a relative path, which a service started in its own
+    // directory cannot execute and the cleanup check rejects. The path is resolved physically
+    // right after mktemp and before cleanup_dir or processes_dir take it.
+    let at = |needle: &str| {
+        script
+            .find(needle)
+            .unwrap_or_else(|| panic!("missing `{needle}`"))
+    };
+    let mktemp = at(r#"mktemp -d "$parent/procmgr-processes.d.XXXXXX""#);
+    let resolve =
+        at(r#"if ! candidate_abs=$(CDPATH='' cd -P -- "$candidate" 2>/dev/null && pwd -P); then"#);
+    let adopt = at("candidate=$candidate_abs");
+    let track = script[mktemp..]
+        .find("cleanup_dir=$candidate")
+        .map(|offset| mktemp + offset)
+        .expect("the custom-service loop must track the staging directory for cleanup");
+    assert!(
+        mktemp < resolve && resolve < adopt && adopt < track,
+        "resolve the custom-service staging path before cleanup_dir uses it"
+    );
 }
 
 #[test]

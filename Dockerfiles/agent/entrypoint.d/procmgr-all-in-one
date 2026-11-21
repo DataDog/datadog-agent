@@ -158,6 +158,13 @@ if [[ ${#custom_services[@]} -gt 0 ]]; then
             if ! candidate=$(mktemp -d "$parent/procmgr-processes.d.XXXXXX" 2>/dev/null); then
                 continue
             fi
+            # A relative TMPDIR gives a relative path. A service starts in its own directory and
+            # the cleanup check needs an absolute path, so resolve it before anything uses it.
+            if ! candidate_abs=$(CDPATH='' cd -P -- "$candidate" 2>/dev/null && pwd -P); then
+                rm -rf "$candidate" 2>/dev/null || true
+                continue
+            fi
+            candidate=$candidate_abs
             cleanup_dir=$candidate
             if stage_executes "$candidate"; then
                 processes_dir=$candidate
