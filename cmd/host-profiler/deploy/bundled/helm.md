@@ -20,7 +20,7 @@ Deploy the Datadog Agent with the Datadog Helm chart version **3.273.0** or late
 datadog:
   hostProfiler:
     enabled: true
-    image: "registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0"
+    image: "registry.datadoghq.com/ddot-ebpf:7.86.0"
 agents:
   containers:
     hostProfiler:
@@ -35,7 +35,7 @@ agents:
           memory: "1Gi"
 ```
 
-The preview image is available in Datadog's production container registries. If your cluster pulls images from another Datadog registry, replace the `registry.datadoghq.com` prefix with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
+The Host Profiler image is available in Datadog's production container registries. If your cluster pulls images from another Datadog registry, replace the `registry.datadoghq.com` prefix with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
 
 For expected overhead, default limits, and tuning guidance, see [Overhead and resource usage](../faq.md#what-overhead-should-i-expect).
 

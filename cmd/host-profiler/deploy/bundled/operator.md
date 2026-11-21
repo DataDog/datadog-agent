@@ -20,7 +20,7 @@ Update your existing `DatadogAgent` Custom Resource with the following Host Prof
 metadata:
   annotations:
     experimental.agent.datadoghq.com/image-override-config: |
-      {"host-profiler": {"name": "registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0"}}
+      {"host-profiler": {"name": "registry.datadoghq.com/ddot-ebpf:7.86.0"}}
 spec:
   features:
     hostProfiler:
@@ -41,7 +41,7 @@ spec:
 ```
 
 
-The preview image is available in Datadog's production container registries. If your cluster pulls images from another Datadog registry, replace the `registry.datadoghq.com` prefix in the image override with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
+The Host Profiler image is available in Datadog's production container registries. If your cluster pulls images from another Datadog registry, replace the `registry.datadoghq.com` prefix in the image override with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
 
 For expected overhead, default limits, and tuning guidance, see [Overhead and resource usage](../faq.md#what-overhead-should-i-expect).
 
@@ -149,4 +149,4 @@ Move each annotation to its replacement and remove the annotation. For a `Datado
 | `agent.datadoghq.com/host-profiler-non-root-enabled` | `spec.features.hostProfiler.runAsRoot` (inverted: the annotation's `"true"` maps to `runAsRoot: false`) |
 | `agent.datadoghq.com/host-profiler-selinux-type` | `spec.features.hostProfiler.seLinuxType` |
 
-The `experimental.agent.datadoghq.com/image-override-config` annotation has no replacement yet; keep using it to set the preview Host Profiler image.
+The `experimental.agent.datadoghq.com/image-override-config` annotation has no replacement yet; keep using it to override the Host Profiler image.
