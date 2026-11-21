@@ -7023,6 +7023,10 @@ properties:
             node_type: setting
             type: integer
             default: 100
+            description: |-
+              The size of the Data Streams forwarder input channel. When this value is 100 or lower,
+              the pipeline uses its own default of 500 slots. A value above 100 sets the channel
+              size directly, so values from 101 through 499 make the channel smaller than the default.
           logs_dd_url:
             node_type: setting
             type: string
