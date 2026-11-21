@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func TestBuildTimelineMilestones(t *testing.T) {
@@ -107,6 +108,20 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		// gap = 30.25s - 10.5s = 19.75s; collapsed offsets all land at 10500ms.
 		assert.InDelta(t, 10500.0, milestones[1].OffsetMs, 0.001)
 		assert.InDelta(t, 10500.0, milestones[2].OffsetMs, 0.001)
+	})
+
+	t.Run("keeps negative offsets and durations", func(t *testing.T) {
+		ts := logonduration.LoginTimestamps{
+			LoginWindowTime:  boot.Add(-3 * time.Second),
+			LoginTime:        boot.Add(30 * time.Second),
+			DesktopReadyTime: boot.Add(90 * time.Second),
+		}
+		milestones := buildTimelineMilestones(boot, ts)
+		require.Len(t, milestones, 3)
+		assert.Equal(t, float64(-3000), milestones[0].DurationMs)
+		assert.Equal(t, float64(-3000), milestones[1].OffsetMs)
+		// Collapsing the 33s idle gap puts the logon offset at 30s - 33s.
+		assert.Equal(t, float64(-3000), milestones[2].OffsetMs)
 	})
 
 	t.Run("zero LoginWindowTime omits the login_window_ready milestone", func(t *testing.T) {
@@ -369,6 +384,9 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 		name     string
 		ts       logonduration.LoginTimestamps
 		expected string
+		status   string
+		missing  []interface{}
+		invalid  []interface{}
 	}{
 		{
 			name: "complete",
@@ -378,11 +396,14 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 				DesktopReadyTime: boot.Add(90 * time.Second),
 			},
 			expected: "Device booted up: Boot & login took 70000 ms",
+			status:   timelineComplete,
 		},
 		{
 			name:     "boot only",
 			ts:       logonduration.LoginTimestamps{LoginWindowTime: boot.Add(10 * time.Second)},
 			expected: "Device booted up: Boot timeline incomplete",
+			status:   timelineIncomplete,
+			missing:  []interface{}{"login", "desktop_ready"},
 		},
 		{
 			name: "logon only",
@@ -391,11 +412,37 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 				DesktopReadyTime: boot.Add(90 * time.Second),
 			},
 			expected: "Device booted up: Boot timeline incomplete",
+			status:   timelineIncomplete,
+			missing:  []interface{}{"login_window_ready"},
+		},
+		{
+			name: "invalid",
+			ts: logonduration.LoginTimestamps{
+				LoginWindowTime:  boot.Add(10 * time.Second),
+				LoginTime:        boot.Add(30 * time.Second),
+				DesktopReadyTime: boot.Add(-4 * 24 * time.Hour),
+			},
+			expected: invalidTimelineTitle,
+			status:   timelineInvalid,
+			invalid:  []interface{}{"desktop_ready"},
+		},
+		{
+			name: "invalid and incomplete",
+			ts: logonduration.LoginTimestamps{
+				LoginTime:        boot.Add(30 * time.Second),
+				DesktopReadyTime: boot.Add(-4 * 24 * time.Hour),
+			},
+			expected: invalidTimelineTitle,
+			status:   timelineInvalid,
+			missing:  []interface{}{"login_window_ready"},
+			invalid:  []interface{}{"desktop_ready"},
 		},
 		{
 			name:     "neither",
 			ts:       logonduration.LoginTimestamps{},
 			expected: "Device booted up: Boot timeline incomplete",
+			status:   timelineIncomplete,
+			missing:  []interface{}{"login_window_ready", "login", "desktop_ready"},
 		},
 	}
 
@@ -420,6 +467,15 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 			require.NoError(t, json.Unmarshal(msgs[0].GetContent(), &payload))
 			attrs := payload["data"].(map[string]interface{})["attributes"].(map[string]interface{})
 			assert.Equal(t, tc.expected, attrs["title"])
+			custom := attrs["attributes"].(map[string]interface{})["custom"].(map[string]interface{})
+			assert.Equal(t, tc.status, custom["timeline_status"])
+			for key, want := range map[string][]interface{}{"missing_milestones": tc.missing, "invalid_milestones": tc.invalid} {
+				if want == nil {
+					assert.NotContains(t, custom, key)
+				} else {
+					assert.Equal(t, want, custom[key], key)
+				}
+			}
 		})
 	}
 }
@@ -738,4 +794,250 @@ func TestComponentLifecycle_StopWithoutStart(t *testing.T) {
 
 	err := helper.stop()
 	require.NoError(t, err)
+}
+
+func TestSafeDurationMs_KeepsNegative(t *testing.T) {
+	now := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	assert.Equal(t, int64(-1000), safeDurationMs(now.Add(-time.Second), now))
+	assert.Zero(t, safeDurationMs(time.Time{}, now))
+	assert.Zero(t, safeDurationMs(now, time.Time{}))
+	assert.Zero(t, safeDurationMs(now, now))
+	assert.Equal(t, int64(1000), safeDurationMs(now.Add(time.Second), now))
+}
+
+func TestSubmitEvent_ClockResetPayloadIsInvalid(t *testing.T) {
+	hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname)
+	comp := &logonDurationComponent{hostname: hostname, eventPlatformForwarder: forwarder}
+	boot, ts := clockResetFixture()
+	require.NoError(t, comp.submitEvent(boot, ts))
+	messages := forwarder.Purge()[eventplatform.EventTypeEventManagement]
+	require.Len(t, messages, 1)
+	var payload map[string]interface{}
+	require.NoError(t, json.Unmarshal(messages[0].GetContent(), &payload))
+	attrs := payload["data"].(map[string]interface{})["attributes"].(map[string]interface{})
+	assert.Equal(t, invalidTimelineTitle, attrs["title"])
+	custom := attrs["attributes"].(map[string]interface{})["custom"].(map[string]interface{})
+	assert.Equal(t, "Boot timeline invalid: timestamps outside this boot or out of order: login_window_ready, login, desktop_ready.", attrs["message"])
+	assert.Equal(t, timelineInvalid, custom["timeline_status"])
+	assert.Equal(t, []interface{}{"login_window_ready", "login", "desktop_ready"}, custom["invalid_milestones"])
+	assert.NotContains(t, custom, "missing_milestones")
+	assert.Equal(t, version.AgentVersion, custom["agent_version"])
+	assert.NotContains(t, custom, "payload_version")
+	assert.Equal(t, true, custom["filevault_enabled"])
+	// Raw values are sent unchanged, including negative ones.
+	bootMs := ts.LoginWindowTime.Sub(boot).Milliseconds()
+	logonMs := ts.DesktopReadyTime.Sub(ts.LoginTime).Milliseconds()
+	require.Negative(t, bootMs)
+	durations := custom["durations"].(map[string]interface{})
+	assert.Equal(t, map[string]interface{}{
+		"boot_duration_ms":       float64(bootMs),
+		"logon_duration_ms":      float64(logonMs),
+		"total_boot_duration_ms": float64(bootMs + logonMs),
+	}, durations)
+	milestones := custom["boot_timeline"].([]interface{})
+	require.Len(t, milestones, 3)
+	ids := make([]interface{}, 0, len(milestones))
+	for _, m := range milestones {
+		ids = append(ids, m.(map[string]interface{})["id"])
+	}
+	assert.Equal(t, []interface{}{"boot_duration", "login_window_ready", "logon_duration"}, ids)
+	bootMilestone := milestones[0].(map[string]interface{})
+	assert.Equal(t, float64(bootMs), bootMilestone["duration_ms"])
+	assert.Negative(t, milestones[1].(map[string]interface{})["offset_ms"].(float64))
+}
+
+func TestConsoleUserLoggedIn_NoError(t *testing.T) {
+	_, err := consoleUserLoggedIn()
+	require.NoError(t, err)
+}
+
+func collectionTestComponent() (*logonDurationComponent, *mockSysProbeClient, time.Time, logonduration.LoginTimestamps) {
+	boot := time.Now().Add(-time.Minute)
+	ts := logonduration.LoginTimestamps{
+		LoginWindowTime: boot.Add(10 * time.Second), LoginTime: boot.Add(20 * time.Second), DesktopReadyTime: boot.Add(30 * time.Second),
+	}
+	client := &mockSysProbeClient{}
+	return &logonDurationComponent{
+		sysProbeClient:      client,
+		consoleUserLoggedIn: func() (bool, error) { return true, nil },
+		loginCheckInterval:  5 * time.Millisecond,
+		retryInterval:       5 * time.Millisecond,
+		retryTimeout:        50 * time.Millisecond,
+	}, client, boot, ts
+}
+
+func TestCollectTimestamps_WaitsForLogin(t *testing.T) {
+	comp, client, boot, expected := collectionTestComponent()
+	checks := 0
+	comp.consoleUserLoggedIn = func() (bool, error) {
+		checks++
+		assert.Zero(t, client.GetCallCount())
+		return checks == 3, nil
+	}
+	client.On("GetLoginTimestamps", mock.Anything).Return(expected, nil).Once()
+	got, err := comp.collectTimestamps(context.Background(), boot)
+	require.NoError(t, err)
+	assert.Equal(t, expected, got)
+	assert.Equal(t, 3, checks)
+	assert.Equal(t, 1, client.GetCallCount())
+	client.AssertExpectations(t)
+}
+
+func TestCollectTimestamps_LoginCheckErrorProceeds(t *testing.T) {
+	comp, client, boot, expected := collectionTestComponent()
+	comp.consoleUserLoggedIn = func() (bool, error) { return false, errors.New("console stat failed") }
+	client.On("GetLoginTimestamps", mock.Anything).Return(expected, nil).Once()
+	got, err := comp.collectTimestamps(context.Background(), boot)
+	require.NoError(t, err)
+	assert.Equal(t, expected, got)
+	assert.Equal(t, 1, client.GetCallCount())
+	client.AssertExpectations(t)
+}
+
+func TestCollectTimestamps_CancelDuringLoginWait(t *testing.T) {
+	comp, client, boot, _ := collectionTestComponent()
+	checked := make(chan struct{})
+	comp.loginCheckInterval = time.Hour
+	comp.consoleUserLoggedIn = func() (bool, error) {
+		close(checked)
+		return false, nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := comp.collectTimestamps(ctx, boot)
+		done <- err
+	}()
+	select {
+	case <-checked:
+	case <-time.After(2 * time.Second):
+		t.Fatal("console check was not called")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(2 * time.Second):
+		t.Fatal("login wait did not stop on cancellation")
+	}
+	assert.Zero(t, client.GetCallCount())
+}
+
+func TestCollectTimestamps_RetriesUntilDesktopReady(t *testing.T) {
+	comp, client, boot, expected := collectionTestComponent()
+	partial := expected
+	partial.DesktopReadyTime = time.Time{}
+	client.On("GetLoginTimestamps", mock.Anything).Return(partial, nil).Once()
+	client.On("GetLoginTimestamps", mock.Anything).Return(expected, nil).Once()
+	got, err := comp.collectTimestamps(context.Background(), boot)
+	require.NoError(t, err)
+	assert.Equal(t, expected, got)
+	assert.Equal(t, 2, client.GetCallCount())
+	client.AssertExpectations(t)
+}
+
+func TestCollectTimestamps_RetriesWhenDesktopReadyInvalid(t *testing.T) {
+	comp, client, boot, expected := collectionTestComponent()
+	invalid := expected
+	invalid.DesktopReadyTime = boot.Add(-4 * 24 * time.Hour)
+	client.On("GetLoginTimestamps", mock.Anything).Return(invalid, nil).Once()
+	client.On("GetLoginTimestamps", mock.Anything).Return(expected, nil).Once()
+	got, err := comp.collectTimestamps(context.Background(), boot)
+	require.NoError(t, err)
+	assert.Equal(t, expected, got)
+	assert.Equal(t, 2, client.GetCallCount())
+	client.AssertExpectations(t)
+}
+
+func TestCollectTimestamps_StopsAtTimeout(t *testing.T) {
+	comp, client, boot, partial := collectionTestComponent()
+	partial.DesktopReadyTime = time.Time{}
+	client.On("GetLoginTimestamps", mock.Anything).Return(partial, nil)
+	got, err := comp.collectTimestamps(context.Background(), boot)
+	require.NoError(t, err)
+	assert.Equal(t, partial, got)
+	assert.GreaterOrEqual(t, client.GetCallCount(), 2)
+}
+
+func TestCollectTimestamps_ErrorAfterPartialReturnsPartial(t *testing.T) {
+	comp, client, boot, partial := collectionTestComponent()
+	partial.DesktopReadyTime = time.Time{}
+	client.On("GetLoginTimestamps", mock.Anything).Return(partial, nil).Once()
+	client.On("GetLoginTimestamps", mock.Anything).Return(logonduration.LoginTimestamps{}, errors.New("system-probe unavailable"))
+	got, err := comp.collectTimestamps(context.Background(), boot)
+	require.NoError(t, err)
+	assert.Equal(t, partial, got)
+	assert.GreaterOrEqual(t, client.GetCallCount(), 2)
+}
+
+func TestCollectTimestamps_FirstErrorReturnsError(t *testing.T) {
+	comp, client, boot, _ := collectionTestComponent()
+	expectedErr := errors.New("system-probe unavailable")
+	client.On("GetLoginTimestamps", mock.Anything).Return(logonduration.LoginTimestamps{}, expectedErr).Once()
+	_, err := comp.collectTimestamps(context.Background(), boot)
+	require.ErrorIs(t, err, expectedErr)
+	assert.Equal(t, 1, client.GetCallCount())
+	client.AssertExpectations(t)
+}
+
+func TestCollectTimestamps_ReturnsOnCancel(t *testing.T) {
+	comp, client, boot, partial := collectionTestComponent()
+	partial.DesktopReadyTime = time.Time{}
+	comp.retryInterval = time.Hour
+	queried := make(chan struct{})
+	client.On("GetLoginTimestamps", mock.Anything).Return(partial, nil).Once().Run(func(mock.Arguments) { close(queried) })
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := comp.collectTimestamps(ctx, boot)
+		done <- err
+	}()
+	select {
+	case <-queried:
+	case <-time.After(2 * time.Second):
+		t.Fatal("system-probe was not called")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(2 * time.Second):
+		t.Fatal("retry wait did not stop on cancellation")
+	}
+	assert.Equal(t, 1, client.GetCallCount())
+	client.AssertExpectations(t)
+}
+
+func TestCollectTimestamps_NoRetryWhenComplete(t *testing.T) {
+	for _, invalidWindow := range []bool{false, true} {
+		name := "full timeline"
+		if invalidWindow {
+			name = "returns raw answer when only login window is invalid"
+		}
+		t.Run(name, func(t *testing.T) {
+			comp, client, boot, expected := collectionTestComponent()
+			if invalidWindow {
+				expected.LoginWindowTime = boot.Add(-24 * time.Hour)
+			}
+			client.On("GetLoginTimestamps", mock.Anything).Return(expected, nil).Once()
+			got, err := comp.collectTimestamps(context.Background(), boot)
+			require.NoError(t, err)
+			assert.Equal(t, expected, got)
+			assert.Equal(t, 1, client.GetCallCount())
+			client.AssertExpectations(t)
+		})
+	}
+}
+
+func TestCollectTimestamps_ReturnsSysProbeError(t *testing.T) {
+	comp, client, boot, _ := collectionTestComponent()
+	expectedErr := errors.New("system-probe unavailable")
+	client.On("GetLoginTimestamps", mock.Anything).Return(logonduration.LoginTimestamps{}, expectedErr).Once()
+	_, err := comp.collectTimestamps(context.Background(), boot)
+	require.ErrorIs(t, err, expectedErr)
+	assert.Equal(t, 1, client.GetCallCount())
+	client.AssertExpectations(t)
 }

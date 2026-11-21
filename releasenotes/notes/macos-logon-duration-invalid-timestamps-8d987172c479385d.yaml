@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Logon duration events with impossible or out-of-order timestamps are now
+    titled "Boot timeline invalid" and keep their raw values. Events on macOS
+    and Windows now carry ``timeline_status`` and ``agent_version`` fields. On
+    macOS, events now wait for a logged-in user and capture the login window
+    after an authenticated FileVault restart.

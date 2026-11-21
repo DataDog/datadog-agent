@@ -17,10 +17,18 @@ import (
 	logonduration "github.com/DataDog/datadog-agent/comp/logonduration/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // persistentCacheKey stores the last boot time to detect reboots across agent restarts.
 const persistentCacheKey = "logon_duration:last_boot_time"
+
+// timeline_status values.
+const (
+	timelineComplete   = "complete"
+	timelineIncomplete = "incomplete"
+	timelineInvalid    = "invalid"
+)
 
 // Provides defines what this component provides
 type Provides struct {
@@ -58,6 +66,11 @@ func buildEventTitle(complete bool, totalMs int64) string {
 
 func buildEventPayload(input eventInput) (map[string]interface{}, error) {
 	ts := input.Timestamp.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
+	custom := make(map[string]interface{}, len(input.Custom)+1)
+	for key, value := range input.Custom {
+		custom[key] = value
+	}
+	custom["agent_version"] = version.AgentVersion
 
 	return map[string]interface{}{
 		"data": map[string]interface{}{
@@ -73,7 +86,7 @@ func buildEventPayload(input eventInput) (map[string]interface{}, error) {
 				"attributes": map[string]interface{}{
 					"status":   "ok",
 					"priority": "3",
-					"custom":   input.Custom,
+					"custom":   custom,
 				},
 				"message":   input.Message,
 				"timestamp": ts,

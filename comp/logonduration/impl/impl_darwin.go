@@ -30,6 +30,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	defaultLoginCheckInterval = 10 * time.Second
+	defaultRetryInterval      = 15 * time.Second
+	defaultRetryTimeout       = 2 * time.Minute
+)
+
 // Requires defines the dependencies for the logon duration component
 type Requires struct {
 	Lc             compdef.Lifecycle
@@ -86,6 +92,10 @@ type logonDurationComponent struct {
 	hostname               hostname.Component
 	eventPlatformForwarder eventplatform.Forwarder
 	sysProbeClient         sysProbeClient
+	consoleUserLoggedIn    func() (bool, error)
+	loginCheckInterval     time.Duration
+	retryInterval          time.Duration
+	retryTimeout           time.Duration
 	wg                     sync.WaitGroup
 	ctxCancel              context.CancelFunc
 }
@@ -120,6 +130,10 @@ func newWithClient(reqs Requires, client sysProbeClient) Provides {
 		hostname:               reqs.Hostname,
 		eventPlatformForwarder: forwarder,
 		sysProbeClient:         client,
+		consoleUserLoggedIn:    consoleUserLoggedIn,
+		loginCheckInterval:     defaultLoginCheckInterval,
+		retryInterval:          defaultRetryInterval,
+		retryTimeout:           defaultRetryTimeout,
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -186,7 +200,7 @@ func (c *logonDurationComponent) run(ctx context.Context) {
 	// Get login timestamps from system-probe (requires root)
 	// This includes login window time, login time, and desktop ready time
 	start := time.Now()
-	loginTimestamps, err := c.sysProbeClient.GetLoginTimestamps(ctx)
+	loginTimestamps, err := c.collectTimestamps(ctx, bootTime)
 	if err != nil {
 		log.Warnf("Logon duration: failed to get login timestamps from system-probe: %v (took %.2fs)", err, time.Since(start).Seconds())
 		return
@@ -205,6 +219,72 @@ func (c *logonDurationComponent) run(ctx context.Context) {
 	}
 
 	log.Info("Logon duration: boot analysis complete")
+}
+
+// collectTimestamps waits for a console user, then briefly retries incomplete OSLog answers.
+func (c *logonDurationComponent) collectTimestamps(ctx context.Context, bootTime time.Time) (logonduration.LoginTimestamps, error) {
+	loggedWait := false
+	for {
+		if err := ctx.Err(); err != nil {
+			return logonduration.LoginTimestamps{}, err
+		}
+		loggedIn, err := c.consoleUserLoggedIn()
+		if err != nil {
+			log.Debugf("Logon duration: failed to check console user, proceeding: %v", err)
+			break
+		}
+		if loggedIn {
+			break
+		}
+		if !loggedWait {
+			log.Info("Logon duration: waiting for a user to log in")
+			loggedWait = true
+		}
+		timer := time.NewTimer(c.loginCheckInterval)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return logonduration.LoginTimestamps{}, ctx.Err()
+		}
+	}
+
+	var deadline time.Time
+	var ts logonduration.LoginTimestamps
+	for {
+		answer, err := c.sysProbeClient.GetLoginTimestamps(ctx)
+		if err != nil {
+			// Fail on the first request; afterwards keep the last good answer.
+			if deadline.IsZero() {
+				return logonduration.LoginTimestamps{}, err
+			}
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return logonduration.LoginTimestamps{}, ctxErr
+			}
+			log.Debugf("Logon duration: system-probe retry failed, keeping last answer: %v", err)
+		} else {
+			ts = answer
+		}
+		now := time.Now()
+		if deadline.IsZero() {
+			deadline = now.Add(c.retryTimeout)
+		}
+		validated, _ := validateTimestamps(bootTime, now, ts)
+		if !validated.LoginTime.IsZero() && !validated.DesktopReadyTime.IsZero() {
+			return ts, nil
+		}
+		if !now.Before(deadline) {
+			log.Infof("Logon duration: timed out waiting for login timestamps; missing %v", missingMilestones(validated))
+			return ts, nil
+		}
+		timer := time.NewTimer(min(c.retryInterval, deadline.Sub(now)))
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return logonduration.LoginTimestamps{}, ctx.Err()
+		}
+	}
 }
 
 // detectReboot checks whether the system has rebooted since the last agent run
@@ -229,7 +309,7 @@ func (c *logonDurationComponent) detectReboot() (bool, string, error) {
 	return false, currentBootTime, nil
 }
 
-// safeDurationMs returns a.Sub(b).Milliseconds() if both are non-zero, otherwise 0.
+// safeDurationMs returns a.Sub(b) in ms, or 0 when either timestamp is missing.
 func safeDurationMs(a, b time.Time) int64 {
 	if a.IsZero() || b.IsZero() {
 		return 0
@@ -322,6 +402,11 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 // submitEvent builds an Event Management v2 payload from the analysis result
 // and sends it through the event platform forwarder.
 func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduration.LoginTimestamps) error {
+	// Invalid timestamps are flagged; the payload keeps the raw values.
+	_, invalid := validateTimestamps(bootTime, time.Now(), ts)
+	if len(invalid) > 0 {
+		log.Warnf("Logon duration: invalid timestamps %v (boot %s): %+v", invalid, bootTime, ts)
+	}
 	custom := buildCustomPayload(bootTime, ts)
 
 	haveBoot := !bootTime.IsZero() && !ts.LoginWindowTime.IsZero()
@@ -335,6 +420,12 @@ func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduratio
 		if totalMs, ok := durations["total_boot_duration_ms"]; ok {
 			msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)
 		}
+	}
+
+	addTimelineStatus(custom, complete, missingMilestones(ts), invalid)
+	if len(invalid) > 0 {
+		title = invalidTimelineTitle
+		msg = invalidTimelineMessage(invalid)
 	}
 
 	return sendEvent(c.eventPlatformForwarder, eventInput{

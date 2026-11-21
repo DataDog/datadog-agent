@@ -757,6 +757,10 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 		name     string
 		timeline BootTimeline
 		expected string
+		message  string
+		status   string
+		missing  []interface{}
+		invalid  []interface{}
 	}{
 		{
 			name: "complete",
@@ -767,6 +771,8 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 				DesktopVisibleStart: boot.Add(90 * time.Second),
 			},
 			expected: "Device booted up: Boot & login took 70000 ms",
+			message:  "Total boot duration took 70000 ms.",
+			status:   timelineComplete,
 		},
 		{
 			name: "boot only",
@@ -775,6 +781,9 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 				LoginUIStart: boot.Add(10 * time.Second),
 			},
 			expected: "Device booted up: Boot timeline incomplete",
+			message:  "Total boot duration analysis after reboot",
+			status:   timelineIncomplete,
+			missing:  []interface{}{"session_logon", "desktop_visible"},
 		},
 		{
 			name: "logon only",
@@ -784,11 +793,42 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 				DesktopVisibleStart: boot.Add(90 * time.Second),
 			},
 			expected: "Device booted up: Boot timeline incomplete",
+			message:  "Total boot duration analysis after reboot",
+			status:   timelineIncomplete,
+			missing:  []interface{}{"login_ui_start"},
 		},
 		{
 			name:     "neither",
 			timeline: BootTimeline{BootStart: boot},
 			expected: "Device booted up: Boot timeline incomplete",
+			message:  "Total boot duration analysis after reboot",
+			status:   timelineIncomplete,
+			missing:  []interface{}{"login_ui_start", "session_logon", "desktop_visible"},
+		},
+		{
+			name: "desktop visible before logon",
+			timeline: BootTimeline{
+				BootStart:           boot,
+				LoginUIStart:        boot.Add(10 * time.Second),
+				SessionLogon:        boot.Add(30 * time.Second),
+				DesktopVisibleStart: boot.Add(20 * time.Second),
+			},
+			expected: invalidTimelineTitle,
+			message:  "Boot timeline invalid: timestamps outside this boot or out of order: desktop_visible.",
+			status:   timelineInvalid,
+			invalid:  []interface{}{"desktop_visible"},
+		},
+		{
+			name: "login UI before boot and logon missing",
+			timeline: BootTimeline{
+				BootStart:    boot,
+				LoginUIStart: boot.Add(-time.Minute),
+			},
+			expected: invalidTimelineTitle,
+			message:  "Boot timeline invalid: timestamps outside this boot or out of order: login_ui_start.",
+			status:   timelineInvalid,
+			missing:  []interface{}{"session_logon", "desktop_visible"},
+			invalid:  []interface{}{"login_ui_start"},
 		},
 	}
 
@@ -813,8 +853,43 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 			require.NoError(t, json.Unmarshal(msgs[0].GetContent(), &payload))
 			attrs := payload["data"].(map[string]interface{})["attributes"].(map[string]interface{})
 			assert.Equal(t, tc.expected, attrs["title"])
+			assert.Equal(t, tc.message, attrs["message"])
+			custom := attrs["attributes"].(map[string]interface{})["custom"].(map[string]interface{})
+			assert.Equal(t, tc.status, custom["timeline_status"])
+			for key, want := range map[string][]interface{}{"missing_milestones": tc.missing, "invalid_milestones": tc.invalid} {
+				if want == nil {
+					assert.NotContains(t, custom, key)
+				} else {
+					assert.Equal(t, want, custom[key], key)
+				}
+			}
 		})
 	}
+}
+
+func TestSubmitEvent_InvalidKeepsRawDurations(t *testing.T) {
+	hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname)
+	comp := &logonDurationComponent{hostname: hostname, eventPlatformForwarder: forwarder}
+
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	tl := BootTimeline{
+		BootStart:           boot,
+		LoginUIStart:        boot.Add(10 * time.Second),
+		SessionLogon:        boot.Add(30 * time.Second),
+		DesktopVisibleStart: boot.Add(20 * time.Second),
+	}
+	require.NoError(t, comp.submitEvent(&AnalysisResult{Timeline: tl}))
+
+	msgs := forwarder.Purge()[eventplatform.EventTypeEventManagement]
+	require.Len(t, msgs, 1)
+	var payload map[string]interface{}
+	require.NoError(t, json.Unmarshal(msgs[0].GetContent(), &payload))
+	attrs := payload["data"].(map[string]interface{})["attributes"].(map[string]interface{})
+	custom := attrs["attributes"].(map[string]interface{})["custom"].(map[string]interface{})
+	durations := custom["durations"].(map[string]interface{})
+	assert.Equal(t, float64(-10000), durations["logon_duration_ms"])
+	assert.Equal(t, float64(0), durations["total_boot_duration_ms"])
 }
 
 func TestSubmitEvent_FallbackMessageWhenNoDuration(t *testing.T) {
