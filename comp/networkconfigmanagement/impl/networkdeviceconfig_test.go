@@ -116,8 +116,81 @@ func (m *MockConnection) PushConfig(_ context.Context, _ string) (*types.PushRes
 }
 
 func (m *MockConnection) StartShell(_ context.Context) (ncmremote.Shell, types.TypedError) {
-	return nil, types.InternalError(errors.New("not implemented"))
+	sh := &mockShell{conn: m}
+	sh.write(sh.prompt())
+	return sh, nil
 }
+
+// mockShell is a synchronous imitation of an IOS shell over a PTY. In exec
+// mode each line is looked up in the connection's OutputMap and unknown lines
+// are rejected; in config mode unknown lines are accepted. Lines whose result
+// has an Error write their Output and are then rejected.
+type mockShell struct {
+	conn     *MockConnection
+	inConfig bool
+	buf      []byte
+}
+
+var _ ncmremote.Shell = (*mockShell)(nil)
+
+func (s *mockShell) prompt() string {
+	if s.inConfig {
+		return "R1(config)#"
+	}
+	return "R1#"
+}
+
+func (s *mockShell) write(str string) {
+	s.buf = append(s.buf, strings.ReplaceAll(str, "\n", "\r\n")...)
+}
+
+// writeOutput writes a command's output, ending it with a newline if needed.
+func (s *mockShell) writeOutput(out string) {
+	if out != "" && !strings.HasSuffix(out, "\n") {
+		out += "\n"
+	}
+	s.write(out)
+}
+
+func (s *mockShell) Send(_ context.Context, data string) error {
+	line := strings.TrimSuffix(data, "\n")
+	s.write(line + "\n")
+	r, known := s.conn.OutputMap[line]
+	switch {
+	case known && r.Error != "":
+		s.writeOutput(r.Output)
+		s.write("% Invalid input detected at '^' marker.\n")
+	case strings.HasPrefix(line, "terminal "):
+	case line == "configure terminal":
+		s.inConfig = true
+	case line == "end":
+		s.inConfig = false
+	case known:
+		s.writeOutput(r.Output)
+	case !s.inConfig:
+		s.write("% Invalid input detected at '^' marker.\n")
+	}
+	if !strings.HasPrefix(line, "terminal ") {
+		s.conn.Calls = append(s.conn.Calls, line)
+	}
+	s.write(s.prompt())
+	return nil
+}
+
+func (s *mockShell) ReadUntil(_ context.Context, match func([]byte) int) ([]byte, error) {
+	i := match(s.buf)
+	if i < 0 {
+		out := s.buf
+		s.buf = nil
+		return out, errors.New("mock shell: no match in buffered output")
+	}
+	out := s.buf[:i]
+	s.buf = s.buf[i:]
+	return out, nil
+}
+
+func (s *mockShell) CloseWrite() error { return nil }
+func (s *mockShell) Close() error      { return nil }
 
 func (m *MockConnection) SetProfile(np *profile.NCMProfile) {
 	m.Profile = np
