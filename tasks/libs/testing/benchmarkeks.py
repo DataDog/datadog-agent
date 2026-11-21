@@ -6,8 +6,9 @@ baseline commit is chosen like the SMP regression detector does (.gitlab/test/fu
 the merge base with the base branch, or the parent commit on the base branch, walking first parents back to the first
 commit with images.
 
-The images of the agent-qa ECR repositories e2e tests pull from only live for a day, so the baseline images are looked
-up in the registry the container build jobs push to, which keeps them for months, to be published to agent-qa again.
+The agent-qa ECR repositories e2e tests pull from delete their images a day after their first push, which publishing
+them again doesn't postpone. So the baseline images are looked up in the registry the container build jobs push to,
+which keeps them for months, and copied there as new images, made unique by a label, to be published to agent-qa.
 
 This module also writes the pull request comment of the benchmark, which its CI jobs update as it progresses: how to
 start it, that it runs, then its results.
@@ -38,6 +39,8 @@ E2E_CLUSTER_AGENT_REPOSITORY = "cluster-agent-qa"
 ARCHITECTURES = ("amd64", "arm64")
 # Length of CI_COMMIT_SHORT_SHA, used in the image tags
 SHORT_SHA_LENGTH = 8
+# Label of the copies of the baseline images, whose value is the ID of the copy
+COPY_LABEL = "com.datadoghq.benchmarkeks.copy"
 
 # Like SMP, candidates committed longer ago than this are not considered, but the first one
 MAX_BASELINE_AGE = timedelta(days=4) - timedelta(hours=1)
@@ -73,6 +76,11 @@ class Commit:
         return self.sha[:SHORT_SHA_LENGTH]
 
 
+def copy_reference(reference: str, copy_id: str) -> str:
+    """The reference of the copy copy_id of the image `reference`: its tag followed by -benchmarkeks-<copy_id>."""
+    return f"{reference}-benchmarkeks-{copy_id}"
+
+
 @dataclass(frozen=True)
 class Baseline:
     """The images built for the commit `sha` by the pipeline `pipeline_id`."""
@@ -98,34 +106,39 @@ class Baseline:
 
     @property
     def agent_destination(self) -> str:
-        """The dd-pkg destination of the Agent image, the one qa_agent_linux published for the baseline pipeline."""
+        """The image qa_agent_linux published to agent-qa for the baseline pipeline, whose tag its copies extend."""
         return f"{E2E_AGENT_REPOSITORY}:{self.tag}-linux"
 
     @property
     def cluster_agent_destination(self) -> str:
-        """The dd-pkg destination of the Cluster Agent image, the one qa_dca published for the baseline pipeline."""
+        """The image qa_dca published to cluster-agent-qa for the baseline pipeline, whose tag its copies extend."""
         return f"{E2E_CLUSTER_AGENT_REPOSITORY}:{self.tag}"
 
-    def dotenv_variables(self) -> dict[str, str]:
+    def dotenv_variables(self, copy_id: str) -> dict[str, str]:
         """
-        The variables of the dotenv report of the CI job resolving the baseline.
+        The variables of the dotenv report of the CI job resolving the baseline, which publishes the copies copy_id of
+        its images (see copy_images).
 
         The E2E_BENCHMARKEKS_BASELINE_* ones are read by the benchmarkeks suite, the others by the CI job publishing
         the baseline images.
         """
+        agent_destination = copy_reference(self.agent_destination, copy_id)
+        cluster_agent_destination = copy_reference(self.cluster_agent_destination, copy_id)
         return {
             "E2E_BENCHMARKEKS_BASELINE_SHA": self.sha,
-            "E2E_BENCHMARKEKS_BASELINE_AGENT_IMAGE": f"{E2E_REGISTRY}/{self.agent_destination}",
-            "E2E_BENCHMARKEKS_BASELINE_CLUSTER_AGENT_IMAGE": f"{E2E_REGISTRY}/{self.cluster_agent_destination}",
-            "BENCHMARKEKS_BASELINE_AGENT_SOURCES": ",".join(self.agent_sources),
-            "BENCHMARKEKS_BASELINE_CLUSTER_AGENT_SOURCES": ",".join(self.cluster_agent_sources),
-            "BENCHMARKEKS_BASELINE_AGENT_DESTINATION": self.agent_destination,
-            "BENCHMARKEKS_BASELINE_CLUSTER_AGENT_DESTINATION": self.cluster_agent_destination,
+            "E2E_BENCHMARKEKS_BASELINE_AGENT_IMAGE": f"{E2E_REGISTRY}/{agent_destination}",
+            "E2E_BENCHMARKEKS_BASELINE_CLUSTER_AGENT_IMAGE": f"{E2E_REGISTRY}/{cluster_agent_destination}",
+            "BENCHMARKEKS_BASELINE_AGENT_SOURCES": ",".join(copy_reference(i, copy_id) for i in self.agent_sources),
+            "BENCHMARKEKS_BASELINE_CLUSTER_AGENT_SOURCES": ",".join(
+                copy_reference(i, copy_id) for i in self.cluster_agent_sources
+            ),
+            "BENCHMARKEKS_BASELINE_AGENT_DESTINATION": agent_destination,
+            "BENCHMARKEKS_BASELINE_CLUSTER_AGENT_DESTINATION": cluster_agent_destination,
         }
 
 
 class BaselineLookupError(Exception):
-    """The baseline could not be resolved, for the reason the message gives to the user."""
+    """The baseline could not be resolved or copied, for the reason the message gives to the user."""
 
 
 class BaselineNotFoundError(Exception):
@@ -290,6 +303,27 @@ def resolve_baseline(ctx, base_branch: str, branch: str, fetch: bool = True) -> 
             )
         raise BaselineLookupError(message) from e
     return baseline
+
+
+def copy_images(ctx, images: Iterable[str], copy_id: str) -> None:
+    """
+    Pushes the copies copy_id of images next to them, with COPY_LABEL set to copy_id, and signs them by tag and digest
+    like the container build jobs sign their images, as they're published the same way. Raises BaselineLookupError if a
+    copy can't be pushed or signed.
+    """
+    for image in images:
+        copy = copy_reference(image, copy_id)
+        print(f"Copying {image} to {copy}")
+        # crane prints the reference of the copy by digest
+        output = _run_checked(
+            ctx,
+            ["crane", "mutate", "--label", f"{COPY_LABEL}={copy_id}", "--tag", copy, image],
+            f"copy {image} to {copy}",
+        ).strip()
+        _, separator, digest = output.rpartition("@")
+        if not separator or not digest:
+            raise BaselineLookupError(f"Could not read the digest of {copy} from the output of crane:\n{output}")
+        _run_checked(ctx, ["ddsign", "sign", f"{copy}@{digest}"], f"sign {copy}@{digest}")
 
 
 @dataclass(frozen=True)

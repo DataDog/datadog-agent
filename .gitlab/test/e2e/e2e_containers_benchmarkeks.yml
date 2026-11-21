@@ -96,13 +96,18 @@ new-e2e-containers-benchmarkeks-instructions:
   script:
     - dda inv -- -e new-e2e-tests.benchmarkeks-comment --state=pending
 
-# Resolves the baseline and publishes its images to agent-qa, as qa_agent_linux and qa_dca did for the baseline
-# pipeline: the images of agent-qa expire after a day, the build outputs of registry.ddbuild.io are kept for months.
-# It starts the benchmark, and shows in the pull request comment that it runs.
+# Resolves the baseline and publishes copies of its images to agent-qa, like qa_agent_linux and qa_dca did for the
+# baseline pipeline: agent-qa deletes its images a day after their first push, even when they're published again,
+# while registry.ddbuild.io keeps the build outputs for months. It starts the benchmark, and shows in the pull request
+# comment that it runs.
 new-e2e-containers-benchmarkeks-baseline:
   extends:
     - .docker_publish_job_definition
     - .dd_octo_sts
+  id_tokens:
+    # Signs the copies of the baseline images, added to the tokens of .dd_octo_sts, CI identities included
+    DDSIGN_ID_TOKEN:
+      aud: image-integrity
   stage: e2e_init
   rules:
     - !reference [.except_benchmarkeks_unsupported]
@@ -125,7 +130,7 @@ new-e2e-containers-benchmarkeks-baseline:
     - dda inv -- -e new-e2e-tests.benchmarkeks-comment --state=running || echo "The pull request comment wasn't updated"
     # The commands below don't need the GitHub token
     - unset GITHUB_TOKEN
-    - dda inv -- -e new-e2e-tests.benchmarkeks-baseline --output-file=benchmarkeks_baseline.env
+    - dda inv -- -e new-e2e-tests.benchmarkeks-baseline --copy-id="$CI_JOB_ID" --output-file=benchmarkeks_baseline.env
     - source benchmarkeks_baseline.env
     # The script of .docker_publish_job_definition, once per image
     - export IMG_SOURCES="$BENCHMARKEKS_BASELINE_AGENT_SOURCES" IMG_DESTINATIONS="$BENCHMARKEKS_BASELINE_AGENT_DESTINATION"

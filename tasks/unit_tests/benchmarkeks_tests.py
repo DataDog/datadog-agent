@@ -45,15 +45,15 @@ class TestBaseline(unittest.TestCase):
     def test_images(self):
         baseline = Baseline(SHA_A, 144458951)
         self.assertEqual(
-            baseline.dotenv_variables(),
+            baseline.dotenv_variables("2272303484"),
             {
                 "E2E_BENCHMARKEKS_BASELINE_SHA": SHA_A,
-                "E2E_BENCHMARKEKS_BASELINE_AGENT_IMAGE": "669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-qa:144458951-a6c0b31b-linux",
-                "E2E_BENCHMARKEKS_BASELINE_CLUSTER_AGENT_IMAGE": "669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent-qa:144458951-a6c0b31b",
-                "BENCHMARKEKS_BASELINE_AGENT_SOURCES": "registry.ddbuild.io/ci/datadog-agent/agent:v144458951-a6c0b31b-7-amd64,registry.ddbuild.io/ci/datadog-agent/agent:v144458951-a6c0b31b-7-arm64",
-                "BENCHMARKEKS_BASELINE_CLUSTER_AGENT_SOURCES": "registry.ddbuild.io/ci/datadog-agent/cluster-agent:v144458951-a6c0b31b-amd64,registry.ddbuild.io/ci/datadog-agent/cluster-agent:v144458951-a6c0b31b-arm64",
-                "BENCHMARKEKS_BASELINE_AGENT_DESTINATION": "agent-qa:144458951-a6c0b31b-linux",
-                "BENCHMARKEKS_BASELINE_CLUSTER_AGENT_DESTINATION": "cluster-agent-qa:144458951-a6c0b31b",
+                "E2E_BENCHMARKEKS_BASELINE_AGENT_IMAGE": "669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-qa:144458951-a6c0b31b-linux-benchmarkeks-2272303484",
+                "E2E_BENCHMARKEKS_BASELINE_CLUSTER_AGENT_IMAGE": "669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent-qa:144458951-a6c0b31b-benchmarkeks-2272303484",
+                "BENCHMARKEKS_BASELINE_AGENT_SOURCES": "registry.ddbuild.io/ci/datadog-agent/agent:v144458951-a6c0b31b-7-amd64-benchmarkeks-2272303484,registry.ddbuild.io/ci/datadog-agent/agent:v144458951-a6c0b31b-7-arm64-benchmarkeks-2272303484",
+                "BENCHMARKEKS_BASELINE_CLUSTER_AGENT_SOURCES": "registry.ddbuild.io/ci/datadog-agent/cluster-agent:v144458951-a6c0b31b-amd64-benchmarkeks-2272303484,registry.ddbuild.io/ci/datadog-agent/cluster-agent:v144458951-a6c0b31b-arm64-benchmarkeks-2272303484",
+                "BENCHMARKEKS_BASELINE_AGENT_DESTINATION": "agent-qa:144458951-a6c0b31b-linux-benchmarkeks-2272303484",
+                "BENCHMARKEKS_BASELINE_CLUSTER_AGENT_DESTINATION": "cluster-agent-qa:144458951-a6c0b31b-benchmarkeks-2272303484",
             },
         )
 
@@ -78,6 +78,8 @@ class TestParsing(unittest.TestCase):
             "v150-73f0a2f0-amd64",
             "v150-73f0a2f0-7-amd64",
             "v150-73f0a2f-amd64",
+            # A copy of the baseline images
+            "v150-73f0a2f0-amd64-benchmarkeks-2272303484",
             "latest",
         ]
         self.assertEqual(index_pipeline_ids(tags), {"a6c0b31b": [100, 200, 300], "73f0a2f0": [150]})
@@ -165,6 +167,18 @@ class TestBenchmarkeksBaselineTask(unittest.TestCase):
             for arch in ("amd64", "arm64")
         }
 
+    def copy_results(self, pipeline_id, short_sha):
+        results = {}
+        for repository, flavor in (("agent", "-7"), ("cluster-agent", "")):
+            for arch in ("amd64", "arm64"):
+                image = f"registry.ddbuild.io/ci/datadog-agent/{repository}:v{pipeline_id}-{short_sha}{flavor}-{arch}"
+                copy = f"{image}-benchmarkeks-42"
+                results[f"crane mutate --label com.datadoghq.benchmarkeks.copy=42 --tag {copy} {image}"] = Result(
+                    f"registry.ddbuild.io/ci/datadog-agent/{repository}@sha256:{arch}\n"
+                )
+                results[f"ddsign sign {copy}@sha256:{arch}"] = Result()
+        return results
+
     def context(self, start, results):
         return MockContext(
             run={
@@ -183,6 +197,7 @@ class TestBenchmarkeksBaselineTask(unittest.TestCase):
 
     @patch.dict(os.environ, {"CI_COMMIT_BRANCH": "lenaic/feature"})
     def test_dev_branch(self):
+        copies = self.copy_results(200, "73f0a2f0")
         ctx = self.context(
             SHA_A,
             {
@@ -191,21 +206,27 @@ class TestBenchmarkeksBaselineTask(unittest.TestCase):
                 **self.digest_results(300, "a6c0b31b", self.missing),
                 **self.digest_results(200, "73f0a2f0", Result("sha256:1234")),
                 **self.digest_results(250, "73f0a2f0", Result("sha256:5678")),
+                **copies,
             },
         )
-        benchmarkeks_baseline(ctx, output_file=self.output_file)
+        benchmarkeks_baseline(ctx, copy_id="42", output_file=self.output_file)
         variables = self.read_output()
         self.assertEqual(variables["E2E_BENCHMARKEKS_BASELINE_SHA"], SHA_B)
-        # The oldest pipeline of the commit, rather than a later coverage one
+        # The copies of the images of the oldest pipeline of the commit, rather than a later coverage one
         self.assertEqual(
             variables["E2E_BENCHMARKEKS_BASELINE_AGENT_IMAGE"],
-            "669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-qa:200-73f0a2f0-linux",
+            "669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-qa:200-73f0a2f0-linux-benchmarkeks-42",
         )
+        for command in copies:
+            ctx.run.assert_any_call(command, hide=True, warn=True)
 
     @patch.dict(os.environ, {"CI_COMMIT_BRANCH": "main"})
     def test_base_branch(self):
-        ctx = self.context("'HEAD~1'", self.digest_results(300, "a6c0b31b", Result("sha256:1234")))
-        benchmarkeks_baseline(ctx, output_file=self.output_file)
+        ctx = self.context(
+            "'HEAD~1'",
+            {**self.digest_results(300, "a6c0b31b", Result("sha256:1234")), **self.copy_results(300, "a6c0b31b")},
+        )
+        benchmarkeks_baseline(ctx, copy_id="42", output_file=self.output_file)
         self.assertEqual(self.read_output()["E2E_BENCHMARKEKS_BASELINE_SHA"], SHA_A)
 
     @patch.dict(os.environ, {"CI_COMMIT_BRANCH": "main"})
@@ -219,14 +240,14 @@ class TestBenchmarkeksBaselineTask(unittest.TestCase):
             },
         )
         with self.assertRaisesRegex(Exit, f"{SHA_C}.*too old.*rebasing it onto an up-to-date main branch"):
-            benchmarkeks_baseline(ctx, output_file=self.output_file)
+            benchmarkeks_baseline(ctx, copy_id="42", output_file=self.output_file)
         self.assertFalse(os.path.exists(self.output_file))
 
     @patch.dict(os.environ, {"CI_COMMIT_BRANCH": "main"})
     def test_no_commit(self):
         self.rev_list = ""
         with self.assertRaisesRegex(Exit, "No commit found from the parent commit"):
-            benchmarkeks_baseline(self.context("'HEAD~1'", {}), output_file=self.output_file)
+            benchmarkeks_baseline(self.context("'HEAD~1'", {}), copy_id="42", output_file=self.output_file)
         self.assertFalse(os.path.exists(self.output_file))
 
     @patch.dict(os.environ, {"CI_COMMIT_BRANCH": "main"})
@@ -238,7 +259,7 @@ class TestBenchmarkeksBaselineTask(unittest.TestCase):
             ),
         )
         with self.assertRaisesRegex(Exit, "Could not check whether .* exists"):
-            benchmarkeks_baseline(ctx, output_file=self.output_file)
+            benchmarkeks_baseline(ctx, copy_id="42", output_file=self.output_file)
 
     @patch.dict(os.environ, {"CI_COMMIT_BRANCH": "main"})
     def test_tag_listing_error(self):
@@ -251,7 +272,40 @@ class TestBenchmarkeksBaselineTask(unittest.TestCase):
             },
         )
         with self.assertRaisesRegex(Exit, "(?s)Could not list the tags of .*Forbidden"):
-            benchmarkeks_baseline(ctx, output_file=self.output_file)
+            benchmarkeks_baseline(ctx, copy_id="42", output_file=self.output_file)
+        self.assertFalse(os.path.exists(self.output_file))
+
+    @patch.dict(os.environ, {"CI_COMMIT_BRANCH": "main"})
+    def test_copy_error(self):
+        results = self.copy_results(300, "a6c0b31b")
+        # The first copy, of the amd64 Agent image, is refused
+        results[next(iter(results))] = Result(exited=1, stderr="Error: PUT https://registry.ddbuild.io/v2/...: DENIED")
+        ctx = self.context("'HEAD~1'", {**self.digest_results(300, "a6c0b31b", Result("sha256:1234")), **results})
+        with self.assertRaisesRegex(Exit, "(?s)Could not copy .*/agent:v300-a6c0b31b-7-amd64 to .*DENIED"):
+            benchmarkeks_baseline(ctx, copy_id="42", output_file=self.output_file)
+        self.assertFalse(os.path.exists(self.output_file))
+
+    @patch.dict(os.environ, {"CI_COMMIT_BRANCH": "main"})
+    def test_copy_without_digest(self):
+        results = self.copy_results(300, "a6c0b31b")
+        # crane printed no reference by digest for the first copy, which can't be signed
+        results[next(iter(results))] = Result("\n")
+        ctx = self.context("'HEAD~1'", {**self.digest_results(300, "a6c0b31b", Result("sha256:1234")), **results})
+        with self.assertRaisesRegex(Exit, "Could not read the digest of .*/agent:v300-a6c0b31b-7-amd64-benchmarkeks"):
+            benchmarkeks_baseline(ctx, copy_id="42", output_file=self.output_file)
+        self.assertFalse(os.path.exists(self.output_file))
+
+    @patch.dict(os.environ, {"CI_COMMIT_BRANCH": "main"})
+    def test_sign_error(self):
+        results = self.copy_results(300, "a6c0b31b")
+        # The signature of the first copy, of the amd64 Agent image, is refused
+        sign = next(command for command in results if command.startswith("ddsign "))
+        results[sign] = Result(exited=1, stderr="Error: signing refused")
+        ctx = self.context("'HEAD~1'", {**self.digest_results(300, "a6c0b31b", Result("sha256:1234")), **results})
+        with self.assertRaisesRegex(
+            Exit, "(?s)Could not sign .*/agent:v300-a6c0b31b-7-amd64-benchmarkeks-42@.*refused"
+        ):
+            benchmarkeks_baseline(ctx, copy_id="42", output_file=self.output_file)
         self.assertFalse(os.path.exists(self.output_file))
 
 
