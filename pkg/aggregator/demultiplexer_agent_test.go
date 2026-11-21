@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -593,8 +594,9 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 
 	// sendAndFlush submits a distribution sample with the given timestamp via
 	// the check sampler path (not DogStatsD), commits it, then flushes.
-	// Using an explicit past timestamp ensures the sketch bucket is always
-	// older than the commit time and will be flushed.
+	// Sketches of tag-filtered metrics are stamped at commit, and a flush holds
+	// those from its own second for the next flush: flushing at a later time
+	// ensures the sketch is sent.
 	sendAndFlush := func(ts float64) {
 		demux.aggregator.checkItems <- &senderMetricSample{
 			id: checkID,
@@ -615,7 +617,7 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 		require.Eventually(func() bool {
 			return len(demux.aggregator.checkItems) == 0
 		}, time.Second, time.Millisecond)
-		demux.ForceFlushToSerializer(time.Now(), true, false)
+		demux.ForceFlushToSerializer(time.Now().Add(5*time.Second), true, false)
 	}
 
 	// First send: tag1 and tag2 are excluded. This is a cache miss so the
@@ -768,4 +770,234 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		filterlistmock.MockModule(),
 		fx.Provide(func() tagger.Component { return taggerComponent }),
 	)
+}
+
+// startTagFilterDemux starts a demultiplexer with a rule filtering the pod tag from dist.metric and count.metric,
+// and registers check samplers.
+func startTagFilterDemux(t *testing.T, checks ...checkid.ID) (*AgentDemultiplexer, *MockSerializerSketch) {
+	return startTagFilterDemuxWithSettings(t, map[string]any{"metric_tag_filterlist_adp_only": false}, checks...)
+}
+
+// startTagFilterDemuxWithSettings starts the demultiplexer with the given settings, which decide whether rules
+// apply.
+func startTagFilterDemuxWithSettings(t *testing.T, settings map[string]any, checks ...checkid.ID) (*AgentDemultiplexer, *MockSerializerSketch) {
+	mockConfig := configmock.New(t)
+	for key, value := range settings {
+		mockConfig.SetInTest(key, value)
+	}
+	deps := createDemultiplexerAgentTestDeps(t)
+	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
+	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
+		"dist.metric":  {Action: "exclude", Tags: []string{"pod"}},
+		"count.metric": {Action: "exclude", Tags: []string{"pod"}},
+	})
+	demux := InitAndStartAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, demuxTestOptions(),
+		deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, filterList, "")
+
+	s := &MockSerializerSketch{}
+	s.On("AreSeriesEnabled").Return(true)
+	s.On("AreSketchesEnabled").Return(true)
+	s.On("SendServiceChecks", mock.Anything).Return(nil)
+	demux.aggregator.serializer = s
+	demux.sharedSerializer = s
+
+	require.Eventually(t, func() bool { return len(demux.aggregator.tagFilterListChan) == 0 }, time.Second, time.Millisecond)
+	for _, id := range checks {
+		demux.aggregator.registerSender(id)
+	}
+	waitForCheckItems(t, demux)
+	return demux, s
+}
+
+// checkItemsBarrier is handled by the aggregator's run loop once every item queued before it has been handled.
+type checkItemsBarrier chan struct{}
+
+func (b checkItemsBarrier) handle(*BufferedAggregator) { close(b) }
+
+// waitForCheckItems waits until the aggregator has handled every check item queued so far: an empty queue isn't
+// enough, as the last item can be dequeued but not handled yet.
+func waitForCheckItems(t *testing.T, demux *AgentDemultiplexer) {
+	barrier := make(checkItemsBarrier)
+	demux.aggregator.checkItems <- barrier
+	select {
+	case <-barrier:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the aggregator didn't handle check items")
+	}
+}
+
+// submitPodMetrics submits, from a check instance for a pod, a distribution and a counter that the rule filters
+// to one series across pods, and a gauge it doesn't filter, then commits.
+func submitPodMetrics(demux *AgentDemultiplexer, id checkid.ID, pod string, count float64) {
+	tags := []string{"env:prod", "pod:" + pod}
+	if pod == "" {
+		tags = []string{"env:prod"}
+	}
+	for _, sample := range []*metrics.MetricSample{
+		{Name: "dist.metric", Value: 1, Mtype: metrics.DistributionType},
+		{Name: "count.metric", Value: count, Mtype: metrics.CounterType},
+		{Name: "other.metric", Value: 1, Mtype: metrics.GaugeType},
+	} {
+		sample.Tags = tags
+		sample.SampleRate = 1
+		sample.Timestamp = timeNowNano()
+		demux.aggregator.checkItems <- &senderMetricSample{id: id, metricSample: sample}
+	}
+	demux.aggregator.checkItems <- &senderMetricSample{id: id, metricSample: &metrics.MetricSample{}, commit: true}
+}
+
+func seriesNamed(series []*metrics.Serie, name string) []*metrics.Serie {
+	var out []*metrics.Serie
+	for _, s := range series {
+		if s.Name == name {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func sketchesNamed(sketches []metrics.Distribution, name string) []*metrics.SketchSeries {
+	var out []*metrics.SketchSeries
+	for _, s := range sketches {
+		if s.GetName() == name {
+			out = append(out, s.(*metrics.SketchSeries))
+		}
+	}
+	return out
+}
+
+// mergedSeriesTotal checks that the series sent for a metric have the filtered tags, its type and each second once,
+// and sums their points.
+func mergedSeriesTotal(t *testing.T, series []*metrics.Serie, name string, mtype metrics.APIMetricType) float64 {
+	t.Helper()
+	var sum float64
+	seconds := map[int64]bool{}
+	for _, serie := range seriesNamed(series, name) {
+		assert.ElementsMatch(t, []string{"env:prod"}, strings.Split(serie.Tags.Join(","), ","), name)
+		assert.Equal(t, mtype, serie.MType, name)
+		for _, p := range serie.Points {
+			assert.False(t, seconds[int64(p.Ts)], "%s: second %d sent twice", name, int64(p.Ts))
+			seconds[int64(p.Ts)] = true
+			sum += p.Value
+		}
+	}
+	return sum
+}
+
+// mergedSketchCount checks that sketches have the filtered tags and each second once, and counts their samples.
+func mergedSketchCount(t *testing.T, sketches []*metrics.SketchSeries) int64 {
+	t.Helper()
+	var count int64
+	seconds := map[int64]bool{}
+	for _, sketch := range sketches {
+		assert.ElementsMatch(t, []string{"env:prod"}, strings.Split(sketch.Tags.Join(","), ","), sketch.Name)
+		for _, p := range sketch.Points {
+			assert.False(t, seconds[p.Ts], "%s: second %d sent twice", sketch.Name, p.Ts)
+			seconds[p.Ts] = true
+			count += p.Sketch.Basic.Cnt
+		}
+	}
+	return count
+}
+
+func TestTagFilterListMergesAcrossCheckInstances(t *testing.T) {
+	for name, settings := range map[string]map[string]any{
+		"rules apply everywhere": {"metric_tag_filterlist_adp_only": false},
+		"rules apply with ADP":   {"data_plane.enabled": true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			demux, s := startTagFilterDemuxWithSettings(t, settings, "openmetrics:pod-a", "openmetrics:pod-b")
+			defer demux.Stop()
+
+			submitPodMetrics(demux, "openmetrics:pod-a", "a", 1)
+			submitPodMetrics(demux, "openmetrics:pod-b", "b", 2)
+			waitForCheckItems(t, demux)
+			demux.ForceFlushToSerializer(time.Now().Add(5*time.Second), true, false)
+
+			assert.Equal(t, int64(2), mergedSketchCount(t, sketchesNamed(s.sketches, "dist.metric")), "one series for both pods")
+
+			for name, mtype := range map[string]metrics.APIMetricType{"count.metric": metrics.APIRateType} {
+				assert.Equal(t, 3.0, mergedSeriesTotal(t, s.series, name, mtype), name)
+			}
+
+			assert.Len(t, seriesNamed(s.series, "other.metric"), 2, "metrics without a rule keep one series per pod")
+		})
+	}
+}
+
+func TestTagFilterListStopSendsHeldPoints(t *testing.T) {
+	// The stop flush is forced with dogstatsd_flush_incomplete_buckets, and isn't by default: both send what's held.
+	for _, flushIncompleteBuckets := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dogstatsd_flush_incomplete_buckets=%v", flushIncompleteBuckets), func(t *testing.T) {
+			demux, s := startTagFilterDemux(t, "openmetrics:pod-a")
+			configmock.New(t).SetInTest("dogstatsd_flush_incomplete_buckets", flushIncompleteBuckets)
+
+			beforeCommit := time.Now()
+			submitPodMetrics(demux, "openmetrics:pod-a", "a", 1)
+			waitForCheckItems(t, demux)
+			// A flush with a cutoff before the commit holds the filtered points.
+			demux.ForceFlushToSerializer(beforeCommit, true, false)
+			require.Empty(t, sketchesNamed(s.sketches, "dist.metric"))
+			require.Empty(t, seriesNamed(s.series, "count.metric"))
+
+			demux.Stop()
+			assert.Len(t, sketchesNamed(s.sketches, "dist.metric"), 1)
+			assert.Len(t, seriesNamed(s.series, "count.metric"), 1)
+		})
+	}
+}
+
+func TestTagFilterListAgentCheckSendsHeldPoints(t *testing.T) {
+	demux, _ := startTagFilterDemux(t, "openmetrics:pod-a", "openmetrics:pod-b")
+	defer demux.Stop()
+
+	// agent check reads the aggregator right after the check runs: what the merger holds is included.
+	submitPodMetrics(demux, "openmetrics:pod-a", "a", 1)
+	submitPodMetrics(demux, "openmetrics:pod-b", "b", 2)
+	waitForCheckItems(t, demux)
+	series, sketches := demux.aggregator.GetSeriesAndSketches(time.Now())
+
+	assert.Equal(t, 3.0, mergedSeriesTotal(t, series, "count.metric", metrics.APIRateType))
+	var dists []*metrics.SketchSeries
+	for _, sketch := range sketches {
+		if sketch.Name == "dist.metric" {
+			dists = append(dists, sketch)
+		}
+	}
+	assert.Equal(t, int64(2), mergedSketchCount(t, dists))
+}
+
+// TestTagFilterListMergesThroughCheckSenders submits as checks do, through their senders, from two check instances
+// whose metrics filter to the same series.
+func TestTagFilterListMergesThroughCheckSenders(t *testing.T) {
+	demux, s := startTagFilterDemux(t)
+	defer demux.Stop()
+
+	runs := map[checkid.ID][]float64{
+		"openmetrics:pod-a": {1, 2},
+		"openmetrics:pod-b": {3, 4},
+	}
+	for id, checkRuns := range runs {
+		sender, err := demux.GetSender(id)
+		require.NoError(t, err)
+		tags := []string{"env:prod", "pod:" + string(id)}
+		for _, value := range checkRuns {
+			sender.Distribution("dist.metric", value, "", tags)
+			sender.Counter("count.metric", value, "", tags)
+			sender.Gauge("other.metric", 1, "", tags)
+			sender.Commit()
+		}
+	}
+	waitForCheckItems(t, demux)
+	demux.ForceFlushToSerializer(time.Now().Add(5*time.Second), true, false)
+
+	assert.Equal(t, 1+2+3+4.0, mergedSeriesTotal(t, s.series, "count.metric", metrics.APIRateType))
+
+	assert.Equal(t, int64(4), mergedSketchCount(t, sketchesNamed(s.sketches, "dist.metric")))
+
+	others := map[string]bool{}
+	for _, serie := range seriesNamed(s.series, "other.metric") {
+		others[serie.Tags.Join(",")] = true
+	}
+	assert.Len(t, others, 2, "metrics without a rule keep one series per instance")
 }
