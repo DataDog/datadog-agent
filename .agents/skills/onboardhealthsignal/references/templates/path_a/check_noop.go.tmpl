@@ -1,0 +1,20 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright __YEAR__-present Datadog, Inc.
+
+__NOOP_BUILD_TAG_LINE__package __PKG__
+
+import (
+__NOOP_IMPORTS__
+)
+
+type checker struct{}
+
+func newChecker(__NOOP_PARAMS__) *checker {
+	return &checker{}
+}
+
+func (*checker) Run() ([]runnerdef.IssueReport, error) {
+	return nil, nil
+}
