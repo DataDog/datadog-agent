@@ -277,7 +277,7 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 	case podKind:
 		entityID = types.NewEntityID(types.KubernetesPodUID, string(involvedObject.UID))
 	case deploymentKind:
-		entityID = types.NewEntityID(types.KubernetesDeployment, involvedObject.Namespace+"/"+involvedObject.Name)
+		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name))
 	case nodeKind:
 		entityID = types.NewEntityID(types.KubernetesNode, involvedObject.Name)
 	default:
@@ -431,7 +431,7 @@ func getKindTag(kind, name string) string {
 		return ""
 	}
 
-	return tagName + ":" + name
+	return fmt.Sprintf("%s:%s", tagName, name)
 }
 
 func buildReadableKey(obj v1.ObjectReference) string {

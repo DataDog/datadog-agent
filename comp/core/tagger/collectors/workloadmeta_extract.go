@@ -1861,9 +1861,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	tagList.AddHigh(tags.ContainerID, container.ID)
 
 	if container.Name != "" && pod.Name != "" {
-		tagList.AddHigh(tags.DisplayContainerName, container.Name+"_"+pod.Name)
+		tagList.AddHigh(tags.DisplayContainerName, fmt.Sprintf("%s_%s", container.Name, pod.Name))
 	} else if podContainer.Name != "" && pod.Name != "" {
-		tagList.AddHigh(tags.DisplayContainerName, podContainer.Name+"_"+pod.Name)
+		tagList.AddHigh(tags.DisplayContainerName, fmt.Sprintf("%s_%s", podContainer.Name, pod.Name))
 	}
 
 	image := podContainer.Image
@@ -2071,7 +2071,7 @@ func (c *WorkloadMetaCollector) addOpenTelemetryStandardTags(container *workload
 }
 
 func buildTaggerSource(entityID workloadmeta.EntityID) string {
-	return workloadmetaCollectorName + "-" + string(entityID.Kind)
+	return fmt.Sprintf("%s-%s", workloadmetaCollectorName, string(entityID.Kind))
 }
 
 func parseJSONValue(value string, tags *taglist.TagList) error {
