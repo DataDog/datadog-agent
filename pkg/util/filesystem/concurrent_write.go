@@ -23,9 +23,15 @@ import (
 const lockSuffix = ".lock"
 const initialRetryDelay = 100 * time.Millisecond
 const initialRetryCount = 10
-const maxRetryDelay = 5 * time.Second
 
-// artifactRetryBackoff starts with ten 100ms waits, then doubles the delay up to 5s.
+// maxRetryDelay bounds how late a waiting process notices an artifact created by
+// another process. Agent sidecars mount the auth artifacts read-only, so on a fresh
+// pod they poll until the core Agent writes them; a larger cap rounds that wait up to
+// the next retry and directly adds to their startup time. Retries are cheap file reads
+// and the total wait is already bounded by the caller's context (auth_init_timeout).
+const maxRetryDelay = 500 * time.Millisecond
+
+// artifactRetryBackoff starts with ten 100ms waits, then doubles the delay up to 500ms.
 // Its zero value is ready to use; each operation must have its own instance.
 type artifactRetryBackoff struct {
 	initialRetries int
@@ -54,7 +60,7 @@ type ArtifactBuilder[T any] interface {
 // FetchArtifact attempts to fetch an artifact from the specified location using the provided factory.
 // This function is blocking and will keep retrying until either the artifact is successfully retrieved
 // or the provided context is done. The first ten retries wait 100ms each, then use
-// exponential backoff up to 5s.
+// exponential backoff up to 500ms.
 // If the context is done before the artifact is retrieved, it returns
 // an error indicating that the artifact could not be read in the given time.
 func FetchArtifact[T any](ctx context.Context, location string, factory ArtifactBuilder[T]) (T, error) {
@@ -100,7 +106,7 @@ func TryFetchArtifact[T any](location string, factory ArtifactBuilder[T]) (T, er
 // If not, it moves the temporary artifact to its final location.
 //
 // The function will repeatedly try to acquire the lock until the context is canceled or the lock is acquired,
-// waiting 100ms each for the first ten retries, then using exponential backoff up to 5s.
+// waiting 100ms each for the first ten retries, then using exponential backoff up to 500ms.
 //
 // This function is thread-safe and non-blocking.
 func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory ArtifactBuilder[T]) (T, error) {

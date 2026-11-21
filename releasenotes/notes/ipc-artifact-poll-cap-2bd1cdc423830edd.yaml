@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Agent processes that wait for another process to create the IPC auth token
+    and certificate, such as the trace-agent, system-probe, and otel-agent
+    containers in Kubernetes, now detect them within 500ms instead of up to 5s,
+    reducing their startup time.
