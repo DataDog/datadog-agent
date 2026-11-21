@@ -73,6 +73,23 @@ type LoggerInterface interface {
 	// Criticalf formats message according to format specifier
 	// and writes to log with level = Critical.
 	Criticalf(format string, params ...interface{}) error
+
+	// Log writes message to the log with the given level. extraDepth is the
+	// number of call frames to skip, starting at Log's own caller, to find the
+	// frame reported as the origin of the entry: 0 reports Log's direct
+	// caller, 1 its caller, and so on. context is a variadic list of key/value
+	// pairs attached to the log record.
+	//
+	// Log returns an error containing the message for the warn, error and
+	// critical levels, and nil for the trace, debug and info levels.
+	Log(level LogLevel, message string, extraDepth int, context ...interface{}) error
+
+	// Logf formats message according to format specifier and writes it to the
+	// log with the given level. extraDepth has the same meaning as in Log.
+	//
+	// Logf returns an error containing the formatted message for the warn,
+	// error and critical levels, and nil for the trace, debug and info levels.
+	Logf(level LogLevel, format string, extraDepth int, params ...interface{}) error
 }
 
 // LogLevel is the type of log levels

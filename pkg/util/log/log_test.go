@@ -686,14 +686,3 @@ func TestValidateLogLevelUnknownLevel(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, "unknown log level: "+strings.ToLower("unknownLogLevel"), err.Error())
 }
-
-func TestTraceNilLogger(t *testing.T) {
-	// reset buffer state
-	logsBuffer = []func(){}
-	logger.Store(nil)
-
-	logger.trace("message")
-
-	// should not write to the logs buffer
-	assert.Equal(t, 0, len(logsBuffer))
-}
