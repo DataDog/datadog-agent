@@ -787,7 +787,7 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         r#"for init in "${selected[@]}"; do"#,
         r#"printf '===== RUNNING %s =====\n' "$init""#,
         "launching=1",
-        r#"setsid "$copy_dir/${init##*/}" <&0 &"#,
+        r#"S6_KEEP_ENV=1 setsid "$copy_dir/${init##*/}" <&0 &"#,
         "cont_init_pid=$!",
         "launching=",
         r#"if [[ -n "$stop_requested" ]]; then"#,

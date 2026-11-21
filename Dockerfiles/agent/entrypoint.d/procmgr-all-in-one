@@ -111,8 +111,11 @@ for init in "${selected[@]}"; do
     # setsid makes the script a session leader. Background it so the TERM handler runs
     # while it blocks. <&0 keeps its stdin. Job control stays off, so setsid does not fork.
     # launching stays set until $! is stored, so a TERM in that gap is applied to this pid.
+    # S6_KEEP_ENV=1 makes #!/usr/bin/with-contenv hooks use the inherited environment. Without it
+    # they read /var/run/s6/container_environment, which only s6 /init creates. It is set on the
+    # child only, so this shell and dd-procmgrd keep the caller's value.
     launching=1
-    setsid "$copy_dir/${init##*/}" <&0 &
+    S6_KEEP_ENV=1 setsid "$copy_dir/${init##*/}" <&0 &
     cont_init_pid=$!
     launching=
     if [[ -n "$stop_requested" ]]; then

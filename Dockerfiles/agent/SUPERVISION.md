@@ -66,6 +66,10 @@ Rules for custom scripts:
   the script's exit code.
 - Environment variables exported in a script do not reach the Agent. Set container
   environment variables instead.
+- A script always runs with `S6_KEEP_ENV=1`, so a `#!/usr/bin/with-contenv` shebang sees the
+  container environment even if you set `S6_KEEP_ENV=0`. The entrypoint does not create
+  `/var/run/s6/container_environment`. To get the s6 environment directory behavior, select
+  `ENTRYPOINT=s6-all-in-one`.
 
 A script runs as a background child of the entrypoint, in its own session, so it starts
 with SIGINT and SIGQUIT ignored. Stopping the container during cont-init sends SIGTERM to

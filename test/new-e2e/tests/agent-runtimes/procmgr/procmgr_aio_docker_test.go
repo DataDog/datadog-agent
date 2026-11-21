@@ -293,6 +293,55 @@ func (s *procmgrAIODockerSuite) TestCustomContInitRunsNonShAndSymlink() {
 	}, 2*time.Minute, 2*time.Second)
 }
 
+// A hook with the s6 with-contenv shebang reads /var/run/s6/container_environment when
+// S6_KEEP_ENV is 0, and only s6 /init creates it. The entrypoint runs hooks with
+// S6_KEEP_ENV=1, so the hook starts and sees the container environment. Without that, the
+// hook fails and the container exits before dd-procmgrd starts.
+func (s *procmgrAIODockerSuite) TestContInitWithContenvHookRunsWhenS6KeepEnvIsZero() {
+	image := s.agentImage(s.T())
+	name := "aio-cont-init-with-contenv"
+	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(`bash -s <<'EOS'
+set -euo pipefail
+dir=$(mktemp -d)
+cat > "$dir/90-with-contenv" <<'EOF'
+#!/usr/bin/with-contenv sh
+printf '%s' "$AIO_CONTENV_VALUE" > /fork-marker/value
+EOF
+chmod 0755 "$dir/90-with-contenv"
+printf '%s\n' "$dir"
+EOS
+`))
+	s.Require().NotEmpty(dir)
+
+	t := s.T()
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "rm -rf "+shSingleQuote(dir))
+	})
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -e S6_KEEP_ENV=0 -e AIO_CONTENV_VALUE=from-container -v %s:/etc/cont-init.d/90-with-contenv:ro -v %s:/fork-marker %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(dir+"/90-with-contenv"),
+		shSingleQuote(dir),
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs := s.Env().RemoteHost.MustExecuteOn(c, "docker logs "+shSingleQuote(name)+" 2>&1")
+		assertLogLinesInOrder(c, logs,
+			"===== RUNNING /etc/cont-init.d/90-with-contenv =====",
+			"===== STARTING dd-procmgrd =====",
+		)
+	}, 2*time.Minute, 2*time.Second)
+
+	value := s.Env().RemoteHost.MustExecute("cat " + shSingleQuote(dir+"/value"))
+	s.Equal("from-container", strings.TrimSpace(value))
+}
+
 func (s *procmgrAIODockerSuite) TestCustomServiceStarts() {
 	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(aioCustomServiceSetupScript))
 	s.Require().NotEmpty(dir)
