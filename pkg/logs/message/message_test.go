@@ -6,6 +6,7 @@
 package message
 
 import (
+	"context"
 	"runtime"
 	"sync"
 	"testing"
@@ -382,4 +383,28 @@ func TestGetStructuredAttribute_EscapedDotInKey(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, "found", val)
 	})
+}
+
+func TestRoutingBarrierMetadataCopiesPreserveValues(t *testing.T) {
+	var original MessageMetadata
+	require.Nil(t, original.RoutingBarrier())
+	require.Nil(t, original.RoutingBarrierContext())
+	firstCtx, cancelFirst := context.WithCancel(context.Background())
+	defer cancelFirst()
+	secondCtx, cancelSecond := context.WithCancel(context.Background())
+	defer cancelSecond()
+	firstDone, secondDone := make(chan struct{}), make(chan struct{})
+	// Both setters must preserve the other value, regardless of setter order.
+	original.SetRoutingBarrierContext(firstCtx)
+	original.SetRoutingBarrier(firstDone)
+	snapshot := original
+	original.SetRoutingBarrierContext(secondCtx)
+	require.Equal(t, firstDone, original.RoutingBarrier())
+	original.SetRoutingBarrier(secondDone)
+	require.Equal(t, firstDone, snapshot.RoutingBarrier())
+	require.Same(t, firstCtx, snapshot.RoutingBarrierContext())
+	require.Equal(t, secondDone, original.RoutingBarrier())
+	require.Same(t, secondCtx, original.RoutingBarrierContext())
+	snapshot.SetRoutingBarrier(nil)
+	require.Same(t, firstCtx, snapshot.RoutingBarrierContext())
 }
