@@ -16,6 +16,7 @@ startup --windows_enable_symlinks
 # Common options -------------------------------------------------------------------------------------------------------
 common --config=adms
 common --@rules_cc//cc/toolchains/args/archiver_flags:use_libtool_on_macos=false # CPython and OpenSSL builds need ar
+common --@rules_go//go/config:cgo_copts=-O2 # Optimize cgo C code like `go build` does; fastbuild leaves it at -O0
 common --@rules_jvm_external//settings:stamp_manifest=False # keep jars as published for security scanners
 common --@rules_python//python/config_settings:bootstrap_impl=script # don't use any system Python interpreter
 common --@rules_python//python/config_settings:current_config=fail # must match `pip.parse` defined wheels

@@ -73,7 +73,7 @@ build do
   }
   unless windows_target?
     env['LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
-    env['CGO_CFLAGS'] = "-I. -I#{install_dir}/embedded/include"
+    env['CGO_CFLAGS'] = "-O2 -I. -I#{install_dir}/embedded/include"
     env['CGO_LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
   end
 
