@@ -1,11 +1,20 @@
+import io
+import json
 import unittest
+from contextlib import redirect_stdout
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
+
+from datadog_api_client import ApiClient, Configuration
+from datadog_api_client.v2.api.ci_visibility_tests_api import CIVisibilityTestsApi
+from datadog_api_client.v2.model.ci_app_test_events_response import CIAppTestEventsResponse
 
 from tasks.libs.dynamic_test.evaluator import (
     DatadogDynTestEvaluator,
     DynTestEvaluator,
     ExecutedTest,
+    executed_tests_from_events,
     pipeline_jobs_allowed_to_fail,
 )
 from tasks.libs.dynamic_test.index import DynamicTestIndex, IndexKind
@@ -178,6 +187,7 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
         # Skipped tests are excluded by the query itself
         self.assertIn("-@test.status:skip", query)
         self.assertEqual(days, 3)
+
         self.assertEqual([test.name for test in tests], ["TestPass", "TestFail", "TestFlaky", "TestFlakyBool"])
         self.assertFalse(tests[1].unreliable_status)
         self.assertTrue(tests[2].unreliable_status)
@@ -248,3 +258,232 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
         self.assertFalse(evaluator.list_tests_for_job("job")[0].unreliable_status)
         query, days = events.call_args.args
         self.assertEqual(days, 3)
+
+
+class TestConsolidatedEvaluation(unittest.TestCase):
+    def setUp(self):
+        self.decoder = ApiClient(Configuration())
+        self.addCleanup(self.decoder.close)
+
+    def page(self, events, after=None, **kwargs):
+        data = []
+        for number, event in enumerate(events):
+            data.append({'id': str(number), 'type': 'citest', **event})
+        response = {'data': data, 'meta': {'status': 'done', 'page': {'after': after}}, **kwargs}
+        return self.decoder.deserialize(json.dumps(response), (CIAppTestEventsResponse,), True)
+
+    @staticmethod
+    def evaluator(kind=IndexKind.JEV, jobs=None):
+        jobs = jobs if jobs is not None else ['job', 'empty']
+        index = DynamicTestIndex(
+            {job: {'pkg': ['TestPass', 'TestFail', 'TestRetry', 'TestFlaky', 'TestNever']} for job in jobs}
+        )
+        executor = MagicMock()
+        executor.tests_to_run_per_job.return_value = {job: {'TestPass', 'TestNever'} for job in jobs}
+        evaluator = DatadogDynTestEvaluator(MagicMock(), kind, executor, '42', telemetry_handler=MagicMock())
+        evaluator.index = index
+        evaluator._unreliable_jobs = set()
+        return evaluator
+
+    def test_all_index_modes_keep_outputs_retries_empty_rows_and_telemetry(self):
+        event = TestDatadogDynTestEvaluator.event
+        pages = [
+            [event('TestRetry', 'fail', job_id='7'), event('TestFail', 'fail'), event('TestFlaky', 'fail')],
+            [
+                event('TestRetry', 'pass', job_id='8'),
+                event('TestFlaky', 'fail', True),
+                event('TestPass'),
+                event('TestRoot/Subtest', 'fail'),
+            ],
+        ]
+        for kind in [IndexKind.JEV, IndexKind.PACKAGE, IndexKind.FILE, IndexKind.DIFFED_PACKAGE]:
+            for allowed in [set(), {'job'}]:
+                with self.subTest(kind=kind, allowed=allowed):
+                    evaluator = self.evaluator(kind, ['empty', 'job', 'never-ran'])
+                    evaluator._unreliable_jobs = allowed
+                    with patch.object(
+                        CIVisibilityTestsApi,
+                        'search_ci_app_test_events',
+                        side_effect=[self.page(pages[0], 'next'), self.page(pages[1])],
+                    ) as post:
+                        results = evaluator.evaluate(['changed.py'])
+                    self.assertEqual(post.call_count, 2)
+                    self.assertEqual([result.job_name for result in results], ['empty', 'job', 'never-ran'])
+                    self.assertEqual(results[0].actual_executed_tests, set())
+                    self.assertEqual(results[2].predicted_executed_tests, {'TestPass', 'TestNever'})
+                    self.assertEqual(
+                        results[1].actual_executed_tests, {'TestPass', 'TestFail', 'TestRetry', 'TestFlaky'}
+                    )
+                    self.assertEqual(results[1].not_executed_failing_tests, set() if allowed else {'TestFail'})
+                    evaluator.executor.tests_to_run_per_job.assert_called_once_with(['changed.py'])
+                    evaluator.send_stats_to_datadog(results)
+                    actual_counts = [
+                        call.args[1]
+                        for call in evaluator.telemetry_handler.count.call_args_list
+                        if call.args[0].endswith('.actual_executed_tests')
+                    ]
+                    self.assertEqual(actual_counts, [0, 4, 0])
+                    stream = io.StringIO()
+                    with redirect_stdout(stream):
+                        evaluator.print_summary(results)
+                    self.assertIn('actual=4 predicted=6', stream.getvalue())
+                    self.assertEqual('1 failing tests would not have been executed' in stream.getvalue(), not allowed)
+
+    def test_reduced_order_and_first_attempt_metadata_survive_page_boundaries(self):
+        event = TestDatadogDynTestEvaluator.event
+        evaluator = self.evaluator(jobs=['job', 'other'])
+        pages = [
+            self.page([event('TestRetry', 'fail', job_id='7'), event('TestRetry', 'fail', job_name='other')], 'next'),
+            self.page([event('TestPass'), event('TestRetry', 'pass', job_id='8')]),
+        ]
+        with patch.object(CIVisibilityTestsApi, 'search_ci_app_test_events', side_effect=pages):
+            rows = dict(evaluator._iter_tests_per_job(['job', 'other']))
+        self.assertEqual(
+            rows['job'],
+            [
+                ExecutedTest('TestRetry', 'pass', '42', '7', 'job', False),
+                ExecutedTest('TestPass', 'pass', '42', '7', 'job', False),
+            ],
+        )
+        self.assertEqual(rows['other'][0].status, 'fail')
+
+    def test_queries_partition_exact_names_in_order_and_enforce_both_limits(self):
+        evaluator = self.evaluator()
+        matrix = 'job: ["matrix", \\windows]'
+        names = [matrix, *[f'job-{number}' for number in range(100)]]
+        queries = evaluator._test_event_queries(names)
+        self.assertEqual([query.count('@ci.job.name:') for query in queries], [50, 50, 1])
+        self.assertIn(r'@ci.job.name:"job: [\"matrix\", \\windows]"', queries[0])
+        self.assertEqual(sum(query.count('@ci.job.name:') for query in queries), len(names))
+        for query in queries:
+            self.assertIn(
+                'env:prod @ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:42 -@test.status:skip (', query
+            )
+            self.assertLessEqual(len(json.dumps(query).encode()), evaluator._MAX_QUERY_BYTES)
+        long_names = [f'{number}-' + '\u2603' * 250 for number in range(8)]
+        queries = evaluator._test_event_queries(long_names)
+        self.assertGreater(len(queries), 1)
+        self.assertTrue(all(len(json.dumps(query).encode()) <= evaluator._MAX_QUERY_BYTES for query in queries))
+        with patch.object(CIVisibilityTestsApi, 'search_ci_app_test_events') as post:
+            with self.assertRaisesRegex(ValueError, 'predicate exceeds'):
+                list(evaluator._iter_tests_per_job(['job', '\u2603' * 2000]))
+            post.assert_not_called()
+
+    def test_fixed_window_across_pages_batches_and_fresh_window_on_repeat(self):
+        evaluator = self.evaluator(jobs=[f'job-{number}' for number in range(51)])
+        end = datetime(2026, 11, 8, 12, tzinfo=timezone.utc)
+        with (
+            patch('tasks.libs.dynamic_test.evaluator.datetime') as clock,
+            patch.object(
+                CIVisibilityTestsApi,
+                'search_ci_app_test_events',
+                side_effect=[self.page([], 'next'), self.page([]), self.page([]), self.page([]), self.page([])],
+            ) as post,
+        ):
+            clock.now.side_effect = [end, end + timedelta(seconds=1)]
+            evaluator.evaluate([])
+            evaluator.evaluate([])
+        bodies = [call.kwargs['body'].to_dict() for call in post.call_args_list]
+        for body in bodies[:3]:
+            self.assertEqual(body['filter']['_from'], (end - timedelta(days=3)).isoformat())
+            self.assertEqual(body['filter']['to'], end.isoformat())
+        self.assertEqual(bodies[3]['filter']['to'], (end + timedelta(seconds=1)).isoformat())
+
+    def test_repeated_evaluation_and_direct_lookup_do_not_reuse_events(self):
+        evaluator = self.evaluator()
+        event = TestDatadogDynTestEvaluator.event
+        with patch.object(
+            CIVisibilityTestsApi,
+            'search_ci_app_test_events',
+            side_effect=[self.page([event('TestPass')]), self.page([event('TestFail', 'fail')])],
+        ):
+            self.assertEqual(evaluator.evaluate([])[0].actual_executed_tests, {'TestPass'})
+            self.assertEqual(evaluator.evaluate([])[0].not_executed_failing_tests, {'TestFail'})
+        with patch(
+            'tasks.libs.dynamic_test.evaluator.get_ci_test_events', side_effect=[[event('TestPass')], []]
+        ) as direct:
+            self.assertEqual(evaluator.list_tests_for_job('job')[0].name, 'TestPass')
+            self.assertEqual(evaluator.list_tests_for_job('job'), [])
+            self.assertEqual(direct.call_count, 2)
+
+    def test_incomplete_retrieval_cannot_return_results_or_publish_metrics(self):
+        evaluator = self.evaluator()
+        with patch.object(
+            CIVisibilityTestsApi,
+            'search_ci_app_test_events',
+            side_effect=[
+                self.page([TestDatadogDynTestEvaluator.event('TestPass')], 'next'),
+                RuntimeError('backend failed'),
+            ],
+        ):
+            with self.assertRaisesRegex(RuntimeError, 'backend failed'):
+                evaluator.evaluate([])
+        evaluator.telemetry_handler.count.assert_not_called()
+        evaluator.telemetry_handler.send_event.assert_not_called()
+
+    def test_unexpected_job_or_pipeline_is_an_error_and_closes_stream(self):
+        for wrong in ['job', 'pipeline']:
+            event = TestDatadogDynTestEvaluator.event('TestPass', job_name='unexpected' if wrong == 'job' else 'job')
+            if wrong == 'pipeline':
+                event['attributes']['attributes']['ci']['pipeline']['id'] = 'other'
+            closed = []
+
+            def events(*args, event=event, closed=closed):
+                try:
+                    yield event
+                finally:
+                    closed.append(True)
+
+            with self.subTest(wrong=wrong), patch('tasks.libs.dynamic_test.evaluator.iter_ci_test_events', events):
+                with self.assertRaises(ValueError):
+                    self.evaluator().evaluate([])
+                self.assertEqual(closed, [True])
+
+    def test_no_indexed_jobs_does_not_open_a_client(self):
+        with patch('tasks.libs.dynamic_test.evaluator.iter_ci_test_events') as events:
+            self.assertEqual(self.evaluator(jobs=[]).evaluate([]), [])
+            events.assert_not_called()
+
+    def test_streaming_reducer_keeps_the_first_seen_metadata_at_equal_times(self):
+        event = TestDatadogDynTestEvaluator.event
+        events = [event('TestRetry', 'fail', job_id='7'), event('TestRetry', 'pass', job_id='8')]
+        for row in events:
+            row['attributes']['attributes']['start'] = 1
+        reduced = executed_tests_from_events(iter(events))
+        self.assertEqual(reduced, [ExecutedTest('TestRetry', 'pass', '42', '7', 'job', False)])
+
+    def test_window_boundaries_and_late_ingestion_do_not_create_a_cache_or_poll(self):
+        evaluator = self.evaluator(jobs=['job'])
+        end = datetime(2026, 11, 8, 12, tzinfo=timezone.utc)
+        start = end - timedelta(days=3)
+        available = [
+            ('TestPass', start),
+            ('TestRetry', end),
+            ('TestFail', start - timedelta(microseconds=1)),
+            ('TestFlaky', end + timedelta(microseconds=1)),
+        ]
+
+        def search(*, body):
+            # Model the service's inclusive time filter. The client must send the
+            # same absolute bounds, including when older events arrive later.
+            lower = datetime.fromisoformat(body.filter._from)
+            upper = datetime.fromisoformat(body.filter.to)
+            return self.page(
+                [
+                    TestDatadogDynTestEvaluator.event(name)
+                    for name, timestamp in available
+                    if lower <= timestamp <= upper
+                ]
+            )
+
+        with (
+            patch('tasks.libs.dynamic_test.evaluator.datetime') as clock,
+            patch.object(CIVisibilityTestsApi, 'search_ci_app_test_events', side_effect=search) as post,
+        ):
+            clock.now.return_value = end
+            first = evaluator.evaluate([])[0]
+            available.append(('TestNever', start + timedelta(hours=1)))
+            second = evaluator.evaluate([])[0]
+        self.assertEqual(first.actual_executed_tests, {'TestPass', 'TestRetry'})
+        self.assertEqual(second.actual_executed_tests, {'TestPass', 'TestRetry', 'TestNever'})
+        self.assertEqual(post.call_count, 2)
