@@ -1,0 +1,6 @@
+fixes:
+  - |
+    The private action runner now waits for a free ``task_concurrency`` slot
+    before it dequeues a task. Previously, when every slot was busy, the
+    runner could hold a dequeued task without sending heartbeats, so the task
+    could lose its lease and be dropped even though the action still ran.
