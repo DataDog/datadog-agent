@@ -140,14 +140,15 @@ func TestRoutedProgressReplaysFileFromPersistedPrefix(t *testing.T) {
 }
 
 type fakeRoutedFileProvider struct {
-	mu            sync.Mutex
-	guarded       bool
-	failNextInput int
-	failedInputs  int
-	inputs        map[sourceGeneration]chan *message.Message
-	retired       map[sourceGeneration]bool
-	received      chan *message.Message
-	retireEvent   chan sourceGeneration
+	mu              sync.Mutex
+	guarded         bool
+	failNextInput   int
+	failedInputs    int
+	maxActiveInputs int // If >0, SourceInput returns ErrSourceCapacity whenever len(inputs) >= maxActiveInputs.
+	inputs          map[sourceGeneration]chan *message.Message
+	retired         map[sourceGeneration]bool
+	received        chan *message.Message
+	retireEvent     chan sourceGeneration
 }
 
 func newFakeRoutedFileProvider() *fakeRoutedFileProvider {
@@ -176,6 +177,10 @@ func (f *fakeRoutedFileProvider) SourceInput(identifier string, generation uint6
 	defer f.mu.Unlock()
 	if f.failNextInput > 0 {
 		f.failNextInput--
+		f.failedInputs++
+		return nil, routing.ErrSourceCapacity
+	}
+	if f.maxActiveInputs > 0 && len(f.inputs) >= f.maxActiveInputs {
 		f.failedInputs++
 		return nil, routing.ErrSourceCapacity
 	}
@@ -381,7 +386,7 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		fileB := filetailer.NewFile(pathB, srcB, false)
 
 		// Record pending rotation handoff for fileA.
-		require.True(t, l.tryRecordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}))
+		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA)
 
 		// Scan 1 hits open_files_limit (tailingLimit=1) with only fileB selected.
 		l.resolveActiveTailers([]*filetailer.File{fileB})
@@ -419,7 +424,7 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 
 		srcA := sources.NewLogSource("a", &config.LogsConfig{Type: config.FileType, Path: pathA, TailingMode: "beginning"})
 		fileA := filetailer.NewFile(pathA, srcA, false)
-		require.True(t, l.tryRecordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}))
+		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA)
 
 		// Under-limit scan omits fileA (simulating rename/create gap or transient stat error).
 		l.resolveActiveTailers(nil)
@@ -457,7 +462,7 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 
 		srcA := sources.NewLogSource("a", &config.LogsConfig{Type: config.FileType, Path: pathA, TailingMode: "beginning"})
 		fileA := filetailer.NewFile(pathA, srcA, false)
-		require.True(t, l.tryRecordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}))
+		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA)
 
 		l.launchTailers(srcA)
 		require.NotContains(t, l.routedRotationPending, fileA.GetScanKey(), "consumed routedRotationPending entry must be removed")
@@ -475,100 +480,130 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		l.cleanup()
 	})
 
-	t.Run("cap deferral preserves no-checkpoint rotation on end-mode re-add without affecting unrelated files", func(t *testing.T) {
+	t.Run("conservation bound preserves copytruncate regrowth, persistent capacity retirement, open_files_limit, and unrelated files", func(t *testing.T) {
 		mockCfg := configmock.New(t)
 		mockCfg.SetInTest("logs_config.close_timeout", 1)
 		dir := t.TempDir()
-		pathRot := filepath.Join(dir, "rot_no_ckpt.log")
+		pathCopyTrunc := filepath.Join(dir, "copytrunc.log")
 		pathUnrelated := filepath.Join(dir, "unrelated.log")
 		pathForceEnd := filepath.Join(dir, "force_end.log")
-		require.NoError(t, os.WriteFile(pathRot, []byte("old-before-ckpt\n"), 0o600))
+		initial := "old-line-1\nold-line-2\n"
+		require.NoError(t, os.WriteFile(pathCopyTrunc, []byte(initial), 0o600))
 		require.NoError(t, os.WriteFile(pathUnrelated, []byte("already-sent-line\nnew-tail-line\n"), 0o600))
 		require.NoError(t, os.WriteFile(pathForceEnd, []byte("pre-existing-should-skip\n"), 0o600))
 
 		prov := newFakeRoutedFileProvider()
+		// Persistent capacity limit: only 1 active SourceInput allowed at a time!
+		// Recovery after rotation MUST retire the old generation first.
+		prov.maxActiveInputs = 1
 		reg := auditorMock.NewMockRegistry()
-		// pathRot has NO saved checkpoint in reg!
-		// pathUnrelated has a valid saved offset right after "already-sent-line\n" (18 bytes).
 		reg.SetOffset("file:"+pathUnrelated, "18")
 		reg.SetOffset("file:"+pathForceEnd, "5")
 
-		l := NewLauncher(10, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
+		// tailingLimit=1 so open_files_limit is strictly 1 active tailer.
+		l := NewLauncher(1, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
 		l.pipelineProvider = prov
 		l.routedProvider = prov
 		l.registry = reg
 
-		// Start tailing pathRot (default end/beginning before any checkpoint is persisted).
-		srcRot := sources.NewLogSource("rot", &config.LogsConfig{Type: config.FileType, Path: pathRot, TailingMode: "beginning"})
-		l.activeSources = append(l.activeSources, srcRot)
-		fileRot := filetailer.NewFile(pathRot, srcRot, false)
-		l.resolveActiveTailers([]*filetailer.File{fileRot})
-		select {
-		case msg := <-prov.received:
-			require.Equal(t, "old-before-ckpt", string(msg.GetContent()))
-		case <-time.After(5 * time.Second):
-			t.Fatal("timed out waiting for initial line on pathRot")
+		srcCT := sources.NewLogSource("ct", &config.LogsConfig{Type: config.FileType, Path: pathCopyTrunc, TailingMode: "beginning"})
+		l.activeSources = append(l.activeSources, srcCT)
+		fileCT := filetailer.NewFile(pathCopyTrunc, srcCT, false)
+		l.resolveActiveTailers([]*filetailer.File{fileCT})
+
+		for range 2 {
+			select {
+			case <-prov.received:
+			case <-time.After(5 * time.Second):
+				t.Fatal("timed out waiting for initial copytrunc lines")
+			}
+		}
+		reg.SetOffset("file:"+pathCopyTrunc, strconv.Itoa(len(initial)))
+
+		// Fill routedRotationPending to max-1 (255 + 1 active tailer == 256 conservation cap).
+		for i := 0; i < 255; i++ {
+			l.recordRoutedRotationPending("dummy-"+strconv.Itoa(i), &oldTailerInfo{}, srcCT)
+		}
+		require.Equal(t, 256, len(l.routedRotationPending)+l.tailers.Count())
+
+		// Perform same-inode copytruncate (shrink file below old offset 22).
+		require.NoError(t, os.Truncate(pathCopyTrunc, 0))
+		f, err := os.OpenFile(pathCopyTrunc, os.O_WRONLY|os.O_TRUNC, 0o600)
+		require.NoError(t, err)
+		_, err = f.WriteString("short\n")
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		// Scan detects copytruncate; SourceInput fails due to persistent maxActiveInputs=1,
+		// oldTailer is IMMEDIATELY stopped & removed, and copytrunc.log is recorded in
+		// routedRotationPending (256 + 0 == 256).
+		l.resolveActiveTailers([]*filetailer.File{fileCT})
+		require.Contains(t, l.routedRotationPending, fileCT.GetScanKey())
+		require.Equal(t, 0, l.tailers.Count())
+		require.Equal(t, 256, len(l.routedRotationPending)+l.tailers.Count())
+
+		// Before next scan, regrow the SAME inode PAST its old offset 22!
+		f, err = os.OpenFile(pathCopyTrunc, os.O_WRONLY|os.O_TRUNC, 0o600)
+		require.NoError(t, err)
+		_, err = f.WriteString("regrown-prefix-1\nregrown-suffix-2\n")
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		// Wait for oldTailer to finish draining and retire generation 1 (freeing persistent capacity!).
+		require.Eventually(t, func() bool {
+			l.cleanUpRotatedTailers()
+			prov.mu.Lock()
+			defer prov.mu.Unlock()
+			return len(prov.inputs) == 0
+		}, 5*time.Second, 20*time.Millisecond, "old rotated tailer must retire to free persistent generation capacity")
+
+		// Next scan starts copytrunc.log from byte 0 (delivering regrown prefix+suffix despite regrowth past offset 22!).
+		l.resolveActiveTailers([]*filetailer.File{fileCT})
+		require.LessOrEqual(t, l.tailers.Count(), 1, "open_files_limit must never be exceeded")
+		got := make(map[string]bool)
+		deadline := time.After(5 * time.Second)
+		for !(got["regrown-prefix-1"] && got["regrown-suffix-2"]) {
+			select {
+			case msg := <-prov.received:
+				got[string(msg.GetContent())] = true
+			case <-deadline:
+				t.Fatalf("timed out waiting for regrown copytruncate prefix+suffix; got=%v", got)
+			}
 		}
 
-		// Fill routedRotationPending to its cap (256) with distinct scan keys.
-		for i := 0; i < 256; i++ {
-			require.True(t, l.tryRecordRoutedRotationPending("dummy-"+strconv.Itoa(i), &oldTailerInfo{}))
-		}
-		require.Len(t, l.routedRotationPending, 256)
-
-		// Force SourceInput to fail once on rotation, then rotate pathRot (with NO checkpoint in reg!).
+		// Verify unrelated files with valid saved offset (18) and forceEnd are completely unaffected
+		// once capacity allows admitting them.
 		prov.mu.Lock()
-		prov.failNextInput = 1
+		prov.maxActiveInputs = 10
 		prov.mu.Unlock()
-		require.NoError(t, os.Rename(pathRot, pathRot+".1"))
-		require.NoError(t, os.WriteFile(pathRot, []byte("replacement-line-1\nreplacement-line-2\n"), 0o600))
+		l.tailingLimit = 10
+		l.routedRotationPending = nil // clear dummy entries so brand-new unrelated files can be admitted
 
-		// Scan detects rotation; SourceInput fails AND routedRotationPending is full -> deferred in-place!
-		l.resolveActiveTailers([]*filetailer.File{fileRot})
-		require.Contains(t, l.deferredRotations, fileRot.GetScanKey(), "at-cap rotation must defer in-place")
-		require.Len(t, l.routedRotationPending, 256, "map size must stay strictly bounded")
-
-		// Even if an empty scan omits pathRot while its source is active, deferred tailer stays alive.
-		l.resolveActiveTailers(nil)
-		require.Contains(t, l.deferredRotations, fileRot.GetScanKey())
-
-		// Re-adding pathRot in default end mode before the next scan replaces the source on the
-		// deferred tailer rather than starting a new tailer at EOF!
-		srcRotReadd := sources.NewLogSource("rot", &config.LogsConfig{Type: config.FileType, Path: pathRot})
-		l.activeSources = []*sources.LogSource{srcRotReadd}
-		l.launchTailers(srcRotReadd)
-
-		// Meanwhile, an unrelated file with a valid saved offset (18) must NOT replay from byte 0,
-		// and an unrelated forceEnd source must NOT read pre-existing content!
 		srcUnrelated := sources.NewLogSource("unrelated", &config.LogsConfig{Type: config.FileType, Path: pathUnrelated, TailingMode: "beginning"})
 		fileUnrelated := filetailer.NewFile(pathUnrelated, srcUnrelated, false)
 		srcForceEnd := sources.NewLogSource("force-end", &config.LogsConfig{Type: config.FileType, Path: pathForceEnd, TailingMode: "forceEnd"})
 		l.activeSources = append(l.activeSources, srcUnrelated, srcForceEnd)
 		l.launchTailers(srcForceEnd)
-		f, err := os.OpenFile(pathForceEnd, os.O_WRONLY|os.O_APPEND, 0o600)
+		fe, err := os.OpenFile(pathForceEnd, os.O_WRONLY|os.O_APPEND, 0o600)
 		require.NoError(t, err)
-		_, err = f.WriteString("after-force-end\n")
+		_, err = fe.WriteString("after-force-end\n")
 		require.NoError(t, err)
-		require.NoError(t, f.Close())
+		require.NoError(t, fe.Close())
 
-		// Next scan with SourceInput capacity restored rotates pathRot from beginning AND starts pathUnrelated at offset 18.
-		fileRotReadd := filetailer.NewFile(pathRot, srcRotReadd, false)
-		l.resolveActiveTailers([]*filetailer.File{fileRotReadd, fileUnrelated, filetailer.NewFile(pathForceEnd, srcForceEnd, false)})
-
-		got := make(map[string]bool)
-		deadline := time.After(5 * time.Second)
-		for !(got["replacement-line-1"] && got["replacement-line-2"] && got["new-tail-line"] && got["after-force-end"]) {
+		l.resolveActiveTailers([]*filetailer.File{fileCT, fileUnrelated, filetailer.NewFile(pathForceEnd, srcForceEnd, false)})
+		got2 := make(map[string]bool)
+		deadline2 := time.After(5 * time.Second)
+		for !(got2["new-tail-line"] && got2["after-force-end"]) {
 			select {
 			case msg := <-prov.received:
 				text := string(msg.GetContent())
 				require.NotEqual(t, "already-sent-line", text, "unrelated file with valid checkpoint must not replay from byte 0")
 				require.NotEqual(t, "pre-existing-should-skip", text, "unrelated forceEnd source must not read pre-existing content")
-				got[text] = true
-			case <-deadline:
-				t.Fatalf("timed out waiting for replacement + unrelated lines; got=%v", got)
+				got2[text] = true
+			case <-deadline2:
+				t.Fatalf("timed out waiting for unrelated + forceEnd lines; got=%v", got2)
 			}
 		}
-		require.NotContains(t, l.deferredRotations, fileRot.GetScanKey())
 		l.cleanup()
 	})
 }
