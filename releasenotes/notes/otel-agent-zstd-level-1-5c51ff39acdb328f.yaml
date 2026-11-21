@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The Datadog Distribution of OpenTelemetry (DDOT) Collector now compresses
+    metrics and logs with ``zstd`` level 1 by default, instead of level 3. This
+    keeps the Collector's memory usage stable under sustained load, at the cost
+    of somewhat larger compressed payloads. To restore the previous level, set
+    the ``DD_SERIALIZER_ZSTD_COMPRESSOR_LEVEL`` and
+    ``DD_LOGS_CONFIG_ZSTD_COMPRESSION_LEVEL`` environment variables to ``3``.

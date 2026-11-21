@@ -39,9 +39,10 @@ import (
 )
 
 // ddotZstdCompressionLevel is the default zstd compression level DDOT applies to
-// every signal that exposes a configurable level (metrics and logs). It stays
+// every signal that exposes a configurable level (metrics and logs). 1 matches the
+// core Agent: level 3 made otel-agent RSS grow steadily under load. It stays
 // overridable via the DD_*_ZSTD_*_LEVEL env vars; this is only the default.
-const ddotZstdCompressionLevel = 3
+const ddotZstdCompressionLevel = 1
 
 // ErrNoDDExporter indicates there is no Datadog exporter in the configs
 var ErrNoDDExporter = errors.New("no datadog exporter found")
@@ -309,7 +310,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	// Compression: the otel-agent (DDOT) uses zstd for every signal (metrics, traces,
 	// logs) so the compression algorithm stays consistent across signals. The level
-	// defaults to 3 but stays overridable via DD_SERIALIZER_ZSTD_COMPRESSOR_LEVEL
+	// stays overridable via DD_SERIALIZER_ZSTD_COMPRESSOR_LEVEL
 	// (SourceDefault < SourceEnvVar). zstd also makes the v3 series intake viable for DDOT
 	// (v3 rejects zlib); series then follow the global use_v3_api.series.enabled default
 	// (datadog_only: v3 for Datadog URLs such as api.<site>, with or without a proxy).
@@ -338,8 +339,8 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// MRF) that accept zstd, and the metrics forwarder already sends zstd to all of
 	// them. The logs pipeline shares one compressor across destinations, so this makes
 	// every log endpoint use zstd. Override with DD_LOGS_CONFIG_COMPRESSION_KIND=gzip
-	// if a non-Datadog log endpoint is ever added. The zstd level defaults to 3,
-	// overridable via DD_LOGS_CONFIG_ZSTD_COMPRESSION_LEVEL.
+	// if a non-Datadog log endpoint is ever added. The zstd level stays overridable
+	// via DD_LOGS_CONFIG_ZSTD_COMPRESSION_LEVEL.
 	pkgconfig.Set("logs_config.compression_kind", constants.DefaultLogCompressionKind, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("logs_config.zstd_compression_level", ddotZstdCompressionLevel, pkgconfigmodel.SourceDefault)
 

@@ -34,7 +34,7 @@ func TestDDOTCompressionConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	const wantAlgo = "zstd"
-	const wantLevel = ddotZstdCompressionLevel
+	const wantLevel = 1
 
 	metricsKind := c.GetString("serializer_compressor_kind")
 	logsKind := c.GetString("logs_config.compression_kind")
@@ -52,9 +52,9 @@ func TestDDOTCompressionConsistency(t *testing.T) {
 	assert.True(t, c.IsConfigured("logs_config.compression_kind"),
 		"logs_config.compression_kind must be configured so the additional_endpoints gzip fallback is bypassed")
 
-	// Levels default to 3 for the signals that support a configurable level.
-	assert.Equal(t, wantLevel, c.GetInt("serializer_zstd_compressor_level"), "metrics zstd level should default to 3")
-	assert.Equal(t, wantLevel, c.GetInt("logs_config.zstd_compression_level"), "logs zstd level should default to 3")
+	// Levels default to 1 for the signals that support a configurable level.
+	assert.Equal(t, wantLevel, c.GetInt("serializer_zstd_compressor_level"), "metrics zstd level should default to 1")
+	assert.Equal(t, wantLevel, c.GetInt("logs_config.zstd_compression_level"), "logs zstd level should default to 1")
 
 	// DDOT no longer opts out of v3: now that it compresses with zstd (v3-compatible),
 	// it inherits the global use_v3_api.series.enabled default (datadog_only).
@@ -88,8 +88,8 @@ func TestDDOTCompressionLevelOverridable(t *testing.T) {
 // true /*compress*/, s.Strategy). s.Strategy is the serializer's compressor, built
 // from the SAME serializer_compressor_kind / serializer_zstd_compressor_level keys
 // as the metrics series/sketches path — there is no dedicated host-metadata
-// compression knob. So host metadata is zstd (level 3) whenever metrics are; this
-// test pins that so the two cannot silently diverge.
+// compression knob. So host metadata is zstd at the metrics level whenever metrics
+// are; this test pins that so the two cannot silently diverge.
 func TestDDOTHostMetadataCompression(t *testing.T) {
 	configmock.New(t)
 	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
