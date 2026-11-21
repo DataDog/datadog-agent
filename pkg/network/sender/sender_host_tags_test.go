@@ -44,7 +44,7 @@ func TestBatchesCarryTheECSTaskTagsInEveryChunk(t *testing.T) {
 	env.SetFeatures(t, env.ECSFargate)
 
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(3)}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 
 	require.Len(t, payloads, 3)
 	for _, p := range payloads {
@@ -61,7 +61,7 @@ func TestBatchesHaveNoECSTaskTagsElsewhere(t *testing.T) {
 	d.tagger = fakeTagger
 
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(1)}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 
 	require.Len(t, payloads, 1)
 	assert.Negative(t, decodeConnections(t, payloads[0]).HostTagsIndex)

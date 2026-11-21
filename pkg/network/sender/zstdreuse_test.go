@@ -99,7 +99,7 @@ func TestBulkCompressionMatchesStreaming(t *testing.T) {
 
 				want := collectPayloads(d.batchesReference(cloneConns(base), 1))
 				again := collectPayloads(d.batchesReference(cloneConns(base), 1))
-				got := collectPayloads(d.batches(cloneConns(base), 1))
+				got := collectPayloads(d.batches(cloneConns(base), 1, nil))
 
 				// The fixture must encode deterministically for the comparison to mean anything.
 				requireSamePayloads(t, want, again)
@@ -138,7 +138,7 @@ func TestBulkCompressionPayloadsDoNotAlias(t *testing.T) {
 
 	var kept, snapshots [][]byte
 	for range 2 {
-		for p := range d.batches(cloneConns(base), 1) {
+		for p := range d.batches(cloneConns(base), 1, nil) {
 			require.Equal(t, len(p), cap(p), "payload should be sized exactly")
 			kept = append(kept, p)
 			snapshots = append(snapshots, bytes.Clone(p))
@@ -166,7 +166,7 @@ func TestBulkCompressionErrorDropsChunkAndResetsContext(t *testing.T) {
 	// The first chunk fails and is dropped; the context is replaced before the second.
 	failing := &failingCompressor{}
 	d.compressor = failing
-	got := collectPayloads(d.batches(cloneConns(base), 1))
+	got := collectPayloads(d.batches(cloneConns(base), 1, nil))
 	assert.Equal(t, 1, failing.calls)
 	require.Len(t, got, 1)
 	require.NotNil(t, d.compressor)
@@ -174,7 +174,7 @@ func TestBulkCompressionErrorDropsChunkAndResetsContext(t *testing.T) {
 
 	assert.Len(t, decodeBody(t, got[0]).Connections, 600)
 
-	got = collectPayloads(d.batches(cloneConns(base), 1))
+	got = collectPayloads(d.batches(cloneConns(base), 1, nil))
 	require.Len(t, got, 2)
 }
 

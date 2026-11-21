@@ -172,7 +172,7 @@ func BenchmarkBatchesTagCache(b *testing.B) {
 				copy(work, fixtureConns)
 				conns := &network.Connections{BufferedData: network.BufferedData{Conns: work}}
 				payloadBytes = 0
-				for p := range d.batches(conns, 1) {
+				for p := range d.batches(conns, 1, nil) {
 					payloadBytes += len(p)
 				}
 			}
