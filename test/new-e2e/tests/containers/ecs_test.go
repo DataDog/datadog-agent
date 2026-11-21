@@ -6,6 +6,8 @@
 package containers
 
 import (
+	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -189,6 +191,49 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 			}
 		}, 15*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
 	})
+}
+
+// containerMainProcessesCommand prints the comm of each process in this container's mount
+// namespace whose parent is outside it. That includes the main process and any ECS exec session,
+// which the runtime starts beside it. With pid:host, /proc/1 is the host init, so it is not used.
+const containerMainProcessesCommand = `sh -c 'echo SUPERVISOR_PROCS; self=$(readlink /proc/self/ns/mnt); for d in /proc/[0-9]*; do pid=${d##*/}; ns=$(readlink /proc/$pid/ns/mnt 2>/dev/null) || continue; test "$ns" = "$self" || continue; ppid=$(sed -n "s/^PPid:[[:space:]]*//p" /proc/$pid/status 2>/dev/null); test -n "$ppid" || continue; pns=$(readlink /proc/$ppid/ns/mnt 2>/dev/null || true); if test -z "$pns" || test "$pns" != "$self"; then cat /proc/$pid/comm 2>/dev/null; fi; done; echo SUPERVISOR_END'`
+
+// Test01SupervisorIsProcmgr checks that each Linux Agent container is supervised by
+// dd-procmgrd. s6-svscan or s6-supervise in that role fails the test.
+func (suite *ecsSuite) Test01SupervisorIsProcmgr() {
+	suite.EventuallyWithTf(func(c *assert.CollectT) {
+		tasks, err := suite.linuxAgentTasks("ec2-linux-dd-agent")
+		if !assert.NoError(c, err) || !assert.NotEmpty(c, tasks, "no running EC2 Agent daemon tasks") {
+			return
+		}
+		for _, task := range tasks {
+			out, err := suite.execMainProcesses(task.taskARN)
+			if !assert.NoError(c, err) {
+				return
+			}
+			procs, err := supervisorProcs(out)
+			if !assert.NoErrorf(c, err, "exec into %s: %v\n%s", task.taskARN, err, out) {
+				return
+			}
+			assert.Containsf(c, procs, "dd-procmgrd", "EC2 Agent task %s main processes: %v", task.taskARN, procs)
+			assert.NotContainsf(c, procs, "s6-svscan", "EC2 Agent task %s is supervised by s6: %v", task.taskARN, procs)
+			assert.NotContainsf(c, procs, "s6-supervise", "EC2 Agent task %s is supervised by s6: %v", task.taskARN, procs)
+		}
+	}, 5*time.Minute, 15*time.Second, "EC2 Agent tasks are not running under dd-procmgrd")
+
+	// Fargate task definitions set pidMode=task. ECS exec cannot enter those
+	// tasks, so the process list the Agent reports is the signal instead.
+	suite.EventuallyWithTf(func(c *assert.CollectT) {
+		nginx, err := suite.linuxAgentTasks("nginx-fg")
+		if !assert.NoError(c, err) || !assert.NotEmpty(c, nginx, "no running nginx-fg Agent containers") {
+			return
+		}
+		redis, err := suite.linuxAgentTasks("redis-fg")
+		if !assert.NoError(c, err) || !assert.NotEmpty(c, redis, "no running redis-fg Agent containers") {
+			return
+		}
+		suite.assertFargateAgentsUseProcmgr(c, append(nginx, redis...))
+	}, 5*time.Minute, 10*time.Second, "Fargate Agent containers are not running under dd-procmgrd")
 }
 
 func (suite *ecsSuite) TestNginxECS() {
@@ -678,4 +723,333 @@ func (suite *ecsSuite) TestHostTags() {
 	}
 
 	suite.testHostTags(args)
+}
+
+type ecsAgentTask struct {
+	service   string
+	taskARN   string
+	runtimeID string
+}
+
+// linuxAgentTasks returns running datadog-agent containers for services whose name ends in
+// serviceSuffix. Callers omit the Windows Fargate service, which does not use dd-procmgrd.
+func (suite *ecsSuite) linuxAgentTasks(serviceSuffix string) ([]ecsAgentTask, error) {
+	ctx := suite.T().Context()
+	client := suite.Env().ECSCluster.ECSClient
+	if client == nil {
+		return nil, errors.New("ECS client is not initialized")
+	}
+
+	var tasks []ecsAgentTask
+	var serviceToken *string
+	for {
+		services, err := client.ListServices(ctx, &awsecs.ListServicesInput{
+			Cluster:    &suite.ecsClusterName,
+			MaxResults: pointer.Ptr(int32(10)),
+			NextToken:  serviceToken,
+		})
+		if err != nil {
+			return nil, err
+		}
+		serviceToken = services.NextToken
+		if len(services.ServiceArns) == 0 {
+			if serviceToken == nil {
+				break
+			}
+			continue
+		}
+
+		described, err := client.DescribeServices(ctx, &awsecs.DescribeServicesInput{
+			Cluster:  &suite.ecsClusterName,
+			Services: services.ServiceArns,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, service := range described.Services {
+			if service.ServiceName == nil || !strings.HasSuffix(*service.ServiceName, serviceSuffix) {
+				continue
+			}
+			running, err := suite.runningAgentTasks(*service.ServiceName)
+			if err != nil {
+				return nil, err
+			}
+			tasks = append(tasks, running...)
+		}
+		if serviceToken == nil {
+			break
+		}
+	}
+	return tasks, nil
+}
+
+func (suite *ecsSuite) runningAgentTasks(service string) ([]ecsAgentTask, error) {
+	ctx := suite.T().Context()
+	client := suite.Env().ECSCluster.ECSClient
+
+	var tasks []ecsAgentTask
+	var taskToken *string
+	for {
+		listed, err := client.ListTasks(ctx, &awsecs.ListTasksInput{
+			Cluster:       &suite.ecsClusterName,
+			ServiceName:   &service,
+			DesiredStatus: awsecstypes.DesiredStatusRunning,
+			MaxResults:    pointer.Ptr(int32(100)),
+			NextToken:     taskToken,
+		})
+		if err != nil {
+			return nil, err
+		}
+		taskToken = listed.NextToken
+		if len(listed.TaskArns) > 0 {
+			described, err := client.DescribeTasks(ctx, &awsecs.DescribeTasksInput{
+				Cluster: &suite.ecsClusterName,
+				Tasks:   listed.TaskArns,
+			})
+			if err != nil {
+				return nil, err
+			}
+			for _, task := range described.Tasks {
+				if task.TaskArn == nil {
+					continue
+				}
+				runtimeID := ""
+				for _, container := range task.Containers {
+					if container.Name != nil && *container.Name == "datadog-agent" && container.RuntimeId != nil {
+						runtimeID = *container.RuntimeId
+					}
+				}
+				tasks = append(tasks, ecsAgentTask{
+					service:   service,
+					taskARN:   *task.TaskArn,
+					runtimeID: runtimeID,
+				})
+			}
+		}
+		if taskToken == nil {
+			break
+		}
+	}
+	return tasks, nil
+}
+
+func (suite *ecsSuite) execMainProcesses(taskARN string) (string, error) {
+	ctx := suite.T().Context()
+	client := suite.Env().ECSCluster.ECSClient
+	described, err := client.DescribeTasks(ctx, &awsecs.DescribeTasksInput{
+		Cluster: &suite.ecsClusterName,
+		Tasks:   []string{taskARN},
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(described.Tasks) == 0 {
+		return "", fmt.Errorf("task %s not found", taskARN)
+	}
+
+	ready := false
+	for _, container := range described.Tasks[0].Containers {
+		if container.Name == nil || *container.Name != "datadog-agent" {
+			continue
+		}
+		if len(container.ManagedAgents) == 0 || container.ManagedAgents[0].LastStatus == nil {
+			return "", fmt.Errorf("exec agent not registered on %s", taskARN)
+		}
+		if *container.ManagedAgents[0].LastStatus != "RUNNING" {
+			return "", fmt.Errorf("exec agent status %s on %s", *container.ManagedAgents[0].LastStatus, taskARN)
+		}
+		ready = true
+	}
+	if !ready {
+		return "", fmt.Errorf("datadog-agent container not found on %s", taskARN)
+	}
+	return client.ExecCommand(taskARN, "datadog-agent", containerMainProcessesCommand)
+}
+
+func (suite *ecsSuite) assertFargateAgentsUseProcmgr(c *assert.CollectT, tasks []ecsAgentTask) {
+	payloads, err := suite.Fakeintake.GetProcesses()
+	if !assert.NoError(c, err) {
+		return
+	}
+
+	for _, task := range tasks {
+		host := "fargate_task:" + task.taskARN
+		ids := map[string]struct{}{}
+		if task.runtimeID != "" {
+			ids[task.runtimeID] = struct{}{}
+		}
+		for _, payload := range payloads {
+			if payload.HostName != host {
+				continue
+			}
+			for _, container := range payload.Containers {
+				if container == nil || container.Id == "" || !tagsIdentifyAgentTask(container.Tags, task) {
+					continue
+				}
+				ids[container.Id] = struct{}{}
+			}
+		}
+
+		comms := map[string]struct{}{}
+		procmgr := false
+		s6 := false
+		// A PID can be reused between process check runs, so match the supervisor and the
+		// core Agent within one run. A run can span several payloads that share a GroupId.
+		type pidSets struct {
+			procmgrPIDs     map[int32]struct{}
+			agentParentPIDs map[int32]struct{}
+		}
+		groups := map[int32]*pidSets{}
+		for _, payload := range payloads {
+			if payload.HostName != host {
+				continue
+			}
+			group := groups[payload.GroupId]
+			if group == nil {
+				group = &pidSets{
+					procmgrPIDs:     map[int32]struct{}{},
+					agentParentPIDs: map[int32]struct{}{},
+				}
+				groups[payload.GroupId] = group
+			}
+			for _, proc := range payload.Processes {
+				if proc == nil || proc.Command == nil {
+					continue
+				}
+				// A process without a container ID cannot be tied to the Agent container.
+				if proc.ContainerId == "" || !containerIDKnown(proc.ContainerId, ids) {
+					continue
+				}
+				name := processCommandName(proc.Command.Comm, proc.Command.Exe, proc.Command.Args)
+				if name == "" {
+					continue
+				}
+				comms[name] = struct{}{}
+				switch name {
+				case "dd-procmgrd":
+					if proc.Pid > 0 {
+						group.procmgrPIDs[proc.Pid] = struct{}{}
+					}
+				case "agent":
+					if proc.Command.Ppid > 0 {
+						group.agentParentPIDs[proc.Command.Ppid] = struct{}{}
+					}
+				case "s6-svscan", "s6-supervise":
+					s6 = true
+				}
+			}
+		}
+		// dd-procmgrd starts the core Agent directly, so it is the Agent's parent.
+		for _, group := range groups {
+			for ppid := range group.agentParentPIDs {
+				if _, ok := group.procmgrPIDs[ppid]; ok {
+					procmgr = true
+					break
+				}
+			}
+			if procmgr {
+				break
+			}
+		}
+		assert.Truef(c, procmgr, "Fargate Agent task %s (%s) has no dd-procmgrd supervising the agent process, saw %v", task.taskARN, task.service, comms)
+		assert.Falsef(c, s6, "Fargate Agent task %s (%s) is supervised by s6, saw %v", task.taskARN, task.service, comms)
+	}
+}
+
+func tagsIdentifyAgentTask(tags []string, task ecsAgentTask) bool {
+	taskID := task.taskARN
+	if i := strings.LastIndex(task.taskARN, "/"); i >= 0 {
+		taskID = task.taskARN[i+1:]
+	}
+	nameOK := false
+	taskOK := false
+	for _, tag := range tags {
+		if tag == "ecs_container_name:datadog-agent" {
+			nameOK = true
+		}
+		if taskID != "" && strings.HasPrefix(tag, "task_arn:") && strings.Contains(tag, taskID) {
+			taskOK = true
+		}
+	}
+	return nameOK && taskOK
+}
+
+func containerIDKnown(containerID string, ids map[string]struct{}) bool {
+	if containerID == "" {
+		return false
+	}
+	for id := range ids {
+		if sameContainerID(containerID, id) {
+			return true
+		}
+	}
+	return false
+}
+
+func sameContainerID(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	if a == b {
+		return true
+	}
+	// Fargate IDs are "<32 hex>-<decimal>". Containers in one task share the
+	// hex prefix, so a prefix comparison matches the wrong container.
+	if strings.Contains(a, "-") || strings.Contains(b, "-") {
+		return false
+	}
+	shorter, longer := a, b
+	if len(a) > len(b) {
+		shorter, longer = b, a
+	}
+	return len(shorter) >= 12 && strings.HasPrefix(longer, shorter)
+}
+
+// supervisorProcs returns the comm lines between the script's markers.
+// Interactive exec output uses CR LF, so each line is trimmed.
+func supervisorProcs(out string) ([]string, error) {
+	var procs []string
+	started := false
+	ended := false
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(strings.TrimRight(line, "\r"))
+		if line == "" {
+			continue
+		}
+		if !started {
+			if line == "SUPERVISOR_PROCS" {
+				started = true
+			}
+			continue
+		}
+		if line == "SUPERVISOR_END" {
+			ended = true
+			break
+		}
+		procs = append(procs, line)
+	}
+	if !started || !ended {
+		return nil, errors.New("exec output missing supervisor markers")
+	}
+	return procs, nil
+}
+
+func processCommandName(comm, exe string, args []string) string {
+	if comm != "" {
+		return comm
+	}
+	if exe != "" {
+		return pathBase(exe)
+	}
+	if len(args) > 0 {
+		return pathBase(args[0])
+	}
+	return ""
+}
+
+func pathBase(path string) string {
+	if i := strings.LastIndex(path, "/"); i >= 0 {
+		return path[i+1:]
+	}
+	return path
 }

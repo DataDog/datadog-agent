@@ -13,12 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
-	scendocker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
@@ -32,10 +29,21 @@ const (
 	aioStopTimeoutSec = "120"
 	// Any non-empty value passes 01-check-apikey.sh.
 	aioThrowawayAPIKey = "0123456789abcdef0123456789abcdef"
+	// A bare docker run has no hostname source (no docker.sock, own UTS namespace), so without
+	// DD_HOSTNAME the core agent exits and takes the container down.
+	aioBareHostname = "aio-bare-container"
 
 	aioContInitMarker90 = "cont-init-marker-90-bash-sh"
 	aioContInitMarker91 = "cont-init-marker-91-no-suffix"
 	aioContInitMarker92 = "cont-init-marker-92-symlink-target"
+
+	// A name the image does not ship, so the entrypoint treats the directory as custom.
+	aioCustomService        = "custom-keepalive"
+	aioCustomServiceCwd     = "custom-service-cwd="
+	aioCustomServiceStaged  = "/services/" + aioCustomService
+	aioCustomServiceZero    = "custom-service-zero="
+	aioCustomServiceRun     = "/services/" + aioCustomService + "/run"
+	aioCustomServiceSibling = "custom-service-sibling=keepalive-sibling"
 )
 
 // aioContInitSetupScript creates the injected cont-init files in one remote
@@ -64,22 +72,35 @@ printf '%s\n' "$dir"
 EOS
 `
 
+// aioCustomServiceSetupScript writes a run script that stays up and prints its
+// working directory, its own path, and a sibling file. The entrypoint runs a
+// staged copy of the directory, so those paths are under services/<name>.
+const aioCustomServiceSetupScript = `bash -s <<'EOS'
+set -euo pipefail
+dir=$(mktemp -d)
+cat > "$dir/run" <<'EOF'
+#!/bin/sh
+echo "custom-service-cwd=$(pwd)"
+echo "custom-service-zero=$0"
+echo "custom-service-sibling=$(cat "$(dirname "$0")/sibling.txt")"
+exec /bin/sleep 3600
+EOF
+echo keepalive-sibling > "$dir/sibling.txt"
+chmod 0755 "$dir/run"
+printf '%s\n' "$dir"
+EOS
+`
+
 type procmgrAIODockerSuite struct {
 	e2e.BaseSuite[environments.DockerHost]
 }
 
-// TestProcmgrAIODockerSuite runs the image with ENTRYPOINT=procmgr-all-in-one, so dd-procmgrd
-// supervises the Agent instead of s6.
+// TestProcmgrAIODockerSuite runs the image without ENTRYPOINT, so _default starts dd-procmgrd.
 func TestProcmgrAIODockerSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &procmgrAIODockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(
-		awsdocker.WithRunOptions(scendocker.WithAgentOptions(
-			dockeragentparams.WithAgentServiceEnvVariable("ENTRYPOINT", pulumi.String("procmgr-all-in-one")),
-		)),
-	)))
+	e2e.Run(t, &procmgrAIODockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner()))
 }
 
-// BeforeTest starts the opt-in container again when an earlier test stopped it.
 func (s *procmgrAIODockerSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 	if s.containerStatus(s.T()) == "running" {
@@ -121,13 +142,11 @@ func (s *procmgrAIODockerSuite) TestDockerStopShutsDownGracefully() {
 	s.Contains(logs, "dd-procmgrd stopped (exit code 0)")
 }
 
-// exit_with_supervisor: dd-procmgrd stops the other children before exiting 137,
-// so the container can outlive the signal.
+// exit_with_supervisor: dd-procmgrd stops the other children, then exits 137.
 func (s *procmgrAIODockerSuite) TestCoreAgentDeathEndsTheContainer() {
 	s.waitForAgentRunning(s.T(), 3*time.Minute)
 	agentPID := fieldValue(s.describeProcess(s.T(), "datadog-agent"), "PID")
 	requireHostPID(s.T(), agentPID)
-	// The graceful stop of a running sibling is what proves the supervisor shut it down.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		assertField(c, s.describeProcess(c, "datadog-agent-trace"), "State", "Running")
 	}, time.Minute, 2*time.Second)
@@ -191,7 +210,7 @@ func (s *procmgrAIODockerSuite) TestDisabledAuxStaysSkipped() {
 
 	otel := s.describeProcess(s.T(), "datadog-agent-otel")
 	assertField(s.T(), otel, "State", "Skipped")
-	assertField(s.T(), otel, "Skip Reasons", "path_missing, config_gate")
+	assertField(s.T(), otel, "Skip Reasons", "path_missing")
 
 	s.Equal("running", s.containerStatus(s.T()))
 	assertField(s.T(), s.describeProcess(s.T(), "datadog-agent"), "State", "Running")
@@ -210,8 +229,7 @@ func (s *procmgrAIODockerSuite) TestHealthcheckReportsHealthy() {
 	}, 2*time.Minute, 5*time.Second)
 }
 
-// The entrypoint exports DD_PM_CONFIG_DIR and children must not inherit it.
-// DD_PM_SOCKET_PATH is kept.
+// The entrypoint exports DD_PM_CONFIG_DIR, which children must not inherit.
 func (s *procmgrAIODockerSuite) TestCoreAgentInheritsDDEnv() {
 	s.waitForAgentRunning(s.T(), 3*time.Minute)
 	pid := fieldValue(s.describeProcess(s.T(), "datadog-agent"), "PID")
@@ -239,7 +257,7 @@ func (s *procmgrAIODockerSuite) TestCustomContInitRunsNonShAndSymlink() {
 	})
 
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"docker create --name %s -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s -v %s:/etc/cont-init.d/90-custom.sh:ro -v %s:/etc/cont-init.d/91-custom:ro -v %s:/mnt/ro/92-target:ro %s",
+		"docker create --name %s -e DD_API_KEY=%s -v %s:/etc/cont-init.d/90-custom.sh:ro -v %s:/etc/cont-init.d/91-custom:ro -v %s:/mnt/ro/92-target:ro %s",
 		shSingleQuote(name),
 		shSingleQuote(aioThrowawayAPIKey),
 		shSingleQuote(dir+"/90-custom.sh"),
@@ -275,25 +293,420 @@ func (s *procmgrAIODockerSuite) TestCustomContInitRunsNonShAndSymlink() {
 	}, 2*time.Minute, 2*time.Second)
 }
 
+// A hook with the s6 with-contenv shebang reads /var/run/s6/container_environment when
+// S6_KEEP_ENV is 0, and only s6 /init creates it. The entrypoint runs hooks with
+// S6_KEEP_ENV=1, so the hook starts and sees the container environment. Without that, the
+// hook fails and the container exits before dd-procmgrd starts.
+func (s *procmgrAIODockerSuite) TestContInitWithContenvHookRunsWhenS6KeepEnvIsZero() {
+	image := s.agentImage(s.T())
+	name := "aio-cont-init-with-contenv"
+	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(`bash -s <<'EOS'
+set -euo pipefail
+dir=$(mktemp -d)
+cat > "$dir/90-with-contenv" <<'EOF'
+#!/usr/bin/with-contenv sh
+printf '%s' "$AIO_CONTENV_VALUE" > /fork-marker/value
+EOF
+chmod 0755 "$dir/90-with-contenv"
+printf '%s\n' "$dir"
+EOS
+`))
+	s.Require().NotEmpty(dir)
+
+	t := s.T()
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "rm -rf "+shSingleQuote(dir))
+	})
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -e S6_KEEP_ENV=0 -e AIO_CONTENV_VALUE=from-container -v %s:/etc/cont-init.d/90-with-contenv:ro -v %s:/fork-marker %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(dir+"/90-with-contenv"),
+		shSingleQuote(dir),
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs := s.Env().RemoteHost.MustExecuteOn(c, "docker logs "+shSingleQuote(name)+" 2>&1")
+		assertLogLinesInOrder(c, logs,
+			"===== RUNNING /etc/cont-init.d/90-with-contenv =====",
+			"===== STARTING dd-procmgrd =====",
+		)
+	}, 2*time.Minute, 2*time.Second)
+
+	value := s.Env().RemoteHost.MustExecute("cat " + shSingleQuote(dir+"/value"))
+	s.Equal("from-container", strings.TrimSpace(value))
+}
+
+func (s *procmgrAIODockerSuite) TestCustomServiceStarts() {
+	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(aioCustomServiceSetupScript))
+	s.Require().NotEmpty(dir)
+	image := s.agentImage(s.T())
+	name := "aio-custom-" + path.Base(dir)
+
+	t := s.T()
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "rm -rf "+shSingleQuote(dir))
+	})
+
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/services.d/%s:ro %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(dir),
+		aioCustomService,
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs := s.Env().RemoteHost.MustExecuteOn(c, "docker logs "+shSingleQuote(name)+" 2>&1")
+		assertLogLinesInOrder(c, logs,
+			"===== ADDING custom service /etc/services.d/"+aioCustomService+" =====",
+			"===== STARTING dd-procmgrd =====",
+			aioCustomServiceCwd,
+			aioCustomServiceStaged,
+			aioCustomServiceZero,
+			aioCustomServiceRun,
+			aioCustomServiceSibling,
+		)
+		assert.Equal(c, 1, strings.Count(logs, "===== ADDING custom service "), "only the custom service should be added")
+	}, 2*time.Minute, 2*time.Second)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		for _, process := range []string{"datadog-agent", aioCustomService} {
+			stdout, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
+				name,
+				"env", "DD_PM_SOCKET_PATH="+aioSocket, linuxCLIBin, "describe", process,
+			)
+			require.NoError(c, err, stderr)
+			assertField(c, stdout, "State", "Running")
+		}
+	}, time.Minute, 2*time.Second)
+}
+
+// A service run script with the s6 with-contenv shebang reads /var/run/s6/container_environment
+// when S6_KEEP_ENV is 0, and only s6 /init creates it. The generated service sets
+// S6_KEEP_ENV=1 in its own environment, so the script starts, sees the container environment,
+// and stays up. Without that, the script fails and restarts every second.
+func (s *procmgrAIODockerSuite) TestCustomServiceWithContenvRunsWhenS6KeepEnvIsZero() {
+	const service = "custom-with-contenv"
+	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(`bash -s <<'EOS'
+set -euo pipefail
+dir=$(mktemp -d)
+mkdir "$dir/service" "$dir/marker"
+cat > "$dir/service/run" <<'EOF'
+#!/usr/bin/with-contenv sh
+printf '%s' "$AIO_CONTENV_VALUE" > /marker/value.tmp
+mv /marker/value.tmp /marker/value
+exec /bin/sleep 3600
+EOF
+chmod 0755 "$dir/service/run"
+printf '%s\n' "$dir"
+EOS
+`))
+	s.Require().NotEmpty(dir)
+	image := s.agentImage(s.T())
+	name := "aio-svc-contenv-" + path.Base(dir)
+
+	t := s.T()
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "rm -rf "+shSingleQuote(dir))
+	})
+
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -e S6_KEEP_ENV=0 -e AIO_CONTENV_VALUE=from-container -v %s:/etc/services.d/%s:ro -v %s:/marker %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(dir+"/service"),
+		service,
+		shSingleQuote(dir+"/marker"),
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	describe := func(c require.TestingT) string {
+		stdout, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
+			name,
+			"env", "DD_PM_SOCKET_PATH="+aioSocket, linuxCLIBin, "describe", service,
+		)
+		require.NoError(c, err, stderr)
+		return stdout
+	}
+
+	var pid string
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs := s.Env().RemoteHost.MustExecuteOn(c, "docker logs "+shSingleQuote(name)+" 2>&1")
+		assertLogLinesInOrder(c, logs,
+			"===== ADDING custom service /etc/services.d/"+service+" =====",
+			"===== STARTING dd-procmgrd =====",
+		)
+		value := s.Env().RemoteHost.MustExecuteOn(c, "cat "+shSingleQuote(dir+"/marker/value")+" 2>/dev/null || true")
+		assert.Equal(c, "from-container", strings.TrimSpace(value))
+		out := describe(c)
+		assertField(c, out, "State", "Running")
+		assertField(c, out, "Restarts", "0")
+		pid = fieldValue(out, "PID")
+		assert.NotEmpty(c, pid)
+	}, 2*time.Minute, 2*time.Second)
+
+	// restart_sec is 1 second, so a failing script would restart within this window.
+	require.Never(t, func() bool {
+		stdout, _, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
+			name,
+			"env", "DD_PM_SOCKET_PATH="+aioSocket, linuxCLIBin, "describe", service,
+		)
+		return err != nil || fieldValue(stdout, "Restarts") != "0" || fieldValue(stdout, "PID") != pid
+	}, 5*time.Second, 500*time.Millisecond, "the with-contenv service must not restart")
+}
+
+// UID 100 is dd-agent. Group 0 is root, which can write to the group-writable runtime directories.
+func (s *procmgrAIODockerSuite) TestNonRootUserRunsProcmgr() {
+	image := s.agentImage(s.T())
+	name := "aio-nonroot"
+
+	t := s.T()
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s --user 100:0 -e DD_API_KEY=%s -e DD_HOSTNAME=%s %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		pid := strings.TrimSpace(s.Env().RemoteHost.MustExecuteOn(c,
+			"docker inspect -f '{{.State.Pid}}' "+shSingleQuote(name)))
+		comm := strings.TrimSpace(s.Env().RemoteHost.MustExecuteOn(c, "cat /proc/"+pid+"/comm"))
+		assert.Equal(c, "dd-procmgrd", comm, "a non-root container should run dd-procmgrd, not fall back to s6")
+		stdout, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
+			name,
+			"env", "DD_PM_SOCKET_PATH="+aioSocket, linuxCLIBin, "describe", "datadog-agent",
+		)
+		require.NoError(c, err, stderr)
+		assertField(c, stdout, "State", "Running")
+	}, 3*time.Minute, 2*time.Second)
+}
+
+// The blocking script writes script.ready before it sleeps. The RUNNING line is printed
+// before setsid, so the stop waits for the marker. Exit 143 means the TERM handler ran.
+// Exit 137 means Docker's grace period expired.
+func (s *procmgrAIODockerSuite) TestDockerStopDuringContInit() {
+	image := s.agentImage(s.T())
+	name := "aio-stop-during-cont-init"
+	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(`bash -s <<'EOS'
+set -euo pipefail
+dir=$(mktemp -d)
+cat > "$dir/90-block" <<'EOF'
+#!/bin/sh
+echo ready > /fork-marker/script.ready
+exec /bin/sleep 300
+EOF
+chmod 0755 "$dir/90-block"
+printf '%s\n' "$dir"
+EOS
+`))
+	s.Require().NotEmpty(dir)
+
+	t := s.T()
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "rm -rf "+shSingleQuote(dir))
+	})
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro -v %s:/fork-marker %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(dir+"/90-block"),
+		shSingleQuote(dir),
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs := s.Env().RemoteHost.MustExecuteOn(c, "docker logs "+shSingleQuote(name)+" 2>&1")
+		assert.Contains(c, logs, "===== RUNNING /etc/cont-init.d/90-block =====")
+		ready := s.Env().RemoteHost.MustExecuteOn(c, "test -f "+shSingleQuote(dir+"/script.ready")+" && echo yes || echo no")
+		assert.Equal(c, "yes", strings.TrimSpace(ready))
+	}, 2*time.Minute, 2*time.Second)
+
+	s.Env().RemoteHost.MustExecute("docker stop -t 20 " + shSingleQuote(name))
+	exitCode := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
+		"docker inspect -f '{{.State.ExitCode}}' " + shSingleQuote(name)))
+	s.Equal("143", exitCode, "docker stop during cont-init should exit 143, not 137")
+}
+
+// The entrypoint sends SIGTERM to the cont-init script's process group, so a child the
+// script forked gets TERM too. The child writes a marker from its TERM trap, and the
+// script waits for it before exiting. Without the group signal, the child never sees
+// TERM and the marker is missing.
+func (s *procmgrAIODockerSuite) TestDockerStopDuringContInitKillsForkedChild() {
+	image := s.agentImage(s.T())
+	name := "aio-stop-during-cont-init-fork"
+	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(`bash -s <<'EOS'
+set -euo pipefail
+dir=$(mktemp -d)
+cat > "$dir/90-block" <<'EOF'
+#!/bin/sh
+trap 'wait "$child"; exit 0' TERM
+/bin/sh -c 'trap "echo term > /fork-marker/child.term; exit 0" TERM; echo ready > /fork-marker/child.ready; while :; do sleep 1; done' &
+child=$!
+wait "$child"
+EOF
+chmod 0755 "$dir/90-block"
+printf '%s\n' "$dir"
+EOS
+`))
+	s.Require().NotEmpty(dir)
+
+	t := s.T()
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "rm -rf "+shSingleQuote(dir))
+	})
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro -v %s:/fork-marker %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(dir+"/90-block"),
+		shSingleQuote(dir),
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs := s.Env().RemoteHost.MustExecuteOn(c, "docker logs "+shSingleQuote(name)+" 2>&1")
+		assert.Contains(c, logs, "===== RUNNING /etc/cont-init.d/90-block =====")
+		ready := s.Env().RemoteHost.MustExecuteOn(c, "test -f "+shSingleQuote(dir+"/child.ready")+" && echo yes || echo no")
+		assert.Equal(c, "yes", strings.TrimSpace(ready))
+	}, 2*time.Minute, 2*time.Second)
+
+	s.Env().RemoteHost.MustExecute("docker stop -t 20 " + shSingleQuote(name))
+	exitCode := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
+		"docker inspect -f '{{.State.ExitCode}}' " + shSingleQuote(name)))
+	s.Equal("143", exitCode, "docker stop during a forked cont-init should exit 143")
+	term := s.Env().RemoteHost.MustExecute("cat " + shSingleQuote(dir+"/child.term") + " 2>/dev/null || echo missing")
+	s.Equal("term", strings.TrimSpace(term), "the forked child should receive SIGTERM from the cont-init process group")
+}
+
+// The script exits on TERM and leaves a child that ignores it. The entrypoint has to keep the
+// 5 second SIGKILL watchdog until that process group is empty. A stop well under 4 seconds means
+// the watchdog was cancelled when the script exited. Exit 137 means Docker's own timeout won.
+func (s *procmgrAIODockerSuite) TestDockerStopDuringContInitKillsTermIgnoringChild() {
+	image := s.agentImage(s.T())
+	name := "aio-stop-during-cont-init-ignore"
+	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(`bash -s <<'EOS'
+set -euo pipefail
+dir=$(mktemp -d)
+cat > "$dir/90-block" <<'EOF'
+#!/bin/sh
+trap 'exit 0' TERM
+/bin/sh -c 'trap "" TERM; echo ready > /fork-marker/child.ready; while :; do sleep 1; done' &
+while :; do sleep 1; done
+EOF
+chmod 0755 "$dir/90-block"
+printf '%s\n' "$dir"
+EOS
+`))
+	s.Require().NotEmpty(dir)
+
+	t := s.T()
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "rm -rf "+shSingleQuote(dir))
+	})
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro -v %s:/fork-marker %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(dir+"/90-block"),
+		shSingleQuote(dir),
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs := s.Env().RemoteHost.MustExecuteOn(c, "docker logs "+shSingleQuote(name)+" 2>&1")
+		assert.Contains(c, logs, "===== RUNNING /etc/cont-init.d/90-block =====")
+		ready := s.Env().RemoteHost.MustExecuteOn(c, "test -f "+shSingleQuote(dir+"/child.ready")+" && echo yes || echo no")
+		assert.Equal(c, "yes", strings.TrimSpace(ready))
+	}, 2*time.Minute, 2*time.Second)
+
+	started := time.Now()
+	s.Env().RemoteHost.MustExecute("docker stop -t 20 " + shSingleQuote(name))
+	elapsed := time.Since(started)
+	exitCode := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
+		"docker inspect -f '{{.State.ExitCode}}' " + shSingleQuote(name)))
+	s.Equal("143", exitCode, "docker stop during a TERM-ignoring cont-init child should exit 143")
+	s.GreaterOrEqual(elapsed, 4*time.Second, "the watchdog should stay until it SIGKILLs the child")
+	s.Less(elapsed, 15*time.Second, "the 5 second SIGKILL should finish before Docker's stop timeout")
+}
+
 // timeout 30: reaching dd-procmgrd would hang docker run.
 func (s *procmgrAIODockerSuite) TestContInitFailsFastWithoutAPIKey() {
 	image := s.agentImage(s.T())
 	_, err := s.Env().RemoteHost.Execute(
-		"timeout 30 docker run --rm -e ENTRYPOINT=procmgr-all-in-one " + shSingleQuote(image))
+		"timeout 30 docker run --rm " + shSingleQuote(image))
 	s.Require().Error(err)
 	s.NotContains(err.Error(), "status 124", "timeout means the entrypoint did not abort")
 	s.Contains(err.Error(), "You must set either a DD_API_KEY or DD_DELEGATED_AUTH_ORG_UUID environment")
 	s.NotContains(err.Error(), "===== STARTING dd-procmgrd =====")
 }
 
+func (s *procmgrAIODockerSuite) TestOptInEntrypointRunsProcmgrd() {
+	image := s.agentImage(s.T())
+	name := "aio-opt-in-entrypoint"
+
+	t := s.T()
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s -e DD_HOSTNAME=%s %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	// The main process is bash until cont-init finishes and the entrypoint execs dd-procmgrd.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		pid := strings.TrimSpace(s.Env().RemoteHost.MustExecuteOn(c,
+			"docker inspect -f '{{.State.Pid}}' "+shSingleQuote(name)))
+		requireHostPID(c, pid)
+		comm := strings.TrimSpace(s.Env().RemoteHost.MustExecuteOn(c, "cat /proc/"+pid+"/comm"))
+		assert.Equal(c, "dd-procmgrd", comm, "ENTRYPOINT=procmgr-all-in-one should exec dd-procmgrd")
+	}, 2*time.Minute, 2*time.Second)
+}
+
 func (s *procmgrAIODockerSuite) waitForAgentRunning(t require.TestingT, timeout time.Duration) {
 	if h, ok := t.(interface{ Helper() }); ok {
 		h.Helper()
 	}
+	// No DD_PM_SOCKET_PATH: the CLI falls back to the all-in-one socket path.
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		stdout, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
 			aioAgentContainer,
-			"env", "DD_PM_SOCKET_PATH="+aioSocket, linuxCLIBin, "describe", "datadog-agent",
+			linuxCLIBin, "describe", "datadog-agent",
 		)
 		require.NoError(c, err, stderr)
 		assertField(c, stdout, "State", "Running")

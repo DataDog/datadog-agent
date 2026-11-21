@@ -12,8 +12,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const PATH_ENV: &str = "/opt/datadog-agent/bin/agent:/opt/datadog-agent/embedded/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
-
 const AGENT_BIN: &str = "/opt/datadog-agent/bin/agent/agent";
 const TRACE_LOADER: &str = "/opt/datadog-agent/embedded/bin/trace-loader";
 const TRACE_AGENT: &str = "/opt/datadog-agent/embedded/bin/trace-agent";
@@ -100,7 +98,6 @@ const AUXILIARIES: &[&str] = &[
     "datadog-agent-process",
     "datadog-agent-sysprobe",
     "datadog-agent-security",
-    "datadog-agent-otel",
     "datadog-agent-data-plane",
     "datadog-agent-par",
 ];
@@ -132,7 +129,6 @@ fn load_shipped_catalog() -> HashMap<String, ProcessConfig> {
 fn assert_shared_stdio(config: &ProcessConfig) {
     assert_eq!(config.stdout, "inherit");
     assert_eq!(config.stderr, "inherit");
-    assert_eq!(config.env.get("PATH").map(String::as_str), Some(PATH_ENV));
     assert!(config.after.is_empty(), "after: {:?}", config.after);
     assert!(config.before.is_empty(), "before: {:?}", config.before);
     assert_eq!(config.stop_timeout, None);
@@ -199,6 +195,31 @@ fn aio_auxiliaries_restart_on_failure() {
         );
         assert_shared_stdio(config);
     }
+}
+
+#[test]
+fn aio_otel_matches_the_s6_service() {
+    let configs = load_shipped_catalog();
+    let otel = configs.get("datadog-agent-otel").expect("otel");
+
+    assert!(
+        otel.condition_config_any.is_empty() && otel.condition_config_none.is_empty(),
+        "otel-agent decides enablement itself, like the s6 service"
+    );
+    assert_eq!(otel.restart, RestartPolicy::OnFailure);
+    assert_eq!(otel.restart_delay(), 2.0);
+    assert_eq!(otel.max_restart_delay(), 2.0);
+    assert_eq!(
+        otel.start_limit_interval_sec,
+        Some(0),
+        "s6 restarts otel-agent without a limit"
+    );
+    assert!(
+        otel.burst_limit() >= 1,
+        "a start_limit_burst of 0 blocks every restart"
+    );
+    assert!(!otel.exit_with_supervisor);
+    assert_shared_stdio(otel);
 }
 
 #[test]
@@ -567,6 +588,13 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
 
     let catalog = load_configs(aio_dir.path()).expect("aio directory parses");
     assert!(catalog.invalid.is_empty());
+    for process in &catalog.processes {
+        assert!(
+            !process.config.env.contains_key("PATH"),
+            "{} inherits the container PATH",
+            process.name
+        );
+    }
     let mut names: Vec<_> = catalog
         .processes
         .iter()
@@ -668,7 +696,7 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     // The loops are compared as one contiguous slice, so the generic fi and done lines
     // stay attached to the bodies they close.
     let staging_cleanup =
-        r#"if [[ "$copy_dir" != "$primary" ]]; then rm -rf "$copy_dir"; trap - EXIT TERM INT; fi"#;
+        r#"if [[ "$copy_dir" != "$primary" ]]; then rm -rf "$copy_dir"; cleanup_dir=""; fi"#;
     // Unique lines only: pos() returns the first match, so a repeated `fi` would not
     // prove order.
     let steps = [
@@ -678,6 +706,13 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         "status=0",
         r#"rm -f "$probe""#,
         r#"return "$status""#,
+        "cont_init_pid=",
+        "launching=",
+        "stop_requested=",
+        "cleanup_dir=",
+        "on_term() {",
+        "trap on_term TERM INT",
+        r#"trap 'if [[ -n "$cleanup_dir" ]]; then chmod -R u+w "$cleanup_dir" 2>/dev/null || true; rm -rf "$cleanup_dir" 2>/dev/null || true; fi' EXIT"#,
         "copy_dir=",
         "primary=/var/run/s6/procmgr-cont-init.d",
         r#"if rm -rf "$primary" 2>/dev/null && mkdir "$primary" 2>/dev/null && stage_executes "$primary"; then"#,
@@ -686,13 +721,12 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         r#"for parent in "${TMPDIR:-/tmp}" /opt/datadog-agent/run; do"#,
         r#"if ! candidate=$(mktemp -d "$parent/procmgr-cont-init.d.XXXXXX" 2>/dev/null); then"#,
         "continue",
+        "cleanup_dir=$candidate",
         "copy_dir=$candidate",
-        r#"trap 'rm -rf "$copy_dir"' EXIT"#,
-        r#"trap 'rm -rf "$copy_dir"; exit 143' TERM INT"#,
         r#"if stage_executes "$candidate"; then"#,
         "break",
         r#"rm -rf "$candidate""#,
-        "trap - EXIT TERM INT",
+        r#"cleanup_dir="""#,
         r#"copy_dir="""#,
         r#"echo "cannot stage /etc/cont-init.d: no writable executable directory in /var/run/s6, ${TMPDIR:-/tmp}, or /opt/datadog-agent/run" >&2"#,
         "exit 1",
@@ -710,6 +744,37 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
             steps[index + 1]
         );
     }
+    // The handler is one slice. Its `fi` and `)` lines are not unique in the script.
+    let on_term_block = [
+        "on_term() {",
+        r#"if [[ -n "$launching" ]]; then"#,
+        "stop_requested=1",
+        "return",
+        "fi",
+        r#"if [[ -n "$cont_init_pid" ]]; then"#,
+        r#"trap "" TERM INT"#,
+        r#"kill -TERM -"$cont_init_pid" 2>/dev/null || kill -TERM "$cont_init_pid" 2>/dev/null || true"#,
+        "(",
+        "sleep 5",
+        r#"kill -KILL -"$cont_init_pid" 2>/dev/null || kill -KILL "$cont_init_pid" 2>/dev/null || true"#,
+        r#") </dev/null >/dev/null 2>&1 &"#,
+        "watchdog=$!",
+        r#"wait "$cont_init_pid" 2>/dev/null || true"#,
+        r#"while kill -0 -"$cont_init_pid" 2>/dev/null; do"#,
+        "sleep 0.2",
+        "done",
+        r#"kill -KILL "$watchdog" 2>/dev/null || true"#,
+        r#"wait "$watchdog" 2>/dev/null || true"#,
+        "fi",
+        "exit 143",
+        "}",
+    ];
+    let on_term_at = pos(on_term_block[0]);
+    assert_eq!(
+        &code_lines[on_term_at..on_term_at + on_term_block.len()],
+        &on_term_block[..],
+        "the TERM handler is compared as one block, so its generic lines stay in place"
+    );
     let loops = [
         r#"for init in "${inits[@]}"; do"#,
         r#"if [[ -f "$init" ]]; then"#,
@@ -721,7 +786,15 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         "done",
         r#"for init in "${selected[@]}"; do"#,
         r#"printf '===== RUNNING %s =====\n' "$init""#,
-        r#""$copy_dir/${init##*/}""#,
+        "launching=1",
+        r#"S6_KEEP_ENV=1 setsid "$copy_dir/${init##*/}" <&0 &"#,
+        "cont_init_pid=$!",
+        "launching=",
+        r#"if [[ -n "$stop_requested" ]]; then"#,
+        "on_term",
+        "fi",
+        r#"wait "$cont_init_pid""#,
+        "cont_init_pid=",
         "done",
     ];
     let stage_at = pos(loops[0]);
@@ -751,10 +824,60 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         !script.contains("procmgr-cont-init.d.*"),
         "a glob would delete another container's live staging directory on a shared mount"
     );
+    assert!(
+        !script.contains("procmgr-processes.d.*"),
+        "a glob would delete another container's live custom-service directory on a shared mount"
+    );
+    // A failed exec must return so the EXIT trap can remove the fallback directory. These
+    // are the script's last code lines, in order.
+    let expected_tail = [
+        "set +e",
+        "shopt -s execfail",
+        "exec /opt/datadog-agent/embedded/bin/dd-procmgrd",
+        "status=$?",
+        r#"exit "$status""#,
+    ];
+    assert_eq!(
+        &code_lines[code_lines.len() - expected_tail.len()..],
+        &expected_tail[..],
+        "the script must end with set +e, execfail, exec, status, exit"
+    );
+    assert!(
+        script.contains("cp -RL --"),
+        "a custom service runs from a staged copy of its directory"
+    );
+    assert!(script.contains("chmod -R u+w"));
     assert!(script.contains("DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio"));
+    assert!(
+        script.contains(
+            "shipped_s6_services=\" agent data-plane otel privateactionrunner process security sysprobe trace \""
+        ),
+        "custom /etc/services.d directories are started, and these shipped ones are already in the catalog"
+    );
+    assert!(
+        script.contains("restart: always") && script.contains("restart_sec: 1"),
+        "a custom service restarts one second after it exits, so a failing run cannot spin"
+    );
     assert!(script.contains(
         r#"DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}""#
     ));
+    let cleanup_block = [
+        "unset DD_PM_CLEANUP_DIR",
+        "unset DD_PM_CLEANUP_TOKEN",
+        r#"if [[ -n "$cleanup_dir" ]]; then"#,
+        "token=$(cat /proc/sys/kernel/random/uuid)",
+        r#"printf '%s\n' "$token" >"$cleanup_dir/.dd-procmgr-cleanup""#,
+        r#"chmod 0600 "$cleanup_dir/.dd-procmgr-cleanup""#,
+        "export DD_PM_CLEANUP_DIR=$cleanup_dir",
+        "export DD_PM_CLEANUP_TOKEN=$token",
+        "fi",
+    ];
+    let cleanup_at = pos(cleanup_block[0]);
+    assert_eq!(
+        &code_lines[cleanup_at..cleanup_at + cleanup_block.len()],
+        &cleanup_block[..],
+        "unset both variables before the fallback check, and export both only inside it"
+    );
     assert!(
         !script.contains("IPC_CERT_FILE_PATH"),
         "an exported DD_IPC_CERT_FILE_PATH would override ipc_cert_file_path in datadog.yaml, \
@@ -763,6 +886,78 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     assert!(
         !script.contains("DD_PM_INHERIT_ENV"),
         "the entrypoint must not set DD_PM_INHERIT_ENV"
+    );
+}
+
+#[test]
+fn procmgr_all_in_one_custom_services_keep_the_config_dir_placeholder() {
+    let script = ENTRYPOINT_PROCMGR_ALL_IN_ONE;
+    // The heredoc is unquoted, so the backslash is what keeps the placeholder in the file.
+    // Without it, bash expands the variable at write time to the catalog directory.
+    assert!(
+        script.contains(r"command: '\${DD_PM_CONFIG_DIR}/services/$service_name/run'"),
+        "the generated command must keep the escaped placeholder"
+    );
+    assert!(
+        script.contains(r"working_dir: '\${DD_PM_CONFIG_DIR}/services/$service_name'"),
+        "the generated working_dir must keep the escaped placeholder"
+    );
+    assert!(
+        !script.contains("command_path") && !script.contains("workdir_path"),
+        "the staging path must not be written into the generated YAML"
+    );
+    // A quoted heredoc would keep the backslash and leave $service_name unexpanded.
+    assert!(
+        script.contains(r#"cat >"$processes_dir/$service_name.yaml" <<EOF"#),
+        "the custom-service heredoc must stay unquoted"
+    );
+    assert!(
+        script.contains(
+            r#"for catalog_yaml in /opt/datadog-agent/processes.d/aio/*.yaml /opt/datadog-agent/processes.d/aio/*.yml; do"#
+        ),
+        "staging must copy both catalog extensions"
+    );
+    assert!(
+        script.contains(r#"[[ -e "$catalog_yaml" ]] || continue"#),
+        "an unmatched *.yml glob must not abort startup"
+    );
+    assert!(
+        script.contains(
+            r#"[[ -e "$processes_dir/$service_name.yaml" || -e "$processes_dir/$service_name.yml" ]]"#
+        ),
+        "a custom service must not replace a .yml catalog process of the same name"
+    );
+    // A relative TMPDIR makes mktemp return a relative path, which a service started in its own
+    // directory cannot execute and the cleanup check rejects. The path is resolved physically
+    // right after mktemp and before cleanup_dir or processes_dir take it.
+    let at = |needle: &str| {
+        script
+            .find(needle)
+            .unwrap_or_else(|| panic!("missing `{needle}`"))
+    };
+    let mktemp = at(r#"mktemp -d "$parent/procmgr-processes.d.XXXXXX""#);
+    let resolve =
+        at(r#"if ! candidate_abs=$(CDPATH='' cd -P -- "$candidate" 2>/dev/null && pwd -P); then"#);
+    let adopt = at("candidate=$candidate_abs");
+    let track = script[mktemp..]
+        .find("cleanup_dir=$candidate")
+        .map(|offset| mktemp + offset)
+        .expect("the custom-service loop must track the staging directory for cleanup");
+    assert!(
+        mktemp < resolve && resolve < adopt && adopt < track,
+        "resolve the custom-service staging path before cleanup_dir uses it"
+    );
+    // When S6_KEEP_ENV is 0, a #!/usr/bin/with-contenv run script reads
+    // /var/run/s6/container_environment, which only s6 /init creates. The service gets the value
+    // in its own env, which wins over the inherited one. An export before dd-procmgrd would
+    // change every supervised process.
+    assert!(
+        script.contains("stderr: inherit\nenv:\n  S6_KEEP_ENV: \"1\"\nEOF\n"),
+        "the generated custom-service YAML must set S6_KEEP_ENV to the string \"1\""
+    );
+    assert!(
+        !script.contains("export S6_KEEP_ENV"),
+        "S6_KEEP_ENV must stay out of the supervisor environment"
     );
 }
 
@@ -779,11 +974,29 @@ fn split_entrypoint_leaves_the_ipc_cert_path_to_dd_procmgrd() {
 }
 
 #[test]
-fn default_entrypoint_still_execs_init() {
-    assert!(ENTRYPOINT_DEFAULT.contains("exec /init"));
+fn default_entrypoint_execs_procmgr_all_in_one() {
     assert!(
-        !ENTRYPOINT_DEFAULT.contains("dd-procmgrd"),
-        "_default must keep exec /init and must not exec dd-procmgrd"
+        ENTRYPOINT_DEFAULT
+            .lines()
+            .any(|line| line.trim() == "exec /opt/entrypoints/procmgr-all-in-one"),
+        "_default must exec the procmgr all-in-one entrypoint"
+    );
+    assert!(
+        ENTRYPOINT_DEFAULT.contains("-x /opt/datadog-agent/embedded/bin/dd-procmgrd"),
+        "_default must check for dd-procmgrd before selecting it"
+    );
+    assert!(
+        ENTRYPOINT_DEFAULT.contains("-f /opt/datadog-agent/processes.d/aio/.procmgr-default"),
+        "_default must require the catalog marker before selecting procmgr"
+    );
+    // The marker is not YAML, so the catalog scan does not see it. Including it here
+    // fails the build if the file is removed.
+    let _marker: &str =
+        include_str!("../../../../Dockerfiles/agent/processes.d/aio/.procmgr-default");
+    assert_eq!(
+        ENTRYPOINT_DEFAULT.lines().last().map(str::trim),
+        Some("exec /opt/entrypoints/s6-all-in-one"),
+        "_default must fall back to s6 on bases without dd-procmgrd"
     );
 }
 
@@ -802,6 +1015,11 @@ fn procmgr_all_in_one_entrypoint_is_installed_executable() {
         AGENT_DOCKERFILE
             .lines()
             .any(|line| { line.trim() == "COPY --chmod=755 entrypoint.d /opt/entrypoints" })
+    );
+    assert!(
+        AGENT_DOCKERFILE
+            .contains("find /opt/datadog-agent/processes.d -type d -exec chmod 0755 {} +"),
+        "COPY --chmod=644 leaves processes.d directories mode 0644, which a non-root user cannot traverse"
     );
     assert!(
         AGENT_DOCKERFILE.lines().any(|line| {
