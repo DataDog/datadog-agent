@@ -799,6 +799,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "requirefips", "serverless", "test", "zlib"],
     "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "requirefips", "serverless", "test", "zlib"],
+    "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter/internal/metadata": ["grpcnotrace", "requirefips"],
     "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck": ["clusterchecks", "goexperiment.systemcrypto", "otlp", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil": ["clusterchecks", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],

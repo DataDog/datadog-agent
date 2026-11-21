@@ -62,6 +62,9 @@ type translatorConfig struct {
 
 	// withUnits reports whether to set Datadog units on metrics.
 	withUnits bool
+
+	// withMetricMetadata reports whether to pass metric metadata to a [MetricMetadataConsumer].
+	withMetricMetadata bool
 }
 
 // TranslatorOption is a translator creation option.
@@ -287,6 +290,15 @@ func WithoutRuntimeMetricMappings() TranslatorOption {
 func WithUnits() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.withUnits = true
+		return nil
+	}
+}
+
+// WithMetricMetadata passes the description and unit of each metric with a
+// description to the consumer, if it implements [MetricMetadataConsumer].
+func WithMetricMetadata() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.withMetricMetadata = true
 		return nil
 	}
 }

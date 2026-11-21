@@ -101,6 +101,7 @@ func (c *ExporterConfig) Unmarshal(configMap *confmap.Conf) error {
 	}
 
 	c.API.Key = configopaque.String(strings.TrimSpace(string(c.API.Key)))
+	c.API.AppKey = configopaque.String(strings.TrimSpace(string(c.API.AppKey)))
 
 	// If an endpoint is not explicitly set, override it based on the site.
 	if !configMap.IsSet("metrics::endpoint") {
