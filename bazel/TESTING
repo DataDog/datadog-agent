@@ -1,0 +1,9 @@
+test_suite {
+  name: "bazel"
+  tests: "//bazel/..."
+  tests: "//pkg/..."
+}
+
+presubmit {
+  check_tests: "bazel"
+}
