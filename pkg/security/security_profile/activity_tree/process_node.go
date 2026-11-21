@@ -510,9 +510,10 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 			if dnsNode.Requests[i].Question.Type == evt.DNS.Question.Type {
 				if stats != nil && stats.journal != nil {
 					sizeBefore := dnsNode.size()
-					stats.journal.recordDNSEnrichment(pn, dnsNode, i, evt.DNS.Response, evt.Rules)
-					stats.SizeBytes += dnsNode.size() - sizeBefore
-					return false
+					if stats.journal.recordDNSEnrichment(pn, dnsNode, i, evt.DNS.Response, evt.Rules) {
+						stats.SizeBytes += dnsNode.size() - sizeBefore
+						return false
+					}
 				}
 				dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
 				// enrich the known question with the answers of this response, if any. This
@@ -528,9 +529,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 
 		sizeBefore := dnsNode.size()
 		dnsNode.Requests = append(dnsNode.Requests, newDNSRequestEntry(&evt.DNS))
-		if stats != nil && stats.journal != nil {
-			stats.journal.recordDNSEnrichment(pn, dnsNode, len(dnsNode.Requests)-1, evt.DNS.Response, evt.Rules)
-		} else {
+		if stats == nil || stats.journal == nil || !stats.journal.recordDNSEnrichment(pn, dnsNode, len(dnsNode.Requests)-1, evt.DNS.Response, evt.Rules) {
 			dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
 		}
 		stats.SizeBytes += dnsNode.size() - sizeBefore
@@ -555,12 +554,14 @@ func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTagID uint64, gene
 	key := newIMDSInfo(&evt.IMDS)
 	imdsNode, ok := pn.IMDSEvents[key]
 	if ok {
-		if stats != nil && stats.journal != nil {
-			stats.journal.recordIMDSRules(pn, imdsNode, evt.Rules)
-		} else {
-			imdsNode.MatchedRules = model.AppendMatchedRule(imdsNode.MatchedRules, evt.Rules)
+		if !dryRun {
+			if stats != nil && stats.journal != nil {
+				stats.journal.recordIMDSRules(pn, imdsNode, evt.Rules)
+			} else {
+				imdsNode.MatchedRules = model.AppendMatchedRule(imdsNode.MatchedRules, evt.Rules)
+			}
+			imdsNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 		}
-		imdsNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 		return false
 	}
 

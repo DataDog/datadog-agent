@@ -1409,6 +1409,9 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 		evicted, removedBytes := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, imageTags)
 		totalEvicted += evicted
 		at.Stats.SizeBytes -= removedBytes
+		if removedBytes > 0 && at.Stats != nil && at.Stats.journal != nil {
+			at.Stats.journal.dirty = true
+		}
 
 		// If the process node itself has no image tags left after eviction, remove it entirely.
 		if node.SeenIsEmpty() {

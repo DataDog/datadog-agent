@@ -406,6 +406,9 @@ func imdsNodeToProto(in *IMDSNode, tagIDToImageTag func(id uint64) string) *adpr
 		NodeBase:     nodeBaseToProto(&in.NodeBase, tagIDToImageTag),
 		Event:        imdsEventToProto(in.Event),
 	}
+	for _, r := range in.MatchedRules {
+		pin.MatchedRules = append(pin.MatchedRules, matchedRuleToProto(r))
+	}
 
 	return pin
 }
