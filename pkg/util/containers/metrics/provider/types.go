@@ -33,6 +33,7 @@ type ContainerMemStats struct {
 	RefaultFile      *float64
 	OOMEvents        *float64 // Number of events where memory allocation failed
 	PartialStallTime *float64 // Correspond to PSI Some total
+	FullStallTime    *float64 // Correspond to PSI Full total
 	Peak             *float64
 	Pgfault          *float64
 	Pgmajfault       *float64
@@ -86,6 +87,7 @@ type ContainerIOStats struct {
 
 	// Linux only
 	PartialStallTime *float64 // Correspond to PSI Some total
+	FullStallTime    *float64 // Correspond to PSI Full total
 
 	Devices map[string]DeviceIOStats
 }
