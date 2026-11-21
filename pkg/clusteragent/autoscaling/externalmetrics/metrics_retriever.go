@@ -82,9 +82,10 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 				return false
 			}
 
-			// Batch together queries with no error and queries with rate limit errors
-			// Splitting rate limit errors off from the batch only makes the problem worse
-			if datadogMetric.Error == nil || errors.Is(datadogMetric.Error, autoscalers.RateLimitExceededError) {
+			// Keep empty results in the regular batch so sparse metrics recover as
+			// soon as data arrives. Splitting rate limit errors into individual
+			// queries would also make the problem worse.
+			if datadogMetric.Error == nil || errors.Is(datadogMetric.Error, autoscalers.RateLimitExceededError) || errors.Is(datadogMetric.Error, autoscalers.ErrNoData) {
 				validDatadogMetrics = append(validDatadogMetrics, datadogMetric)
 			} else {
 				errDatadogMetrics = append(errDatadogMetrics, datadogMetric)
@@ -161,8 +162,13 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 				// Set DatadogMetric as invalid
 				datadogMetricFromStore.Valid = false
 
-				// If we are splitting batch backoff on errors, we only increment retries for non rate limit errors
-				if mr.splitBatchBackoffOnErrors && !errors.Is(queryResult.Error, autoscalers.RateLimitExceededError) {
+				// Missing data does not require backoff; preserve backoff for other query failures.
+				if errors.Is(queryResult.Error, autoscalers.ErrNoData) {
+					// No measurement is still invalid; do not synthesize zero or keep an
+					// old value valid. Only retry timing changes.
+					datadogMetricFromStore.Retries = 0
+					datadogMetricFromStore.RetryAfter = time.Time{}
+				} else if mr.splitBatchBackoffOnErrors && !errors.Is(queryResult.Error, autoscalers.RateLimitExceededError) {
 					incrementRetries(datadogMetricFromStore)
 				}
 
