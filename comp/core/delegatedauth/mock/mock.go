@@ -17,8 +17,9 @@ import (
 
 // Mock is a mock implementation of the delegatedauth.Component interface
 type Mock struct {
-	GetWorkloadTokenFunc func(context.Context, string, common.WorkloadTokenRequest) (string, error)
-	AddInstanceFunc      func(context.Context, delegatedauth.InstanceParams) error
+	GetWorkloadTokenFunc  func(context.Context, string, common.WorkloadTokenRequest) (string, error)
+	IsInstanceManagedFunc func(string) bool
+	AddInstanceFunc       func(context.Context, delegatedauth.InstanceParams) error
 }
 
 var _ delegatedauth.Component = (*Mock)(nil)
@@ -47,4 +48,12 @@ func (m *Mock) GetWorkloadToken(ctx context.Context, key string, request common.
 		return m.GetWorkloadTokenFunc(ctx, key, request)
 	}
 	return "", errors.New("workload tokens are unavailable in the delegated auth mock")
+}
+
+// IsInstanceManaged calls the mock function if set, otherwise returns false.
+func (m *Mock) IsInstanceManaged(key string) bool {
+	if m.IsInstanceManagedFunc != nil {
+		return m.IsInstanceManagedFunc(key)
+	}
+	return false
 }
