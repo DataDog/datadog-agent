@@ -222,7 +222,7 @@ type TokenAttributes struct {
 // returning ": <detail>" for appending to an error. It surfaces only the server-authored
 // title/detail fields (never the raw body), so a successful-path token or any unexpected content
 // cannot leak into logs. Returns "" when the body is not a JSON:API error envelope.
-func errorDetail(body []byte) string {
+func parseErrorDetail(body []byte) string {
 	var envelope struct {
 		Errors []struct {
 			Title  string `json:"title"`
@@ -241,10 +241,15 @@ func errorDetail(body []byte) string {
 			msgs = append(msgs, e.Title)
 		}
 	}
-	if len(msgs) == 0 {
+	return strings.Join(msgs, "; ")
+}
+
+func errorDetail(body []byte) string {
+	detail := parseErrorDetail(body)
+	if detail == "" {
 		return ""
 	}
-	return ": " + strings.Join(msgs, "; ")
+	return ": " + detail
 }
 
 func parseResponse(tokenBytes []byte) (*string, error) {

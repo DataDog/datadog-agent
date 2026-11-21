@@ -14,6 +14,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -26,23 +29,35 @@ import (
 // authorization. Each call is one attempt, so callers can obtain a fresh proof
 // and token when retrying enrollment rather than retrying an expired token.
 func GetWorkloadToken(ctx context.Context, cfg pkgconfigmodel.Reader, provider common.WorkloadProvider, auth *common.AuthConfig, request common.WorkloadTokenRequest, targetSite string) (string, error) {
-	if err := request.Validate(); err != nil {
+	tok, err := GetWorkloadTokenWithExpiry(ctx, cfg, provider, auth, request, targetSite)
+	if err != nil {
 		return "", err
 	}
+	return tok.Token, nil
+}
+
+// GetWorkloadTokenWithExpiry exchanges a fresh, request-bound proof for an opaque
+// workload token and parses the backend-reported expiration from attributes.expires
+// (ETS ExternalToken encodes expiry as a Unix seconds string). Missing or
+// unparseable expiry values leave ExpiresAt zero so callers can apply a safe fallback.
+func GetWorkloadTokenWithExpiry(ctx context.Context, cfg pkgconfigmodel.Reader, provider common.WorkloadProvider, auth *common.AuthConfig, request common.WorkloadTokenRequest, targetSite string) (common.WorkloadToken, error) {
+	if err := request.Validate(); err != nil {
+		return common.WorkloadToken{}, err
+	}
 	if provider == nil {
-		return "", errors.New("workload proof provider is required")
+		return common.WorkloadToken{}, errors.New("workload proof provider is required")
 	}
 	endpoint, err := resolveExchangeURL(cfg, targetSite, "/api/v2/delegated-token?token_type=workload")
 	if err != nil {
-		return "", err
+		return common.WorkloadToken{}, err
 	}
 	parsed, err := url.Parse(endpoint)
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
-		return "", errors.New("workload token endpoint must use HTTPS")
+		return common.WorkloadToken{}, errors.New("workload token endpoint must use HTTPS")
 	}
 	proof, err := provider.GenerateWorkloadAuthProof(ctx, cfg, auth, request)
 	if err != nil {
-		return "", fmt.Errorf("generate workload proof: %w", err)
+		return common.WorkloadToken{}, fmt.Errorf("generate workload proof: %w", err)
 	}
 	body := struct {
 		Data struct {
@@ -54,11 +69,11 @@ func GetWorkloadToken(ctx context.Context, cfg pkgconfigmodel.Reader, provider c
 	body.Data.Attributes = request
 	payload, err := json.Marshal(body)
 	if err != nil {
-		return "", err
+		return common.WorkloadToken{}, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
-		return "", err
+		return common.WorkloadToken{}, err
 	}
 	req.Header.Set(contentTypeHeader, "application/vnd.api+json")
 	req.Header.Set(authorizationHeader, authorizationType+" "+proof)
@@ -70,30 +85,70 @@ func GetWorkloadToken(ctx context.Context, cfg pkgconfigmodel.Reader, provider c
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("request workload token: %w", err)
+		return common.WorkloadToken{}, fmt.Errorf("request workload token: %w", err)
 	}
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
 	if err != nil {
-		return "", fmt.Errorf("read workload token response: %w", err)
+		return common.WorkloadToken{}, fmt.Errorf("read workload token response: %w", err)
 	}
 	if len(raw) > maxResponseBodySize {
-		return "", errors.New("workload token response exceeds size limit")
+		return common.WorkloadToken{}, errors.New("workload token response exceeds size limit")
 	}
 	if resp.StatusCode != http.StatusOK {
-		// Surface the server's JSON:API error message, never the raw response body.
-		return "", fmt.Errorf("workload token request failed (HTTP %d)%s", resp.StatusCode, errorDetail(raw))
+		// Surface only the server's JSON:API error message, never the raw response body.
+		return common.WorkloadToken{}, &common.WorkloadTokenHTTPError{
+			StatusCode: resp.StatusCode,
+			Detail:     parseErrorDetail(raw),
+		}
 	}
 	var response struct {
 		Data struct {
 			Type       string `json:"type"`
 			Attributes struct {
-				AccessToken string `json:"access_token"`
+				AccessToken string          `json:"access_token"`
+				Expires     json.RawMessage `json:"expires"`
 			} `json:"attributes"`
 		} `json:"data"`
 	}
 	if json.Unmarshal(raw, &response) != nil || response.Data.Type != "token" || response.Data.Attributes.AccessToken == "" {
-		return "", errors.New("invalid workload token response")
+		return common.WorkloadToken{}, errors.New("invalid workload token response")
 	}
-	return response.Data.Attributes.AccessToken, nil
+	return common.WorkloadToken{
+		Token:     response.Data.Attributes.AccessToken,
+		ExpiresAt: parseWorkloadTokenExpiry(response.Data.Attributes.Expires),
+	}, nil
+}
+
+// parseWorkloadTokenExpiry parses ETS's attributes.expires field (Unix seconds
+// string in ExternalToken, or JSON integer / RFC3339 fallback). Returns zero
+// time when omitted or unparseable so valid tokens are never rejected solely
+// for expiry formatting.
+func parseWorkloadTokenExpiry(raw json.RawMessage) time.Time {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return time.Time{}
+	}
+	var s string
+	if err := json.Unmarshal(trimmed, &s); err == nil {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return time.Time{}
+		}
+		if unix, err := strconv.ParseInt(s, 10, 64); err == nil {
+			if unix > 0 {
+				return time.Unix(unix, 0).UTC()
+			}
+			return time.Time{}
+		}
+		if t, err := time.Parse(time.RFC3339, s); err == nil && !t.IsZero() {
+			return t.UTC()
+		}
+		return time.Time{}
+	}
+	var unix int64
+	if err := json.Unmarshal(trimmed, &unix); err == nil && unix > 0 {
+		return time.Unix(unix, 0).UTC()
+	}
+	return time.Time{}
 }

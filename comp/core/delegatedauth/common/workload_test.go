@@ -6,9 +6,11 @@
 package common
 
 import (
-	"github.com/stretchr/testify/require"
+	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestWorkloadTokenRequestValidation(t *testing.T) {
@@ -20,5 +22,20 @@ func TestWorkloadTokenRequestValidation(t *testing.T) {
 	}
 	// Key requirements belong to each grant's server policy, not all workloads.
 	require.NoError(t, (WorkloadTokenRequest{Grants: []string{"another_grant"}}).Validate())
+	require.NoError(t, (WorkloadTokenRequest{Grants: []string{"remote_config"}}).Validate())
 	require.NoError(t, (WorkloadTokenRequest{Grants: []string{"par_enrollment", "another_grant"}, JWKThumbprint: strings.Repeat("A", 43)}).Validate())
+}
+
+func TestWorkloadTokenHTTPError(t *testing.T) {
+	denied := &WorkloadTokenHTTPError{StatusCode: http.StatusForbidden, Detail: "Workload grant denied"}
+	require.EqualError(t, denied, "workload token request failed (HTTP 403): Workload grant denied")
+	require.ErrorIs(t, denied, ErrWorkloadTokenDenied)
+
+	deniedNoDetail := &WorkloadTokenHTTPError{StatusCode: http.StatusForbidden}
+	require.EqualError(t, deniedNoDetail, "workload token request failed (HTTP 403)")
+	require.ErrorIs(t, deniedNoDetail, ErrWorkloadTokenDenied)
+
+	unavailable := &WorkloadTokenHTTPError{StatusCode: http.StatusServiceUnavailable}
+	require.EqualError(t, unavailable, "workload token request failed (HTTP 503)")
+	require.NotErrorIs(t, unavailable, ErrWorkloadTokenDenied)
 }

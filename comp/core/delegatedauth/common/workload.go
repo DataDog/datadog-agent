@@ -9,13 +9,50 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"net/http"
 	"regexp"
+	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
+// ErrWorkloadTokenDenied reports that ETS rejected a workload token request
+// with HTTP 403 Forbidden (for example, when the requested grant is disabled
+// on the workload identity mapping or organization).
+var ErrWorkloadTokenDenied = errors.New("workload token request denied")
+
+// WorkloadTokenHTTPError represents a non-200 HTTP response from the workload
+// token exchange endpoint. Callers can inspect StatusCode via errors.As or check
+// ErrWorkloadTokenDenied via errors.Is without parsing error strings.
+// Detail contains only server-authored JSON:API error text, never raw response bodies.
+type WorkloadTokenHTTPError struct {
+	StatusCode int
+	Detail     string
+}
+
+func (e *WorkloadTokenHTTPError) Error() string {
+	if e.Detail != "" {
+		return fmt.Sprintf("workload token request failed (HTTP %d): %s", e.StatusCode, e.Detail)
+	}
+	return fmt.Sprintf("workload token request failed (HTTP %d)", e.StatusCode)
+}
+
+// Is matches ErrWorkloadTokenDenied when the backend returned HTTP 403 Forbidden.
+func (e *WorkloadTokenHTTPError) Is(target error) bool {
+	return target == ErrWorkloadTokenDenied && e.StatusCode == http.StatusForbidden
+}
+
+// WorkloadToken holds an opaque workload token and its server-reported expiration.
+// ExpiresAt is zero if the backend omitted or returned an unparseable expiration.
+type WorkloadToken struct {
+	Token     string
+	ExpiresAt time.Time
+}
+
 // WorkloadTokenRequest asks ETS for explicit grants. Key binding is optional at
-// the protocol level; the par_enrollment grant requires a public-key thumbprint.
+// the protocol level; the par_enrollment grant requires a public-key thumbprint,
+// while remote_config does not require key binding.
 type WorkloadTokenRequest struct {
 	Grants        []string `json:"grants"`
 	JWKThumbprint string   `json:"jwk_thumbprint,omitempty"`
