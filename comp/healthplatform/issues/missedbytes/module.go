@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/internal/logsissue"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
@@ -60,19 +61,13 @@ func (m *missedBytesModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPerio
 		BuiltInHealthCheck: runnerdef.BuiltInHealthCheck{
 			Source: checkSource,
 			Fn: func() ([]runnerdef.IssueReport, error) {
-				if !logsEnabled(m.cfg) {
+				if !logsissue.LogsEnabled(m.cfg) {
 					return nil, nil
 				}
 				return m.checker.Run()
 			},
 		},
 	}
-}
-
-// logsEnabled mirrors the logs agent's own gate, which still honours the
-// deprecated log_enabled (comp/logs/agent/impl/agent.go).
-func logsEnabled(cfg config.Component) bool {
-	return cfg.GetBool("logs_enabled") || cfg.GetBool("log_enabled")
 }
 
 // BuiltInStartupHealthCheck returns nil: loss accrues while the agent runs.

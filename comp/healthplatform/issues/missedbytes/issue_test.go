@@ -6,15 +6,15 @@
 package missedbytes
 
 import (
-	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/internal/logsissue"
 )
 
 // last_loss_at reaches Extra but not the prose: the platform tracks last-seen.
@@ -190,7 +190,7 @@ func TestBuildIssue(t *testing.T) {
 			assert.Equal(t, "logs_pipeline", issue.GetCategory())
 			assert.Equal(t, "logs-agent", issue.GetLocation())
 			assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, issue.GetSeverity())
-			assert.Equal(t, issueSource, issue.GetSource())
+			assert.Equal(t, logsissue.Source, issue.GetSource())
 			assert.Equal(t, []string{"logs", "file-tailing", "rotation", "data-loss"}, issue.GetTags())
 
 			require.NotNil(t, issue.GetRemediation())
@@ -228,32 +228,6 @@ func TestBuildIssue(t *testing.T) {
 				assert.Equal(t, float64(want.Bytes), entry["bytes"].GetNumberValue())
 				assert.Equal(t, float64(want.Rotations), entry["rotations"].GetNumberValue())
 			}
-		})
-	}
-}
-
-func TestSanitizeName(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"short names pass through", "nginx", "nginx"},
-		{"long ASCII is truncated", strings.Repeat("a", 200),
-			strings.Repeat("a", maxNameLen-len(nameEllipsis)) + nameEllipsis},
-		{"multi-byte cuts on a rune boundary", strings.Repeat("é", 200),
-			strings.Repeat("é", maxNameLen-len(nameEllipsis)) + nameEllipsis},
-		{"control characters are dropped", "ng\ninx\tweb\r", "nginxweb"},
-		{"a name of only control characters degrades", "\n\t\r", unknownValue},
-		{"an empty name degrades", "", unknownValue},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := sanitizeName(tc.in)
-			assert.Equal(t, tc.want, got)
-			assert.LessOrEqual(t, utf8.RuneCountInString(got), maxNameLen)
-			assert.True(t, utf8.ValidString(got), "a multi-byte name must not be split into invalid UTF-8")
 		})
 	}
 }

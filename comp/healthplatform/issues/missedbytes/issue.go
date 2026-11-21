@@ -10,12 +10,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
-	"github.com/dustin/go-humanize"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/internal/logsissue"
 )
 
 const (
@@ -31,20 +30,6 @@ const (
 
 	// Context is map[string]string, so the breakdown travels as encoded sourceLoss.
 	contextKeySources = "sources"
-
-	// The reporting component, not the scheduler's checkSource label.
-	issueSource = "logs"
-
-	// The failing subsystem, not where the fix lands.
-	issueCategory = "logs_pipeline"
-
-	// Bounds one free-form name, which ships in both Description and Extra.
-	maxNameLen = 64
-
-	// ASCII on purpose: `agent diagnose` prints Description on non-UTF-8 consoles.
-	nameEllipsis = "..."
-
-	unknownValue = "unknown"
 )
 
 // sourceLoss is one tuple's share of the host total. Its JSON tags are the wire
@@ -69,7 +54,7 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 
 	lastLossAt := ctx[contextKeyLastLossAt]
 	if lastLossAt == "" {
-		lastLossAt = unknownValue
+		lastLossAt = logsissue.Unknown
 	}
 
 	sources := decodeSources(ctx[contextKeySources])
@@ -77,7 +62,7 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	// Nameable only when one source and one service are the entire loss.
 	named := sourceCount == 1 && len(sources) == 1 && omitted == 0
 
-	scope := fmt.Sprintf("%d %s", sourceCount, pluralize(sourceCount, "source"))
+	scope := fmt.Sprintf("%d %s", sourceCount, logsissue.Pluralize(sourceCount, "source"))
 	subject := "Logs from " + scope
 	file := "a file"
 	breakdown := describeSources(sources, omitted)
@@ -90,7 +75,7 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 
 	sentences := []string{
 		fmt.Sprintf("%s never reached Datadog: %d log %s closed %s before the Agent finished reading it.",
-			subject, rotations, pluralize(rotations, "rotation"), file),
+			subject, rotations, logsissue.Pluralize(rotations, "rotation"), file),
 	}
 	if breakdown != "" {
 		sentences = append(sentences, breakdown)
@@ -112,31 +97,20 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 		IssueName: IssueName,
 		IssueType: IssueType,
 		Title: fmt.Sprintf("Lost %s of logs from %s in the last 24 hours",
-			humanizeBytes(bytesLost), scope),
+			logsissue.HumanizeBytes(bytesLost), scope),
 		// One block, no newlines or markdown: `agent diagnose` prints this verbatim
 		// behind a fixed prefix (comp/core/diagnose/format/format.go).
 		Description: strings.Join(sentences, " "),
-		Category:    issueCategory,
-		Location:    "logs-agent",
+		Category:    logsissue.Category,
+		Location:    logsissue.Location,
 		// HIGH lands in the Fleet UI's "Agent Health: Broken" bucket.
 		Severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH,
-		Source:   issueSource,
+		Source:   logsissue.Source,
 		Extra:    extra,
 		Tags:     []string{"logs", "file-tailing", "rotation", "data-loss"},
-		// Ordered cheapest to most invasive, per the component's remediation rules.
-		// Steps 3-5 branch on the saturated component step 1 identifies.
 		Remediation: &healthplatform.Remediation{
-			// Plain text: Summary is not rendered as markdown.
-			Summary: "Give the Agent more time to finish reading rotated files, and relieve any saturation in the logs pipeline.",
-			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: "Run `sudo datadog-agent status` and note any saturated component in the Logs Agent Backpressure section."},
-				{Order: 2, Text: "Raise `logs_config.close_timeout` (DD_LOGS_CONFIG_CLOSE_TIMEOUT) above its 60 second default to give the tailer longer to finish a rotated file."},
-				{Order: 3, Text: "If a `destination_reliable_N` or `worker` row is saturated, check the Agent log for failed or retried submissions and resolve any proxy, DNS, authentication, or connectivity errors."},
-				{Order: 4, Text: "If the `strategy` row is saturated, set `logs_config.use_compression` to false or raise `logs_config.pipelines`."},
-				{Order: 5, Text: "If the `processor` row is saturated, scope global `logs_config.processing_rules` to the affected source, or set `logs_config.auto_multi_line_detection` to false."},
-				{Order: 6, Text: "If the Agent still cannot keep up, drop unneeded logs with an `exclude_at_match` processing rule, or reduce the volume written to the file between rotations."},
-				{Order: 7, Text: "Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log."},
-			},
+			Summary: remediationSummary,
+			Steps:   logsissue.Steps(remediationSteps...),
 		},
 	}, nil
 }
@@ -152,29 +126,10 @@ func decodeSources(encoded string) []sourceLoss {
 		return nil
 	}
 	for i := range sources {
-		sources[i].Source = sanitizeName(sources[i].Source)
-		sources[i].Service = sanitizeName(sources[i].Service)
+		sources[i].Source = logsissue.SanitizeName(sources[i].Source)
+		sources[i].Service = logsissue.SanitizeName(sources[i].Service)
 	}
 	return sources
-}
-
-// sanitizeName bounds a name and drops control characters: names come from user
-// YAML and reach Title and Description unescaped. Cuts on a rune boundary.
-func sanitizeName(name string) string {
-	name = strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return -1
-		}
-		return r
-	}, name)
-
-	switch {
-	case name == "":
-		return unknownValue
-	case utf8.RuneCountInString(name) <= maxNameLen:
-		return name
-	}
-	return string([]rune(name)[:maxNameLen-utf8.RuneCountInString(nameEllipsis)]) + nameEllipsis
 }
 
 // describeSources renders the breakdown ranked by bytes, plus a count of what the
@@ -185,10 +140,10 @@ func describeSources(sources []sourceLoss, omitted int64) string {
 	}
 	parts := make([]string, 0, len(sources)+1)
 	for _, s := range sources {
-		parts = append(parts, fmt.Sprintf("%s/%s %s", s.Source, s.Service, humanizeBytes(s.Bytes)))
+		parts = append(parts, fmt.Sprintf("%s/%s %s", s.Source, s.Service, logsissue.HumanizeBytes(s.Bytes)))
 	}
 	if omitted > 0 {
-		parts = append(parts, fmt.Sprintf("and %d other %s", omitted, pluralize(omitted, "source/service pair")))
+		parts = append(parts, fmt.Sprintf("and %d other %s", omitted, logsissue.Pluralize(omitted, "source/service pair")))
 	}
 	return "Most affected: " + strings.Join(parts, ", ") + "."
 }
@@ -205,18 +160,4 @@ func sourcesAsExtra(sources []sourceLoss) []any {
 		})
 	}
 	return values
-}
-
-func humanizeBytes(n int64) string {
-	if n < 0 {
-		n = 0
-	}
-	return humanize.Bytes(uint64(n))
-}
-
-func pluralize(n int64, word string) string {
-	if n == 1 {
-		return word
-	}
-	return word + "s"
 }
