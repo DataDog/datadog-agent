@@ -10,19 +10,13 @@ import (
 	"context"
 	"encoding/json"
 	"expvar"
-	"fmt"
-	"io"
-	"net"
-	"net/http"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -102,7 +96,13 @@ func GetDefaultLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
 	})
 }
 
-// GetExpVar copies expvar files to the flare archive.
+// GetExpVar copies this process's expvar files to the flare archive.
+//
+// Sub-agent expvars are not collected here: remote agents expose their flare
+// data through the remote-agent registry (see comp/core/remoteagentregistry),
+// which the running core agent adds to every flare. Flares built outside the
+// running core agent (security-agent, cluster-agent and local-mode agent
+// flares) therefore contain no sub-agent expvars.
 func GetExpVar(_ context.Context, fb flaretypes.FlareBuilder) error {
 	variables := make(map[string]interface{})
 	expvar.Do(func(kv expvar.KeyValue) {
@@ -126,31 +126,7 @@ func GetExpVar(_ context.Context, fb flaretypes.FlareBuilder) error {
 		}
 	}
 
-	cfg := pkgconfigsetup.Datadog()
-	apmDebugPort := cfg.GetInt("apm_config.debug.port")
-	f := filepath.Join("expvar", "trace-agent")
-	addr := net.JoinHostPort(pkgconfighelper.APMDebugHost(cfg), strconv.Itoa(apmDebugPort))
-	resp, err := http.Get("https://" + addr + "/debug/vars")
-	if err != nil {
-		return fb.AddFile(f, []byte(fmt.Sprintf("Error retrieving vars: %v", err)))
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		slurp, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		return fb.AddFile(f, []byte(fmt.Sprintf("Got response %s from /debug/vars:\n%s", resp.Status, slurp)))
-	}
-	var all map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&all); err != nil {
-		return fmt.Errorf("error decoding trace-agent /debug/vars response: %v", err)
-	}
-	v, err := yaml.Marshal(all)
-	if err != nil {
-		return err
-	}
-	return fb.AddFile(f, v)
+	return nil
 }
 
 func getFirstSuffix(s string) string {

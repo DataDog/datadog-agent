@@ -44,6 +44,9 @@ var NonLocalFlareFiles = []string{
 	"tagger-list.json",
 	"workload-list.log",
 	"agent_open_files.txt",
+	// Trace-agent expvars served by the remote-agent registry's flare provider;
+	// requires the running core agent (local flares don't collect them).
+	"trace-agent-(remoteagent)/expvar.yaml",
 }
 
 // DefaultLogFiles contains all the log files that are created with a default installation
