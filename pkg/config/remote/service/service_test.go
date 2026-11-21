@@ -80,6 +80,10 @@ func (m *mockAPI) UpdateAPIKey(apiKey string) {
 	m.Called(apiKey)
 }
 
+func (m *mockAPI) UpdateWorkloadToken(token string) {
+	m.Called(token)
+}
+
 type mockUptane struct {
 	mock.Mock
 }

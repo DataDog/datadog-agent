@@ -399,6 +399,7 @@ type options struct {
 	rcKey                          string
 	apiKey                         string
 	parJWT                         string
+	workloadTokenProvider          WorkloadTokenProvider
 	traceAgentEnv                  string
 	databaseFileName               string
 	databaseFilePath               string
@@ -564,6 +565,14 @@ func WithPARJWT(jwt string) func(s *options) {
 	return func(s *options) { s.parJWT = jwt }
 }
 
+// WithWorkloadTokenProvider configures delegated auth workload tokens for
+// ordinary Agent Remote Configuration ("remote_config" grant). Ignored if a
+// PAR JWT or explicit remote_configuration.api_key is configured, or if
+// delegated auth is not managing "api_key".
+func WithWorkloadTokenProvider(provider WorkloadTokenProvider) func(s *options) {
+	return func(s *options) { s.workloadTokenProvider = provider }
+}
+
 // WithClientCacheBypassLimit validates and sets the service client cache bypass limit
 func WithClientCacheBypassLimit(limit int, cfgPath string) func(s *options) {
 	if limit < minCacheBypassLimit || limit > maxCacheBypassLimit {
@@ -643,6 +652,15 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		return nil, err
 	}
 
+	clock := clock.New()
+	var apiClient api.API = http
+	if options.workloadTokenProvider != nil &&
+		options.parJWT == "" &&
+		!cfg.IsConfigured("remote_configuration.api_key") &&
+		options.workloadTokenProvider.IsInstanceManaged(delegatedAuthPrimaryAPIKey) {
+		apiClient = newWorkloadTokenClient(http, options.workloadTokenProvider, clock, rcType)
+	}
+
 	databaseFilePath := cfg.GetString("run_path")
 	if options.databaseFilePath != "" {
 		databaseFilePath = options.databaseFilePath
@@ -672,7 +690,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	} else {
 		uptaneClient, err = uptane.NewCoreAgentClientWithNewTransactionalStore(
 			dbMetadata,
-			newRCBackendOrgUUIDProvider(http),
+			newRCBackendOrgUUIDProvider(apiClient),
 			opt...,
 		)
 	}
@@ -680,11 +698,9 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		return nil, err
 	}
 
-	clock := clock.New()
-
 	now := clock.Now().UTC()
 	cas := &CoreAgentService{
-		api:                   http,
+		api:                   apiClient,
 		rcType:                rcType,
 		startupTime:           now,
 		hostname:              hostname,
