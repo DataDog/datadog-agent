@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 // nilResponseTransport is a simple mock that returns a nil response and an
@@ -139,4 +141,23 @@ func TestForwardingTransport_MultipleTargets(t *testing.T) {
 			validateResponse(t, rt, c.req)
 		})
 	}
+}
+
+func staticAPIKeys(keys ...string) []*config.Endpoint {
+	endpoints := make([]*config.Endpoint, len(keys))
+	for i, key := range keys {
+		endpoints[i] = &config.Endpoint{APIKey: key}
+	}
+	return endpoints
+}
+
+func snapshotAPIKeys(endpoints []*config.Endpoint) []string {
+	if endpoints == nil {
+		return nil
+	}
+	keys := make([]string, len(endpoints))
+	for i, endpoint := range endpoints {
+		keys[i], _ = endpoint.GetAPIKeyIfReady()
+	}
+	return keys
 }

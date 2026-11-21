@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 
@@ -53,7 +54,7 @@ func TestPipelineStatsProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc}
-	newPipelineStatsProxy(c, []*url.URL{u}, []string{"123"}, "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
+	newPipelineStatsProxy(c, []*url.URL{u}, staticAPIKeys("123"), "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
 	result := rec.Result()
 	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
@@ -71,17 +72,50 @@ func TestPipelineStatsEndpoint(t *testing.T) {
 		{Host: "https://trace.agent.datadoghq.com", APIKey: "test_api_key"},
 		{Host: "https://trace.agent.datadoghq.eu", APIKey: "test_api_key_2"},
 	}
-	urls, keys, err := pipelineStatsEndpoints(&cfg)
+	urls, credentials, err := pipelineStatsEndpoints(&cfg)
+	keys := snapshotAPIKeys(credentials)
 	assert.NoError(t, err)
 	assert.Equal(t, urls[0].String(), "https://trace.agent.datadoghq.com/api/v0.1/pipeline_stats")
 	assert.Equal(t, urls[1].String(), "https://trace.agent.datadoghq.eu/api/v0.1/pipeline_stats")
 	assert.Equal(t, keys, []string{"test_api_key", "test_api_key_2"})
 
 	cfg.Endpoints = []*config.Endpoint{{Host: "trace.agent.datadoghq.com", APIKey: "test_api_key"}}
-	urls, keys, err = pipelineStatsEndpoints(&cfg)
+	urls, credentials, err = pipelineStatsEndpoints(&cfg)
+	keys = snapshotAPIKeys(credentials)
 	assert.NoError(t, err)
 	assert.Equal(t, urls[0].String(), "trace.agent.datadoghq.com/api/v0.1/pipeline_stats")
 	assert.Equal(t, keys[0], "test_api_key")
+}
+
+func TestPipelineStatsEndpointCredentialSnapshot(t *testing.T) {
+	var additionalKey atomic.Value
+	additionalKey.Store("initial-additional")
+	cfg := config.New()
+	cfg.Endpoints = []*config.Endpoint{{Host: "https://main.datadoghq.com", APIKey: "initial-main"}}
+	cfg.ReadAdditionalEndpointKey = func(_, _ string, _ int) (string, bool) {
+		return additionalKey.Load().(string), true
+	}
+	cfg.Endpoints = append(cfg.Endpoints, cfg.AdditionalEndpoint("apm_config.additional_endpoints", "https://secondary.datadoghq.com", "initial-additional", 0))
+	_, endpoints, err := pipelineStatsEndpoints(cfg)
+	require.NoError(t, err)
+
+	cfg.UpdateAPIKey("rotated-main")
+	additionalKey.Store("rotated-additional")
+	assert.Equal(t, []string{"initial-main", "rotated-additional"}, snapshotAPIKeys(endpoints))
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 1000; i++ {
+			cfg.UpdateAPIKey("rotated-main")
+		}
+	}()
+	for i := 0; i < 1000; i++ {
+		key, ready := endpoints[0].GetAPIKeyIfReady()
+		assert.True(t, ready)
+		assert.Equal(t, "initial-main", key)
+	}
+	<-done
 }
 
 func TestPipelineStatsProxyHandler(t *testing.T) {
@@ -224,6 +258,6 @@ func assertEmptyBodyFansOut(t *testing.T, newProxy func(urls []*url.URL, keys []
 func TestPipelineStatsProxyMultipleEndpointsEmptyBody(t *testing.T) {
 	assertEmptyBodyFansOut(t, func(urls []*url.URL, keys []string) http.Handler {
 		c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc, MaxRequestBytes: 1024}
-		return newPipelineStatsProxy(c, urls, keys, "key:val", &statsd.NoOpClient{})
+		return newPipelineStatsProxy(c, urls, staticAPIKeys(keys...), "key:val", &statsd.NoOpClient{})
 	})
 }

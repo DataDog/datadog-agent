@@ -26,16 +26,11 @@ const (
 )
 
 // pipelineStatsEndpoint returns the pipeline intake url and the corresponding API key.
-func pipelineStatsEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []string, err error) {
+func pipelineStatsEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []*config.Endpoint, err error) {
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		return nil, nil, errors.New("config was not properly validated")
 	}
 	for _, e := range cfg.Endpoints {
-		if e.HasPendingDelegatedAuth {
-			// A pending delegated-auth endpoint has no key yet; skip it rather than send
-			// with an empty one.
-			continue
-		}
 		urlStr := e.Host + pipelineStatsURLSuffix
 		log.Debugf("[pipeline_stats] Intake URL %s", urlStr)
 		url, err := url.Parse(urlStr)
@@ -43,7 +38,8 @@ func pipelineStatsEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys [
 			return nil, nil, fmt.Errorf("error parsing pipeline stats intake URL %q: %v", urlStr, err)
 		}
 		urls = append(urls, url)
-		apiKeys = append(apiKeys, e.APIKey)
+		endpoint := *e
+		apiKeys = append(apiKeys, &endpoint)
 	}
 	return urls, apiKeys, nil
 }
@@ -73,7 +69,7 @@ func pipelineStatsErrorHandler(err error) http.Handler {
 
 // newPipelineStatsProxy creates an http.ReverseProxy which forwards requests to the pipeline stats intake.
 // The tags will be added as a header to all proxied requests.
-func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
+func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []*config.Endpoint, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	log.Debug("[pipeline_stats] Creating reverse proxy")
 	cidProvider := NewContainerIDProviderFromConfig(conf)
 	rewrite := func(req *httputil.ProxyRequest) {
@@ -106,23 +102,30 @@ func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []
 type multiDataStreamsTransport struct {
 	rt              http.RoundTripper
 	targets         []*url.URL
-	keys            []string
+	keys            []*config.Endpoint
 	maxRequestBytes int64
 }
 
 func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
+	targets, keys := readyProxyEndpoints(m.targets, m.keys)
+	if len(targets) == 0 {
+		if req.Body != nil {
+			req.Body.Close()
+		}
+		return nil, errNoReadyProxyEndpoint
+	}
 	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
 		r.Host = u.Host
 		r.URL = u
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
-	if len(m.targets) == 1 {
-		setTarget(req, m.targets[0], m.keys[0])
+	if len(targets) == 1 {
+		setTarget(req, targets[0], keys[0])
 		rresp, rerr = m.rt.RoundTrip(req)
 		if rerr != nil {
 			log.Errorf("[pipeline_stats] RoundTrip failed: %v", rerr)
 		} else {
-			log.Debugf("[pipeline_stats] Returned status: %s, from host: %s, path: %s", rresp.Status, m.targets[0].Host, m.targets[0].Path)
+			log.Debugf("[pipeline_stats] Returned status: %s, from host: %s, path: %s", rresp.Status, targets[0].Host, targets[0].Path)
 		}
 
 		return rresp, rerr
@@ -131,10 +134,10 @@ func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Re
 	if err != nil {
 		return nil, err
 	}
-	for i, u := range m.targets {
+	for i, u := range targets {
 		newreq := req.Clone(req.Context())
 		newreq.Body = body()
-		setTarget(newreq, u, m.keys[i])
+		setTarget(newreq, u, keys[i])
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
 			// will be the first one called, we return its response and error
@@ -142,7 +145,7 @@ func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Re
 			if rerr != nil {
 				log.Errorf("[pipeline_stats] RoundTrip failed: %v", rerr)
 			} else {
-				log.Debugf("[pipeline_stats] Returned status: %s, from host: %s, path: %s", rresp.Status, m.targets[0].Host, m.targets[0].Path)
+				log.Debugf("[pipeline_stats] Returned status: %s, from host: %s, path: %s", rresp.Status, targets[0].Host, targets[0].Path)
 			}
 			continue
 		}

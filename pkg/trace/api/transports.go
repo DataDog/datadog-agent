@@ -7,6 +7,7 @@ package api
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
@@ -177,4 +179,19 @@ func replayableBody(req *http.Request, maxBytes int64) (func() io.ReadCloser, er
 		return nil, err
 	}
 	return func() io.ReadCloser { return io.NopCloser(bytes.NewReader(slurp)) }, nil
+}
+
+var errNoReadyProxyEndpoint = errors.New("no proxy endpoint has a resolved API key")
+
+// readyProxyEndpoints takes one credential snapshot per destination for this request.
+func readyProxyEndpoints(targets []*url.URL, endpoints []*config.Endpoint) ([]*url.URL, []string) {
+	readyTargets := make([]*url.URL, 0, len(targets))
+	keys := make([]string, 0, len(targets))
+	for i, endpoint := range endpoints {
+		if key, ready := endpoint.GetAPIKeyIfReady(); ready {
+			readyTargets = append(readyTargets, targets[i])
+			keys = append(keys, key)
+		}
+	}
+	return readyTargets, keys
 }
