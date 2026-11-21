@@ -17,6 +17,27 @@ package analysis
 //
 // The permanently banned packages (reflect, unsafe) apply here too.
 var allowedpathsAllowedSymbols = []string{
+	"bytes.Equal",                      // 🟠 compares bounded account snapshots before mutation; no I/O.
+	"crypto/rand.Text",                 // 🟠 generates unpredictable names for exclusive sandboxed recovery copies; no external path input.
+	"errors.Join",                      // 🟠 retains write, sync and close failures without hiding partial results.
+	"io.LimitReader",                   // 🟠 caps account-file snapshots before buffering.
+	"io.ReadAll",                       // 🟠 reads only a bounded account-file snapshot through a pinned sandbox handle.
+	"io.SeekStart",                     // 🟠 constant for rewinding pinned account files without truncating.
+	"os.Geteuid",                       // 🟠 checks ownership against the executing identity; does not change credentials.
+	"os.O_RDWR",                        // 🟠 opens pinned regular account files for snapshot and in-place update without truncation.
+	"os.O_EXCL",                        // 🟠 creates recovery copies without overwriting any existing file.
+	"os.ModePerm",                      // 🟠 rejects special mode bits on account files.
+	"strconv.ParseUint",                // 🟠 validates bounded local UID/GID fields.
+	"strings.ContainsAny",              // 🟠 rejects unsupported account-file delimiters/control bytes.
+	"strings.Replace",                  // 🟠 appends the single fixed member in a validated bounded record.
+	"strings.Trim",                     // 🟠 validates decimal account identifiers.
+	"sync.Mutex",                       // 🟠 serializes account updates in-process because POSIX record locks are process-associated.
+	"golang.org/x/sys/unix.O_NONBLOCK", // 🟠 nonblocking no-follow account opens reject special files before I/O.
+	"golang.org/x/sys/unix.Flock_t",    // 🟠 POSIX record lock description for the sandboxed persistent .pwd.lock.
+	"golang.org/x/sys/unix.F_WRLCK",    // 🟠 exclusive whole-file lock constant.
+	"golang.org/x/sys/unix.F_SETLK",    // 🟠 nonblocking POSIX lock command; never waits indefinitely.
+	"golang.org/x/sys/unix.FcntlFlock", // 🟠 locks only the pinned .pwd.lock descriptor; closing releases the lock.
+
 	"bytes.Buffer",                       // 🟢 in-memory byte buffer; collects sandbox warnings for deferred output.
 	"context.Context",                    // 🟢 context type used to signal cancellation; no I/O or side effects.
 	"errors.As",                          // 🟢 error type assertion; pure function, no I/O.

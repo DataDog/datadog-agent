@@ -1059,6 +1059,9 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 				RemediationMode: r.remediationMode,
 			}
 			if r.remediationMode && r.sandbox != nil {
+				if elevated && cmdName == "usermod" {
+					child.AddDDAgentToDocker = r.sandbox.AddDDAgentToDocker
+				}
 				child.Truncate = func(_ context.Context, path string, size int64, create bool) error {
 					return r.sandbox.Truncate(path, dir, size, create)
 				}
@@ -1217,6 +1220,9 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 			RemediationMode: r.remediationMode,
 		}
 		if r.remediationMode && r.sandbox != nil {
+			if elevated && name == "usermod" {
+				call.AddDDAgentToDocker = r.sandbox.AddDDAgentToDocker
+			}
 			call.Truncate = func(_ context.Context, path string, size int64, create bool) error {
 				return r.sandbox.Truncate(path, r.Dir, size, create)
 			}
