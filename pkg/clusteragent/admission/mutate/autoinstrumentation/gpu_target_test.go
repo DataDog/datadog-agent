@@ -230,6 +230,27 @@ gpu:
 	}, target.tracerEnvVars)
 }
 
+func TestGPUTargetInjectionDefaultIdentifiers(t *testing.T) {
+	const cfg = `
+gpu:
+  tracing:
+    enabled: true
+`
+	m := newMatchMutator(t, cfg, newMatchTestWmeta(t))
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "ml", Labels: gpuPodLabels}}
+
+	resolved := m.resolveTarget(pod)
+
+	require.NotNil(t, resolved)
+	require.NotNil(t, resolved.plan)
+	assert.Equal(t, []corev1.EnvVar{
+		{Name: "DD_INJECT_NATIVE", Value: "always"},
+		{Name: "DD_TRACE_HOOK_MODULES", Value: "gpu"},
+		fieldRefEnvVar(trainingRunIDEnvVar, "metadata.annotations['training.datadoghq.com/run-id']"),
+		fieldRefEnvVar(trainingGroupIDEnvVar, "metadata.annotations['training.datadoghq.com/group-id']"),
+	}, resolved.plan.tracerEnvVars)
+}
+
 func TestGPUTargetInjectionEnvIdentifiers(t *testing.T) {
 	const cfg = `
 gpu:
