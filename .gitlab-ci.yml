@@ -85,7 +85,8 @@
   - comp/publishermetadatacache/**/*
   - comp/softwareinventory/**/*
 
-  # MSI installer and Windows tooling
+  # MSI installer and Windows tooling, including inherited formatting settings
+  - .editorconfig
   - tools/windows/**/*
 
   # Build/packaging
@@ -1393,6 +1394,7 @@ workflow:
         - tasks/**/*
         - .gitlab-ci.yml # A buildimage bump can also affect the invoke tasks
         - packages/agent/dependencies/**/* # Some bazel files are read from invoke unit tests
+        - .gitlab/windows/build/lint/windows.yml
       compare_to: $COMPARE_TO_BRANCH
 
 .on_gpu_integration_tests:
