@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: The trace-agent no longer forwards Data Streams Monitoring pipeline
+    stats to the multi-region failover endpoint unless APM failover is active,
+    matching how traces and APM stats are routed. Errors from additional
+    pipeline stats endpoints now name the endpoint that failed.
