@@ -32,11 +32,11 @@ import (
 // the slot + setter + loader trio below.
 //
 // errortrackingSubmitterSlot is the package-global atomic pointer that
-// backs every errortracking.Handler returned by buildSlogLogger. The Fx
-// wiring at cmd/agent/subcommands/run/ registers the agenttelemetry
-// component's SubmitErrorRecord method here at startup; until then the slot
-// is nil and the handler in the chain reports Enabled = false so the
-// parent multi-handler skips it entirely.
+// backs every errortracking.Handler returned by buildSlogLogger. The
+// agenttelemetry component registers its SubmitErrorLog method here while
+// errortracking is on; until then, and whenever it is off, the slot is nil
+// and the handler in the chain reports Enabled = false so the parent
+// multi-handler skips it entirely.
 var errortrackingSubmitterSlot atomic.Pointer[errortracking.Submitter]
 
 // RegisterErrortrackingSubmitter installs s as the destination for error
@@ -46,9 +46,8 @@ var errortrackingSubmitterSlot atomic.Pointer[errortracking.Submitter]
 //
 // This is a setter rather than a constructor argument because SetupLogger
 // is invoked from many call-sites (most without Fx access) and we do not
-// want to thread a Submitter through every one. The Fx graph in the run
-// command resolves the agenttelemetry component and calls
-// RegisterErrortrackingSubmitter exactly once during startup. The
+// want to thread a Submitter through every one. The agenttelemetry component
+// registers and clears it as errortracking is switched on and off. The
 // errortracking.Handler atomic-loads the slot on every record, so there
 // is no slow-path mutex on the logger hot path.
 func RegisterErrortrackingSubmitter(s errortracking.Submitter) {
@@ -68,9 +67,8 @@ var errortrackingBouncerSlot atomic.Pointer[errortracking.Bouncer]
 // RegisterErrortrackingBouncer installs b as the per-PC dedup
 // Bouncer for the errortracking branch of every slog chain built via
 // buildSlogLogger. Passing nil clears the registration so subsequent
-// records bypass dedup. The Fx graph in the run command's
-// installErrortrackingHandler registers the agenttelemetry component's
-// Bouncer here at startup, alongside the Submitter.
+// records are dropped. The agenttelemetry component registers its Bouncer
+// here alongside the Submitter.
 func RegisterErrortrackingBouncer(b *errortracking.Bouncer) {
 	errortrackingBouncerSlot.Store(b)
 }

@@ -346,8 +346,8 @@ agent_telemetry:
 		atel = createAtel(cfg, log, makeTelMock(t), &senderMock{}, &runnerMock{})
 	})
 	require.NotNil(t, atel)
-	require.NotNil(t, atel.errLogsCh)
-	assert.Equal(t, defaultErrortrackingBufferSize, cap(atel.errLogsCh))
+	require.NotNil(t, testQueue(atel))
+	assert.Equal(t, defaultErrortrackingBufferSize, cap(testQueue(atel)))
 }
 
 func TestCreateAtel_NegativeErrortrackingValuesFallbackToSafeDefaults(t *testing.T) {
@@ -393,8 +393,8 @@ agent_telemetry:
     shutdown_drain_timeout_seconds: 0
 `, &senderMock{}, nil, runner)
 
-	require.NotNil(t, atel.errLogsCh)
-	assert.Equal(t, 0, cap(atel.errLogsCh))
+	require.NotNil(t, testQueue(atel))
+	assert.Equal(t, 0, cap(testQueue(atel)))
 	assert.Equal(t, time.Duration(0), atel.errLogsFlushInterval)
 	assert.Equal(t, time.Duration(0), atel.errLogsStartupJitter)
 	assert.Equal(t, time.Duration(0), atel.shutdownDrainTimeout)
@@ -3634,8 +3634,9 @@ func TestRemoteFlagSubscriberIsProvided(t *testing.T) {
 
 		require.NotNil(t, provides.Subscriber)
 		handlers := provides.Subscriber.Handlers()
-		require.Len(t, handlers, 1)
+		require.Len(t, handlers, 2)
 		assert.Equal(t, pkgremoteflags.FlagName(flagTroubleshooting), handlers[0].FlagName())
+		assert.Equal(t, pkgremoteflags.FlagName(flagErrortracking), handlers[1].FlagName())
 	}
 }
 

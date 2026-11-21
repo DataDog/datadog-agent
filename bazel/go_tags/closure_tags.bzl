@@ -395,7 +395,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/status": ["grpcnotrace", "test"],
     "github.com/DataDog/datadog-agent/comp/core/remoteflags/def": ["test"],
     "github.com/DataDog/datadog-agent/comp/core/remoteflags/fx": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
-    "github.com/DataDog/datadog-agent/comp/core/remoteflags/impl": ["test"],
+    "github.com/DataDog/datadog-agent/comp/core/remoteflags/impl": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/core/remoteflags/impl-noop": ["test"],
     "github.com/DataDog/datadog-agent/comp/core/remoteflags/types": ["test"],
     "github.com/DataDog/datadog-agent/comp/core/schema/def": ["test"],

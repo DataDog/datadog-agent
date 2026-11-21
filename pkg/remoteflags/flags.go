@@ -91,6 +91,23 @@ type FlagHandler interface {
 	IsHealthy() bool
 }
 
+// ConfigurationBinder is an optional interface a FlagHandler implements to bind
+// its flag to a boolean configuration key. The backend only sends a flag name
+// and a value, so the binding lives agent side: the client mirrors the flag
+// into the key under model.SourceRC, as it does for a payload carrying a
+// configuration_field, and the component only reacts to the key.
+//
+// A bound flag never overrides a local value: an override_local sent in the
+// payload is ignored. Mirroring is skipped when the key already resolves from
+// a user-provided or runtime source (see shouldApplyConfig). Giving the key
+// back (the flag is removed, or the handler recovers) unsets the SourceRC
+// layer, which restores whatever the lower layers say.
+type ConfigurationBinder interface {
+	// ConfigurationField returns the configuration key the flag drives, or an
+	// empty string when the flag is not bound.
+	ConfigurationField() string
+}
+
 // RemoteFlagSubscriber is implemented by components that want to subscribe to remote flags.
 // This allows a single component to subscribe to multiple flags.
 type RemoteFlagSubscriber interface {
@@ -154,10 +171,19 @@ type subscription struct {
 // Client is the Remote Flags client that manages flag subscriptions
 // and integrates with the Remote Config system.
 type Client struct {
-	mu                  sync.Mutex
-	subscriptions       map[FlagName][]*subscription
-	currentValues       map[FlagName]FlagValue
-	lastVersions        map[FlagName]int
+	mu            sync.Mutex
+	subscriptions map[FlagName][]*subscription
+	currentValues map[FlagName]FlagValue
+	lastVersions  map[FlagName]int
+	boundFields   map[FlagName]string // configuration key a handler binds a flag to
+	// mirroredFields is the key written under SourceRC for a flag. The client
+	// assumes it is the only producer of the Remote Config source for that key,
+	// so removal and recovery unset the whole layer entry.
+	mirroredFields map[FlagName]string
+	// recovered holds the value a flag had when its handler was recovered. The
+	// flag stays recovered, neither mirrored nor notified, until its value
+	// changes or it disappears, so the next update cannot undo the recovery.
+	recovered           map[FlagName]FlagValue
 	configSetter        ConfigSetter
 	healthCheckInterval time.Duration
 	ctx                 context.Context
@@ -171,6 +197,9 @@ func NewClient() *Client {
 		subscriptions:       make(map[FlagName][]*subscription),
 		currentValues:       make(map[FlagName]FlagValue),
 		lastVersions:        make(map[FlagName]int),
+		boundFields:         make(map[FlagName]string),
+		mirroredFields:      make(map[FlagName]string),
+		recovered:           make(map[FlagName]FlagValue),
 		healthCheckInterval: DefaultHealthCheckInterval,
 		ctx:                 ctx,
 		cancel:              cancel,
@@ -241,10 +270,20 @@ func (c *Client) SubscribeWithHandler(handler FlagHandler) error {
 
 	c.subscriptions[flag] = append(c.subscriptions[flag], sub)
 
+	if binder, ok := handler.(ConfigurationBinder); ok {
+		if field := binder.ConfigurationField(); field != "" {
+			c.boundFields[flag] = field
+		}
+	}
+
 	// If we already have cached a value for this flag,
-	// invoke the callback immediately via notifyChange
+	// invoke the callback immediately via notifyChange. The key of a late
+	// binding is not mirrored here: a handler must be subscribed before the
+	// first update to have its key driven (the component subscribes all
+	// handlers at construction); the binding only makes its recovery give the
+	// key back.
 	if enabled, exists := c.currentValues[flag]; exists {
-		c.notifyChange(Flag{Name: string(flag), Enabled: enabled})
+		c.notifyChange(Flag{Name: string(flag), Enabled: enabled, ConfigurationField: c.boundFields[flag]})
 	}
 
 	return nil
@@ -288,6 +327,23 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 				c.lastVersions[flagName] = flag.Version
 			}
 
+			// A flag recovered at this value stays recovered until it changes.
+			if recoveredValue, ok := c.recovered[flagName]; ok {
+				if recoveredValue == flag.Enabled {
+					continue
+				}
+				delete(c.recovered, flagName)
+			}
+
+			// A handler-bound field stands in for the configuration_field the
+			// backend does not send, and the flag never overrides a local value.
+			if bound := c.boundFields[flagName]; bound != "" {
+				if flag.ConfigurationField == "" {
+					flag.ConfigurationField = bound
+				}
+				flag.OverrideLocal = false
+			}
+
 			// Mirror to pkg/config when a configuration_field is provided. If a
 			// non-overridable source already populates that field and the flag
 			// did not opt in via override_local, drop the flag entirely.
@@ -301,6 +357,7 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 						continue
 					}
 					c.configSetter.Set(flag.ConfigurationField, bool(flag.Enabled), model.SourceRC)
+					c.mirroredFields[flagName] = flag.ConfigurationField
 				}
 			}
 
@@ -328,6 +385,12 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 			// Remove from currentValues so that when it comes back, it will trigger a notification
 			// even if the value is the same as before
 			delete(c.currentValues, flagName)
+			delete(c.recovered, flagName)
+			// Give the mirrored configuration field back to the lower layers.
+			if field, mirrored := c.mirroredFields[flagName]; mirrored {
+				c.configSetter.UnsetForSource(field, model.SourceRC)
+				delete(c.mirroredFields, flagName)
+			}
 			// TODO(remy): should we call the no data callback forever if the flags never come back
 			// during this lifecycle of the agent?
 			c.notifyNoConfig(flagName)
@@ -370,7 +433,18 @@ func (c *Client) notifyChange(flag Flag) {
 // recoverFlag rolls back a flag's effect on pkg/config (when applicable) and
 // then invokes the handler's SafeRecover. The Unset happens first so the handler
 // observes the reverted configuration when it runs.
+//
+// A recovered flag stays recovered at that value (see Client.recovered), unless
+// the flag already moved on.
 func (c *Client) recoverFlag(sub *subscription, flag Flag, err error) {
+	c.mu.Lock()
+	name := FlagName(flag.Name)
+	if current, ok := c.currentValues[name]; ok && current == flag.Enabled {
+		c.recovered[name] = flag.Enabled
+	}
+	delete(c.mirroredFields, name)
+	c.mu.Unlock()
+
 	if flag.ConfigurationField != "" && c.configSetter != nil {
 		c.configSetter.UnsetForSource(flag.ConfigurationField, model.SourceRC)
 	}
