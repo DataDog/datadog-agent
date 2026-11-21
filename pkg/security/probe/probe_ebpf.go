@@ -2758,8 +2758,6 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		activatedProbes = append(activatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: probes.SecurityAgentUID, EBPFFuncName: "sys_exit"}})
 	}
 
-	activatedProbes = append(activatedProbes, p.Resolvers.TCResolver.SelectTCProbes())
-
 	// on-demand probes
 	if p.config.RuntimeSecurity.OnDemandEnabled {
 		p.onDemandManager.updateProbes()
@@ -2811,11 +2809,35 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		return fmt.Errorf("failed to set enabled events: %w", err)
 	}
 
-	if err = p.Manager.Get().UpdateActivatedProbes(activatedProbes); err != nil {
+	// step 1, TC programs frozen: BestEffort skips the validators, as a failed one would stop the manager, which waits
+	// for event handlers that can be blocked on the frozen TC programs (deadlock)
+	running, unfreeze := p.Resolvers.TCResolver.FreezePrograms()
+	err = p.Manager.Get().UpdateActivatedProbes([]manager.ProbesSelector{&manager.BestEffort{Selectors: append(slices.Clone(activatedProbes), running)}})
+	unfreeze()
+	if err != nil {
+		return err
+	}
+	// step 2, TC programs unfrozen: run the validators skipped in step 1, which can now safely stop the manager
+	if err = validateProbes(p.Manager.Get(), activatedProbes); err != nil {
 		return err
 	}
 
 	p.updateEBPFCheckMapping()
+	return nil
+}
+
+// validateProbes runs the validators of the provided selectors, and stops the manager if one fails
+func validateProbes(m *manager.Manager, selectors []manager.ProbesSelector) error {
+	var validationErrs error
+	for _, selector := range selectors {
+		if err := selector.RunValidator(m); err != nil {
+			validationErrs = errors.Join(validationErrs, err)
+		}
+	}
+	if validationErrs != nil {
+		_ = m.Stop(manager.CleanInternal)
+		return fmt.Errorf("probes activation validation failed: %w", validationErrs)
+	}
 	return nil
 }
 
@@ -2981,13 +3003,9 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 	}
 }
 
-// FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
-// flushes the network namespace in the network namespace resolver as well.
+// FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace
 func (p *EBPFProbe) FlushNetworkNamespace(namespace *netns.NetworkNamespace) {
 	p.Resolvers.NamespaceResolver.FlushNetworkNamespace(namespace)
-
-	// cleanup internal structures
-	p.Resolvers.TCResolver.FlushNetworkNamespaceID(namespace.ID(), p.Manager.Get())
 }
 
 func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
