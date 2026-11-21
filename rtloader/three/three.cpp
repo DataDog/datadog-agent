@@ -557,6 +557,71 @@ void Three::cancelCheck(RtLoaderPyObject *check)
     Py_XDECREF(result);
 }
 
+bool Three::hasRemoteQuery(RtLoaderPyObject *check)
+{
+    if (check == NULL) {
+        return false;
+    }
+    PyObject *method = PyObject_GetAttrString(reinterpret_cast<PyObject *>(check), "remote_query");
+    if (method == NULL) {
+        PyErr_Clear();
+        return false;
+    }
+    bool callable = PyCallable_Check(method);
+    Py_DECREF(method);
+    return callable;
+}
+
+char *Three::remoteQuery(RtLoaderPyObject *check, const char *request)
+{
+    if (check == NULL || request == NULL) {
+        return NULL;
+    }
+    PyObject *result = PyObject_CallMethod(reinterpret_cast<PyObject *>(check), "remote_query", "(s)", request);
+    if (result == NULL) {
+        // A driver exception may contain SQL or credentials. Never export it.
+        PyErr_Clear();
+        setError("remote_query call failed");
+        return NULL;
+    }
+    char *ret = NULL;
+    if (PyUnicode_Check(result)) {
+        Py_ssize_t length = 0;
+        const char *value = PyUnicode_AsUTF8AndSize(result, &length);
+        if (value != NULL && memchr(value, '\0', length) == NULL) {
+            ret = static_cast<char *>(_malloc(length + 1));
+            if (ret != NULL) {
+                memcpy(ret, value, length + 1);
+            }
+        }
+    }
+    if (ret == NULL) {
+        PyErr_Clear();
+        setError("remote_query must return a UTF-8 string without NUL bytes");
+    }
+    Py_DECREF(result);
+    return ret;
+}
+
+bool Three::cancelRemoteQuery(RtLoaderPyObject *check, const char *crawl_id)
+{
+    if (check == NULL || crawl_id == NULL) {
+        return false;
+    }
+    PyObject *result = PyObject_CallMethod(reinterpret_cast<PyObject *>(check), "cancel_remote_query", "(s)", crawl_id);
+    if (result == NULL) {
+        PyErr_Clear();
+        setError("cancel_remote_query call failed");
+        return false;
+    }
+    bool valid = result == Py_None;
+    Py_DECREF(result);
+    if (!valid) {
+        setError("cancel_remote_query must return None");
+    }
+    return valid;
+}
+
 char **Three::getCheckWarnings(RtLoaderPyObject *check)
 {
     if (check == NULL) {

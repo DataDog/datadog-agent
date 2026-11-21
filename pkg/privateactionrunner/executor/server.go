@@ -60,6 +60,12 @@ type Server struct {
 	clock        clock.Clock
 }
 
+func (s *Server) stopCancellableActions() {
+	if executor, ok := s.executor.(interface{ Stop() }); ok {
+		executor.Stop()
+	}
+}
+
 // NewServer builds a gRPC server that dispatches actions to the given core.
 func NewServer(executor actionExecutor, version string) *Server {
 	s := &Server{
@@ -241,18 +247,21 @@ func Serve(ctx context.Context, lis net.Listener, srv *Server, opts ServeOptions
 	for {
 		select {
 		case <-ctx.Done():
+			srv.stopCancellableActions()
 			stopGracefully(grpcServer, opts.DrainTimeout)
 			return nil
 		case <-idleCheck:
 			if srv.idleFor() < opts.IdleTimeout {
 				continue
 			}
+			srv.stopCancellableActions()
 			stopGracefully(grpcServer, opts.DrainTimeout)
 			if opts.OnIdleTimeout != nil {
 				opts.OnIdleTimeout()
 			}
 			return nil
 		case err := <-errCh:
+			srv.stopCancellableActions()
 			return err
 		}
 	}

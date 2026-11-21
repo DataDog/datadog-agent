@@ -40,6 +40,7 @@ filegroup(
         "yaml/private_action_runner.yaml",
         "yaml/process_config.yaml",
         "yaml/remote_configuration.yaml",
+        "yaml/remote_queries.yaml",
         "yaml/runtime_security_config.yaml",
         "yaml/sbom.yaml",
         "yaml/snmp_listener.yaml",

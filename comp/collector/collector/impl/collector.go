@@ -10,12 +10,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/internal/middleware"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
@@ -31,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	"github.com/DataDog/datadog-agent/pkg/collector/remotequeries"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
@@ -92,9 +95,10 @@ type collectorImpl struct {
 type Provides struct {
 	compdef.Out
 
-	Comp             collector.Component
-	StatusProvider   status.InformationProvider
-	MetadataProvider metadata.Provider
+	Comp                  collector.Component
+	StatusProvider        status.InformationProvider
+	MetadataProvider      metadata.Provider
+	RemoteQueriesEndpoint api.AgentEndpointProvider
 }
 
 // Module defines the fx options for this component.
@@ -115,9 +119,10 @@ func NewComponent(deps dependencies) Provides {
 	}
 
 	return Provides{
-		Comp:             c,
-		StatusProvider:   status.NewInformationProvider(collectorStatus.NewProvider(c)),
-		MetadataProvider: agentCheckMetadata,
+		Comp:                  c,
+		StatusProvider:        status.NewInformationProvider(collectorStatus.NewProvider(c)),
+		MetadataProvider:      agentCheckMetadata,
+		RemoteQueriesEndpoint: api.NewAgentEndpointProvider((&remotequeries.Service{Config: deps.Config, Checks: c.GetChecks, Log: deps.Log}).ServeHTTP, "/remote-queries", http.MethodPost),
 	}
 }
 
@@ -194,17 +199,31 @@ func (c *collectorImpl) start(_ context.Context) error {
 // stop halts any component involved in running a Check
 func (c *collectorImpl) stop(_ context.Context) error {
 	c.m.Lock()
-	defer c.m.Unlock()
-
-	if c.scheduler != nil {
-		_ = c.scheduler.Stop()
-		c.scheduler = nil
-	}
-	if c.runner != nil {
-		c.runner.Stop()
-		c.runner = nil
-	}
 	c.state.Store(stopped)
+	sched, run := c.scheduler, c.runner
+	c.scheduler, c.runner = nil, nil
+	checks := make([]*middleware.CheckWrapper, 0, len(c.checks))
+	for _, ch := range c.checks {
+		ch.StopRemoteQueries()
+		checks = append(checks, ch)
+	}
+	c.m.Unlock()
+
+	if sched != nil {
+		_ = sched.Stop()
+	}
+	if run != nil {
+		run.Stop()
+	}
+	// Idle checks are not in the runner's running-check tracker. Signal remote
+	// queries on all supporting loaded checks, including those idle at shutdown.
+	var cancelling sync.WaitGroup
+	for _, ch := range checks {
+		if ch.SupportsRemoteQueries() {
+			cancelling.Go(ch.Cancel)
+		}
+	}
+	cancelling.Wait()
 	return nil
 }
 
@@ -259,7 +278,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 
 // StopCheck halts a check and remove the instance
 func (c *collectorImpl) StopCheck(id checkid.ID) error {
-	var ch check.Check
+	var ch *middleware.CheckWrapper
 
 	// This lock is needed because stop() can be called concurrently and sets
 	// c.runner and c.scheduler to nil
@@ -279,6 +298,9 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 	collectorScheduler := c.scheduler
 	collectorRunner := c.runner
 	c.m.RUnlock()
+
+	// Close remote-query admission before unscheduling or signaling the check.
+	ch.StopRemoteQueries()
 
 	// unschedule the instance
 	if err := collectorScheduler.Cancel(id); err != nil {
