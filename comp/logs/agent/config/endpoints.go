@@ -394,6 +394,10 @@ func (e *Endpoint) UseSSL() bool {
 
 // GetStatus returns the endpoint status
 func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
+	return e.status(prefix, useHTTP, true)
+}
+
+func (e *Endpoint) status(prefix string, useHTTP bool, withAPIKey bool) string {
 	compression := "uncompressed"
 	if e.UseCompression {
 		compression = "compressed"
@@ -402,7 +406,6 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	host := e.Host
 	port := e.Port
 	pathPrefix := e.PathPrefix
-	redactedAPIKey := scrubber.HideKeyExceptLastChars(e.GetAPIKey())
 	var protocol string
 	if useHTTP {
 		if e.UseSSL() {
@@ -427,7 +430,10 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 		}
 	}
 
-	status := fmt.Sprintf("%sSending %s logs in %s to %s on port %d (API Key: %s)", prefix, compression, protocol, host, port, redactedAPIKey)
+	status := fmt.Sprintf("%sSending %s logs in %s to %s on port %d", prefix, compression, protocol, host, port)
+	if withAPIKey {
+		status = fmt.Sprintf("%s (API Key: %s)", status, scrubber.HideKeyExceptLastChars(e.GetAPIKey()))
+	}
 	if pathPrefix != EmptyPathPrefix {
 		status = fmt.Sprintf("%s and path prefix \"%s\"", status, pathPrefix)
 	}
@@ -462,11 +468,7 @@ func (e *Endpoint) onConfigUpdateFromReaderMainEndpoint(config model.Reader) {
 				// missed
 				log.Warnf("old API key for '%s' doesn't match the one in this endpoints", e.configSettingPath)
 			}
-			log.Infof("rotating API key for '%s': %s -> %s",
-				e.configSettingPath,
-				scrubber.HideKeyExceptLastChars(e.GetAPIKey()),
-				scrubber.HideKeyExceptLastChars(newAPIKey),
-			)
+			log.Infof("rotating API key for '%s'", e.configSettingPath)
 			e.credential.Store(&endpointCredential{apiKey: newAPIKey})
 		}
 	})
@@ -537,16 +539,10 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 			log.Warnf("delegated auth was enabled at runtime for endpoint '%s' number %d; sending is disabled until the Agent restarts", e.configSettingPath, e.additionalEndpointsIdx)
 			return
 		}
-		oldAPIKey := e.GetAPIKey()
 		if !e.storeCredentialUnlessInvalid(&endpointCredential{apiKey: newAPIKey}) {
 			return
 		}
-		log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
-			e.configSettingPath,
-			e.additionalEndpointsIdx,
-			scrubber.HideKeyExceptLastChars(oldAPIKey),
-			scrubber.HideKeyExceptLastChars(newAPIKey),
-		)
+		log.Infof("rotating API key for '%s' endpoints number %d", e.configSettingPath, e.additionalEndpointsIdx)
 	}
 
 	l.getConfig().OnUpdate(func(key string, _ model.Source, _ interface{}, _ interface{}, _ uint64, _ model.Source) {
@@ -582,12 +578,22 @@ type Endpoints struct {
 
 // GetStatus returns the endpoints status, one line per endpoint
 func (e *Endpoints) GetStatus() []string {
+	return e.status(true)
+}
+
+// GetStatusWithoutAPIKeys returns the endpoints status without any API key
+// characters, one line per endpoint, for writing to logs.
+func (e *Endpoints) GetStatusWithoutAPIKeys() []string {
+	return e.status(false)
+}
+
+func (e *Endpoints) status(withAPIKey bool) []string {
 	result := make([]string, 0)
 	for _, endpoint := range e.GetReliableEndpoints() {
-		result = append(result, endpoint.GetStatus("Reliable: ", e.UseHTTP))
+		result = append(result, endpoint.status("Reliable: ", e.UseHTTP, withAPIKey))
 	}
 	for _, endpoint := range e.GetUnReliableEndpoints() {
-		result = append(result, endpoint.GetStatus("Unreliable: ", e.UseHTTP))
+		result = append(result, endpoint.status("Unreliable: ", e.UseHTTP, withAPIKey))
 	}
 	return result
 }

@@ -63,7 +63,7 @@ func NewLogContext(logsConfig *logsconfig.LogsConfigKeys, endpointPrefix string,
 		return nil, nil, fmt.Errorf("invalid endpoints: %w", err)
 	}
 
-	for _, status := range endpoints.GetStatus() {
+	for _, status := range endpoints.GetStatusWithoutAPIKeys() {
 		log.Info(status)
 	}
 
