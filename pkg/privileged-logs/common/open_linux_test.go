@@ -104,3 +104,38 @@ func TestOpenPathWithoutSymlinksSymlinkSwap(t *testing.T) {
 	assert.Nil(t, f2)
 	assert.ErrorIs(t, err, syscall.ELOOP)
 }
+
+func TestOpenPathWithoutSymlinksRelativePath(t *testing.T) {
+	_, err := OpenPathWithoutSymlinks("relative/path.log")
+	assert.ErrorContains(t, err, "path must be absolute")
+}
+
+func TestOpenPathWithoutSymlinksSearchOnlyDirectory(t *testing.T) {
+	// Root would bypass the read permission check that this test is about.
+	if os.Geteuid() == 0 {
+		t.Skip("test requires a non-root effective UID")
+	}
+	dir := filepath.Join(t.TempDir(), "searchonly")
+	require.NoError(t, os.Mkdir(dir, 0755))
+	logFile := filepath.Join(dir, "test.log")
+	require.NoError(t, os.WriteFile(logFile, []byte("hello"), 0644))
+	// Search permission is enough to open files in a directory.
+	require.NoError(t, os.Chmod(dir, 0111))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0755) })
+
+	f, err := OpenPathWithoutSymlinks(logFile)
+	require.NoError(t, err)
+	f.Close()
+}
+
+func TestOpenPathWithoutSymlinksDoesNotLeak(t *testing.T) {
+	countFDs := func() int {
+		entries, err := os.ReadDir("/proc/self/fd")
+		require.NoError(t, err)
+		return len(entries)
+	}
+	before := countFDs()
+	_, err := OpenPathWithoutSymlinks(filepath.Join(t.TempDir(), "missing", "test.log"))
+	require.Error(t, err)
+	assert.Equal(t, before, countFDs())
+}

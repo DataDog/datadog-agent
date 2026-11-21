@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -185,7 +186,7 @@ func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenPrivilegedNoFollowRej
 	file, err := client.OpenPrivilegedNoFollow(s.handler.SocketPath, symlinkPath)
 	require.Error(s.T(), err)
 	assert.Nil(s.T(), file)
-	assert.Contains(s.T(), err.Error(), "too many levels of symbolic links")
+	assert.Contains(s.T(), strings.ToLower(err.Error()), "too many levels of symbolic links")
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_SymlinkToNonLogFile() {
@@ -251,7 +252,7 @@ func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenFallbackNoFollowRejec
 	require.Error(s.T(), err)
 	assert.Nil(s.T(), file)
 	assert.Contains(s.T(), err.Error(), "failed to open file with system-probe")
-	assert.Contains(s.T(), err.Error(), "too many levels of symbolic links")
+	assert.Contains(s.T(), strings.ToLower(err.Error()), "too many levels of symbolic links")
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenFallbackError() {
