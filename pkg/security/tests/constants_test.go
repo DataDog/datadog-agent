@@ -46,6 +46,9 @@ var BTFHubVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameSignalStructLive,
 	constantfetch.OffsetNameSignalStructGroupExitCode,
 	constantfetch.OffsetNameSignalStructFlags,
+	constantfetch.OffsetNameTaskStructFiles,
+	constantfetch.OffsetNameFilesStructFdt,
+	constantfetch.OffsetNameFdtableStructFd,
 }
 
 func TestOctogonConstants(t *testing.T) {
