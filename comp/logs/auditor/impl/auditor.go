@@ -23,9 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-// defaultFlushPeriod is the interval between registry writes while the agent
-// is running. Stop writes once more after acknowledgements queued at shutdown
-// have been applied.
+// defaultFlushPeriod is the default interval between registry writes while
+// the agent is running (logs_config.auditor_flush_interval). It also replaces
+// a configured value that is not positive. Stop writes once more after
+// acknowledgements queued at shutdown have been applied.
 const defaultFlushPeriod = 5 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
 
@@ -65,6 +66,7 @@ type registryAuditor struct {
 	registryTmpFile     string
 	registryMutex       sync.Mutex
 	entryTTL            time.Duration
+	flushPeriod         time.Duration
 	done                chan struct{}
 	messageChannelSize  int
 	registryWriter      auditor.RegistryWriter
@@ -91,6 +93,7 @@ func newAuditor(deps Dependencies) *registryAuditor {
 	ttl := time.Duration(deps.Config.GetInt("logs_config.auditor_ttl")) * time.Hour
 	messageChannelSize := deps.Config.GetInt("logs_config.message_channel_size")
 	atomicRegistryWrite := deps.Config.GetBool("logs_config.atomic_registry_write")
+	flushPeriod := flushPeriodFromConfig(deps)
 
 	var registryWriter auditor.RegistryWriter
 	if atomicRegistryWrite {
@@ -105,6 +108,7 @@ func newAuditor(deps Dependencies) *registryAuditor {
 		registryTmpFile:     filepath.Base(filename) + ".tmp",
 		tailedSources:       make(map[string]bool),
 		entryTTL:            ttl,
+		flushPeriod:         flushPeriod,
 		messageChannelSize:  messageChannelSize,
 		log:                 deps.Log,
 		kubeHealthRegistrar: deps.KubeHealth,
@@ -112,6 +116,19 @@ func newAuditor(deps Dependencies) *registryAuditor {
 	}
 
 	return registryAuditor
+}
+
+// flushPeriodFromConfig reads logs_config.auditor_flush_interval, in seconds.
+// A value that is not positive, or that rounds to less than a nanosecond,
+// falls back to defaultFlushPeriod because time.NewTicker rejects it.
+func flushPeriodFromConfig(deps Dependencies) time.Duration {
+	seconds := deps.Config.GetFloat64("logs_config.auditor_flush_interval")
+	period := time.Duration(seconds * float64(time.Second))
+	if period <= 0 {
+		deps.Log.Warnf("logs_config.auditor_flush_interval must be greater than 0, got %v; using the default of %v", seconds, defaultFlushPeriod)
+		return defaultFlushPeriod
+	}
+	return period
 }
 
 // NewComponent creates a new auditor component
@@ -272,7 +289,7 @@ func (a *registryAuditor) SetOffset(identifier string, offset string) {
 // run keeps up to date the registry on different events
 func (a *registryAuditor) run() {
 	cleanUpTicker := time.NewTicker(defaultCleanupPeriod)
-	flushTicker := time.NewTicker(defaultFlushPeriod)
+	flushTicker := time.NewTicker(a.flushPeriod)
 
 	defer func() {
 		// Clean the context

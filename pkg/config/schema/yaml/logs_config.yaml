@@ -299,6 +299,13 @@ properties:
       other: true
     comment: If true, then the registry file will be written atomically. This behavior
       is not supported on ECS Fargate.
+  auditor_flush_interval:
+    node_type: setting
+    type: number
+    default: 5
+    comment: |-
+      Time in seconds between writes of the logs registry file while the agent runs.
+      Fractional values are accepted. Values of 0 or less fall back to the default.
   auditor_ttl:
     node_type: setting
     type: integer
