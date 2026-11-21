@@ -38,10 +38,16 @@ func TestIssueDiscriminator_FallsBackToOSHostnameWithoutHostID(t *testing.T) {
 // worst way to find out.
 func TestIssueDiscriminator_NilSelfIdentFallsBackToHostID(t *testing.T) {
 	assert.Equal(t, "some-host-id", IssueDiscriminator(nil, "some-host-id"))
+	var resolver *selfident.SelfIdent
+	assert.Equal(t, "some-host-id", IssueDiscriminator(resolver, "some-host-id"))
 }
 
 func TestResourceIdentity_NilSelfIdentFallsBackToHost(t *testing.T) {
 	resourceType, resourceID := ResourceIdentity(flavor.DefaultAgent, nil, "some-host")
+	assert.Equal(t, "host", resourceType)
+	assert.Equal(t, "some-host", resourceID)
+	var resolver *selfident.SelfIdent
+	resourceType, resourceID = ResourceIdentity(flavor.DefaultAgent, resolver, "some-host")
 	assert.Equal(t, "host", resourceType)
 	assert.Equal(t, "some-host", resourceID)
 }
