@@ -42,9 +42,8 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 		return
 	}
 
-	_name := C.GoString(metricName)
+	_name, _hostname := internCStrings(metricName, hostname)
 	_value := float64(value)
-	_hostname := C.GoString(hostname)
 	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
 	_flushFirstValue := bool(flushFirstValue)
 
@@ -166,10 +165,9 @@ func submitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 		return
 	}
 
-	_name := C.GoString(metricName)
+	_name, _hostname := internCStrings(metricName, hostname)
 	_value := int64(value)
 	_monotonic := (monotonic != 0)
-	_hostname := C.GoString(hostname)
 	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
 	_flushFirstValue := bool(flushFirstValue)
 
