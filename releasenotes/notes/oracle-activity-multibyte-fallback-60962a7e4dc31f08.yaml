@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix Oracle activity sampling skipping full SQL retrieval for truncated multibyte statements.

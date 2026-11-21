@@ -128,7 +128,9 @@ type OracleActivityRowDB struct {
 	WaitEventClass             sql.NullString `db:"WAIT_CLASS"`
 	WaitTimeMicro              *uint64        `db:"WAIT_TIME_MICRO"`
 	Statement                  sql.NullString `db:"SQL_FULLTEXT"`
+	StatementLength            sql.NullInt64  `db:"SQL_FULLTEXT_LENGTH"`
 	PrevSQLFullText            sql.NullString `db:"PREV_SQL_FULLTEXT"`
+	PrevSQLFullTextLength      sql.NullInt64  `db:"PREV_SQL_FULLTEXT_LENGTH"`
 	PdbName                    sql.NullString `db:"PDB_NAME"`
 	CommandName                sql.NullString `db:"COMMAND_NAME"`
 }
