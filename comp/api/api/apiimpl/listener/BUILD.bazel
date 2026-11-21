@@ -36,6 +36,8 @@ dd_agent_go_test(
         "listener_other_test.go",
     ],
     embed = [":listener"],
+    # Unix socket paths exceed sun_path on RBE workers
+    tags = ["no-remote-exec"],
     deps = [
         "//pkg/config/mock",
         "@com_github_stretchr_testify//require",

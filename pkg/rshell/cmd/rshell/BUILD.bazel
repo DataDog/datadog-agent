@@ -54,6 +54,8 @@ dd_agent_go_test(
         "privileged_worker_linux_test.go",
     ],
     embed = [":rshell_lib"],
+    # RBE worker TMPDIR is mode 0777, rejected as a socket directory
+    tags = ["no-remote-exec"],
     deps = [
         "//pkg/rshell/internal/version",
         "//pkg/rshell/interp",
