@@ -11,10 +11,32 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestDockerRuntimeNeedsRepair(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "daemon.json")
+	assert.True(t, dockerRuntimeNeedsRepair(configPath))
+	for _, tc := range []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{"uninstalled", `{"default-runtime":"runc","runtimes":{}}`, true},
+		{"missing runtime", `{"default-runtime":"dd-shim","runtimes":{}}`, true},
+		{"wrong path", `{"default-runtime":"dd-shim","runtimes":{"dd-shim":{"path":"/old/shim"}}}`, true},
+		{"installed", `{"default-runtime":"dd-shim","runtimes":{"dd-shim":{"path":"/opt/datadog-packages/datadog-apm-inject/stable/inject/auto_inject_runc"}}}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.NoError(t, os.WriteFile(configPath, []byte(tc.content), 0600))
+			assert.Equal(t, tc.want, dockerRuntimeNeedsRepair(configPath))
+		})
+	}
+}
 
 func TestSetDockerConfig(t *testing.T) {
 	a := &InjectorInstaller{

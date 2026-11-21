@@ -261,12 +261,12 @@ func (s *Setup) prepareAPMInjectorReinstall(ctx context.Context, packages []pack
 	if !installed {
 		return false, nil
 	}
+	if detectAPMInjectorReinstall(s.Env.InstallScript.APMInstrumentationEnabled) {
+		return true, nil
+	}
 	if !installingAgent {
-		// The public Agent install script installs its DEB/RPM first and then
-		// invokes the standalone APM SSI setup flavor. That flavor does not
-		// request an Agent OCI package, so detect the stale old-installer/tmpfs
-		// combination from the injector state itself.
-		return detectAPMInjectorReinstall(), nil
+		// A standalone injector setup has no Agent version to compare.
+		return false, nil
 	}
 
 	agentState, err := s.installer.State(ctx, DatadogAgentPackage)
