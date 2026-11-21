@@ -380,6 +380,8 @@ type UprobeAttacher struct {
 	// Used to detach them once the path is no longer used.
 	fileIDToAttachedProbes map[utils.PathIdentifier][]manager.ProbeIdentificationPair
 
+	multi *multiUprobeAttacher
+
 	// onAttachCallback is a callback that is called whenever a probe is attached
 	onAttachCallback AttachCallback
 
@@ -971,6 +973,9 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 }
 
 func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, fpath utils.FilePath, fpathUID string, rule *AttachRule, inspectResult map[string]bininspect.FunctionMetadata) error {
+	if ua.multi != nil {
+		return ua.attachMultiProbeSelector(selector, fpath, rule, inspectResult)
+	}
 	_, isBestEffort := selector.(*manager.BestEffort)
 
 	for _, probeID := range selector.GetProbesIdentificationPairList() {
@@ -1090,6 +1095,11 @@ func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) (map[int]
 }
 
 func (ua *UprobeAttacher) detachFromBinary(fpath utils.FilePath) error {
+	if ua.multi != nil {
+		err := ua.detachMultiProbes(fpath)
+		ua.inspector.Cleanup(fpath)
+		return err
+	}
 	for _, probeID := range ua.fileIDToAttachedProbes[fpath.ID] {
 		err := ua.manager.DetachHook(probeID)
 		if err != nil {

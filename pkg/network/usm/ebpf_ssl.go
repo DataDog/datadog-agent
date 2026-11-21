@@ -895,3 +895,5 @@ func (o *sslProgram) deleteDeadPidsInSSLCtxMap(alivePIDs map[uint32]struct{}) er
 
 	return nil
 }
+
+func (o *sslProgram) getUprobeAttacher() *uprobes.UprobeAttacher { return o.attacher }

@@ -89,7 +89,8 @@ type ebpfProgram struct {
 	enabledProtocols  []*protocols.ProtocolSpec
 	disabledProtocols []*protocols.ProtocolSpec
 
-	buildMode buildmode.Type
+	buildMode    buildmode.Type
+	multiUprobes *uprobeMulti
 }
 
 func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
@@ -140,8 +141,10 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		}
 	}
 
+	multiUprobes := &uprobeMulti{}
 	program := &ebpfProgram{
-		Manager:               ddebpf.NewManager(mgr, "usm", &ebpftelemetry.ErrorsTelemetryModifier{}),
+		multiUprobes:          multiUprobes,
+		Manager:               ddebpf.NewManager(mgr, "usm", &ebpftelemetry.ErrorsTelemetryModifier{}, multiUprobes),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
 	}
@@ -522,6 +525,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
+	e.multiUprobes.configure(e.cfg.EnableUprobeMulti, supported, e.tailCallRouter)
 	err := e.InitWithOptions(buf, &options)
 	if err != nil {
 		cleanup()

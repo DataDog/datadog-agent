@@ -243,3 +243,5 @@ func (*istioMonitor) GetStats() (*protocols.ProtocolStats, func()) {
 func (*istioMonitor) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
+
+func (m *istioMonitor) getUprobeAttacher() *uprobes.UprobeAttacher { return m.attacher }
