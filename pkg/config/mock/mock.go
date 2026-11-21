@@ -29,7 +29,7 @@ type mockConfig struct {
 	model.BuildableConfig
 }
 
-// New creates a mock for the config
+// New creates a mock for the config. The override functions registered until the end of the test are removed then.
 func New(t testing.TB) model.BuildableConfig {
 	m.Lock()
 	defer m.Unlock()
@@ -40,6 +40,7 @@ func New(t testing.TB) model.BuildableConfig {
 
 	isConfigMocked = true
 	originalDatadogConfig := setup.GlobalConfigBuilder()
+	restoreOverrideFuncsAtCleanup(t)
 	t.Cleanup(func() {
 		m.Lock()
 		defer m.Unlock()
@@ -76,7 +77,8 @@ func NewFromFile(t testing.TB, yamlFilePath string) model.BuildableConfig {
 	return conf
 }
 
-// NewSystemProbe creates a mock for the system-probe config
+// NewSystemProbe creates a mock for the system-probe config. The override functions registered until the end of the
+// test are removed then.
 func NewSystemProbe(t testing.TB) model.BuildableConfig {
 	// We only check isSystemProbeConfigMocked when registering a cleanup function. 'isSystemProbeConfigMocked'
 	// avoids nested calls to Mock to reset the config to a blank state. This way we have only one mock per test and
@@ -91,6 +93,7 @@ func NewSystemProbe(t testing.TB) model.BuildableConfig {
 
 		isSystemProbeConfigMocked = true
 		originalConfig := setup.GlobalSystemProbeConfigBuilder()
+		restoreOverrideFuncsAtCleanup(t)
 		t.Cleanup(func() {
 			m.Lock()
 			defer m.Unlock()

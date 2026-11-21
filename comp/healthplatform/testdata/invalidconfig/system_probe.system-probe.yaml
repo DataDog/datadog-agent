@@ -1,0 +1,11 @@
+system_probe_config:
+  # integer setting receiving a string
+  health_port: not-a-number
+  # string setting receiving a list
+  internal_profiling:
+    api_key: [RAW_SYSPROBE_API_KEY_e2e]
+  # map of lists receiving a list, and a mapping as a value under a key holding URL credentials
+  source_excludes: [10.0.0.0/8]
+  dest_excludes:
+    "https://qa:RAW_SYSPROBE_URL_PASSWORD_e2e@example.test":
+      port: 443
