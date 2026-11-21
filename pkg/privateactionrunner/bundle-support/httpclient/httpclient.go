@@ -27,7 +27,11 @@ const (
 type RunnerHttpClient struct{}
 
 type RunnerHttpClientConfig struct {
-	MaxRedirect        int
+	MaxRedirect int
+	// DisableRedirects returns 3xx responses to the caller instead of following them.
+	DisableRedirects bool
+	// CheckRedirectURL vets each redirect target before it is followed.
+	CheckRedirectURL   func(*url.URL) error
 	Transport          *RunnerHttpTransportConfig
 	AllowIMDSEndpoints bool
 	HTTPTimeout        time.Duration
@@ -60,7 +64,11 @@ func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, er
 		Timeout:   clientConfig.HTTPTimeout,
 		Transport: transport,
 	}
-	if clientConfig.SameOriginRedirectsOnly {
+	if clientConfig.DisableRedirects {
+		client.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	} else if clientConfig.SameOriginRedirectsOnly {
 		maxRedirect := clientConfig.MaxRedirect
 		if maxRedirect == 0 {
 			maxRedirect = defaultMaxRedirects
@@ -72,12 +80,22 @@ func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, er
 			if !isSameOriginRedirect(via[0].URL, req.URL) {
 				return fmt.Errorf("refusing redirect from %s to a different origin %s", via[0].URL.Host, req.URL.Host)
 			}
+			if clientConfig.CheckRedirectURL != nil {
+				return clientConfig.CheckRedirectURL(req.URL)
+			}
 			return nil
 		}
-	} else if clientConfig.MaxRedirect != 0 {
+	} else if clientConfig.MaxRedirect != 0 || clientConfig.CheckRedirectURL != nil {
+		maxRedirect := clientConfig.MaxRedirect
+		if maxRedirect == 0 {
+			maxRedirect = defaultMaxRedirects
+		}
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			if len(via) >= clientConfig.MaxRedirect {
-				return fmt.Errorf("stopped after %d redirects", clientConfig.MaxRedirect)
+			if len(via) >= maxRedirect {
+				return fmt.Errorf("stopped after %d redirects", maxRedirect)
+			}
+			if clientConfig.CheckRedirectURL != nil {
+				return clientConfig.CheckRedirectURL(req.URL)
 			}
 			return nil
 		}

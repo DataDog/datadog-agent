@@ -36,4 +36,13 @@ var (
 	TestingName              = "testing"
 	TestingPathName          = "path"
 	TestingVerbName          = "verb"
+
+	// OAuth2 settings of an HTTP connection. Only client_secret is secret.
+	OAuth2GroupName                 = "oauth2"
+	OAuth2GrantTypeTokenName        = "grant_type"
+	OAuth2TokenURLTokenName         = "token_url"
+	OAuth2ClientIDTokenName         = "client_id"
+	OAuth2ClientSecretTokenName     = "client_secret"
+	OAuth2ScopesTokenName           = "scopes"
+	OAuth2ClientAuthMethodTokenName = "client_auth_method"
 )
