@@ -84,7 +84,15 @@ func TestNewComponent(t *testing.T) {
 }
 
 func TestNoopWorkloadToken(t *testing.T) {
-	token, err := NewComponent().Comp.GetWorkloadToken(context.Background(), "api_key", common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}})
+	comp := NewComponent().Comp
+	require.False(t, comp.IsInstanceManaged("api_key"))
+
+	token, err := comp.GetWorkloadToken(context.Background(), "api_key", common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}})
 	require.ErrorContains(t, err, "not enabled")
 	require.Empty(t, token)
+
+	wt, err := comp.GetWorkloadTokenWithExpiry(context.Background(), "api_key", common.WorkloadTokenRequest{Grants: []string{"remote_config"}})
+	require.ErrorContains(t, err, "not enabled")
+	require.Empty(t, wt.Token)
+	require.True(t, wt.ExpiresAt.IsZero())
 }

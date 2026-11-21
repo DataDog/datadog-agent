@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -129,4 +130,46 @@ func TestWorkloadTokenRejectsRemovedAdditionalEndpoint(t *testing.T) {
 	token, err := d.GetWorkloadToken(context.Background(), "additional-key", common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}})
 	require.ErrorIs(t, err, errWritebackTargetChanged)
 	require.Empty(t, token)
+}
+
+func TestGetWorkloadTokenWithExpiryAndIsInstanceManaged(t *testing.T) {
+	cfg := mock.New(t)
+	cfg.SetInTest("skip_ssl_validation", true)
+	d := NewComponent().Comp.(*delegatedAuthComponent)
+	d.config = cfg
+
+	require.False(t, d.IsInstanceManaged("api_key"))
+
+	// Unrelated instance does not mark api_key as managed.
+	d.instances["logs_config.api_key"] = &authInstance{provider: workloadProvider{}}
+	require.False(t, d.IsInstanceManaged("api_key"))
+	require.True(t, d.IsInstanceManaged("logs_config.api_key"))
+
+	// Async startup recovery counts as managed even before the instance is ready.
+	d.startupRecoveries["api_key"] = &startupRecovery{}
+	require.True(t, d.IsInstanceManaged("api_key"))
+	delete(d.startupRecoveries, "api_key")
+	require.False(t, d.IsInstanceManaged("api_key"))
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/v2/delegated-token?token_type=workload", r.URL.RequestURI())
+		fmt.Fprint(w, `{"data":{"type":"token","attributes":{"access_token":"rc-wt","expires":"1800003600"}}}`)
+	}))
+	defer server.Close()
+	cfg.SetInTest("dd_url", server.URL)
+
+	d.instances["api_key"] = &authInstance{
+		authConfig: &common.AuthConfig{OrgUUID: "org-uuid"},
+		provider: workloadProvider{proof: func(_ context.Context, _ pkgconfigmodel.Reader, _ *common.AuthConfig, req common.WorkloadTokenRequest) (string, error) {
+			require.Equal(t, []string{"remote_config"}, req.Grants)
+			require.Empty(t, req.JWKThumbprint)
+			return "proof", nil
+		}},
+	}
+	require.True(t, d.IsInstanceManaged("api_key"))
+
+	tok, err := d.GetWorkloadTokenWithExpiry(context.Background(), "api_key", common.WorkloadTokenRequest{Grants: []string{"remote_config"}})
+	require.NoError(t, err)
+	require.Equal(t, "rc-wt", tok.Token)
+	require.Equal(t, time.Unix(1800003600, 0).UTC(), tok.ExpiresAt)
 }

@@ -749,10 +749,28 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 	}()
 }
 
+// IsInstanceManaged reports whether apiKeyConfigKey is currently managed by
+// delegated auth, either as an active instance or under async startup recovery.
+func (d *delegatedAuthComponent) IsInstanceManaged(apiKeyConfigKey string) bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.instances[apiKeyConfigKey] != nil || d.startupRecoveries[apiKeyConfigKey] != nil
+}
+
 // GetWorkloadToken uses the selected intake instance without changing its refresh state.
 func (d *delegatedAuthComponent) GetWorkloadToken(ctx context.Context, apiKeyConfigKey string, request common.WorkloadTokenRequest) (string, error) {
-	if err := ctx.Err(); err != nil {
+	tok, err := d.GetWorkloadTokenWithExpiry(ctx, apiKeyConfigKey, request)
+	if err != nil {
 		return "", err
+	}
+	return tok.Token, nil
+}
+
+// GetWorkloadTokenWithExpiry uses the selected intake instance without changing
+// its refresh state, returning the opaque token and server-reported expiration.
+func (d *delegatedAuthComponent) GetWorkloadTokenWithExpiry(ctx context.Context, apiKeyConfigKey string, request common.WorkloadTokenRequest) (common.WorkloadToken, error) {
+	if err := ctx.Err(); err != nil {
+		return common.WorkloadToken{}, err
 	}
 	d.mu.RLock()
 	instance := d.instances[apiKeyConfigKey]
@@ -772,18 +790,18 @@ func (d *delegatedAuthComponent) GetWorkloadToken(ctx context.Context, apiKeyCon
 	}
 	d.mu.RUnlock()
 	if instance == nil {
-		return "", fmt.Errorf("delegated auth instance %q is unavailable: %s", apiKeyConfigKey, unavailableReason)
+		return common.WorkloadToken{}, fmt.Errorf("delegated auth instance %q is unavailable: %s", apiKeyConfigKey, unavailableReason)
 	}
 	// These instance fields are fixed at construction. Keep the selected instance
 	// for this request and release the component lock before any network work.
 	provider, ok := instance.provider.(common.WorkloadProvider)
 	if !ok {
-		return "", fmt.Errorf("delegated auth instance %q does not support workload tokens", apiKeyConfigKey)
+		return common.WorkloadToken{}, fmt.Errorf("delegated auth instance %q does not support workload tokens", apiKeyConfigKey)
 	}
 	if err := d.validateAdditionalEndpointTarget(instance); err != nil {
-		return "", err
+		return common.WorkloadToken{}, err
 	}
-	return api.GetWorkloadToken(ctx, cfg, provider, instance.authConfig, request, instance.targetSite)
+	return api.GetWorkloadTokenWithExpiry(ctx, cfg, provider, instance.authConfig, request, instance.targetSite)
 }
 
 // authenticate uses the configured provider to generate an auth proof, then exchanges it for an API key

@@ -10,12 +10,21 @@ import (
 	"encoding/base64"
 	"errors"
 	"regexp"
+	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
+// WorkloadToken holds an opaque workload token and its server-reported expiration.
+// ExpiresAt is zero if the backend omitted or returned an unparseable expiration.
+type WorkloadToken struct {
+	Token     string
+	ExpiresAt time.Time
+}
+
 // WorkloadTokenRequest asks ETS for explicit grants. Key binding is optional at
-// the protocol level; the par_enrollment grant requires a public-key thumbprint.
+// the protocol level; the par_enrollment grant requires a public-key thumbprint,
+// while remote_config does not require key binding.
 type WorkloadTokenRequest struct {
 	Grants        []string `json:"grants"`
 	JWKThumbprint string   `json:"jwk_thumbprint,omitempty"`

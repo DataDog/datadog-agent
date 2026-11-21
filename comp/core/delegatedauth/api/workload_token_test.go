@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -129,4 +130,68 @@ func TestGetWorkloadTokenStopsBeforeExchange(t *testing.T) {
 	require.ErrorContains(t, err, "HTTPS")
 	_, err = GetWorkloadToken(context.Background(), cfg, provider, nil, common.WorkloadTokenRequest{}, "datadoghq.com")
 	require.ErrorContains(t, err, "grants")
+}
+
+func TestGetWorkloadTokenWithExpiry(t *testing.T) {
+	provider := workloadProofFunc(func(context.Context, pkgconfigmodel.Reader, *common.AuthConfig, common.WorkloadTokenRequest) (string, error) {
+		return "signed-proof", nil
+	})
+	request := common.WorkloadTokenRequest{Grants: []string{"remote_config"}}
+
+	for _, tc := range []struct {
+		name       string
+		body       string
+		wantExpiry time.Time
+	}{
+		{
+			name:       "unix seconds string",
+			body:       `{"data":{"type":"token","attributes":{"access_token":"rc-token","expires":"1800000000"}}}`,
+			wantExpiry: time.Unix(1800000000, 0).UTC(),
+		},
+		{
+			name:       "unix seconds integer",
+			body:       `{"data":{"type":"token","attributes":{"access_token":"rc-token","expires":1800000000}}}`,
+			wantExpiry: time.Unix(1800000000, 0).UTC(),
+		},
+		{
+			name:       "rfc3339 string",
+			body:       `{"data":{"type":"token","attributes":{"access_token":"rc-token","expires":"2027-01-15T12:00:00Z"}}}`,
+			wantExpiry: time.Date(2027, 1, 15, 12, 0, 0, 0, time.UTC),
+		},
+		{
+			name:       "missing expiry falls back to zero",
+			body:       `{"data":{"type":"token","attributes":{"access_token":"rc-token"}}}`,
+			wantExpiry: time.Time{},
+		},
+		{
+			name:       "unparseable expiry falls back to zero",
+			body:       `{"data":{"type":"token","attributes":{"access_token":"rc-token","expires":"not-a-timestamp"}}}`,
+			wantExpiry: time.Time{},
+		},
+		{
+			name:       "negative expiry falls back to zero",
+			body:       `{"data":{"type":"token","attributes":{"access_token":"rc-token","expires":"-10"}}}`,
+			wantExpiry: time.Time{},
+		},
+		{
+			name:       "unexpected object expiry does not reject valid token",
+			body:       `{"data":{"type":"token","attributes":{"access_token":"rc-token","expires":{"bad":true}}}}`,
+			wantExpiry: time.Time{},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				fmt.Fprint(w, tc.body)
+			}))
+			defer server.Close()
+			cfg := mock.New(t)
+			cfg.SetInTest("dd_url", server.URL)
+			cfg.SetInTest("skip_ssl_validation", true)
+
+			tok, err := GetWorkloadTokenWithExpiry(context.Background(), cfg, provider, &common.AuthConfig{OrgUUID: "org-uuid"}, request, "")
+			require.NoError(t, err)
+			require.Equal(t, "rc-token", tok.Token)
+			require.Equal(t, tc.wantExpiry, tok.ExpiresAt)
+		})
+	}
 }
