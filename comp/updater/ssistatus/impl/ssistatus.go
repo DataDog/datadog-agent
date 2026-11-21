@@ -41,6 +41,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		inventoryAgent: reqs.InventoryAgent,
 		log:            reqs.Log,
 	}
+	// Populate inventoryAgent during component construction, before FX OnStart launches the
+	// metadata runner, so the first agent_metadata payload already includes the SSI status.
+	ssiStatus.update()
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: ssiStatus.Start, OnStop: ssiStatus.Stop})
 
 	provides := Provides{
@@ -71,7 +74,6 @@ func (c *ssiStatusComponent) Start(_ context.Context) error {
 			}
 		}
 	}()
-	c.update()
 	return nil
 }
 
