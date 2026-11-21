@@ -39,6 +39,7 @@ import (
 type TestbenchParamsFile struct {
 	UseMetricPipeline bool                       `json:"use_metric_pipeline"`
 	AnomalyCutoff     *bool                      `json:"anomaly_cutoff"`
+	Stable            json.RawMessage            `json:"stable,omitempty"`
 	Components        map[string]json.RawMessage `json:"components"`
 	LogTimeBuckets    json.RawMessage            `json:"log_time_buckets,omitempty"`
 }
@@ -70,6 +71,16 @@ func LoadTestbenchParams(path string) (observerimpl.ComponentSettings, error) {
 	}
 	settings.UseMetricPipeline = file.UseMetricPipeline
 	settings.MetricPipelineAnomalyCutoff = file.AnomalyCutoff
+	stablePipeline, err := observerimpl.ParseStablePipelineConfigJSON(file.Stable)
+	if err != nil {
+		return settings, err
+	}
+	if stablePipeline != nil {
+		settings.StablePipeline = stablePipeline
+	} else if file.UseMetricPipeline && settings.StablePipeline == nil {
+		stable := observerimpl.DefaultStablePipelineConfig()
+		settings.StablePipeline = &stable
+	}
 	if len(file.LogTimeBuckets) > 0 && string(file.LogTimeBuckets) != "null" {
 		buckets := observerimpl.DefaultLogCountBucketConfig()
 		if err := json.Unmarshal(file.LogTimeBuckets, &buckets); err != nil {

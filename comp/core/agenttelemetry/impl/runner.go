@@ -20,6 +20,8 @@ type runner interface {
 
 type runnerImpl struct {
 	taskCron *cron.Cron
+	// cronLogger receives the scheduler's events, such as skipped runs.
+	cronLogger cron.Logger
 }
 
 type runnerSchedule struct {
@@ -73,11 +75,19 @@ func (rs *runnerSchedule) Next(now time.Time) time.Time {
 
 // newRunner registers callback.
 func newRunnerImpl() runner {
-	return &runnerImpl{}
+	return &runnerImpl{cronLogger: cron.DiscardLogger}
 }
 
 func (r *runnerImpl) start() {
-	r.taskCron = cron.New()
+	// A run that is still going when its next one is due makes that next one skipped, never run
+	// concurrently. Concurrent runs of a profile could convert their gathered values out of order:
+	// the later gather would update the previous-value cache first, and the earlier one would then
+	// see a lower cumulative value, take it for a reset and report a wrong delta. Their payloads
+	// could also reach the intake out of order. Skipping loses no counter or histogram data: deltas
+	// are computed from cumulative values, so the next run reports what happened during both
+	// periods. A skipped run still counts toward the schedule's iterations, and gauges miss one
+	// sample.
+	r.taskCron = cron.New(cron.WithChain(cron.SkipIfStillRunning(r.cronLogger)))
 	r.taskCron.Start()
 }
 

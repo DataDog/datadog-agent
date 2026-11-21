@@ -7,6 +7,7 @@ package intakeroutingimpl
 
 import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	intakerouting "github.com/DataDog/datadog-agent/comp/intakerouting/def"
 )
 
 // telemetrySubsystem prefixes every metric. Agent telemetry (COAT) names them
@@ -37,8 +38,24 @@ type routingTelemetry struct {
 	activeOverrides  telemetry.Gauge
 }
 
+// telemetryTypes lists every telemetry type a consumer can register. The metrics are created for
+// each of them up front.
+var telemetryTypes = []intakerouting.TelemetryType{intakerouting.Logs}
+
+// Every value of the tags below. Each combination is created at 0 up front.
+var (
+	queryStatuses     = []string{statusSuccess, statusNotOffered, statusNetworkError, statusTimeout, statusHTTPError, statusInvalidResponse}
+	preflightStatuses = []string{preflightSuccess, preflightFailure}
+	switchDirections  = []string{directionToEnhanced, directionToDefault, directionEnhancedToEnhanced}
+	rejectReasons     = []string{rejectInvalidHost, rejectAbsent}
+	pathReasons       = []string{pathPrivateAddress, pathProxied, pathLookupFailed}
+)
+
+// newRoutingTelemetry creates the metrics, with every combination of tag values at 0. They are only
+// created when intake routing is enabled, so they show up as soon as it is, whether or not any
+// endpoint was registered, rather than when something first happens.
 func newRoutingTelemetry(tm telemetry.Component) *routingTelemetry {
-	return &routingTelemetry{
+	t := &routingTelemetry{
 		queries: tm.NewCounter(telemetrySubsystem, "queries",
 			[]string{"status"},
 			"Intake routing queries sent to the Datadog backend, by outcome."),
@@ -58,4 +75,23 @@ func newRoutingTelemetry(tm telemetry.Component) *routingTelemetry {
 			[]string{"telemetry_type"},
 			"Endpoints currently sent to a host chosen by intake routing instead of their configured host."),
 	}
+	for _, status := range queryStatuses {
+		t.queries.InitializeToZero(status)
+	}
+	for _, status := range preflightStatuses {
+		t.preflights.InitializeToZero(status)
+	}
+	for _, typ := range telemetryTypes {
+		for _, direction := range switchDirections {
+			t.switches.InitializeToZero(string(typ), direction)
+		}
+		for _, reason := range rejectReasons {
+			t.rejectedAnswers.InitializeToZero(string(typ), reason)
+		}
+		for _, reason := range pathReasons {
+			t.skippedEndpoints.InitializeToZero(string(typ), reason)
+		}
+		t.activeOverrides.Set(0, string(typ))
+	}
+	return t
 }
