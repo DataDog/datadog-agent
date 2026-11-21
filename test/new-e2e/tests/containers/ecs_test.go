@@ -892,15 +892,31 @@ func (suite *ecsSuite) assertFargateAgentsUseProcmgr(c *assert.CollectT, tasks [
 		comms := map[string]struct{}{}
 		procmgr := false
 		s6 := false
+		// A PID can be reused between process check runs, so match the supervisor and the
+		// core Agent within one run. A run can span several payloads that share a GroupId.
+		type pidSets struct {
+			procmgrPIDs     map[int32]struct{}
+			agentParentPIDs map[int32]struct{}
+		}
+		groups := map[int32]*pidSets{}
 		for _, payload := range payloads {
 			if payload.HostName != host {
 				continue
+			}
+			group := groups[payload.GroupId]
+			if group == nil {
+				group = &pidSets{
+					procmgrPIDs:     map[int32]struct{}{},
+					agentParentPIDs: map[int32]struct{}{},
+				}
+				groups[payload.GroupId] = group
 			}
 			for _, proc := range payload.Processes {
 				if proc == nil || proc.Command == nil {
 					continue
 				}
-				if proc.ContainerId != "" && !containerIDKnown(proc.ContainerId, ids) {
+				// A process without a container ID cannot be tied to the Agent container.
+				if proc.ContainerId == "" || !containerIDKnown(proc.ContainerId, ids) {
 					continue
 				}
 				name := processCommandName(proc.Command.Comm, proc.Command.Exe, proc.Command.Args)
@@ -910,13 +926,31 @@ func (suite *ecsSuite) assertFargateAgentsUseProcmgr(c *assert.CollectT, tasks [
 				comms[name] = struct{}{}
 				switch name {
 				case "dd-procmgrd":
-					procmgr = true
+					if proc.Pid > 0 {
+						group.procmgrPIDs[proc.Pid] = struct{}{}
+					}
+				case "agent":
+					if proc.Command.Ppid > 0 {
+						group.agentParentPIDs[proc.Command.Ppid] = struct{}{}
+					}
 				case "s6-svscan", "s6-supervise":
 					s6 = true
 				}
 			}
 		}
-		assert.Truef(c, procmgr, "Fargate Agent task %s (%s) has no dd-procmgrd process, saw %v", task.taskARN, task.service, comms)
+		// dd-procmgrd starts the core Agent directly, so it is the Agent's parent.
+		for _, group := range groups {
+			for ppid := range group.agentParentPIDs {
+				if _, ok := group.procmgrPIDs[ppid]; ok {
+					procmgr = true
+					break
+				}
+			}
+			if procmgr {
+				break
+			}
+		}
+		assert.Truef(c, procmgr, "Fargate Agent task %s (%s) has no dd-procmgrd supervising the agent process, saw %v", task.taskARN, task.service, comms)
 		assert.Falsef(c, s6, "Fargate Agent task %s (%s) is supervised by s6, saw %v", task.taskARN, task.service, comms)
 	}
 }
