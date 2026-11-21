@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    The ``cloud_hostinfo`` check now backs off its AWS Spot preemption and
+    rebalance recommendation lookups when the instance metadata service (IMDS)
+    is unreachable, for example from a container on an EC2 instance with an
+    IMDS hop limit of 1. After four consecutive failed check runs, the lookups
+    are retried at most once every 60 seconds instead of on every run, which
+    frees up collector capacity on hosts where IMDS can never answer.
