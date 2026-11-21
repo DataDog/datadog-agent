@@ -26,8 +26,150 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
+
+func TestOperationNameKindPrecedence(t *testing.T) {
+	kinds := []ptrace.SpanKind{
+		ptrace.SpanKindUnspecified, ptrace.SpanKindInternal, ptrace.SpanKindServer,
+		ptrace.SpanKindClient, ptrace.SpanKindProducer, ptrace.SpanKindConsumer, ptrace.SpanKind(8),
+	}
+	clientServer := func(client, server string) map[ptrace.SpanKind]string {
+		return map[ptrace.SpanKind]string{ptrace.SpanKindClient: client, ptrace.SpanKindServer: server}
+	}
+	messaging := map[ptrace.SpanKind]string{
+		ptrace.SpanKindClient: "kafka.receive", ptrace.SpanKindServer: "kafka.receive",
+		ptrace.SpanKindProducer: "kafka.receive", ptrace.SpanKindConsumer: "kafka.receive",
+	}
+	tests := []struct {
+		name     string
+		attrs    map[string]string
+		expected map[ptrace.SpanKind]string
+		all      string
+	}{
+		{name: "empty"},
+		{name: "explicit", attrs: map[string]string{"operation.name": "Custom.Op", "http.request.method": "GET"}, all: "custom.op"},
+		{name: "http", attrs: map[string]string{"http.request.method": "GET"}, expected: clientServer("http.client.request", "http.server.request")},
+		{name: "legacy http", attrs: map[string]string{"http.method": "GET"}, expected: clientServer("http.client.request", "http.server.request")},
+		{name: "database", attrs: map[string]string{"db.system": "PostgreSQL"}, expected: map[ptrace.SpanKind]string{ptrace.SpanKindClient: "postgresql.query"}},
+		{name: "database alias", attrs: map[string]string{"db.system.name": "mysql"}, expected: map[ptrace.SpanKind]string{ptrace.SpanKindClient: "mysql.query"}},
+		{name: "messaging", attrs: map[string]string{"messaging.system": "kafka", "messaging.operation": "receive"}, expected: messaging},
+		{name: "messaging without system", attrs: map[string]string{"messaging.operation": "receive"}},
+		{name: "messaging without operation", attrs: map[string]string{"messaging.system": "kafka"}},
+		{name: "rpc", attrs: map[string]string{"rpc.system": "grpc"}, expected: clientServer("grpc.client.request", "grpc.server.request")},
+		{name: "aws", attrs: map[string]string{"rpc.system": "aws-api", "rpc.service": "s3"}, expected: clientServer("aws.s3.request", "aws-api.server.request")},
+		{name: "aws without service", attrs: map[string]string{"rpc.system": "aws-api"}, expected: clientServer("aws.client.request", "aws-api.server.request")},
+		{name: "faas client", attrs: map[string]string{"faas.invoked_provider": "aws", "faas.invoked_name": "fn"}, expected: map[ptrace.SpanKind]string{ptrace.SpanKindClient: "aws.fn.invoke"}},
+		{name: "faas without provider", attrs: map[string]string{"faas.invoked_name": "fn"}},
+		{name: "faas without name", attrs: map[string]string{"faas.invoked_provider": "aws"}},
+		{name: "faas server", attrs: map[string]string{"faas.trigger": "http"}, expected: map[ptrace.SpanKind]string{ptrace.SpanKindServer: "http.invoke"}},
+		{name: "graphql every kind", attrs: map[string]string{"graphql.operation.type": "query"}, all: "graphql.server.request"},
+		{name: "network", attrs: map[string]string{"network.protocol.name": "HTTP"}, expected: clientServer("http.client.request", "http.server.request")},
+		{
+			name:     "http before database and rpc",
+			attrs:    map[string]string{"http.request.method": "GET", "db.system": "mysql", "rpc.system": "grpc"},
+			expected: clientServer("http.client.request", "http.server.request"),
+		},
+		{
+			name:  "database before messaging, server skips database",
+			attrs: map[string]string{"db.system": "mysql", "messaging.system": "kafka", "messaging.operation": "receive", "rpc.system": "grpc"},
+			expected: map[ptrace.SpanKind]string{
+				ptrace.SpanKindClient: "mysql.query", ptrace.SpanKindServer: "kafka.receive",
+				ptrace.SpanKindProducer: "kafka.receive", ptrace.SpanKindConsumer: "kafka.receive",
+			},
+		},
+		{
+			name:     "messaging before rpc and faas",
+			attrs:    map[string]string{"messaging.system": "kafka", "messaging.operation": "receive", "rpc.system": "grpc", "faas.trigger": "http"},
+			expected: messaging,
+		},
+		{
+			name:     "rpc before faas and graphql",
+			attrs:    map[string]string{"rpc.system": "grpc", "faas.invoked_provider": "aws", "faas.invoked_name": "fn", "faas.trigger": "http", "graphql.operation.type": "query"},
+			expected: clientServer("grpc.client.request", "grpc.server.request"), all: "graphql.server.request",
+		},
+		{
+			name:     "faas before graphql, graphql before network",
+			attrs:    map[string]string{"faas.invoked_provider": "aws", "faas.invoked_name": "fn", "faas.trigger": "http", "graphql.operation.type": "query", "network.protocol.name": "http"},
+			expected: clientServer("aws.fn.invoke", "http.invoke"), all: "graphql.server.request",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, kind := range kinds {
+				span := ptrace.NewSpan()
+				span.SetKind(kind)
+				for key, value := range tt.attrs {
+					span.Attributes().PutStr(key, value)
+				}
+				expected := kind.String()
+				switch kind {
+				case ptrace.SpanKindUnspecified:
+					expected = ptrace.SpanKindInternal.String()
+				case ptrace.SpanKindClient:
+					expected = "client.request"
+				case ptrace.SpanKindServer:
+					expected = "server.request"
+				}
+				if tt.all != "" {
+					expected = tt.all
+				}
+				if value, ok := tt.expected[kind]; ok {
+					expected = value
+				}
+				res := pcommon.NewResource()
+				assert.Equal(t, expected, GetOTelOperationNameV2(span, res), "kind %d", kind)
+				assert.Equal(t, expected, GetOTelOperationNameV2WithAccessor(span,
+					semantics.NewOTelSpanAccessor(span.Attributes(), res.Attributes())), "kind %d", kind)
+				span.Attributes().CopyTo(res.Attributes())
+				span.Attributes().Clear()
+				assert.Equal(t, expected, GetOTelOperationNameV2(span, res), "resource-only kind %d", kind)
+			}
+		})
+	}
+}
+
+type operationNameCountingAccessor struct {
+	semantics.StringMapAccessor
+	reads map[string]int
+}
+
+func (a operationNameCountingAccessor) GetString(key string) string {
+	a.reads[key]++
+	return a.StringMapAccessor.GetString(key)
+}
+
+func TestOperationNameSkipsIrrelevantLookups(t *testing.T) {
+	for _, kind := range []ptrace.SpanKind{
+		ptrace.SpanKindUnspecified, ptrace.SpanKindInternal, ptrace.SpanKindServer,
+		ptrace.SpanKindClient, ptrace.SpanKindProducer, ptrace.SpanKindConsumer, ptrace.SpanKind(8),
+	} {
+		span := ptrace.NewSpan()
+		span.SetKind(kind)
+		accessor := operationNameCountingAccessor{reads: make(map[string]int)}
+		GetOTelOperationNameV2WithAccessor(span, accessor)
+		skipped := []semantics.Concept{semantics.ConceptMessagingOperation, semantics.ConceptFaaSInvokedName}
+		if kind != ptrace.SpanKindClient {
+			skipped = append(skipped, semantics.ConceptDBSystem, semantics.ConceptFaaSInvokedProvider)
+		}
+		if kind != ptrace.SpanKindServer {
+			skipped = append(skipped, semantics.ConceptFaaSTrigger)
+		}
+		if kind != ptrace.SpanKindClient && kind != ptrace.SpanKindServer {
+			skipped = append(skipped, semantics.ConceptHTTPMethod, semantics.ConceptRPCSystem, semantics.ConceptNetworkProtocolName)
+			if kind != ptrace.SpanKindProducer && kind != ptrace.SpanKindConsumer {
+				skipped = append(skipped, semantics.ConceptMessagingSystem)
+			}
+		}
+		for _, concept := range skipped {
+			for _, tag := range semantics.DefaultRegistry().GetAttributePrecedence(concept) {
+				assert.Zero(t, accessor.reads[tag.Name], "kind %d, concept %s, key %s", kind, concept, tag.Name)
+			}
+		}
+		assert.Positive(t, accessor.reads["graphql.operation.type"], "kind %d", kind)
+	}
+}
 
 // TestCopyOTelAttributeTags checks that NewOTelSpanTagKeys + copyOTelAttributeTags
 // matches a per-key lookup across the span and resource attribute maps.
