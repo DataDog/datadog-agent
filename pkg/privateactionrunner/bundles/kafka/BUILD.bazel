@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "kafka",
+    srcs = [
+        "describe_consumer_group.go",
+        "entrypoint.go",
+        "helpers.go",
+        "reset_consumer_group_offset.go",
+        "test_connection.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kafka",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_github_twmb_franz_go//pkg/kerr",
+        "@com_github_twmb_franz_go//pkg/kgo",
+        "@com_github_twmb_franz_go//pkg/sasl",
+        "@com_github_twmb_franz_go//pkg/sasl/plain",
+        "@com_github_twmb_franz_go//pkg/sasl/scram",
+        "@com_github_twmb_franz_go_pkg_kadm//:kadm",
+        "@com_github_twmb_franz_go_pkg_kmsg//:kmsg",
+    ],
+)
+
+dd_agent_go_test(
+    name = "kafka_test",
+    srcs = [
+        "describe_consumer_group_test.go",
+        "entrypoint_test.go",
+        "fake_admin_client_test.go",
+        "helpers_test.go",
+        "reset_consumer_group_offset_test.go",
+        "test_connection_test.go",
+    ],
+    embed = [":kafka"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/test",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_twmb_franz_go//pkg/kerr",
+        "@com_github_twmb_franz_go_pkg_kadm//:kadm",
+    ],
+)

@@ -43,6 +43,7 @@ import (
 	com_datadoghq_gitlab_users "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/users"
 	com_datadoghq_http "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/http"
 	com_datadoghq_jenkins "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/jenkins"
+	com_datadoghq_kafka "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kafka"
 	com_datadoghq_kubernetes_admissionregistration "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/admission"
 	com_datadoghq_kubernetes_apiextensions "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apiextensions"
 	com_datadoghq_kubernetes_apps "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apps"
@@ -110,6 +111,7 @@ func NewRegistry(configuration *config.Config, rcClient rcclient.Client, tracero
 			"com.datadoghq.gitlab.users":                      com_datadoghq_gitlab_users.NewGitlabUsers(),
 			"com.datadoghq.http":                              com_datadoghq_http.NewHttpBundle(configuration),
 			"com.datadoghq.jenkins":                           com_datadoghq_jenkins.NewJenkins(configuration),
+			"com.datadoghq.kafka":                             com_datadoghq_kafka.NewKafka(),
 			"com.datadoghq.kubernetes.admissionregistration":  com_datadoghq_kubernetes_admissionregistration.NewKubernetesAdmissionregistration(),
 			"com.datadoghq.kubernetes.apiextensions":          com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),
 			"com.datadoghq.kubernetes.apps":                   com_datadoghq_kubernetes_apps.NewKubernetesApps(),

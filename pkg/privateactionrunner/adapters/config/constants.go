@@ -111,6 +111,7 @@ var DefaultActionFQNs = append([]string{
 // if at least one other action matching their expected prefix is allowed
 var BundleInheritedAllowedActions = []BundleInheritedAllowedAction{
 	{ActionFQN: "com.datadoghq.gitlab.users.testConnection", ExpectedPrefix: "com.datadoghq.gitlab"},
+	{ActionFQN: "com.datadoghq.kafka.testConnection", ExpectedPrefix: "com.datadoghq.kafka"},
 	{ActionFQN: "com.datadoghq.kubernetes.core.testConnection", ExpectedPrefix: "com.datadoghq.kubernetes"},
 	{ActionFQN: "com.datadoghq.mongodb.testConnection", ExpectedPrefix: "com.datadoghq.mongodb"},
 	{ActionFQN: "com.datadoghq.script.testConnection", ExpectedPrefix: "com.datadoghq.script"},
