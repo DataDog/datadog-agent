@@ -110,15 +110,15 @@ Mark the ticket HOLD. Add a comment with:
 
 ### Transition to "In Progress" fails
 
-Available transitions vary by project configuration. If "In Progress" is not available:
+Available transitions vary by project configuration, and there is no tool to list them: `transition_issue` takes a transition **name**. If "In Progress" is not available, preview the closest equivalents (e.g., "Start Progress", "Begin Work") one at a time:
 ```
-mcp__atlassian__getTransitionsForJiraIssue(
-  cloudId="datadoghq.atlassian.net",
-  issueIdOrKey="<KEY>"
+mcp__atlassian__transition_issue(
+  issue_key="<KEY>",
+  transition_name="Start Progress"
 )
 ```
 
-Look for the closest equivalent (e.g., "Start Progress", "Begin Work"). Use that transition ID.
+The preview (`confirmed=false`, the default) changes nothing, so trying names is safe. Once a preview shows the transition you want, repeat that call with `confirmed=true`.
 
 If no in-progress transition is available at all, continue working but note it in `AUTO_JIRA.md`.
 

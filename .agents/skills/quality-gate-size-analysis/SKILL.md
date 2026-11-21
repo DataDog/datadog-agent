@@ -49,18 +49,20 @@ Exception records live in the **ABLD** Confluence space under folder ID `5996904
 
 ### 2a. Enumerate all exception pages
 
-Use CQL search:
+Search with `mcp__atlassian__search_content`:
 
-```
-ancestor = 5996904656 AND type = page ORDER BY created DESC
-```
+- `cql`:
 
-- `cloudId`: `datadoghq.atlassian.net`
+  ```
+  ancestor = 5996904656 AND type = page ORDER BY created DESC
+  ```
+
+- `max_results`: `100` — the default (25) can miss exception pages. If the result count equals `max_results`, narrow the CQL by date (e.g. `AND created >= "2026-01-01"`) and search again.
 - Exclude the `[TEMPLATE]` page from results
 
 ### 2b. Fetch each page body
 
-For every page returned, call `getConfluencePage` with `contentFormat=markdown` to extract:
+For every page returned, call `mcp__atlassian__get_page` with its `page_id` to extract:
 
 - **Decision status**: Approved / Pending / Declined
 - **Disk size increase**: the number in the "Measures" or "Bounds Granted" row
@@ -144,7 +146,7 @@ Write a markdown report to the repository root (e.g. `quality_gate_size_analysis
 
 - The `relative_on_disk_size` metric uses `ci_commit_ref_slug` (not `git_ref`) for branch filtering.
 - The `package.size` metric uses `git_ref` for branch filtering — branch names use hyphens (e.g. `7-77-x`).
-- The Confluence folder `5996904656` is a **folder**, not a page — use CQL `ancestor =` to search, not `getConfluencePageDescendants`.
+- The Confluence folder `5996904656` is a **folder**, not a page — use CQL `ancestor =` to search, not `mcp__atlassian__get_page_children`.
 - PR **milestones** determine release attribution, not labels. Use `gh pr view --json milestone`.
 - The `gate_name` tag values look like `static_quality_gate_docker_agent_amd64` — use these to distinguish between agent variants (docker, MSI, DCA, dogstatsd, IoT, heroku, FIPS).
 - Some exceptions cover multiple PRs across multiple releases (e.g. PAR landed in 7.76, with follow-on work in 7.77 and 7.78).
