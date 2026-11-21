@@ -420,17 +420,6 @@ func (a *registryAuditor) updateRegistry(identifier string, offset string, taili
 	}
 }
 
-// readOnlyRegistryCopy returns a read only copy of the registry
-func (a *registryAuditor) readOnlyRegistryCopy() map[string]RegistryEntry {
-	a.registryMutex.Lock()
-	defer a.registryMutex.Unlock()
-	r := make(map[string]RegistryEntry)
-	for path, entry := range a.registry {
-		r[path] = *entry
-	}
-	return r
-}
-
 func (a *registryAuditor) readOnlyRegistryEntryCopy(identifier string) (RegistryEntry, bool) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
@@ -441,23 +430,9 @@ func (a *registryAuditor) readOnlyRegistryEntryCopy(identifier string) (Registry
 	return *entry, true
 }
 
-// flushRegistry writes on disk the registry at the given path
+// flushRegistry streams the registry to disk with encodeRegistry.
 func (a *registryAuditor) flushRegistry() error {
-	r := a.readOnlyRegistryCopy()
-	mr, err := a.marshalRegistry(r)
-	if err != nil {
-		return err
-	}
-	return a.registryWriter.WriteRegistry(a.registryPath, a.registryDirPath, a.registryTmpFile, mr)
-}
-
-// marshalRegistry marshals a regsistry
-func (a *registryAuditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, error) {
-	r := JSONRegistry{
-		Version:  registryAPIVersion,
-		Registry: registry,
-	}
-	return json.Marshal(r)
+	return a.registryWriter.WriteRegistry(a.registryPath, a.registryDirPath, a.registryTmpFile, a.encodeRegistry)
 }
 
 // unmarshalRegistry unmarshals a registry
