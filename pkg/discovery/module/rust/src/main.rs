@@ -54,10 +54,20 @@ static BADREQUEST: &[u8] = b"Bad request";
 static NOTFOUND: &[u8] = b"Not found";
 
 fn remove_pid_file(path: &Path) {
-    if let Err(e) = std::fs::remove_file(path) {
-        error!("Failed to remove PID file: {}", e);
-    } else {
-        info!("Removed PID file at {}", path.display());
+    match std::fs::remove_file(path) {
+        Ok(()) => info!("Removed PID file at {}", path.display()),
+        // After drop_capabilities() we no longer hold CAP_DAC_OVERRIDE, so
+        // unlinking fails when the parent directory is not writable by us (the
+        // default run directory is owned by dd-agent). The service manager
+        // removes the file (systemd PIDFile=, upstart post-stop), so this is
+        // expected. Do not fall back to writing through the path: the directory
+        // owner could have replaced it with a symlink to a root-owned file.
+        Err(e) if e.kind() == ErrorKind::PermissionDenied => info!(
+            "PID file at {} not removed ({}), leaving it to the service manager",
+            path.display(),
+            e
+        ),
+        Err(e) => error!("Failed to remove PID file: {}", e),
     }
 }
 
@@ -548,5 +558,36 @@ mod tests {
             !nonexistent_path.exists(),
             "Nonexistent file should remain nonexistent"
         );
+    }
+
+    #[test]
+    fn test_remove_pid_file_leaves_file_when_dir_not_writable() {
+        // Root (with CAP_DAC_OVERRIDE) can unlink regardless of directory
+        // permissions, so this scenario cannot be reproduced.
+        if uzers::get_effective_uid() == 0 {
+            return;
+        }
+
+        let temp_dir =
+            TempDir::new().unwrap_or_else(|e| panic!("Failed to create temp dir: {}", e));
+        let pid_path = temp_dir.path().join("test.pid");
+        fs::write(&pid_path, "12345")
+            .unwrap_or_else(|e| panic!("Failed to create test file: {}", e));
+
+        // Make the directory read-only so the file cannot be unlinked, as
+        // happens after dropping capabilities in a dd-agent owned run dir.
+        fs::set_permissions(temp_dir.path(), Permissions::from_mode(0o555))
+            .unwrap_or_else(|e| panic!("Failed to chmod temp dir: {}", e));
+
+        remove_pid_file(&pid_path);
+
+        let contents = fs::read_to_string(&pid_path)
+            .unwrap_or_else(|e| panic!("PID file should still exist: {}", e));
+
+        // Restore permissions so TempDir can clean up.
+        fs::set_permissions(temp_dir.path(), Permissions::from_mode(0o755))
+            .unwrap_or_else(|e| panic!("Failed to restore temp dir permissions: {}", e));
+
+        assert_eq!(contents, "12345", "PID file should be left untouched");
     }
 }
