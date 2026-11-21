@@ -75,6 +75,8 @@ type ProcessEvent struct {
 	CtxRegTab      uint8
 	CtxRegData     uint8
 	CtxStackOffset int32
+	// IsMetric marks handlers that aggregate metrics without producing events.
+	IsMetric bool
 }
 
 // String returns a human-readable identifier for the function.

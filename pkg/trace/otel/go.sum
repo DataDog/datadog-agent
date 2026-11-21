@@ -10,8 +10,8 @@ cloud.google.com/go/compute/metadata v0.10.0 h1:pyKMUQSwchgkIBBJGdILqQbs/BNJXqwS
 cloud.google.com/go/compute/metadata v0.10.0/go.mod h1:rGFHRrIif570kSibjFTMbt6/4/tzgJWFGI/HVol4GIk=
 github.com/DataDog/agent-payload/v5 v5.0.216 h1:BUkZkePyPxrSiObXTFmAnon//0T7pUEhAPMlqhji89Y=
 github.com/DataDog/agent-payload/v5 v5.0.216/go.mod h1:W6yXZM1qJnPKp4jnAG6B5W5lT8rJJFBCLk/WbeeqvTc=
-github.com/DataDog/datadog-go/v5 v5.9.1 h1:jOxw/TaxGWok8RIxbpqn2p3RzSnQr/m3Q6TgaHqqOU0=
-github.com/DataDog/datadog-go/v5 v5.9.1/go.mod h1:2SBt8zJu6r7sRQHZFMQ8oCukWTKj0ymwulmNgQzJ1JM=
+github.com/DataDog/datadog-go/v5 v5.9.2-0.20261118144720-1114bfec5a3d h1:kVP5KXp0nkq7SfAjxpoaYYtJSYAHmovh8dGUGvZgp/w=
+github.com/DataDog/datadog-go/v5 v5.9.2-0.20261118144720-1114bfec5a3d/go.mod h1:WCz8nlQqN1eNyOcCkKTULOdPfdp4RgnbaXYL1JJpEGg=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
 github.com/DataDog/go-acl v1.0.1/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
 github.com/DataDog/go-sqllexer v0.2.6 h1:ZRwIYWbM3V2zPNlicUAumXabcitpC6JvWs9jUQS90Tk=

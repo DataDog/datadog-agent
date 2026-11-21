@@ -161,6 +161,11 @@ func (c *Config) RedactIdentifier(name string) bool {
 	return ok
 }
 
+// HasRedactedTypes reports whether the policy contains any type rules.
+func (c *Config) HasRedactedTypes() bool {
+	return c != nil && (len(c.typeExact) > 0 || len(c.typePrefix) > 0)
+}
+
 // RedactType reports whether a value of the given type name must be redacted.
 func (c *Config) RedactType(typeName string) bool {
 	if c == nil || typeName == "" {
