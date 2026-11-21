@@ -47,6 +47,14 @@ func TestDefaultPeerTags(t *testing.T) {
 	assert.Contains(t, basePeerTags(semantics.DefaultRegistry()), "_dd.base_service")
 }
 
+// The peer.k8s.* tags are computed by the Agent: they must not be advertised in /info,
+// or tracers would look for them on spans.
+func TestComputedPeerTagsNotConfigured(t *testing.T) {
+	keys := New().ConfiguredPeerTags()
+	assert.NotContains(t, keys, string(semantics.ConceptPeerK8sClusterUID))
+	assert.NotContains(t, keys, string(semantics.ConceptPeerK8sNamespace))
+}
+
 func TestPeerTagConceptsHaveMappings(t *testing.T) {
 	r := semantics.DefaultRegistry()
 

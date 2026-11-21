@@ -807,6 +807,30 @@ properties:
     description: |-
       Optional list of supplementary peer tags that go beyond the defaults. The Datadog backend validates all tags
       and will drop ones that are unapproved.
+  peer_tags_k8s_scope:
+    node_type: section
+    type: object
+    visibility: public
+    description: Kubernetes scope of peers in trace stats.
+    tags:
+    - template_section:TraceAgent
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_APM_PEER_TAGS_K8S_SCOPE_ENABLED
+        visibility: public
+        description: |-
+          Adds the `peer.k8s.cluster.uid` and `peer.k8s.namespace` peer tags to trace stats of calls whose
+          peer hostname is a fully qualified in-cluster name (`<service>.<namespace>.svc`,
+          `<service>.<namespace>.svc.cluster.local`, or a headless service pod
+          `<pod>.<service>.<namespace>.svc[.cluster.local]`). The namespace is read from the name. Short names
+          such as `<service>` or `<service>.<namespace>` get no tags. Only the `cluster.local` cluster domain
+          is recognized. The Agent does not check that the service exists.
+          Only applies when the Agent runs in Kubernetes and knows the cluster ID, which comes from
+          DD_ORCHESTRATOR_CLUSTER_ID or the Cluster Agent, and when `peer_tags_aggregation` is enabled.
   features:
     node_type: setting
     type: array
