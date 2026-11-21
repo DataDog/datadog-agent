@@ -20,6 +20,7 @@
 /.claude/rules/allium.md                        @DataDog/single-machine-performance
 /.claude/rules/bazel.md                         @DataDog/agent-build
 /.claude/rules/msi.md                           @DataDog/windows-products
+/.claude/rules/network-path-testing.md          @DataDog/network-path
 /.claude/rules/systemd.md                       @DataDog/agent-runtimes
 /.cursor/rules/bazel-buildifier.mdc             @DataDog/agent-build
 /.agents/*                                      @DataDog/agent-devx
