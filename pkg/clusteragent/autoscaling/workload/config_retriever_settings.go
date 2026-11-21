@@ -79,6 +79,7 @@ func (p *autoscalingSettingsProcessor) processItem(receivedTimestamp time.Time, 
 
 		if settings.Namespace == "" || settings.Name == "" || spec == nil {
 			errs = append(errs, fmt.Errorf("received invalid PodAutoscaler from config id:%s, version: %d, config key: %s, discarding", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey))
+			continue
 		}
 
 		podAutoscalerID := autoscaling.BuildObjectID(settings.Namespace, settings.Name)

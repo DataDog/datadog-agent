@@ -554,6 +554,90 @@ func TestConfigRetriverAutoscalingSettingsReconcile(t *testing.T) {
 	}, podAutoscalers)
 }
 
+// Invalid entries in a CONTAINER_AUTOSCALING_SETTINGS payload (missing namespace, name or spec)
+// must be reported as errors and discarded, without affecting valid entries in the same payload.
+func TestAutoscalingSettingsProcessorDiscardsInvalidSettings(t *testing.T) {
+	validSpec := func() *datadoghq.DatadogPodAutoscalerSpec {
+		return &datadoghq.DatadogPodAutoscalerSpec{
+			Owner: datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				APIVersion: "v1",
+				Kind:       "Deployment",
+				Name:       "deploy1",
+			},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		invalid model.AutoscalingSettings
+	}{
+		{
+			name: "missing spec",
+			invalid: model.AutoscalingSettings{
+				Namespace: "ns",
+				Name:      "no-spec",
+			},
+		},
+		{
+			name: "empty specs",
+			invalid: model.AutoscalingSettings{
+				Namespace: "ns",
+				Name:      "empty-specs",
+				Specs:     &model.AutoscalingSpecs{},
+			},
+		},
+		{
+			name: "empty namespace",
+			invalid: model.AutoscalingSettings{
+				Name:  "no-namespace",
+				Specs: &model.AutoscalingSpecs{V1Alpha2: validSpec()},
+			},
+		},
+		{
+			name: "empty name",
+			invalid: model.AutoscalingSettings{
+				Namespace: "ns",
+				Specs:     &model.AutoscalingSpecs{V1Alpha2: validSpec()},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
+			processor := newAutoscalingSettingsProcessor(store)
+
+			rawConfig := buildAutoscalingSettingsRawConfig(t, 1, model.AutoscalingSettingsList{
+				Settings: []model.AutoscalingSettings{
+					{
+						Namespace: "ns",
+						Name:      "valid",
+						Specs:     &model.AutoscalingSpecs{V1Alpha2: validSpec()},
+					},
+					tt.invalid,
+				},
+			})
+
+			var err error
+			processor.preProcess()
+			require.NotPanics(t, func() {
+				err = processor.processItem(time.Now(), "foo1", rawConfig)
+			}, "an invalid PodAutoscaler setting must be discarded, not crash the Cluster Agent")
+			processor.postProcess()
+
+			assert.ErrorContains(t, err, "received invalid PodAutoscaler")
+			assert.True(t, processor.lastProcessingError)
+
+			storedIDs := make([]string, 0, len(processor.state))
+			for id := range processor.state {
+				storedIDs = append(storedIDs, id)
+			}
+			assert.ElementsMatch(t, []string{"ns/valid"}, storedIDs, "only the valid PodAutoscaler setting should be kept")
+		})
+	}
+}
+
 func buildAutoscalingSettingsRawConfig(t *testing.T, version uint64, autoscalingSettings model.AutoscalingSettingsList) state.RawConfig {
 	t.Helper()
 
