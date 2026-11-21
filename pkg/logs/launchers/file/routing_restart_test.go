@@ -1073,6 +1073,62 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		require.Equal(t, "0", reg.GetOffset(fileUnsel.Identifier()))
 		l.cleanup()
 	})
+
+	t.Run("config refresh removing source A while path is absent still persists byte zero for recreated source B with fresh metadata", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "refreshed.log")
+
+		prov := newFakeRoutedFileProvider()
+		reg := auditorMock.NewMockRegistry()
+		reg.SetOffset("file:"+path, "18")
+		prov.registry = reg
+
+		l := NewLauncher(10, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
+		l.pipelineProvider = prov
+		l.routedProvider = prov
+		l.registry = reg
+
+		// Source A rotated and failed handoff while path is absent on disk.
+		srcA := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: path, TailingMode: "beginning"})
+		fileA := filetailer.NewFile(path, srcA, false)
+		aInfo := status.NewInfoRegistry()
+		aPattern := regexp.MustCompile(`^A_ONLY_`)
+		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: aInfo, Pattern: aPattern}, srcA, fileA.Identifier(), 0, path)
+
+		// Config refresh: remove srcA and add a distinct srcB for the same path while path is still absent.
+		srcB := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: path}) // default end mode!
+		l.activeSources = []*sources.LogSource{srcB}
+		l.launchTailers(srcB) // Path absent: immediate startup finds no file.
+
+		// Scans run while path is absent: must NOT drop A's pending entry without persisting offset "0"!
+		l.resolveActiveTailers(nil)
+		l.resolveActiveTailers(nil)
+		require.Empty(t, l.routedRotationPending, "evicted cleanly after durable byte-zero reset")
+		require.Equal(t, "0", reg.GetOffset(fileA.Identifier()), "removed source A must persist offset 0 before eviction")
+
+		// Path reappears larger than A's old offset 18 -> srcB starts at byte 0 with fresh metadata!
+		require.NoError(t, os.WriteFile(path, []byte("recreated-prefix-1\nrecreated-suffix-2\n"), 0o600))
+		fileB := filetailer.NewFile(path, srcB, false)
+		l.resolveActiveTailers([]*filetailer.File{fileB})
+
+		tailerB, ok := l.tailers.Get(fileB.GetScanKey())
+		require.True(t, ok)
+		require.Same(t, srcB, tailerB.Source())
+		require.NotSame(t, aInfo, tailerB.GetInfo())
+		require.Nil(t, tailerB.GetDetectedPattern())
+
+		got := make(map[string]bool)
+		deadline := time.After(5 * time.Second)
+		for !(got["recreated-prefix-1"] && got["recreated-suffix-2"]) {
+			select {
+			case msg := <-prov.received:
+				got[string(msg.GetContent())] = true
+			case <-deadline:
+				t.Fatalf("timed out waiting for recreated prefix+suffix under source B; got=%v", got)
+			}
+		}
+		l.cleanup()
+	})
 }
 
 type trackingFlushRegistry struct {

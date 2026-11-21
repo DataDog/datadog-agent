@@ -942,11 +942,7 @@ func (s *Launcher) pruneRoutedRotationPending() {
 		return
 	}
 	for k, entry := range s.routedRotationPending {
-		if _, tailed := s.tailers.Get(k); tailed {
-			delete(s.routedRotationPending, k)
-			continue
-		}
-		if entry.source != nil && !s.isSourceActive(entry.source) {
+		if _, tailed := s.tailers.Get(k); tailed || s.hasActiveTailerForIdentifier(entry.identifier) {
 			delete(s.routedRotationPending, k)
 		}
 	}
@@ -1020,10 +1016,6 @@ func (s *Launcher) reconcileRoutedRotationPending(selectedKeys, selectedIDs map[
 
 	for scanKey, entry := range s.routedRotationPending {
 		if _, tailed := s.tailers.Get(scanKey); tailed || s.hasActiveTailerForIdentifier(entry.identifier) {
-			delete(s.routedRotationPending, scanKey)
-			continue
-		}
-		if entry.source != nil && !s.isSourceActive(entry.source) {
 			delete(s.routedRotationPending, scanKey)
 			continue
 		}
@@ -1153,13 +1145,6 @@ func (s *Launcher) clearRoutedRotationPending(scanKey string) {
 		return
 	}
 	delete(s.routedRotationPending, scanKey)
-}
-
-func (s *Launcher) isSourceActive(src *sources.LogSource) bool {
-	if src == nil {
-		return false
-	}
-	return slices.Contains(s.activeSources, src)
 }
 
 // restartTailer safely stops tailer and starts a new one
