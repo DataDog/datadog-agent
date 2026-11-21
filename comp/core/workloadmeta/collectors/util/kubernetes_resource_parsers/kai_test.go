@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,7 @@ func TestKAIPodGroupParserFixtures(t *testing.T) {
 	require.NoError(t, list.UnmarshalJSON(jsonList))
 	require.NotEmpty(t, list.Items)
 
-	podGroup := NewKAIPodGroupParser().Parse(&list.Items[0]).(*workloadmeta.KubernetesKAIPodGroup)
+	podGroup := NewKAIPodGroupParser(true).Parse(&list.Items[0]).(*workloadmeta.KubernetesKAIPodGroup)
 	assert.Equal(t, &workloadmeta.KubernetesKAIPodGroup{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesKAIPodGroup,
@@ -46,8 +47,81 @@ func TestKAIPodGroupParserFixtures(t *testing.T) {
 			},
 			UID: "355f982a-d7b8-4ef4-ab6e-232bb97a6ad2",
 		},
-		QueueName: "default-queue",
+		QueueName:         "default-queue",
+		CreationTimestamp: time.Date(2026, 10, 14, 14, 49, 10, 0, time.UTC),
+		PriorityClassName: "train",
+		LastStartTime:     time.Date(2026, 10, 14, 14, 49, 10, 0, time.UTC),
 	}, podGroup)
+}
+
+func TestKAIPodGroupParserSchedulingState(t *testing.T) {
+	obj := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"name":      "pg",
+			"namespace": "ns",
+			"annotations": map[string]interface{}{
+				"kai.scheduler/last-start-timestamp":    "2026-10-14T14:49:10Z",
+				"kai.scheduler/last-eviction-timestamp": "2026-10-14T14:50:00Z",
+			},
+		},
+		"spec": map[string]interface{}{"queue": "research"},
+		"status": map[string]interface{}{
+			"schedulingConditions": []interface{}{
+				map[string]interface{}{
+					"type":               "UnschedulableOnNodePool",
+					"status":             "True",
+					"nodePool":           "gpu",
+					"message":            "not enough GPUs",
+					"lastTransitionTime": "2026-10-14T14:49:30Z",
+					"reasons": []interface{}{
+						map[string]interface{}{"reason": "OverLimit", "message": "queue limit reached"},
+						"not an object",
+					},
+				},
+				map[string]interface{}{"status": "True"},
+				"not an object",
+			},
+		},
+	}
+
+	podGroup := NewKAIPodGroupParser(true).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
+
+	assert.Equal(t, time.Date(2026, 10, 14, 14, 49, 10, 0, time.UTC), podGroup.LastStartTime)
+	assert.Equal(t, time.Date(2026, 10, 14, 14, 50, 0, 0, time.UTC), podGroup.LastEvictionTime)
+	assert.Equal(t, []workloadmeta.KAISchedulingCondition{
+		{
+			Type:     "UnschedulableOnNodePool",
+			Status:   "True",
+			NodePool: "gpu",
+			Message:  "not enough GPUs",
+			Explanations: []workloadmeta.KAISchedulingExplanation{
+				{Reason: "OverLimit", Message: "queue limit reached"},
+			},
+			LastTransitionTime: time.Date(2026, 10, 14, 14, 49, 30, 0, time.UTC),
+		},
+	}, podGroup.SchedulingConditions)
+
+	// The volatile annotation stays out of the metadata that is streamed to the nodes.
+	assert.NotContains(t, podGroup.Annotations, "kai.scheduler/last-start-timestamp")
+}
+
+func TestKAIPodGroupParserMalformedTimes(t *testing.T) {
+	obj := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"name":      "pg",
+			"namespace": "ns",
+			"annotations": map[string]interface{}{
+				"kai.scheduler/last-start-timestamp": "yesterday",
+			},
+		},
+		"spec": map[string]interface{}{"queue": "research"},
+	}
+
+	podGroup := NewKAIPodGroupParser(true).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
+
+	assert.True(t, podGroup.LastStartTime.IsZero())
+	assert.True(t, podGroup.LastEvictionTime.IsZero())
+	assert.Empty(t, podGroup.SchedulingConditions)
 }
 
 func TestKAIPodGroupParserInvalidQueue(t *testing.T) {
@@ -69,9 +143,37 @@ func TestKAIPodGroupParserInvalidQueue(t *testing.T) {
 				"spec": test.spec,
 			}
 
-			podGroup := NewKAIPodGroupParser().Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
+			podGroup := NewKAIPodGroupParser(true).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
 			assert.Equal(t, "ns/pg", podGroup.ID)
 			assert.Empty(t, podGroup.QueueName)
 		})
 	}
+}
+
+func TestKAIPodGroupParserWithoutEventsLeavesOutStatusFields(t *testing.T) {
+	obj := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"name": "pg", "namespace": "ns", "uid": "uid-1",
+			"annotations": map[string]interface{}{
+				kaiLastStartAnnotation:    "2026-11-19T10:00:00Z",
+				kaiLastEvictionAnnotation: "2026-11-19T10:05:00Z",
+			},
+		},
+		"status": map[string]interface{}{
+			"schedulingConditions": []interface{}{
+				map[string]interface{}{"type": "Unschedulable", "status": "True", "nodePool": "default"},
+			},
+		},
+	}
+
+	with := NewKAIPodGroupParser(true).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
+	assert.False(t, with.LastStartTime.IsZero())
+	assert.False(t, with.LastEvictionTime.IsZero())
+	assert.Len(t, with.SchedulingConditions, 1)
+
+	without := NewKAIPodGroupParser(false).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
+	assert.True(t, without.LastStartTime.IsZero())
+	assert.True(t, without.LastEvictionTime.IsZero())
+	assert.Empty(t, without.SchedulingConditions)
+	assert.NotContains(t, without.Annotations, kaiLastStartAnnotation)
 }

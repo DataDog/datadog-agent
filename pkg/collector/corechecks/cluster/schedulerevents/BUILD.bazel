@@ -1,0 +1,70 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "schedulerevents",
+    srcs = [
+        "index.go",
+        "kai.go",
+        "kueue.go",
+        "schedulerevents.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/schedulerevents",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
+        "//comp/core/tagger/common",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/tags",
+        "//comp/core/tagger/types",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
+        "//comp/core/workloadmeta/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/cluster",
+        "//pkg/metrics/event",
+        "//pkg/persistentcache",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)
+
+dd_agent_go_test(
+    name = "schedulerevents_test",
+    srcs = [
+        "helpers_test.go",
+        "kai_test.go",
+        "kueue_test.go",
+        "schedulerevents_test.go",
+    ],
+    embed = [":schedulerevents"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
+    deps = [
+        "//comp/core/config",
+        "//comp/core/tagger/tags",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadmeta/def",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/metrics/event",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)
