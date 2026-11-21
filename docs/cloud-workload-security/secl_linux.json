@@ -4235,7 +4235,7 @@
         },
         {
           "name": "imds.credential_source",
-          "definition": "the credential endpoint that served the IMDS event",
+          "definition": "the credential endpoint that served the IMDS event, one of IMDS, EKS_POD_IDENTITY or ECS",
           "property_doc_link": "imds-credential_source-doc"
         },
         {
@@ -17225,7 +17225,7 @@
       "name": "imds.credential_source",
       "link": "imds-credential_source-doc",
       "type": "int",
-      "definition": "the credential endpoint that served the IMDS event",
+      "definition": "the credential endpoint that served the IMDS event, one of IMDS, EKS_POD_IDENTITY or ECS",
       "prefixes": [
         "imds"
       ],
