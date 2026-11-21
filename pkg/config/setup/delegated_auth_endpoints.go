@@ -369,7 +369,7 @@ var directSendDelegatedAuthDirectiveKeys = []struct {
 // flagged somewhere at startup.
 func WarnDirectSendDelegatedAuthDirectives(config pkgconfigmodel.Reader) {
 	for _, setting := range directSendDelegatedAuthDirectiveKeys {
-		if !config.GetBool(setting.flag) {
+		if !config.IsKnown(setting.flag) || !config.GetBool(setting.flag) {
 			continue
 		}
 		entries, _ := common.NormalizeListShapeEntries(config.Get(setting.key))
