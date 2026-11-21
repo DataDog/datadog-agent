@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import invoke.exceptions as ie
 
-from tasks.kernel_matrix_testing import compiler, platforms, tool, vmconfig
+from tasks.kernel_matrix_testing import ci, compiler, platforms, tool, vmconfig
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS
 from tasks.libs.types.arch import Arch
 
@@ -332,3 +332,49 @@ class TestAuthenticateSudo(unittest.TestCase):
         run.side_effect = [_proc(1), _proc(1)]
         with self.assertRaises(ie.Exit):
             tool.authenticate_sudo()
+
+
+class TestRetryTestsJoins(unittest.TestCase):
+    def _pipeline(self, jobs: list[dict]) -> ci.KMTPipeline:
+        api_jobs = []
+        for i, job in enumerate(jobs):
+            api_job = MagicMock()
+            api_job.id = i + 1
+            api_job.created_at = f"2026-11-02T00:00:{i:02d}Z"
+            api_job.pipeline = {"id": 1}
+            api_job.stage = job.get("stage", "kernel_matrix_testing_cleanup")
+            api_job.name = job["name"]
+            api_job.status = job["status"]
+            api_jobs.append(api_job)
+
+        gitlab = MagicMock()
+        gitlab.pipelines.get.return_value.jobs.list.return_value = api_jobs
+        with patch.object(ci, "get_gitlab_repo", return_value=gitlab):
+            pipeline = ci.KMTPipeline(1)
+            pipeline.retrieve_jobs()
+        return pipeline
+
+    def test_joins_are_tracked_per_subpipeline(self):
+        pipeline = self._pipeline(
+            [
+                {"name": "kmt_secagent_tests_join1_x64", "status": "success"},
+                {"name": "kmt_secagent_tests_join2_arm64", "status": "success"},
+                {"name": "kmt_secagent_cleanup_x64", "status": "success"},
+            ]
+        )
+        x64 = pipeline.subpipelines[("security-agent", "x86_64")]
+        self.assertEqual([j.name for j in x64.tests_join_jobs], ["kmt_secagent_tests_join1_x64"])
+        self.assertEqual([j.name for j in x64.cleanup_jobs], ["kmt_secagent_cleanup_x64"])
+
+    def test_only_latest_finished_joins_are_retried(self):
+        pipeline = self._pipeline(
+            [
+                {"name": "kmt_secagent_tests_join1_x64", "status": "success"},
+                {"name": "kmt_secagent_tests_join1_x64", "status": "created"},
+                {"name": "kmt_secagent_tests_join2_x64", "status": "success"},
+            ]
+        )
+        x64 = pipeline.subpipelines[("security-agent", "x86_64")]
+        with patch.object(ci.KMTJob, "retry", autospec=True, return_value=100) as retry:
+            self.assertEqual(x64.retry_tests_joins(), [100])
+        self.assertEqual([c.args[0].id for c in retry.call_args_list], [3])
