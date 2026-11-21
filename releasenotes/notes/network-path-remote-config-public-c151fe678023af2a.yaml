@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The ``network_path.remote_config.enabled`` setting, which lets the Agent
+    receive Network Path tests created in the Datadog UI through Remote
+    Configuration, is now documented in the ``datadog.yaml`` example file and
+    can be set from Fleet Automation.
