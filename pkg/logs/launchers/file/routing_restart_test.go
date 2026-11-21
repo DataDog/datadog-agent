@@ -386,7 +386,8 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		fileB := filetailer.NewFile(pathB, srcB, false)
 
 		// Record pending rotation handoff for fileA.
-		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA)
+		l.activeSources = []*sources.LogSource{srcA, srcB}
+		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA, pathA)
 
 		// Scan 1 hits open_files_limit (tailingLimit=1) with only fileB selected.
 		l.resolveActiveTailers([]*filetailer.File{fileB})
@@ -423,8 +424,9 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		l.registry = reg
 
 		srcA := sources.NewLogSource("a", &config.LogsConfig{Type: config.FileType, Path: pathA, TailingMode: "beginning"})
+		l.activeSources = []*sources.LogSource{srcA}
 		fileA := filetailer.NewFile(pathA, srcA, false)
-		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA)
+		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA, pathA)
 
 		// Under-limit scan omits fileA (simulating rename/create gap or transient stat error).
 		l.resolveActiveTailers(nil)
@@ -461,8 +463,9 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		l.registry = reg
 
 		srcA := sources.NewLogSource("a", &config.LogsConfig{Type: config.FileType, Path: pathA, TailingMode: "beginning"})
+		l.activeSources = []*sources.LogSource{srcA}
 		fileA := filetailer.NewFile(pathA, srcA, false)
-		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA)
+		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}, srcA, pathA)
 
 		l.launchTailers(srcA)
 		require.NotContains(t, l.routedRotationPending, fileA.GetScanKey(), "consumed routedRotationPending entry must be removed")
@@ -522,7 +525,7 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 
 		// Fill routedRotationPending to max-1 (255 + 1 active tailer == 256 conservation cap).
 		for i := 0; i < 255; i++ {
-			l.recordRoutedRotationPending("dummy-"+strconv.Itoa(i), &oldTailerInfo{}, srcCT)
+			l.recordRoutedRotationPending("dummy-"+strconv.Itoa(i), &oldTailerInfo{}, srcCT, "")
 		}
 		require.Equal(t, 256, len(l.routedRotationPending)+l.tailers.Count())
 
@@ -604,6 +607,93 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 				t.Fatalf("timed out waiting for unrelated + forceEnd lines; got=%v", got2)
 			}
 		}
+		l.cleanup()
+	})
+
+	t.Run("permanently deleted wildcard paths are reclaimed automatically to admit new files", func(t *testing.T) {
+		dir := t.TempDir()
+		freshPath := filepath.Join(dir, "fresh.log")
+		require.NoError(t, os.WriteFile(freshPath, []byte("fresh-after-churn\n"), 0o600))
+
+		prov := newFakeRoutedFileProvider()
+		reg := auditorMock.NewMockRegistry()
+		l := NewLauncher(10, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
+		l.pipelineProvider = prov
+		l.routedProvider = prov
+		l.registry = reg
+
+		// Active wildcard source remains configured throughout.
+		srcWildcard := sources.NewLogSource("wild", &config.LogsConfig{Type: config.FileType, Path: filepath.Join(dir, "*.log"), TailingMode: "beginning"})
+		l.activeSources = []*sources.LogSource{srcWildcard}
+
+		// Fill routedRotationPending to cap (256) with permanently deleted paths belonging to the active wildcard source.
+		for i := 0; i < 256; i++ {
+			deletedPath := filepath.Join(dir, "deleted-"+strconv.Itoa(i)+".log")
+			l.recordRoutedRotationPending(deletedPath, &oldTailerInfo{}, srcWildcard, deletedPath)
+		}
+		require.Len(t, l.routedRotationPending, 256)
+
+		freshFile := filetailer.NewFile(freshPath, srcWildcard, false)
+
+		// Scans 1 & 2: deleted paths are still within the transient-absence grace window (missedScans 1, 2 < 3),
+		// so freshFile is not yet admitted and pending entries are preserved.
+		l.resolveActiveTailers([]*filetailer.File{freshFile})
+		require.Equal(t, 0, l.tailers.Count())
+		require.Len(t, l.routedRotationPending, 256)
+
+		l.resolveActiveTailers([]*filetailer.File{freshFile})
+		require.Equal(t, 0, l.tailers.Count())
+		require.Len(t, l.routedRotationPending, 256)
+
+		// Scan 3: deleted paths hit routedRotationAbsentScans (3) and are automatically pruned!
+		l.resolveActiveTailers([]*filetailer.File{freshFile})
+		require.Empty(t, l.routedRotationPending, "permanently deleted wildcard paths must be reclaimed automatically")
+
+		// Scan 4: freshFile is now admitted without any manual map clearing!
+		l.resolveActiveTailers([]*filetailer.File{freshFile})
+		require.Equal(t, 1, l.tailers.Count())
+		select {
+		case msg := <-prov.received:
+			require.Equal(t, "fresh-after-churn", string(msg.GetContent()))
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for fresh wildcard file after deleted entries were reclaimed")
+		}
+		l.cleanup()
+	})
+
+	t.Run("fingerprint oldInfoMap entry reserves conservation slot against earlier fresh file in pass 2", func(t *testing.T) {
+		dir := t.TempDir()
+		freshPath := filepath.Join(dir, "fresh.log")
+		fpPath := filepath.Join(dir, "fp_rotated.log")
+		require.NoError(t, os.WriteFile(freshPath, []byte("fresh-line\n"), 0o600))
+		require.NoError(t, os.WriteFile(fpPath, []byte("fp-replacement-line\n"), 0o600))
+
+		prov := newFakeRoutedFileProvider()
+		reg := auditorMock.NewMockRegistry()
+		l := NewLauncher(10, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
+		l.pipelineProvider = prov
+		l.routedProvider = prov
+		l.registry = reg
+
+		src := sources.NewLogSource("wild", &config.LogsConfig{Type: config.FileType, Path: filepath.Join(dir, "*.log"), TailingMode: "beginning"})
+		l.activeSources = []*sources.LogSource{src}
+
+		// 255 routedRotationPending entries + 1 fingerprint oldInfoMap entry == 256 conservation cap.
+		for i := 0; i < 255; i++ {
+			l.recordRoutedRotationPending("dummy-"+strconv.Itoa(i), &oldTailerInfo{}, src, "")
+		}
+		freshFile := filetailer.NewFile(freshPath, src, false)
+		fpFile := filetailer.NewFile(fpPath, src, false)
+		l.oldInfoMap[fpFile.GetScanKey()] = &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}
+
+		// Scan presents freshFile FIRST, then fpFile SECOND: freshFile must NOT steal fpFile's slot!
+		l.resolveActiveTailers([]*filetailer.File{freshFile, fpFile})
+		require.Equal(t, 1, l.tailers.Count(), "only fpFile may start; freshFile must not bypass conservation bound")
+		_, freshTailed := l.tailers.Get(freshFile.GetScanKey())
+		_, fpTailed := l.tailers.Get(fpFile.GetScanKey())
+		require.False(t, freshTailed)
+		require.True(t, fpTailed)
+		require.LessOrEqual(t, len(l.routedRotationPending)+len(l.oldInfoMap)+l.tailers.Count(), l.maxRoutedRotationPending())
 		l.cleanup()
 	})
 }

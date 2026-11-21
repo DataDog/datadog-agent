@@ -8,6 +8,8 @@ package file
 
 import (
 	"context"
+	"errors"
+	"os"
 	"regexp"
 	"slices"
 	"sync"
@@ -54,9 +56,16 @@ type sourceGeneration struct {
 	generation uint64
 }
 
+// routedRotationAbsentScans is the number of consecutive under-limit scans
+// where a pending rotated path must report os.ErrNotExist (with no draining
+// old tailer remaining) before being pruned as permanently deleted.
+const routedRotationAbsentScans = 3
+
 type routedRotationEntry struct {
-	info   *oldTailerInfo
-	source *sources.LogSource
+	info        *oldTailerInfo
+	source      *sources.LogSource
+	path        string
+	missedScans int
 }
 
 // Launcher checks all files provided by fileProvider and create new tailers
@@ -408,17 +417,24 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 
 	lastIterationOldInfo := s.oldInfoMap
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
+	unconsumedOldInfo := len(lastIterationOldInfo)
 	// Pass 2 - Create new tailers for files that need to be tailed
 	for _, file := range files {
 		scanKey := file.GetScanKey()
 		_, isTailed := s.tailers.Get(scanKey)
 		if isTailed {
+			if _, ok := lastIterationOldInfo[scanKey]; ok {
+				unconsumedOldInfo--
+			}
 			filesTailed[scanKey] = true
 			continue
 		}
 
 		// Check if we have stored info for this file from a previous rotation
 		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
+		if hasOldInfo {
+			unconsumedOldInfo--
+		}
 		fromRoutedPending := false
 		if !hasOldInfo && s.routedProvider != nil {
 			if pendingEntry, ok := s.routedRotationPending[scanKey]; ok {
@@ -449,7 +465,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 				s.oldInfoMap[scanKey] = oldInfo
 			}
 		} else {
-			if s.routedProvider != nil && !s.canAdmitNewRoutedTailer() {
+			if s.routedProvider != nil && !s.canAdmitNewRoutedTailer(unconsumedOldInfo) {
 				continue
 			}
 			// Normal case - no stored info
@@ -460,11 +476,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		}
 	}
 	if s.routedProvider != nil && len(s.routedRotationPending) > 0 {
-		for scanKey := range s.routedRotationPending {
-			if _, tailed := s.tailers.Get(scanKey); tailed {
-				s.clearRoutedRotationPending(scanKey)
-			}
-		}
+		s.reconcileRoutedRotationPending(filesExpected, hitFileLimit)
 	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
 
@@ -715,7 +727,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 				if newTailerStarted {
 					s.clearRoutedRotationPending(file.GetScanKey())
 				}
-			} else if s.canAdmitNewRoutedTailer() {
+			} else if s.canAdmitNewRoutedTailer(0) {
 				newTailerStarted = s.startNewTailer(file, mode, fingerprint)
 			}
 		} else {
@@ -924,30 +936,82 @@ func (s *Launcher) pruneRoutedRotationPending() {
 	}
 }
 
-// canAdmitNewRoutedTailer enforces the conservation invariant:
-// len(routedRotationPending) + s.tailers.Count() <= maxRoutedRotationPending().
-// This guarantees any active tailer that rotates and fails replacement startup
-// always has a reserved slot in routedRotationPending when removed from s.tailers.
-func (s *Launcher) canAdmitNewRoutedTailer() bool {
+// canAdmitNewRoutedTailer enforces the conservation invariant across both
+// non-fingerprint (routedRotationPending) and fingerprint (oldInfoMap) rotations:
+// len(routedRotationPending) + len(oldInfoMap) + unconsumedOldInfo + s.tailers.Count() <= maxRoutedRotationPending().
+func (s *Launcher) canAdmitNewRoutedTailer(unconsumedOldInfo int) bool {
 	if s.routedProvider == nil {
 		return true
 	}
 	maxTotal := s.maxRoutedRotationPending()
-	if len(s.routedRotationPending)+s.tailers.Count() < maxTotal {
+	if len(s.routedRotationPending)+len(s.oldInfoMap)+unconsumedOldInfo+s.tailers.Count() < maxTotal {
 		return true
 	}
 	s.pruneRoutedRotationPending()
-	return len(s.routedRotationPending)+s.tailers.Count() < maxTotal
+	return len(s.routedRotationPending)+len(s.oldInfoMap)+unconsumedOldInfo+s.tailers.Count() < maxTotal
 }
 
-func (s *Launcher) recordRoutedRotationPending(scanKey string, info *oldTailerInfo, src *sources.LogSource) {
+// reconcileRoutedRotationPending clears actively tailed entries and prunes
+// entries whose path has reported os.ErrNotExist across routedRotationAbsentScans
+// consecutive under-limit scans (with no draining rotated tailer remaining),
+// allowing permanently deleted wildcard paths to free capacity while preserving
+// entries across transient rename/create gaps, stat errors, and hitFileLimit scans.
+func (s *Launcher) reconcileRoutedRotationPending(filesExpected map[string]bool, hitFileLimit bool) {
+	for scanKey, entry := range s.routedRotationPending {
+		if _, tailed := s.tailers.Get(scanKey); tailed {
+			delete(s.routedRotationPending, scanKey)
+			continue
+		}
+		if entry.source != nil && !s.isSourceActive(entry.source) {
+			delete(s.routedRotationPending, scanKey)
+			continue
+		}
+		if filesExpected[scanKey] {
+			if entry.missedScans != 0 {
+				entry.missedScans = 0
+				s.routedRotationPending[scanKey] = entry
+			}
+			continue
+		}
+		if hitFileLimit || entry.path == "" {
+			continue
+		}
+		if s.hasRotatedTailer(scanKey) {
+			continue
+		}
+		_, err := os.Stat(entry.path)
+		if err == nil {
+			if entry.missedScans != 0 {
+				entry.missedScans = 0
+				s.routedRotationPending[scanKey] = entry
+			}
+			continue
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			entry.missedScans++
+			if entry.missedScans >= routedRotationAbsentScans {
+				delete(s.routedRotationPending, scanKey)
+			} else {
+				s.routedRotationPending[scanKey] = entry
+			}
+		}
+	}
+}
+
+func (s *Launcher) hasRotatedTailer(scanKey string) bool {
+	return slices.ContainsFunc(s.rotatedTailers, func(t *tailer.Tailer) bool {
+		return t.GetID() == scanKey && !t.IsFinished()
+	})
+}
+
+func (s *Launcher) recordRoutedRotationPending(scanKey string, info *oldTailerInfo, src *sources.LogSource, path string) {
 	if s.routedProvider == nil {
 		return
 	}
 	if s.routedRotationPending == nil {
 		s.routedRotationPending = make(map[string]routedRotationEntry)
 	}
-	s.routedRotationPending[scanKey] = routedRotationEntry{info: info, source: src}
+	s.routedRotationPending[scanKey] = routedRotationEntry{info: info, source: src, path: path}
 }
 
 func (s *Launcher) clearRoutedRotationPending(scanKey string) {
@@ -985,7 +1049,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 		s.recordRoutedRotationPending(file.GetScanKey(), &oldTailerInfo{
 			InfoRegistry: oldTailer.GetInfo(),
 			Pattern:      oldRegexPattern,
-		}, file.Source.UnderlyingSource())
+		}, file.Source.UnderlyingSource(), file.Path)
 		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 		return false
 	}
@@ -996,7 +1060,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 		s.recordRoutedRotationPending(file.GetScanKey(), &oldTailerInfo{
 			InfoRegistry: oldTailer.GetInfo(),
 			Pattern:      oldRegexPattern,
-		}, file.Source.UnderlyingSource())
+		}, file.Source.UnderlyingSource(), file.Path)
 		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 		log.Warnf("Could not start the replacement tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
