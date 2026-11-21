@@ -39,6 +39,7 @@ When `logs_config.routing.enabled` is `true`, Agent startup fails explicitly (no
    - Explicit permanent rejections (e.g. HTTP 4xx) or local batch encoding/oversized loss remove only that endpoint; source progress completes via local-loss policy only after **all** matching reliable endpoints terminally lose the record.
    - Retries (5xx/network errors), credential waits, canceled sends, and saturated queues remain pending and never complete a record.
    - Unreliable/optional endpoint deliveries never satisfy a pending reliable obligation.
+   - Multi-reliable fanout retains unadmitted sibling copies in a bounded per-source per-endpoint FIFO backlog so primary batching continues unblocked while at least one matching reliable endpoint can accept the record; a record matching only a saturated endpoint backpressures its dispatch lane. Completed sibling copies behind an unfinished head are compacted to keep retention strictly bounded.
 5. **Optional endpoint isolation:**
    - Optional (unreliable) admission runs before potentially blocking reliable admission and stays strictly non-blocking end-to-end via bounded queues and `OptionalHTTPSender`.
    - Slowness, HTTP errors, or queue saturation on an unreliable endpoint drops optional copies with telemetry (`datadog.logs_routing.optional_stream_dropped`, `datadog.logs_routing.optional_payloads_dropped`) without blocking healthy reliable delivery or checkpoints.

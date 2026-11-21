@@ -358,7 +358,7 @@ func TestFileLauncherFailedRotationHandoffPreservesReplacementPrefix(t *testing.
 }
 
 func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
-	t.Run("oldInfoMap entry survives a hitFileLimit scan omission", func(t *testing.T) {
+	t.Run("routedRotationPending survives a hitFileLimit scan omission", func(t *testing.T) {
 		dir := t.TempDir()
 		pathA := filepath.Join(dir, "a.log")
 		pathB := filepath.Join(dir, "b.log")
@@ -381,11 +381,11 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		fileB := filetailer.NewFile(pathB, srcB, false)
 
 		// Record pending rotation handoff for fileA.
-		l.oldInfoMap[fileA.GetScanKey()] = &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}
+		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()})
 
 		// Scan 1 hits open_files_limit (tailingLimit=1) with only fileB selected.
 		l.resolveActiveTailers([]*filetailer.File{fileB})
-		require.Contains(t, l.oldInfoMap, fileA.GetScanKey(), "hitFileLimit omission must preserve oldInfoMap entry")
+		require.Contains(t, l.routedRotationPending, fileA.GetScanKey(), "hitFileLimit omission must preserve routedRotationPending entry")
 
 		// Scan 2 selects fileA -> must read from beginning (both prefix and suffix).
 		l.resolveActiveTailers([]*filetailer.File{fileA})
@@ -402,7 +402,46 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 		l.cleanup()
 	})
 
-	t.Run("launchTailers honors pending oldInfoMap entry with ForceBeginning", func(t *testing.T) {
+	t.Run("routedRotationPending survives an under-limit scan where replacement path is temporarily absent", func(t *testing.T) {
+		dir := t.TempDir()
+		pathA := filepath.Join(dir, "a.log")
+		require.NoError(t, os.WriteFile(pathA, []byte("new-prefix-line-1\nnew-suffix-line-2\n"), 0o600))
+
+		prov := newFakeRoutedFileProvider()
+		reg := auditorMock.NewMockRegistry()
+		reg.SetOffset("file:"+pathA, "18")
+
+		// tailingLimit=10 so an empty scan is strictly under-limit (hitFileLimit == false).
+		l := NewLauncher(10, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
+		l.pipelineProvider = prov
+		l.routedProvider = prov
+		l.registry = reg
+
+		srcA := sources.NewLogSource("a", &config.LogsConfig{Type: config.FileType, Path: pathA, TailingMode: "beginning"})
+		fileA := filetailer.NewFile(pathA, srcA, false)
+		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()})
+
+		// Under-limit scan omits fileA (simulating rename/create gap or transient stat error).
+		l.resolveActiveTailers(nil)
+		require.Contains(t, l.routedRotationPending, fileA.GetScanKey(), "under-limit omission must preserve routedRotationPending entry")
+
+		// Next scan sees replacement fileA larger than saved offset 18 -> must deliver full prefix+suffix.
+		l.resolveActiveTailers([]*filetailer.File{fileA})
+		got := make(map[string]bool)
+		deadline := time.After(5 * time.Second)
+		for !(got["new-prefix-line-1"] && got["new-suffix-line-2"]) {
+			select {
+			case msg := <-prov.received:
+				got[string(msg.GetContent())] = true
+			case <-deadline:
+				t.Fatalf("timed out waiting for replacement prefix+suffix after under-limit absence; got=%v", got)
+			}
+		}
+		require.NotContains(t, l.routedRotationPending, fileA.GetScanKey())
+		l.cleanup()
+	})
+
+	t.Run("launchTailers honors pending routedRotationPending entry with ForceBeginning", func(t *testing.T) {
 		dir := t.TempDir()
 		pathA := filepath.Join(dir, "a.log")
 		require.NoError(t, os.WriteFile(pathA, []byte("new-prefix-line-1\nnew-suffix-line-2\n"), 0o600))
@@ -418,10 +457,10 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 
 		srcA := sources.NewLogSource("a", &config.LogsConfig{Type: config.FileType, Path: pathA, TailingMode: "beginning"})
 		fileA := filetailer.NewFile(pathA, srcA, false)
-		l.oldInfoMap[fileA.GetScanKey()] = &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()}
+		l.recordRoutedRotationPending(fileA.GetScanKey(), &oldTailerInfo{InfoRegistry: status.NewInfoRegistry()})
 
 		l.launchTailers(srcA)
-		require.NotContains(t, l.oldInfoMap, fileA.GetScanKey(), "consumed oldInfoMap entry must be removed")
+		require.NotContains(t, l.routedRotationPending, fileA.GetScanKey(), "consumed routedRotationPending entry must be removed")
 
 		got := make(map[string]bool)
 		deadline := time.After(5 * time.Second)
@@ -431,6 +470,48 @@ func TestFileLauncherOldInfoSurvivesHitFileLimitAndLaunchTailers(t *testing.T) {
 				got[string(msg.GetContent())] = true
 			case <-deadline:
 				t.Fatalf("timed out waiting for replacement prefix+suffix in launchTailers; got=%v", got)
+			}
+		}
+		l.cleanup()
+	})
+
+	t.Run("bounded overflow falls back to ForceBeginning without skipping replacement prefix", func(t *testing.T) {
+		dir := t.TempDir()
+		pathOverflow := filepath.Join(dir, "overflow.log")
+		require.NoError(t, os.WriteFile(pathOverflow, []byte("new-prefix-line-1\nnew-suffix-line-2\n"), 0o600))
+
+		prov := newFakeRoutedFileProvider()
+		reg := auditorMock.NewMockRegistry()
+		reg.SetOffset("file:"+pathOverflow, "18")
+
+		l := NewLauncher(10, 10*time.Millisecond, false, time.Hour, WildcardModeByName, flareController.NewFlareController(), nil, opener.NewFileOpener(), filetailer.NewFingerprinterMock())
+		l.pipelineProvider = prov
+		l.routedProvider = prov
+		l.registry = reg
+
+		// Fill routedRotationPending to its cap (256) with distinct scan keys.
+		for i := 0; i < 256; i++ {
+			l.recordRoutedRotationPending("dummy-"+strconv.Itoa(i), &oldTailerInfo{})
+		}
+		require.False(t, l.routedRotationOverflow)
+
+		// Recording one more triggers bounded overflow instead of silent drop.
+		src := sources.NewLogSource("overflow", &config.LogsConfig{Type: config.FileType, Path: pathOverflow, TailingMode: "beginning"})
+		fileO := filetailer.NewFile(pathOverflow, src, false)
+		l.recordRoutedRotationPending(fileO.GetScanKey(), &oldTailerInfo{})
+		require.True(t, l.routedRotationOverflow)
+		require.Len(t, l.routedRotationPending, 256, "map size must stay strictly bounded")
+
+		// Starting overflow file must still deliver full prefix+suffix via ForceBeginning fallback.
+		l.resolveActiveTailers([]*filetailer.File{fileO})
+		got := make(map[string]bool)
+		deadline := time.After(5 * time.Second)
+		for !(got["new-prefix-line-1"] && got["new-suffix-line-2"]) {
+			select {
+			case msg := <-prov.received:
+				got[string(msg.GetContent())] = true
+			case <-deadline:
+				t.Fatalf("timed out waiting for replacement prefix+suffix under overflow; got=%v", got)
 			}
 		}
 		l.cleanup()

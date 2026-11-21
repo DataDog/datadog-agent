@@ -96,12 +96,14 @@ type Launcher struct {
 	stopOnce                  sync.Once
 
 	// Per-tailer generation ownership for routedSourceProvider.
-	routedProvider     routedSourceProvider
-	nextGeneration     atomic.Uint64
-	routingMu          sync.Mutex
-	tailerGenerations  map[*tailer.Tailer]sourceGeneration
-	pendingRetirements []sourceGeneration
-	stoppingTailers    sync.WaitGroup
+	routedProvider         routedSourceProvider
+	nextGeneration         atomic.Uint64
+	routingMu              sync.Mutex
+	tailerGenerations      map[*tailer.Tailer]sourceGeneration
+	pendingRetirements     []sourceGeneration
+	stoppingTailers        sync.WaitGroup
+	routedRotationPending  map[string]*oldTailerInfo
+	routedRotationOverflow bool
 }
 
 const (
@@ -265,6 +267,8 @@ func (s *Launcher) cleanup() {
 
 	// Clean up old info map to prevent memory leaks
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
+	s.routedRotationPending = nil
+	s.routedRotationOverflow = false
 	if stillSkipped := len(s.fingerprintSkips); stillSkipped > 0 {
 		log.Warnf("Stopping with %d file(s) still not tailed because their fingerprint was unusable.", stillSkipped)
 		for _, skip := range s.fingerprintSkips {
@@ -412,11 +416,19 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 
 		// Check if we have stored info for this file from a previous rotation
 		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
+		fromRoutedPending := false
+		if !hasOldInfo && s.routedProvider != nil {
+			if pendingInfo, ok := s.routedRotationPending[scanKey]; ok {
+				oldInfo = pendingInfo
+				hasOldInfo = true
+				fromRoutedPending = true
+			}
+		}
 
 		fingerprint, ok := s.resolveFingerprint(file)
 		if !ok {
 			// Persist the old info back into the map for future attempts
-			if hasOldInfo {
+			if hasOldInfo && !fromRoutedPending {
 				s.oldInfoMap[scanKey] = oldInfo
 			}
 			continue
@@ -426,36 +438,31 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 			if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint) {
 				// hasOldInfo is true when restarting a tailer after a file rotation, so start tailer from the beginning
 				filesTailed[scanKey] = true
-			} else {
+				s.clearRoutedRotationPending(scanKey)
+			} else if !fromRoutedPending {
 				// Bug fix: the tailer failed to start, so re-persist the stored info
 				// for the next scan instead of dropping it. resolveFingerprint already
 				// records/clears the fingerprint-skip note, so no resolveFingerprintSkip here.
 				s.oldInfoMap[scanKey] = oldInfo
 			}
 		} else {
-			// Normal case - no stored info
-			if s.startNewTailer(file, config.Beginning, fingerprint) {
+			// Normal case - no stored info (unless routed rotation pending map overflowed,
+			// in which case ForceBeginning prefers at-least-once delivery over prefix loss).
+			var mode config.TailingMode = config.Beginning
+			if s.routedProvider != nil && s.routedRotationOverflow {
+				mode = config.ForceBeginning
+			}
+			if s.startNewTailer(file, mode, fingerprint) {
 				filesTailed[scanKey] = true
 				s.resolveFingerprintSkip(file)
 			}
 		}
 	}
-	// When the scan hit open_files_limit, a rotated file may be temporarily omitted
-	// from this scan's top-N selection. Preserve its ForceBeginning handoff state
-	// (bounded) so a later scan does not fall back to the old inode's saved offset.
-	if hitFileLimit {
-		maxOldInfo := max(s.tailingLimit*2, 256)
-		for scanKey, oldInfo := range lastIterationOldInfo {
-			if len(s.oldInfoMap) >= maxOldInfo {
-				break
-			}
-			if _, seen := filesExpected[scanKey]; seen {
-				continue
-			}
+	if s.routedProvider != nil && len(s.routedRotationPending) > 0 {
+		for scanKey := range s.routedRotationPending {
 			if _, tailed := s.tailers.Get(scanKey); tailed {
-				continue
+				s.clearRoutedRotationPending(scanKey)
 			}
-			s.oldInfoMap[scanKey] = oldInfo
 		}
 	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
@@ -701,10 +708,17 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		}
 
 		var newTailerStarted bool
-		if oldInfo, hasOldInfo := s.oldInfoMap[file.GetScanKey()]; hasOldInfo {
-			newTailerStarted = s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint)
-			if newTailerStarted {
-				delete(s.oldInfoMap, file.GetScanKey())
+		if s.routedProvider != nil {
+			if pendingInfo, hasPending := s.routedRotationPending[file.GetScanKey()]; hasPending {
+				newTailerStarted = s.startNewTailerWithStoredInfo(file, config.ForceBeginning, pendingInfo, fingerprint)
+				if newTailerStarted {
+					s.clearRoutedRotationPending(file.GetScanKey())
+				}
+			} else {
+				if s.routedRotationOverflow {
+					mode = config.ForceBeginning
+				}
+				newTailerStarted = s.startNewTailer(file, mode, fingerprint)
 			}
 		} else {
 			newTailerStarted = s.startNewTailer(file, mode, fingerprint)
@@ -893,6 +907,44 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 	return false // Will return false regardless and we will let scan() handle it
 }
 
+func (s *Launcher) recordRoutedRotationPending(scanKey string, info *oldTailerInfo) {
+	if s.routedProvider == nil {
+		return
+	}
+	if s.routedRotationPending == nil {
+		s.routedRotationPending = make(map[string]*oldTailerInfo)
+	}
+	if _, exists := s.routedRotationPending[scanKey]; exists {
+		s.routedRotationPending[scanKey] = info
+		return
+	}
+	maxEntries := max(s.tailingLimit*2, 256)
+	if len(s.routedRotationPending) >= maxEntries {
+		for k := range s.routedRotationPending {
+			if _, tailed := s.tailers.Get(k); tailed {
+				delete(s.routedRotationPending, k)
+			}
+		}
+	}
+	if len(s.routedRotationPending) >= maxEntries {
+		// Bounded map is full: mark overflow so newly started untailed files fall
+		// back to ForceBeginning rather than silently dropping rotation state.
+		s.routedRotationOverflow = true
+		return
+	}
+	s.routedRotationPending[scanKey] = info
+}
+
+func (s *Launcher) clearRoutedRotationPending(scanKey string) {
+	if len(s.routedRotationPending) == 0 {
+		return
+	}
+	delete(s.routedRotationPending, scanKey)
+	if len(s.routedRotationPending) == 0 {
+		s.routedRotationOverflow = false
+	}
+}
+
 // restartTailer safely stops tailer and starts a new one
 // returns true if the new tailer is up and running, false if an error occurred
 func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file *tailer.File) bool {
@@ -908,10 +960,10 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	newTailer, gen, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
 	if err != nil {
 		log.Warnf("Could not acquire routed pipeline input for replacement tailer %s after log rotation: %v", file.Path, err)
-		s.oldInfoMap[file.GetScanKey()] = &oldTailerInfo{
+		s.recordRoutedRotationPending(file.GetScanKey(), &oldTailerInfo{
 			InfoRegistry: oldTailer.GetInfo(),
 			Pattern:      oldRegexPattern,
-		}
+		})
 		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 		return false
 	}
@@ -919,10 +971,10 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	err = newTailer.StartFromBeginning()
 	if err != nil {
 		s.retireGeneration(file.Identifier(), gen)
-		s.oldInfoMap[file.GetScanKey()] = &oldTailerInfo{
+		s.recordRoutedRotationPending(file.GetScanKey(), &oldTailerInfo{
 			InfoRegistry: oldTailer.GetInfo(),
 			Pattern:      oldRegexPattern,
-		}
+		})
 		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 		log.Warnf("Could not start the replacement tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
