@@ -153,6 +153,34 @@ func TestWebhookLabelSelectors(t *testing.T) {
 				},
 			},
 		},
+		"all instrumentation features disabled still selects everything except explicit opt-outs": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":           false,
+				"apm_config.instrumentation.on_demand":         false,
+				"admission_controller.mutate_unlabelled":       false,
+				"gpu.tracing.enabled":                          false,
+				"apm_config.instrumentation.apm_basic.enabled": false,
+			},
+			useNamespaceSelector: false,
+			expectedSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      admissioncommon.EnabledLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   []string{"false"},
+					},
+				},
+			},
+			expectedNamespaceSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      admissioncommon.NamespaceLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   common.DefaultDisabledNamespaces(),
+					},
+				},
+			},
+		},
 		"default on-demand config with namespace selector disabled uses both selectors": {
 			useNamespaceSelector: false,
 			expectedSelector: &metav1.LabelSelector{

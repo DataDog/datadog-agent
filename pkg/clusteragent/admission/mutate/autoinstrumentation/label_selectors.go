@@ -17,22 +17,12 @@ import (
 
 // LabelSelectorsConfig provides configuration values for NewLabelSelectors.
 type LabelSelectorsConfig struct {
-	Enabled            bool
-	OnDemand           bool
-	MutateUnlabelled   bool
-	GPUTracing         bool
-	APMBasic           bool
 	DisabledNamespaces []string
 }
 
 // NewLabelSelectorsConfig initializes a config object from the datadog config.
 func NewLabelSelectorsConfig(datadogConfig config.Component) *LabelSelectorsConfig {
 	return &LabelSelectorsConfig{
-		Enabled:            datadogConfig.GetBool("apm_config.instrumentation.enabled"),
-		OnDemand:           datadogConfig.GetBool("apm_config.instrumentation.on_demand"),
-		MutateUnlabelled:   datadogConfig.GetBool("admission_controller.mutate_unlabelled"),
-		GPUTracing:         datadogConfig.GetBool("gpu.tracing.enabled"),
-		APMBasic:           datadogConfig.GetBool("apm_config.instrumentation.apm_basic.enabled"),
 		DisabledNamespaces: datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces"),
 	}
 }
@@ -79,20 +69,14 @@ func (ls *LabelSelectors) Get(useNamespaceSelector bool) (*metav1.LabelSelector,
 }
 
 func (ls *LabelSelectors) setupObjectSelector(selector *metav1.LabelSelector) {
-	if ls.config.Enabled || ls.config.OnDemand || ls.config.MutateUnlabelled || ls.config.GPUTracing || ls.config.APMBasic {
-		// If instrumentation, on-demand instrumentation, mutate unlabelled, GPU tracing, or APM Basic is enabled, then
-		// we want to receive webhooks for everything but workloads that have explicitly opted out.
-		selector.MatchExpressions = []metav1.LabelSelectorRequirement{
-			{
-				Key:      common.EnabledLabelKey,
-				Operator: metav1.LabelSelectorOpNotIn,
-				Values:   []string{"false"},
-			},
-		}
-	} else {
-		// Otherwise, we should only receive webhook requests for workloads that have opted in to mutation.
-		selector.MatchLabels = map[string]string{
-			common.EnabledLabelKey: "true",
-		}
+	// Receive webhooks for everything but workloads that have explicitly opted out. Each injection source decides
+	// whether to act on a pod (e.g. the annotation source requires the enabled label unless mutate_unlabelled is set),
+	// so the selector does not need to track which features are enabled.
+	selector.MatchExpressions = []metav1.LabelSelectorRequirement{
+		{
+			Key:      common.EnabledLabelKey,
+			Operator: metav1.LabelSelectorOpNotIn,
+			Values:   []string{"false"},
+		},
 	}
 }
