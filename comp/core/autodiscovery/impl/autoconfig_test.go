@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -1037,33 +1038,35 @@ func (s *metricsRecordingScheduler) ExclusionScope() workloadfilter.Scope {
 
 func TestProcessUpdatedServiceExclusionChange(t *testing.T) {
 	deps := createDeps(t)
-	controller := scheduler.NewControllerAndStart()
-	defer controller.Stop()
 
-	checks := &metricsRecordingScheduler{recordingScheduler{
-		MockScheduler: MockScheduler{scheduled: make(map[string]integration.Config)},
-		scope:         workloadfilter.MetricsFilter,
-	}}
-	logs := &recordingScheduler{MockScheduler: MockScheduler{scheduled: make(map[string]integration.Config)}}
-	controller.Register("checks", checks, false)
-	controller.Register("logs", logs, false)
+	synctest.Test(t, func(t *testing.T) {
+		controller := scheduler.NewControllerAndStart()
 
-	ac := getAutoConfig(controller, &MockSecretResolver{t: t}, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
+		checks := &metricsRecordingScheduler{recordingScheduler{
+			MockScheduler: MockScheduler{scheduled: make(map[string]integration.Config)},
+			scope:         workloadfilter.MetricsFilter,
+		}}
+		logs := &recordingScheduler{MockScheduler: MockScheduler{scheduled: make(map[string]integration.Config)}}
+		controller.Register("checks", checks, false)
+		controller.Register("logs", logs, false)
 
-	ac.processNewConfig(integration.Config{Name: "redis", ADIdentifiers: []string{"redis"}})
-	running := &dummyService{ID: "docker://abcd", ADIdentifiers: []string{"redis"}}
-	ac.processNewService(running)
-	require.Eventually(t, func() bool {
-		return checks.scheduledSize() == 1 && logs.scheduledSize() == 1
-	}, 5*time.Second, 10*time.Millisecond)
+		ac := getAutoConfig(controller, &MockSecretResolver{t: t}, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
+		defer ac.stop()
 
-	stopped := &dummyService{ID: "docker://abcd", ADIdentifiers: []string{"redis"}, MetricsExcluded: true}
-	ac.processUpdatedService(running, stopped)
-	require.Eventually(t, func() bool {
-		return checks.scheduledSize() == 0
-	}, 5*time.Second, 10*time.Millisecond)
+		ac.processNewConfig(integration.Config{Name: "redis", ADIdentifiers: []string{"redis"}})
+		running := &dummyService{ID: "docker://abcd", ADIdentifiers: []string{"redis"}}
+		ac.processNewService(running)
+		synctest.Wait()
+		require.Equal(t, 1, checks.scheduledSize())
+		require.Equal(t, 1, logs.scheduledSize())
 
-	assert.Equal(t, 1, checks.unscheduledCount())
-	assert.Equal(t, 0, logs.unscheduledCount())
-	assert.Equal(t, 1, logs.scheduledSize())
+		stopped := &dummyService{ID: "docker://abcd", ADIdentifiers: []string{"redis"}, MetricsExcluded: true}
+		ac.processUpdatedService(running, stopped)
+		synctest.Wait()
+
+		assert.Equal(t, 0, checks.scheduledSize())
+		assert.Equal(t, 1, checks.unscheduledCount())
+		assert.Equal(t, 0, logs.unscheduledCount())
+		assert.Equal(t, 1, logs.scheduledSize())
+	})
 }
