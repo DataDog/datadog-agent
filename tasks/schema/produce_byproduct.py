@@ -25,6 +25,9 @@ a new document. The outputs are:
   ...). It is published for external consumers (e.g. SchemaStore for IDE
   autocompletion).
 
+Both outputs replace the Agent formats (``format: duration``, ``format: url``),
+custom to the Agent, with the regexp they stand for: see ``AGENT_FORMATS``.
+
 Future outputs are added by registering another function in ``OUTPUTS``; the
 choice of what each output keeps or drops lives here, not in the build files.
 
@@ -142,6 +145,60 @@ _STANDARD_JSON_SCHEMA_KEYWORDS = frozenset(
 )
 
 
+# ---------------------------------------------------------------------------
+# Agent formats
+# ---------------------------------------------------------------------------
+#
+# The Agent schema marks string settings with an Agent-specific syntax with
+# `format: <name>` (`format: duration`, `format: url`). These are custom Agent
+# formats, not JSON Schema formats:
+#
+#   - JSON Schema defines no `url` format, and its `duration` means an ISO 8601
+#     duration (`PT15S`), not the Go durations (`15s`) the Agent reads.
+#   - Validators treat `format` as an annotation by default, the Agent's own
+#     included: a format alone validates nothing.
+#
+# So the schema only names the format, and every generated schema (the one
+# embedded in the Agent and the JSON Schema published for external tools)
+# replaces `format: <name>` with `pattern: <regexp>`. Each regexp is written
+# once, below, and the Agent, IDEs and any other validator check values the
+# same way.
+#
+# To add a format:
+#   1. Write its regexp below. Use the portable ECMA-262 subset recommended by
+#      JSON Schema (no lookarounds, no non-capturing groups), so every
+#      validator reads it the same way, and keep it linear-time: no nested
+#      repetition. IDEs use backtracking regex engines, and a pattern that
+#      backtracks catastrophically freezes them on invalid input
+#      (tasks/unit_tests/schema_byproduct_tests.py checks every pattern).
+#   2. Register it in AGENT_FORMATS.
+#   3. Use `format: <name>` on string settings in the YAML schema; schema.lint
+#      rejects unregistered formats.
+#   4. Document it in doc/reference/agent-schema/keywords.md.
+
+# A Go duration, as read by the Agent: exactly the strings Go's
+# ``time.ParseDuration`` accepts. An optional sign, then either a bare ``0`` or
+# one or more ``<number><unit>`` pairs, where the number may be fractional
+# (``1.5h``, ``.5s``, ``5.s``) and the unit is one of ``ns``, ``us``, ``µs``
+# (U+00B5), ``μs`` (U+03BC), ``ms``, ``s``, ``m``, ``h``. Examples: ``15s``,
+# ``1m0s``, ``2h30m21s``, ``500ms``, ``-5m``. Units Go rejects, such as ``min``
+# or ``d``, are rejected too. Every repetition starts with a digit or a dot and
+# ends with a unit letter, so there is a single way to split a value.
+GO_DURATION_PATTERN = r"^[-+]?(0|(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$"
+
+# An Agent endpoint URL: a host, or an http:// or https:// URL, with an optional
+# port and path, or "" for "unset" (the Agent then uses `site`). URLs can't
+# contain spaces. No nested repetition.
+URL_PATTERN = r"^((https?://)?([a-zA-Z0-9\.-]+)(:[0-9]{1,5})?[/\w\.-]*)?$"
+
+# The Agent formats, by name: `format: <name>` in the YAML schema is replaced
+# with `pattern: <regexp>` in every generated schema.
+AGENT_FORMATS = {
+    "duration": GO_DURATION_PATTERN,
+    "url": URL_PATTERN,
+}
+
+
 def _filter_keys(node, should_drop):
     """Return a copy of ``node`` with every key for which ``should_drop(key)``
     is true removed.
@@ -170,6 +227,48 @@ def _filter_keys(node, should_drop):
     return node
 
 
+def _map_schemas(node, transform):
+    """Return a copy of ``node`` where ``transform`` was applied to every schema
+    object, bottom-up.
+
+    Walks the same way as ``_filter_keys``: values under ``default``/``enum``/...
+    are instance data and are copied verbatim, and maps under
+    ``properties``/``$defs``/... are walked as names pointing to schemas, so
+    ``transform`` only ever sees real schema objects.
+    """
+    if isinstance(node, dict):
+        result = {}
+        for key, value in node.items():
+            if key in _INSTANCE_DATA_KEYS:
+                result[key] = value
+            elif key in _NAME_KEYED_KEYS and isinstance(value, dict):
+                result[key] = {name: _map_schemas(sub, transform) for name, sub in value.items()}
+            else:
+                result[key] = _map_schemas(value, transform)
+        return transform(result)
+    if isinstance(node, list):
+        return [_map_schemas(item, transform) for item in node]
+    return node
+
+
+def _format_to_pattern(schema):
+    """Replace an Agent format (``format: <name>``) with its regexp (``pattern``), see ``AGENT_FORMATS``.
+
+    Formats that aren't Agent formats are left as written (schema.lint rejects them in the YAML schema).
+    """
+    pattern = AGENT_FORMATS.get(schema.get("format"))
+    if pattern is None:
+        return schema
+    result = {k: v for k, v in schema.items() if k != "format"}
+    if "pattern" in result:
+        # Keep the setting's own pattern and require both: a schema can only
+        # hold one ``pattern`` keyword.
+        result["allOf"] = [*result.get("allOf", []), {"pattern": pattern}]
+    else:
+        result["pattern"] = pattern
+    return result
+
+
 def _strip_keys(node, drop_keys):
     """Return a copy of ``node`` with every occurrence of ``drop_keys`` removed."""
     return _filter_keys(node, lambda key: key in drop_keys)
@@ -183,12 +282,16 @@ def _keep_keys(node, keep_keys):
 def embedded(document):
     """Schema variant embedded into the Go binary for JSON-Schema validation.
 
-    Drops human-facing documentation strings (``description``/``title``) -- the
-    single largest contributor to the embedded schema size. The Go loader
-    compiles the schema for validation only, so these keywords are unused at
-    runtime.
+    Drops human-facing documentation strings (``description``/``title``/
+    ``banner``) -- the single largest contributor to the embedded schema size.
+    The Go loader compiles the schema for validation only, so these keywords
+    are unused at runtime.
+
+    The Agent formats (``format: duration``, ``format: url``) are replaced with
+    their regexp so the Agent validates them, see ``AGENT_FORMATS``.
     """
-    return _strip_keys(document, frozenset({"description", "example", "title", "comment", "tags"}))
+    stripped = _strip_keys(document, frozenset({"description", "example", "title", "banner", "comment", "tags"}))
+    return _map_schemas(stripped, _format_to_pattern)
 
 
 def json_schema(document):
@@ -204,8 +307,11 @@ def json_schema(document):
     Note: keeping only an allowlist (rather than dropping a blocklist) means any
     extension keyword added to the schema in the future is excluded
     automatically, with no change needed here.
+
+    The Agent formats (``format: duration``, ``format: url``) are replaced with
+    their regexp, see ``AGENT_FORMATS``: they aren't JSON Schema formats.
     """
-    return _keep_keys(document, _STANDARD_JSON_SCHEMA_KEYWORDS)
+    return _map_schemas(_keep_keys(document, _STANDARD_JSON_SCHEMA_KEYWORDS), _format_to_pattern)
 
 
 # Registry of named schema outputs. Each entry maps a name to ``(transform,
@@ -249,17 +355,39 @@ def _dump(document, fmt, f):
         yaml.dump(document, f, sort_keys=False)
 
 
-def produce_byproduct(output, in_path, out_path):
+def _with_schema_id(document, schema_id):
+    """Return a copy of ``document`` whose ``$id`` is ``schema_id``.
+
+    Keeps the key order: ``$id`` replaces the existing one in place, or is added
+    right after ``$schema`` (at the top otherwise), so the header stays first.
+    """
+    if "$id" in document:
+        return {key: (schema_id if key == "$id" else value) for key, value in document.items()}
+    result = {}
+    if "$schema" in document:
+        result["$schema"] = document["$schema"]
+    result["$id"] = schema_id
+    result.update((key, value) for key, value in document.items() if key != "$schema")
+    return result
+
+
+def produce_byproduct(output, in_path, out_path, schema_id=None):
     """Read the schema at ``in_path``, derive the named ``output`` byproduct and
     write it to ``out_path`` in that output's serialization format.
 
     Inlines every ``$ref`` so the result is a single self-contained file holding
     the top schema and all its sub-sections. A no-op for schemas with no refs
     (e.g. an already-merged file, or system-probe).
+
+    ``schema_id``, when set, replaces the ``$id`` of the output: the source
+    schema's ``$id`` is the location of its YAML file in the datadog-agent
+    repository, which is wrong for a byproduct published elsewhere.
     """
     _processor, fmt = _processor_for(output)
     document = resolve_schema(in_path)
     processed = process_schema(document, output)
+    if schema_id is not None:
+        processed = _with_schema_id(processed, schema_id)
     with open(out_path, "w", encoding="utf-8") as f:
         _dump(processed, fmt, f)
 

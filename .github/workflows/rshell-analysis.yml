@@ -17,25 +17,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      # Run trusted base-branch code; only inspect the PR's diff.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Fetch PR head
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: git fetch origin "refs/pull/${PR_NUMBER}/head"
+      # No checkout: the PR's changed files come from the API, so no PR code or file is ever on disk.
       - name: Require human approval for analysis changes
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
           PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
         run: |
-          if git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- \
-            pkg/rshell/analysis/ .github/workflows/rshell-analysis.yml; then
-            exit 0
+          set -o pipefail
+          # The files API lists at most 3000 files: for bigger PRs, assume the analysis changed.
+          if [ "$CHANGED_FILES" -le 3000 ]; then
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" \
+              --jq '.[] | .filename, (.previous_filename // empty)' > changed-files.txt
+            if ! grep -qE '^(pkg/rshell/analysis/|\.github/workflows/rshell-analysis\.yml$)' changed-files.txt; then
+              exit 0
+            fi
           fi
           if ! jq -e 'index("verified/analysis") // index("verified/allowed_symbols")' <<< "$PR_LABELS" >/dev/null; then
             echo "::error::A human must review the rshell analysis changes and add the verified/analysis label."

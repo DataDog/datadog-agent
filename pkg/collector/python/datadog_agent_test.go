@@ -43,6 +43,10 @@ func TestObfuscaterConfig(t *testing.T) {
 	testObfuscaterConfig(t)
 }
 
+func TestPostgresPlanKeepValues(t *testing.T) {
+	testPostgresPlanKeepValues(t)
+}
+
 func TestReportIssue(t *testing.T) {
 	testReportIssue(t)
 }

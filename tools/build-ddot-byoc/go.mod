@@ -4,12 +4,12 @@ go 1.26.0
 
 require (
 	github.com/google/go-containerregistry v0.22.1
-	github.com/klauspost/compress v1.20.3
+	github.com/klauspost/compress v1.20.4
 )
 
 require (
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
-	github.com/docker/cli v29.9.3+incompatible // indirect
+	github.com/docker/cli v29.10.0+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect

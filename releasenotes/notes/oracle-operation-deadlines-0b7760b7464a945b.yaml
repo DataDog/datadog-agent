@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Fix Oracle ``query_timeout`` enforcement. The timeout (default 20 seconds) is
+    now enforced on every database operation, including result fetching and
+    cleanup. Queries that previously exceeded the timeout without error may now
+    fail, so you may see new timeout errors after upgrading. If so, increase
+    ``query_timeout``. With the default Go driver, the socket timeout fallback is
+    now twice ``query_timeout``, and sockets are released after failed connection
+    attempts. Recovery from timeouts, canceled operations, cursor exhaustion, and
+    protocol errors is also improved.

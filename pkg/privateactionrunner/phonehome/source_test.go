@@ -126,3 +126,19 @@ func TestReaderFreezesLoopbackEndpoints(t *testing.T) {
 	cfg.SetInTest("dd_url", "http://127.0.0.1:4321")
 	require.Equal(t, phonehomedef.ReasonRCCredentialOrEndpointMismatch, source.Read(time.Now()).Reason)
 }
+
+func TestReaderSupportsIndependentPARBackend(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
+	cfg := configmock.New(t)
+	cfg.SetInTest("api_key", "agent-key")
+	cfg.SetInTest("site", "datadoghq.eu")
+	cfg.SetInTest("private_action_runner.api_key", "par-key")
+	cfg.SetInTest("private_action_runner.site", "datadoghq.com")
+	cfg.SetInTest("remote_configuration.enabled", true)
+	rc := &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}
+	source := NewSource(cfg, rc)
+	require.True(t, source.Read(time.Now()).Ready)
+	require.Equal(t, "https://api.datadoghq.com", enrollmentEndpoint(cfg))
+	cfg.SetInTest("private_action_runner.api_key", "rotated-par-key")
+	require.Equal(t, phonehomedef.ReasonRCCredentialOrEndpointMismatch, source.Read(time.Now()).Reason)
+}

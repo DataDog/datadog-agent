@@ -311,6 +311,7 @@ func TestAllCollectorsWork(t *testing.T) {
 	prmCache := &PRMCache{}
 	deps := &CollectorDependencies{
 		DeviceEventsGatherer: eventsGatherer,
+		StateChangesGatherer: NewStateChangesGatherer(nil, nil), // not started: Collect only takes events
 		SystemProbeCache:     spCache,
 		PRMCache:             prmCache,
 		Workloadmeta:         workloadMetaMockWithGPUShares(t, devices),
@@ -330,7 +331,8 @@ func TestAllCollectorsWork(t *testing.T) {
 	for _, collector := range collectors {
 		result, err := collector.Collect()
 		require.NoError(t, err, "collector %s failed to collect", collector.Name())
-		if collector.Name() != deviceEvents {
+		// Event-only collectors return nothing until something happens.
+		if collector.Name() != deviceEvents && collector.Name() != stateChanges {
 			require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
 		}
 		seenCollectors[collector.Name()] = struct{}{}
@@ -431,6 +433,7 @@ func TestDisabledCollectors(t *testing.T) {
 			prmCache := &PRMCache{}
 			deps := &CollectorDependencies{
 				DeviceEventsGatherer: eventsGatherer,
+				StateChangesGatherer: NewStateChangesGatherer(nil, nil),
 				SystemProbeCache:     spCache,
 				PRMCache:             prmCache,
 				Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
@@ -985,4 +988,11 @@ func TestConfiguredMetricPriority(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSlicingModeTag(t *testing.T) {
+	require.Equal(t, "none", slicingModeTag(&ddnvml.PhysicalDevice{}))
+	require.Equal(t, "mig-parent", slicingModeTag(&ddnvml.PhysicalDevice{HasMIGFeatureEnabled: true}))
+	require.Equal(t, "mig-parent", slicingModeTag(&ddnvml.PhysicalDevice{MIGChildren: []*ddnvml.MIGDevice{{}}}))
+	require.Equal(t, "mig", slicingModeTag(&ddnvml.MIGDevice{}))
 }

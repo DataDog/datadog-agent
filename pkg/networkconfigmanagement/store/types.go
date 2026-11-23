@@ -34,7 +34,7 @@ var _ types.TypedError = (*ConfigNotFoundError)(nil)
 // to intake to enable "rollbacks" without sending sensitive data (in configs) back and forth
 type ConfigStore interface {
 	Close(context.Context) error
-	StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (configUUID string, configHash string, stored bool, err error)
+	StoreConfig(deviceID string, configType types.ConfigType, rawConfig string, rawHash string) (configUUID string, stored bool, err error)
 	// GetConfig fetches data for a given UUID. It should return an
 	// UnknownUUIDError if the UUID isn't present in the store (any other error
 	// type indicates a problem with the store itself, such as data corruption)

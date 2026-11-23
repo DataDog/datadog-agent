@@ -19,10 +19,16 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigschema "github.com/DataDog/datadog-agent/pkg/config/schema"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+// Requires defines the dependencies of the schema component
+type Requires struct {
+	Telemetry telemetry.Component
+}
 
 // Provides defines the output of the schema component
 type Provides struct {
@@ -37,11 +43,15 @@ type schemaValidator struct {
 	m sync.Mutex
 	// violations holds the result of the last validation of each schema
 	violations map[model.SchemaID][]*model.Violation
+	telemetry  *violationTelemetry
 }
 
 // NewComponent returns the schema component
-func NewComponent() Provides {
-	return Provides{Comp: &schemaValidator{violations: map[model.SchemaID][]*model.Violation{}}}
+func NewComponent(deps Requires) Provides {
+	return Provides{Comp: &schemaValidator{
+		violations: map[model.SchemaID][]*model.Violation{},
+		telemetry:  newViolationTelemetry(deps.Telemetry),
+	}}
 }
 
 // loadSchema decompresses, parses and compiles an embedded schema
@@ -97,10 +107,12 @@ func (s *schemaValidator) ValidateConfig(config model.Reader) ([]*model.Violatio
 	if err != nil {
 		// don't keep reporting the violations of a previous validation
 		delete(s.violations, schemaID)
+		s.telemetry.clear(schemaID)
 		return nil, err
 	}
 
 	s.violations[schemaID] = violations
+	s.telemetry.report(config, schemaID, violations)
 	return violations, nil
 }
 
@@ -169,6 +181,7 @@ func collectViolations(ve *jsonschema.ValidationError, cfg model.Reader, data in
 			Message:    scrubMessage(ve.Error(), path),
 			Path:       path,
 			SettingKey: settingKey,
+			Reason:     violationReason(ve.ErrorKind),
 		}
 
 		if typeError, ok := ve.ErrorKind.(*kind.Type); ok {

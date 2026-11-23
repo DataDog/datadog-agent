@@ -19,13 +19,16 @@ tags:
   gpu_architecture:
     regex: "^[a-z0-9_-]+$"
   gpu_slicing_mode:
+    # mig-parent: physical GPU with MIG mode enabled, even with no MIG devices yet.
     regex: "^(none|mig|mig-parent)$"
   gpu_sharing_mode:
-    # How the GPU is currently shared between workloads: kai_fraction while KAI
-    # Scheduler holds it for fractional workloads, none when no sharing mechanism
-    # was detected (mechanisms the Agent does not detect, such as time-slicing or
-    # MPS, also report none).
-    regex: "^(none|kai_fraction)$"
+    # How the GPU is currently shared between workloads: kai-fraction while KAI
+    # Scheduler holds it for fractional workloads; time-slicing or mps when the
+    # NVIDIA device plugin shares it as replicas (from the allocation IDs,
+    # disambiguated by the node's sharing-strategy label); unknown when a
+    # shared-replica allocation exists but the node does not label its
+    # strategy; none when no sharing mechanism was detected.
+    regex: "^(none|kai-fraction|time-slicing|mps|unknown)$"
   gpu_mig_profile:
     regex: "^(none|unknown|[0-9]+g\\.[0-9]+gb([_-][a-z]+(\\.[a-z]+)*)?)$"
   gpu_type:
@@ -76,6 +79,8 @@ tags:
   xgmi_link:
     regex: "^\\d+$"
   type:
+    regex: "^\\d+$"
+  xid_code:
     regex: "^\\d+$"
   kube_container_name: {}
   memory_location:

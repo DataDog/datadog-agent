@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
+	gpuresources "github.com/DataDog/datadog-agent/pkg/gpu/resources"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	tpudevice "github.com/DataDog/datadog-agent/pkg/gpu/tpu"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -69,6 +70,7 @@ var _ check.IssueAwareCheck = (*Check)(nil)
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
+	resourcePublisher   *gpuresources.Publisher
 	readiness           *Readiness
 	collectors          []nvidia.Collector               // collectors for NVML metrics
 	collectorBuilder    *nvidia.CollectorBuilder         // collectorBuilder builds the collectors and retries the ones that failed to be created
@@ -82,6 +84,7 @@ type Check struct {
 	prmCache            *nvidia.PRMCache                 // prmCache holds system-probe privileged NVLink metrics
 	gpuConfig           *gpuconfig.Config                // gpuConfig is shared with the system-probe GPU module
 	deviceEvtGatherer   *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
+	stateChanges        *nvidia.StateChangesGatherer     // stateChanges reads the watched values every second and keeps the events of their changes
 	workloadTagCache    *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
 	containerProvider   proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 	rateCalculator      *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
@@ -192,7 +195,7 @@ func newCheckTelemetryMetrics(tm telemetry.Component) *checkTelemetryMetrics {
 		duplicateMetrics:           tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
 		missingContainerGpuMapping: tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
 		containerMappingFailurePct: tm.NewGauge(CheckName, "container_gpu_mapping_failure_pct", nil, "Percentage of GPU containers whose devices could not be fully matched in the last check run"),
-		deviceCount:                tm.NewGauge(CheckName, "device_total", nil, "Number of GPU devices"),
+		deviceCount:                tm.NewGauge(CheckName, "device_total", append([]string{"gpu_sharing_mode"}, nvidia.DeviceTelemetryTagNames...), "Number of physical GPU devices"),
 	}
 }
 
@@ -208,6 +211,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	c.gpuConfig = gpuconfig.New()
+	if err := c.configureResources(); err != nil {
+		return err
+	}
 	for _, collectorName := range c.gpuConfig.DisabledCollectors {
 		log.Infof("Collector %s is disabled by configuration", collectorName)
 	}
@@ -283,6 +289,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer(driverEventsSource)
 	c.nodeUnschedulable = nodeunschedulable.New(pkgconfigsetup.Datadog())
+	c.stateChanges = nvidia.NewStateChangesGatherer(c.deviceCache,
+		&nvidia.CollectorDependencies{Workloadmeta: c.wmeta, NodeUnschedulable: c.nodeUnschedulable})
 
 	return nil
 }
@@ -321,6 +329,7 @@ func (c *Check) ensureInitCollectors() error {
 
 	deps := &nvidia.CollectorDependencies{
 		DeviceEventsGatherer: c.deviceEvtGatherer,
+		StateChangesGatherer: c.stateChanges,
 		SystemProbeCache:     c.spCache,
 		PRMCache:             c.prmCache,
 		NodeUnschedulable:    c.nodeUnschedulable,
@@ -358,6 +367,9 @@ func (c *Check) Cancel() {
 		if err := c.deviceEvtGatherer.Stop(); err != nil {
 			log.Warnf("error stopping event set gatherer: %v", err)
 		}
+	}
+	if c.stateChanges != nil {
+		c.stateChanges.Stop()
 	}
 
 	// NVML is deliberately not shut down here: the singleton is shared with
@@ -400,7 +412,7 @@ func (c *Check) Run() error {
 			c.resolveNvmlIssues("")
 			c.nvmlIssueID = ""
 		}
-		c.telemetry.metrics.deviceCount.Set(0)
+		c.updateDeviceCountTelemetry(nil)
 		return nil
 	}
 
@@ -478,15 +490,15 @@ func (c *Check) Run() error {
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
 	}
-
-	deviceCount, err := c.deviceCache.Count()
-	if err != nil {
-		if logLimitCheck.ShouldLog() {
-			log.Warnf("failed to get device count: %v", err)
-		}
-		deviceCount = 0
+	if err := c.publishResources(snd, currentExecutionTime); err != nil {
+		_ = c.Warnf("GPU resource publication failed: %v", err)
 	}
-	c.telemetry.metrics.deviceCount.Set(float64(deviceCount))
+
+	physicalDevices, err := c.deviceCache.AllPhysicalDevices()
+	if err != nil && logLimitCheck.ShouldLog() {
+		log.Warnf("failed to get physical devices: %v", err)
+	}
+	c.updateDeviceCountTelemetry(physicalDevices)
 
 	// Refresh system-probe data before collecting metrics.
 	if c.spCache != nil && c.gpuConfig.EnableEBPFProbes {
@@ -521,6 +533,12 @@ func (c *Check) Run() error {
 			// registration backoff.
 			nvidia.ResetEventRegistrations(c.collectors)
 		}
+	}
+
+	// The state changes gatherer is stopped while NVML is released, and not started at all
+	// when its collector is disabled: nothing would take its events.
+	if nvidia.StateChangesEnabled(*c.gpuConfig) {
+		c.stateChanges.Start()
 	}
 
 	// Attempt refreshing device events. Only the system-probe driver events
@@ -1066,6 +1084,9 @@ func (c *Check) releaseNVML() {
 			log.Warnf("error stopping device events gatherer for the NVML release: %v", err)
 		}
 	}
+	if c.stateChanges != nil {
+		c.stateChanges.Stop()
+	}
 
 	// The gated release FIRST: it arms the released flag (rejecting new NVML
 	// users, so no cache refresh can repopulate mid-release), waits for
@@ -1119,5 +1140,23 @@ func (c *Check) reacquireNVML(force bool) {
 	c.releaseWindowStart = time.Time{}
 	if err := c.pushNvmlStateToSysprobe(gpumodel.NvmlStateAcquired); err != nil {
 		log.Warnf("error ending the system-probe NVML release lease (it will expire on its own): %v", err)
+	}
+}
+
+// updateDeviceCountTelemetry partitions the NVML physical inventory using the
+// collector device labels plus sharing mode. MIG children and device-plugin
+// replicas never increase this physical-device count.
+func (c *Check) updateDeviceCountTelemetry(devices []ddnvml.Device) {
+	// Rebuild the counts so removed devices and changed tags leave no stale series.
+	c.telemetry.metrics.deviceCount.DeletePartialMatch(nil)
+	for _, device := range devices {
+		mode := workloadmeta.GPUSharingModeNone
+		// Sharing detection is asynchronous. Missing state means no sharing
+		// detected; unknown is reserved for known replication of unknown strategy.
+		if gpu, err := c.wmeta.GetGPU(device.GetDeviceInfo().UUID); err == nil && gpu.SharingMode != "" {
+			mode = gpu.SharingMode
+		}
+		tags := append([]string{string(mode)}, nvidia.DeviceTelemetryTags(device)...)
+		c.telemetry.metrics.deviceCount.Inc(tags...)
 	}
 }
