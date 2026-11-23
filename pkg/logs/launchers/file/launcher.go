@@ -82,7 +82,7 @@ type Launcher struct {
 	nextGeneration            atomic.Uint64
 	sourceGenerations         map[*tailer.Tailer]uint64
 	stoppingTailersWg         sync.WaitGroup
-	forceBeginningOnNextStart map[string]bool
+	pendingRotationRetry      map[string]*oldTailerInfo
 	stopOnce                  sync.Once
 }
 
@@ -241,6 +241,7 @@ func (s *Launcher) cleanup() {
 
 	// Clean up old info map to prevent memory leaks
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
+	s.pendingRotationRetry = make(map[string]*oldTailerInfo)
 	if stillSkipped := len(s.fingerprintSkips); stillSkipped > 0 {
 		log.Warnf("Stopping with %d file(s) still not tailed because their fingerprint was unusable.", stillSkipped)
 		for _, skip := range s.fingerprintSkips {
@@ -664,8 +665,12 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 	}
 	tailer := s.createTailer(file, channel, monitor, fingerprint)
 
-	if s.forceBeginningOnNextStart[file.GetScanKey()] {
-		m = config.ForceBeginning
+	if retryInfo, ok := s.pendingRotationRetry[file.GetScanKey()]; ok {
+		if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, retryInfo, fingerprint) {
+			delete(s.pendingRotationRetry, file.GetScanKey())
+			return true
+		}
+		return false
 	}
 	offset, whence := s.tailerPosition(file, tailer, m, fingerprint)
 
@@ -676,7 +681,6 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 		return false
 	}
 
-	delete(s.forceBeginningOnNextStart, file.GetScanKey())
 	s.recordSourceGen(tailer, gen)
 	s.tailers.Add(tailer)
 	return true
@@ -825,13 +829,17 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
+	oldInfo := &oldTailerInfo{
+		Pattern:      oldRegexPattern,
+		InfoRegistry: oldTailer.GetInfo(),
+	}
 
 	newTailer, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
 	if err != nil {
-		if s.forceBeginningOnNextStart == nil {
-			s.forceBeginningOnNextStart = make(map[string]bool)
+		if s.pendingRotationRetry == nil {
+			s.pendingRotationRetry = make(map[string]*oldTailerInfo)
 		}
-		s.forceBeginningOnNextStart[file.GetScanKey()] = true
+		s.pendingRotationRetry[file.GetScanKey()] = oldInfo
 		log.Warnf("Could not allocate replacement tailer for %s after a log rotation, will retry on the next scan: %v", file.Path, err)
 		return false
 	}
@@ -839,10 +847,10 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	err = newTailer.StartFromBeginning()
 	if err != nil {
 		s.retireTailer(newTailer)
-		if s.forceBeginningOnNextStart == nil {
-			s.forceBeginningOnNextStart = make(map[string]bool)
+		if s.pendingRotationRetry == nil {
+			s.pendingRotationRetry = make(map[string]*oldTailerInfo)
 		}
-		s.forceBeginningOnNextStart[file.GetScanKey()] = true
+		s.pendingRotationRetry[file.GetScanKey()] = oldInfo
 		log.Warnf("Could not start the replacement tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
 	}

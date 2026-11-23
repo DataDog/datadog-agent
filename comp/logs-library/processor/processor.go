@@ -83,6 +83,14 @@ func (n *failoverNotifier) onLogsFailoverSettingChanged(setting string, _ pkgcon
 	}
 }
 
+func (n *failoverNotifier) initSnapshot() failoverConfig {
+	n.configChanMu.Lock()
+	defer n.configChanMu.Unlock()
+	conf := n.readFailoverConfig()
+	n.latest.Store(&conf)
+	return conf
+}
+
 func (n *failoverNotifier) updateFailoverConfig() {
 	if n.config == nil || n.stopped.Load() {
 		return
@@ -177,9 +185,7 @@ func newProcessor(config pkgconfigmodel.Reader, inputChan, outputChan chan *mess
 		if config != nil {
 			config.OnUpdate(notifier.onLogsFailoverSettingChanged)
 		}
-		p.failoverConfig = notifier.readFailoverConfig()
-		initial := p.failoverConfig
-		notifier.latest.Store(&initial)
+		p.failoverConfig = notifier.initSnapshot()
 	}
 
 	return p

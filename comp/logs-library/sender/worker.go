@@ -93,7 +93,7 @@ func (s *worker) start() {
 // Stop stops the worker,
 // this call blocks until inputChan is flushed
 func (s *worker) stop() {
-	s.done <- struct{}{}
+	close(s.done)
 	<-s.finished
 }
 
@@ -110,14 +110,16 @@ func (s *worker) run() {
 	for continueLoop {
 		select {
 		case payload := <-s.inputChan:
-			s.sendPayload(payload, reliableDestinations, unreliableDestinations)
+			s.sendPayload(payload, reliableDestinations, unreliableDestinations, false)
 		case <-s.done:
 			// Drain payloads already queued on inputChan before stopping destinations.
+			// Use non-retrying drain mode so a permanently disabled or stalled
+			// destination cannot hang shutdown.
 		drain:
 			for {
 				select {
 				case payload := <-s.inputChan:
-					s.sendPayload(payload, reliableDestinations, unreliableDestinations)
+					s.sendPayload(payload, reliableDestinations, unreliableDestinations, true)
 				default:
 					break drain
 				}
@@ -137,7 +139,7 @@ func (s *worker) run() {
 	s.finished <- struct{}{}
 }
 
-func (s *worker) sendPayload(payload *message.Payload, reliableDestinations, unreliableDestinations []*DestinationSender) {
+func (s *worker) sendPayload(payload *message.Payload, reliableDestinations, unreliableDestinations []*DestinationSender, draining bool) {
 	s.pipelineMonitor.ReportComponentEgress(payload, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
 	s.pipelineMonitor.ReportComponentIngress(payload, metrics.WorkerTlmName, s.workerID)
 	s.utilization.Start()
@@ -167,10 +169,21 @@ func (s *worker) sendPayload(payload *message.Payload, reliableDestinations, unr
 		}
 
 		if !sent {
+			if draining {
+				// Shutdown drain: abandon unsent payload without acknowledging
+				// when no reliable destination can accept it immediately.
+				s.utilization.Stop()
+				return
+			}
 			// Throttle the poll loop while waiting for a send to succeed
 			// This will only happen when all reliable destinations
 			// are blocked so logs have no where to go.
-			time.Sleep(100 * time.Millisecond)
+			select {
+			case <-s.done:
+				s.utilization.Stop()
+				return
+			case <-time.After(100 * time.Millisecond):
+			}
 		}
 	}
 

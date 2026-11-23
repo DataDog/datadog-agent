@@ -1227,6 +1227,46 @@ func TestEndpointFilteredGracefulStopDeliversQueuedReliablePayload(t *testing.T)
 	assert.Equal(t, "10", cp.MessageMetas[0].Origin.Offset)
 }
 
+func TestEndpointFilteredStopWithPermanentlyRejectedReliableEndpointDoesNotHang(t *testing.T) {
+	// 503 with multiple queued payloads simulates a stalled/disabled reliable endpoint during Stop.
+	us1 := newEFIntake(t)
+	us1.setStatus(http.StatusServiceUnavailable)
+	eps := config.NewEndpointsWithBatchSettings(
+		us1.endpoint("us1-key", true),
+		nil, false, true, 10*time.Millisecond, 1, 1, 1024*1024, 16,
+	)
+	p, err := NewEndpointFilteredProvider(EndpointFilteredOptions{
+		NumberOfPipelines:         1,
+		Sink:                      &efSink{ch: make(chan *message.Payload, 16)},
+		DiagnosticMessageReceiver: &diagnostic.NoopMessageReceiver{},
+		Endpoints:                 eps,
+		Selectors:                 []routing.EndpointSelector{routing.SelectorFunc(func(routing.LogView) (bool, error) { return true, nil })},
+		DestinationsContext:       client.NewDestinationsContext(),
+		Config:                    efTestConfig(t),
+		Compression:               logscompression.NewMockCompressor(),
+		Secrets:                   secretsnoop.NewComponent().Comp,
+	})
+	require.NoError(t, err)
+	p.Start()
+
+	src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: "/tmp/perm-disabled.log"})
+	in := p.NextPipelineChan()
+	for i := 1; i <= 5; i++ {
+		in <- makeCheckpointedMessage(src, "file:/tmp/perm-disabled.log", strconv.Itoa(i*10), "line-"+strconv.Itoa(i), message.StatusInfo)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		p.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Stop hung with stalled/retrying reliable endpoint and queued payloads")
+	}
+}
+
 func TestEndpointFilteredGracefulStopDrainsCompletedCheckpoints(t *testing.T) {
 	us1 := newEFIntake(t)
 	eps := config.NewEndpointsWithBatchSettings(

@@ -160,6 +160,19 @@ func (p *Progress) RegisterSource(identifier string, generation uint64) error {
 	source.currentGeneration = generation
 	source.seenGenerations[generation] = false
 	p.histories++
+	// In CompletionRequireAny mode, reclaim any previously retired generation
+	// now superseded by this newer generation.
+	if p.mode == CompletionRequireAny {
+		for oldGen, retired := range source.seenGenerations {
+			if retired && oldGen < generation {
+				if oldGen > source.maxRetiredGeneration {
+					source.maxRetiredGeneration = oldGen
+				}
+				delete(source.seenGenerations, oldGen)
+				p.histories--
+			}
+		}
+	}
 	return nil
 }
 
@@ -201,11 +214,12 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 		}
 		source := p.sources[identifier]
 		if identifier != "" && requireCompleteSource && source != nil {
-			if retired, seen := source.seenGenerations[selection.Generation]; seen && retired {
-				p.mu.Unlock()
-				return 0, fmt.Errorf("%w: %d", ErrObsoleteGeneration, selection.Generation)
-			}
-			if p.mode == CompletionRequireAny && selection.Generation <= source.maxRetiredGeneration {
+			if retired, seen := source.seenGenerations[selection.Generation]; seen {
+				if retired {
+					p.mu.Unlock()
+					return 0, fmt.Errorf("%w: %d", ErrObsoleteGeneration, selection.Generation)
+				}
+			} else if p.mode == CompletionRequireAny && selection.Generation <= source.maxRetiredGeneration {
 				p.mu.Unlock()
 				return 0, fmt.Errorf("%w: %d", ErrObsoleteGeneration, selection.Generation)
 			}
@@ -310,10 +324,11 @@ func (p *Progress) TryReserveShared(msg *message.Message, generation uint64) (to
 	}
 	source := p.sources[identifier]
 	if identifier != "" && source != nil {
-		if retired, seen := source.seenGenerations[generation]; seen && retired {
-			return 0, false, false, fmt.Errorf("%w: %d", ErrObsoleteGeneration, generation)
-		}
-		if p.mode == CompletionRequireAny && generation <= source.maxRetiredGeneration {
+		if retired, seen := source.seenGenerations[generation]; seen {
+			if retired {
+				return 0, false, false, fmt.Errorf("%w: %d", ErrObsoleteGeneration, generation)
+			}
+		} else if p.mode == CompletionRequireAny && generation <= source.maxRetiredGeneration {
 			return 0, false, false, fmt.Errorf("%w: %d", ErrObsoleteGeneration, generation)
 		}
 	}
@@ -614,10 +629,12 @@ func (p *Progress) advance(r *record) {
 
 // RetireSource marks one producer stopped after all its decoder output has
 // been admitted. A drained queue alone is insufficient evidence of this. Old
-// generation retirement does not release newer ownership; history is released
-// only when every generation for the identifier has retired and the queue is
-// empty. Invalid-selection barriers do not prevent producer retirement.
-// Callers must not retire an active producer.
+// generation retirement does not release newer ownership; in CompletionRequireAll
+// mode history is released when every generation for the identifier has retired
+// and the queue is empty, while in CompletionRequireAny mode drained retired
+// generations superseded by a newer generation reclaim their history slot
+// immediately via maxRetiredGeneration. Invalid-selection barriers do not
+// prevent producer retirement. Callers must not retire an active producer.
 func (p *Progress) RetireSource(identifier string, generation uint64) error {
 	if identifier == "" {
 		return nil

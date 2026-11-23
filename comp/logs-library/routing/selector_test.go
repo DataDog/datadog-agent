@@ -294,3 +294,38 @@ func TestProgressRequireAnyOverlappingRotationsReclaimHistoryBudget(t *testing.T
 		}
 	}
 }
+
+func TestProgressRequireAnyOutOfOrderRetirementKeepsLiveProducerActive(t *testing.T) {
+	sink := &selectorTestSink{ch: make(chan *message.Payload, 8)}
+	progress, err := NewProgressWithMode(4, sink, CompletionRequireAny)
+	if err != nil {
+		t.Fatalf("NewProgressWithMode: %v", err)
+	}
+	defer progress.Close()
+
+	src := sources.NewLogSource("file", &config.LogsConfig{Type: config.FileType, Path: "/tmp/ooo.log"})
+	const id = "file:/tmp/ooo.log"
+	for _, gen := range []uint64{1, 2, 3} {
+		if err := progress.RegisterSource(id, gen); err != nil {
+			t.Fatalf("RegisterSource gen %d: %v", gen, err)
+		}
+	}
+	// Retire gen 2 while gen 1 is still active -> gen 1 must still be allowed to reserve!
+	if err := progress.RetireSource(id, 2); err != nil {
+		t.Fatalf("RetireSource gen 2: %v", err)
+	}
+	o := message.NewOrigin(src)
+	o.Identifier = id
+	o.Offset = "10"
+	m := message.NewMessage([]byte("from-gen-1"), o, message.StatusInfo, 0)
+	if _, err := progress.Reserve(context.Background(), m, 1); err != nil {
+		t.Fatalf("live gen 1 was wrongly rejected after gen 2 retired: %v", err)
+	}
+	progress.CompleteLocal(m.RoutingToken())
+	if err := progress.RetireSource(id, 1); err != nil {
+		t.Fatalf("RetireSource gen 1: %v", err)
+	}
+	if err := progress.RetireSource(id, 3); err != nil {
+		t.Fatalf("RetireSource gen 3: %v", err)
+	}
+}

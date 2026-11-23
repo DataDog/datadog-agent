@@ -102,16 +102,17 @@ type endpointSelection struct {
 // managedInput coordinates safe single-owner closure of a bound or shared
 // ingress channel across concurrent Flush, RetireSource, and Stop calls.
 type managedInput struct {
-	ch       chan *message.Message
-	mu       sync.Mutex
-	retiring bool
-	closed   bool
-	senders  int
-	idle     chan struct{}
+	ch         chan *message.Message
+	mu         sync.Mutex
+	retiring   bool
+	closed     bool
+	senders    int
+	idle       chan struct{}
+	retireDone chan struct{}
 }
 
 func newManagedInput(ch chan *message.Message) *managedInput {
-	return &managedInput{ch: ch}
+	return &managedInput{ch: ch, retireDone: make(chan struct{})}
 }
 
 func (m *managedInput) acquire() bool {
@@ -169,6 +170,7 @@ func (m *managedInput) closeOnce() {
 	if !m.closed {
 		m.closed = true
 		close(m.ch)
+		close(m.retireDone)
 	}
 	m.mu.Unlock()
 }
@@ -179,8 +181,59 @@ type parkedRecord struct {
 }
 
 type sharedSourcePark struct {
-	queue  chan parkedRecord
-	queued int // Guarded by sharedParkMu.
+	queue     chan parkedRecord
+	queued    int    // Guarded by sharedParkMu.
+	submitted uint64 // Guarded by sharedParkMu.
+	completed atomic.Uint64
+	notifyMu  sync.Mutex
+	notify    chan struct{}
+	exited    bool
+}
+
+func newSharedSourcePark(capacity int) *sharedSourcePark {
+	return &sharedSourcePark{
+		queue:  make(chan parkedRecord, capacity),
+		notify: make(chan struct{}),
+	}
+}
+
+func (s *sharedSourcePark) broadcast() {
+	s.notifyMu.Lock()
+	close(s.notify)
+	s.notify = make(chan struct{})
+	s.notifyMu.Unlock()
+}
+
+func (s *sharedSourcePark) markExited() {
+	s.notifyMu.Lock()
+	s.exited = true
+	close(s.notify)
+	s.notify = make(chan struct{})
+	s.notifyMu.Unlock()
+}
+
+func (s *sharedSourcePark) wait(ctx, stopCh, providerCtxDone <-chan struct{}, target uint64) {
+	for {
+		if s.completed.Load() >= target {
+			return
+		}
+		s.notifyMu.Lock()
+		if s.completed.Load() >= target || s.exited {
+			s.notifyMu.Unlock()
+			return
+		}
+		ch := s.notify
+		s.notifyMu.Unlock()
+		select {
+		case <-ch:
+		case <-ctx:
+			return
+		case <-stopCh:
+			return
+		case <-providerCtxDone:
+			return
+		}
+	}
 }
 
 // efSourceDispatch tracks per-source batching-stage dispatch with broadcast
@@ -645,9 +698,10 @@ func (p *EndpointFilteredProvider) admit(input <-chan *message.Message, bound *s
 	for msg := range input {
 		if done := msg.RoutingBarrier(); done != nil {
 			if bound == nil {
-				p.waitSharedParks(msg.RoutingBarrierContext())
+				p.waitSharedParksAsync(msg.RoutingBarrierContext(), done)
+			} else {
+				close(done)
 			}
-			close(done)
 			continue
 		}
 		if p.ctx.Err() != nil {
@@ -717,49 +771,45 @@ func (p *EndpointFilteredProvider) admit(input <-chan *message.Message, bound *s
 	}
 }
 
-func (p *EndpointFilteredProvider) waitSharedParks(ctx context.Context) {
+func (p *EndpointFilteredProvider) waitSharedParksAsync(ctx context.Context, done chan struct{}) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	type parkTarget struct {
+		park   *sharedSourcePark
+		target uint64
+	}
 	p.sharedParkMu.Lock()
-	var acks []chan struct{}
+	if len(p.sharedParks) == 0 {
+		p.sharedParkMu.Unlock()
+		close(done)
+		return
+	}
+	targets := make([]parkTarget, 0, len(p.sharedParks))
 	for _, park := range p.sharedParks {
-		ack := make(chan struct{})
-		marker := &message.Message{}
-		marker.SetRoutingBarrier(ack)
-		park.queued++
-		p.totalParked++
-		select {
-		case park.queue <- parkedRecord{msg: marker}:
-			acks = append(acks, ack)
-		default:
-			// Park queue is full (source is stalled); do not block Flush on a full park.
-			park.queued--
-			p.totalParked--
-		}
+		targets = append(targets, parkTarget{park: park, target: park.submitted})
 	}
 	p.sharedParkMu.Unlock()
-	for _, ack := range acks {
-		select {
-		case <-ack:
-		case <-ctx.Done():
-			return
-		case <-p.stopRequested:
-			return
-		case <-p.ctx.Done():
-			return
+
+	// Wait off the shared admission goroutine so Flush never stalls admission
+	// for unrelated sources while waiting on parked watermarks.
+	go func() {
+		defer close(done)
+		for _, t := range targets {
+			t.park.wait(ctx.Done(), p.stopRequested, p.ctx.Done(), t.target)
 		}
-	}
+	}()
 }
 
 func (p *EndpointFilteredProvider) parkIfStalled(identifier string, msg *message.Message, generation uint64) bool {
 	p.sharedParkMu.Lock()
 	park := p.sharedParks[identifier]
-	if park == nil {
+	if park == nil || p.totalParked >= maxTotalParked {
 		p.sharedParkMu.Unlock()
 		return false
 	}
 	park.queued++
+	park.submitted++
 	p.totalParked++
 	p.sharedParkMu.Unlock()
 	select {
@@ -769,6 +819,8 @@ func (p *EndpointFilteredProvider) parkIfStalled(identifier string, msg *message
 		park.queued--
 		p.totalParked--
 		p.sharedParkMu.Unlock()
+		park.completed.Add(1)
+		park.broadcast()
 	}
 	return true
 }
@@ -788,7 +840,7 @@ func (p *EndpointFilteredProvider) tryEnqueueSharedPark(
 			p.sharedParkMu.Unlock()
 			return false
 		}
-		park = &sharedSourcePark{queue: make(chan parkedRecord, routing.SourcePendingLimit)}
+		park = newSharedSourcePark(routing.SourcePendingLimit)
 		p.sharedParks[identifier] = park
 		created = true
 		p.sharedParkWg.Add(1)
@@ -797,22 +849,24 @@ func (p *EndpointFilteredProvider) tryEnqueueSharedPark(
 		return false
 	}
 	park.queued++
+	park.submitted++
 	p.totalParked++
 	p.sharedParkMu.Unlock()
 
 	if created {
 		go func(id string, pk *sharedSourcePark) {
 			defer p.sharedParkWg.Done()
+			defer pk.markExited()
 			for {
 				select {
 				case rec := <-pk.queue:
-					if done := rec.msg.RoutingBarrier(); done != nil {
-						close(done)
-					} else if _, err := p.progress.ReserveShared(p.ctx, rec.msg, rec.generation); err != nil {
+					if _, err := p.progress.ReserveShared(p.ctx, rec.msg, rec.generation); err != nil {
 						onErr(rec.msg, err)
 					} else {
 						dispatch(rec.msg, id)
 					}
+					pk.completed.Add(1)
+					pk.broadcast()
 					p.sharedParkMu.Lock()
 					pk.queued--
 					p.totalParked--
@@ -843,6 +897,8 @@ func (p *EndpointFilteredProvider) tryEnqueueSharedPark(
 		park.queued--
 		p.totalParked--
 		p.sharedParkMu.Unlock()
+		park.completed.Add(1)
+		park.broadcast()
 	}
 	return true
 }
@@ -900,14 +956,13 @@ func (p *EndpointFilteredProvider) requestSourceFlush(identifier string) {
 		p.flushSource(identifier)
 		return
 	}
-	hasLanes := len(p.sourceDispatch) > 0
 	for _, lane := range p.sourceDispatch {
 		request(lane)
 	}
 	p.sourceDispatchMu.Unlock()
-	if !hasLanes {
-		p.flushAllReliableStreams()
-	}
+	// Always flush already-dispatched partial batches on aggregate pressure
+	// even if unrelated source lanes remain active.
+	p.flushAllReliableStreams()
 }
 
 func (p *EndpointFilteredProvider) flushAllReliableStreams() {
@@ -1113,10 +1168,16 @@ func (p *EndpointFilteredProvider) dispatchSource(mapKey, identifier string, lan
 		}
 		// Reclaim idle per-source dispatch lanes once all submitted records
 		// have been dispatched so source churn cannot retain goroutines/queues.
+		// Check flushAfter under the same sourceDispatchMu that requestSourceFlush
+		// uses so a concurrent pressure request cannot be lost across deletion.
 		p.sourceDispatchMu.Lock()
 		if lane.submitted == lane.completed.Load() && p.sourceDispatch[mapKey] == lane {
+			needsFlush := lane.flushAfter.Load() > flushed
 			delete(p.sourceDispatch, mapKey)
 			p.sourceDispatchMu.Unlock()
+			if needsFlush {
+				p.flushSource(identifier)
+			}
 			return
 		}
 		p.sourceDispatchMu.Unlock()
@@ -1375,11 +1436,28 @@ func (p *EndpointFilteredProvider) RetireSource(ctx context.Context, identifier 
 		}
 	}
 
-	err := p.progress.RetireSourceWhenDrained(identifier, generation)
-	if claimed {
-		p.reclaimBoundInput(key, mi)
+	// Complete progress retirement and input reclamation under caller ctx
+	// with provider-owned async handoff if Progress.mu is contended.
+	resultCh := make(chan error, 1)
+	p.retireCleanupWg.Add(1)
+	go func() {
+		defer p.retireCleanupWg.Done()
+		err := p.progress.RetireSourceWhenDrained(identifier, generation)
+		if claimed {
+			p.reclaimBoundInput(key, mi)
+		}
+		resultCh <- err
+	}()
+	select {
+	case err := <-resultCh:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-p.stopRequested:
+		return routing.ErrStopped
+	case <-p.ctx.Done():
+		return routing.ErrStopped
 	}
-	return err
 }
 
 func (p *EndpointFilteredProvider) reclaimBoundInput(key sourceInputKey, mi *managedInput) {
@@ -1438,6 +1516,9 @@ func (p *EndpointFilteredProvider) Flush(ctx context.Context) {
 	var acks []chan struct{}
 	for _, mi := range inputs {
 		if !mi.acquire() {
+			// Input is retiring or closed: wait for its retirement to finish
+			// draining instead of skipping pre-flush records.
+			acks = append(acks, mi.retireDone)
 			continue
 		}
 		ack := make(chan struct{})
@@ -1533,17 +1614,17 @@ func (p *EndpointFilteredProvider) Flush(ctx context.Context) {
 // Stop gracefully drains and shuts down all processors, batchers, senders, and progress state.
 func (p *EndpointFilteredProvider) Stop() {
 	p.stopOnce.Do(func() {
+		// Arm the grace timer before acquiring lifecycle.Lock so even a
+		// concurrent SourceInput waiting on Progress.mu cannot block shutdown.
+		timer := time.AfterFunc(routedStopGrace, p.cancel)
+		defer timer.Stop()
+
 		p.lifecycle.Lock()
 		started := p.started
 		p.stopped = true
 		close(p.stopRequested)
 		inputs := append([]*managedInput(nil), p.inputs...)
 		p.lifecycle.Unlock()
-
-		// Arm the grace timer before waiting on in-flight operations so a
-		// blocked checkpoint sink holding progress.mu cannot prevent shutdown.
-		timer := time.AfterFunc(routedStopGrace, p.cancel)
-		defer timer.Stop()
 
 		// Wait for any in-flight Flush or RetireSource calls (including
 		// provider-owned async retirement cleanups) to observe stopRequested
