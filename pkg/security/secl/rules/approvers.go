@@ -70,6 +70,14 @@ type reporter interface {
 	Report() (eval.FieldValueType, interface{})
 }
 
+// intersecter is an approver combining with another approver of its field into
+// the approvers of the events both approve.
+type intersecter interface {
+	// Intersect returns the approvers of the events both approve, none if no
+	// event is, false if it can't combine with the other approver.
+	Intersect(other Approver) ([]Approver, bool)
+}
+
 // ApproverModel returns the approvers of a comparison C. For any event,
 //
 //	C is true  =>  A1 or ... or An approves it
@@ -337,17 +345,56 @@ func anyOf(left FilterValues, leftOk bool, right FilterValues, rightOk bool) (Fi
 }
 
 // allOf returns the approvers of a conjunction: the approvers of one side, the
-// most selective one if both have approvers.
+// most selective one if both have approvers, or the intersection of both sides.
 func allOf(left FilterValues, leftOk bool, right FilterValues, rightOk bool) (FilterValues, bool) {
 	switch {
 	case !leftOk:
 		return right, rightOk
 	case !rightOk:
 		return left, true
-	case moreSelective(right, left):
+	}
+	if values, ok := intersect(left, right); ok {
+		return values, true
+	}
+	if moreSelective(right, left) {
 		return right, true
 	}
 	return left, true
+}
+
+// maxIntersections bounds the intersections of the approvers of the two sides of
+// a conjunction, their number being the product of the numbers of approvers.
+const maxIntersections = 16
+
+// intersect returns the approvers of the events approved by both sides of a
+// conjunction: the union of the intersections of the approvers of one side with
+// the approvers of the other. It returns false if two of them can't be
+// intersected, or if there are more than maxIntersections intersections.
+func intersect(left, right FilterValues) (FilterValues, bool) {
+	if len(left)*len(right) > maxIntersections {
+		return nil, false
+	}
+
+	var values FilterValues
+	for _, l := range left {
+		approver, ok := l.Approver.(intersecter)
+		if !ok {
+			return nil, false
+		}
+		for _, r := range right {
+			if l.Field != r.Field {
+				return nil, false
+			}
+			approvers, ok := approver.Intersect(r.Approver)
+			if !ok {
+				return nil, false
+			}
+			for _, approver := range approvers {
+				values = values.Merge(filterValue(l.Field, l.Type, l.Value, approver))
+			}
+		}
+	}
+	return values, true
 }
 
 // comparisonApprovers returns the approvers of a leaf of a boolean expression,
@@ -384,16 +431,21 @@ func approve(model ApproverModel, c Comparison) (FilterValues, bool) {
 	valueType, value := c.report()
 	values := make(FilterValues, 0, len(approvers))
 	for _, approver := range approvers {
-		fv := FilterValue{Field: c.Field, Value: value, Type: valueType, Mode: DefaultMode, Approver: approver}
-		if r, ok := approver.(reporter); ok {
-			fv.Type, fv.Value = r.Report()
-		}
-		if approver.ApproverOnly() {
-			fv.Mode = ApproverOnlyMode
-		}
-		values = append(values, fv)
+		values = append(values, filterValue(c.Field, valueType, value, approver))
 	}
 	return values, true
+}
+
+// filterValue returns the filter value of an approver of a comparison.
+func filterValue(field eval.Field, valueType eval.FieldValueType, value interface{}, approver Approver) FilterValue {
+	fv := FilterValue{Field: field, Value: value, Type: valueType, Mode: DefaultMode, Approver: approver}
+	if r, ok := approver.(reporter); ok {
+		fv.Type, fv.Value = r.Report()
+	}
+	if approver.ApproverOnly() {
+		fv.Mode = ApproverOnlyMode
+	}
+	return fv
 }
 
 // isApprovable returns whether events can be approved on a field: it is read

@@ -145,6 +145,27 @@ type auid struct {
 
 func (auid) Weight() int { return 100 }
 
+func (a auid) Report() (eval.FieldValueType, interface{}) {
+	return eval.ScalarValueType, a.value
+}
+
+// Intersect intersects the audit uid with another one or with a range.
+func (a auid) Intersect(other rules.Approver) ([]rules.Approver, bool) {
+	switch o := other.(type) {
+	case auid:
+		if a == o {
+			return approvers(a)
+		}
+	case auidRange:
+		if o.min <= a.value && a.value <= o.max {
+			return approvers(a)
+		}
+	default:
+		return nil, false
+	}
+	return nil, true
+}
+
 // auidRange approves the events of the processes of a range of audit uids, the
 // ranges of an event type being merged in the range covering them.
 type auidRange struct {
@@ -155,6 +176,21 @@ func (auidRange) Weight() int { return 100 }
 
 func (a auidRange) Report() (eval.FieldValueType, interface{}) {
 	return eval.RangeValueType, rules.RangeFilterValue{Min: a.min, Max: a.max}
+}
+
+// Intersect intersects the range with another one or with an audit uid.
+func (a auidRange) Intersect(other rules.Approver) ([]rules.Approver, bool) {
+	switch o := other.(type) {
+	case auid:
+		return o.Intersect(a)
+	case auidRange:
+		r := auidRange{min: max(a.min, o.min), max: min(a.max, o.max)}
+		if r.min > r.max {
+			return nil, true
+		}
+		return approvers(r)
+	}
+	return nil, false
 }
 
 // upperLayer approves the events on the files of the upper layer of an overlay

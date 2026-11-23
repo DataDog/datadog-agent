@@ -368,6 +368,29 @@ func TestApproverInUpperLayer(t *testing.T) {
 	})
 }
 
+// The intersection of a conjunction with a disjunction keeps the audit uids of
+// the disjunction in the range of the conjunction.
+func TestApproverAUIDIntersection(t *testing.T) {
+	ruleOpts, evalOpts := rules.NewBothOpts(map[eval.EventType]bool{"*": true})
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path != "" && (process.auid >= 1000 || process.auid == 0 || process.auid == AUDIT_AUID_UNSET) && process.auid != AUDIT_AUID_UNSET`)
+
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", models["open"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	kfilters, err := NewKFilters("open", approvers)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Len(t, kfilters, 2)
+	assert.Contains(t, kfilters, makeKFilterKey(auidApproversTable, ebpf.Uint32MapItem(0)))
+	if entry, ok := kfilters[makeKFilterKey(auidRangeApproversTable, model.FileOpenEventType)].(*hashKFilter); assert.True(t, ok) {
+		assert.Equal(t, &ebpf.UInt32RangeMapItem{Min: 1000, Max: sharedconsts.AuditUIDUnset - 1}, entry.value)
+	}
+}
+
 func TestApproverAUIDRange(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -417,11 +440,13 @@ func TestApproverAUIDRange(t *testing.T) {
 		}
 	}
 
-	// the approvers of one side of a conjunction
-	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid > 1000 && process.auid < 2000`}, 1001, sharedconsts.AuditUIDUnset)
+	// the intersection of the ranges of a conjunction
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid > 1000 && process.auid < 2000`}, 1001, 1999)
 	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid > 1000`}, 1001, sharedconsts.AuditUIDUnset)
 	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid < 1000`}, 0, 999)
-	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid >= 1000 && process.auid <= 2000`}, 1000, sharedconsts.AuditUIDUnset)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid >= 1000 && process.auid <= 2000`}, 1000, 2000)
+	assert(t, []string{`open.file.path != "" && process.auid >= 1000 && process.auid != AUDIT_AUID_UNSET`}, 1000, sharedconsts.AuditUIDUnset-1)
+	assert(t, []string{`open.file.path != "" && process.auid != AUDIT_AUID_UNSET && process.auid >= 1000`}, 1000, sharedconsts.AuditUIDUnset-1)
 	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid >= 1000`}, 1000, sharedconsts.AuditUIDUnset)
 	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid <= 1000`}, 0, 1000)
 
