@@ -24,7 +24,7 @@ Load the references only when a step calls for them:
 |---|---|---|
 | install | `TestMacosInstallScript` (15 tests as of 2026-11, LaunchDaemons ones included, ~4.5 min) | `./tests/agent-platform/tests` |
 | upgrade | `TestMacosInstallScriptUpgradeFromStable` (1 test, ~1.5 min) | `./tests/agent-platform/tests` |
-| config | `TestFleetConfigMacOS` (32 tests as of 2026-11, the longest suite) | `./tests/fleet` |
+| config | `TestFleetConfigMacOS` (14 tests, several with subtests, as of 2026-11; the longest suite) | `./tests/fleet` |
 
 The install suite's tests live in `macos_install_test.go` and
 `macos_launchdaemons_test.go`. The LaunchDaemons tests re-run the postinstall
@@ -38,7 +38,7 @@ The config suite is in `test/new-e2e/tests/fleet/config_macos_test.go`. It
 installs the Agent itself (your dmg when `E2E_MACOS_LOCAL_DMG` is set, otherwise
 the pipeline build), points the Agent and the installer daemon at its own
 fakeintake for Remote Config, and drives Fleet configuration experiments (start,
-promote, stop, crash and reboot recovery) through it. On `local-vm` it starts
+promote, stop, crash, and simulated shutdown and boot recovery) through it. On `local-vm` it starts
 that fakeintake as a container on the host, so Docker has to answer there too.
 
 | Target | When | dmg arch |
