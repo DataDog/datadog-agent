@@ -261,7 +261,7 @@ func (cs *CheckSampler) appendSeries(series []*metrics.Serie, errors map[ckey.Co
 		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		serie.Source = context.source
-		if filtered, ok := cs.contextResolver.resolver.filteredIdentityOf(context); ok && addsUp(serie) {
+		if filtered, ok := cs.contextResolver.resolver.filteredIdentityOf(context); ok {
 			serie.ContextKey, serie.Tags = filtered.key, filtered.Tags()
 			cs.mergeableSeries = append(cs.mergeableSeries, serie)
 			continue
@@ -464,12 +464,4 @@ func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
 // refilter updates the identity every context filters to at output, after the rules changed.
 func (cs *CheckSampler) refilter(filterList metricname.TagMatcher) {
 	cs.contextResolver.resolver.refilter(filterList)
-}
-
-// addsUp returns whether a series' points add up across sources, so that it can be merged: only a counter's own
-// series. A filtered context can also send other series, which keep their tags: those of another metric type sharing
-// its name and tags, such as a histogram's statistics, and those of metric state that an earlier context with the
-// same key left behind.
-func addsUp(serie *metrics.Serie) bool {
-	return serie.NameSuffix == "" && serie.MType == metrics.APIRateType
 }

@@ -92,23 +92,12 @@ func (t *filteredIdentityTable) get(ref uint32) *filteredIdentity {
 	return &t.identities[ref-1]
 }
 
-// trackOutput records what a sample adds to its context's output, for check samplers with tag filtering enabled. The
-// first sample of a type that can be filtered makes the context filterable, and filters it if a rule matches: the
-// identity only depends on the context, so the rule is applied once per context, and refilter updates contexts when
-// rules change. Context keys don't include the metric type, so samples of other types can share the context; they
-// change nothing, as only output that adds up across sources is merged. The resolver's buffers must hold the
-// context's tags.
-func (cr *contextResolver) trackOutput(context *Context, metricSampleContext metrics.MetricSampleContext, filterList metricname.TagMatcher) {
-	if cr.filteredIdentities == nil || !cr.tagFilterEnabled || context.filterable || !typeFiltersAtOutput(metricSampleContext.GetMetricType()) {
+// trackOutput applies tags filtering and saves the result in filteredIdentityTable.
+// The resolver's buffers must hold the context's tags.
+func (cr *contextResolver) trackOutput(context *Context, filterList metricname.TagMatcher) {
+	if cr.filteredIdentities == nil || !cr.tagFilterEnabled || !typeFiltersAtOutput(context.mtype) {
 		return
 	}
-	context.filterable = true
-	cr.filterAtOutput(context, filterList)
-}
-
-// filterAtOutput records the identity a context filters to, if a rule matches it. The resolver's buffers must hold the
-// context's tags.
-func (cr *contextResolver) filterAtOutput(context *Context, filterList metricname.TagMatcher) {
 	if tagList, filter := filterList.ShouldStripTags(context.Name); filter {
 		ref, removed := cr.acquireFiltered(context.Name, context.Host, tagList)
 		context.filteredIdentityRef = ref
@@ -158,7 +147,7 @@ func (cr *contextResolver) refilter(filterList metricname.TagMatcher) {
 	for _, entry := range cr.contextsByKey {
 		context := entry.context
 		var ref uint32
-		if context.filterable {
+		if typeFiltersAtOutput(context.mtype) {
 			r, ok := rulesByName[context.Name]
 			if !ok {
 				r.tagList, r.filter = filterList.ShouldStripTags(context.Name)

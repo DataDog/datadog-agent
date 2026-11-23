@@ -28,10 +28,8 @@ type Context struct {
 	mtype      metrics.MetricType
 	taggerTags *tags.Entry
 	metricTags *tags.Entry
-	noIndex    bool
-	// filterable is set on check sampler contexts that got samples of a type whose tags can be filtered at output.
-	filterable bool
-	source     metrics.MetricSource
+	noIndex bool
+	source  metrics.MetricSource
 
 	filteredIdentityRef uint32
 }
@@ -170,7 +168,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			noIndex:    metricSampleContext.IsNoIndex(),
 			source:     metricSampleContext.GetSource(),
 		}
-		cr.trackOutput(context, metricSampleContext, filterList)
+		cr.trackOutput(context, filterList)
 		cr.contextsByKey[contextKey] = resolverEntry{
 			lastSeen: timestamp,
 			context:  context,
@@ -181,7 +179,6 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		cr.bytesByMtype[mtype] += uint64(context.SizeInBytes())
 		cr.dataBytesByMtype[mtype] += uint64(context.DataSizeInBytes())
 	} else {
-		cr.trackOutput(entry.context, metricSampleContext, filterList)
 		// We can't assign to a field of a struct contained in map
 		cr.contextsByKey[contextKey] = resolverEntry{
 			lastSeen: timestamp,

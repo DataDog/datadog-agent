@@ -79,7 +79,7 @@ func flushSampler(cs *CheckSampler) samplerOutput {
 }
 
 func TestContextFitsIn64Bytes(t *testing.T) {
-	// The filtered identity reference and the filterable flag live in Context's padding.
+	// The filtered identity reference lives in Context's padding.
 	assert.Equal(t, uintptr(64), unsafe.Sizeof(Context{}))
 }
 
@@ -167,73 +167,6 @@ func TestCheckSamplerRefiltersWhenRulesChange(t *testing.T) {
 	assert.ElementsMatch(t, []string{"env:prod", "pod:a"}, tagsOf(sketches[0].Tags))
 	assert.Equal(t, int64(100), sketches[0].Points[0].Ts)
 	assert.Empty(t, cs.contextResolver.resolver.filteredIdentities.byKey)
-}
-
-// Context keys don't include the metric type: samples of different types with the same name and tags share a
-// context. The distribution's sketch is filtered, and the other type's series keep their tags.
-func TestCheckSamplerFiltersOnlyMergeableOutputOfSharedContexts(t *testing.T) {
-	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
-	flushMatcher := metricname.NewMatcher(nil, false)
-	histogram := podSample("my.metric", metrics.HistogramType, "a", 1, 100)
-	distribution := podSample("my.metric", metrics.DistributionType, "a", 1, 100)
-	explicitCount := &metrics.MetricSample{Name: "my.metric", Mtype: metrics.CountWithTimestampType, Value: 5,
-		Tags: []string{"env:prod", "pod:a"}, SampleRate: 1, Timestamp: 90}
-
-	for name, samples := range map[string][]*metrics.MetricSample{
-		"histogram then distribution":                {histogram, distribution},
-		"distribution then histogram":                {distribution, histogram},
-		"distribution then explicit-timestamp count": {distribution, explicitCount},
-	} {
-		t.Run(name, func(t *testing.T) {
-			table := newFilteredIdentityTable()
-			cs := newTagFilterTestSampler("check:0", table)
-			matcher := filterPodMatcher(t, "my.metric")
-			for _, sample := range samples {
-				cs.addSample(sample, matcher)
-			}
-			cs.commit(101, &flushMatcher)
-			out := flushSampler(cs)
-
-			assert.Empty(t, out.mergeableSeries)
-			assert.Empty(t, out.sketches)
-			require.Len(t, out.mergeableSketches, 1)
-			assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(out.mergeableSketches[0].sketch.Tags))
-			require.NotEmpty(t, out.series)
-			for _, s := range out.series {
-				assert.Contains(t, tagsOf(s.Tags), "pod:a", s.Name)
-			}
-			assert.Len(t, table.byKey, 1)
-		})
-	}
-}
-
-// TestCheckSamplerOnlyMergesSeriesThatAddUp checks that the state of a metric that outlived its context, such as a
-// histogram's, doesn't reach the merger through a new context with the same key.
-func TestCheckSamplerOnlyMergesSeriesThatAddUp(t *testing.T) {
-	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
-	cs := newTagFilterTestSampler("check:0", newFilteredIdentityTable())
-	matcher := filterPodMatcher(t, "my.metric")
-	flushMatcher := metricname.NewMatcher(nil, false)
-
-	cs.addSample(podSample("my.metric", metrics.HistorateType, "a", 1, 100), matcher)
-	cs.addSample(podSample("my.metric", metrics.HistorateType, "a", 3, 100.2), matcher)
-	cs.commit(100.5, &flushMatcher)
-	// The context expires after two commits without samples, but the historate's state is kept.
-	for commit := 0; commit < 3; commit++ {
-		cs.commit(float64(101+commit), &flushMatcher)
-	}
-	flushSampler(cs)
-
-	// A counter with the same key creates a new context, which merges at output, and goes into the historate's state.
-	cs.addSample(podSample("my.metric", metrics.CounterType, "a", 1, 105), matcher)
-	cs.addSample(podSample("my.metric", metrics.CounterType, "a", 5, 105.2), matcher)
-	cs.commit(105.5, &flushMatcher)
-	out := flushSampler(cs)
-	for _, s := range out.mergeableSeries {
-		assert.Empty(t, s.NameSuffix, "%s: a histogram's statistics don't add up", s.Name)
-		assert.NotEqual(t, metrics.APIGaugeType, s.MType, s.Name)
-	}
-	assert.NotEmpty(t, out.series, "the series that don't add up are sent with their tags")
 }
 
 func TestCheckSamplerDoesNotFilterSketchesStampedPerSecond(t *testing.T) {
