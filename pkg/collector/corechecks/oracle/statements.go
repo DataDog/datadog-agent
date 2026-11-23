@@ -429,7 +429,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		var diff OracleRowMonotonicCount
 		planErrors = 0
 		sendPlan := true
-		for i, statementMetricRow := range statementMetricsAll {
+		for _, statementMetricRow := range statementMetricsAll {
 			var trace bool
 			for _, t := range c.config.QueryMetrics.Trackers {
 				if len(t.ContainsText) > 0 {
@@ -640,16 +640,16 @@ func (c *Check) StatementMetrics() (int, error) {
 			}
 
 			if c.config.ExecutionPlans.Enabled && sendPlan && statementMetricRow.PlanHashValue != 0 {
-				if (i+1)%10 == 0 && time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
-					sendPlan = false
-				}
-
 				planCacheKey := strconv.FormatUint(statementMetricRow.PlanHashValue, 10)
 				if c.planEmitted == nil {
 					c.planEmitted = getPlanEmittedCache(c)
 				}
 				_, found := c.planEmitted.Get(planCacheKey)
 				if c.config.ExecutionPlans.PlanCacheRetention == 0 || !found {
+					if time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
+						sendPlan = false
+						continue
+					}
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
 					var oraclePlan OraclePlan

@@ -9,6 +9,7 @@ package oracle
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -185,4 +186,82 @@ func TestStatementMetricsSkipsZeroDeltaRows(t *testing.T) {
 	assert.Equal(t, float64(1), c.lastOracleRows[0].ParseCalls)
 	assert.Equal(t, float64(2), c.lastOracleRows[0].Executions)
 	assert.Equal(t, float64(200), c.lastOracleRows[0].ElapsedTime)
+}
+
+func TestStatementMetricsEnforcesMaxRunTimeForPlans(t *testing.T) {
+	t.Run("stops before querying plan once deadline exceeded after prior plan fetch", func(t *testing.T) {
+		var c *Check
+		matcher := sqlmock.QueryMatcherFunc(func(expected, actual string) error {
+			if err := sqlmock.QueryMatcherRegexp.Match(expected, actual); err != nil {
+				return err
+			}
+			// Simulate MaxRunTime expiring as soon as the first plan query executes.
+			if strings.Contains(actual, "v$sql_plan_statistics_all") {
+				c.config.QueryMetrics.MaxRunTime = 0
+			}
+			return nil
+		})
+		db, dbMock, err := sqlmock.New(sqlmock.QueryMatcherOption(matcher))
+		require.NoError(t, err)
+		defer db.Close()
+
+		c, _ = statementMetricsTestCheck(t, sqlx.NewDb(db, "sqlmock"))
+		c.config.QueryMetrics.MaxRunTime = 60
+
+		// 2 idle rows followed by 3 active rows (indices 2, 3, 4 — none satisfy (i+1)%10 == 0).
+		c.statementMetricsMonotonicCountsPrevious = map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB{
+			{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "idle1", PlanHashValue: 1001}:   {Executions: 5},
+			{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "idle2", PlanHashValue: 1002}:   {Executions: 5},
+			{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "active1", PlanHashValue: 2001}: {Executions: 5},
+			{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "active2", PlanHashValue: 2002}: {Executions: 5},
+			{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "active3", PlanHashValue: 2003}: {Executions: 5},
+		}
+
+		fmsRows := sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(1, "PDB1", "s_idle1", "idle1", uint64(1001), "SELECT 1 FROM dual", 18, 0.0, 5.0, 0.0, 1.0, 1024.0, 0.0).
+			AddRow(1, "PDB1", "s_idle2", "idle2", uint64(1002), "SELECT 2 FROM dual", 18, 0.0, 5.0, 0.0, 1.0, 1024.0, 0.0).
+			AddRow(1, "PDB1", "s_act1", "active1", uint64(2001), "SELECT * FROM t1", 16, 0.0, 6.0, 100.0, 1.0, 1024.0, 0.0).
+			AddRow(1, "PDB1", "s_act2", "active2", uint64(2002), "SELECT * FROM t2", 16, 0.0, 7.0, 200.0, 1.0, 1024.0, 0.0).
+			AddRow(1, "PDB1", "s_act3", "active3", uint64(2003), "SELECT * FROM t3", 16, 0.0, 8.0, 300.0, 1.0, 1024.0, 0.0)
+		sqlIDRows := sqlmock.NewRows(statementMetricsTestColumns)
+
+		dbMock.ExpectQuery("DD_QM_FMS").WillReturnRows(fmsRows)
+		dbMock.ExpectQuery("DD_QM_SQLID").WillReturnRows(sqlIDRows)
+		// Only active1 should query for its plan; active2 and active3 must skip plan collection.
+		dbMock.ExpectQuery("v\\$sql_plan_statistics_all").
+			WithArgs("s_act1", uint64(2001), 1).
+			WillReturnRows(sqlmock.NewRows([]string{"SQL_ID"}))
+
+		c.statementsLastRun = time.Now().Add(-2 * time.Hour)
+		_, err = c.StatementMetrics()
+		require.NoError(t, err)
+		require.NoError(t, dbMock.ExpectationsWereMet())
+
+		// Statement metrics for all 3 active rows are still emitted even after plan fetching stops.
+		require.Len(t, c.lastOracleRows, 3)
+	})
+
+	t.Run("skips plan query on first active row when deadline already elapsed", func(t *testing.T) {
+		db, dbMock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		c, _ := statementMetricsTestCheck(t, sqlx.NewDb(db, "sqlmock"))
+		c.config.QueryMetrics.MaxRunTime = 0
+		c.statementMetricsMonotonicCountsPrevious = map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB{
+			{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "active1", PlanHashValue: 3001}: {Executions: 1},
+		}
+
+		fmsRows := sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(1, "PDB1", "s_act1", "active1", uint64(3001), "SELECT * FROM t1", 16, 0.0, 2.0, 50.0, 1.0, 1024.0, 0.0)
+		dbMock.ExpectQuery("DD_QM_FMS").WillReturnRows(fmsRows)
+		dbMock.ExpectQuery("DD_QM_SQLID").WillReturnRows(sqlmock.NewRows(statementMetricsTestColumns))
+		// No plan query expected.
+
+		c.statementsLastRun = time.Now().Add(-2 * time.Hour)
+		_, err = c.StatementMetrics()
+		require.NoError(t, err)
+		require.NoError(t, dbMock.ExpectationsWereMet())
+		require.Len(t, c.lastOracleRows, 1)
+	})
 }
