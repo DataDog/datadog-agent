@@ -64,6 +64,10 @@ func RegisterPoolMember(e aws.Environment, name string, instanceID pulumi.String
 // omits this call has Pulumi see them as no longer declared and delete them, even
 // though the imported Instance's own IgnoreChanges(["tags", ...]) leaves its attribute
 // alone.
+//
+// The tags outlive the stack, like the host, instance and baseline AMI they identify: they are
+// what pool.Acquire finds the member by, so a stack destroy that removed them would leave the
+// instance running untagged and have the next run provision a new Dedicated Host.
 func TagPoolMember(e aws.Environment, name string, instanceID pulumi.StringOutput, username string, opts ...pulumi.ResourceOption) error {
 	values := map[string]string{
 		pool.PoolTagKey:          pool.PoolTagValue,
@@ -75,7 +79,7 @@ func TagPoolMember(e aws.Environment, name string, instanceID pulumi.StringOutpu
 			ResourceId: instanceID,
 			Key:        pulumi.String(t.key),
 			Value:      pulumi.String(values[t.key]),
-		}, utils.MergeOptions(opts, e.WithProviders(config.ProviderAWS))...); err != nil {
+		}, utils.MergeOptions(opts, e.WithProviders(config.ProviderAWS), pulumi.RetainOnDelete(true))...); err != nil {
 			return err
 		}
 	}
