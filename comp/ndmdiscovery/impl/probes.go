@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -77,6 +79,8 @@ type snmpParams struct {
 type probeParams struct {
 	Ping *pingprobe.Options
 	SNMP *snmpParams
+	// Dropped is why each requested probe that is not in the params was left out.
+	Dropped []string
 }
 
 // credentialStore reads the credentials of one kind from the Agent configuration.
@@ -85,38 +89,41 @@ type credentialStore interface {
 }
 
 // parseProbes validates one range's probes object, dropping and logging each unusable probe.
-func parseProbes(rangeID string, raw map[string]json.RawMessage, ping pingprobe.Capability, logger log.Component) probeParams {
+func parseProbes(rangeID string, raw map[string]json.RawMessage, logger log.Component) probeParams {
 	var params probeParams
 
 	for kind, body := range raw {
 		switch kind {
 		case kindPing:
-			if !ping.Available {
-				logger.Warnf("ndmdiscovery: range %s: dropping the ping probe, it is not available on this agent: %s", rangeID, ping.Reason)
-				continue
-			}
-			opts, err := parsePing(body, ping, logger)
+			opts, err := parsePing(body, logger)
 			if err != nil {
-				logger.Warnf("ndmdiscovery: range %s: dropping the ping probe: %v", rangeID, err)
+				params.drop(logger, rangeID, fmt.Sprintf("dropping the ping probe: %v", err))
 				continue
 			}
 			params.Ping = opts
 		case kindSNMP:
 			opts, err := parseSNMP(body, logger)
 			if err != nil {
-				logger.Warnf("ndmdiscovery: range %s: dropping the snmp probe: %v", rangeID, err)
+				params.drop(logger, rangeID, fmt.Sprintf("dropping the snmp probe: %v", err))
 				continue
 			}
 			params.SNMP = opts
 		default:
-			logger.Warnf("ndmdiscovery: range %s: dropping the unknown probe %q", rangeID, kind)
+			params.drop(logger, rangeID, fmt.Sprintf("dropping the unknown probe %q", kind))
 		}
 	}
+	sort.Strings(params.Dropped)
 
 	return params
 }
 
-func parsePing(body json.RawMessage, ping pingprobe.Capability, logger log.Component) (*pingprobe.Options, error) {
+// drop logs why a requested probe was left out and records the reason for the status.
+func (p *probeParams) drop(logger log.Component, rangeID, reason string) {
+	logger.Warnf("ndmdiscovery: range %s: %s", rangeID, reason)
+	p.Dropped = append(p.Dropped, reason)
+}
+
+func parsePing(body json.RawMessage, logger log.Component) (*pingprobe.Options, error) {
 	var opts pingJSON
 	if err := json.Unmarshal(body, &opts); err != nil {
 		return nil, fmt.Errorf("the ping options are not an object: %w", err)
@@ -149,17 +156,16 @@ func parsePing(body json.RawMessage, ping pingprobe.Capability, logger log.Compo
 		}
 	}
 
-	// The document can only turn the raw socket off, never on.
-	useRawSocket := ping.UseRawSocket
-	if opts.Linux != nil && opts.Linux.UseRawSocket != nil && !*opts.Linux.UseRawSocket {
-		useRawSocket = false
+	var override *bool
+	if opts.Linux != nil {
+		override = opts.Linux.UseRawSocket
 	}
 
 	return &pingprobe.Options{
 		Count:        count,
 		Interval:     time.Duration(intervalMs) * time.Millisecond,
 		Timeout:      time.Duration(timeoutMs) * time.Millisecond,
-		UseRawSocket: useRawSocket,
+		UseRawSocket: pingprobe.ResolveRawSocket(runtime.GOOS, override),
 	}, nil
 }
 

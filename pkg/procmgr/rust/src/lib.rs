@@ -9,6 +9,8 @@ mod aio_catalog;
 pub mod command;
 pub mod config;
 pub mod config_gate;
+#[cfg(test)]
+mod darwin_catalog;
 pub mod env;
 #[cfg(all(test, windows))]
 mod fleet_data_plane_template;

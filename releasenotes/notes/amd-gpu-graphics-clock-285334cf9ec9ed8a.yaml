@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    GPU monitoring: the ``amd_gpu`` check now reads ``gpu.clock.speed.graphics``
+    and ``gpu.clock.speed.memory`` from hwmon, on AMD Instinct GPUs the current
+    clocks that ``amd-smi`` also reports, rather than the marked level of
+    ``pp_dpm_sclk`` and ``pp_dpm_mclk``, which it only uses without hwmon
+    clocks. With Linux 7.0 and later or recent amdgpu-dkms releases, AMD
+    Instinct GPUs under load can mark no level, so these metrics were missing.

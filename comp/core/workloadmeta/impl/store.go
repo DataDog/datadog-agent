@@ -78,7 +78,7 @@ func (w *workloadmeta) start(ctx context.Context) {
 	w.startWg.Add(1)
 	go func() {
 		defer w.startWg.Done()
-		if err := w.startCandidatesWithRetry(ctx); err != nil {
+		if err := w.startCandidatesWithRetry(ctx); err != nil && ctx.Err() == nil {
 			w.log.Errorf("error starting collectors: %s", err)
 		}
 	}()
@@ -750,7 +750,11 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	if err != nil {
 		// Close so the pull goroutine unblocks instead of waiting for firstPullWaitTimeout.
 		w.firstCollectorReadyOnce.Do(func() { close(w.firstCollectorReady) })
-		w.log.Warnf("workloadmeta failed to start collectors: %s", err)
+		if ctx.Err() != nil {
+			w.log.Debugf("workloadmeta stopped before all collectors started: %s", err)
+		} else {
+			w.log.Warnf("workloadmeta failed to start collectors: %s", err)
+		}
 	}
 	return err
 }
@@ -889,6 +893,13 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 
 		cachedEntity, ok := entitiesOfKind[entityID.ID]
 
+		// Keep the old merged claim until the update is applied, including
+		// partial source unsets. The index always follows the merged store.
+		var previousKueueWorkload *wmdef.KubernetesKueueWorkload
+		if ok && entityID.Kind == wmdef.KindKubernetesKueueWorkload {
+			previousKueueWorkload = cachedEntity.cached.(*wmdef.KubernetesKueueWorkload)
+		}
+
 		switch ev.Type {
 		case wmdef.EventTypeSet:
 			if !ok {
@@ -959,6 +970,14 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 			}
 		default:
 			w.log.Errorf("cannot handle event of type %d. event dump: %+v", ev.Type, ev)
+		}
+
+		if entityID.Kind == wmdef.KindKubernetesKueueWorkload {
+			var current *wmdef.KubernetesKueueWorkload
+			if stored := entitiesOfKind[entityID.ID]; stored != nil {
+				current = stored.cached.(*wmdef.KubernetesKueueWorkload)
+			}
+			w.updateKueueWorkloadIndex(previousKueueWorkload, current)
 		}
 
 		for _, sub := range w.subscribers {

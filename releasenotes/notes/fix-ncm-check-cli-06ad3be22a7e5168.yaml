@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Restore support for running the Network Configuration Management check with
+    ``agent check network_config_management`` in Agents built with NCM support.

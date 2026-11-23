@@ -18,6 +18,11 @@ import (
 	"strconv"
 )
 
+const (
+	// maxInflatedBufferSize is the maximum size of the inflated release data.
+	maxInflatedBufferSize = 32 * 1024 * 1024
+)
+
 // The "release" struct and the related ones, are a simplified version of the
 // ones found in the Helm lib. Ref:
 // https://github.com/helm/helm/blob/v3.8.0/pkg/release/release.go#L22
@@ -94,11 +99,20 @@ func decodeRelease(data string) (*release, error) {
 			return nil, err
 		}
 		defer r.Close()
-		b2, err := io.ReadAll(r)
+
+		// Cap the decompressed size at maxInflatedBufferSize to guard against gzip bombs.
+		// Stored releases are at most ~1MiB compressed and legitimate ones inflate well below this limit.
+		// Read one extra byte so oversized payloads can be detected.
+		inflatedBuffer, err := io.ReadAll(io.LimitReader(r, maxInflatedBufferSize+1))
 		if err != nil {
 			return nil, err
 		}
-		b = b2
+
+		if len(inflatedBuffer) > maxInflatedBufferSize {
+			return nil, fmt.Errorf("inflated release data is larger than the maximum allowed size of %d bytes", maxInflatedBufferSize)
+		}
+
+		b = inflatedBuffer
 	}
 
 	var rls release

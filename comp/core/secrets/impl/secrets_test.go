@@ -1589,6 +1589,59 @@ func TestRefreshOutput(t *testing.T) {
 	assert.Equal(t, "=== Secret stats ===\nNumber of secrets reloaded: 1\nSecrets handle reloaded:\n\n- 'pass1':\n\tused in 'origin1' configuration in entry 'secret_backend_arguments/0'\n", res)
 }
 
+func TestRefreshOutputAdditionalEndpoints(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	secretValues := map[string]string{
+		"api_key": "key1old12345",
+		"apikey2": "key2old12345",
+		"apikey3": "key3old12345",
+		"apikey4": "key4old12345",
+	}
+
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	resolver.fetchHookFunc = func(handles []string) (map[string]string, error) {
+		values := make(map[string]string, len(handles))
+		for _, handle := range handles {
+			if value, found := secretValues[handle]; found {
+				values[handle] = value
+			}
+		}
+		return values, nil
+	}
+
+	// Match the E2E fixture, including a slash-containing endpoint key, to cover refresh path formatting.
+	conf := `api_key: ENC[api_key]
+additional_endpoints:
+  "intake":
+    - ENC[apikey2]
+    - ENC[apikey3]
+  "api/v2/series":
+    - ENC[apikey4]
+`
+	_, err := resolver.Resolve([]byte(conf), "datadog.yaml", "", "", true)
+	require.NoError(t, err)
+
+	resolver.SubscribeToChanges(func(_, _ string, _ []string, _, _ any) {})
+
+	secretValues["api_key"] = "key1new12345"
+	secretValues["apikey2"] = "key2new12345"
+	secretValues["apikey3"] = "key3new12345"
+	secretValues["apikey4"] = "key4new12345"
+
+	res, err := resolver.RefreshNow()
+	require.NoError(t, err)
+	res = strings.ReplaceAll(res, "\r", "") // templates use OS line breaks, removes \r line breaks from windows
+	expected := "=== Secret stats ===\n" +
+		"Number of secrets reloaded: 4\n" +
+		"Secrets handle reloaded:\n\n" +
+		"- 'api_key':\n\tused in 'datadog.yaml' configuration in entry 'api_key'\n" +
+		"- 'apikey2':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/intake/0'\n" +
+		"- 'apikey3':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/intake/1'\n" +
+		"- 'apikey4':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/api/v2/series/0'\n"
+	assert.Equal(t, expected, res)
+}
+
 func TestResolveNoNotify(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 
