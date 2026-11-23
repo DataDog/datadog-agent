@@ -626,6 +626,10 @@ func TestConfigFileInventoryUnavailable(t *testing.T) {
 
 	ResetReader(nil)
 	require.False(t, ReadConfigFileInventory().Complete)
+	ResetReader([]string{""})
+	snapshot = ReadConfigFileInventory()
+	require.False(t, snapshot.Complete)
+	require.Empty(t, snapshot.Roots, "an empty search-path sentinel must never scan the working directory")
 }
 
 func TestConfigFileInventoryObservesDisk(t *testing.T) {

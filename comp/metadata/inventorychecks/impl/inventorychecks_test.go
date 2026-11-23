@@ -401,3 +401,47 @@ func TestGetPayloadEmptyFilesInventory(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(encoded), "files_inventory")
 }
+
+func TestNamedConfigFilePresence(t *testing.T) {
+	root := t.TempDir()
+	file := filepath.Join(root, "system-probe.yaml")
+	require.NoError(t, os.WriteFile(file, nil, 0600))
+	files := readNamedConfigFilePresence(root)
+	require.Equal(t, providers.ConfigFilePresence{Path: "/system-probe.yaml", Known: true, Present: true}, files[0])
+	require.Equal(t, providers.ConfigFilePresence{Path: "/security-agent.yaml", Known: true}, files[1])
+	require.Len(t, files, 4)
+	require.NoError(t, os.Remove(file))
+	require.Equal(t, providers.ConfigFilePresence{Path: "/system-probe.yaml", Known: true}, readNamedConfigFilePresence(root)[0])
+	require.NoError(t, os.WriteFile(file, nil, 0600))
+	require.True(t, readNamedConfigFilePresence(root)[0].Present)
+
+	blocked := filepath.Join(root, "not-a-directory")
+	require.NoError(t, os.WriteFile(blocked, nil, 0600))
+	for _, entry := range readNamedConfigFilePresence(blocked) {
+		require.False(t, entry.Known, "ENOTDIR is an unavailable lookup")
+	}
+	require.NoError(t, os.Mkdir(filepath.Join(root, "security-agent.yaml"), 0700))
+	require.False(t, readNamedConfigFilePresence(root)[1].Known)
+}
+
+func TestGetPayloadNamedFilePresence(t *testing.T) {
+	root := t.TempDir()
+	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil)
+	ic.conf = namedFileTestConfig{Component: ic.conf, filename: filepath.Join(root, "datadog.yaml")}
+	payload := ic.getPayload(true).(*Payload)
+	require.NotNil(t, payload.FilesInventory)
+	require.Equal(t, root, payload.FilesInventory.TargetRoot)
+	require.Len(t, payload.FilesInventory.NamedFiles, 4)
+	for _, file := range payload.FilesInventory.NamedFiles {
+		require.True(t, file.Known)
+		require.False(t, file.Present)
+		require.NotEqual(t, "/datadog.yaml", file.Path)
+	}
+}
+
+type namedFileTestConfig struct {
+	config.Component
+	filename string
+}
+
+func (c namedFileTestConfig) ConfigFileUsed() string { return c.filename }

@@ -159,13 +159,24 @@ const (
 
 // ConfigFileInventory describes a fresh filesystem observation, independently of
 // the parsed configuration cache. Version 1 covers .yaml/.yml files directly in
-// each root and one level below in *.d directories; named Agent files are outside
-// this coverage. Only a complete root can establish absence within that scope.
+// each root and one level below in *.d directories. NamedFiles carries separate,
+// exact observations under TargetRoot; omission from either list proves nothing
+// without complete coverage or an explicit known lookup.
 type ConfigFileInventory struct {
 	Version     int                       `json:"version"`
 	CollectedAt int64                     `json:"collected_at"`
 	Complete    bool                      `json:"complete"`
 	Roots       []ConfigFileInventoryRoot `json:"roots"`
+	TargetRoot  string                    `json:"target_root,omitempty"`
+	NamedFiles  []ConfigFilePresence      `json:"named_files,omitempty"`
+}
+
+// ConfigFilePresence is an exact path observation under TargetRoot. Unknown
+// lookups, symlinks, and nonregular files never establish absence.
+type ConfigFilePresence struct {
+	Path    string `json:"path"`
+	Known   bool   `json:"known"`
+	Present bool   `json:"present"`
 }
 
 // ConfigFileInventoryRoot retains positive file paths even when a directory read
@@ -190,8 +201,11 @@ func ReadConfigFileInventory() ConfigFileInventory {
 	}
 	snapshot.Complete = true
 	entriesLeft, bytesLeft := configFileInventoryMaxEntries, configFileInventoryMaxBytes
-	for i, root := range reader.paths {
-		if i == configFileInventoryMaxRoots || len(root) > bytesLeft {
+	for _, root := range reader.paths {
+		if root == "" {
+			continue
+		}
+		if len(snapshot.Roots) == configFileInventoryMaxRoots || len(root) > bytesLeft {
 			snapshot.Complete = false
 			break
 		}
@@ -201,6 +215,9 @@ func ReadConfigFileInventory() ConfigFileInventory {
 		slices.Sort(report.Files)
 		snapshot.Complete = snapshot.Complete && report.Complete
 		snapshot.Roots = append(snapshot.Roots, report)
+	}
+	if len(snapshot.Roots) == 0 {
+		snapshot.Complete = false
 	}
 	return snapshot
 }

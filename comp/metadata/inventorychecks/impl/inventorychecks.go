@@ -9,9 +9,12 @@ package inventorychecksimpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"expvar"
 	"maps"
 	"net/http"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sync"
 	"time"
@@ -275,6 +278,10 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.TypedJSONM
 	var filesInventory *providers.ConfigFileInventory
 	if withConfigs {
 		snapshot := providers.ReadConfigFileInventory()
+		if configFile := ic.conf.ConfigFileUsed(); configFile != "" && len(filepath.Dir(configFile)) <= 4096 {
+			snapshot.TargetRoot = filepath.Dir(configFile)
+			snapshot.NamedFiles = readNamedConfigFilePresence(snapshot.TargetRoot)
+		}
 		filesInventory = &snapshot
 		filesMetadata, encInfo = ic.getFilesMetadata()
 	}
@@ -356,4 +363,20 @@ func (ic *inventorychecksImpl) buildEncInfo(configSecrets []scrubber.ConfigSecre
 		"scrubbed":       scrubbed,
 		"hash_secret_id": hashes,
 	}
+}
+
+func readNamedConfigFilePresence(root string) []providers.ConfigFilePresence {
+	filenames := []string{"system-probe.yaml", "security-agent.yaml", "application_monitoring.yaml", "otel-config.yaml"}
+	files := make([]providers.ConfigFilePresence, 0, len(filenames))
+	for _, filename := range filenames {
+		info, err := os.Lstat(filepath.Join(root, filename))
+		file := providers.ConfigFilePresence{Path: "/" + filename}
+		if errors.Is(err, os.ErrNotExist) {
+			file.Known = true
+		} else if err == nil && info.Mode().IsRegular() {
+			file.Known, file.Present = true, true
+		}
+		files = append(files, file)
+	}
+	return files
 }
