@@ -597,6 +597,23 @@ func (p *Progress) advance(r *record) {
 		p.notifySpace()
 		return
 	}
+	// If the ordered queue is now empty and every generation for this source
+	// has already retired (regardless of retirement order), reclaim the source.
+	if len(source.queue) == 0 && !source.invalidSelection && len(source.seenGenerations) > 0 {
+		allRetired := true
+		for _, retired := range source.seenGenerations {
+			if !retired {
+				allRetired = false
+				break
+			}
+		}
+		if allRetired {
+			p.histories -= len(source.seenGenerations)
+			delete(p.sources, r.identifier)
+			p.notifySpace()
+			return
+		}
+	}
 	if !source.invalidSelection {
 		return
 	}

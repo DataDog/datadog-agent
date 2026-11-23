@@ -8,6 +8,7 @@ package file
 
 import (
 	"context"
+	"os"
 	"regexp"
 	"slices"
 	"sync"
@@ -96,6 +97,7 @@ type oldTailerInfo struct {
 	Pattern      *regexp.Regexp
 	InfoRegistry *status.InfoRegistry
 	Source       *sources.LogSource
+	Path         string
 }
 
 // NewLauncher returns a new launcher.
@@ -389,9 +391,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 
 		// Check if we have stored info for this file from a previous rotation
 		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
-		if hasOldInfo && oldInfo.Source != nil && oldInfo.Source != file.Source.UnderlyingSource() {
-			hasOldInfo = false
-		}
+		sameSource := hasOldInfo && (oldInfo.Source == nil || oldInfo.Source == file.Source.UnderlyingSource())
 		if hasOldInfo {
 			consumedOldInfo[scanKey] = true
 		}
@@ -406,14 +406,25 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		}
 
 		if hasOldInfo {
-			if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint) {
-				// hasOldInfo is true when restarting a tailer after a file rotation, so start tailer from the beginning
-				filesTailed[scanKey] = true
+			if sameSource {
+				if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint) {
+					// hasOldInfo is true when restarting a tailer after a file rotation, so start tailer from the beginning
+					filesTailed[scanKey] = true
+				} else {
+					// Bug fix: the tailer failed to start, so re-persist the stored info
+					// for the next scan instead of dropping it. resolveFingerprint already
+					// records/clears the fingerprint-skip note, so no resolveFingerprintSkip here.
+					s.oldInfoMap[scanKey] = oldInfo
+				}
 			} else {
-				// Bug fix: the tailer failed to start, so re-persist the stored info
-				// for the next scan instead of dropping it. resolveFingerprint already
-				// records/clears the fingerprint-skip note, so no resolveFingerprintSkip here.
-				s.oldInfoMap[scanKey] = oldInfo
+				// Source changed at the same scan key: preserve forced rewind without
+				// reusing the previous source's decoder pattern or status registry.
+				if s.startNewTailer(file, config.ForceBeginning, fingerprint) {
+					filesTailed[scanKey] = true
+					s.resolveFingerprintSkip(file)
+				} else {
+					s.oldInfoMap[scanKey] = &oldTailerInfo{Source: file.Source.UnderlyingSource(), Path: file.Path}
+				}
 			}
 		} else {
 			// Normal case - no stored info
@@ -425,8 +436,8 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
 
-	// Preserve rotation retry state for still-active sources omitted solely
-	// because the scan hit the tailing limit, without reinserting consumed entries.
+	// Preserve rotation retry state for still-active, existing files omitted
+	// solely because the scan hit the tailing limit, without reinserting consumed entries.
 	if hitFileLimit {
 		for scanKey, oldInfo := range lastIterationOldInfo {
 			if consumedOldInfo[scanKey] || filesTailed[scanKey] {
@@ -438,9 +449,15 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 			if _, alreadyPersisted := s.oldInfoMap[scanKey]; alreadyPersisted {
 				continue
 			}
-			if oldInfo.Source != nil && slices.Contains(s.activeSources, oldInfo.Source) {
-				s.oldInfoMap[scanKey] = oldInfo
+			if oldInfo.Source == nil || !slices.Contains(s.activeSources, oldInfo.Source) {
+				continue
 			}
+			if oldInfo.Path != "" {
+				if _, err := os.Stat(oldInfo.Path); err != nil {
+					continue
+				}
+			}
+			s.oldInfoMap[scanKey] = oldInfo
 		}
 	}
 
@@ -826,6 +843,7 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 			InfoRegistry: oldInfoRegistry,
 			Pattern:      oldRegexPattern,
 			Source:       oldTailer.Source(),
+			Path:         file.Path,
 		}
 		s.oldInfoMap[file.GetScanKey()] = regexAndRegistry
 	}
@@ -852,6 +870,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 		Pattern:      oldRegexPattern,
 		InfoRegistry: oldTailer.GetInfo(),
 		Source:       oldTailer.Source(),
+		Path:         file.Path,
 	}
 
 	newTailer, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)

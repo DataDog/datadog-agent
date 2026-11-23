@@ -354,3 +354,51 @@ func TestProgressRequireAnyReplacementAtHardLimitReclaimsRetiredSlot(t *testing.
 		t.Fatalf("RegisterSource gen 3 failed at hard limit: %v", err)
 	}
 }
+
+func TestProgressRequireAnyRetireNewerCompletedBeforeOlderPendingReclaimsAll(t *testing.T) {
+	sink := &selectorTestSink{ch: make(chan *message.Payload, 8)}
+	progress, err := NewProgressWithMode(4, sink, CompletionRequireAny)
+	if err != nil {
+		t.Fatalf("NewProgressWithMode: %v", err)
+	}
+	defer progress.Close()
+
+	src := sources.NewLogSource("file", &config.LogsConfig{Type: config.FileType, Path: "/tmp/drain-reclaim.log"})
+	const id = "file:/tmp/drain-reclaim.log"
+	if err := progress.RegisterSource(id, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := progress.RegisterSource(id, 2); err != nil {
+		t.Fatal(err)
+	}
+	makeRec := func(offset string) *message.Message {
+		o := message.NewOrigin(src)
+		o.Identifier = id
+		o.Offset = offset
+		return message.NewMessage([]byte(offset), o, message.StatusInfo, 0)
+	}
+	m1 := makeRec("10")
+	m2 := makeRec("20")
+	if _, err := progress.Register(context.Background(), m1, Selection{Generation: 1}, []string{"ep-0"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := progress.Register(context.Background(), m2, Selection{Generation: 2}, []string{"ep-0"}); err != nil {
+		t.Fatal(err)
+	}
+	// Complete gen 2's record (stays queued behind gen 1's pending record) and retire gen 2 first.
+	meta2 := m2.MessageMetadata
+	progress.CompleteGroup("ep-0", message.NewPayload([]*message.MessageMetadata{&meta2}, nil, "", 0))
+	if err := progress.RetireSource(id, 2); err != nil {
+		t.Fatalf("RetireSource gen 2: %v", err)
+	}
+	// Schedule deferred retirement for gen 1 while still pending.
+	if err := progress.RetireSourceWhenDrained(id, 1); err != nil {
+		t.Fatalf("RetireSourceWhenDrained gen 1: %v", err)
+	}
+	// Complete gen 1 -> queue drains to empty and the entire source must be reclaimed!
+	meta1 := m1.MessageMetadata
+	progress.CompleteGroup("ep-0", message.NewPayload([]*message.MessageMetadata{&meta1}, nil, "", 0))
+	if progress.OwnsSource(id) {
+		t.Fatalf("expected fully drained retired source %q to be reclaimed", id)
+	}
+}

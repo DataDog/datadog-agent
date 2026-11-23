@@ -42,6 +42,7 @@ type Launcher struct {
 	pipelineProvider       pipeline.Provider
 	registry               auditor.Registry
 	tailers                map[string]tailer
+	pendingSources         map[string]*sources.LogSource
 	sourceGenerations      map[string]uint64
 	nextGeneration         atomic.Uint64
 	stop                   chan struct{}
@@ -54,6 +55,7 @@ func NewLauncher() *Launcher {
 	cache := publishermetadatacache.New(winevtapi.New())
 	return &Launcher{
 		tailers:                make(map[string]tailer),
+		pendingSources:         make(map[string]*sources.LogSource),
 		sourceGenerations:      make(map[string]uint64),
 		sourcesDone:            make(chan struct{}),
 		stop:                   make(chan struct{}),
@@ -75,8 +77,10 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	go l.run()
 }
 
-// run starts new tailers.
+// run starts new tailers and retries any transiently failed registrations.
 func (l *Launcher) run() {
+	retryTicker := time.NewTicker(time.Second)
+	defer retryTicker.Stop()
 	for {
 		select {
 		case source := <-l.sources:
@@ -88,8 +92,25 @@ func (l *Launcher) run() {
 			}
 			tailer, err := l.setupTailer(source, sanitized, identifier)
 			if err != nil {
-				log.Info("Could not set up windows event log tailer: ", err)
+				log.Info("Could not set up windows event log tailer (will retry): ", err)
+				l.pendingSources[identifier] = source
 			} else {
+				delete(l.pendingSources, identifier)
+				l.tailers[identifier] = tailer
+			}
+		case <-retryTicker.C:
+			for identifier, source := range l.pendingSources {
+				if _, exists := l.tailers[identifier]; exists {
+					delete(l.pendingSources, identifier)
+					continue
+				}
+				sanitized := l.sanitizedConfig(source.Config)
+				tailer, err := l.setupTailer(source, sanitized, identifier)
+				if err != nil {
+					log.Debug("Retrying windows event log tailer setup failed: ", err)
+					continue
+				}
+				delete(l.pendingSources, identifier)
 				l.tailers[identifier] = tailer
 			}
 		case <-l.stop:

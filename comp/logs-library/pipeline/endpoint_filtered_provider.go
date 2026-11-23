@@ -1613,13 +1613,16 @@ func (p *EndpointFilteredProvider) Flush(ctx context.Context) {
 	p.lifecycle.RUnlock()
 	defer p.opsWg.Done()
 
+	// Drain bound inputs first, then shared ingress last so post-barrier
+	// shared records cannot accumulate while waiting on bound inputs before
+	// processor barriers are injected.
 	var acks []chan struct{}
-	for _, mi := range inputs {
+	sendInputBarrier := func(mi *managedInput) bool {
 		if !mi.acquire() {
 			// Input is retiring or closed: wait for its retirement to finish
 			// draining instead of skipping pre-flush records.
 			acks = append(acks, mi.retireDone)
-			continue
+			return true
 		}
 		ack := make(chan struct{})
 		marker := &message.Message{}
@@ -1629,27 +1632,46 @@ func (p *EndpointFilteredProvider) Flush(ctx context.Context) {
 		case mi.ch <- marker:
 			mi.release()
 			acks = append(acks, ack)
+			return true
 		case <-ctx.Done():
 			mi.release()
-			return
+			return false
 		case <-p.stopRequested:
 			mi.release()
-			return
+			return false
 		case <-p.ctx.Done():
 			mi.release()
+			return false
+		}
+	}
+	waitAcks := func() bool {
+		for _, ack := range acks {
+			select {
+			case <-ack:
+			case <-ctx.Done():
+				return false
+			case <-p.stopRequested:
+				return false
+			case <-p.ctx.Done():
+				return false
+			}
+		}
+		acks = acks[:0]
+		return true
+	}
+	for _, mi := range inputs {
+		if mi == p.ingress {
+			continue
+		}
+		if !sendInputBarrier(mi) {
 			return
 		}
 	}
-	for _, ack := range acks {
-		select {
-		case <-ack:
-		case <-ctx.Done():
-			return
-		case <-p.stopRequested:
-			return
-		case <-p.ctx.Done():
-			return
-		}
+	if !waitAcks() {
+		return
+	}
+	if !sendInputBarrier(p.ingress) || !waitAcks() {
+		return
 	}
 
 	acks = acks[:0]

@@ -43,7 +43,7 @@ OTTL expression compilation and YAML selector syntax are intentionally stubbed u
 - `routing.EndpointSelector` (`Match(routing.LogView) (bool, error)`)
 - `routing.SelectorCompiler` (`Compile(expr string) (routing.EndpointSelector, error)`)
 - `routing.StubSelectorCompiler` (returns `nil` for empty expressions and `routing.ErrSelectorCompilerNotConfigured` for non-empty expressions)
-- `comp/logs/agent/impl` keeps `pipeline.NewProvider` when no endpoint selectors are configured (bypassing selector evaluation on the default path; shared processor MRF initialization and sender worker/batch drain improvements also apply). When endpoint selectors are configured, `buildPipelineProvider` requires HTTP JSON endpoints and valid `EndpointFilteredProvider` settings, returning an error instead of silently falling back to unfiltered delivery. Launchers receive the provider's guarded registry (`GuardRegistry`) and file/WindowsEvent tailers use isolated per-tailer `SourceInput` channels with generation retirement.
+- `comp/logs/agent/impl` keeps `pipeline.NewProvider` when no endpoint selectors are configured (bypassing selector evaluation on the default path; shared processor MRF initialization and bounded batch-strategy flush drain also apply, while opt-in `SetStopCancel` worker shutdown draining is used only by `EndpointFilteredProvider`). When endpoint selectors are configured, `buildPipelineProvider` requires HTTP JSON endpoints and valid `EndpointFilteredProvider` settings, returning an error instead of silently falling back to unfiltered delivery. Launchers receive the provider's guarded registry (`GuardRegistry`) and file/WindowsEvent tailers use isolated per-tailer `SourceInput` channels with generation retirement.
 
 ## Verified Limits
 
