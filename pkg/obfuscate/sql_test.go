@@ -3181,6 +3181,9 @@ func TestSQLLiteralLeaksUnterminated(t *testing.T) {
 		"SELECT q'[unterminated",
 		"SELECT nq'{it's ]'",
 		"SELECT q'!it's",
+		// Trade-off: a column named q directly followed by a quoted alias
+		// (MySQL, SQL Server) is read as an unterminated q'...' literal.
+		"SELECT q'x' FROM t",
 	} {
 		t.Run(in, func(t *testing.T) {
 			_, err := NewObfuscator(Config{}).ObfuscateSQLString(in)
