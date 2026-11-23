@@ -455,6 +455,7 @@ func protoToSecurityProfile(output *Profile, input *adprotov1.SecurityProfile) {
 		}
 		copy(outCtx.Syscalls, ctx.Syscalls)
 		copy(outCtx.Tags, ctx.Tags)
+		output.learnShortImage(outCtx.Tags)
 		output.versionContexts[key] = outCtx
 	}
 

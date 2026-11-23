@@ -171,7 +171,7 @@ func TestManagerV2_evictUnusedNodes_skipsDisabledProfile(t *testing.T) {
 }
 
 // TestManagerV2_SendStats_reportsProfileCount verifies the profile-count gauge follows the V2
-// manager: enabled and disabled profiles both count, and an empty manager reports zero.
+// manager: each tracked profile, enabled or disabled, is reported as 1, and an empty manager reports zero.
 func TestManagerV2_SendStats_reportsProfileCount(t *testing.T) {
 	newManager := func() (*ManagerV2, *gaugeRecorder) {
 		m, _ := newTestManagerV2WithLocalStorage(t)
@@ -210,7 +210,45 @@ func TestManagerV2_SendStats_reportsProfileCount(t *testing.T) {
 		assert.Equal(t, map[string]float64{
 			"profile_image_name:gcr.io/org/app":    1,
 			"profile_image_name:gcr.io/org/worker": 1,
+		}, got, "the short image tag is left off when the profile has not learned it")
+	})
+
+	t.Run("adds the short image stored on the profile", func(t *testing.T) {
+		m, recorder := newManager()
+
+		selector := cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}
+		prof := profile.New(profile.WithWorkloadSelector(selector))
+		// The short image is the workload tag copied onto the version context when tags resolve.
+		prof.PrepareNewVersion("v1", []string{"image_name:gcr.io/org/app", "short_image:app"}, 1, 0)
+		prof.Disable()
+		m.profiles[selector] = prof
+
+		// a profile that never saw a short_image tag has none
+		orphanSelector := cgroupModel.WorkloadSelector{Image: "gcr.io/org/worker", Tag: "*"}
+		m.profiles[orphanSelector] = profile.New(profile.WithWorkloadSelector(orphanSelector))
+
+		require.NoError(t, m.SendStats())
+
+		got := map[string]float64{}
+		for i, tags := range recorder.tags[metrics.MetricSecurityProfileProfiles] {
+			got[strings.Join(tags, ",")] = recorder.values[metrics.MetricSecurityProfileProfiles][i]
+		}
+		assert.Equal(t, map[string]float64{
+			"profile_image_name:gcr.io/org/app,profile_short_image:app": 1,
+			"profile_image_name:gcr.io/org/worker":                      1,
 		}, got)
+		assert.Equal(t, [][]string{{
+			"profile_image_name:gcr.io/org/app",
+			"profile_image_tag:*",
+			"profile_short_image:app",
+		}}, recorder.tags[metrics.MetricSecurityProfileV2DisabledProfiles])
+
+		gotSize := map[string]struct{}{}
+		for _, tags := range recorder.tags[metrics.MetricSecurityProfileV2ProfileSize] {
+			gotSize[strings.Join(tags, ",")] = struct{}{}
+		}
+		assert.Contains(t, gotSize, "profile_image_name:gcr.io/org/app,profile_image_tag:*,storage:ram,profile_short_image:app")
+		assert.Contains(t, gotSize, "profile_image_name:gcr.io/org/worker,profile_image_tag:*,storage:ram")
 	})
 
 	t.Run("reports zero when no profile is tracked", func(t *testing.T) {
