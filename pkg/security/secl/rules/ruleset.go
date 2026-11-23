@@ -71,6 +71,15 @@ func (rs *RuleSet) parseSetField(field string) (*setField, error) {
 	return nil, fmt.Errorf("invalid field '%s': not a field, an index in an array field or a key in a dictionary field", field)
 }
 
+// isArrayEvaluator returns whether an evaluator returns an array of values
+func isArrayEvaluator(evaluator eval.Evaluator) bool {
+	switch evaluator.(type) {
+	case *eval.StringArrayEvaluator, *eval.IntArrayEvaluator, *eval.BoolArrayEvaluator, *eval.CIDRArrayEvaluator:
+		return true
+	}
+	return false
+}
+
 // Rule presents a rule in a ruleset
 type Rule struct {
 	*PolicyRule
@@ -487,10 +496,19 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						continue
 					}
 
-					if _, kind, goType, isArray, err = rs.eventCtor().GetFieldMetadata(field.name); err != nil {
+					if _, kind, goType, _, err = rs.eventCtor().GetFieldMetadata(field.name); err != nil {
 						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("failed to get field '%s': %w", field.name, err))
 						continue
 					}
+
+					// whether the value is an array is told by its evaluator: an iterated
+					// field is one, the metadata of its field says otherwise
+					evaluator, _, err := rs.compileActionValue(actionDef.Set.Field)
+					if err != nil {
+						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("failed to compile action expression: %w", err))
+						continue
+					}
+					isArray = isArrayEvaluator(evaluator)
 
 					// the values of a dictionary are strings
 					if field.indexed && kind == reflect.Map {
@@ -506,7 +524,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						continue
 					}
 
-					if isArray && !field.indexed {
+					if isArray {
 						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("'capture' is not supported on array field '%s' for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
 						continue
 					}
@@ -547,7 +565,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					}
 				} else if field != nil {
 					// an index in an array is a single value
-					if isArray && !field.indexed && !actionDef.Set.Append {
+					if isArray && !actionDef.Set.Append {
 						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("field '%s' is an array and can only be used with 'append: yes' in set action for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
 						continue
 					}

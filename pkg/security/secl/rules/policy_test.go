@@ -3287,6 +3287,69 @@ func TestActionSetVariableValidation(t *testing.T) {
 	}
 }
 
+// An iterated field is an array of values, one per element, even if its field
+// isn't one: it can only be appended to a variable.
+func TestActionSetVariableIteratedField(t *testing.T) {
+	setRule := func(set *SetDefinition) *PolicyDef {
+		return &PolicyDef{Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions:    []*ActionDefinition{{Set: set}},
+		}, {
+			ID:         "test_rule2",
+			Expression: `open.file.path == "/tmp/test2" && "bash" in ${ancestors}`,
+		}}}
+	}
+
+	for name, test := range map[string]struct {
+		set *SetDefinition
+		err string
+	}{
+		"without-append": {&SetDefinition{Name: "ancestors", Field: "process.ancestors.file.name"}, "can only be used with 'append: yes'"},
+		"capture":        {&SetDefinition{Name: "ancestors", Field: "process.ancestors.file.name", Capture: "(b.*)"}, "'capture' is not supported on array field"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := loadPolicy(t, setRule(test.set), PolicyLoaderOpts{})
+			if err == nil || !strings.Contains(err.Error(), test.err) {
+				t.Errorf("expected an error containing %q, got %v", test.err, err)
+			}
+		})
+	}
+
+	t.Run("append", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		if err := savePolicy(filepath.Join(tmpDir, "test.policy"), setRule(&SetDefinition{Name: "ancestors", Field: "process.ancestors.file.name", Append: true})); err != nil {
+			t.Fatal(err)
+		}
+		provider, err := NewPoliciesDirProvider(tmpDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rs := newRuleSet()
+		if _, err := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{}); err != nil {
+			t.Fatal(err)
+		}
+
+		newEvent := func(path string) *model.Event {
+			event := model.NewFakeEvent()
+			event.Type = uint32(model.FileOpenEventType)
+			event.ProcessCacheEntry = &model.ProcessCacheEntry{}
+			event.SetFieldValue("open.file.path", path)
+			parent := &model.ProcessCacheEntry{}
+			parent.Process.FileEvent.BasenameStr = "bash"
+			event.ProcessContext.Ancestor = parent
+			return event
+		}
+
+		if !rs.Evaluate(newEvent("/tmp/test")) {
+			t.Fatal("expected test_rule to match")
+		}
+		if !rs.Evaluate(newEvent("/tmp/test2")) {
+			t.Error("expected the name of the ancestor to be appended to the variable")
+		}
+	})
+}
+
 func TestActionSetVariableArrayIndex(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
