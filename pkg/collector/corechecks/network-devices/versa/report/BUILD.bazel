@@ -44,6 +44,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks/network-devices/versa/client",
+        "//pkg/networkdevice/sender",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
