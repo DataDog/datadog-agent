@@ -1202,6 +1202,16 @@ func (m *ManagerV2) SendStats() error {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(entry.profile.ComputeHeapSize()), tags, 1.0); err != nil {
 			return err
 		}
+		if journalBytes := entry.profile.JournalSize(); journalBytes > 0 {
+			journalTags := []string{
+				"profile_image_name:" + entry.selector.Image,
+				"profile_image_tag:" + entry.selector.Tag,
+				"storage:journal",
+			}
+			if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(journalBytes), journalTags, 1.0); err != nil {
+				return err
+			}
+		}
 	}
 
 	for selector, size := range m.localStorage.SizesBySelector() {
@@ -1626,7 +1636,6 @@ func (m *ManagerV2) journalConfig() (string, int64) {
 // loadProfileFromStorage attempts to load a profile from local storage.
 // Returns the loaded profile and true if successful, otherwise nil and false.
 func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, bool) {
-	journalDir, journalMaxBytes := m.journalConfig()
 	// Create a base profile with the required options
 	secprof := profile.New(
 		profile.WithPathsReducer(m.pathsReducer),
@@ -1636,7 +1645,6 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
 		profile.WithPathPatterns(m.pathPatternConfig()),
-		profile.WithJournalDir(journalDir, journalMaxBytes),
 	)
 
 	// Try to load from local storage
@@ -1678,6 +1686,9 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 			}
 		}
 	}
+
+	journalDir, journalMaxBytes := m.journalConfig()
+	secprof.EnableJournal(journalDir, journalMaxBytes)
 
 	return secprof, true
 }

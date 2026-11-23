@@ -188,6 +188,21 @@ func (p *Profile) resetActivityTreeLocked() {
 	}
 }
 
+// EnableJournal attaches an on-disk binary journal to the profile's ActivityTree.
+func (p *Profile) EnableJournal(dir string, maxBytes int64) {
+	if dir == "" {
+		return
+	}
+	p.Lock()
+	defer p.Unlock()
+	p.treeOpts.journalDir = dir
+	p.treeOpts.journalMaxBytes = maxBytes
+	if p.ActivityTree != nil && !p.ActivityTree.HasJournal() {
+		key := fmt.Sprintf("%s-%x", p.selector.Image, p.profileCookie)
+		_ = p.ActivityTree.EnableJournal(dir, key, maxBytes)
+	}
+}
+
 // HasAlreadyBeenSent returns true if the profile has already been sent
 func (p *Profile) HasAlreadyBeenSent() bool {
 	return p.hasAlreadyBeenSent.Load()

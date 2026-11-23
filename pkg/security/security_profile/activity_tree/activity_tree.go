@@ -548,6 +548,10 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return false, nil, nil, err
 	}
 
+	if !dryRun && at.Stats != nil && at.Stats.journal != nil {
+		at.Stats.journal.maybeCompactBeforeInsert(at)
+	}
+
 	node, newProcessNode, err := at.createProcessNode(event.ProcessCacheEntry, imageTagID, generationType, !insertMissingProcesses /*dryRun*/, resolvers)
 	if err != nil {
 		return false, nil, nil, err

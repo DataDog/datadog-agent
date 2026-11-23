@@ -157,6 +157,7 @@ func TestActivityTreeJournal_ParityWithInMemoryAndPatterns(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, ins1)
 	assert.False(t, ins2)
+	assert.Empty(t, jTree.ProcessNodes[0].Files["var"].Children["job"].Children["1"].Children["out.log"].MatchedRules, "enriched file rules must be spilled and stripped from RAM")
 
 	var headNodeBase, foldedNodeBase *NodeBase
 	for i := 1; i <= 16; i++ {
@@ -499,7 +500,6 @@ func TestActivityTreeJournal_NonUTF8ArgsHashAndCheckpointRollback(t *testing.T) 
 	jTree.DifferentiateArgs()
 	require.NoError(t, jTree.EnableJournal(dir, "non-utf8:v1", 0))
 	t.Cleanup(func() {
-		_ = os.Chmod(dir, 0750)
 		_ = jTree.CloseJournal()
 	})
 
@@ -519,9 +519,76 @@ func TestActivityTreeJournal_NonUTF8ArgsHashAndCheckpointRollback(t *testing.T) 
 	assert.True(t, contains, "non-UTF-8 process argv must continue matching its existing ProcessNode after ToProto")
 
 	jTree.Stats.journal.dirty = true
-	require.NoError(t, os.Chmod(dir, 0500))
+	require.NoError(t, os.Mkdir(jTree.Stats.journal.path+".tmp", 0750))
 
 	protoNodes := ToProto(jTree)
 	require.Len(t, protoNodes, 1)
 	assert.NotEmpty(t, jTree.ProcessNodes[0].Process.Envs, "failed checkpoint must keep materialized payloads in RAM instead of stripping")
+}
+
+func TestActivityTreeJournal_SocketNetdevCloseAndCompaction(t *testing.T) {
+	jTree := NewActivityTree(activityTreeInsertTestValidator{}, NewPathsReducer(), "security_profile")
+	require.NoError(t, jTree.EnableJournal(t.TempDir(), "sock-netdev:v1", 2048))
+	t.Cleanup(func() { _ = jTree.CloseJournal() })
+
+	shim := newJournalTestProcessEntry(1, "/usr/bin/containerd-shim-runc-v2", "containerd-shim-runc-v2", "containerd-shim-runc-v2", nil, nil, nil)
+	worker := newJournalTestProcessEntry(100, "/usr/bin/app", "app", "app", []string{"app", "--serve"}, []string{"ENV=1"}, shim)
+	ts := time.Unix(1700000000, 0)
+
+	bindEv := model.NewFakeEvent()
+	bindEv.Type = uint32(model.BindEventType)
+	bindEv.Timestamp = ts
+	bindEv.ProcessCacheEntry = worker
+	bindEv.ProcessContext = &worker.ProcessContext
+	bindEv.Bind.AddrFamily = syscall.AF_INET
+	bindEv.Bind.Addr.IPNet = journalIPv4Net("127.0.0.1")
+	bindEv.Bind.Addr.Port = 8080
+	bindEv.Bind.Protocol = syscall.IPPROTO_TCP
+	bindEv.Rules = []*model.MatchedRule{{RuleID: "bind_rule", RuleVersion: "1.0"}}
+	_, _, _, err := jTree.Insert(bindEv, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+
+	flowEv1 := model.NewFakeEvent()
+	flowEv1.Type = uint32(model.NetworkFlowMonitorEventType)
+	flowEv1.Timestamp = ts
+	flowEv1.ProcessCacheEntry = worker
+	flowEv1.ProcessContext = &worker.ProcessContext
+	flowEv1.NetworkFlowMonitor.Device = model.NetworkDeviceContext{NetNS: 42, IfIndex: 2, IfName: "eth0"}
+	flowEv1.NetworkFlowMonitor.FlowsCount = 1
+	flowEv1.NetworkFlowMonitor.Flows = []model.Flow{{
+		L3Protocol: syscall.ETH_P_IP,
+		L4Protocol: syscall.IPPROTO_TCP,
+	}}
+	flowEv1.Rules = []*model.MatchedRule{{RuleID: "stale_netdev_rule", RuleVersion: "1.0"}}
+	_, _, _, err = jTree.Insert(flowEv1, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+
+	fEvPermanent := newJournalTestFileOpenEvent(worker, "/etc/keep.conf", syscall.O_RDONLY, syscall.S_IFREG|0644, ts)
+	_, _, _, err = jTree.Insert(fEvPermanent, true, "v2", Runtime, nil)
+	require.NoError(t, err)
+
+	jTree.EvictImageTag("v1")
+	require.True(t, jTree.Stats.journal.dirty)
+
+	flowEv2 := *flowEv1
+	flowEv2.Timestamp = ts.Add(time.Second)
+	flowEv2.Rules = nil
+	_, _, _, err = jTree.Insert(&flowEv2, true, "v2", Runtime, nil)
+	require.NoError(t, err)
+
+	for i := 0; i < 6; i++ {
+		fEv := newJournalTestFileOpenEvent(worker, fmt.Sprintf("/var/lib/compact-%d/data.bin", i), syscall.O_RDONLY, syscall.S_IFREG|0644, ts)
+		_, _, _, err = jTree.Insert(fEv, true, "v2", Runtime, nil)
+		require.NoError(t, err)
+	}
+	assert.True(t, jTree.HasJournal(), "dirty journal must compact before hitting size cap")
+
+	protoNodes := ToProto(jTree)
+	require.Len(t, protoNodes, 1)
+	require.Len(t, protoNodes[0].NetworkDevices, 1)
+	assert.Empty(t, protoNodes[0].NetworkDevices[0].MatchedRules, "evicted netdev rule must not attach to recreated netdev node")
+
+	require.NoError(t, jTree.CloseJournal())
+	assert.False(t, jTree.HasJournal())
+	assert.Empty(t, jTree.ProcessNodes[0].Process.Argv, "CloseJournal must dispose of the journal without rehydrating stripped payloads")
 }
