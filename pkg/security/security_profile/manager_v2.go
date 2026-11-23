@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"sync"
@@ -432,6 +433,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			m.closeAllProfiles()
 			return
 		case <-sendTickerChan:
 			m.persistAllProfiles()
@@ -572,6 +574,7 @@ func (m *ManagerV2) cleanupPendingProfiles() {
 
 		seclog.Infof("removing profile [%s] after cleanup delay", selector.String())
 		m.purgeCookiesForProfile(prof)
+		prof.Close()
 		delete(m.profiles, selector)
 		delete(m.pendingProfileRemovals, selector)
 
@@ -590,10 +593,23 @@ func (m *ManagerV2) profileHasActiveInstances(prof *profile.Profile) bool {
 // persistAllProfiles encodes and persists all profiles to configured storage backends
 func (m *ManagerV2) persistAllProfiles() {
 	m.profilesLock.Lock()
+	profiles := make([]*profile.Profile, 0, len(m.profiles))
+	for _, p := range m.profiles {
+		profiles = append(profiles, p)
+	}
+	m.profilesLock.Unlock()
+
+	for _, p := range profiles {
+		m.persistProfile(p)
+	}
+}
+
+func (m *ManagerV2) closeAllProfiles() {
+	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
 	for _, p := range m.profiles {
-		m.persistProfile(p)
+		p.Close()
 	}
 }
 
@@ -1186,6 +1202,16 @@ func (m *ManagerV2) SendStats() error {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(entry.profile.ComputeHeapSize()), tags, 1.0); err != nil {
 			return err
 		}
+		if journalBytes := entry.profile.JournalSize(); journalBytes > 0 {
+			journalTags := []string{
+				"profile_image_name:" + entry.selector.Image,
+				"profile_image_tag:" + entry.selector.Tag,
+				"storage:journal",
+			}
+			if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(journalBytes), journalTags, 1.0); err != nil {
+				return err
+			}
+		}
 	}
 
 	for selector, size := range m.localStorage.SizesBySelector() {
@@ -1259,13 +1285,16 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	}
 
 	// Same lock as FinalizePatterns, so eventNodeBase can't be folded before its cookie exists.
-	secprof.Lock()
-	inserted, processNode, eventNodeBase, err := secprof.InsertLocked(event, true, imageTag, activity_tree.Runtime, m.resolvers)
-	if err == nil {
-		m.retargetSampleCookies(secprof, secprof.ActivityTree.Stats.TakeMovedNodes())
-		m.registerSampleCookie(event, secprof, processNode, eventNodeBase, imageTag)
-	}
-	secprof.Unlock()
+	inserted, err := func() (bool, error) {
+		secprof.Lock()
+		defer secprof.Unlock()
+		ins, processNode, eventNodeBase, insertErr := secprof.InsertLocked(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+		if insertErr == nil {
+			m.retargetSampleCookies(secprof, secprof.ActivityTree.Stats.TakeMovedNodes())
+			m.registerSampleCookie(event, secprof, processNode, eventNodeBase, imageTag)
+		}
+		return ins, insertErr
+	}()
 	if err != nil {
 		if !activity_tree.IsExpectedFilterError(err) {
 			m.incrementInsertionError(event.GetEventType(), err)
@@ -1586,6 +1615,24 @@ func (m *ManagerV2) pathPatternConfig() activity_tree.PathPatternConfig {
 	return cfg
 }
 
+func (m *ManagerV2) journalConfig() (string, int64) {
+	if m.localStorage == nil {
+		return "", 0
+	}
+	dir := m.localStorage.DirectoryPath()
+	if dir == "" {
+		return "", 0
+	}
+	const minJournalMaxBytes = int64(4 << 20)
+	maxBytes := minJournalMaxBytes
+	if m.config != nil && m.config.RuntimeSecurity != nil && m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize != nil {
+		if cfgMax := int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) * 2; cfgMax > maxBytes {
+			maxBytes = cfgMax
+		}
+	}
+	return filepath.Join(dir, "journals"), maxBytes
+}
+
 // loadProfileFromStorage attempts to load a profile from local storage.
 // Returns the loaded profile and true if successful, otherwise nil and false.
 func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, bool) {
@@ -1603,10 +1650,12 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 	// Try to load from local storage
 	ok, err := m.localStorage.Load(&selector, secprof)
 	if err != nil {
+		secprof.Close()
 		seclog.Warnf("couldn't load profile from local storage: %v", err)
 		return nil, false
 	}
 	if !ok {
+		secprof.Close()
 		return nil, false
 	}
 
@@ -1638,12 +1687,16 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		}
 	}
 
+	journalDir, journalMaxBytes := m.journalConfig()
+	secprof.EnableJournal(journalDir, journalMaxBytes)
+
 	return secprof, true
 }
 
 // createNewProfile initializes a new profile with all required metadata. The tags of the
 // workloads are held by the version contexts of the profile, see ensureVersionContext.
 func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, event *model.Event) *profile.Profile {
+	journalDir, journalMaxBytes := m.journalConfig()
 	secprof := profile.New(
 		profile.WithPathsReducer(m.pathsReducer),
 		profile.WithDifferentiateArgs(m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs),
@@ -1652,6 +1705,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
 		profile.WithPathPatterns(m.pathPatternConfig()),
+		profile.WithJournalDir(journalDir, journalMaxBytes),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 

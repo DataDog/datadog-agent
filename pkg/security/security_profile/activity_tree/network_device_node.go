@@ -19,6 +19,7 @@ import (
 type NetworkDeviceNode struct {
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
+	minJournalSeq  uint32
 	Context        model.NetworkDeviceContext
 	// FlowNodes are indexed by source IPPortContexts
 	FlowNodes map[model.FiveTuple]*FlowNode
@@ -60,8 +61,12 @@ func (netdevice *NetworkDeviceNode) evictImageTag(imageTagID uint64) (bool, int6
 }
 
 func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.NetworkFlowMonitorEvent, evt *model.Event, dryRun bool, rules []*model.MatchedRule, generationType NodeGenerationType, imageTagID uint64, stats *Stats) bool {
-	if len(rules) > 0 {
-		netdevice.MatchedRules = model.AppendMatchedRule(netdevice.MatchedRules, rules)
+	if !dryRun {
+		if stats != nil && stats.journal != nil {
+			stats.journal.recordNetworkDeviceRules(netdevice, rules)
+		} else if len(rules) > 0 {
+			netdevice.MatchedRules = model.AppendMatchedRule(netdevice.MatchedRules, rules)
+		}
 	}
 
 	var newFlow bool

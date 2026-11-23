@@ -77,6 +77,8 @@ type activityTreeOpts struct {
 	differentiateArgs bool
 	dnsMatchMaxDepth  int
 	pathPatterns      activity_tree.PathPatternConfig
+	journalDir        string
+	journalMaxBytes   int64
 }
 
 // Profile represents a security profile
@@ -162,12 +164,42 @@ func (p *Profile) Disable() {
 	p.resetActivityTreeLocked()
 }
 
+// Close releases any on-disk journal resources held by the profile.
+func (p *Profile) Close() {
+	p.Lock()
+	defer p.Unlock()
+	if p.ActivityTree != nil {
+		_ = p.ActivityTree.CloseJournal()
+	}
+}
+
 // resetActivityTreeLocked replaces the activity tree with a fresh, empty one. The caller must hold p.Lock().
 func (p *Profile) resetActivityTreeLocked() {
+	if p.ActivityTree != nil {
+		_ = p.ActivityTree.CloseJournal()
+	}
 	p.ActivityTree = activity_tree.NewActivityTree(p, p.treeOpts.pathsReducer, "security_profile")
 	p.ActivityTree.DNSMatchMaxDepth = p.treeOpts.dnsMatchMaxDepth
 	if p.treeOpts.differentiateArgs {
 		p.ActivityTree.DifferentiateArgs()
+	}
+	if p.treeOpts.pathPatterns.Enabled {
+		p.ActivityTree.Stats.SetPathPatternConfig(p.treeOpts.pathPatterns)
+	}
+}
+
+// EnableJournal attaches an on-disk binary journal to the profile's ActivityTree.
+func (p *Profile) EnableJournal(dir string, maxBytes int64) {
+	if dir == "" {
+		return
+	}
+	p.Lock()
+	defer p.Unlock()
+	p.treeOpts.journalDir = dir
+	p.treeOpts.journalMaxBytes = maxBytes
+	if p.ActivityTree != nil && !p.ActivityTree.HasJournal() {
+		key := fmt.Sprintf("%s-%x", p.selector.Image, p.profileCookie)
+		_ = p.ActivityTree.EnableJournal(dir, key, maxBytes)
 	}
 }
 
@@ -235,6 +267,14 @@ func WithPathPatterns(cfg activity_tree.PathPatternConfig) Opts {
 	}
 }
 
+// WithJournalDir enables on-disk journaling for the profile's ActivityTree.
+func WithJournalDir(dir string, maxBytes int64) Opts {
+	return func(p *Profile) {
+		p.treeOpts.journalDir = dir
+		p.treeOpts.journalMaxBytes = maxBytes
+	}
+}
+
 // New returns a new profile
 func New(opts ...Opts) *Profile {
 	p := &Profile{
@@ -260,6 +300,10 @@ func New(opts ...Opts) *Profile {
 	}
 	if p.treeOpts.pathPatterns.Enabled {
 		p.ActivityTree.Stats.SetPathPatternConfig(p.treeOpts.pathPatterns)
+	}
+	if p.treeOpts.journalDir != "" {
+		key := fmt.Sprintf("%s-%x", p.selector.Image, p.profileCookie)
+		_ = p.ActivityTree.EnableJournal(p.treeOpts.journalDir, key, p.treeOpts.journalMaxBytes)
 	}
 
 	if p.selector.Tag != "" && p.selector.Tag != "*" {
@@ -489,6 +533,16 @@ func (p *Profile) ComputeHeapSize() int64 {
 	p.Lock()
 	defer p.Unlock()
 	return p.ActivityTree.Stats.HeapSize()
+}
+
+// JournalSize returns the current size in bytes of the profile's on-disk journal.
+func (p *Profile) JournalSize() int64 {
+	p.Lock()
+	defer p.Unlock()
+	if p.ActivityTree == nil {
+		return 0
+	}
+	return p.ActivityTree.JournalSize()
 }
 
 // FakeOverweight fakes an overweight profile
@@ -858,6 +912,9 @@ func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
 	p.Lock()
 	defer p.Unlock()
 
+	if p.ActivityTree != nil && p.ActivityTree != newProfile.ActivityTree {
+		_ = p.ActivityTree.CloseJournal()
+	}
 	p.Metadata = newProfile.Metadata
 	p.selector = newProfile.selector
 	p.ActivityTree = newProfile.ActivityTree
@@ -865,6 +922,10 @@ func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
 	// patternCfg is not serialized; re-apply on reload
 	if p.treeOpts.pathPatterns.Enabled {
 		p.ActivityTree.Stats.SetPathPatternConfig(p.treeOpts.pathPatterns)
+	}
+	if p.treeOpts.journalDir != "" && !p.ActivityTree.HasJournal() {
+		key := fmt.Sprintf("%s-%x", p.selector.Image, p.profileCookie)
+		_ = p.ActivityTree.EnableJournal(p.treeOpts.journalDir, key, p.treeOpts.journalMaxBytes)
 	}
 	p.Header = newProfile.Header
 	p.tags = newProfile.tags

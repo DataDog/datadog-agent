@@ -44,18 +44,18 @@ type AWSSecurityCredentialsInfo struct {
 // newIMDSInfo builds a slim IMDSInfo from a model.IMDSEvent.
 func newIMDSInfo(e *model.IMDSEvent) IMDSInfo {
 	return IMDSInfo{
-		Type:          e.Type,
-		CloudProvider: e.CloudProvider,
-		URL:           e.URL,
-		Host:          e.Host,
-		UserAgent:     e.UserAgent,
-		Server:        e.Server,
+		Type:          stringInterner.Deduplicate(e.Type),
+		CloudProvider: stringInterner.Deduplicate(e.CloudProvider),
+		URL:           stringInterner.Deduplicate(e.URL),
+		Host:          stringInterner.Deduplicate(e.Host),
+		UserAgent:     stringInterner.Deduplicate(e.UserAgent),
+		Server:        stringInterner.Deduplicate(e.Server),
 		AWS: AWSIMDSInfo{
 			IsIMDSv2: e.AWS.IsIMDSv2,
 			SecurityCredentials: AWSSecurityCredentialsInfo{
-				Code:          e.AWS.SecurityCredentials.Code,
-				Type:          e.AWS.SecurityCredentials.Type,
-				AccessKeyID:   e.AWS.SecurityCredentials.AccessKeyID,
+				Code:          stringInterner.Deduplicate(e.AWS.SecurityCredentials.Code),
+				Type:          stringInterner.Deduplicate(e.AWS.SecurityCredentials.Type),
+				AccessKeyID:   stringInterner.Deduplicate(e.AWS.SecurityCredentials.AccessKeyID),
 				LastUpdated:   e.AWS.SecurityCredentials.LastUpdated,
 				ExpirationRaw: e.AWS.SecurityCredentials.ExpirationRaw,
 			},
@@ -68,6 +68,7 @@ type IMDSNode struct {
 	NodeBase
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
+	minJournalSeq  uint32
 	Event          IMDSInfo
 }
 

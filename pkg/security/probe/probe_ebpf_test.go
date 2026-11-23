@@ -842,6 +842,7 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 	require.NoError(t, err)
 	secprof := pm.GetProfile(selector)
 	require.NotNil(t, secprof)
+	secprof.ActivityTree.MaterializeFromJournal()
 	require.Len(t, secprof.ActivityTree.ProcessNodes, 1)
 	require.Len(t, secprof.ActivityTree.ProcessNodes[0].Children, 1)
 	appNode := secprof.ActivityTree.ProcessNodes[0].Children[0]

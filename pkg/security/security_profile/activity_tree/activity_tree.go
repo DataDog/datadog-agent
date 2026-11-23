@@ -367,7 +367,7 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 	for len(fnodes) > 0 {
 		node := fnodes[0]
 
-		if node.File != nil {
+		if node.File != nil || node.hasJournalFile {
 			at.Stats.FileNodes++
 		}
 
@@ -388,9 +388,15 @@ func (at *ActivityTree) IsEmpty() bool {
 
 // Debug dumps the content of an activity tree
 func (at *ActivityTree) Debug(w io.Writer) {
-	for _, root := range at.ProcessNodes {
-		root.debug(w, "")
+	var j *TreeJournal
+	if at.Stats != nil {
+		j = at.Stats.journal
 	}
+	j.withMaterializedTree(at, func() {
+		for _, root := range at.ProcessNodes {
+			root.debug(w, "")
+		}
+	})
 }
 
 // DifferentiateArgs enables the args differentiation feature
@@ -542,6 +548,10 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return false, nil, nil, err
 	}
 
+	if !dryRun && at.Stats != nil && at.Stats.journal != nil {
+		at.Stats.journal.maybeCompactBeforeInsert(at)
+	}
+
 	node, newProcessNode, err := at.createProcessNode(event.ProcessCacheEntry, imageTagID, generationType, !insertMissingProcesses /*dryRun*/, resolvers)
 	if err != nil {
 		return false, nil, nil, err
@@ -564,7 +574,11 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 
 	switch event.GetEventType() {
 	case model.ExecEventType:
-		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
+		if !dryRun && at.Stats != nil && at.Stats.journal != nil {
+			at.Stats.journal.recordProcessRules(node, event.Rules)
+		} else {
+			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
+		}
 		return newProcessNode, node, nil, nil
 	case model.FileOpenEventType:
 		newEntry, eventNodeBase := node.InsertFileEvent(&event.Open.File, event, imageTagID, generationType, at.Stats, dryRun, at.pathsReducer, resolvers)
@@ -815,6 +829,9 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 		for j := i; j >= 0; j-- {
 			// create the node
 			matchingNode = NewProcessNode(branchToInsert[j], generationType, r)
+			if at.Stats != nil && at.Stats.journal != nil {
+				at.Stats.journal.recordProcessNode(matchingNode)
+			}
 			parent.AppendChild(matchingNode)
 
 			// insert the new node in the list of children
@@ -942,6 +959,9 @@ func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase 
 	for i := len(branchToInsert) - 1; i >= 1; i-- {
 		eventExecChildTmp := branchToInsert[i]
 		n := NewProcessNode(eventExecChildTmp, generationType, resolvers)
+		if at.Stats != nil && at.Stats.journal != nil {
+			at.Stats.journal.recordProcessNode(n)
+		}
 		if i == len(branchToInsert)-1 {
 			rebaseRoot = n
 		}
@@ -1226,6 +1246,9 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 
 	at.removeImageTag(imageTag)
 	at.Stats.SizeBytes -= removedBytes
+	if at.Stats != nil && at.Stats.journal != nil && removedBytes > 0 {
+		at.Stats.journal.onEviction(at)
+	}
 }
 
 func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(processNode *ProcessNode)) {
@@ -1237,15 +1260,16 @@ func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(proce
 
 // visitFileNode calls cb on every leaf with the IsPattern flags of its path.
 // cb must not retain isPattern, its backing array is reused.
-func (at *ActivityTree) visitFileNode(fileNode *FileNode, isPattern []bool, cb func(fileNode *FileNode, isPattern []bool)) {
+func (at *ActivityTree) visitFileNode(fileNode *FileNode, prefix string, isPattern []bool, cb func(fileNode *FileNode, fullPath string, isPattern []bool)) {
+	fullPath := prefix + "/" + fileNode.Name
 	isPattern = append(isPattern, fileNode.IsPattern)
 	if len(fileNode.Children) == 0 {
-		cb(fileNode, isPattern)
+		cb(fileNode, fullPath, isPattern)
 		return
 	}
 
 	for _, file := range fileNode.Children {
-		at.visitFileNode(file, isPattern, cb)
+		at.visitFileNode(file, fullPath, isPattern, cb)
 	}
 }
 
@@ -1266,11 +1290,15 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 		var fimPaths []string
 		if fimEnabled {
 			for _, file := range processNode.Files {
-				at.visitFileNode(file, nil, func(fileNode *FileNode, isPattern []bool) {
-					if fileNode.File == nil {
+				at.visitFileNode(file, "", nil, func(fileNode *FileNode, fullPath string, isPattern []bool) {
+					if fileNode.File == nil && !fileNode.hasJournalFile {
 						return
 					}
-					if path := rulePathFromProfilePath(fileNode.File.PathnameStr, isPattern); len(path) > 0 {
+					pathname := fullPath
+					if fileNode.File != nil && fileNode.File.PathnameStr != "" {
+						pathname = fileNode.File.PathnameStr
+					}
+					if path := rulePathFromProfilePath(pathname, isPattern); len(path) > 0 {
 						fimPaths = append(fimPaths, path)
 					}
 				})
@@ -1376,6 +1404,7 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 	}
 
 	// Iterate through all process nodes and evict unused nodes
+	var evictedAny bool
 	for i := len(at.ProcessNodes) - 1; i >= 0; i-- {
 		node := at.ProcessNodes[i]
 		if node == nil {
@@ -1385,13 +1414,21 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 		evicted, removedBytes := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, imageTags)
 		totalEvicted += evicted
 		at.Stats.SizeBytes -= removedBytes
+		if removedBytes > 0 {
+			evictedAny = true
+		}
 
 		// If the process node itself has no image tags left after eviction, remove it entirely.
 		if node.SeenIsEmpty() {
 			at.Stats.SizeBytes -= processSubtreeSizeBytes(node)
 			at.ProcessNodes = append(at.ProcessNodes[:i], at.ProcessNodes[i+1:]...)
 			totalEvicted++
+			evictedAny = true
 		}
+	}
+
+	if (totalEvicted > 0 || evictedAny) && at.Stats != nil && at.Stats.journal != nil {
+		at.Stats.journal.onEviction(at)
 	}
 
 	return totalEvicted

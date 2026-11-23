@@ -74,8 +74,10 @@ type FileNode struct {
 	MatchedRules   []*model.MatchedRule
 	Name           string
 	IsPattern      bool
+	hasJournalFile bool
 	File           *FileInfo
 	GenerationType NodeGenerationType
+	minJournalSeq  uint32
 	Open           *OpenNode
 
 	Children map[string]*FileNode
@@ -106,7 +108,7 @@ func (fn *FileNode) sizeWithoutChildren() int64 {
 	s += seenBytes(fn.NodeBase)
 	s += int64(len(fn.Name))
 	if fn.File != nil {
-		s += fileInfoStringsBytes(fn.File)
+		s += int64(unsafe.Sizeof(*fn.File)) + fileInfoStringsBytes(fn.File)
 	}
 	if fn.Open != nil {
 		s += int64(unsafe.Sizeof(*fn.Open))
@@ -122,6 +124,7 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, is
 		resolvers.HashResolver.ComputeHashesFromEvent(event, fileEvent, 0)
 	}
 
+	name = stringInterner.Deduplicate(name)
 	fan := &FileNode{
 		Name:           name,
 		GenerationType: generationType,
@@ -135,6 +138,7 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, is
 		fan.File = newFileInfo(fileEvent)
 		fan.File.PathnameStr = reducedFilePath
 		fan.File.BasenameStr = name
+		fan.hasJournalFile = true
 	}
 	fan.enrichFromEvent(event)
 	return fan
@@ -231,6 +235,9 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			if !dryRun {
 				sizeBefore := currentFn.sizeWithoutChildren()
 				currentFn.enrichFromEvent(event)
+				if stats != nil && stats.journal != nil && event != nil && len(event.Rules) > 0 {
+					stats.journal.recordFileRules(currentFn, reducedPath, event.Rules)
+				}
 				if stats != nil {
 					stats.SizeBytes += currentFn.sizeWithoutChildren() - sizeBefore
 				}
@@ -267,6 +274,9 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		isPattern := reducedComponentIsPattern(parent, rawParent)
 		if lastComponent {
 			leafNode := NewFileNode(fileEvent, event, parent, isPattern, imageTagID, generationType, reducedPath, resolvers)
+			if stats != nil && stats.journal != nil {
+				stats.journal.recordFileNode(leafNode, reducedPath)
+			}
 			stats.FileNodes++
 			currentFn = insertChildAndMerge(currentFn.Children, &currentFn.childrenIndex, parent, leafNode, stats)
 			break

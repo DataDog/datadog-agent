@@ -68,6 +68,8 @@ type ProcessInfo struct {
 
 	Envs          []string
 	EnvsTruncated bool
+	argsHashed    bool
+	argsHash      [16]byte
 }
 
 // newProcessInfo builds the slim ProcessInfo from a model.Process. Args and envs are
@@ -132,6 +134,8 @@ func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessIn
 		ArgsTruncated: pc.ArgsTruncated,
 		Envs:          pc.Envs,
 		EnvsTruncated: pc.EnvsTruncated,
+		argsHashed:    true,
+		argsHash:      hashProcessArgs(pc.Argv),
 	}
 }
 
@@ -165,6 +169,8 @@ type ProcessNode struct {
 	Process        ProcessInfo
 	Parent         ProcessNodeParent
 	GenerationType NodeGenerationType
+	journalID      uint32
+	minJournalSeq  uint32
 	MatchedRules   []*model.MatchedRule
 
 	Files          map[string]*FileNode
@@ -347,6 +353,12 @@ func (pn *ProcessNode) MatchesProcessInfo(entry *ProcessInfo, matchArgs bool, no
 
 // Matches returns true if the process fields used to generate the dump are identical with the provided ProcessInfo.
 func (pi *ProcessInfo) Matches(other *ProcessInfo, matchArgs bool, normalize bool) bool {
+	if matchArgs && pi.argsHashed && other.argsHashed {
+		if !pi.matches(other.FileEvent.PathnameStr, other.Argv0, nil, false, normalize) {
+			return false
+		}
+		return pi.argsHash == other.argsHash
+	}
 	return pi.matches(other.FileEvent.PathnameStr, other.Argv0, other.Argv, matchArgs, normalize)
 }
 
@@ -364,6 +376,9 @@ func (pi *ProcessInfo) matches(pathnameStr, argv0 string, argv []string, matchAr
 		return false
 	}
 	if matchArgs {
+		if pi.argsHashed {
+			return pi.argsHash == hashProcessArgs(argv)
+		}
 		return slices.Equal(pi.Argv, argv)
 	}
 	return true
@@ -400,6 +415,9 @@ func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTagID uint64, syscall
 // InsertFileEvent inserts the provided file event in the current node. Returns whether a new entry was
 // added and the NodeBase of the leaf FileNode reached or created.
 func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducer *PathsReducer, resolvers *resolvers.EBPFResolvers) (bool, *NodeBase) {
+	if !dryRun && stats != nil && stats.journal != nil {
+		stats.journal.setCurrentProc(pn)
+	}
 	var filePath string
 	if generationType != Snapshot {
 		filePath = event.FieldHandlers.ResolveFilePath(event, fileEvent)
@@ -438,6 +456,9 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 			// this is the last child, add the fileEvent context at the leaf of the files tree.
 			node := NewFileNode(fileEvent, event, parent, isPattern, imageTagID, generationType, filePath, resolvers)
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
+			if stats != nil && stats.journal != nil {
+				stats.journal.recordFileNode(node, filePath)
+			}
 			stats.FileNodes++
 			owner := insertChildAndMerge(pn.Files, &pn.filesIndex, parent, node, stats)
 			return true, &owner.NodeBase
@@ -482,14 +503,19 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 	DNSNames.Insert(evt.DNS.Question.Name)
 	dnsNode, ok := pn.DNSNames[evt.DNS.Question.Name]
 	if ok {
-		// update matched rules
-		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
-
 		dnsNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 
 		// look for the DNS request type
 		for i := range dnsNode.Requests {
 			if dnsNode.Requests[i].Question.Type == evt.DNS.Question.Type {
+				if stats != nil && stats.journal != nil {
+					sizeBefore := dnsNode.size()
+					if stats.journal.recordDNSEnrichment(pn, dnsNode, i, evt.DNS.Response, evt.Rules) {
+						stats.SizeBytes += dnsNode.size() - sizeBefore
+						return false
+					}
+				}
+				dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
 				// enrich the known question with the answers of this response, if any. This
 				// deliberately still reports "nothing new": see DNSNode.mergeDNSResponse.
 				if evt.DNS.Response != nil {
@@ -503,11 +529,17 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 
 		sizeBefore := dnsNode.size()
 		dnsNode.Requests = append(dnsNode.Requests, newDNSRequestEntry(&evt.DNS))
+		if stats == nil || stats.journal == nil || !stats.journal.recordDNSEnrichment(pn, dnsNode, len(dnsNode.Requests)-1, evt.DNS.Response, evt.Rules) {
+			dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
+		}
 		stats.SizeBytes += dnsNode.size() - sizeBefore
 		return true
 	}
 
 	dnsNode = NewDNSNode(&evt.DNS, evt, evt.Rules, generationType, imageTagID)
+	if stats != nil && stats.journal != nil {
+		stats.journal.recordDNSEnrichment(pn, dnsNode, 0, evt.DNS.Response, evt.Rules)
+	}
 	if pn.DNSNames == nil {
 		pn.DNSNames = make(map[string]*DNSNode)
 	}
@@ -522,14 +554,23 @@ func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTagID uint64, gene
 	key := newIMDSInfo(&evt.IMDS)
 	imdsNode, ok := pn.IMDSEvents[key]
 	if ok {
-		imdsNode.MatchedRules = model.AppendMatchedRule(imdsNode.MatchedRules, evt.Rules)
-		imdsNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
+		if !dryRun {
+			if stats != nil && stats.journal != nil {
+				stats.journal.recordIMDSRules(pn, imdsNode, evt.Rules)
+			} else {
+				imdsNode.MatchedRules = model.AppendMatchedRule(imdsNode.MatchedRules, evt.Rules)
+			}
+			imdsNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
+		}
 		return false
 	}
 
 	if !dryRun {
 		// create new node
 		imdsNode := NewIMDSNode(&evt.IMDS, evt, evt.Rules, generationType, imageTagID)
+		if stats != nil && stats.journal != nil {
+			stats.journal.recordIMDSRules(pn, imdsNode, evt.Rules)
+		}
 		if pn.IMDSEvents == nil {
 			pn.IMDSEvents = make(map[IMDSInfo]*IMDSNode)
 		}
@@ -542,6 +583,9 @@ func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTagID uint64, gene
 
 // InsertNetworkFlowMonitorEvent inserts a Network Flow Monitor event in a process node
 func (pn *ProcessNode) InsertNetworkFlowMonitorEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
+	if !dryRun && stats != nil && stats.journal != nil {
+		stats.journal.setCurrentProc(pn)
+	}
 	deviceNode, ok := pn.NetworkDevices[evt.NetworkFlowMonitor.Device]
 	if ok {
 		return deviceNode.insertNetworkFlowMonitorEvent(&evt.NetworkFlowMonitor, evt, dryRun, evt.Rules, generationType, imageTagID, stats)
@@ -566,6 +610,9 @@ func (pn *ProcessNode) InsertNetworkFlowMonitorEvent(evt *model.Event, imageTagI
 func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool) (bool, *NodeBase) {
 	if evt.Bind.SyscallEvent.Retval != 0 {
 		return false, nil
+	}
+	if !dryRun && stats != nil && stats.journal != nil {
+		stats.journal.setCurrentProc(pn)
 	}
 	var newNode bool
 	evtFamily := model.AddressFamily(evt.Bind.AddrFamily).String()
@@ -601,6 +648,9 @@ func (pn *ProcessNode) InsertConnectEvent(evt *model.Event, imageTagID uint64, g
 		evt.Connect.SyscallEvent.Retval != -int64(syscall.EINPROGRESS) &&
 		evt.Connect.SyscallEvent.Retval != -int64(syscall.EAGAIN) {
 		return false, nil
+	}
+	if !dryRun && stats != nil && stats.journal != nil {
+		stats.journal.setCurrentProc(pn)
 	}
 	var newNode bool
 	evtFamily := model.AddressFamily(evt.Connect.AddrFamily).String()

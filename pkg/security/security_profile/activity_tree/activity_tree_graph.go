@@ -83,14 +83,21 @@ func (at *ActivityTree) getGraphTitle(name string, selector string) string {
 
 // PrepareGraphData returns a graph from the activity tree
 func (at *ActivityTree) PrepareGraphData(name string, selector string, resolver *process.EBPFResolver) utils.Graph {
-	data := utils.Graph{
-		Title: at.getGraphTitle(name, selector),
-		Nodes: make(map[utils.GraphID]*utils.Node),
+	var data utils.Graph
+	var j *TreeJournal
+	if at != nil && at.Stats != nil {
+		j = at.Stats.journal
 	}
+	j.withMaterializedTree(at, func() {
+		data = utils.Graph{
+			Title: at.getGraphTitle(name, selector),
+			Nodes: make(map[utils.GraphID]*utils.Node),
+		}
 
-	for _, p := range at.ProcessNodes {
-		at.prepareProcessNode(p, &data, resolver)
-	}
+		for _, p := range at.ProcessNodes {
+			at.prepareProcessNode(p, &data, resolver)
+		}
+	})
 
 	return data
 }

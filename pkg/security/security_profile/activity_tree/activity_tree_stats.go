@@ -42,6 +42,7 @@ type Stats struct {
 	// movedNodes maps the NodeBase of every node folded by a merge to the
 	// NodeBase that absorbed it, until drained by TakeMovedNodes.
 	movedNodes map[*NodeBase]*NodeBase
+	journal    *TreeJournal
 
 	counts map[model.EventType]*statsPerEventType
 }
@@ -140,13 +141,13 @@ func (stats *Stats) ApproximateSize() int64 {
 }
 
 // HeapSize returns the tree's tracked estimated heap footprint in bytes (strings, slice
-// backings, map buckets, struct headers). Used by V2 callers for max-size checks and
-// the profile_size RAM metric.
+// backings, map buckets, struct headers, and in-memory journal state). Used by V2 callers
+// for max-size checks and the profile_size RAM metric.
 func (stats *Stats) HeapSize() int64 {
 	if stats.SizeBytes == 0 {
 		return stats.ApproximateSize()
 	}
-	return stats.SizeBytes
+	return stats.SizeBytes + stats.journal.heapSize()
 }
 
 // SendStats sends metrics to Datadog
