@@ -78,27 +78,23 @@ func (v *baseDiagnoseSuite) TestDiagnoseList() {
 }
 
 func (v *baseDiagnoseSuite) AssertDiagnoseInclude() {
-	// Retry only one transiently failing invocation across both formats. This
-	// keeps failure handling bounded without giving every case a polling window.
-	// Running a case alone therefore gives it the full shared retry budget.
-	retryAvailable := true
 	for _, format := range []string{"text", "json"} {
 		v.Run(format, func() {
 			for _, suite := range v.suites {
 				v.Run(suite, func() {
-					v.assertDiagnoseSelection(format, []string{suite}, &retryAvailable, true)
+					v.assertDiagnoseSelection(format, []string{suite}, true)
 				})
 			}
 			v.Run("all", func() {
-				baseline := v.assertDiagnoseSelection(format, v.suites, &retryAvailable, false)
-				included := v.assertDiagnoseSelection(format, v.suites, &retryAvailable, true)
+				baseline := v.assertDiagnoseSelection(format, v.suites, false)
+				included := v.assertDiagnoseSelection(format, v.suites, true)
 				assert.Equal(v.T(), baseline.identities(), included.identities(), "including every suite must select the same diagnoses as the default")
 			})
 		})
 	}
 }
 
-func (v *baseDiagnoseSuite) assertDiagnoseSelection(format string, suites []string, retryAvailable *bool, include bool) includeOutput {
+func (v *baseDiagnoseSuite) assertDiagnoseSelection(format string, suites []string, include bool) includeOutput {
 	args := []string{"--verbose"}
 	if format == "json" {
 		args = append(args, "--json")
@@ -108,13 +104,28 @@ func (v *baseDiagnoseSuite) assertDiagnoseSelection(format string, suites []stri
 			args = append(args, "--include", "^"+regexp.QuoteMeta(suite)+"$")
 		}
 	}
-	result, err := runIncludeSelection(func() (includeOutput, error) {
-		output := getDiagnoseOutput(v, agentclient.WithArgs(args))
-		return parseIncludeOutput(output, format)
-	}, suites, retryAvailable)
+	output := getDiagnoseOutput(v, agentclient.WithArgs(args))
+	result, err := parseIncludeOutput(output, format)
 	require.NoError(v.T(), err)
-	assert.Zero(v.T(), result.Summary.Fail, "diagnose reported failed checks for %v", suites)
-	assert.Zero(v.T(), result.Summary.UnexpectedErr, "diagnose reported unexpected errors for %v", suites)
+	// The default invocation is only a membership reference. Health is checked
+	// on each selected response, independently of the reference's network outcomes.
+	if include {
+		require.Zero(v.T(), result.Summary.Fail, "diagnose reported failed checks for %v", suites)
+		require.Zero(v.T(), result.Summary.UnexpectedErr, "diagnose reported unexpected errors for %v", suites)
+	}
+	seen := make(map[string]bool)
+	for _, run := range result.Runs {
+		require.Contains(v.T(), suites, run.Name)
+		require.NotContains(v.T(), seen, run.Name, "duplicate diagnose suite")
+		require.NotEmpty(v.T(), run.Diagnoses, "suite %q emitted no diagnoses", run.Name)
+		seen[run.Name] = true
+	}
+	for _, suite := range suites {
+		// No integration checks are configured for this suite on the default host.
+		if suite != "check-datadog" {
+			require.True(v.T(), seen[suite], "selected suite %q has no results", suite)
+		}
+	}
 	return result
 }
 
