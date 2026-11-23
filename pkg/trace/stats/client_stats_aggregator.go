@@ -178,7 +178,7 @@ func (a *ClientStatsAggregator) flush(now time.Time, force bool) {
 	a.mu.Unlock()
 
 	for _, b := range toFlush {
-		a.flushPayloads(b.aggregationToPayloads())
+		a.flushPayloads(bucketToPayloads(b))
 	}
 }
 
@@ -348,6 +348,10 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 		}
 	}
 }
+
+// bucketToPayloads serializes a flushed bucket. Tests replace it to block
+// while a bucket is serialized.
+var bucketToPayloads = (*bucket).aggregationToPayloads
 
 // aggregationToPayloads converts the contents of the bucket into ClientStatsPayloads
 func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {

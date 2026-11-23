@@ -327,27 +327,50 @@ func TestAggregatorAddNotBlockedByWrite(t *testing.T) {
 	})
 }
 
-// The flush must serialize the buckets it detached without holding mu. The
-// test holds mu while the writer is blocked on the first bucket. The flush
-// must still serialize and write the second bucket. This test does not use
-// synctest: if the flush waits for mu, it is not durably blocked, so
-// synctest.Wait would hang instead of failing.
-func TestAggregatorSerializesBucketsWithoutLock(t *testing.T) {
-	a, w := newBlockedWriterAggregator(t)
-	now := time.Now()
-	a.add(now, getTestStatsWithStart(t, now, false))
-	a.add(now, getTestStatsWithStart(t, now.Add(-2*bucketDuration), false))
-	a.mu.Lock()
-	require.Len(t, a.buckets, 2)
-	a.mu.Unlock()
+func TestAggregatorAddNotBlockedBySerialization(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		serializing := make(chan struct{})
+		release := make(chan struct{})
+		var once sync.Once
+		orig := bucketToPayloads
+		bucketToPayloads = func(b *bucket) []*pb.ClientStatsPayload {
+			// Block only the first serialization.
+			once.Do(func() {
+				close(serializing)
+				<-release
+			})
+			return orig(b)
+		}
+		t.Cleanup(func() { bucketToPayloads = orig })
 
-	go a.flushAll()
-	require.Eventually(t, func() bool { return w.writes.Load() == 1 }, 5*time.Second, time.Millisecond, "the flush must reach the writer")
+		a := newTestAggregator()
+		t.Cleanup(a.Stop)
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(releaseOnce) // runs before Stop if the test fails early
+		now := time.Now()
+		a.add(now, getTestStatsWithStart(t, now, false))
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	w.release <- struct{}{}
-	require.Eventually(t, func() bool { return w.writes.Load() == 2 }, 5*time.Second, time.Millisecond, "the flush must serialize and write the second bucket while mu is held")
+		done := make(chan struct{})
+		go func() {
+			a.flushAll()
+			close(done)
+		}()
+		synctest.Wait()
+		select {
+		case <-serializing:
+		default:
+			t.Fatal("the flush must reach the serialization of the bucket")
+		}
+
+		locked := a.mu.TryLock()
+		if locked {
+			a.mu.Unlock()
+		}
+		releaseOnce()
+		require.True(t, locked, "add is blocked while a bucket is serialized")
+		a.add(now, getTestStatsWithStart(t, now, false))
+		<-done
+	})
 }
 
 func TestAggregatorFlushesAreSerialized(t *testing.T) {
