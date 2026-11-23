@@ -56,6 +56,7 @@ const (
 	modeNormal           = "normal"
 	modeErrors           = "errors"
 	modeInvalidAPIKey    = "invalid_api_key"
+	modeIncompatibleKeys = "incompatible_keys"
 	modeExitEarly        = "exit_early"
 	modeCrash            = "crash"
 	modePanic            = "panic"
@@ -89,6 +90,7 @@ var (
 	siteDefault       = fakeSite{file: "bin/agent-data-plane/src/main.rs", line: 1}
 	siteNetError      = fakeSite{file: "lib/saluki-io/src/net/mod.rs", line: 412}
 	siteInvalidAPIKey = fakeSite{file: "lib/saluki-components/src/common/datadog/validation.rs", line: 286}
+	siteCompatError   = fakeSite{file: "lib/agent-data-plane-config-system/src/compatibility.rs", line: 59}
 )
 
 // adpLog writes one log record in ADP's JSON format, from siteDefault.
@@ -100,14 +102,24 @@ func adpLog(w io.Writer, level, target, message string) {
 // the stand-in must emit the same shape as the real binary or the tests would be exercising
 // a format that never occurs — including the filename and line_number the real logger attaches.
 func adpLogAt(w io.Writer, level, target, message string, at fakeSite) {
-	rec, err := json.Marshal(map[string]any{
+	adpLogWith(w, level, target, message, at, nil)
+}
+
+// adpLogWith writes one log record in ADP's JSON format with extra structured fields. The real
+// logger flattens an event's fields into the top level of the record, next to message.
+func adpLogWith(w io.Writer, level, target, message string, at fakeSite, fields map[string]any) {
+	record := map[string]any{
 		"timestamp":   "2026-07-27T12:00:00.000000Z",
 		"level":       level,
 		"message":     message,
 		"target":      target,
 		"filename":    at.file,
 		"line_number": at.line,
-	})
+	}
+	for k, v := range fields {
+		record[k] = v
+	}
+	rec, err := json.Marshal(record)
 	if err != nil {
 		panic(err)
 	}
@@ -224,6 +236,16 @@ func runFakeDataPlane() int {
 		adpLogAt(os.Stderr, "ERROR", "saluki_io::net", "connection refused (attempt 2)", siteNetError)
 		adpLogAt(os.Stderr, "ERROR", "agent_data_plane",
 			"Failed to create internal supervisor.\n\nCaused by:\n    No such file or directory (os error 2)", siteDefault)
+	}
+
+	if mode == modeIncompatibleKeys {
+		// The real binary logs each incompatible key from the same site, and then exits.
+		for _, key := range []string{"heroku_dyno", "otlp_config.receiver.protocols.http.tls.cert_pem"} {
+			adpLogWith(os.Stderr, "ERROR", "agent_data_plane_config_system::compatibility",
+				"Unsupported configuration key with non-default value. ADP cannot run safely with this setting.",
+				siteCompatError, map[string]any{"key": key})
+		}
+		return 1
 	}
 
 	if mode == modeInvalidAPIKey {
@@ -427,8 +449,10 @@ func (h *harness) findingLocations(t *testing.T, f finding) []sourceLocation {
 			continue
 		}
 		locations = append(locations, sourceLocation{
-			file: m.Tags()[labelSourceFile],
-			line: m.Tags()[labelSourceLine],
+			file:       m.Tags()[labelSourceFile],
+			line:       m.Tags()[labelSourceLine],
+			configKey:  m.Tags()[labelConfigKey],
+			workerName: m.Tags()[labelWorkerName],
 		})
 	}
 	return locations
@@ -494,6 +518,24 @@ func TestPreflightModeErrorsInLog(t *testing.T) {
 	assert.Equal(t, 2.0, h.findingCount(t, findingErrorsInLog))
 }
 
+// TestPreflightModeIncompatibleKeys covers the case the config_key tag exists for: ADP refuses
+// to start over incompatible settings and logs every one of them from the same site, so the log
+// site alone cannot say which settings are the problem.
+func TestPreflightModeIncompatibleKeys(t *testing.T) {
+	h := newHarness(t, modeIncompatibleKeys, nil)
+	h.runToCompletion(t)
+
+	assert.Equal(t, string(findingExitedEarly), h.result(t))
+	withKey := func(key string) sourceLocation {
+		loc := siteCompatError.location()
+		loc.configKey = key
+		return loc
+	}
+	assert.ElementsMatch(t,
+		[]sourceLocation{withKey("heroku_dyno"), withKey("otlp_config.receiver.protocols.http.tls.cert_pem")},
+		h.findingLocations(t, findingErrorsInLog))
+}
+
 // TestPreflightModeFindingsWithoutALogSite covers the other half of the location tags: a finding
 // the pre-flight observed about the process, rather than one ADP logged, has no source location
 // and must not be tagged with a made-up one.
@@ -502,7 +544,7 @@ func TestPreflightModeFindingsWithoutALogSite(t *testing.T) {
 	h.runToCompletion(t)
 
 	assert.Equal(t, []sourceLocation{{}}, h.findingLocations(t, findingProbeFailed),
-		"a finding with no log site must report both location tags empty")
+		"a finding with no log site must report every location tag empty")
 }
 
 // TestPreflightModeInvalidAPIKey is the end-to-end version of the case that motivated

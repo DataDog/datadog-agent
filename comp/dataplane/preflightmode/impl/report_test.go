@@ -71,6 +71,8 @@ func TestTelemetryNamesAreStable(t *testing.T) {
 	assert.Equal(t, "finding", labelFinding)
 	assert.Equal(t, "source_file", labelSourceFile)
 	assert.Equal(t, "source_line", labelSourceLine)
+	assert.Equal(t, "config_key", labelConfigKey)
+	assert.Equal(t, "worker_name", labelWorkerName)
 }
 
 // TestReportedLocations covers what the finding metric is tagged with. Only the two findings

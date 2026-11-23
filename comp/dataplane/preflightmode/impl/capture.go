@@ -40,8 +40,9 @@ const sourceUnknown = "<unknown>"
 // does most of the work here — a loop on one error costs a single record — and these caps bound
 // the pathological case. Every retained field is bounded, so worst-case retention is
 // arithmetic rather than a running total: maxRecords * (maxSignatureLen + maxTargetLen +
-// maxSourceFileLen + maxSourceLineLen), plus at most maxLineBytes of unparsed input. A field
-// that is rejected rather than bounded holds a sentinel instead, which is a constant.
+// maxSourceFileLen + maxSourceLineLen + 2*maxSubjectLen), plus at most maxLineBytes of unparsed
+// input. A field that is rejected rather than bounded holds a sentinel instead, which is a
+// constant.
 const (
 	// maxLineBytes bounds one physical line. ADP renders whole anyhow chains into a message,
 	// so records run long.
@@ -59,6 +60,11 @@ const (
 	// paths are relative to its repository root, so the longest real one is well under this.
 	maxSourceFileLen = 256
 	maxSourceLineLen = 8
+
+	// maxSubjectLen bounds a config key or a worker name. Like a source location, a subject is
+	// rejected rather than truncated when it overruns. The longest config key in ADP's
+	// classifier is well under this.
+	maxSubjectLen = 128
 
 	// maxRecords bounds the retained set.
 	maxRecords = 500
@@ -103,6 +109,13 @@ type logRecord struct {
 	// value, so a location is never half-known.
 	SourceFile string     `json:"filename"`
 	SourceLine sourceLine `json:"line_number"`
+	// ConfigKey and WorkerName say what the record is about, for the few log sites where the
+	// log site alone is not enough to tell failures apart: ADP logs every incompatible
+	// configuration key from one site, and every child that fails to initialize from another.
+	// Each is only kept for records from the targets in subjectTargets, and is empty for any
+	// other record. See normalizeSubject.
+	ConfigKey  subjectField `json:"key"`
+	WorkerName subjectField `json:"worker_name"`
 }
 
 // sourceLine is a record's line number, retained as text because it is only ever reported as a
@@ -120,17 +133,42 @@ func (l *sourceLine) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// sourceLocation is one log site in ADP's source. Both fields are already normalized and
-// bounded by the time a location is built from a record, because this is what reaches Datadog
-// as a tag.
+// subjectField is a record's config key or worker name.
+//
+// It has an unmarshaller of its own for the same reason as sourceLine: "key" in particular is a
+// generic field name, and a log site elsewhere in ADP that logs it as a number or an object must
+// not fail the unmarshal and take the whole record down with it. Anything other than a JSON
+// string is treated as absent.
+type subjectField string
+
+// UnmarshalJSON accepts any JSON value and never fails.
+func (f *subjectField) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		s = ""
+	}
+	*f = subjectField(s)
+	return nil
+}
+
+// sourceLocation is one log site in ADP's source, plus the config key or worker name the record
+// logged from it names, if any. Every field is already normalized and bounded by the time a
+// location is built from a record, because this is what reaches Datadog as tags.
 type sourceLocation struct {
-	file string
-	line string
+	file       string
+	line       string
+	configKey  string
+	workerName string
 }
 
 // location returns the log site the record came from.
 func (r logRecord) location() sourceLocation {
-	return sourceLocation{file: r.SourceFile, line: string(r.SourceLine)}
+	return sourceLocation{
+		file:       r.SourceFile,
+		line:       string(r.SourceLine),
+		configKey:  string(r.ConfigKey),
+		workerName: string(r.WorkerName),
+	}
 }
 
 // notable reports whether the record is one preflight mode reports on, as opposed to context
@@ -307,7 +345,59 @@ func parseRecord(line string) (logRecord, bool) {
 	}
 	rec.SourceFile = normalizeSourceFile(rec.SourceFile)
 	rec.SourceLine = sourceLine(normalizeSourceLine(string(rec.SourceLine)))
+	rec.ConfigKey = normalizeSubject(rec.ConfigKey, rec.Target, subjectTargets.configKey)
+	rec.WorkerName = normalizeSubject(rec.WorkerName, rec.Target, subjectTargets.workerName)
 	return rec, true
+}
+
+// subjectTargets are the targets a subject field is kept from.
+//
+// A subject is only reported from log sites known to fill it from a closed, code-determined set,
+// which is what keeps it safe to ship as a tag:
+//
+//   - configKey: ADP's configuration compatibility check logs the key of each setting it warns
+//     about or rejects. It only logs keys that match an entry in ADP's generated classifier
+//     table, so the set of values is bounded by the configuration schema. It never logs values.
+//     The check moved into the config system in ADP 1.7; before that it lived in the run command.
+//   - workerName: ADP's supervisor logs the name of a child that fails to initialize, or that
+//     exits and is restarted. Child names are string constants in ADP's source, joined with "/"
+//     when the failure comes from a nested supervisor.
+//
+// The field names alone are not enough, because "key" in particular is generic: another log site
+// could use it for something an operator controls. Scoping by target keeps a new log site from
+// adding values to the tag without a change here.
+var subjectTargets = struct {
+	configKey  []string
+	workerName []string
+}{
+	configKey: []string{
+		"agent_data_plane_config_system::compatibility",
+		"agent_data_plane::cli::run",
+	},
+	workerName: []string{
+		"saluki_core::runtime::supervisor",
+	},
+}
+
+// subjectPattern is what a subject has to match to be reported. Config keys are dotted paths of
+// lowercase words, and worker names are words joined by "-" and "/". The set excludes tag
+// punctuation for the same reason as sourceFilePattern.
+var subjectPattern = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
+
+// normalizeSubject returns the subject a record names, empty if the record is not from one of
+// targets or carries no subject, or sourceUnknown if the value it carries cannot be reported.
+func normalizeSubject(value subjectField, target string, targets []string) subjectField {
+	if !slices.Contains(targets, target) {
+		return ""
+	}
+	v := strings.TrimSpace(string(value))
+	if v == "" {
+		return ""
+	}
+	if len(v) > maxSubjectLen || !subjectPattern.MatchString(v) {
+		return sourceUnknown
+	}
+	return subjectField(v)
 }
 
 // normalizeLevel maps ADP's level string onto the levels the scan reasons about.
@@ -448,9 +538,11 @@ func isExpectedWarning(r logRecord) bool {
 
 // locationsOf returns the distinct log sites of the records matching keep, in first-seen order.
 //
-// Distinct rather than one per record because the same site logging twice says nothing more than
-// it logging once — the capture already deduplicates identical records, and two records from one
-// site differ only in the detail their message carries, which is not shipped. First-seen order so
+// Distinct rather than one per record because the same site logging twice about the same subject
+// says nothing more than it logging once — the capture already deduplicates identical records,
+// and two records from one site about one subject differ only in the detail their message
+// carries, which is not shipped. Two records from one site about different config keys or
+// workers are different failures, so they are different locations. First-seen order so
 // that a caller keeping a prefix of the result keeps the earliest sites, which are the most
 // explanatory ones.
 func locationsOf(records []logRecord, keep func(logRecord) bool) []sourceLocation {
