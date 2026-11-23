@@ -139,6 +139,7 @@
   - Cargo.lock
 
 include:
+  - local: .gitlab/common/checkout.yml
   - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
   - local: .gitlab/build/**.yml
@@ -373,9 +374,6 @@ variables:
 
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
-  # Shallow clone by default.
-  GIT_STRATEGY: "fetch"
-  GIT_DEPTH: 1
   DISABLE_GIT_CACHE: true
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)

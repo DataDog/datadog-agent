@@ -110,6 +110,55 @@ func TestReadFilePathError(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestReadInConfigMissingConfigFileError(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		setup              func(t *testing.T, cfg model.BuildableConfig)
+		wantMissingFileErr bool
+	}{
+		{
+			name:               "no file in the search paths",
+			setup:              func(t *testing.T, cfg model.BuildableConfig) { cfg.AddConfigPath(t.TempDir()) },
+			wantMissingFileErr: true,
+		},
+		{
+			name: "SetConfigFile on a missing path",
+			setup: func(t *testing.T, cfg model.BuildableConfig) {
+				cfg.SetConfigFile(filepath.Join(t.TempDir(), "datadog.yaml"))
+			},
+			wantMissingFileErr: true,
+		},
+		{
+			name: "missing extra file",
+			setup: func(t *testing.T, cfg model.BuildableConfig) {
+				cfg.SetConfigFile(writeTempFile(t, "datadog.yaml", confYaml))
+				require.NoError(t, cfg.AddExtraConfigPaths([]string{filepath.Join(t.TempDir(), "extra.yaml")}))
+			},
+		},
+		{
+			name: "invalid YAML in the main file",
+			setup: func(t *testing.T, cfg model.BuildableConfig) {
+				cfg.SetConfigFile(writeTempFile(t, "datadog.yaml", "some invalid YAML"))
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := NewNodeTreeConfig("datadog", model.CoreSchema)
+			setupDefault(t, cfg)
+			tc.setup(t, cfg)
+
+			err := cfg.ReadInConfig()
+
+			require.ErrorIs(t, err, model.ErrConfigFileNotFound)
+			if tc.wantMissingFileErr {
+				assert.ErrorIs(t, err, model.ErrMissingConfigFile)
+			} else {
+				assert.NotErrorIs(t, err, model.ErrMissingConfigFile)
+			}
+		})
+	}
+}
+
 func TestReadInvalidYAML(t *testing.T) {
 	confPath := writeTempFile(t, "datadog.yaml", "some invalid YAML")
 
