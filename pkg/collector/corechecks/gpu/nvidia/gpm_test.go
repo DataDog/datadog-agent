@@ -9,7 +9,6 @@ package nvidia
 
 import (
 	"testing"
-	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
@@ -539,9 +538,8 @@ func TestGPMCollectorDropsImpossibleMIGGraphicsUtil(t *testing.T) {
 				names[metric.Name] = true
 			}
 			require.Equal(t, tc.expectGR, names["gr_engine_active"])
-			// once seen, GRAPHICS_UTIL is not collected anymore on the device
-			_, collected := collector.(*gpmCollector).metricsToCollect[nvml.GPM_METRIC_GRAPHICS_UTIL]
-			require.Equal(t, tc.expectGR, collected)
+			// once seen, GRAPHICS_UTIL is not reported anymore on the device until it reads busy again
+			require.Equal(t, !tc.expectGR, collector.(*gpmCollector).graphicsUtilSuppressed)
 			require.Equal(t, !tc.smUtilUnsupported, names["sm_utilization"])
 			switch {
 			case tc.legacySMActive:
@@ -554,7 +552,7 @@ func TestGPMCollectorDropsImpossibleMIGGraphicsUtil(t *testing.T) {
 	}
 }
 
-func TestGPMCollectorResumesGraphicsUtilAfterSuspension(t *testing.T) {
+func TestGPMCollectorResumesGraphicsUtilOnceValid(t *testing.T) {
 	graphicsUtil, smUtil := 0.0, 80.0
 	nvmltestutil.SetupMockNVML(t,
 		testutil.WithDefaultMIGDevices(),
@@ -582,9 +580,6 @@ func TestGPMCollectorResumesGraphicsUtilAfterSuspension(t *testing.T) {
 		nvml.GPM_METRIC_SM_UTIL:       {name: "sm_utilization", metricType: metrics.GaugeType},
 	}, &CollectorDependencies{})
 	require.NoError(t, err)
-	gpm := collector.(*gpmCollector)
-	now := time.Now()
-	gpm.now = func() time.Time { return now }
 
 	collectGR := func() (float64, bool) {
 		samples, err := collector.Collect()
@@ -597,24 +592,25 @@ func TestGPMCollectorResumesGraphicsUtilAfterSuspension(t *testing.T) {
 		return 0, false
 	}
 
-	// An impossible value suspends the metric, even once the values are valid again
+	// An impossible value suppresses the metric, and an idle sample (0 and 0) does not prove it valid again
 	_, reported := collectGR()
 	require.False(t, reported)
-	graphicsUtil = 90
+	graphicsUtil, smUtil = 0, 0
 	_, reported = collectGR()
 	require.False(t, reported)
 
-	// Resumed after the suspension
-	now = now.Add(graphicsUtilSuspension)
+	// The graphics engine reads busy again: the value is valid and reported again
+	graphicsUtil, smUtil = 90, 80
 	value, reported := collectGR()
 	require.True(t, reported)
 	require.Equal(t, 90.0, value)
+	graphicsUtil, smUtil = 0, 0
+	value, reported = collectGR()
+	require.True(t, reported)
+	require.Equal(t, 0.0, value, "idle is reported once the value is valid")
 
-	// Suspended again if the impossible value comes back
-	graphicsUtil = 0
-	_, reported = collectGR()
-	require.False(t, reported)
-	graphicsUtil = 90
+	// Suppressed again if the impossible value comes back
+	graphicsUtil, smUtil = 0, 80
 	_, reported = collectGR()
 	require.False(t, reported)
 }

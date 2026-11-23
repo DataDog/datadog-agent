@@ -1000,7 +1000,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: >-
-        Percentage of time that the graphics engine was active. On AMD GPUs, the socket's graphics activity, the mean over its XCDs: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous gpu_busy_percent. On Cloud TPUs, the TensorCore duty cycle. On NVIDIA MIG devices and GPUs in MIG mode, not reported from GPM without the MIG config capability (CAP_SYS_ADMIN or /dev/nvidia-caps/nvidia-cap1), as NVML then reports 0 for it, nor for 10 minutes after it reads 0 while streaming multiprocessors are in use (which happens when other MIG devices of the GPU are not accessible to the Agent).
+        Percentage of time that the graphics engine was active. On AMD GPUs, the socket's graphics activity, the mean over its XCDs: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous gpu_busy_percent. On Cloud TPUs, the TensorCore duty cycle. On NVIDIA MIG devices and GPUs in MIG mode, not reported from GPM without the MIG config capability (CAP_SYS_ADMIN or /dev/nvidia-caps/nvidia-cap1), as NVML then reports 0 for it, nor after it reads 0 while streaming multiprocessors are in use (which happens when other MIG devices of the GPU are not accessible to the Agent), until it reads the graphics engine busy again.
       used_in_dd_ui: true
       aggregation: relative_activity
     tagsets:

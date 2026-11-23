@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"maps"
 	"sync"
-	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -34,17 +33,10 @@ type gpmCollector struct {
 	emitLegacySMActive       bool
 	emitGrEngineSMActive     bool
 	grEngineSMActivePriority MetricPriority
-	// suspendedGraphicsUtil holds GRAPHICS_UTIL while it is not collected because NVML reported an impossible value
-	// for it, until graphicsUtilResumeAt (see isImpossibleMIGGraphicsUtil)
-	suspendedGraphicsUtil *gpmMetric
-	graphicsUtilResumeAt  time.Time
-	now                   func() time.Time
+	// graphicsUtilSuppressed is set once NVML reported an impossible GRAPHICS_UTIL for the device (see
+	// isImpossibleMIGGraphicsUtil): it is still collected but not reported until a sample proves it valid again
+	graphicsUtilSuppressed bool
 }
-
-// graphicsUtilSuspension is how long GRAPHICS_UTIL is not collected on a MIG device after NVML reported an
-// impossible value for it, before trying again: the cause, a MIG device of the GPU the Agent cannot open, can go
-// away when that MIG device is destroyed.
-const graphicsUtilSuspension = 10 * time.Minute
 
 type gpmMetric struct {
 	name       string
@@ -106,7 +98,6 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 	collector := &gpmCollector{
 		device:           device,
 		metricsToCollect: clonedMetrics,
-		now:              time.Now,
 	}
 	if deps != nil {
 		collector.emitLegacySMActive = deps.Config.LegacySMActive
@@ -360,16 +351,19 @@ func (c *gpmCollector) isImpossibleMIGGraphicsUtil(gpmMetrics *nvml.GpmMetricsGe
 	return hasGraphicsUtil && hasSMUtil && graphicsUtil == 0 && smUtil >= minImpossibleSMUtil
 }
 
+// gpmMetricValue returns the value of a successful metric of the GPM sample, or 0.
+func gpmMetricValue(gpmMetrics *nvml.GpmMetricsGetType, id nvml.GpmMetricId) float64 {
+	for i := uint32(0); i < gpmMetrics.NumMetrics; i++ {
+		metric := gpmMetrics.Metrics[i]
+		if nvml.GpmMetricId(metric.MetricId) == id && metric.NvmlReturn == uint32(nvml.SUCCESS) {
+			return metric.Value
+		}
+	}
+	return 0
+}
+
 // minImpossibleSMUtil is the SM_UTIL from which a GRAPHICS_UTIL of 0 is considered impossible
 const minImpossibleSMUtil = 1
-
-// clock returns the current time
-func (c *gpmCollector) clock() time.Time {
-	if c.now == nil {
-		return time.Now()
-	}
-	return c.now()
-}
 
 // Device returns the device this collector monitors.
 func (c *gpmCollector) Device() ddnvml.Device {
@@ -381,11 +375,6 @@ func (c *gpmCollector) Name() CollectorName {
 }
 
 func (c *gpmCollector) Collect() ([]Sample, error) {
-	if c.suspendedGraphicsUtil != nil && !c.clock().Before(c.graphicsUtilResumeAt) {
-		c.metricsToCollect[nvml.GPM_METRIC_GRAPHICS_UTIL] = *c.suspendedGraphicsUtil
-		c.suspendedGraphicsUtil = nil
-	}
-
 	err := c.collectSample()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect GPM sample: %w", err)
@@ -404,21 +393,21 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 		metricCapacity++
 	}
 	samples := make([]Sample, 0, metricCapacity)
-	skipGraphicsUtil := c.isImpossibleMIGGraphicsUtil(gpmMetrics)
-	if skipGraphicsUtil {
+	if c.isImpossibleMIGGraphicsUtil(gpmMetrics) {
 		// The cause (a MIG device of the GPU the Agent cannot open) usually lasts until that MIG device is destroyed
 		// or the Agent restarts, and dropping only the intervals with load would leave a series that reads 0 when
-		// idle and nothing when busy, which looks idle once aggregated: stop collecting the metric for a while.
-		suspended := c.metricsToCollect[nvml.GPM_METRIC_GRAPHICS_UTIL]
-		c.suspendedGraphicsUtil = &suspended
-		c.graphicsUtilResumeAt = c.clock().Add(graphicsUtilSuspension)
-		delete(c.metricsToCollect, nvml.GPM_METRIC_GRAPHICS_UTIL)
+		// idle and nothing when busy, which looks idle once aggregated: stop reporting the metric until NVML reports
+		// the graphics engine busy again, which proves the value valid. An idle sample (0 and 0) proves nothing.
+		c.graphicsUtilSuppressed = true
 		if parent, _, ok := migGpuInstanceAccessTarget(c.device); ok {
 			if _, logged := loggedFalseMIGGraphicsUtil.LoadOrStore(parent.GetDeviceInfo().UUID+"/impossible", struct{}{}); !logged {
 				log.Infof("not reporting gr_engine_active and sm_active from GPM for device %s and the other MIG devices of GPU %s where NVML reports the graphics engine idle while SMs are in use, which happens when the Agent cannot open all the MIG devices of the GPU", c.device.GetDeviceInfo().UUID, parent.GetDeviceInfo().UUID)
 			}
 		}
+	} else if c.graphicsUtilSuppressed && gpmMetricValue(gpmMetrics, nvml.GPM_METRIC_GRAPHICS_UTIL) > 0 {
+		c.graphicsUtilSuppressed = false
 	}
+	skipGraphicsUtil := c.graphicsUtilSuppressed
 	var errs []error
 	for i := uint32(0); i < gpmMetrics.NumMetrics; i++ {
 		metric := gpmMetrics.Metrics[i]
