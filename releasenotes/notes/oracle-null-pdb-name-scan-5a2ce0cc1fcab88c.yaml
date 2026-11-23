@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix an Oracle query metrics collection error when scanning rows with a ``NULL`` PDB name (such as ``CDB$ROOT`` or closed PDBs), and avoid trailing dots in ``pdb_name`` and empty ``pdb:`` execution plan tags when the PDB name is empty.
