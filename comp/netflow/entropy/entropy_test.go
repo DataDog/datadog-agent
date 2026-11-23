@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
@@ -137,9 +138,15 @@ func TestReport_SubmitEntropy(t *testing.T) {
 	report.Submit(sender)
 	tags := []string{"device_namespace:ns", "exporter_ip:127.0.0.1", "interface_index:1", "observation_point:ingress",
 		"dd.internal.resource:ndm_device:ns:127.0.0.1"}
+	near := func(want float64) any {
+		return mock.MatchedBy(func(v float64) bool { return math.Abs(v-want) < 1e-9 })
+	}
+	windowEnd := float64(w + 300)
 	for _, name := range []string{"byte_weighted", "packet_weighted", "record_weighted"} {
-		sender.AssertMetricInRange(t, "Gauge", "datadog.netflow.entropy."+name, 3-1e-9, 3+1e-9, "", tags)
-		sender.AssertMetricInRange(t, "Gauge", "datadog.netflow.entropy.normalized_"+name, 1-1e-9, 1+1e-9, "", tags)
+		sender.AssertCalled(t, "GaugeWithTimestamp", "datadog.netflow.entropy."+name, near(3), "",
+			mocksender.MatchTagsContains(tags), windowEnd)
+		sender.AssertCalled(t, "GaugeWithTimestamp", "datadog.netflow.entropy.normalized_"+name, near(1), "",
+			mocksender.MatchTagsContains(tags), windowEnd)
 	}
 }
 

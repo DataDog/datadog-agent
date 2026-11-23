@@ -34,6 +34,8 @@ func (r Report) Submit(s sender.Sender) {
 			"observation_point:" + string(w.observationPoint),
 			ndmDeviceResourcePrefix + w.Namespace + ":" + w.Exporter.String(),
 		}
+		// stamped at the window end, so windows closed in the same flush don't overwrite each other
+		ts := float64(w.End.Unix())
 		maxEntropy := math.Log2(float64(w.DistinctCount))
 		for _, e := range [...]struct {
 			name  string
@@ -43,10 +45,10 @@ func (r Report) Submit(s sender.Sender) {
 			{"packet_weighted", w.PacketEntropy},
 			{"record_weighted", w.RecordEntropy},
 		} {
-			s.Gauge(metricPrefix+e.name, e.value, "", tags)
+			_ = s.GaugeWithTimestamp(metricPrefix+e.name, e.value, "", tags, ts) // only fails for ts <= 0
 			// undefined below 2 peers
 			if w.DistinctCount >= 2 {
-				s.Gauge(metricPrefix+"normalized_"+e.name, e.value/maxEntropy, "", tags)
+				_ = s.GaugeWithTimestamp(metricPrefix+"normalized_"+e.name, e.value/maxEntropy, "", tags, ts)
 			}
 		}
 	}

@@ -847,7 +847,7 @@ properties:
             type: boolean
             default: false
             comment: |-
-              Computes per-interface traffic entropy and writes the values to the Agent log. Entropy values aren't sent as metrics.
+              Computes per-interface traffic entropy and sends it as `datadog.netflow.entropy.*` metrics.
           interval:
             node_type: setting
             type: integer
