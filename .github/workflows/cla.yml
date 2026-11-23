@@ -22,6 +22,7 @@ jobs:
     # (DataDog/cla-signatures) doesn't trust private mirrors, so the job would just fail there.
     if: github.repository == 'DataDog/datadog-agent'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts

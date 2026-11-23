@@ -1,0 +1,4 @@
+# description: URL credentials of a value not matching its pattern are scrubbed from the message
+
+# apm_config.apm_dd_url is set by the provisioner in the file, the environment variable overrides it with a value
+# that doesn't match the URL pattern of the schema. Its URL credentials must be scrubbed from the validator message.

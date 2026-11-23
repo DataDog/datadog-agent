@@ -14,6 +14,7 @@ on:
 jobs:
   check_comment:
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     # Process every issue comment, and comments on pull requests only when they carry
     # the `waiting on author` label: the author replying to their PR removes the label
     # (like on issues), without running the job on the whole PR comment traffic.

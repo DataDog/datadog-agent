@@ -62,6 +62,11 @@ const (
 // which tags and exports it too. Both export to the same fakeintake, each marking
 // its payloads with tagParityCollectorAttr, so that the tests can pair up the
 // two copies of each span, log and metric and compare their tags.
+//
+// The forwarded payloads lack the container.id resource attribute, which the
+// calendar app may set: the nodefilter otel-agent has to resolve the container
+// ID from k8s.pod.uid and k8s.container.name, without the kubelet, for its
+// tags to match the kubelet one's.
 type dogtelTagParityTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
@@ -247,9 +252,10 @@ func (t taggedItems) add(collector, key string, tags ...string) {
 
 // assertParity checks that both otel-agents exported the same tags with each
 // item they both exported, and that at least minMatched of these items
-// carried enrichedTag, i.e. that the comparison covers enriched items. Items
-// only one otel-agent exported so far are left out: the other one may just not
-// have flushed them yet.
+// carried enrichedTag and, from the nodefilter otel-agent, a container ID,
+// i.e. that the comparison covers enriched items, whose container ID the
+// nodefilter otel-agent resolved itself. Items only one otel-agent exported so
+// far are left out: the other one may just not have flushed them yet.
 func (t taggedItems) assertParity(c *assert.CollectT, minMatched int, enrichedTag string) {
 	kubelet, nodefilter := t["kubelet"], t["nodefilter"]
 	matched, enriched := 0, 0
@@ -261,7 +267,7 @@ func (t taggedItems) assertParity(c *assert.CollectT, minMatched int, enrichedTa
 			continue
 		}
 		matched++
-		if _, ok := kubeletTags[enrichedTag]; ok {
+		if _, ok := kubeletTags[enrichedTag]; ok && hasContainerID(nodefilterTags) {
 			enriched++
 		}
 		onlyKubelet, onlyNodefilter := tagsNotIn(kubeletTags, nodefilterTags), tagsNotIn(nodefilterTags, kubeletTags)
@@ -271,12 +277,24 @@ func (t taggedItems) assertParity(c *assert.CollectT, minMatched int, enrichedTa
 		}
 	}
 	require.GreaterOrEqualf(c, enriched, minMatched,
-		"%d items exported by both otel-agents, of which %d tagged %q (kubelet exported %d items, nodefilter %d)",
+		"%d items exported by both otel-agents, of which %d tagged %q and with a container ID from nodefilter (kubelet exported %d items, nodefilter %d)",
 		matched, enriched, enrichedTag, len(kubelet), len(nodefilter))
 	for diff, keys := range diffs {
 		assert.Failf(c, "tags differ between the kubelet and nodefilter collectors",
 			"%s, on %d of %d items (e.g. %q)", diff, len(keys), matched, keys[0])
 	}
+}
+
+// hasContainerID reports whether tags hold a container ID, whichever tag or
+// attribute the signal exports it as: container_id or container.id, as a
+// container tag, tag, ddtags entry, span meta or log attribute.
+func hasContainerID(tags map[string]struct{}) bool {
+	for tag := range tags {
+		if strings.Contains(tag, "container_id:") || strings.Contains(tag, "container.id:") {
+			return true
+		}
+	}
+	return false
 }
 
 // tagsNotIn returns the tags of a that aren't in b, sorted.

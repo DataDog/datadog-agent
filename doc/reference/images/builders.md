@@ -2,7 +2,7 @@
 
 -----
 
-All non-macOS release artifacts are produced within [container images](https://github.com/DataDog/datadog-agent-buildimages) that are hosted on the [Datadog Docker Hub](https://hub.docker.com/u/datadog).
+All release artifacts except for macOS and AIX are produced within [container images](https://github.com/DataDog/datadog-agent-buildimages) that are hosted on the [Datadog Docker Hub](https://hub.docker.com/u/datadog). The AIX package is instead built on a real AIX host, see [Building for AIX](../../how-to/build/distributions.md#building-for-aix).
 
 /// note
 These images are not meant to be used directly outside of CI scenarios. Instead, use the [developer environments](dev.md) to build and test the Agent.

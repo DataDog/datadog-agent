@@ -22,25 +22,82 @@ import (
 
 var errProductNotFound = errors.New("no products found")
 
+const uninstallRegistryPath = `SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`
+
 // CheckAgentFlavor rejects an installer that targets the opposite installed Agent flavor.
 func CheckAgentFlavor(fipsMode bool) error {
-	return checkAgentFlavor(fipsMode, FindAllProductCodes)
+	findUninstallProducts := func(name string) ([]*Product, error) {
+		return findUninstallRegistryProductCodes(registry.LOCAL_MACHINE, uninstallRegistryPath, name, registry.WOW64_64KEY, registry.WOW64_32KEY)
+	}
+	return checkAgentFlavor(fipsMode, findUninstallProducts, FindMsiProductCodesByName, isMsiProductInstalled)
 }
 
-func checkAgentFlavor(fipsMode bool, findProducts func(string) ([]Product, error)) error {
+func checkAgentFlavor(fipsMode bool, findUninstallRegistryProducts func(string) ([]*Product, error), findMsiProducts func(string) ([]Product, error), isInstalled func(string) (bool, error)) error {
 	installedProduct := AgentProductName(!fipsMode)
-	_, err := findProducts(installedProduct)
-	if errors.Is(err, errProductNotFound) {
-		return nil
-	}
-	if err != nil {
+	registryProducts, err := findUninstallRegistryProducts(installedProduct)
+	if err != nil && !errors.Is(err, errProductNotFound) {
 		return fmt.Errorf("could not check installed Agent flavor: %w", err)
 	}
+	msiProducts, _ := findMsiProducts(installedProduct) // An unrelated MSI enumeration failure must not block setup.
+
+	seen := make(map[string]bool)
+	checkProduct := func(code string) (bool, error) {
+		if seen[code] {
+			return false, nil
+		}
+		seen[code] = true
+		return isInstalled(code)
+	}
+	for _, product := range registryProducts {
+		installed, err := checkProduct(product.Code)
+		if err != nil {
+			return fmt.Errorf("could not check installed Agent flavor: %w", err)
+		}
+		if installed {
+			return agentFlavorMismatchError(fipsMode, installedProduct)
+		}
+	}
+	for _, product := range msiProducts {
+		installed, err := checkProduct(product.Code)
+		if err != nil {
+			return fmt.Errorf("could not check installed Agent flavor: %w", err)
+		}
+		if installed {
+			return agentFlavorMismatchError(fipsMode, installedProduct)
+		}
+	}
+	return nil
+}
+
+func agentFlavorMismatchError(fipsMode bool, installedProduct string) error {
 	matchingInstaller := "FIPS"
 	if fipsMode {
 		matchingInstaller = "standard"
 	}
 	return fmt.Errorf("cannot install %s while %s is installed; use the %s installer to manage the existing Agent", AgentProductName(fipsMode), installedProduct, matchingInstaller)
+}
+
+// isMsiProductInstalled queries the candidate product code directly, without scanning unrelated MSI products.
+func isMsiProductInstalled(code string) (bool, error) {
+	guid, err := windows.GUIDFromString(code)
+	if err != nil {
+		// Non-MSI uninstall entries can have arbitrary key names.
+		return false, nil
+	}
+	code = guid.String()
+	codePtr, err := windows.UTF16PtrFromString(code)
+	if err != nil {
+		return false, err
+	}
+	state, _, _ := windows.NewLazySystemDLL("msi.dll").NewProc("MsiQueryProductStateW").Call(uintptr(unsafe.Pointer(codePtr)))
+	switch int32(state) {
+	case 5: // INSTALLSTATE_DEFAULT: installed
+		return true, nil
+	case -1, 1: // INSTALLSTATE_UNKNOWN or INSTALLSTATE_ADVERTISED: not installed
+		return false, nil
+	default:
+		return false, fmt.Errorf("query MSI product %s: unexpected state %d", code, int32(state))
+	}
 }
 
 // readMSIProductName reads ProductName without installing the package.
@@ -89,7 +146,7 @@ func readMSIProductName(filename string) (string, error) {
 	return windows.UTF16ToString(product[:]), nil
 }
 
-// Product represents a software from the Windows Registry
+// Product represents software found in the uninstall registry or Windows Installer.
 type Product struct {
 	// Code is the software product code
 	Code string
@@ -99,43 +156,53 @@ type Product struct {
 	Features []string
 }
 
-// FindProductCode finds the first product with the specified display name
-func FindProductCode(productName string) (*Product, error) {
-	products, err := FindUninstallProductCodes(productName)
+// FindProductCodeFromUninstallRegistry finds the first product with the specified display name in the uninstall registry.
+func FindProductCodeFromUninstallRegistry(productName string) (*Product, error) {
+	products, err := FindUninstallRegistryProductCodes(productName)
 	if err != nil {
 		return nil, err
 	}
 	return products[0], nil
 }
 
-// FindUninstallProductCodes looks for the productName in the registry and returns information about it
-func FindUninstallProductCodes(productName string) ([]*Product, error) {
+// FindUninstallRegistryProductCodes looks for the productName in the machine uninstall registry.
+func FindUninstallRegistryProductCodes(productName string) ([]*Product, error) {
+	return findUninstallRegistryProductCodes(registry.LOCAL_MACHINE, uninstallRegistryPath, productName, 0)
+}
+
+// findUninstallRegistryProductCodes searches the requested registry views. A missing optional
+// 32-bit uninstall location does not hide results from the 64-bit view.
+func findUninstallRegistryProductCodes(root registry.Key, rootPath, productName string, views ...uint32) ([]*Product, error) {
 	var products []*Product
-	rootPath := "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
-	reg, err := registry.OpenKey(registry.LOCAL_MACHINE, rootPath, registry.ENUMERATE_SUB_KEYS)
-	if err != nil {
-		return nil, err
-	}
-	defer reg.Close()
-	keys, err := reg.ReadSubKeyNames(0)
-	if err != nil {
-		return nil, err
-	}
-	for _, key := range keys {
-		product, err := processKey(rootPath, key, productName)
-		if err == nil && product != nil {
-			products = append(products, product)
+	for _, view := range views {
+		reg, err := registry.OpenKey(root, rootPath, registry.ENUMERATE_SUB_KEYS|view)
+		if view == registry.WOW64_32KEY && errors.Is(err, registry.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		keys, err := reg.ReadSubKeyNames(0)
+		_ = reg.Close()
+		if err != nil {
+			return nil, err
+		}
+		for _, key := range keys {
+			product, err := processKey(root, rootPath, key, productName, view)
+			if err == nil && product != nil {
+				products = append(products, product)
+			}
 		}
 	}
 	if len(products) == 0 {
-		return nil, fmt.Errorf("no products found with name: %s", productName)
+		return nil, fmt.Errorf("%w with name: %s", errProductNotFound, productName)
 	}
 	return products, nil
 }
 
 // IsProductInstalled returns true if the given productName is installed
 func IsProductInstalled(productName string) bool {
-	product, err := FindProductCode(productName)
+	product, err := FindProductCodeFromUninstallRegistry(productName)
 	if err != nil {
 		return false
 	}
@@ -170,8 +237,8 @@ func RemoveProduct(ctx context.Context, productName string, opts ...MsiexecOptio
 	return nil
 }
 
-func processKey(rootPath, key, name string) (*Product, error) {
-	subkey, err := registry.OpenKey(registry.LOCAL_MACHINE, rootPath+"\\"+key, registry.QUERY_VALUE)
+func processKey(root registry.Key, rootPath, key, name string, view uint32) (*Product, error) {
+	subkey, err := registry.OpenKey(root, rootPath+"\\"+key, registry.QUERY_VALUE|view)
 	if err != nil {
 		return nil, err
 	}
@@ -188,16 +255,19 @@ func processKey(rootPath, key, name string) (*Product, error) {
 	return nil, nil
 }
 
-// FindAllProductCodes looks for all products with the given productName using the Windows Installer API
-// It enumerates through all products and checks if the product name matches the given productName.
-func FindAllProductCodes(productName string) ([]Product, error) {
+// FindMsiProductCodesByName enumerates Windows Installer products and matches their ProductName.
+// An unreadable product name is skipped so other products can still be found.
+func FindMsiProductCodesByName(productName string) ([]Product, error) {
+	return findMsiProductCodesByName(productName, winutil.EnumerateMsiProducts, winutil.GetMsiProductInfo)
+}
+
+func findMsiProductCodesByName(productName string, enumerate func(uint32, func([]uint16, uint32, string) error) error, getProductInfo func(string, []uint16) (string, error)) ([]Product, error) {
 	var products []Product
 
-	err := winutil.EnumerateMsiProducts(winutil.MSIINSTALLCONTEXT_MACHINE, func(productCode []uint16, _ uint32, _ string) error {
-		// Get display name and check if it matches
-		displayName, err := winutil.GetMsiProductInfo("ProductName", productCode)
+	err := enumerate(winutil.MSIINSTALLCONTEXT_MACHINE, func(productCode []uint16, _ uint32, _ string) error {
+		displayName, err := getProductInfo("ProductName", productCode)
 		if err != nil {
-			return err // or continue with warning
+			return nil // One unreadable product must not hide later matches.
 		}
 		if displayName == productName {
 			features, err := GetProductFeatures(productCode)
@@ -213,7 +283,7 @@ func FindAllProductCodes(productName string) ([]Product, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return products, err // Keep matches found before enumeration failed.
 	}
 
 	if len(products) == 0 {
