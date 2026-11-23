@@ -95,9 +95,8 @@ func init() {
 }
 
 // newNoAggregationStreamWorker creates one consumer of the shared no-aggregation
-// queue. Each worker has its own serializer, but all workers share samplesChan
-// and metricSamplePool so batches are assigned by channel receive and returned
-// to the common pool after processing.
+// queue. All workers share samplesChan and metricSamplePool so batches are
+// assigned by channel receive and returned to the common pool after processing.
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *metrics.MetricSamplePool,
 	samplesChan chan metrics.MetricSampleBatch,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,

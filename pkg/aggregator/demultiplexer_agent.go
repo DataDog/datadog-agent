@@ -134,7 +134,6 @@ type forwarders struct {
 type dataOutputs struct {
 	forwarders       forwarders
 	sharedSerializer serializer.MetricSerializer
-	noAggSerializers []serializer.MetricSerializer
 }
 
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
@@ -207,19 +206,16 @@ func initAgentDemultiplexer(log log.Component,
 	}
 
 	var noAggWorkers []*noAggregationStreamWorker
-	var noAggSerializers []serializer.MetricSerializer
 	var noAggSamplesChan chan metrics.MetricSampleBatch
 	if workersCount := options.NoAggregationPipelineWorkersCount; workersCount > 0 {
 		noAggWorkers = make([]*noAggregationStreamWorker, workersCount)
-		noAggSerializers = make([]serializer.MetricSerializer, workersCount)
 		noAggSamplesChan = make(chan metrics.MetricSampleBatch, pkgconfigsetup.Datadog().GetInt("dogstatsd_queue_size"))
 		for i := 0; i < workersCount; i++ {
-			noAggSerializers[i] = serializer.NewSerializerWithEndpointRouting(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname, options.MetricsEndpointRouting)
 			noAggWorkers[i] = newNoAggregationStreamWorker(
 				pkgconfigsetup.Datadog().GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 				metricSamplePool,
 				noAggSamplesChan,
-				noAggSerializers[i],
+				sharedSerializer,
 				agg.flushAndSerializeInParallel,
 				tagger,
 				options.DogStatsDLookback,
@@ -242,7 +238,6 @@ func initAgentDemultiplexer(log log.Component,
 			forwarders: forwarders{},
 
 			sharedSerializer: sharedSerializer,
-			noAggSerializers: noAggSerializers,
 		},
 
 		hostTagProvider: hosttags.NewHostTagProvider(),

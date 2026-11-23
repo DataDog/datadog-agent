@@ -264,7 +264,6 @@ func TestDemuxNoAggWorkersCount(t *testing.T) {
 			demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
 
 			require.Len(t, demux.statsd.noAggStreamWorkers, tt.expectedCount)
-			require.Len(t, demux.noAggSerializers, tt.expectedCount)
 			if tt.expectedCount == 0 {
 				require.Nil(t, demux.statsd.noAggSamplesChan)
 				return
@@ -272,6 +271,7 @@ func TestDemuxNoAggWorkersCount(t *testing.T) {
 			require.NotNil(t, demux.statsd.noAggSamplesChan)
 			for _, worker := range demux.statsd.noAggStreamWorkers {
 				require.Equal(t, demux.statsd.noAggSamplesChan, worker.samplesChan)
+				require.Same(t, demux.sharedSerializer, worker.serializer)
 			}
 		})
 	}
