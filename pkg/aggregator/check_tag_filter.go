@@ -139,26 +139,18 @@ func (cr *contextResolver) refilter(filterList metricname.TagMatcher) {
 	}
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
-	type rule struct {
-		tagList metricname.HashedMetricTagList
-		filter  bool
-	}
-	rulesByName := make(map[string]rule)
 	for _, entry := range cr.contextsByKey {
 		context := entry.context
 		var ref uint32
 		if typeFiltersAtOutput(context.mtype) {
-			r, ok := rulesByName[context.Name]
-			if !ok {
-				r.tagList, r.filter = filterList.ShouldStripTags(context.Name)
-				rulesByName[context.Name] = r
-			}
-			if r.filter {
+			if tagList, filter := filterList.ShouldStripTags(context.Name); filter {
 				cr.taggerBuffer.Reset()
 				cr.metricBuffer.Reset()
 				cr.taggerBuffer.Append(context.taggerTags.Tags()...)
 				cr.metricBuffer.Append(context.metricTags.Tags()...)
-				ref, _ = cr.acquireFiltered(context.Name, context.Host, r.tagList)
+				// Don't add to tlmFilteredTags here: no new sample arrived, and counting on
+				// rule reloads would inflate the counter on unrelated rule updates.
+				ref, _ = cr.acquireFiltered(context.Name, context.Host, tagList)
 			}
 		}
 		cr.releaseFiltered(context)
