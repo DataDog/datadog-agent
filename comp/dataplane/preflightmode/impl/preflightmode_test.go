@@ -890,7 +890,7 @@ func TestPreflightModeUnbindableSocketPath(t *testing.T) {
 	h.runToCompletion(t)
 
 	assert.Equal(t, string(findingSpawnFailed), h.result(t))
-	assert.Equal(t, spawnStageSocketPath, h.spawnFailure(t).stage)
+	assert.Equal(t, spawnFailure{spawnStageSocketPath, spawnErrorNameTooLong}, h.spawnFailure(t))
 	assert.Empty(t, h.captured(), "the process must not have been started at all")
 }
 

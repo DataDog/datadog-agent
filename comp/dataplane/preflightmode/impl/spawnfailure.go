@@ -117,11 +117,14 @@ func newSpawnFailure(err error) spawnFailure {
 
 // classifySpawnError maps err onto a spawnErrorClass.
 //
-// The fs sentinels come first because they are what makes the check portable: on Windows,
-// errors.Is maps ERROR_ACCESS_DENIED onto fs.ErrPermission and the not-found codes onto
-// fs.ErrNotExist. The errno comparisons after them only ever match on Unix. Windows reports
-// those conditions through codes of its own, and those fall through to spawnErrorOther.
+// The fs sentinels make the check portable: on Windows, errors.Is maps ERROR_ACCESS_DENIED
+// onto fs.ErrPermission and the not-found codes onto fs.ErrNotExist. The errno comparisons only
+// match on Unix. Windows reports those conditions through codes of its own, which
+// classifyPlatformSpawnError maps first.
 func classifySpawnError(err error) spawnErrorClass {
+	if class, ok := classifyPlatformSpawnError(err); ok {
+		return class
+	}
 	switch {
 	case errors.Is(err, errNotExecutable):
 		return spawnErrorNotExecutable

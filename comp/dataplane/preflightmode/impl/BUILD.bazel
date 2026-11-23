@@ -15,6 +15,8 @@ go_library(
         "procattr_linux.go",
         "report.go",
         "spawnfailure.go",
+        "spawnfailure_nix.go",
+        "spawnfailure_windows.go",
         "terminate_nix.go",
         "terminate_windows.go",
     ],
@@ -187,6 +189,7 @@ dd_agent_go_test(
         "preflightmode_test.go",
         "report_test.go",
         "secureworkdir_test.go",
+        "spawnfailure_windows_test.go",
     ],
     embed = [":impl"],
     deps = select({
