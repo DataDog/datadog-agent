@@ -6,166 +6,138 @@
 package remote
 
 import (
-	"errors"
+	"bytes"
+	"context"
 	"fmt"
-	"io"
 	"regexp"
-	"strings"
-
-	"golang.org/x/crypto/ssh"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// maxInteractiveOutput caps how much data we buffer while waiting for a prompt,
-// so a device that never returns to its prompt can't make us buffer unbounded
-// output. Running configs are typically well under 1 MiB.
-const maxInteractiveOutput = 16 << 20 // 16 MiB
+// The check runs without a deadline, and unlike an exec session an interactive
+// shell never ends on its own, so every wait for the prompt is bounded.
+var (
+	// interactiveLoginTimeout bounds the wait for the first prompt after login.
+	// It is short because a device that doesn't show the expected prompt (e.g.
+	// while testing profiles against an unknown device) would otherwise stall
+	// the check.
+	interactiveLoginTimeout = 30 * time.Second
+	// interactiveCommandTimeout bounds each command, including printing a large
+	// running config.
+	interactiveCommandTimeout = 5 * time.Minute
+)
 
-// runInteractive runs cmd over an interactive PTY shell session. This is
-// required for devices (e.g. PAN-OS) whose CLI only produces command output on
-// an interactive TTY: a non-interactive exec returns only the login banner.
-//
-// The flow is expect-style: wait for the login prompt, then send each
-// SetupCommand and the Command in turn, reading until the prompt after each.
-//
-// It returns one CommandResult per command actually run (setup commands, then
-// the main command), each with the echoed command line and trailing prompt
-// stripped from its Output. This lets callers surface the whole session — e.g.
-// so a setup command that printed "% Invalid input" is visible rather than
-// silently swallowed. The results collected so far are returned even when an
-// error occurs partway through, since the raw output is often the most useful
-// thing for debugging a failure.
-//
-// Cancellation is handled by the caller (ExecuteCommand runs this in a goroutine
-// and closes the session on context timeout, which unblocks the reads here).
-func runInteractive(session *ssh.Session, cmd *profile.PlainCommand) (types.ResultList, error) {
-	var results types.ResultList
+// maxErrorOutput caps how much of a failed command's output goes in its error.
+const maxErrorOutput = 512
+
+// ansiEscape matches terminal control sequences a device may print on a PTY.
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
+
+// ExecuteInteractive runs cmd in an interactive shell opened by startShell: it
+// waits for cmd.Prompt, sends each setup command and then cmd.Command, and
+// waits for the prompt again after each one. The returned result holds the
+// output of cmd.Command with the echoed command line and the trailing prompt
+// removed, and it is validated like the output of ExecuteCommand.
+func ExecuteInteractive(ctx context.Context, startShell func(context.Context) (Shell, types.TypedError), cmd *profile.PlainCommand) (*types.CommandResult, error) {
 	if cmd.Prompt == nil {
-		return results, fmt.Errorf("interactive command %q has no prompt matcher", cmd.Command)
+		return nil, fmt.Errorf("command %q has no prompt to run interactively", cmd.Command)
+	}
+	sh, terr := startShell(ctx)
+	if terr != nil {
+		return nil, terr
+	}
+	defer sh.Close()
+
+	result := &types.CommandResult{CommandStr: cmd.Command}
+	fail := func(err error) (*types.CommandResult, error) {
+		result.Error = err.Error()
+		return result, result.FormattedError()
 	}
 
-	stdin, err := session.StdinPipe()
-	if err != nil {
-		return results, fmt.Errorf("open stdin: %w", err)
+	if out, err := readPrompt(ctx, sh, cmd.Prompt, interactiveLoginTimeout); err != nil {
+		result.Output = string(cleanOutput(out, "", nil))
+		return fail(fmt.Errorf("waiting for the device prompt: %w", err))
 	}
-	stdout, err := session.StdoutPipe()
-	if err != nil {
-		return results, fmt.Errorf("open stdout: %w", err)
-	}
-
-	// Disable local echo; use a large window to reduce the chance of pager
-	// pagination before `set cli pager off` (or equivalent) takes effect.
-	modes := ssh.TerminalModes{
-		ssh.ECHO:          0,
-		ssh.TTY_OP_ISPEED: 14400,
-		ssh.TTY_OP_OSPEED: 14400,
-	}
-	if err := session.RequestPty("vt100", 1000, 1000, modes); err != nil {
-		return results, fmt.Errorf("request pty: %w", err)
-	}
-	if err := session.Shell(); err != nil {
-		return results, fmt.Errorf("start shell: %w", err)
-	}
-
-	// Wait for the initial prompt after the login banner.
-	if _, err := readUntilPrompt(stdout, cmd.Prompt); err != nil {
-		return results, fmt.Errorf("waiting for initial prompt: %w", err)
-	}
-
-	// runOne sends a command, reads until the next prompt, and records a
-	// CommandResult (populating Output even on error).
-	runOne := func(command string) (*types.CommandResult, error) {
-		res := &types.CommandResult{CommandStr: command}
-		if _, err := io.WriteString(stdin, command+"\n"); err != nil {
-			res.Error = errorStr(fmt.Errorf("sending command: %w", err))
-			return res, err
-		}
-		raw, err := readUntilPrompt(stdout, cmd.Prompt)
-		res.Output = cleanInteractiveOutput(string(raw), command, cmd.Prompt)
-		if err != nil {
-			res.Error = errorStr(err)
-			return res, err
-		}
-		return res, nil
-	}
-
-	// Setup commands (e.g. `set cli pager off`), capturing each output so a
-	// failure like "% Invalid input" is visible rather than silently dropped.
 	for _, setup := range cmd.SetupCommands {
-		res, err := runOne(setup)
-		results = append(results, res)
+		out, err := runLine(ctx, sh, cmd.Prompt, setup)
 		if err != nil {
-			return results, fmt.Errorf("running setup %q: %w", setup, err)
+			result.Output = string(out)
+			return fail(fmt.Errorf("running setup command %q: %w", setup, err))
+		}
+		if len(bytes.TrimSpace(out)) > 0 {
+			// Setup commands normally print nothing; output here is usually an
+			// error such as "Invalid syntax." that explains a later failure.
+			log.Debugf("ncm: setup command %q printed %q", setup, out)
 		}
 	}
-
-	// The actual command whose output is the config we care about.
-	res, err := runOne(cmd.Command)
-	results = append(results, res)
+	out, err := runLine(ctx, sh, cmd.Prompt, cmd.Command)
 	if err != nil {
-		return results, fmt.Errorf("running %q: %w", cmd.Command, err)
+		// A partial config isn't useful and isn't redacted yet; keep only the
+		// end, which shows where the device stopped.
+		if len(out) > maxErrorOutput {
+			out = append([]byte("..."), out[len(out)-maxErrorOutput:]...)
+		}
+		result.Output = string(out)
+		return fail(err)
 	}
+	result.Output = string(out)
+	// Best effort: we have the output, and Close ends the session anyway.
+	_ = sh.Send(ctx, "exit\n")
 
-	// Best-effort clean exit; ignore errors since we already have the output.
-	_, _ = io.WriteString(stdin, "exit\n")
-	_ = stdin.Close()
-
-	return results, nil
+	cmd.Validator.ValidateResult(result)
+	return result, result.FormattedError()
 }
 
-// readUntilPrompt reads from r until prompt matches the tail of the accumulated
-// output, then returns everything read so far (prompt included). It returns an
-// error if r is exhausted (EOF) before the prompt appears, or if the output
-// exceeds maxInteractiveOutput.
-func readUntilPrompt(r io.Reader, prompt *regexp.Regexp) ([]byte, error) {
-	var buf []byte
-	tmp := make([]byte, 4096)
-	for {
-		n, readErr := r.Read(tmp)
-		if n > 0 {
-			buf = append(buf, tmp[:n]...)
-			// Only scan the tail: the prompt is a single short line, and this
-			// keeps the match cost bounded regardless of total output size. The
-			// window overlaps enough to catch a prompt split across reads.
-			window := buf
-			if len(window) > len(tmp) {
-				window = window[len(window)-len(tmp):]
-			}
-			if prompt.Match(window) {
-				return buf, nil
-			}
-			if len(buf) > maxInteractiveOutput {
-				return buf, fmt.Errorf("output exceeded %d bytes without reaching prompt", maxInteractiveOutput)
-			}
-		}
-		if readErr != nil {
-			if readErr == io.EOF {
-				return buf, errors.New("connection closed before reaching prompt")
-			}
-			return buf, readErr
-		}
+// runLine sends line and returns its output, without the echoed line and the
+// prompt that follows it.
+func runLine(ctx context.Context, sh Shell, prompt *regexp.Regexp, line string) ([]byte, error) {
+	if err := sh.Send(ctx, line+"\n"); err != nil {
+		return nil, fmt.Errorf("sending %q: %w", line, err)
 	}
+	out, err := readPrompt(ctx, sh, prompt, interactiveCommandTimeout)
+	if err != nil {
+		return cleanOutput(out, line, nil), fmt.Errorf("waiting for the prompt after %q: %w", line, err)
+	}
+	return cleanOutput(out, line, prompt), nil
 }
 
-// cleanInteractiveOutput removes the echoed command line and the trailing prompt
-// from raw interactive output, and normalizes CR/LF to LF.
-func cleanInteractiveOutput(raw, command string, prompt *regexp.Regexp) string {
-	out := strings.ReplaceAll(raw, "\r\n", "\n")
-	out = strings.ReplaceAll(out, "\r", "\n")
+// readPrompt reads until the output ends with the prompt.
+func readPrompt(ctx context.Context, sh Shell, prompt *regexp.Regexp, timeout time.Duration) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return sh.ReadUntil(ctx, func(buf []byte) int {
+		// The prompt is short; only look at the end of the buffer so large
+		// outputs don't make each read quadratic.
+		const window = 512
+		tail := buf
+		if len(tail) > window {
+			tail = tail[len(tail)-window:]
+		}
+		if prompt.Match(ansiEscape.ReplaceAll(tail, nil)) {
+			return len(buf)
+		}
+		return -1
+	})
+}
 
-	// Drop the echoed command line, if present, up to and including its newline.
-	if i := strings.IndexByte(out, '\n'); i >= 0 && strings.Contains(out[:i], command) {
-		out = out[i+1:]
+// cleanOutput normalizes line endings, strips terminal escape sequences, and
+// removes the echoed command line and, when prompt is set, the trailing prompt.
+func cleanOutput(raw []byte, line string, prompt *regexp.Regexp) []byte {
+	out := ansiEscape.ReplaceAll(raw, nil)
+	out = bytes.ReplaceAll(out, []byte("\r\n"), []byte("\n"))
+	out = bytes.ReplaceAll(out, []byte("\r"), nil)
+	if line != "" {
+		if i := bytes.IndexByte(out, '\n'); i >= 0 && bytes.Contains(out[:i], []byte(line)) {
+			out = out[i+1:]
+		}
 	}
-
-	// Drop the trailing prompt. Use the last match so a stray prompt-like line
-	// earlier in the output (shouldn't happen with a tightly anchored prompt)
-	// doesn't truncate real config.
-	if locs := prompt.FindAllStringIndex(out, -1); len(locs) > 0 {
-		out = out[:locs[len(locs)-1][0]]
+	if prompt != nil {
+		if loc := prompt.FindIndex(out); loc != nil {
+			out = out[:loc[0]]
+		}
 	}
-
-	return strings.Trim(out, " \n\t")
+	return bytes.TrimRight(bytes.TrimLeft(out, "\n"), " \n")
 }

@@ -57,19 +57,17 @@ type PlainCommand struct {
 	// SetupCommands run before Command in the same exec session. Note: if a setup
 	// command prints output, it may appear in the saved config.
 	SetupCommands []string `json:"setup_commands,omitempty"`
-	// Interactive, when true, runs Command over an interactive PTY shell session
-	// rather than a one-shot exec. Some devices (notably PAN-OS) only emit
-	// command output on an interactive TTY; a non-interactive exec returns just
-	// the login banner. When Interactive is set, Prompt must be set too, and
-	// SetupCommands are sent one at a time (each waiting for the prompt) before
-	// Command.
-	Interactive bool `json:"interactive,omitempty"`
-	// Prompt matches the device's interactive CLI prompt. It is used to detect
-	// when the device is ready for input and when a command has finished. It
-	// must be anchored tightly enough not to match config content (e.g. anchor
-	// on the "user@host>" shape rather than any line ending in ">"). Required
-	// when Interactive is true.
+	// Prompt, when set, makes the command run in an interactive shell with a
+	// PTY instead of a one-shot exec session. Some devices (e.g. PAN-OS) answer
+	// an exec request with only their login banner. Prompt must match the
+	// device's CLI prompt at the end of the output; the setup commands and
+	// Command are each sent after the device shows it.
 	Prompt *regexp.Regexp `json:"-"`
+}
+
+// Interactive reports whether the command runs in an interactive shell.
+func (c *PlainCommand) Interactive() bool {
+	return c.Prompt != nil
 }
 
 func (c *PlainCommand) CommandType() string {

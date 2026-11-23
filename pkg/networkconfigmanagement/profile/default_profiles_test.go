@@ -126,55 +126,61 @@ func Test_TMOSGetRunningValidator(t *testing.T) {
 }
 
 func Test_PanOSGetRunningValidator(t *testing.T) {
-	// Depending on PAN-OS version, `show config running` returns either
-	// angle-bracket XML or curly-brace hierarchical output; the validator must
-	// accept both. See AGENT-16721.
 	v := DefaultProfile(t, ProfilePanOS).Commands.GetRunning.Validator
-
-	// XML format
-	assert.NoError(t, v.Validate("<?xml version=\"1.0\"?>\n<config version=\"7.1.0\">\n  <mgt-config/>\n</config>\n"))
-	// Curly-brace format (operational mode on newer PAN-OS)
-	assert.NoError(t, v.Validate("config {\n  mgt-config {\n    users {\n    }\n  }\n}\n"))
-	assert.NoError(t, v.Validate("config {\n  devices {\n  }\n}\n"))
-	// Neither format -> error (e.g. an error string or empty output)
+	assert.NoError(t, v.Validate("<config version=\"11.1.0\">\n  <mgt-config/>\n</config>\n"))
+	assert.NoError(t, v.Validate("config {\n  mgt-config {\n  }\n}\n"))
+	// What PAN-OS returns to a non-interactive exec request.
+	assert.Error(t, v.Validate("\n\n\nNumber of failed attempts since last successful login: 0\n\n\n\n"))
 	assert.Error(t, v.Validate("Invalid syntax.\n"))
 	assert.Error(t, v.Validate(""))
 }
 
+func Test_PanOSCommandsAreInteractive(t *testing.T) {
+	cmds := DefaultProfile(t, ProfilePanOS).Commands
+	for name, cmd := range map[string]*PlainCommand{"verify": cmds.Verify, "get_running": cmds.GetRunning, "get_version": cmds.GetVersion} {
+		assert.True(t, cmd.Interactive(), name)
+		assert.Equal(t, []string{"set cli pager off"}, cmd.SetupCommands, name)
+	}
+}
+
+func Test_PanOSPrompt(t *testing.T) {
+	prompt := DefaultProfile(t, ProfilePanOS).Commands.GetRunning.Prompt
+	for _, out := range []string{
+		"admin@PA-3420> ",
+		"banner\r\nadmin@PA-3420> ",
+		"output\nddncmpa@PA-440-MISSISAUGA-02(passive)> ",
+		"output\nadmin@fw01.example.com(active)# ",
+		"output\nadmin@PA-3420>",
+	} {
+		assert.True(t, prompt.MatchString(out), "%q", out)
+	}
+	for _, out := range []string{
+		"output\nadmin@PA-3420> show config running\n",
+		"  <entry name=\"admin@x\">",
+		"</config>",
+		"  users admin@x>",
+	} {
+		assert.False(t, prompt.MatchString(out), "%q", out)
+	}
+}
+
 func Test_PanOSRedaction(t *testing.T) {
-	// The phash password hash and SNMP community string must be redacted in both
-	// output formats.
 	rules := DefaultProfile(t, ProfilePanOS).Redactions
-
-	// XML format
-	xmlRedacted, err := Redact([]byte("<phash>$1$ljjdxeva$.isIbumicIMfaHvG/EKqd.</phash>\n"), rules)
-	assert.NoError(t, err)
-	assert.NotContains(t, string(xmlRedacted), "ljjdxeva")
-	assert.Contains(t, string(xmlRedacted), "<phash><secret hidden></phash>")
-
-	// Curly-brace format
-	curlyRedacted, err := Redact([]byte("      admin {\n        phash $1$ljjdxeva$.isIbumicIMfaHvG/EKqd.;\n"), rules)
-	assert.NoError(t, err)
-	assert.NotContains(t, string(curlyRedacted), "ljjdxeva")
-	assert.Contains(t, string(curlyRedacted), "phash <secret hidden>;")
-
-	// SNMP community string — XML format
-	xmlSNMP, err := Redact([]byte("<snmp-community-string>ndm-lab-snmp</snmp-community-string>\n"), rules)
-	assert.NoError(t, err)
-	assert.NotContains(t, string(xmlSNMP), "ndm-lab-snmp")
-	assert.Contains(t, string(xmlSNMP), "<snmp-community-string><secret hidden></snmp-community-string>")
-
-	// SNMP community string — curly-brace format
-	curlySNMP, err := Redact([]byte("              snmp-community-string ndm-lab-snmp;\n"), rules)
-	assert.NoError(t, err)
-	assert.NotContains(t, string(curlySNMP), "ndm-lab-snmp")
-	assert.Contains(t, string(curlySNMP), "snmp-community-string <secret hidden>;")
-
-	// SNMP community string — curly-brace format, quoted value with whitespace
-	quotedSNMP, err := Redact([]byte("              snmp-community-string \"ops team secret\";\n"), rules)
-	assert.NoError(t, err)
-	assert.NotContains(t, string(quotedSNMP), "ops team secret")
-	assert.Contains(t, string(quotedSNMP), "snmp-community-string <secret hidden>;")
+	tests := []struct{ in, want string }{
+		{"<phash>$5$abc$secret</phash>\n", "<phash><secret hidden></phash>"},
+		{"        phash $5$abc$secret;\n", "        phash <secret hidden>;"},
+		{"        phash \"$5$abc secret\";\n", "        phash <secret hidden>;"},
+		{"<snmp-community-string>s3cret</snmp-community-string>\n", "<snmp-community-string><secret hidden></snmp-community-string>"},
+		{"      snmp-community-string s3cret;\n", "      snmp-community-string <secret hidden>;"},
+		{"      snmp-community-string \"ops team secret\";\n", "      snmp-community-string <secret hidden>;"},
+		{"          key -AQ==YWJjZGVm+/Zz0=;\n", "          key <secret hidden>;"},
+		{"<key>-AQ==YWJjZGVm+/Zz0=</key>\n", "<key><secret hidden></key>"},
+	}
+	for _, tt := range tests {
+		got, err := Redact([]byte(tt.in), rules)
+		assert.NoError(t, err)
+		assert.Equal(t, tt.want, string(got), "%q", tt.in)
+	}
 }
 
 func Test_DefaultProfiles_Startup(t *testing.T) {
