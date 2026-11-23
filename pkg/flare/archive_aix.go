@@ -190,7 +190,7 @@ func (w *errptWriter) flushBlock() {
 		return
 	}
 	// boundedWriter never fails; it reports full writes so errpt keeps draining.
-	_ = w.kept.Write(w.block.Bytes())
+	_, _ = w.kept.Write(w.block.Bytes())
 }
 
 // containsAny reports whether b contains one of the strings.
