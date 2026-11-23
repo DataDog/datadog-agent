@@ -706,6 +706,12 @@ func TestElfFromMemoryMapping(t *testing.T) {
 		got, err := os.ReadFile(dump)
 		require.NoError(t, err)
 		assert.Equal(t, data, got)
+		// Streaming reads it from memory instead.
+		reader, size, err := e.SymbolReader()
+		require.NoError(t, err)
+		got, err = io.ReadAll(io.NewSectionReader(reader, 0, size))
+		require.NoError(t, err)
+		assert.Equal(t, data, got)
 
 		e.Close()
 		_, err = os.Stat(dump)
