@@ -506,6 +506,21 @@ func TestDBMAuroraListener(t *testing.T) {
 	}
 }
 
+func TestDBMAuroraStopWithBlockedServiceSend(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := aws.NewMockRdsClient(gomock.NewController(t))
+		clusters := []types.DBCluster{{DBClusterIdentifier: awsaws.String("cluster")}}
+		client.EXPECT().GetAuroraClustersFromTags(gomock.Any(), gomock.Any()).Return(clusters, nil)
+		client.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), clusters, gomock.Any()).Return(
+			[]aws.Instance{{ClusterID: "cluster", Engine: "aurora-postgresql"}}, nil)
+		listener := newDBMAuroraListener(aws.Config{QueryTimeout: 1}, client, make(chan time.Time))
+		listener.Listen(make(chan Service), make(chan Service))
+		synctest.Wait()
+		// With no receiver, Stop must unblock the service send.
+		listener.Stop()
+	})
+}
+
 func TestGetExtraAuroraConfig(t *testing.T) {
 	testCases := []struct {
 		service       *DBMAuroraService

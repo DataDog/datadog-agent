@@ -401,6 +401,19 @@ func TestDBMRdsListener(t *testing.T) {
 	}
 }
 
+func TestDBMRdsStopWithBlockedServiceSend(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := aws.NewMockRdsClient(gomock.NewController(t))
+		client.EXPECT().GetRdsInstancesFromTags(gomock.Any(), gomock.Any()).Return(
+			[]aws.Instance{{ID: "instance", Engine: "postgres"}}, nil)
+		listener := newDBMRdsListener(aws.Config{QueryTimeout: 1}, client, make(chan time.Time))
+		listener.Listen(make(chan Service), make(chan Service))
+		synctest.Wait()
+		// With no receiver, Stop must unblock the service send.
+		listener.Stop()
+	})
+}
+
 func TestGetExtraRdsConfig(t *testing.T) {
 	testCases := []struct {
 		service       *DBMRdsService
