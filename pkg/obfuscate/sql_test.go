@@ -147,7 +147,7 @@ func TestScanDollarQuotedString(t *testing.T) {
 				}
 				return
 			}
-			assert.Equal(t, string(str), tt.out)
+			assert.Equal(t, tt.out, string(str))
 			assert.Equal(t, DollarQuotedString, kind)
 		})
 	}
