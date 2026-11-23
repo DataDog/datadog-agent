@@ -80,6 +80,8 @@ tags:
     regex: "^\\d+$"
   type:
     regex: "^\\d+$"
+  xid_code:
+    regex: "^\\d+$"
   kube_container_name: {}
   memory_location:
     regex:

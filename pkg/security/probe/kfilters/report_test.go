@@ -78,7 +78,8 @@ func TestDiscarderReport(t *testing.T) {
 		// process.auid, an approver only capability
 		rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/etc/**" && open.file.name == "cron"`)
 		rules.AddTestRuleExpr(t, rs, `open.file.name == "group"`)
-		rules.AddTestRuleExpr(t, rs, `open.file.name =~ "group*" && process.auid == 244`)
+		// "g*" has a prefix too short for a basename approver, so auid is its only approver
+		rules.AddTestRuleExpr(t, rs, `open.file.name =~ "g*" && process.auid == 244`)
 
 		report, err := ComputeFilters(cfg, rs)
 		if err != nil {

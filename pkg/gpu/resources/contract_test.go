@@ -33,20 +33,29 @@ func TestPublishedDeviceMatchesREDAPLSchema(t *testing.T) {
 		} `json:"properties"`
 	}
 	require.NoError(t, json.Unmarshal(data, &contract))
+	require.Contains(t, contract.Properties, "gpu_nvlink_partition")
+	require.Equal(t, "string", contract.Properties["gpu_nvlink_partition"].Type)
+	require.False(t, contract.Properties["gpu_nvlink_partition"].Required)
+	require.NotContains(t, contract.Properties, "nvlink_domain")
 	clique := uint32(math.MaxUint32)
+	zeroClique := uint32(0)
 	for _, tc := range []struct {
 		name   string
 		device Device
 	}{
 		{name: "required fields", device: Device{UUID: testUUID}},
+		{name: "clique zero", device: Device{
+			UUID: testUUID, FabricClusterUUID: "01020304-0506-0708-090a-0b0c0d0e0f10", FabricCliqueID: &zeroClique,
+			NVLinkPartition: "01020304-0506-0708-090a-0b0c0d0e0f10:0",
+		}},
 		{name: "all collected fields", device: Device{
 			UUID: testUUID, Vendor: "nvidia", Model: "tesla_t4", Architecture: "turing",
 			ComputeCapability: "7.5", CoreCount: 2560, MemoryTotalBytes: 16 << 30,
 			MemoryBusWidth: 256, DriverVersion: "580.1", VirtualizationMode: "none",
 			PCIBusID: "0000:01:00.0", FabricGUID: "0x0123456789abcdef",
 			FabricClusterUUID: "01020304-0506-0708-090a-0b0c0d0e0f10", FabricCliqueID: &clique,
-			NVLinkDomain: "01020304-0506-0708-090a-0b0c0d0e0f10:4294967295",
-			BoardSerial:  "board", ChassisSerial: "chassis",
+			NVLinkPartition: "01020304-0506-0708-090a-0b0c0d0e0f10:4294967295",
+			BoardSerial:     "board", ChassisSerial: "chassis",
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -57,6 +66,12 @@ func TestPublishedDeviceMatchesREDAPLSchema(t *testing.T) {
 			require.Equal(t, contract.ResourceType, event.Resource.Type)
 			var fields map[string]json.RawMessage
 			require.NoError(t, json.Unmarshal(event.Resource.FieldsJson, &fields))
+			require.NotContains(t, fields, "nvlink_domain")
+			if tc.device.NVLinkPartition == "" {
+				require.NotContains(t, fields, "gpu_nvlink_partition")
+			} else {
+				require.JSONEq(t, strconv.Quote(tc.device.NVLinkPartition), string(fields["gpu_nvlink_partition"]))
+			}
 			if tc.name == "all collected fields" {
 				require.Len(t, fields, reflect.TypeOf(Device{}).NumField(), "exercise every published field")
 			}

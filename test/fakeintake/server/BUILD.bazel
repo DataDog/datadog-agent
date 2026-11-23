@@ -83,6 +83,7 @@ go_library(
 dd_agent_go_test(
     name = "server_test",
     srcs = [
+        "listener_test.go",
         "par_test.go",
         "rc_test.go",
         "redact_test.go",

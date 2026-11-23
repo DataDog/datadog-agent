@@ -210,8 +210,14 @@ The Agent always sends telemetry to an override over HTTPS.
 
 ### Pre-flight check
 
-The component sends `GET https://<host>[:port]/probe` with the API key of the route in the
-`DD-API-KEY` header. Any 2xx status passes. A redirect fails the check.
+The component sends `GET https://<host>[:port]<path>` with the API key of the route in the
+`DD-API-KEY` header. `<path>` is `intake_routing.preflight_path`, `/api/v1/validate` by default.
+Any 2xx status passes. A redirect fails the check.
+
+The API key is never in the URL. The connectivity diagnosis (`agent diagnose`) and other callers
+of `/api/v1/validate` also send it in the `DD-API-KEY` header. The forwarder health check is the
+exception: it puts the key in an `api_key` query parameter. The component does not do this,
+because proxies and access logs can record a URL.
 
 ### Default host path check
 
@@ -320,6 +326,7 @@ customers, and they apply only to the full Agent.
 | `intake_routing.enabled` | `false` | |
 | `intake_routing.startup_grace_period` | `1s` | 0s to 30s. A value outside this range is changed, with a warning. |
 | `intake_routing.refresh_interval` | `10m` | 1m minimum. A smaller value is changed, with a warning. |
+| `intake_routing.preflight_path` | `/api/v1/validate` | An absolute path, without a query or a fragment. An invalid path is changed to the default, with a warning. |
 
 ## Telemetry
 
@@ -432,7 +439,8 @@ the logs agent restarts.
 
 To do an end-to-end test:
 
-1. Run a fake backend that answers the routing path, `/probe`, and `POST /api/v2/logs`.
+1. Run a fake backend that answers the routing path, `GET /api/v1/validate` (or the path in
+   `intake_routing.preflight_path`), and `POST /api/v2/logs`.
 2. Send `config.datad0g.com` and an override host such as
    `acme.agent-http-intake.logs.datad0g.com` to the fake backend (with `/etc/hosts` or a proxy).
 3. Run the Agent with `site: datad0g.com`, `logs_config.force_use_http: true`,
@@ -467,5 +475,5 @@ possible solutions:
 - **Additional endpoints over TCP**: these Agents get no routing. Refer to
   [Additional endpoints and TCP](#additional-endpoints-and-tcp).
 - **Not done**: a status section for intake routing, and inventory fields.
-- **Release note**: none while the settings are not documented. Add a `features` note when the
-  backend API is final.
+- **Release notes**: each change of behavior gets a note. The settings stay undocumented for
+  customers until the backend API is final.

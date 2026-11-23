@@ -23,7 +23,7 @@ type Device struct {
 	FabricGUID         string  `json:"gpu_fabric_guid,omitempty"`
 	FabricClusterUUID  string  `json:"gpu_fabric_cluster_uuid,omitempty"`
 	FabricCliqueID     *uint32 `json:"gpu_fabric_clique_id,omitempty"`
-	NVLinkDomain       string  `json:"nvlink_domain,omitempty"`
+	NVLinkPartition    string  `json:"gpu_nvlink_partition,omitempty"`
 	BoardSerial        string  `json:"gpu_board_serial,omitempty"`
 	ChassisSerial      string  `json:"gpu_chassis_serial,omitempty"`
 }
