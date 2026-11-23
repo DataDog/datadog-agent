@@ -95,11 +95,16 @@ const (
 	attrProchotResidencyAcc   gpuMetricsAttrID = 10
 	attrPPTResidencyAcc       gpuMetricsAttrID = 11
 	attrSocketThmResidencyAcc gpuMetricsAttrID = 12
+	attrVRThmResidencyAcc     gpuMetricsAttrID = 13
+	attrHBMThmResidencyAcc    gpuMetricsAttrID = 14
 	attrXGMILinkWidth         gpuMetricsAttrID = 18
 	attrXGMILinkSpeed         gpuMetricsAttrID = 19
 	attrGFXActivityAcc        gpuMetricsAttrID = 20
 	attrMemActivityAcc        gpuMetricsAttrID = 21
+	attrPCIeL0ToRecovCountAcc gpuMetricsAttrID = 24
 	attrPCIeReplayCountAcc    gpuMetricsAttrID = 25
+	attrPCIeNAKSentCountAcc   gpuMetricsAttrID = 27
+	attrPCIeNAKRcvdCountAcc   gpuMetricsAttrID = 28
 	attrXGMIReadDataAcc       gpuMetricsAttrID = 29
 	attrXGMIWriteDataAcc      gpuMetricsAttrID = 30
 	attrCurrentUCLK           gpuMetricsAttrID = 37
@@ -179,13 +184,16 @@ const (
 // type and unit in each supported kernel. A field with a known type and unit
 // and another instance count is skipped, except for an anchor: only the counts
 // in skip are skipped, and any other rejects the table, as a shifted
-// neighbour of the same type and unit would otherwise go unnoticed.
+// neighbour of the same type and unit would otherwise go unnoticed. A field of
+// unknown type or unit rejects the table, unless the field is optional: it is
+// then skipped, as the anchors and the other fields detect shifted IDs.
 type gpuMetricsSignature struct {
 	name      string
 	instances int
 	encodings [kernelCount]gpuMetricsEncoding
 	anchor    bool
 	skip      []int
+	optional  bool
 }
 
 // same returns the signature of a field encoded alike in every kernel.
@@ -213,6 +221,13 @@ func (s gpuMetricsSignature) anchored(skip ...int) gpuMetricsSignature {
 	return s
 }
 
+// optionalField makes a signature optional: a field of unknown type or unit is
+// skipped instead of rejecting the table.
+func (s gpuMetricsSignature) optionalField() gpuMetricsSignature {
+	s.optional = true
+	return s
+}
+
 // fieldAction is what the decoder does with a used field.
 type fieldAction int
 
@@ -229,6 +244,8 @@ func (s gpuMetricsSignature) action(typ gpuMetricsType, unit gpuMetricsUnit, ins
 		known = known || (e.typ == typ && e.unit == unit)
 	}
 	switch {
+	case !known && s.optional:
+		return fieldSkip
 	case !known:
 		return fieldReject
 	case instances == s.instances:
@@ -257,11 +274,16 @@ var gpuMetricsSignatures = map[gpuMetricsAttrID]gpuMetricsSignature{
 	attrProchotResidencyAcc:   byKernel("prochot_residency_acc", u32None, u32None, u64None),
 	attrPPTResidencyAcc:       byKernel("ppt_residency_acc", u32None, u32None, u64None),
 	attrSocketThmResidencyAcc: byKernel("socket_thm_residency_acc", u32None, u32None, u64None),
+	attrVRThmResidencyAcc:     byKernel("vr_thm_residency_acc", u32None, u32None, u64None).optionalField(),
+	attrHBMThmResidencyAcc:    byKernel("hbm_thm_residency_acc", u32None, u32None, u64None).optionalField(),
 	attrXGMILinkWidth:         same("xgmi_link_width", 1, typeU16, unitNone),
 	attrXGMILinkSpeed:         same("xgmi_link_speed", 1, typeU16, unitSpeedGTs),
 	attrGFXActivityAcc:        byKernel("gfx_activity_acc", u32Percent, u32Percent, u64None),
 	attrMemActivityAcc:        byKernel("mem_activity_acc", u32Percent, u32Percent, u64None),
+	attrPCIeL0ToRecovCountAcc: same("pcie_l0_to_recov_count_acc", 1, typeU64, unitNone).optionalField(),
 	attrPCIeReplayCountAcc:    same("pcie_replay_count_acc", 1, typeU64, unitNone),
+	attrPCIeNAKSentCountAcc:   byKernel("pcie_nak_sent_count_acc", u32None, u32None, u64None).optionalField(),
+	attrPCIeNAKRcvdCountAcc:   byKernel("pcie_nak_rcvd_count_acc", u32None, u32None, u64None).optionalField(),
 	// Per link on SMU 13.0.6 and 13.0.12 (XgmiRead/WriteDataSizeAcc, KB). SMU
 	// 15.0.8 has one instance, from XgmiReadBandwidthAcc, which may not be a
 	// byte count, so it is skipped. TODO: decode it once validated on MI4xx.
@@ -297,7 +319,8 @@ type Counter struct {
 }
 
 // SkippedField is a used field left out of a table because its instance count
-// is not the decoded one, with its encoding (e.g. "U64/DATA_1/x1").
+// is not the decoded one, or an optional field of unknown type or unit, with
+// its encoding (e.g. "U64/DATA_1/x1").
 type SkippedField struct {
 	Name     string
 	Encoding string
@@ -316,6 +339,8 @@ type GPUMetrics struct {
 	ProchotResidency       Counter
 	PPTResidency           Counter
 	SocketThermalResidency Counter
+	VRThermalResidency     Counter
+	HBMThermalResidency    Counter
 
 	// GFXActivityAcc accumulates the graphics activity of the socket, the
 	// mean over its XCDs, in percent per accumulation period. MemActivityAcc
@@ -327,6 +352,13 @@ type GPUMetrics struct {
 	// PCIeReplayCount is a cumulative firmware counter of PCIe replays; on a
 	// VF it can persist across guest driver loads.
 	PCIeReplayCount Counter
+	// PCIeRecoveryCount, PCIeNAKSentCount and PCIeNAKReceivedCount are
+	// cumulative firmware counters of the PCIe link entering recovery from L0
+	// and of the NAKs sent and received. They are 32-bit in the firmware and
+	// wrap at 2^32, even where Linux 7.3 zero-extends them to U64.
+	PCIeRecoveryCount    Counter
+	PCIeNAKSentCount     Counter
+	PCIeNAKReceivedCount Counter
 
 	// XGMIReadKB and XGMIWriteKB are cumulative firmware counters of the data,
 	// in KB, read and written over each XGMI link. They are nil when absent
@@ -338,7 +370,8 @@ type GPUMetrics struct {
 	XGMILinkSpeedGTs Counter
 	XGMILinkWidth    Counter
 
-	// Skipped lists the used fields left out for their instance count.
+	// Skipped lists the used fields left out for their instance count or, for
+	// optional fields, their encoding.
 	Skipped []SkippedField
 	// Implausible lists the fields dropped because they contradict another
 	// field of the table.
@@ -409,7 +442,12 @@ func ParseGPUMetrics(data []byte) (*GPUMetrics, error) {
 	gm.ProchotResidency = scalar(attrProchotResidencyAcc)
 	gm.PPTResidency = scalar(attrPPTResidencyAcc)
 	gm.SocketThermalResidency = scalar(attrSocketThmResidencyAcc)
+	gm.VRThermalResidency = scalar(attrVRThmResidencyAcc)
+	gm.HBMThermalResidency = scalar(attrHBMThmResidencyAcc)
 	gm.PCIeReplayCount = scalar(attrPCIeReplayCountAcc)
+	gm.PCIeRecoveryCount = scalar(attrPCIeL0ToRecovCountAcc)
+	gm.PCIeNAKSentCount = scalar(attrPCIeNAKSentCountAcc)
+	gm.PCIeNAKReceivedCount = scalar(attrPCIeNAKRcvdCountAcc)
 	gm.GFXActivityAcc = scalar(attrGFXActivityAcc)
 	gm.MemActivityAcc = scalar(attrMemActivityAcc)
 	gm.XGMIReadKB = values[attrXGMIReadDataAcc]

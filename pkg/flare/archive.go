@@ -82,7 +82,9 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		}),
 		flaretypes.NewFiller(getRegistryJSON),
 		flaretypes.NewFiller(getVersionHistory),
-		flaretypes.NewFiller(common.GetExpVar),
+		flaretypes.NewFiller(func(ctx context.Context, fb flaretypes.FlareBuilder) error {
+			return common.GetExpVar(ctx, fb, ipc.GetClient())
+		}),
 		flaretypes.NewFiller(provideInstallInfo),
 		flaretypes.NewFiller(provideAuthTokenPerm),
 		flaretypes.NewFiller(provideContainers(workloadmeta)),
