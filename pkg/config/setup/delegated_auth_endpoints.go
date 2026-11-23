@@ -105,6 +105,15 @@ func providerConfigForDirective(directive delaDirective, defaultProviderConfig c
 			return nil, nil
 		}
 		return &cloudauthconfig.AWSProviderConfig{Region: region}, nil
+	case cloudauthconfig.ProviderOIDC:
+		if _, ok := directive.params["region"]; ok {
+			return nil, fmt.Errorf("the region parameter is not supported for provider %q", directive.provider)
+		}
+		oidcConfig, ok := defaultProviderConfig.(*cloudauthconfig.OIDCProviderConfig)
+		if !ok || oidcConfig.TokenFile == "" {
+			return nil, fmt.Errorf("provider %q requires delegated_auth.provider: oidc and delegated_auth.oidc.token_file", directive.provider)
+		}
+		return &cloudauthconfig.OIDCProviderConfig{TokenFile: oidcConfig.TokenFile}, nil
 	default:
 		return nil, fmt.Errorf("unsupported provider %q in DELA[...] directive", directive.provider)
 	}
@@ -317,9 +326,13 @@ func addDelegatedAuthEndpointInstance(ctx context.Context, config pkgconfigmodel
 // one keeps nil so the component auto-detects.
 func defaultProviderConfigForConfig(config pkgconfigmodel.Reader) common.ProviderConfig {
 	switch config.GetString("delegated_auth.provider") {
-	case "aws":
+	case cloudauthconfig.ProviderAWS:
 		return &cloudauthconfig.AWSProviderConfig{
 			Region: config.GetString("delegated_auth.aws.region"),
+		}
+	case cloudauthconfig.ProviderOIDC:
+		return &cloudauthconfig.OIDCProviderConfig{
+			TokenFile: config.GetString("delegated_auth.oidc.token_file"),
 		}
 	default:
 		// Empty provider means auto-detect, so ProviderConfig stays nil even when
