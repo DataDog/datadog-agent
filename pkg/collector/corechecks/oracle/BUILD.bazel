@@ -70,6 +70,7 @@ dd_agent_go_test(
         "connector_test.go",
         "custom_query_schedule_test.go",
         "operation_test.go",
+        "statements_unit_test.go",
         "testsetup_helpers_test.go",
         "testsetup_test.go",
     ],

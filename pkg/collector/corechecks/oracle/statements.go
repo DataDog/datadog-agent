@@ -560,6 +560,9 @@ func (c *Check) StatementMetrics() (int, error) {
 				if diff.AvoidedExecutions = statementMetricRow.AvoidedExecutions - previousMonotonic.AvoidedExecutions; diff.AvoidedExecutions < 0 {
 					continue
 				}
+				if diff == (OracleRowMonotonicCount{}) {
+					continue
+				}
 			} else {
 				continue
 			}
