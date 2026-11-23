@@ -97,7 +97,7 @@ func NewActionStore() *ActionStore {
 		jobs: make(map[types.UID]*JobRecord),
 	}
 
-	log.Debugf("[HelmActions] Action store initialized (retention=%v, cleanup=%v)", RecordRetentionTTL, CleanupInterval)
+	log.Debugf("[kubernetes-actions] Action store initialized (retention=%v, cleanup=%v)", RecordRetentionTTL, CleanupInterval)
 	return s
 }
 
@@ -163,7 +163,7 @@ func (s *ActionStore) TrackJob(job *batchv1.Job, in *helmactions.RollbackInputs,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if old, exists := s.jobs[job.UID]; exists {
-		log.Debugf("[HelmActions] Tracking Job that already exists: %s", job.UID)
+		log.Debugf("[kubernetes-actions] Tracking Job that already exists: %s", job.UID)
 		// If job is already there it means tracking loop added it earlier than this call.
 		// Update all fields except time related
 		rec.CreatedAt = old.CreatedAt
@@ -171,7 +171,7 @@ func (s *ActionStore) TrackJob(job *batchv1.Job, in *helmactions.RollbackInputs,
 	}
 
 	s.jobs[job.UID] = rec
-	log.Debugf("[HelmActions] Tracking Job %s/%s (uid=%s, actionID=%s)", job.Namespace, job.Name, job.UID, meta.ActionID)
+	log.Debugf("[kubernetes-actions] Tracking Job %s/%s (uid=%s, actionID=%s)", job.Namespace, job.Name, job.UID, meta.ActionID)
 }
 
 // UpdateJob applies the latest observed state of a Job to the store. Called by
@@ -258,7 +258,7 @@ func (s *ActionStore) cleanupLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Debugf("[HelmActions] Action store cleanup loop stopped")
+			log.Debugf("[kubernetes-actions] Action store cleanup loop stopped")
 			return
 		case <-s.stopCh:
 			return
@@ -285,7 +285,7 @@ func (s *ActionStore) cleanup() {
 		}
 	}
 	if removedJobs > 0 {
-		log.Debugf("[HelmActions] Cleaned up %d completed Job records (remaining: %d)", removedJobs, len(s.jobs))
+		log.Debugf("[kubernetes-actions] Cleaned up %d completed Job records (remaining: %d)", removedJobs, len(s.jobs))
 	}
 }
 

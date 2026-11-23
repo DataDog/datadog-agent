@@ -72,7 +72,7 @@ func (e *RollbackExecutor) Run(ctx context.Context, opts helmactions.RollbackInp
 	if err != nil {
 		return nil, fmt.Errorf("executor jobs create [ns:%s]: %w", opts.JobNamespace, err)
 	}
-	log.Infof("[HelmActions] Created rollback job %s/%s for release %s/%s (revision=%d)",
+	log.Infof("[kubernetes-actions] Created rollback job %s/%s for release %s/%s (revision=%d)",
 		created.Namespace, created.Name, opts.ReleaseNamespace, opts.Release, opts.Revision)
 	return created, nil
 }

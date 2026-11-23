@@ -27,7 +27,7 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 	case watch.Added, watch.Modified:
 		job, ok := ev.Object.(*batchv1.Job)
 		if !ok {
-			log.Debugf("[HelmActions] Job unexpected object type: %T, ignoring", ev.Object)
+			log.Debugf("[kubernetes-actions] Job unexpected object type: %T, ignoring", ev.Object)
 			return
 		}
 		rec := w.store.UpdateJob(job)
@@ -35,13 +35,13 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 		if rec.phaseIsTerminal() {
 			// check job is reported already
 			if !rec.reported() {
-				log.Infof("[HelmActions] Job %s/%s [%s] reached terminal phase=%s (succeeded=%d failed=%d): %s",
+				log.Infof("[kubernetes-actions] Job %s/%s [%s] reached terminal phase=%s (succeeded=%d failed=%d): %s",
 					rec.Namespace, rec.Name, rec.ActionID, rec.Phase, rec.Succeeded, rec.Failed, rec.Message)
 				var info *failureInfo
 				if rec.Phase == JobPhaseFailed {
 					i, err := w.diagnoseJobFailure(ctx, job)
 					if err != nil {
-						log.Errorf("[HelmActions] error diagnosing job %s/%s (continue w/o info): %v", job.Namespace, job.Name, err)
+						log.Errorf("[kubernetes-actions] error diagnosing job %s/%s (continue w/o info): %v", job.Namespace, job.Name, err)
 					}
 					info = i
 				}
@@ -54,7 +54,7 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 
 		w.reportInprogress(rec)
 
-		log.Infof("[HelmActions] Job %s/%s [%s] reached phase=%s (succeeded=%d failed=%d): %sm conds:%v",
+		log.Infof("[kubernetes-actions] Job %s/%s [%s] reached phase=%s (succeeded=%d failed=%d): %sm conds:%v",
 			rec.Namespace, rec.Name, rec.ActionID, rec.Phase, rec.Succeeded, rec.Failed, rec.Message, job.Status.Conditions)
 
 		if !isStuck(job, jobStuckDurationLimit) {
@@ -63,7 +63,7 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 
 		failInfo, err := w.maybeFailedCreateEvent(ctx, job)
 		if err != nil {
-			log.Errorf("[HelmActions] error checking events for job %s/%s: %v", job.Namespace, job.Name, err)
+			log.Errorf("[kubernetes-actions] error checking events for job %s/%s: %v", job.Namespace, job.Name, err)
 			return
 		}
 
@@ -74,13 +74,13 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 			return
 		}
 
-		log.Infof("[HelmActions] stuck job detected: %s/%s [%s] (age=%s) — %s",
+		log.Infof("[kubernetes-actions] stuck job detected: %s/%s [%s] (age=%s) — %s",
 			job.Namespace, job.Name, rec.ActionID, time.Since(job.Status.StartTime.Time).Round(time.Second), failInfo.Message)
 
 		if err := w.deleteJob(ctx, job); err != nil {
-			log.Errorf("[HelmActions] error deleting job %s/%s: %v", job.Namespace, job.Name, err)
+			log.Errorf("[kubernetes-actions] error deleting job %s/%s: %v", job.Namespace, job.Name, err)
 		} else {
-			log.Infof("[HelmActions] deleted job %s/%s", job.Namespace, job.Name)
+			log.Infof("[kubernetes-actions] deleted job %s/%s", job.Namespace, job.Name)
 			w.reportFailed(rec, failInfo)
 			rec.markReported()
 		}
@@ -88,20 +88,20 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 	case watch.Error:
 		jobStatus, ok := ev.Object.(*metav1.Status)
 		if !ok {
-			log.Debugf("[HelmActions] Job error, unexpected object type: %T, ignoring", ev.Object)
+			log.Debugf("[kubernetes-actions] Job error, unexpected object type: %T, ignoring", ev.Object)
 			return
 		}
 
-		log.Infof("[HelmActions] Job error status: %s[%s]: %s", jobStatus.Status, jobStatus.Reason, jobStatus.Message)
+		log.Infof("[kubernetes-actions] Job error status: %s[%s]: %s", jobStatus.Status, jobStatus.Reason, jobStatus.Message)
 
 	case watch.Deleted:
 		job, ok := ev.Object.(*batchv1.Job)
 		if !ok {
-			log.Debugf("[HelmActions] Job deleted, unexpected object type: %T, ignoring", ev.Object)
+			log.Debugf("[kubernetes-actions] Job deleted, unexpected object type: %T, ignoring", ev.Object)
 			return
 		}
 		w.store.RemoveJob(job.UID)
-		log.Debugf("[HelmActions] Job %s/%s deleted, dropped from store", job.Namespace, job.Name)
+		log.Debugf("[kubernetes-actions] Job %s/%s deleted, dropped from store", job.Namespace, job.Name)
 	}
 }
 
@@ -113,7 +113,7 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 // task/org that requested the rollback.
 func (w *jobWatcher) reportDone(rec *JobRecord, info *failureInfo) {
 	if rec.ActionID == "" {
-		log.Warnf("[HelmActions] Job %s/%s reached terminal phase=%s but has no ActionID — dropping EVP report",
+		log.Warnf("[kubernetes-actions] Job %s/%s reached terminal phase=%s but has no ActionID — dropping EVP report",
 			rec.Namespace, rec.Name, rec.Phase)
 		return
 	}
@@ -134,7 +134,7 @@ func (w *jobWatcher) reportDone(rec *JobRecord, info *failureInfo) {
 			res.Message = info.Message
 		}
 		bytes, _ := json.Marshal(info)
-		log.Debugf("[HelmActions] done, fail info: %q", string(bytes))
+		log.Debugf("[kubernetes-actions] done, fail info: %q", string(bytes))
 
 		res.Payloads = map[string][]byte{
 			"info": bytes,
@@ -147,7 +147,7 @@ func (w *jobWatcher) reportDone(rec *JobRecord, info *failureInfo) {
 func (w *jobWatcher) reportFailed(rec *JobRecord, info *failureInfo) {
 	bytes, _ := json.Marshal(info)
 
-	log.Debugf("[HelmActions] fail info: %q", string(bytes))
+	log.Debugf("[kubernetes-actions] fail info: %q", string(bytes))
 
 	res := kubeactions.ExecutionResult{
 		Status:  kubeactions.StatusFailed,

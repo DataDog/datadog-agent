@@ -73,7 +73,7 @@ func (r *ResultReporter) ReportResult(actionKey ActionKey, action *kubeactions.K
 
 func (r *ResultReporter) report(actionKey ActionKey, action *kubeactions.KubeAction, orgID int64, evpEventType, status, msg string, payloads map[string][]byte, ts time.Time) {
 	if r.epForwarder == nil {
-		log.Warnf("[KubeActions] Event Platform forwarder not available, skipping %s reporting for action %s", evpEventType, actionKey.String())
+		log.Warnf("[kubernetes-actions] Event Platform forwarder not available, skipping %s reporting for action %s", evpEventType, actionKey.String())
 		return
 	}
 
@@ -113,15 +113,15 @@ func (r *ResultReporter) report(actionKey ActionKey, action *kubeactions.KubeAct
 
 	payload, err := json.Marshal(event)
 	if err != nil {
-		log.Errorf("[KubeActions] Failed to marshal %s event for %s: %v", evpEventType, actionKey.String(), err)
+		log.Errorf("[kubernetes-actions] Failed to marshal %s event for %s: %v", evpEventType, actionKey.String(), err)
 		return
 	}
 
 	evpMsg := message.NewMessage(payload, nil, "", 0)
 	if err := r.epForwarder.SendEventPlatformEventBlocking(evpMsg, eventplatform.EventTypeKubeActions); err != nil {
-		log.Errorf("[KubeActions] Failed to send %s event to Event Platform: %v", evpEventType, err)
+		log.Errorf("[kubernetes-actions] Failed to send %s event to Event Platform: %v", evpEventType, err)
 		return
 	}
 
-	log.Debugf("[KubeActions] Sent %s event for action %s", evpEventType, actionID)
+	log.Debugf("[kubernetes-actions] Sent %s event for action %s", evpEventType, actionID)
 }

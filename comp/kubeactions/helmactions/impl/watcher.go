@@ -54,9 +54,9 @@ func newJobWatcher(client kubernetes.Interface, store *ActionStore, ka kubeactio
 
 // run blocks until ctx is done, restarting the underlying Watch as needed.
 func (w *jobWatcher) run(ctx context.Context, done chan struct{}) {
-	log.Infof("[HelmActions] Job watcher started (selector=%q)", jobWatchSelector)
+	log.Infof("[kubernetes-actions] Job watcher started (selector=%q)", jobWatchSelector)
 	defer func() {
-		log.Infof("[HelmActions] Job watcher stopped")
+		log.Infof("[kubernetes-actions] Job watcher stopped")
 		close(done)
 	}()
 
@@ -65,7 +65,7 @@ func (w *jobWatcher) run(ctx context.Context, done chan struct{}) {
 			return
 		}
 		if err := w.watchOnce(ctx); err != nil && ctx.Err() == nil {
-			log.Warnf("[HelmActions] Job watch ended: %v — reconnecting in %s", err, watchReconnectBackoff)
+			log.Warnf("[kubernetes-actions] Job watch ended: %v — reconnecting in %s", err, watchReconnectBackoff)
 		}
 		select {
 		case <-ctx.Done():

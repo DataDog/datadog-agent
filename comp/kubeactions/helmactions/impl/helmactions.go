@@ -69,7 +69,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// detection just skips that source.
 	hostname, err := reqs.Hostname.Get(ctx)
 	if err != nil {
-		reqs.Log.Warnf("helmactions: hostname lookup failed, continuing with empty hostname: %v", err)
+		reqs.Log.Warnf("[kubernetes-actions] hostname lookup failed, continuing with empty hostname: %v", err)
 		hostname = ""
 	}
 	clusterName := clustername.GetClusterName(ctx, hostname)
@@ -91,7 +91,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 func (h *helmactionsImpl) start(context.Context) error {
-	h.log.Infof("Starting helmactions component (clusterName=%s)", h.clusterName)
+	h.log.Infof("[kubernetes-actions] Starting helmactions component (clusterName=%s)", h.clusterName)
 
 	// Watchers must outlive Fx's start context (which is bounded to hook
 	// execution / StartTimeout). Derive a fresh ctx cancelled by stop().
@@ -109,7 +109,7 @@ func (h *helmactionsImpl) start(context.Context) error {
 func (h *helmactionsImpl) stop(ctx context.Context) error {
 	// NODE(dp): ctx here is 15sec context derived from Background
 	// this is independent from start ctx.
-	h.log.Info("Stopping helmactions component")
+	h.log.Info("[kubernetes-actions] Stopping helmactions component")
 
 	// stop all ongoing operations
 	h.watchCtxCancel()
@@ -120,7 +120,7 @@ func (h *helmactionsImpl) stop(ctx context.Context) error {
 	case <-h.watchCtxDone:
 
 	case <-ctx.Done():
-		h.log.Warnf("helmactions: watcher did not exit before stop context cancellation: %v", ctx.Err())
+		h.log.Warnf("[kubernetes-actions] watcher did not exit before stop context cancellation: %v", ctx.Err())
 	}
 
 	h.store.StopCleanup()

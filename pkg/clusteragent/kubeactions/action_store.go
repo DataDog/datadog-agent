@@ -69,7 +69,7 @@ func NewActionStore(ctx context.Context) *ActionStore {
 	// Start background cleanup goroutine
 	go store.cleanupLoop(ctx)
 
-	log.Debugf("[KubeActions] Action store initialized (TTL=%v, retention=%v, cleanup=%v)",
+	log.Debugf("[kubernetes-actions] Action store initialized (TTL=%v, retention=%v, cleanup=%v)",
 		ActionTTL, RecordRetentionTTL, CleanupInterval)
 	return store
 }
@@ -176,7 +176,7 @@ func (s *ActionStore) cleanupLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Debugf("[KubeActions] Action store cleanup loop stopped")
+			log.Debugf("[kubernetes-actions] Action store cleanup loop stopped")
 			return
 		case <-s.stopCh:
 			return
@@ -207,14 +207,14 @@ func (s *ActionStore) cleanup() {
 			delete(s.executed, key)
 			removed++
 		} else if ct > 0 && ct < cutoff {
-			log.Debugf("Cleaning up claimed but not executed action %s (claimed %d seconds ago)", key, time.Now().Unix()-ct)
+			log.Debugf("[kubernetes-actions] Cleaning up claimed but not executed action %s (claimed %d seconds ago)", key, time.Now().Unix()-ct)
 			delete(s.executed, key)
 			removed++
 		}
 	}
 
 	if removed > 0 {
-		log.Debugf("Cleaned up %d expired action records from memory (remaining: %d)", removed, len(s.executed))
+		log.Debugf("[kubernetes-actions] Cleaned up %d expired action records from memory (remaining: %d)", removed, len(s.executed))
 	}
 }
 

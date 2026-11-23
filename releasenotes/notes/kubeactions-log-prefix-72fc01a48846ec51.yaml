@@ -1,0 +1,8 @@
+---
+other:
+  - |
+    Cluster Agent Kubernetes-actions log lines now share a single
+    ``[kubernetes-actions] `` prefix, replacing the previous
+    ``[KubeActions]``, ``[HelmActions]``, ``kubeactions:`` and
+    ``helmactions:`` prefixes. Log filters that matched the old prefixes
+    must be updated to the new one.

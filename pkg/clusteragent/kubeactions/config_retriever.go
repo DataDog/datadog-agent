@@ -38,7 +38,7 @@ func NewConfigRetriever(processor *ActionProcessor, isLeader func() bool, rcClie
 	}
 
 	rcClient.SubscribeIgnoreExpiration(state.ProductK8SActions, cr.actionsCallback)
-	log.Infof("[KubeActions] Subscribed to %s remote config product", state.ProductK8SActions)
+	log.Infof("[kubernetes-actions] Subscribed to %s remote config product", state.ProductK8SActions)
 
 	return cr
 }
@@ -50,19 +50,19 @@ func (cr *ConfigRetriever) actionsCallback(update map[string]state.RawConfig, ap
 	}
 
 	isLeader := cr.isLeader()
-	log.Debugf("[KubeActions] RC callback invoked: received %d config(s), leader=%v", len(update), isLeader)
+	log.Debugf("[kubernetes-actions] RC callback invoked: received %d config(s), leader=%v", len(update), isLeader)
 
 	cr.mu.Lock()
 	defer cr.mu.Unlock()
 
 	if cr.stopped {
-		log.Debugf("[KubeActions] Config retriever stopped, skipping config update")
+		log.Debugf("[kubernetes-actions] Config retriever stopped, skipping config update")
 		return
 	}
 
 	for configKey, rawConfig := range update {
 		if !isLeader {
-			log.Debugf("[KubeActions] Skipping config %s - not the leader", configKey)
+			log.Debugf("[kubernetes-actions] Skipping config %s - not the leader", configKey)
 			applyStateCallback(configKey, state.ApplyStatus{
 				State: state.ApplyStateUnacknowledged,
 				Error: "not the leader",

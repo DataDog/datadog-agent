@@ -55,12 +55,12 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 	// Validate metadata
 	if rawConfig.Metadata.ID == "" {
 		err := errors.New("action metadata.id is missing")
-		log.Errorf("[KubeActions] Rejecting config %s: %v", configKey, err)
+		log.Errorf("[kubernetes-actions] Rejecting config %s: %v", configKey, err)
 		return err
 	}
 	if rawConfig.Metadata.Version == 0 {
 		err := fmt.Errorf("action %s metadata.version is missing or zero", rawConfig.Metadata.ID)
-		log.Errorf("[KubeActions] Rejecting config %s: %v", configKey, err)
+		log.Errorf("[kubernetes-actions] Rejecting config %s: %v", configKey, err)
 		return err
 	}
 
@@ -73,7 +73,7 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 		DiscardUnknown: true, // Ignore unknown fields for forward compatibility
 	}
 	if err := unmarshaler.Unmarshal(rawConfig.Config, actionsList); err != nil {
-		log.Errorf("[KubeActions] Failed to unmarshal config %s (id=%s, version=%d): %v",
+		log.Errorf("[kubernetes-actions] Failed to unmarshal config %s (id=%s, version=%d): %v",
 			configKey, rawConfig.Metadata.ID, rawConfig.Metadata.Version, err)
 		return fmt.Errorf("failed to unmarshal config id:%s, version: %d, config key: %s, err: %v",
 			rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey, err)
@@ -82,7 +82,7 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 	// Enforce exactly one action per config
 	if len(actionsList.Actions) != 1 {
 		err := fmt.Errorf("expected exactly 1 action per config, got %d", len(actionsList.Actions))
-		log.Errorf("[KubeActions] Rejecting config %s: %v", configKey, err)
+		log.Errorf("[kubernetes-actions] Rejecting config %s: %v", configKey, err)
 		return err
 	}
 
@@ -99,7 +99,7 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 	// Check if we can claim the action
 	if !p.store.Claim(actionKey) {
 		record, _ := p.store.GetRecord(actionKey)
-		log.Debugf("[KubeActions] Action %s was already processed with status: %s", actionKey.String(), record.Status)
+		log.Debugf("[kubernetes-actions] Action %s was already processed with status: %s", actionKey.String(), record.Status)
 		if record.Status == StatusFailed || record.Status == StatusExpired {
 			return fmt.Errorf("action previously %s: %s", record.Status, record.Message)
 		}
@@ -115,7 +115,7 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 // processAction processes a single action
 func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, actionKey ActionKey, orgID int64, receivedAt int64) error {
 	actionType := GetActionType(action)
-	log.Infof("[KubeActions] Received action %s (type=%s)", actionKey.String(), actionType)
+	log.Infof("[kubernetes-actions] Received action %s (type=%s)", actionKey.String(), actionType)
 
 	// Report that we received the action
 	p.reporter.ReportReceived(actionKey, action, orgID)
@@ -129,14 +129,14 @@ func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, actionKe
 			result := ExecutionResult{Status: StatusExpired, Message: fmt.Sprintf("timestamp validation failed: %v", err)}
 			p.store.MarkExecuted(actionKey, result.Status, result.Message, time.Now().Unix(), receivedAt, actionCreatedAt)
 			p.reporter.ReportResult(actionKey, action, result, orgID, time.Now())
-			log.Errorf("[KubeActions] Action %s rejected: %s", actionKey.String(), result.Message)
+			log.Errorf("[kubernetes-actions] Action %s rejected: %s", actionKey.String(), result.Message)
 			return err
 		}
 	} else {
 		result := ExecutionResult{Status: StatusFailed, Message: "timestamp is missing"}
 		p.store.MarkExecuted(actionKey, result.Status, result.Message, time.Now().Unix(), receivedAt, 0)
 		p.reporter.ReportResult(actionKey, action, result, orgID, time.Now())
-		log.Errorf("[KubeActions] Action %s rejected: %s", actionKey.String(), result.Message)
+		log.Errorf("[kubernetes-actions] Action %s rejected: %s", actionKey.String(), result.Message)
 		return errors.New("action timestamp is missing")
 	}
 
@@ -145,7 +145,7 @@ func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, actionKe
 		result := ExecutionResult{Status: StatusFailed, Message: fmt.Sprintf("validation failed: %v", err)}
 		p.store.MarkExecuted(actionKey, result.Status, result.Message, time.Now().Unix(), receivedAt, actionCreatedAt)
 		p.reporter.ReportResult(actionKey, action, result, orgID, time.Now())
-		log.Errorf("[KubeActions] Action %s rejected: %s", actionKey.String(), result.Message)
+		log.Errorf("[kubernetes-actions] Action %s rejected: %s", actionKey.String(), result.Message)
 		return err
 	}
 
@@ -160,10 +160,10 @@ func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, actionKe
 	p.reporter.ReportResult(actionKey, action, result, orgID, executedAt)
 
 	if result.Status == StatusSuccess {
-		log.Infof("[KubeActions] Action %s executed: %s", actionKey.String(), result.Message)
+		log.Infof("[kubernetes-actions] Action %s executed: %s", actionKey.String(), result.Message)
 		return nil
 	}
-	log.Errorf("[KubeActions] Action %s failed: %s", actionKey.String(), result.Message)
+	log.Errorf("[kubernetes-actions] Action %s failed: %s", actionKey.String(), result.Message)
 	return fmt.Errorf("action execution failed: %s", result.Message)
 }
 

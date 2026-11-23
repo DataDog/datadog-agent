@@ -153,14 +153,14 @@ func getReplicaSetByRevision(ctx context.Context, client kubernetes.Interface, d
 		// Check and parse the revision from the "deployment.kubernetes.io/revision" annotation
 		revision, found := rs.Annotations[revisionAnnotation]
 		if !found {
-			log.Debugf("annotation \"%s\" is not present on the ReplicaSet", revisionAnnotation)
+			log.Debugf("[kubernetes-actions] annotation \"%s\" is not present on the ReplicaSet", revisionAnnotation)
 			continue
 		}
 
 		// Parse the revision integer from the "deployment.kubernetes.io/revision" annotation
 		rev, err := strconv.ParseInt(revision, 10, 64)
 		if err != nil {
-			log.Debugf("failed to parse replicaset revision from %s", revision)
+			log.Debugf("[kubernetes-actions] failed to parse replicaset revision from %s", revision)
 			continue
 		}
 
@@ -226,7 +226,7 @@ func (r *RollbackDeploymentExecutor) Execute(ctx context.Context, action *kubeac
 	if targetRevision == 0 {
 		methodMsg = "previous (default)"
 	}
-	log.Debugf("[KubeActions] Rolling back to %s revision %d", methodMsg, foundRevision)
+	log.Debugf("[kubernetes-actions] Rolling back to %s revision %d", methodMsg, foundRevision)
 
 	// Delete pod-template-hash label from both the current Deployment Spec and ReplicaSet Spec Templates
 	// These labels interfere with equality evaluation and patching
