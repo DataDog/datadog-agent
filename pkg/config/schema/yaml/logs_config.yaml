@@ -770,6 +770,23 @@ properties:
     type: boolean
     default: false
     comment: If true, exclude agent processes from process log collection
+  profile:
+    node_type: setting
+    type: string
+    default: ''
+    visibility: public
+    description: |-
+      A pre-tuned bundle of Logs Agent performance settings. Leave empty to keep the default settings.
+
+      Choices are `high-concurrency`, `high-throughput`, `max-throughput` and `low-latency`.
+      Any `logs_config` setting configured explicitly takes precedence over the profile.
+    enum:
+    - ''
+    - high-concurrency
+    - high-throughput
+    - max-throughput
+    - low-latency
+    - null
   run_path:
     node_type: setting
     type: string
