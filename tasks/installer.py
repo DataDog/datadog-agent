@@ -136,7 +136,7 @@ def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output, packa
     install_script = install_script.replace('INSTALLER_ARM64_SHA256', bin_arm64_sha256)
     install_script = install_script.replace('PACKAGE_NAME', package)
 
-    if flavor in ("emr", "databricks", "dataproc"):
+    if flavor in ("emr", "databricks", "databricks-gpu", "dataproc"):
         install_script = install_script.replace(
             'DATADOG_AGENT_OPTIONAL_REMOVE_CMD',
             """

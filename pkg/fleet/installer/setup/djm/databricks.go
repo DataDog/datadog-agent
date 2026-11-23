@@ -222,7 +222,26 @@ func prefixWithWorkspace(normalizedWorkspace, value string) string {
 	return value
 }
 
+// SetupDatabricksHostTags sets the Databricks host tags (cluster, workspace,
+// job, node role, DD_TAGS and DD_EXTRA_TAGS) without the Data Jobs Monitoring
+// specific tags. It lets other products running on Databricks share the same
+// host identity as Data Jobs Monitoring.
+func SetupDatabricksHostTags(s *common.Setup) {
+	setupDatabricksHostTags(s, false)
+	if os.Getenv("DB_IS_DRIVER") == "TRUE" {
+		setClearHostTag(s, "spark_node", "driver")
+	} else {
+		setClearHostTag(s, "spark_node", "worker")
+	}
+}
+
 func setupCommonHostTags(s *common.Setup) {
+	setupDatabricksHostTags(s, true)
+}
+
+// setupDatabricksHostTags sets the Databricks host tags. djmTags adds the
+// tags that are only used by Data Jobs Monitoring.
+func setupDatabricksHostTags(s *common.Setup, djmTags bool) {
 	setIfExists(s, "DB_DRIVER_IP", "spark_host_ip", nil)
 	setIfExists(s, "DB_INSTANCE_TYPE", "databricks_instance_type", nil)
 	setClearIfExists(s, "DB_IS_JOB_CLUSTER", "databricks_is_job_cluster", nil)
@@ -265,6 +284,12 @@ func setupCommonHostTags(s *common.Setup) {
 	if ok {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
+	}
+	if !djmTags {
+		addCustomHostTags(s)
+		return
+	}
+	if ok {
 		if sanitizedJobName != "" {
 			setHostTag(s, "dd.internal.resource:databricks_job", prefixWithWorkspace(normalizedWorkspace, sanitizedJobName))
 		} else {
