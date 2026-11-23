@@ -19,7 +19,6 @@ import (
 	"time"
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -164,7 +163,7 @@ const (
 )
 
 type flushedBatch struct {
-	events        []*pb.AgentTelemetryEvent
+	events        []*AgentTelemetryEvent
 	totalBodySize int
 	// reservedSize is the sum of inflight bytes startRequest accounted for on
 	// behalf of each event in this batch. It is tracked separately from
@@ -177,14 +176,14 @@ type flushedBatch struct {
 
 type currentBatch struct {
 	mu                 sync.Mutex
-	bufferedEvents     []*pb.AgentTelemetryEvent
+	bufferedEvents     []*AgentTelemetryEvent
 	bufferedSize       int
 	reservedSize       int64
 	oldestEventTime    time.Time
 	batchSizeThreshold int
 }
 
-func (b *currentBatch) addEvent(ev *pb.AgentTelemetryEvent, reserved int64) (batch flushedBatch, shouldFlush bool) {
+func (b *currentBatch) addEvent(ev *AgentTelemetryEvent, reserved int64) (batch flushedBatch, shouldFlush bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if len(b.bufferedEvents) == 0 {
@@ -221,7 +220,7 @@ func (b *currentBatch) takeBatchLocked() flushedBatch {
 		totalBodySize: b.bufferedSize,
 		reservedSize:  b.reservedSize,
 	}
-	b.bufferedEvents = make([]*pb.AgentTelemetryEvent, 0, len(batch.events))
+	b.bufferedEvents = make([]*AgentTelemetryEvent, 0, len(batch.events))
 	b.bufferedSize = 0
 	b.reservedSize = 0
 	b.oldestEventTime = time.Time{}
@@ -296,7 +295,7 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 		endpoints: endpoints,
 		conf:      conf,
 		batch: currentBatch{
-			bufferedEvents:     make([]*pb.AgentTelemetryEvent, 0, 64),
+			bufferedEvents:     make([]*AgentTelemetryEvent, 0, 64),
 			batchSizeThreshold: batchSizeThreshold,
 		},
 		flushChan:        make(chan flushedBatch, 1),
@@ -390,7 +389,7 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 		body = forwarder.stripCommandLineSecrets(r, body)
 
 		eventHeaders := forwarder.buildEventHeaders(r)
-		batch, shouldFlush := forwarder.batch.addEvent(&pb.AgentTelemetryEvent{
+		batch, shouldFlush := forwarder.batch.addEvent(&AgentTelemetryEvent{
 			Headers: eventHeaders,
 			Content: body,
 		}, reserved)
@@ -724,9 +723,9 @@ func (f *TelemetryForwarder) forwarder() {
 
 // serializeAndForward serializes a flushed batch to MessagePack and forwards it to all endpoints.
 func (f *TelemetryForwarder) serializeAndForward(batch flushedBatch) {
-	body, err := (&pb.AgentTelemetryBatch{
+	body, err := (&AgentTelemetryBatch{
 		RequestType: "agent-batch",
-		Payload:     &pb.AgentTelemetryPayload{Events: batch.events},
+		Payload:     &AgentTelemetryPayload{Events: batch.events},
 	}).MarshalMsg(nil)
 	if err != nil {
 		f.logger.Error("Failed to serialize telemetry batch: %v", err)

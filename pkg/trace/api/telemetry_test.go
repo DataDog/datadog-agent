@@ -22,7 +22,6 @@ import (
 	"testing/synctest"
 
 	zstdimpl "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 
 	"github.com/stretchr/testify/assert"
@@ -81,14 +80,14 @@ func getTestConfig(endpointURL string) *config.AgentConfig {
 }
 
 // decodeBatch decompresses and decodes a zstd+MessagePack-encoded agent-batch payload.
-func decodeBatch(t *testing.T, body []byte) *pb.AgentTelemetryBatch {
+func decodeBatch(t *testing.T, body []byte) *AgentTelemetryBatch {
 	t.Helper()
 	reader, err := zstdimpl.NewComponent().NewReader(bytes.NewReader(body))
 	require.NoError(t, err)
 	defer reader.Close()
 	decompressed, err := io.ReadAll(reader)
 	require.NoError(t, err)
-	batch := &pb.AgentTelemetryBatch{}
+	batch := &AgentTelemetryBatch{}
 	_, err = batch.UnmarshalMsg(decompressed)
 	require.NoError(t, err)
 	return batch
@@ -589,10 +588,10 @@ func assertSendRequest(t *testing.T, recv *HTTPReceiver, endpointCalled *atomic.
 }
 
 func TestAgentBatchSerialization(t *testing.T) {
-	batch := pb.AgentTelemetryBatch{
+	batch := AgentTelemetryBatch{
 		RequestType: "agent-batch",
-		Payload: &pb.AgentTelemetryPayload{
-			Events: []*pb.AgentTelemetryEvent{
+		Payload: &AgentTelemetryPayload{
+			Events: []*AgentTelemetryEvent{
 				{
 					Headers: map[string]string{"Content-Type": "application/json", "X-Original-URL": "/api/v2/apmtelemetry"},
 					Content: []byte(`{"test": "data"}`),
@@ -609,7 +608,7 @@ func TestAgentBatchSerialization(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, data)
 
-	var decoded pb.AgentTelemetryBatch
+	var decoded AgentTelemetryBatch
 	_, err = decoded.UnmarshalMsg(data)
 	require.NoError(t, err)
 

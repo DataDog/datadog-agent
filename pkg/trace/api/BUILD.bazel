@@ -1,5 +1,14 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
+
+go_msgp(
+    name = "telemetry_batch_gen",
+    src = "telemetry_batch.go",
+    out = "telemetry_batch_gen.go",
+    directives = ["limit arrays:500000 maps:500000"],
+    out_test = "telemetry_batch_gen_test.go",
+)
 
 go_library(
     name = "api",
@@ -30,6 +39,8 @@ go_library(
         "responses.go",
         "symdb.go",
         "telemetry.go",
+        "telemetry_batch.go",
+        "telemetry_batch_gen.go",
         "tracer_flare.go",
         "transports.go",
         "version.go",
@@ -161,6 +172,7 @@ dd_agent_go_test(
         "profiles_test.go",
         "responses_test.go",
         "symdb_test.go",
+        "telemetry_batch_gen_test.go",
         "telemetry_scrub_bench_test.go",
         "telemetry_scrub_test.go",
         "telemetry_test.go",
