@@ -3813,6 +3813,21 @@ func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
 					assert.True(collect, server.ProtocolStack.Contains(protocols.HTTP), "server not classified: %v", server)
 				}
 			}, 5*time.Second, 100*time.Millisecond)
+
+			if tr.closedNATTranslations == nil {
+				return // the conntracker's map isn't shared, so closes aren't deferred
+			}
+			// Both ends marked the classification entry with real traffic, and the server's end stays open, so the
+			// client's close must be marked as having an open local peer.
+			require.NoError(t, c.Close())
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				conns, cleanup := getConnections(collect, tr)
+				defer cleanup()
+				conn, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+				if assert.NotNil(collect, conn, "client connection not found") && assert.True(collect, conn.IsClosed, "client close not seen yet") {
+					assert.True(collect, conn.LocalNATPeerOpen, "closed client not marked as having an open local peer: %v", conn)
+				}
+			}, 5*time.Second, 100*time.Millisecond)
 		})
 	}
 }
