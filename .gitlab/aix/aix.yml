@@ -145,16 +145,15 @@ cleanup_aix-ppc64:
       /opt/freeware/bin/dnf-3 clean all || true
       df -g /opt /tmp
       EOF
-    # Redo the before_script's clone + provisioning, wiped above
+    # Redo the before_script's clone, wiped above
     - 'echo "=== AIX: re-cloning agent source ==="'
     - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_git_setup.sh
-    - 'echo "=== AIX: re-provisioning host (setup-host.sh) ==="'
-    - aix_run_cmd "cd $AIX_AGENT_SRC && sh packaging/aix/setup-host.sh"
     # Best-effort warm-up so the next AIX job starts warm
     - |
       aix_run_cmd <<EOF
       set -x
       cd $AIX_AGENT_SRC && . ./packaging/aix/lib/env.sh
+      sh packaging/aix/setup-host.sh || echo "WARNING: setup-host failed"
       python3.12 -m invoke -e deps || echo "WARNING: invoke deps failed"
       sh packaging/aix/stages/00-checkout.sh || echo "WARNING: 00-checkout failed"
       sh packaging/aix/stages/05-agent-data-plane.sh || echo "WARNING: 05-agent-data-plane failed"
