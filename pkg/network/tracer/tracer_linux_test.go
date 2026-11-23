@@ -3719,6 +3719,7 @@ func (s *TracerSuite) TestTCPCloseReportsDataSentAfterClose() {
 	t.Cleanup(releaseServer)
 	serverDone := make(chan int64, 1)
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		setTCPReadBuffer(c, 64<<10)
 		// Don't read until the client has closed: once the server's receive buffer is full, what
 		// the client writes stays queued in its send buffer.
 		<-startReading
@@ -3731,25 +3732,8 @@ func (s *TracerSuite) TestTCPCloseReportsDataSentAfterClose() {
 
 	c, err := server.Dial()
 	require.NoError(t, err)
-	// Write until both buffers are full, which blocks the write until the deadline. Only what was
-	// written counts. The payload is generated first: under -race that takes longer than the deadline.
-	payload := genPayload(4 << 20)
-	require.NoError(t, c.SetWriteDeadline(time.Now().Add(500*time.Millisecond)))
-	written, err := c.Write(payload)
-	require.ErrorIs(t, err, os.ErrDeadlineExceeded, "the server's receive buffer should have filled up")
-	require.Positive(t, written)
-	tcpConn, ok := c.(*net.TCPConn)
-	require.True(t, ok)
-	rc, err := tcpConn.SyscallConn()
-	require.NoError(t, err)
-	var queued int
-	var ioctlErr error
-	require.NoError(t, rc.Control(func(fd uintptr) {
-		queued, ioctlErr = unix.IoctlGetInt(int(fd), unix.SIOCOUTQ)
-	}))
-	require.NoError(t, ioctlErr)
-	t.Logf("%d of %d bytes still queued when closing", queued, written)
-	require.Positive(t, queued, "data should still be queued when the client closes")
+	// whatever the buffer sysctls are, data is still queued when the client closes
+	written := fillTCPSendQueue(t, c)
 	c.Close()
 	releaseServer()
 
