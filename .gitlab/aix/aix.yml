@@ -160,13 +160,12 @@ cleanup_aix-ppc64:
     - aix_run_cmd "cd $AIX_AGENT_SRC && sh packaging/aix/setup-host.sh"
     # Best-effort warm-up so the next AIX job starts warm
     - |
-      aix_run_cmd <<EOF || echo "WARNING: cache warm-up failed"
-      set -ex
-      cd $AIX_AGENT_SRC
-      . ./packaging/aix/lib/env.sh
-      python3.12 -m invoke -e deps
-      sh packaging/aix/stages/00-checkout.sh
-      sh packaging/aix/stages/05-agent-data-plane.sh
+      aix_run_cmd <<EOF
+      set -x
+      cd $AIX_AGENT_SRC && . ./packaging/aix/lib/env.sh
+      python3.12 -m invoke -e deps || echo "WARNING: invoke deps failed"
+      sh packaging/aix/stages/00-checkout.sh || echo "WARNING: 00-checkout failed"
+      sh packaging/aix/stages/05-agent-data-plane.sh || echo "WARNING: 05-agent-data-plane failed"
       EOF
     - |
       if [ "${AIX_CLEANUP_RESTART:-1}" != "1" ]; then
