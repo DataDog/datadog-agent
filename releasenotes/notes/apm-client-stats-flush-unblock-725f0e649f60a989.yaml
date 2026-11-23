@@ -8,9 +8,6 @@
 ---
 fixes:
   - |
-    APM: A slow stats write no longer blocks the trace-agent's intake of
-    client-computed stats. Before, the client stats aggregator held its lock
-    while it wrote flushed buckets, so incoming stats payloads could wait
-    past the receiver timeout and be rejected with
-    ``Error processing pb.ClientStatsPayload: context deadline exceeded``.
-    The aggregator now releases its lock before it writes.
+    APM: The Agent no longer drops APM stats that tracing libraries compute and
+    send to it when it is slow to send stats to Datadog. Before, it could reject
+    these stats and log ``Error processing pb.ClientStatsPayload: context deadline exceeded``.
