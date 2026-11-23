@@ -26,14 +26,23 @@ nodes:
   - hostPath: ./certs.d
     containerPath: /etc/containerd/certs.d
 {{- end }}
-{{- if or .Labels .Taints }}
+{{- range .ExtraMounts }}
+  - hostPath: {{ printf "%q" .HostPath }}
+    containerPath: {{ printf "%q" .ContainerPath }}
+{{- end }}
+{{- if or .Labels .Taints .KubeletExtraArgs }}
   kubeadmConfigPatches:
     - |
       kind: JoinConfiguration
       nodeRegistration:
-{{- if .Labels }}
+{{- if or .Labels .KubeletExtraArgs }}
         kubeletExtraArgs:
+{{- if .Labels }}
           node-labels: "{{range $i, $l := .Labels}}{{if $i}},{{end}}{{$l.Key}}={{$l.Value}}{{end}}"
+{{- end }}
+{{- range $name, $value := .KubeletExtraArgs }}
+          {{ printf "%q" $name }}: {{ printf "%q" $value }}
+{{- end }}
 {{- end }}
 {{- if .Taints }}
         taints:
@@ -45,6 +54,20 @@ nodes:
 {{- end }}
 {{- end }}
 {{- end }} {{- /* end of range .WorkerNodes */}}
+{{- /*
+kube-apiserver calls webhooks on the endpoints of their service, like managed control planes
+(EKS, GKE) do, rather than on its ClusterIP. kube-proxy routes a ClusterIP to a newly ready pod
+about a second after Helm sees the pod ready, and the Cluster Agent admission webhook fails open,
+so pods created in that window were admitted unmutated. The flag also routes aggregated APIs, such
+as the Cluster Agent external metrics server, to endpoints. Without an apiVersion, kind applies the
+patch to every kubeadm API version, and converts and merges the extraArgs map for v1beta4.
+*/}}
+kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    apiServer:
+      extraArgs:
+        enable-aggregator-routing: "true"
 containerdConfigPatches:
   - |-
 {{- if .NewContainerdRegistryConfig }}

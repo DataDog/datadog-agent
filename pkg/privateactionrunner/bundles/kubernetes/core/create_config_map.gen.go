@@ -7,6 +7,7 @@ package com_datadoghq_kubernetes_core
 
 import (
 	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 
@@ -43,6 +44,13 @@ func (h *CreateConfigMapHandler) Run(
 	inputs, err := types.ExtractInputs[CreateConfigMapInputs](task)
 	if err != nil {
 		return nil, err
+	}
+
+	if inputs.Namespace == "" {
+		return nil, errors.New("namespace is required")
+	}
+	if inputs.Body == nil {
+		return nil, errors.New("body is required")
 	}
 
 	client, err := support.KubeClient(credential)

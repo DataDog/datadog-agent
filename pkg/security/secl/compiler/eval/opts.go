@@ -144,21 +144,7 @@ func (o *Opts) WithTelemetry(telemetry *Telemetry) *Opts {
 // passes returns the compilation passes run over the trees of the rules and of
 // the macros.
 func (o *Opts) passes() []pass.Pass {
-	return []pass.Pass{o.resolveIdents()}
-}
-
-// fieldOf returns the field a field reference of a tree refers to, once the
-// passes ran. The field is the one compiled for the reference, its subscript
-// dropped and a legacy field renamed.
-func (o *Opts) fieldOf(name string) Field {
-	field, _, _, _, _, err := extractField(name)
-	if err != nil {
-		return name
-	}
-	if newField, ok := o.LegacyFields[field]; ok {
-		field = newField
-	}
-	return field
+	return []pass.Pass{o.resolveIdents(), pass.ResolveFields(o.LegacyFields)}
 }
 
 // resolveIdents returns the pass replacing the references to the macros and to

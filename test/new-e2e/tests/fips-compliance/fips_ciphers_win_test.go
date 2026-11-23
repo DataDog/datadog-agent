@@ -64,7 +64,7 @@ func (s *fipsServerWinSuite) SetupSuite() {
 
 	// supply workers to base fipsServerSuite
 	composeFilePath := "/tmp/docker-compose.yaml"
-	s.fipsServer = newFIPSServer(dockerHost, composeFilePath)
+	s.fipsServer = newFIPSServer(s.T(), dockerHost, composeFilePath)
 	s.generateTestTraffic = s.generateTraffic
 
 	// Write docker-compose.yaml to disk

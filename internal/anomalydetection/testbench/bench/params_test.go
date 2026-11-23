@@ -48,3 +48,50 @@ func TestLoadTestbenchLogTimeBucketsWithMetricPipeline(t *testing.T) {
 		Enabled: true, BucketSeconds: 5, IdleTTLSeconds: 300, RetentionSeconds: 600,
 	}, settings.LogCountBuckets)
 }
+
+func TestLoadTestbenchStablePipeline(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      string
+		wantError   string
+		wantName    string
+		wantWarmup  int
+		wantDefault bool
+	}{
+		{name: "omitted", config: `{"use_metric_pipeline":true,"components":{}}`, wantDefault: true},
+		{name: "scanmw", config: `{"use_metric_pipeline":true,"stable":{"scanmw":{"min_points":42,"max_points":84}},"components":{}}`, wantName: "stable_pipeline:scanmw"},
+		{name: "scanwelch", config: `{"use_metric_pipeline":true,"stable":{"scanwelch":{}},"components":{}}`, wantName: "stable_pipeline:scanwelch"},
+		{name: "bocpd", config: `{"use_metric_pipeline":true,"stable":{"bocpd":{"warmup_points":42,"max_run_length":84}},"components":{}}`, wantName: "stable_pipeline:bocpd", wantWarmup: 42},
+		{name: "multiple", config: `{"use_metric_pipeline":true,"stable":{"scanmw":{},"bocpd":{}},"components":{}}`, wantError: "stable pipeline accepts at most one detector block"},
+		{name: "unknown field", config: `{"use_metric_pipeline":true,"stable":{"scanmw":{"enabled":true}},"components":{}}`, wantError: "parse stable pipeline config: json: unknown field \"enabled\""},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.json")
+			require.NoError(t, os.WriteFile(path, []byte(test.config), 0600))
+			settings, err := LoadTestbenchParams(path)
+			if test.wantError != "" {
+				require.EqualError(t, err, test.wantError)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, settings.StablePipeline)
+			if test.wantDefault {
+				require.InDelta(t, 0.05, settings.StablePipeline.MinRelativeChange, 1e-12)
+				require.Nil(t, settings.StablePipeline.ScanMW)
+				require.Nil(t, settings.StablePipeline.ScanWelch)
+				require.Nil(t, settings.StablePipeline.BOCPD)
+				return
+			}
+			switch test.wantName {
+			case "stable_pipeline:scanmw":
+				require.NotNil(t, settings.StablePipeline.ScanMW)
+			case "stable_pipeline:scanwelch":
+				require.NotNil(t, settings.StablePipeline.ScanWelch)
+			case "stable_pipeline:bocpd":
+				require.NotNil(t, settings.StablePipeline.BOCPD)
+				require.Equal(t, test.wantWarmup, settings.StablePipeline.BOCPD.WarmupPoints)
+			}
+		})
+	}
+}

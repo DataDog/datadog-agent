@@ -2,7 +2,6 @@
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
-load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
@@ -81,17 +80,17 @@ def _dd_cc_packaged_rule_impl(ctx):
 _dd_cc_packaged_rule = rule(
     implementation = _dd_cc_packaged_rule_impl,
     doc = """
-        Provides a convenience wrapper on top of a CcInfo or CcSharedLibraryInfo
-        This wrapper can be used just like the providers it wraps, but also
-        includes a list of files that should be installed alongside the wrapped object.
-        It is meant to be provided to dd_collect_dependencies which will walk the tree
+        A wrapper that adds a DdPackagingInfo provider to know which files need to be included with
+        a given library. It is meant to be provided to dd_collect_dependencies which will walk the tree
         to gather all installed files from all dependencies.
+
+        The wrapper acts as a pass-through for CcSharedLibraryInfo, so that cc targets can depend
+        on targets wrapped by this rule, such that the packaging-level dependency is also recorded.
     """,
     attrs = {
         "input": attr.label(
-            doc = "A CcInfo or CcSharedLibrary provider representing a shared library or an executable",
+            doc = "The shared library, executable or single-file target being packaged",
             mandatory = True,
-            providers = [[CcInfo], [CcSharedLibraryInfo]],
         ),
         "installed_files": attr.label_list(
             doc = "A list of files that should be installed alongside the packaged dependency",
@@ -193,7 +192,6 @@ dd_cc_packaged = macro(
         "input": attr.label(
             mandatory = True,
             configurable = False,
-            providers = [[CcInfo], [CcSharedLibraryInfo]],
         ),
         # TODO(agent-build): remove installed_executables attribute
         "installed_executables": attr.label_keyed_string_dict(

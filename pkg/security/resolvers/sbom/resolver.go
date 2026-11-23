@@ -545,20 +545,20 @@ func (r *Resolver) Start(ctx context.Context) error {
 	return nil
 }
 
-// scanFailed releases the scan slot of sbom and, when processes of it remain on
-// its own root, queues it again after a delay that doubles at each failure.
+// scanFailed releases the scan slot of sbom and, even with no process of it on
+// its own root yet, queues it again after a delay that doubles at each failure.
 func (r *Resolver) scanFailed(sbom *SBOM, err error) {
 	r.removePendingScan(sbom.ContainerID)
-
-	if errors.Is(err, errNoProcessForContainerID) || errors.Is(err, errNoContainerRoot) {
-		seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
-		return
-	}
 	sbom.Lock()
 	delay := min(failedScanRetryDelay<<min(sbom.failedScans, 6), maxFailedScanRetryDelay)
 	sbom.failedScans++
 	sbom.Unlock()
-	seclog.Warnf("Failed to generate SBOM for '%s', next try in %s: %v", sbom.ContainerID, delay, err)
+
+	if errors.Is(err, errNoProcessForContainerID) || errors.Is(err, errNoContainerRoot) {
+		seclog.Debugf("Couldn't generate SBOM for '%s', next try in %s: %v", sbom.ContainerID, delay, err)
+	} else {
+		seclog.Warnf("Failed to generate SBOM for '%s', next try in %s: %v", sbom.ContainerID, delay, err)
+	}
 	time.AfterFunc(delay, func() { r.retryScan(sbom) })
 }
 

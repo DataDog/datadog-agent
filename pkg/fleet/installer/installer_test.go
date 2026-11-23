@@ -73,7 +73,8 @@ func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *t
 
 type testHooks struct {
 	mock.Mock
-	noop bool
+	noop                      bool
+	agentPreRemoveWindowsArgs []string
 }
 
 func (h *testHooks) PreInstall(ctx context.Context, pkg string, pkgType packages.PackageType, upgrade bool) error {
@@ -92,7 +93,10 @@ func (h *testHooks) PostInstall(ctx context.Context, pkg string, pkgType package
 	return nil
 }
 
-func (h *testHooks) PreRemove(ctx context.Context, pkg string, pkgType packages.PackageType, upgrade bool) error {
+func (h *testHooks) PreRemove(ctx context.Context, pkg string, pkgType packages.PackageType, upgrade bool, windowsArgs ...string) error {
+	if pkg == packageDatadogAgent {
+		h.agentPreRemoveWindowsArgs = append([]string(nil), windowsArgs...)
+	}
 	if h.noop {
 		return nil
 	}
@@ -464,6 +468,11 @@ func TestPurge(t *testing.T) {
 		assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
 
 		installer.Purge(testCtx)
+		if runtime.GOOS == "windows" {
+			assert.Equal(t, []string{"FLEET_PURGE=1"}, installer.testHooks.agentPreRemoveWindowsArgs)
+		} else {
+			assert.Empty(t, installer.testHooks.agentPreRemoveWindowsArgs)
+		}
 		assert.NoFileExists(t, filepath.Join(rootPath, "packages.db"), "purge should remove the packages database")
 		assert.NoDirExists(t, rootPath, "purge should remove the packages directory")
 		assert.Nil(t, installer.db, "purge should close the packages database")

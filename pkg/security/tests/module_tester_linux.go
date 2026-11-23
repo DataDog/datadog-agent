@@ -144,6 +144,9 @@ runtime_security_config:
 {{end}}
   security_profile:
     enabled: {{ .EnableSecurityProfile }}
+{{if gt .SecurityProfileMaxImageTags 0}}
+    max_image_tags: {{ .SecurityProfileMaxImageTags }}
+{{end}}
     v2:
       enabled: true
 {{if .EnableSecurityProfile}}
@@ -707,7 +710,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if testEnvironment == DockerEnvironment || ebpfLessEnabled {
 		cmdWrapper = newStdCmdWrapper()
 	} else {
-		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu", "")
+		wrapper, err := newDockerCmdWrapper(t, st.Root(), st.Root(), "ubuntu", "")
 		if err == nil {
 			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
 		} else {
@@ -1330,7 +1333,7 @@ func DecodeSecurityProfile(path string) (*profile.Profile, error) {
 
 func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 	// we use alpine to use nslookup on some tests, and validate all busybox specificities
-	docker, err := newDockerCmdWrapper(tm.st.Root(), tm.st.Root(), "alpine", "")
+	docker, err := newDockerCmdWrapper(tm.t, tm.st.Root(), tm.st.Root(), "alpine", "")
 	if err != nil {
 		return nil, err
 	}
