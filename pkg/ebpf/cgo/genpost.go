@@ -31,25 +31,46 @@ func main() {
 	goroot := flag.String("goroot", "", "GOROOT for the go binary")
 	testPath := flag.String("test", "", "alignment test file to write")
 	pkgName := flag.String("pkg", "", "package name for the alignment test")
+	goos := flag.String("goos", runtime.GOOS, "GOOS the generated types are for")
+	goarch := flag.String("goarch", runtime.GOARCH, "GOARCH the generated types are for")
+	sysroot := flag.String("sysroot", "", "sysroot passed to the C compiler")
+	var ccFlags stringList
+	flag.Var(&ccFlags, "ccflag", "extra C compiler flag, passed verbatim and kept out of the generated header (repeatable)")
 	flag.Parse()
 
 	if *srcPath == "" {
-		if err := filterStdin(os.Stdout, flag.Args()); err != nil {
+		if err := filterStdin(os.Stdout, *goos, flag.Args()); err != nil {
 			log.Fatal(err)
 		}
 		return
 	}
-	if err := generate(*outPath, *srcPath, *goBin, *cc, *goroot, *testPath, *pkgName, flag.Args()); err != nil {
+	c := compiler{path: *cc, sysroot: *sysroot, flags: ccFlags}
+	if err := generate(*outPath, *srcPath, *goBin, c, *goroot, *goos, *goarch, *testPath, *pkgName, flag.Args()); err != nil {
 		log.Fatal(err)
 	}
+}
+
+type stringList []string
+
+func (s *stringList) String() string { return strings.Join(*s, " ") }
+
+func (s *stringList) Set(v string) error {
+	*s = append(*s, v)
+	return nil
+}
+
+type compiler struct {
+	path    string
+	sysroot string
+	flags   []string
 }
 
 // filterStdin is the previous pipe interface: read cgo -godefs output on stdin.
 // The test path has no .go suffix because `go run genpost.go <path>.go` would
 // try to compile that path as another source file.
-func filterStdin(w io.Writer, args []string) error {
+func filterStdin(w io.Writer, goos string, args []string) error {
 	var buf bytes.Buffer
-	if err := processFile(io.TeeReader(os.Stdin, &buf), w); err != nil {
+	if err := processFile(io.TeeReader(os.Stdin, &buf), w, goos); err != nil {
 		return err
 	}
 	if len(args) >= 2 && args[0] != "" && args[1] != "" {
@@ -61,9 +82,9 @@ func filterStdin(w io.Writer, args []string) error {
 // generate runs cgo -godefs and writes the processed output. Paths arrive
 // relative to the execroot, but cgo's working directory is the source
 // directory so that include flags stay relative (they are copied into the
-// generated file). CC and GOROOT are made absolute first.
-func generate(outPath, srcPath, goBin, cc, goroot, testPath, pkgName string, cgoFlags []string) error {
-	if outPath == "" || goBin == "" || cc == "" || goroot == "" {
+// generated file). CC, its sysroot and GOROOT are made absolute first.
+func generate(outPath, srcPath, goBin string, cc compiler, goroot, goos, goarch, testPath, pkgName string, cgoFlags []string) error {
+	if outPath == "" || goBin == "" || cc.path == "" || goroot == "" {
 		return errors.New("genpost requires -out, -go, -cc and -goroot")
 	}
 	root, err := os.Getwd()
@@ -85,7 +106,18 @@ func generate(outPath, srcPath, goBin, cc, goroot, testPath, pkgName string, cgo
 
 	cmd := exec.Command(abs(goBin), argv...)
 	cmd.Dir = filepath.Dir(srcAbs)
-	cmd.Env = setEnv(setEnv(os.Environ(), "CC", abs(cc)), "GOROOT", abs(goroot))
+	ccArgs := append([]string{abs(cc.path)}, cc.flags...)
+	if cc.sysroot != "" {
+		ccArgs = append(ccArgs, "--sysroot="+abs(cc.sysroot))
+	}
+	ccEnv, err := quoteArgs(ccArgs)
+	if err != nil {
+		return err
+	}
+	cmd.Env = os.Environ()
+	for k, v := range map[string]string{"CC": ccEnv, "GOROOT": abs(goroot), "GOOS": goos, "GOARCH": goarch} {
+		cmd.Env = setEnv(cmd.Env, k, v)
+	}
 	cmd.Stderr = os.Stderr
 	raw, err := cmd.Output()
 	if err != nil {
@@ -93,7 +125,7 @@ func generate(outPath, srcPath, goBin, cc, goroot, testPath, pkgName string, cgo
 	}
 
 	var processed bytes.Buffer
-	if err := processFile(bytes.NewReader(raw), &processed); err != nil {
+	if err := processFile(bytes.NewReader(raw), &processed, goos); err != nil {
 		return err
 	}
 	if err := os.WriteFile(abs(outPath), processed.Bytes(), 0o644); err != nil {
@@ -120,13 +152,35 @@ func setEnv(env []string, key, val string) []string {
 	return append(env, prefix+val)
 }
 
-func processFile(rdr io.Reader, out io.Writer) error {
+// quoteArgs joins args into a value cgo splits back with cmd/internal/quoted.
+// It has no escapes, so an argument holding both quote characters cannot be passed.
+func quoteArgs(args []string) (string, error) {
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		switch {
+		case !strings.ContainsAny(a, " \t\n'\""):
+			quoted[i] = a
+		case !strings.Contains(a, "'"):
+			quoted[i] = "'" + a + "'"
+		case !strings.Contains(a, `"`):
+			quoted[i] = `"` + a + `"`
+		default:
+			return "", fmt.Errorf("cannot pass %q in CC: it contains both quote characters", a)
+		}
+	}
+	return strings.Join(quoted, " "), nil
+}
+
+func processFile(rdr io.Reader, out io.Writer, goos string) error {
 	b, err := io.ReadAll(rdr)
 	if err != nil {
 		return err
 	}
 
+	// The host's cgo wrote the path, so strip it in host style, and before
+	// windowsCgoHeader renames "cgo": the POSIX pattern expects "// cgo -godefs".
 	b = removeAbsolutePath(b, runtime.GOOS)
+	b = windowsCgoHeader(b, goos)
 
 	int8variableNames := []string{
 		"Buf",
@@ -167,19 +221,24 @@ func processFile(rdr io.Reader, out io.Writer) error {
 	return err
 }
 
+var cgoHeaderRegex = regexp.MustCompile(`(?m)^// cgo -godefs `)
+
+// windowsCgoHeader renames "cgo" to "cgo.exe" in Windows output: cgo writes its
+// own binary name, so output generated on another OS would otherwise differ.
+func windowsCgoHeader(b []byte, goos string) []byte {
+	if goos != "windows" {
+		return b
+	}
+	return cgoHeaderRegex.ReplaceAll(b, []byte("// cgo.exe -godefs "))
+}
+
 // removeAbsolutePath removes the absolute file path that is automatically output by cgo -godefs
 // and replaces it with only the filename
 func removeAbsolutePath(b []byte, platform string) []byte {
-	var removeAbsolutePathRegex *regexp.Regexp
-	switch platform {
-	case "linux":
-		removeAbsolutePathRegex = regexp.MustCompile(`(// cgo -godefs .+) /.+/([^/]+)$`)
-	case "windows":
+	removeAbsolutePathRegex := regexp.MustCompile(`(// cgo -godefs .+) /.+/([^/]+)$`)
+	if platform == "windows" {
 		removeAbsolutePathRegex = regexp.MustCompile(`(// cgo.exe -godefs .+) .:\\.+\\([^\\]+)$`)
-	default:
-		log.Fatal("unsupported platform")
 	}
-
 	return removeAbsolutePathRegex.ReplaceAll(b, []byte("$1 $2"))
 }
 

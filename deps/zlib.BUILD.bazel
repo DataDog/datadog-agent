@@ -105,7 +105,6 @@ cc_library(
     hdrs = _ZLIB_PUBLIC_HEADERS,
     copts = [
         "-I.",
-        "-Wall",
     ] + select({
         "@platforms//os:windows": [
             "-O2",
@@ -113,18 +112,16 @@ cc_library(
         "@platforms//os:macos": [
             "-fPIC",
             "-O3",
-            "-Wno-deprecated-non-prototype",
-            "-Wno-unused-variable",
-            "-Wno-implicit-function-declaration",
         ],
         # TODO: solaris: " -DNO_VIZ",
         "//conditions:default": [
             "-fPIC",
             "-O3",
-            "-Wno-deprecated-non-prototype",
-            "-Wno-unused-variable",
-            "-Wno-implicit-function-declaration",
         ],
+    }),
+    defines = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["HAVE_UNISTD_H=1"],
     }),
     includes = ["."],
     local_defines = select({

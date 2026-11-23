@@ -91,10 +91,17 @@ type ComponentSettings struct {
 	// Baseline controls the baseline analysis window.
 	Baseline BaselineConfig
 
+	// LogCountBuckets optionally overrides log time buckets for replay. Nil
+	// preserves the current setting across DebugView resets.
+	LogCountBuckets *LogCountBucketConfig
+
 	// UseMetricPipeline selects the kind-routed metric workflow. Zero keeps the
 	// previous configured detector workflow.
 	UseMetricPipeline bool
 
+	// StablePipeline optionally overrides the stable pipeline configuration.
+	// Nil selects defaults.
+	StablePipeline *StablePipelineConfig
 	// MetricPipelineAnomalyCutoff controls whether reactivated-series anomalies
 	// are suppressed until a fresh point is observed. Nil uses the enabled default.
 	MetricPipelineAnomalyCutoff *bool
@@ -118,19 +125,23 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 	if settings.configs == nil {
 		settings.configs = make(map[string]any)
 	}
+	if settings.StablePipeline == nil {
+		cfg := DefaultStablePipelineConfig()
+		settings.StablePipeline = &cfg
+	}
 	if settings.MetricPipelineAnomalyCutoff == nil {
 		enabled := true
 		settings.MetricPipelineAnomalyCutoff = &enabled
 	}
 
 	bocpd := DefaultBOCPDConfig()
-	bocpd.WarmupPoints = 40
+	bocpd.WarmupPoints = 20
 	holt := DefaultHoltResidualConfig()
 	holt.WarmupPoints = 15
 	holt.ResidualWindow = 25
 	tukey := DefaultTukeyBiweightConfig()
 	tukey.WindowSize = 40
-	tukey.MinPoints = 40
+	tukey.MinPoints = 20
 
 	for name, cfg := range map[string]any{
 		"bocpd":          bocpd,
@@ -186,6 +197,18 @@ func defaultCatalog() *componentCatalog {
 				defaultConfig:  DefaultLogMetricsExtractorConfig(),
 				factory:        func(cfg any) any { return NewLogMetricsExtractor(cfg.(LogMetricsExtractorConfig)) },
 				defaultEnabled: true,
+				readConfig: func(reader ConfigReader, prefix string) any {
+					cfg := DefaultLogMetricsExtractorConfig()
+					cfg.MinTokenMatchRatio = reader.GetFloat64(prefix + "min_token_match_ratio")
+					return resolveLogMetricsExtractorConfig(cfg)
+				},
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(LogMetricsExtractorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("log_metrics_extractor: failed to parse JSON config: %w", err)
+					}
+					return cfg, nil
+				},
 			},
 			{
 				name:           "connection_error_extractor",
@@ -415,7 +438,7 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 			enabled := true
 			anomalyCutoff = &enabled
 		}
-		pipeline, pipelineErr := newScanMWMetricPipeline(DefaultScanMWConfig(), *anomalyCutoff)
+		pipeline, pipelineErr := newStableMetricPipeline(settings.StablePipeline, *anomalyCutoff)
 		if pipelineErr != nil {
 			return nil, nil, nil, nil, nil, pipelineErr
 		}
