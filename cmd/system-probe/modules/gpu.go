@@ -536,15 +536,6 @@ func warnCgroupPermissionsOnce(key string, format string, args ...interface{}) {
 	log.Warnf(format, args...)
 }
 
-// systemProbeHostPID returns the PID of system-probe in the host PID namespace, as seen in the host procfs where the
-// agent processes are found, or its own PID when that cannot be determined.
-func systemProbeHostPID() uint32 {
-	if pid, err := kernel.RootNSPID(); err == nil && pid > 0 {
-		return uint32(pid)
-	}
-	return uint32(os.Getpid())
-}
-
 // forgetDepartedAgentWarnings drops the warning state of the agent processes that are gone, so that it does not
 // grow with each restart of a failing agent
 func forgetDepartedAgentWarnings(agentPIDs []uint32) {
@@ -591,7 +582,7 @@ func agentPIDsNextToSystemProbe(sysprobeCgroup string, agentPIDs []uint32, cgrou
 // doConfigureCgroupPermissions configures the cgroup permissions to access NVIDIA
 // devices for the system-probe and agent processes.
 func doConfigureCgroupPermissions(root string) {
-	sysprobePID := systemProbeHostPID()
+	sysprobePID := gpu.SelfHostPID()
 
 	log.Debugf("Configuring cgroup permissions for system-probe process with PID %d", sysprobePID)
 	if err := gpu.ConfigureDeviceCgroups(sysprobePID, root); err != nil {

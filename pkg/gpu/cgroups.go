@@ -23,6 +23,7 @@ import (
 	"github.com/containerd/cgroups/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +31,7 @@ import (
 // reapplyInfinitely controls whether the configuration should be reapplied infinitely (true) or only once (false)
 func ConfigureDeviceCgroups(pid uint32, hostRoot string) error {
 	cgroupMode := cgroups.Mode()
-	cgroupPath, err := getAbsoluteCgroupForProcess("/", hostRoot, uint32(os.Getpid()), pid, cgroupMode)
+	cgroupPath, err := getAbsoluteCgroupForProcess("/", hostRoot, SelfHostPID(), pid, cgroupMode)
 	if err != nil {
 		return fmt.Errorf("failed to get cgroup for pid %d: %w", pid, err)
 	}
@@ -205,18 +206,20 @@ func getAbsoluteCgroupForProcess(rootfs, hostRoot string, currentProcessPid, tar
 // SystemD configuration file, in the specified section. It will add it at the end
 // of all other DeviceAllow lines in the section so that it is not overridden.
 func insertDeviceAllowLine(lines []string, sectionHeader, newLine string) ([]string, error) {
+	// Insert after the last DeviceAllow line of the last matching section: systemd reads the sections in
+	// order, so a reset in a later section would cancel lines added to an earlier one.
 	candidateLineIndex := -1
-	foundSectionHeader := false
+	inSection := false
 	for i, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == sectionHeader {
-			foundSectionHeader = true
+		switch {
+		case line == sectionHeader:
+			inSection = true
 			candidateLineIndex = i + 1
-		} else if foundSectionHeader && strings.HasPrefix(normalizeSystemdAssignment(line), "DeviceAllow=") {
+		case strings.HasPrefix(line, "["):
+			inSection = false
+		case inSection && strings.HasPrefix(normalizeSystemdAssignment(line), "DeviceAllow="):
 			candidateLineIndex = i + 1
-		} else if foundSectionHeader && strings.HasPrefix(line, "[") {
-			// Another section header, stop searching
-			break
 		}
 	}
 
@@ -273,9 +276,18 @@ func normalizeSystemdAssignment(line string) string {
 	return strings.TrimSpace(key) + "=" + strings.Join(strings.Fields(value), " ")
 }
 
+// SelfHostPID returns the PID of the current process in the host PID namespace, as seen in the host procfs, or its
+// own PID when that cannot be determined.
+func SelfHostPID() uint32 {
+	if pid, err := kernel.RootNSPID(); err == nil && pid > 0 {
+		return uint32(pid)
+	}
+	return uint32(os.Getpid())
+}
+
 // CgroupPathForProcess returns the cgroup of a process, as seen from the host.
 func CgroupPathForProcess(pid uint32, hostRoot string) (string, error) {
-	return getAbsoluteCgroupForProcess("/", hostRoot, uint32(os.Getpid()), pid, cgroups.Mode())
+	return getAbsoluteCgroupForProcess("/", hostRoot, SelfHostPID(), pid, cgroups.Mode())
 }
 
 func configureSystemDAllow(rootfs, containerID string) error {

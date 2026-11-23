@@ -725,3 +725,24 @@ func TestConfigureSystemDAllowAfterSpacedReset(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, string(content), string(again))
 }
+
+func TestConfigureSystemDAllowWithSeveralScopeSections(t *testing.T) {
+	root := t.TempDir()
+	containerID := "cri-containerd-0abc.scope"
+	dir := filepath.Join(root, systemdTransientConfigPath, containerID+".d")
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	path := filepath.Join(dir, systemdDeviceAllowFile)
+	require.NoError(t, os.WriteFile(path, []byte("[Scope]\nDeviceAllow=char-pts rwm\n[Unit]\nDescription=x\n[Scope]\nDeviceAllow=\nDeviceAllow=char-x rwm\n"), 0644))
+
+	require.NoError(t, configureSystemDAllow(root, containerID))
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	// Added to the last [Scope] section, after its reset
+	require.Equal(t, "[Scope]\nDeviceAllow=char-pts rwm\n[Unit]\nDescription=x\n[Scope]\nDeviceAllow=\nDeviceAllow=char-x rwm\nDeviceAllow=char-nvidia rwm\nDeviceAllow=char-195 rwm\n\n", string(content))
+	require.Empty(t, missingDeviceAllowLines(strings.Split(string(content), "\n"), "[Scope]", nvidiaSystemdDeviceAllow))
+
+	require.NoError(t, configureSystemDAllow(root, containerID))
+	again, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, string(content), string(again))
+}
