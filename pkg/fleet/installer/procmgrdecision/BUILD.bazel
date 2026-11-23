@@ -1,0 +1,91 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "procmgrdecision",
+    srcs = [
+        "decision.go",
+        "record.go",
+        "record_unix.go",
+        "record_windows.go",
+        "seed_etcdefault.go",
+        "seed_yaml.go",
+        "value.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/procmgrdecision",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer/paths",
+        "@com_github_spf13_cast//:cast",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "procmgrdecision_test",
+    srcs = [
+        "decision_test.go",
+        "record_test.go",
+        "record_unix_test.go",
+        "record_windows_test.go",
+        "seed_etcdefault_test.go",
+        "seed_yaml_test.go",
+        "value_test.go",
+    ],
+    embed = [":procmgrdecision"],
+    deps = [
+        "//pkg/fleet/installer/env",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "//conditions:default": [],
+    }),
+)

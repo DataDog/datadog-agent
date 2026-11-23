@@ -1348,6 +1348,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user": ["test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows": ["test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/paths": ["goexperiment.systemcrypto", "requirefips", "test"],
+    "github.com/DataDog/datadog-agent/pkg/fleet/installer/procmgrdecision": ["goexperiment.systemcrypto", "requirefips", "test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/repository": ["goexperiment.systemcrypto", "requirefips", "test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup": ["goexperiment.systemcrypto", "requirefips", "test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common": ["goexperiment.systemcrypto", "requirefips", "test"],
