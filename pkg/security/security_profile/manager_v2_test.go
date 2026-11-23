@@ -2226,13 +2226,13 @@ func TestManagerV2_ActivityDumpCLI(t *testing.T) {
 		})
 		require.NotNil(t, secondEntry)
 
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.True(t, inserted)
 		require.NotNil(t, p)
 
 		secondEvent := newTestEventV2(model.ExecEventType, "v1", "new")
 		secondEvent.ProcessCacheEntry.ContainerContext.ContainerID = containerutils.ContainerID(secondContainerID)
-		_, inserted = m.insertEventIntoProfile(secondEvent)
+		_, inserted, _ = m.insertEventIntoProfile(secondEvent)
 		require.True(t, inserted)
 
 		listMsg, err := m.ListActivityDumps(&api.ActivityDumpListParams{})
@@ -2280,7 +2280,7 @@ func TestManagerV2_ActivityDumpCLI(t *testing.T) {
 
 	t.Run("validation, disabled manager, and partial storage errors", func(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.True(t, inserted)
 		require.NotNil(t, p)
 
@@ -2347,7 +2347,7 @@ func TestManagerV2_ActivityDumpCLI(t *testing.T) {
 			config.NewStorageRequest(config.RemoteStorage, config.Profile, true, ""),
 		})
 
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.True(t, inserted)
 		require.NotNil(t, p)
 
@@ -2377,7 +2377,7 @@ func TestManagerV2_ActivityDumpCLI(t *testing.T) {
 			CGroupPathKey: model.PathKey{Inode: 4244, MountID: 1},
 		}))
 
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.True(t, inserted)
 		require.NotNil(t, p)
 
