@@ -820,3 +820,82 @@ func TestStaticPodUIDMismatchFallback(t *testing.T) {
 		common.KubeletMetricsPrefix+"ephemeral_storage.usage",
 		[]string{"app:kube-apiserver"})
 }
+
+// TestProvider_WindowsMemoryUsage tests memory metrics on Windows nodes, where kubelet reports container
+// usageBytes only when the runtime provides them (containerd >= 2.2). memory.usage is reported only
+// from usageBytes, never from the working set.
+func TestProvider_WindowsMemoryUsage(t *testing.T) {
+	containerIDs := map[string]string{
+		"agent":         "windows-agent-id",
+		"process-agent": "windows-process-agent-id",
+		"trace-agent":   "windows-trace-agent-id",
+	}
+	workingSets := map[string]float64{
+		"agent":         112852992,
+		"process-agent": 76791808,
+		"trace-agent":   65417216,
+	}
+	// Only process-agent has usageBytes in the fixture, like on containerd >= 2.2.
+	wantUsage := map[string]float64{"process-agent": 133685248}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	var podContainers []workloadmeta.OrchestratorContainer
+	for name, id := range containerIDs {
+		podContainers = append(podContainers, workloadmeta.OrchestratorContainer{ID: id, Name: name})
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, id), "foo",
+			[]string{"kube_container_name:" + name}, nil, nil, nil)
+	}
+	store.Set(&workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "windows-pod-uid",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "datadog-agent-windows-abcde",
+			Namespace: "datadog",
+		},
+		Containers: podContainers,
+		Phase:      "Running",
+	})
+
+	kubeletMock := kubeletmock.NewKubeletMock()
+	content, err := os.ReadFile("../../testdata/summary_windows.json")
+	if err != nil {
+		t.Fatalf("unable to read test file: %v", err)
+	}
+	kubeletMock.MockReplies["/stats/summary"] = &kubeletmock.HTTPReplyMock{
+		Data:         content,
+		ResponseCode: 200,
+	}
+
+	mockSender := mocksender.NewMockSender(t, checkid.ID(t.Name()))
+	mockSender.SetupAcceptAll()
+
+	config := &common.KubeletConfig{
+		OpenmetricsInstance: types.OpenmetricsInstance{
+			Tags: []string{"instance_tag:something"},
+		},
+		UseStatsSummaryAsSource: &[]bool{true}[0],
+	}
+	p := NewProvider(workloadfilterfxmock.SetupMockFilter(t), config, store, fakeTagger)
+
+	err = p.Provide(kubeletMock, mockSender)
+	assert.NoError(t, err)
+
+	for name := range containerIDs {
+		tags := []string{"instance_tag:something", "kube_container_name:" + name}
+		mockSender.AssertMetricOnce(t, "Gauge", common.KubeletMetricsPrefix+"memory.working_set", workingSets[name], "", tags)
+		if usage, ok := wantUsage[name]; ok {
+			mockSender.AssertMetricOnce(t, "Gauge", common.KubeletMetricsPrefix+"memory.usage", usage, "", tags)
+		} else {
+			mockSender.AssertMetricNotTaggedWith(t, "Gauge", common.KubeletMetricsPrefix+"memory.usage", tags)
+		}
+	}
+}

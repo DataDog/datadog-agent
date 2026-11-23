@@ -99,7 +99,7 @@ class TestBazel(unittest.TestCase):
     @patch.dict(os.environ, {"AGENT_FLAVOR": "fips", "INSTALL_DIR": "/opt"})
     def test_inserted_omnibazel_flags(self, _, run_command):
         run_command.return_value = subprocess.CompletedProcess(
-            "/bzlx --batch run --platforms=//bazel/platforms:linux_x86_64_fips --//:install_dir=/opt --//:output_config_dir= //:go",
+            "/bzlx --max_idle_secs=5 run --platforms=//bazel/platforms:linux_x86_64_fips --//:install_dir=/opt --//:output_config_dir= //:go",
             0,
             "",
             "",
@@ -108,12 +108,12 @@ class TestBazel(unittest.TestCase):
             patch("tasks.libs.build.bazel.platform.system", return_value="Linux"),
             patch("tasks.libs.types.arch.platform.machine", return_value="x86_64"),
         ):
-            bazel("--batch", "run", "//:go", fips_backend=FipsBackend.msgo)
+            bazel("--max_idle_secs=5", "run", "//:go", fips_backend=FipsBackend.msgo)
         self.assertEqual(
             run_command.call_args.args[0],
             (
                 "/bzlx",
-                "--batch",
+                "--max_idle_secs=5",
                 "run",
                 "--platforms=//bazel/platforms:linux_x86_64_fips",
                 "--//:install_dir=/opt",
