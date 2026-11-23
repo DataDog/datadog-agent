@@ -109,14 +109,26 @@ func runErrpt(ctx context.Context, match []string, args ...string) errptResult {
 		}
 		res.err = err
 	}
-	res.out = stdout.Bytes()
-
-	if match == nil {
-		res.hadRecords = len(bytes.TrimSpace(res.out)) > 0
-		return res
-	}
-	res.out, res.hadRecords = filterErrptRecords(res.out, match)
+	res.out, res.hadRecords = errptOutput(stdout, match)
 	return res
+}
+
+// errptOutput post-processes an errpt stdout capture: when match is not nil,
+// only the records containing one of the match strings are kept. The
+// truncation marker is appended last, after filtering, so it cannot be
+// dropped by the filter and incomplete collections stay visible.
+func errptOutput(w *boundedWriter, match []string) ([]byte, bool) {
+	out := w.buf.Bytes()
+	var hadRecords bool
+	if match == nil {
+		hadRecords = len(bytes.TrimSpace(out)) > 0
+	} else {
+		out, hadRecords = filterErrptRecords(out, match)
+	}
+	if w.truncated {
+		out = appendTruncationMarker(out)
+	}
+	return out, hadRecords
 }
 
 // filterErrptRecords keeps the records that contain one of the match strings, e.g. the
@@ -202,14 +214,20 @@ func (w *boundedWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// appendTruncationMarker copies out with the truncation marker appended. It
+// runs after any record filtering so the marker line itself is never dropped
+// from the output.
+func appendTruncationMarker(out []byte) []byte {
+	marked := make([]byte, 0, len(out)+len(truncatedMarker))
+	marked = append(marked, out...)
+	return append(marked, truncatedMarker...)
+}
+
 // Bytes returns the retained output, with a truncation marker if any bytes
 // were discarded.
 func (w *boundedWriter) Bytes() []byte {
-	out := w.buf.Bytes()
 	if !w.truncated {
-		return out
+		return w.buf.Bytes()
 	}
-	capped := make([]byte, 0, len(out)+len(truncatedMarker))
-	capped = append(capped, out...)
-	return append(capped, truncatedMarker...)
+	return appendTruncationMarker(w.buf.Bytes())
 }

@@ -8,6 +8,7 @@
 package flare
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -50,6 +51,51 @@ func TestFilterErrptRecords(t *testing.T) {
 
 	_, hadRecords = filterErrptRecords(nil, errptBinaries)
 	assert.False(t, hadRecords)
+}
+
+func TestErrptOutput(t *testing.T) {
+	sep := "---------------------------------------------------------------------------\n"
+	records := sep +
+		"LABEL:          CORE_DUMP\nPROGRAM NAME\nagent-bin\n" + sep +
+		"LABEL:          CORE_DUMP\nPROGRAM NAME\nsomeapp\n"
+
+	t.Run("truncated output keeps matches and the truncation marker", func(t *testing.T) {
+		// Cap large enough to keep the agent-bin record whole but truncate
+		// the rest.
+		w := &boundedWriter{max: 250}
+		_, err := w.Write([]byte(records))
+		require.NoError(t, err)
+
+		out, hadRecords := errptOutput(w, errptBinaries)
+		assert.True(t, hadRecords)
+		assert.Contains(t, string(out), "agent-bin")
+		assert.NotContains(t, string(out), "someapp")
+		assert.Contains(t, string(out), "[output truncated]")
+	})
+
+	t.Run("marker survives even when no kept record could match", func(t *testing.T) {
+		// Cap so small that everything past the separator dashes is dropped:
+		// the marker must not be lost just because the retained blocks have
+		// no match.
+		w := &boundedWriter{max: 20}
+		_, err := w.Write([]byte(records))
+		require.NoError(t, err)
+
+		out, hadRecords := errptOutput(w, errptBinaries)
+		assert.False(t, hadRecords)
+		assert.Empty(t, string(bytes.TrimSuffix(string(out), truncatedMarker)))
+		assert.Contains(t, string(out), "[output truncated]")
+	})
+
+	t.Run("untruncated filtered output has no marker", func(t *testing.T) {
+		w := &boundedWriter{max: len(records)}
+		_, err := w.Write([]byte(records))
+		require.NoError(t, err)
+
+		out, hadRecords := errptOutput(w, errptBinaries)
+		assert.True(t, hadRecords)
+		assert.NotContains(t, string(out), "[output truncated]")
+	})
 }
 
 func TestBuildErrptLog(t *testing.T) {
