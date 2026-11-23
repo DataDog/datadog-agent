@@ -525,7 +525,13 @@ func (d *DatadogSymbolUploader) createSymbolFile(ctx context.Context, e *symbol.
 		return nil, fmt.Errorf("failed to copy symbols: failed to extract debug symbols: %w", cleanCmdError(err))
 	}
 
-	stat, err := symbolFile.Stat()
+	extractedFile, err := os.Open(symbolFile.Name())
+	if err != nil {
+		return nil, fmt.Errorf("failed to open extracted symbol file: %w", err)
+	}
+	defer extractedFile.Close()
+
+	stat, err := extractedFile.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat extracted symbol file: %w", err)
 	}
@@ -549,7 +555,7 @@ func (d *DatadogSymbolUploader) createSymbolFile(ctx context.Context, e *symbol.
 	if err != nil {
 		return nil, fmt.Errorf("failed to create symbol encoder: %w", err)
 	}
-	_, err = io.Copy(compressed, symbolFile)
+	_, err = io.Copy(compressed, extractedFile)
 	err = errors.Join(err, compressed.Close())
 	if err != nil {
 		return nil, fmt.Errorf("failed to compress symbol file: %w", err)
@@ -566,11 +572,11 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 	defer symbolFile.Close()
 
 	pipeR, pipeW := io.Pipe()
-	defer pipeR.Close()
 	mw := multipart.NewWriter(pipeW)
 
 	req, err := d.buildSymbolUploadRequest(ctx, pipeR, mw.FormDataContentType(), endpointIdx)
 	if err != nil {
+		pipeR.Close()
 		return fmt.Errorf("failed to build symbol upload request: %w", err)
 	}
 
