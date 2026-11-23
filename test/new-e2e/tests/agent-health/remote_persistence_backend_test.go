@@ -9,6 +9,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	_ "embed"
@@ -142,6 +143,10 @@ func deployRemotePersistenceBackend(e config.Env, kubeProvider *kubernetes.Provi
 		return nil, err
 	}
 
+	// Include both public PEM certificates so CA or server certificate changes
+	// restart the backend and invalidate a previous successful readiness check.
+	tlsFingerprint := fmt.Sprintf("%x", sha256.Sum256([]byte(string(caCert)+string(serverCert))))
+
 	workload := &kubecomp.Workload{}
 	if err := e.Ctx().RegisterComponentResource("dd:apps", "remote-persistence-backend", workload); err != nil {
 		return nil, err
@@ -227,7 +232,12 @@ func deployRemotePersistenceBackend(e config.Env, kubeProvider *kubernetes.Provi
 			Replicas: pulumi.Int(1),
 			Selector: &metav1.LabelSelectorArgs{MatchLabels: labels},
 			Template: &corev1.PodTemplateSpecArgs{
-				Metadata: &metav1.ObjectMetaArgs{Labels: labels},
+				Metadata: &metav1.ObjectMetaArgs{
+					Labels: labels,
+					Annotations: pulumi.StringMap{
+						"remote-persistence/tls-sha256": pulumi.String(tlsFingerprint),
+					},
+				},
 				Spec: &corev1.PodSpecArgs{
 					ImagePullSecrets: imagePullSecrets,
 					Containers: corev1.ContainerArray{&corev1.ContainerArgs{
@@ -307,6 +317,14 @@ func deployRemotePersistenceBackend(e config.Env, kubeProvider *kubernetes.Provi
 			ActiveDeadlineSeconds: pulumi.Int(120),
 			BackoffLimit:          pulumi.Int(0),
 			Template: &corev1.PodTemplateSpecArgs{
+				// Job templates are immutable: changed routing identity or trust
+				// requires a fresh probe even when the previous Job succeeded.
+				Metadata: &metav1.ObjectMetaArgs{
+					Annotations: pulumi.StringMap{
+						"remote-persistence/service-uid": service.Metadata.Uid().Elem(),
+						"remote-persistence/tls-sha256":  pulumi.String(tlsFingerprint),
+					},
+				},
 				Spec: &corev1.PodSpecArgs{
 					AutomountServiceAccountToken: pulumi.Bool(false),
 					ImagePullSecrets:             imagePullSecrets,
