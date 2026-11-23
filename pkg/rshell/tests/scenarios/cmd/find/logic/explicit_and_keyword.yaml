@@ -1,0 +1,23 @@
+description: find with explicit -and operator for conjunction.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/hello.txt
+      content: "hi"
+      chmod: 0644
+    - path: dir/hello.go
+      content: "go"
+      chmod: 0644
+    - path: dir/world.txt
+      content: "world"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -name 'hello*' -and -type f
+expect:
+  stdout_unordered: |+
+    dir/hello.go
+    dir/hello.txt
+  stderr: ""
+  exit_code: 0

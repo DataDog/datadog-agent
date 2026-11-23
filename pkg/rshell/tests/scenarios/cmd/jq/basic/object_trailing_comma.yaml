@@ -1,0 +1,17 @@
+description: jq accepts one trailing comma in object constructors.
+input:
+  script: |+
+    jq -nc '{a:1,}'
+    jq -nc '{a,}'
+    if jq -n '{a:1,,}' >/dev/null 2>&1; then
+      echo accepted
+    else
+      echo rejected
+    fi
+expect:
+  stdout: |+
+    {"a":1}
+    {"a":null}
+    rejected
+  stderr: |+
+  exit_code: 0

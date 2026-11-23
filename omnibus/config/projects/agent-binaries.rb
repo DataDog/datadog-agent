@@ -49,17 +49,15 @@ package :zip do
       "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
       "#{Omnibus::Config.source_dir()}\\cf-root",
     ]
+end
 
-
-  additional_sign_files [
-    "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
-    "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\dogstatsd.exe",
-  ]
-  if ENV['SIGN_WINDOWS_DD_WCS']
-    dd_wcssign true
-    dd_wcs_cert ENV['WINDOWS_SIGNING_CERT'] if ENV['WINDOWS_SIGNING_CERT']
-    dd_wcs_config ENV['WINDOWS_SIGNING_CONFIG'] if ENV['WINDOWS_SIGNING_CONFIG']
-  end
+# Signed with windows-code-signer.exe just before packaging (see sign_file in
+# lib/project_extension.rb), which uses the job's CI Identity AWS credentials.
+# The ZIP packager's own signing (additional_sign_files + dd_wcssign) shells out
+# to the legacy dd-wcs, which signs with the runner instance profile instead.
+if ENV['SIGN_WINDOWS_DD_WCS']
+  sign_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe"
+  sign_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\dogstatsd.exe"
 end
 
 

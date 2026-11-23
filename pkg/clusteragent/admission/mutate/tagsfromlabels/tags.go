@@ -102,10 +102,7 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), func(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
-			// Adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to the pod template from pod and higher-level resource labels.
-			return w.inject(pod, ns, dc)
-		}, request.DynamicClient))
+		return common.MutationResponse(mutatecommon.Mutate(request.Context, request.Object, request.Namespace, w.Name(), w.inject, request.DynamicClient))
 	}
 }
 

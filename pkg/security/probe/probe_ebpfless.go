@@ -209,6 +209,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 			if syscallMsg.CGroupID != "" {
 				entry.Process.CGroup.CGroupID = syscallMsg.CGroupID
 			}
+			p.Resolvers.ProcessResolver.ResolveECSTaskID(entry)
 		}
 
 	case ebpfless.SyscallTypeOpen:
@@ -421,9 +422,10 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 
 	// copy span context if any
-	if syscallMsg.SpanContext != nil {
+	if syscallMsg.SpanContext != nil && p.config.Probe.SpanTrackingEnabled {
 		event.SpanContext.SpanID = syscallMsg.SpanContext.SpanID
 		event.SpanContext.TraceID = syscallMsg.SpanContext.TraceID
+		event.SpanContext.Attributes = syscallMsg.SpanContext.Attributes
 	}
 
 	// use ProcessCacheEntry process context as process context
@@ -433,8 +435,11 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 	if event.ProcessCacheEntry.Process.CGroup.CGroupID == "" && syscallMsg.CGroupID != "" {
 		event.ProcessCacheEntry.Process.CGroup.CGroupID = syscallMsg.CGroupID
+		p.Resolvers.ProcessResolver.ResolveECSTaskID(event.ProcessCacheEntry)
 	}
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+
+	p.fieldHandlers.ResolveSpanContext(event)
 
 	if syscallMsg.Type == ebpfless.SyscallTypeExit {
 		event.Type = uint32(model.ExitEventType)
@@ -481,14 +486,14 @@ func (p *EBPFLessProbe) Init() error {
 // Stop the probe
 func (p *EBPFLessProbe) Stop() {
 	p.server.GracefulStop()
+	// Reject new clients before closing existing ones.
+	p.cancelFnc()
 
 	p.Lock()
 	for conn := range p.clients {
 		conn.Close()
 	}
 	p.Unlock()
-
-	p.cancelFnc()
 
 	p.wg.Wait()
 }
@@ -552,6 +557,12 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 	}
 
 	p.Lock()
+	// A late client could miss shutdown's close loop and block in Read.
+	if p.ctx.Err() != nil {
+		p.Unlock()
+		conn.Close()
+		return
+	}
 	p.clients[conn] = client
 	p.Unlock()
 
@@ -580,12 +591,19 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 				conn.Close()
 
 				msg.Type = ebpfless.MessageTypeGoodbye
-				ch <- msg
+				select {
+				case ch <- msg:
+				case <-p.ctx.Done():
+				}
 
 				return
 			}
 
-			ch <- msg
+			select {
+			case ch <- msg:
+			case <-p.ctx.Done():
+				return
+			}
 		}
 	}()
 }

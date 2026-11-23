@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The Agent now detects NVIDIA GPUs shared by the device plugin through
+    replication (time-slicing, MPS) on Kubernetes: the ``gpu_sharing_mode``
+    tag gains the ``time-slicing``, ``mps`` and ``unknown`` values on GPU
+    series, and the new ``gpu.device.sharing_replicas`` and
+    ``gpu.device.sharing_replicas_used`` metrics report the sharing factor
+    of each device and the number of replicas each container holds.

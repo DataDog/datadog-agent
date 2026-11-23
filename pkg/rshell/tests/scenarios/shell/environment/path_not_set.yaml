@@ -1,0 +1,9 @@
+description: "PATH variable is not set in the default environment"
+# skip: rshell uses an isolated environment that does not inherit from the parent process
+skip_assert_against_bash: true
+input:
+  script: |
+    echo "path=$PATH"
+expect:
+  stdout: "path=\n"
+  exit_code: 0

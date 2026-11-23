@@ -63,7 +63,10 @@ filegroup(
 
 dd_agent_go_test(
     name = "serializers_test",
-    srcs = ["serializers_linux_test.go"],
+    srcs = [
+        "file_capabilities_linux_test.go",
+        "serializers_linux_test.go",
+    ],
     embed = [":serializers"],
     deps = select({
         "@rules_go//go/platform:android": [

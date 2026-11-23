@@ -43,7 +43,6 @@ cc_library(
         "include/seccomp-syscalls.h",
     ],
     copts = [
-        "-Wall",
         "-Umips",
         "-O2",
         "-ffunction-sections",

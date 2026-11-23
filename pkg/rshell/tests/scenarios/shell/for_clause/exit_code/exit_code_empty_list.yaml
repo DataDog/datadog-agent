@@ -1,0 +1,8 @@
+description: For loop with empty list exits with code 0.
+input:
+  script: |+
+    for i in; do false; done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

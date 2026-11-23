@@ -50,6 +50,16 @@ profiles:
         preserve_tags:
           - issue_type
           - severity
+      - name: health_platform.active_issues
+        preserve_tags:
+          - issue_type
+      - name: health_platform.reports_sent
+        preserve_tags:
+          - status
+          - error_type
+      - name: health_platform.issues_resolved
+        preserve_tags:
+          - issue_type
   schedule:
     start_after: 30
     iterations: 0
@@ -115,14 +125,18 @@ profiles:
       - name: points.dropped
         preserve_tags:
           - domain
+      - name: aggregator.dogstatsd_type_mismatch
+      - name: aggregator.checks_type_mismatch
       # Metadata payloads over the serializer size limits are dropped before
       # reaching the forwarder, so they are invisible from intake.
       - name: serializer.metadata_payload_dropped
         preserve_tags:
           - reason
+          - payload_type
       - name: serializer.metadata_payload_dropped_bytes
         preserve_tags:
           - compressed
+          - payload_type
       - name: transactions.input_count
         preserve_tags:
           - domain
@@ -287,6 +301,25 @@ profiles:
     start_after: 600
     iterations: 0
     period: 14400
+- name: forwarder_stats
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: forwarder.http_errors
+        preserve_tags:
+          - code
+          - endpoint
+          - forwarder
+      - name: forwarder.errors
+        preserve_tags:
+          - error_type
+          - endpoint
+          - forwarder
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: csi-driver
   metric:
     exclude:
@@ -462,17 +495,6 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
-- name: trace-agent
-  metric:
-    exclude:
-      zero_metric: true
-    metrics:
-      - name: trace.enabled
-      - name: trace.working
-  schedule:
-    start_after: 60
-    iterations: 0
-    period: 900
 - name: gpu
   metric:
     exclude:
@@ -486,6 +508,15 @@ profiles:
         - status:disabled
     metrics:
       - name: gpu.device_total
+        preserve_tags:
+          - gpu_device
+          - gpu_virtualization_mode
+          - gpu_architecture
+          - gpu_slicing_mode
+          - gpu_nvlink_capable
+          - gpu_nvlink_version
+          - gpu_driver_version
+          - gpu_sharing_mode
       - name: amd_gpu.device_total
       # GPU telemetry uses nested subsystems (e.g. "gpu__collectors"), and only the first
       # "__" of the Prometheus name is normalized, so the second one must be kept here.
@@ -589,11 +620,17 @@ profiles:
       - name: workloadmeta.pull_errors
         preserve_tags:
           - collector_id
+      - name: workloadmeta.notifications_sent
+        preserve_tags:
+          - subscriber_name
+          - status
+          - dropped_event
       - name: appsec_injector.watched_changes
         preserve_tags:
           - proxy_type
           - operation
           - success
+          - reason
       - name: appsec_injector.sidecar_mutations
         preserve_tags:
           - proxy_type
@@ -789,6 +826,27 @@ profiles:
     start_after: 120 # 2 minutes
     iterations: 0
     period: 900
+- name: config-schema
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      # Settings of datadog.yaml and system-probe.yaml violating their schema, see comp/core/schema/impl/telemetry.go.
+      # `setting` is a schema-declared key (`unknown` otherwise) and `error` is derived from the schema only, so
+      # neither carries the configured value.
+      - name: config.schema_violations
+        preserve_tags:
+          - config
+          - setting
+          - source
+          - install_method
+          - error
+  schedule:
+    # The configuration is validated once at startup: the gauge doesn't change afterwards, so it's only reported
+    # periodically for long-running Agents to keep showing up in queries.
+    start_after: 30
+    iterations: 0
+    period: 43200 # 12 hours
 # Support troubleshooting bundle, gated behind a remote flag.
 - name: troubleshooting
   remote_flag: troubleshooting_coat_bundle

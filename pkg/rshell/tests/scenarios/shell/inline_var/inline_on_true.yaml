@@ -1,0 +1,11 @@
+description: Inline variable assignment is temporary for the true builtin.
+input:
+  script: |+
+    VAR=original
+    VAR=temporary true
+    echo $VAR
+expect:
+  stdout: |+
+    original
+  stderr: ""
+  exit_code: 0

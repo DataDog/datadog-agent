@@ -16,6 +16,7 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type scorerConfigReader struct {
@@ -145,10 +146,12 @@ func TestAnomalyLevel(t *testing.T) {
 		{"holt_residual", scorePtr(34.9), 3},
 		{"holt_residual", scorePtr(35), 4}, // XHigh
 		{"holt_residual", scorePtr(100), 4},
-		{"holt_residual", nil, 0},          // nil score → VeryLow
-		{"bocpd", nil, 2},                  // fixed Medium
-		{"bocpd", scorePtr(99), 2},         // score ignored for bocpd
-		{"unknown_detector", nil, 2},       // default Medium
+		{"holt_residual", nil, 0},    // nil score → VeryLow
+		{"bocpd", nil, 2},            // fixed Medium
+		{"bocpd", scorePtr(99), 2},   // score ignored for bocpd
+		{"unknown_detector", nil, 2}, // default Medium
+		{"stable_pipeline:scanmw", scorePtr(20), 3},
+		{"stable_pipeline:scanwelch", scorePtr(25), 4},
 		{"tukey_biweight", scorePtr(7), 1}, // Low (per-detector threshold)
 	}
 	for _, tc := range cases {
@@ -166,6 +169,41 @@ func TestAnomalySeverityLabel(t *testing.T) {
 	assert.Equal(t, "medium", anomalySeverityLabel(2))
 	assert.Equal(t, "high", anomalySeverityLabel(3))
 	assert.Equal(t, "xhigh", anomalySeverityLabel(4))
+}
+
+func TestAnomalyLevel_UsesRelativeChange(t *testing.T) {
+	tests := []struct {
+		name   string
+		score  *float64
+		before float64
+		after  float64
+		want   int
+	}{
+		{name: "very low bound", score: scorePtr(9), before: 100, after: 106, want: 0},
+		{name: "low", score: scorePtr(9), before: 100, after: 106.1, want: 1},
+		{name: "medium bound", score: scorePtr(9), before: 100, after: 120, want: 2},
+		{name: "high", score: scorePtr(9), before: 100, after: 120.1, want: 3},
+		{name: "xhigh bound", score: scorePtr(9), before: 100, after: 150, want: 3},
+		{name: "xhigh", score: scorePtr(9), before: 100, after: 150.1, want: 4},
+		{name: "high confidence bonus", score: scorePtr(20), before: 100, after: 106, want: 1},
+		{name: "high confidence bonus capped", score: scorePtr(20), before: 100, after: 160, want: 4},
+		{name: "negative baseline", score: scorePtr(20), before: -100, after: -90, want: 2},
+		{name: "zero baseline", score: scorePtr(9), before: 0, after: 1, want: 4},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a := makeAnomaly("scanmw", 1000, tc.score)
+			a.LevelChange = &observer.LevelChangeEvidence{BeforeMedian: tc.before, AfterMedian: tc.after}
+			assert.Equal(t, tc.want, anomalyLevel(a, DefaultAnomalyScorerConfig().AnomalyScorerConfig))
+		})
+	}
+}
+
+func TestContributorWeight_UsesRelativeChange(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+	a := makeAnomaly("scanmw", 1000, scorePtr(20))
+	a.LevelChange = &observer.LevelChangeEvidence{BeforeMedian: 100, AfterMedian: 106}
+	assert.Equal(t, levelWeights[1], contributorWeight(a, cfg))
 }
 
 func TestContributorWeight_IsContinuousAndBounded(t *testing.T) {
@@ -186,6 +224,8 @@ func TestContributorWeight_IsContinuousAndBounded(t *testing.T) {
 	if got := contributorWeight(middle, cfg); math.Abs(got-1.5) > 1e-9 {
 		t.Fatalf("weight halfway between Medium and High = %g, want 1.5", got)
 	}
+	middle.DetectorName = "pipeline:holt_residual"
+	assert.InDelta(t, 1.5, contributorWeight(middle, cfg), 1e-9)
 
 	above := makeAnomaly("holt_residual", 1000, scorePtr(100))
 	if got := contributorWeight(above, cfg); got != 3.0 {
@@ -627,6 +667,68 @@ func TestLateAnomalyBeforeFirstAdvance(t *testing.T) {
 	if !found {
 		t.Errorf("pre-first-advance anomaly was clamped or dropped; buckets=%v", st.Buckets)
 	}
+}
+
+func TestScorerHistoryCapturesOriginalRun(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.Alpha = 0.99
+	cfg.SaturationK = 1
+	cfg.WindowSecs = 15
+	cfg.MaxBuckets = math.MaxInt64
+	cfg.CorrelationEvents = true
+	cfg.CooldownSecs = 300
+	scorer := NewAnomalyScorer(cfg).(*anomalyScorer)
+	scorer.enableHistory()
+
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, scorer, severityeventsdef.SeverityEventsConfiguration{
+		CooldownSecs: cfg.CooldownSecs,
+	}, listener)
+
+	scorer.Advance(1000)
+	anomaly := makeAnomaly("bocpd", 900, nil)
+	anomaly.SourceRef = &observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}
+	scorer.ProcessAnomaly(anomaly)
+	scorer.Advance(1030)
+
+	history := scorer.historyState()
+	require.True(t, history.Available)
+	require.Len(t, history.Inputs, 1)
+	require.Equal(t, int64(1001), history.Inputs[0].ScoringSecond)
+	require.Equal(t, int64(900), history.Inputs[0].Anomaly.Timestamp)
+	require.Greater(t, len(history.Buckets), int(cfg.WindowSecs), "history must retain more than the production bucket window")
+	require.Equal(t, int64(1030), history.Buckets[len(history.Buckets)-1].Second)
+	require.Equal(t, listener.events, history.Events)
+	require.Len(t, history.Reports, 1)
+	require.Len(t, history.Reports[0].Contributors, 1)
+	require.Equal(t, int64(300), history.CooldownSecs)
+
+	// JSON numbers pass through float64 in the browser before replay.
+	encodedConfig, err := json.Marshal(history.Config)
+	require.NoError(t, err)
+	var browserConfig map[string]any
+	require.NoError(t, json.Unmarshal(encodedConfig, &browserConfig))
+	encodedConfig, err = json.Marshal(browserConfig)
+	require.NoError(t, err)
+	var replayConfig observer.AnomalyScorerConfig
+	require.NoError(t, json.Unmarshal(encodedConfig, &replayConfig))
+	expectedConfig := cfg.AnomalyScorerConfig
+	expectedConfig.MaxBuckets = 0
+	require.Equal(t, expectedConfig, replayConfig)
+	require.Equal(t, int64(math.MaxInt64), scorer.config.MaxBuckets)
+
+	scorer.Reset()
+	history = scorer.historyState()
+	require.True(t, history.Available)
+	require.Empty(t, history.Inputs)
+	require.Empty(t, history.Buckets)
+	require.Empty(t, history.Events)
+	require.Empty(t, history.Reports)
+}
+
+func TestScorerHistoryDisabledByDefault(t *testing.T) {
+	scorer := NewAnomalyScorer(DefaultAnomalyScorerConfig()).(*anomalyScorer)
+	require.False(t, scorer.historyState().Available)
 }
 
 // ---- Severity state machine helpers ----

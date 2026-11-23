@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "kubeapiserver",
     srcs = [
+        "autoscalers.go",
         "crd.go",
         "deployments.go",
         "kai.go",
@@ -40,6 +41,7 @@ go_library(
         "//pkg/util/log",
         "@com_github_json_iterator_go//:go",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@io_k8s_api//apps/v1:apps",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apiextensions_apiserver//pkg/apis/apiextensions/v1:apiextensions",
@@ -69,6 +71,7 @@ go_library(
 dd_agent_go_test(
     name = "kubeapiserver_test",
     srcs = [
+        "autoscalers_test.go",
         "deployments_test.go",
         "kai_test.go",
         "kube_capabilities_test.go",

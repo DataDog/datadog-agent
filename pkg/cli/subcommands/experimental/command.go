@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
+	schemafx "github.com/DataDog/datadog-agent/comp/core/schema/fx"
 	configcmd "github.com/DataDog/datadog-agent/pkg/cli/subcommands/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -50,7 +52,7 @@ func MakeCommand(globalParamsGetter func() configcmd.GlobalParams) *cobra.Comman
 
 		// Pre-validate YAML syntax BEFORE fxutil.OneShot loads the config via
 		// Viper. Without this, a tab-indented or malformed YAML produces a cryptic
-		// Viper loader error ("unable to load Datadog config file: ...") before our
+		// Viper loader error ("unable to load Datadog config: ...") before our
 		// friendly checkYAMLSyntax ever runs.
 		if globalParams.ConfFilePath != "" {
 			// configName is always non-empty here; the thin adapter enforces
@@ -76,7 +78,7 @@ func MakeCommand(globalParamsGetter func() configcmd.GlobalParams) *cobra.Comman
 				),
 				LogParams: log.ForOneShot(globalParams.LoggerName, "off", true),
 			}),
-			core.Bundle(),
+			core.Bundle(core.WithSchema(schemafx.Module())),
 		)
 	}
 
@@ -95,6 +97,6 @@ type experimentalParams struct {
 	args       []string
 }
 
-func runExperimentalCheck(logger log.Component, cfg config.Component, p *experimentalParams) error {
-	return runConfigCheck(logger, cfg, p.noAPICheck)
+func runExperimentalCheck(logger log.Component, cfg config.Component, schemaComp schema.Component, p *experimentalParams) error {
+	return runConfigCheck(logger, cfg, schemaComp, p.noAPICheck)
 }

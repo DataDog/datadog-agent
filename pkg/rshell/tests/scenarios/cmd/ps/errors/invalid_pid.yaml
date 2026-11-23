@@ -1,0 +1,9 @@
+description: ps -p with a non-numeric PID exits with code 1.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps -p notapid
+expect:
+  stderr_contains:
+    - "invalid PID"
+  exit_code: 1

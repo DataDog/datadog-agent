@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
@@ -27,7 +28,7 @@ func validate(ctx context.Context, client *http.Client, endpoint, apiKey string,
 	if apiKey == "" {
 		return discovery{reason: phonehomedef.ReasonInvalidCredentials, delay: slowRetry}
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"/api/v2/validate", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimSuffix(endpoint, "/")+"/api/v2/validate", nil)
 	if err != nil {
 		return discovery{reason: phonehomedef.ReasonInvalidEndpoint, delay: slowRetry}
 	}

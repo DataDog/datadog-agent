@@ -1,0 +1,14 @@
+# vuln-hunt 2026-05-18-initial-audit / var_expand H6.
+# A non-ASCII byte inside a `$VAR` reference terminates the identifier at
+# the boundary: parser treats the ASCII-letter prefix as the var name and
+# the remaining bytes as literal text. The recorded behaviour for `$VÀR`
+# is `$V` (empty) followed by literal `ÀR`. Replaces the original audit's
+# "manual" verdict line with a checked-in artifact.
+description: Non-ASCII byte in a $VAR reference terminates the identifier at the boundary.
+input:
+  script: |+
+    echo "[$VÀR]"
+expect:
+  stdout: "[ÀR]\n"
+  stderr: ""
+  exit_code: 0

@@ -8,6 +8,7 @@
 package autoscalers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -27,6 +28,12 @@ import (
 var (
 	ddRequests = telemetryimpl.GetCompatComponent().NewCounterWithOpts("", "datadog_requests",
 		[]string{"status", le.JoinLeaderLabel}, "Counter of requests made to Datadog",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	ddRequestsInflight = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("", "datadog_requests_inflight",
+		[]string{le.JoinLeaderLabel}, "Number of metric requests to Datadog currently in flight",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	ddRequestsParallelLimit = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("", "datadog_requests_parallel_limit",
+		[]string{le.JoinLeaderLabel}, "Configured maximum number of parallel metric requests to Datadog per query batch",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	metricsEval = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("", "external_metrics_processed_value",
 		[]string{"metric", le.JoinLeaderLabel}, "value processed from querying Datadog",
@@ -53,6 +60,10 @@ var (
 		[]string{"endpoint", le.JoinLeaderLabel}, "maximum number of queries allowed in the period",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
+
+func init() {
+	ddRequestsInflight.Set(0, le.JoinLeaderValue)
+}
 
 // Point represents a metric data point
 type Point struct {
@@ -83,6 +94,12 @@ func getMinRemainingRequestsTracker() *minTracker {
 	return minRemainingRequestsTracker
 }
 
+func (p *Processor) queryMetricsWithTelemetry(from, to int64, query string) ([]datadog.Series, error) {
+	ddRequestsInflight.Inc(le.JoinLeaderValue)
+	defer ddRequestsInflight.Dec(le.JoinLeaderValue)
+	return p.datadogClient.QueryMetrics(from, to, query)
+}
+
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
 // Queries must be validated by QueryExternalMetric before calling this function.
 // It should ALWAYS return either: (nil, err) or (map[string]Point, nil)
@@ -96,7 +113,7 @@ func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []stri
 
 	batchedQuery := strings.Join(ddQueries, ",")
 	currentTimeUnix := currentTime.Unix()
-	seriesSlice, err := p.datadogClient.QueryMetrics(currentTime.Add(-timeWindow).Unix(), currentTimeUnix, batchedQuery)
+	seriesSlice, err := p.queryMetricsWithTelemetry(currentTime.Add(-timeWindow).Unix(), currentTimeUnix, batchedQuery)
 	if err != nil {
 		apiErr := NewAPIError(err)
 		switch {
@@ -110,6 +127,9 @@ func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []stri
 		case apiErr.Code == OtherHTTPStatusCodeAPIError:
 			ddRequests.Inc("other_http_error", le.JoinLeaderValue)
 			log.Debugf("Error while executing queries %v, err: %v", ddQueries, err)
+		case errors.Is(err, context.DeadlineExceeded):
+			ddRequests.Inc("timeout", le.JoinLeaderValue)
+			log.Debugf("Timeout while executing a batch of %d queries: %v", ddQueriesLen, err)
 		default:
 			ddRequests.Inc("unknown_error", le.JoinLeaderValue)
 			log.Debugf("Error while executing queries %v, err: %v", ddQueries, err)

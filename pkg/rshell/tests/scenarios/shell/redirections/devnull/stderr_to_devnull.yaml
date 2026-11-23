@@ -1,0 +1,8 @@
+description: Redirect stderr to /dev/null suppresses error messages.
+input:
+  script: |+
+    cat nonexistent_file 2>/dev/null
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

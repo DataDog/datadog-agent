@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !e2eunit
-
 package installer
 
 import (
@@ -403,6 +401,168 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 	s.AssertSuccessfulConfigStopExperiment()
 }
 
+// TestStalePromotedBackupIsNotRestored is a regression test for AGENT-17031: a backup left
+// behind by a promotion whose cleanup failed has no deployment ID and must never be restored.
+func (s *testAgentConfigSuite) TestStalePromotedBackupIsNotRestored() {
+	configRoot := windowsagent.DefaultConfigRoot
+	configBackupRoot := configRoot + "-exp"
+	checkConfigDir := configRoot + `\conf.d\e2e_rollback.d`
+
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+	s.T().Cleanup(func() { _ = s.Env().RemoteHost.RemoveAll(checkConfigDir) })
+
+	config := ConfigExperiment{
+		ID: "config-1",
+		Files: []ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_to_console": false}`),
+			},
+			{
+				Path:     "/conf.d/e2e_rollback.d/conf.yaml",
+				Contents: json.RawMessage(`{"instances": [{}]}`),
+			},
+		},
+	}
+	s.mustStartConfigExperiment(config)
+	s.mustPromoteConfigExperiment(config)
+
+	// Simulate a partially deleted backup: no deployment ID, no check config, older datadog.yaml.
+	s.Require().NoError(s.Env().RemoteHost.MkdirAll(configBackupRoot))
+	_, err := s.Env().RemoteHost.WriteFile(configBackupRoot+`\datadog.yaml`, []byte("log_to_console: true\n"))
+	s.Require().NoError(err, "should write the stale backup")
+
+	// Act
+	s.mustStopConfigExperiment()
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasConfigState(consts.AgentPackage).
+		WithStableConfigEqual(config.ID)
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", false).
+		HasDDAgentUserFileAccess().
+		FileExists(checkConfigDir+`\conf.yaml`, "promoted check config should be kept").
+		NoDirExists(configBackupRoot, "stale backup should be deleted")
+}
+
+// TestRollbackRemovesOnlyExperimentConfig tests that a rollback removes the config files the
+// experiment added and keeps files the experiment did not manage.
+func (s *testAgentConfigSuite) TestRollbackRemovesOnlyExperimentConfig() {
+	configRoot := windowsagent.DefaultConfigRoot
+	userCheckDir := configRoot + `\conf.d\e2e_user.d`
+	experimentCheckDir := configRoot + `\conf.d\e2e_rollback.d`
+	unmanagedDir := configRoot + `\conf.d\e2e_notes.d`
+
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+	s.T().Cleanup(func() {
+		for _, dir := range []string{userCheckDir, experimentCheckDir, unmanagedDir} {
+			_ = s.Env().RemoteHost.RemoveAll(dir)
+		}
+	})
+
+	s.Require().NoError(s.Env().RemoteHost.MkdirAll(userCheckDir))
+	_, err := s.Env().RemoteHost.WriteFile(userCheckDir+`\conf.yaml`, []byte("instances:\n  - {}\n"))
+	s.Require().NoError(err, "should write the user check config")
+
+	config := ConfigExperiment{
+		ID: "config-1",
+		Files: []ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_to_console": false}`),
+			},
+			{
+				Path:     "/conf.d/e2e_rollback.d/conf.yaml",
+				Contents: json.RawMessage(`{"instances": [{}]}`),
+			},
+		},
+	}
+	s.mustStartConfigExperiment(config)
+	s.Require().Host(s.Env().RemoteHost).
+		FileExists(experimentCheckDir + `\conf.yaml`)
+
+	// A file the experiment does not manage, created while it runs, is absent from the backup.
+	s.Require().NoError(s.Env().RemoteHost.MkdirAll(unmanagedDir))
+	_, err = s.Env().RemoteHost.WriteFile(unmanagedDir+`\notes.txt`, []byte("not a config file\n"))
+	s.Require().NoError(err, "should write the unmanaged file")
+
+	// Act
+	s.mustStopConfigExperiment()
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", true).
+		HasDDAgentUserFileAccess().
+		NoDirExists(experimentCheckDir, "check config added by the experiment should be removed").
+		FileExists(userCheckDir+`\conf.yaml`, "pre-existing check config should be kept").
+		FileExists(unmanagedDir+`\notes.txt`, "unmanaged file should be kept").
+		NoDirExists(configRoot+"-exp", "backup should be deleted")
+}
+
+// TestFailedConfigWriteRollsBack tests that a config experiment that fails while applying its
+// operations restores stable immediately instead of leaving an experiment in progress.
+func (s *testAgentConfigSuite) TestFailedConfigWriteRollsBack() {
+	configRoot := windowsagent.DefaultConfigRoot
+	failedCheckDir := configRoot + `\conf.d\e2e_failed.d`
+
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+	s.T().Cleanup(func() { _ = s.Env().RemoteHost.RemoveAll(failedCheckDir) })
+
+	// Act: the first operation applies, then the JSON patch fails on the file it just created.
+	failedConfig := ConfigExperiment{
+		ID: "failed-config",
+		Files: []ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_to_console": false}`),
+			},
+			{
+				Path:          "/conf.d/e2e_failed.d/conf.yaml",
+				FileOperation: "patch",
+				Contents:      json.RawMessage(`[{"op": "remove", "path": "/missing"}]`),
+			},
+		},
+	}
+	_, err := s.Installer().StartConfigExperiment(consts.AgentPackage, failedConfig)
+	s.Require().Error(err, "config experiment with a failing operation should not start")
+
+	// Assert
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", true).
+		NoDirExists(failedCheckDir, "check config created by the failed operation should be removed").
+		NoDirExists(configRoot+"-exp", "backup should be deleted")
+	content, err := s.Env().RemoteHost.ReadFile(configRoot + `\datadog.yaml`)
+	s.Require().NoError(err, "should read stable datadog.yaml")
+	s.Require().NotContains(string(content), "log_to_console", "stable datadog.yaml should be restored")
+
+	// A new experiment can start, so the failed one is not left in progress.
+	config := ConfigExperiment{
+		ID: "config-1",
+		Files: []ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_to_console": false}`),
+			},
+		},
+	}
+	s.mustStartConfigExperiment(config)
+	s.mustPromoteConfigExperiment(config)
+}
+
 // TestManagedConfigActiveAfterUpgrade tests that the Agent's config is preserved after a package update.
 //
 // Partial regression test for WINA-1556, making sure that installation does not
@@ -628,4 +788,13 @@ func (s *testAgentConfigSuite) mustPromoteConfigExperiment(config ConfigExperime
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 
 	s.AssertSuccessfulConfigPromoteExperiment(config.ID)
+}
+
+func (s *testAgentConfigSuite) mustStopConfigExperiment() {
+	s.WaitForDaemonToStop(func() {
+		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should respond to request")
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
+
+	s.AssertSuccessfulConfigStopExperiment()
 }

@@ -1,0 +1,21 @@
+# skip: allowed_commands is rshell-specific sandbox behaviour with no bash equivalent.
+skip_assert_against_bash: true
+description: A blocked command with input redirection from an allowed file does not leak redirected contents.
+setup:
+  files:
+    - path: secret.txt
+      content: |
+        TOP SECRET
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:echo
+  script: |+
+    cat < secret.txt
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr: |+
+    rshell: cat: command not allowed
+  exit_code: 0

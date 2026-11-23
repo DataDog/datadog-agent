@@ -7,14 +7,20 @@
 // inventory wire payload.
 package agentmetadata
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+)
 
 type agentMetadata map[string]interface{}
 
 // RawFile is a scrubbed configuration file and the hash of its scrubbed content.
 type RawFile struct {
-	RawConfig string `json:"raw_config"`
-	Hash      string `json:"hash"`
+	RawConfig string                  `json:"raw_config"`
+	Hash      string                  `json:"hash"`
+	Secrets   []scrubber.ConfigSecret `json:"secrets,omitempty"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -24,6 +30,11 @@ type Payload struct {
 	Metadata      agentMetadata      `json:"agent_metadata"`
 	FilesMetadata map[string]RawFile `json:"files_metadata,omitempty"`
 	UUID          string             `json:"uuid"`
+}
+
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgent
 }
 
 // MarshalJSON serialization a Payload to JSON

@@ -161,6 +161,12 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 		if endpoint.IsMRF && !mrfActive {
 			continue
 		}
+		if endpoint.IsWaitingForDelegatedAuth() {
+			// Dumps are one-shot: skip the destination still waiting for a delegated-auth key
+			// rather than send with an empty one. Other destinations still receive the dump.
+			seclog.Warnf("skipping activity dump destination [%s] while its delegated-auth API key is pending", endpoint.Host)
+			continue
+		}
 
 		url := utils.GetEndpointURL(endpoint, "api/v2/secdump")
 

@@ -1,0 +1,13 @@
+description: The T command branches only if no substitution was made.
+setup:
+  files:
+    - path: input.txt
+      content: "foo bar\nhello world\nfoo baz\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/foo/FOO/; T skip; s/$/ MATCHED/; :skip' input.txt
+expect:
+  stdout: "FOO bar MATCHED\nhello world\nFOO baz MATCHED\n"
+  stderr: ""
+  exit_code: 0

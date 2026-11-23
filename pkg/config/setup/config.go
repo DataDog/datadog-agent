@@ -21,8 +21,6 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
-	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
@@ -221,15 +219,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 	if p.HTTPS != "" || p.HTTP != "" || len(p.NoProxy) > 0 {
 		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceConfigPostInit)
 		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceConfigPostInit)
-
-		// If this is set to an empty []string, viper will have a type conflict when merging
-		// this config during secrets resolution. It unmarshals empty yaml lists to type
-		// []interface{}, which will then conflict with type []string and fail to merge.
-		noProxy := make([]interface{}, len(p.NoProxy))
-		for idx := range p.NoProxy {
-			noProxy[idx] = p.NoProxy[idx]
-		}
-		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceConfigPostInit)
+		config.Set("proxy.no_proxy", slices.Clone(p.NoProxy), pkgconfigmodel.SourceConfigPostInit)
 	}
 }
 
@@ -278,8 +268,11 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 	return nil
 }
 
-// LoadDatadog reads config files and initializes config with decrypted secrets
-func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component) error {
+// LoadDatadog reads config files and initializes config with decrypted secrets. The configuration is validated against
+// its schema with schemaValidator. With ignoreMissingConfigFile, a main config file that does not exist is not an
+// error: LoadDatadog skips the extra config files and runs every post-load step (proxy, secrets, API key sanitization,
+// FIPS, ...).
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, schemaValidator pkgconfigmodel.SchemaValidator, ignoreMissingConfigFile bool) error {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -289,7 +282,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	err := loadCustom(config)
+	err := loadCustom(config, schemaValidator, config, ignoreMissingConfigFile)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			return log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -354,25 +347,9 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	// during config initialization (see bindDelegatedAuthConfig for examples)
 
 	// Get global provider config from delegated_auth prefix (used for all instances)
-	var providerConfig common.ProviderConfig
-	provider := config.GetString("delegated_auth.provider")
-	switch provider {
-	case "aws":
-		providerConfig = &cloudauthconfig.AWSProviderConfig{
-			Region: config.GetString("delegated_auth.aws.region"),
-		}
-	case "":
-		// Empty provider means auto-detect, so ProviderConfig stays nil even when
-		// delegated_auth.aws.region is set: a non-nil ProviderConfig means "explicitly configured"
-		// downstream and would skip provider detection entirely. The component reads the configured
-		// region itself once detection picks AWS.
-	}
+	providerConfig := defaultProviderConfigForConfig(config)
 
-	startupCtx := ctx
-	cancelStartup := func() {}
-	if timeout := config.GetInt("delegated_auth.startup_timeout_secs"); timeout > 0 {
-		startupCtx, cancelStartup = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
-	}
+	startupCtx, cancelStartup := delegatedAuthStartupContext(ctx, config)
 	defer cancelStartup()
 
 	// Scan all registered prefixes to find which ones have delegated auth enabled
@@ -398,6 +375,10 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		}
 	}
 
+	// Warn before registering: a synchronous resolution replaces the directive with the key,
+	// which would hide it from the direct-send warning.
+	WarnDirectSendDelegatedAuthDirectives(config)
+
 	// Register directives embedded in the supported additional endpoint settings.
 	configureAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
 	configureListShapeAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
@@ -405,19 +386,36 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	return ctx.Err()
 }
 
-// LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
-func LoadSystemProbe(config pkgconfigmodel.Config) error {
-	return loadCustom(config)
+func delegatedAuthStartupContext(ctx context.Context, config pkgconfigmodel.Config) (context.Context, context.CancelFunc) {
+	if timeout := config.GetInt("delegated_auth.startup_timeout_secs"); timeout > 0 {
+		return context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	}
+	return ctx, func() {}
 }
 
-// loadCustom reads config into the provided config object
-func loadCustom(config pkgconfigmodel.Config) error {
-	log.Info("Starting to load the configuration")
-	if err := config.ReadInConfig(); err != nil {
+// LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe. The
+// configuration is validated against its schema with schemaValidator.
+func LoadSystemProbe(config pkgconfigmodel.Config, schemaValidator pkgconfigmodel.SchemaValidator) error {
+	// schema enforcement is configured in datadog.yaml, which is always loaded before system-probe.yaml
+	if err := loadCustom(config, schemaValidator, Datadog(), false); err != nil {
 		return err
 	}
-	config.Validate()
+	WarnDirectSendDelegatedAuthDirectives(config)
 	return nil
+}
+
+// loadCustom reads config into the provided config object and validates it with schemaValidator. If 'schema.enforce' is
+// true in datadog.yaml, invalid settings are reverted to their default. With ignoreMissingConfigFile, a main config
+// file that does not exist is not an error.
+func loadCustom(config pkgconfigmodel.Config, schemaValidator pkgconfigmodel.SchemaValidator, ddConf pkgconfigmodel.Config, ignoreMissingConfigFile bool) error {
+	log.Info("Starting to load the configuration")
+	err := config.ReadInConfig()
+	config.Validate(schemaValidator, ddConf.GetBool("schema.enforce"))
+	if ignoreMissingConfigFile && errors.Is(err, pkgconfigmodel.ErrMissingConfigFile) {
+		log.Info("Main config file does not exist, continuing with the other configuration sources")
+		return nil
+	}
+	return err
 }
 
 // setupFipsEndpoints overwrites the Agent endpoint for outgoing data to be sent to the local FIPS proxy. The local FIPS
@@ -606,7 +604,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 			}
 		})
 		if _, err = secretResolver.Resolve(yamlConf, origin, "", "", true); err != nil {
-			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
+			return fmt.Errorf("unable to decrypt secrets in the configuration: %v", err)
 		}
 	}
 	log.Info("Finished resolving secrets")
@@ -696,6 +694,32 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 						}
 					}
 					modifyValue[elem] = newValue
+				} else {
+					iterateValue = modifyValue[elem]
+				}
+			case map[string]string:
+				if k == len(trailingElements)-1 {
+					modifyValue[elem] = fmt.Sprint(newValue)
+				} else {
+					iterateValue = modifyValue[elem]
+				}
+			case map[string][]string:
+				if k == len(trailingElements)-1 {
+					switch values := newValue.(type) {
+					case string:
+						modifyValue[elem] = []string{values}
+					case []string:
+						modifyValue[elem] = values
+					case []interface{}:
+						converted := make([]string, len(values))
+						for i, v := range values {
+							converted[i] = fmt.Sprint(v)
+						}
+						modifyValue[elem] = converted
+					default:
+						updateErr = fmt.Errorf("cannot assign value of type %T to setting '%s' of type %T", newValue, settingPath, iterateValue)
+						return nil, false
+					}
 				} else {
 					iterateValue = modifyValue[elem]
 				}

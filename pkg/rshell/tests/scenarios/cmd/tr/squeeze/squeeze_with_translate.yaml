@@ -1,0 +1,13 @@
+description: tr -s squeezes while translating.
+setup:
+  files:
+    - path: input.txt
+      content: "aabbbcccc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat input.txt | tr -s 'abc' 'xyz'
+expect:
+  stdout: "xyz\n"
+  stderr: ""
+  exit_code: 0

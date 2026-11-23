@@ -47,8 +47,8 @@ Common causes:
   A value greater than `0` means the encoded key is present.
 
 - **Cluster security policy:** host-wide eBPF profiling requires host-level access, including `hostPID: true`, host kernel mounts, and eBPF-related Linux capabilities. If your cluster uses Pod Security Admission, OPA Gatekeeper, Kyverno, or another admission controller, make sure it allows the settings from the deployment guide you are using. The Host Profiler does not run as a privileged container.
-- **SELinux profile errors:** the deployment examples use the `spc_t` SELinux type. If that type is unavailable in your environment, replace it with an equivalent type supported by your distribution and security policy. See the [Datadog Helm](bundled/helm.md) guide or the inline `seLinuxOptions` guidance in the [Datadog Operator](bundled/operator.md), [OpenTelemetry Helm](standalone/helm/collector-values.yaml), or [OpenTelemetry Operator](standalone/operator/collector.yaml) configuration. The replacement must allow the host and process access required by the Host Profiler.
-- **Seccomp or AppArmor profile errors:** in the OpenTelemetry deployment paths, an init container installs the seccomp profile automatically. If the pod is stuck in init, inspect the init container logs. In the Datadog Operator preview path, seccomp is optional and must be provisioned manually if you enable it. AppArmor is optional; if you enable it, make sure the profile is loaded on every node where the Host Profiler can run.
+- **SELinux profile errors:** the deployment examples use the `spc_t` SELinux type. If that type is unavailable in your environment, replace it with an equivalent type supported by your distribution and security policy. See the [Datadog Helm](bundled/helm.md) and [Datadog Operator](bundled/operator.md) guides, or the [OpenTelemetry Helm](standalone/helm/collector-values.yaml) and [OpenTelemetry Operator](standalone/operator/collector.yaml) configuration. The replacement must allow the host and process access required by the Host Profiler.
+- **Seccomp or AppArmor profile errors:** an init container installs the seccomp profile automatically in all deployment paths. If the pod is stuck in init, inspect the init container logs. AppArmor is optional; if you enable it, make sure the profile is loaded on every node where the Host Profiler can run.
 - **Unsupported environment:** this preview requires Kubernetes nodes that support host-level DaemonSets. Serverless, virtual-node, and restricted-node environments are not supported. See [Supported environments](README.md#supported-environments).
 
 ## Profiles do not appear in Datadog
@@ -71,7 +71,7 @@ If profiles appear for some workloads but not for a specific process:
 - Make sure the workload is running on a node where the Host Profiler DaemonSet is scheduled.
 - Make sure the process runs long enough to be sampled and exported. Very short-lived processes may not appear immediately.
 - Set `OTEL_SERVICE_NAME` or `DD_SERVICE` on the workload so profiles appear under the expected service. If neither environment variable is set, the Host Profiler infers the service name from the binary name, such as `java` or `python` for interpreted workloads.
-- Set `DD_ENV` and `DD_VERSION` for richer filtering in the Datadog Profiler UI. Support for equivalent metadata from `OTEL_RESOURCE_ATTRIBUTES` is in progress.
+- Set `DD_ENV` and `DD_VERSION`, or `deployment.environment.name` and `service.version` in `OTEL_RESOURCE_ATTRIBUTES`, for richer filtering in the Datadog Profiler UI.
 
 ## Function names are missing or hard to read
 

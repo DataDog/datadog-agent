@@ -1,0 +1,9 @@
+description: ps with unknown flag exits with code 1 and prints an error.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps --notaflag
+expect:
+  stderr_contains:
+    - "ps:"
+  exit_code: 1

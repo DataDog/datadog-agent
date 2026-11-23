@@ -366,6 +366,23 @@ func TestResolveTokenURL(t *testing.T) {
 		assert.Equal(t, "https://intake.example.internal:8443/api/v2/intake-key", got)
 	})
 
+	t.Run("protocol-relative Datadog target uses its API domain", func(t *testing.T) {
+		got, err := resolveTokenURL(cfg, "//orchestrator.second-org.us3.datadoghq.com")
+		require.NoError(t, err)
+		assert.Equal(t, "https://api.us3.datadoghq.com/api/v2/intake-key", got)
+	})
+
+	t.Run("protocol-relative custom target preserves port and path", func(t *testing.T) {
+		got, err := resolveTokenURL(cfg, "//intake.example.internal:8443/proxy")
+		require.NoError(t, err)
+		assert.Equal(t, "https://intake.example.internal:8443/proxy/api/v2/intake-key", got)
+	})
+
+	t.Run("relative target without a host is rejected", func(t *testing.T) {
+		_, err := resolveTokenURL(cfg, "///orchestrator.example.com")
+		require.ErrorContains(t, err, "must use HTTPS")
+	})
+
 	t.Run("custom DNS target rejects plaintext HTTP", func(t *testing.T) {
 		_, err := resolveTokenURL(cfg, "http://intake.example.com")
 		require.ErrorContains(t, err, "must use HTTPS")

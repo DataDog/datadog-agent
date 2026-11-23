@@ -1,0 +1,17 @@
+description: grep -- separates flags from pattern.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        -v
+        foo
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -- -v file.txt
+expect:
+  stdout: |+
+    -v
+  stderr: ""
+  exit_code: 0

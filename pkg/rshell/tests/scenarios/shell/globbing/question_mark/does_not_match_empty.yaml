@@ -1,0 +1,18 @@
+description: Question mark does not match empty string - it requires exactly one character.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: ab.txt
+      content: ""
+    - path: .txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo ?.txt
+expect:
+  stdout: |+
+    a.txt
+  stderr: ""
+  exit_code: 0

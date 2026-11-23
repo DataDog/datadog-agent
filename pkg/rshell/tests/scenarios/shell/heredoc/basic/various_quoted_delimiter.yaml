@@ -1,0 +1,11 @@
+description: Heredoc delimiter can be partially quoted.
+input:
+  script: |+
+    cat <<E'N'D
+    single
+    END
+expect:
+  stdout: |+
+    single
+  stderr: ""
+  exit_code: 0

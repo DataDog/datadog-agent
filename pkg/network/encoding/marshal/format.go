@@ -50,7 +50,7 @@ func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[network.Via]RouteIdx, usmEncoders []USMEncoder, dnsFormatter *dnsFormatter, ipc ipCache, resolvConfFormatter *resolvConfFormatter, tagsSet *indexedset.IndexedSet[string], sysProbePid uint32) {
+func FormatConnection(builder *model.ConnectionBuilder, conn *network.ConnectionStats, routes map[network.Via]RouteIdx, usmEncoders []USMEncoder, dnsFormatter *dnsFormatter, ipc ipCache, resolvConfFormatter *resolvConfFormatter, tagsSet *indexedset.IndexedSet[string], sysProbePid uint32) {
 
 	builder.SetPid(int32(conn.Pid))
 
@@ -63,6 +63,12 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		w.SetPort(int32(conn.SPort))
 		w.SetContainerId(containerID)
 	})
+	// tells process-agent the laddr container was reattributed, so it doesn't infer it from a PID map mismatch
+	if conn.NetNSOriginalContainerID != nil {
+		if originalID, _ := conn.NetNSOriginalContainerID.Get().(string); originalID != "" {
+			builder.SetNetnsOriginalContainerId(originalID)
+		}
+	}
 
 	containerID = ""
 	if conn.ContainerID.Dest != nil {
@@ -134,14 +140,14 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		dynamicTags = mergeDynamicTags(dynamicTags, certInfo.GetDynamicTags())
 	}
 
-	conn.StaticTags |= staticTags
-	tags, tagChecksum := formatTags(conn, tagsSet, dynamicTags)
+	// conn is shared with the caller, so the encoder tags are merged locally
+	tags, tagChecksum := formatTags(conn, conn.StaticTags|staticTags, tagsSet, dynamicTags)
 	for _, t := range tags {
 		builder.AddTags(t)
 	}
 	builder.SetTagsChecksum(tagChecksum)
 
-	resolvConfFormatter.FormatResolvConfIdx(&conn, builder)
+	resolvConfFormatter.FormatResolvConfIdx(conn, builder)
 
 	builder.SetSystemProbeConn(sysProbePid == conn.Pid)
 }
@@ -280,10 +286,10 @@ func formatRouteIdx(v *network.Via, routes map[network.Via]RouteIdx) int32 {
 	return int32(len(routes)) - 1
 }
 
-func formatTags(c network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], connDynamicTags map[string]struct{}) ([]uint32, uint32) {
+func formatTags(c *network.ConnectionStats, connStaticTags uint64, tagsSet *indexedset.IndexedSet[string], connDynamicTags map[string]struct{}) ([]uint32, uint32) {
 	var checksum uint32
 
-	staticTags := tls.GetStaticTags(c.StaticTags)
+	staticTags := tls.GetStaticTags(connStaticTags)
 	tagsIdx := make([]uint32, 0, len(staticTags)+len(connDynamicTags)+len(c.Tags))
 
 	for _, tag := range staticTags {

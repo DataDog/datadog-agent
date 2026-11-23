@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/tmpl"
 	workflowjsonschema "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/workflowjsonschema"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/scriptprocess"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -98,13 +99,8 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 	}
 
 	cmd := newPowershellCommand(ctx, evaluatedScript, script.AllowedEnvVars)
-	stdoutWriter, stderrWriter := newLimitedStdoutStderrWritersPair(defaultMaxOutputSize)
-	cmd.Stdout = stdoutWriter
-	cmd.Stderr = stderrWriter
-	start := time.Now()
-	err = cmd.Run()
-
-	if stdoutWriter.LimitReached() || stderrWriter.LimitReached() {
+	result, err := scriptprocess.Run(ctx, cmd, defaultMaxOutputSize)
+	if errors.Is(err, scriptprocess.ErrOutputLimitExceeded) {
 		return nil, newOutputLimitError(defaultMaxOutputSize)
 	}
 
@@ -112,15 +108,15 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, fmt.Errorf("script execution timed out after %d seconds", inputs.Timeout)
 		}
-		return nil, fmt.Errorf("failed to execute script: %w, stderr %s", err, stderrWriter.String())
+		return nil, fmt.Errorf("failed to execute script: %w, stderr %s", err, result.Stderr)
 	}
 
 	return &RunPredefinedPowershellScriptOutputs{
 		ExecutedCommand: cmd.String(),
-		ExitCode:        cmd.ProcessState.ExitCode(),
-		Stdout:          formatPowershellOutput(stdoutWriter.String(), inputs.NoStripTrailingNewline),
-		Stderr:          formatPowershellOutput(stderrWriter.String(), inputs.NoStripTrailingNewline),
-		DurationMillis:  int(time.Since(start).Milliseconds()),
+		ExitCode:        result.ExitCode,
+		Stdout:          formatPowershellOutput(result.Stdout, inputs.NoStripTrailingNewline),
+		Stderr:          formatPowershellOutput(result.Stderr, inputs.NoStripTrailingNewline),
+		DurationMillis:  int(result.Duration.Milliseconds()),
 	}, nil
 }
 

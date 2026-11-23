@@ -1,0 +1,15 @@
+description: A FILE operand whose parent directory does not exist fails with exit 1.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf "hi\n" | tee missing_dir/out.txt
+expect:
+  stdout: |+
+    hi
+  stderr: |+
+    tee: 'missing_dir/out.txt': openat missing_dir/out.txt: no such file or directory
+  stderr_windows: |+
+    tee: 'missing_dir/out.txt': openat missing_dir\out.txt: no such file or directory
+  exit_code: 1
+skip_assert_against_bash: true

@@ -1,0 +1,8 @@
+description: Negation of a for loop with an empty word list inverts exit code 0 to 1.
+input:
+  script: |+
+    ! for i in; do echo never; done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

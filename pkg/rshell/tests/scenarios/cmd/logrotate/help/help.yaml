@@ -1,0 +1,18 @@
+# skip: --help output is rshell-specific.
+skip_assert_against_bash: true
+description: logrotate --help prints usage to stdout and exits 0 in remediation mode.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate --help
+expect:
+  stdout_contains:
+    - "Usage: logrotate"
+    - "--size"
+    - "--force"
+    - "--dry-run"
+    - "--verbose"
+    - "Symlinked write targets are rejected"
+  stderr: |+
+  exit_code: 0

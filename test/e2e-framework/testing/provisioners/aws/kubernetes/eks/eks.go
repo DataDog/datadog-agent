@@ -23,7 +23,8 @@ const (
 	provisionerBaseID = "aws-eks-"
 )
 
-func eksDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
+// DiagnoseFunc is the diagnose function for the EKS provisioner
+func DiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	dumpResult, err := awskubernetes.DumpEKSClusterState(ctx, stackName)
 	if err != nil {
 		return "", err
@@ -59,7 +60,7 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 		return eks.RunWithEnv(ctx, awsEnv, env, runParams)
 	}, params.extraConfigParams)
 
-	provisioner.SetDiagnoseFunc(eksDiagnoseFunc)
+	provisioner.SetDiagnoseFunc(DiagnoseFunc)
 
 	return provisioner
 }

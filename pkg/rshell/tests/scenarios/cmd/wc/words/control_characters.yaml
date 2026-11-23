@@ -1,0 +1,13 @@
+description: wc -w treats control characters as non-space (counts as part of words).
+setup:
+  files:
+    - path: ctrl.txt
+      content: "a\x01b c\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -w ctrl.txt
+expect:
+  stdout: "2 ctrl.txt\n"
+  stderr: ""
+  exit_code: 0

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -35,6 +36,7 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -88,6 +90,18 @@ type ConnectionsCheck struct {
 	hostTagProvider *hosttags.HostTagProvider
 	tagger          tagger.Component
 	clock           clock.Clock
+}
+
+// hostTags returns the host tags for the payloads of a check run: the expected host tags and, on
+// ECS Fargate, the task's tags. The fargate_task: hostname already identifies the task; the tags
+// are sent so both CNM senders send the same ones. They're sorted and deduplicated, so encoding
+// them for each batch doesn't modify them.
+func (c *ConnectionsCheck) hostTags() []string {
+	hostTags := slices.Clone(c.hostTagProvider.GetHostTags())
+	taskTags, _ := fargate.ECSTaskTags(c.tagger)
+	hostTags = append(hostTags, taskTags...)
+	slices.Sort(hostTags)
+	return slices.Compact(hostTags)
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -179,7 +193,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 		c.dockerFilter.Filter(conns)
 	}
 	// Resolve the Raddr side of connections for local containers
-	c.localresolver.Resolve(conns)
+	netnsReattributed := c.localresolver.Resolve(conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
@@ -199,18 +213,10 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	if listeners == nil {
 		listeners = make(map[remoteservice.ListenKey]int32)
 	}
-	for _, cx := range conns.Conns {
-		// USM supports TCP only; skip UDP connections.
-		if cx.IntraHost && cx.Pid > 0 && cx.Laddr.Port > 0 && cx.Type == model.ConnectionType_tcp {
-			key := remoteservice.ListenKey{IP: cx.Laddr.Ip, Port: cx.Laddr.Port}
-			if _, exists := listeners[key]; !exists {
-				listeners[key] = cx.Pid
-			}
-		}
-	}
+	addConnectionListeners(listeners, conns.Conns, netnsReattributed)
 
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, c.processNameExtractor, conns.ResolvConfs, iisTags, procCacheTags, listeners)
+	messages := batchConnections(c.hostInfo, c.hostTags(), getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, c.processNameExtractor, conns.ResolvConfs, iisTags, procCacheTags, listeners, netnsReattributed)
 	return StandardRunResult(messages), nil
 }
 
@@ -458,7 +464,7 @@ func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
 func batchConnections(
 	hostInfo *HostInfo,
-	hostTagProvider *hosttags.HostTagProvider,
+	hostTags []string,
 	containerTagProvider func(string) ([]string, error),
 	processTagProvider func(int32) ([]string, error),
 	maxConnsPerMessage int,
@@ -481,6 +487,7 @@ func batchConnections(
 	iisTags map[string][]string,
 	procCacheTags map[uint32][]string,
 	listeners map[remoteservice.ListenKey]int32,
+	netnsReattributed map[*model.Connection]string,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), maxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -538,9 +545,17 @@ func batchConnections(
 				}
 			}
 
+			// a socket attributed to its network namespace's container is still owned by the
+			// proxy process, so PID-keyed data must keep describing the proxy, not the pod
+			processCID, reattributed := netnsReattributed[c]
+
 			c.LocalContainerTagsIndex = -1
 			if c.Laddr.ContainerId != "" {
-				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
+				if reattributed {
+					ctrIDForPID[c.Pid] = processCID
+				} else {
+					ctrIDForPID[c.Pid] = c.Laddr.ContainerId
+				}
 				if containerTagProvider != nil {
 					if entityTags, err := containerTagProvider(c.Laddr.ContainerId); err != nil {
 						log.Debugf("error getting tags for container %s: %v", c.Laddr.ContainerId, err)
@@ -556,7 +571,10 @@ func batchConnections(
 			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
 
 			// tags remap
-			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
+			var serviceCtx []string
+			if !reattributed {
+				serviceCtx = serviceExtractor.GetServiceContext(c.Pid)
+			}
 			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
 			if len(tagsStr) > 0 {
 				log.Debugf("batchConnections: pid=%d resolved tags from system-probe: %v", c.Pid, tagsStr)
@@ -572,7 +590,7 @@ func batchConnections(
 			}
 
 			// Get process tags and add them to the connection tags
-			if processTagProvider != nil {
+			if processTagProvider != nil && !reattributed {
 				if processTags, err := processTagProvider(c.Pid); err != nil {
 					log.Debugf("error getting tags for process %v: %v", c.Pid, err)
 				} else {
@@ -580,6 +598,8 @@ func batchConnections(
 				}
 			}
 
+			// process_name is kept for reattributed connections: it names the socket's owning process
+			// (for example ztunnel), not a service, and lets users find proxied traffic
 			if processNameExtractor != nil {
 				if name := processNameExtractor.GetProcessName(c.Pid); name != "" {
 					tagsStr = append(tagsStr, "process_name:"+name)
@@ -653,7 +673,7 @@ func batchConnections(
 
 		hostTagsIndex := -1
 		// Add host tags if needed
-		if hostTags := hostTagProvider.GetHostTags(); len(hostTags) > 0 {
+		if len(hostTags) > 0 {
 			hostTagsIndex = tagsEncoder.Encode(hostTags)
 		}
 
@@ -747,4 +767,22 @@ func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("failed to get network ID after %d attempts: %w", maxRetries, err)
+}
+
+// addConnectionListeners records the PID listening on each intra-host TCP address, without
+// overwriting entries already present.
+func addConnectionListeners(listeners map[remoteservice.ListenKey]int32, conns []*model.Connection, netnsReattributed map[*model.Connection]string) {
+	for _, cx := range conns {
+		// a reattributed socket's PID is the proxy's, so it must not name the service listening on the pod's address
+		if _, reattributed := netnsReattributed[cx]; reattributed {
+			continue
+		}
+		// USM supports TCP only; skip UDP connections.
+		if cx.IntraHost && cx.Pid > 0 && cx.Laddr.Port > 0 && cx.Type == model.ConnectionType_tcp {
+			key := remoteservice.ListenKey{IP: cx.Laddr.Ip, Port: cx.Laddr.Port}
+			if _, exists := listeners[key]; !exists {
+				listeners[key] = cx.Pid
+			}
+		}
+	}
 }

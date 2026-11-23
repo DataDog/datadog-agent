@@ -1,0 +1,14 @@
+description: Help for a Notes-only feature shows only the Notes section, with no orphan Supported/Not supported headers.
+skip_assert_against_bash: true
+input:
+  script: |+
+    help bash-divergences
+expect:
+  stdout: |+
+    bash-divergences - Intentional bash differences captured here. Currently: one shared time reference per Run().
+
+    Notes:
+      - rshell captures time.Now() once at the start of each Run() call and shares it across commands that need a reference time, such as find -mmin/-mtime and ls -l.
+      - Bash evaluates each command against its own invocation time. The difference matters only for long-running scripts where time-sensitive predicates are evaluated much later than Run() started.
+  stderr: ""
+  exit_code: 0

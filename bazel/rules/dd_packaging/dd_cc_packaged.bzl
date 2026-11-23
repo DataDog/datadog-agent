@@ -2,13 +2,13 @@
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
-load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
-load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath", "rewrite_rpaths")
+load("//bazel/rules/dd_strip:dd_strip.bzl", "dd_strip_symbols")
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "EMBEDDED_LIB_DIR", "rewrite_rpath", "rewrite_rpaths")
 
 def _dd_packaged_files_impl(ctx):
     install_dir = ctx.attr._install_dir[BuildSettingInfo].value
@@ -45,7 +45,7 @@ _dd_packaged_files_rule = rule(
             allow_files = True,
         ),
         "rpath": attr.string(
-            default = "{install_dir}/embedded/lib",
+            default = EMBEDDED_LIB_DIR,
         ),
         "_install_dir": attr.label(default = "@@//:install_dir"),
         "use_relative_rpaths": attr.bool(mandatory = True),
@@ -80,17 +80,17 @@ def _dd_cc_packaged_rule_impl(ctx):
 _dd_cc_packaged_rule = rule(
     implementation = _dd_cc_packaged_rule_impl,
     doc = """
-        Provides a convenience wrapper on top of a CcInfo or CcSharedLibraryInfo
-        This wrapper can be used just like the providers it wraps, but also
-        includes a list of files that should be installed alongside the wrapped object.
-        It is meant to be provided to dd_collect_dependencies which will walk the tree
+        A wrapper that adds a DdPackagingInfo provider to know which files need to be included with
+        a given library. It is meant to be provided to dd_collect_dependencies which will walk the tree
         to gather all installed files from all dependencies.
+
+        The wrapper acts as a pass-through for CcSharedLibraryInfo, so that cc targets can depend
+        on targets wrapped by this rule, such that the packaging-level dependency is also recorded.
     """,
     attrs = {
         "input": attr.label(
-            doc = "A CcInfo or CcSharedLibrary provider representing a shared library or an executable",
+            doc = "The shared library, executable or single-file target being packaged",
             mandatory = True,
-            providers = [[CcInfo], [CcSharedLibraryInfo]],
         ),
         "installed_files": attr.label_list(
             doc = "A list of files that should be installed alongside the packaged dependency",
@@ -104,6 +104,7 @@ _dd_cc_packaged_rule = rule(
 
 def _dd_cc_packaged_impl(name, input, version = "", installed_executables = {}, data = [], mode = "0644", libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
     patched_name = "{}_patched".format(name)
+    stripped_name = "{}_stripped".format(name)
     base = dest_dir if dest_dir else "lib"
     package_dest_dir = paths.join(base, prefix) if prefix else base
     use_relative_rpaths = select({
@@ -118,6 +119,13 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_executables = {}, 
         use_relative_rpaths = use_relative_rpaths,
         package_metadata = [],
     )
+
+    dd_strip_symbols(
+        name = stripped_name,
+        src = patched_name,
+        package_metadata = [],
+    )
+
     extra_files = []
     if installed_executables:
         exec_files_name = "{}_exec_files".format(name)
@@ -134,7 +142,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_executables = {}, 
     if version:
         so_symlink(
             name = packaged_lib,
-            src = ":{}".format(patched_name),
+            src = ":{}".format(stripped_name),
             libname = resolved_libname,
             version = version,
             mode = mode,
@@ -145,7 +153,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_executables = {}, 
     else:
         pkg_files(
             name = packaged_lib,
-            srcs = [":{}".format(patched_name)],
+            srcs = [":{}".format(stripped_name)],
             attributes = pkg_attributes(mode = mode),
             prefix = package_dest_dir,
             visibility = visibility,
@@ -184,7 +192,6 @@ dd_cc_packaged = macro(
         "input": attr.label(
             mandatory = True,
             configurable = False,
-            providers = [[CcInfo], [CcSharedLibraryInfo]],
         ),
         # TODO(agent-build): remove installed_executables attribute
         "installed_executables": attr.label_keyed_string_dict(

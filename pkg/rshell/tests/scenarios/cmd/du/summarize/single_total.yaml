@@ -1,0 +1,17 @@
+description: du -s emits exactly one line per operand (the total).
+setup:
+  files:
+    - path: top/a.txt
+      content: "ab"
+    - path: top/b/inner.txt
+      content: "cdef"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -s -b top
+expect:
+  # Directory inode bytes vary by filesystem (APFS=0, ext4=4096), so
+  # assert only the operand path is on a single line.
+  stdout_contains: ["\ttop\n"]
+  stderr: |+
+  exit_code: 0

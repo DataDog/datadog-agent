@@ -1,0 +1,9 @@
+description: If condition using && where second operand is false.
+input:
+  script: |+
+    if true && false; then echo yes; else echo no; fi
+expect:
+  stdout: |+
+    no
+  stderr: ""
+  exit_code: 0

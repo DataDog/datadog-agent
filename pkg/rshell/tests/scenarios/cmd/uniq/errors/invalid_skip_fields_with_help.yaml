@@ -1,0 +1,10 @@
+description: '`uniq -f nope --help --bogus` exits 1 with "invalid number of fields to skip" rather than printing help. The -f value validation in builtins/uniq/uniq.go runs BEFORE the `--help` short-circuit so the shared args-trim in builtins/builtins.go can safely honour `--help` after value-taking flags without masking the earlier validation error. Matches GNU uniq.'
+input:
+  script: |+
+    uniq -f nope --help --bogus; echo "code:$?"
+expect:
+  stdout: |+
+    code:1
+  stderr: |+
+    uniq: nope: invalid number of fields to skip
+  exit_code: 0
