@@ -149,12 +149,12 @@ Gotchas:
 - The Mokka and device plugin images come from `ghcr.io` and `nvcr.io`, so the suite uses
   `kindvm.WithInternetAccess()`. The GPU test pods use busybox through the DockerHub ECR
   pull-through cache (`busyboxImage()`), falling back to DockerHub when no image pull registry is set.
-- The Mokka chart is pulled by Pulumi on the CI runner, which can't reach `ghcr.io`. Until the
-  `ghcr.io` ECR pull-through cache exists (ddoghq/cloud-inventory#3478), the Mokka suites run in the
-  manual `new-e2e-gpu-mokka` job instead of `new-e2e-gpu`. Locally they work as long as your machine
-  can reach `ghcr.io`.
+- The Mokka chart is pulled by Pulumi on the CI runner, through the egress gateway. `ghcr.io` is
+  allowed; `registry.k8s.io` (Kueue chart) needs ddoghq/dd-source#197311. Until the suites have been
+  validated in CI they run in the manual `new-e2e-gpu-mokka` job instead of `new-e2e-gpu`. Locally they
+  work as long as your machine can reach `ghcr.io`.
 - Set `E2E_GPU_CHART_MIRROR` to a registry that mirrors `ghcr.io` and `registry.k8s.io` under the
-  `ghcr` and `k8s` prefixes (the internal ECR, once the caches exist) to pull the charts through it.
+  `ghcr` and `k8s` prefixes (for example an internal ECR with pull-through caches) to pull the charts through it.
   If the registry is one of the `imagePullRegistry` ones, the charts are pulled with their credentials.
 - With NVLink profiles (`gb200`, `gb300`), the `nvlink_fec` collector sends FEC histogram buckets
   with counts of ~10^12 per run, and the aggregator sketch OOM-kills the core Agent within seconds.

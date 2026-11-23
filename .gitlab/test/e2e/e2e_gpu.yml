@@ -37,9 +37,9 @@ new-e2e-gpu:
   retry: !reference [.retry_only_infra_failure, retry]
 
 # GPU suites on CPU-only kind clusters, with GPUs simulated by Mokka (no CUDA/eBPF).
-# TODO: run them automatically once the CI can pull their charts. The CI runners can't reach ghcr.io,
-# so they need the ghcr.io/registry.k8s.io ECR pull-through caches (ddoghq/cloud-inventory#3478).
-# Once they exist, set E2E_GPU_CHART_MIRROR to the internal ECR to pull the charts through them.
+# TODO: run them automatically once the CI has validated them. The charts are pulled by Pulumi on the
+# CI runner, through the egress gateway: ghcr.io is allowed, registry.k8s.io (Kueue chart) needs
+# ddoghq/dd-source#197311. E2E_GPU_CHART_MIRROR can point to a registry that mirrors them instead.
 new-e2e-gpu-mokka:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
