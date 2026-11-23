@@ -59,9 +59,9 @@ build_windows_container_entrypoint   @DataDog/windows-products
 cross_build_agent-binary_aix_ppc64        @DataDog/agent-build
 cross_build_trace_agent-binary_aix_ppc64  @DataDog/agent-build
 # AIX/ppc64 jobs
-tests_aix-ppc64                       @DataDog/agent-devx @DataDog/agent-runtimes
-package_aix-ppc64                     @DataDog/agent-build @DataDog/agent-runtimes
-deploy_packages_aix-ppc64             @DataDog/agent-delivery @DataDog/agent-runtimes
+tests_aix-ppc64                       @DataDog/agent-devx
+package_aix-ppc64                     @DataDog/agent-build
+deploy_packages_aix-ppc64             @DataDog/agent-delivery
 deploy_aix_install_script              @DataDog/agent-delivery
 
 # Package deps build
