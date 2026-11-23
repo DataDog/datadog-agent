@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    APM : Agent flares include the trace-agent's expvars again. They had been
+    missing since the trace-agent's debug endpoint started serving TLS with the
+    Agent's self-signed IPC certificate: the flare collector verified that
+    certificate against the system roots and failed, so the flare file only
+    contained a certificate error. The data is now collected through the
+    remote-agent registry, appears under
+    ``trace-agent-(remoteagent)/expvar.yaml`` instead of ``expvar/trace-agent``,
+    and is collected even when ``apm_config.debug.port`` is disabled.
