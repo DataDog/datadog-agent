@@ -157,9 +157,10 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		}
 	}
 
+	var context *Context
 	if entry, ok := cr.contextsByKey[contextKey]; !ok {
 		mtype := metricSampleContext.GetMetricType()
-		context := &Context{
+		context = &Context{
 			Name:       metricSampleContext.GetName(),
 			taggerTags: cr.tagsCache.Insert(taggerKey, cr.taggerBuffer),
 			metricTags: cr.tagsCache.Insert(metricKey, cr.metricBuffer),
@@ -179,11 +180,18 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		cr.bytesByMtype[mtype] += uint64(context.SizeInBytes())
 		cr.dataBytesByMtype[mtype] += uint64(context.DataSizeInBytes())
 	} else {
+		context = entry.context
 		// We can't assign to a field of a struct contained in map
 		cr.contextsByKey[contextKey] = resolverEntry{
 			lastSeen: timestamp,
-			context:  entry.context,
+			context:  context,
 		}
+	}
+
+	if filtered := cr.filteredIdentityOf(context); filtered != nil {
+		removed := len(context.taggerTags.Tags()) + len(context.metricTags.Tags()) -
+			len(filtered.taggerTags.Tags()) - len(filtered.metricTags.Tags())
+		tlmFilteredTags.Add(float64(removed))
 	}
 
 	return contextKey

@@ -188,3 +188,18 @@ func TestCheckSamplerDoesNotFilterSketchesStampedPerSecond(t *testing.T) {
 	assert.Equal(t, int64(100), out.sketches[0].Points[0].Ts)
 	assert.Len(t, table.byKey, 2, "the distribution has an identity too, which sketches stamped per second don't use")
 }
+
+func TestCheckSamplerCountsFilteredTagsPerSample(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newTagFilterTestSampler("check:0", newFilteredIdentityTable())
+	matcher := filterPodMatcher(t, "my.counter")
+
+	before := tlmFilteredTags.Get()
+	cs.addSample(podSample("my.counter", metrics.CounterType, "a", 1, 100), matcher)
+	cs.addSample(podSample("my.counter", metrics.CounterType, "a", 2, 101), matcher)
+	assert.Equal(t, before+2, tlmFilteredTags.Get(), "counts removed tags on every sample, including existing contexts")
+
+	// Refiltering without new samples doesn't increment the counter.
+	cs.refilter(matcher)
+	assert.Equal(t, before+2, tlmFilteredTags.Get())
+}

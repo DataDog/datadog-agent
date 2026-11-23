@@ -99,20 +99,19 @@ func (cr *contextResolver) trackOutput(context *Context, filterList metricname.T
 		return
 	}
 	if tagList, filter := filterList.ShouldStripTags(context.Name); filter {
-		ref, removed := cr.acquireFiltered(context.Name, context.Host, tagList)
-		context.filteredIdentityRef = ref
-		tlmFilteredTags.Add(float64(removed))
+		context.filteredIdentityRef = cr.acquireFiltered(context.Name, context.Host, tagList)
 	}
 }
 
 // acquireFiltered filters the tags in the resolver's buffers, which must already be stored for the context, and
-// returns a reference to the identity they filter to, and how many tags it removed.
-func (cr *contextResolver) acquireFiltered(name, host string, tagList metricname.HashedMetricTagList) (uint32, int) {
-	removed := cr.taggerBuffer.RetainFunc(tagList.KeepTag) + cr.metricBuffer.RetainFunc(tagList.KeepTag)
+// returns a reference to the identity they filter to.
+func (cr *contextResolver) acquireFiltered(name, host string, tagList metricname.HashedMetricTagList) uint32 {
+	cr.taggerBuffer.RetainFunc(tagList.KeepTag)
+	cr.metricBuffer.RetainFunc(tagList.KeepTag)
 	key, taggerKey, metricKey := cr.keyGenerator.GenerateWithTags2(name, host, cr.taggerBuffer, cr.metricBuffer)
 	return cr.filteredIdentities.acquire(key, func() (*tags.Entry, *tags.Entry) {
 		return cr.tagsCache.Insert(taggerKey, cr.taggerBuffer), cr.tagsCache.Insert(metricKey, cr.metricBuffer)
-	}), removed
+	})
 }
 
 // releaseFiltered drops the context's reference to the identity it filters to, if any.
@@ -148,9 +147,7 @@ func (cr *contextResolver) refilter(filterList metricname.TagMatcher) {
 				cr.metricBuffer.Reset()
 				cr.taggerBuffer.Append(context.taggerTags.Tags()...)
 				cr.metricBuffer.Append(context.metricTags.Tags()...)
-				// Don't add to tlmFilteredTags here: no new sample arrived, and counting on
-				// rule reloads would inflate the counter on unrelated rule updates.
-				ref, _ = cr.acquireFiltered(context.Name, context.Host, tagList)
+				ref = cr.acquireFiltered(context.Name, context.Host, tagList)
 			}
 		}
 		cr.releaseFiltered(context)
