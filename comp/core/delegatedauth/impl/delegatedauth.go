@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws"
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/oidc"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -413,6 +414,12 @@ func (d *delegatedAuthComponent) addInstanceOnce(ctx context.Context, params del
 	switch cfg := providerConfig.(type) {
 	case *cloudauthconfig.AWSProviderConfig:
 		tokenProvider = aws.NewAWSAuth(cfg)
+	case *cloudauthconfig.OIDCProviderConfig:
+		oidcAuth, err := oidc.NewOIDCAuth(cfg)
+		if err != nil {
+			return fmt.Errorf("invalid oidc delegated auth configuration: %w", err)
+		}
+		tokenProvider = oidcAuth
 	default:
 		return fmt.Errorf("unsupported delegated auth provider config type: %T", providerConfig)
 	}
