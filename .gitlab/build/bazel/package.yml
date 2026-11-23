@@ -4,7 +4,7 @@ bazel:package:linux-amd64:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["setup_agent_version"]
+  needs: ["setup_agent_version", "generate_minimized_btfs_x64"]
   script:
     - PACKAGE_VERSION="$(dda inv -- agent.version --url-safe)" || exit $?
     - export PACKAGE_VERSION

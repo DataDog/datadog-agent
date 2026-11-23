@@ -314,6 +314,13 @@ pkg_files(
 )
 
 pkg_files(
+    name = "system_probe_minimized_btfs",
+    srcs = ["//:minimized_btfs"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "embedded/share/system-probe/ebpf/co-re/btf",
+)
+
+pkg_files(
     name = "system_probe_runtime_sources",
     srcs = ["//pkg/ebpf:runtime_sources"],
     attributes = pkg_attributes(mode = "644"),
@@ -352,6 +359,7 @@ pkg_filegroup(
         ":system_probe_dist_config",
         ":system_probe_ebpf_objects",
         ":system_probe_llvm_bpf",
+        ":system_probe_minimized_btfs",
         ":system_probe_runtime_sources",
     ] + select({
         "//bazel/platforms:fips": [],

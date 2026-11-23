@@ -50,6 +50,18 @@ exports_files(glob(
     allow_empty = True,
 ))
 
+# Temporary, CI only: the archive is downloaded by the generate_minimized_btfs_* jobs.
+# Remove once minimized BTFs are built by Bazel.
+filegroup(
+    name = "minimized_btfs",
+    srcs = glob(
+        # buildifier: disable=constant-glob
+        ["minimized-btfs.tar.xz"],
+        allow_empty = True,
+    ),
+    visibility = ["//packages/agent/product:__pkg__"],
+)
+
 exports_files(["go.mod"])
 
 # Puts datadog-agent.map among the inputs of the Go link action, for binaries
