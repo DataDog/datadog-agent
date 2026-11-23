@@ -17,6 +17,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/murmur3"
 )
 
 // readVectors parses a vector file (SPEC.md §9) into its fields. Quoted fields
@@ -63,7 +64,7 @@ func TestVectors(t *testing.T) {
 		in, normalized, key := v[0], v[1], v[2]
 
 		assert.Equal(t, normalized, normalize(in), "N(%+q)", in)
-		assert.Equal(t, key, Key(in), "Key(%+q)", in)
+		assert.Equal(t, key, tagKeyString(in), "key of %+q", in)
 		checkProperties(t, in)
 	}
 }
@@ -86,14 +87,24 @@ func TestRuleVectors(t *testing.T) {
 // normalize is N(t) of SPEC.md §4. Production code only needs keys, so only
 // the tests normalize whole tags.
 func normalize(tag string) string {
-	return string(scan(nil, tag, false))
+	return string(scan(nil, tag, wholeTag))
+}
+
+func tagKeyString(tag string) string {
+	if key, ok := fastKey(tag); ok {
+		return key
+	}
+	return string(scan(nil, tag, tagKey))
 }
 
 // checkProperties asserts the properties of SPEC.md §8 for one input.
 func checkProperties(t testing.TB, in string) {
 	t.Helper()
 	normalized := normalize(in)
-	key := Key(in)
+	key := tagKeyString(in)
+	if got, want := KeyHash(in), murmur3.StringSum64(key); got != want {
+		t.Fatalf("KeyHash(%+q) = %x, want %x for key %+q", in, got, want, key)
+	}
 
 	// P1: normalization is idempotent.
 	if again := normalize(normalized); again != normalized {
@@ -106,7 +117,7 @@ func checkProperties(t testing.TB, in string) {
 	}
 
 	// P3: the key of a normalized tag is the key of the tag.
-	if k := Key(normalized); k != key {
+	if k := tagKeyString(normalized); k != key {
 		t.Fatalf("P3: Key(%+q) = %+q, but Key(N) = %+q", in, key, k)
 	}
 
@@ -117,7 +128,7 @@ func checkProperties(t testing.TB, in string) {
 
 	// P5: the fast path agrees with the state machine whenever it applies.
 	if k, ok := fastKey(in); ok {
-		if s := string(scan(nil, in, true)); s != k {
+		if s := string(scan(nil, in, tagKey)); s != k {
 			t.Fatalf("P5: fastKey(%+q) = %+q but the state machine gives %+q", in, k, s)
 		}
 	}
@@ -147,6 +158,8 @@ func checkProperties(t testing.TB, in string) {
 		if k, ok := RuleKey(in); ok {
 			t.Fatalf("P7: RuleKey(%+q) = %+q, want reject", in, k)
 		}
+	} else if k, ok := RuleKey(in); !ok || k != tagKeyString(in+":") {
+		t.Fatalf("RuleKey(%+q) = %+q, %v; want the key of %+q", in, k, ok, in+":")
 	}
 }
 
@@ -154,6 +167,8 @@ func TestPropertiesOnEdgeCases(t *testing.T) {
 	inputs := []string{
 		"", ":", "_", "a_", "_a", "a_:b", ":_", "1:2", "\xff", "a\xff", strings.Repeat("a", 199) + "_:b",
 		strings.Repeat("_a", 150), strings.Repeat("é", 150), strings.Repeat("A:", 150),
+		strings.Repeat("a", 198) + "_", strings.Repeat("a", 199) + "_",
+		strings.Repeat("1", 398) + "a_", strings.Repeat("1", 399) + "a_",
 	}
 	for _, in := range inputs {
 		checkProperties(t, in)
@@ -173,13 +188,13 @@ func FuzzProperties(f *testing.F) {
 	})
 }
 
-func TestKeyDoesNotAllocateForNormalizedTags(t *testing.T) {
-	for _, in := range []string{"kube_namespace:default", "host", ":foo"} {
-		assert.Zero(t, testing.AllocsPerRun(100, func() { _ = Key(in) }), "Key(%+q)", in)
+func TestKeyHashDoesNotAllocate(t *testing.T) {
+	for _, in := range []string{"kube_namespace:default", "host", ":foo", "Kube Namespace:default", "Équipe:ops"} {
+		assert.Zero(t, testing.AllocsPerRun(100, func() { _ = KeyHash(in) }), "KeyHash(%+q)", in)
 	}
 }
 
-func BenchmarkKey(b *testing.B) {
+func BenchmarkKeyHash(b *testing.B) {
 	for _, bc := range []struct{ name, tag string }{
 		{"normalized", "kube_namespace:default"},
 		{"normalized-long-value", "image_id:sha256:" + strings.Repeat("0123456789abcdef", 4)},
@@ -188,7 +203,7 @@ func BenchmarkKey(b *testing.B) {
 	} {
 		b.Run(bc.name, func(b *testing.B) {
 			for b.Loop() {
-				_ = Key(bc.tag)
+				_ = KeyHash(bc.tag)
 			}
 		})
 	}

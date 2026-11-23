@@ -16,6 +16,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/twmb/murmur3"
 )
 
 // maxLength is the output length, in bytes, at or after which no further code
@@ -28,14 +30,14 @@ const maxOutputLength = maxLength + utf8.UTFMax - 1
 // maxInputOffset is the largest input byte offset still read (SPEC.md §4).
 const maxInputOffset = 2 * maxLength
 
-// Key returns the key the intake stores for tag: K(t) of SPEC.md §5.
-//
-// It does not allocate for an already-normalized ASCII tag.
-func Key(tag string) string {
+// KeyHash returns the Murmur3 hash of the key the intake stores for tag
+// (SPEC.md §5), without allocating.
+func KeyHash(tag string) uint64 {
 	if key, ok := fastKey(tag); ok {
-		return key
+		return murmur3.StringSum64(key)
 	}
-	return string(scan(make([]byte, 0, min(len(tag), maxOutputLength)), tag, true))
+	var buf [maxOutputLength]byte
+	return murmur3.Sum64(scan(buf[:0], tag, tagKey))
 }
 
 // RuleKey normalizes a tag key from a rule, such as a tag filter list entry,
@@ -45,16 +47,20 @@ func RuleKey(key string) (string, bool) {
 	if strings.IndexByte(key, ':') >= 0 {
 		return "", false
 	}
-	// Appending ':' normalizes key as the key of a tag with a value, so a
-	// trailing '_' that is part of a stored key survives: `foo_:x` has the key
-	// `foo_`, but the bare tag `foo_` has the key `foo`.
-	return Key(key + ":"), true
+	var buf [maxOutputLength]byte
+	return string(scan(buf[:0], key, ruleKey)), true
 }
 
+type scanMode uint8
+
+const (
+	tagKey   scanMode = iota // Stop where the first ':' would be appended.
+	ruleKey                  // Also treat the end of input as a synthetic ':'.
+	wholeTag                 // Normalize the entire tag (tests only).
+)
+
 // scan runs the state machine of SPEC.md §4 and appends its output to dst.
-// With stopAtColon, it returns the key as soon as a ':' would be appended
-// (SPEC.md §5). Only the tests use the whole-tag mode.
-func scan(dst []byte, tag string, stopAtColon bool) []byte {
+func scan(dst []byte, tag string, mode scanMode) []byte {
 	base := len(dst)
 	buf := dst
 	lastWasUnderscore := false
@@ -73,7 +79,7 @@ func scan(dst []byte, tag string, stopAtColon bool) []byte {
 			buf = append(buf, byte(c+('a'-'A')))
 			lastWasUnderscore = false
 		case c == ':':
-			if stopAtColon {
+			if mode != wholeTag {
 				return buf
 			}
 			buf = append(buf, ':')
@@ -95,6 +101,11 @@ func scan(dst []byte, tag string, stopAtColon bool) []byte {
 		}
 	}
 
+	// A rule key gets a synthetic ':' at offset len(tag). If the intake
+	// would reach and append it, keep any trailing '_' as for `foo_:x`.
+	if mode == ruleKey && len(tag) <= maxInputOffset && len(buf)-base < maxLength {
+		return buf
+	}
 	if lastWasUnderscore {
 		buf = buf[:len(buf)-1]
 	}

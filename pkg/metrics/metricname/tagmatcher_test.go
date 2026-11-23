@@ -72,14 +72,16 @@ func TestTagMatcherDoesNotAllocate(t *testing.T) {
 		"metric": NewHashedMetricTagList(true, []string{"env", "host"}),
 	})
 
-	// Names and tags already in the form the intake stores them in cost nothing.
-	allocs := testing.AllocsPerRun(100, func() {
-		tl, ok := m.ShouldStripTags("metric")
-		if !ok || tl.KeepTag("env:prod") {
-			t.Fatal("unexpected match result")
-		}
-	})
-	assert.Zero(t, allocs)
+	// Matching does not allocate, even when normalizing a tag key.
+	for _, tag := range []string{"env:prod", "ENV:prod"} {
+		allocs := testing.AllocsPerRun(100, func() {
+			tl, ok := m.ShouldStripTags("metric")
+			if !ok || tl.KeepTag(tag) {
+				t.Fatal("unexpected match result")
+			}
+		})
+		assert.Zero(t, allocs, "tag %q", tag)
+	}
 
 	// Normalizing a name never allocates.
 	for _, name := range []string{"Metric", "metric-x", "123"} {

@@ -6,6 +6,7 @@ go_library(
     srcs = ["normalize.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/metrics/tagname",
     visibility = ["//visibility:public"],
+    deps = ["@com_github_twmb_murmur3//:murmur3"],
 )
 
 dd_agent_go_test(
@@ -16,5 +17,6 @@ dd_agent_go_test(
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@com_github_twmb_murmur3//:murmur3",
     ],
 )

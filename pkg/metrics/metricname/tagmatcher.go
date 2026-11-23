@@ -41,10 +41,9 @@ func NewHashedMetricTagList(exclude bool, tags []string) HashedMetricTagList {
 
 // KeepTag returns true if the tag should be kept on the metric. The tag's key
 // is compared in the form the intake stores it in, so `Pod Name:web` matches
-// the key `pod_name`. tagname.Key allocates only for tags the intake would
-// rewrite.
+// the key `pod_name`. Normalizing and hashing the key does not allocate.
 func (l HashedMetricTagList) KeepTag(tag string) bool {
-	_, found := slices.BinarySearch(l.tags, murmur3.StringSum64(tagname.Key(tag)))
+	_, found := slices.BinarySearch(l.tags, tagname.KeyHash(tag))
 	return found != l.exclude
 }
 
