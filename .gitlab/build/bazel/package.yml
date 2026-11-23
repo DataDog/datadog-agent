@@ -8,10 +8,10 @@ bazel:package:linux-amd64:
   script:
     - PACKAGE_VERSION="$(dda inv -- agent.version --url-safe)" || exit $?
     - export PACKAGE_VERSION
-    - bazel build //packages/agent/linux:debian //packages/agent/linux:rpm
+    - bazel build --//:install_stripped_binaries //packages/agent/linux:debian //packages/agent/linux:debian_dbg //packages/agent/linux:rpm //packages/agent/linux:rpm_dbg
     - mkdir -p bazel-packages
     - BAZEL_PACKAGE_BIN="$(bazel info bazel-bin)/packages/agent/linux"
-    - cp -L "$BAZEL_PACKAGE_BIN"/datadog-agent_*.deb bazel-packages/
+    - cp -L "$BAZEL_PACKAGE_BIN"/datadog-agent*.deb bazel-packages/
     - cp -L "$BAZEL_PACKAGE_BIN"/datadog-agent-*.rpm bazel-packages/
     - !reference [.log_dd_pkg_version]
     - dd-pkg lint bazel-packages/*.deb bazel-packages/*.rpm

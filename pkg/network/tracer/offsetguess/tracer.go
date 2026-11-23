@@ -1189,7 +1189,7 @@ func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, e
 		return o.offsets, o.err
 	}
 
-	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
+	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir)
 	if err != nil {
 		o.err = fmt.Errorf("could not read offset bpf module: %s", err)
 		return nil, o.err

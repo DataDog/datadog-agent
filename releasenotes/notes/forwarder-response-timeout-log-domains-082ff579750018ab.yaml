@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    When the Agent sends process, container or network connection data and gets
+    no answer within 30 seconds, the error it logs now names the data type and
+    the intake hosts that did not answer.

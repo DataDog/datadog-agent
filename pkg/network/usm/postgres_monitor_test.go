@@ -114,7 +114,7 @@ func TestPostgresMonitoring(t *testing.T) {
 
 func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 	t := s.T()
-	for name, debug := range map[string]bool{"enabled": true, "disabled": false} {
+	for name, debug := range bpfDebugValues() {
 		t.Run(name, func(t *testing.T) {
 			cfg := getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled)
 			cfg.BPFDebug = debug
