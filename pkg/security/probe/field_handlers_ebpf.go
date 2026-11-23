@@ -115,12 +115,22 @@ func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent
 }
 
 // ResolveFileBasename resolves the inode to a full path
-func (fh *EBPFFieldHandlers) ResolveFileBasename(_ *model.Event, f *model.FileEvent) string {
+func (fh *EBPFFieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsBasenameStrResolved && len(f.BasenameStr) == 0 {
 		if f.PathnameStr != "" {
 			f.SetBasenameStr(path.Base(f.PathnameStr))
-		} else {
-			f.SetBasenameStr(fh.resolvers.PathResolver.ResolveBasename(&f.FileFields))
+		} else if f.PathKey.IsNull() {
+			f.SetBasenameStr("")
+		} else if fh.resolvers != nil && fh.resolvers.PathResolver != nil {
+			if basename := fh.resolvers.PathResolver.ResolveBasename(&f.FileFields); basename != "" {
+				f.SetBasenameStr(basename)
+			} else if dentryPath, err := fh.resolvers.PathResolver.ResolveDentryFilePath(&f.FileFields); err == nil && dentryPath != "" && dentryPath != "/" {
+				f.SetBasenameStr(path.Base(dentryPath))
+			} else if ev != nil && !f.IsPathnameStrResolved {
+				if fullPath := fh.ResolveFilePath(ev, f); fullPath != "" && fullPath != "/" {
+					f.SetBasenameStr(path.Base(fullPath))
+				}
+			}
 		}
 	}
 	return f.BasenameStr

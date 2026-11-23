@@ -92,20 +92,10 @@ static __attribute__((always_inline)) void set_file_layer(struct dentry *dentry,
     }
 }
 
-static __attribute__((always_inline)) void fill_file(struct dentry *dentry, struct file_t *file) {
+static __attribute__((always_inline)) void fill_file_metadata(struct dentry *dentry, struct file_t *file) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
     file->dev = get_dentry_dev(dentry);
-
-    // nlink is mostly used userspace side to invalidate cache. use the higher value found
-    u64 inode_nlink_offset;
-    LOAD_CONSTANT("inode_nlink_offset", inode_nlink_offset);
-
-    u32 nlink = 0;
-    bpf_probe_read(&nlink, sizeof(nlink), (void *)d_inode + inode_nlink_offset);
-    if (nlink > file->metadata.nlink) {
-      file->metadata.nlink = nlink;
-    }
 
     u64 inode_mode_offset;
     LOAD_CONSTANT("inode_mode_offset", inode_mode_offset);
@@ -161,6 +151,16 @@ static __attribute__((always_inline)) void fill_file(struct dentry *dentry, stru
     bpf_probe_read(&file->metadata.mtime.tv_nsec, sizeof(file->metadata.mtime.tv_nsec), &d_inode->i_mtime_nsec);
 #endif
 	}
+}
+
+static __attribute__((always_inline)) void fill_file(struct dentry *dentry, struct file_t *file) {
+    fill_file_metadata(dentry, file);
+
+    // nlink is mostly used userspace side to invalidate cache. use the higher value found
+    u32 nlink = get_dentry_nlink(dentry);
+    if (nlink > file->metadata.nlink) {
+      file->metadata.nlink = nlink;
+    }
 
     // set again the layer here as after update a file will be moved to the upper layer
     set_file_layer(dentry, file);

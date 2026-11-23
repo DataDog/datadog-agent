@@ -192,19 +192,80 @@ func TestNewLoadModuleEventFromProcFSSnapshotTimes(t *testing.T) {
 	assert.Equal(t, uint64(st.Mtim.Nano()), event.LoadModule.File.MTime)
 }
 
+type coldBasenamePathResolver struct {
+	path.NoOpResolver
+	dentryPath string
+	dentryErr  error
+}
+
+func (r *coldBasenamePathResolver) ResolveDentryFilePath(_ *model.FileFields) (string, error) {
+	return r.dentryPath, r.dentryErr
+}
+
+func marshalLoadModuleEventPayload(ino uint64, mountID uint32, name string, loadedFromMemory bool) []byte {
+	buf := make([]byte, 272)
+	binary.NativeEndian.PutUint64(buf[8:16], ino)
+	binary.NativeEndian.PutUint32(buf[16:20], mountID)
+	copy(buf[80:136], name)
+	if loadedFromMemory {
+		binary.NativeEndian.PutUint32(buf[268:272], 1)
+	}
+	return buf
+}
+
 func TestLoadModuleNameFallbackFromFilename(t *testing.T) {
-	p := newTestEBPFProbe()
-
-	t.Run("derives module name from file basename when kernel name is empty", func(t *testing.T) {
-		ev := p.getPoolEvent()
-		ev.LoadModule.File.SetBasenameStr("nf-conntrack-netlink.ko.zst")
-		ev.LoadModule.LoadedFromMemory = false
-		ev.LoadModule.Name = ""
-
-		if !ev.LoadModule.LoadedFromMemory && ev.LoadModule.Name == "" {
-			ev.LoadModule.Name = utils.ModuleNameFromFilename(p.fieldHandlers.ResolveFileBasename(ev, &ev.LoadModule.File))
+	t.Run("handleRegularEvent derives module name from file basename when kernel name is empty", func(t *testing.T) {
+		p := newTestEBPFProbe()
+		p.fieldHandlers.resolvers = &resolvers.EBPFResolvers{
+			PathResolver: &coldBasenamePathResolver{
+				dentryPath: "/lib/modules/6.8.0/kernel/net/netfilter/nf-conntrack-netlink.ko.zst",
+			},
 		}
+
+		ev := p.getPoolEvent()
+		ev.Type = uint32(model.LoadModuleEventType)
+		payload := marshalLoadModuleEventPayload(4242, 12, "", false)
+
+		require.True(t, p.handleRegularEvent(ev, 0, uint64(len(payload)), payload))
 		assert.Equal(t, "nf_conntrack_netlink", ev.LoadModule.Name)
+		assert.Equal(t, "nf-conntrack-netlink.ko.zst", p.fieldHandlers.ResolveFileBasename(ev, &ev.LoadModule.File))
+	})
+
+	t.Run("handleRegularEvent preserves kernel module name when present", func(t *testing.T) {
+		p := newTestEBPFProbe()
+		p.fieldHandlers.resolvers = &resolvers.EBPFResolvers{
+			PathResolver: &coldBasenamePathResolver{
+				dentryPath: "/lib/modules/6.8.0/kernel/net/netfilter/other-name.ko",
+			},
+		}
+
+		ev := p.getPoolEvent()
+		ev.Type = uint32(model.LoadModuleEventType)
+		payload := marshalLoadModuleEventPayload(4242, 12, "explicit_mod", false)
+
+		require.True(t, p.handleRegularEvent(ev, 0, uint64(len(payload)), payload))
+		assert.Equal(t, "explicit_mod", ev.LoadModule.Name)
+	})
+
+	t.Run("cold basename miss does not finalize empty basename while path can still resolve", func(t *testing.T) {
+		p := newTestEBPFProbe()
+		pr := &coldBasenamePathResolver{
+			dentryErr: assert.AnError,
+		}
+		p.fieldHandlers.resolvers = &resolvers.EBPFResolvers{
+			PathResolver: pr,
+		}
+
+		ev := p.getPoolEvent()
+		ev.Type = uint32(model.LoadModuleEventType)
+		payload := marshalLoadModuleEventPayload(4242, 12, "", false)
+
+		require.True(t, p.handleRegularEvent(ev, 0, uint64(len(payload)), payload))
+		assert.Empty(t, ev.LoadModule.Name)
+		assert.False(t, ev.LoadModule.File.IsBasenameStrResolved)
+
+		ev.LoadModule.File.SetPathnameStr("/tmp/late-resolved-mod.ko")
+		assert.Equal(t, "late-resolved-mod.ko", p.fieldHandlers.ResolveFileBasename(ev, &ev.LoadModule.File))
 	})
 }
 

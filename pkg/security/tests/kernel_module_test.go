@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -389,7 +390,17 @@ func TestUnloadModule(t *testing.T) {
 	})
 }
 
+var _ = declare(TestFinitModuleEarlyExitERPC, testOpts{disableMapDentryResolution: true})
+
 func TestFinitModuleEarlyExit(t *testing.T) {
+	runFinitModuleEarlyExitTest(t)
+}
+
+func TestFinitModuleEarlyExitERPC(t *testing.T) {
+	runFinitModuleEarlyExitTest(t)
+}
+
+func runFinitModuleEarlyExitTest(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	if ebpfLessEnabled {
@@ -414,11 +425,11 @@ func TestFinitModuleEarlyExit(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_finit_module_enoexec",
-			Expression: fmt.Sprintf(`load_module.name == "fake_enoexec_mod" && load_module.file.path == "%s" && load_module.loaded_from_memory == false && load_module.retval == -%d`, enoexecPath, int(unix.ENOEXEC)),
+			Expression: fmt.Sprintf(`load_module.name == "fake_enoexec_mod" && load_module.file.name == "fake-enoexec-mod.ko" && load_module.file.path == "%s" && load_module.loaded_from_memory == false && load_module.retval == -%d`, enoexecPath, int(unix.ENOEXEC)),
 		},
 		{
 			ID:         "test_finit_module_eperm",
-			Expression: fmt.Sprintf(`load_module.name == "fake_eperm_mod" && load_module.file.path == "%s" && load_module.loaded_from_memory == false && load_module.retval == -%d`, epermPath, int(unix.EPERM)),
+			Expression: fmt.Sprintf(`load_module.name == "fake_eperm_mod" && load_module.file.name == "fake-eperm-mod.ko.zst" && load_module.file.path == "%s" && load_module.loaded_from_memory == false && load_module.retval == -%d`, epermPath, int(unix.EPERM)),
 		},
 	}
 
@@ -444,14 +455,22 @@ func TestFinitModuleEarlyExit(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_finit_module_enoexec", r.ID, "wrong rule triggered")
 			assertFieldEqual(t, event, "load_module.name", "fake_enoexec_mod")
+			assertFieldEqual(t, event, "load_module.file.name", "fake-enoexec-mod.ko")
 			assertFieldEqual(t, event, "load_module.file.path", enoexecPath)
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", false)
 		}, "test_finit_module_enoexec")
 	})
 
 	t.Run("finit_module_eperm", func(t *testing.T) {
-		if _, err := constantfetch.NewBTFConstantFetcherFromCurrentKernel(); err != nil {
-			t.Skip("skipping finit_module EPERM test on kernel without BTF")
+		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+		if !ok {
+			t.Skip("not supported on non-ebpf probe")
+		}
+		status := p.GetConstantFetcherStatus()
+		if !status.IsPresent(constantfetch.OffsetNameTaskStructFiles) ||
+			!status.IsPresent(constantfetch.OffsetNameFilesStructFdt) ||
+			!status.IsPresent(constantfetch.OffsetNameFdtableStructFd) {
+			t.Skip("skipping finit_module EPERM test: task/files/fdtable offsets not resolved by active probe")
 		}
 
 		test.WaitSignalFromRule(t, func() error {
@@ -483,6 +502,7 @@ func TestFinitModuleEarlyExit(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_finit_module_eperm", r.ID, "wrong rule triggered")
 			assertFieldEqual(t, event, "load_module.name", "fake_eperm_mod")
+			assertFieldEqual(t, event, "load_module.file.name", "fake-eperm-mod.ko.zst")
 			assertFieldEqual(t, event, "load_module.file.path", epermPath)
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", false)
 		}, "test_finit_module_eperm")
