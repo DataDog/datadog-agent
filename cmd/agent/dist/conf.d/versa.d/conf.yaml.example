@@ -105,8 +105,9 @@ instances:
     ## ignore this setting.
     ##
     ## With analytics_query_type set to timeseries, this window must span at least two of
-    ## the tenant's buckets, because the newest bucket in the response is held back for one
-    ## collection. A window of exactly one bucket therefore publishes nothing at all, and
+    ## the tenant's buckets, because the newest bucket in the response is held back until a
+    ## newer bucket appears in a later response, which is normally the next collection. A
+    ## window of exactly one bucket therefore publishes nothing at all, and
     ## a window that only sometimes contains two publishes intermittently. On a tenant
     ## rendering 15 minute buckets, use 45 or more: it always holds two complete buckets
     ## wherever the window starts. The check logs a warning when an enabled query uses
@@ -151,8 +152,9 @@ instances:
     ## DIA always queries a 1 day window, so its timeseries response is large; raise
     ## max_count if the warning below is logged for it.
     ##
-    ## The newest bucket in the response is held back for one collection, since Versa
-    ## buckets are wall-clock aligned and the current one is still filling. An entity that
+    ## The newest bucket in the response is held back until a newer bucket appears in a
+    ## later response, which is normally the next collection, since Versa buckets are
+    ## wall-clock aligned and the current one is still filling. An entity that
     ## stops reporting is not held back with it; its last complete bucket is published.
     ## Expect these
     ## metrics to lag real time by one bucket, and set lookback_time_window_minutes to at

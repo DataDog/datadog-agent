@@ -117,8 +117,9 @@ func rebuildDrillKeys(rows []timeseriesRow, layout *timeseriesLayout) {
 // the parsers index columns positionally and a missing value would shift everything after
 // it. The newest bucket in the response is also held back, because Versa buckets are wall
 // clock aligned and the current one is still filling: publishing it would pin a partial
-// value at that timestamp, and the dedupe would then refuse the complete value that
-// arrives on the next run. The holdback is by bucket time rather than per entity, so an
+// value at that timestamp, and the dedupe would then refuse the complete value. It is
+// published once a newer bucket appears in a later response, which is normally the next
+// collection. The holdback is by bucket time rather than per entity, so an
 // entity that stops reporting still has its final, complete bucket published instead of
 // having it held until it leaves the lookback window and is lost. The count of buckets
 // dropped for either reason is returned so the caller can log it.
@@ -208,7 +209,8 @@ func flattenTimeseries(series []AnalyticsTimeseries, metrics []string, groupBy i
 
 		for _, timestamp := range timestamps {
 			if timestamp == newest {
-				// The newest bucket is still accumulating; it lands on the next run.
+				// The newest bucket is still accumulating; it is published once a newer
+				// bucket appears in a later response.
 				dropped++
 				continue
 			}
