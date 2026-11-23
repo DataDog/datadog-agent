@@ -31,13 +31,14 @@ properties:
         visibility: public
         description: |-
           Experimental, for staging validation. Set to true, together with remote_queries.enabled,
-          remote_configuration.enabled, remote_configuration.x509.enabled,
-          remote_configuration.x509.report_connection_id and a positive remote_queries.tunnel.org_id,
-          to register the Remote Queries Execute handler on the x509 Remote Configuration client.
-          Remote Config authorizes who may call Execute. The Agent additionally requires each request
-          to name its own live connection (as observed from the handshake) and the configured org ID.
-          If org_id is not positive or report_connection_id is off, the Agent logs an error and
-          registers nothing.
+          remote_configuration.enabled, remote_configuration.x509.enabled and a positive
+          remote_queries.tunnel.org_id, to register the Remote Queries Execute handler on the x509
+          Remote Configuration client. Remote Config authorizes who may call Execute. The Agent
+          additionally requires each request to name its own live connection (as observed from the
+          handshake) and the configured org ID. If org_id is not positive, the Agent logs an error and
+          registers nothing. While the handler is registered, the Agent sets the check inventory
+          metadata key remote_queries.tunnel_connection_id to the current connection ID on every
+          loaded check instance that serves remote queries.
       org_id:
         node_type: setting
         type: integer

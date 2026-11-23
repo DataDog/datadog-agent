@@ -34,6 +34,16 @@ The runner sends requests to the core Agent only over the Agent's authenticated 
 
 No request carries database credentials, API keys, or upload credentials. The integration connects to the database with its check's configured credentials, and authenticates uploads with the Agent's own API key.
 
+### ENABLE-04 — Publish the tunnel connection ID in check inventory metadata
+
+Experimental, staging only, and only on the embedded RC tunnel path. While the Remote Queries Execute handler is registered on the Agent's Remote Config x509 client (`remote_queries.tunnel.execute_enabled` with a positive `remote_queries.tunnel.org_id`) and a connection handshake has completed, the core Agent sets the inventory metadata key `remote_queries.tunnel_connection_id` to the current connection ID, a lowercase canonical UUID, on every loaded check instance that serves remote queries: the instances the Agent considers in CHECK-01 to CHECK-03, meaning checks that implement the remote query boundary and report support for it (for a Python check, a callable `remote_query`). It sets the key within about 30 s of a new connection or of a newly scheduled instance, and sets it again on a reconnect. It sets nothing before the first handshake or when the handler is not registered, and nothing on a check that does not serve remote queries.
+
+The key's presence means that the instance's Agent has a registered Execute handler on that connection. Capturing the connection ID does not depend on `remote_configuration.x509.report_connection_id`, which only adds the INFO log line.
+
+Why: the worker reads the key from the inventory row it already selects, so it needs no org API or application key to find the connection to dispatch to. Remote Config answers a dispatch to a stale connection with an unknown-connection error, so it is never delivered.
+
+Trust: anyone holding the org's API key can write check inventory metadata. The key is a routing hint, never an authentication. The Agent still requires each request to name its own live connection and the configured org, and intake's API-key org check is the backstop.
+
 ## Checking the request
 
 ### INPUT-01 — Select the kind of request with the resolve-only flag
@@ -236,7 +246,7 @@ Each item is checked at one layer. Performance and resource-use items are checke
 
 | Layer | Items | Dependencies |
 |---|---|---|
-| Unit | ENABLE-03, INPUT-01, INPUT-02, INPUT-03, INPUT-04, INPUT-05, CHECK-04, OUT-06 | none |
+| Unit | ENABLE-03, ENABLE-04, INPUT-01, INPUT-02, INPUT-03, INPUT-04, INPUT-05, CHECK-04, OUT-06 | none |
 | Core Agent over local IPC | ENABLE-01, ENABLE-02, INPUT-06, CHECK-01, CHECK-02, CHECK-03, CHECK-05, CHECK-06, RUN-01, RUN-02, RUN-03, RUN-04, OUT-01, OUT-02, OUT-03, OUT-04, OUT-05, OBS-02, OBS-03, SCALE-01 | stub integration checks that can match, fail, stall, or answer wrongly; an IPC client in place of the runner |
 | Runner | OBS-01 | a stub core Agent; a tracer that records spans |
 | Quality, opt-in | PERF-01, PERF-02, RES-01 | EC2 `m6gd.4xlarge`; stub integration checks |

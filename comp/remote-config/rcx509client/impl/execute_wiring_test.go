@@ -98,6 +98,13 @@ func TestExecuteHandlerIsNotProvidedByDefault(t *testing.T) {
 	require.Nil(t, got.ExecuteHandler)
 }
 
+// The connection ID is captured whenever the handler is registered, so the
+// handler no longer depends on the log-line setting.
+func TestExecuteHandlerDoesNotNeedTheConnectionLogSetting(t *testing.T) {
+	c := &fakeQueryCheck{executed: make(chan string, 4)}
+	require.NotNil(t, buildExecuteHandler(wiringDeps(t, map[string]interface{}{reportConnectionIDSetting: false}, c, NewConnectionTracker())))
+}
+
 func TestExecuteHandlerFailsClosedOnMissingPreconditions(t *testing.T) {
 	c := &fakeQueryCheck{executed: make(chan string, 4)}
 	tracker := NewConnectionTracker()
@@ -108,7 +115,6 @@ func TestExecuteHandlerFailsClosedOnMissingPreconditions(t *testing.T) {
 	}{
 		"missing org":  {map[string]interface{}{tunnelOrgIDSetting: 0}, c, tracker},
 		"negative org": {map[string]interface{}{tunnelOrgIDSetting: -1}, c, tracker},
-		"reporter off": {map[string]interface{}{reportConnectionIDSetting: false}, c, tracker},
 		"no collector": {nil, nil, tracker},
 		"no tracker":   {nil, c, nil},
 	} {

@@ -15,6 +15,7 @@ go_library(
         "factory_testbuild.go",
         "rcx509client.go",
         "remote_queries.go",
+        "tunnel_metadata.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/impl",
     target_compatible_with = select({
@@ -29,7 +30,9 @@ go_library(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/def",
+        "//comp/metadata/inventorychecks/def",
         "//comp/remote-config/rcx509client/def",
+        "//pkg/collector/check",
         "//pkg/collector/remotequeries",
         "//pkg/config/remote/api",
         "//pkg/config/utils",
@@ -49,6 +52,7 @@ dd_agent_go_test(
         "execute_wiring_test.go",
         "rcx509client_test.go",
         "remote_queries_test.go",
+        "tunnel_metadata_test.go",
     ],
     embed = [":impl"],
     target_compatible_with = select({
@@ -62,6 +66,7 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/log/mock",
         "//comp/def",
+        "//comp/metadata/inventorychecks/def",
         "//comp/remote-config/rcx509client/def",
         "//pkg/collector/check",
         "//pkg/collector/check/id",

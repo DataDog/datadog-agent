@@ -10,8 +10,8 @@ package rcx509clientimpl
 import (
 	"fmt"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	rcx509client "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509"
 )
 
@@ -19,15 +19,30 @@ const debugServicePingURI = "rc.x509.magic_tunnel.remote_config.v1.DebugService/
 
 // NewClientFactory returns the production adapter for the public libdd-rc Go
 // client. Keeping this boundary injectable lets the component test lifecycle
-// behavior without initializing the native x509 subsystem.
-func NewClientFactory(logger log.Component, connections *ConnectionTracker) rcx509client.ClientFactory {
-	return func(config rcx509client.ClientConfig) (rcx509client.Client, error) {
+// behavior without initializing the native x509 subsystem. It must be
+// registered with fxutil.ProvideComponentConstructor.
+func NewClientFactory(deps ClientFactoryDependencies) ClientFactoryProvides {
+	logger, connections := deps.Logger, deps.Connections
+	return ClientFactoryProvides{Factory: func(config rcx509client.ClientConfig) (rcx509client.Client, error) {
 		// The sink is process-global and installed before the client exists so
-		// that no handshake is missed. It is never touched unless asked for.
+		// that no handshake is missed. It is never touched unless asked for:
+		// the connection ID is captured when it is logged or when the Execute
+		// handler is to be registered (and published in inventory metadata).
 		var reporter *connectionReporter
-		if config.ReportConnectionID {
+		if config.ReportConnectionID || config.ExecuteHandler != nil {
 			reporter = newConnectionReporter(logger, rcx509.EnableLogSink)
 			reporter.tracker = connections
+			reporter.logConnection = config.ReportConnectionID
+			if config.ExecuteHandler != nil {
+				var checks func() []check.Check
+				if deps.Collector != nil {
+					checks = deps.Collector.GetChecks
+				}
+				reporter.publisher = newTunnelMetadataPublisher(deps.Inventory, checks)
+				if reporter.publisher == nil {
+					logger.Warn("remote queries tunnel connection ID will not be published in check inventory metadata: the inventory or the check collector is unavailable")
+				}
+			}
 			if !reporter.install() {
 				reporter = nil
 			}
@@ -72,5 +87,5 @@ func NewClientFactory(logger log.Component, connections *ConnectionTracker) rcx5
 			return &reportingClient{Client: client, reporter: reporter}, nil
 		}
 		return client, nil
-	}
+	}}
 }

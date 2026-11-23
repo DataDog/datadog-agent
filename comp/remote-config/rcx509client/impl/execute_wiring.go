@@ -14,6 +14,7 @@ import (
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	rcx509client "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/remotequeries"
 )
@@ -77,6 +78,25 @@ func (a tunnelAuthority) Authorize(context.Context, uint64) (remotequeries.Tunne
 	return remotequeries.TunnelTrust{OrgID: orgID, ConnectionID: id}, nil
 }
 
+// ClientFactoryDependencies are the dependencies of NewClientFactory.
+type ClientFactoryDependencies struct {
+	compdef.In
+
+	Logger      log.Component
+	Connections *ConnectionTracker
+	// Inventory and Collector are absent in Agent flavors that have neither;
+	// the connection ID is then not published in inventory metadata.
+	Inventory inventorychecks.Component `optional:"true"`
+	Collector collector.Component       `optional:"true"`
+}
+
+// ClientFactoryProvides is the output of NewClientFactory.
+type ClientFactoryProvides struct {
+	compdef.Out
+
+	Factory rcx509client.ClientFactory
+}
+
 // ExecuteHandlerDependencies are the dependencies of NewExecuteHandler.
 type ExecuteHandlerDependencies struct {
 	compdef.In
@@ -112,10 +132,6 @@ func buildExecuteHandler(deps ExecuteHandlerDependencies) rcx509client.ExecuteHa
 	}
 	if deps.Config.GetInt64(tunnelOrgIDSetting) <= 0 {
 		deps.Logger.Errorf("remote queries tunnel execute handler not registered: %s must be a positive org ID", tunnelOrgIDSetting)
-		return nil
-	}
-	if !deps.Config.GetBool(reportConnectionIDSetting) {
-		deps.Logger.Errorf("remote queries tunnel execute handler not registered: %s must be enabled so the Agent knows its connection ID", reportConnectionIDSetting)
 		return nil
 	}
 	if deps.Collector == nil || deps.Connections == nil {

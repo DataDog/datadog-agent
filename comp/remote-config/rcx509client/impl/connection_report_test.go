@@ -84,8 +84,10 @@ type reporterHarness struct {
 	r      *connectionReporter
 	logger *recordingLogger
 	ticker *fakeTicker
-	sink   *os.File
-	env    map[string]string
+	// pubTicker drives the periodic metadata publication.
+	pubTicker *fakeTicker
+	sink      *os.File
+	env       map[string]string
 	// intervals records the ticker intervals requested.
 	intervals []time.Duration
 	sinkCalls int
@@ -93,7 +95,7 @@ type reporterHarness struct {
 
 func newHarness(t *testing.T, env map[string]string, sinkErr error) *reporterHarness {
 	t.Helper()
-	h := &reporterHarness{logger: newRecordingLogger(), ticker: &fakeTicker{c: make(chan time.Time)}, env: env}
+	h := &reporterHarness{logger: newRecordingLogger(), ticker: &fakeTicker{c: make(chan time.Time)}, pubTicker: &fakeTicker{c: make(chan time.Time)}, env: env}
 	if h.env == nil {
 		h.env = map[string]string{}
 	}
@@ -110,6 +112,9 @@ func newHarness(t *testing.T, env map[string]string, sinkErr error) *reporterHar
 	h.r.unsetEnv = func(k string) error { delete(h.env, k); return nil }
 	h.r.newTicker = func(d time.Duration) reportTicker {
 		h.intervals = append(h.intervals, d)
+		if d == tunnelMetadataInterval {
+			return h.pubTicker
+		}
 		return h.ticker
 	}
 	return h

@@ -20,7 +20,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		uberfx.Provide(rcx509clientimpl.NewConnectionTracker),
-		uberfx.Provide(rcx509clientimpl.NewClientFactory),
+		fxutil.ProvideComponentConstructor(rcx509clientimpl.NewClientFactory),
 		fxutil.ProvideComponentConstructor(rcx509clientimpl.NewExecuteHandler),
 		fxutil.ProvideComponentConstructor(rcx509clientimpl.New),
 		uberfx.Invoke(func(_ rcx509client.Component) {}),

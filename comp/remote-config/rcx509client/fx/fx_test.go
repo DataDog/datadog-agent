@@ -60,6 +60,14 @@ func TestModuleSuppliesExecuteHandlerOnlyWhenEnabled(t *testing.T) {
 	t.Run("enabled", func(t *testing.T) {
 		require.NotNil(t, buildHandler(t, enabled, true))
 	})
+	t.Run("enabled without the connection log line", func(t *testing.T) {
+		withoutLog := map[string]interface{}{}
+		for k, v := range enabled {
+			withoutLog[k] = v
+		}
+		delete(withoutLog, "remote_configuration.x509.report_connection_id")
+		require.NotNil(t, buildHandler(t, withoutLog, true))
+	})
 	t.Run("default off", func(t *testing.T) {
 		require.Nil(t, buildHandler(t, map[string]interface{}{"remote_queries.enabled": true}, true))
 	})

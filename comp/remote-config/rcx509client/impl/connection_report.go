@@ -83,11 +83,20 @@ func (t realTicker) C() <-chan time.Time { return t.Ticker.C }
 
 func newRealTicker(d time.Duration) reportTicker { return realTicker{time.NewTicker(d)} }
 
-// connectionReporter turns the client library's handshake debug line into the
-// Agent log line that the Remote Queries tunnel selector searches for. It is
-// the only consumer of the library log sink and logs nothing else from it.
+// connectionReporter captures the connection ID from the client library's
+// handshake debug line and has two outputs: the Agent log line (when
+// logConnection is set) and the tunnel connection ID in check instance
+// inventory metadata (when a publisher is set and the Execute handler is
+// registered). It is the only consumer of the library log sink and logs nothing
+// else from it.
 type connectionReporter struct {
 	logger reportLogger
+
+	// logConnection enables the INFO log line and its periodic re-emission.
+	logConnection bool
+	// publisher, if set, publishes the ID in inventory metadata, but only once
+	// the Execute handler is registered.
+	publisher *tunnelMetadataPublisher
 
 	// Seams so tests need neither the native library nor real time.
 	enableSink func(*os.File) error
@@ -101,6 +110,13 @@ type connectionReporter struct {
 
 	// executeHandler is set once the Execute handler is actually registered.
 	executeHandler atomic.Bool
+
+	// publishNow wakes the ticker goroutine to publish right away, so the
+	// pipe reader never waits on the collector or the inventory.
+	publishNow chan struct{}
+	// publishMu serializes publishes so that an older ID is never applied after
+	// a newer one.
+	publishMu sync.Mutex
 
 	mu      sync.Mutex
 	id      string
@@ -117,15 +133,17 @@ type connectionReporter struct {
 
 func newConnectionReporter(logger reportLogger, enableSink func(*os.File) error) *connectionReporter {
 	return &connectionReporter{
-		logger:     logger,
-		enableSink: enableSink,
-		lookupEnv:  os.LookupEnv,
-		setEnv:     os.Setenv,
-		unsetEnv:   os.Unsetenv,
-		newTicker:  newRealTicker,
-		stop:       make(chan struct{}),
-		tickerDone: make(chan struct{}),
-		readerDone: make(chan struct{}),
+		logger:        logger,
+		logConnection: true,
+		publishNow:    make(chan struct{}, 1),
+		enableSink:    enableSink,
+		lookupEnv:     os.LookupEnv,
+		setEnv:        os.Setenv,
+		unsetEnv:      os.Unsetenv,
+		newTicker:     newRealTicker,
+		stop:          make(chan struct{}),
+		tickerDone:    make(chan struct{}),
+		readerDone:    make(chan struct{}),
 	}
 }
 
@@ -159,8 +177,14 @@ func (r *connectionReporter) install() bool {
 
 	r.writeEnd = pw
 	go r.readLoop(pr)
-	ticker := r.newTicker(connectionReportInterval)
-	go r.tickLoop(ticker)
+	var logTicker, publishTicker reportTicker
+	if r.logConnection {
+		logTicker = r.newTicker(connectionReportInterval)
+	}
+	if r.publisher != nil {
+		publishTicker = r.newTicker(tunnelMetadataInterval)
+	}
+	go r.tickLoop(logTicker, publishTicker)
 	return true
 }
 
@@ -175,6 +199,10 @@ func (r *connectionReporter) restoreEnv(set bool) {
 func (r *connectionReporter) markExecuteHandlerRegistered() {
 	if r != nil {
 		r.executeHandler.Store(true)
+		select {
+		case r.publishNow <- struct{}{}:
+		default:
+		}
 	}
 }
 
@@ -224,19 +252,55 @@ func (r *connectionReporter) observe(id string) {
 	r.id = id
 	r.tracker.set(id)
 	r.emitLocked()
+	select {
+	case r.publishNow <- struct{}{}:
+	default:
+	}
 }
 
-func (r *connectionReporter) tickLoop(ticker reportTicker) {
+// tickLoop re-emits the log line and re-applies the metadata. Either ticker
+// may be nil, which disables that output.
+func (r *connectionReporter) tickLoop(logTicker, publishTicker reportTicker) {
 	defer close(r.tickerDone)
-	defer ticker.Stop()
+	var logC, publishC <-chan time.Time
+	if logTicker != nil {
+		defer logTicker.Stop()
+		logC = logTicker.C()
+	}
+	if publishTicker != nil {
+		defer publishTicker.Stop()
+		publishC = publishTicker.C()
+	}
 	for {
 		select {
-		case <-ticker.C():
+		case <-logC:
 			r.reemit()
+		case <-publishC:
+			r.publish()
+		case <-r.publishNow:
+			r.publish()
 		case <-r.stop:
 			return
 		}
 	}
+}
+
+// publish applies the current connection ID to the eligible check instances.
+// It does nothing before a handshake, before the Execute handler is
+// registered, or after close.
+func (r *connectionReporter) publish() {
+	if r.publisher == nil || !r.executeHandler.Load() {
+		return
+	}
+	r.publishMu.Lock()
+	defer r.publishMu.Unlock()
+	r.mu.Lock()
+	id, stopped := r.id, r.stopped
+	r.mu.Unlock()
+	if stopped || id == "" {
+		return
+	}
+	r.publisher.publish(id)
 }
 
 // reemit logs the current ID again, if there is one.
@@ -249,6 +313,9 @@ func (r *connectionReporter) reemit() {
 }
 
 func (r *connectionReporter) emitLocked() {
+	if !r.logConnection {
+		return
+	}
 	r.logger.Infof("remote queries tunnel connection ready connection_id=%s execute_handler=%t", r.id, r.executeHandler.Load())
 }
 
