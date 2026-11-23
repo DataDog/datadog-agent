@@ -95,29 +95,22 @@ deploy_packages_aix-ppc64:
       # artifacts bucket.
       $S3_CP_CMD --content-type "application/octet-stream" "${bff_files[0]}" "${S3_RELEASE_ARTIFACTS_URI}/bff/ppc64/"
 
-# Host cleanup for the AIX CI runner: wipes all of /opt/dd-build plus the
-# dnf cache, re-provisions the host, pre-fills caches (Go modules,
-# integrations-core/saluki clones, agent-data-plane build) and reboots, so
-# the next AIX job doesn't start from cold.
+# Host cleanup for the AIX CI runner: at most once every
+# AIX_CLEANUP_INTERVAL_DAYS days (gated by a marker file on the host), wipes
+# /opt/dd-build and the dnf cache, re-provisions the host, warms the caches
+# the next AIX job needs and reboots the host. Nightly runs outside the
+# window succeed early; manual runs on main force it.
 #
-# Deep cleanup runs at most once every AIX_CLEANUP_INTERVAL_DAYS days, gated
-# by a marker file on the host; nightly runs outside the window succeed
-# early, manual runs on main force it.
-#
-# Ordering: no needs, so the job starts at pipeline start and takes the
-# aix_ci_host resource group before the other AIX jobs are even eligible
-# (they wait on setup_agent_version). Not a hard guarantee, but near-certain
-# in practice.
+# No needs: it starts at pipeline start and holds the aix_ci_host resource
+# group before the other AIX jobs (which wait on setup_agent_version) are
+# eligible.
 cleanup_aix-ppc64:
   stage: setup
   extends: .aix_remote
-  # Don't wait for setup_agent_version: see the ordering comment above. Its
-  # agent-version.cache upload is skipped in before_script (see
-  # AIX_SKIP_VERSION_CACHE) and fetched later, once setup has completed.
+  # pipeline-start, see header
   needs: []
-  # maintenance job, never block the pipeline on it
   allow_failure: true
-  # wipe + full re-clone + cache warm-up + reboot can exceed the template's 2h
+  # wipe + re-clone + warm-up + reboot
   timeout: 4h
   rules:
     - !reference [.except_light_pipeline]
@@ -128,16 +121,18 @@ cleanup_aix-ppc64:
       variables:
         AIX_CLEANUP_FORCE: "1"
   variables:
-    # Deep cleanup at most once every N days (marker file on the host gates it)
+    # Deep cleanup at most once every N days
     AIX_CLEANUP_INTERVAL_DAYS: "14"
-    # Reboot the host once the cleanup is done, and wait for it to come back
+    # Reboot the host at the end of the cleanup
     AIX_CLEANUP_RESTART: "1"
-    # Skip the before_script's version-cache download; fetched in script
+    # env.sh requires a version; this job doesn't need the real one
+    AGENT_VERSION: "0.0.0-ci-cleanup"
+    # Runs before the setup stage could have uploaded it
     AIX_SKIP_VERSION_CACHE: "1"
   script:
     - 'echo "=== AIX: host cleanup ==="'
-    # Marker lives outside /opt/dd-build. Keep only a standalone numeric line:
-    # the -tt PTY merges stderr in, whose digits would corrupt the timestamp.
+    # Marker lives outside /opt/dd-build. Only whole numeric lines: the -tt
+    # PTY merges stderr in, which would corrupt the timestamp.
     - LAST_CLEANUP=$(aix_run_cmd 'cat /opt/.aix-ci-last-cleanup 2>/dev/null || echo 0' | tr -d '\r' | grep -E '^[0-9]+$' | tail -1)
     - |
       if [ "${AIX_CLEANUP_FORCE:-0}" != "1" ] && [ $(( $(date +%s) - ${LAST_CLEANUP:-0} )) -lt $(( AIX_CLEANUP_INTERVAL_DAYS * 86400 )) ]; then
@@ -148,55 +143,31 @@ cleanup_aix-ppc64:
     - |
       aix_run_cmd <<EOF
       set -eux
-      # Everything the AIX jobs fill lives under /opt/dd-build (see
-      # packaging/aix/lib/env.sh).
+      # Everything the AIX jobs fill lives under /opt/dd-build
       rm -rf /opt/dd-build
       mkdir -p /opt/dd-build
-      # Mark done before the steps that can fail transiently, so a later
-      # failure doesn't make the next nightly re-wipe the host.
+      # Mark done before the failure-prone steps below
       date +%s > /opt/.aix-ci-last-cleanup
-      # setup-host.sh's Go tarball cache; re-downloaded on demand.
+      # Re-downloaded by setup-host.sh on demand
       rm -f /tmp/go*.aix-ppc64.tar.gz
       /opt/freeware/bin/dnf-3 clean all || true
       df -g /opt /tmp
       EOF
-    # Redo the before_script's clone + provisioning, wiped above.
+    # Redo the before_script's clone + provisioning, wiped above
     - 'echo "=== AIX: re-cloning agent source ==="'
     - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_git_setup.sh
     - 'echo "=== AIX: re-provisioning host (setup-host.sh) ==="'
     - aix_run_cmd "cd $AIX_AGENT_SRC && sh packaging/aix/setup-host.sh"
-    # The before_script skipped the version-cache download (needs: []);
-    # setup_agent_version has completed by now, so fetch it. Best effort:
-    # only the warm-up below needs it.
+    # Best-effort warm-up so the next AIX job starts warm
     - |
-      for i in $(seq 1 10); do
-        $S3_CP_CMD "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID/agent-version.cache" "$CI_PROJECT_DIR/agent-version.cache" && break
-        echo "agent-version.cache not on S3 yet (attempt $i/10), retrying in 60s"; sleep 60
-      done
-    - 'copy_file_to_aix "$CI_PROJECT_DIR/agent-version.cache" "$AIX_AGENT_SRC/agent-version.cache" || echo "WARNING: no agent-version.cache — the warm-up may fail"'
-    # Best-effort warm-up for the next AIX job (invoke deps, packaging stages
-    # 00-checkout and 05-agent-data-plane). Failures are perf-only — never
-    # fail the cleanup on them.
-    - 'echo "=== AIX: warming caches (best effort) ==="'
-    - |
-      if ! aix_run_cmd <<EOF
-      set -eu
+      aix_run_cmd <<EOF || echo "WARNING: cache warm-up failed"
+      set -ex
       cd $AIX_AGENT_SRC
       . ./packaging/aix/lib/env.sh
-      if ! python3.12 -m invoke -e deps; then
-        echo "WARNING: invoke deps failed — the next test run will download modules itself"
-      fi
-      if ! sh packaging/aix/stages/00-checkout.sh; then
-        echo "WARNING: stage 00-checkout failed — see /opt/dd-build/logs/00-checkout.log"
-      fi
-      if ! sh packaging/aix/stages/05-agent-data-plane.sh; then
-        echo "WARNING: stage 05-agent-data-plane failed — see /opt/dd-build/logs/05-agent-data-plane.log"
-      fi
-      df -g /opt
+      python3.12 -m invoke -e deps
+      sh packaging/aix/stages/00-checkout.sh
+      sh packaging/aix/stages/05-agent-data-plane.sh
       EOF
-      then
-        echo "WARNING: cache warm-up failed — the next AIX jobs will pay cold-start costs"
-      fi
     - |
       if [ "${AIX_CLEANUP_RESTART:-1}" != "1" ]; then
         echo "AIX_CLEANUP_RESTART != 1 — skipping reboot"
@@ -204,15 +175,13 @@ cleanup_aix-ppc64:
       fi
       echo "=== AIX: rebooting host ==="
       BOOT_BEFORE=$(aix_run_cmd 'who -b' | tr -d '\r' | tr -s ' ')
-      # nohup detaches the shutdown so the SSH session closes cleanly.
-      aix_run_cmd 'nohup sh -c "sleep 3; /usr/sbin/shutdown -Fr" >/dev/null 2>&1 & exit 0'
+      # nohup detaches the shutdown so the SSH session closes cleanly      aix_run_cmd 'nohup sh -c "sleep 3; /usr/sbin/shutdown -Fr" >/dev/null 2>&1 & exit 0'
       echo "=== AIX: waiting for the host to come back ==="
       deadline=$(( $(date +%s) + 1500 ))
       while [ "$(date +%s)" -lt "$deadline" ]; do
         sleep 30
-        # Raw ssh + ConnectTimeout so probes fail fast while the host is down.
-        # Only a new boot time counts as back — until then the reboot hasn't
-        # taken effect yet.
+        # Raw ssh + ConnectTimeout: probes fail fast while the host is down.
+        # Back only once the boot time changed.
         if BOOT_NOW=$(ssh $AIX_SSH_COMMON_OPTS -o ConnectTimeout=10 $AIX_SSH_DEST 'who -b' 2>/dev/null | tr -d '\r' | tr -s ' '); then
           if [ -n "$BOOT_NOW" ] && [ "$BOOT_NOW" != "$BOOT_BEFORE" ]; then
             echo "Host back up, new boot time: $BOOT_NOW"

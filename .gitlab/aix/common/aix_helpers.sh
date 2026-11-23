@@ -20,6 +20,7 @@ AIX_FORWARDED_ENV_VARS=(
     DEPLOY_AGENT
     DEPLOY_INSTALLER
     GITHUB_TOKEN
+    AGENT_VERSION
 )
 
 # Prints export lines for the forwarded variables that are set in the
