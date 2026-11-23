@@ -38,7 +38,9 @@ type tailer interface {
 // Launcher is in charge of starting and stopping windows event logs tailers
 type Launcher struct {
 	sources                chan *sources.LogSource
+	removedSources         chan *sources.LogSource
 	sourcesDone            chan struct{}
+	removedSourcesDone     chan struct{}
 	pipelineProvider       pipeline.Provider
 	registry               auditor.Registry
 	tailers                map[string]tailer
@@ -58,6 +60,7 @@ func NewLauncher() *Launcher {
 		pendingSources:         make(map[string]*sources.LogSource),
 		sourceGenerations:      make(map[string]uint64),
 		sourcesDone:            make(chan struct{}),
+		removedSourcesDone:     make(chan struct{}),
 		stop:                   make(chan struct{}),
 		publisherMetadataCache: cache,
 	}
@@ -66,7 +69,7 @@ func NewLauncher() *Launcher {
 // Start starts the launcher by setting up Windows event log sources and beginning to tail them.
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, _ *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
-	l.sources = sourceProvider.GetAddedForType(config.WindowsEventType, l.sourcesDone)
+	l.sources, l.removedSources = sourceProvider.SubscribeForType(config.WindowsEventType, l.sourcesDone, l.removedSourcesDone)
 	l.registry = registry
 	availableChannels, err := EnumerateChannels()
 	if err != nil {
@@ -98,6 +101,12 @@ func (l *Launcher) run() {
 				delete(l.pendingSources, identifier)
 				l.tailers[identifier] = tailer
 			}
+		case removed := <-l.removedSources:
+			for identifier, pending := range l.pendingSources {
+				if pending == removed {
+					delete(l.pendingSources, identifier)
+				}
+			}
 		case <-retryTicker.C:
 			for identifier, source := range l.pendingSources {
 				if _, exists := l.tailers[identifier]; exists {
@@ -123,6 +132,7 @@ func (l *Launcher) run() {
 func (l *Launcher) Stop() {
 	l.stopOnce.Do(func() {
 		close(l.sourcesDone)
+		close(l.removedSourcesDone)
 		l.stop <- struct{}{}
 		stopper := startstop.NewParallelStopper()
 		for _, tailer := range l.tailers {

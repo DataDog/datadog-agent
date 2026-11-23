@@ -88,6 +88,12 @@ func (n *failoverNotifier) initSnapshot() failoverConfig {
 	defer n.configChanMu.Unlock()
 	conf := n.readFailoverConfig()
 	n.latest.Store(&conf)
+	// Drain any stale notification queued between OnUpdate registration and
+	// this initial snapshot so the run loop cannot overwrite conf with older state.
+	select {
+	case <-n.configChan:
+	default:
+	}
 	return conf
 }
 

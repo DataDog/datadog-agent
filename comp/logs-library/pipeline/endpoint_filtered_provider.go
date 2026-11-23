@@ -1703,34 +1703,38 @@ func (p *EndpointFilteredProvider) Flush(ctx context.Context) {
 		}
 	}
 
-	acks = acks[:0]
+	// Flush all endpoint streams in parallel so a full stalled stream cannot
+	// prevent a healthy stream from receiving its flush barrier.
+	var streamWg sync.WaitGroup
 	for _, stream := range p.streams {
-		ack := make(chan struct{})
-		marker := &message.Message{}
-		marker.SetRoutingBarrier(ack)
-		marker.SetRoutingBarrierContext(ctx)
-		select {
-		case stream.input <- marker:
-			acks = append(acks, ack)
-		case <-ctx.Done():
-			return
-		case <-p.stopRequested:
-			return
-		case <-p.ctx.Done():
-			return
-		}
+		streamWg.Add(1)
+		go func(st *endpointStream) {
+			defer streamWg.Done()
+			ack := make(chan struct{})
+			marker := &message.Message{}
+			marker.SetRoutingBarrier(ack)
+			marker.SetRoutingBarrierContext(ctx)
+			select {
+			case st.input <- marker:
+			case <-ctx.Done():
+				return
+			case <-p.stopRequested:
+				return
+			case <-p.ctx.Done():
+				return
+			}
+			select {
+			case <-ack:
+			case <-ctx.Done():
+				return
+			case <-p.stopRequested:
+				return
+			case <-p.ctx.Done():
+				return
+			}
+		}(stream)
 	}
-	for _, ack := range acks {
-		select {
-		case <-ack:
-		case <-ctx.Done():
-			return
-		case <-p.stopRequested:
-			return
-		case <-p.ctx.Done():
-			return
-		}
-	}
+	streamWg.Wait()
 }
 
 // Stop gracefully drains and shuts down all processors, batchers, senders, and progress state.

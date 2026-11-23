@@ -8,6 +8,7 @@ package file
 
 import (
 	"context"
+	"errors"
 	"os"
 	"regexp"
 	"slices"
@@ -453,7 +454,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 				continue
 			}
 			if oldInfo.Path != "" {
-				if _, err := os.Stat(oldInfo.Path); err != nil {
+				if _, err := os.Stat(oldInfo.Path); errors.Is(err, os.ErrNotExist) {
 					continue
 				}
 			}
@@ -700,6 +701,19 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 		return false
 	}
 
+	// Honor any pending rotation retry state even on immediate source-add events.
+	scanKey := file.GetScanKey()
+	if oldInfo, hasOldInfo := s.oldInfoMap[scanKey]; hasOldInfo {
+		if oldInfo.Source == nil || oldInfo.Source == file.Source.UnderlyingSource() {
+			if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint) {
+				delete(s.oldInfoMap, scanKey)
+				return true
+			}
+			return false
+		}
+		m = config.ForceBeginning
+	}
+
 	channel, monitor, gen, err := s.pipelineChanForFile(file)
 	if err != nil {
 		log.Warnf("Could not allocate source input for %s: %v", file.Path, err)
@@ -716,6 +730,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 		return false
 	}
 
+	delete(s.oldInfoMap, scanKey)
 	s.recordSourceGen(tailer, gen)
 	s.tailers.Add(tailer)
 	return true
