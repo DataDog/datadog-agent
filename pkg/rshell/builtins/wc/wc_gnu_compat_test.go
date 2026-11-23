@@ -148,19 +148,32 @@ func TestGNUCompatCharsMultibyte(t *testing.T) {
 	assert.Equal(t, "5 file.txt\n", stdout)
 }
 
-// TestGNUCompatControlCharIsNotWord — control byte \x01 is transparent to word counting.
-//
-// GNU wc in POSIX locale treats C0 control characters as transparent:
-// they neither start nor end words. Only printable chars form words.
-//
-// GNU command: printf '\x01\n' | gwc -w
-// Expected: "0\n"
-func TestGNUCompatControlCharIsNotWord(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "file.txt", "\x01\n")
-	stdout, _, code := cmdRun(t, "wc -w file.txt", dir)
-	assert.Equal(t, 0, code)
-	assert.Equal(t, "0 file.txt\n", stdout)
+// GNU coreutils 9.5+ counts non-printable and invalid input as parts of words.
+func TestGNUCompatNonPrintableWords(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		words string
+	}{
+		{"control", "\x01\n", "1"},
+		{"separate controls", "\x01 \x02", "2"},
+		{"unassigned code point", "\U00089249", "1"},
+		{"invalid UTF-8", "\xff", "1"},
+		{"incomplete UTF-8", "\xe2\x82", "1"},
+		{"invalid then separator", "\xff ", "1"},
+		{"NEXT LINE is not glibc whitespace", "\u0085", "1"},
+		{"Unicode line separators", "a\u2028b\u2029c", "3"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "file.txt", test.input)
+			stdout, stderr, code := cmdRun(t, "wc -w file.txt", dir)
+			assert.Equal(t, 0, code)
+			assert.Empty(t, stderr)
+			assert.Equal(t, test.words+" file.txt\n", stdout)
+		})
+	}
 }
 
 // TestGNUCompatMaxLineLenVerticalTab — -L with \v (zero display width).

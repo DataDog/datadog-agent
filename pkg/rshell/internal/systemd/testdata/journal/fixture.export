@@ -22,6 +22,7 @@ _TRANSPORT=journal
 UNIT=rshell-fixture.service
 SYSLOG_IDENTIFIER=systemd
 _PID=1
+_SYSTEMD_CGROUP=/init.scope
 MESSAGE=manager noticed service
 
 __REALTIME_TIMESTAMP=1700000002000000

@@ -5,9 +5,10 @@ timestamps. They contain no logs or identifiers copied from a real host. The
 generation script also replaces the journal header's generator machine ID with
 the fixed synthetic machine ID before verification.
 
-The two committed golden files were generated and verified with systemd 255.4
-on Ubuntu 24.04. `regular-uncompressed.journal.gz` exercises the original
-regular layout. `compact-keyed-zstd.journal.gz` exercises compact offsets,
+The two committed golden files were generated and verified with systemd 259.9
+on Ubuntu 26.04, and checked with systemd 255.4 on Ubuntu 24.04.
+`regular-uncompressed.journal.gz` exercises the original regular layout.
+`compact-keyed-zstd.journal.gz` exercises compact offsets,
 keyed hashes, and a Zstandard-compressed DATA object. Gzip only keeps the sparse
 8 MiB journal files small in Git; tests decompress them in memory or into a
 per-test temporary directory. Test runs do not write generated files here.
@@ -15,6 +16,10 @@ per-test temporary directory. Test runs do not write generated files here.
 The golden files remain committed so tests can validate files emitted by real
 systemd on hosts and CI workers that do not provide `systemd-journal-remote`.
 `fixture.export` is their synthetic source rather than generated output.
+The manager record includes both `_PID=1` and `_SYSTEMD_CGROUP=/init.scope`:
+older `journalctl --unit` filters use the PID, while newer versions use the
+manager cgroup to include helper processes. Both selectors describe the same
+synthetic manager record.
 
 On a Linux system with `systemd-journal-remote`, generate a fresh corpus in an
 explicit temporary output directory and test it with:
@@ -22,9 +27,10 @@ explicit temporary output directory and test it with:
 ```sh
 output_dir=$(mktemp -d)
 ./generate.sh "$output_dir"
-RSHELL_JOURNAL_FIXTURE_DIR="$output_dir" \
-  go test ../.. \
-  -run 'TestRealJournalFixtures|TestJournalFixtureMatchesJournalctl|TestReadJournalUsesPureGoFixtureBackend'
+cd ../../../../../..
+dda inv test --module=pkg/rshell --targets=internal/systemd \
+  --bazel-args="--test_env=RSHELL_JOURNAL_FIXTURE_DIR=$output_dir --test_env=PATH --strategy=TestRunner=standalone" \
+  --test-args='-test.run=TestRealJournalFixtures|TestJournalFixtureMatchesJournalctl|TestReadJournalUsesPureGoFixtureBackend'
 ```
 
 Journal file and sequence IDs are randomized by systemd, so regeneration is

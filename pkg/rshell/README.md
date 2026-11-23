@@ -239,6 +239,37 @@ The interpreter supports Linux, macOS, and Windows. Some host-inspection builtin
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, testing, and pull request guidance. Security-sensitive builtin implementation rules live in [docs/RULES.md](docs/RULES.md).
 
+## GNU reference tools for differential tests
+
+Differential fuzz tests verify GNU coreutils executables instead of assuming
+that an unprefixed command is GNU (Ubuntu 26.04 defaults to uutils). Word-count
+comparisons require GNU wc 9.5 or newer: those releases count non-printable
+characters and encoding errors as parts of words. The `wc` Bash scenarios use
+Debian trixie for the same semantics; other Bash scenarios retain their Debian
+bookworm reference. CI mirrors can be selected
+with `RSHELL_BASH_IMAGE` and `RSHELL_BASH_WC_IMAGE`.
+
+On an older Linux build image, prepare an isolated reference before testing:
+
+```sh
+GNU_WC_BIN_DIR=$(bash pkg/rshell/scripts/prepare-gnu-wc.sh)
+export PATH="$GNU_WC_BIN_DIR:$PATH"
+```
+
+Run these commands from the Agent repository root. For Bazel differential seed
+checks, pass the reference PATH and use the standalone test strategy so the
+prepared executable is visible outside Bazel's private temporary directory:
+
+```sh
+dda inv test --module=pkg/rshell --targets=builtins/tests/wc \
+  --bazel-args="--test_env=RSHELL_BASH_TEST=1 --test_env=PATH --strategy=TestRunner=standalone"
+```
+
+The helper reuses a modern installed GNU wc when available; otherwise it verifies and builds the GNU 9.7
+release in a temporary directory. The fallback needs curl, xz, make, a C
+compiler, and sha256sum. It leaves system utilities unchanged. Remove the
+reported temporary build directory when it is no longer needed.
+
 ## License
 
 [Apache License 2.0](LICENSE)

@@ -52,6 +52,7 @@ rshell:bash:
   variables:
     # Pull Debian from our mirror rather than Docker Hub, which rate-limits CI.
     RSHELL_BASH_IMAGE: registry.ddbuild.io/images/mirror/debian:bookworm-slim
+    RSHELL_BASH_WC_IMAGE: registry.ddbuild.io/images/mirror/debian:trixie-slim
   script:
     - docker info
     - make -C pkg/rshell test_against_bash
@@ -67,7 +68,18 @@ rshell:fuzz:
     - GOTOOLCHAIN="go$(cat .go-version)"
     - export GOTOOLCHAIN
     - go version
-    - for command in cat head tail wc; do "$command" --version; done
+    # GNU wc 9.5+ counts non-printable and invalid input as words. Older
+    # build images get an isolated reference executable, without an OS change.
+    - |
+      GNU_WC_BIN_DIR=$(bash pkg/rshell/scripts/prepare-gnu-wc.sh)
+      export PATH="$GNU_WC_BIN_DIR:$PATH"
+      for utility in cat head tail wc; do
+        if command -v "gnu$utility" >/dev/null 2>&1; then
+          "gnu$utility" --version
+        else
+          "$utility" --version
+        fi
+      done
   script:
     # Fuzz every target in this one job, 8 at a time (the job gets 8 to 16 CPUs).
     - dda inv fuzz --targets=pkg/rshell --fuzztime=30s --jobs=8

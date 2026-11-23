@@ -12,41 +12,14 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/rshell/builtins/testutil"
 )
-
-// runGNUInDir runs a GNU command under LC_ALL=C.UTF-8 with its working
-// directory set to dir. args[0] is the command name; args[1:] are arguments.
-func runGNUInDir(t *testing.T, dir string, args []string) (stdout string, exitCode int) {
-	t.Helper()
-	if _, err := exec.LookPath(args[0]); err != nil {
-		t.Skipf("%s not found: %v", args[0], err)
-	}
-
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "LC_ALL=C.UTF-8")
-
-	var outBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-
-	err := cmd.Run()
-	exitCode = 0
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-		} else {
-			t.Logf("gnu exec error: %v", err)
-			return "", -1
-		}
-	}
-	return outBuf.String(), exitCode
-}
 
 func isSandboxError(stderr string) bool {
 	lower := strings.ToLower(stderr)
@@ -70,6 +43,8 @@ func FuzzTailDifferential(f *testing.F) {
 	f.Add([]byte("single line\n"), int64(1))
 	f.Add([]byte("a\nb\nc\nd\ne\n"), int64(3))
 	f.Add(bytes.Repeat([]byte("line\n"), 20), int64(5))
+
+	gnuCommand := testutil.GNUCommand(f, "tail")
 
 	f.Fuzz(func(t *testing.T, input []byte, n int64) {
 		if t.Context().Err() != nil {
@@ -102,10 +77,7 @@ func FuzzTailDifferential(f *testing.F) {
 			t.Skip("skipping: sandbox restriction")
 		}
 
-		gnuOut, gnuCode := runGNUInDir(t, dir, []string{"tail", "-n", nStr, "input.txt"})
-		if gnuCode == -1 {
-			return
-		}
+		gnuOut, gnuCode := testutil.RunGNUInDir(t, dir, gnuCommand, "-n", nStr, "input.txt")
 
 		if rshellOut != gnuOut {
 			t.Errorf("tail -n %d stdout mismatch:\nrshell: %q\ngnu:    %q\ninput:  %q", n, rshellOut, gnuOut, input)

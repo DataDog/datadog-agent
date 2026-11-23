@@ -8,11 +8,9 @@
 package head_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -22,34 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/rshell/builtins/testutil"
 )
-
-// runGNUInDir runs a GNU command under LC_ALL=C.UTF-8 with its working
-// directory set to dir. args[0] is the command name; args[1:] are arguments.
-func runGNUInDir(t *testing.T, dir string, args []string) (stdout string, exitCode int) {
-	t.Helper()
-	if _, err := exec.LookPath(args[0]); err != nil {
-		t.Skipf("%s not found: %v", args[0], err)
-	}
-
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "LC_ALL=C.UTF-8")
-
-	var outBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-
-	err := cmd.Run()
-	exitCode = 0
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-		} else {
-			t.Logf("gnu exec error: %v", err)
-			return "", -1
-		}
-	}
-	return outBuf.String(), exitCode
-}
 
 func isSandboxError(stderr string) bool {
 	lower := strings.ToLower(stderr)
@@ -75,6 +45,8 @@ func FuzzHeadDifferentialLines(f *testing.F) {
 
 	baseDir := f.TempDir()
 	var counter atomic.Int64
+
+	gnuCommand := testutil.GNUCommand(f, "head")
 
 	f.Fuzz(func(t *testing.T, input []byte, n int64) {
 		if t.Context().Err() != nil {
@@ -109,10 +81,7 @@ func FuzzHeadDifferentialLines(f *testing.F) {
 			t.Skip("skipping: sandbox restriction")
 		}
 
-		gnuOut, gnuCode := runGNUInDir(t, dir, []string{"head", "-n", nStr, "input.txt"})
-		if gnuCode == -1 {
-			return
-		}
+		gnuOut, gnuCode := testutil.RunGNUInDir(t, dir, gnuCommand, "-n", nStr, "input.txt")
 
 		if rshellOut != gnuOut {
 			t.Errorf("stdout mismatch for n=%d:\nrshell: %q\ngnu:    %q\ninput:  %q", n, rshellOut, gnuOut, input)
@@ -139,6 +108,8 @@ func FuzzHeadDifferentialBytes(f *testing.F) {
 
 	baseDir := f.TempDir()
 	var counter atomic.Int64
+
+	gnuCommand := testutil.GNUCommand(f, "head")
 
 	f.Fuzz(func(t *testing.T, input []byte, n int64) {
 		if t.Context().Err() != nil {
@@ -173,10 +144,7 @@ func FuzzHeadDifferentialBytes(f *testing.F) {
 			t.Skip("skipping: sandbox restriction")
 		}
 
-		gnuOut, gnuCode := runGNUInDir(t, dir, []string{"head", "-c", nStr, "input.txt"})
-		if gnuCode == -1 {
-			return
-		}
+		gnuOut, gnuCode := testutil.RunGNUInDir(t, dir, gnuCommand, "-c", nStr, "input.txt")
 
 		if rshellOut != gnuOut {
 			t.Errorf("stdout mismatch for -c %d:\nrshell: %q\ngnu:    %q\ninput:  %q", n, rshellOut, gnuOut, input)

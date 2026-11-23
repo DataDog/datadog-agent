@@ -303,73 +303,66 @@ func countReader(ctx context.Context, r io.Reader) (counts, error) {
 				ch, size := utf8.DecodeRune(chunk[i:])
 				i += size
 				// Invalid UTF-8 byte: not a character in C.UTF-8 locale.
-				// Skip entirely — no char count, no word effect.
+				// It contributes to a word, but not the character or display-width counts.
 				if ch == utf8.RuneError && size == 1 {
+					if !inWord {
+						c.words++
+						inWord = true
+					}
 					continue
 				}
 				c.chars++
+				// GNU coreutils 9.5+ counts every non-whitespace character,
+				// including controls, unassigned code points and encoding errors.
+				// glibc C.UTF-8 does not classify NEXT LINE as whitespace; GNU
+				// additionally treats WORD JOINER as whitespace by default.
+				if ch >= '\t' && ch <= '\r' || unicode.Is(unicode.Zs, ch) || ch == '\u2028' || ch == '\u2029' || ch == '\u2060' {
+					inWord = false
+				} else if !inWord {
+					c.words++
+					inWord = true
+				}
 				if ch == '\n' {
 					c.lines++
 					if lineLen > c.maxLineLen {
 						c.maxLineLen = lineLen
 					}
 					lineLen = 0
-					inWord = false
 				} else if ch == '\r' {
 					if lineLen > c.maxLineLen {
 						c.maxLineLen = lineLen
 					}
 					lineLen = 0
-					inWord = false
 				} else if ch == '\t' {
 					lineLen = (lineLen/8 + 1) * 8
-					inWord = false
 				} else if ch == ' ' {
 					lineLen++
-					inWord = false
 				} else if ch == '\f' {
 					if lineLen > c.maxLineLen {
 						c.maxLineLen = lineLen
 					}
 					lineLen = 0
-					inWord = false
-				} else if ch == '\v' || ch == '\u2060' {
-					// GNU wc treats vertical tab and WORD JOINER as zero-width word separators.
-					inWord = false
-				} else if unicode.Is(unicode.Cc, ch) {
-					// Control characters are transparent to word counting:
-					// they don't start or end words, matching GNU wc.
-					lineLen += int64(runeWidth(ch))
+				} else if ch == '\v' || ch == '\u2060' || unicode.Is(unicode.Cc, ch) {
+					// These characters have zero display width.
+					continue
 				} else if unicode.Is(unicode.Zs, ch) {
 					// Unicode space separators (NBSP, thin space, etc.) end words,
 					// matching GNU wc behaviour under C.UTF-8 locale.
 					lineLen++
-					inWord = false
 				} else if unicode.IsGraphic(ch) || unicode.Is(unicode.Co, ch) || unicode.Is(unicode.Cf, ch) || unicode.Is(unicode151Print, ch) {
-					// Printable characters start or continue a word,
-					// matching GNU wc which gates word counting on
-					// iswprint() in C.UTF-8 locale. IsGraphic covers
-					// letters, marks, numbers, punctuation, and
-					// symbols; Co adds private-use characters; Cf adds
-					// format characters (e.g. U+06DD ARABIC END OF
-					// AYAH, U+200B ZERO WIDTH SPACE) which glibc's
-					// iswprint considers printable; unicode151Print
-					// adds characters assigned in Unicode 15.1 that
-					// Go's tables don't yet include (Go ships
-					// Unicode 15.0).
-					if !inWord {
-						c.words++
-						inWord = true
-					}
+					// Keep display-width accounting independent of word counting.
 					lineLen += int64(runeWidth(ch))
 				}
-				// Other non-printable characters do not affect words or line length.
+				// Other non-printable characters have zero display width.
 			}
 		}
 		if err == io.EOF {
 			if carryN > 0 {
-				// Incomplete UTF-8 sequence at EOF: counts as bytes but not chars.
+				// Incomplete UTF-8 at EOF counts as bytes and non-whitespace, not characters.
 				c.bytes += int64(carryN)
+				if !inWord {
+					c.words++
+				}
 			}
 			break
 		}
@@ -447,8 +440,8 @@ func fieldWidth(total counts, opts options) int {
 // unicode151Print covers characters assigned in Unicode 15.1 that are
 // printable (graphic) but absent from Go's unicode package (Unicode 15.0).
 // CI runs GNU wc linked against glibc ≥ 2.39 (Ubuntu 24.04) which uses
-// Unicode 15.1+ character data, so these codepoints must be treated as
-// word characters to match GNU wc output.
+// Unicode 15.1+ character data, so these codepoints must have
+// display widths even when Go does not yet classify them as printable.
 //
 // This table can be removed once Go's unicode package is updated to
 // Unicode 15.1 or later (tracked in https://github.com/golang/go/issues/65141,

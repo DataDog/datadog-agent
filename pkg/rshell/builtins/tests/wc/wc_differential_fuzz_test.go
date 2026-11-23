@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -20,34 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/rshell/builtins/testutil"
 )
-
-// runGNUInDir runs a GNU command under LC_ALL=C.UTF-8 with its working
-// directory set to dir. args[0] is the command name; args[1:] are arguments.
-func runGNUInDir(t *testing.T, dir string, args []string) (stdout string, exitCode int) {
-	t.Helper()
-	if _, err := exec.LookPath(args[0]); err != nil {
-		t.Skipf("%s not found: %v", args[0], err)
-	}
-
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "LC_ALL=C.UTF-8")
-
-	var outBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-
-	err := cmd.Run()
-	exitCode = 0
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-		} else {
-			t.Logf("gnu exec error: %v", err)
-			return "", -1
-		}
-	}
-	return outBuf.String(), exitCode
-}
 
 func isSandboxError(stderr string) bool {
 	lower := strings.ToLower(stderr)
@@ -73,6 +44,8 @@ func FuzzWcDifferentialLines(f *testing.F) {
 
 	baseDir := f.TempDir()
 	var counter atomic.Int64
+
+	gnuCommand := testutil.GNUCommand(f, "wc")
 
 	f.Fuzz(func(t *testing.T, input []byte) {
 		if t.Context().Err() != nil {
@@ -102,10 +75,7 @@ func FuzzWcDifferentialLines(f *testing.F) {
 			t.Skip("skipping: sandbox restriction")
 		}
 
-		gnuOut, gnuCode := runGNUInDir(t, dir, []string{"wc", "-l", "input.txt"})
-		if gnuCode == -1 {
-			return
-		}
+		gnuOut, gnuCode := testutil.RunGNUInDir(t, dir, gnuCommand, "-l", "input.txt")
 
 		if rshellOut != gnuOut {
 			t.Errorf("wc -l stdout mismatch:\nrshell: %q\ngnu:    %q\ninput:  %q", rshellOut, gnuOut, input)
@@ -141,6 +111,8 @@ func FuzzWcDifferentialWords(f *testing.F) {
 	baseDir := f.TempDir()
 	var counter atomic.Int64
 
+	gnuCommand := testutil.GNUCommand(f, "wc")
+
 	f.Fuzz(func(t *testing.T, input []byte) {
 		if t.Context().Err() != nil {
 			return
@@ -169,10 +141,7 @@ func FuzzWcDifferentialWords(f *testing.F) {
 			t.Skip("skipping: sandbox restriction")
 		}
 
-		gnuOut, gnuCode := runGNUInDir(t, dir, []string{"wc", "-w", "input.txt"})
-		if gnuCode == -1 {
-			return
-		}
+		gnuOut, gnuCode := testutil.RunGNUInDir(t, dir, gnuCommand, "-w", "input.txt")
 
 		if rshellOut != gnuOut {
 			t.Errorf("wc -w stdout mismatch:\nrshell: %q\ngnu:    %q\ninput:  %q", rshellOut, gnuOut, input)
@@ -199,6 +168,8 @@ func FuzzWcDifferentialBytes(f *testing.F) {
 
 	baseDir := f.TempDir()
 	var counter atomic.Int64
+
+	gnuCommand := testutil.GNUCommand(f, "wc")
 
 	f.Fuzz(func(t *testing.T, input []byte) {
 		if t.Context().Err() != nil {
@@ -228,10 +199,7 @@ func FuzzWcDifferentialBytes(f *testing.F) {
 			t.Skip("skipping: sandbox restriction")
 		}
 
-		gnuOut, gnuCode := runGNUInDir(t, dir, []string{"wc", "-c", "input.txt"})
-		if gnuCode == -1 {
-			return
-		}
+		gnuOut, gnuCode := testutil.RunGNUInDir(t, dir, gnuCommand, "-c", "input.txt")
 
 		if rshellOut != gnuOut {
 			t.Errorf("wc -c stdout mismatch:\nrshell: %q\ngnu:    %q\ninput:  %q", rshellOut, gnuOut, input)

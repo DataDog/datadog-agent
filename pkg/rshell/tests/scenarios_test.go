@@ -34,10 +34,11 @@ import (
 const (
 	// dockerBashImage is the image the Bash comparison runs in, unless
 	// RSHELL_BASH_IMAGE names another (such as a mirror of it).
-	dockerBashImage  = "debian:bookworm-slim"
-	dockerJQVersion  = "1.8.1"
-	dockerJQAMD64SHA = "020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
-	dockerJQARM64SHA = "6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
+	dockerBashImage   = "debian:bookworm-slim"
+	dockerBashWCImage = "debian:trixie-slim"
+	dockerJQVersion   = "1.8.1"
+	dockerJQAMD64SHA  = "020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
+	dockerJQARM64SHA  = "6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
 )
 
 // scenario represents a single test scenario.
@@ -400,6 +401,7 @@ func setupTestDirIn(t *testing.T, parentDir, scriptsDir, subdir string, sc scena
 func buildRunnerScript(scenarios []dockerScenario) string {
 	needsBinutils := false
 	needsJQ := false
+	needsModernWC := false
 	for _, ds := range scenarios {
 		if strings.Contains(ds.testName, "cmd/strings/") {
 			needsBinutils = true
@@ -407,10 +409,17 @@ func buildRunnerScript(scenarios []dockerScenario) string {
 		if strings.Contains(ds.testName, "cmd/jq/") {
 			needsJQ = true
 		}
+		if strings.HasPrefix(ds.testName, "cmd/wc/") {
+			needsModernWC = true
+		}
 	}
 
 	var b strings.Builder
 	b.WriteString("#!/bin/bash\n")
+	if needsModernWC {
+		b.WriteString("wc --version | grep -q '(GNU coreutils)' || exit 1\n")
+		b.WriteString("test \"$(printf '\\001' | wc -w)\" -eq 1 || exit 1\n")
+	}
 	if needsBinutils || needsJQ {
 		var packages []string
 		if needsBinutils {
@@ -466,12 +475,7 @@ func TestShellScenariosAgainstBash(t *testing.T) {
 		t.Skip("docker not found, skipping bash comparison tests")
 	}
 	image := cmp.Or(os.Getenv("RSHELL_BASH_IMAGE"), dockerBashImage)
-	// Pull the image once before starting the container. The comparison was
-	// requested, so a failed pull (e.g. a registry rate limit) fails the test.
-	pull := exec.Command("docker", "pull", "-q", image)
-	if out, err := pull.CombinedOutput(); err != nil {
-		t.Fatalf("failed to pull %s docker image: %v\n%s", image, err, out)
-	}
+	wcImage := cmp.Or(os.Getenv("RSHELL_BASH_WC_IMAGE"), dockerBashWCImage)
 
 	// Create a shared temp directory that will be bind-mounted into the container.
 	sharedDir := t.TempDir()
@@ -506,18 +510,33 @@ func TestShellScenariosAgainstBash(t *testing.T) {
 	}
 	require.NotEmpty(t, allScenarios, "no eligible scenarios found")
 
-	// --- Phase 2: run ALL scenarios in a single docker invocation ---
-	runnerScript := buildRunnerScript(allScenarios)
-	runnerPath := filepath.Join(sharedDir, "runner.sh")
-	require.NoError(t, os.WriteFile(runnerPath, []byte(runnerScript), 0755))
-
-	cmd := exec.Command("docker", "run", "--rm",
-		"-v", sharedDir+":/work",
-		image, "bash", "/work/runner.sh",
-	)
-	var dockerStderr bytes.Buffer
-	cmd.Stderr = &dockerStderr
-	require.NoError(t, cmd.Run(), "runner script failed: %s", dockerStderr.String())
+	// --- Phase 2: batch scenarios by their reference environment ---
+	// wc follows GNU 9.5+ word counting. Keep other commands on their existing
+	// reference so a wc compatibility fix does not change their contracts.
+	batches := make(map[string][]dockerScenario)
+	for _, ds := range allScenarios {
+		reference := image
+		if strings.HasPrefix(ds.testName, "cmd/wc/") {
+			reference = wcImage
+		}
+		batches[reference] = append(batches[reference], ds)
+	}
+	batchNumber := 0
+	for reference, scenarios := range batches {
+		t.Logf("Bash reference: %s (%d scenarios)", reference, len(scenarios))
+		pull := exec.Command("docker", "pull", "-q", reference)
+		if out, err := pull.CombinedOutput(); err != nil {
+			t.Fatalf("failed to pull %s docker image: %v\n%s", reference, err, out)
+		}
+		runnerName := fmt.Sprintf("runner%d.sh", batchNumber)
+		batchNumber++
+		runnerPath := filepath.Join(sharedDir, runnerName)
+		require.NoError(t, os.WriteFile(runnerPath, []byte(buildRunnerScript(scenarios)), 0755))
+		cmd := exec.Command("docker", "run", "--rm", "-v", sharedDir+":/work", reference, "bash", "/work/"+runnerName)
+		var dockerStderr bytes.Buffer
+		cmd.Stderr = &dockerStderr
+		require.NoError(t, cmd.Run(), "reference %s runner failed: %s", reference, dockerStderr.String())
+	}
 
 	// --- Phase 3: read results and assert per-scenario expectations ---
 	resultsDir := filepath.Join(sharedDir, "results")

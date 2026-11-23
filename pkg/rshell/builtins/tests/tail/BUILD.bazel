@@ -12,7 +12,15 @@ dd_agent_go_test(
         "//pkg/rshell/internal/interpoption",
         "//pkg/rshell/interp",
         "@cc_mvdan_sh_v3//syntax",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/rshell/builtins/testutil",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/rshell/builtins/testutil",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 filegroup(
