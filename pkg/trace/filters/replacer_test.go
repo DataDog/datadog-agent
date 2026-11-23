@@ -257,6 +257,15 @@ func TestReplacerWildcardEnv(t *testing.T) {
 		assert.Equal(t, "prod", span.Meta["latency"], "other metrics are still replaced")
 	})
 
+	t.Run("v0 metric moved to meta when the span has no meta", func(t *testing.T) {
+		for _, name := range []string{"*", "latency"} {
+			span := &pb.Span{Metrics: map[string]float64{"latency": 1}}
+			NewReplacer(parseRulesFromString([][3]string{{name, "1", "prod"}})).Replace(pb.Trace{span})
+			assert.Equal(t, map[string]string{"latency": "prod"}, span.Meta)
+			assert.Empty(t, span.Metrics)
+		}
+	})
+
 	t.Run("v1 env in attributes and env field", func(t *testing.T) {
 		// Spans decoded from msgpack v0.4/v0.5 payloads (UnmarshalMsgConverted)
 		// keep env both in the dedicated env field and in Attributes().

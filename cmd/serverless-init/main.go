@@ -281,7 +281,7 @@ func loadEarlyConfig() {
 	// references inside yaml-configured `tags` / `extra_tags` are NOT
 	// resolved here, so metricTags below is snapshotted from this pre-secrets
 	// view. A later load that resolves them does not change metricTags.
-	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{}); err != nil {
+	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{}, false); err != nil {
 		log.Debugf("early config load error (non-fatal): %v", err)
 	}
 
