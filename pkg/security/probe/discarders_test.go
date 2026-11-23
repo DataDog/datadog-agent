@@ -250,6 +250,31 @@ func TestIsParentDiscarder(t *testing.T) {
 	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/tmp/test1/test2", 1, ""); is {
 		t.Error("shouldn't be a parent discarder")
 	}
+
+	// OverlayFSPathname also matches the path relative to the overlay mount point
+	merged := "/var/lib/docker/overlay2/abc/merged"
+	rs = rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path == "/tmp/target.txt"`, `open.file.path =~ "/etc/**"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", merged+"/tmp/other.txt", 1, ""); !is {
+		t.Error("should be a parent discarder")
+	}
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", merged+"/tmp/other.txt", 1, merged); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", merged+"/etc/conf.d/other", 1, merged); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", merged+"/other", 1, merged); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", merged+"/var/other", 1, merged); !is {
+		t.Error("should be a parent discarder")
+	}
 }
 
 func TestIsGrandParentDiscarder(t *testing.T) {
