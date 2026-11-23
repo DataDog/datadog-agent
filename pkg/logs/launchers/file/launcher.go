@@ -223,21 +223,21 @@ func (s *Launcher) cleanup() {
 	s.clearFingerprintRotationErrors()
 	stopper := startstop.NewParallelStopper()
 	s.cleanUpRotatedTailers()
-	var stoppedTailers []*tailer.Tailer
 	for _, tailer := range s.rotatedTailers {
-		stoppedTailers = append(stoppedTailers, tailer)
 		stopper.Add(tailer)
 	}
 	s.rotatedTailers = []*tailer.Tailer{}
 	for _, tailer := range s.tailers.All() {
-		stoppedTailers = append(stoppedTailers, tailer)
 		stopper.Add(tailer)
 		s.tailers.Remove(tailer)
 	}
 	stopper.Stop()
-	for _, t := range stoppedTailers {
-		s.retireTailer(t)
-	}
+	// Runtime removals retire generations explicitly; during full launcher
+	// shutdown, clear tracked generations so pipelineProvider.Stop() closes
+	// and drains all bound inputs in parallel within stop_grace_period.
+	s.sourceGenMu.Lock()
+	clear(s.sourceGenerations)
+	s.sourceGenMu.Unlock()
 	// Wait for any asynchronously removed tailers to finish stopping and retiring
 	// before pipeline shutdown closes bound input channels.
 	s.stoppingTailersWg.Wait()
@@ -438,28 +438,27 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
 
 	// Preserve rotation retry state for still-active, existing files omitted
-	// solely because the scan hit the tailing limit, without reinserting consumed entries.
-	if hitFileLimit {
-		for scanKey, oldInfo := range lastIterationOldInfo {
-			if consumedOldInfo[scanKey] || filesTailed[scanKey] {
-				continue
-			}
-			if _, seen := filesExpected[scanKey]; seen {
-				continue
-			}
-			if _, alreadyPersisted := s.oldInfoMap[scanKey]; alreadyPersisted {
-				continue
-			}
-			if oldInfo.Source == nil || !slices.Contains(s.activeSources, oldInfo.Source) {
-				continue
-			}
-			if oldInfo.Path != "" {
-				if _, err := os.Stat(oldInfo.Path); errors.Is(err, os.ErrNotExist) {
-					continue
-				}
-			}
-			s.oldInfoMap[scanKey] = oldInfo
+	// from this scan (whether due to tailing limit or transient stat/collection
+	// errors), without reinserting consumed entries.
+	for scanKey, oldInfo := range lastIterationOldInfo {
+		if consumedOldInfo[scanKey] || filesTailed[scanKey] {
+			continue
 		}
+		if _, seen := filesExpected[scanKey]; seen {
+			continue
+		}
+		if _, alreadyPersisted := s.oldInfoMap[scanKey]; alreadyPersisted {
+			continue
+		}
+		if oldInfo.Source == nil || !slices.Contains(s.activeSources, oldInfo.Source) {
+			continue
+		}
+		if oldInfo.Path != "" {
+			if _, err := os.Stat(oldInfo.Path); errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+		}
+		s.oldInfoMap[scanKey] = oldInfo
 	}
 
 	// Files that are no longer expected to be tailed can't recover, so drop their skip state.

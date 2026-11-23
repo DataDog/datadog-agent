@@ -44,6 +44,7 @@ type Launcher struct {
 	pipelineProvider       pipeline.Provider
 	registry               auditor.Registry
 	tailers                map[string]tailer
+	activeSources          map[string]*sources.LogSource
 	pendingSources         map[string]*sources.LogSource
 	sourceGenerations      map[string]uint64
 	nextGeneration         atomic.Uint64
@@ -57,6 +58,7 @@ func NewLauncher() *Launcher {
 	cache := publishermetadatacache.New(winevtapi.New())
 	return &Launcher{
 		tailers:                make(map[string]tailer),
+		activeSources:          make(map[string]*sources.LogSource),
 		pendingSources:         make(map[string]*sources.LogSource),
 		sourceGenerations:      make(map[string]uint64),
 		sourcesDone:            make(chan struct{}),
@@ -84,6 +86,30 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 func (l *Launcher) run() {
 	retryTicker := time.NewTicker(time.Second)
 	defer retryTicker.Stop()
+	removeSource := func(removed *sources.LogSource) {
+		for identifier, pending := range l.pendingSources {
+			if pending == removed {
+				delete(l.pendingSources, identifier)
+			}
+		}
+		for identifier, active := range l.activeSources {
+			if active == removed {
+				if t, ok := l.tailers[identifier]; ok {
+					t.Stop()
+					delete(l.tailers, identifier)
+				}
+				delete(l.activeSources, identifier)
+				if efp, ok := l.pipelineProvider.(*pipeline.EndpointFilteredProvider); ok {
+					if gen, hasGen := l.sourceGenerations[identifier]; hasGen {
+						delete(l.sourceGenerations, identifier)
+						ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+						_ = efp.RetireSource(ctx, identifier, gen)
+						cancel()
+					}
+				}
+			}
+		}
+	}
 	for {
 		select {
 		case source := <-l.sources:
@@ -100,14 +126,21 @@ func (l *Launcher) run() {
 			} else {
 				delete(l.pendingSources, identifier)
 				l.tailers[identifier] = tailer
+				l.activeSources[identifier] = source
 			}
 		case removed := <-l.removedSources:
-			for identifier, pending := range l.pendingSources {
-				if pending == removed {
-					delete(l.pendingSources, identifier)
+			removeSource(removed)
+		case <-retryTicker.C:
+			// Drain any pending removals before retrying failed registrations.
+		drainRemovals:
+			for {
+				select {
+				case removed := <-l.removedSources:
+					removeSource(removed)
+				default:
+					break drainRemovals
 				}
 			}
-		case <-retryTicker.C:
 			for identifier, source := range l.pendingSources {
 				if _, exists := l.tailers[identifier]; exists {
 					delete(l.pendingSources, identifier)
@@ -121,6 +154,7 @@ func (l *Launcher) run() {
 				}
 				delete(l.pendingSources, identifier)
 				l.tailers[identifier] = tailer
+				l.activeSources[identifier] = source
 			}
 		case <-l.stop:
 			return

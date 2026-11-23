@@ -1092,6 +1092,15 @@ func (p *EndpointFilteredProvider) dispatchProcessed() {
 				targets = append(targets, sourceTarget{lane, lane.submitted})
 			}
 			p.sourceDispatchMu.Unlock()
+			// Nudge all endpoint streams non-blockingly so healthy partial
+			// batches already queued flush immediately even if an unrelated
+			// dispatch lane is currently stalled.
+			for _, stream := range p.streams {
+				select {
+				case stream.flush <- struct{}{}:
+				default:
+				}
+			}
 			// Wait off the dispatchProcessed goroutine so a stalled source
 			// lane cannot halt dispatch for healthy sources during Flush.
 			go func(targets []sourceTarget, waitCtx context.Context, ack chan struct{}) {
