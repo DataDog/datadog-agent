@@ -41,6 +41,8 @@ go_library(
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners",
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
         "//test/e2e-framework/testing/utils/common",
         "//test/e2e-framework/testing/utils/e2e/client",
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
@@ -58,6 +60,7 @@ go_library(
 dd_agent_go_test(
     name = "gpu_test",
     srcs = [
+        "coat_metrics_test.go",
         "gpu_test.go",
         "mokka_test.go",
     ],

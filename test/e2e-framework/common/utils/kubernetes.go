@@ -53,13 +53,9 @@ func DockerConfigJSON(registry, username, password string) (string, error) {
 
 	authMap := make(map[string]map[string]string)
 	for i := range registries {
-		pwd := passwords[i]
-		if strings.HasPrefix(pwd, "b64=") {
-			decoded, err := base64.StdEncoding.DecodeString(pwd[4:])
-			if err != nil {
-				return "", fmt.Errorf("failed to base64 decode password for registry %s: %w", registries[i], err)
-			}
-			pwd = string(decoded)
+		pwd, err := decodeImagePullPassword(passwords[i])
+		if err != nil {
+			return "", fmt.Errorf("registry %s: %w", registries[i], err)
 		}
 		authMap[registries[i]] = map[string]string{
 			"username": usernames[i],

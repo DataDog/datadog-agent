@@ -31,3 +31,34 @@ func TestOCIChartRegistryIndex(t *testing.T) {
 		})
 	}
 }
+
+func TestImagePullCredential(t *testing.T) {
+	const registries = "us-docker.pkg.dev,ecr.example.com"
+	tests := []struct {
+		name      string
+		index     int
+		usernames string
+		passwords string
+		wantUser  string
+		wantPwd   string
+		wantErr   string
+	}{
+		{name: "second registry", index: 1, usernames: "u0,u1", passwords: "p0,p1", wantUser: "u1", wantPwd: "p1"},
+		{name: "base64 password", index: 0, usernames: "AWS", passwords: "b64=c2VjcmV0", wantUser: "AWS", wantPwd: "secret"},
+		{name: "invalid base64", index: 0, usernames: "AWS", passwords: "b64=%%%", wantErr: "base64"},
+		{name: "missing username", index: 1, usernames: "u0", passwords: "p0,p1", wantErr: "no image pull username"},
+		{name: "missing password", index: 1, usernames: "u0,u1", passwords: "p0", wantErr: "no image pull password"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			user, pwd, err := imagePullCredential(tt.index, registries, tt.usernames, tt.passwords)
+			if tt.wantErr != "" {
+				assert.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantUser, user)
+			assert.Equal(t, tt.wantPwd, pwd)
+		})
+	}
+}

@@ -139,7 +139,7 @@ injects it into containers with an NRI plugin. The reusable pieces live in the e
   Call it once per GPU pool (`mokka.WithName`, `mokka.WithNodeSelector`) to mix profiles.
 
 What it covers: NVML inventory and metrics, workloadmeta GPUs, GPU tags, GPU allocation to pods
-(kubelet pod-resources), and scheduler/queue tagging of GPU pods. What it does not: CUDA
+(kubelet pod-resources). What it does not: CUDA
 execution, eBPF/system-probe probes, per-process metrics, real values (they are synthetic, assert
 presence and tags only). Keep those in the `g4dn` suites.
 
@@ -147,7 +147,8 @@ Gotchas:
 - The NRI plugin never injects into `kube-system` or the Mokka namespace, and only into containers
   created after it runs: the Agent must be deployed after Mokka (`kindvm.WithMokka` handles it).
 - The Mokka and device plugin images come from `ghcr.io` and `nvcr.io`, so the suite uses
-  `kindvm.WithInternetAccess()`.
+  `kindvm.WithInternetAccess()`. The GPU test pods use busybox through the DockerHub ECR
+  pull-through cache (`busyboxImage()`), falling back to DockerHub when no image pull registry is set.
 - The Mokka chart is pulled by Pulumi on the CI runner, which can't reach `ghcr.io`. Until the
   `ghcr.io` ECR pull-through cache exists (ddoghq/cloud-inventory#3478), the Mokka suites run in the
   manual `new-e2e-gpu-mokka` job instead of `new-e2e-gpu`. Locally they work as long as your machine

@@ -7,6 +7,7 @@ package gpu
 
 import (
 	"os"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/mokka"
@@ -14,7 +15,23 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
+
+// busyboxTag is the busybox tag used by the GPU test pods.
+const busyboxTag = "1.36"
+
+// busyboxImage returns the busybox image for the GPU test pods. It goes through the ECR
+// pull-through cache of DockerHub when the runner has an image pull registry, so the pull is not
+// subject to DockerHub anonymous rate limits, and falls back to DockerHub otherwise (local runs).
+func busyboxImage() string {
+	reg, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
+	if reg != "" {
+		return strings.SplitN(reg, ",", 2)[0] + "/dockerhub/library/busybox:" + busyboxTag
+	}
+	return "busybox:" + busyboxTag
+}
 
 // mokkaHelmValues are the Agent values of the Mokka suites, on top of mokka.AgentHelmValues.
 // gpuMonitoring.privilegedMode is left off, so the system-probe GPU module (eBPF probes) is not
@@ -42,7 +59,7 @@ func ghcrChartRepository(path string) string {
 }
 
 // mokkaProfileParams describes the simulated GPUs of a Mokka suite, and any extra kindvm
-// options (e.g. a scheduler such as kindvm.WithKAIScheduler, or a bigger VM).
+// options (e.g. a bigger VM).
 type mokkaProfileParams struct {
 	profile    string
 	gpuCount   int

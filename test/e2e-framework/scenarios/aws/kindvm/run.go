@@ -8,6 +8,7 @@ package kindvm
 import (
 	_ "embed"
 	"errors"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -189,11 +190,17 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 	preAgentWorkloads := make([]pulumi.Resource, 0, len(params.preAgentWorkloadAppFuncs)+len(params.mokkaInstallations))
 	// Mokka must be running before the Agent starts: its NRI plugin only injects the mock GPU
 	// driver into containers created after it, so it is handled like a pre-Agent workload.
+	mokkaNames := make(map[string]struct{}, len(params.mokkaInstallations))
 	for _, mokkaOpts := range params.mokkaInstallations {
 		mokkaParams, err := mokka.NewParams(mokkaOpts...)
 		if err != nil {
 			return err
 		}
+		// Fail here with the cause, instead of a Pulumi duplicate URN error from the second install.
+		if _, duplicate := mokkaNames[mokkaParams.Name]; duplicate {
+			return fmt.Errorf("several WithMokka installations are named %q: give each one its own mokka.WithName", mokkaParams.Name)
+		}
+		mokkaNames[mokkaParams.Name] = struct{}{}
 		mokkaComp, err := mokka.NewInstallation(&awsEnv, mokkaParams, kubeProvider)
 		if err != nil {
 			return err
