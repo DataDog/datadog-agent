@@ -29,6 +29,7 @@ const (
 	UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured_processing"
 
 	// MRF logs settings
+	configMRFEnabled          = "multi_region_failover.enabled"
 	configMRFFailoverLogs     = "multi_region_failover.failover_logs"
 	configMRFServiceAllowlist = "multi_region_failover.logs_service_allowlist"
 )
@@ -42,18 +43,23 @@ type failoverConfig struct {
 // any closures (such as routing callbacks) it holds so stopped processors and
 // providers can be garbage collected.
 type failoverNotifier struct {
-	config       pkgconfigmodel.Reader
-	configChan   chan failoverConfig
-	configChanMu sync.Mutex
-	stopped      atomic.Bool
+	config               pkgconfigmodel.Reader
+	configChan           chan failoverConfig
+	configChanMu         sync.Mutex
+	requireGlobalEnabled bool
+	stopped              atomic.Bool
 }
 
 func (n *failoverNotifier) readFailoverConfig() failoverConfig {
 	if n.config == nil {
 		return failoverConfig{}
 	}
+	active := n.config.GetBool(configMRFFailoverLogs)
+	if n.requireGlobalEnabled {
+		active = active && n.config.GetBool(configMRFEnabled)
+	}
 	conf := failoverConfig{
-		isFailoverActive: n.config.GetBool(configMRFFailoverLogs),
+		isFailoverActive: active,
 	}
 	if conf.isFailoverActive && n.config.IsConfigured(configMRFServiceAllowlist) {
 		rawList := n.config.GetStringSlice(configMRFServiceAllowlist)
@@ -70,7 +76,7 @@ func (n *failoverNotifier) onLogsFailoverSettingChanged(setting string, _ pkgcon
 	if n.stopped.Load() {
 		return
 	}
-	var MRFConfigFields = []string{configMRFFailoverLogs, configMRFServiceAllowlist}
+	var MRFConfigFields = []string{configMRFEnabled, configMRFFailoverLogs, configMRFServiceAllowlist}
 	if slices.Contains(MRFConfigFields, setting) {
 		n.updateFailoverConfig()
 	}
@@ -131,12 +137,12 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 func NewWithTerminalLoss(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	tagFilters *tagfilter.Filters, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string, terminalLoss func(*message.Message)) *Processor {
-	return newProcessor(config, inputChan, outputChan, processingRules, tagFilters, encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, instanceID, terminalLoss, true)
+	return newProcessor(config, inputChan, outputChan, processingRules, tagFilters, encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, instanceID, terminalLoss, true, false)
 }
 
 func newProcessor(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	tagFilters *tagfilter.Filters, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineMonitor metrics.PipelineMonitor, instanceID string, terminalLoss func(*message.Message), enableMRF bool) *Processor {
+	pipelineMonitor metrics.PipelineMonitor, instanceID string, terminalLoss func(*message.Message), enableMRF, requireGlobalMRFEnabled bool) *Processor {
 
 	configChan := make(chan failoverConfig, 1)
 	p := &Processor{
@@ -159,16 +165,17 @@ func newProcessor(config pkgconfigmodel.Reader, inputChan, outputChan chan *mess
 
 	if enableMRF {
 		notifier := &failoverNotifier{
-			config:     config,
-			configChan: configChan,
+			config:               config,
+			configChan:           configChan,
+			requireGlobalEnabled: requireGlobalMRFEnabled,
 		}
 		p.failoverNotifier = notifier
-		// Initialize effective failover config synchronously so the first
-		// admitted records see initially active MRF without racing configChan.
-		p.failoverConfig = notifier.readFailoverConfig()
+		// Subscribe before reading the initial snapshot so no concurrent
+		// config update between read and subscribe can be missed.
 		if config != nil {
 			config.OnUpdate(notifier.onLogsFailoverSettingChanged)
 		}
+		p.failoverConfig = notifier.readFailoverConfig()
 	}
 
 	return p
@@ -192,7 +199,7 @@ const (
 func NewForRouting(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	tagFilters *tagfilter.Filters, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string, terminalLoss func(*message.Message), selectForRouting func(*message.Message) RoutingDecision) *Processor {
-	p := newProcessor(config, inputChan, outputChan, processingRules, tagFilters, encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, instanceID, terminalLoss, false)
+	p := newProcessor(config, inputChan, outputChan, processingRules, tagFilters, encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, instanceID, terminalLoss, false, false)
 	p.selectForRouting = selectForRouting
 	return p
 }
@@ -204,7 +211,7 @@ func NewForRouting(config pkgconfigmodel.Reader, inputChan, outputChan chan *mes
 func NewForEndpointFiltering(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	tagFilters *tagfilter.Filters, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string, terminalLoss func(*message.Message), selectForRouting func(*message.Message) RoutingDecision) *Processor {
-	p := newProcessor(config, inputChan, outputChan, processingRules, tagFilters, encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, instanceID, terminalLoss, true)
+	p := newProcessor(config, inputChan, outputChan, processingRules, tagFilters, encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, instanceID, terminalLoss, true, true)
 	p.selectForRouting = selectForRouting
 	return p
 }

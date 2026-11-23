@@ -810,20 +810,24 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	// Remove the rotated tailer from the active container so a fresh tailer can
 	// be created for the new file while this one finishes draining the old file.
 	s.tailers.Remove(oldTailer)
+	// Always keep track of the rotated tailer until it finishes draining and retires.
+	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 
-	newTailer := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
-	// force reading file from beginning since it has been log-rotated
-	err := newTailer.StartFromBeginning()
+	newTailer, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
 	if err != nil {
+		log.Warnf("Could not allocate replacement tailer for %s after a log rotation, will retry on the next scan: %v", file.Path, err)
+		return false
+	}
+	// force reading file from beginning since it has been log-rotated
+	err = newTailer.StartFromBeginning()
+	if err != nil {
+		s.retireTailer(newTailer)
 		log.Warnf("Could not start the replacement tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
 	}
 
-	// Since newTailer and oldTailer share the same ID, tailers.Add will replace the old tailer.
-	// We will keep track of the rotated tailer until it is finished.
-	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 	s.tailers.Add(newTailer)
 
 	return true
@@ -858,13 +862,11 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 	return t
 }
 
-func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp, fingerprint *types.Fingerprint) *tailer.Tailer {
+func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp, fingerprint *types.Fingerprint) (*tailer.Tailer, error) {
 	tailerInfo := t.GetInfo()
 	channel, monitor, gen, err := s.pipelineChanForFile(file)
 	if err != nil {
-		log.Warnf("Could not allocate rotated source input for %s, falling back to shared ingress: %v", file.Path, err)
-		channel, monitor = s.pipelineProvider.NextPipelineChanWithMonitor()
-		gen = 0
+		return nil, err
 	}
 	if fingerprint != nil {
 		log.Debugf("Creating new tailer for %s with fingerprint 0x%x (configuration: %v)", file.Path, fingerprint.Value, fingerprint.Config)
@@ -875,7 +877,7 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 	addFingerprintConfigToTailerInfo(newTailer)
 	s.recordSourceGen(newTailer, gen)
 
-	return newTailer
+	return newTailer, nil
 }
 
 // addFingerprintConfigToTailerInfo adds fingerprint configuration info to the tailer's status display

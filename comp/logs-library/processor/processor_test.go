@@ -751,6 +751,7 @@ func TestRoutingSelectionOwnsItsOutcomeAndPrecedesEncoding(t *testing.T) {
 
 func TestEndpointFilteringSelectionSeesMRFAndUnfilteredLocalTags(t *testing.T) {
 	cfg := configmock.New(t)
+	cfg.Set(configMRFEnabled, true, pkgconfigmodel.SourceRC)
 	cfg.Set(configMRFFailoverLogs, true, pkgconfigmodel.SourceRC)
 	cfg.Set(configMRFServiceAllowlist, []string{"payments"}, pkgconfigmodel.SourceRC)
 

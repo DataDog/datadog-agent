@@ -110,89 +110,18 @@ func (s *worker) run() {
 	for continueLoop {
 		select {
 		case payload := <-s.inputChan:
-			s.pipelineMonitor.ReportComponentEgress(payload, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
-			s.pipelineMonitor.ReportComponentIngress(payload, metrics.WorkerTlmName, s.workerID)
-			s.utilization.Start()
-			var startInUse = time.Now()
-			senderDoneWg := &sync.WaitGroup{}
-
-			sent := false
-			for !sent {
-				for _, destSender := range reliableDestinations {
-					// Drop non-MRF payloads to MRF destinations
-					if destSender.destination.IsMRF() && !payload.IsMRF() {
-						log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
-						sent = true
-						continue
-					}
-
-					if destSender.Send(payload) {
-						if destSender.destination.Metadata().ReportingEnabled {
-							s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag(), s.workerID)
-						}
-						sent = true
-						if s.senderDoneChan != nil {
-							senderDoneWg.Add(1)
-							s.senderDoneChan <- senderDoneWg
-						}
-					}
-				}
-
-				if !sent {
-					// Throttle the poll loop while waiting for a send to succeed
-					// This will only happen when all reliable destinations
-					// are blocked so logs have no where to go.
-					time.Sleep(100 * time.Millisecond)
-				}
-			}
-
-			for i, destSender := range reliableDestinations {
-				// Drop non-MRF payloads to MRF destinations
-				if destSender.destination.IsMRF() && !payload.IsMRF() {
-					log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
-					sent = true
-					continue
-				}
-				// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
-				// loss on intermittent failures.
-				if !destSender.lastSendSucceeded {
-					if !destSender.NonBlockingSend(payload) {
-						tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
-						tlmMessagesDropped.Add(float64(payload.Count()), "true", strconv.Itoa(i))
-					}
-				}
-			}
-
-			// Attempt to send to unreliable destinations
-			for i, destSender := range unreliableDestinations {
-				// Drop non-MRF payloads to MRF destinations
-				if destSender.destination.IsMRF() && !payload.IsMRF() {
-					log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
-					sent = true
-					continue
-				}
-				if !destSender.NonBlockingSend(payload) {
-					tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
-					tlmMessagesDropped.Add(float64(payload.Count()), "false", strconv.Itoa(i))
-					if s.senderDoneChan != nil {
-						senderDoneWg.Add(1)
-						s.senderDoneChan <- senderDoneWg
-					}
-				}
-			}
-
-			inUse := float64(time.Since(startInUse) / time.Millisecond)
-			tlmSendWaitTime.Add(inUse)
-			s.utilization.Stop()
-
-			if s.senderDoneChan != nil && s.serverlessMeta != nil {
-				// Wait for all destinations to finish sending the payload
-				senderDoneWg.Wait()
-				// Record that this payload has been sent
-				s.serverlessMeta.PendingSendDone()
-			}
-			s.pipelineMonitor.ReportComponentEgress(payload, metrics.WorkerTlmName, s.workerID)
+			s.sendPayload(payload, reliableDestinations, unreliableDestinations)
 		case <-s.done:
+			// Drain payloads already queued on inputChan before stopping destinations.
+		drain:
+			for {
+				select {
+				case payload := <-s.inputChan:
+					s.sendPayload(payload, reliableDestinations, unreliableDestinations)
+				default:
+					break drain
+				}
+			}
 			continueLoop = false
 		}
 	}
@@ -206,6 +135,89 @@ func (s *worker) run() {
 	}
 	close(noopSink)
 	s.finished <- struct{}{}
+}
+
+func (s *worker) sendPayload(payload *message.Payload, reliableDestinations, unreliableDestinations []*DestinationSender) {
+	s.pipelineMonitor.ReportComponentEgress(payload, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
+	s.pipelineMonitor.ReportComponentIngress(payload, metrics.WorkerTlmName, s.workerID)
+	s.utilization.Start()
+	var startInUse = time.Now()
+	senderDoneWg := &sync.WaitGroup{}
+
+	sent := false
+	for !sent {
+		for _, destSender := range reliableDestinations {
+			// Drop non-MRF payloads to MRF destinations
+			if destSender.destination.IsMRF() && !payload.IsMRF() {
+				log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
+				sent = true
+				continue
+			}
+
+			if destSender.Send(payload) {
+				if destSender.destination.Metadata().ReportingEnabled {
+					s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag(), s.workerID)
+				}
+				sent = true
+				if s.senderDoneChan != nil {
+					senderDoneWg.Add(1)
+					s.senderDoneChan <- senderDoneWg
+				}
+			}
+		}
+
+		if !sent {
+			// Throttle the poll loop while waiting for a send to succeed
+			// This will only happen when all reliable destinations
+			// are blocked so logs have no where to go.
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	for i, destSender := range reliableDestinations {
+		// Drop non-MRF payloads to MRF destinations
+		if destSender.destination.IsMRF() && !payload.IsMRF() {
+			log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
+			continue
+		}
+		// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
+		// loss on intermittent failures.
+		if !destSender.lastSendSucceeded {
+			if !destSender.NonBlockingSend(payload) {
+				tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
+				tlmMessagesDropped.Add(float64(payload.Count()), "true", strconv.Itoa(i))
+			}
+		}
+	}
+
+	// Attempt to send to unreliable destinations
+	for i, destSender := range unreliableDestinations {
+		// Drop non-MRF payloads to MRF destinations
+		if destSender.destination.IsMRF() && !payload.IsMRF() {
+			log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
+			continue
+		}
+		if !destSender.NonBlockingSend(payload) {
+			tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
+			tlmMessagesDropped.Add(float64(payload.Count()), "false", strconv.Itoa(i))
+			if s.senderDoneChan != nil {
+				senderDoneWg.Add(1)
+				s.senderDoneChan <- senderDoneWg
+			}
+		}
+	}
+
+	inUse := float64(time.Since(startInUse) / time.Millisecond)
+	tlmSendWaitTime.Add(inUse)
+	s.utilization.Stop()
+
+	if s.senderDoneChan != nil && s.serverlessMeta != nil {
+		// Wait for all destinations to finish sending the payload
+		senderDoneWg.Wait()
+		// Record that this payload has been sent
+		s.serverlessMeta.PendingSendDone()
+	}
+	s.pipelineMonitor.ReportComponentEgress(payload, metrics.WorkerTlmName, s.workerID)
 }
 
 // Drains the output channel from destinations that don't update the auditor.

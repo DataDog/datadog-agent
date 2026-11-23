@@ -27,14 +27,14 @@ Filtering and reliability are independent: selectors can be attached to any reli
 | 0 endpoints match | Skip render/encode; no delivery | Completed locally (`Excluded: true`) |
 | Optional-only (0 reliable, >=1 optional match) | Render/encode once; non-blocking handoff to matched optional queues | Completed locally immediately after non-blocking handoff |
 | >=1 reliable endpoints match | Try all matching reliable endpoints; block only if all matching reliable queues are full. Optional matches get non-blocking best-effort copies. | Satisfied when any one matching reliable endpoint completes (`CompletionRequireAny`); optional acknowledgments never advance pending reliable records. |
-| Selector evaluation error (reliable endpoint) | Fail-open (include endpoint) + error metric & rate-limited warning | Follows normal reliable completion (never holds checkpoint on eval error) |
+| Selector evaluation error (reliable endpoint) | Fail-open (include endpoint) + error metric & rate-limited warning | Follows normal reliable completion (does not install an invalid-selection barrier; still holds checkpoint if that reliable endpoint is unavailable) |
 | Selector evaluation error (optional endpoint) | Fail-closed (exclude endpoint) + error metric & rate-limited warning | Unaffected |
 
 ## Isolation, Backpressure, and MRF
 
 - **Optional failure isolation:** Optional (unreliable) endpoints use `shouldRetry=false`, bounded non-blocking message and payload queues, and a no-op sink. Slowness, HTTP errors, or queue saturation on an optional endpoint drop best-effort copies with telemetry (`logs_endpoint_filter.optional_messages_dropped`, `logs_endpoint_filter.optional_payloads_dropped`) without blocking reliable delivery or advancing checkpoints.
 - **Primary backpressure:** When all matching reliable endpoints for a record are stalled (for example US1 returning 503), admission pauses at `routing.SourcePendingLimit` (64 records per source) and source checkpoints stay held until recovery.
-- **MRF interaction:** MRF endpoints (`Endpoint.IsMRF == true`) are eligible only when `msg.IsMRFAllow` is true (and their selector, if configured, matches). When failover is active, MRF delivery satisfies `CompletionRequireAny` for allowed services so source checkpoints can progress during a primary outage.
+- **MRF interaction:** MRF endpoints (`Endpoint.IsMRF == true`) are eligible only when both `multi_region_failover.enabled` and `multi_region_failover.failover_logs` are true, the service is allowed (`msg.IsMRFAllow`), and their selector (if configured) matches. When failover is active, MRF delivery satisfies `CompletionRequireAny` for allowed services so source checkpoints can progress during a primary outage. Synchronous MRF config initialization and the decoupled `failoverNotifier` also apply to the default `processor.New` path.
 
 ## OTTL Integration Stub Boundary
 

@@ -169,7 +169,8 @@ type evaluatedEndpoint struct {
 }
 
 // EndpointFilterPolicy holds validated endpoints and precomputed masks for
-// zero-allocation per-record endpoint selection.
+// inline bitmask endpoint selection (zero heap allocations for mask
+// computation and non-allocating selectors on the error-free path).
 type EndpointFilterPolicy struct {
 	endpoints          []config.Endpoint
 	ids                []string

@@ -151,7 +151,9 @@ func (s *batchStrategy) Start() {
 				// flush the payloads at a regular interval so pending messages don't wait here for too long.
 				s.flushAllBatches("timer")
 			case <-s.flushChan:
-				// flush payloads on demand, used for infrequently running serverless functions
+				// Include messages already queued on inputChan before flushing
+				// so out-of-band pressure flushes don't miss queued records.
+				s.drainInput()
 				s.flushAllBatches("flush")
 			case done := <-s.flushRequests:
 				// Include messages already queued, since select may pick this case before them,
@@ -198,6 +200,11 @@ func (s *batchStrategy) drainInput() {
 		case m, isOpen := <-s.inputChan:
 			if !isOpen {
 				return
+			}
+			if done := m.RoutingBarrier(); done != nil {
+				s.flushAllBatches("flush")
+				close(done)
+				continue
 			}
 			s.processMessage(m)
 		default:

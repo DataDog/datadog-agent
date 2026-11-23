@@ -9,7 +9,10 @@
 package windowsevent
 
 import (
+	"context"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
@@ -39,6 +42,8 @@ type Launcher struct {
 	pipelineProvider       pipeline.Provider
 	registry               auditor.Registry
 	tailers                map[string]tailer
+	sourceGenerations      map[string]uint64
+	nextGeneration         atomic.Uint64
 	stop                   chan struct{}
 	publisherMetadataCache publishermetadatacachedef.Component
 	stopOnce               sync.Once
@@ -49,6 +54,7 @@ func NewLauncher() *Launcher {
 	cache := publishermetadatacache.New(winevtapi.New())
 	return &Launcher{
 		tailers:                make(map[string]tailer),
+		sourceGenerations:      make(map[string]uint64),
 		sourcesDone:            make(chan struct{}),
 		stop:                   make(chan struct{}),
 		publisherMetadataCache: cache,
@@ -74,12 +80,13 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case source := <-l.sources:
-			identifier := windowsevent.Identifier(source.Config.ChannelPath, source.Config.Query)
+			sanitized := l.sanitizedConfig(source.Config)
+			identifier := windowsevent.Identifier(sanitized.ChannelPath, sanitized.Query)
 			if _, exists := l.tailers[identifier]; exists {
 				// tailer already setup
 				continue
 			}
-			tailer, err := l.setupTailer(source)
+			tailer, err := l.setupTailer(source, sanitized, identifier)
 			if err != nil {
 				log.Info("Could not set up windows event log tailer: ", err)
 			} else {
@@ -102,6 +109,14 @@ func (l *Launcher) Stop() {
 			delete(l.tailers, tailer.Identifier())
 		}
 		stopper.Stop()
+		if efp, ok := l.pipelineProvider.(*pipeline.EndpointFilteredProvider); ok {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			for identifier, gen := range l.sourceGenerations {
+				_ = efp.RetireSource(ctx, identifier, gen)
+				delete(l.sourceGenerations, identifier)
+			}
+		}
 		l.publisherMetadataCache.Flush()
 	})
 }
@@ -120,14 +135,23 @@ func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *windowseven
 }
 
 // setupTailer configures and starts a new tailer
-func (l *Launcher) setupTailer(source *sources.LogSource) (tailer, error) {
-	sanitizedConfig := l.sanitizedConfig(source.Config)
+func (l *Launcher) setupTailer(source *sources.LogSource, sanitizedConfig *windowsevent.Config, identifier string) (tailer, error) {
 	config := &windowsevent.Config{
 		ChannelPath:       sanitizedConfig.ChannelPath,
 		Query:             sanitizedConfig.Query,
 		ProcessRawMessage: sanitizedConfig.ProcessRawMessage,
 	}
-	t := windowsevent.NewTailer(nil, source, config, l.pipelineProvider.NextPipelineChan(), l.registry, l.publisherMetadataCache)
+	outputChan := l.pipelineProvider.NextPipelineChan()
+	if efp, ok := l.pipelineProvider.(*pipeline.EndpointFilteredProvider); ok {
+		gen := l.nextGeneration.Add(1)
+		ch, err := efp.SourceInput(identifier, gen)
+		if err != nil {
+			return nil, err
+		}
+		outputChan = ch
+		l.sourceGenerations[identifier] = gen
+	}
+	t := windowsevent.NewTailer(nil, source, config, outputChan, l.registry, l.publisherMetadataCache)
 	t.Start()
 	return t, nil
 }

@@ -740,7 +740,8 @@ func TestEndpointFilteredPressureFlushDoesNotStallHealthyReliableEndpoint(t *tes
 	defer p.Stop()
 
 	src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: "/tmp/pressure.log"})
-	in := p.NextPipelineChan()
+	in, err := p.SourceInput("file:/tmp/pressure.log", 1)
+	require.NoError(t, err)
 	const total = 80 // Exceeds SourcePendingLimit (64) with BatchMaxSize=100 so pressure flush must trigger.
 	for i := 1; i <= total; i++ {
 		in <- makeCheckpointedMessage(src, "file:/tmp/pressure.log", strconv.Itoa(i), "msg-"+strconv.Itoa(i), message.StatusInfo)
@@ -759,7 +760,9 @@ func TestEndpointFilteredSharedIngressSourceChurnAndRetireReclamation(t *testing
 		nil, false, true, 10*time.Millisecond, 4, 64, 1024*1024, 16,
 	)
 	sink := &efSink{ch: make(chan *message.Payload, 512)}
+	drainDone := make(chan struct{})
 	go func() {
+		defer close(drainDone)
 		for range sink.ch {
 		}
 	}()
@@ -769,7 +772,7 @@ func TestEndpointFilteredSharedIngressSourceChurnAndRetireReclamation(t *testing
 		Sink:                      sink,
 		DiagnosticMessageReceiver: &diagnostic.NoopMessageReceiver{},
 		Endpoints:                 eps,
-		Selectors:                 []routing.EndpointSelector{routing.SelectorFunc(func(routing.LogView) (bool, error) { return false, nil })},
+		Selectors:                 []routing.EndpointSelector{routing.SelectorFunc(func(routing.LogView) (bool, error) { return true, nil })},
 		DestinationsContext:       client.NewDestinationsContext(),
 		Config:                    efTestConfig(t),
 		Compression:               logscompression.NewMockCompressor(),
@@ -777,21 +780,36 @@ func TestEndpointFilteredSharedIngressSourceChurnAndRetireReclamation(t *testing
 	})
 	require.NoError(t, err)
 	p.Start()
-	defer p.Stop()
+	defer func() {
+		p.Stop()
+		close(sink.ch)
+		<-drainDone
+	}()
 
 	src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: "/tmp/churn.log"})
 	in := p.NextPipelineChan()
-	// Exceed routedProgressCapacity (4096) distinct identifiers on shared ingress.
-	const distinctSources = 4200
+	// Forward records across distinct identifiers through real dispatch + delivery
+	// to verify both ephemeral progress eviction and dispatch lane reclamation.
+	const distinctSources = 150
 	for i := 0; i < distinctSources; i++ {
-		in <- makeCheckpointedMessage(src, "file:/tmp/churn-"+strconv.Itoa(i)+".log", "10", "excluded", message.StatusInfo)
+		in <- makeCheckpointedMessage(src, "file:/tmp/churn-"+strconv.Itoa(i)+".log", "10", "delivered", message.StatusInfo)
 	}
 	p.Flush(context.Background())
+	waitForCondition(t, 5*time.Second, func() bool {
+		return len(us1.messages()) == distinctSources
+	}, "all churn records delivered")
+
+	waitForCondition(t, 5*time.Second, func() bool {
+		p.sourceDispatchMu.Lock()
+		n := len(p.sourceDispatch)
+		p.sourceDispatchMu.Unlock()
+		return n == 0
+	}, "idle sourceDispatch lanes reclaimed")
 
 	// Also verify bound SourceInput + RetireSource reclaims the channel cleanly.
 	boundIn, err := p.SourceInput("file:/tmp/bound.log", 1)
 	require.NoError(t, err)
-	boundIn <- makeCheckpointedMessage(src, "file:/tmp/bound.log", "10", "excluded", message.StatusInfo)
+	boundIn <- makeCheckpointedMessage(src, "file:/tmp/bound.log", "10", "bound-msg", message.StatusInfo)
 	p.Flush(context.Background())
 	require.NoError(t, p.RetireSource(context.Background(), "file:/tmp/bound.log", 1))
 	p.lifecycle.RLock()
@@ -818,8 +836,17 @@ func TestEndpointFilteredDisablingMRFMidFlightDoesNotStrandCheckpoint(t *testing
 	cfg.Set("multi_region_failover.enabled", true, pkgconfigmodel.SourceRC)
 	cfg.Set("multi_region_failover.failover_logs", true, pkgconfigmodel.SourceRC)
 
-	// Filtered primary rejects this record so MRF is the ONLY matching reliable endpoint.
-	rejectPrimary := routing.SelectorFunc(func(routing.LogView) (bool, error) { return false, nil })
+	selectedCh := make(chan struct{}, 1)
+	releaseCh := make(chan struct{})
+	var firstSelected atomic.Bool
+	// Filtered primary rejects records so MRF is the ONLY matching reliable endpoint.
+	rejectPrimary := routing.SelectorFunc(func(v routing.LogView) (bool, error) {
+		if strings.Contains(string(v.Content()), "in-flight-mrf") && firstSelected.CompareAndSwap(false, true) {
+			selectedCh <- struct{}{}
+			<-releaseCh
+		}
+		return false, nil
+	})
 	sink := &efSink{ch: make(chan *message.Payload, 8)}
 
 	p, err := NewEndpointFilteredProvider(EndpointFilteredOptions{
@@ -839,16 +866,40 @@ func TestEndpointFilteredDisablingMRFMidFlightDoesNotStrandCheckpoint(t *testing
 
 	src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: "/tmp/mrf-toggle.log", Service: "payments"})
 	p.NextPipelineChan() <- makeCheckpointedMessage(src, "file:/tmp/mrf-toggle.log", "10", "in-flight-mrf", message.StatusNotice)
-	// Toggle failover OFF immediately after admission while the record is in flight.
-	cfg.Set("multi_region_failover.failover_logs", false, pkgconfigmodel.SourceRC)
+
+	// Wait until record 1 has entered selection with MRF enabled, then disable
+	// multi_region_failover.enabled while keeping failover_logs=true.
+	select {
+	case <-selectedCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("record 1 did not reach selection")
+	}
+	cfg.Set("multi_region_failover.enabled", false, pkgconfigmodel.SourceRC)
+	close(releaseCh)
 	p.Flush(context.Background())
 
+	// Record 1 was selected before disablement -> delivered to MRF and advances checkpoint.
+	waitForCondition(t, 5*time.Second, func() bool {
+		return len(mrf.messages()) == 1
+	}, "in-flight record delivered to MRF")
 	select {
 	case cp := <-sink.ch:
 		require.Equal(t, "10", cp.MessageMetas[0].Origin.Offset)
 	case <-time.After(5 * time.Second):
 		t.Fatal("checkpoint stranded after MRF toggled off mid-flight")
 	}
+
+	// Record 2 admitted after multi_region_failover.enabled=false (even with
+	// failover_logs=true) must NOT be sent to MRF; it completes via 0-match exclusion.
+	p.NextPipelineChan() <- makeCheckpointedMessage(src, "file:/tmp/mrf-toggle.log", "20", "after-disable", message.StatusNotice)
+	p.Flush(context.Background())
+	select {
+	case cp := <-sink.ch:
+		require.Equal(t, "20", cp.MessageMetas[0].Origin.Offset)
+	case <-time.After(5 * time.Second):
+		t.Fatal("record 2 checkpoint did not advance")
+	}
+	assert.Equal(t, []string{"in-flight-mrf"}, mrf.messages(), "MRF must not receive records after multi_region_failover.enabled=false")
 }
 
 func TestEndpointFilteredConcurrentFlushRetireAndStop(t *testing.T) {
@@ -874,21 +925,178 @@ func TestEndpointFilteredConcurrentFlushRetireAndStop(t *testing.T) {
 	_, err = p.SourceInput("file:/tmp/race.log", 1)
 	require.NoError(t, err)
 
+	startGate := make(chan struct{})
 	var wg sync.WaitGroup
 	for i := 0; i < 4; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			<-startGate
 			p.Flush(context.Background())
 		}()
 	}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		_ = p.RetireSource(context.Background(), "file:/tmp/race.log", 1)
-	}()
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-startGate
+			_ = p.RetireSource(context.Background(), "file:/tmp/race.log", 1)
+		}()
+	}
+	close(startGate)
 	p.Stop()
 	wg.Wait()
+}
+
+func TestEndpointFilteredBoundInputAcceptsUncheckpointedRotationDrain(t *testing.T) {
+	us1 := newEFIntake(t)
+	eps := config.NewEndpointsWithBatchSettings(
+		us1.endpoint("us1-key", true),
+		nil, false, true, 20*time.Millisecond, 1, 8, 1024*1024, 16,
+	)
+	sink := &efSink{ch: make(chan *message.Payload, 8)}
+	var errCount atomic.Int32
+	p, err := NewEndpointFilteredProvider(EndpointFilteredOptions{
+		NumberOfPipelines:         1,
+		Sink:                      sink,
+		DiagnosticMessageReceiver: &diagnostic.NoopMessageReceiver{},
+		Endpoints:                 eps,
+		Selectors:                 []routing.EndpointSelector{routing.SelectorFunc(func(routing.LogView) (bool, error) { return true, nil })},
+		OnError:                   func(error) { errCount.Add(1) },
+		DestinationsContext:       client.NewDestinationsContext(),
+		Config:                    efTestConfig(t),
+		Compression:               logscompression.NewMockCompressor(),
+		Secrets:                   secretsnoop.NewComponent().Comp,
+	})
+	require.NoError(t, err)
+	p.Start()
+	defer p.Stop()
+
+	src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: "/tmp/rot.log"})
+	boundIn, err := p.SourceInput("file:/tmp/rot.log", 1)
+	require.NoError(t, err)
+
+	// Normal checkpointed record + deliberately uncheckpointed rotated-drain record (empty Identifier).
+	boundIn <- makeCheckpointedMessage(src, "file:/tmp/rot.log", "10", "before-rotate", message.StatusInfo)
+	boundIn <- makeCheckpointedMessage(src, "", "", "draining-after-rotate", message.StatusInfo)
+	p.Flush(context.Background())
+
+	waitForCondition(t, 5*time.Second, func() bool {
+		return len(us1.messages()) == 2
+	}, "both normal and uncheckpointed rotated-drain records delivered")
+	assert.ElementsMatch(t, []string{"before-rotate", "draining-after-rotate"}, us1.messages())
+	assert.Zero(t, errCount.Load())
+
+	// Only the checkpointed record emits an auditor offset.
+	cp := <-sink.ch
+	assert.Equal(t, "10", cp.MessageMetas[0].Origin.Offset)
+
+	// A different nonempty identifier on the bound channel is still rejected.
+	boundIn <- makeCheckpointedMessage(src, "file:/tmp/other.log", "20", "wrong-id", message.StatusInfo)
+	p.Flush(context.Background())
+	assert.Equal(t, int32(1), errCount.Load())
+}
+
+func TestEndpointFilteredSharedIngressStalledSourceDoesNotStarveHealthySource(t *testing.T) {
+	us1 := newEFIntake(t)
+	us1.setStatus(http.StatusServiceUnavailable)
+	opt := newEFIntake(t)
+
+	eps := config.NewEndpointsWithBatchSettings(
+		us1.endpoint("us1-key", true),
+		[]config.Endpoint{opt.endpoint("opt-key", false)},
+		false, true, 20*time.Millisecond, 1, 8, 1024*1024, 16,
+	)
+	// Source A goes to US1 (stalled); Source B goes to optional-only (healthy).
+	us1Sel := routing.SelectorFunc(func(v routing.LogView) (bool, error) {
+		return v.Service() == "svc-a", nil
+	})
+	optSel := routing.SelectorFunc(func(v routing.LogView) (bool, error) {
+		return v.Service() == "svc-b", nil
+	})
+	sink := &efSink{ch: make(chan *message.Payload, 32)}
+	p, err := NewEndpointFilteredProvider(EndpointFilteredOptions{
+		NumberOfPipelines:         1,
+		Sink:                      sink,
+		DiagnosticMessageReceiver: &diagnostic.NoopMessageReceiver{},
+		Endpoints:                 eps,
+		Selectors:                 []routing.EndpointSelector{us1Sel, optSel},
+		DestinationsContext:       client.NewDestinationsContext(),
+		Config:                    efTestConfig(t),
+		Compression:               logscompression.NewMockCompressor(),
+		Secrets:                   secretsnoop.NewComponent().Comp,
+	})
+	require.NoError(t, err)
+	p.Start()
+	defer p.Stop()
+
+	srcA := sources.NewLogSource("a", &config.LogsConfig{Type: config.FileType, Path: "/tmp/a.log", Service: "svc-a"})
+	srcB := sources.NewLogSource("b", &config.LogsConfig{Type: config.FileType, Path: "/tmp/b.log", Service: "svc-b"})
+	in := p.NextPipelineChan()
+
+	// Saturate Source A past SourcePendingLimit (64) on shared ingress while US1 is 503.
+	for i := 1; i <= 70; i++ {
+		in <- makeCheckpointedMessage(srcA, "file:/tmp/a.log", strconv.Itoa(i), "a-"+strconv.Itoa(i), message.StatusInfo)
+	}
+	// Send Source B on the SAME shared ingress channel: it must not be starved by Source A.
+	in <- makeCheckpointedMessage(srcB, "file:/tmp/b.log", "10", "b-healthy", message.StatusNotice)
+
+	waitForCondition(t, 5*time.Second, func() bool {
+		return slices.Contains(opt.messages(), "b-healthy")
+	}, "healthy Source B delivered on shared ingress while Source A is stalled")
+
+	select {
+	case cp := <-sink.ch:
+		assert.Equal(t, "file:/tmp/b.log", cp.MessageMetas[0].Origin.Identifier)
+		assert.Equal(t, "10", cp.MessageMetas[0].Origin.Offset)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Source B checkpoint starved by stalled Source A on shared ingress")
+	}
+}
+
+func TestEndpointFilteredRetireWhilePendingAutoRetiresOnDrain(t *testing.T) {
+	us1 := newEFIntake(t)
+	us1.setStatus(http.StatusServiceUnavailable)
+	eps := config.NewEndpointsWithBatchSettings(
+		us1.endpoint("us1-key", true),
+		nil, false, true, 20*time.Millisecond, 1, 8, 1024*1024, 16,
+	)
+	sink := &efSink{ch: make(chan *message.Payload, 8)}
+	p, err := NewEndpointFilteredProvider(EndpointFilteredOptions{
+		NumberOfPipelines:         1,
+		Sink:                      sink,
+		DiagnosticMessageReceiver: &diagnostic.NoopMessageReceiver{},
+		Endpoints:                 eps,
+		Selectors:                 []routing.EndpointSelector{routing.SelectorFunc(func(routing.LogView) (bool, error) { return true, nil })},
+		DestinationsContext:       client.NewDestinationsContext(),
+		Config:                    efTestConfig(t),
+		Compression:               logscompression.NewMockCompressor(),
+		Secrets:                   secretsnoop.NewComponent().Comp,
+	})
+	require.NoError(t, err)
+	p.Start()
+	defer p.Stop()
+
+	src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: "/tmp/retire-pending.log"})
+	ch, err := p.SourceInput("file:/tmp/retire-pending.log", 1)
+	require.NoError(t, err)
+	ch <- makeCheckpointedMessage(src, "file:/tmp/retire-pending.log", "10", "in-flight", message.StatusInfo)
+
+	// Retire while record is still pending on 503 US1 -> succeeds via deferred auto-retirement.
+	require.NoError(t, p.RetireSource(context.Background(), "file:/tmp/retire-pending.log", 1))
+	assert.True(t, p.progress.OwnsSource("file:/tmp/retire-pending.log"), "ownership held until pending record drains")
+
+	// Recover US1 -> record delivers, checkpoint advances, and source ownership auto-retires!
+	us1.setStatus(http.StatusAccepted)
+	select {
+	case cp := <-sink.ch:
+		assert.Equal(t, "10", cp.MessageMetas[0].Origin.Offset)
+	case <-time.After(5 * time.Second):
+		t.Fatal("pending record did not complete after recovery")
+	}
+	waitForCondition(t, 5*time.Second, func() bool {
+		return !p.progress.OwnsSource("file:/tmp/retire-pending.log")
+	}, "retired source automatically released ownership once drained")
 }
 
 func TestEndpointFilteredGracefulStopDrainsCompletedCheckpoints(t *testing.T) {
