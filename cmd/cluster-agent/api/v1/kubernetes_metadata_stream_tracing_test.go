@@ -41,7 +41,7 @@ func TestStreamKubeMetadata_InitialFullStateSendSpan(t *testing.T) {
 
 	wmetaMock, store := newTestWmetaAndStore(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	srv := NewKubeMetadataStreamServer(store, wmetaMock)
 	srv.Start(ctx)
 
@@ -85,7 +85,7 @@ func TestStreamKubeMetadata_InitialFullStateSendErrorSpan(t *testing.T) {
 
 	wmetaMock, store := newTestWmetaAndStore(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := NewKubeMetadataStreamServer(store, wmetaMock)
 	srv.Start(ctx)
 

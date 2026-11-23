@@ -9,7 +9,6 @@
 package ddprofilingextensionimpl
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -80,8 +79,8 @@ func TestStandaloneExtensionUnixSocketFallsBackToHTTP(t *testing.T) {
 	}, component.BuildInfo{}, nil, nil)
 	require.NoError(t, err)
 
-	require.NoError(t, ext.Start(context.Background(), componenttest.NewNopHost()))
-	t.Cleanup(func() { assert.NoError(t, ext.Shutdown(context.Background())) })
+	require.NoError(t, ext.Start(t.Context(), componenttest.NewNopHost()))
+	t.Cleanup(func() { assert.NoError(t, ext.Shutdown(t.Context())) })
 
 	select {
 	case <-got:

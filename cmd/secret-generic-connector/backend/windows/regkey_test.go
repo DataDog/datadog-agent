@@ -8,7 +8,6 @@
 package windows
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -80,7 +79,7 @@ func TestGetSecretOutputNoDelimiter(t *testing.T) {
 	backend, err := NewWindowsRegkeyBackend(nil)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	out := backend.GetSecretOutput(ctx, "missing_delimiter_key")
 	assert.Nil(t, out.Value)
 	assert.NotNil(t, out.Error)
@@ -91,7 +90,7 @@ func TestGetSecretOutputEmptyKey(t *testing.T) {
 	backend, err := NewWindowsRegkeyBackend(nil)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	out := backend.GetSecretOutput(ctx, "")
 	assert.Nil(t, out.Value)
 	assert.NotNil(t, out.Error)
@@ -105,7 +104,7 @@ func TestGetSecretOutputValidKey(t *testing.T) {
 	backend, err := NewWindowsRegkeyBackend(nil)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	out := backend.GetSecretOutput(ctx, `SOFTWARE\Microsoft\Windows NT\CurrentVersion:ProductName`)
 	assert.Nil(t, out.Error)
 	assert.NotNil(t, out.Value)
@@ -118,7 +117,7 @@ func TestGetSecretOutputValidKeyExplicitHKLM(t *testing.T) {
 	backend, err := NewWindowsRegkeyBackend(map[string]interface{}{"root_key": "HKLM"})
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	out := backend.GetSecretOutput(ctx, `SOFTWARE\Microsoft\Windows NT\CurrentVersion:ProductName`)
 	assert.Nil(t, out.Error)
 	assert.NotNil(t, out.Value)
@@ -131,7 +130,7 @@ func TestGetSecretOutputValidKeyHKCU(t *testing.T) {
 	backend, err := NewWindowsRegkeyBackend(map[string]interface{}{"root_key": "HKCU"})
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	out := backend.GetSecretOutput(ctx, `Environment:TEMP`)
 	assert.Nil(t, out.Error)
 	assert.NotNil(t, out.Value)
@@ -142,7 +141,7 @@ func TestGetSecretOutputPathNotFound(t *testing.T) {
 	backend, err := NewWindowsRegkeyBackend(nil)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	out := backend.GetSecretOutput(ctx, `SOFTWARE\Datadog\DoesNotExist_TestPath:SomeValue`)
 	assert.Nil(t, out.Value)
 	assert.NotNil(t, out.Error)
@@ -152,7 +151,7 @@ func TestGetSecretOutputValueNotFound(t *testing.T) {
 	backend, err := NewWindowsRegkeyBackend(nil)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	out := backend.GetSecretOutput(ctx, `SOFTWARE\Microsoft\Windows NT\CurrentVersion:DoesNotExist_TestValue`)
 	assert.Nil(t, out.Value)
 	assert.NotNil(t, out.Error)

@@ -58,7 +58,7 @@ func TestGetWorkloadToken(t *testing.T) {
 	cfg.SetInTest("dd_url", server.URL)
 	cfg.SetInTest("skip_ssl_validation", true)
 	cfg.SetInTest("api_key", "existing-intake-key")
-	token, err := GetWorkloadToken(context.Background(), cfg, provider, &common.AuthConfig{OrgUUID: "org-uuid"}, request, "")
+	token, err := GetWorkloadToken(t.Context(), cfg, provider, &common.AuthConfig{OrgUUID: "org-uuid"}, request, "")
 	require.NoError(t, err)
 	require.Equal(t, "opaque-token", token)
 	require.Equal(t, 1, calls)
@@ -101,7 +101,7 @@ func TestGetWorkloadTokenFailures(t *testing.T) {
 			provider := workloadProofFunc(func(context.Context, pkgconfigmodel.Reader, *common.AuthConfig, common.WorkloadTokenRequest) (string, error) {
 				return "sensitive-proof", nil
 			})
-			token, err := GetWorkloadToken(context.Background(), cfg, provider, &common.AuthConfig{OrgUUID: "org"}, common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}}, "")
+			token, err := GetWorkloadToken(t.Context(), cfg, provider, &common.AuthConfig{OrgUUID: "org"}, common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}}, "")
 			require.EqualError(t, err, tc.wantError)
 			require.Empty(t, token)
 			require.NotContains(t, err.Error(), "sensitive")
@@ -115,7 +115,7 @@ func TestGetWorkloadTokenStopsBeforeExchange(t *testing.T) {
 	provider := workloadProofFunc(func(ctx context.Context, _ pkgconfigmodel.Reader, _ *common.AuthConfig, _ common.WorkloadTokenRequest) (string, error) {
 		return "", ctx.Err()
 	})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err := GetWorkloadToken(ctx, cfg, provider, &common.AuthConfig{OrgUUID: "org"}, common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}}, "datadoghq.com")
 	require.ErrorIs(t, err, context.Canceled)
@@ -125,8 +125,8 @@ func TestGetWorkloadTokenStopsBeforeExchange(t *testing.T) {
 		return "", nil
 	})
 	cfg.SetInTest("dd_url", "http://127.0.0.1:1")
-	_, err = GetWorkloadToken(context.Background(), cfg, provider, nil, common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}}, "")
+	_, err = GetWorkloadToken(t.Context(), cfg, provider, nil, common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}}, "")
 	require.ErrorContains(t, err, "HTTPS")
-	_, err = GetWorkloadToken(context.Background(), cfg, provider, nil, common.WorkloadTokenRequest{}, "datadoghq.com")
+	_, err = GetWorkloadToken(t.Context(), cfg, provider, nil, common.WorkloadTokenRequest{}, "datadoghq.com")
 	require.ErrorContains(t, err, "grants")
 }

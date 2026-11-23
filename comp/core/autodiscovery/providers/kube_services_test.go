@@ -340,7 +340,7 @@ func TestInvalidateIfChanged(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			provider := &KubeServiceConfigProvider{upToDate: atomic.NewBool(true)}
 			provider.invalidateIfChanged(tc.old, tc.obj)
 

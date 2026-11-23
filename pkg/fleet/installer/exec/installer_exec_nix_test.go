@@ -51,7 +51,7 @@ func TestInstallConfigExperiment_PropagatesInstallerError(t *testing.T) {
 	binPath := writeFakeInstaller(t, childErrJSON, 255)
 
 	i := NewInstallerExec(&env.Env{}, binPath)
-	err := i.InstallConfigExperiment(context.Background(), "datadog-agent", config.Operations{
+	err := i.InstallConfigExperiment(t.Context(), "datadog-agent", config.Operations{
 		DeploymentID: "test",
 	}, map[string]string{"secret": "value"})
 
@@ -69,7 +69,7 @@ func TestInstallConfigExperiment_FallsBackToExitStatus(t *testing.T) {
 	binPath := writeFakeInstaller(t, "", 255)
 
 	i := NewInstallerExec(&env.Env{}, binPath)
-	err := i.InstallConfigExperiment(context.Background(), "datadog-agent", config.Operations{}, nil)
+	err := i.InstallConfigExperiment(t.Context(), "datadog-agent", config.Operations{}, nil)
 
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "exit status 255")
@@ -80,7 +80,7 @@ func TestInstallConfigExperiment_Success(t *testing.T) {
 	binPath := writeFakeInstaller(t, "", 0)
 
 	i := NewInstallerExec(&env.Env{}, binPath)
-	err := i.InstallConfigExperiment(context.Background(), "datadog-agent", config.Operations{}, nil)
+	err := i.InstallConfigExperiment(t.Context(), "datadog-agent", config.Operations{}, nil)
 
 	assert.NoError(t, err)
 }
@@ -120,7 +120,7 @@ func TestInstallConfigExperiment_PassesOperationsThenSecretsThroughStdin(t *test
 	secrets := map[string]string{"ENC[secret]": "value"}
 
 	i := NewInstallerExec(&env.Env{}, binPath)
-	require.NoError(t, i.InstallConfigExperiment(context.Background(), "datadog-agent", operations, secrets))
+	require.NoError(t, i.InstallConfigExperiment(t.Context(), "datadog-agent", operations, secrets))
 
 	args, err := os.ReadFile(argsPath)
 	require.NoError(t, err)
@@ -145,7 +145,7 @@ func TestInstallConfigExperiment_ChildExitingBeforeReadingStdinReportsItsError(t
 	require.NoError(t, os.WriteFile(binPath, []byte(script), 0o755))
 
 	i := NewInstallerExec(&env.Env{}, binPath)
-	err := i.InstallConfigExperiment(context.Background(), "datadog-agent", operationsOfSize(t, 1024*1024), nil)
+	err := i.InstallConfigExperiment(t.Context(), "datadog-agent", operationsOfSize(t, 1024*1024), nil)
 
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "could not load config")
@@ -156,7 +156,7 @@ func TestGetStatesSuccess(t *testing.T) {
 	require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\nprintf '%s\\n' '{\"states\":{},\"config_states\":{}}'\n"), 0o755))
 
 	i := NewInstallerExec(&env.Env{}, binPath)
-	states, err := i.getStates(context.Background())
+	states, err := i.getStates(t.Context())
 
 	require.NoError(t, err)
 	require.NotNil(t, states)
@@ -172,7 +172,7 @@ func TestGetStatesTimesOutAndKillsUnresponsiveChild(t *testing.T) {
 	i := NewInstallerExec(&env.Env{}, binPath)
 
 	started := time.Now()
-	_, err := i.getStatesWithTimeout(context.Background(), 100*time.Millisecond, 100*time.Millisecond)
+	_, err := i.getStatesWithTimeout(t.Context(), 100*time.Millisecond, 100*time.Millisecond)
 	elapsed := time.Since(started)
 
 	require.Error(t, err)

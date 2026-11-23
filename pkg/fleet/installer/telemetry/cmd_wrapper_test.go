@@ -24,7 +24,7 @@ func exitCodeCmd(ctx context.Context, code int) *TracedCmd {
 }
 
 func TestTracedCmdRunSuccess(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cmd := exitCodeCmd(ctx, 0)
 	err := cmd.Run()
 	require.NoError(t, err)
@@ -32,7 +32,7 @@ func TestTracedCmdRunSuccess(t *testing.T) {
 }
 
 func TestTracedCmdRunErrorUnexpected(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cmd := exitCodeCmd(ctx, 1)
 	err := cmd.Run()
 	require.Error(t, err)
@@ -42,7 +42,7 @@ func TestTracedCmdRunErrorUnexpected(t *testing.T) {
 }
 
 func TestTracedCmdRunErrorExpected(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cmd := exitCodeCmd(ctx, 1).WithExpectedExitCodes(1)
 	err := cmd.Run()
 	// The error is still returned to the caller
@@ -54,7 +54,7 @@ func TestTracedCmdRunErrorExpected(t *testing.T) {
 }
 
 func TestTracedCmdRunExpectedNonZeroAndZeroSuccess(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// expected non-zero exit: span not an error, but error still returned
 	cmdErr := exitCodeCmd(ctx, 5).WithExpectedExitCodes(5)
@@ -72,7 +72,7 @@ func TestTracedCmdRunExpectedNonZeroAndZeroSuccess(t *testing.T) {
 }
 
 func TestTracedCmdWithExpectedExitCodesAccumulates(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	// Chained calls should accumulate: both 1 and 2 become expected
 	cmd := exitCodeCmd(ctx, 2).
 		WithExpectedExitCodes(1).
@@ -85,7 +85,7 @@ func TestTracedCmdWithExpectedExitCodesAccumulates(t *testing.T) {
 }
 
 func TestTracedCmdRunUnexpectedCodeAmongExpected(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	// exit 2 is not in the expected set (only 1 and 5 are)
 	cmd := exitCodeCmd(ctx, 2).WithExpectedExitCodes(1, 5)
 	err := cmd.Run()

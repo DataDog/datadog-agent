@@ -103,7 +103,7 @@ func TestStatAndReadSyncRejectsOversizedOrGrowingFile(t *testing.T) {
 				trackedCloser: &trackedCloser{ReadCloser: io.NopCloser(strings.NewReader(strings.Repeat("x", 33)))},
 				size:          size,
 			}
-			_, _, err := statAndReadSync(context.Background(), f, f, 32)
+			_, _, err := statAndReadSync(t.Context(), f, f, 32)
 			require.ErrorContains(t, err, "too large")
 			require.True(t, f.closed)
 			if size > 32 {
@@ -282,7 +282,7 @@ func TestWriteBackSucceeds(t *testing.T) {
 	write, calls := fakeWriteRegularFile(nil)
 	callCtx := &builtins.CallContext{WriteRegularFile: write}
 	eng := &engine{}
-	err := eng.writeBack(context.Background(), callCtx, "file.txt", []byte("new content"), []byte("old content"), nil)
+	err := eng.writeBack(t.Context(), callCtx, "file.txt", []byte("new content"), []byte("old content"), nil)
 	require.NoError(t, err)
 	require.Len(t, *calls, 1, "only the primary write should have been attempted")
 	assert.Equal(t, "new content", string((*calls)[0]))
@@ -298,7 +298,7 @@ func TestWriteBackRefusesToStartWriteOnCancelledContext(t *testing.T) {
 	callCtx := &builtins.CallContext{WriteRegularFile: write}
 	eng := &engine{}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	err := eng.writeBack(ctx, callCtx, "file.txt", []byte("new content"), []byte("old content"), nil)
@@ -323,7 +323,7 @@ func TestWriteBackStillAttemptsRestoreOnCancelledContext(t *testing.T) {
 	callCtx := &builtins.CallContext{WriteRegularFile: write}
 	eng := &engine{}
 
-	err := eng.writeBack(context.Background(), callCtx, "file.txt", []byte("new content"), []byte("old content"), nil)
+	err := eng.writeBack(t.Context(), callCtx, "file.txt", []byte("new content"), []byte("old content"), nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, writeErr)
 	require.Len(t, *calls, 2, "the restore attempt must still run after the primary write fails")
@@ -340,7 +340,7 @@ func TestWriteBackStillAttemptsRestoreOnCancelledContext(t *testing.T) {
 // attempted on a best-effort basis" guarantee entirely. writeBack must pass
 // a fresh, uncancelled context to the restore call instead.
 func TestWriteBackRestoreUsesUncancelledContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	write, calls, _, ctxErrsAtCallTime := fakeWriteRegularFileWithCtx(nil, nil)
 	// Simulate the primary write itself observing cancellation partway
@@ -382,9 +382,9 @@ func TestWriteBackRestoreUsesUncancelledContext(t *testing.T) {
 }
 
 // TestWriteBackRestoreContextIsBounded is a regression test for a P2
-// finding: detaching the restore call from ctx via context.Background()
+// finding: detaching the restore call from ctx via t.Context()
 // (see TestWriteBackRestoreUsesUncancelledContext above) is correct on its
-// own, but a bare context.Background() has no deadline at all, so a
+// own, but a bare t.Context() has no deadline at all, so a
 // restore that stalls (e.g. against a slow or stalled FUSE/network-backed
 // AllowedPaths root) could hang indefinitely with nothing to bound it. The
 // restore call's context must carry its own deadline (restoreTimeout)
@@ -395,7 +395,7 @@ func TestWriteBackRestoreContextIsBounded(t *testing.T) {
 	callCtx := &builtins.CallContext{WriteRegularFile: write}
 	eng := &engine{}
 
-	err := eng.writeBack(context.Background(), callCtx, "file.txt", []byte("new content"), []byte("old content"), nil)
+	err := eng.writeBack(t.Context(), callCtx, "file.txt", []byte("new content"), []byte("old content"), nil)
 	require.Error(t, err)
 
 	require.Len(t, *ctxs, 2)
@@ -406,7 +406,7 @@ func TestWriteBackRestoreContextIsBounded(t *testing.T) {
 	assert.NoError(t, (*ctxErrsAtCallTime)[1], "the restore call's context must still be live at the moment of the call")
 	restoreCtx := (*ctxs)[1]
 	_, hasDeadline := restoreCtx.Deadline()
-	assert.True(t, hasDeadline, "the restore call's context must carry its own deadline, not be a fully unbounded context.Background()")
+	assert.True(t, hasDeadline, "the restore call's context must carry its own deadline, not be a fully unbounded t.Context()")
 }
 
 // TestWriteBackRestoresOriginalOnWriteFailure exercises the P1 fix directly:
@@ -418,7 +418,7 @@ func TestWriteBackRestoresOriginalOnWriteFailure(t *testing.T) {
 	write, calls := fakeWriteRegularFile(writeErr, nil)
 	callCtx := &builtins.CallContext{WriteRegularFile: write}
 	eng := &engine{}
-	err := eng.writeBack(context.Background(), callCtx, "file.txt", []byte("new content"), []byte("original content"), nil)
+	err := eng.writeBack(t.Context(), callCtx, "file.txt", []byte("new content"), []byte("original content"), nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, writeErr)
 	assert.Contains(t, err.Error(), "restored")
@@ -442,7 +442,7 @@ func TestWriteBackSkipsRestoreWhenPrimaryWriteNeverMutated(t *testing.T) {
 	write, calls, _, _ := fakeWriteRegularFileWithMutated(false, writeErr)
 	callCtx := &builtins.CallContext{WriteRegularFile: write}
 	eng := &engine{}
-	err := eng.writeBack(context.Background(), callCtx, "file.txt", []byte("new content"), []byte("original content"), nil)
+	err := eng.writeBack(t.Context(), callCtx, "file.txt", []byte("new content"), []byte("original content"), nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, writeErr)
 	assert.NotContains(t, err.Error(), "restored", "no restore should be reported when the primary write never mutated anything")
@@ -464,7 +464,7 @@ func TestWriteBackSkipsRestoreWhenWriteOutcomeUnknown(t *testing.T) {
 	write, calls, _, _ := fakeWriteRegularFileWithMutated(true, writeErr)
 	callCtx := &builtins.CallContext{WriteRegularFile: write}
 	eng := &engine{}
-	err := eng.writeBack(context.Background(), callCtx, "file.txt", []byte("new content"), []byte("original content"), nil)
+	err := eng.writeBack(t.Context(), callCtx, "file.txt", []byte("new content"), []byte("original content"), nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, builtins.ErrWriteOutcomeUnknown)
 	assert.NotContains(t, err.Error(), "restored", "no restore should be reported when the write outcome is unknown")
@@ -481,7 +481,7 @@ func TestWriteBackReportsBothErrorsWhenRestoreAlsoFails(t *testing.T) {
 	write, _ := fakeWriteRegularFile(writeErr, restoreErr)
 	callCtx := &builtins.CallContext{WriteRegularFile: write}
 	eng := &engine{}
-	err := eng.writeBack(context.Background(), callCtx, "file.txt", []byte("new content"), []byte("original content"), nil)
+	err := eng.writeBack(t.Context(), callCtx, "file.txt", []byte("new content"), []byte("original content"), nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, writeErr)
 	assert.ErrorIs(t, err, restoreErr)
@@ -497,7 +497,7 @@ func TestWriteBackRejectsNonRegularTarget(t *testing.T) {
 	write, calls := fakeWriteRegularFile(notRegularErr, nil)
 	callCtx := &builtins.CallContext{WriteRegularFile: write}
 	eng := &engine{}
-	err := eng.writeBack(context.Background(), callCtx, "pipe", []byte("new"), []byte("old"), nil)
+	err := eng.writeBack(t.Context(), callCtx, "pipe", []byte("new"), []byte("old"), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not a regular file")
 	require.Len(t, *calls, 2)
@@ -538,7 +538,7 @@ func TestStatAndReadBoundedReleasesSlotBeforeReturning(t *testing.T) {
 
 	for range 1000 {
 		f := trackedStatCloser{&trackedCloser{ReadCloser: io.NopCloser(strings.NewReader("x"))}}
-		data, _, closer, err := statAndReadBounded(context.Background(), f, f, "file.txt", 1)
+		data, _, closer, err := statAndReadBounded(t.Context(), f, f, "file.txt", 1)
 		occupied := len(pinOpenSlots)
 		if closer != nil {
 			require.NoError(t, closer.Close())
@@ -551,7 +551,7 @@ func TestStatAndReadBoundedReleasesSlotBeforeReturning(t *testing.T) {
 
 func TestReadAllBoundedWithinLimit(t *testing.T) {
 	callCtx, _ := openRealFileCallCtx(t, "hello")
-	data, info, closer, err := readAllBounded(context.Background(), callCtx, "file.txt", 10)
+	data, info, closer, err := readAllBounded(t.Context(), callCtx, "file.txt", 10)
 	require.NoError(t, err)
 	defer closer.Close()
 	assert.Equal(t, "hello", string(data))
@@ -570,7 +570,7 @@ func TestReadAllBoundedWithinLimit(t *testing.T) {
 // only be explained by the per-chunk check actually running, not a
 // coincidental early EOF.
 func TestReadAllChunkedCancellableStopsMidReadOnCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	// Total content spans several chunks; the fake cancels ctx right after
 	// its first Read call returns, simulating cancellation arriving exactly
@@ -589,7 +589,7 @@ func TestReadAllChunkedCancellableStopsMidReadOnCancellation(t *testing.T) {
 // multiple chunks and returns it intact.
 func TestReadAllChunkedCancellableReadsWholeContentWhenNotCancelled(t *testing.T) {
 	content := bytes.Repeat([]byte("ab"), readChunkBytes*3)
-	data, err := readAllChunkedCancellable(context.Background(), bytes.NewReader(content), len(content))
+	data, err := readAllChunkedCancellable(t.Context(), bytes.NewReader(content), len(content))
 	require.NoError(t, err)
 	assert.Equal(t, content, data)
 }
@@ -598,7 +598,7 @@ func TestReadAllChunkedCancellableReadsWholeContentWhenNotCancelled(t *testing.T
 func TestReadAllChunkedCancellableEnforcesSizeLimit(t *testing.T) {
 	content := bytes.Repeat([]byte("x"), readChunkBytes*2)
 	reader := bytes.NewReader(content)
-	data, err := readAllChunkedCancellable(context.Background(), reader, readChunkBytes-1)
+	data, err := readAllChunkedCancellable(t.Context(), reader, readChunkBytes-1)
 	require.ErrorContains(t, err, "too large")
 	require.Nil(t, data)
 	assert.Equal(t, readChunkBytes, len(content)-reader.Len(), "read only maxBytes+1 bytes before rejecting growth")
@@ -630,14 +630,14 @@ func TestReadAllBoundedExceedsLimit(t *testing.T) {
 			return nopWriteCloser{bytes.NewReader([]byte("hello world"))}, nil
 		},
 	}
-	_, _, _, err := readAllBounded(context.Background(), callCtx, "file.txt", 5)
+	_, _, _, err := readAllBounded(t.Context(), callCtx, "file.txt", 5)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "too large")
 }
 
 func TestReadAllBoundedExactlyAtLimit(t *testing.T) {
 	callCtx, _ := openRealFileCallCtx(t, "hello")
-	data, info, closer, err := readAllBounded(context.Background(), callCtx, "file.txt", 5)
+	data, info, closer, err := readAllBounded(t.Context(), callCtx, "file.txt", 5)
 	require.NoError(t, err)
 	defer closer.Close()
 	assert.Equal(t, "hello", string(data))
@@ -651,7 +651,7 @@ func TestReadAllBoundedPropagatesOpenError(t *testing.T) {
 			return nil, openErr
 		},
 	}
-	_, _, _, err := readAllBounded(context.Background(), callCtx, "file.txt", 5)
+	_, _, _, err := readAllBounded(t.Context(), callCtx, "file.txt", 5)
 	require.Error(t, err)
 	assert.Same(t, openErr, err)
 }
@@ -669,7 +669,7 @@ func TestReadAllBoundedKeepsHandleOpenOnSuccess(t *testing.T) {
 			return trackedStatCloser{trackedCloser: tracked}, nil
 		},
 	}
-	_, _, closer, err := readAllBounded(context.Background(), callCtx, "file.txt", 10)
+	_, _, closer, err := readAllBounded(t.Context(), callCtx, "file.txt", 10)
 	require.NoError(t, err)
 	assert.False(t, tracked.closed, "readAllBounded must not close the handle itself on success — it is the only handle opened, and the one returned to the caller")
 	require.NoError(t, closer.Close())
@@ -687,7 +687,7 @@ func TestReadAllBoundedClosesHandleOnLaterFailure(t *testing.T) {
 			return trackedStatCloser{trackedCloser: tracked}, nil
 		},
 	}
-	_, _, _, err := readAllBounded(context.Background(), callCtx, "file.txt", 5)
+	_, _, _, err := readAllBounded(t.Context(), callCtx, "file.txt", 5)
 	require.Error(t, err)
 	assert.True(t, tracked.closed, "a failed readAllBounded must close the handle since no closer is returned")
 }
@@ -720,14 +720,14 @@ func (trackedStatCloser) Stat() (os.FileInfo, error) { return fakeFileInfo{mode:
 // behavior directly (closing the returned handle when its ctx argument's
 // Done channel fires) for any call keyed to the caller's ctx, while a call
 // made with a different (here, always-live) context is unaffected — mirroring
-// how readAllBounded's second, context.Background()-rooted open must behave
+// how readAllBounded's second, t.Context()-rooted open must behave
 // against real WithContextClose-wrapped handles.
 func TestReadAllBoundedPinSurvivesReadContextCancellation(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "file.txt")
 	require.NoError(t, os.WriteFile(path, []byte("hello"), 0644))
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	var openedFile *os.File
 	callCtx := &builtins.CallContext{
@@ -738,7 +738,7 @@ func TestReadAllBoundedPinSurvivesReadContextCancellation(t *testing.T) {
 			}
 			openedFile = f
 			if callerCtx == ctx {
-				t.Fatal("readAllBounded must never open with the caller-supplied ctx directly — it must go through openPinBounded's context.Background()-rooted request instead, since ctx becoming done must not force-close the one and only handle this function opens")
+				t.Fatal("readAllBounded must never open with the caller-supplied ctx directly — it must go through openPinBounded's t.Context()-rooted request instead, since ctx becoming done must not force-close the one and only handle this function opens")
 			}
 			// Simulate allowedpaths.WithContextClose's real force-close-on-
 			// Done behavior for whatever context this call actually did
@@ -775,7 +775,7 @@ func TestReadAllBoundedPinSurvivesReadContextCancellation(t *testing.T) {
 
 // TestOpenPinBoundedTimesOutRatherThanHangingForever is a regression test
 // for a P2 finding: the identity pin is deliberately opened via
-// context.Background() so it survives the caller's ctx being cancelled,
+// t.Context() so it survives the caller's ctx being cancelled,
 // but an open(2) syscall that itself blocks (e.g. a stalled FUSE/network-
 // backed AllowedPaths root) has no open descriptor yet for a
 // WithContextClose-style close-on-cancel mechanism to interrupt — so
@@ -794,7 +794,7 @@ func TestOpenPinBoundedTimesOutRatherThanHangingForever(t *testing.T) {
 	}
 
 	start := time.Now()
-	_, err := openPinBoundedWithTimeout(context.Background(), callCtx, "file.txt", 100*time.Millisecond)
+	_, err := openPinBoundedWithTimeout(t.Context(), callCtx, "file.txt", 100*time.Millisecond)
 	elapsed := time.Since(start)
 
 	require.Error(t, err, "a stalled open must time out rather than block openPinBoundedWithTimeout forever")
@@ -811,7 +811,7 @@ func TestOpenPinBoundedReturnsResultWhenFasterThanTimeout(t *testing.T) {
 			return nopWriteCloser{bytes.NewReader([]byte("hello"))}, nil
 		},
 	}
-	f, err := openPinBoundedWithTimeout(context.Background(), callCtx, "file.txt", 2*time.Second)
+	f, err := openPinBoundedWithTimeout(t.Context(), callCtx, "file.txt", 2*time.Second)
 	require.NoError(t, err)
 	defer f.Close()
 	data, err := io.ReadAll(f)
@@ -838,7 +838,7 @@ func TestOpenPinBoundedHonorsRunContextDeadline(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 
 	start := time.Now()
@@ -856,7 +856,7 @@ func TestOpenPinBoundedHonorsRunContextDeadline(t *testing.T) {
 // ctx only bounds how long this call itself waits for acquisition to
 // complete, not the returned handle's own lifetime.
 func TestOpenPinBoundedIndependentOfRunContextAfterAcquisition(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	callCtx := &builtins.CallContext{
 		OpenRegularFile: func(_ context.Context, _ string) (io.ReadCloser, error) {
@@ -895,7 +895,7 @@ func TestOpenPinBoundedCapsOutstandingAbandonedAcquisitions(t *testing.T) {
 		},
 	}
 
-	alreadyCancelled, cancel := context.WithCancel(context.Background())
+	alreadyCancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	// Fill every slot with an open that stays blocked until cleanup.
@@ -911,7 +911,7 @@ func TestOpenPinBoundedCapsOutstandingAbandonedAcquisitions(t *testing.T) {
 			return nopWriteCloser{bytes.NewReader([]byte("hello"))}, nil
 		},
 	}
-	_, err := openPinBoundedWithTimeout(context.Background(), fastCallCtx, "file.txt", 2*time.Second)
+	_, err := openPinBoundedWithTimeout(t.Context(), fastCallCtx, "file.txt", 2*time.Second)
 	require.Error(t, err, "a call made while every slot is held by a permanently-stuck abandoned open must fail fast, not block or silently exceed the cap")
 	assert.Contains(t, err.Error(), "too many in-flight identity-pin opens")
 }
@@ -989,7 +989,7 @@ func TestReadAllBoundedInterruptsBlockedReadOnCancellation(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
 		_, _, _, rerr := readAllBounded(ctx, callCtx, "file.txt", 10)
@@ -1039,7 +1039,7 @@ func TestReadAllBoundedInterruptsBlockedStatOnCancellation(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
 		_, _, _, rerr := readAllBounded(ctx, callCtx, "file.txt", 10)
@@ -1123,7 +1123,7 @@ func TestReadAllBoundedPropagatesStatError(t *testing.T) {
 			return statlessReadWriteCloser{bytes.NewReader([]byte("hello"))}, nil
 		},
 	}
-	_, _, _, err := readAllBounded(context.Background(), callCtx, "file.txt", 5)
+	_, _, _, err := readAllBounded(t.Context(), callCtx, "file.txt", 5)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot verify file identity")
 }
@@ -1178,7 +1178,7 @@ func TestProcessFileInPlaceCapturesCompleteOriginalOnEarlyQuit(t *testing.T) {
 	}
 	eng.callCtx = callCtx
 
-	err = eng.processFileInPlace(context.Background(), callCtx, "big.txt")
+	err = eng.processFileInPlace(t.Context(), callCtx, "big.txt")
 	require.Error(t, err, "the forced write failure must surface, restored or not")
 
 	require.Len(t, *calls, 2, "expected one destructive write attempt and one restore attempt")

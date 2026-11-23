@@ -105,14 +105,14 @@ func TestQueryWithRespStreamOutlivesTimeout(t *testing.T) {
 		}), timeout)
 		defer shutdown()
 
-		body, err := kc.queryWithResp(context.Background(), "/containerLogs/ns/pod/container?follow=true")
+		body, err := kc.queryWithResp(t.Context(), "/containerLogs/ns/pod/container?follow=true")
 		require.NoError(t, err)
 		data, err := io.ReadAll(body)
 		body.Close()
 		require.NoError(t, err)
 		require.Equal(t, "first\nsecond\n", string(data), "the stream client must not time out")
 
-		_, resp, err := kc.rawQuery(context.Background(), kc.kubeletURL, "/pods")
+		_, resp, err := kc.rawQuery(t.Context(), kc.kubeletURL, "/pods")
 		require.NoError(t, err)
 		_, err = io.ReadAll(resp.Body)
 		resp.Body.Close()
@@ -129,7 +129,7 @@ func TestQueryWithRespTimesOutWaitingForHeaders(t *testing.T) {
 		defer shutdown()
 
 		// Avoids waiting forever if the header timeout is missing.
-		ctx, cancel := context.WithTimeout(context.Background(), 2*timeout)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*timeout)
 		defer cancel()
 
 		start := time.Now()
@@ -150,7 +150,7 @@ func TestRawQuery(t *testing.T) {
 		{
 			name: "success",
 			path: "/api/v1/path",
-			ctx:  context.Background(),
+			ctx:  t.Context(),
 			body: "success",
 		},
 		{
@@ -263,7 +263,7 @@ func TestQuery(t *testing.T) {
 				kubeletURL: kubelet.URL,
 			}
 
-			_, status, err := kc.query(context.Background(), kubeletPodPath)
+			_, status, err := kc.query(t.Context(), kubeletPodPath)
 
 			// We never expect an error given the current test cases
 			if err != nil {

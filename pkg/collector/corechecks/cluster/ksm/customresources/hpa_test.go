@@ -8,7 +8,6 @@
 package customresources
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -206,7 +205,7 @@ func newV2beta2HPA(namespace, name string) *unstructured.Unstructured {
 // TestHPAV2Beta2Factory_ListWatch checks that the autoscaling/v2beta2 HPAs
 // served by the dynamic client are handed out as autoscaling/v2 ones.
 func TestHPAV2Beta2Factory_ListWatch(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
 		map[schema.GroupVersionResource]string{hpav2beta2GVR: "HorizontalPodAutoscalerList"},
 		newV2beta2HPA("default", "hpa-0"),

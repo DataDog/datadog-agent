@@ -55,7 +55,7 @@ func TestPowershellInlineScriptParameterRoundTrip(t *testing.T) {
 			evaluated, err := evaluatePowershellScript(config, map[string]any{"value": value})
 			require.NoError(t, err)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 			defer cancel()
 			cmd := newPowershellCommand(ctx, evaluated, nil)
 			var stdout, stderr bytes.Buffer

@@ -6,7 +6,6 @@
 package interp
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,7 +34,7 @@ func TestFileRemovalBudgetInitializedByRun(t *testing.T) {
 
 	assert.Nil(t, r.fileRemovalCount, "counter should be nil before Run")
 
-	require.NoError(t, r.Run(context.Background(), parseScript(t, "true")))
+	require.NoError(t, r.Run(t.Context(), parseScript(t, "true")))
 
 	assert.NotNil(t, r.fileRemovalCount, "counter should be initialized after Run")
 }
@@ -48,7 +47,7 @@ func TestFileRemovalBudgetSharedWithSubshells(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = r.Close() })
 
-	require.NoError(t, r.Run(context.Background(), parseScript(t, "true")))
+	require.NoError(t, r.Run(t.Context(), parseScript(t, "true")))
 	require.NotNil(t, r.fileRemovalCount)
 
 	assert.Same(t, r.fileRemovalCount, r.subshell(false).fileRemovalCount,
@@ -73,7 +72,7 @@ func TestFileRemovalBudgetResetBetweenRuns(t *testing.T) {
 
 	// The last three iterations hit the exhausted budget and fail, so the
 	// script's final status is 1.
-	err := r.Run(context.Background(), prog)
+	err := r.Run(t.Context(), prog)
 	var status ExitStatus
 	require.ErrorAs(t, err, &status)
 	assert.Equal(t, ExitStatus(1), status)
@@ -84,7 +83,7 @@ func TestFileRemovalBudgetResetBetweenRuns(t *testing.T) {
 		"the error must name the budget so an agent can recover")
 
 	errBuf.Reset()
-	require.NoError(t, r.Run(context.Background(), prog))
+	require.NoError(t, r.Run(t.Context(), prog))
 	assert.Equal(t, int64(3), r.fileRemovalCount.Load(), "second run must start from a fresh budget")
 	assert.Equal(t, 0, countFiles(t, dir))
 	assert.Empty(t, errBuf.String())
@@ -100,7 +99,7 @@ func TestFileRemovalBudgetNotChargedForFailedRemovals(t *testing.T) {
 	r, _, _ := newRemediationRunner(t, dir)
 	script := `for i in 1 2 3 4 5 6 7 8 9; do rm missing.txt; done
 rm real.txt`
-	require.NoError(t, r.Run(context.Background(), parseScript(t, script)))
+	require.NoError(t, r.Run(t.Context(), parseScript(t, script)))
 
 	assert.Equal(t, int64(1), r.fileRemovalCount.Load(),
 		"only the successful removal should be charged")

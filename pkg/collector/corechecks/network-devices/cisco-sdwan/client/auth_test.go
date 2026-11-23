@@ -6,7 +6,6 @@
 package client
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -55,7 +54,7 @@ func TestAuth(t *testing.T) {
 	client, err := NewClient(serverURL(server), "username", "password", true)
 	require.NoError(t, err)
 
-	_, err = client.GetDevices(context.Background())
+	_, err = client.GetDevices(t.Context())
 	require.NoError(t, err)
 
 	require.Equal(t, "testtoken", client.token, "Token should be set correctly")
@@ -67,7 +66,7 @@ func TestAuth(t *testing.T) {
 	require.Equal(t, 1, loginHandler.numberOfCalls())
 
 	// Re-call GetDevices and ensure auth is not re-called
-	_, err = client.GetDevices(context.Background())
+	_, err = client.GetDevices(t.Context())
 	require.NoError(t, err)
 
 	// Ensure login endpoint has been called 1 times
@@ -81,7 +80,7 @@ func TestAuth(t *testing.T) {
 	}
 
 	// Re-call GetDevices and ensure auth is re-called
-	_, err = client.GetDevices(context.Background())
+	_, err = client.GetDevices(t.Context())
 	require.NoError(t, err)
 
 	// Ensure login endpoint has been called 2 times

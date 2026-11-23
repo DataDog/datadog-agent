@@ -8,7 +8,6 @@
 package phonehome
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -110,7 +109,7 @@ func TestDiscovery(t *testing.T) {
 				fmt.Fprint(w, tc.body)
 			}))
 			defer srv.Close()
-			require.Equal(t, tc.want, validate(context.Background(), srv.Client(), srv.URL, "fake-api-key", time.Now()))
+			require.Equal(t, tc.want, validate(t.Context(), srv.Client(), srv.URL, "fake-api-key", time.Now()))
 		})
 	}
 	now := time.Now().Truncate(time.Second)
@@ -126,7 +125,7 @@ func TestDiscoveryRefusesRedirect(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, target.URL, http.StatusFound) }))
 	defer srv.Close()
 	client := &http.Client{CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
-	result := validate(context.Background(), client, srv.URL, "secret", time.Now())
+	result := validate(t.Context(), client, srv.URL, "secret", time.Now())
 	require.False(t, result.eligible)
 	require.Equal(t, "discovery_http_302", string(result.reason))
 }

@@ -6,7 +6,6 @@
 package httpimpl
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -38,7 +37,7 @@ func startServer(t *testing.T, overrides map[string]interface{}) *server {
 		out:        &drainingSerializer{},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	require.NoError(t, s.start(ctx))
 	t.Cleanup(func() { require.NoError(t, s.stop(ctx)) })
 

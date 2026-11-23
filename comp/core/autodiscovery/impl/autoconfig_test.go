@@ -220,7 +220,7 @@ func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	assert.False(suite.T(), ac.configPollers[0].canPoll)
 	assert.True(suite.T(), ac.configPollers[1].canPoll)
 
-	require.NoError(suite.T(), ac.LoadAndRun(context.Background()))
+	require.NoError(suite.T(), ac.LoadAndRun(suite.T().Context()))
 	require.Len(suite.T(), ac.configPollers, 2)
 
 	assert.Equal(suite.T(), 1, mp.collectCounter)

@@ -9,7 +9,6 @@ package vmstat_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -36,7 +35,7 @@ func runScript(t *testing.T, script string) (stdout, stderr string, exitCode int
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	runErr := runner.Run(context.Background(), prog)
+	runErr := runner.Run(t.Context(), prog)
 	code := 0
 	if runErr != nil {
 		var es interp.ExitStatus

@@ -447,7 +447,7 @@ func TestTestSoloOperatorLiteral(t *testing.T) {
 // --- Context cancellation ---
 
 func TestTestContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 	cancel()
 	_, _, code := runScriptCtx(ctx, t, `test 1 -eq 1`, "")

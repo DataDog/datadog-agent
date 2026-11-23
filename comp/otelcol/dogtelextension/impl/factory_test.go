@@ -8,7 +8,6 @@
 package dogtelextensionimpl
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,7 +33,7 @@ func TestNewFactory_ReturnsErrorOnCreate(t *testing.T) {
 	require.NotNil(t, cfg)
 
 	settings := extension.Settings{ID: component.NewID(Type)}
-	_, err := factory.Create(context.Background(), settings, cfg)
+	_, err := factory.Create(t.Context(), settings, cfg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "dogtelextension requires agent components")
 }
@@ -62,7 +61,7 @@ func TestNewFactoryForAgent_CreatesExtension(t *testing.T) {
 		ID:        component.NewID(Type),
 		BuildInfo: component.BuildInfo{Version: "1.0.0", Command: "otel-agent"},
 	}
-	ext, err := factory.Create(context.Background(), settings, cfg)
+	ext, err := factory.Create(t.Context(), settings, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, ext)
 }
@@ -87,7 +86,7 @@ func TestNewFactoryForAgent_InvalidConfigErrors(t *testing.T) {
 	cfg.TaggerServerPort = -5
 
 	settings := extension.Settings{ID: component.NewID(Type)}
-	_, err := factory.Create(context.Background(), settings, cfg)
+	_, err := factory.Create(t.Context(), settings, cfg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid configuration")
 }

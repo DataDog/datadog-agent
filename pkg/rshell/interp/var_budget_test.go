@@ -7,7 +7,6 @@ package interp
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 
@@ -66,7 +65,7 @@ I=7 J=$I true
 	r, err := New(StdIO(nil, &out, &out), AllowedCommands([]string{"rshell:echo", "rshell:cat", "rshell:true"}))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
-	require.NoError(t, r.Run(context.Background(), prog), out.String())
+	require.NoError(t, r.Run(t.Context(), prog), out.String())
 
 	root := r.writeEnv.(*overlayEnviron)
 	assert.Equal(t, root.charged, root.budget.live)
@@ -119,7 +118,7 @@ A=y true
 	r, err := New(StdIO(nil, &out, &out), AllowedCommands([]string{"rshell:echo", "rshell:true"}))
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
-	require.NoError(t, r.Run(context.Background(), prog), out.String())
+	require.NoError(t, r.Run(t.Context(), prog), out.String())
 	assert.Equal(t, "x\n", out.String())
 
 	root := r.writeEnv.(*overlayEnviron)

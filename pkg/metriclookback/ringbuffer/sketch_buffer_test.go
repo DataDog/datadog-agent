@@ -6,7 +6,6 @@
 package ringbuffer
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -20,14 +19,14 @@ func TestSketchBufferRetainsContextPerPoint(t *testing.T) {
 	buffer := NewSketchBuffer(Options{Capacity: 2, ShardCount: 1})
 	source := Source{Kind: SourceDogStatsDBucketed}
 
-	require.NoError(t, buffer.AppendSketchSeries(context.Background(), source, &metrics.SketchSeries{
+	require.NoError(t, buffer.AppendSketchSeries(t.Context(), source, &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{Name: "dist.a"},
 		Points: []metrics.SketchPoint{
 			{Ts: 10, Sketch: testRetainedSketchData(1)},
 			{Ts: 11, Sketch: testRetainedSketchData(2)},
 		},
 	}))
-	require.NoError(t, buffer.AppendSketchSeries(context.Background(), source, &metrics.SketchSeries{
+	require.NoError(t, buffer.AppendSketchSeries(t.Context(), source, &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{Name: "dist.b"},
 		Points:               []metrics.SketchPoint{{Ts: 12, Sketch: testRetainedSketchData(3)}},
 	}))

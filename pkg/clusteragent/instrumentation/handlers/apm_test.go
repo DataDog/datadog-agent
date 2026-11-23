@@ -8,7 +8,6 @@
 package handlers
 
 import (
-	"context"
 	"testing"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
@@ -232,7 +231,7 @@ func TestAPMHandlerHandle(t *testing.T) {
 			event: instrumentation.EventDelete,
 			cr:    validCR,
 			setup: func(t *testing.T, h *APMHandler) {
-				_, err := h.Handle(context.Background(), instrumentation.EventCreate, validCR)
+				_, err := h.Handle(t.Context(), instrumentation.EventCreate, validCR)
 				require.NoError(t, err)
 			},
 			wantStatus: metav1.ConditionTrue,
@@ -259,7 +258,7 @@ func TestAPMHandlerHandle(t *testing.T) {
 				tt.setup(t, h)
 			}
 
-			status, err := h.Handle(context.Background(), tt.event, tt.cr)
+			status, err := h.Handle(t.Context(), tt.event, tt.cr)
 			require.NoError(t, err)
 			require.Equal(t, apmReadyConditionType, status.Type)
 			require.Equal(t, tt.wantStatus, status.Status)

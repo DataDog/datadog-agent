@@ -8,7 +8,6 @@
 package procnetsocket
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -34,7 +33,7 @@ func TestVulnHuntSubsystemResourceLimitBypass_SocketLineLengthCap(t *testing.T) 
 		strings.Repeat("A", MaxLineBytes+1) + "\n"
 	dir := writeProcNetSocketFile(t, "tcp", content)
 
-	_, err := ReadTCP4(context.Background(), dir)
+	_, err := ReadTCP4(t.Context(), dir)
 	if err == nil {
 		t.Fatalf("expected overlong socket line to fail")
 	}
@@ -51,7 +50,7 @@ func TestVulnHuntSubsystemResourceLimitBypass_SocketMaxTotalLines(t *testing.T) 
 	}
 	dir := writeProcNetSocketFile(t, "tcp", b.String())
 
-	_, err := ReadTCP4(context.Background(), dir)
+	_, err := ReadTCP4(t.Context(), dir)
 	if !errors.Is(err, ErrMaxTotalLines) {
 		t.Fatalf("expected ErrMaxTotalLines, got %v", err)
 	}
@@ -66,7 +65,7 @@ func TestVulnHuntSubsystemResourceLimitBypass_SocketMaxEntries(t *testing.T) {
 	}
 	dir := writeProcNetSocketFile(t, "tcp", b.String())
 
-	_, err := ReadTCP4(context.Background(), dir)
+	_, err := ReadTCP4(t.Context(), dir)
 	if !errors.Is(err, ErrMaxEntries) {
 		t.Fatalf("expected ErrMaxEntries, got %v", err)
 	}

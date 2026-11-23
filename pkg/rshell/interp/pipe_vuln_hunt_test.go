@@ -57,7 +57,7 @@ func TestVulnHuntShellFeatureSignalContext_PipeWriterStopsAfterReaderExit(t *tes
 	t.Cleanup(func() { _ = r.Close() })
 	r.Dir = dir
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	err = r.Run(ctx, parseScript(t, "cat big.txt | head -n 1\n"))

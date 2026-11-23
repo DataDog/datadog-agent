@@ -292,7 +292,7 @@ func TestGlobManyStarSegments(t *testing.T) {
 	segments[20] = "b"
 	pattern := "echo " + strings.Join(segments, "*")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	stderr, exitCode := testutil.RunScriptDiscardCtx(ctx, t, pattern, dir, interp.AllowedPaths([]string{dir}))
@@ -337,7 +337,7 @@ func TestGlobDeepNestedStarSlash(t *testing.T) {
 
 	pattern := "echo */*/*/*/*"
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	stderr, exitCode := testutil.RunScriptDiscardCtx(ctx, t, pattern, dir, interp.AllowedPaths([]string{dir}))
@@ -372,7 +372,7 @@ func TestGlobBacktrackingWorstCase(t *testing.T) {
 	segments[15] = "b"
 	pattern := "echo " + strings.Join(segments, "*")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	stderr, exitCode := testutil.RunScriptDiscardCtx(ctx, t, pattern, dir, interp.AllowedPaths([]string{dir}))

@@ -79,7 +79,7 @@ func TestWarnOnUnsupportedVersion(t *testing.T) {
 			done := make(chan struct{})
 			go func() {
 				defer close(done)
-				WarnOnUnsupportedVersion(context.Background(), wmeta)
+				WarnOnUnsupportedVersion(t.Context(), wmeta)
 			}()
 			if !tt.setBefore {
 				wmeta.Set(kubeCapabilities(tt.serverVersion))
@@ -105,7 +105,7 @@ func TestWarnOnUnsupportedVersion(t *testing.T) {
 
 func TestWarnOnUnsupportedVersionStopsOnContextCancel(t *testing.T) {
 	wmeta := newWorkloadmeta(t)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() {
 		defer close(done)

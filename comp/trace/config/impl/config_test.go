@@ -356,7 +356,7 @@ func TestConfigHostname(t *testing.T) {
 			func(t testing.TB, app *fx.App) {
 				require.NotNil(t, app)
 
-				ctx := context.Background()
+				ctx := t.Context()
 				err := app.Start(ctx)
 				defer app.Stop(ctx)
 

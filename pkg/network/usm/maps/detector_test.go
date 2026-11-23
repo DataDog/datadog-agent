@@ -51,7 +51,7 @@ func TestCheckPIDKeyedMaps(t *testing.T) {
 	defer testWriteMap.Close()
 
 	// Start two living processes
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	cmd1 := exec.CommandContext(ctx, "sleep", "1000")

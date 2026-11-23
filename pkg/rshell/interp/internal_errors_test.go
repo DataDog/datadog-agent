@@ -7,7 +7,6 @@ package interp
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -111,7 +110,7 @@ func TestRunZeroValueRunnerMultipleCalls(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 3; i++ {
-		err = r.Run(context.Background(), prog)
+		err = r.Run(t.Context(), prog)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "use interp.New to construct a Runner")
 	}
@@ -199,7 +198,7 @@ func TestMultipleResetsPreserveConfig(t *testing.T) {
 
 func TestSubshellInheritsConfig(t *testing.T) {
 	r := newResetRunner(t)
-	r.fillExpandConfig(context.Background())
+	r.fillExpandConfig(t.Context())
 
 	sub := r.subshell(false)
 
@@ -212,7 +211,7 @@ func TestSubshellInheritsConfig(t *testing.T) {
 
 func TestSubshellHasIndependentState(t *testing.T) {
 	r := newResetRunner(t)
-	r.fillExpandConfig(context.Background())
+	r.fillExpandConfig(t.Context())
 	r.Dir = "/parent"
 
 	sub := r.subshell(false)
@@ -229,7 +228,7 @@ func TestSubshellHasIndependentState(t *testing.T) {
 func TestSubshellBackgroundCopiesEnv(t *testing.T) {
 	r := newResetRunner(t)
 	r.setVarString("X", "parent_value")
-	r.fillExpandConfig(context.Background())
+	r.fillExpandConfig(t.Context())
 
 	sub := r.subshell(true)
 
@@ -288,8 +287,8 @@ func TestInternalErrorStopsExecution(t *testing.T) {
 
 	// Run resets exit, but the next stmt() call will see exiting=true.
 	// We verify the pattern by calling stmts directly on a prepared runner.
-	r.fillExpandConfig(context.Background())
-	r.stmts(context.Background(), prog.Stmts)
+	r.fillExpandConfig(t.Context())
+	r.stmts(t.Context(), prog.Stmts)
 
 	assert.True(t, r.exit.fatalExit, "fatal flag should remain set")
 }

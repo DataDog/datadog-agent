@@ -169,7 +169,7 @@ func TestUploadSendsZstdMultipart(t *testing.T) {
 	content := bytes.Repeat([]byte("pcap"), 64<<10)
 	req, _ := pcapRequest(content)
 
-	require.NoError(t, u.Upload(context.Background(), req))
+	require.NoError(t, u.Upload(t.Context(), req))
 
 	got := in.received()
 	require.Len(t, got, 1)
@@ -200,7 +200,7 @@ func TestUploadDefaultsAttachmentContentType(t *testing.T) {
 	req, _ := pcapRequest([]byte("x"))
 	req.Attachments[0].ContentType = ""
 
-	require.NoError(t, u.Upload(context.Background(), req))
+	require.NoError(t, u.Upload(t.Context(), req))
 	got := in.received()
 	require.Len(t, got, 1)
 	require.Len(t, got[0].parts, 2)
@@ -214,7 +214,7 @@ func TestUploadRetryReopensTheSource(t *testing.T) {
 	content := bytes.Repeat([]byte{0xab}, 128<<10)
 	req, opens := pcapRequest(content)
 
-	require.NoError(t, u.Upload(context.Background(), req))
+	require.NoError(t, u.Upload(t.Context(), req))
 
 	assert.EqualValues(t, 2, opens.Load())
 	got := in.received()
@@ -239,7 +239,7 @@ func TestUploadRetriesRetryableStatuses(t *testing.T) {
 			in := newIntake(t, status, http.StatusAccepted)
 			u := newTestUploader(t, newTestConfig(t, in))
 			req, _ := pcapRequest([]byte("pcap"))
-			require.NoError(t, u.Upload(context.Background(), req))
+			require.NoError(t, u.Upload(t.Context(), req))
 			assert.EqualValues(t, 2, in.calls.Load())
 		})
 	}
@@ -250,7 +250,7 @@ func TestUploadDoesNotRetryTooLarge(t *testing.T) {
 	u := newTestUploader(t, newTestConfig(t, in))
 	req, _ := pcapRequest([]byte("pcap"))
 
-	err := u.Upload(context.Background(), req)
+	err := u.Upload(t.Context(), req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "too large (413)")
 	assert.EqualValues(t, 1, in.calls.Load())
@@ -261,7 +261,7 @@ func TestUploadDoesNotRetryClientErrors(t *testing.T) {
 	u := newTestUploader(t, newTestConfig(t, in))
 	req, _ := pcapRequest([]byte("pcap"))
 
-	require.Error(t, u.Upload(context.Background(), req))
+	require.Error(t, u.Upload(t.Context(), req))
 	assert.EqualValues(t, 1, in.calls.Load())
 }
 
@@ -270,7 +270,7 @@ func TestUploadGivesUpAfterMaxAttempts(t *testing.T) {
 	u := newTestUploader(t, newTestConfig(t, in))
 	req, opens := pcapRequest([]byte("pcap"))
 
-	err := u.Upload(context.Background(), req)
+	err := u.Upload(t.Context(), req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "after 4 attempts")
 	assert.EqualValues(t, defaultMaxAttempts, in.calls.Load())
@@ -283,7 +283,7 @@ func TestUploadStopsRetryingWhenContextIsDone(t *testing.T) {
 	u.retryBackoff = time.Hour
 	req, _ := pcapRequest([]byte("pcap"))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 	err := u.Upload(ctx, req)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
@@ -302,7 +302,7 @@ func TestUploadOpenFailureSendsNothing(t *testing.T) {
 		}},
 	}
 
-	err := u.Upload(context.Background(), req)
+	err := u.Upload(t.Context(), req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no such file")
 	assert.EqualValues(t, 0, in.calls.Load())
@@ -315,7 +315,7 @@ func TestUploadWithoutAPIKeyFails(t *testing.T) {
 	u := newTestUploader(t, cfg)
 	req, _ := pcapRequest([]byte("pcap"))
 
-	require.Error(t, u.Upload(context.Background(), req))
+	require.Error(t, u.Upload(t.Context(), req))
 	assert.EqualValues(t, 0, in.calls.Load())
 }
 
@@ -342,7 +342,7 @@ func TestUploadAdditionalEndpoints(t *testing.T) {
 			u := newTestUploader(t, cfg)
 			req, _ := pcapRequest([]byte("pcap"))
 
-			err := u.Upload(context.Background(), req)
+			err := u.Upload(t.Context(), req)
 			if tc.wantFailed {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), failing.srv.URL)
@@ -375,12 +375,12 @@ func TestUploadMRFEndpointFollowsFailover(t *testing.T) {
 	u := newTestUploader(t, cfg)
 	req, _ := pcapRequest([]byte("pcap"))
 
-	require.NoError(t, u.Upload(context.Background(), req))
+	require.NoError(t, u.Upload(t.Context(), req))
 	assert.EqualValues(t, 1, main.calls.Load())
 	assert.EqualValues(t, 0, mrf.calls.Load())
 
 	cfg.SetInTest("multi_region_failover.failover_logs", true)
-	require.NoError(t, u.Upload(context.Background(), req))
+	require.NoError(t, u.Upload(t.Context(), req))
 	assert.EqualValues(t, 2, main.calls.Load())
 	got := mrf.received()
 	require.Len(t, got, 1)
@@ -435,7 +435,7 @@ func TestUploadDelegatedAdditionalEndpointUpdates(t *testing.T) {
 			setKey(initialKey)
 			u := newTestUploader(t, cfg)
 			req, _ := pcapRequest([]byte("pcap"))
-			err := u.Upload(context.Background(), req)
+			err := u.Upload(t.Context(), req)
 			if initialKey == "DELA[org-uuid-1, aws]" {
 				require.Error(t, err, "a pending reliable endpoint still reports upload failure")
 				assert.Empty(t, secondary.received())
@@ -447,7 +447,7 @@ func TestUploadDelegatedAdditionalEndpointUpdates(t *testing.T) {
 			assert.EqualValues(t, 1, main.calls.Load())
 			for _, key := range []string{"resolved-key", "rotated-key"} {
 				setKey(key)
-				require.NoError(t, u.Upload(context.Background(), req))
+				require.NoError(t, u.Upload(t.Context(), req))
 				got := secondary.received()
 				require.NotEmpty(t, got)
 				assert.Equal(t, key, got[len(got)-1].apiKey)

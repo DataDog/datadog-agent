@@ -7,7 +7,6 @@ package interp
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 )
@@ -27,7 +26,7 @@ func TestVulnHuntSubsystemParserLexer_NULByteCannotBypassCommandPolicy(t *testin
 	}
 	t.Cleanup(func() { _ = runner.Close() })
 
-	runErr := runner.Run(context.Background(), prog)
+	runErr := runner.Run(t.Context(), prog)
 	if runErr == nil {
 		t.Fatalf("NUL-mutated command unexpectedly bypassed command policy: stdout=%q stderr=%q", stdout.String(), stderr.String())
 	}

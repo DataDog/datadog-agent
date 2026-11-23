@@ -154,7 +154,7 @@ func TestInstrumentationChecksCollect(t *testing.T) {
 				flushedConfigs:   tt.flushedConfigs,
 			}
 
-			configs, err := provider.Collect(context.Background())
+			configs, err := provider.Collect(t.Context())
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -185,7 +185,7 @@ func TestInstrumentationChecksCollectNilClientInitFails(t *testing.T) {
 		degradedDuration: defaultDegradedDeadline,
 	}
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	assert.Nil(t, configs)
 	assert.Error(t, err)
 }
@@ -244,7 +244,7 @@ func TestInstrumentationChecksIsUpToDate(t *testing.T) {
 				configHash:     tt.configHash,
 				flushedConfigs: tt.flushedConfigs,
 			}
-			upToDate, err := provider.IsUpToDate(context.Background())
+			upToDate, err := provider.IsUpToDate(t.Context())
 			assert.NoError(t, err)
 			assert.Equal(t, tt.wantResult, upToDate)
 		})

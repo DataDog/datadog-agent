@@ -6,7 +6,6 @@
 package oracle
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,7 +21,7 @@ func TestGetHostAliases(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("cloud_provider_metadata", []string{"oracle"})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	expected := "ocid1.instance.oc1.iad.anuwcljte6cuweqcz7sarpn43hst2kaaaxbbbccbaaa6vpd66tvcyhgiifsq"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +46,7 @@ func TestGetNTPHosts(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("cloud_provider_metadata", []string{"oracle"})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	expectedHosts := []string{"169.254.169.254"}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -67,7 +66,7 @@ func TestGetHostCCRID(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("cloud_provider_metadata", []string{"oracle"})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	expected := "ocid1.instance.oc1.iad.anuwcljsma7556acga2pgx4yidhq5fncc66ixo5ohiziovqvmki3r6au5piq"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +90,7 @@ func TestGetInstanceType(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("cloud_provider_metadata", []string{"oracle"})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	expected := "VM.Standard.E5.Flex"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

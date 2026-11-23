@@ -8,7 +8,6 @@
 package procinfo
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"os"
@@ -142,7 +141,7 @@ func TestGetByPIDsStandaloneDerivedMetricMasks(t *testing.T) {
 	writeLinuxProcEntry(t, procPath, pid, 1, pid, "200", "100", "256")
 
 	t.Run("pcpu loads uptime dependency", func(t *testing.T) {
-		procs, err := getByPIDs(context.Background(), procPath, []int{pid}, MetricPCPU)
+		procs, err := getByPIDs(t.Context(), procPath, []int{pid}, MetricPCPU)
 		require.NoError(t, err)
 		require.Len(t, procs, 1)
 
@@ -153,7 +152,7 @@ func TestGetByPIDsStandaloneDerivedMetricMasks(t *testing.T) {
 	})
 
 	t.Run("pmem loads rss and total memory dependencies", func(t *testing.T) {
-		procs, err := getByPIDs(context.Background(), procPath, []int{pid}, MetricPMem)
+		procs, err := getByPIDs(t.Context(), procPath, []int{pid}, MetricPMem)
 		require.NoError(t, err)
 		require.Len(t, procs, 1)
 
@@ -164,7 +163,7 @@ func TestGetByPIDsStandaloneDerivedMetricMasks(t *testing.T) {
 	})
 
 	t.Run("elapsed loads uptime dependency", func(t *testing.T) {
-		procs, err := getByPIDs(context.Background(), procPath, []int{pid}, MetricElapsed)
+		procs, err := getByPIDs(t.Context(), procPath, []int{pid}, MetricElapsed)
 		require.NoError(t, err)
 		require.Len(t, procs, 1)
 
@@ -204,7 +203,7 @@ func TestGetSessionStopsAtCyclicParentChain(t *testing.T) {
 	writeLinuxProcEntry(t, procPath, selfPID, otherPID, selfPID, "0", "0", "1")
 	writeLinuxProcEntry(t, procPath, otherPID, selfPID, selfPID, "0", "0", "1")
 
-	procs, err := getSession(context.Background(), procPath, 0)
+	procs, err := getSession(t.Context(), procPath, 0)
 	require.NoError(t, err)
 	require.Len(t, procs, 2)
 	require.ElementsMatch(t, []int{selfPID, otherPID}, []int{procs[0].PID, procs[1].PID})

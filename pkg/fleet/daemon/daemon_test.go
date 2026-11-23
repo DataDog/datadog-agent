@@ -288,22 +288,22 @@ func newTestInstaller(t *testing.T) *testInstaller {
 		pm:         pm,
 		bm:         bm,
 	}
-	i.Start(context.Background())
+	i.Start(t.Context())
 	return i
 }
 
-func (i *testInstaller) Stop() {
-	i.daemonImpl.Stop(context.Background())
+func (i *testInstaller) Stop(ctx context.Context) {
+	i.daemonImpl.Stop(ctx)
 }
 
 func TestInstall(t *testing.T) {
 	i := newTestInstaller(t)
-	defer i.Stop()
+	defer i.Stop(t.Context())
 
 	testURL := "oci://example.com/test-package:1.0.0"
 	i.pm.On("Install", mock.Anything, testURL, []string(nil)).Return(nil).Once()
 
-	err := i.Install(context.Background(), testURL, nil)
+	err := i.Install(t.Context(), testURL, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -313,12 +313,12 @@ func TestInstall(t *testing.T) {
 
 func TestStartExperiment(t *testing.T) {
 	i := newTestInstaller(t)
-	defer i.Stop()
+	defer i.Stop(t.Context())
 
 	testURL := "oci://example.com/test-package:1.0.0"
 	i.bm.On("InstallExperiment", mock.Anything, mock.Anything, testURL).Return(nil).Once()
 
-	err := i.StartExperiment(context.Background(), testURL)
+	err := i.StartExperiment(t.Context(), testURL)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -328,12 +328,12 @@ func TestStartExperiment(t *testing.T) {
 
 func TestStopExperiment(t *testing.T) {
 	i := newTestInstaller(t)
-	defer i.Stop()
+	defer i.Stop(t.Context())
 
 	pkg := "test-package"
 	i.pm.On("RemoveExperiment", mock.Anything, pkg).Return(nil).Once()
 
-	err := i.StopExperiment(context.Background(), pkg)
+	err := i.StopExperiment(t.Context(), pkg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -343,12 +343,12 @@ func TestStopExperiment(t *testing.T) {
 
 func TestPromoteExperiment(t *testing.T) {
 	i := newTestInstaller(t)
-	defer i.Stop()
+	defer i.Stop(t.Context())
 
 	pkg := "test-package"
 	i.pm.On("PromoteExperiment", mock.Anything, pkg).Return(nil).Once()
 
-	err := i.PromoteExperiment(context.Background(), pkg)
+	err := i.PromoteExperiment(t.Context(), pkg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -358,7 +358,7 @@ func TestPromoteExperiment(t *testing.T) {
 
 func TestUpdateCatalog(t *testing.T) {
 	i := newTestInstaller(t)
-	defer i.Stop()
+	defer i.Stop(t.Context())
 
 	testPackage := Package{
 		Name:     "test-package",
@@ -381,7 +381,7 @@ func TestUpdateCatalog(t *testing.T) {
 
 func TestRemoteRequest(t *testing.T) {
 	i := newTestInstaller(t)
-	defer i.Stop()
+	defer i.Stop(t.Context())
 
 	testStablePackage := Package{
 		Name:    "test-package",
@@ -445,7 +445,7 @@ func TestRemoteRequest(t *testing.T) {
 
 func TestRemoteRequestClientIDCheckDisabled(t *testing.T) {
 	i := newTestInstaller(t)
-	defer i.Stop()
+	defer i.Stop(t.Context())
 
 	testStablePackage := Package{
 		Name:    "test-package",
@@ -537,11 +537,11 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 		pm:         pm,
 		bm:         bm,
 	}
-	i.Start(context.Background())
-	defer i.Stop()
+	i.Start(t.Context())
+	defer i.Stop(t.Context())
 
 	// Call refreshState to trigger the state update
-	i.daemonImpl.refreshState(context.Background())
+	i.daemonImpl.refreshState(t.Context())
 
 	// Wait a bit for the state to be set
 	require.Eventually(t, func() bool {

@@ -6,7 +6,6 @@
 package metrics
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"os"
@@ -22,9 +21,10 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/DataDog/sketches-go/ddsketch"
+
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
-	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 func TestDeltaHistogramTranslatorOptions(t *testing.T) {
@@ -151,7 +151,7 @@ func TestDeltaHistogramTranslatorOptions(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			AssertTranslatorMap(t, translator, testinstance.otlpfile, testinstance.ddogfile)
+			AssertTranslatorMap(t, t.Context(), translator, testinstance.otlpfile, testinstance.ddogfile)
 		})
 	}
 }
@@ -176,7 +176,7 @@ func TestNonMonotonicCount(t *testing.T) {
 	translator, err := NewDefaultTranslator(set, attributesTranslator, options...)
 	assert.NoError(t, err)
 
-	_, err = translator.MapMetrics(context.Background(), otlpdata, &consumer, nil)
+	_, err = translator.MapMetrics(t.Context(), otlpdata, &consumer, nil)
 	assert.EqualError(t, err, quantile.ErrNonMonotonicBoundaries)
 }
 
@@ -248,7 +248,7 @@ func TestCumulativeHistogramTranslatorOptions(t *testing.T) {
 				testinstance.options...,
 			)
 			translator := NewTestTranslator(t, options...)
-			AssertTranslatorMap(t, translator, testinstance.otlpfile, testinstance.ddogfile)
+			AssertTranslatorMap(t, t.Context(), translator, testinstance.otlpfile, testinstance.ddogfile)
 		})
 	}
 }
@@ -384,7 +384,7 @@ func TestExponentialHistogramTranslatorOptions(t *testing.T) {
 			require.NoError(t, err)
 			translator, err := NewDefaultTranslator(set, attributesTranslator, options...)
 			require.NoError(t, err)
-			AssertTranslatorMap(t, translator, testinstance.otlpfile, testinstance.ddogfile)
+			AssertTranslatorMap(t, t.Context(), translator, testinstance.otlpfile, testinstance.ddogfile)
 			assert.Equal(t, testinstance.expectedUnknownMetricType, observed.FilterMessage("Unknown or unsupported metric type").Len())
 			assert.Equal(t, testinstance.expectedUnsupportedAggregationTemporality, observed.FilterMessage("Unknown or unsupported aggregation temporality").Len())
 		})

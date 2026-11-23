@@ -34,7 +34,7 @@ func TestResolveCredentials_StaticEnvVarsReturned(t *testing.T) {
 	t.Setenv("AWS_SESSION_TOKEN", "EKSTATICTOKEN")
 
 	auth := &AWSAuth{region: "eu-west-1"}
-	got, err := auth.resolveCredentials(context.Background(), configmock.New(t))
+	got, err := auth.resolveCredentials(t.Context(), configmock.New(t))
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, creds.SourceEnvironment, auth.LastCredentialSource())
@@ -54,7 +54,7 @@ func TestResolveCredentials_ProviderFailureIsAttributed(t *testing.T) {
 	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", filepath.Join(t.TempDir(), "no-such-token"))
 
 	auth := &AWSAuth{region: "us-east-1"}
-	got, err := auth.resolveCredentials(context.Background(), configmock.New(t))
+	got, err := auth.resolveCredentials(t.Context(), configmock.New(t))
 	require.Error(t, err)
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), creds.SourceWebIdentity)
@@ -73,12 +73,12 @@ func TestResolveCredentials_EmptyCredentialsAreAnError(t *testing.T) {
 	provider := imdsProvider{fetch: func(context.Context) (*creds.SecurityCredentials, error) {
 		return &creds.SecurityCredentials{}, nil
 	}}
-	sdkCreds, err := provider.Retrieve(context.Background())
+	sdkCreds, err := provider.Retrieve(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, sdkCreds.AccessKeyID)
 
 	// resolveCredentials rejects that result rather than passing it on.
-	got, err := auth.resolveCredentialsFrom(context.Background(), provider, creds.SourceIMDS)
+	got, err := auth.resolveCredentialsFrom(t.Context(), provider, creds.SourceIMDS)
 	require.Error(t, err)
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "empty credentials")
@@ -155,7 +155,7 @@ func TestIMDSProvider_Retrieve(t *testing.T) {
 		p := imdsProvider{fetch: func(context.Context) (*creds.SecurityCredentials, error) {
 			return &creds.SecurityCredentials{AccessKeyID: "AKID", SecretAccessKey: "SK", Token: "TK"}, nil
 		}}
-		got, err := p.Retrieve(context.Background())
+		got, err := p.Retrieve(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, "AKID", got.AccessKeyID)
 		assert.Equal(t, "SK", got.SecretAccessKey)
@@ -166,7 +166,7 @@ func TestIMDSProvider_Retrieve(t *testing.T) {
 		p := imdsProvider{fetch: func(context.Context) (*creds.SecurityCredentials, error) {
 			return nil, errors.New("imds unreachable")
 		}}
-		got, err := p.Retrieve(context.Background())
+		got, err := p.Retrieve(t.Context())
 		require.Error(t, err)
 		assert.Empty(t, got.AccessKeyID)
 	})
@@ -205,7 +205,7 @@ func TestWebIdentityProvider_Retrieve(t *testing.T) {
 		stsURL:      srv.URL,
 		client:      srv.Client(),
 	}
-	got, err := p.Retrieve(context.Background())
+	got, err := p.Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "ASIAEXAMPLE", got.AccessKeyID)
 	assert.Equal(t, "secretexample", got.SecretAccessKey)
@@ -320,7 +320,7 @@ func TestWebIdentityProvider_Retrieve_NoExpiration(t *testing.T) {
 	tokenFile := filepath.Join(t.TempDir(), "token")
 	require.NoError(t, os.WriteFile(tokenFile, []byte("jwt"), 0o600))
 
-	got, err := (&webIdentityProvider{roleARN: "r", tokenFile: tokenFile, stsURL: srv.URL, client: srv.Client()}).Retrieve(context.Background())
+	got, err := (&webIdentityProvider{roleARN: "r", tokenFile: tokenFile, stsURL: srv.URL, client: srv.Client()}).Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "AKID", got.AccessKeyID)
 	assert.False(t, got.CanExpire)
@@ -337,12 +337,12 @@ func TestWebIdentityProvider_Retrieve_Errors(t *testing.T) {
 		defer srv.Close()
 		tokenFile := filepath.Join(t.TempDir(), "token")
 		require.NoError(t, os.WriteFile(tokenFile, []byte("jwt"), 0o600))
-		got, err := (&webIdentityProvider{roleARN: "r", tokenFile: tokenFile, stsURL: srv.URL, client: srv.Client()}).Retrieve(context.Background())
+		got, err := (&webIdentityProvider{roleARN: "r", tokenFile: tokenFile, stsURL: srv.URL, client: srv.Client()}).Retrieve(t.Context())
 		require.Error(t, err)
 		assert.Empty(t, got.AccessKeyID)
 	})
 	t.Run("missing token file", func(t *testing.T) {
-		got, err := (&webIdentityProvider{roleARN: "r", tokenFile: "/no/such/token", stsURL: "https://sts.us-east-1.amazonaws.com/", client: http.DefaultClient}).Retrieve(context.Background())
+		got, err := (&webIdentityProvider{roleARN: "r", tokenFile: "/no/such/token", stsURL: "https://sts.us-east-1.amazonaws.com/", client: http.DefaultClient}).Retrieve(t.Context())
 		require.Error(t, err)
 		assert.Empty(t, got.AccessKeyID)
 	})
@@ -365,7 +365,7 @@ func TestContainerProvider_Retrieve(t *testing.T) {
 			client:   srv.Client(),
 			token:    func() (string, error) { return "tok-1", nil },
 		}
-		got, err := p.Retrieve(context.Background())
+		got, err := p.Retrieve(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, "AKID", got.AccessKeyID)
 		assert.Equal(t, "SECRET", got.SecretAccessKey)
@@ -385,7 +385,7 @@ func TestContainerProvider_Retrieve(t *testing.T) {
 		defer srv.Close()
 
 		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
-		_, err := p.Retrieve(context.Background())
+		_, err := p.Retrieve(t.Context())
 		require.NoError(t, err)
 		assert.False(t, seen, "Authorization header must be absent when no token is configured")
 	})
@@ -412,10 +412,10 @@ func TestContainerProvider_Retrieve(t *testing.T) {
 		require.NoError(t, err)
 		p := provider.(*containerProvider)
 		p.client = srv.Client()
-		_, err = p.Retrieve(context.Background())
+		_, err = p.Retrieve(t.Context())
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(tokenFile, []byte("second"), 0o600))
-		_, err = p.Retrieve(context.Background())
+		_, err = p.Retrieve(t.Context())
 		require.NoError(t, err)
 
 		require.Len(t, gotAuth, 2)
@@ -430,7 +430,7 @@ func TestContainerProvider_Retrieve(t *testing.T) {
 		defer srv.Close()
 
 		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
-		_, err := p.Retrieve(context.Background())
+		_, err := p.Retrieve(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "403")
 		assert.Contains(t, err.Error(), "no role associated")
@@ -443,7 +443,7 @@ func TestContainerProvider_Retrieve(t *testing.T) {
 		defer srv.Close()
 
 		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
-		_, err := p.Retrieve(context.Background())
+		_, err := p.Retrieve(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "parse container credentials response")
 	})
@@ -458,7 +458,7 @@ func TestContainerProvider_Retrieve(t *testing.T) {
 
 		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
 		auth := &AWSAuth{}
-		_, err := auth.resolveCredentialsFrom(context.Background(), p, creds.SourceContainer)
+		_, err := auth.resolveCredentialsFrom(t.Context(), p, creds.SourceContainer)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "returned empty credentials")
 	})
@@ -474,7 +474,7 @@ func TestContainerProvider_Retrieve_Non200Success(t *testing.T) {
 	defer srv.Close()
 
 	p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
-	got, err := p.Retrieve(context.Background())
+	got, err := p.Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "AKID", got.AccessKeyID)
 }
@@ -502,7 +502,7 @@ func TestContainerCredentialsProvider_TokenPrecedence(t *testing.T) {
 		require.NoError(t, err)
 		p := provider.(*containerProvider)
 		p.client = srv.Client()
-		_, err = p.Retrieve(context.Background())
+		_, err = p.Retrieve(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, "from-file", gotAuth)
 	})
@@ -522,7 +522,7 @@ func TestContainerCredentialsProvider_TokenPrecedence(t *testing.T) {
 		require.NoError(t, err)
 		p := provider.(*containerProvider)
 		p.client = srv.Client()
-		_, err = p.Retrieve(context.Background())
+		_, err = p.Retrieve(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to read authorization token")
 	})
@@ -539,7 +539,7 @@ func TestContainerProvider_Retrieve_ContextCancellation(t *testing.T) {
 	defer srv.Close()
 	defer close(release)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
@@ -562,7 +562,7 @@ func TestContainerProvider_Retrieve_ResponseIsBounded(t *testing.T) {
 	defer srv.Close()
 
 	p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
-	_, err := p.Retrieve(context.Background())
+	_, err := p.Retrieve(t.Context())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "parse container credentials response")
 }
@@ -583,7 +583,7 @@ func TestContainerProvider_RetriesTransientFailures(t *testing.T) {
 		defer srv.Close()
 
 		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
-		got, err := p.Retrieve(context.Background())
+		got, err := p.Retrieve(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, "AKID", got.AccessKeyID)
 		assert.Equal(t, int32(2), atomic.LoadInt32(&calls), "should have retried exactly once")
@@ -601,7 +601,7 @@ func TestContainerProvider_RetriesTransientFailures(t *testing.T) {
 		defer srv.Close()
 
 		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
-		_, err := p.Retrieve(context.Background())
+		_, err := p.Retrieve(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, int32(2), atomic.LoadInt32(&calls))
 	})
@@ -617,7 +617,7 @@ func TestContainerProvider_RetriesTransientFailures(t *testing.T) {
 		defer srv.Close()
 
 		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
-		_, err := p.Retrieve(context.Background())
+		_, err := p.Retrieve(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "403")
 		assert.Equal(t, int32(1), atomic.LoadInt32(&calls), "a 403 must not be retried")
@@ -633,7 +633,7 @@ func TestContainerProvider_RetriesTransientFailures(t *testing.T) {
 		defer srv.Close()
 
 		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
-		_, err := p.Retrieve(context.Background())
+		_, err := p.Retrieve(t.Context())
 		require.Error(t, err)
 		assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 	})
@@ -647,7 +647,7 @@ func TestContainerProvider_RetriesTransientFailures(t *testing.T) {
 		defer srv.Close()
 
 		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
-		_, err := p.Retrieve(context.Background())
+		_, err := p.Retrieve(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "502")
 		assert.Equal(t, int32(containerCredentialsMaxAttempts), atomic.LoadInt32(&calls))
@@ -661,7 +661,7 @@ func TestContainerProvider_RetriesTransientFailures(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		p := &containerProvider{endpoint: srv.URL, client: srv.Client()}
 		cancel()
 		_, err := p.Retrieve(ctx)

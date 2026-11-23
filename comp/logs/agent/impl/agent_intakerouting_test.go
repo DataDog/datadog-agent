@@ -8,7 +8,6 @@
 package agentimpl
 
 import (
-	"context"
 	"fmt"
 	"maps"
 	"slices"
@@ -99,7 +98,7 @@ func newIntakeRoutingTestAgent(t *testing.T, routing intakerouting.Component, ov
 		stopped := agent.stopped
 		agent.restartMutex.Unlock()
 		if !stopped {
-			_ = agent.stop(context.Background())
+			_ = agent.stop(t.Context())
 		}
 		agent.auditor.Stop()
 		logsStatus.Clear()
@@ -119,7 +118,7 @@ func startOn(t *testing.T, agent *logAgent, endpoints *config.Endpoints) {
 	t.Helper()
 	agent.restartMutex.Lock()
 	defer agent.restartMutex.Unlock()
-	require.NoError(t, agent.startLocked(context.Background(), endpoints))
+	require.NoError(t, agent.startLocked(t.Context(), endpoints))
 }
 
 // mainHost returns the host the pipeline currently sends to.
@@ -238,7 +237,7 @@ func TestIntakeRoutingIgnoredAfterStop(t *testing.T) {
 	agent.restartMutex.Unlock()
 	require.NotNil(t, reg)
 
-	require.NoError(t, agent.stop(context.Background()))
+	require.NoError(t, agent.stop(t.Context()))
 	agent.restartMutex.Lock()
 	assert.Nil(t, agent.routing.reg)
 	agent.restartMutex.Unlock()
@@ -421,7 +420,7 @@ func TestIntakeRoutingAfterHTTPUpgrade(t *testing.T) {
 
 	configuredHost := buildHTTPTestEndpoints(t, agent).Main.Host
 	routing.SetRoute(intakerouting.Logs, configuredHost, &intakerouting.Endpoint{Host: routedHost})
-	require.NoError(t, agent.restartWithHTTPUpgrade(context.Background()))
+	require.NoError(t, agent.restartWithHTTPUpgrade(t.Context()))
 	assert.Equal(t, routedHost, mainHost(agent))
 	assert.Len(t, routing.Requests(), 1)
 

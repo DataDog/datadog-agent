@@ -27,18 +27,18 @@ func TestDBConfLoader(t *testing.T) {
 	{
 		proc, err := process.NewProcess(int32(os.Getpid()))
 		assert.NoError(t, err)
-		resourceType, res, ok := LoadConfiguration(context.Background(), "/", proc)
+		resourceType, res, ok := LoadConfiguration(t.Context(), "/", proc)
 		assert.False(t, ok)
 		assert.Empty(t, resourceType)
 		assert.Nil(t, res)
 	}
 
 	{
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		proc, stop := launchFakeProcess(ctx, t, "postgres")
 		defer stop()
-		resourceType, res, ok := LoadConfiguration(context.Background(), "/", proc)
+		resourceType, res, ok := LoadConfiguration(t.Context(), "/", proc)
 		assert.True(t, ok)
 		assert.NotNil(t, res)
 		assert.Equal(t, types.ResourceTypeDbPostgresql, resourceType)
@@ -51,7 +51,7 @@ func TestDBConfLoader(t *testing.T) {
 	}
 
 	{
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		hostroot := t.TempDir()
@@ -65,7 +65,7 @@ func TestDBConfLoader(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, types.ResourceTypeDbPostgresql, resourceType)
 
-		resourceType, res, ok := LoadConfiguration(context.Background(), hostroot, proc)
+		resourceType, res, ok := LoadConfiguration(t.Context(), hostroot, proc)
 		assert.True(t, ok)
 		assert.NotNil(t, res)
 		assert.Equal(t, types.ResourceTypeDbPostgresql, resourceType)
@@ -163,9 +163,9 @@ dynamic_shared_memory_type = 'overridden'`
 		t.Fatal(err)
 	}
 
-	proc, stop := launchFakeProcess(context.Background(), t, "postgres", "--config", configPath)
+	proc, stop := launchFakeProcess(t.Context(), t, "postgres", "--config", configPath)
 	defer stop()
-	conf, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
+	conf, ok := LoadPostgreSQLConfig(t.Context(), hostroot, proc)
 	assert.Equal(t, true, ok)
 	configData := conf.ConfigData.(map[string]string)
 	assert.Equal(t, "/etc/postgresql/postgresql.conf", conf.ConfigFilePath)
@@ -192,9 +192,9 @@ dynamic_shared_memory_type = 'overridden'
 		t.Fatal(err)
 	}
 
-	proc, stop := launchFakeProcess(context.Background(), t, "postgres", "--config", configPath)
+	proc, stop := launchFakeProcess(t.Context(), t, "postgres", "--config", configPath)
 	defer stop()
-	c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
+	c, ok := LoadPostgreSQLConfig(t.Context(), hostroot, proc)
 	assert.Equal(t, true, ok)
 	configData := c.ConfigData.(map[string]string)
 	assert.Equal(t, "overridden", configData["dynamic_shared_memory_type"])
@@ -216,9 +216,9 @@ func TestPGConfParsingCustom(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	proc, stop := launchFakeProcess(context.Background(), t, "postgres", "--config", configPath, "--port=9999", "--max_connections=5000")
+	proc, stop := launchFakeProcess(t.Context(), t, "postgres", "--config", configPath, "--port=9999", "--max_connections=5000")
 	defer stop()
-	c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
+	c, ok := LoadPostgreSQLConfig(t.Context(), hostroot, proc)
 	assert.True(t, ok)
 	configData := c.ConfigData.(map[string]string)
 	assert.Equal(t, `envdir "/run/etc/wal-g.d/env" wal-g wal-push "%p"`, configData["archive_command"])
@@ -316,9 +316,9 @@ func TestCassandraConfParsing(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(hostroot, "/etc/cassandra/logback.xml"), []byte(cassandraLogbackSample), 0644); err != nil {
 		t.Fatal(err)
 	}
-	proc, stop := launchFakeProcess(context.Background(), t, "java")
+	proc, stop := launchFakeProcess(t.Context(), t, "java")
 	defer stop()
-	c, ok := LoadCassandraConfig(context.Background(), hostroot, proc)
+	c, ok := LoadCassandraConfig(t.Context(), hostroot, proc)
 	assert.True(t, ok)
 	configData := c.ConfigData.(*cassandraDBConfig)
 	assert.Equal(t, uint32(0644), c.ConfigFileMode)
@@ -345,9 +345,9 @@ func TestMongoDBConfParsing(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(hostroot, "/etc/mongod.conf"), []byte(mongodConfigSample), 0644); err != nil {
 		t.Fatal(err)
 	}
-	proc, stop := launchFakeProcess(context.Background(), t, "mongod")
+	proc, stop := launchFakeProcess(t.Context(), t, "mongod")
 	defer stop()
-	c, ok := LoadMongoDBConfig(context.Background(), hostroot, proc)
+	c, ok := LoadMongoDBConfig(t.Context(), hostroot, proc)
 	assert.True(t, ok)
 	configData := c.ConfigData.(*mongoDBConfig)
 	assert.Equal(t, uint32(0644), c.ConfigFileMode)
@@ -465,10 +465,10 @@ func TestMongoDBProcessFlags(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			proc, stop := launchFakeProcess(context.Background(), t, "mongod", tc.args...)
+			proc, stop := launchFakeProcess(t.Context(), t, "mongod", tc.args...)
 			defer stop()
 
-			c, ok := LoadMongoDBConfig(context.Background(), hostroot, proc)
+			c, ok := LoadMongoDBConfig(t.Context(), hostroot, proc)
 
 			assert.True(t, ok)
 			assert.NotNil(t, c.ProcessFlags)
@@ -479,19 +479,19 @@ func TestMongoDBProcessFlags(t *testing.T) {
 
 func TestLoadDBResourceFromPID(t *testing.T) {
 	t.Run("non-database process", func(t *testing.T) {
-		res, ok := LoadDBResourceFromPID(context.Background(), int32(os.Getpid()))
+		res, ok := LoadDBResourceFromPID(t.Context(), int32(os.Getpid()))
 		assert.False(t, ok)
 		assert.Nil(t, res)
 	})
 
 	t.Run("invalid PID", func(t *testing.T) {
-		res, ok := LoadDBResourceFromPID(context.Background(), 999999)
+		res, ok := LoadDBResourceFromPID(t.Context(), 999999)
 		assert.False(t, ok)
 		assert.Nil(t, res)
 	})
 
 	t.Run("valid postgres process", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		hostroot := t.TempDir()
@@ -508,7 +508,7 @@ shared_buffers = 128MB
 		// Note: LoadDBResourceFromPID uses real process root path resolution
 		// which won't work with our fake process setup, so this will fail
 		// but we're testing that it doesn't crash
-		res, ok := LoadDBResourceFromPID(context.Background(), int32(proc.Pid))
+		res, ok := LoadDBResourceFromPID(t.Context(), int32(proc.Pid))
 		// In real scenarios this would work, but in test env it's expected to fail
 		// The important thing is we're exercising the code path
 		_ = res
@@ -517,7 +517,7 @@ shared_buffers = 128MB
 }
 
 func TestGetProcResourceType_EdgeCases(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	t.Run("postgres process", func(t *testing.T) {
@@ -596,10 +596,10 @@ include_dir 'conf.d'
 		t.Fatal(err)
 	}
 
-	proc, stop := launchFakeProcess(context.Background(), t, "postgres", "--config-file", configPath)
+	proc, stop := launchFakeProcess(t.Context(), t, "postgres", "--config-file", configPath)
 	defer stop()
 
-	c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
+	c, ok := LoadPostgreSQLConfig(t.Context(), hostroot, proc)
 	require.True(t, ok)
 
 	configData := c.ConfigData.(map[string]string)
@@ -630,10 +630,10 @@ include_if_exists 'optional.conf'
 			t.Fatal(err)
 		}
 
-		proc, stop := launchFakeProcess(context.Background(), t, "postgres", "--config-file", configPath)
+		proc, stop := launchFakeProcess(t.Context(), t, "postgres", "--config-file", configPath)
 		defer stop()
 
-		c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
+		c, ok := LoadPostgreSQLConfig(t.Context(), hostroot, proc)
 		if !ok {
 			t.Logf("LoadPostgreSQLConfig returned ok=false")
 		}
@@ -659,10 +659,10 @@ work_mem = 16MB
 			t.Fatal(err)
 		}
 
-		proc, stop := launchFakeProcess(context.Background(), t, "postgres", "--config-file", configPath)
+		proc, stop := launchFakeProcess(t.Context(), t, "postgres", "--config-file", configPath)
 		defer stop()
 
-		c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
+		c, ok := LoadPostgreSQLConfig(t.Context(), hostroot, proc)
 		assert.True(t, ok)
 		require.NotNil(t, c)
 
@@ -690,10 +690,10 @@ include 'circular.conf'
 			t.Fatal(err)
 		}
 
-		proc, stop := launchFakeProcess(context.Background(), t, "postgres", "--config-file", configPath)
+		proc, stop := launchFakeProcess(t.Context(), t, "postgres", "--config-file", configPath)
 		defer stop()
 
-		c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
+		c, ok := LoadPostgreSQLConfig(t.Context(), hostroot, proc)
 		assert.True(t, ok)
 		require.NotNil(t, c)
 		// Should not crash, circular protection should kick in
@@ -719,10 +719,10 @@ include 'circular.conf'
 			}
 		}
 
-		proc, stop := launchFakeProcess(context.Background(), t, "postgres", "--config-file", configPath)
+		proc, stop := launchFakeProcess(t.Context(), t, "postgres", "--config-file", configPath)
 		defer stop()
 
-		c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
+		c, ok := LoadPostgreSQLConfig(t.Context(), hostroot, proc)
 		assert.True(t, ok)
 		// Should stop at depth 10 and not crash
 		if assert.NotNil(t, c) {
@@ -732,7 +732,7 @@ include 'circular.conf'
 }
 
 func TestCassandraProcessDetection(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	hostroot := t.TempDir()
@@ -757,7 +757,7 @@ authenticator: PasswordAuthenticator
 		assert.Equal(t, types.ResourceTypeDbCassandra, resourceType)
 
 		// Test full config loading
-		c, ok := LoadCassandraConfig(context.Background(), hostroot, proc)
+		c, ok := LoadCassandraConfig(t.Context(), hostroot, proc)
 		assert.True(t, ok)
 		assert.NotNil(t, c)
 		assert.NotNil(t, c.ConfigData)
@@ -801,10 +801,10 @@ net:
 		t.Fatal(err)
 	}
 
-	proc, stop := launchFakeProcess(context.Background(), t, "mongod", "--config", customConfigPath)
+	proc, stop := launchFakeProcess(t.Context(), t, "mongod", "--config", customConfigPath)
 	defer stop()
 
-	c, ok := LoadMongoDBConfig(context.Background(), hostroot, proc)
+	c, ok := LoadMongoDBConfig(t.Context(), hostroot, proc)
 	require.True(t, ok)
 	require.NotNil(t, c)
 	assert.Equal(t, customConfigPath, c.ConfigFilePath)

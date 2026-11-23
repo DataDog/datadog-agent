@@ -8,7 +8,6 @@
 package netlink
 
 import (
-	"context"
 	"crypto/rand"
 	"net/netip"
 	"testing"
@@ -505,7 +504,7 @@ func TestConntrackerConcurrentDumpAndCollect(t *testing.T) {
 
 	metrics := make(chan prometheus.Metric, 2)
 	for i := 0; i < 20; i++ {
-		table, err := rt.DumpCachedTable(context.Background())
+		table, err := rt.DumpCachedTable(t.Context())
 		require.NoError(t, err)
 		assert.NotEmpty(t, table[0])
 

@@ -937,7 +937,7 @@ func TestRawPacketActionProcessScopeWithSignature(t *testing.T) {
 	}
 
 	// Start udploop in background and capture the signature
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	var udploopCmd *exec.Cmd
@@ -1207,7 +1207,7 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 
 	t.Run("test_network_flow_send_udp4", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "network_flow_send_udp4", testDestIP, strconv.Itoa(testUDPDestPort))
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "network_flow_send_udp4", testDestIP, strconv.Itoa(testUDPDestPort))
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "network_flow_monitor", event.GetType(), "wrong event type")
 			assert.Equal(t, uint64(1), event.NetworkFlowMonitor.FlowsCount, "wrong FlowsCount")

@@ -6,7 +6,6 @@
 package ec2
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -22,7 +21,7 @@ import (
 )
 
 func TestGetInstanceIdentity(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		content, err := os.ReadFile("payloads/instance_indentity.json")

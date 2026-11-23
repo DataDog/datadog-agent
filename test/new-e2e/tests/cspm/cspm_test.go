@@ -7,7 +7,6 @@
 package cspm
 
 import (
-	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -58,7 +57,7 @@ func TestCSPM(t *testing.T) {
 // evaluates in the Cluster Agent. 5.3.2 is its one surviving rule. A kind
 // cluster defines no NetworkPolicy, so it reports failed.
 func (s *cspmTestSuite) TestFindings() {
-	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(t.Context(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
 	})
 	require.NoError(s.T(), err)
@@ -86,7 +85,7 @@ func waitForSecurityAgentPodReady(t *testing.T, cluster *components.KubernetesCl
 
 	var selectedPodName string
 	require.Eventuallyf(t, func() bool {
-		pod, err := cluster.Client().CoreV1().Pods(namespace).Get(context.Background(), podName, metav1.GetOptions{})
+		pod, err := cluster.Client().CoreV1().Pods(namespace).Get(t.Context(), podName, metav1.GetOptions{})
 		if err != nil {
 			t.Logf("unable to get pod %s: %v", podName, err)
 			return false
@@ -128,7 +127,7 @@ func isContainerReady(pod *corev1.Pod, containerName string) bool {
 // kubelet on containerd with a reachable dockerd - and asserts the filter
 // suppresses CIS Docker rules.
 func (s *cspmTestSuite) TestDockerRulesFilteredOnContainerdCRI() {
-	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(t.Context(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 	})
 	require.NoError(s.T(), err)

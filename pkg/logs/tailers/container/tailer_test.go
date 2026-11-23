@@ -212,7 +212,7 @@ func TestRead(t *testing.T) {
 }
 
 func TestReadTimeout(t *testing.T) {
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	reader := newMockReaderSleep(ctx)
 	// The reader should timout after testReadTimeout (10ms).
 	reader.timeout = 2 * time.Second
@@ -227,7 +227,7 @@ func TestReadTimeout(t *testing.T) {
 }
 
 func TestTailerCanStopWithNilReader(t *testing.T) {
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	tailer := NewTestTailer(newMockReaderSleep(ctx), nil, cancelFunc)
 
 	// Simulate error in tailer.setupReader()
@@ -248,7 +248,7 @@ func TestTailer_readForever(t *testing.T) {
 		{
 			name: "The reader has been closed during the shut down process",
 			newTailer: func() *Tailer {
-				_, cancelFunc := context.WithCancel(context.Background())
+				_, cancelFunc := context.WithCancel(t.Context())
 				reader := NewTestReader("", errors.New("http: read on closed response body"), nil)
 				tailer := NewTestTailer(reader, reader, cancelFunc)
 				// The reader-closed error here is the result of Stop() closing
@@ -266,7 +266,7 @@ func TestTailer_readForever(t *testing.T) {
 		{
 			name: "The agent is stopping",
 			newTailer: func() *Tailer {
-				_, cancelFunc := context.WithCancel(context.Background())
+				_, cancelFunc := context.WithCancel(t.Context())
 				reader := NewTestReader("", net.ErrClosed, nil)
 				tailer := NewTestTailer(reader, reader, cancelFunc)
 				tailer.stopping.Store(true)
@@ -282,7 +282,7 @@ func TestTailer_readForever(t *testing.T) {
 		{
 			name: "reader io.EOF error",
 			newTailer: func() *Tailer {
-				_, cancelFunc := context.WithCancel(context.Background())
+				_, cancelFunc := context.WithCancel(t.Context())
 				// init the fake reader with an io.EOF
 				initialReader := NewTestReader("", io.EOF, nil)
 				// then the new reader return by the unsafeReader client will return close network connection to simulate stop agent
@@ -306,7 +306,7 @@ func TestTailer_readForever(t *testing.T) {
 		{
 			name: "default case with random error",
 			newTailer: func() *Tailer {
-				_, cancelFunc := context.WithCancel(context.Background())
+				_, cancelFunc := context.WithCancel(t.Context())
 				reader := NewTestReader("", errors.New("this is a random error"), nil)
 				tailer := NewTestTailer(reader, reader, cancelFunc)
 				return tailer
@@ -381,7 +381,7 @@ func TestTailer_readForeverReconnectsOnStreamCloseWhenNotStopping(t *testing.T) 
 		net.ErrClosed, // isClosedConnError
 	} {
 		t.Run(tErr.Error(), func(t *testing.T) {
-			_, cancelFunc := context.WithCancel(context.Background())
+			_, cancelFunc := context.WithCancel(t.Context())
 			reader := NewTestReader("", tErr, nil)
 			tailer := NewTestTailer(reader, reader, cancelFunc)
 			tailer.sleepDuration = time.Millisecond
@@ -423,7 +423,7 @@ func TestTailer_readForeverReconnectsOnStreamCloseWhenNotStopping(t *testing.T) 
 // client surfaces that cancelled read as a closed-stream error rather than
 // context.Canceled. readForever must reconnect, not die.
 func TestTailer_readForeverReconnectsAfterReadTimeoutCancel(t *testing.T) {
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	blocked := &cancelSurfacingReader{ctx: ctx, onCancel: net.ErrClosed}
 	restartReader := NewTestReader("", net.ErrClosed, nil)
 	tailer := NewTestTailer(blocked, restartReader, cancelFunc)
@@ -475,7 +475,7 @@ func TestTailer_readForeverReconnectsOnTimeout(t *testing.T) {
 	} {
 		t.Run(tErr.Error(), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				_, cancelFunc := context.WithCancel(context.Background())
+				_, cancelFunc := context.WithCancel(t.Context())
 				reader := NewTestReader("", tErr, nil)
 				tailer := NewTestTailer(reader, reader, cancelFunc)
 				tailer.lastSince = lastSince
@@ -513,7 +513,7 @@ func TestTailer_readForeverDoesNotReconnectWhenStopping(t *testing.T) {
 	for _, tErr := range []error{context.Canceled, testTimeoutError{}} {
 		t.Run(tErr.Error(), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				_, cancelFunc := context.WithCancel(context.Background())
+				_, cancelFunc := context.WithCancel(t.Context())
 				reader := NewTestReader("", tErr, nil)
 				tailer := NewTestTailer(reader, reader, cancelFunc)
 				tailer.stopping.Store(true)
@@ -558,7 +558,7 @@ func (r *closeTrackingReader) Close() error {
 // opened while Stop() runs is not leaked.
 func TestTailer_tryRestartReaderClosesReaderOpenedDuringStop(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		_, cancelFunc := context.WithCancel(context.Background())
+		_, cancelFunc := context.WithCancel(t.Context())
 		previous := &closeTrackingReader{}
 		tailer := NewTestTailer(previous, nil, cancelFunc)
 

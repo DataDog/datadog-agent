@@ -6,7 +6,6 @@
 package providers
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -21,7 +20,7 @@ import (
 )
 
 func TestCollect(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cfg := mock.New(t)
 	cfg.SetInTest("ignore_autoconf", []string{"ignored"})
 	paths := []string{"testdata", "foo/bar"}
@@ -89,7 +88,7 @@ func TestCollect(t *testing.T) {
 }
 
 func TestEnvVarReplacement(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	t.Setenv("test_envvar_key", "test_value")
 	os.Unsetenv("test_envvar_not_set")
 

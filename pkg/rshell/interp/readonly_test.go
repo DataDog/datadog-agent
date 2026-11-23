@@ -7,7 +7,6 @@ package interp
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 
@@ -40,8 +39,8 @@ func TestReadonlyVariableBlocksReassignment(t *testing.T) {
 	prog, err := parser.Parse(strings.NewReader("RO_VAR=changed\necho $RO_VAR"), "")
 	require.NoError(t, err)
 
-	r.fillExpandConfig(context.Background())
-	r.stmts(context.Background(), prog.Stmts)
+	r.fillExpandConfig(t.Context())
+	r.stmts(t.Context(), prog.Stmts)
 
 	assert.Contains(t, stderr.String(), "readonly variable",
 		"reassigning a readonly variable should produce an error on stderr")

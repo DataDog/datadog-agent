@@ -6,8 +6,6 @@
 package netflowstate
 
 import (
-	"context"
-
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +35,7 @@ func (m *mockedFormatDriver) Format(_ interface{}) ([]byte, []byte, error) {
 
 func TestNetflowState_TelemetryMetrics(t *testing.T) {
 	logrusLogger := logrus.StandardLogger()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	templateSystem, err := templates.FindTemplateSystem(ctx, "memory")
 	require.NoError(t, err, "error with template")

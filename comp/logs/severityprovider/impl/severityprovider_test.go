@@ -8,7 +8,6 @@
 package severityproviderimpl
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -107,7 +106,7 @@ func newComponent(t *testing.T, enabled bool, cooldown time.Duration, observer o
 
 func TestLifecycleDisabled(t *testing.T) {
 	comp, lifecycle := newComponent(t, false, 0, option.New[observerdef.Component](&fakeObserverComponent{}))
-	require.NoError(t, lifecycle.Start(context.Background()))
+	require.NoError(t, lifecycle.Start(t.Context()))
 
 	level, ok := comp.Current()
 	assert.False(t, ok)
@@ -116,7 +115,7 @@ func TestLifecycleDisabled(t *testing.T) {
 
 func TestLifecycleNoObserverProvided(t *testing.T) {
 	comp, lifecycle := newComponent(t, true, 0, option.None[observerdef.Component]())
-	require.NoError(t, lifecycle.Start(context.Background()))
+	require.NoError(t, lifecycle.Start(t.Context()))
 
 	level, ok := comp.Current()
 	assert.False(t, ok)
@@ -125,7 +124,7 @@ func TestLifecycleNoObserverProvided(t *testing.T) {
 
 func TestLifecyclePropagatesSubscriptionError(t *testing.T) {
 	comp, lifecycle := newComponent(t, true, 0, option.New[observerdef.Component](&fakeObserverComponent{err: assert.AnError}))
-	assert.ErrorIs(t, lifecycle.Start(context.Background()), assert.AnError)
+	assert.ErrorIs(t, lifecycle.Start(t.Context()), assert.AnError)
 
 	_, ok := comp.Current()
 	assert.False(t, ok)
@@ -140,13 +139,13 @@ func TestLifecycleRegistersAndUnsubscribesReader(t *testing.T) {
 	}
 	comp, lifecycle := newComponent(t, true, 500*time.Millisecond, option.New[observerdef.Component](observer))
 
-	require.NoError(t, lifecycle.Start(context.Background()))
+	require.NoError(t, lifecycle.Start(t.Context()))
 	assert.Equal(t, int64(1), observer.config.CooldownSecs)
 	level, ok := comp.Current()
 	require.True(t, ok)
 	assert.Equal(t, severityeventsdef.SeverityHigh, level)
 
-	require.NoError(t, lifecycle.Stop(context.Background()))
+	require.NoError(t, lifecycle.Stop(t.Context()))
 	assert.True(t, observer.unsubscribeCalled)
 	_, ok = comp.Current()
 	assert.False(t, ok)
@@ -156,7 +155,7 @@ func TestLifecycleReaderHonorsSmartSeverityProfilesCooldown(t *testing.T) {
 	observer := &fakeObserverComponent{}
 	comp, lifecycle := newComponent(t, true, 10*time.Second, option.New[observerdef.Component](observer))
 
-	require.NoError(t, lifecycle.Start(context.Background()))
+	require.NoError(t, lifecycle.Start(t.Context()))
 	require.NotNil(t, observer.dispatcher)
 	assert.Equal(t, int64(10), observer.config.CooldownSecs)
 

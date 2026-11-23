@@ -22,7 +22,7 @@ func TestLockingHandler_BasicFunctionality(t *testing.T) {
 	mock := newMockInnerHandler()
 	handler := NewLocking(mock)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
 
 	err := handler.Handle(ctx, record)
@@ -55,7 +55,7 @@ func TestLockingHandler_Enabled(t *testing.T) {
 			mock.enabled = tt.enabled
 			handler := NewLocking(mock)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			result := handler.Enabled(ctx, tt.level)
 			assert.Equal(t, tt.enabled, result)
 		})
@@ -68,7 +68,7 @@ func TestLockingHandler_ErrorPropagation(t *testing.T) {
 	mock.err = expectedErr
 	handler := NewLocking(mock)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	record := slog.NewRecord(time.Now(), slog.LevelError, "error message", 0)
 
 	err := handler.Handle(ctx, record)
@@ -81,7 +81,7 @@ func TestLockingHandler_ConcurrentAccess(t *testing.T) {
 	}
 	handler := NewLocking(mock)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	numGoroutines := 10
 
 	var wg sync.WaitGroup
@@ -111,7 +111,7 @@ func TestLockingHandler_MultipleHandleCalls(t *testing.T) {
 	mock := newMockInnerHandler()
 	handler := NewLocking(mock)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	messages := []string{"message 1", "message 2", "message 3"}
 
 	for _, msg := range messages {
@@ -128,7 +128,7 @@ func TestLockingHandler_WithAttrs(t *testing.T) {
 	mock := newMockInnerHandler()
 	handler := NewLocking(mock).WithAttrs([]slog.Attr{slog.String("key", "value")})
 
-	handler.Handle(context.Background(), slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
+	handler.Handle(t.Context(), slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
 
 	assert.Equal(t, 1, mock.recordCount())
 	assert.Equal(t, "test", mock.lastMessage())
@@ -143,7 +143,7 @@ func TestLockingHandler_WithGroup(t *testing.T) {
 	mock := newMockInnerHandler()
 	handler := NewLocking(mock).WithGroup("group")
 
-	handler.Handle(context.Background(), slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
+	handler.Handle(t.Context(), slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
 
 	assert.Equal(t, 1, mock.recordCount())
 	assert.Equal(t, "test", mock.lastMessage())
@@ -153,11 +153,11 @@ func TestLockingHandler_WithGroup(t *testing.T) {
 	})
 }
 
-func TestLockingHandler_EnabledNotSynchronized(_ *testing.T) {
+func TestLockingHandler_EnabledNotSynchronized(t *testing.T) {
 	mock := newMockInnerHandler()
 	handler := NewLocking(mock)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	numGoroutines := 50
 
 	var wg sync.WaitGroup

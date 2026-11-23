@@ -86,7 +86,7 @@ func testStopFlushesTracesAfterDraining(t *testing.T, executorMode bool) {
 		tasks.Add(1)
 		go func() {
 			defer tasks.Done()
-			ctx := telemetry.WithService(context.Background(), observability.ParService)
+			ctx := telemetry.WithService(t.Context(), observability.ParService)
 			action, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, uint64(9007199254740993+i), 42)
 			child, _ := telemetry.StartSpanFromContext(telemetry.WithService(ctx, observability.RshellService), "rshell.run")
 			var actionErr error
@@ -126,13 +126,13 @@ func testStopFlushesTracesAfterDraining(t *testing.T, executorMode bool) {
 		}
 		runner.workflowRunner, err = runners.NewWorkflowRunner(runnerConfig, cfg, telemetryTestRCClient{}, telemetryTestKeysManager{}, nil, opmsClient, nil, nil, nil, nil, nil, nil, nil)
 		require.NoError(t, err)
-		require.NoError(t, runner.workflowRunner.Start(context.Background()))
+		require.NoError(t, runner.workflowRunner.Start(t.Context()))
 		<-pollStarted
 		stop = runner.Stop
 	}
 	stopped := make(chan error, 1)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		stopped <- stop(ctx)
 	}()
@@ -246,7 +246,7 @@ func TestTelemetryKeepsMainAgentBackend(t *testing.T) {
 	})
 	runner := &PrivateActionRunner{coreConfig: cfg}
 	runner.startTelemetry()
-	span, _ := telemetry.StartSpanFromUint64IDs(telemetry.WithService(context.Background(), observability.ParService), "test", 42, 0)
+	span, _ := telemetry.StartSpanFromUint64IDs(telemetry.WithService(t.Context(), observability.ParService), "test", 42, 0)
 	span.Finish(nil)
 	runner.stopTelemetry()
 	select {

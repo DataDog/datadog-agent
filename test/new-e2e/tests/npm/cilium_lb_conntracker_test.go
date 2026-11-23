@@ -6,7 +6,6 @@
 package npm
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -173,7 +172,7 @@ func (suite *ciliumLBConntrackerTestSuite) httpBinCiliumService() (backends []ci
 
 	var stdout string
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		ciliumPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("kube-system").List(context.Background(), v1.ListOptions{
+		ciliumPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("kube-system").List(t.Context(), v1.ListOptions{
 			LabelSelector: "k8s-app=cilium",
 		})
 		require.NoError(collect, err, "could no get cilium pods")

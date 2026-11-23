@@ -58,7 +58,7 @@ func TestFetchOPM_Success(t *testing.T) {
 	// initialise agentState so setOrgPropMarker can update it
 	_, _ = rcv.makeInfoHandler()
 
-	opm, err := fetchOPM(context.Background(), rcv.conf.NewHTTPClient(), rcv.conf)
+	opm, err := fetchOPM(t.Context(), rcv.conf.NewHTTPClient(), rcv.conf)
 	require.NoError(t, err)
 	assert.Equal(t, computeOPM(orgUUID), opm)
 }
@@ -70,7 +70,7 @@ func TestFetchOPM_Non200(t *testing.T) {
 	defer srv.Close()
 
 	rcv := newTestReceiverWithOPM(srv.URL)
-	_, err := fetchOPM(context.Background(), rcv.conf.NewHTTPClient(), rcv.conf)
+	_, err := fetchOPM(t.Context(), rcv.conf.NewHTTPClient(), rcv.conf)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "403")
 }
@@ -87,7 +87,7 @@ func TestFetchOPM_EmptyID(t *testing.T) {
 	defer srv.Close()
 
 	rcv := newTestReceiverWithOPM(srv.URL)
-	_, err := fetchOPM(context.Background(), rcv.conf.NewHTTPClient(), rcv.conf)
+	_, err := fetchOPM(t.Context(), rcv.conf.NewHTTPClient(), rcv.conf)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "empty org UUID")
 }
@@ -99,7 +99,7 @@ func TestFetchOPM_MalformedJSON(t *testing.T) {
 	defer srv.Close()
 
 	rcv := newTestReceiverWithOPM(srv.URL)
-	_, err := fetchOPM(context.Background(), rcv.conf.NewHTTPClient(), rcv.conf)
+	_, err := fetchOPM(t.Context(), rcv.conf.NewHTTPClient(), rcv.conf)
 	require.Error(t, err)
 }
 
@@ -116,7 +116,7 @@ func TestStartOPMFetch_Disabled(t *testing.T) {
 	conf.OPMValidateURL = srv.URL
 	rcv := newTestReceiverFromConfig(conf)
 
-	rcv.StartOPMFetch(context.Background(), time.Millisecond)
+	rcv.StartOPMFetch(t.Context(), time.Millisecond)
 	time.Sleep(20 * time.Millisecond)
 	assert.Equal(t, int32(0), requestCount.Load(), "no request should be made when OPM fetch is disabled")
 	assert.Empty(t, rcv.OrgPropMarker())
@@ -141,7 +141,7 @@ func TestStartOPMFetch_RetrySuccess(t *testing.T) {
 	rcv := newTestReceiverWithOPM(srv.URL)
 	_, _ = rcv.makeInfoHandler()
 
-	rcv.StartOPMFetch(context.Background(), time.Millisecond)
+	rcv.StartOPMFetch(t.Context(), time.Millisecond)
 
 	require.Eventually(t, func() bool {
 		return rcv.OrgPropMarker() != ""
@@ -163,7 +163,7 @@ func TestStartOPMFetch_AllRetriesExhausted(t *testing.T) {
 	rcv := newTestReceiverWithOPM(srv.URL)
 	_, _ = rcv.makeInfoHandler()
 
-	rcv.StartOPMFetch(context.Background(), time.Millisecond)
+	rcv.StartOPMFetch(t.Context(), time.Millisecond)
 
 	// Wait long enough for all 4 attempts (initial + 3 retries) plus delays
 	time.Sleep(200 * time.Millisecond)
@@ -185,7 +185,7 @@ func TestStartOPMFetch_ContextCancellation(t *testing.T) {
 	rcv := newTestReceiverWithOPM(srv.URL)
 	_, _ = rcv.makeInfoHandler()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	// Use a large base delay so cancellation happens before any retry
 	rcv.StartOPMFetch(ctx, 10*time.Second)
 

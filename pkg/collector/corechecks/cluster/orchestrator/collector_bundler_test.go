@@ -8,7 +8,6 @@
 package orchestrator
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -1497,7 +1496,7 @@ func TestCollectorBundleInitializeWatchesCRDs(t *testing.T) {
 				Conditions: []apiextensionsv1.CustomResourceDefinitionCondition{{Type: apiextensionsv1.Established, Status: apiextensionsv1.ConditionTrue}},
 			},
 		}
-		_, err := crdClient.ApiextensionsV1().CustomResourceDefinitions().Create(context.Background(), crd, v1.CreateOptions{})
+		_, err := crdClient.ApiextensionsV1().CustomResourceDefinitions().Create(t.Context(), crd, v1.CreateOptions{})
 		require.NoError(t, err)
 
 		// Waits until the informer delivered the event and every bubble goroutine is idle.

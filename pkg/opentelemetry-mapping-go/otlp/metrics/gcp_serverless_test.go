@@ -15,7 +15,6 @@
 package metrics
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -165,7 +164,7 @@ func TestGCPServerlessTranslation(t *testing.T) {
 				t.Run(tt.name, func(t *testing.T) {
 					consumer := &mockGCPServerlessConsumer{}
 					_, err := newGCPServerlessTranslator(t, minimal).MapMetrics(
-						context.Background(), gcpServerlessMetrics(t, tt.attributes, false), consumer, nil,
+						t.Context(), gcpServerlessMetrics(t, tt.attributes, false), consumer, nil,
 					)
 					require.NoError(t, err)
 
@@ -236,7 +235,7 @@ func TestCompleteServerlessSourcesWithoutRunningMetricsDoNotFallbackToHost(t *te
 				t.Run(tt.name, func(t *testing.T) {
 					consumer := &mockGCPServerlessConsumer{}
 					_, err := newGCPServerlessTranslator(t, minimal).MapMetrics(
-						context.Background(), gcpServerlessMetrics(t, tt.attributes, false), consumer, nil,
+						t.Context(), gcpServerlessMetrics(t, tt.attributes, false), consumer, nil,
 					)
 					require.NoError(t, err)
 
@@ -335,7 +334,7 @@ func TestServerlessSourceIdentityDistinguishesMetricSeries(t *testing.T) {
 					translator := newGCPServerlessTranslator(t, minimal)
 					for _, resourceAttrs := range tt.resources {
 						_, err := translator.MapMetrics(
-							context.Background(), gcpServerlessMetrics(t, resourceAttrs, false), consumer, nil,
+							t.Context(), gcpServerlessMetrics(t, resourceAttrs, false), consumer, nil,
 						)
 						require.NoError(t, err)
 					}
@@ -366,7 +365,7 @@ func TestGCPServerlessAPMOnlyDoesNotConsumeSource(t *testing.T) {
 		t.Run(translatorName, func(t *testing.T) {
 			consumer := &mockGCPServerlessConsumer{}
 			_, err := newGCPServerlessTranslator(t, minimal).MapMetrics(
-				context.Background(),
+				t.Context(),
 				gcpServerlessMetrics(t, completeGCPServerlessAttributes("gcp_cloud_run"), true),
 				consumer,
 				nil,

@@ -10,7 +10,6 @@ package dyninst_test
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -326,7 +325,7 @@ func runScenario(t *testing.T, cfg testprogs.Config, sc scenario) {
 	require.NotEmpty(t, binPath,
 		"drop_tester binary not built; run `dda inv system-probe.build-dyninst-test-programs`")
 
-	ctx := context.Background()
+	ctx := t.Context()
 	proc, _ := dyninsttest.StartProcess(ctx, t, tempDir, binPath)
 	pid := proc.Process.Pid
 	t.Logf("launched drop_tester with pid %d", pid)

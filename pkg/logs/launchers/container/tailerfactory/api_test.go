@@ -10,7 +10,6 @@
 package tailerfactory
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -41,7 +40,7 @@ func TestMakeAPITailer_get_kubeutil_fails(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	pod, container := makeTestPod()
@@ -62,7 +61,7 @@ func TestMakeAPITailer_success(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	pod, container := makeTestPod()

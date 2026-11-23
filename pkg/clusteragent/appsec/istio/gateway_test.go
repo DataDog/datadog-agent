@@ -8,7 +8,6 @@
 package istio
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -85,7 +84,7 @@ func newTestIstioGateway(name, namespace string, selector map[string]any) *unstr
 }
 
 func TestGateway_Added_SuccessfulCreation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := newFakeDynamicClient(scheme)
@@ -125,7 +124,7 @@ func TestGateway_Added_SuccessfulCreation(t *testing.T) {
 }
 
 func TestGateway_Added_FilterAlreadyExists(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -161,7 +160,7 @@ func TestGateway_Added_FilterAlreadyExists(t *testing.T) {
 }
 
 func TestGateway_Deleted_SuccessfulDeletion(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -198,7 +197,7 @@ func TestGateway_Deleted_SuccessfulDeletion(t *testing.T) {
 }
 
 func TestGateway_Deleted_OtherGatewaysExist(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -242,7 +241,7 @@ func TestGateway_Deleted_OtherGatewaysExist(t *testing.T) {
 }
 
 func TestGateway_Deleted_GatewayClassStillExists(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -333,7 +332,7 @@ func TestGateway_IsInjectionPossible(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			logger := logmock.New(t)
 			scheme := runtime.NewScheme()
 			client := newFakeDynamicClient(scheme)
@@ -359,7 +358,7 @@ func TestGateway_IsInjectionPossible(t *testing.T) {
 }
 
 func TestGateway_Added_GetFilterError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := newFakeDynamicClient(scheme)
@@ -391,7 +390,7 @@ func TestGateway_Added_GetFilterError(t *testing.T) {
 }
 
 func TestGateway_Added_FilterCreationError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := newFakeDynamicClient(scheme)
@@ -426,7 +425,7 @@ func TestGateway_Added_FilterCreationError(t *testing.T) {
 // even when multiple native gateways are still present in the cluster.
 // cleanupPattern calls Deleted on live (not yet deleted) resources with a cleanup context.
 func TestGateway_Deleted_CleanupMode_MultipleGateways(t *testing.T) {
-	ctx := appsecconfig.WithCleanup(context.Background())
+	ctx := appsecconfig.WithCleanup(t.Context())
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -481,7 +480,7 @@ func TestGateway_Deleted_OptOut(t *testing.T) {
 		{name: "other gateway opted out", withOther: true, otherLabels: optedOut, filterRemain: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			logger := logmock.New(t)
 			scheme := runtime.NewScheme()
 			client := newFakeDynamicClient(scheme, newTestEnvoyFilter("istio-system"))
@@ -519,7 +518,7 @@ func TestGateway_Deleted_OptOut(t *testing.T) {
 // the coordination check: if gateway-a was actually deleted but gateway-b still exists,
 // the EnvoyFilter must NOT be deleted.
 func TestGateway_Deleted_WatchEvent_OtherGatewayExists(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -566,7 +565,7 @@ func TestGateway_Deleted_WatchEvent_OtherGatewayExists(t *testing.T) {
 // TestDeleted_SkipsWhenNativeGatewaysExist tests that the K8s GatewayClass pattern
 // skips EnvoyFilter deletion when Istio native Gateways still exist (cross-pattern coordination)
 func TestDeleted_SkipsWhenNativeGatewaysExist(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 

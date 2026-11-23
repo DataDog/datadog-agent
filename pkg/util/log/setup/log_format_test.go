@@ -8,7 +8,6 @@
 package logs
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"testing"
@@ -25,7 +24,7 @@ func TestJMXFetchJSONFormatter(t *testing.T) {
 	}
 
 	t.Run("structured line", func(t *testing.T) {
-		out := format(context.Background(), record("2026-10-02 08:51:14 UTC | JMX | INFO | main | StatsdReporter | Starting \"reporter\""))
+		out := format(t.Context(), record("2026-10-02 08:51:14 UTC | JMX | INFO | main | StatsdReporter | Starting \"reporter\""))
 
 		var got map[string]string
 		require.NoError(t, json.Unmarshal([]byte(out), &got))
@@ -40,7 +39,7 @@ func TestJMXFetchJSONFormatter(t *testing.T) {
 	})
 
 	t.Run("padded level", func(t *testing.T) {
-		out := format(context.Background(), record("2026-10-02 08:51:14 UTC | JMX | WARN  | main | App | a | b"))
+		out := format(t.Context(), record("2026-10-02 08:51:14 UTC | JMX | WARN  | main | App | a | b"))
 
 		var got map[string]string
 		require.NoError(t, json.Unmarshal([]byte(out), &got))
@@ -49,7 +48,7 @@ func TestJMXFetchJSONFormatter(t *testing.T) {
 	})
 
 	t.Run("fields are trimmed", func(t *testing.T) {
-		out := format(context.Background(), record("2026-10-02 08:51:14 UTC  | JMX | INFO | main  | App  | hello"))
+		out := format(t.Context(), record("2026-10-02 08:51:14 UTC  | JMX | INFO | main  | App  | hello"))
 
 		var got map[string]string
 		require.NoError(t, json.Unmarshal([]byte(out), &got))
@@ -59,7 +58,7 @@ func TestJMXFetchJSONFormatter(t *testing.T) {
 	})
 
 	t.Run("line without thread", func(t *testing.T) {
-		out := format(context.Background(), record("2026-10-02 08:51:14 UTC | JMX | INFO | StatsdReporter | Starting"))
+		out := format(t.Context(), record("2026-10-02 08:51:14 UTC | JMX | INFO | StatsdReporter | Starting"))
 
 		var got map[string]string
 		require.NoError(t, json.Unmarshal([]byte(out), &got))
@@ -73,7 +72,7 @@ func TestJMXFetchJSONFormatter(t *testing.T) {
 	})
 
 	t.Run("unstructured line falls back to msg only", func(t *testing.T) {
-		out := format(context.Background(), record("Exception in thread main"))
+		out := format(t.Context(), record("Exception in thread main"))
 		assert.JSONEq(t, `{"msg":"Exception in thread main"}`, out)
 	})
 
@@ -83,7 +82,7 @@ func TestJMXFetchJSONFormatter(t *testing.T) {
 			"2026-10-02 08:51:14 UTC | JMX",                                 // truncated
 			"2026-10-02 08:51:14 UTC | OTHER | INFO | main | App | message", // wrong marker
 		} {
-			out := format(context.Background(), record(msg))
+			out := format(t.Context(), record(msg))
 			want, err := json.Marshal(map[string]string{"msg": msg})
 			require.NoError(t, err)
 			assert.JSONEq(t, string(want), out, msg)

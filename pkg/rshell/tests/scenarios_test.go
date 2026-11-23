@@ -8,7 +8,6 @@ package tests
 import (
 	"bytes"
 	"cmp"
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -293,7 +292,7 @@ func runScenario(t *testing.T, sc scenario) {
 
 	runner.Dir = dir
 
-	err = runner.Run(context.Background(), prog)
+	err = runner.Run(t.Context(), prog)
 
 	// Extract exit code from error.
 	exitCode := 0

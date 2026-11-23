@@ -8,7 +8,6 @@
 package apminject
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -47,7 +46,7 @@ func TestSystemdServiceManager_Setup(t *testing.T) {
 		installerPath: "/usr/bin/datadog-installer",
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err := mgr.Setup(ctx)
 	if err != nil {
 		t.Logf("Setup failed (expected in test environment): %v", err)
@@ -245,7 +244,7 @@ func TestSystemdServiceManager_Uninstall(t *testing.T) {
 		serviceName: "test-service.service",
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	assert.FileExists(t, testServicePath)
 
 	// Uninstall will fail on systemctl ops but should still remove the file
@@ -262,7 +261,7 @@ func TestSystemdServiceManager_Uninstall_ServiceFileAbsent(t *testing.T) {
 		serviceName: "test-service.service",
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err := mgr.Uninstall(ctx)
 	assert.NoError(t, err)
 }

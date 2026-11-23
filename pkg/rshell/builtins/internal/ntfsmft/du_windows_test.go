@@ -199,7 +199,7 @@ func findTestVHDScript() (string, error) {
 func scanOrSkip(t *testing.T, target string, opts Options) *Result {
 	t.Helper()
 	requireAdmin(t)
-	ctx, cancel := context.WithTimeout(context.Background(), scanTimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), scanTimeout)
 	defer cancel()
 	res, err := Scan(ctx, target, opts)
 	if err != nil {
@@ -716,7 +716,7 @@ func TestEnumerateImmediateChildren_FlagsReparsePoints(t *testing.T) {
 		t.Skipf("cannot create directory symlink: %v", err)
 	}
 
-	children, err := enumerateImmediateChildren(context.Background(), root+`\`)
+	children, err := enumerateImmediateChildren(t.Context(), root+`\`)
 	if err != nil {
 		t.Fatalf("enumerateImmediateChildren: %v", err)
 	}
@@ -734,7 +734,7 @@ func TestEnumerateImmediateChildren_FlagsReparsePoints(t *testing.T) {
 }
 
 func TestEnumerateImmediateChildrenHonorsCanceledContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err := enumerateImmediateChildren(ctx, t.TempDir()+`\`)
 	if !errors.Is(err, context.Canceled) {
@@ -755,7 +755,7 @@ func TestResolveScopeIndicesDepthZeroSkipsChildEnumeration(t *testing.T) {
 			return nil, errors.New("child enumeration must be skipped at depth zero")
 		},
 	}
-	if err := s.resolveScopeIndices(context.Background()); err != nil {
+	if err := s.resolveScopeIndices(t.Context()); err != nil {
 		t.Fatalf("resolveScopeIndices: %v", err)
 	}
 	if called {
@@ -1233,7 +1233,7 @@ func TestScan_ExcludeUNCRejected(t *testing.T) {
 	writeFile(t, filepath.Join(root, "a.bin"), make([]byte, 4096))
 
 	requireAdmin(t)
-	_, err := Scan(context.Background(), root, Options{
+	_, err := Scan(t.Context(), root, Options{
 		TreeDepth: 1,
 		Exclude:   []string{`\\192.0.2.1\share\x`},
 	})
@@ -1258,7 +1258,7 @@ func TestScan_ExcludeRelativeRejected(t *testing.T) {
 	writeFile(t, filepath.Join(root, "a.bin"), make([]byte, 4096))
 
 	requireAdmin(t)
-	_, err := Scan(context.Background(), root, Options{
+	_, err := Scan(t.Context(), root, Options{
 		TreeDepth: 1,
 		Exclude:   []string{`sub\dir`},
 	})
@@ -1337,7 +1337,7 @@ func TestScan_ExcludeOtherVolumeRejected(t *testing.T) {
 
 	assertRejected := func(t *testing.T, exclude string) {
 		t.Helper()
-		_, err := Scan(context.Background(), root, Options{TreeDepth: 0, Exclude: []string{exclude}})
+		_, err := Scan(t.Context(), root, Options{TreeDepth: 0, Exclude: []string{exclude}})
 		if err == nil {
 			t.Fatalf("Scan accepted cross-volume exclude %q", exclude)
 		}
@@ -1648,7 +1648,7 @@ func TestStreamPipelinedReportsReadErrors(t *testing.T) {
 	extents := []extent{{byteOffset: 0, byteLength: 2 * chunkBytes}}
 	var called int
 	parsed, _, readErrs, skipped := streamPipelined(
-		context.Background(),
+		t.Context(),
 		windows.InvalidHandle,
 		extents,
 		recordSize,
@@ -1681,7 +1681,7 @@ func TestStreamPipelinedUnmappedExtentsAreNotReadErrors(t *testing.T) {
 	extents := []extent{{byteOffset: unmappedExtent, byteLength: 8 * recordSize}}
 	var called int
 	parsed, errs, readErrs, skipped := streamPipelined(
-		context.Background(),
+		t.Context(),
 		windows.InvalidHandle,
 		extents,
 		recordSize,

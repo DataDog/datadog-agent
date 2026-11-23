@@ -24,7 +24,7 @@ import (
 
 func TestProviderValidScheduledConfig(t *testing.T) {
 	provider := NewProvider()
-	changesCh := provider.Stream(context.Background())
+	changesCh := provider.Stream(t.Context())
 	assert.Empty(t, <-changesCh)
 
 	statuses := applyStatuses()
@@ -97,7 +97,7 @@ func TestProviderValidScheduledConfig(t *testing.T) {
 
 func TestProviderNoOpSnapshotDoesNotRestartChecks(t *testing.T) {
 	provider := NewProvider()
-	changesCh := provider.Stream(context.Background())
+	changesCh := provider.Stream(t.Context())
 	assert.Empty(t, <-changesCh)
 
 	config := rawScheduledConfig("test-config-a", `{"hostname":"api.example.com"}`)
@@ -245,7 +245,7 @@ func TestLocalYAMLTimeoutRemainsPerHop(t *testing.T) {
 
 func TestProviderSendChangesReturnsOnShutdownWhenChannelFull(t *testing.T) {
 	provider := NewProvider()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	provider.Stream(ctx)
 
 	for len(provider.configChanges) < cap(provider.configChanges) {
@@ -269,7 +269,7 @@ func TestProviderSendChangesReturnsOnShutdownWhenChannelFull(t *testing.T) {
 
 func TestProviderValidUpdateReplacesWholePath(t *testing.T) {
 	provider := NewProvider()
-	changesCh := provider.Stream(context.Background())
+	changesCh := provider.Stream(t.Context())
 	assert.Empty(t, <-changesCh)
 
 	provider.Update(map[string]state.RawConfig{
@@ -293,7 +293,7 @@ func TestProviderValidUpdateReplacesWholePath(t *testing.T) {
 
 func TestProviderInvalidUpdateKeepsLastValidConfig(t *testing.T) {
 	provider := NewProvider()
-	changesCh := provider.Stream(context.Background())
+	changesCh := provider.Stream(t.Context())
 	assert.Empty(t, <-changesCh)
 
 	provider.Update(map[string]state.RawConfig{
@@ -323,7 +323,7 @@ func TestProviderInvalidUpdateKeepsLastValidConfig(t *testing.T) {
 
 func TestProviderMissingPathUnschedulesActiveConfigs(t *testing.T) {
 	provider := NewProvider()
-	changesCh := provider.Stream(context.Background())
+	changesCh := provider.Stream(t.Context())
 	assert.Empty(t, <-changesCh)
 
 	provider.Update(map[string]state.RawConfig{
@@ -347,7 +347,7 @@ func TestProviderMissingPathUnschedulesActiveConfigs(t *testing.T) {
 
 func TestProviderTreatsRCPathsAsOpaqueConfigIdentities(t *testing.T) {
 	provider := NewProvider()
-	changesCh := provider.Stream(context.Background())
+	changesCh := provider.Stream(t.Context())
 	assert.Empty(t, <-changesCh)
 
 	provider.Update(map[string]state.RawConfig{
@@ -372,7 +372,7 @@ func TestProviderTreatsRCPathsAsOpaqueConfigIdentities(t *testing.T) {
 
 func TestProviderMissingPathClearsStaleConfigError(t *testing.T) {
 	provider := NewProvider()
-	changesCh := provider.Stream(context.Background())
+	changesCh := provider.Stream(t.Context())
 	assert.Empty(t, <-changesCh)
 
 	statuses := applyStatuses()
@@ -391,7 +391,7 @@ func TestProviderMissingPathClearsStaleConfigError(t *testing.T) {
 
 func TestProviderMixedSnapshotSchedulesValidAndKeepsInvalidError(t *testing.T) {
 	provider := NewProvider()
-	changesCh := provider.Stream(context.Background())
+	changesCh := provider.Stream(t.Context())
 	assert.Empty(t, <-changesCh)
 
 	statuses := applyStatuses()
@@ -414,7 +414,7 @@ func TestProviderMixedSnapshotSchedulesValidAndKeepsInvalidError(t *testing.T) {
 
 func TestProviderEmptyTestsFailsClosed(t *testing.T) {
 	provider := NewProvider()
-	changesCh := provider.Stream(context.Background())
+	changesCh := provider.Stream(t.Context())
 	assert.Empty(t, <-changesCh)
 
 	provider.Update(map[string]state.RawConfig{
@@ -436,7 +436,7 @@ func TestProviderEmptyTestsFailsClosed(t *testing.T) {
 
 func TestProviderIgnoresDynamicType(t *testing.T) {
 	provider := NewProvider()
-	changesCh := provider.Stream(context.Background())
+	changesCh := provider.Stream(t.Context())
 	assert.Empty(t, <-changesCh)
 
 	statuses := applyStatuses()
@@ -451,7 +451,7 @@ func TestProviderIgnoresDynamicType(t *testing.T) {
 
 func TestProviderDynamicTypeDefensivelyClearsScheduledStateAtSamePath(t *testing.T) {
 	provider := NewProvider()
-	changesCh := provider.Stream(context.Background())
+	changesCh := provider.Stream(t.Context())
 	assert.Empty(t, <-changesCh)
 
 	provider.Update(map[string]state.RawConfig{
@@ -475,7 +475,7 @@ func TestProviderDynamicTypeDefensivelyClearsScheduledStateAtSamePath(t *testing
 
 func TestProviderDynamicSnapshotUnschedulesMissingScheduledPath(t *testing.T) {
 	provider := NewProvider()
-	changesCh := provider.Stream(context.Background())
+	changesCh := provider.Stream(t.Context())
 	assert.Empty(t, <-changesCh)
 
 	provider.Update(map[string]state.RawConfig{
@@ -501,7 +501,7 @@ func TestProviderDynamicSnapshotUnschedulesMissingScheduledPath(t *testing.T) {
 
 func TestProviderRejectsUnsupportedType(t *testing.T) {
 	provider := NewProvider()
-	changesCh := provider.Stream(context.Background())
+	changesCh := provider.Stream(t.Context())
 	assert.Empty(t, <-changesCh)
 
 	statuses := applyStatuses()

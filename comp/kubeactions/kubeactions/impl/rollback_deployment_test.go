@@ -8,7 +8,6 @@
 package kubeactionsimpl
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -98,7 +97,7 @@ func TestValidateTargetDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
-			_, err := validateTargetDeployment(context.Background(), tt.client, tt.name, tt.namespace, tt.uid)
+			_, err := validateTargetDeployment(t.Context(), tt.client, tt.name, tt.namespace, tt.uid)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("unexpected error %s", err)
 			}
@@ -281,7 +280,7 @@ func TestGetReplicaSetByRevision(t *testing.T) {
 			}
 			client := fake.NewSimpleClientset(clientObjects...)
 
-			revision, rs, err := getReplicaSetByRevision(context.Background(), client, deploy, tt.targetRevision)
+			revision, rs, err := getReplicaSetByRevision(t.Context(), client, deploy, tt.targetRevision)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -374,7 +373,7 @@ func TestExecute(t *testing.T) {
 			executor := NewRollbackDeploymentExecutor(clientset)
 
 			in := makeRollbackInputs(tt.deployment.GetNamespace(), tt.deployment.GetName(), tt.resourceID, tt.targetRevision)
-			result := executor.Execute(context.Background(), in)
+			result := executor.Execute(t.Context(), in)
 
 			assert.Equal(t, tt.wantStatus, result.Status)
 			if tt.wantContains != "" {

@@ -99,7 +99,7 @@ func TestSyncSenderDelivers(t *testing.T) {
 	sender := &fakeSyncSender{}
 	e := newSyncExporter(t, sender)
 
-	require.NoError(t, e.ConsumeLogs(context.Background(), logsWithBodies("a", "b", "c")))
+	require.NoError(t, e.ConsumeLogs(t.Context(), logsWithBodies("a", "b", "c")))
 
 	require.Len(t, sender.sent, 1)
 	bodies := make([]string, len(sender.sent[0]))
@@ -120,7 +120,7 @@ func TestSyncSenderPermanentErrors(t *testing.T) {
 		return errs
 	}})
 
-	err := e.ConsumeLogs(context.Background(), logsWithBodies("a", "b"))
+	err := e.ConsumeLogs(t.Context(), logsWithBodies("a", "b"))
 
 	require.Error(t, err)
 	assert.True(t, consumererror.IsPermanent(err), "an error that is not retryable must be permanent: %v", err)
@@ -141,7 +141,7 @@ func TestSyncSenderRetriesOnlyFailedRecords(t *testing.T) {
 		return errs
 	}})
 
-	err := e.ConsumeLogs(context.Background(), logsWithBodies("a", "b", "c", "d"))
+	err := e.ConsumeLogs(t.Context(), logsWithBodies("a", "b", "c", "d"))
 
 	require.Error(t, err)
 	assert.False(t, consumererror.IsPermanent(err))
@@ -161,7 +161,7 @@ func TestSyncSenderReportsRecordsThatCannotBeMarshaled(t *testing.T) {
 	t.Run("alone", func(t *testing.T) {
 		sender := &fakeSyncSender{}
 
-		err := newSyncExporter(t, sender).ConsumeLogs(context.Background(), withNaN(logsWithBodies("a"), 0))
+		err := newSyncExporter(t, sender).ConsumeLogs(t.Context(), withNaN(logsWithBodies("a"), 0))
 
 		require.Error(t, err)
 		assert.True(t, consumererror.IsPermanent(err), "a record that cannot be marshaled must fail permanently: %v", err)
@@ -173,7 +173,7 @@ func TestSyncSenderReportsRecordsThatCannotBeMarshaled(t *testing.T) {
 	t.Run("with other records", func(t *testing.T) {
 		sender := &fakeSyncSender{}
 
-		err := newSyncExporter(t, sender).ConsumeLogs(context.Background(), withNaN(logsWithBodies("a", "b"), 1))
+		err := newSyncExporter(t, sender).ConsumeLogs(t.Context(), withNaN(logsWithBodies("a", "b"), 1))
 
 		require.Error(t, err)
 		assert.True(t, consumererror.IsPermanent(err), "a record that cannot be marshaled must fail permanently: %v", err)
@@ -189,7 +189,7 @@ func TestSyncSenderContextErrorsAreRetryable(t *testing.T) {
 		return []error{nil, fmt.Errorf("sending payload: %w", context.DeadlineExceeded)}
 	}})
 
-	err := e.ConsumeLogs(context.Background(), logsWithBodies("a", "b"))
+	err := e.ConsumeLogs(t.Context(), logsWithBodies("a", "b"))
 
 	var logsErr consumererror.Logs
 	require.ErrorAs(t, err, &logsErr)
@@ -208,12 +208,12 @@ func TestSyncSenderThroughExporterHelper(t *testing.T) {
 	cfg := f.CreateDefaultConfig().(*Config)
 	cfg.QueueSettings = configoptional.None[exporterhelper.QueueBatchConfig]()
 	cfg.RetryConfig = configretry.BackOffConfig{Enabled: true, InitialInterval: time.Millisecond, MaxInterval: time.Millisecond, MaxElapsedTime: time.Second}
-	exp, err := f.CreateLogs(context.Background(), exportertest.NewNopSettings(component.MustNewType(TypeStr)), cfg)
+	exp, err := f.CreateLogs(t.Context(), exportertest.NewNopSettings(component.MustNewType(TypeStr)), cfg)
 	require.NoError(t, err)
-	require.NoError(t, exp.Start(context.Background(), componenttest.NewNopHost()))
-	defer func() { require.NoError(t, exp.Shutdown(context.Background())) }()
+	require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
+	defer func() { require.NoError(t, exp.Shutdown(t.Context())) }()
 
-	err = exp.ConsumeLogs(context.Background(), logsWithBodies("a"))
+	err = exp.ConsumeLogs(t.Context(), logsWithBodies("a"))
 
 	require.Error(t, err)
 	assert.True(t, consumererror.IsPermanent(err))

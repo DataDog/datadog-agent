@@ -7,7 +7,6 @@ package hostimpl
 
 import (
 	"bytes"
-	"context"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -231,7 +230,7 @@ func TestFlareProvider(t *testing.T) {
 
 	hostProvider := ret.Comp.(*host)
 	fbMock := flarehelpers.NewFlareBuilderMock(t, false)
-	hostProvider.fillFlare(context.Background(), fbMock)
+	hostProvider.fillFlare(t.Context(), fbMock)
 
 	fbMock.AssertFileExists(filepath.Join("metadata", "host.json"))
 }

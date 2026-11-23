@@ -107,7 +107,7 @@ func TestWIFReenrollment(t *testing.T) {
 			if scenario == "legacy identity without hash" || tc.savedOrg != "" || tc.savedSite != "" {
 				old.APIKeyHash = ""
 			}
-			require.NoError(t, storage.Persist(context.Background(), old))
+			require.NoError(t, storage.Persist(t.Context(), old))
 			before, err = os.ReadFile(identityPath)
 			require.NoError(t, err)
 			tokenCalls := 0
@@ -126,7 +126,7 @@ func TestWIFReenrollment(t *testing.T) {
 			}
 			hostname, _ := hostnamemock.NewMock(hostnamemock.MockHostname(host))
 			runner := &PrivateActionRunner{coreConfig: cfg, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
-			result, err := runner.getRunnerConfig(context.Background())
+			result, err := runner.getRunnerConfig(t.Context())
 			after, readErr := os.ReadFile(identityPath)
 			require.NoError(t, readErr)
 			switch {
@@ -150,7 +150,7 @@ func TestWIFReenrollment(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, util.MakeRunnerURN("us1", 42, "runner-new"), result.Urn)
 				require.False(t, old.PrivateKey.Equal(result.PrivateKey))
-				saved, err := storage.Load(context.Background())
+				saved, err := storage.Load(t.Context())
 				require.NoError(t, err)
 				require.Equal(t, "test-org", saved.WIFOrgUUID)
 				require.Equal(t, "datadoghq.com", saved.WIFSite)
@@ -161,7 +161,7 @@ func TestWIFReenrollment(t *testing.T) {
 					restartConfig := coreconfig.NewMockWithOverrides(t, overrides)
 					restartStorage := enrollment.NewIdentityStorage(restartConfig, nil)
 					restart := &PrivateActionRunner{coreConfig: restartConfig, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: restartStorage}
-					reused, err := restart.getRunnerConfig(context.Background())
+					reused, err := restart.getRunnerConfig(t.Context())
 					require.NoError(t, err)
 					require.Equal(t, result.Urn, reused.Urn)
 					require.True(t, result.PrivateKey.Equal(reused.PrivateKey))

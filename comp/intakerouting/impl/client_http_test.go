@@ -64,7 +64,7 @@ func TestQueryRequest(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	res := newTestClient(t, srv).query(context.Background(), "us3.datadoghq.com", testKey)
+	res := newTestClient(t, srv).query(t.Context(), "us3.datadoghq.com", testKey)
 	require.NoError(t, res.err)
 	assert.Equal(t, statusSuccess, res.status)
 	assert.Equal(t, map[intakerouting.TelemetryType]routeAnswer{
@@ -120,7 +120,7 @@ func TestQueryResponses(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			res := newTestClient(t, srv).query(context.Background(), "datadoghq.com", testKey)
+			res := newTestClient(t, srv).query(t.Context(), "datadoghq.com", testKey)
 			assert.Equal(t, tc.expectedStatus, res.status)
 			assert.Equal(t, tc.code, res.code)
 			assert.Equal(t, tc.expectedRoutes, res.routes)
@@ -140,7 +140,7 @@ func TestQueryTransportErrors(t *testing.T) {
 		defer srv.Close()
 		defer close(release)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 		defer cancel()
 		res := newTestClient(t, srv).query(ctx, "datadoghq.com", testKey)
 		assert.Equal(t, statusTimeout, res.status)
@@ -151,7 +151,7 @@ func TestQueryTransportErrors(t *testing.T) {
 		client := newTestClient(t, srv)
 		srv.Close()
 
-		res := client.query(context.Background(), "datadoghq.com", testKey)
+		res := client.query(t.Context(), "datadoghq.com", testKey)
 		assert.Equal(t, statusNetworkError, res.status)
 		assert.Error(t, res.err)
 	})
@@ -210,7 +210,7 @@ func TestQueryRedirects(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			res := newTestClient(t, srv).query(context.Background(), "datadoghq.com", testKey)
+			res := newTestClient(t, srv).query(t.Context(), "datadoghq.com", testKey)
 			assert.Equal(t, tc.expectedStatus, res.status, "%v", res.err)
 			mu.Lock()
 			defer mu.Unlock()
@@ -253,7 +253,7 @@ func TestPreflightRequest(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			err := newTestClient(t, srv).preflight(context.Background(), tc.endpoint, testKey)
+			err := newTestClient(t, srv).preflight(t.Context(), tc.endpoint, testKey)
 			if tc.expectError {
 				assert.Error(t, err)
 			} else {
@@ -286,7 +286,7 @@ func TestPreflightCustomPath(t *testing.T) {
 
 			path, err := parsePreflightPath(tc.path)
 			require.NoError(t, err)
-			err = newTestClientWithPreflightPath(t, srv, path).preflight(context.Background(), enhancedEndpoint, testKey)
+			err = newTestClientWithPreflightPath(t, srv, path).preflight(t.Context(), enhancedEndpoint, testKey)
 			require.NoError(t, err)
 			assert.Equal(t, []string{tc.expectedRawPath}, hits)
 		})

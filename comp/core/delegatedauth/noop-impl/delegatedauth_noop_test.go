@@ -7,7 +7,6 @@ package delegatedauthimpl
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,7 +18,7 @@ import (
 
 func TestNoopAddInstance(t *testing.T) {
 	noop := &DelegatedAuthNoop{}
-	err := noop.AddInstance(context.Background(), delegatedauth.InstanceParams{
+	err := noop.AddInstance(t.Context(), delegatedauth.InstanceParams{
 		OrgUUID:         "test-org-uuid",
 		RefreshInterval: 60,
 		APIKeyConfigKey: "api_key",
@@ -84,7 +83,7 @@ func TestNewComponent(t *testing.T) {
 }
 
 func TestNoopWorkloadToken(t *testing.T) {
-	token, err := NewComponent().Comp.GetWorkloadToken(context.Background(), "api_key", common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}})
+	token, err := NewComponent().Comp.GetWorkloadToken(t.Context(), "api_key", common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}})
 	require.ErrorContains(t, err, "not enabled")
 	require.Empty(t, token)
 }

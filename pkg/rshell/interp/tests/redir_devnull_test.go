@@ -7,7 +7,6 @@ package tests_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -51,7 +50,7 @@ func redirRunWithOpts(t *testing.T, script, dir string, opts ...interp.RunnerOpt
 		runner.Dir = dir
 	}
 
-	err = runner.Run(context.Background(), prog)
+	err = runner.Run(t.Context(), prog)
 	exitCode := 0
 	if err != nil {
 		var es interp.ExitStatus

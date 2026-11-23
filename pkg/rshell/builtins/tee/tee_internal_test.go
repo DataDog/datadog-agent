@@ -180,7 +180,7 @@ func TestRegisterFlagsHandlerDoesNotPanicOnMissingCapabilities(t *testing.T) {
 		// OpenFile, StatFile, AllowedPathsList intentionally left nil.
 	}
 
-	result := handler(context.Background(), callCtx, fs.Args())
+	result := handler(t.Context(), callCtx, fs.Args())
 
 	if result.Code != 1 {
 		t.Errorf("expected exit 1, got %d (stderr %q)", result.Code, errBuf.String())
@@ -225,7 +225,7 @@ func TestFilesLoopChecksCancellationBeforeEachOperand(t *testing.T) {
 			return nil, os.ErrPermission
 		},
 	}
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 	defer cancel()
 
 	handler(ctx, callCtx, fs.Args())

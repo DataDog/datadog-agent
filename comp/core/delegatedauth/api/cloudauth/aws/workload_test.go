@@ -6,7 +6,6 @@
 package aws
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -30,9 +29,9 @@ func TestWorkloadProofSignsGrantsAndKey(t *testing.T) {
 		var proof string
 		var err error
 		if workload {
-			proof, err = auth.GenerateWorkloadAuthProof(context.Background(), cfg, config, request)
+			proof, err = auth.GenerateWorkloadAuthProof(t.Context(), cfg, config, request)
 		} else {
-			proof, err = auth.GenerateAuthProof(context.Background(), cfg, config)
+			proof, err = auth.GenerateAuthProof(t.Context(), cfg, config)
 		}
 		require.NoError(t, err)
 		parts := strings.Split(proof, "|")
@@ -56,7 +55,7 @@ func TestWorkloadProofSignsGrantsAndKey(t *testing.T) {
 		}
 	}
 	request.JWKThumbprint = ""
-	proof, err := auth.GenerateWorkloadAuthProof(context.Background(), cfg, config, request)
+	proof, err := auth.GenerateWorkloadAuthProof(t.Context(), cfg, config, request)
 	require.NoError(t, err)
 	raw, err := base64.StdEncoding.DecodeString(strings.Split(proof, "|")[1])
 	require.NoError(t, err)

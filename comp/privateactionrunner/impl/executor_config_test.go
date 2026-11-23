@@ -8,7 +8,6 @@
 package privateactionrunnerimpl
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"encoding/base64"
 	"net/http"
@@ -40,7 +39,7 @@ func TestDisabledExecutorDoesNotResolveIdentityOrInitializeActions(t *testing.T)
 		t.Setenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "false")
 		// Dependencies are deliberately absent: disabled startup must not use them.
 		runner := &PrivateActionRunner{coreConfig: cfg}
-		_, resolved, err := runner.configureExecutor(context.Background(), context.Background())
+		_, resolved, err := runner.configureExecutor(t.Context(), t.Context())
 		require.NoError(t, err)
 		require.Nil(t, resolved)
 		require.NotNil(t, runner.executorServer)
@@ -71,10 +70,10 @@ func TestRejectedEnrollmentStopsSplitExecutorWithoutActions(t *testing.T) {
 			hostname, _ := hostnamemock.NewMock("test-host")
 			runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: enrollment.NewIdentityStorage(cfg, nil)}
 
-			_, err := runner.getRunnerConfig(context.Background())
+			_, err := runner.getRunnerConfig(t.Context())
 			require.ErrorIs(t, err, opms.ErrEnrollmentRejected)
 			require.NotContains(t, err.Error(), "backoff")
-			_, resolved, err := runner.configureExecutor(context.Background(), context.Background())
+			_, resolved, err := runner.configureExecutor(t.Context(), t.Context())
 			require.NoError(t, err)
 			require.Nil(t, resolved)
 			require.NotNil(t, runner.executorServer)
@@ -86,7 +85,7 @@ func TestRejectedEnrollmentStopsSplitExecutorWithoutActions(t *testing.T) {
 			stopped := make(chan struct{})
 			runner.shutdowner = shutdownFunc(func() error { close(stopped); return nil })
 			runner.startChan = make(chan struct{})
-			require.NoError(t, runner.Start(context.Background()))
+			require.NoError(t, runner.Start(t.Context()))
 			select {
 			case <-stopped:
 			case <-time.After(time.Second):
@@ -118,10 +117,10 @@ func TestExecutorSnapshotUsesMonolithPersistedIdentity(t *testing.T) {
 		PrivateKey: persistedKey.Key.(*ecdsa.PrivateKey), Hostname: "test-host",
 	}
 	storage := enrollment.NewIdentityStorage(cfg, nil)
-	require.NoError(t, storage.Persist(context.Background(), persisted))
+	require.NoError(t, storage.Persist(t.Context(), persisted))
 	hostname, _ := hostnamemock.NewMock("test-host")
 	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, identityStorage: storage}
-	resolved, err := runner.getRunnerConfig(context.Background())
+	resolved, err := runner.getRunnerConfig(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, persisted.URN, resolved.Urn)
 	snapshot, err := executor.ControlPlaneConfig(cfg, resolved)

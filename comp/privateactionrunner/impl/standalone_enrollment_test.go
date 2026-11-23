@@ -8,7 +8,6 @@
 package privateactionrunnerimpl
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -75,9 +74,9 @@ func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 			hostname, _ := hostnamemock.NewMock("test-host")
 			storage := enrollment.NewIdentityStorage(cfg, nil)
 			runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
-			_, err := runner.getRunnerConfig(context.Background())
+			_, err := runner.getRunnerConfig(t.Context())
 			require.NoError(t, err)
-			identity, err := storage.Load(context.Background())
+			identity, err := storage.Load(t.Context())
 			require.NoError(t, err)
 			require.NotNil(t, identity)
 			require.NotEmpty(t, identity.PrivateKey)
@@ -89,14 +88,14 @@ func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 			require.Equal(t, enrollment.HashAPIKey(expectedKey.Load().(string)), identity.APIKeyHash)
 			require.Equal(t, "test-key", cfg.GetString("api_key"))
 			require.Equal(t, "datadoghq.eu", cfg.GetString("site"))
-			_, err = runner.getRunnerConfig(context.Background())
+			_, err = runner.getRunnerConfig(t.Context())
 			require.NoError(t, err)
 			require.EqualValues(t, 1, posts.Load(), "a saved identity follows existing reuse behavior")
 			// Only rotation of the effective enrollment key replaces the runner.
 			overrides["api_key"] = "rotated-key"
 			if tc.parKey != "" {
 				cfg.SetInTest("api_key", "rotated-key")
-				_, err = runner.getRunnerConfig(context.Background())
+				_, err = runner.getRunnerConfig(t.Context())
 				require.NoError(t, err)
 				require.EqualValues(t, 1, posts.Load(), "main Agent key rotation must not replace PAR's identity")
 				overrides["private_action_runner.api_key"] = "rotated-key"
@@ -107,10 +106,10 @@ func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 			cfg.UnsetForSource("private_action_runner.urn", model.SourceAgentRuntime)
 			cfg.UnsetForSource("private_action_runner.private_key", model.SourceAgentRuntime)
 			runner.coreConfig = cfg
-			_, err = runner.getRunnerConfig(context.Background())
+			_, err = runner.getRunnerConfig(t.Context())
 			require.NoError(t, err)
 			require.EqualValues(t, 2, posts.Load())
-			identity, err = storage.Load(context.Background())
+			identity, err = storage.Load(t.Context())
 			require.NoError(t, err)
 			require.Equal(t, enrollment.HashAPIKey("rotated-key"), identity.APIKeyHash)
 		})

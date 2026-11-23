@@ -137,7 +137,7 @@ func newRolloutCluster(t *testing.T) *rolloutCluster {
 	t.Cleanup(func() { cache.Cache.Delete(clusterIDKey) })
 	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	t.Cleanup(cancel)
 
 	c := &rolloutCluster{t: t, ctx: ctx, client: fake.NewSimpleClientset(), enrollments: map[string]int{}}

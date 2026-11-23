@@ -154,7 +154,7 @@ func TestRedisCollectorResolvesAndReadsRelativeProcessConfig(t *testing.T) {
 		Args: []string{"redis-server", "/etc/redis/redis.conf"},
 	}))
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
@@ -224,7 +224,7 @@ func TestRedisCollectorReadsDetectedConfig(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
@@ -253,7 +253,7 @@ func TestRedisCollectorCollectsEnvOnly(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Empty(t, reader.readFileCalls)
@@ -276,7 +276,7 @@ func TestRedisCollectorDoesNotUseMetadataPathsAsConfigFiles(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Empty(t, reader.readFileCalls)
@@ -303,7 +303,7 @@ func TestRedisCollectorUsesEnvConfigFile(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/opt/bitnami/redis/etc/redis.conf"}, reader.readFileCalls)
@@ -330,7 +330,7 @@ func TestRedisCollectorUsesEnvConfigFileWhenCommandlineHasOnlyOptions(t *testing
 		},
 	}
 
-	collected, err := NewRedis().Collect(context.Background(), reader)
+	collected, err := NewRedis().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/opt/bitnami/redis/etc/redis.conf"}, reader.readFileCalls)
@@ -353,7 +353,7 @@ func TestRedisCollectorResolvesRelativeEnvConfigFile(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/opt/bitnami/redis/etc/redis.conf"}, reader.readFileCalls)
@@ -380,7 +380,7 @@ func TestRedisCollectorPrefersFirstProcessConfigFileOverEnvConfigFile(t *testing
 		},
 	}
 
-	collected, err := NewRedis().Collect(context.Background(), reader)
+	collected, err := NewRedis().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/redis/one.conf"}, reader.readFileCalls)
@@ -408,7 +408,7 @@ func TestRedisCollectorPrefersCommandlineConfigFile(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
@@ -438,7 +438,7 @@ func TestRedisCollectorDoesNotCollectSensitiveEnvVars(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
@@ -461,7 +461,7 @@ func TestRedisCollectorSkipsDefaultsWhenCommandlineHasNoConfigFile(t *testing.T)
 				},
 			}
 
-			collected, err := NewRedis().Collect(context.Background(), reader)
+			collected, err := NewRedis().Collect(t.Context(), reader)
 
 			require.NoError(t, err)
 			assert.Empty(t, reader.readFileCalls)
@@ -482,7 +482,7 @@ func TestRedisCollectorReadsDefaultConfig(t *testing.T) {
 		},
 	}
 
-	collected, err := NewRedis().Collect(context.Background(), reader)
+	collected, err := NewRedis().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, redisDefaultConfigPaths, reader.readFileCalls)
@@ -508,7 +508,7 @@ func TestRedisCollectorSkipsDefaultsWhenLiveProcessHasNoConfigFile(t *testing.T)
 		},
 	}
 
-	collected, err := NewRedis().Collect(context.Background(), reader)
+	collected, err := NewRedis().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Empty(t, reader.readFileCalls)
@@ -528,7 +528,7 @@ func TestRedisCollectorUsesFirstConfigAcrossProcesses(t *testing.T) {
 		file: configfilesdiscoveryimpl.ConfigFile{Path: "/etc/redis/redis.conf"},
 	}
 
-	collected, err := NewRedis().Collect(context.Background(), reader)
+	collected, err := NewRedis().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
@@ -547,7 +547,7 @@ func TestRedisCollectorUsesRuntimeConfigBeforeProcessConfig(t *testing.T) {
 		file: configfilesdiscoveryimpl.ConfigFile{Path: "/etc/redis/runtime.conf"},
 	}
 
-	collected, err := NewRedis().Collect(context.Background(), reader)
+	collected, err := NewRedis().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/redis/runtime.conf"}, reader.readFileCalls)
@@ -567,7 +567,7 @@ func TestRedisCollectorFallsBackToProcessCommandlineOnRuntimeCommandlineError(t 
 		},
 	}
 
-	collected, err := NewRedis().Collect(context.Background(), reader)
+	collected, err := NewRedis().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, reader.processCommandlineCalls)
@@ -580,7 +580,7 @@ func TestRedisCollectorReturnsCommandlineErrors(t *testing.T) {
 	reader := &redisCollectorTestReader{commandlineErr: expectedErr}
 	collector := NewRedis()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Equal(t, 1, reader.processCommandlineCalls)
@@ -601,7 +601,7 @@ func TestRedisCollectorReadsDetectedConfigWhenEnvVarsFail(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
@@ -625,7 +625,7 @@ func TestRedisCollectorReturnsEnvVarErrorsWithoutConfigPath(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Empty(t, reader.readFileCalls)
@@ -642,7 +642,7 @@ func TestRedisCollectorReturnsReadFileErrors(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
@@ -738,7 +738,7 @@ func TestRedisCollectorTraversesIncludesBreadthFirst(t *testing.T) {
 		},
 	}
 
-	collected, err := NewRedis().Collect(context.Background(), reader)
+	collected, err := NewRedis().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	require.Len(t, collected.ConfigFiles, 5)
@@ -768,7 +768,7 @@ func TestRedisCollectorSkipsRelativeIncludesWithoutReliableWorkingDir(t *testing
 		},
 	}
 
-	files, limited := collectRedisConfigFiles(context.Background(), reader, root, verifyTestConfigFilePath(t, root.Path), "")
+	files, limited := collectRedisConfigFiles(t.Context(), reader, root, verifyTestConfigFilePath(t, root.Path), "")
 
 	assert.False(t, limited)
 	assert.Equal(t, []string{"/etc/redis/redis.conf", "/etc/redis/absolute.conf"}, redisConfigFilePaths(files))
@@ -809,7 +809,7 @@ func TestRedisCollectorSkipsUnreadableUnmatchedAndUnsafeIncludes(t *testing.T) {
 		},
 	}
 
-	files, limited := collectRedisConfigFiles(context.Background(), reader, root, verifyTestConfigFilePath(t, root.Path), "/etc/redis")
+	files, limited := collectRedisConfigFiles(t.Context(), reader, root, verifyTestConfigFilePath(t, root.Path), "/etc/redis")
 
 	assert.False(t, limited)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, redisConfigFilePaths(files))
@@ -829,7 +829,7 @@ func TestRedisCollectorEnforcesIncludeDepthLimit(t *testing.T) {
 		reader.findFiles[filePath] = []string{filePath}
 	}
 
-	files, limited := collectRedisConfigFiles(context.Background(), reader, root, verifyTestConfigFilePath(t, root.Path), "/etc/redis")
+	files, limited := collectRedisConfigFiles(t.Context(), reader, root, verifyTestConfigFilePath(t, root.Path), "/etc/redis")
 
 	assert.True(t, limited)
 	assert.Len(t, files, redisMaxIncludeDepth)
@@ -848,7 +848,7 @@ func TestRedisCollectorEnforcesFileLimit(t *testing.T) {
 		reader.findFiles["/etc/redis/conf.d/*.conf"] = append(reader.findFiles["/etc/redis/conf.d/*.conf"], filePath)
 	}
 
-	files, limited := collectRedisConfigFiles(context.Background(), reader, root, verifyTestConfigFilePath(t, root.Path), "/etc/redis")
+	files, limited := collectRedisConfigFiles(t.Context(), reader, root, verifyTestConfigFilePath(t, root.Path), "/etc/redis")
 
 	assert.True(t, limited)
 	assert.Len(t, files, redisMaxConfigFiles)
@@ -862,7 +862,7 @@ func TestRedisCollectorLimitsIncludeSearches(t *testing.T) {
 	root := configfilesdiscoveryimpl.ConfigFile{Path: "/etc/redis/redis.conf", Content: []byte(includes.String())}
 	reader := &redisCollectorTestReader{}
 
-	files, limited := collectRedisConfigFiles(context.Background(), reader, root, verifyTestConfigFilePath(t, root.Path), "/etc/redis")
+	files, limited := collectRedisConfigFiles(t.Context(), reader, root, verifyTestConfigFilePath(t, root.Path), "/etc/redis")
 
 	assert.True(t, limited)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, redisConfigFilePaths(files))
@@ -882,7 +882,7 @@ func TestRedisCollectorDeduplicatesBeforeLimitingMatches(t *testing.T) {
 		reader.findFiles[pattern] = append(reader.findFiles[pattern], filePath)
 	}
 
-	files, limited := collectRedisConfigFiles(context.Background(), reader, root, verifyTestConfigFilePath(t, root.Path), "/etc/redis")
+	files, limited := collectRedisConfigFiles(t.Context(), reader, root, verifyTestConfigFilePath(t, root.Path), "/etc/redis")
 
 	assert.False(t, limited)
 	assert.Len(t, files, redisMaxConfigFiles)
@@ -902,7 +902,7 @@ func TestRedisCollectorTruncatesAtAggregateLimit(t *testing.T) {
 		reader.findFiles["/etc/redis/conf.d/*.conf"] = append(reader.findFiles["/etc/redis/conf.d/*.conf"], filePath)
 	}
 
-	files, limited := collectRedisConfigFiles(context.Background(), reader, root, verifyTestConfigFilePath(t, root.Path), "/etc/redis")
+	files, limited := collectRedisConfigFiles(t.Context(), reader, root, verifyTestConfigFilePath(t, root.Path), "/etc/redis")
 
 	assert.True(t, limited)
 	require.Len(t, files, 5)

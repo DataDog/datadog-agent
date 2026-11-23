@@ -389,7 +389,7 @@ func TestIPShortHelp(t *testing.T) {
 
 // TestIPAddrContextCancellation verifies ip addr show respects context cancellation.
 func TestIPAddrContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	_, _, code := runScriptCtx(ctx, t, "ip addr show", "")
 	// May succeed or be cancelled but must not hang.
@@ -398,7 +398,7 @@ func TestIPAddrContextCancellation(t *testing.T) {
 
 // TestIPLinkContextCancellation verifies ip link show respects context cancellation.
 func TestIPLinkContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	_, _, code := runScriptCtx(ctx, t, "ip link show", "")
 	assert.True(t, code == 0 || code == 1)

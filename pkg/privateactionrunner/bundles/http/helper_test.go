@@ -7,7 +7,6 @@ package com_datadoghq_http
 
 import (
 	"bytes"
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -193,7 +192,7 @@ func TestRequestBaseURLScheme(t *testing.T) {
 			action := NewHttpRequestAction(&config.Config{HTTPTimeout: 5 * time.Second, Allowlist: []string{target.Hostname()}})
 			// Trust the httptest certificate directly: allowExpiredCertificate still verifies chain and hostname.
 			action.WithHttpClientProvider(staticClientProvider{client: server.Client()})
-			_, err = action.Run(context.Background(), task, credentials)
+			_, err = action.Run(t.Context(), task, credentials)
 			if test.wantError != "" {
 				require.ErrorContains(t, err, test.wantError)
 				require.Zero(t, requests.Load())

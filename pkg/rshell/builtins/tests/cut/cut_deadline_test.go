@@ -54,7 +54,7 @@ func runCutWithDeadline(t *testing.T, script, dir string) {
 	start := time.Now()
 	go func() {
 		defer close(done)
-		ctx, cancel := context.WithTimeout(context.Background(), deadline)
+		ctx, cancel := context.WithTimeout(t.Context(), deadline)
 		defer cancel()
 		_ = runner.Run(ctx, prog)
 	}()

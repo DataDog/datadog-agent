@@ -6,7 +6,6 @@
 package installer
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -762,7 +761,7 @@ func (s *testAgentUpgradeSuite) waitForInstallerVersion(version string) error {
 }
 
 func (s *testAgentUpgradeSuite) waitForInstallerVersionWithBackoff(version string, opts ...backoff.RetryOption) error {
-	_, err := backoff.Retry(context.Background(), func() (any, error) {
+	_, err := backoff.Retry(t.Context(), func() (any, error) {
 		actual, err := s.Installer().Version()
 		if err != nil {
 			return nil, err
@@ -917,7 +916,7 @@ func (s *testAgentUpgradeSuite) waitForExperimentMSIRollback() {
 }
 
 func (s *testAgentUpgradeSuite) waitForAgentMSIInstalledState() error {
-	_, err := backoff.Retry(context.Background(), func() (any, error) {
+	_, err := backoff.Retry(t.Context(), func() (any, error) {
 		productCode, err := windowsagent.GetDatadogAgentProductCode(s.Env().RemoteHost)
 		if err != nil {
 			return nil, fmt.Errorf("Datadog Agent product is not registered yet: %w", err)

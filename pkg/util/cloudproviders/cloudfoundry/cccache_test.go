@@ -146,7 +146,7 @@ func newTestCCCache(ctx context.Context, config CCCacheConfig) *CCCache {
 func setupCCCache(t *testing.T, refreshOnMiss bool) *CCCache {
 	t.Helper()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	config := newTestCCCacheConfig()
@@ -440,7 +440,7 @@ func (f *flakyCCClient) ListProcesses(_ int) ([]*resource.Process, error) {
 
 func newFlakyCCCache(t *testing.T, client *flakyCCClient) *CCCache {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	config := newTestCCCacheConfig()
 	config.CCAPIClient = client
@@ -494,7 +494,7 @@ func TestCCCache_NoApplicationsServedUntilEveryInputFetched(t *testing.T) {
 
 func TestCCCache_RefreshOnMissBeforeEveryInputFetched(t *testing.T) {
 	client := &flakyCCClient{failures: map[string]int{"orgs": ccListAttempts}, calls: map[string]int{}, instances: 3}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	config := newTestCCCacheConfig()
 	config.CCAPIClient = client

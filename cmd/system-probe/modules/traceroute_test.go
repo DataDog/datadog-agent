@@ -8,7 +8,6 @@
 package modules
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -60,7 +59,7 @@ func TestParseParams(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(_ *testing.T) {
-			req, err := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
+			req, err := http.NewRequestWithContext(t.Context(), "GET", "http://example.com", nil)
 			q := req.URL.Query()
 			for k, v := range tt.params {
 				q.Add(k, v)

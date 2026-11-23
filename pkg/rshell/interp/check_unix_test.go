@@ -24,7 +24,7 @@ func TestCheckDoesNotOpenFIFO(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, unix.Mkfifo(filepath.Join(root, "fifo"), 0600))
 	runner := checkRunner(t, allowAllCommandsOpt(), AllowedPaths([]string{root + ":rw"}), WithMode(ModeRemediation))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	done := make(chan *CheckResult, 1)
 	go func() {
@@ -54,7 +54,7 @@ func TestCheckCDParentTraversal(t *testing.T) {
 			assert.Equal(t, "link/..", report.Commands[0].Issues[0].Path)
 			program, err := ParseScript(script, "")
 			require.NoError(t, err)
-			require.Error(t, runner.Run(context.Background(), program), "execution must still deny the intermediate sandbox escape")
+			require.Error(t, runner.Run(t.Context(), program), "execution must still deny the intermediate sandbox escape")
 			remote := checkRemoteScript(t, script, RemotePolicy{AllowedCommands: []string{"rshell:cd"}, AllowedPaths: []string{root}, Dir: root})
 			assert.Equal(t, CheckIndeterminate, remote.Status)
 		})

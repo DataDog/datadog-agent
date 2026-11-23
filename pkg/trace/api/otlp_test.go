@@ -6,7 +6,6 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"sort"
@@ -251,7 +250,7 @@ func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}()
 	defer close(stop)
 
-	rcv.Export(context.Background(), req)
+	rcv.Export(t.Context(), req)
 
 	calls := stats.CountCalls
 	assert.Equal(5, len(calls))
@@ -281,7 +280,7 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
-	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+	rcv.ReceiveResourceSpans(t.Context(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
 			LibVersion: "1.2",
@@ -309,7 +308,7 @@ func TestOTLPSampleRateFromTracestate(t *testing.T) {
 	cfg := NewTestConfig(t)
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
-	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+	rcv.ReceiveResourceSpans(t.Context(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
 			LibVersion: "1.2",
@@ -767,7 +766,7 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
-			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
+			rcv.ReceiveResourceSpans(t.Context(), rspans, http.Header{}, nil)
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -1190,7 +1189,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 	} {
 		t.Run("", func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
-			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
+			rcv.ReceiveResourceSpans(t.Context(), rspans, http.Header{}, nil)
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -1206,7 +1205,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 	testAndExpect := func(spans []testutil.OTLPResourceSpan, header http.Header, fn func(p *Payload)) func(t *testing.T) {
 		return func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(spans).Traces().ResourceSpans().At(0)
-			rcv.ReceiveResourceSpans(context.Background(), rspans, header, nil)
+			rcv.ReceiveResourceSpans(t.Context(), rspans, header, nil)
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -1347,7 +1346,7 @@ func TestOTLPReceiveDoesNotHoistSDKOtlpExport(t *testing.T) {
 			},
 		},
 	}).Traces().ResourceSpans().At(0)
-	rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
+	rcv.ReceiveResourceSpans(t.Context(), rspans, http.Header{}, nil)
 
 	select {
 	case <-time.After(500 * time.Millisecond):
@@ -1506,7 +1505,7 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		if tt.span != "" {
 			rattr["_dd.hostname"] = tt.span
 		}
-		src, _ := rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		src, _ := rcv.ReceiveResourceSpans(t.Context(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
 				LibName:    "a",
 				LibVersion: "1.2",
@@ -1585,7 +1584,7 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
 		o := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
-		o.processRequest(context.Background(), http.Header(map[string][]string{
+		o.processRequest(t.Context(), http.Header(map[string][]string{
 			header.Lang:        {"go"},
 			header.ContainerID: {"containerdID"},
 		}), otlpTestTracesRequest)
@@ -4233,7 +4232,7 @@ func benchmarkProcessRequest(enableReceiveResourceSpansV2 bool, b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		r.processRequest(context.Background(), metadata, largeTraces)
+		r.processRequest(b.Context(), metadata, largeTraces)
 	}
 	b.StopTimer()
 	end <- struct{}{}
@@ -4278,7 +4277,7 @@ func benchmarkProcessRequestTopLevel(enableReceiveResourceSpansV2 bool, b *testi
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		r.processRequest(context.Background(), metadata, largeTraces)
+		r.processRequest(b.Context(), metadata, largeTraces)
 	}
 	b.StopTimer()
 	end <- struct{}{}

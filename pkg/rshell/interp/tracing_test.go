@@ -433,7 +433,7 @@ func newTestTraceID() uint64 { return testTraceIDCounter.Add(1) + 1 }
 // on.
 func runWithTracedContext(t *testing.T, r *Runner, traceID uint64, script string) error {
 	t.Helper()
-	parent, ctx := telemetry.StartSpanFromIDs(context.Background(), "test.parent",
+	parent, ctx := telemetry.StartSpanFromIDs(t.Context(), "test.parent",
 		uint64ToDec(traceID), "0")
 	err := r.Run(ctx, parseScript(t, script))
 	parent.Finish(nil)

@@ -7,7 +7,6 @@ package process
 
 import (
 	"bytes"
-	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -273,7 +272,7 @@ func k8sAgentStatus(t assert.TestingT, cluster *components.KubernetesCluster) Ag
 
 func getAgentPod(t assert.TestingT, client kubeClient.Interface) corev1.Pod {
 	res, err := client.CoreV1().Pods("datadog").
-		List(context.Background(), v1.ListOptions{LabelSelector: "app=dda-linux-datadog"})
+		List(t.Context(), v1.ListOptions{LabelSelector: "app=dda-linux-datadog"})
 	assert.NoError(t, err)
 	assert.NotEmpty(t, res.Items)
 

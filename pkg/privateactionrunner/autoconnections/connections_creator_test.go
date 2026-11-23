@@ -6,7 +6,6 @@
 package autoconnections
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -47,7 +46,7 @@ func TestCreateConnection_CorrectHTTPRequest(t *testing.T) {
 
 	tags := []string{"runner-id:runner-id-abc123"}
 
-	err := client.CreateConnection(context.Background(), definition, "runner-id-abc123", "runner-name-abc123", tags)
+	err := client.CreateConnection(t.Context(), definition, "runner-id-abc123", "runner-name-abc123", tags)
 
 	require.NoError(t, err, "CreateConnection should not return error for 201 response")
 
@@ -115,7 +114,7 @@ func TestCreateConnection_StatusCodeHandling(t *testing.T) {
 
 			tags := []string{"runner-id:runner-id-abc123"}
 
-			err := client.CreateConnection(context.Background(), definition, "runner-id-abc123", "runner-name-abc123", tags)
+			err := client.CreateConnection(t.Context(), definition, "runner-id-abc123", "runner-name-abc123", tags)
 
 			if tt.expectedError {
 				require.Error(t, err, "Should return error for non-2xx status")
@@ -157,7 +156,7 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 	}
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, enrollmentResult, actionsAllowlist)
+	err := creator.AutoCreateConnections(t.Context(), runnerID, enrollmentResult, actionsAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 2, "Should create 2 connections")
@@ -206,7 +205,7 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 	}
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, enrollmentResult, actionsAllowlist)
+	err := creator.AutoCreateConnections(t.Context(), runnerID, enrollmentResult, actionsAllowlist)
 
 	// Should return nil even with failures (non-blocking)
 	require.NoError(t, err, "AutoCreateConnections should not propagate errors")
@@ -241,7 +240,7 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 	}
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, enrollmentResult, actionsAllowlist)
+	err := creator.AutoCreateConnections(t.Context(), runnerID, enrollmentResult, actionsAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Equal(t, 0, requestCount, "Should not make any HTTP requests")
@@ -276,7 +275,7 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	}
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, enrollmentResult, actionsAllowlist)
+	err := creator.AutoCreateConnections(t.Context(), runnerID, enrollmentResult, actionsAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 1, "Should create 2 connections")

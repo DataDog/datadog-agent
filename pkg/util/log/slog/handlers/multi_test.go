@@ -6,7 +6,6 @@
 package handlers
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"testing"
@@ -43,7 +42,7 @@ func TestMultiHandlerHandle(t *testing.T) {
 	handler := NewMulti(inner1, inner2)
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 1, inner1.recordCount())
@@ -59,7 +58,7 @@ func TestMultiHandlerHandleMultipleMessages(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		record := slog.NewRecord(time.Now(), slog.LevelInfo, "message", 0)
-		handler.Handle(context.Background(), record)
+		handler.Handle(t.Context(), record)
 	}
 
 	assert.Equal(t, 5, inner1.recordCount())
@@ -76,7 +75,7 @@ func TestMultiHandlerEnabled(t *testing.T) {
 	handler := NewMulti(inner1, inner2)
 
 	// Should be enabled if at least one handler is enabled
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelInfo))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelInfo))
 }
 
 func TestMultiHandlerEnabledAllDisabled(t *testing.T) {
@@ -89,7 +88,7 @@ func TestMultiHandlerEnabledAllDisabled(t *testing.T) {
 	handler := NewMulti(inner1, inner2)
 
 	// Should be disabled if all handlers are disabled
-	assert.False(t, handler.Enabled(context.Background(), slog.LevelInfo))
+	assert.False(t, handler.Enabled(t.Context(), slog.LevelInfo))
 }
 
 func TestMultiHandlerEnabledAllEnabled(t *testing.T) {
@@ -102,7 +101,7 @@ func TestMultiHandlerEnabledAllEnabled(t *testing.T) {
 	handler := NewMulti(inner1, inner2)
 
 	// Should be enabled if all handlers are enabled
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelInfo))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelInfo))
 }
 
 func TestMultiHandlerWithAttrs(t *testing.T) {
@@ -119,7 +118,7 @@ func TestMultiHandlerWithAttrs(t *testing.T) {
 
 	// Should still work as a multi handler
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
-	newHandler.Handle(context.Background(), record)
+	newHandler.Handle(t.Context(), record)
 }
 
 func TestMultiHandlerWithGroup(t *testing.T) {
@@ -132,7 +131,7 @@ func TestMultiHandlerWithGroup(t *testing.T) {
 
 	// Should still work as a multi handler
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
-	newHandler.Handle(context.Background(), record)
+	newHandler.Handle(t.Context(), record)
 }
 
 func TestMultiHandlerErrorHandling(t *testing.T) {
@@ -143,7 +142,7 @@ func TestMultiHandlerErrorHandling(t *testing.T) {
 	handler := NewMulti(inner1, inner2)
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 
 	// Should return combined errors
 	assert.Error(t, err)
@@ -158,7 +157,7 @@ func TestMultiHandlerPartialError(t *testing.T) {
 	handler := NewMulti(inner1, inner2)
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 
 	// Should return error from failing handler
 	assert.Error(t, err)
@@ -174,7 +173,7 @@ func TestMultiHandlerNoErrors(t *testing.T) {
 	handler := NewMulti(inner1, inner2)
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 
 	// Should not return error when all handlers succeed
 	assert.NoError(t, err)
@@ -187,7 +186,7 @@ func TestMultiHandlerThreeHandlers(t *testing.T) {
 	handler := NewMulti(inner1, inner2, inner3)
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 1, inner1.recordCount())
@@ -202,13 +201,13 @@ func TestMultiHandlerMixedLevels(t *testing.T) {
 	handler := NewMulti(inner1, inner2)
 
 	// Info level should be enabled (first handler accepts it)
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelInfo))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelInfo))
 
 	// Error level should be enabled (both handlers accept it)
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelError))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelError))
 
 	// Debug level should be disabled (no handler accepts it)
-	assert.False(t, handler.Enabled(context.Background(), slog.LevelDebug))
+	assert.False(t, handler.Enabled(t.Context(), slog.LevelDebug))
 }
 
 func TestMultiHandlerChaining(t *testing.T) {
@@ -222,7 +221,7 @@ func TestMultiHandlerChaining(t *testing.T) {
 
 	// Should still work
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 	assert.NoError(t, err)
 }
 
@@ -237,7 +236,7 @@ func TestMultiHandlerOnlyCallsEnabledHandlers(t *testing.T) {
 	handler := NewMulti(inner1, inner2, inner3)
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 
 	// Should not return error
 	assert.NoError(t, err)

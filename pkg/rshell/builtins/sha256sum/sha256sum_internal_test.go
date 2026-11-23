@@ -24,12 +24,12 @@ import (
 func TestVerifyManifestLineLimit(t *testing.T) {
 	callCtx := &builtins.CallContext{Stdout: io.Discard, Stderr: io.Discard}
 	totals := checkTotals{}
-	err := verifyManifest(context.Background(), callCtx, strings.NewReader(strings.Repeat("x", MaxManifestLineBytes)), options{status: true}, &totals, false)
+	err := verifyManifest(t.Context(), callCtx, strings.NewReader(strings.Repeat("x", MaxManifestLineBytes)), options{status: true}, &totals, false)
 	require.NoError(t, err)
 	assert.Equal(t, 1, totals.malformed)
 
 	totals = checkTotals{}
-	err = verifyManifest(context.Background(), callCtx, strings.NewReader(strings.Repeat("x", MaxManifestLineBytes+1)), options{status: true}, &totals, false)
+	err = verifyManifest(t.Context(), callCtx, strings.NewReader(strings.Repeat("x", MaxManifestLineBytes+1)), options{status: true}, &totals, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "checksum line exceeds")
 }
@@ -130,18 +130,18 @@ type fixedErrorReader struct{ err error }
 func (r fixedErrorReader) Read([]byte) (int, error) { return 0, r.err }
 
 func TestDigestReaderErrorsAndCancellation(t *testing.T) {
-	digest, err := digestReader(context.Background(), strings.NewReader("abc"))
+	digest, err := digestReader(t.Context(), strings.NewReader("abc"))
 	require.NoError(t, err)
 	assert.Equal(t, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", digest)
 
-	_, err = digestReader(context.Background(), noProgressReader{})
+	_, err = digestReader(t.Context(), noProgressReader{})
 	assert.ErrorIs(t, err, errNoReadProgress)
 
 	wantErr := errors.New("read failed")
-	_, err = digestReader(context.Background(), fixedErrorReader{err: wantErr})
+	_, err = digestReader(t.Context(), fixedErrorReader{err: wantErr})
 	assert.ErrorIs(t, err, wantErr)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err = digestReader(ctx, strings.NewReader("abc"))
 	assert.ErrorIs(t, err, context.Canceled)
@@ -168,28 +168,28 @@ func TestVerifyManifestFailurePropagation(t *testing.T) {
 		abcDigest + "  missing\n",
 	} {
 		totals := checkTotals{outputBytes: MaxCheckOutputBytes}
-		err := verifyManifest(context.Background(), callCtx, strings.NewReader(line), options{}, &totals, false)
+		err := verifyManifest(t.Context(), callCtx, strings.NewReader(line), options{}, &totals, false)
 		assert.ErrorIs(t, err, errCheckOutputLimit)
 	}
 
-	cancelled, cancel := context.WithCancel(context.Background())
+	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 	err := verifyManifest(cancelled, callCtx, strings.NewReader(""), options{}, &checkTotals{}, false)
 	assert.ErrorIs(t, err, context.Canceled)
 
-	err = verifyManifest(context.Background(), callCtx, strings.NewReader("\n"), options{}, &checkTotals{}, false)
+	err = verifyManifest(t.Context(), callCtx, strings.NewReader("\n"), options{}, &checkTotals{}, false)
 	require.NoError(t, err)
 
 	totals := checkTotals{manifestBytes: MaxManifestBytes}
-	err = verifyManifest(context.Background(), callCtx, strings.NewReader("x"), options{}, &totals, false)
+	err = verifyManifest(t.Context(), callCtx, strings.NewReader("x"), options{}, &totals, false)
 	assert.ErrorIs(t, err, errManifestTooLarge)
 
-	err = verifyManifest(context.Background(), callCtx, strings.NewReader(strings.Repeat("x", MaxManifestLineBytes+2)), options{}, &checkTotals{}, false)
+	err = verifyManifest(t.Context(), callCtx, strings.NewReader(strings.Repeat("x", MaxManifestLineBytes+2)), options{}, &checkTotals{}, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "checksum line exceeds")
 
 	wantErr := errors.New("manifest read failed")
-	err = verifyManifest(context.Background(), callCtx, fixedErrorReader{err: wantErr}, options{}, &checkTotals{}, false)
+	err = verifyManifest(t.Context(), callCtx, fixedErrorReader{err: wantErr}, options{}, &checkTotals{}, false)
 	assert.ErrorIs(t, err, wantErr)
 }
 
@@ -221,7 +221,7 @@ func (r *blockingReader) Read([]byte) (int, error) {
 func TestCancellableReaderFallback(t *testing.T) {
 	reader := &blockingReader{started: make(chan struct{}), release: make(chan struct{})}
 	defer close(reader.release)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	done := make(chan error, 1)
@@ -247,7 +247,7 @@ func TestCancellableReaderFallback(t *testing.T) {
 }
 
 func TestCancellableReaderWaitsForContextDeadline(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	defer cancel()
 	reader := &deadlineTestReader{Reader: fixedErrorReader{err: os.ErrDeadlineExceeded}}
 
@@ -261,11 +261,11 @@ func TestCancellableReaderWaitsForContextDeadline(t *testing.T) {
 
 func TestReaderCapabilityBranches(t *testing.T) {
 	callCtx := &builtins.CallContext{}
-	err := withReader(context.Background(), callCtx, "", func(io.Reader) error { return nil })
+	err := withReader(t.Context(), callCtx, "", func(io.Reader) error { return nil })
 	assert.Contains(t, err.Error(), "zero-length")
 
 	var got string
-	err = withReader(context.Background(), callCtx, "-", func(r io.Reader) error {
+	err = withReader(t.Context(), callCtx, "-", func(r io.Reader) error {
 		data, readErr := io.ReadAll(r)
 		got = string(data)
 		return readErr
@@ -273,23 +273,23 @@ func TestReaderCapabilityBranches(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 
-	err = withReader(context.Background(), callCtx, "file", func(io.Reader) error { return nil })
+	err = withReader(t.Context(), callCtx, "file", func(io.Reader) error { return nil })
 	assert.Contains(t, err.Error(), "capability")
 
 	wantErr := errors.New("open failed")
 	callCtx.OpenRegularFile = func(context.Context, string) (io.ReadCloser, error) { return nil, wantErr }
-	err = withReader(context.Background(), callCtx, "file", func(io.Reader) error { return nil })
+	err = withReader(t.Context(), callCtx, "file", func(io.Reader) error { return nil })
 	assert.ErrorIs(t, err, wantErr)
 
 	called := false
-	err = withCancellableReader(context.Background(), strings.NewReader("x"), func(io.Reader) error {
+	err = withCancellableReader(t.Context(), strings.NewReader("x"), func(io.Reader) error {
 		called = true
 		return nil
 	})
 	require.NoError(t, err)
 	assert.True(t, called)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	err = withCancellableReader(ctx, strings.NewReader("x"), func(io.Reader) error { return nil })
 	require.NoError(t, err)
@@ -327,7 +327,7 @@ func TestSmallDefensiveHelpers(t *testing.T) {
 		assert.False(t, ok)
 	}
 
-	cancelled, cancel := context.WithCancel(context.Background())
+	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 	callCtx := &builtins.CallContext{Stdout: io.Discard, Stderr: io.Discard}
 	assert.Equal(t, uint8(1), generateDigests(cancelled, callCtx, []string{"-"}).Code)

@@ -612,7 +612,7 @@ func TestPreflightModeStopDuringRun(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond, "the data plane never produced output")
 
 	stopped := make(chan error, 1)
-	go func() { stopped <- h.lc.stopErr(context.Background()) }()
+	go func() { stopped <- h.lc.stopErr(t.Context()) }()
 	select {
 	case err := <-stopped:
 		require.NoError(t, err)
@@ -652,7 +652,7 @@ func TestPreflightModeInterruptedStillReportsRealErrors(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond, "the data plane never logged its errors")
 
 	stopped := make(chan error, 1)
-	go func() { stopped <- h.lc.stopErr(context.Background()) }()
+	go func() { stopped <- h.lc.stopErr(t.Context()) }()
 	select {
 	case err := <-stopped:
 		require.NoError(t, err)
@@ -877,7 +877,7 @@ func TestPreflightModeUnbindableSocketPath(t *testing.T) {
 func TestPreflightModePrepareRestrictsWorkDir(t *testing.T) {
 	h := newHarness(t, modeNormal, nil)
 
-	_, _, err := h.comp.prepare(context.Background())
+	_, _, err := h.comp.prepare(t.Context())
 	require.NoError(t, err)
 
 	workDir := filepath.Join(h.cfg.GetString("run_path"), workDirName)

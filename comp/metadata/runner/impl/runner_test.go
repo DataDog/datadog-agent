@@ -148,7 +148,7 @@ func TestRunnerCreation(t *testing.T) {
 		fx.Supply(runner.NewProvider(provider)),
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	lc.Start(ctx)
 
 	// either the provider call wg.Done() or the test will fail as a timeout

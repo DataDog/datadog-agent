@@ -56,7 +56,7 @@ func TestOriginProductDetailFromScopeName(t *testing.T) {
 
 func TestOriginFull(t *testing.T) {
 	translator := NewTestTranslator(t, WithOriginProduct(OriginProduct(42)))
-	AssertTranslatorMap(t, translator,
+	AssertTranslatorMap(t, t.Context(), translator,
 		"test/otlp/origin/origin.json",
 		"test/datadog/origin/origin.json",
 	)

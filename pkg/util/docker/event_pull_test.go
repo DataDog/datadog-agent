@@ -8,7 +8,6 @@
 package docker
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -202,7 +201,7 @@ container_exclude: name:excluded_name image:excluded_image
 			err: nil,
 		},
 	} {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		t.Logf("test case %d", nb)
 		event, err := dockerUtil.processContainerEvent(ctx, tc.source, filter)

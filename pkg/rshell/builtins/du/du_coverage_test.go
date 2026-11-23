@@ -128,7 +128,7 @@ func TestDuDetectsSymlinkLoopWithL(t *testing.T) {
 	// b -> a creates a loop when followed.
 	require.NoError(t, os.Symlink("..", filepath.Join(dir, "a", "loop")))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	_, stderr, code := cmdRunCtx(ctx, t, "du -L .", dir)
 	assert.Equal(t, 1, code)
@@ -143,7 +143,7 @@ func TestDuFifoOperandDoesNotBlock(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, syscall.Mkfifo(filepath.Join(dir, "pipe"), 0o600))
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	stdout, stderr, code := cmdRunCtx(ctx, t, "du -b pipe", dir)
 	require.NoError(t, ctx.Err())

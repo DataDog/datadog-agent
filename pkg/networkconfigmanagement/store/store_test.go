@@ -8,7 +8,6 @@
 package store
 
 import (
-	"context"
 	"encoding/json"
 	"path/filepath"
 	"testing"
@@ -32,7 +31,7 @@ func newTestConfigStore(t *testing.T) *configStore {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
 	cs, err := Open(dbPath)
 	require.NoError(t, err)
-	t.Cleanup(func() { cs.Close(context.Background()) })
+	t.Cleanup(func() { cs.Close(t.Context()) })
 	return cs.(*configStore)
 }
 

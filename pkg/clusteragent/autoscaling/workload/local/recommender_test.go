@@ -26,7 +26,7 @@ import (
 
 func TestProcessScaleUp(t *testing.T) {
 	testTime := time.Now().Unix()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// setup podwatcher
@@ -96,7 +96,7 @@ func TestProcessScaleUp(t *testing.T) {
 
 func TestProcessScaleDown(t *testing.T) {
 	testTime := time.Now().Unix()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// setup podwatcher

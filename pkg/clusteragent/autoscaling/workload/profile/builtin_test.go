@@ -8,7 +8,6 @@
 package profile
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,7 +31,7 @@ func newFakeDynamicClient() *dynamicfake.FakeDynamicClient {
 func TestBuiltinProfilesAreCreated(t *testing.T) {
 	client := newFakeDynamicClient()
 	mgr := NewBuiltinProfileManager(client, func() bool { return true })
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mgr.reconcile(ctx)
 
@@ -46,7 +45,7 @@ func TestBuiltinProfilesAreCreated(t *testing.T) {
 func TestBuiltinProfilesRestoredOnDrift(t *testing.T) {
 	client := newFakeDynamicClient()
 	mgr := NewBuiltinProfileManager(client, func() bool { return true })
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mgr.reconcile(ctx)
 
@@ -77,7 +76,7 @@ func TestBuiltinProfilesRestoredOnDrift(t *testing.T) {
 func TestBuiltinProfilesOverwriteReservedName(t *testing.T) {
 	client := newFakeDynamicClient()
 	mgr := NewBuiltinProfileManager(client, func() bool { return true })
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Pre-create a profile with a reserved name but different spec and no label.
 	userProfile := builtinProfiles[0].DeepCopy()
@@ -103,7 +102,7 @@ func TestBuiltinProfilesOverwriteReservedName(t *testing.T) {
 func TestBuiltinNoOpOnMatchingHash(t *testing.T) {
 	client := newFakeDynamicClient()
 	mgr := NewBuiltinProfileManager(client, func() bool { return true })
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mgr.reconcile(ctx)
 

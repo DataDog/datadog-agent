@@ -7,7 +7,6 @@ package interp
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -40,7 +39,7 @@ func TestRemediationRedirect_WriteCreatesFile(t *testing.T) {
 	dir := t.TempDir()
 	r, stdout, _ := newRemediationRunner(t, dir)
 
-	err := r.Run(context.Background(), parseScript(t, "echo hello > out.txt"))
+	err := r.Run(t.Context(), parseScript(t, "echo hello > out.txt"))
 	require.NoError(t, err, "stdout=%q", stdout.String())
 
 	data, err := os.ReadFile(filepath.Join(dir, "out.txt"))
@@ -55,7 +54,7 @@ func TestRemediationRedirect_AppendPreservesContent(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "log.txt"), []byte("first\n"), 0o600))
 	r, _, _ := newRemediationRunner(t, dir)
 
-	err := r.Run(context.Background(), parseScript(t, "echo second >> log.txt"))
+	err := r.Run(t.Context(), parseScript(t, "echo second >> log.txt"))
 	require.NoError(t, err)
 
 	data, err := os.ReadFile(filepath.Join(dir, "log.txt"))
@@ -70,7 +69,7 @@ func TestRemediationRedirect_StderrRedirect(t *testing.T) {
 	dir := t.TempDir()
 	r, stdout, _ := newRemediationRunner(t, dir)
 
-	err := r.Run(context.Background(), parseScript(t, "echo captured 2> err.txt 1>&2\necho ok"))
+	err := r.Run(t.Context(), parseScript(t, "echo captured 2> err.txt 1>&2\necho ok"))
 	require.NoError(t, err, "stdout=%q", stdout.String())
 
 	assert.Equal(t, "ok\n", stdout.String())
@@ -87,7 +86,7 @@ func TestRemediationRedirect_SandboxBlocked(t *testing.T) {
 	r, _, stderr := newRemediationRunner(t, dir)
 
 	target := filepath.Join(outside, "blocked.txt")
-	err := r.Run(context.Background(), parseScript(t, "echo secret > "+quoteCheckPath(target)))
+	err := r.Run(t.Context(), parseScript(t, "echo secret > "+quoteCheckPath(target)))
 	require.Error(t, err)
 
 	var es ExitStatus
@@ -114,7 +113,7 @@ func TestRemediationRedirect_ReadOnlyAllowedPathRejected(t *testing.T) {
 	t.Cleanup(func() { _ = r.Close() })
 	r.Dir = dir
 
-	err = r.Run(context.Background(), parseScript(t, "echo secret > blocked.txt"))
+	err = r.Run(t.Context(), parseScript(t, "echo secret > blocked.txt"))
 	require.Error(t, err)
 	var es ExitStatus
 	require.True(t, errors.As(err, &es))
@@ -142,7 +141,7 @@ func TestRemediationRedirect_UnsupportedFdRejectedAtValidation(t *testing.T) {
 	t.Cleanup(func() { _ = r.Close() })
 	r.Dir = dir
 
-	err = r.Run(context.Background(), parseScript(t, "echo x 3> out.txt"))
+	err = r.Run(t.Context(), parseScript(t, "echo x 3> out.txt"))
 	require.Error(t, err)
 	var es ExitStatus
 	require.True(t, errors.As(err, &es), "expected ExitStatus, got %T: %v", err, err)
@@ -159,7 +158,7 @@ func TestRemediationRedirect_NonRegularTargetRejected(t *testing.T) {
 
 	r, _, stderr := newRemediationRunner(t, dir)
 
-	err := r.Run(context.Background(), parseScript(t, "echo x > sub"))
+	err := r.Run(t.Context(), parseScript(t, "echo x > sub"))
 	require.Error(t, err)
 	var es ExitStatus
 	require.True(t, errors.As(err, &es))
@@ -173,11 +172,11 @@ func TestRemediationRedirect_WriteAllBothStreams(t *testing.T) {
 	dir := t.TempDir()
 	r, _, _ := newRemediationRunner(t, dir)
 
-	err := r.Run(context.Background(), parseScript(t, "echo out; echo err >&2"))
+	err := r.Run(t.Context(), parseScript(t, "echo out; echo err >&2"))
 	require.NoError(t, err)
 
 	r2, _, _ := newRemediationRunner(t, dir)
-	err = r2.Run(context.Background(), parseScript(t, "{ echo out; echo err >&2; } &> combined.txt"))
+	err = r2.Run(t.Context(), parseScript(t, "{ echo out; echo err >&2; } &> combined.txt"))
 	require.NoError(t, err)
 
 	data, err := os.ReadFile(filepath.Join(dir, "combined.txt"))

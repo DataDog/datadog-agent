@@ -6,7 +6,6 @@
 package run
 
 import (
-	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
@@ -15,7 +14,7 @@ import (
 
 func TestFxRun(t *testing.T) {
 	fxutil.TestRun(t, func() error {
-		ctx := context.Background()
+		ctx := t.Context()
 		cliParams := Params{GlobalParams: &subcommands.GlobalParams{}}
 		defaultConfPath := ""
 		return runTraceAgentProcess(ctx, &cliParams, defaultConfPath)

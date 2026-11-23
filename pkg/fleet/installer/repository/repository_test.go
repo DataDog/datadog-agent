@@ -26,7 +26,7 @@ func createTestRepository(t *testing.T, dir string, stablePackageName string, pr
 	if preRemoveHook != nil {
 		r.preRemoveHooks = map[string]PreRemoveHook{"repository": preRemoveHook}
 	}
-	err := r.Create(context.Background(), stablePackageName, stablePackagePath)
+	err := r.Create(t.Context(), stablePackageName, stablePackagePath)
 	assert.NoError(t, err)
 	return &r
 }
@@ -104,7 +104,7 @@ func TestSetExperiment(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1", nil)
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(context.Background(), "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment(t.Context(), "v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
 	state, err := repository.GetState()
 
@@ -124,9 +124,9 @@ func TestSetExperimentTwice(t *testing.T) {
 	experiment1DownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 	experiment2DownloadPackagePath := createTestDownloadedPackage(t, dir, "v3")
 
-	err := repository.SetExperiment(context.Background(), "v2", experiment1DownloadPackagePath)
+	err := repository.SetExperiment(t.Context(), "v2", experiment1DownloadPackagePath)
 	assert.NoError(t, err)
-	err = repository.SetExperiment(context.Background(), "v3", experiment2DownloadPackagePath)
+	err = repository.SetExperiment(t.Context(), "v3", experiment2DownloadPackagePath)
 	assert.NoError(t, err)
 	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
 }
@@ -138,7 +138,7 @@ func TestSetExperimentBeforeStable(t *testing.T) {
 	}
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(context.Background(), "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment(t.Context(), "v2", experimentDownloadPackagePath)
 	assert.Error(t, err)
 }
 
@@ -147,9 +147,9 @@ func TestPromoteExperiment(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1", nil)
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(context.Background(), "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment(t.Context(), "v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
-	err = repository.PromoteExperiment(context.Background())
+	err = repository.PromoteExperiment(t.Context())
 	assert.NoError(t, err)
 	state, err := repository.GetState()
 	assert.NoError(t, err)
@@ -167,7 +167,7 @@ func TestPromoteExperimentWithoutExperiment(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1", nil)
 
-	err := repository.PromoteExperiment(context.Background())
+	err := repository.PromoteExperiment(t.Context())
 	assert.Error(t, err)
 }
 
@@ -176,9 +176,9 @@ func TestDeleteExperiment(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1", nil)
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(context.Background(), "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment(t.Context(), "v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
-	err = repository.DeleteExperiment(context.Background())
+	err = repository.DeleteExperiment(t.Context())
 	assert.NoError(t, err)
 	assert.NoDirExists(t, path.Join(repository.rootPath, "v2"))
 }
@@ -187,7 +187,7 @@ func TestDeleteExperimentWithoutExperiment(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1", nil)
 
-	err := repository.DeleteExperiment(context.Background())
+	err := repository.DeleteExperiment(t.Context())
 	assert.NoError(t, err)
 }
 
@@ -197,9 +197,9 @@ func TestDeleteExperimentWithHookAllow(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1", hook)
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(context.Background(), "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment(t.Context(), "v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
-	err = repository.DeleteExperiment(context.Background())
+	err = repository.DeleteExperiment(t.Context())
 	assert.NoError(t, err)
 	assert.NoDirExists(t, path.Join(repository.rootPath, "v2"))
 }
@@ -210,9 +210,9 @@ func TestDeleteExperimentWithHookDeny(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1", hook)
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(context.Background(), "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment(t.Context(), "v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
-	err = repository.DeleteExperiment(context.Background())
+	err = repository.DeleteExperiment(t.Context())
 	assert.NoError(t, err)
 	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
 }
@@ -224,7 +224,7 @@ func TestMigrateRepositoryWithoutExperiment(t *testing.T) {
 	err := os.Remove(path.Join(repository.rootPath, experimentVersionLink))
 	assert.NoError(t, err)
 	assert.NoFileExists(t, path.Join(repository.rootPath, experimentVersionLink))
-	err = repository.Cleanup(context.Background())
+	err = repository.Cleanup(t.Context())
 	assert.NoError(t, err)
 	assertLinkTarget(t, repository, stableVersionLink, "v1")
 	assertLinkTarget(t, repository, experimentVersionLink, "stable")
@@ -234,7 +234,7 @@ func TestDelete(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1", nil)
 
-	err := repository.Delete(context.Background())
+	err := repository.Delete(t.Context())
 	assert.NoError(t, err)
 	assert.NoDirExists(t, repository.rootPath)
 }
@@ -244,7 +244,7 @@ func TestDeleteHookAllow(t *testing.T) {
 	hook := func(context.Context, string) (bool, error) { return true, nil }
 	repository := createTestRepository(t, dir, "v1", hook)
 
-	err := repository.Delete(context.Background())
+	err := repository.Delete(t.Context())
 	assert.NoError(t, err)
 	assert.NoDirExists(t, repository.rootPath)
 }
@@ -254,7 +254,7 @@ func TestDeleteHookDeny(t *testing.T) {
 	hook := func(context.Context, string) (bool, error) { return false, nil }
 	repository := createTestRepository(t, dir, "v1", hook)
 
-	err := repository.Delete(context.Background())
+	err := repository.Delete(t.Context())
 	assert.Error(t, err)
 	assert.DirExists(t, repository.rootPath)
 }
@@ -267,7 +267,7 @@ func TestDeleteExtraFilesDoNotPreventDeletion(t *testing.T) {
 	err := os.WriteFile(extraFilePath, []byte("extra"), 0644)
 	assert.NoError(t, err)
 
-	err = repository.Delete(context.Background())
+	err = repository.Delete(t.Context())
 	assert.NoError(t, err)
 	assert.NoDirExists(t, repository.rootPath)
 }
@@ -277,7 +277,7 @@ func TestDeleteHookDenyDoesNotPreventReinstall(t *testing.T) {
 	hook := func(context.Context, string) (bool, error) { return false, nil }
 	oldRepository := createTestRepository(t, dir, "old", hook)
 
-	err := oldRepository.Delete(context.Background())
+	err := oldRepository.Delete(t.Context())
 	assert.Error(t, err)
 
 	repository := createTestRepository(t, dir, "v1", nil)
@@ -436,7 +436,7 @@ func TestExternalPackage(t *testing.T) {
 	assert.Equal(t, datadogAgentVersion, state.Stable)
 	assert.False(t, state.HasExperiment())
 
-	err = r.Delete(context.Background())
+	err = r.Delete(t.Context())
 	assert.NoError(t, err)
 
 	assert.NoDirExists(t, datadogPackagesDatadogAgentDir)

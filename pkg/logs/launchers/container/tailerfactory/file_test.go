@@ -10,7 +10,6 @@
 package tailerfactory
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -144,7 +143,7 @@ func newWorkloadmetaMock(t *testing.T) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 }
@@ -707,7 +706,7 @@ func TestMakeK8sSource(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	pod, container := makeTestPod()
@@ -797,7 +796,7 @@ func TestGetPodAndContainer_pod_not_found(t *testing.T) {
 	workloadmetaStore := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -946,7 +945,7 @@ func TestLogsConfigFieldCoverage(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	pod, container := makeTestPod()

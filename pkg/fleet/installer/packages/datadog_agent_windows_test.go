@@ -6,7 +6,6 @@
 package packages
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -30,7 +29,7 @@ func TestPreStopExperimentRejectsInvalidMSI(t *testing.T) {
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog-fips-agent-7.83.2-1-x86_64.msi"), nil, 0600))
 			}
 			err := RunHook(HookContext{
-				Context: context.Background(),
+				Context: t.Context(),
 				Package: "datadog-agent",
 				Hook:    "preStopExperiment",
 			})

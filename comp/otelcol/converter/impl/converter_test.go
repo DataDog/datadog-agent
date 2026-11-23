@@ -645,14 +645,14 @@ func TestConvert(t *testing.T) {
 
 			resolver, err := newResolver(uriFromFile(tc.provided))
 			require.NoError(t, err)
-			conf, err := resolver.Resolve(context.Background())
+			conf, err := resolver.Resolve(t.Context())
 			require.NoError(t, err)
 
-			converter.Convert(context.Background(), conf)
+			converter.Convert(t.Context(), conf)
 
 			resolverResult, err := newResolver(uriFromFile(tc.expectedResult))
 			require.NoError(t, err)
-			confResult, err := resolverResult.Resolve(context.Background())
+			confResult, err := resolverResult.Resolve(t.Context())
 			require.NoError(t, err)
 
 			assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
@@ -670,14 +670,14 @@ func TestConvert(t *testing.T) {
 
 			resolver, err := newResolver(uriFromFile(tc.provided))
 			require.NoError(t, err)
-			conf, err := resolver.Resolve(context.Background())
+			conf, err := resolver.Resolve(t.Context())
 			require.NoError(t, err)
 
-			converter.Convert(context.Background(), conf)
+			converter.Convert(t.Context(), conf)
 
 			resolverResult, err := newResolver(uriFromFile(tc.expectedResult))
 			require.NoError(t, err)
-			confResult, err := resolverResult.Resolve(context.Background())
+			confResult, err := resolverResult.Resolve(t.Context())
 			require.NoError(t, err)
 
 			assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
@@ -693,14 +693,14 @@ func TestConvert_APIKeyFromEnvVar(t *testing.T) {
 
 	resolver, err := newResolver(uriFromFile("dd-core-cfg/apikey/unset-number/config.yaml"))
 	assert.NoError(t, err)
-	conf, err := resolver.Resolve(context.Background())
+	conf, err := resolver.Resolve(t.Context())
 	assert.NoError(t, err)
 
-	converter.Convert(context.Background(), conf)
+	converter.Convert(t.Context(), conf)
 
 	resolverResult, err := newResolver(uriFromFile("dd-core-cfg/apikey/unset-number/config-result.yaml"))
 	assert.NoError(t, err)
-	confResult, err := resolverResult.Resolve(context.Background())
+	confResult, err := resolverResult.Resolve(t.Context())
 	assert.NoError(t, err)
 
 	assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
@@ -755,10 +755,10 @@ func TestHostmetricsWarning(t *testing.T) {
 
 			resolver, err := newResolver(uriFromFile(tc.provided))
 			require.NoError(t, err)
-			conf, err := resolver.Resolve(context.Background())
+			conf, err := resolver.Resolve(t.Context())
 			require.NoError(t, err)
 
-			conv.Convert(context.Background(), conf)
+			conv.Convert(t.Context(), conf)
 
 			hostmetricsWarnings := filterLogsBySubstring(logs, "hostmetrics")
 			if tc.wantWarning {
@@ -839,10 +839,10 @@ func TestCumulativeToDeltaMixedExporterWarning(t *testing.T) {
 
 			resolver, err := newResolver(uriFromFile(tc.provided))
 			require.NoError(t, err)
-			conf, err := resolver.Resolve(context.Background())
+			conf, err := resolver.Resolve(t.Context())
 			require.NoError(t, err)
 
-			conv.Convert(context.Background(), conf)
+			conv.Convert(t.Context(), conf)
 
 			warnings := filterLogsBySubstring(logs, tc.substr)
 			if tc.wantWarning {

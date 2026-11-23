@@ -8,7 +8,6 @@
 package dogstatsdclienttelemetryimpl
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"runtime"
@@ -39,7 +38,7 @@ type benchmarkLifecycle struct {
 
 func (l *benchmarkLifecycle) Append(hook compdef.Hook) {
 	if hook.OnStart != nil {
-		require.NoError(l.b, hook.OnStart(context.Background()))
+		require.NoError(l.b, hook.OnStart(l.b.Context()))
 	}
 }
 

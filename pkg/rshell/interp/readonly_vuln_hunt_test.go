@@ -12,7 +12,6 @@ package interp
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 
@@ -43,8 +42,8 @@ func runScriptWithReadonly(t *testing.T, script string) (string, string) {
 	prog, err := parser.Parse(strings.NewReader(script), "")
 	require.NoError(t, err)
 
-	r.fillExpandConfig(context.Background())
-	r.stmts(context.Background(), prog.Stmts)
+	r.fillExpandConfig(t.Context())
+	r.stmts(t.Context(), prog.Stmts)
 
 	return stdout.String(), stderr.String()
 }
@@ -106,8 +105,8 @@ func TestVulnHuntShellFeatureExpansionChain_ReadBuiltinReadonlyTarget(t *testing
 	prog, err := parser.Parse(strings.NewReader("read RO_VAR\necho after=$RO_VAR\n"), "")
 	require.NoError(t, err)
 
-	r.fillExpandConfig(context.Background())
-	r.stmts(context.Background(), prog.Stmts)
+	r.fillExpandConfig(t.Context())
+	r.stmts(t.Context(), prog.Stmts)
 
 	assert.Contains(t, stderr.String(), "readonly variable",
 		"read RO_VAR must produce a readonly error on stderr")
@@ -205,8 +204,8 @@ func TestVulnHuntShellFeatureRedirectionChain_ReadonlyWithRedirect(t *testing.T)
 	prog, err := parser.Parse(strings.NewReader("readonly X=5 > /dev/null\n"), "")
 	require.NoError(t, err)
 
-	r.fillExpandConfig(context.Background())
-	exit := r.Run(context.Background(), prog)
+	r.fillExpandConfig(t.Context())
+	exit := r.Run(t.Context(), prog)
 	_ = exit
 	assert.Contains(t, stderr.String(), "readonly is not supported",
 		"readonly must be blocked at parse validation regardless of redirect")
@@ -240,8 +239,8 @@ func TestVulnHuntShellFeatureParserConfusion_DeclClauseTypesetNameref(t *testing
 				t.Logf("parse error for %s: %v", tc.name, perr)
 				return
 			}
-			r.fillExpandConfig(context.Background())
-			_ = r.Run(context.Background(), prog)
+			r.fillExpandConfig(t.Context())
+			_ = r.Run(t.Context(), prog)
 			assert.Contains(t, stderr.String(), tc.want,
 				"%s must be blocked", tc.name)
 		})
@@ -272,8 +271,8 @@ func TestVulnHuntShellFeatureParserConfusion_QuotedReadonlyKeyword(t *testing.T)
 			parser := syntax.NewParser()
 			prog, perr := parser.Parse(strings.NewReader(tc.script), "")
 			require.NoError(t, perr)
-			r.fillExpandConfig(context.Background())
-			_ = r.Run(context.Background(), prog)
+			r.fillExpandConfig(t.Context())
+			_ = r.Run(t.Context(), prog)
 			// Either the script blocked at validation (still recognized as a
 			// DeclClause), or it executed as a missing command. Either way,
 			// X must NOT be observable as a writable variable assigned to 5
@@ -296,7 +295,7 @@ func TestVulnHuntShellFeatureParserConfusion_QuotedReadonlyKeyword(t *testing.T)
 				r2.stderr = &err2
 				prog2, perr2 := parser.Parse(strings.NewReader("X=10\necho check=$X\n"), "")
 				require.NoError(t, perr2)
-				_ = r2.Run(context.Background(), prog2)
+				_ = r2.Run(t.Context(), prog2)
 				assert.Contains(t, out2.String(), "check=10",
 					"%s: X must not have a sticky readonly bit", tc.name)
 			}
@@ -316,8 +315,8 @@ func TestVulnHuntShellFeatureParserConfusion_CmdSubstReadonly(t *testing.T) {
 	parser := syntax.NewParser()
 	prog, err := parser.Parse(strings.NewReader("echo $(readonly X=5; echo X=$X)\n"), "")
 	require.NoError(t, err)
-	r.fillExpandConfig(context.Background())
-	_ = r.Run(context.Background(), prog)
+	r.fillExpandConfig(t.Context())
+	_ = r.Run(t.Context(), prog)
 	assert.Contains(t, stderr.String(), "readonly is not supported",
 		"readonly nested in $() must still be blocked by validateNode")
 }
@@ -341,8 +340,8 @@ func TestVulnHuntShellFeatureExpansionChain_DefaultAssignmentExpansion(t *testin
 	parser := syntax.NewParser()
 	prog, err := parser.Parse(strings.NewReader(`echo ${RO_VAR:=hacked}`+"\n"), "")
 	require.NoError(t, err)
-	r.fillExpandConfig(context.Background())
-	_ = r.Run(context.Background(), prog)
+	r.fillExpandConfig(t.Context())
+	_ = r.Run(t.Context(), prog)
 	assert.Contains(t, stderr.String(), "not supported",
 		"${var:=value} parameter expansion must be blocked at parse validation")
 	assert.NotContains(t, stdout.String(), "hacked",

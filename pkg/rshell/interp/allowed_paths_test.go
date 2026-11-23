@@ -7,7 +7,6 @@ package interp_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"os"
@@ -44,7 +43,7 @@ func runScript(t *testing.T, script, dir string, opts ...interp.RunnerOption) (s
 		runner.Dir = dir
 	}
 
-	err = runner.Run(context.Background(), prog)
+	err = runner.Run(t.Context(), prog)
 	exitCode = 0
 	if err != nil {
 		var es interp.ExitStatus
@@ -300,7 +299,7 @@ func TestAllowedPathsPinsRootBeforeRun(t *testing.T) {
 	require.NoError(t, os.Rename(allowed, movedAllowed))
 	require.NoError(t, os.Symlink(secret, allowed))
 
-	err = runner.Run(context.Background(), prog)
+	err = runner.Run(t.Context(), prog)
 	require.NoError(t, err)
 	assert.Equal(t, "safe\n", outBuf.String())
 	assert.Empty(t, errBuf.String())
@@ -372,7 +371,7 @@ func TestAllowedPathsClose(t *testing.T) {
 	// Run once so Close is exercised after execution as well as before it.
 	parser := syntax.NewParser()
 	prog, _ := parser.Parse(strings.NewReader("true"), "")
-	_ = runner.Run(context.Background(), prog)
+	_ = runner.Run(t.Context(), prog)
 
 	// Close should not panic, even if called twice
 	require.NoError(t, runner.Close())

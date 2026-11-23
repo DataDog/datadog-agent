@@ -51,7 +51,7 @@ func TestRateLimitedTransportPacesRequests(t *testing.T) {
 
 		var sent []time.Duration
 		for range 3 {
-			resp, err := transport.RoundTrip(newTestRequest(context.Background(), t))
+			resp, err := transport.RoundTrip(newTestRequest(t.Context(), t))
 			require.NoError(t, err)
 			resp.Body.Close()
 			sent = append(sent, time.Since(start))
@@ -68,11 +68,11 @@ func TestRateLimitedTransportMaxWait(t *testing.T) {
 		transport := NewRateLimitedTransport(next, rate.NewLimiter(0.001, 1), 100*time.Millisecond)
 		start := time.Now()
 
-		err := roundTrip(transport, newTestRequest(context.Background(), t))
+		err := roundTrip(transport, newTestRequest(t.Context(), t))
 		require.NoError(t, err)
 
 		// The next token is ~1000s away, the transport fails without waiting for it
-		err = roundTrip(transport, newTestRequest(context.Background(), t))
+		err = roundTrip(transport, newTestRequest(t.Context(), t))
 		require.ErrorIs(t, err, ErrRateLimitTimeout)
 		require.Zero(t, time.Since(start))
 		require.Len(t, next.requests, 1)
@@ -85,10 +85,10 @@ func TestRateLimitedTransportCancelled(t *testing.T) {
 		transport := NewRateLimitedTransport(next, rate.NewLimiter(0.01, 1), time.Hour)
 		start := time.Now()
 
-		err := roundTrip(transport, newTestRequest(context.Background(), t))
+		err := roundTrip(transport, newTestRequest(t.Context(), t))
 		require.NoError(t, err)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		time.AfterFunc(100*time.Millisecond, cancel)
 
 		err = roundTrip(transport, newTestRequest(ctx, t))

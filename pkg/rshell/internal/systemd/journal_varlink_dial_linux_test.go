@@ -8,7 +8,6 @@
 package systemd
 
 import (
-	"context"
 	"net"
 	"os"
 	"path/filepath"
@@ -31,7 +30,7 @@ func TestDialPinnedJournalControlIgnoresPathReplacement(t *testing.T) {
 	require.NoError(t, os.Rename(path, filepath.Join(dir, "original.sock")))
 	attacker := listenUnixSocket(t, path)
 
-	conn, err := dialPinnedJournalControl(context.Background(), int(socket.Fd()))
+	conn, err := dialPinnedJournalControl(t.Context(), int(socket.Fd()))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
 

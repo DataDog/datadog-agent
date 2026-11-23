@@ -61,7 +61,7 @@ func TestInvokeCommandPrefersWithStdin(t *testing.T) {
 	}
 	o := options{cmdName: "echo", maxChars: DefaultMaxChars}
 
-	code, stop := invokeCommand(context.Background(), cc, o, []string{"a"})
+	code, stop := invokeCommand(t.Context(), cc, o, []string{"a"})
 	assert.Equal(t, exitOK, code)
 	assert.False(t, stop)
 	assert.True(t, withStdinCalled, "RunCommandWithStdin must be the preferred path")
@@ -75,7 +75,7 @@ func TestInvokeCommandNilRunCommand(t *testing.T) {
 	cc := newPentestCallCtx(&stdout, &stderr)
 	o := options{cmdName: "echo", maxChars: DefaultMaxChars}
 
-	code, stop := invokeCommand(context.Background(), cc, o, []string{"a"})
+	code, stop := invokeCommand(t.Context(), cc, o, []string{"a"})
 	assert.Equal(t, exitSubCmdNotStart, code)
 	assert.True(t, stop)
 	assert.Contains(t, stderr.String(), "command execution not available")
@@ -95,7 +95,7 @@ func TestInvokeCommandBlockedByPolicy(t *testing.T) {
 	cc.CommandAllowed = func(_ string) bool { return false }
 	o := options{cmdName: "echo", maxChars: DefaultMaxChars}
 
-	code, stop := invokeCommand(context.Background(), cc, o, []string{"a"})
+	code, stop := invokeCommand(t.Context(), cc, o, []string{"a"})
 	assert.Equal(t, exitSubCmdNotStart, code)
 	assert.True(t, stop)
 	assert.False(t, called, "RunCommand must not be called when policy denies")
@@ -112,7 +112,7 @@ func TestInvokeCommandSubProcess255Aborts(t *testing.T) {
 	}
 	o := options{cmdName: "echo", maxChars: DefaultMaxChars}
 
-	code, stop := invokeCommand(context.Background(), cc, o, []string{"a"})
+	code, stop := invokeCommand(t.Context(), cc, o, []string{"a"})
 	assert.Equal(t, exitSubCmd255, code)
 	assert.True(t, stop)
 	assert.Contains(t, stderr.String(), "exited with status 255")
@@ -128,7 +128,7 @@ func TestInvokeCommandSubProcessFailureContinues(t *testing.T) {
 	}
 	o := options{cmdName: "false", maxChars: DefaultMaxChars}
 
-	code, stop := invokeCommand(context.Background(), cc, o, nil)
+	code, stop := invokeCommand(t.Context(), cc, o, nil)
 	assert.Equal(t, exitSubCmdFailed, code)
 	assert.False(t, stop)
 }
@@ -143,7 +143,7 @@ func TestInvokeCommandRunErrorAborts(t *testing.T) {
 	}
 	o := options{cmdName: "echo", maxChars: DefaultMaxChars}
 
-	code, stop := invokeCommand(context.Background(), cc, o, []string{"a"})
+	code, stop := invokeCommand(t.Context(), cc, o, []string{"a"})
 	assert.Equal(t, exitSubCmdNotStart, code)
 	assert.True(t, stop)
 	assert.Contains(t, stderr.String(), "boom")
@@ -160,7 +160,7 @@ func TestInvokeCommandPreCancelledContext(t *testing.T) {
 		return 0, nil
 	}
 	o := options{cmdName: "echo", maxChars: DefaultMaxChars}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	code, stop := invokeCommand(ctx, cc, o, []string{"a"})
@@ -222,7 +222,7 @@ func TestTokenizerInfiniteSafety(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			tok := newTokenizer(&infiniteReader{b: tc.b}, tc.o)
-			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
 			defer cancel()
 
 			done := make(chan struct{})
@@ -265,7 +265,7 @@ func TestTokenizerInfiniteCancelOnSeparators(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			tok := newTokenizer(&infiniteReader{b: tc.b}, tc.o)
-			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
 			defer cancel()
 
 			done := make(chan struct{})

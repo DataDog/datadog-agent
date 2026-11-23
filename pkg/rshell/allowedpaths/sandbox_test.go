@@ -157,7 +157,7 @@ func TestSandboxWriteRegularFile(t *testing.T) {
 	defer sb.Close()
 	sb.SetWritable()
 
-	mutated, err := sb.WriteRegularFile(context.Background(), "data.txt", dir, []byte("short"), nil)
+	mutated, err := sb.WriteRegularFile(t.Context(), "data.txt", dir, []byte("short"), nil)
 	require.NoError(t, err)
 	assert.True(t, mutated, "a successful write must report having mutated the file")
 
@@ -177,7 +177,7 @@ func TestSandboxWriteRegularFileLongerContent(t *testing.T) {
 	defer sb.Close()
 	sb.SetWritable()
 
-	_, err = sb.WriteRegularFile(context.Background(), "data.txt", dir, []byte("much longer replacement content"), nil)
+	_, err = sb.WriteRegularFile(t.Context(), "data.txt", dir, []byte("much longer replacement content"), nil)
 	require.NoError(t, err)
 
 	got, err := os.ReadFile(path)
@@ -197,7 +197,7 @@ func TestSandboxWriteRegularFileReadOnlyRejected(t *testing.T) {
 	// read-only, and WriteRegularFile must refuse a write in that mode
 	// exactly like Open/Truncate do.
 
-	_, err = sb.WriteRegularFile(context.Background(), "data.txt", dir, []byte("new"), nil)
+	_, err = sb.WriteRegularFile(t.Context(), "data.txt", dir, []byte("new"), nil)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, os.ErrPermission))
 
@@ -214,7 +214,7 @@ func TestSandboxWriteRegularFileMissingFileNotCreated(t *testing.T) {
 	defer sb.Close()
 	sb.SetWritable()
 
-	_, err = sb.WriteRegularFile(context.Background(), "missing.txt", dir, []byte("new"), nil)
+	_, err = sb.WriteRegularFile(t.Context(), "missing.txt", dir, []byte("new"), nil)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, fs.ErrNotExist))
 
@@ -233,7 +233,7 @@ func TestSandboxWriteRegularFileOutsideAllowedPathsRejected(t *testing.T) {
 	defer sb.Close()
 	sb.SetWritable()
 
-	_, err = sb.WriteRegularFile(context.Background(), path, dir, []byte("pwned"), nil)
+	_, err = sb.WriteRegularFile(t.Context(), path, dir, []byte("pwned"), nil)
 	require.Error(t, err)
 
 	got, readErr := os.ReadFile(path)
@@ -250,13 +250,13 @@ func TestSandboxWriteRegularFileRejectsDirectory(t *testing.T) {
 	defer sb.Close()
 	sb.SetWritable()
 
-	_, err = sb.WriteRegularFile(context.Background(), "subdir", dir, []byte("new"), nil)
+	_, err = sb.WriteRegularFile(t.Context(), "subdir", dir, []byte("new"), nil)
 	require.Error(t, err)
 }
 
 func TestSandboxWriteRegularFileNilSandbox(t *testing.T) {
 	var sb *Sandbox
-	_, err := sb.WriteRegularFile(context.Background(), "data.txt", "/tmp", []byte("new"), nil)
+	_, err := sb.WriteRegularFile(t.Context(), "data.txt", "/tmp", []byte("new"), nil)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, os.ErrPermission))
 }
@@ -274,7 +274,7 @@ func TestSandboxWriteRegularFileRefusesAlreadyCancelledContext(t *testing.T) {
 	defer sb.Close()
 	sb.SetWritable()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	mutated, err := sb.WriteRegularFile(ctx, "data.txt", dir, []byte("new"), nil)
@@ -321,7 +321,7 @@ func TestSandboxWriteRegularFileStopsMidWriteOnCancellation(t *testing.T) {
 	// synchronous implementation's own internal behavior deterministically
 	// — the bounded wrapper's race/abandon behavior is covered separately
 	// by TestWriteAndTruncateBoundedAbandonsOnPermanentStall below.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cc := &cancelAfterNCalls{Context: ctx, cancel: cancel, cancelAfter: 2}
 
 	data := make([]byte, writeRegularFileChunkBytes*3)
@@ -370,7 +370,7 @@ func TestWriteChunkedCancellableTreatsPartialWriteAsMutation(t *testing.T) {
 	writeErr := errors.New("no space left on device")
 	w := &partialThenFailWriter{writeN: 3, err: writeErr}
 
-	wroteAny, err := writeChunkedCancellable(context.Background(), w, []byte("some data to write"))
+	wroteAny, err := writeChunkedCancellable(t.Context(), w, []byte("some data to write"))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, writeErr)
 	assert.True(t, wroteAny, "a partial write (n > 0 alongside an error) must still be reported as having mutated the target")
@@ -383,7 +383,7 @@ func TestWriteChunkedCancellableNoWriteIsNotAMutation(t *testing.T) {
 	writeErr := errors.New("no space left on device")
 	w := &partialThenFailWriter{writeN: 0, err: writeErr}
 
-	wroteAny, err := writeChunkedCancellable(context.Background(), w, []byte("some data to write"))
+	wroteAny, err := writeChunkedCancellable(t.Context(), w, []byte("some data to write"))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, writeErr)
 	assert.False(t, wroteAny, "a Write call that wrote zero bytes before failing must not be reported as having mutated the target")
@@ -419,7 +419,7 @@ func TestSandboxWriteRegularFileRechecksCancellationBeforeTruncatingEmptyWrite(t
 	f, err := os.OpenFile(path, os.O_WRONLY, 0)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cc := &cancelAfterNCalls{Context: ctx, cancel: cancel, cancelAfter: 1}
 
 	mutated, err := writeAndTruncateSync(cc, f, []byte(""))
@@ -452,7 +452,7 @@ func TestRaceAcquisitionAgainstContextHonorsCancellationBeforeAcquisitionComplet
 		return nil, errors.New("unused")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	start := time.Now()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -479,7 +479,7 @@ func TestRaceAcquisitionAgainstContextReturnsResultWhenFasterThanCancellation(t 
 
 	acquire := func() (*os.File, error) { return f, nil }
 
-	got, err := raceAcquisitionAgainstContext(context.Background(), acquire)
+	got, err := raceAcquisitionAgainstContext(t.Context(), acquire)
 	require.NoError(t, err)
 	assert.Same(t, f, got)
 }
@@ -502,7 +502,7 @@ func TestRaceAcquisitionAgainstContextCapsOutstandingAbandonedAcquisitions(t *te
 		return nil, errors.New("acquisition released by test cleanup")
 	}
 
-	alreadyCancelled, cancel := context.WithCancel(context.Background())
+	alreadyCancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	// Fill every slot with an acquisition that stays blocked until cleanup.
@@ -514,7 +514,7 @@ func TestRaceAcquisitionAgainstContextCapsOutstandingAbandonedAcquisitions(t *te
 
 	// No acquisition can complete yet, so the next call must fail fast.
 	fastAcquire := func() (*os.File, error) { return nil, nil }
-	_, err := raceAcquisitionAgainstContext(context.Background(), fastAcquire)
+	_, err := raceAcquisitionAgainstContext(t.Context(), fastAcquire)
 	require.Error(t, err, "a call made while every slot is held by a permanently-stuck abandoned acquisition must fail fast, not block or silently exceed the cap")
 	assert.Contains(t, err.Error(), "too many in-flight write acquisitions")
 }
@@ -542,7 +542,7 @@ func TestSandboxWriteRegularFileAcquisitionHonorsCancelledContext(t *testing.T) 
 	// alone does not distinguish old from new behavior; it exists here
 	// mainly to confirm WriteRegularFile still behaves correctly (untouched
 	// file, cancellation error) with the new acquisition path in place.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	_, err = sb.WriteRegularFile(ctx, "data.txt", dir, []byte("new"), nil)
@@ -579,7 +579,7 @@ func TestWriteAndTruncateBoundedAbandonsOnPermanentStall(t *testing.T) {
 	f, err := os.OpenFile(path, os.O_WRONLY, 0)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	start := time.Now()
@@ -617,7 +617,7 @@ func TestWriteAndTruncateBoundedReleasesSlotBeforeReturning(t *testing.T) {
 	for range 1000 {
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0600)
 		require.NoError(t, err)
-		mutated, err := writeAndTruncateBounded(context.Background(), f, []byte("x"))
+		mutated, err := writeAndTruncateBounded(t.Context(), f, []byte("x"))
 		occupied := len(writeAcquisitionSlots)
 		require.NoError(t, err)
 		require.True(t, mutated)
@@ -644,7 +644,7 @@ func TestWaitForWriteOutcomeResolvesOnceAbandonedWriterFinishes(t *testing.T) {
 		done <- want
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	mutated, resultErr, resolved := WaitForWriteOutcome(ctx, err)
 	assert.True(t, resolved, "the abandoned writer's real result must be observed once it lands within the timeout")
@@ -654,7 +654,7 @@ func TestWaitForWriteOutcomeResolvesOnceAbandonedWriterFinishes(t *testing.T) {
 
 // With both channels ready, completed results must win over an expired wait.
 func TestWaitForWriteOutcomePrefersBufferedResultOverExpiredTimer(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	ctx, cancel := context.WithTimeout(t.Context(), 0)
 	defer cancel()
 	done := make(chan writeMutationResult, 1)
 	want := writeMutationResult{mutated: true, err: errors.New("disk quota exceeded")}
@@ -685,7 +685,7 @@ func TestWaitForWriteOutcomeGivesUpAfterTimeout(t *testing.T) {
 	done := make(chan writeMutationResult, 1)
 	err := &writeOutcomeUnknownError{ctxErr: context.Canceled, done: done}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	defer cancel()
 	mutated, resultErr, resolved := WaitForWriteOutcome(ctx, err)
 	assert.False(t, resolved, "a writer that never finishes within the timeout must not be reported as resolved")
@@ -696,7 +696,7 @@ func TestWaitForWriteOutcomeGivesUpAfterTimeout(t *testing.T) {
 func TestWaitForWriteOutcomeHonorsExplicitCancellation(t *testing.T) {
 	done := make(chan writeMutationResult)
 	err := &writeOutcomeUnknownError{ctxErr: context.DeadlineExceeded, done: done}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	returned := make(chan bool, 1)
 	go func() {
 		_, _, resolved := WaitForWriteOutcome(ctx, err)
@@ -719,7 +719,7 @@ func TestWaitForWriteOutcomeHonorsExplicitCancellation(t *testing.T) {
 // should need to handle.
 func TestWaitForWriteOutcomePanicsOnWrongErrorType(t *testing.T) {
 	assert.Panics(t, func() {
-		WaitForWriteOutcome(context.Background(), errors.New("not a write-outcome-unknown error"))
+		WaitForWriteOutcome(t.Context(), errors.New("not a write-outcome-unknown error"))
 	})
 }
 
@@ -824,7 +824,7 @@ func TestSandboxWriteRegularFileAcceptsMatchingIdentity(t *testing.T) {
 	defer sb.Close()
 	sb.SetWritable()
 
-	_, err = sb.WriteRegularFile(context.Background(), "data.txt", dir, []byte("updated"), info)
+	_, err = sb.WriteRegularFile(t.Context(), "data.txt", dir, []byte("updated"), info)
 	require.NoError(t, err)
 
 	got, err := os.ReadFile(path)
@@ -865,7 +865,7 @@ func TestSandboxWriteRegularFileRejectsIdentityMismatch(t *testing.T) {
 	defer sb.Close()
 	sb.SetWritable()
 
-	_, err = sb.WriteRegularFile(context.Background(), "data.txt", dir, []byte("attacker-derived content"), originalInfo)
+	_, err = sb.WriteRegularFile(t.Context(), "data.txt", dir, []byte("attacker-derived content"), originalInfo)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "file identity changed")
 
@@ -888,7 +888,7 @@ func TestSandboxWriteRegularFileSkipsIdentityCheckWhenNil(t *testing.T) {
 	defer sb.Close()
 	sb.SetWritable()
 
-	_, err = sb.WriteRegularFile(context.Background(), "data.txt", dir, []byte("new"), nil)
+	_, err = sb.WriteRegularFile(t.Context(), "data.txt", dir, []byte("new"), nil)
 	require.NoError(t, err)
 	got, err := os.ReadFile(path)
 	require.NoError(t, err)

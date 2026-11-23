@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -129,7 +128,7 @@ func TestSetNS(t *testing.T) {
 		own := ownNamespaceIDs(t, test)
 
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "net")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "setns", "net")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setns_netns")
 			assert.Equal(t, "setns", event.GetType(), "wrong event type")
@@ -146,7 +145,7 @@ func TestSetNS(t *testing.T) {
 		own := ownNamespaceIDs(t, test)
 
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "mnt")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "setns", "mnt")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setns_mntns")
 			assert.Equal(t, "setns", event.GetType(), "wrong event type")
@@ -167,7 +166,7 @@ func TestSetNS(t *testing.T) {
 		own := ownNamespaceIDs(t, test)
 
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "any")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "setns", "any")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setns_netns")
 			assert.Equal(t, "setns", event.GetType(), "wrong event type")
@@ -188,7 +187,7 @@ func TestSetNS(t *testing.T) {
 		own := ownNamespaceIDs(t, test)
 
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "pidfd")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "setns", "pidfd")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setns_netns")
 			assert.Equal(t, "setns", event.GetType(), "wrong event type")
@@ -210,7 +209,7 @@ func TestSetNS(t *testing.T) {
 		})
 
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "pidfd-denied")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "setns", "pidfd-denied")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setns_netns_denied")
 			assert.Equal(t, "setns", event.GetType(), "wrong event type")
@@ -231,7 +230,7 @@ func TestSetNS(t *testing.T) {
 		}
 
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "netns-roundtrip")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "setns", "netns-roundtrip")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setns_netns")
 			assert.Equal(t, "setns", event.GetType(), "wrong event type")
@@ -260,7 +259,7 @@ func TestSetNS(t *testing.T) {
 		hostMntNS := nsInode(t, hostMntNSPath)
 
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "mnt-unshared", hostMntNSPath)
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "setns", "mnt-unshared", hostMntNSPath)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setns_mntns_host")
 			assert.Equal(t, int64(0), event.SetNS.Retval, "setns should have succeeded")
@@ -283,7 +282,7 @@ func TestSetNS(t *testing.T) {
 		hostMntNS := nsInode(t, hostMntNSPath)
 
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "mnt-unshared", "/proc/self/ns/mnt")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "setns", "mnt-unshared", "/proc/self/ns/mnt")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setns_mntns")
 			assert.Equal(t, int64(0), event.SetNS.Retval, "setns should have succeeded")

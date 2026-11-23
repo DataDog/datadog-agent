@@ -132,7 +132,7 @@ func (m *mockTraceWriter) UpdateAPIKey(_, _ string) {}
 func TestSpanModifierDetectsCloudService(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	testOriginTags := func(withModifier bool, expectedOrigin string) {

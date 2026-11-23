@@ -35,7 +35,7 @@ func TestEnrollmentUsesPAROverride(t *testing.T) {
 		cfg.SetInTest("private_action_runner.par_dd_url", server.URL+"/prefix/")
 		cfg.SetInTest("private_action_runner.enabled", true)
 		cfg.SetInTest("remote_configuration.rc_dd_url", "https://rc-proxy.example.com")
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		id := &AgentIdentifier{Hostname: "test-host"}
 		if apiKeyOnly {
 			_, err := SelfEnrollApiKeyOnly(ctx, cfg, "datadoghq.eu", "test", "api-key", id, nil)

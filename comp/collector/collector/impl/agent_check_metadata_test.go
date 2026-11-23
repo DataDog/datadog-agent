@@ -6,7 +6,6 @@
 package collectorimpl
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -60,7 +59,7 @@ func TestExternalHostTags(t *testing.T) {
 		AgentTelemetry:   option.None[agenttelemetry.Component](),
 	})
 
-	pl := c.GetPayload(context.Background())
+	pl := c.GetPayload(t.Context())
 	hpl := pl.ExternalhostTags
 	assert.Len(t, hpl, 2)
 	for _, elem := range hpl {
@@ -199,7 +198,7 @@ func TestGetPayloadCheckMessageTruncation(t *testing.T) {
 			expvars.AddCheckStats(errCheck, 0, errors.New(longMsg), nil, checkstats.SenderStats{}, haagentmock.NewMockHaAgent())
 			expvars.AddCheckStats(warnCheck, 0, nil, []error{errors.New(longMsg)}, checkstats.SenderStats{}, haagentmock.NewMockHaAgent())
 
-			pl := newUnstartedTestCollector(t, test.overrides).GetPayload(context.Background())
+			pl := newUnstartedTestCollector(t, test.overrides).GetPayload(t.Context())
 
 			statuses := map[checkid.ID][]interface{}{}
 			for _, entry := range pl.AgentChecks {

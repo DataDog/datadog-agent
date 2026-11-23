@@ -72,7 +72,7 @@ func TestCRIUtilExecSync(t *testing.T) {
 		clientV1:     client,
 	}
 
-	stdout, stderr, exitCode, err := util.ExecSync(context.Background(), "container-id", []string{"cat", "/etc/redis/redis.conf"}, 3*time.Second)
+	stdout, stderr, exitCode, err := util.ExecSync(t.Context(), "container-id", []string{"cat", "/etc/redis/redis.conf"}, 3*time.Second)
 
 	require.NoError(t, err)
 	assert.Equal(t, []byte("stdout"), stdout)
@@ -93,7 +93,7 @@ func TestCRIUtilExecSyncReturnsClientError(t *testing.T) {
 		},
 	}
 
-	stdout, stderr, exitCode, err := util.ExecSync(context.Background(), "container-id", []string{"cat", "/etc/redis/redis.conf"}, time.Second)
+	stdout, stderr, exitCode, err := util.ExecSync(t.Context(), "container-id", []string{"cat", "/etc/redis/redis.conf"}, time.Second)
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, stdout)

@@ -8,7 +8,6 @@
 package cluster
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -475,7 +474,7 @@ func TestCheckValidNodeClass(t *testing.T) {
 			knp := nodePoolWithRequirements()
 			knp.Spec.Template.Spec.NodeClassRef = tt.existingRef
 
-			result, err := c.checkValidNodeClass(context.Background(), knp)
+			result, err := c.checkValidNodeClass(t.Context(), knp)
 			if tt.expectedErr {
 				assert.Error(t, err)
 				return
@@ -568,7 +567,7 @@ func TestDiscoverNodeClass(t *testing.T) {
 				Controller: &autoscaling.Controller{Client: fakeClient},
 			}
 
-			ref, err := c.discoverNodeClass(context.Background(), tt.knp)
+			ref, err := c.discoverNodeClass(t.Context(), tt.knp)
 			if tt.expectedErr {
 				assert.Error(t, err)
 				return
@@ -597,7 +596,7 @@ func TestDiscoverNodeClassAmbiguityErrorReportsEveryTier(t *testing.T) {
 		Controller: &autoscaling.Controller{Client: fakeClient},
 	}
 
-	_, err := c.discoverNodeClass(context.Background(), nodePoolWithRequirements())
+	_, err := c.discoverNodeClass(t.Context(), nodePoolWithRequirements())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), eksNodeClassGVR.Group)
 	assert.Contains(t, err.Error(), ec2NodeClassGVR.Group)
@@ -622,7 +621,7 @@ func TestDiscoverNodeClassReportsBothAmbiguityAndListErrorWhenBothOccur(t *testi
 		Controller: &autoscaling.Controller{Client: fakeClient},
 	}
 
-	_, err := c.discoverNodeClass(context.Background(), nodePoolWithRequirements())
+	_, err := c.discoverNodeClass(t.Context(), nodePoolWithRequirements())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), eksNodeClassGVR.Group)
 	assert.Contains(t, err.Error(), "rbac denied")
@@ -646,7 +645,7 @@ func TestDiscoverNodeClassListErrorDoesNotAbortLaterTier(t *testing.T) {
 		Controller: &autoscaling.Controller{Client: fakeClient},
 	}
 
-	ref, err := c.discoverNodeClass(context.Background(), nodePoolWithRequirements())
+	ref, err := c.discoverNodeClass(t.Context(), nodePoolWithRequirements())
 	require.NoError(t, err)
 	assert.Equal(t, "only-ec2-nodeclass", ref.Name)
 }
@@ -665,7 +664,7 @@ func TestDiscoverNodeClassListErrorReturnedWhenNoTierSucceeds(t *testing.T) {
 		Controller: &autoscaling.Controller{Client: fakeClient},
 	}
 
-	_, err := c.discoverNodeClass(context.Background(), nodePoolWithRequirements())
+	_, err := c.discoverNodeClass(t.Context(), nodePoolWithRequirements())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "rbac denied")
 }

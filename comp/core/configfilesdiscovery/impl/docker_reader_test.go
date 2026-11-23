@@ -76,7 +76,7 @@ func TestDockerReaderReadFileReturnsFullContent(t *testing.T) {
 			}
 			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-			file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
+			file, err := reader.ReadFile(t.Context(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
 
 			require.NoError(t, err)
 			assert.Equal(t, "/etc/redis/redis.conf", file.Path)
@@ -102,7 +102,7 @@ func TestDockerReaderReadFileTruncatesLargeContent(t *testing.T) {
 	}
 	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
+	file, err := reader.ReadFile(t.Context(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
 
 	require.NoError(t, err)
 	assert.Equal(t, "/etc/redis/redis.conf", file.Path)
@@ -147,7 +147,7 @@ func TestDockerReaderReadFileClosesArchiveBody(t *testing.T) {
 			client := &fakeDockerClient{copyBody: body}
 			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-			_, _ = reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
+			_, _ = reader.ReadFile(t.Context(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
 
 			assert.True(t, body.closed)
 		})
@@ -222,7 +222,7 @@ func TestDockerReaderReadFileErrors(t *testing.T) {
 			}
 			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-			file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, tt.path))
+			file, err := reader.ReadFile(t.Context(), verifyTestConfigFilePath(t, tt.path))
 
 			require.Error(t, err)
 			assert.Empty(t, file)
@@ -313,7 +313,7 @@ func TestDockerReaderReadMatchingFiles(t *testing.T) {
 			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
 			search := verifyTestConfigFileSearch(t, tt.root, tt.pattern)
-			results, limited, err := reader.ReadMatchingFiles(context.Background(), search, tt.maxMatches, matchTestFilePattern(tt.pattern))
+			results, limited, err := reader.ReadMatchingFiles(t.Context(), search, tt.maxMatches, matchTestFilePattern(tt.pattern))
 
 			require.NoError(t, err)
 			files := readConfigFileResults(t, results)
@@ -362,7 +362,7 @@ func TestDockerReaderReadMatchingFilesErrors(t *testing.T) {
 			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
 			search := verifyTestConfigFileSearch(t, "/etc/redis", "/etc/redis/*.conf")
-			results, limited, err := reader.ReadMatchingFiles(context.Background(), search, tt.maxMatches, matchTestFilePattern("/etc/redis/*.conf"))
+			results, limited, err := reader.ReadMatchingFiles(t.Context(), search, tt.maxMatches, matchTestFilePattern("/etc/redis/*.conf"))
 
 			require.Error(t, err)
 			assert.Nil(t, results)
@@ -383,7 +383,7 @@ func TestDockerReaderReadMatchingFilesRetainsReadErrors(t *testing.T) {
 	reader := &dockerConfigReader{containerID: "container-id", client: client}
 	search := verifyTestConfigFileSearch(t, "/etc/redis", "/etc/redis/*.conf")
 
-	results, limited, err := reader.ReadMatchingFiles(context.Background(), search, 1, matchTestFilePattern("/etc/redis/*.conf"))
+	results, limited, err := reader.ReadMatchingFiles(t.Context(), search, 1, matchTestFilePattern("/etc/redis/*.conf"))
 
 	require.NoError(t, err)
 	assert.False(t, limited)
@@ -398,7 +398,7 @@ func TestDockerReaderReadEnvVarsSkipsInspectForNilPredicate(t *testing.T) {
 	client := &fakeDockerClient{}
 	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	env, err := reader.ReadEnvVars(context.Background(), nil)
+	env, err := reader.ReadEnvVars(t.Context(), nil)
 
 	require.NoError(t, err)
 	assert.Empty(t, env)
@@ -411,7 +411,7 @@ func TestDockerReaderReadEnvVarsFiltersWithPredicate(t *testing.T) {
 	}
 	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	env, err := reader.ReadEnvVars(context.Background(), func(name string) bool {
+	env, err := reader.ReadEnvVars(t.Context(), func(name string) bool {
 		return name == "KAFKA_NODE_ID"
 	})
 
@@ -427,7 +427,7 @@ func TestDockerReaderReadEnvVarsSurfacesGetEnvErrors(t *testing.T) {
 	client := &fakeDockerClient{getEnvErr: expectedErr}
 	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	env, err := reader.ReadEnvVars(context.Background(), func(name string) bool {
+	env, err := reader.ReadEnvVars(t.Context(), func(name string) bool {
 		return name == "KAFKA_NODE_ID"
 	})
 
@@ -488,7 +488,7 @@ func TestDockerReaderReadRuntimeCommandline(t *testing.T) {
 			}
 			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-			commandline, err := reader.ReadRuntimeCommandline(context.Background())
+			commandline, err := reader.ReadRuntimeCommandline(t.Context())
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, commandline)
@@ -502,7 +502,7 @@ func TestDockerReaderReadRuntimeCommandlineSurfacesGetCommandlineErrors(t *testi
 	client := &fakeDockerClient{getCommandlineErr: expectedErr}
 	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	commandline, err := reader.ReadRuntimeCommandline(context.Background())
+	commandline, err := reader.ReadRuntimeCommandline(t.Context())
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Empty(t, commandline)

@@ -254,7 +254,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *tracer.Tracer, c
 
 		go srv.Serve(lis)
 		t.Cleanup(func() {
-			_ = srv.Shutdown(context.Background())
+			_ = srv.Shutdown(t.Context())
 			_ = lis.Close()
 		})
 		_, port, err := net.SplitHostPort(srv.Addr)
@@ -280,7 +280,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *tracer.Tracer, c
 		}, false)
 		require.NoError(t, err)
 		defer grpcClient.Close()
-		_ = grpcClient.HandleUnary(context.Background(), "test")
+		_ = grpcClient.HandleUnary(t.Context(), "test")
 		waitForConnectionsWithProtocol(t, tr, targetAddr, srv.Addr, &protocols.Stack{API: protocols.GRPC, Application: protocols.HTTP2})
 	})
 }
@@ -1642,7 +1642,7 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*protocolsmongo.Client)
 				db := client.C.Database("test")
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				require.NoError(t, db.CreateCollection(timedContext, "collection"))
 			},
@@ -1665,7 +1665,7 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				require.NoError(t, err)
 				ctx.extras["client"] = client
 				db := client.C.Database("test")
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				require.NoError(t, db.CreateCollection(timedContext, "collection"))
 				ctx.extras["collection"] = db.Collection("collection")
@@ -1673,7 +1673,7 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				collection := ctx.extras["collection"].(*mongo.Collection)
 				input := map[string]string{"test": "test"}
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				_, err := collection.InsertOne(timedContext, input)
 				require.NoError(t, err)
@@ -1697,12 +1697,12 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				require.NoError(t, err)
 				ctx.extras["client"] = client
 				db := client.C.Database("test")
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				require.NoError(t, db.CreateCollection(timedContext, "collection"))
 				cancel()
 				collection := db.Collection("collection")
 				ctx.extras["input"] = map[string]string{"test": "test"}
-				timedContext, cancel = context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel = context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				_, err = collection.InsertOne(timedContext, ctx.extras["input"])
 				require.NoError(t, err)
@@ -1711,7 +1711,7 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				collection := ctx.extras["collection"].(*mongo.Collection)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				res := collection.FindOne(timedContext, bson.M{"test": "test"})
 				require.NoError(t, res.Err())
@@ -1786,7 +1786,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 
 	redisTeardown := func(_ *testing.T, ctx testContext) {
 		if client, ok := ctx.extras["client"].(*redis2.Client); ok {
-			timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 			defer cancel()
 			require.NoError(t, client.FlushDB(timedContext).Err())
 		}
@@ -1809,14 +1809,14 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
 				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
 				require.NoError(t, err)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
 				ctx.extras["client"] = client
 			},
 			postTracerSetup: func(_ *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*redis2.Client)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				client.Set(timedContext, "key", "value", time.Minute)
 			},
@@ -1834,14 +1834,14 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
 				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
 				require.NoError(t, err)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				client.Set(timedContext, "key", "value", time.Minute)
 				ctx.extras["client"] = client
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*redis2.Client)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				res := client.Get(timedContext, "key")
 				val, err := res.Result()
@@ -1862,14 +1862,14 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
 				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
 				require.NoError(t, err)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
 				ctx.extras["client"] = client
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*redis2.Client)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				res := client.Get(timedContext, "unknown")
 				require.Error(t, res.Err())
@@ -1886,7 +1886,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				extras:        make(map[string]interface{}),
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				conn, err := defaultDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
 				require.NoError(t, err)
@@ -1906,14 +1906,14 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
 				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
 				require.NoError(t, err)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
 				ctx.extras["client"] = client
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*redis2.Client)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				res := client.ClientID(timedContext)
 				require.NoError(t, res.Err())
@@ -2182,7 +2182,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				}, false)
 				require.NoError(t, err)
 				defer c.Close()
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				require.NoError(t, c.HandleUnary(timedContext, "test"))
 			},
@@ -2197,7 +2197,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				}, false)
 				require.NoError(t, err)
 				defer c.Close()
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 				defer cancel()
 				require.NoError(t, c.HandleStream(timedContext, 5))
 			},
@@ -2601,17 +2601,17 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 	require.NoError(t, client.CreateTopic(topicName2))
 
 	record1 := &kgo.Record{Topic: topicName1, Value: []byte("Hello Kafka!")}
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctxTimeout, cancel := context.WithTimeout(t.Context(), time.Second*5)
 	defer cancel()
 	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record1).FirstErr(), "record had a produce error while synchronously producing")
 
 	record2 := &kgo.Record{Topic: topicName2, Value: []byte("Hello Kafka!")}
-	ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
+	ctxTimeout, cancel = context.WithTimeout(t.Context(), time.Second*5)
 	defer cancel()
 	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record2).FirstErr(), "record had a produce error while synchronously producing")
 
 	client.Client.AddConsumeTopics(topicName2)
-	fetches := client.Client.PollFetches(context.Background())
+	fetches := client.Client.PollFetches(t.Context())
 	require.Empty(t, fetches.Errors())
 	require.Len(t, fetches.Records(), 1)
 
@@ -2750,18 +2750,18 @@ func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
 	client, err := redis.NewClient(serverAddress, &net.Dialer{}, false, redisProtocolVersion)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 		defer cancel()
 		require.NoError(t, client.FlushDB(timedContext).Err())
 		require.NoError(t, client.Close())
 	})
 
-	timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
 	defer cancel()
 	keyName := "key"
 	require.NoError(t, client.Set(timedContext, keyName, "value", time.Minute).Err())
 
-	timedContext2, cancel2 := context.WithTimeout(context.Background(), defaultTimeout)
+	timedContext2, cancel2 := context.WithTimeout(t.Context(), defaultTimeout)
 	defer cancel2()
 	for i := 0; i < 2; i++ {
 		res := client.Get(timedContext2, keyName)

@@ -7,7 +7,6 @@ package interp_test
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"runtime"
@@ -47,7 +46,7 @@ func runMeasured(t *testing.T, script string, stdin io.Reader, stderr io.Writer,
 	runtime.GC()
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	_ = runner.Run(context.Background(), prog)
+	_ = runner.Run(t.Context(), prog)
 	runtime.ReadMemStats(&after)
 	return outBuf.String(), after.TotalAlloc - before.TotalAlloc
 }

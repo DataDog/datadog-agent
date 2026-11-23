@@ -8,7 +8,6 @@
 package envoygateway
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -63,7 +62,7 @@ func newTestPatternForEnableBackend(t *testing.T, fakeRecorder *record.FakeRecor
 
 func seedConfigMap(t *testing.T, client *dynamicfake.FakeDynamicClient, namespace, yamlContent string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	cm := &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": "v1",
@@ -82,7 +81,7 @@ func seedConfigMap(t *testing.T, client *dynamicfake.FakeDynamicClient, namespac
 }
 
 func TestIsBackendExtensionEnabled_TrueWithExtraKeys(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeRecorder := record.NewFakeRecorder(10)
 	pattern, client := newTestPatternForEnableBackend(t, fakeRecorder)
 
@@ -106,7 +105,7 @@ extensionApis:
 }
 
 func TestWarnIfBackendDisabled_NoeventWhenEnabled(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeRecorder := record.NewFakeRecorder(10)
 	pattern, client := newTestPatternForEnableBackend(t, fakeRecorder)
 
@@ -124,7 +123,7 @@ extensionApis:
 }
 
 func TestIsBackendExtensionEnabled_FalseWhenDisabled(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeRecorder := record.NewFakeRecorder(10)
 	pattern, client := newTestPatternForEnableBackend(t, fakeRecorder)
 
@@ -141,7 +140,7 @@ extensionApis:
 }
 
 func TestIsBackendExtensionEnabled_MalformedYAMLReturnsError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeRecorder := record.NewFakeRecorder(10)
 	pattern, client := newTestPatternForEnableBackend(t, fakeRecorder)
 	seedConfigMap(t, client, envoyGatewaySystemNamespace, "extensionApis: [")
@@ -153,7 +152,7 @@ func TestIsBackendExtensionEnabled_MalformedYAMLReturnsError(t *testing.T) {
 }
 
 func TestIsBackendExtensionEnabled_MalformedDataValueReturnsError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeRecorder := record.NewFakeRecorder(10)
 	pattern, client := newTestPatternForEnableBackend(t, fakeRecorder)
 	cm := &unstructured.Unstructured{Object: map[string]any{
@@ -177,7 +176,7 @@ func TestIsBackendExtensionEnabled_MalformedDataValueReturnsError(t *testing.T) 
 }
 
 func TestWarnIfBackendDisabled_WarningEventWhenFalse(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeRecorder := record.NewFakeRecorder(10)
 	pattern, client := newTestPatternForEnableBackend(t, fakeRecorder)
 
@@ -195,7 +194,7 @@ extensionApis:
 }
 
 func TestIsBackendExtensionEnabled_AbsentConfigMap(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeRecorder := record.NewFakeRecorder(10)
 	pattern, _ := newTestPatternForEnableBackend(t, fakeRecorder)
 
@@ -206,7 +205,7 @@ func TestIsBackendExtensionEnabled_AbsentConfigMap(t *testing.T) {
 }
 
 func TestWarnIfBackendDisabled_WarningEventWhenAbsent(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeRecorder := record.NewFakeRecorder(10)
 	pattern, _ := newTestPatternForEnableBackend(t, fakeRecorder)
 

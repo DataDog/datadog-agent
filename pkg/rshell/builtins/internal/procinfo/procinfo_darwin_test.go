@@ -8,7 +8,6 @@
 package procinfo
 
 import (
-	"context"
 	"encoding/binary"
 	"errors"
 	"os"
@@ -40,7 +39,7 @@ func TestKinfoToProcUsesCommNameOnly(t *testing.T) {
 func TestGetByPIDsWithMetricsDarwinSelf(t *testing.T) {
 	metrics := MetricStartTime | MetricCPUTime | MetricElapsed | MetricRSS | MetricVSZ | MetricPMem | MetricPCPU
 
-	procs, err := getByPIDs(context.Background(), "", []int{os.Getpid()}, metrics)
+	procs, err := getByPIDs(t.Context(), "", []int{os.Getpid()}, metrics)
 
 	require.NoError(t, err)
 	require.Len(t, procs, 1)
@@ -95,7 +94,7 @@ func TestGetSessionDarwinIncludesCurrentSessionAndExcludesDetachedChild(t *testi
 	require.Equal(t, selfSID, currentSID)
 	require.NotEqual(t, selfSID, detachedSID)
 
-	procs, err := getSession(context.Background(), "", 0)
+	procs, err := getSession(t.Context(), "", 0)
 	if errors.Is(err, syscall.EPERM) ||
 		errors.Is(err, syscall.EACCES) ||
 		errors.Is(err, syscall.ENOTSUP) {
@@ -134,7 +133,7 @@ func TestGetByPIDsWithMetricsDarwinPermissionDeniedKeepsBaseRow(t *testing.T) {
 	}
 	metrics := MetricStartTime | MetricCPUTime | MetricElapsed | MetricRSS | MetricVSZ | MetricPMem | MetricPCPU
 
-	procs, err := getByPIDs(context.Background(), "", []int{1}, metrics)
+	procs, err := getByPIDs(t.Context(), "", []int{1}, metrics)
 
 	require.NoError(t, err)
 	require.Len(t, procs, 1)

@@ -6,7 +6,6 @@
 package com_datadoghq_http
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -127,7 +126,7 @@ private_action_runner:
 				Inputs:         map[string]interface{}{"verb": "GET", "url": server.URL + "/basic-auth"},
 				ConnectionInfo: conn,
 			}
-			credentials, err := credentialResolver.ResolveCredentials(context.Background(), task)
+			credentials, err := credentialResolver.ResolveCredentials(t.Context(), task)
 			if test.wantError != "" {
 				require.ErrorContains(t, err, test.wantError)
 				require.Nil(t, credentials)
@@ -137,7 +136,7 @@ private_action_runner:
 			require.NoError(t, err)
 			require.Equal(t, privateconnection.BasicAuthType, credentials.Type)
 			handler := NewHttpRequestAction(&config.Config{HTTPTimeout: 5 * time.Second, Allowlist: []string{target.Hostname()}})
-			output, err := handler.Run(context.Background(), task, credentials)
+			output, err := handler.Run(t.Context(), task, credentials)
 			require.NoError(t, err)
 			response, ok := output.(*RequestOutputs)
 			require.True(t, ok)

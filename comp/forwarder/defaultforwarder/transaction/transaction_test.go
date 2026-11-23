@@ -58,7 +58,7 @@ func TestProcess(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(t.Context(), mockConfig, log, secrets, client, nil)
 	assert.NoError(t, err)
 }
 
@@ -74,7 +74,7 @@ func TestProcessInvalidDomain(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(t.Context(), mockConfig, log, secrets, client, nil)
 	assert.NoError(t, err)
 }
 
@@ -90,7 +90,7 @@ func TestProcessNetworkError(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(t.Context(), mockConfig, log, secrets, client, nil)
 	assert.NotNil(t, err)
 }
 
@@ -116,21 +116,21 @@ func TestProcessHTTPError(t *testing.T) {
 	secrets.SetRefreshHook(func() bool {
 		return true
 	})
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(t.Context(), mockConfig, log, secrets, client, nil)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
 
 	errorCode = http.StatusBadRequest
-	err = transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err = transaction.Process(t.Context(), mockConfig, log, secrets, client, nil)
 	assert.NoError(t, err)
 
 	errorCode = http.StatusRequestEntityTooLarge
-	err = transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err = transaction.Process(t.Context(), mockConfig, log, secrets, client, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusForbidden
-	err = transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err = transaction.Process(t.Context(), mockConfig, log, secrets, client, nil)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "API Key invalid")
 
@@ -145,7 +145,7 @@ func TestProcessCancel(t *testing.T) {
 	transaction.Payload = NewBytesPayloadWithoutMetaData(payload)
 
 	client := &http.Client{}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	mockConfig := configmock.New(t)
@@ -224,7 +224,7 @@ func TestProcessDoesNotMutateHeaders(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(t.Context(), mockConfig, log, secrets, client, nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, headersBefore, transaction.Headers, "t.Headers must not be mutated by Process")
@@ -255,7 +255,7 @@ func TestTransaction403TriggersSecretRefresh(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(t.Context(), mockConfig, log, secrets, client, nil)
 	assert.NotNil(t, err)
 
 	assert.True(t, triggered, "secrets.Refresh(false) should be called when transaction receives 403")
@@ -289,7 +289,7 @@ func TestTransaction403DropsWhenNoSecrets(t *testing.T) {
 		droppedByEndpointBefore = v.(*expvar.Int).Value()
 	}
 
-	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
+	err := transaction.Process(t.Context(), mockConfig, log, secrets, client, nil)
 
 	assert.NoError(t, err, "a 403 with no secrets backend should drop the transaction, not reschedule it")
 	assert.Equal(t, 0, transaction.ErrorCount, "ErrorCount should not be incremented when the transaction is dropped")
@@ -384,7 +384,7 @@ func TestProcessPointCountTelemetry(t *testing.T) {
 				secrets.SetRefreshHook(func() bool { return tc.refreshSucceeds })
 			}
 
-			err := tr.Process(context.Background(), configmock.New(t), logmock.New(t),
+			err := tr.Process(t.Context(), configmock.New(t), logmock.New(t),
 				secrets, &http.Client{}, rec)
 
 			if tc.wantErr {

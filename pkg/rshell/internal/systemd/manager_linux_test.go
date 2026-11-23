@@ -40,7 +40,7 @@ func TestDialManagerBusConnectsToRealSocket(t *testing.T) {
 	path := filepath.Join(dir, "bus")
 	listener := listenUnixSocket(t, path)
 
-	connection, err := (&Client{}).dialManagerBus(context.Background(), path)
+	connection, err := (&Client{}).dialManagerBus(t.Context(), path)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = connection.Close() })
 
@@ -87,7 +87,7 @@ func TestDialManagerBusRejectsNonSocketEndpoints(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			path := test.setup(t, managerLinuxTestDir(t))
-			connection, err := (&Client{}).dialManagerBus(context.Background(), path)
+			connection, err := (&Client{}).dialManagerBus(t.Context(), path)
 			assert.Nil(t, connection)
 			require.EqualError(t, err, "systemd manager bus endpoint is not a Unix socket")
 		})
@@ -104,7 +104,7 @@ func TestDialPinnedManagerBusIgnoresPathReplacementAndClosesPin(t *testing.T) {
 	require.NoError(t, os.Rename(path, filepath.Join(dir, "original")))
 	attacker := listenUnixSocket(t, path)
 
-	connection, dialErr := dialPinnedManagerBus(context.Background(), pinned)
+	connection, dialErr := dialPinnedManagerBus(t.Context(), pinned)
 	_, statErr := pinned.Stat()
 	require.ErrorIs(t, statErr, os.ErrClosed)
 	require.NoError(t, dialErr)
@@ -139,7 +139,7 @@ func TestDialPinnedManagerBusHonorsDeadlineAndClosesPin(t *testing.T) {
 	pinned, err := (&Client{}).openManagerBusSocket(path)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 	defer cancel()
 	connection, err := dialPinnedManagerBus(ctx, pinned)
 	assert.Nil(t, connection)
@@ -170,7 +170,7 @@ func TestOpenManagerBusAuthenticatesAndVerifiesMachineID(t *testing.T) {
 			serverDone := startRawManagerDBusServer(listener, test.peerMachineID)
 			client := managerLinuxTestClient(t, dir, path)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 			defer cancel()
 			bus, openErr := client.openManagerBus(ctx)
 			var closeErr error
@@ -200,7 +200,7 @@ func TestOpenManagerBusHonorsDeadlineDuringAuthentication(t *testing.T) {
 	serverDone := startStalledManagerAuthServer(listener, authStarted)
 	client := managerLinuxTestClient(t, dir, path)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	bus, err := client.openManagerBus(ctx)
 	assert.Nil(t, bus)

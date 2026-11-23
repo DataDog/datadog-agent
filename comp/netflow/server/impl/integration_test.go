@@ -8,7 +8,6 @@
 package serverimpl
 
 import (
-	"context"
 	"net"
 	"testing"
 	"time"
@@ -206,7 +205,7 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 
 	formatDriver := goflowlib.NewAggregatorFormatDriver(flowChan, "bench", listenerFlowCount, false, false)
 	logrusLogger := logrus.StandardLogger()
-	ctx := context.Background()
+	ctx := b.Context()
 
 	templateSystem, err := templates.FindTemplateSystem(ctx, "memory")
 	require.NoError(b, err, "error with template")

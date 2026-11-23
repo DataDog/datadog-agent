@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -18,8 +21,6 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type mockCheck struct {
@@ -50,6 +51,7 @@ func (m *mockCheck) String() string {
 }
 
 type mockTelemetry struct {
+	ctx context.Context
 	agenttelemetry.Component
 	spanStarted bool
 	spanName    string
@@ -58,7 +60,7 @@ type mockTelemetry struct {
 func (m *mockTelemetry) StartStartupSpan(name string) (*installertelemetry.Span, context.Context) {
 	m.spanStarted = true
 	m.spanName = name
-	return &installertelemetry.Span{}, context.Background()
+	return &installertelemetry.Span{}, m.ctx
 }
 
 func (m *mockTelemetry) SendEvent(_ string, _ []byte) error {
@@ -130,7 +132,7 @@ func TestCheckWrapperCreatesSpan(t *testing.T) {
 	mockCheck := &mockCheck{}
 
 	// Create a mock telemetry component
-	mockTelemetry := &mockTelemetry{}
+	mockTelemetry := &mockTelemetry{ctx: t.Context()}
 
 	// Create the check wrapper with the mock telemetry
 	wrapper := NewCheckWrapper(

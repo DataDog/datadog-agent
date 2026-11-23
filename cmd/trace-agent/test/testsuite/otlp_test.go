@@ -6,7 +6,6 @@
 package testsuite
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -127,7 +126,7 @@ apm_config:
 				},
 			},
 		})
-		_, err = client.Export(context.Background(), pack)
+		_, err = client.Export(t.Context(), pack)
 		if err != nil {
 			log.Fatal("Error calling: ", err)
 		}
@@ -194,7 +193,7 @@ apm_config:
 			resource("dm-tracestate", 2, "dd=s:2;t.dm:-11", map[string]interface{}{"_sampling_priority_v1": 2}),
 			resource("dm-none", 3, "", map[string]interface{}{"sampling.priority": 2}),
 		})
-		if _, err = client.Export(context.Background(), pack); err != nil {
+		if _, err = client.Export(t.Context(), pack); err != nil {
 			log.Fatal("Error calling: ", err)
 		}
 
@@ -299,7 +298,7 @@ apm_config:
 		exception.Attributes().PutStr("exception.type", "OutOfMemoryError")
 		exception.Attributes().PutStr("exception.stacktrace", stack)
 
-		if _, err = client.Export(context.Background(), ptraceotlp.NewExportRequestFromTraces(traces)); err != nil {
+		if _, err = client.Export(t.Context(), ptraceotlp.NewExportRequestFromTraces(traces)); err != nil {
 			log.Fatal("Error calling: ", err)
 		}
 
@@ -393,7 +392,7 @@ apm_config:
 				},
 			},
 		})
-		_, err = client.Export(context.Background(), pack)
+		_, err = client.Export(t.Context(), pack)
 		if err != nil {
 			log.Fatal("Error calling: ", err)
 		}
@@ -471,7 +470,7 @@ apm_config:
 				Spans:      testSpans,
 			},
 		})
-		_, err = client.Export(context.Background(), pack)
+		_, err = client.Export(t.Context(), pack)
 		if err != nil {
 			log.Fatal("Error calling: ", err)
 		}
@@ -537,7 +536,7 @@ apm_config:
 				Spans:      testSpans,
 			},
 		})
-		_, err = client.Export(context.Background(), pack)
+		_, err = client.Export(t.Context(), pack)
 		if err != nil {
 			log.Fatal("Error calling: ", err)
 		}

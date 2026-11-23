@@ -38,7 +38,7 @@ func TestWorker(t *testing.T) {
 	}
 
 	worker := newWorker(35, 60, cached, processFunc)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	tasks := append(generateRunningTask(0, 10),

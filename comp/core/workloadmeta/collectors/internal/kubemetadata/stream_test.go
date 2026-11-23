@@ -953,7 +953,7 @@ func TestStreamingProvider_KueueWorkloadTagsAfterWorkloadArrivesLate(t *testing.
 
 	// Start the tagger. It listens to workloadmeta and we record the tags it
 	// generates for each entity.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	tags := &recordingTagProcessor{latest: make(map[taggertypes.EntityID]*taggertypes.TagInfo)}
 	go taggercollectors.NewWorkloadMetaCollector(ctx, configmock.New(t), wmetaMock, tags).Run(ctx)

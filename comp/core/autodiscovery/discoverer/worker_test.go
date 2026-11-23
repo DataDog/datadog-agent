@@ -103,7 +103,7 @@ func TestWorker_Success_TriggersCallbackOnce(t *testing.T) {
 	w.Enqueue(svcID, testTplDigest, "myinteg")
 	assert.Equal(t, float64(1), telStore.DiscoveryQueueDepth.WithValues("myinteg", "docker").Get())
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	w.runOnce(ctx)
 

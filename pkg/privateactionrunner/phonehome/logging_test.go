@@ -110,7 +110,7 @@ func TestStateLoggingIntentionalBypass(t *testing.T) {
 func TestControllerLoggingStartupAndRecovery(t *testing.T) {
 	f := newFixture(t)
 	output := captureLogs(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	f.rc.rc.Authorized = false
 	f.c.step(ctx)
 	f.c.step(ctx)
@@ -154,8 +154,8 @@ func TestControllerLoggingExistingChildren(t *testing.T) {
 	f := newFixture(t)
 	f.pm.executor.State = pb.ProcessState_RUNNING
 	output := captureLogs(t)
-	f.c.step(context.Background())
-	f.c.step(context.Background())
+	f.c.step(t.Context())
+	f.c.step(t.Context())
 	require.Zero(t, f.pm.starts)
 	require.Equal(t, "[INFO] PAR startup gate: existing children left untouched; supervisor retains ownership\n", output.String())
 }
@@ -166,7 +166,7 @@ func TestControllerLoggingStartErrors(t *testing.T) {
 			f := newFixture(t)
 			f.pm.startErr = grpcstatus.Error(code, "private-key api-key key-hash urn:private https://secret.example")
 			output := captureLogs(t)
-			delay := f.c.step(context.Background())
+			delay := f.c.step(t.Context())
 			require.Equal(t, 1, f.pm.starts)
 			if code == codes.NotFound {
 				require.Equal(t, pollInterval, delay)
@@ -176,7 +176,7 @@ func TestControllerLoggingStartErrors(t *testing.T) {
 				require.Zero(t, delay)
 				require.Contains(t, output.String(), "[WARN] PAR startup gate: startup requires operator review: reason=launch_outcome_unknown_requires_review")
 				f.pm.control.Uuid, f.pm.executor.Uuid = "fresh-control", "fresh-executor"
-				f.c.step(context.Background())
+				f.c.step(t.Context())
 				require.Equal(t, 1, f.pm.starts)
 			}
 			require.Equal(t, 2, strings.Count(output.String(), "\n"))
@@ -191,7 +191,7 @@ func TestControllerLoggingStartErrors(t *testing.T) {
 func TestControllerLoggingCancellationAndDisabledPAR(t *testing.T) {
 	f := newFixture(t)
 	output := captureLogs(t)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	f.c.run(ctx)
 	require.Contains(t, output.String(), "[DEBUG] PAR startup gate: canceled")
@@ -199,6 +199,6 @@ func TestControllerLoggingCancellationAndDisabledPAR(t *testing.T) {
 	require.NotContains(t, output.String(), "[INFO]")
 	output.Reset()
 	f.cfg.SetInTest(par.Enabled, false)
-	Run(context.Background(), f.cfg, nil, func(State) { t.Fatal("disabled PAR must not report") })
+	Run(t.Context(), f.cfg, nil, func(State) { t.Fatal("disabled PAR must not report") })
 	require.Empty(t, output.String())
 }

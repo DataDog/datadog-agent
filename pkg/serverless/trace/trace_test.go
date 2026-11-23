@@ -62,7 +62,7 @@ func newTestServerlessTraceAgent(t *testing.T) (*serverlessTraceAgent, *config.A
 	t.Helper()
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	ta := traceagent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	ta.SpanModifier = &spanModifier{ddOrigin: "lambda"}
@@ -129,7 +129,7 @@ func TestServerlessTraceAgentFlushAllSendsStatsSynchronously(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Endpoints[0].Host = intake.URL
 	cfg.SynchronousFlushing = true
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	ta := traceagent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	go ta.StatsWriter.Run()

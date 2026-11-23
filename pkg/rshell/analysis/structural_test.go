@@ -117,7 +117,7 @@ import ("context"; "os")
 type cc struct{}
 func (cc) OpenFile(ctx context.Context, path string, flags int, mode os.FileMode) (interface{ Read([]byte)(int,error); Close() error }, error) { return nil, nil }
 func run(callCtx cc) {
-	f, err := callCtx.OpenFile(context.Background(), "x", os.O_RDONLY, 0)
+	f, err := callCtx.OpenFile(t.Context(), "x", os.O_RDONLY, 0)
 	if err != nil { return }
 	defer f.Close()
 }
@@ -141,7 +141,7 @@ type cc struct{}
 func (cc) OpenFile(ctx context.Context, path string, flags int, mode os.FileMode) (interface{ Read([]byte)(int,error); Close() error }, error) { return nil, nil }
 func run(callCtx cc) {
 	var rc io.ReadCloser
-	f, err := callCtx.OpenFile(context.Background(), "x", os.O_RDONLY, 0)
+	f, err := callCtx.OpenFile(t.Context(), "x", os.O_RDONLY, 0)
 	if err != nil { return }
 	rc = f
 	defer rc.Close()
@@ -165,7 +165,7 @@ import ("context"; "os")
 type cc struct{}
 func (cc) OpenFile(ctx context.Context, path string, flags int, mode os.FileMode) (interface{ Read([]byte)(int,error); Close() error }, error) { return nil, nil }
 func run(callCtx cc) {
-	f, err := callCtx.OpenFile(context.Background(), "x", os.O_RDONLY, 0)
+	f, err := callCtx.OpenFile(t.Context(), "x", os.O_RDONLY, 0)
 	if err != nil { return }
 	_ = f
 }
@@ -188,7 +188,7 @@ import ("context"; "os"; "io")
 type cc struct{}
 func (cc) OpenFile(ctx context.Context, path string, flags int, mode os.FileMode) (interface{ Read([]byte)(int,error); Close() error }, error) { return nil, nil }
 func open(callCtx cc) (io.ReadCloser, error) {
-	f, err := callCtx.OpenFile(context.Background(), "x", os.O_RDONLY, 0)
+	f, err := callCtx.OpenFile(t.Context(), "x", os.O_RDONLY, 0)
 	if err != nil { return nil, err }
 	return f, nil
 }
@@ -211,7 +211,7 @@ import ("context"; "io"; "os")
 type cc struct{}
 func (cc) OpenFile(ctx context.Context, path string, flags int, mode os.FileMode) (interface{ Read([]byte)(int,error); Close() error }, error) { return nil, nil }
 func run(callCtx cc) {
-	f, err := callCtx.OpenFile(context.Background(), "x", os.O_RDONLY, 0)
+	f, err := callCtx.OpenFile(t.Context(), "x", os.O_RDONLY, 0)
 	if err != nil { return }
 	var a io.ReadCloser
 	a = f
@@ -242,7 +242,7 @@ import ("context"; "io"; "os")
 type cc struct{}
 func (cc) OpenFile(ctx context.Context, path string, flags int, mode os.FileMode) (interface{ Read([]byte)(int,error); Close() error }, error) { return nil, nil }
 func run(callCtx cc, cond bool) (io.ReadCloser, error) {
-	f, err := callCtx.OpenFile(context.Background(), "x", os.O_RDONLY, 0)
+	f, err := callCtx.OpenFile(t.Context(), "x", os.O_RDONLY, 0)
 	if err != nil { return nil, err }
 	if cond {
 		return f, nil // f is returned here
@@ -274,11 +274,11 @@ import ("context"; "os")
 type cc struct{}
 func (cc) OpenFile(ctx context.Context, path string, flags int, mode os.FileMode) (interface{ Read([]byte)(int,error); Close() error }, error) { return nil, nil }
 func run(callCtx cc) {
-	f, err := callCtx.OpenFile(context.Background(), "x", os.O_RDONLY, 0)
+	f, err := callCtx.OpenFile(t.Context(), "x", os.O_RDONLY, 0)
 	if err != nil { return }
 	defer f.Close()
 	// Re-using f for a second OpenFile — the second handle is never closed.
-	f, err = callCtx.OpenFile(context.Background(), "y", os.O_RDONLY, 0)
+	f, err = callCtx.OpenFile(t.Context(), "y", os.O_RDONLY, 0)
 	if err != nil { return }
 	_ = f
 }

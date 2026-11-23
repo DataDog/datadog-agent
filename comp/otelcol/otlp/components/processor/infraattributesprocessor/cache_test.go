@@ -170,10 +170,10 @@ func newTestMetricsProcessor(t testing.TB, tc types.TaggerClient, cfg *Config, n
 	factory := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
 		return "test-host", nil
 	})
-	proc, err := factory.CreateMetrics(context.Background(), processortest.NewNopSettings(Type), cfg, next)
+	proc, err := factory.CreateMetrics(t.Context(), processortest.NewNopSettings(Type), cfg, next)
 	require.NoError(t, err)
-	require.NoError(t, proc.Start(context.Background(), nil))
-	t.Cleanup(func() { assert.NoError(t, proc.Shutdown(context.Background())) })
+	require.NoError(t, proc.Start(t.Context(), nil))
+	t.Cleanup(func() { assert.NoError(t, proc.Shutdown(t.Context())) })
 	return proc
 }
 
@@ -193,7 +193,7 @@ func TestTagBatchQueriesTaggerOncePerBatch(t *testing.T) {
 	next := new(consumertest.MetricsSink)
 	proc := newTestMetricsProcessor(t, tc, &Config{Cardinality: types.LowCardinality}, next)
 
-	require.NoError(t, proc.ConsumeMetrics(context.Background(), testResourceMetrics(repeatResource(batchResourceAttributes, resources))))
+	require.NoError(t, proc.ConsumeMetrics(t.Context(), testResourceMetrics(repeatResource(batchResourceAttributes, resources))))
 
 	require.Len(t, next.AllMetrics(), 1)
 	rms := next.AllMetrics()[0].ResourceMetrics()
@@ -217,7 +217,7 @@ func TestTagBatchUsesConfiguredCardinality(t *testing.T) {
 	next := new(consumertest.MetricsSink)
 	proc := newTestMetricsProcessor(t, tc, &Config{Cardinality: types.HighCardinality}, next)
 
-	require.NoError(t, proc.ConsumeMetrics(context.Background(), testResourceMetrics(repeatResource(batchResourceAttributes, 3))))
+	require.NoError(t, proc.ConsumeMetrics(t.Context(), testResourceMetrics(repeatResource(batchResourceAttributes, 3))))
 
 	want := map[string]any{"container_id_short": "cid"}
 	for k, v := range batchResourceWantAttributes {
@@ -249,7 +249,7 @@ func TestTagBatchNoCrossContamination(t *testing.T) {
 		// Back to the first entity: served from the cache, still correct.
 		{metricNames: inMetricNames, resourceAttributes: map[string]any{"container.id": "cid-1"}},
 	})
-	require.NoError(t, proc.ConsumeMetrics(context.Background(), md))
+	require.NoError(t, proc.ConsumeMetrics(t.Context(), md))
 
 	wantContainer := map[string]any{
 		"container.id":   "cid-1",
@@ -284,7 +284,7 @@ func TestTagBatchDoesNotOutliveBatch(t *testing.T) {
 	next := new(consumertest.MetricsSink)
 	proc := newTestMetricsProcessor(t, tc, &Config{Cardinality: types.LowCardinality}, next)
 
-	require.NoError(t, proc.ConsumeMetrics(context.Background(), testResourceMetrics(repeatResource(batchResourceAttributes, 2))))
+	require.NoError(t, proc.ConsumeMetrics(t.Context(), testResourceMetrics(repeatResource(batchResourceAttributes, 2))))
 	assert.Equal(t, 5, tc.totalTagCalls())
 	assert.Equal(t, 1, tc.totalGlobalTagsCalls())
 
@@ -292,7 +292,7 @@ func TestTagBatchDoesNotOutliveBatch(t *testing.T) {
 	tc.TagMap[nodeEntity.String()] = []string{"kube_node:node-2"}
 	tc.TagMap[globalEntity.String()] = []string{"global:updated"}
 
-	require.NoError(t, proc.ConsumeMetrics(context.Background(), testResourceMetrics(repeatResource(batchResourceAttributes, 2))))
+	require.NoError(t, proc.ConsumeMetrics(t.Context(), testResourceMetrics(repeatResource(batchResourceAttributes, 2))))
 	assert.Equal(t, 10, tc.totalTagCalls(), "the second batch re-queries the tagger")
 	assert.Equal(t, 2, tc.totalGlobalTagsCalls())
 
@@ -319,7 +319,7 @@ func TestTagBatchMemoizesLookupFailures(t *testing.T) {
 	next := new(consumertest.MetricsSink)
 	proc := newTestMetricsProcessor(t, tc, &Config{Cardinality: types.LowCardinality}, next)
 
-	require.NoError(t, proc.ConsumeMetrics(context.Background(), testResourceMetrics(repeatResource(batchResourceAttributes, 3))))
+	require.NoError(t, proc.ConsumeMetrics(t.Context(), testResourceMetrics(repeatResource(batchResourceAttributes, 3))))
 
 	want := map[string]any{}
 	for k, v := range batchResourceWantAttributes {
@@ -350,7 +350,7 @@ func TestTagBatchConcurrentBatches(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			assert.NoError(t, proc.ConsumeMetrics(context.Background(), testResourceMetrics(repeatResource(batchResourceAttributes, 3))))
+			assert.NoError(t, proc.ConsumeMetrics(t.Context(), testResourceMetrics(repeatResource(batchResourceAttributes, 3))))
 		}()
 	}
 	wg.Wait()

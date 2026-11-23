@@ -25,7 +25,7 @@ import (
 
 func runScript(t *testing.T, script, dir string, opts ...interp.RunnerOption) (string, string, int) {
 	t.Helper()
-	return runScriptCtx(context.Background(), t, script, dir, opts...)
+	return runScriptCtx(t.Context(), t, script, dir, opts...)
 }
 
 func runScriptCtx(ctx context.Context, t *testing.T, script, dir string, opts ...interp.RunnerOption) (string, string, int) {
@@ -155,7 +155,7 @@ func TestAwkLoopsObserveContextCancellation(t *testing.T) {
 
 			done := make(chan error, 1)
 			go func() {
-				done <- runner.Run(context.Background(), prog)
+				done <- runner.Run(t.Context(), prog)
 			}()
 
 			select {
@@ -202,7 +202,7 @@ func assertAwkBlockedStdinReadObservesParentCancellation(t *testing.T, script st
 	require.NoError(t, err)
 	defer runner.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() { done <- runner.Run(ctx, prog) }()
 	time.Sleep(20 * time.Millisecond)

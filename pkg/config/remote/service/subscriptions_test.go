@@ -40,7 +40,7 @@ func TestSubscriptionTrackAndUntrack(t *testing.T) {
 	clock := clock.NewMock()
 
 	service := newTestService(t, api, uptaneClient, clock)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	client := runTestingService(t, service)
@@ -112,7 +112,7 @@ func TestSubscriptionGetsInitialUpdate(t *testing.T) {
 	uptaneClient.On("TimestampExpires").
 		Return(time.Now().Add(1*time.Hour), nil)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	client := runTestingService(t, service)
@@ -148,7 +148,7 @@ func TestSubscriptionGetsInitialUpdate(t *testing.T) {
 	service.clients.seen(tracerClient)
 
 	resp1, err := service.ClientGetConfigs(
-		context.Background(),
+		t.Context(),
 		&pbgo.ClientGetConfigsRequest{
 			Client: tracerClient,
 			CachedTargetFiles: []*pbgo.TargetFileMeta{
@@ -173,7 +173,7 @@ func TestSubscriptionGetsInitialUpdate(t *testing.T) {
 	)
 
 	resp2, err := service.ClientGetConfigs(
-		context.Background(),
+		t.Context(),
 		&pbgo.ClientGetConfigsRequest{
 			Client: tracerClient,
 			CachedTargetFiles: []*pbgo.TargetFileMeta{
@@ -229,7 +229,7 @@ func TestSubscriptionGetsEmptyMatchedConfigsUpdate(t *testing.T) {
 	uptaneClient.On("TargetFiles", mock.Anything).Return(targetFiles, nil)
 	uptaneClient.On("TimestampExpires").Return(time.Now().Add(1*time.Hour), nil)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	client := runTestingService(t, service)
@@ -265,7 +265,7 @@ func TestSubscriptionGetsEmptyMatchedConfigsUpdate(t *testing.T) {
 	service.clients.seen(tracerClient)
 
 	_, err = service.ClientGetConfigs(
-		context.Background(),
+		t.Context(),
 		&pbgo.ClientGetConfigsRequest{
 			Client:            tracerClient,
 			CachedTargetFiles: nil,
@@ -335,7 +335,7 @@ func TestSubscriptionGetsConfigRemovalUpdate(t *testing.T) {
 			Once(),
 	)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	client := runTestingService(t, service)
@@ -367,7 +367,7 @@ func TestSubscriptionGetsConfigRemovalUpdate(t *testing.T) {
 	service.clients.seen(tracerClient)
 
 	_, err = service.ClientGetConfigs(
-		context.Background(),
+		t.Context(),
 		&pbgo.ClientGetConfigsRequest{
 			Client:            tracerClient,
 			CachedTargetFiles: nil,
@@ -385,7 +385,7 @@ func TestSubscriptionGetsConfigRemovalUpdate(t *testing.T) {
 	tracerClient.State.TargetsVersion = 1
 
 	_, err = service.ClientGetConfigs(
-		context.Background(),
+		t.Context(),
 		&pbgo.ClientGetConfigsRequest{
 			Client:            tracerClient,
 			CachedTargetFiles: nil,
@@ -427,7 +427,7 @@ func TestSubscriptionReceivesCachedFilesWhenClientUpToDate(t *testing.T) {
 			configPath: []byte("config"),
 		}, nil)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	client := runTestingService(t, service)
@@ -465,7 +465,7 @@ func TestSubscriptionReceivesCachedFilesWhenClientUpToDate(t *testing.T) {
 	service.clients.seen(tracerClient)
 
 	resp, err := service.ClientGetConfigs(
-		context.Background(),
+		t.Context(),
 		&pbgo.ClientGetConfigsRequest{
 			Client: tracerClient,
 			CachedTargetFiles: []*pbgo.TargetFileMeta{
@@ -522,7 +522,7 @@ func TestSubscriptionNoUpdateDoesNotNotify(t *testing.T) {
 		}, nil).
 		Once()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	client := runTestingService(t, service)
@@ -553,7 +553,7 @@ func TestSubscriptionNoUpdateDoesNotNotify(t *testing.T) {
 	service.clients.seen(tracerClient)
 
 	resp1, err := service.ClientGetConfigs(
-		context.Background(),
+		t.Context(),
 		&pbgo.ClientGetConfigsRequest{
 			Client:            tracerClient,
 			CachedTargetFiles: nil,
@@ -578,7 +578,7 @@ func TestSubscriptionNoUpdateDoesNotNotify(t *testing.T) {
 	tracerClient.State.TargetsVersion = 1
 
 	resp2, err := service.ClientGetConfigs(
-		context.Background(),
+		t.Context(),
 		&pbgo.ClientGetConfigsRequest{
 			Client: tracerClient,
 			CachedTargetFiles: []*pbgo.TargetFileMeta{
@@ -633,7 +633,7 @@ func TestSubscriptionCanTrackSameRuntimeIDWithDifferentProducts(t *testing.T) {
 	uptaneClient.On("TargetFiles", mock.Anything).Return(targetFiles, nil)
 	uptaneClient.On("TimestampExpires").Return(time.Now().Add(1*time.Hour), nil)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	client := runTestingService(t, service)
@@ -676,7 +676,7 @@ func TestSubscriptionCanTrackSameRuntimeIDWithDifferentProducts(t *testing.T) {
 	service.clients.seen(tracerClient)
 
 	resp1, err := service.ClientGetConfigs(
-		context.Background(),
+		t.Context(),
 		&pbgo.ClientGetConfigsRequest{
 			Client:            tracerClient,
 			CachedTargetFiles: nil,
@@ -758,7 +758,7 @@ func TestSubscriptionInvalidRequests(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := runTestingService(t, service)
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			stream, err := client.CreateConfigSubscription(ctx)
 			require.NoError(t, err)
@@ -809,7 +809,7 @@ func TestSubscriptionOnlyTrackedClientsGetUpdates(t *testing.T) {
 		nil,
 	)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	client := runTestingService(t, service)
@@ -844,7 +844,7 @@ func TestSubscriptionOnlyTrackedClientsGetUpdates(t *testing.T) {
 	service.clients.seen(otherClient)
 
 	_, err = client.ClientGetConfigs(
-		context.Background(),
+		t.Context(),
 		&pbgo.ClientGetConfigsRequest{
 			Client:            otherClient,
 			CachedTargetFiles: nil,
@@ -873,7 +873,7 @@ func TestSubscriptionsLimits(t *testing.T) {
 		o.maxConcurrentSubscriptions = 1
 	})
 	client := runTestingService(t, service)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	stream, err := client.CreateConfigSubscription(ctx)
 	require.NoError(t, err)
@@ -906,7 +906,7 @@ func TestTrackLimitPerSubscription(t *testing.T) {
 			o.maxTrackedRuntimeIDsPerSubscription = 2
 		})
 	client := runTestingService(t, service)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	stream, err := client.CreateConfigSubscription(ctx)
 	require.NoError(t, err)
@@ -1022,7 +1022,7 @@ func TestSlowReceiver(t *testing.T) {
 	uptaneClient.On("TimestampExpires").
 		Return(time.Now().Add(1*time.Hour), nil)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	var responsesSent atomic.Int32
@@ -1073,7 +1073,7 @@ func TestSlowReceiver(t *testing.T) {
 	// The first poll won't result in any files being returned because the
 	// client is up-to-date, but should send a message to the subscription.
 	resp1, err := client.ClientGetConfigs(
-		context.Background(),
+		t.Context(),
 		&pbgo.ClientGetConfigsRequest{
 			Client: tracerClient,
 			CachedTargetFiles: []*pbgo.TargetFileMeta{

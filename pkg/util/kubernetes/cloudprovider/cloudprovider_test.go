@@ -6,7 +6,6 @@
 package cloudprovider
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,7 +50,7 @@ func TestGetNameNotKubernetes(t *testing.T) {
 	// detection is disabled and features default to empty.
 	env.ClearFeatures()
 
-	name, err := GetName(context.Background())
+	name, err := GetName(t.Context())
 	assert.NoError(t, err)
 	assert.Empty(t, name)
 }
@@ -66,7 +65,7 @@ func TestGetNameCLCRunner(t *testing.T) {
 	cfg.SetInTest("clc_runner_enabled", true)
 	cfg.SetInTest("config_providers", []map[string]interface{}{{"name": "clusterchecks"}})
 
-	name, err := GetName(context.Background())
+	name, err := GetName(t.Context())
 	assert.NoError(t, err)
 	assert.Empty(t, name)
 }
@@ -81,7 +80,7 @@ func TestGetNameKubeletDisabled(t *testing.T) {
 	cfg.SetInTest("otel_standalone", true)
 	cfg.SetInTest("otelcollector.standalone.use_kubelet_collector", false)
 
-	name, err := GetName(context.Background())
+	name, err := GetName(t.Context())
 	assert.NoError(t, err)
 	assert.Empty(t, name)
 }

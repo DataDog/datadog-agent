@@ -44,7 +44,7 @@ func runLsWithReadlinkFault(t *testing.T, args ...string) (stdout, stderr string
 	fs := pflag.NewFlagSet("ls", pflag.ContinueOnError)
 	handler := registerFlags(fs)
 	require.NoError(t, fs.Parse(args))
-	res := handler(context.Background(), callCtx, fs.Args())
+	res := handler(t.Context(), callCtx, fs.Args())
 	return out.String(), errOut.String(), res.Code
 }
 

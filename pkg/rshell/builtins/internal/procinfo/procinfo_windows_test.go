@@ -8,7 +8,6 @@
 package procinfo
 
 import (
-	"context"
 	"os"
 	"testing"
 	"time"
@@ -38,7 +37,7 @@ func TestGetByPIDsWithMetricsWindowsSelf(t *testing.T) {
 	metrics := MetricStartTime | MetricCPUTime | MetricElapsed |
 		MetricRSS | MetricVSZ | MetricPMem | MetricPCPU
 
-	procs, err := getByPIDs(context.Background(), "", []int{os.Getpid()}, metrics)
+	procs, err := getByPIDs(t.Context(), "", []int{os.Getpid()}, metrics)
 
 	require.NoError(t, err)
 	require.Len(t, procs, 1)

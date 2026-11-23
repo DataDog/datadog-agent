@@ -1773,7 +1773,7 @@ func TestNodeAutoscalers(t *testing.T) {
 
 func TestStreamKubeMetadata_AutoscalersPerNode(t *testing.T) {
 	wmetaMock, store := newTestWmetaAndStore(t)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	srv := NewKubeMetadataStreamServer(store, wmetaMock)
@@ -1997,7 +1997,7 @@ func newKAIStreamTestServer() *KubeMetadataStreamServer {
 // with the number of the send before each one.
 func startTestStream(t *testing.T, srv *KubeMetadataStreamServer, nodeName string, beforeSend func(send int)) func() *pb.KubeMetadataStreamResponse {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	sent := make(chan *pb.KubeMetadataStreamResponse, 16)
 	sends := 0
 	stream := &mockStream{

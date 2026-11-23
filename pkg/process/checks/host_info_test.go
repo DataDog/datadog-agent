@@ -39,7 +39,7 @@ func TestGetHostname(t *testing.T) {
 	}
 	cfg := configmock.New(t)
 	ipc := ipcclientmock.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	h, err := getHostname(ctx, cfg.GetString("process_config.dd_agent_bin"), 0, ipc)
 	assert.Nil(t, err)
 	// verify we fall back to getting os hostname
@@ -48,7 +48,7 @@ func TestGetHostname(t *testing.T) {
 }
 
 func TestGetHostnameFromGRPC(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -319,7 +319,7 @@ func TestEUDMFallbackUsesOSHostname(t *testing.T) {
 	cfg.SetInTest("infrastructure_mode", "end_user_device")
 	// The final fallback must not start independent hostname resolution.
 	cfg.SetInTest("hostname", "independently-resolved-hostname")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	name, err := getHostname(ctx, "/not/exist", 0, ipcclientmock.New(t))
 	require.NoError(t, err)

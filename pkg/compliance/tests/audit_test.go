@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,7 +17,7 @@ import (
 )
 
 func TestAuditInput(t *testing.T) {
-	cl, err := compliance.DefaultLinuxAuditProvider(context.Background())
+	cl, err := compliance.DefaultLinuxAuditProvider(t.Context())
 	if err != nil {
 		t.Skipf("could not create audit client: %v", err)
 	}

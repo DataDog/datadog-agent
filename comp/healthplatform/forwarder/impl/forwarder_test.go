@@ -8,7 +8,6 @@
 package forwarderimpl
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -75,7 +74,7 @@ func TestSendCountsTransportErrors(t *testing.T) {
 	fwd.httpClient.Timeout = 200 * time.Millisecond
 	for _, target := range []string{refusedURL, slow.URL} {
 		fwd.intakeDomain, fwd.intakeURL = target, target+intakeEndpointPath
-		_, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+		_, err := fwd.Send(t.Context(), &healthplatform.HealthReport{})
 		require.Error(t, err)
 	}
 
@@ -115,7 +114,7 @@ func TestSendCountsHTTPErrors(t *testing.T) {
 	fwd.httpClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
 	for range statuses {
-		_, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+		_, err := fwd.Send(t.Context(), &healthplatform.HealthReport{})
 		require.Error(t, err)
 	}
 
@@ -160,7 +159,7 @@ func TestSend(t *testing.T) {
 		},
 	}
 
-	n, err := fwd.Send(context.Background(), report)
+	n, err := fwd.Send(t.Context(), report)
 	require.NoError(t, err)
 	assert.Positive(t, n)
 
@@ -187,7 +186,7 @@ func TestSendHTTPError(t *testing.T) {
 			fwd := newTestForwarder(t, cfg)
 			fwd.intakeURL = server.URL
 
-			n, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+			n, err := fwd.Send(t.Context(), &healthplatform.HealthReport{})
 			var status *forwarderdef.StatusCodeError
 			require.ErrorAs(t, err, &status)
 			assert.Equal(t, code, status.Code)
@@ -201,7 +200,7 @@ func TestSendNoAPIKey(t *testing.T) {
 	cfg := config.NewMock(t)
 	fwd := newTestForwarder(t, cfg)
 
-	n, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+	n, err := fwd.Send(t.Context(), &healthplatform.HealthReport{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API key not configured")
 	assert.Zero(t, n)

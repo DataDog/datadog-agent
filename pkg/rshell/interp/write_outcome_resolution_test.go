@@ -44,7 +44,7 @@ func TestWriteWithOutcomeResolvesPartialWriteBeforeCallerDeadline(t *testing.T) 
 	defer sb.Close()
 	sb.SetWritable()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	mutated, err := writeWithOutcome(ctx, func(writeCtx context.Context) (bool, error) {
 		release := make(chan struct{})
@@ -65,7 +65,7 @@ func TestWriteWithOutcomeResolvesPartialWriteBeforeCallerDeadline(t *testing.T) 
 	require.Equal(t, byte('a'), partial[len(partial)-1], "the write must have stopped before replacing the whole file")
 
 	// A resolved partial-write error permits the caller's best-effort restore.
-	_, err = sb.WriteRegularFile(context.Background(), path, dir, original, nil)
+	_, err = sb.WriteRegularFile(t.Context(), path, dir, original, nil)
 	require.NoError(t, err)
 	got, err := os.ReadFile(path)
 	require.NoError(t, err)

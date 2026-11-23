@@ -140,7 +140,7 @@ func TestStreamConfigEventsErrors(t *testing.T) {
 	testEvent := &pb.ConfigEvent{}
 
 	t.Run("returns error on terminal error from stream Send", func(t *testing.T) {
-		server, comp, stream, eventsCh := setupTest(context.Background(), t, "test-session-id")
+		server, comp, stream, eventsCh := setupTest(t.Context(), t, "test-session-id")
 		unsubscribe := func() {}
 		comp.On("Subscribe", testReq).Return((<-chan *pb.ConfigEvent)(eventsCh), unsubscribe).Once()
 
@@ -164,7 +164,7 @@ func TestStreamConfigEventsErrors(t *testing.T) {
 	})
 
 	t.Run("continues on non-terminal error from stream Send", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		server, comp, stream, eventsCh := setupTest(ctx, t, "test-session-id")
@@ -226,7 +226,7 @@ func TestRARAuthorization(t *testing.T) {
 		server := NewServer(cfg, comp, mockRAR)
 
 		// Context without metadata
-		stream := &mockStream{ctx: context.Background()}
+		stream := &mockStream{ctx: t.Context()}
 
 		err := server.StreamConfigEvents(testReq, stream)
 		assert.Error(t, err)
@@ -243,7 +243,7 @@ func TestRARAuthorization(t *testing.T) {
 
 		// Context with metadata but no session_id
 		md := metadata.New(map[string]string{})
-		ctx := metadata.NewIncomingContext(context.Background(), md)
+		ctx := metadata.NewIncomingContext(t.Context(), md)
 		stream := &mockStream{ctx: ctx}
 
 		err := server.StreamConfigEvents(testReq, stream)
@@ -261,7 +261,7 @@ func TestRARAuthorization(t *testing.T) {
 
 		// Context with empty session_id
 		md := metadata.New(map[string]string{"session_id": ""})
-		ctx := metadata.NewIncomingContext(context.Background(), md)
+		ctx := metadata.NewIncomingContext(t.Context(), md)
 		stream := &mockStream{ctx: ctx}
 
 		err := server.StreamConfigEvents(testReq, stream)
@@ -277,7 +277,7 @@ func TestStreamConfigEventsKeepsSessionAlive(t *testing.T) {
 	testReq := &pb.ConfigStreamRequest{Name: "test-client"}
 
 	t.Run("refreshes the session while the stream is open", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		server, comp, stream, eventsCh, rar := setupTestWithRegistry(ctx, t, "test-session-id", &mockRemoteAgentRegistry{})
@@ -300,7 +300,7 @@ func TestStreamConfigEventsKeepsSessionAlive(t *testing.T) {
 	})
 
 	t.Run("closes the stream once the session is gone", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		// Authorize the stream, then report the session as reaped.

@@ -10,7 +10,6 @@ package tracer
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -921,7 +920,7 @@ func (s *UDPServer) Run(payloadSize int) error {
 	var err error
 	var ln net.PacketConn
 	if s.lc != nil {
-		ln, err = s.lc.ListenPacket(context.Background(), s.network, s.address)
+		ln, err = s.lc.ListenPacket(t.Context(), s.network, s.address)
 	} else {
 		ln, err = net.ListenPacket(s.network, s.address)
 	}
@@ -1275,7 +1274,7 @@ func (s *TracerSuite) TestTCPDirection() {
 	go func() {
 		_ = srv.ListenAndServe()
 	}()
-	defer srv.Shutdown(context.Background())
+	defer srv.Shutdown(t.Context())
 
 	// Allow the HTTP server time to get set up
 	time.Sleep(time.Millisecond * 500)

@@ -45,7 +45,7 @@ func TestVulnHuntShellFeatureRedirectionChain_CaseOutputRedirectDoesNotCreateFil
 	dir := t.TempDir()
 	created := filepath.Join(dir, "created.txt")
 
-	stdout, stderr, err := runCaseClauseVulnHunt(context.Background(), t, "case x in x) echo hidden;; esac > created.txt\n", dir, nil)
+	stdout, stderr, err := runCaseClauseVulnHunt(t.Context(), t, "case x in x) echo hidden;; esac > created.txt\n", dir, nil)
 
 	assert.Equal(t, "", stdout)
 	assert.Equal(t, "case statements are not supported\n", stderr)
@@ -58,7 +58,7 @@ func TestVulnHuntShellFeatureReadonlyBypass_CaseArmDoesNotMutateReadonly(t *test
 	dir := t.TempDir()
 	var runner *Runner
 
-	stdout, stderr, err := runCaseClauseVulnHunt(context.Background(), t, "case x in x) RO_VAR=hacked echo \"$RO_VAR\";; esac\n", dir, func(r *Runner) {
+	stdout, stderr, err := runCaseClauseVulnHunt(t.Context(), t, "case x in x) RO_VAR=hacked echo \"$RO_VAR\";; esac\n", dir, func(r *Runner) {
 		runner = r
 		require.NoError(t, r.writeEnv.Set("RO_VAR", expand.Variable{
 			Set:      true,
@@ -80,7 +80,7 @@ func TestVulnHuntShellFeatureReadonlyBypass_CaseSubjectCmdSubstDoesNotMutateRead
 	dir := t.TempDir()
 	var runner *Runner
 
-	stdout, stderr, err := runCaseClauseVulnHunt(context.Background(), t, "case \"$(RO_VAR=hacked echo subject)\" in subject) echo hidden;; esac\n", dir, func(r *Runner) {
+	stdout, stderr, err := runCaseClauseVulnHunt(t.Context(), t, "case \"$(RO_VAR=hacked echo subject)\" in subject) echo hidden;; esac\n", dir, func(r *Runner) {
 		runner = r
 		require.NoError(t, r.writeEnv.Set("RO_VAR", expand.Variable{
 			Set:      true,
@@ -100,7 +100,7 @@ func TestVulnHuntShellFeatureReadonlyBypass_CaseSubjectCmdSubstDoesNotMutateRead
 
 func TestVulnHuntShellFeatureSignalContext_CanceledContextDoesNotEnterCaseExecution(t *testing.T) {
 	dir := t.TempDir()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	start := time.Now()

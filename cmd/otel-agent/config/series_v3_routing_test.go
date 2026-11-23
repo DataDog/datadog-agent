@@ -8,7 +8,6 @@
 package config
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -57,7 +56,7 @@ func TestDDOTSeriesV3Routing(t *testing.T) {
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}
-			c, err := NewConfigComponent(context.Background(), "", []string{tt.config})
+			c, err := NewConfigComponent(t.Context(), "", []string{tt.config})
 			require.NoError(t, err)
 
 			require.Equal(t, tt.proxy, c.GetString("proxy.https") != "", "proxy.https = %q", c.GetString("proxy.https"))

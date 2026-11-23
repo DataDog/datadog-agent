@@ -8,7 +8,6 @@ package worker
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"errors"
 	"expvar"
 	"fmt"
@@ -196,7 +195,7 @@ func TestWorkerInitExpvarStats(t *testing.T) {
 			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 1, idx, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 			assert.Nil(t, err)
 
-			worker.Run(context.Background())
+			worker.Run(t.Context())
 		}(i)
 	}
 
@@ -274,7 +273,7 @@ func TestWorkerExitsAfterIntervalZeroCheck(t *testing.T) {
 				require.NoError(t, err)
 				done := make(chan struct{})
 				go func() {
-					worker.Run(context.Background())
+					worker.Run(t.Context())
 					close(done)
 				}()
 				select {
@@ -362,7 +361,7 @@ func TestWorker(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		worker.Run(context.Background())
+		worker.Run(t.Context())
 	}()
 
 	wg.Wait()
@@ -431,7 +430,7 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		worker.Run(context.Background())
+		worker.Run(t.Context())
 	}()
 
 	// Clean things up
@@ -529,7 +528,7 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		worker.Run(context.Background())
+		worker.Run(t.Context())
 	}()
 
 	wg.Wait()
@@ -572,7 +571,7 @@ func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 	require.Nil(t, err)
 
-	worker.Run(context.Background())
+	worker.Run(t.Context())
 
 	assert.Equal(t, 0, testCheck.RunCount())
 	assert.Equal(t, 0, int(expvars.GetRunsCount()))
@@ -627,7 +626,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 		worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc, 0)
 		require.Nil(t, err)
 
-		worker.Run(context.Background())
+		worker.Run(t.Context())
 	}
 
 	for c, statsExpected := range map[check.Check]bool{
@@ -717,7 +716,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		worker.Run(context.Background())
+		worker.Run(t.Context())
 	}()
 
 	wg.Wait()
@@ -762,7 +761,7 @@ func TestShadowWorkerDoesNotSendServiceCheck(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	worker.Run(context.Background())
+	worker.Run(t.Context())
 
 	assert.Equal(t, 1, int(expvars.GetRunsCount()))
 	mockSender.AssertNumberOfCalls(t, "Commit", 0)
@@ -803,7 +802,7 @@ func TestShadowWorkerExcludedFromUtilizationAggregate(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		worker.Run(context.Background())
+		worker.Run(t.Context())
 	}()
 
 	defer func() {
@@ -863,7 +862,7 @@ func TestWorkerSenderNil(t *testing.T) {
 	require.Nil(t, err)
 
 	// Implicit assertion that we don't panic
-	worker.Run(context.Background())
+	worker.Run(t.Context())
 
 	// Quick sanity check
 	assert.Equal(t, 1, int(expvars.GetRunsCount()))
@@ -906,7 +905,7 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	worker.Run(context.Background())
+	worker.Run(t.Context())
 
 	// Quick sanity check
 	assert.Equal(t, 1, int(expvars.GetRunsCount()))
@@ -991,7 +990,7 @@ func TestWorker_HaIntegration(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				worker.Run(context.Background())
+				worker.Run(t.Context())
 			}()
 
 			wg.Wait()
@@ -1143,7 +1142,7 @@ func TestWorkerWatchdogWarningLog(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				worker.Run(context.Background())
+				worker.Run(t.Context())
 			}()
 
 			time.Sleep(tt.checkDuration)
@@ -1207,7 +1206,7 @@ func TestWorkerRecoverFromCheckPanic(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		worker.Run(context.Background())
+		worker.Run(t.Context())
 	}()
 
 	wg.Wait()

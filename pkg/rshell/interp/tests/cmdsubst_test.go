@@ -36,7 +36,7 @@ func cmdSubstRunCtx(ctx context.Context, t *testing.T, script, dir string) (stri
 
 func cmdSubstRunWithOpts(t *testing.T, script, dir string, opts ...interp.RunnerOption) (string, string, int) {
 	t.Helper()
-	return cmdSubstRunCtxWithOpts(context.Background(), t, script, dir, opts...)
+	return cmdSubstRunCtxWithOpts(t.Context(), t, script, dir, opts...)
 }
 
 func cmdSubstRunCtxWithOpts(ctx context.Context, t *testing.T, script, dir string, opts ...interp.RunnerOption) (string, string, int) {
@@ -259,7 +259,7 @@ func TestCmdSubstInIfCondition(t *testing.T) {
 
 func TestCmdSubstContextCancellation(t *testing.T) {
 	dir := t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	// This should complete quickly, not hang
 	stdout, _, code := cmdSubstRunCtx(ctx, t, `echo $(echo fast)`, dir)

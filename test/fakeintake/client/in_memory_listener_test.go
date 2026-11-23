@@ -49,7 +49,7 @@ func TestInMemoryListener(t *testing.T) {
 		assert.Zero(t, dequeues)
 
 		require.NoError(t, stop())
-		_, err = listener.dial(context.Background(), "tcp", "fakeintake.pipe:80")
+		_, err = listener.dial(t.Context(), "tcp", "fakeintake.pipe:80")
 		assert.ErrorIs(t, err, net.ErrClosed, "the listener must be closed once Stop returns")
 	})
 }
@@ -72,7 +72,7 @@ func TestInMemoryListenerStartedTwice(t *testing.T) {
 		assert.Empty(t, ready, "the readiness must be notified once")
 
 		require.NoError(t, fi.Stop())
-		_, err := listener.dial(context.Background(), "tcp", "fakeintake.pipe:80")
+		_, err := listener.dial(t.Context(), "tcp", "fakeintake.pipe:80")
 		assert.ErrorIs(t, err, net.ErrClosed, "the listener must be closed once Stop returns")
 	})
 }

@@ -8,7 +8,6 @@
 package vmstat
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -84,6 +83,6 @@ func FuzzReadProcStat(f *testing.F) {
 			t.Skip()
 		}
 		var st Stats
-		_, _, _, _ = readProcStat(context.Background(), path, &st) // MUST NOT panic
+		_, _, _, _ = readProcStat(t.Context(), path, &st) // MUST NOT panic
 	})
 }

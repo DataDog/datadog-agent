@@ -47,7 +47,7 @@ const sampleMaps = `00400000-00452000 r-xp 00000000 08:01 173521 /usr/bin/exampl
 
 func TestReadImpl_HappyPath(t *testing.T) {
 	procPath := writeFakeProc(t, 42, "example\n", sampleMaps, "")
-	name, mappings, err := readImpl(context.Background(), procPath, 42, false)
+	name, mappings, err := readImpl(t.Context(), procPath, 42, false)
 	assert.NoError(t, err)
 	assert.Equal(t, "example", name)
 	assert.Len(t, mappings, 5)
@@ -64,13 +64,13 @@ func TestReadImpl_HappyPath(t *testing.T) {
 
 func TestReadImpl_NoSuchProcess(t *testing.T) {
 	procPath := t.TempDir()
-	_, _, err := readImpl(context.Background(), procPath, 99999, false)
+	_, _, err := readImpl(t.Context(), procPath, 99999, false)
 	assert.True(t, errors.Is(err, ErrNoSuchProcess))
 }
 
 func TestReadImpl_ContextCancelled(t *testing.T) {
 	procPath := writeFakeProc(t, 7, "example\n", sampleMaps, "")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, mappings, err := readImpl(ctx, procPath, 7, false)
 	assert.ErrorIs(t, err, context.Canceled)
@@ -89,7 +89,7 @@ Shared_Dirty:          0 kB
 
 func TestReadImpl_ExtendedHappyPath(t *testing.T) {
 	procPath := writeFakeProc(t, 42, "example\n", "", sampleSmaps)
-	name, mappings, err := readImpl(context.Background(), procPath, 42, true)
+	name, mappings, err := readImpl(t.Context(), procPath, 42, true)
 	assert.NoError(t, err)
 	assert.Equal(t, "example", name)
 	assert.Len(t, mappings, 2)
@@ -108,7 +108,7 @@ Rss:                 200 kB
 Private_Dirty:        50 kB
 `
 	procPath := writeFakeProc(t, 42, "example\n", "", truncated)
-	_, mappings, err := readImpl(context.Background(), procPath, 42, true)
+	_, mappings, err := readImpl(t.Context(), procPath, 42, true)
 	assert.ErrorIs(t, err, ErrMalformedData)
 	assert.Empty(t, mappings)
 }
@@ -121,7 +121,7 @@ func TestMaxMappingsCap(t *testing.T) {
 		b = append(b, []byte(hexRange(start, end)+" rw-p 00000000 00:00 0\n")...)
 	}
 	procPath := writeFakeProc(t, 1, "example\n", string(b), "")
-	_, mappings, err := readImpl(context.Background(), procPath, 1, false)
+	_, mappings, err := readImpl(t.Context(), procPath, 1, false)
 	assert.ErrorIs(t, err, ErrMappingLimitExceeded)
 	assert.Empty(t, mappings)
 }
@@ -162,13 +162,13 @@ func TestParseMapsLineRejectsReversedRange(t *testing.T) {
 
 func TestReadCommIsBounded(t *testing.T) {
 	procPath := writeFakeProc(t, 42, strings.Repeat("x", maxCommBytes+1), sampleMaps, "")
-	_, _, err := readImpl(context.Background(), procPath, 42, false)
+	_, _, err := readImpl(t.Context(), procPath, 42, false)
 	assert.ErrorIs(t, err, ErrMalformedData)
 }
 
 func TestReadCommSanitizesControlCharacters(t *testing.T) {
 	procPath := writeFakeProc(t, 42, "line\nbreak\tname\n", sampleMaps, "")
-	name, _, err := readImpl(context.Background(), procPath, 42, false)
+	name, _, err := readImpl(t.Context(), procPath, 42, false)
 	assert.NoError(t, err)
 	assert.Equal(t, "line?break?name", name)
 }

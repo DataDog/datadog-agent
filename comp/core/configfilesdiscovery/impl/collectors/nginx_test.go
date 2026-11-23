@@ -54,7 +54,7 @@ func TestNginxCollectorCollectsSelectedEnvVars(t *testing.T) {
 		"NGINX_PASSWORD":                             "do-not-send",
 	}}
 
-	collected, err := NewNginx().Collect(context.Background(), reader)
+	collected, err := NewNginx().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
@@ -81,7 +81,7 @@ func TestNginxCollectorCanCollectFromProcess(t *testing.T) {
 
 func TestNginxCollectorReturnsEnvReadError(t *testing.T) {
 	expectedErr := errors.New("environment unavailable")
-	_, err := NewNginx().Collect(context.Background(), &nginxCollectorTestReader{readEnvVarsErr: expectedErr})
+	_, err := NewNginx().Collect(t.Context(), &nginxCollectorTestReader{readEnvVarsErr: expectedErr})
 	require.ErrorIs(t, err, expectedErr)
 }
 

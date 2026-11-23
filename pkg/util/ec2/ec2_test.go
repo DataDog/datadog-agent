@@ -6,7 +6,6 @@
 package ec2
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -76,7 +75,7 @@ func TestIsDefaultHostnameForIntake(t *testing.T) {
 }
 
 func TestGetInstanceID(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	var expected string
 	var responseCode int
 	var lastRequest *http.Request
@@ -155,7 +154,7 @@ func TestGetInstanceID(t *testing.T) {
 }
 
 func TestGetLegacyResolutionInstanceID(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	expected := "i-0123456789abcdef0"
 	var responseCode int
 	var lastRequest *http.Request
@@ -261,7 +260,7 @@ func TestGetHostAliases(t *testing.T) {
 			ec2internal.MetadataURL = ts.URL
 			conf.SetInTest("ec2_metadata_timeout", 1000)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			aliases, err := GetHostAliases(ctx)
 			assert.Equal(t, tc.expectedHosts, aliases)
 			assert.NoError(t, err)
@@ -270,7 +269,7 @@ func TestGetHostAliases(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	expected := "ip-10-10-10-10.ec2.internal"
 	var responseCode int
 	var lastRequest *http.Request
@@ -331,7 +330,7 @@ func TestGetHostname(t *testing.T) {
 }
 
 func TestGetToken(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		h := r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds")
@@ -378,7 +377,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 			var requestForToken *http.Request
 			var requestWithToken *http.Request
 			var seq int
-			ctx := context.Background()
+			ctx := t.Context()
 
 			ipv4 := "198.51.100.1"
 
@@ -497,7 +496,7 @@ func TestLegacyMetedataRequestWithoutToken(t *testing.T) {
 	ec2internal.TokenURL = ts.URL
 	conf.SetInTest("ec2_metadata_timeout", 1000)
 
-	ips, err := GetPublicIPv4(context.Background())
+	ips, err := GetPublicIPv4(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, ipv4, ips)
 
@@ -515,7 +514,7 @@ func TestGetNTPHostsFromIMDS(t *testing.T) {
 	defer resetPackageVars()
 
 	ec2internal.MetadataURL = ts.URL
-	actualHosts := GetNTPHosts(context.Background())
+	actualHosts := GetNTPHosts(t.Context())
 	assert.Equal(t, []string{"169.254.169.123"}, actualHosts)
 }
 
@@ -527,7 +526,7 @@ func TestGetNTPHostsDMI(t *testing.T) {
 	setupDMIForEC2(t)
 	ec2internal.MetadataURL = ""
 
-	actualHosts := GetNTPHosts(context.Background())
+	actualHosts := GetNTPHosts(t.Context())
 	assert.Equal(t, []string{"169.254.169.123"}, actualHosts)
 }
 
@@ -539,7 +538,7 @@ func TestGetNTPHostsEC2UUID(t *testing.T) {
 	dmi.SetupMock(t, "ec2something", "", "", "")
 	ec2internal.MetadataURL = ""
 
-	actualHosts := GetNTPHosts(context.Background())
+	actualHosts := GetNTPHosts(t.Context())
 	assert.Equal(t, []string{"169.254.169.123"}, actualHosts)
 }
 
@@ -552,7 +551,7 @@ func TestGetNTPHostsDisabledDMI(t *testing.T) {
 	dmi.SetupMock(t, "something", "something", "i-myinstance", DMIBoardVendor)
 	ec2internal.MetadataURL = ""
 
-	actualHosts := GetNTPHosts(context.Background())
+	actualHosts := GetNTPHosts(t.Context())
 	assert.Equal(t, []string(nil), actualHosts)
 }
 
@@ -560,12 +559,12 @@ func TestGetNTPHostsNotEC2(t *testing.T) {
 	setupDMIForNotEC2(t)
 	ec2internal.MetadataURL = ""
 
-	actualHosts := GetNTPHosts(context.Background())
+	actualHosts := GetNTPHosts(t.Context())
 	assert.Equal(t, []string(nil), actualHosts)
 }
 
 func TestMetadataSourceIMDS(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -618,7 +617,7 @@ func TestMetadataSourceUUID(t *testing.T) {
 	defer resetPackageVars()
 	conf.SetInTest("ec2_use_dmi", true)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ec2internal.MetadataURL = ""
 
@@ -640,7 +639,7 @@ func TestMetadataSourceDMI(t *testing.T) {
 	defer resetPackageVars()
 	conf.SetInTest("ec2_use_dmi", true)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ec2internal.MetadataURL = ""
 
@@ -654,7 +653,7 @@ func TestMetadataSourceDMIPreventFallback(t *testing.T) {
 	defer resetPackageVars()
 	conf.SetInTest("ec2_use_dmi", true)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ec2internal.MetadataURL = ""
 
@@ -667,7 +666,7 @@ func TestMetadataSourceDMIPreventFallback(t *testing.T) {
 }
 
 func TestGetInstanceTypeSkipsIMDSOnECSFargate(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	imdsCalled := make(chan struct{}, 1)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -696,7 +695,7 @@ func TestGetInstanceTypeSkipsIMDSOnECSFargate(t *testing.T) {
 }
 
 func TestGetInstanceTypeFromIMDS(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	expected := "m5.large"
 	var lastRequest *http.Request
 

@@ -8,7 +8,6 @@
 package agentprovider
 
 import (
-	"context"
 	"flag"
 	"os"
 	"path/filepath"
@@ -263,7 +262,7 @@ func TestProvider(t *testing.T) {
 			cfg := loadConfig(t, filepath.Join("testdata", tt.agentConfig))
 			provider := newProvider(cfg, testCollectorParams{})(confmap.ProviderSettings{})
 
-			retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
+			retrieved, err := provider.Retrieve(t.Context(), "dd:", nil)
 
 			if tt.shouldError {
 				require.Error(t, err)
@@ -307,7 +306,7 @@ func TestProviderMultipleEndpoints(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "provider/multiple-endpoints/agent.yaml"))
 	provider := newProvider(cfg, testCollectorParams{})(confmap.ProviderSettings{})
 
-	retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
+	retrieved, err := provider.Retrieve(t.Context(), "dd:", nil)
 	require.NoError(t, err)
 
 	actual, err := retrieved.AsConf()
@@ -395,7 +394,7 @@ func TestProviderIncludeEnvVars(t *testing.T) {
 			cfg := config.NewMockFromYAML(t, "api_key: test-key\nsite: datadoghq.com\n"+tt.settings)
 			provider := newProvider(cfg, testCollectorParams{})(confmap.ProviderSettings{})
 
-			retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
+			retrieved, err := provider.Retrieve(t.Context(), "dd:", nil)
 			require.NoError(t, err)
 			actual, err := retrieved.AsConf()
 			require.NoError(t, err)
@@ -479,9 +478,9 @@ func TestProviderMethods(t *testing.T) {
 
 	require.Equal(t, "dd", provider.Scheme())
 
-	_, err := provider.Retrieve(context.Background(), "invalid:", nil)
+	_, err := provider.Retrieve(t.Context(), "invalid:", nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "uri is not supported")
 
-	require.NoError(t, provider.Shutdown(context.Background()))
+	require.NoError(t, provider.Shutdown(t.Context()))
 }

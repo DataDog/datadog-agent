@@ -8,7 +8,6 @@
 package systemd
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,7 +18,7 @@ import (
 
 func TestSystemdManagerMethodsFailClosedOffLinux(t *testing.T) {
 	client := NewClient(Target{})
-	ctx := context.Background()
+	ctx := t.Context()
 
 	states, err := client.ListSystemServices(ctx, builtins.SystemServiceListRequest{Services: []string{"api.service"}})
 	assert.Nil(t, states)

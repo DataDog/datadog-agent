@@ -253,7 +253,7 @@ func newWMetaMock(t *testing.T) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 }
@@ -263,7 +263,7 @@ func TestSourceProvider_GoRoutineExitsCleanly(t *testing.T) {
 	ls := sources.NewLogSources()
 	sp := newSourceProvider(&stubWmeta{}, ls, nil, nil)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	sp.run(ctx)
 	cancel()
 	sp.wait()

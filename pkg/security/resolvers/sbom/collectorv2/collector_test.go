@@ -8,7 +8,6 @@
 package collectorv2
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,7 +67,7 @@ func TestScanInstalledPackagesLeavesOutDocs(t *testing.T) {
 		}, "\n") + "\n",
 	})
 
-	pkgs, err := NewOSScanner().ScanInstalledPackages(context.Background(), dir)
+	pkgs, err := NewOSScanner().ScanInstalledPackages(t.Context(), dir)
 	require.NoError(t, err)
 	require.Len(t, pkgs, 1)
 	assert.Equal(t, []string{"/bin/bash", "/usr/share/bash-completion/completions/bash"}, pkgs[0].InstalledFiles)
@@ -84,7 +83,7 @@ func TestScanInstalledPackagesLeavesOutDocsOfEachArchitecture(t *testing.T) {
 		"var/lib/dpkg/info/libc6:i386.md5sums":  "0  usr/lib/i386-linux-gnu/libc.so.6\n0  usr/share/doc/libc6/changelog.gz\n",
 	})
 
-	pkgs, err := NewOSScanner().ScanInstalledPackages(context.Background(), dir)
+	pkgs, err := NewOSScanner().ScanInstalledPackages(t.Context(), dir)
 	require.NoError(t, err)
 	require.Len(t, pkgs, 2)
 	for _, pkg := range pkgs {

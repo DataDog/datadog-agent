@@ -204,7 +204,7 @@ func TestInstallGroupsByRegistry(t *testing.T) {
 	tmpDir := t.TempDir()
 	ExtensionsDBDir = tmpDir
 
-	ctx := context.Background()
+	ctx := t.Context()
 	hooks := &mockHooks{}
 
 	// Seed the DB with the package
@@ -247,7 +247,7 @@ func TestInstallNilOverridesBackwardsCompat(t *testing.T) {
 	tmpDir := t.TempDir()
 	ExtensionsDBDir = tmpDir
 
-	ctx := context.Background()
+	ctx := t.Context()
 	hooks := &mockHooks{}
 
 	// Seed the DB with the package
@@ -289,7 +289,7 @@ func TestHookErrorPropagation(t *testing.T) {
 		preRemoveErr: expectedErr,
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err := removeSingle(ctx, "datadog-agent", "7.50.0", "python", hooks)
 
 	require.Error(t, err, "hook failure should return error")
@@ -337,7 +337,7 @@ func TestInstallSingleReplaceSucceeds(t *testing.T) {
 	hooks := &mockHooks{}
 
 	err := Install(
-		context.Background(),
+		t.Context(),
 		oci.NewDownloader(&env.Env{}, http.DefaultClient),
 		s.PackageURL(fixtures.FixtureSimpleV1WithExtension),
 		[]string{fixtureExtensionName},
@@ -368,7 +368,7 @@ func TestInstallSingleRollsBackOnPostInstallFailure(t *testing.T) {
 	hooks := &mockHooks{postInstallErr: errors.New("post-install-failed")}
 
 	err := Install(
-		context.Background(),
+		t.Context(),
 		oci.NewDownloader(&env.Env{}, http.DefaultClient),
 		s.PackageURL(fixtures.FixtureSimpleV1WithExtension),
 		[]string{fixtureExtensionName},
@@ -394,7 +394,7 @@ func TestInstallSingleRestoresBackupWhenRollbackPreInstallFails(t *testing.T) {
 	hooks := &mockHooks{postInstallErr: errors.New("post-install-failed"), preInstallFailFrom: 2}
 
 	err := Install(
-		context.Background(),
+		t.Context(),
 		oci.NewDownloader(&env.Env{}, http.DefaultClient),
 		s.PackageURL(fixtures.FixtureSimpleV1WithExtension),
 		[]string{fixtureExtensionName},
@@ -415,11 +415,11 @@ func TestInstallSingleSkipsWhenExistsAndNotReplacing(t *testing.T) {
 	extPath := setupReplaceTest(t)
 	s := fixtures.NewServer(t)
 	pkg, err := oci.NewDownloader(&env.Env{}, http.DefaultClient).Download(
-		context.Background(), s.PackageURL(fixtures.FixtureSimpleV1WithExtension))
+		t.Context(), s.PackageURL(fixtures.FixtureSimpleV1WithExtension))
 	require.NoError(t, err)
 
 	hooks := &mockHooks{}
-	err = installSingle(context.Background(), pkg, fixtureExtensionName, false, hooks, false /* replace */)
+	err = installSingle(t.Context(), pkg, fixtureExtensionName, false, hooks, false /* replace */)
 	require.NoError(t, err)
 
 	_, statErr := os.Stat(filepath.Join(extPath, "old-sentinel"))
@@ -436,7 +436,7 @@ func TestInstallSinglePreRemoveFailurePreservesExtension(t *testing.T) {
 	hooks := &mockHooks{preRemoveErr: errors.New("pre-remove-failed")}
 
 	err := Install(
-		context.Background(),
+		t.Context(),
 		oci.NewDownloader(&env.Env{}, http.DefaultClient),
 		s.PackageURL(fixtures.FixtureSimpleV1WithExtension),
 		[]string{fixtureExtensionName},
@@ -456,6 +456,6 @@ func TestInstallSinglePreRemoveFailurePreservesExtension(t *testing.T) {
 func TestRemoveAllMissingDB(t *testing.T) {
 	ExtensionsDBDir = filepath.Join(t.TempDir(), "does-not-exist")
 
-	err := RemoveAll(context.Background(), "datadog-agent", false, &mockHooks{})
+	err := RemoveAll(t.Context(), "datadog-agent", false, &mockHooks{})
 	require.NoError(t, err, "RemoveAll should return nil when the extensions DB does not exist")
 }

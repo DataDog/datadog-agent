@@ -70,7 +70,7 @@ func newTestStandaloneHostname(cfg coreconfig.Component, chain *fakeHostname, in
 }
 
 func TestStandaloneHostname(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("provider chain succeeds", func(t *testing.T) {
 		setKubernetes(t, true)
@@ -150,7 +150,7 @@ func TestStandaloneHostname(t *testing.T) {
 }
 
 func TestSetStandaloneTraceHostname(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("sets the resolved hostname", func(t *testing.T) {
 		cfg := coreconfig.NewMock(t)

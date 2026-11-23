@@ -8,7 +8,6 @@
 package serverimpl
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -49,12 +48,12 @@ func TestStartHookNoListenerRequireListener(t *testing.T) {
 	cfg["dogstatsd_require_listener"] = true
 
 	_, s := fulfillDepsWithInactiveServer(t, cfg)
-	require.ErrorIs(t, s.startHook(context.Background()), errNoListeners, "startHook should return errNoListeners when no listener could be created and dogstatsd_require_listener is set")
+	require.ErrorIs(t, s.startHook(t.Context()), errNoListeners, "startHook should return errNoListeners when no listener could be created and dogstatsd_require_listener is set")
 }
 
 func TestStartHookNoListenerDefault(t *testing.T) {
 	_, s := fulfillDepsWithInactiveServer(t, noListenerConfig())
-	require.NoError(t, s.startHook(context.Background()), "startHook should swallow the no-listener error when dogstatsd_require_listener is not set")
+	require.NoError(t, s.startHook(t.Context()), "startHook should swallow the no-listener error when dogstatsd_require_listener is not set")
 }
 
 func TestSetTimingUnitConfig(t *testing.T) {

@@ -47,7 +47,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 				ku.On("GetNodename").Return("node-name", nil)
 			},
 			nodeLabels: map[string]string{},
-			ctx:        context.Background(),
+			ctx:        t.Context(),
 			want:       "",
 			wantErr:    false,
 		},
@@ -59,7 +59,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			nodeLabels: map[string]string{
 				"ad.datadoghq.com/cluster-name": "foo",
 			},
-			ctx:     context.Background(),
+			ctx:     t.Context(),
 			want:    "foo",
 			wantErr: false,
 		},
@@ -71,7 +71,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			nodeLabels: map[string]string{
 				"kubernetes.azure.com/cluster": "foo",
 			},
-			ctx:     context.Background(),
+			ctx:     t.Context(),
 			want:    "foo",
 			wantErr: false,
 		},
@@ -83,7 +83,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			nodeLabels: map[string]string{
 				"kubernetes.azure.com/cluster": "MC_aks-kenafeh_aks-kenafeh-eu_westeurope",
 			},
-			ctx:     context.Background(),
+			ctx:     t.Context(),
 			want:    "aks-kenafeh-eu",
 			wantErr: false,
 		},
@@ -98,7 +98,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			nodeLabels: map[string]string{
 				"custom-label": "bar",
 			},
-			ctx:     context.Background(),
+			ctx:     t.Context(),
 			want:    "bar",
 			wantErr: false,
 		},
@@ -114,7 +114,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 				"ad.datadoghq.com/cluster-name": "foo",
 				"custom-label":                  "bar",
 			},
-			ctx:     context.Background(),
+			ctx:     t.Context(),
 			want:    "bar",
 			wantErr: false,
 		},
@@ -127,7 +127,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			nodeLabels: map[string]string{
 				"alpha.eksctl.io/cluster-name": "foo",
 			},
-			ctx:     context.Background(),
+			ctx:     t.Context(),
 			want:    "bar",
 			wantErr: false,
 		},
@@ -140,7 +140,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			nodeLabels: map[string]string{
 				"kubernetes.azure.com/cluster": "foo",
 			},
-			ctx:     context.Background(),
+			ctx:     t.Context(),
 			want:    "bar",
 			wantErr: false,
 		},
@@ -153,7 +153,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			nodeLabels: map[string]string{
 				"ad.datadoghq.com/cluster-name": "foo",
 			},
-			ctx:     context.Background(),
+			ctx:     t.Context(),
 			want:    "foo",
 			wantErr: false,
 		},
@@ -169,7 +169,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			nodeLabels: map[string]string{
 				"custom-label": "foo",
 			},
-			ctx:     context.Background(),
+			ctx:     t.Context(),
 			want:    "foo",
 			wantErr: false,
 		},

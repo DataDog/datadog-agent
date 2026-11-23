@@ -138,7 +138,7 @@ func TestProcessWorkItem_Added(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	injector := newMockSecurityInjector(ctx, mockClient, mockLogger, mockConfig)
 
 	mockPattern := &mockInjectionPattern{
@@ -190,7 +190,7 @@ func TestProcessWorkItem_Deleted(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	injector := newMockSecurityInjector(ctx, mockClient, mockLogger, mockConfig)
 
 	mockPattern := &mockInjectionPattern{
@@ -242,7 +242,7 @@ func TestProcessWorkItem_ErrorRetry(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	injector := newMockSecurityInjector(ctx, mockClient, mockLogger, mockConfig)
 
 	mockPattern := &mockInjectionPattern{
@@ -288,7 +288,7 @@ func TestProcessWorkItem_PermanentErrorNotRetried(t *testing.T) {
 		"invalid":   apierrors.NewInvalid(schema.GroupKind{Group: gr.Group, Kind: "ReferenceGrant"}, "grant", nil),
 	} {
 		t.Run(name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			injector := newMockSecurityInjector(ctx, dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()), logmock.New(t), appsecconfig.Config{})
 			mockPattern := &mockInjectionPattern{addedErr: fmt.Errorf("could not ensure ReferenceGrant: %w", permanentErr)}
 
@@ -316,7 +316,7 @@ func TestProcessWorkItem_TransientForbiddenRetried(t *testing.T) {
 		"admission startup":  apierrors.NewForbidden(gr, "grant", errors.New("not yet ready to handle request")),
 	} {
 		t.Run(name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			injector := newMockSecurityInjector(ctx, dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()), logmock.New(t), appsecconfig.Config{})
 			mockPattern := &mockInjectionPattern{addedErr: fmt.Errorf("could not ensure ReferenceGrant: %w", transientErr)}
 
@@ -371,7 +371,7 @@ func TestProcessWorkItem_NotLeader(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	injector := newMockSecurityInjector(ctx, mockClient, mockLogger, mockConfig)
 	// Note: leaderSub is not used by processWorkItem directly - leadership checks happen in runLeader
 	injector.leaderSub = func() (<-chan struct{}, func() bool) {
@@ -679,7 +679,7 @@ func (*countingLogger) Flush()                                 {}
 func TestRun_logsNotApplicableSkipAtInfo(t *testing.T) {
 	// Given a pattern reporting that injection does not apply to this configuration
 	logger := &countingLogger{}
-	injector := newMockSecurityInjector(context.Background(),
+	injector := newMockSecurityInjector(t.Context(),
 		dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()),
 		logger,
 		appsecconfig.Config{},
@@ -689,7 +689,7 @@ func TestRun_logsNotApplicableSkipAtInfo(t *testing.T) {
 	}
 
 	// When
-	injector.run(context.Background(), appsecconfig.ProxyTypeGKEGateway, pattern)
+	injector.run(t.Context(), appsecconfig.ProxyTypeGKEGateway, pattern)
 
 	// Then the skip is reported at info level, never as a failure
 	require.Zero(t, logger.errorfCalls)
@@ -699,7 +699,7 @@ func TestRun_logsNotApplicableSkipAtInfo(t *testing.T) {
 func TestRun_logsGenuineFailureAtError(t *testing.T) {
 	// Given a pattern reporting a real misconfiguration
 	logger := &countingLogger{}
-	injector := newMockSecurityInjector(context.Background(),
+	injector := newMockSecurityInjector(t.Context(),
 		dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()),
 		logger,
 		appsecconfig.Config{},
@@ -709,7 +709,7 @@ func TestRun_logsGenuineFailureAtError(t *testing.T) {
 	}
 
 	// When
-	injector.run(context.Background(), appsecconfig.ProxyTypeGKEGateway, pattern)
+	injector.run(t.Context(), appsecconfig.ProxyTypeGKEGateway, pattern)
 
 	// Then it stays an error, so genuine misconfiguration is still surfaced
 	require.Equal(t, 1, logger.errorfCalls)
@@ -779,7 +779,7 @@ func TestCleanupAllowed(t *testing.T) {
 			for _, gw := range tc.gateways {
 				require.NoError(t, client.Tracker().Create(istioGatewayGVR, gw, gw.GetNamespace()))
 			}
-			assert.Equal(t, tc.want, cleanupAllowed(context.Background(), logmock.New(t), client, tc.typ, tc.enabled))
+			assert.Equal(t, tc.want, cleanupAllowed(t.Context(), logmock.New(t), client, tc.typ, tc.enabled))
 		})
 	}
 
@@ -788,7 +788,7 @@ func TestCleanupAllowed(t *testing.T) {
 		client.PrependReactor("list", "*", func(k8stesting.Action) (bool, runtime.Object, error) {
 			return true, nil, errors.New("api unavailable")
 		})
-		assert.False(t, cleanupAllowed(context.Background(), logmock.New(t), client, appsecconfig.ProxyTypeIstio, proxies(appsecconfig.ProxyTypeIstioGateway)))
+		assert.False(t, cleanupAllowed(t.Context(), logmock.New(t), client, appsecconfig.ProxyTypeIstio, proxies(appsecconfig.ProxyTypeIstioGateway)))
 	})
 }
 
@@ -809,7 +809,7 @@ func TestStartupCleanup_SiblingWithoutResources(t *testing.T) {
 		{name: "native Gateway present", nativeGW: true, filterRemain: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			logger := logmock.New(t)
 
 			filter := &unstructured.Unstructured{}
@@ -879,7 +879,7 @@ func TestCleanupPattern_MarksCleanupContext(t *testing.T) {
 	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), newClass("a"), newClass("b"))
 	pattern := &cleanupRecordingPattern{mockInjectionPattern: mockInjectionPattern{resource: gvr}}
 
-	cleanupPattern(context.Background(), logmock.New(t), client, pattern)
+	cleanupPattern(t.Context(), logmock.New(t), client, pattern)
 
 	assert.Equal(t, []bool{true, true}, pattern.cleanup)
 }

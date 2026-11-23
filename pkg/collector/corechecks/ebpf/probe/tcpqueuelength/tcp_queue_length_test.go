@@ -8,7 +8,6 @@
 package tcpqueuelength
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -112,7 +111,7 @@ func runTCPLoadTest() error {
 	serverReady := make(chan struct{})
 	bufferConfigured := make(chan struct{})
 
-	g, ctx := errgroup.WithContext(context.Background())
+	g, ctx := errgroup.WithContext(t.Context())
 
 	// Server goroutine: listen, accept, configure a tiny receive buffer, then read.
 	g.Go(func() error {

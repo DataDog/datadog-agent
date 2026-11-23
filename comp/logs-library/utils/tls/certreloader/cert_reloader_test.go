@@ -57,7 +57,7 @@ func TestNew_LoadsCertificate(t *testing.T) {
 	dir := t.TempDir()
 	certFile, keyFile := writeTestCert(t, dir, "test-cert")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := New(ctx, certFile, keyFile, RealClock())
@@ -70,7 +70,7 @@ func TestNew_LoadsCertificate(t *testing.T) {
 }
 
 func TestNew_ErrorOnMissingFile(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := New(ctx, "/nonexistent/cert.pem", "/nonexistent/key.pem", RealClock())
@@ -84,7 +84,7 @@ func TestGetClientCertificate(t *testing.T) {
 	dir := t.TempDir()
 	certFile, keyFile := writeTestCert(t, dir, "client-cert")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := New(ctx, certFile, keyFile, RealClock())
@@ -115,7 +115,7 @@ func TestShouldReload_AfterCacheTimeout(t *testing.T) {
 	dir := t.TempDir()
 	certFile, keyFile := writeTestCert(t, dir, "reload-test")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := New(ctx, certFile, keyFile, RealClock())
@@ -136,7 +136,7 @@ func TestShouldReload_AfterCacheTimeout(t *testing.T) {
 }
 
 func TestShouldReload_AfterErrorCacheTimeout(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := New(ctx, "/nonexistent", "/nonexistent", RealClock())
@@ -153,7 +153,7 @@ func TestCancelStopsBackground(t *testing.T) {
 	dir := t.TempDir()
 	certFile, keyFile := writeTestCert(t, dir, "cancel-test")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	r := New(ctx, certFile, keyFile, RealClock())
 	cancel()
 
@@ -167,7 +167,7 @@ func TestReloadPicksUpNewCert(t *testing.T) {
 	dir := t.TempDir()
 	certFile, keyFile := writeTestCert(t, dir, "original-cert")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := New(ctx, certFile, keyFile, RealClock())
@@ -188,7 +188,7 @@ func TestShouldReload_ExpiredCert(t *testing.T) {
 	dir := t.TempDir()
 	certFile, keyFile := writeTestCert(t, dir, "expiry-test")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := New(ctx, certFile, keyFile, RealClock())
@@ -204,7 +204,7 @@ func TestReloadFailurePreservesLastKnownGoodCert(t *testing.T) {
 	dir := t.TempDir()
 	certFile, keyFile := writeTestCert(t, dir, "good-cert")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := New(ctx, certFile, keyFile, RealClock())
@@ -228,7 +228,7 @@ func TestReloadFailureStillRetriesQuickly(t *testing.T) {
 	dir := t.TempDir()
 	certFile, keyFile := writeTestCert(t, dir, "retry-cadence")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := New(ctx, certFile, keyFile, RealClock())
@@ -245,7 +245,7 @@ func TestReloadFailureStillRetriesQuickly(t *testing.T) {
 }
 
 func TestInitialLoadFailureReturnsError(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := New(ctx, "/nonexistent/cert.pem", "/nonexistent/key.pem", RealClock())
@@ -259,7 +259,7 @@ func TestGetCertificate_ConcurrentAccess(t *testing.T) {
 	dir := t.TempDir()
 	certFile, keyFile := writeTestCert(t, dir, "concurrent-test")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := New(ctx, certFile, keyFile, RealClock())
@@ -313,7 +313,7 @@ func TestCAReloadFailurePreservesLastKnownGoodPool(t *testing.T) {
 	dir := t.TempDir()
 	caFile := writeTestCA(t, dir)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := NewCAReloader(ctx, caFile, RealClock())
@@ -332,7 +332,7 @@ func TestCAReloadFailurePreservesLastKnownGoodPool(t *testing.T) {
 }
 
 func TestCAInitialLoadFailureReturnsError(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := NewCAReloader(ctx, "/nonexistent/ca.pem", RealClock())

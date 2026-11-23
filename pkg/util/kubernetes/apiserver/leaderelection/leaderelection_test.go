@@ -128,7 +128,7 @@ func TestNewLeaseAcquiring(t *testing.T) {
 			client := fake.NewSimpleClientset()
 
 			le := &LeaderEngine{
-				ctx:             context.Background(),
+				ctx:             t.Context(),
 				HolderIdentity:  "foo",
 				LeaseName:       leaseName,
 				LeaderNamespace: "default",
@@ -237,7 +237,7 @@ func TestSubscribe(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.name), func(t *testing.T) {
 			client := fake.NewSimpleClientset()
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			le := &LeaderEngine{
 				ctx:             ctx,
 				HolderIdentity:  "foo",
@@ -426,7 +426,7 @@ func TestGetLeaderIPFollower_ConfigMap(t *testing.T) {
 			}
 
 			le := &LeaderEngine{
-				ctx:             context.Background(),
+				ctx:             t.Context(),
 				HolderIdentity:  "foo",
 				LeaseName:       leaseName,
 				ServiceName:     serviceName,
@@ -567,7 +567,7 @@ func TestGetLeaderIPFollower_Lease(t *testing.T) {
 			}
 
 			le := &LeaderEngine{
-				ctx:             context.Background(),
+				ctx:             t.Context(),
 				HolderIdentity:  "foo",
 				LeaseName:       leaseName,
 				ServiceName:     serviceName,

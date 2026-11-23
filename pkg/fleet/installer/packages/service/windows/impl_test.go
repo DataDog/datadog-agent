@@ -8,7 +8,6 @@
 package windows
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -147,7 +146,7 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 
 			manager := NewWinServiceManagerWithAPI(mockAPI)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			err := manager.terminateServiceProcess(ctx, tt.serviceName)
 
 			if tt.expectError {
@@ -370,7 +369,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 
 			manager := NewWinServiceManagerWithAPI(mockAPI)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			err := manager.StopAllAgentServices(ctx)
 
 			if tt.expectError {
@@ -411,7 +410,7 @@ func TestWinServiceManager_RestartAgentServices(t *testing.T) {
 
 		manager := NewWinServiceManagerWithAPI(mockAPI)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		err := manager.RestartAgentServices(ctx)
 
 		assert.NoError(t, err)
@@ -450,7 +449,7 @@ func TestWinServiceManager_RestartAgentServices(t *testing.T) {
 
 		manager := NewWinServiceManagerWithAPI(mockAPI)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		err := manager.RestartAgentServices(ctx)
 
 		// Should succeed overall because start succeeded, even though stop failed

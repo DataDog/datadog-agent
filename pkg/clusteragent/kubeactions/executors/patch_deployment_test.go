@@ -8,7 +8,6 @@
 package executors
 
 import (
-	"context"
 	"testing"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
@@ -63,7 +62,7 @@ func TestPatchDeploymentExecutor_ScaleReplicas(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "success", result.Status)
 	assert.Contains(t, result.Message, "patched")
 }
@@ -96,7 +95,7 @@ func TestPatchDeploymentExecutor_UIDMismatch(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "failed", result.Status)
 	assert.Contains(t, result.Message, "UID mismatch")
 }
@@ -121,7 +120,7 @@ func TestPatchDeploymentExecutor_MissingNamespace(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "failed", result.Status)
 	// Namespace validation happens in the validator layer before the executor is called.
 	// With an empty namespace, the k8s API returns a not-found error.
@@ -146,7 +145,7 @@ func TestPatchDeploymentExecutor_MissingPatch(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "failed", result.Status)
 	assert.Contains(t, result.Message, "patch is required")
 }
@@ -184,7 +183,7 @@ func TestPatchDeploymentExecutor_WithMergeStrategy(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "success", result.Status)
 	assert.Contains(t, result.Message, "patched")
 }
@@ -217,7 +216,7 @@ func TestPatchDeploymentExecutor_DeploymentNotFound(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "failed", result.Status)
 	assert.Contains(t, result.Message, "failed to get deployment")
 }

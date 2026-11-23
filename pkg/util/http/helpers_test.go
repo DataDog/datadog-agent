@@ -6,7 +6,6 @@
 package http
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -29,7 +28,7 @@ func TestGet(t *testing.T) {
 	defer ts.Close()
 
 	c := configmock.New(t)
-	res, err := Get(context.Background(), ts.URL, nil, 5*time.Second, c)
+	res, err := Get(t.Context(), ts.URL, nil, 5*time.Second, c)
 
 	require.NoError(t, err)
 	assert.Equal(t, "test ok", res)
@@ -45,7 +44,7 @@ func TestGetHeader(t *testing.T) {
 	defer ts.Close()
 
 	c := configmock.New(t)
-	res, err := Get(context.Background(), ts.URL, map[string]string{"header": "value"}, 5*time.Second, c)
+	res, err := Get(t.Context(), ts.URL, map[string]string{"header": "value"}, 5*time.Second, c)
 
 	require.NoError(t, err)
 	assert.Equal(t, "test ok", res)
@@ -61,7 +60,7 @@ func TestGetTimeout(t *testing.T) {
 	defer ts.Close()
 
 	c := configmock.New(t)
-	_, err := Get(context.Background(), ts.URL, map[string]string{"header": "value"}, 100*time.Millisecond, c)
+	_, err := Get(t.Context(), ts.URL, map[string]string{"header": "value"}, 100*time.Millisecond, c)
 
 	require.Error(t, err)
 }
@@ -75,7 +74,7 @@ func TestGetError(t *testing.T) {
 	defer ts.Close()
 
 	c := configmock.New(t)
-	_, err := Get(context.Background(), ts.URL, map[string]string{"header": "value"}, 5*time.Second, c)
+	_, err := Get(t.Context(), ts.URL, map[string]string{"header": "value"}, 5*time.Second, c)
 
 	require.Error(t, err)
 }

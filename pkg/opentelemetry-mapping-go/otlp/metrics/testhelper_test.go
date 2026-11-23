@@ -93,7 +93,7 @@ type TestingT interface {
 //
 // To generate OTLP data to be used on this assert, use the pmetric.JSONMarshaler and json.Indent.
 // If the Datadog data does not match, a file ending in .actual will be generated containing the actual translator output.
-func AssertTranslatorMap(t TestingT, translator Provider, otlpfilename string, datadogfilename string) bool {
+func AssertTranslatorMap(t TestingT, ctx context.Context, translator Provider, otlpfilename string, datadogfilename string) bool {
 	// Check that the filenames follow conventions.
 	prefix := strings.TrimSuffix(filepath.Base(otlpfilename), ".json")
 	if !strings.HasPrefix(filepath.Base(datadogfilename), prefix) {
@@ -119,7 +119,7 @@ func AssertTranslatorMap(t TestingT, translator Provider, otlpfilename string, d
 
 	// Map metrics using translator.
 	consumer := newTestConsumer()
-	_, err = translator.MapMetrics(context.Background(), otlpdata, &consumer, nil)
+	_, err = translator.MapMetrics(ctx, otlpdata, &consumer, nil)
 	require.NoError(t, err)
 
 	if !assert.Equal(t, expecteddata.Metrics, consumer.data.Metrics) ||
@@ -279,10 +279,10 @@ func TestAssertTranslatorMapFailure(t *testing.T) {
 	ddogfile := "test/datadog/hist/simple-delta_nobuckets-cs.json"
 	translator := NewTestTranslator(t, WithOriginProduct(OriginProductDatadogAgent), WithHistogramMode(HistogramModeDistributions))
 	mockTesting := &testingTMock{t}
-	assert.False(t, AssertTranslatorMap(mockTesting, translator, otlpfile, ddogfile), "AssertTranslatorMap should have failed but did not")
+	assert.False(t, AssertTranslatorMap(mockTesting, t.Context(), translator, otlpfile, ddogfile), "AssertTranslatorMap should have failed but did not")
 	actualFile := ddogfile + ".actual"
 	if assert.FileExists(t, actualFile, "AssertTranslatorMap did not create .actual file") {
-		assert.True(t, AssertTranslatorMap(mockTesting, translator, otlpfile, actualFile), "AssertTranslatorMap should have passed with .actual output")
+		assert.True(t, AssertTranslatorMap(mockTesting, t.Context(), translator, otlpfile, actualFile), "AssertTranslatorMap should have passed with .actual output")
 		require.NoError(t, os.Remove(actualFile))
 	}
 }

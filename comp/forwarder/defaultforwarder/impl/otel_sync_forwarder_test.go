@@ -131,7 +131,7 @@ func TestOTelSyncForwarder_sendHTTPTransactions_PropagatesError(t *testing.T) {
 	txn.Endpoint = transaction.Endpoint{Route: "/api/v1/series"}
 	txn.Payload = transaction.NewBytesPayloadWithoutMetaData([]byte("{}"))
 
-	err := f.sendHTTPTransactions(context.Background(), []*transaction.HTTPTransaction{txn})
+	err := f.sendHTTPTransactions(t.Context(), []*transaction.HTTPTransaction{txn})
 	assert.Error(t, err, "5xx response should surface as an error")
 }
 
@@ -151,7 +151,7 @@ func TestOTelSyncForwarder_sendHTTPTransactions_PermanentErrorOnBadRequest(t *te
 			txn.Endpoint = transaction.Endpoint{Route: "/api/v1/series"}
 			txn.Payload = transaction.NewBytesPayloadWithoutMetaData([]byte("{}"))
 
-			err := f.sendHTTPTransactions(context.Background(), []*transaction.HTTPTransaction{txn})
+			err := f.sendHTTPTransactions(t.Context(), []*transaction.HTTPTransaction{txn})
 			require.Error(t, err, "permanent %d should surface as an error instead of being silently dropped", status)
 			assert.ErrorIs(t, err, ErrPermanentHTTPError, "permanent %d must wrap ErrPermanentHTTPError so callers can mark it non-retryable", status)
 		})
@@ -171,7 +171,7 @@ func TestOTelSyncForwarder_sendHTTPTransactions_SuccessOnOK(t *testing.T) {
 	txn.Endpoint = transaction.Endpoint{Route: "/api/v1/series"}
 	txn.Payload = transaction.NewBytesPayloadWithoutMetaData([]byte("{}"))
 
-	assert.NoError(t, f.sendHTTPTransactions(context.Background(), []*transaction.HTTPTransaction{txn}))
+	assert.NoError(t, f.sendHTTPTransactions(t.Context(), []*transaction.HTTPTransaction{txn}))
 }
 
 func TestOTelSyncForwarder_sendHTTPTransactions_CombinesMultipleErrors(t *testing.T) {
@@ -190,7 +190,7 @@ func TestOTelSyncForwarder_sendHTTPTransactions_CombinesMultipleErrors(t *testin
 		return txn
 	}
 
-	err := f.sendHTTPTransactions(context.Background(), []*transaction.HTTPTransaction{makeTxn(), makeTxn()})
+	err := f.sendHTTPTransactions(t.Context(), []*transaction.HTTPTransaction{makeTxn(), makeTxn()})
 	require.Error(t, err)
 	// multierr wraps both individual errors; the combined message should
 	// reference both failures.
@@ -242,7 +242,7 @@ func TestOTelSyncForwarder_SubmitV1IntakeDirect_PropagatesCancellation(t *testin
 	}
 	f := newTestOTelSyncForwarder(t, client)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // pre-cancel so internalProcess takes the silent-drop path
 
 	payload := transaction.BytesPayloads{

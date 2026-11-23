@@ -33,7 +33,7 @@ func TestVulnHuntBuiltinFileAccessBypass_PathOperandsAreNumericData(t *testing.T
 
 func TestVulnHuntBuiltinResourceExhaustion_HugeInvalidNumericOperand(t *testing.T) {
 	dir := t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	arg := strings.Repeat("9", 64*1024)

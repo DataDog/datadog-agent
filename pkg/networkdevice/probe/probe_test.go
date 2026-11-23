@@ -22,7 +22,7 @@ import (
 func TestScanReturnsOneResultPerTargetInOrder(t *testing.T) {
 	targets := []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}
 
-	results, err := scan(context.Background(), 2, targets, func(_ context.Context, target string) Result {
+	results, err := scan(t.Context(), 2, targets, func(_ context.Context, target string) Result {
 		return Result{Target: target}
 	})
 
@@ -36,7 +36,7 @@ func TestScanReturnsOneResultPerTargetInOrder(t *testing.T) {
 func TestScanKeepsEveryOtherResultWhenOneTargetFails(t *testing.T) {
 	targets := []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}
 
-	results, err := scan(context.Background(), 3, targets, func(_ context.Context, target string) Result {
+	results, err := scan(t.Context(), 3, targets, func(_ context.Context, target string) Result {
 		res := Result{Target: target, Ping: &pingprobe.Reading{Success: true}}
 		if target == "10.0.0.2" {
 			res.Ping = &pingprobe.Reading{FailureReason: "unreachable"}
@@ -70,7 +70,7 @@ func TestScanNeverRunsMoreTargetsThanWorkers(t *testing.T) {
 	// reached without waiting on the scheduler.
 	barrier := make(chan struct{})
 
-	_, err := scan(context.Background(), workers, []string{"a", "b", "c", "d", "e", "f"}, func(_ context.Context, target string) Result {
+	_, err := scan(t.Context(), workers, []string{"a", "b", "c", "d", "e", "f"}, func(_ context.Context, target string) Result {
 		recordPeak(&running, &peak)
 		if started.Add(1) == workers {
 			close(barrier)
@@ -87,7 +87,7 @@ func TestScanNeverRunsMoreTargetsThanWorkers(t *testing.T) {
 func TestScanClampsANonPositiveWorkerCountToOne(t *testing.T) {
 	var running, peak atomic.Int64
 
-	results, err := scan(context.Background(), 0, []string{"a", "b", "c"}, func(_ context.Context, target string) Result {
+	results, err := scan(t.Context(), 0, []string{"a", "b", "c"}, func(_ context.Context, target string) Result {
 		recordPeak(&running, &peak)
 		// Yields so a second callback would be observed if one were dispatched.
 		runtime.Gosched()
@@ -101,7 +101,7 @@ func TestScanClampsANonPositiveWorkerCountToOne(t *testing.T) {
 }
 
 func TestScanReturnsTheCollectedResultsWithItsContextError(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	var done atomic.Int64
 
 	results, err := scan(ctx, 1, []string{"a", "b", "c"}, func(_ context.Context, target string) Result {
@@ -117,7 +117,7 @@ func TestScanReturnsTheCollectedResultsWithItsContextError(t *testing.T) {
 }
 
 func TestScanDispatchesNothingWhenItsContextIsAlreadyCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	var calls atomic.Int64
 
@@ -132,7 +132,7 @@ func TestScanDispatchesNothingWhenItsContextIsAlreadyCancelled(t *testing.T) {
 }
 
 func TestScanOneRunsOnlyTheConfiguredProbes(t *testing.T) {
-	res := scanOne(context.Background(), "127.0.0.1", Options{
+	res := scanOne(t.Context(), "127.0.0.1", Options{
 		SNMP: &snmpprobe.Options{
 			Port:        1,
 			Timeout:     50 * time.Millisecond,
@@ -147,7 +147,7 @@ func TestScanOneRunsOnlyTheConfiguredProbes(t *testing.T) {
 }
 
 func TestScanOneRunsNoProbeForEmptyOptions(t *testing.T) {
-	res := scanOne(context.Background(), "10.0.0.1", Options{})
+	res := scanOne(t.Context(), "10.0.0.1", Options{})
 
 	assert.Equal(t, "10.0.0.1", res.Target)
 	assert.Nil(t, res.Ping)
@@ -175,7 +175,7 @@ func TestFingerprintsHoldOneEntryPerConfiguredProbeInProbeOrder(t *testing.T) {
 }
 
 func TestScanWithNoProbeStillReturnsATargetPerAddress(t *testing.T) {
-	results, err := Scan(context.Background(), 2, []string{"10.0.0.1", "10.0.0.2"}, Options{})
+	results, err := Scan(t.Context(), 2, []string{"10.0.0.1", "10.0.0.2"}, Options{})
 
 	require.NoError(t, err)
 	require.Len(t, results, 2)

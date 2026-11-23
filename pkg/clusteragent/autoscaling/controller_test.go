@@ -82,7 +82,7 @@ func newTestController(t *testing.T, keys []string, numWorkers int, proc *testPr
 
 	close(synced)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	go c.Run(ctx, numWorkers)
 
 	t.Cleanup(cancel)

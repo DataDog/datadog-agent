@@ -6,7 +6,6 @@
 package flare
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,7 +31,7 @@ func TestGetRuntimeDebugInfo(t *testing.T) {
 
 func TestProvideRuntimeDebugInfo(t *testing.T) {
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	err := provideRuntimeDebugInfo(context.Background(), mock)
+	err := provideRuntimeDebugInfo(t.Context(), mock)
 	require.NoError(t, err)
 
 	mock.AssertFileExists("runtime_debug_info.log")

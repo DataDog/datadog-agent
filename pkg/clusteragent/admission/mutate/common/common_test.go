@@ -8,7 +8,6 @@
 package common
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
@@ -97,7 +96,7 @@ func TestMutate(t *testing.T) {
 
 			// Keep the request raw so unknown fields survive until the patch is applied.
 			rawPod := []byte(tt.rawPod)
-			patchJSON, err := Mutate(context.Background(), rawPod, "application", "test", mutator, nil)
+			patchJSON, err := Mutate(t.Context(), rawPod, "application", "test", mutator, nil)
 			require.NoError(t, err)
 			patch, err := jsonpatch.DecodePatch(patchJSON)
 			require.NoError(t, err)

@@ -6,7 +6,6 @@
 package gce
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -30,7 +29,7 @@ func reset() {
 
 func TestGetHostname(t *testing.T) {
 	defer reset()
-	ctx := context.Background()
+	ctx := t.Context()
 	expected := "gke-cluster-massi-agent59-default-pool-6087cc76-9cfa"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +48,7 @@ func TestGetHostname(t *testing.T) {
 
 func TestGetHostnameEmptyBody(t *testing.T) {
 	defer reset()
-	ctx := context.Background()
+	ctx := t.Context()
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -66,7 +65,7 @@ func TestGetHostnameEmptyBody(t *testing.T) {
 
 func TestGetHostAliases(t *testing.T) {
 	defer reset()
-	ctx := context.Background()
+	ctx := t.Context()
 	lastRequests := []*http.Request{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -92,7 +91,7 @@ func TestGetHostAliases(t *testing.T) {
 
 func TestGetHostAliasesInstanceNameError(t *testing.T) {
 	defer reset()
-	ctx := context.Background()
+	ctx := t.Context()
 	lastRequests := []*http.Request{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -118,7 +117,7 @@ func TestGetHostAliasesInstanceNameError(t *testing.T) {
 
 func TestGetClusterName(t *testing.T) {
 	defer reset()
-	ctx := context.Background()
+	ctx := t.Context()
 	expected := "test-cluster-name"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -137,7 +136,7 @@ func TestGetClusterName(t *testing.T) {
 
 func TestGetPublicIPv4(t *testing.T) {
 	defer reset()
-	ctx := context.Background()
+	ctx := t.Context()
 	expected := "10.0.0.2"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -156,7 +155,7 @@ func TestGetPublicIPv4(t *testing.T) {
 
 func TestGetNetwork(t *testing.T) {
 	defer reset()
-	ctx := context.Background()
+	ctx := t.Context()
 	expected := "projects/123456789/networks/my-network-name"
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -180,7 +179,7 @@ func TestGetNetwork(t *testing.T) {
 
 func TestGetNetworkNoInferface(t *testing.T) {
 	defer reset()
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, "")
@@ -195,7 +194,7 @@ func TestGetNetworkNoInferface(t *testing.T) {
 
 func TestGetNetworkMultipleVPC(t *testing.T) {
 	defer reset()
-	ctx := context.Background()
+	ctx := t.Context()
 	vpc := "projects/123456789/networks/my-network-name"
 	vpcOther := "projects/123456789/networks/my-other-name"
 
@@ -222,7 +221,7 @@ func TestGetNetworkMultipleVPC(t *testing.T) {
 }
 
 func TestGetNTPHosts(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	expectedHosts := []string{"metadata.google.internal"}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -244,7 +243,7 @@ func TestGetCCRID(t *testing.T) {
 
 	errorOut := true
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 
@@ -279,7 +278,7 @@ func TestGetCCRID(t *testing.T) {
 
 func TestIsRunningOnFallsBackToDMI(t *testing.T) {
 	defer reset()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

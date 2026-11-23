@@ -106,7 +106,7 @@ func TestParActionsAllowlist_DefaultCurrentOSFreshInstall(t *testing.T) {
 
 func TestPrepareAPMInjectorReinstall(t *testing.T) {
 	prepare := func(setup *Setup) (bool, error) {
-		return setup.prepareAPMInjectorReinstall(context.Background(), resolvePackages(setup.Env, setup.Packages))
+		return setup.prepareAPMInjectorReinstall(t.Context(), resolvePackages(setup.Env, setup.Packages))
 	}
 	newSetup := func(spy *setupInstallerSpy) *Setup {
 		return &Setup{
@@ -239,7 +239,7 @@ func TestInstallPackageForceInstall(t *testing.T) {
 		installer: spy,
 		Out:       &Output{},
 		Env:       &env.Env{},
-		Ctx:       context.Background(),
+		Ctx:       t.Context(),
 	}
 
 	require.NoError(t, setup.installPackage(packageWithVersion{

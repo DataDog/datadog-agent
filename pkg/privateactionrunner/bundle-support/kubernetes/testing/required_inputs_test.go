@@ -6,7 +6,6 @@
 package testing
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -105,7 +104,7 @@ func assertGeneratedActionsRejectMissingInputs(t *testing.T, bundle types.Bundle
 				t.Run(verb+resource.name, func(t *testing.T) {
 					action := bundle.GetAction(verb + resource.name)
 					require.NotNil(t, action, "action must be registered")
-					_, err := action.Run(context.Background(), generatedActionTask(inputs), nil)
+					_, err := action.Run(t.Context(), generatedActionTask(inputs), nil)
 					require.EqualError(t, err, "name is required")
 				})
 			}
@@ -114,7 +113,7 @@ func assertGeneratedActionsRejectMissingInputs(t *testing.T, bundle types.Bundle
 			t.Run(verb+resource.name+"/missing body", func(t *testing.T) {
 				action := bundle.GetAction(verb + resource.name)
 				require.NotNil(t, action, "action must be registered")
-				_, err := action.Run(context.Background(), generatedActionTask(map[string]interface{}{"namespace": "test", "name": "test"}), nil)
+				_, err := action.Run(t.Context(), generatedActionTask(map[string]interface{}{"namespace": "test", "name": "test"}), nil)
 				require.EqualError(t, err, "body is required")
 			})
 		}
@@ -123,7 +122,7 @@ func assertGeneratedActionsRejectMissingInputs(t *testing.T, bundle types.Bundle
 				t.Run(verb+resource.name+"/missing namespace", func(t *testing.T) {
 					action := bundle.GetAction(verb + resource.name)
 					require.NotNil(t, action, "action must be registered")
-					_, err := action.Run(context.Background(), generatedActionTask(map[string]interface{}{"name": "test"}), nil)
+					_, err := action.Run(t.Context(), generatedActionTask(map[string]interface{}{"name": "test"}), nil)
 					require.EqualError(t, err, "namespace is required")
 				})
 			}

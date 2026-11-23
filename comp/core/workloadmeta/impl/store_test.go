@@ -2293,7 +2293,7 @@ func TestStartCandidatesWithRetryClosesFirstCollectorReadyWhenNoneStart(t *testi
 	)
 	w.firstCollectorReady = make(chan struct{})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	require.NoError(t, w.startCandidatesWithRetry(ctx))
@@ -2317,7 +2317,7 @@ func TestStartSignalsInitializedWhenNoCollectorApplicable(t *testing.T) {
 	)
 	w.firstCollectorReady = make(chan struct{})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	require.NoError(t, w.startCandidatesWithRetry(ctx))

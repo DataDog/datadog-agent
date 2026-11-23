@@ -22,7 +22,7 @@ import (
 )
 
 func TestGetMeta(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cfg := config.NewMock(t)
 	cfg.SetInTest("cloud_provider_metadata", []string{})
 	cfg.SetInTest("host_aliases", []string{"configured-alias"})
@@ -38,7 +38,7 @@ func TestGetMeta(t *testing.T) {
 }
 
 func TestGetMetaFromCache(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cfg := config.NewMock(t)
 	cfg.SetInTest("cloud_provider_metadata", []string{})
 
@@ -79,7 +79,7 @@ func TestCanonicalConfiguredMetadata(t *testing.T) {
 			cfg.SetInTest("ec2_imdsv2_transition_payload_enabled", false)
 			cfg.SetInTest("hostname_force_config_as_canonical", tc.force)
 			host := identityHostname{data: hostnameinterface.Data{Hostname: "ip-device-abc123", Provider: tc.provider}}
-			metadata := getMeta(context.Background(), cfg, host)
+			metadata := getMeta(t.Context(), cfg, host)
 			require.Equal(t, tc.want, metadata.AgentHostname)
 			require.Empty(t, metadata.LegacyResolutionHostname)
 			require.NotContains(t, metadata.HostAliases, "ip-device")
@@ -107,12 +107,12 @@ func TestEUDMHostnamePreservesMetadata(t *testing.T) {
 	// Disabling cloud discovery does not clear aliases cached by earlier tests
 	// (for example, the CI runner's EC2 instance ID). EUDM must preserve those too.
 	baselineHost := identityHostname{data: hostnameinterface.Data{Hostname: "ip-device", Provider: "os"}}
-	baseline := getMeta(context.Background(), cfg, baselineHost)
+	baseline := getMeta(t.Context(), cfg, baselineHost)
 	require.Contains(t, baseline.HostAliases, "shared-device")
 	require.Contains(t, baseline.HostAliases, "i-other-identity")
 	cfg.SetInTest("infrastructure_mode", "end_user_device")
 	host := identityHostname{data: hostnameinterface.Data{Hostname: selected}}
-	encoded, err := json.Marshal(getMeta(context.Background(), cfg, host))
+	encoded, err := json.Marshal(getMeta(t.Context(), cfg, host))
 	require.NoError(t, err)
 	var payload map[string]interface{}
 	require.NoError(t, json.Unmarshal(encoded, &payload))

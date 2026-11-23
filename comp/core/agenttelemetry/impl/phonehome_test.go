@@ -6,7 +6,6 @@
 package agenttelemetryimpl
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -27,7 +26,7 @@ func TestPhoneHomeDefaultProfilePayloads(t *testing.T) {
 	a := getTestAtel(t, tel, "api_key: synthetic-key\nagent_telemetry:\n  enabled: true\n  use_compression: false", nil, client, nil)
 	require.True(t, a.enabled)
 	t.Cleanup(a.lightTracer.Stop)
-	a.cancelCtx = context.Background()
+	a.cancelCtx = t.Context()
 	var profile *Profile
 	for _, p := range a.atelCfg.Profiles {
 		if p.Name == "par-phone-home" {

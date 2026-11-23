@@ -6,7 +6,6 @@
 package interp
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -24,7 +23,7 @@ func TestGlobReadDirCountInitializedByRun(t *testing.T) {
 
 	assert.Nil(t, r.globReadDirCount, "counter should be nil before Run")
 
-	err = r.Run(context.Background(), parseScript(t, "true"))
+	err = r.Run(t.Context(), parseScript(t, "true"))
 	require.NoError(t, err)
 
 	assert.NotNil(t, r.globReadDirCount, "counter should be initialized after Run")
@@ -48,13 +47,13 @@ func TestGlobReadDirCountResetBetweenRuns(t *testing.T) {
 
 	// First run: consume some ReadDir budget.
 	prog := parseScript(t, "echo * * * * *")
-	err = r.Run(context.Background(), prog)
+	err = r.Run(t.Context(), prog)
 	require.NoError(t, err)
 	firstCount := r.globReadDirCount.Load()
 	assert.Greater(t, firstCount, int64(0), "first run should have consumed ReadDir calls")
 
 	// Second run: counter should be fresh (not accumulated).
-	err = r.Run(context.Background(), prog)
+	err = r.Run(t.Context(), prog)
 	require.NoError(t, err)
 	secondCount := r.globReadDirCount.Load()
 	assert.Equal(t, firstCount, secondCount,
@@ -69,7 +68,7 @@ func TestGlobReadDirCountSharedWithSubshell(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = r.Close() })
 
-	err = r.Run(context.Background(), parseScript(t, "true"))
+	err = r.Run(t.Context(), parseScript(t, "true"))
 	require.NoError(t, err)
 	require.NotNil(t, r.globReadDirCount)
 
@@ -85,7 +84,7 @@ func TestGlobReadDirCountSharedWithBackgroundSubshell(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = r.Close() })
 
-	err = r.Run(context.Background(), parseScript(t, "true"))
+	err = r.Run(t.Context(), parseScript(t, "true"))
 	require.NoError(t, err)
 	require.NotNil(t, r.globReadDirCount)
 
@@ -108,7 +107,7 @@ func TestGlobReadDirCountNotIncrementedForQuotedStrings(t *testing.T) {
 	r.Dir = dir
 
 	// Quoted "*" should not trigger ReadDir.
-	err = r.Run(context.Background(), parseScript(t, `echo "*" '*' "hello"`))
+	err = r.Run(t.Context(), parseScript(t, `echo "*" '*' "hello"`))
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(0), r.globReadDirCount.Load(),
@@ -128,7 +127,7 @@ func TestGlobReadDirCountIncrementsForUnquotedGlob(t *testing.T) {
 	t.Cleanup(func() { _ = r.Close() })
 	r.Dir = dir
 
-	err = r.Run(context.Background(), parseScript(t, "echo * *.txt"))
+	err = r.Run(t.Context(), parseScript(t, "echo * *.txt"))
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(2), r.globReadDirCount.Load(),

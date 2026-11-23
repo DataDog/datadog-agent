@@ -40,7 +40,7 @@ func TestScrubHandler(t *testing.T) {
 	handler := NewHandler(inner)
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "password=apassword", 0)
-	require.NoError(t, handler.Handle(context.Background(), record))
+	require.NoError(t, handler.Handle(t.Context(), record))
 
 	require.Len(t, inner.records, 1)
 	assert.Equal(t, "password=********", inner.records[0].Message)
@@ -56,7 +56,7 @@ func TestScrubHandlerFailsClosed(t *testing.T) {
 	}
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "password=apassword", 0)
-	require.NoError(t, handler.Handle(context.Background(), record))
+	require.NoError(t, handler.Handle(t.Context(), record))
 
 	require.Len(t, inner.records, 1)
 	assert.Equal(t, "[REDACTED] - failure to clean the message", inner.records[0].Message)
@@ -67,10 +67,10 @@ func TestScrubHandlerEnabled(t *testing.T) {
 	inner.enabled = false
 	handler := NewHandler(inner)
 
-	assert.False(t, handler.Enabled(context.Background(), slog.LevelInfo))
+	assert.False(t, handler.Enabled(t.Context(), slog.LevelInfo))
 
 	inner.enabled = true
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelInfo))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelInfo))
 }
 
 func TestScrubHandlerWithAttrsAndGroup(t *testing.T) {
@@ -80,7 +80,7 @@ func TestScrubHandlerWithAttrsAndGroup(t *testing.T) {
 	handler = handler.WithGroup("group1")
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "password=apassword", 0)
-	require.NoError(t, handler.Handle(context.Background(), record))
+	require.NoError(t, handler.Handle(t.Context(), record))
 
 	require.Len(t, inner.records, 1)
 	assert.Equal(t, "password=********", inner.records[0].Message)

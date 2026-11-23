@@ -8,7 +8,6 @@
 package istio
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -71,7 +70,7 @@ func newTestEnvoyFilter(namespace string) *unstructured.Unstructured {
 }
 
 func TestAdded_SuccessfulCreation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
@@ -115,7 +114,7 @@ func TestAdded_SuccessfulCreation(t *testing.T) {
 }
 
 func TestAdded_FilterAlreadyExists(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -154,7 +153,7 @@ func TestAdded_FilterAlreadyExists(t *testing.T) {
 }
 
 func TestAdded_NonIstioGatewayClass(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
@@ -190,7 +189,7 @@ func TestAdded_NonIstioGatewayClass(t *testing.T) {
 }
 
 func TestAdded_MissingControllerName(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
@@ -231,7 +230,7 @@ func TestAdded_MissingControllerName(t *testing.T) {
 }
 
 func TestAdded_GetFilterError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
@@ -266,7 +265,7 @@ func TestAdded_GetFilterError(t *testing.T) {
 }
 
 func TestAdded_FilterCreationError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
@@ -301,7 +300,7 @@ func TestAdded_FilterCreationError(t *testing.T) {
 }
 
 func TestDeleted_SuccessfulDeletion(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -343,7 +342,7 @@ func TestDeleted_SuccessfulDeletion(t *testing.T) {
 }
 
 func TestDeleted_FilterAlreadyDeleted(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := newFakeDynamicClient(scheme) // No existing filter
@@ -380,7 +379,7 @@ func TestDeleted_FilterAlreadyDeleted(t *testing.T) {
 }
 
 func TestDeleted_NonIstioGatewayClass(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
@@ -417,7 +416,7 @@ func TestDeleted_NonIstioGatewayClass(t *testing.T) {
 }
 
 func TestDeleted_MissingControllerName(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
@@ -459,7 +458,7 @@ func TestDeleted_MissingControllerName(t *testing.T) {
 }
 
 func TestDeleted_GetFilterError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := newFakeDynamicClient(scheme)
@@ -497,7 +496,7 @@ func TestDeleted_GetFilterError(t *testing.T) {
 // TestDeleted_OtherIstioGatewayClassExists verifies that deleting one Istio GatewayClass keeps the
 // shared EnvoyFilter while another Istio GatewayClass remains, and removes it with the last one.
 func TestDeleted_OtherIstioGatewayClassExists(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -544,7 +543,7 @@ func TestDeleted_OptedOutResourcesDoNotKeepFilter(t *testing.T) {
 		{name: "opted out, enabled native Gateway", classALive: true, withNative: true, filterRemain: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			classA := newTestGatewayClass("istio-a", istioGatewayControllerName)
 			objects := []runtime.Object{newTestEnvoyFilter("istio-system")}
 			if tc.classALive {
@@ -586,7 +585,7 @@ func TestDeleted_OptedOutResourcesDoNotKeepFilter(t *testing.T) {
 // EnvoyFilter via the K8s GatewayClass pattern even when native Istio Gateways are present.
 // cleanupPattern calls Deleted on live GatewayClasses with a cleanup context.
 func TestDeleted_CleanupMode_WithNativeGateways(t *testing.T) {
-	ctx := appsecconfig.WithCleanup(context.Background())
+	ctx := appsecconfig.WithCleanup(t.Context())
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -638,7 +637,7 @@ func TestDeleted_CleanupMode_WithNativeGateways(t *testing.T) {
 }
 
 func TestDeleted_FilterDeletionError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -690,7 +689,7 @@ func TestDeleted_OnlyDeletesEnvoyFilterCreatedByInjector(t *testing.T) {
 	} {
 		for _, kind := range []string{"gatewayclass", "gateway"} {
 			t.Run(tc.name+"/"+kind, func(t *testing.T) {
-				ctx := context.Background()
+				ctx := t.Context()
 				filter := newTestEnvoyFilter("istio-system")
 				filter.SetLabels(tc.labels)
 				client := newFakeDynamicClient(runtime.NewScheme(), filter)

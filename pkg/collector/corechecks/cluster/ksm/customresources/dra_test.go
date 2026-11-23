@@ -8,7 +8,6 @@
 package customresources
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -471,14 +470,14 @@ func TestDRAListWatchNamespaceScoping(t *testing.T) {
 
 	scoped := f.ListWatch(c, "team-a", "")
 	require.NotNil(t, scoped)
-	list, err := scoped.(cache.ListerWatcherWithContext).ListWithContext(context.Background(), metav1.ListOptions{})
+	list, err := scoped.(cache.ListerWatcherWithContext).ListWithContext(t.Context(), metav1.ListOptions{})
 	require.NoError(t, err)
 	items, err := meta.ExtractList(list)
 	require.NoError(t, err)
 	require.Len(t, items, 1, "a namespace-scoped ListWatch must not return other namespaces")
 
 	all := f.ListWatch(c, metav1.NamespaceAll, "")
-	list, err = all.(cache.ListerWatcherWithContext).ListWithContext(context.Background(), metav1.ListOptions{})
+	list, err = all.(cache.ListerWatcherWithContext).ListWithContext(t.Context(), metav1.ListOptions{})
 	require.NoError(t, err)
 	items, err = meta.ExtractList(list)
 	require.NoError(t, err)

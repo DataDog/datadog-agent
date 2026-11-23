@@ -257,7 +257,7 @@ func TestInitializeDaemonModeV1Unavailable(t *testing.T) {
 				actualLaunchType:      tt.launchType,
 			}
 
-			err := c.initializeDaemonMode(context.Background())
+			err := c.initializeDaemonMode(t.Context())
 
 			if tt.expectErr {
 				require.Error(t, err)
@@ -302,7 +302,7 @@ func TestInitializeDaemonModeV1Available(t *testing.T) {
 		actualLaunchType:      workloadmeta.ECSLaunchTypeEC2,
 	}
 
-	require.NoError(t, c.initializeDaemonMode(context.Background()))
+	require.NoError(t, c.initializeDaemonMode(t.Context()))
 	assert.Equal(t, "my-cluster", c.clusterName)
 	assert.Equal(t, "arn:aws:ecs:us-east-1:123456789012:container-instance/my-cluster/abc123", c.containerInstanceARN)
 	require.NotNil(t, c.taskCollectionParser)

@@ -8,7 +8,6 @@
 package envoygateway
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -150,7 +149,7 @@ func envoyGatewayListKinds() map[schema.GroupVersionResource]string {
 }
 
 func TestAdded_SuccessfulCreation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
@@ -205,7 +204,7 @@ func TestAdded_SuccessfulCreation(t *testing.T) {
 }
 
 func TestAdded_SidecarCreatesBackendAndPolicyWithoutReferenceGrant(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, envoyGatewayListKinds())
@@ -272,7 +271,7 @@ func TestAdded_SidecarCreatesBackendAndPolicyWithoutReferenceGrant(t *testing.T)
 }
 
 func TestAdded_ExternalRegressionCreatesServicePolicyAndReferenceGrant(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, envoyGatewayListKinds())
@@ -319,7 +318,7 @@ func TestAdded_ExternalRegressionCreatesServicePolicyAndReferenceGrant(t *testin
 // grantFromNamespaces returns the spec.from namespaces of the named ReferenceGrant in the processor namespace
 func grantFromNamespaces(t *testing.T, client dynamic.Interface, name string) []string {
 	t.Helper()
-	grant, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(context.Background(), name, metav1.GetOptions{})
+	grant, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(t.Context(), name, metav1.GetOptions{})
 	require.NoError(t, err)
 	from, found, err := unstructured.NestedSlice(grant.Object, "spec", "from")
 	require.NoError(t, err, "spec.from must stay a list")
@@ -338,7 +337,7 @@ func grantFromNamespaces(t *testing.T, client dynamic.Interface, name string) []
 }
 
 func TestAdded_SuccessfulCreationSecondGateway(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
@@ -414,7 +413,7 @@ func TestAdded_SuccessfulCreationSecondGateway(t *testing.T) {
 // fake client applies JSON patches like the API server, so a patch that corrupts spec.from shows up.
 
 func TestAdded_GatewaysInManyNamespacesGetOneReferenceGrantEach(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 
@@ -451,7 +450,7 @@ func TestAdded_GatewaysInManyNamespacesGetOneReferenceGrantEach(t *testing.T) {
 }
 
 func TestRemoveNamespaceToGrant_DrainsLegacySharedGrant(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), newTestLegacyReferenceGrant("datadog", "test-ns1", "test-ns2"))
 
 	config := appsecconfig.Config{
@@ -477,7 +476,7 @@ func TestRemoveNamespaceToGrant_DrainsLegacySharedGrant(t *testing.T) {
 }
 
 func TestAdded_RetryAfterPolicyFailureKeepsSingleGrant(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds())
 
 	config := appsecconfig.Config{
@@ -518,7 +517,7 @@ func TestAdded_RetryAfterPolicyFailureKeepsSingleGrant(t *testing.T) {
 }
 
 func TestAdded_PolicyAlreadyExists(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -554,7 +553,7 @@ func TestAdded_PolicyAlreadyExists(t *testing.T) {
 }
 
 func TestAdded_GetPolicyError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
@@ -586,7 +585,7 @@ func TestAdded_GetPolicyError(t *testing.T) {
 }
 
 func TestAdded_ReferenceGrantCreationError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
@@ -618,7 +617,7 @@ func TestAdded_ReferenceGrantCreationError(t *testing.T) {
 }
 
 func TestAdded_PolicyCreationError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
@@ -650,7 +649,7 @@ func TestAdded_PolicyCreationError(t *testing.T) {
 }
 
 func TestDeleted_SuccessfulDeletion_AloneInNamespace(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -706,7 +705,7 @@ func TestDeleted_SuccessfulDeletion_AloneInNamespace(t *testing.T) {
 }
 
 func TestDeleted_SidecarDeletesBackendAndPolicyOnlyForLastGateway(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -766,7 +765,7 @@ func TestDeleted_SidecarDeletesBackendAndPolicyOnlyForLastGateway(t *testing.T) 
 }
 
 func TestDeleted_PolicyAlreadyDeleted(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, envoyGatewayListKinds()) // No existing policy
@@ -799,7 +798,7 @@ func TestDeleted_PolicyAlreadyDeleted(t *testing.T) {
 }
 
 func TestDeleted_NotAloneInNamespace(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -852,7 +851,7 @@ func TestDeleted_NotAloneInNamespace(t *testing.T) {
 }
 
 func TestDeleted_GetPolicyError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
@@ -884,7 +883,7 @@ func TestDeleted_GetPolicyError(t *testing.T) {
 }
 
 func TestDeleted_ListGatewaysError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -927,7 +926,7 @@ func TestDeleted_ListGatewaysError(t *testing.T) {
 }
 
 func TestDeleted_PolicyDeletionError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -1017,7 +1016,7 @@ func TestIsInjectionPossible_SidecarChecksBackendCRD(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			logger := logmock.New(t)
 			client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 			config := appsecconfig.Config{Product: appsecconfig.Product{Mode: appsecconfig.InjectionModeSidecar}}
@@ -1048,7 +1047,7 @@ func TestDeleted_OnlyDeletesResourcesCreatedByInjector(t *testing.T) {
 		{name: "created before the managed-by label", labels: map[string]string{"app.kubernetes.io/component": "datadog-appsec-injector"}, deleted: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			policy := newTestEnvoyExtensionPolicy("test-ns")
 			policy.SetLabels(tc.labels)
 			grant := newTestReferenceGrant("datadog", "test-ns")
@@ -1083,7 +1082,7 @@ func TestDeleted_OnlyDeletesResourcesCreatedByInjector(t *testing.T) {
 }
 
 func TestRemoveNamespaceToGrant_LeavesForeignGrant(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	grant := newTestReferenceGrant("datadog", "test-ns")
 	grant.SetLabels(map[string]string{"app": "someone-else"})
 	legacyGrant := newTestLegacyReferenceGrant("datadog", "test-ns", "other-ns")
@@ -1104,7 +1103,7 @@ func TestRemoveNamespaceToGrant_LeavesForeignGrant(t *testing.T) {
 }
 
 func TestDeleted_SidecarForeignPolicyStillDeletesOurBackend(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	policy := newTestEnvoyExtensionPolicy("test-ns")
 	policy.SetLabels(map[string]string{"app": "someone-else"})
 	backend := newTestBackend("test-ns", "/var/run/datadog/extproc.sock")
@@ -1127,7 +1126,7 @@ func TestDeleted_SidecarForeignPolicyStillDeletesOurBackend(t *testing.T) {
 }
 
 func TestAddNamespaceToGrant_ForeignLegacyGrant(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	legacyGrant := newTestLegacyReferenceGrant("datadog", "other-ns")
 	legacyGrant.SetLabels(map[string]string{"app": "someone-else"})
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), legacyGrant)
@@ -1161,7 +1160,7 @@ func TestAddNamespaceToGrant_ExistingGrantMustAuthorizeTheReference(t *testing.T
 		"grant to another Service":     {from: from("test-ns"), to: to(map[string]any{"kind": "Service", "name": "other-service"}), wantErr: true},
 	} {
 		t.Run(name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			grant := newTestReferenceGrant("datadog", "test-ns")
 			grant.Object["spec"] = map[string]any{"from": tc.from, "to": tc.to}
 			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant)
@@ -1187,7 +1186,7 @@ func TestAddNamespaceToGrant_ExistingGrantMustAuthorizeTheReference(t *testing.T
 }
 
 func TestRemoveNamespaceToGrant_DeletesWithPreconditions(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	grant := newTestReferenceGrant("datadog", "test-ns")
 	grant.SetUID("grant-uid")
 	grant.SetResourceVersion("11")
@@ -1219,7 +1218,7 @@ func TestRemoveNamespaceToGrant_DeletesWithPreconditions(t *testing.T) {
 }
 
 func TestDeleted_RetryCleansUpGrantAfterPolicyDeleted(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(),
 		newTestEnvoyExtensionPolicy("test-ns"), newTestReferenceGrant("datadog", "test-ns"))
 	config := appsecconfig.Config{
@@ -1251,7 +1250,7 @@ func TestDeleted_RetryCleansUpGrantAfterPolicyDeleted(t *testing.T) {
 }
 
 func TestAddNamespaceToGrant_RetryDoesNotRecreateExistingGrant(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), newTestReferenceGrant("datadog", "test-ns"))
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
@@ -1270,7 +1269,7 @@ func TestAddNamespaceToGrant_RetryDoesNotRecreateExistingGrant(t *testing.T) {
 }
 
 func TestAddNamespaceToGrant_TerminatingGrantIsRetried(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	grant := newTestReferenceGrant("datadog", "test-ns")
 	grant.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
 	grant.SetFinalizers([]string{"example.com/finalizer"})
@@ -1290,7 +1289,7 @@ func TestAddNamespaceToGrant_TerminatingGrantIsRetried(t *testing.T) {
 }
 
 func TestRemoveNamespaceToGrant_LegacyPatchIsGuardedByResourceVersion(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	legacyGrant := newTestLegacyReferenceGrant("datadog", "test-ns1", "test-ns2", "test-ns3")
 	legacyGrant.SetResourceVersion("42")
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), legacyGrant)

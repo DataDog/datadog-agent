@@ -6,7 +6,6 @@
 package tencent
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -20,7 +19,7 @@ import (
 
 func TestGetInstanceID(t *testing.T) {
 	cfg := configmock.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	cfg.SetInTest("cloud_provider_metadata", []string{"tencent"})
 
 	expected := "ins-nad6bga0"
@@ -41,7 +40,7 @@ func TestGetInstanceID(t *testing.T) {
 
 func TestGetHostAliases(t *testing.T) {
 	cfg := configmock.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	cfg.SetInTest("cloud_provider_metadata", []string{"tencent"})
 
 	expected := "ins-nad6bga0"
@@ -65,7 +64,7 @@ func TestGetNTPHosts(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("cloud_provider_metadata", []string{"tencent"})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	expectedHosts := []string{"ntpupdate.tencentyun.com"}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

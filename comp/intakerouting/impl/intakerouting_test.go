@@ -267,7 +267,7 @@ func newFixture(t *testing.T, opts ...func(*routerOptions)) *fixture {
 			idle <- struct{}{}
 		}
 	}
-	t.Cleanup(func() { require.NoError(t, r.stop(context.Background())) })
+	t.Cleanup(func() { require.NoError(t, r.stop(t.Context())) })
 	return &fixture{t: t, r: r, clock: clk, client: client, paths: paths, tel: tel, idle: idle}
 }
 
@@ -404,7 +404,7 @@ func TestTelemetryInitializedToZero(t *testing.T) {
 		Log:       logmock.New(t),
 		Telemetry: tel,
 	})
-	t.Cleanup(func() { require.NoError(t, lc.Stop(context.Background())) })
+	t.Cleanup(func() { require.NoError(t, lc.Stop(t.Context())) })
 
 	series := func(name string, tagNames ...string) []string {
 		get := tel.GetCountMetric
@@ -452,7 +452,7 @@ func TestDisabled(t *testing.T) {
 	}
 
 	reg := provides.Comp.Register([]intakerouting.Request{logsRequest(defaultHost, testKey)})
-	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(context.Background()))
+	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(t.Context()))
 	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.Current())
 	assertNotNotified(t, reg)
 	reg.Close()
@@ -469,7 +469,7 @@ func TestEnabledRegistersStopHook(t *testing.T) {
 	})
 	lc.AssertHooksNumber(1)
 	assert.IsType(t, &router{}, provides.Comp)
-	require.NoError(t, lc.Stop(context.Background()))
+	require.NoError(t, lc.Stop(t.Context()))
 }
 
 func TestEnabledUsesConfiguredPreflightPath(t *testing.T) {
@@ -483,7 +483,7 @@ func TestEnabledUsesConfiguredPreflightPath(t *testing.T) {
 		Log:       logmock.New(t),
 		Telemetry: telemetrymock.New(t),
 	})
-	t.Cleanup(func() { require.NoError(t, lc.Stop(context.Background())) })
+	t.Cleanup(func() { require.NoError(t, lc.Stop(t.Context())) })
 	require.IsType(t, &router{}, provides.Comp)
 	client, ok := provides.Comp.(*router).client.(*httpRoutingClient)
 	require.True(t, ok)
@@ -544,7 +544,7 @@ func TestAnswerWithinGrace(t *testing.T) {
 	reg := f.register(logsRequest(defaultHost, testKey))
 
 	// The decision was made before the grace period elapsed: no need to wait for it.
-	assert.Equal(t, []intakerouting.Endpoint{enhancedEndpoint}, reg.WaitInitial(context.Background()))
+	assert.Equal(t, []intakerouting.Endpoint{enhancedEndpoint}, reg.WaitInitial(t.Context()))
 	assert.Equal(t, []intakerouting.Endpoint{enhancedEndpoint}, reg.Current())
 
 	queries := f.client.queryCalls()
@@ -568,7 +568,7 @@ func TestAnswerAfterGrace(t *testing.T) {
 
 	// The query is held: once the grace period elapses, the default endpoint is used.
 	f.clock.Add(testGrace)
-	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(context.Background()))
+	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(t.Context()))
 	assertNotNotified(t, reg)
 
 	close(f.client.gate)
@@ -583,7 +583,7 @@ func TestWaitInitialHonorsContext(t *testing.T) {
 	defer close(f.client.gate)
 
 	reg := f.r.Register([]intakerouting.Request{logsRequest(defaultHost, testKey)})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(ctx))
 }
@@ -594,7 +594,7 @@ func TestStartupBackoff(t *testing.T) {
 
 	reg := f.register(logsRequest(defaultHost, testKey))
 	// A failed query decides the route for WaitInitial: it keeps its default.
-	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(context.Background()))
+	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(t.Context()))
 
 	expected := []time.Duration{1, 2, 4, 8, 16, 32, 64, 128, 256, 300, 300}
 	for i, seconds := range expected {
@@ -680,7 +680,7 @@ func TestPreflight(t *testing.T) {
 		f.client.failPreflight(enhancedHost, errors.New("HTTP 503"))
 
 		reg := f.register(logsRequest(defaultHost, testKey))
-		assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(context.Background()))
+		assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(t.Context()))
 		assertNotNotified(t, reg)
 		assert.Equal(t, map[string]float64{preflightFailure: 1}, f.counter("preflights"))
 		assert.Empty(t, f.counter("switches"))
@@ -852,7 +852,7 @@ func TestDeduplication(t *testing.T) {
 
 	// A later registration joining a group gets its cached answer without a new query.
 	late := f.register(logsRequest(defaultHost, testKey))
-	assert.Equal(t, []intakerouting.Endpoint{enhancedEndpoint}, late.WaitInitial(context.Background()))
+	assert.Equal(t, []intakerouting.Endpoint{enhancedEndpoint}, late.WaitInitial(t.Context()))
 	assertNotified(t, late)
 	assert.Len(t, f.client.queryCalls(), 2)
 	assert.Equal(t, 4.0, f.activeOverrides())
@@ -920,7 +920,7 @@ func TestIndirectDefaultIsNotQueried(t *testing.T) {
 			f.paths.set(defaultHost, reason)
 
 			reg := f.register(logsRequest(defaultHost, testKey))
-			assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(context.Background()))
+			assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(t.Context()))
 			assertNotNotified(t, reg)
 			assert.Empty(t, f.client.queryCalls())
 			assert.Empty(t, f.client.preflightCalls())
@@ -966,7 +966,7 @@ func TestDefaultLookupFailureKeepsCurrent(t *testing.T) {
 
 	// The query is still sent, but its answer is not applied.
 	reg := f.register(logsRequest(defaultHost, testKey))
-	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(context.Background()))
+	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(t.Context()))
 	assert.Len(t, f.client.queryCalls(), 1)
 	assert.Empty(t, f.client.preflightCalls())
 	assert.Equal(t, map[string]float64{"logs," + pathLookupFailed: 1}, f.counter("skipped_endpoints"))
@@ -1011,7 +1011,7 @@ func TestUnofficialHostIsNotRouted(t *testing.T) {
 	f := newFixture(t)
 	reg := f.r.Register([]intakerouting.Request{logsRequest("logs.example.com", testKey)})
 	custom := intakerouting.Endpoint{Host: "logs.example.com"}
-	assert.Equal(t, []intakerouting.Endpoint{custom}, reg.WaitInitial(context.Background()))
+	assert.Equal(t, []intakerouting.Endpoint{custom}, reg.WaitInitial(t.Context()))
 	f.settle()
 	assert.Empty(t, f.client.queryCalls())
 }
@@ -1025,7 +1025,7 @@ func TestAPIKeyNotReady(t *testing.T) {
 
 	reg := f.register(req)
 	// A route without a usable key keeps its default, and does not hold WaitInitial.
-	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(context.Background()))
+	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(t.Context()))
 	assert.Empty(t, f.client.queryCalls())
 
 	f.advance(testKeyRecheck)
@@ -1100,7 +1100,7 @@ func TestStopCancelsInFlightQueries(t *testing.T) {
 	reg := f.r.Register([]intakerouting.Request{logsRequest(defaultHost, testKey)})
 	<-f.client.inFlight
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	require.NoError(t, f.r.stop(ctx))
 	assert.Equal(t, []error{context.Canceled}, f.client.ctxErrs)
@@ -1108,13 +1108,13 @@ func TestStopCancelsInFlightQueries(t *testing.T) {
 
 	// Registering after stop returns the defaults right away.
 	late := f.r.Register([]intakerouting.Request{logsRequest(defaultHost, otherKey)})
-	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, late.WaitInitial(context.Background()))
+	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, late.WaitInitial(t.Context()))
 	assert.Len(t, f.client.queryCalls(), 1)
 }
 
 func TestStopWithoutRegistration(t *testing.T) {
 	f := newFixture(t)
-	require.NoError(t, f.r.stop(context.Background()))
+	require.NoError(t, f.r.stop(t.Context()))
 }
 
 // debugRecorder is a logger that records its debug messages.
@@ -1230,7 +1230,7 @@ func TestDebugLogsGraceElapsed(t *testing.T) {
 
 	reg := f.r.Register([]intakerouting.Request{logsRequest(defaultHost, testKey)})
 	f.clock.Add(testGrace)
-	reg.WaitInitial(context.Background())
+	reg.WaitInitial(t.Context())
 	assert.Contains(t, logs.take(), "Intake routing: the startup grace period (1s) elapsed before every endpoint had its first routing decision, starting on the current endpoints")
 }
 
@@ -1239,7 +1239,7 @@ func TestDebugLogsNoGraceMessageWhenDecided(t *testing.T) {
 	f.client.setResult(notOfferedResult())
 
 	reg := f.register(logsRequest(defaultHost, testKey))
-	reg.WaitInitial(context.Background())
+	reg.WaitInitial(t.Context())
 	for _, message := range logs.take() {
 		assert.NotContains(t, message, "startup grace period")
 	}

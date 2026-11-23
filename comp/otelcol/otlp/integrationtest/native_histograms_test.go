@@ -218,7 +218,7 @@ func sendNativeHistograms(t *testing.T, md pmetric.Metrics) *fakeintakeclient.Cl
 	require.NoError(t, err)
 	s := serializer.NewSerializer(fwd, nil, zstdimpl.New(zstdimpl.Requires{Level: 1}), cfg, logger, "")
 
-	ctx := context.Background()
+	ctx := t.Context()
 	f := serializerexporter.NewFactoryForOTelAgent(s, func(context.Context) (string, error) {
 		return "test-host", nil
 	}, nil, otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, nil, false)

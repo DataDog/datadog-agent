@@ -6,7 +6,6 @@
 package clusteragent
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/stretchr/testify/assert"
@@ -30,7 +29,7 @@ var dummyConfigs = `{
 }`
 
 func (suite *clusterAgentSuite) TestClusterChecksNominal() {
-	ctx := context.Background()
+	ctx := suite.T().Context()
 	dca, err := newDummyClusterAgent(suite.config)
 	require.NoError(suite.T(), err)
 
@@ -61,7 +60,7 @@ func (suite *clusterAgentSuite) TestClusterChecksNominal() {
 // consequence, the cluster checks rebalancing algorithm wasn't working
 // properly.
 func (suite *clusterAgentSuite) TestClusterChecksWithServiceID() {
-	ctx := context.Background()
+	ctx := suite.T().Context()
 	dca, err := newDummyClusterAgent(suite.config)
 	require.NoError(suite.T(), err)
 
@@ -96,7 +95,7 @@ func (suite *clusterAgentSuite) TestClusterChecksWithServiceID() {
 }
 
 func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
-	ctx := context.Background()
+	ctx := suite.T().Context()
 
 	// Leader starts first
 	leader, err := newDummyClusterAgent(suite.config)

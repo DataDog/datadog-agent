@@ -8,7 +8,6 @@
 package docker
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -146,12 +145,12 @@ func Test_InspectNoCache_recoversPortRange(t *testing.T) {
 	du := &DockerUtil{cli: cli, queryTimeout: 30 * time.Second}
 
 	// The unrecovered path fails (documents the bug end-to-end).
-	_, rawErr := cli.ContainerInspect(context.Background(), "85dfebd74850", client.ContainerInspectOptions{})
+	_, rawErr := cli.ContainerInspect(t.Context(), "85dfebd74850", client.ContainerInspectOptions{})
 	require.Error(t, rawErr)
 	assert.Contains(t, rawErr.Error(), "invalid port")
 
 	// The recovered path succeeds.
-	c, err := du.InspectNoCache(context.Background(), "85dfebd74850", false)
+	c, err := du.InspectNoCache(t.Context(), "85dfebd74850", false)
 	require.NoError(t, err, "InspectNoCache should recover the container")
 	assert.Equal(t, "85dfebd748501ca258af4f935d9d977be582aadedc2861dcfcdc1fecdc0dc250", c.ID)
 	require.NotNil(t, c.Config)
@@ -173,7 +172,7 @@ func Test_InspectNoCache_surfacesOriginalError(t *testing.T) {
 	defer srv.Close()
 
 	du := &DockerUtil{cli: newTestDockerClient(t, srv.URL), queryTimeout: 30 * time.Second}
-	_, err := du.InspectNoCache(context.Background(), "abc", false)
+	_, err := du.InspectNoCache(t.Context(), "abc", false)
 	require.Error(t, err, "daemon failure must not be masked by the recovery path")
 	assert.Contains(t, err.Error(), "boom")
 }
@@ -187,7 +186,7 @@ func Test_InspectNoCache_rejectsMismatchedContainer(t *testing.T) {
 	defer srv.Close()
 
 	du := &DockerUtil{cli: newTestDockerClient(t, srv.URL), queryTimeout: 30 * time.Second}
-	_, err := du.InspectNoCache(context.Background(), "deadbeefdead", false)
+	_, err := du.InspectNoCache(t.Context(), "deadbeefdead", false)
 	require.Error(t, err, "must not return a container that does not match the request")
 }
 
@@ -260,7 +259,7 @@ func Test_InspectNoCache_recoveryRequestsSize(t *testing.T) {
 	defer srv.Close()
 
 	du := &DockerUtil{cli: newTestDockerClient(t, srv.URL), queryTimeout: 30 * time.Second}
-	c, err := du.InspectNoCache(context.Background(), "deadbeefdead", true)
+	c, err := du.InspectNoCache(t.Context(), "deadbeefdead", true)
 	require.NoError(t, err)
 	require.Len(t, gotQuery, 2, "expected the initial inspect plus the recovery refetch")
 	assert.Equal(t, "size=1", gotQuery[1], "recovery refetch must carry size=1")
@@ -276,7 +275,7 @@ func Test_InspectNoCache_healthyUnaffected(t *testing.T) {
 	defer srv.Close()
 
 	du := &DockerUtil{cli: newTestDockerClient(t, srv.URL), queryTimeout: 30 * time.Second}
-	c, err := du.InspectNoCache(context.Background(), "deadbeef", false)
+	c, err := du.InspectNoCache(t.Context(), "deadbeef", false)
 	require.NoError(t, err)
 	assert.Equal(t, "deadbeef", c.ID)
 	require.NotNil(t, c.Config)

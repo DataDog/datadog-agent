@@ -68,7 +68,7 @@ func TestGetComponentsAddsExpectedTags(t *testing.T) {
 	factories, err := getComponents(rec, nil, taggerfxmock.SetupFakeTagger(t), hostnameimpl.NewHostnameService(), nil)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	f := factories.Exporters[component.MustNewType(serializerexporter.TypeStr)]
 	exp, err := f.CreateMetrics(ctx, exportertest.NewNopSettings(f.Type()), f.CreateDefaultConfig())
 	require.NoError(t, err)

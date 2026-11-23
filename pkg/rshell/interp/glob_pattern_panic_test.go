@@ -7,7 +7,6 @@ package interp
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -45,7 +44,7 @@ func TestBraceGeneratedInvalidGlobDoesNotPanic(t *testing.T) {
 			prog, err := ParseScript(script, "")
 			require.NoError(t, err)
 
-			rerr := r.Run(context.Background(), prog)
+			rerr := r.Run(t.Context(), prog)
 			// The run must terminate with a normal exit status, never the
 			// recovered-panic sentinel or any other non-ExitStatus error.
 			if rerr != nil {
@@ -85,7 +84,7 @@ func TestValidGlobStillExpands(t *testing.T) {
 		r.Dir = dir
 		prog, err := ParseScript(tc.script, "")
 		require.NoError(t, err)
-		if err := r.Run(context.Background(), prog); err != nil {
+		if err := r.Run(t.Context(), prog); err != nil {
 			var es ExitStatus
 			if !errors.As(err, &es) {
 				r.Close()

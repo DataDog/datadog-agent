@@ -21,7 +21,7 @@ import (
 
 func checkRemoteScript(t *testing.T, script string, policy RemotePolicy) *CheckResult {
 	t.Helper()
-	result, err := CheckRemote(context.Background(), script, policy)
+	result, err := CheckRemote(t.Context(), script, policy)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, result.Status == CheckAllowed, result.Allowed)
@@ -221,7 +221,7 @@ func TestCheckRemoteInvalidConfiguration(t *testing.T) {
 		"service action":      {AllowedSystemServices: []SystemServiceControlGrant{{Service: "app.service", Actions: []SystemServiceAction{"launch"}}}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			report, err := CheckRemote(context.Background(), "", policy)
+			report, err := CheckRemote(t.Context(), "", policy)
 			require.Error(t, err)
 			assert.Nil(t, report)
 		})
@@ -241,17 +241,17 @@ func TestCheckRemoteEnvelopeAndLimits(t *testing.T) {
 	require.Len(t, report.Issues, 1)
 	assert.Equal(t, CheckParseError, report.Issues[0].Code)
 	assert.Empty(t, report.Commands)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	result, err := CheckRemote(ctx, "echo hi", policy)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, context.Canceled)
 	policy.Timeout = time.Nanosecond
-	result, err = CheckRemote(context.Background(), strings.Repeat("echo hi;", 1000), policy)
+	result, err = CheckRemote(t.Context(), strings.Repeat("echo hi;", 1000), policy)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 	policy.Timeout = time.Minute
-	ctx, cancel = context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	ctx, cancel = context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 	defer cancel()
 	_, err = CheckRemote(ctx, "echo hi", policy)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)

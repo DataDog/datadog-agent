@@ -31,7 +31,7 @@ func TestSelectiveElevation(t *testing.T) {
 	defer runner.Close()
 	program, err := ParseScript("sudo echo hello", "")
 	require.NoError(t, err)
-	require.NoError(t, runner.Run(context.Background(), program))
+	require.NoError(t, runner.Run(t.Context(), program))
 	require.Equal(t, "echo", called)
 	require.Equal(t, "hello\n", stdout.String())
 }
@@ -43,7 +43,7 @@ func TestSelectiveElevationDefaultDeny(t *testing.T) {
 	defer runner.Close()
 	program, err := ParseScript("sudo echo hello", "")
 	require.NoError(t, err)
-	err = runner.Run(context.Background(), program)
+	err = runner.Run(t.Context(), program)
 	var status ExitStatus
 	require.ErrorAs(t, err, &status)
 	require.Equal(t, ExitStatus(126), status)
@@ -66,7 +66,7 @@ func TestSelectiveElevationRejectsExpandedMarkerInPipeline(t *testing.T) {
 	defer runner.Close()
 	program, err := ParseScript("marker=sudo; $marker echo elevated | echo ordinary", "")
 	require.NoError(t, err)
-	err = runner.Run(context.Background(), program)
+	err = runner.Run(t.Context(), program)
 	require.NoError(t, err) // pipeline status is the right-hand command's status
 	require.False(t, called)
 	require.Contains(t, stderr.String(), "not allowed in pipelines")
@@ -103,7 +103,7 @@ func TestSelectiveElevationRejectsMarkerInSubshellPipelineStage(t *testing.T) {
 			defer runner.Close()
 			program, err := ParseScript(script, "")
 			require.NoError(t, err)
-			_ = runner.Run(context.Background(), program)
+			_ = runner.Run(t.Context(), program)
 			require.False(t, called)
 			require.Contains(t, stderr.String(), "not allowed in pipelines")
 		})
@@ -126,7 +126,7 @@ func TestSelectiveElevationAllowedInStandaloneSubshell(t *testing.T) {
 	defer runner.Close()
 	program, err := ParseScript("(sudo echo elevated)", "")
 	require.NoError(t, err)
-	require.NoError(t, runner.Run(context.Background(), program))
+	require.NoError(t, runner.Run(t.Context(), program))
 	require.True(t, called)
 	require.Equal(t, "elevated\n", stdout.String())
 }
@@ -160,7 +160,7 @@ func runNestedElevation(t *testing.T, dir, script string, allowed, elevatable []
 	runner.Dir = dir
 	program, err := ParseScript(script, "")
 	require.NoError(t, err)
-	err = runner.Run(context.Background(), program)
+	err = runner.Run(t.Context(), program)
 	if err != nil {
 		var exit ExitStatus
 		require.ErrorAs(t, err, &exit)

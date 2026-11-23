@@ -6,7 +6,6 @@
 package cspm
 
 import (
-	"context"
 	"regexp"
 	"strconv"
 	"strings"
@@ -67,7 +66,7 @@ func nodeAgentPod(t *testing.T, env *environments.Kubernetes, node string) strin
 	if node != "" {
 		opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", node).String()
 	}
-	pods, err := env.KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), opts)
+	pods, err := env.KubernetesCluster.Client().CoreV1().Pods("datadog").List(t.Context(), opts)
 	require.NoError(t, err)
 	require.NotEmpty(t, pods.Items, "no node agent pod on node %q", node)
 	return waitForSecurityAgentPodReady(t, env.KubernetesCluster, "datadog", pods.Items[0].Name)

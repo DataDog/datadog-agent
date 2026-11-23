@@ -121,7 +121,7 @@ func Test_SyntheticsTestScheduler_TriggeredPollPreservesEnrichment(t *testing.T)
 		healthy:         true,
 	}
 
-	tests, err := poller.fetchTests(context.Background())
+	tests, err := poller.fetchTests(t.Context())
 	require.NoError(t, err)
 	require.Len(t, tests, 1)
 	require.Equal(t, common.RunTypeTriggered, tests[0].RunType)
@@ -165,7 +165,7 @@ func Test_SyntheticsTestScheduler_TriggeredPollPreservesEnrichment(t *testing.T)
 		return "generated-result-id", nil
 	}
 
-	require.NoError(t, scheduler.start(context.Background()))
+	require.NoError(t, scheduler.start(t.Context()))
 	t.Cleanup(scheduler.stop)
 	schedulerPoller.TestsChan <- SyntheticsTestCtx{nextRun: fixedTime, cfg: tests[0]}
 
@@ -415,7 +415,7 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 		log:           l,
 	}
 
-	scheduler.flush(context.Background(), now)
+	scheduler.flush(t.Context(), now)
 
 	select {
 	case ctx := <-scheduler.syntheticsTestProcessingChan:
@@ -457,7 +457,7 @@ func TestFlush_NoOpWhenPollerHealthy(t *testing.T) {
 		testPoller:    &testPoller{healthy: true},
 	}
 
-	scheduler.flush(context.Background(), now)
+	scheduler.flush(t.Context(), now)
 
 	select {
 	case <-scheduler.syntheticsTestProcessingChan:
@@ -503,7 +503,7 @@ func TestFlushEnqueueExhaustion(t *testing.T) {
 		log:           tl,
 	}
 
-	scheduler.flush(context.Background(), now)
+	scheduler.flush(t.Context(), now)
 
 	select {
 	case ctx := <-scheduler.syntheticsTestProcessingChan:

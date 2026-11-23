@@ -17,7 +17,7 @@ import (
 )
 
 func TestReadImplDarwin_HappyPath(t *testing.T) {
-	name, mappings, err := readImpl(context.Background(), "", os.Getpid(), false)
+	name, mappings, err := readImpl(t.Context(), "", os.Getpid(), false)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, name)
 	assert.NotEmpty(t, mappings)
@@ -28,20 +28,20 @@ func TestReadImplDarwin_HappyPath(t *testing.T) {
 }
 
 func TestReadImplDarwin_ExtendedNotSupported(t *testing.T) {
-	_, _, err := readImpl(context.Background(), "", os.Getpid(), true)
+	_, _, err := readImpl(t.Context(), "", os.Getpid(), true)
 	assert.ErrorIs(t, err, ErrExtendedNotSupported)
 }
 
 func TestReadImplDarwin_NoSuchProcess(t *testing.T) {
-	_, _, err := readImpl(context.Background(), "", 2147483647, false)
+	_, _, err := readImpl(t.Context(), "", 2147483647, false)
 	assert.ErrorIs(t, err, ErrNoSuchProcess)
 }
 
 func TestReadImplDarwin_InvalidPID(t *testing.T) {
-	_, _, err := readImpl(context.Background(), "", 0, false)
+	_, _, err := readImpl(t.Context(), "", 0, false)
 	assert.ErrorIs(t, err, ErrNoSuchProcess)
 
-	_, _, err = readImpl(context.Background(), "", -1, false)
+	_, _, err = readImpl(t.Context(), "", -1, false)
 	assert.ErrorIs(t, err, ErrNoSuchProcess)
 }
 
@@ -52,14 +52,14 @@ func TestReadImplDarwin_PermissionDenied(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skip("running as root: PID 1's regions are readable, permission-denied path not exercised")
 	}
-	_, mappings, err := readImpl(context.Background(), "", 1, false)
+	_, mappings, err := readImpl(t.Context(), "", 1, false)
 	assert.Error(t, err)
 	assert.False(t, errors.Is(err, ErrNoSuchProcess))
 	assert.Empty(t, mappings)
 }
 
 func TestReadImplDarwin_ContextCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, mappings, err := readImpl(ctx, "", os.Getpid(), false)
 	assert.ErrorIs(t, err, context.Canceled)

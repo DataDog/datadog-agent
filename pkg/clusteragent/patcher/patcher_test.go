@@ -8,7 +8,6 @@
 package patcher
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -89,12 +88,12 @@ func TestPatcherApplyMetadataAnnotations(t *testing.T) {
 			"test-key": "test-value",
 		}))
 
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "test"})
 	require.NoError(t, err)
 	assert.True(t, applied)
 
 	// Verify the patch was applied by reading the resource back
-	result, err := client.Resource(deploymentGVR).Namespace("default").Get(context.Background(), "my-deploy", metav1.GetOptions{})
+	result, err := client.Resource(deploymentGVR).Namespace("default").Get(t.Context(), "my-deploy", metav1.GetOptions{})
 	require.NoError(t, err)
 
 	annotations := result.GetAnnotations()
@@ -111,11 +110,11 @@ func TestPatcherApplyPodTemplateAnnotations(t *testing.T) {
 			"template-key": "template-value",
 		}))
 
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "test"})
 	require.NoError(t, err)
 	assert.True(t, applied)
 
-	result, err := client.Resource(deploymentGVR).Namespace("default").Get(context.Background(), "my-deploy", metav1.GetOptions{})
+	result, err := client.Resource(deploymentGVR).Namespace("default").Get(t.Context(), "my-deploy", metav1.GetOptions{})
 	require.NoError(t, err)
 
 	// Navigate to spec.template.metadata.annotations
@@ -136,11 +135,11 @@ func TestPatcherApplyPodAnnotations(t *testing.T) {
 			"pod-key": "pod-value",
 		}))
 
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "test"})
 	require.NoError(t, err)
 	assert.True(t, applied)
 
-	result, err := client.Resource(podGVR).Namespace("default").Get(context.Background(), "my-pod", metav1.GetOptions{})
+	result, err := client.Resource(podGVR).Namespace("default").Get(t.Context(), "my-pod", metav1.GetOptions{})
 	require.NoError(t, err)
 
 	annotations := result.GetAnnotations()
@@ -154,7 +153,7 @@ func TestPatcherApplyEmptyIntent(t *testing.T) {
 	intent := NewPatchIntent(DeploymentTarget("default", "my-deploy"))
 	// No operations added
 
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "test"})
 	require.NoError(t, err)
 	assert.False(t, applied, "empty intent should be a no-op")
 }
@@ -166,7 +165,7 @@ func TestPatcherApplyNonExistentResource(t *testing.T) {
 	intent := NewPatchIntent(DeploymentTarget("default", "does-not-exist")).
 		With(SetMetadataAnnotations(map[string]interface{}{"k": "v"}))
 
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "test"})
 	assert.False(t, applied)
 	assert.Error(t, err)
 }
@@ -188,11 +187,11 @@ func TestPatcherApplyMultipleOperations(t *testing.T) {
 			"java-lib.version": "v1.4.0",
 		}))
 
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "test"})
 	require.NoError(t, err)
 	assert.True(t, applied)
 
-	result, err := client.Resource(deploymentGVR).Namespace("default").Get(context.Background(), "my-deploy", metav1.GetOptions{})
+	result, err := client.Resource(deploymentGVR).Namespace("default").Get(t.Context(), "my-deploy", metav1.GetOptions{})
 	require.NoError(t, err)
 
 	// Verify metadata annotations
@@ -223,11 +222,11 @@ func TestPatcherApplyDeleteAnnotations(t *testing.T) {
 	intent := NewPatchIntent(DeploymentTarget("default", "my-deploy")).
 		With(DeletePodTemplateAnnotations([]string{"remove-me", "other-remove-nonexistent"}))
 
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "test"})
 	require.NoError(t, err)
 	assert.True(t, applied)
 
-	result, err := client.Resource(deploymentGVR).Namespace("default").Get(context.Background(), "my-deploy", metav1.GetOptions{})
+	result, err := client.Resource(deploymentGVR).Namespace("default").Get(t.Context(), "my-deploy", metav1.GetOptions{})
 	require.NoError(t, err)
 
 	rspec := result.Object["spec"].(map[string]interface{})
@@ -253,11 +252,11 @@ func TestPatcherApplyPreservesExistingAnnotations(t *testing.T) {
 			"new-key": "new-value",
 		}))
 
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "test"})
 	require.NoError(t, err)
 	assert.True(t, applied)
 
-	result, err := client.Resource(deploymentGVR).Namespace("default").Get(context.Background(), "my-deploy", metav1.GetOptions{})
+	result, err := client.Resource(deploymentGVR).Namespace("default").Get(t.Context(), "my-deploy", metav1.GetOptions{})
 	require.NoError(t, err)
 
 	annotations := result.GetAnnotations()
@@ -275,7 +274,7 @@ func TestPatcherApplyDryRun(t *testing.T) {
 			"dry-run-key": "dry-run-value",
 		}))
 
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test", DryRun: true, RetryOnConflict: true})
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "test", DryRun: true, RetryOnConflict: true})
 	require.NoError(t, err)
 	assert.True(t, applied)
 
@@ -297,7 +296,7 @@ func TestPatcherApplyUsesCorrectPatchType(t *testing.T) {
 	intent := NewPatchIntent(DeploymentTarget("default", "my-deploy")).
 		With(SetMetadataAnnotations(map[string]interface{}{"k": "v"}))
 
-	_, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	_, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "test"})
 	require.NoError(t, err)
 
 	// Verify MergePatchType was used (default patch type)
@@ -322,7 +321,7 @@ func TestPatcherApplyBuildsCorrectJSON(t *testing.T) {
 			"version": "v1",
 		}))
 
-	_, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	_, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "test"})
 	require.NoError(t, err)
 
 	actions := client.Actions()
@@ -357,13 +356,13 @@ func TestPatcherRespondsToLeadershipChange(t *testing.T) {
 		With(SetMetadataAnnotations(map[string]interface{}{"k": "v"}))
 
 	// Not leader — should skip
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "test"})
 	require.NoError(t, err)
 	assert.False(t, applied)
 
 	// Become leader — should apply
 	isLeader = true
-	applied, err = p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	applied, err = p.Apply(t.Context(), intent, PatchOptions{Caller: "test"})
 	require.NoError(t, err)
 	assert.True(t, applied)
 }
@@ -391,7 +390,7 @@ func TestScenarioRCPatcherEnable(t *testing.T) {
 			"admission.datadoghq.com/rc.rev":             "1674236639474287600",
 		}))
 
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "rc_patcher"})
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "rc_patcher"})
 	require.NoError(t, err)
 	assert.True(t, applied)
 }
@@ -411,14 +410,14 @@ func TestScenarioLanguageDetection(t *testing.T) {
 			"internal.dd.datadoghq.com/stale.detected_langs": nil, // remove stale
 		}))
 
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{
 		Caller:          "language_detection",
 		RetryOnConflict: true,
 	})
 	require.NoError(t, err)
 	assert.True(t, applied)
 
-	result, err := client.Resource(deploymentGVR).Namespace("default").Get(context.Background(), "my-deploy", metav1.GetOptions{})
+	result, err := client.Resource(deploymentGVR).Namespace("default").Get(t.Context(), "my-deploy", metav1.GetOptions{})
 	require.NoError(t, err)
 
 	annotations := result.GetAnnotations()
@@ -439,7 +438,7 @@ func TestScenarioVPARollout(t *testing.T) {
 			"autoscaling.datadoghq.com/scaling-hash":      "abc123def",
 		}))
 
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "vpa"})
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "vpa"})
 	require.NoError(t, err)
 	assert.True(t, applied)
 }
@@ -452,7 +451,7 @@ func TestPatcherApplySubresource(t *testing.T) {
 	intent := NewPatchIntent(PodTarget("default", "my-pod")).
 		With(SetMetadataAnnotations(map[string]interface{}{"k": "v"}))
 
-	_, err := p.Apply(context.Background(), intent, PatchOptions{
+	_, err := p.Apply(t.Context(), intent, PatchOptions{
 		Caller:      "test",
 		Subresource: "resize",
 	})
@@ -474,7 +473,7 @@ func TestPatcherApplyNoSubresource(t *testing.T) {
 	intent := NewPatchIntent(PodTarget("default", "my-pod")).
 		With(SetMetadataAnnotations(map[string]interface{}{"k": "v"}))
 
-	_, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	_, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "test"})
 	require.NoError(t, err)
 
 	actions := client.Actions()
@@ -496,7 +495,7 @@ func TestScenarioVPAPodPatcher(t *testing.T) {
 			"autoscaling.datadoghq.com/recommendation-applied-event-generated": "true",
 		}))
 
-	applied, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "pod_patcher"})
+	applied, err := p.Apply(t.Context(), intent, PatchOptions{Caller: "pod_patcher"})
 	require.NoError(t, err)
 	assert.True(t, applied)
 }

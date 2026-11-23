@@ -48,7 +48,7 @@ func getStatusCode(t *testing.T, addr string, opts ...grpc.DialOption) codes.Cod
 	require.NoError(t, err)
 	defer conn.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	_, err = api.NewSecurityModuleCmdClient(conn).GetStatus(ctx, &api.GetStatusParams{})

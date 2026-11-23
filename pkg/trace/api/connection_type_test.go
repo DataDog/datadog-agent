@@ -6,7 +6,6 @@
 package api
 
 import (
-	"context"
 	"net"
 	"testing"
 
@@ -15,22 +14,22 @@ import (
 
 func TestGetConnectionType(t *testing.T) {
 	t.Run("empty context", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		assert.Equal(t, ConnectionType(""), GetConnectionType(ctx))
 	})
 
 	t.Run("tcp", func(t *testing.T) {
-		ctx := withConnectionType(context.Background(), ConnectionTypeTCP)
+		ctx := withConnectionType(t.Context(), ConnectionTypeTCP)
 		assert.Equal(t, ConnectionTypeTCP, GetConnectionType(ctx))
 	})
 
 	t.Run("uds", func(t *testing.T) {
-		ctx := withConnectionType(context.Background(), ConnectionTypeUDS)
+		ctx := withConnectionType(t.Context(), ConnectionTypeUDS)
 		assert.Equal(t, ConnectionTypeUDS, GetConnectionType(ctx))
 	})
 
 	t.Run("pipe", func(t *testing.T) {
-		ctx := withConnectionType(context.Background(), ConnectionTypePipe)
+		ctx := withConnectionType(t.Context(), ConnectionTypePipe)
 		assert.Equal(t, ConnectionTypePipe, GetConnectionType(ctx))
 	})
 }
@@ -57,7 +56,7 @@ func TestConnContextConnectionType(t *testing.T) {
 		serverConn := <-done
 		defer serverConn.Close()
 
-		ctx := connContext(context.Background(), serverConn)
+		ctx := connContext(t.Context(), serverConn)
 		assert.Equal(t, ConnectionTypeTCP, GetConnectionType(ctx))
 	})
 }

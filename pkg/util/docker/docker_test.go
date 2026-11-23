@@ -8,7 +8,6 @@
 package docker
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -18,7 +17,7 @@ import (
 )
 
 func TestResolveImageName(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	imageName := "datadog/docker-dd-agent:latest"
 	imageSha := "sha256:bdc7dc8ba08c2ac8c8e03550d8ebf3297a669a3f03e36c377b9515f08c1b4ef4"
 	imageWithShaTag := "datadog/docker-dd-agent@sha256:9aab42bf6a2a068b797fe7d91a5d8d915b10dbbc3d6f2b10492848debfba6044"
@@ -57,7 +56,7 @@ func TestResolveImageName(t *testing.T) {
 }
 
 func TestResolveImageNameFromContainer(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	imageName := "datadog/docker-dd-agent:latest"
 	imageSha := "sha256:bdc7dc8ba08c2ac8c8e03550d8ebf3297a669a3f03e36c377b9515f08c1b4ef4"
 	imageWithShaTag := "datadog/docker-dd-agent@sha256:9aab42bf6a2a068b797fe7d91a5d8d915b10dbbc3d6f2b10492848debfba6044"
@@ -117,7 +116,7 @@ func TestResolveImageNameFromContainer(t *testing.T) {
 }
 
 func TestResolveImageNameFromContainerError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	imageSha := "sha256:bdc7dc8ba08c2ac8c8e03550d8ebf3297a669a3f03e36c377b9515f08c1b4ef4"
 	assert := assert.New(t)
 

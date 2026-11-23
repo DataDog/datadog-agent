@@ -128,7 +128,7 @@ func FuzzPwdArgs(f *testing.F) {
 		if !shellSafe(args) {
 			return
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), fuzzTimeout)
+		ctx, cancel := context.WithTimeout(t.Context(), fuzzTimeout)
 		defer cancel()
 		_, _, code := pwdRunCtxFuzz(ctx, t, "pwd "+args, base)
 		// pwd itself produces 0 (success) or 1 (flag error). The shell
@@ -171,7 +171,7 @@ func FuzzPwdFlagsCombo(f *testing.F) {
 		if !shellSafe(args) {
 			return
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), fuzzTimeout)
+		ctx, cancel := context.WithTimeout(t.Context(), fuzzTimeout)
 		defer cancel()
 		_, _, code := pwdRunCtxFuzz(ctx, t, "pwd "+args, base)
 		if !validExit(code) {
@@ -224,7 +224,7 @@ func FuzzPwdSymlinkTargets(f *testing.F) {
 		if err := os.Symlink(target, link); err != nil {
 			return
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), fuzzTimeout)
+		ctx, cancel := context.WithTimeout(t.Context(), fuzzTimeout)
 		defer cancel()
 		_, _, code := testutil.RunScriptCtx(ctx, t, "pwd -P", link, interp.AllowedPaths([]string{dir}))
 		if !validExit(code) {

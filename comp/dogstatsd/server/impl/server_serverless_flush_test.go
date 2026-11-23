@@ -8,7 +8,6 @@
 package serverimpl
 
 import (
-	"context"
 	"strconv"
 	"testing"
 	"time"
@@ -59,7 +58,7 @@ func TestStopFlushesAllWorkersWhenEnabled(t *testing.T) {
 		})
 	}
 
-	require.NoError(t, s.stop(context.Background()))
+	require.NoError(t, s.stop(t.Context()))
 	requireStopped(t, s)
 
 	// Wait for at least workerCount samples, then verify each unique per-worker
@@ -94,7 +93,7 @@ func TestStopDrainsQueuedPacketsWhenEnabled(t *testing.T) {
 	// the worker, then drive drainAndFlush directly — the exact code path the
 	// stopChan case takes when packets are still queued at stop. stop() leaves
 	// packetsIn open, so we can enqueue afterwards.
-	require.NoError(t, s.stop(context.Background()))
+	require.NoError(t, s.stop(t.Context()))
 	requireStopped(t, s)
 
 	w := s.workers[0]
@@ -130,7 +129,7 @@ func TestStopDoesNotFlushWhenDisabled(t *testing.T) {
 		SampleRate: 1,
 	})
 
-	require.NoError(t, s.stop(context.Background()))
+	require.NoError(t, s.stop(t.Context()))
 	requireStopped(t, s)
 
 	// No flush was triggered, so no sample should ever arrive. WaitForNumberOfSamples

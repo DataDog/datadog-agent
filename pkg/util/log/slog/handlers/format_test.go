@@ -36,7 +36,7 @@ func TestFormatHandlerHandle(t *testing.T) {
 	handler := NewFormat(formatter, &buf)
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "test message\n", buf.String())
@@ -51,10 +51,10 @@ func TestFormatHandlerEnabled(t *testing.T) {
 	handler := NewFormat(formatter, &buf)
 
 	// Should always return true
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelDebug))
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelInfo))
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelWarn))
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelError))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelDebug))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelInfo))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelWarn))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelError))
 }
 
 func TestFormatHandlerMultipleMessages(t *testing.T) {
@@ -76,7 +76,7 @@ func TestFormatHandlerMultipleMessages(t *testing.T) {
 
 	for _, m := range messages {
 		record := slog.NewRecord(time.Now(), m.level, m.msg, 0)
-		err := handler.Handle(context.Background(), record)
+		err := handler.Handle(t.Context(), record)
 		assert.NoError(t, err)
 	}
 
@@ -99,7 +99,7 @@ func TestFormatHandlerCustomFormatter(t *testing.T) {
 
 	now := time.Now()
 	record := slog.NewRecord(now, slog.LevelWarn, "warning message", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 
 	assert.NoError(t, err)
 	assert.Contains(t, buf.String(), "[WARN] warning message")
@@ -115,7 +115,7 @@ func TestFormatHandlerEmptyMessage(t *testing.T) {
 	handler := NewFormat(formatter, &buf)
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "\n", buf.String())
@@ -141,7 +141,7 @@ func TestFormatHandlerWithRecordAttributes(t *testing.T) {
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
 	record.AddAttrs(slog.String("key", "value"))
 
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 	assert.NoError(t, err)
 	assert.Contains(t, buf.String(), "key=")
 }
@@ -164,7 +164,7 @@ func TestFormatHandlerFormatterUsesContext(t *testing.T) {
 
 	handler := NewFormat(formatter, &buf)
 
-	ctx := context.WithValue(context.Background(), requestIDKey, "12345")
+	ctx := context.WithValue(t.Context(), requestIDKey, "12345")
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
 
 	err := handler.Handle(ctx, record)
@@ -237,7 +237,7 @@ func TestFormatHandlerWithAttrs(t *testing.T) {
 	require.NotSame(t, handler, h2, "WithAttrs should return new handler")
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "msg", 0)
-	err := h2.Handle(context.Background(), record)
+	err := h2.Handle(t.Context(), record)
 
 	require.NoError(t, err)
 	assert.Equal(t, "msg a=1\n", buf.String())
@@ -254,7 +254,7 @@ func TestFormatHandlerWithAttrsMultiple(t *testing.T) {
 	})
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "msg", 0)
-	err := h2.Handle(context.Background(), record)
+	err := h2.Handle(t.Context(), record)
 
 	require.NoError(t, err)
 	assert.Equal(t, "msg a=1 b=2\n", buf.String())
@@ -269,7 +269,7 @@ func TestFormatHandlerWithAttrsChained(t *testing.T) {
 	h3 := h2.WithAttrs([]slog.Attr{slog.String("b", "2")})
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "msg", 0)
-	err := h3.Handle(context.Background(), record)
+	err := h3.Handle(t.Context(), record)
 
 	require.NoError(t, err)
 	assert.Equal(t, "msg a=1 b=2\n", buf.String())
@@ -285,7 +285,7 @@ func TestFormatHandlerWithAttrsAndRecordAttrs(t *testing.T) {
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "msg", 0)
 	record.AddAttrs(slog.String("record_attr", "r1"))
 
-	err := h2.Handle(context.Background(), record)
+	err := h2.Handle(t.Context(), record)
 
 	require.NoError(t, err)
 	// Record's attrs come first (already on the record), then handler attrs are added
@@ -300,7 +300,7 @@ func TestFormatHandlerWithGroup(t *testing.T) {
 	h2 := handler.WithGroup("g").WithAttrs([]slog.Attr{slog.String("a", "1")})
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "msg", 0)
-	err := h2.Handle(context.Background(), record)
+	err := h2.Handle(t.Context(), record)
 
 	require.NoError(t, err)
 	// Attribute 'a' should be wrapped in group 'g'
@@ -315,7 +315,7 @@ func TestFormatHandlerWithGroupNested(t *testing.T) {
 	h2 := handler.WithGroup("g1").WithGroup("g2").WithAttrs([]slog.Attr{slog.String("a", "1")})
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "msg", 0)
-	err := h2.Handle(context.Background(), record)
+	err := h2.Handle(t.Context(), record)
 
 	require.NoError(t, err)
 	// Attribute 'a' should be wrapped in nested groups
@@ -334,7 +334,7 @@ func TestFormatHandlerWithGroupAndAttrsInterleaved(t *testing.T) {
 		WithAttrs([]slog.Attr{slog.String("b", "2")})
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "msg", 0)
-	err := h2.Handle(context.Background(), record)
+	err := h2.Handle(t.Context(), record)
 
 	require.NoError(t, err)
 	// 'a' is not in a group, 'b' is in group 'g'
@@ -351,7 +351,7 @@ func TestFormatHandlerOriginalUnchanged(t *testing.T) {
 
 	// Original handler should still work without attrs or groups
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "original", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 
 	require.NoError(t, err)
 	assert.Equal(t, "original\n", buf.String())
@@ -367,7 +367,7 @@ func TestFormatHandlerDerivedHandlersIndependent(t *testing.T) {
 
 	// Test h1
 	record1 := slog.NewRecord(time.Now(), slog.LevelInfo, "msg1", 0)
-	err := h1.Handle(context.Background(), record1)
+	err := h1.Handle(t.Context(), record1)
 	require.NoError(t, err)
 	assert.Equal(t, "msg1 a=1\n", buf.String())
 
@@ -375,7 +375,7 @@ func TestFormatHandlerDerivedHandlersIndependent(t *testing.T) {
 
 	// Test h2
 	record2 := slog.NewRecord(time.Now(), slog.LevelInfo, "msg2", 0)
-	err = h2.Handle(context.Background(), record2)
+	err = h2.Handle(t.Context(), record2)
 	require.NoError(t, err)
 	assert.Equal(t, "msg2 b=2\n", buf.String())
 }
@@ -391,7 +391,7 @@ func TestFormatHandlerWithGroupMultipleAttrs(t *testing.T) {
 	})
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "msg", 0)
-	err := h2.Handle(context.Background(), record)
+	err := h2.Handle(t.Context(), record)
 
 	require.NoError(t, err)
 	assert.Equal(t, "msg g={a=1 b=2}\n", buf.String())
@@ -514,7 +514,7 @@ func TestFormatHandlerMatchesJSONHandlerBehavior(t *testing.T) {
 				// Use a temporary JSON handler to format this record
 				var tmpBuf bytes.Buffer
 				tmpHandler := slog.NewJSONHandler(&tmpBuf, opts)
-				_ = tmpHandler.Handle(context.Background(), r)
+				_ = tmpHandler.Handle(t.Context(), r)
 				return tmpBuf.String()
 			}, &formatBuf)
 			configuredFormat := tt.setupFn(formatHandler)

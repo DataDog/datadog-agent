@@ -20,7 +20,7 @@ import (
 func TestRetrySetup_SucceedsImmediately(t *testing.T) {
 	backoff := wait.Backoff{Steps: 3, Duration: time.Millisecond, Factor: 2.0, Jitter: 0.0}
 	calls := 0
-	err := retrySetup(context.Background(), backoff, func(_ context.Context) error {
+	err := retrySetup(t.Context(), backoff, func(_ context.Context) error {
 		calls++
 		return nil
 	})
@@ -37,7 +37,7 @@ func TestRetrySetup_SucceedsAfterTransientFailures(t *testing.T) {
 	backoff := wait.Backoff{Steps: 5, Duration: time.Millisecond, Factor: 2.0, Jitter: 0.0}
 	transient := errors.New("apiserver unavailable")
 	calls := 0
-	err := retrySetup(context.Background(), backoff, func(_ context.Context) error {
+	err := retrySetup(t.Context(), backoff, func(_ context.Context) error {
 		calls++
 		if calls < 3 {
 			return transient
@@ -57,7 +57,7 @@ func TestRetrySetup_ExhaustsRetries(t *testing.T) {
 	backoff := wait.Backoff{Steps: 3, Duration: time.Millisecond, Factor: 2.0, Jitter: 0.0}
 	setupErr := errors.New("permanent-looking apiserver failure")
 	calls := 0
-	err := retrySetup(context.Background(), backoff, func(_ context.Context) error {
+	err := retrySetup(t.Context(), backoff, func(_ context.Context) error {
 		calls++
 		return setupErr
 	})

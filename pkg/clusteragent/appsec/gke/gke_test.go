@@ -8,7 +8,6 @@
 package gke
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -135,7 +134,7 @@ func defaultGKEConfig() appsecconfig.Config {
 
 func getExtension(t *testing.T, client dynamic.Interface, namespace string, gatewayName string) *unstructured.Unstructured {
 	t.Helper()
-	extension, err := client.Resource(trafficExtensionGVR).Namespace(namespace).Get(context.Background(), extensionName(gatewayName), metav1.GetOptions{})
+	extension, err := client.Resource(trafficExtensionGVR).Namespace(namespace).Get(t.Context(), extensionName(gatewayName), metav1.GetOptions{})
 	require.NoError(t, err)
 	return extension
 }
@@ -167,20 +166,20 @@ func drainEvents(recorder *record.FakeRecorder) []string {
 
 func requireNoExtensions(t *testing.T, client dynamic.Interface, namespace string) {
 	t.Helper()
-	list, err := client.Resource(trafficExtensionGVR).Namespace(namespace).List(context.Background(), metav1.ListOptions{})
+	list, err := client.Resource(trafficExtensionGVR).Namespace(namespace).List(t.Context(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Empty(t, list.Items)
 }
 
 func requireExtensionNotFound(t *testing.T, client dynamic.Interface, namespace string, gatewayName string) {
 	t.Helper()
-	_, err := client.Resource(trafficExtensionGVR).Namespace(namespace).Get(context.Background(), extensionName(gatewayName), metav1.GetOptions{})
+	_, err := client.Resource(trafficExtensionGVR).Namespace(namespace).Get(t.Context(), extensionName(gatewayName), metav1.GetOptions{})
 	require.True(t, apierrors.IsNotFound(err), "expected GCPTrafficExtension %s/%s to be absent, got %v", namespace, extensionName(gatewayName), err)
 }
 
 func requireSingleExtensionObjectEqual(t *testing.T, client dynamic.Interface, namespace string, want map[string]any) {
 	t.Helper()
-	list, err := client.Resource(trafficExtensionGVR).Namespace(namespace).List(context.Background(), metav1.ListOptions{})
+	list, err := client.Resource(trafficExtensionGVR).Namespace(namespace).List(t.Context(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, list.Items, 1)
 	require.Equal(t, want, list.Items[0].Object)
@@ -188,7 +187,7 @@ func requireSingleExtensionObjectEqual(t *testing.T, client dynamic.Interface, n
 
 func TestAdded_createsGCPTrafficExtension_whenGatewayClassIsSupported(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
 	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 	gateway := newTestGateway("test-ns", "test-gateway", testGatewayClass)
@@ -247,7 +246,7 @@ func TestAdded_createsGCPTrafficExtension_whenGatewayClassIsSupported(t *testing
 
 func TestAdded_isIdempotent_whenExtensionAlreadyExists(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
 	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 	gateway := newTestGateway("test-ns", "test-gateway", testGatewayClass)
@@ -280,7 +279,7 @@ func TestAdded_skipsGateway_whenClassIsEmptyOrUnsupported(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
-			ctx := context.Background()
+			ctx := t.Context()
 			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
 			pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 
@@ -297,7 +296,7 @@ func TestAdded_skipsGateway_whenClassIsEmptyOrUnsupported(t *testing.T) {
 
 func TestAdded_skipsMultiClusterClass_evenWhenPresentInAllowlist(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	config := defaultGKEConfig()
 	config.GKE.GatewayClasses = []string{testGatewayClass, "gke-l7-global-external-managed-mc"}
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
@@ -314,7 +313,7 @@ func TestAdded_skipsMultiClusterClass_evenWhenPresentInAllowlist(t *testing.T) {
 
 func TestDeleted_removesManagedExtension_andIsNotFoundSafe(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	gateway := newTestGateway("test-ns", "test-gateway", "istio")
 	extension := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), extension)
@@ -349,19 +348,19 @@ func TestIsInjectionPossible_returnsError_whenConfigurationOrCRDIsInvalid(t *tes
 		wantErrSub string
 	}{
 		{name: "missing processor service name", config: func() appsecconfig.Config { c := defaultGKEConfig(); c.Processor.ServiceName = ""; return c }(), setup: func(t *testing.T, client *dynamicfake.FakeDynamicClient) {
-			_, err := client.Resource(crdGVR).Create(context.Background(), newTestCRD(), metav1.CreateOptions{})
+			_, err := client.Resource(crdGVR).Create(t.Context(), newTestCRD(), metav1.CreateOptions{})
 			require.NoError(t, err)
 		}, wantErrSub: "processor service name"},
 		{name: "zero processor port", config: func() appsecconfig.Config { c := defaultGKEConfig(); c.Processor.Port = 0; return c }(), setup: func(t *testing.T, client *dynamicfake.FakeDynamicClient) {
-			_, err := client.Resource(crdGVR).Create(context.Background(), newTestCRD(), metav1.CreateOptions{})
+			_, err := client.Resource(crdGVR).Create(t.Context(), newTestCRD(), metav1.CreateOptions{})
 			require.NoError(t, err)
 		}, wantErrSub: "processor port must be between 1 and 65535"},
 		{name: "negative processor port", config: func() appsecconfig.Config { c := defaultGKEConfig(); c.Processor.Port = -1; return c }(), setup: func(t *testing.T, client *dynamicfake.FakeDynamicClient) {
-			_, err := client.Resource(crdGVR).Create(context.Background(), newTestCRD(), metav1.CreateOptions{})
+			_, err := client.Resource(crdGVR).Create(t.Context(), newTestCRD(), metav1.CreateOptions{})
 			require.NoError(t, err)
 		}, wantErrSub: "processor port must be between 1 and 65535"},
 		{name: "port exceeds upper bound", config: func() appsecconfig.Config { c := defaultGKEConfig(); c.Processor.Port = 65536; return c }(), setup: func(t *testing.T, client *dynamicfake.FakeDynamicClient) {
-			_, err := client.Resource(crdGVR).Create(context.Background(), newTestCRD(), metav1.CreateOptions{})
+			_, err := client.Resource(crdGVR).Create(t.Context(), newTestCRD(), metav1.CreateOptions{})
 			require.NoError(t, err)
 		}, wantErrSub: "processor port must be between 1 and 65535"},
 		{name: "CRD absent", config: defaultGKEConfig(), wantErrSub: "GCPTrafficExtension CRD not found"},
@@ -381,7 +380,7 @@ func TestIsInjectionPossible_returnsError_whenConfigurationOrCRDIsInvalid(t *tes
 			pattern, _ := newTestGKEPattern(t, client, logmock.New(t), tt.config)
 
 			// When
-			err := pattern.IsInjectionPossible(context.Background())
+			err := pattern.IsInjectionPossible(t.Context())
 
 			// Then
 			require.Error(t, err)
@@ -392,7 +391,7 @@ func TestIsInjectionPossible_returnsError_whenConfigurationOrCRDIsInvalid(t *tes
 
 func TestIsInjectionPossible_returnsNil_whenConfigurationAndCRDAreValid(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), newTestCRD())
 	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 
@@ -413,7 +412,7 @@ func TestIsInjectionPossible_returnsNotApplicable_whenModeIsSidecar(t *testing.T
 	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), config)
 
 	// When
-	err := pattern.IsInjectionPossible(context.Background())
+	err := pattern.IsInjectionPossible(t.Context())
 
 	// Then
 	require.Error(t, err)
@@ -429,7 +428,7 @@ func TestIsInjectionPossible_doesNotReturnNotApplicable_whenExternalModeIsMiscon
 	pattern, _ := newTestGKEPattern(t, client, logmock.New(t), config)
 
 	// When
-	err := pattern.IsInjectionPossible(context.Background())
+	err := pattern.IsInjectionPossible(t.Context())
 
 	// Then a genuine misconfiguration stays a reportable failure, not a quiet skip
 	require.Error(t, err)
@@ -453,7 +452,7 @@ func TestExtensionName_isDeterministicAndDNSLabelSafe(t *testing.T) {
 
 func TestAdded_createsDistinctExtensions_whenTwoGatewaysShareNamespace(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
 	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 
@@ -471,7 +470,7 @@ func TestAdded_createsDistinctExtensions_whenTwoGatewaysShareNamespace(t *testin
 
 func TestAdded_skipsExistingManagedExtension_withoutOverwriting(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 	existing.SetAnnotations(map[string]string{"keep": "me"})
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
@@ -491,7 +490,7 @@ func TestAdded_skipsExistingManagedExtension_withoutOverwriting(t *testing.T) {
 
 func TestAdded_skipsForeignExtension_withoutOverwriting(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{"owner": "someone-else"})
 	before := existing.DeepCopy()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
@@ -509,7 +508,7 @@ func TestAdded_skipsForeignExtension_withoutOverwriting(t *testing.T) {
 
 func TestDeleted_skipsForeignExtension_withoutDeleting(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{"owner": "someone-else"})
 	before := existing.DeepCopy()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
@@ -527,7 +526,7 @@ func TestDeleted_skipsForeignExtension_withoutDeleting(t *testing.T) {
 
 func TestAdded_createsManagedExtension_whenCommonLabelsAreNil(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	config := defaultGKEConfig()
 	config.CommonLabels = nil
 	config.CommonAnnotations = nil
@@ -546,7 +545,7 @@ func TestAdded_createsManagedExtension_whenCommonLabelsAreNil(t *testing.T) {
 
 func TestAdded_omitsProcessorAnnotation_onExtension(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	config := defaultGKEConfig()
 	config.CommonAnnotations = map[string]string{
 		appsecconfig.AppsecProcessorResourceAnnotation: "appsec-processor.ignored-by-gke.svc:8080",
@@ -567,7 +566,7 @@ func TestAdded_omitsProcessorAnnotation_onExtension(t *testing.T) {
 
 func TestAdded_returnsNilAndRecordsNoEvent_whenAlreadyExistsReGetShowsManagedObject(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
 	managed := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 	before := managed.DeepCopy()
@@ -598,7 +597,7 @@ func TestAdded_returnsNilAndRecordsNoEvent_whenAlreadyExistsReGetShowsManagedObj
 
 func TestAdded_skipsForeignExtensionAndRecordsNoEvent_whenCreateAlreadyExistsRaceRevealsForeignObject(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
 	foreign := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{"owner": "someone-else"})
 	before := foreign.DeepCopy()
@@ -629,7 +628,7 @@ func TestAdded_skipsForeignExtensionAndRecordsNoEvent_whenCreateAlreadyExistsRac
 
 func TestAdded_returnsErrorAndRecordsCreateFailed_whenAlreadyExistsReGetFails(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
 	getCalls := 0
 	client.PrependReactor("get", "gcptrafficextensions", func(action k8stesting.Action) (bool, runtime.Object, error) {
@@ -685,7 +684,7 @@ func TestAdded_returnsErrorAndRecordsEvent_whenGetOrCreateFails(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
-			ctx := context.Background()
+			ctx := t.Context()
 			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
 			tt.reactor(client)
 			pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
@@ -731,7 +730,7 @@ func TestDeleted_returnsErrorAndRecordsEvent_whenGetOrDeleteFails(t *testing.T) 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
-			ctx := context.Background()
+			ctx := t.Context()
 			existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
 			tt.reactor(client)
@@ -751,7 +750,7 @@ func TestDeleted_returnsErrorAndRecordsEvent_whenGetOrDeleteFails(t *testing.T) 
 
 func TestAdded_setsOwnerReferenceToGateway(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
 	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 
@@ -767,7 +766,7 @@ func TestAdded_setsOwnerReferenceToGateway(t *testing.T) {
 
 func TestAdded_omitsOwnerReference_whenGatewayUIDIsEmpty(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds())
 	pattern, recorder := newTestGKEPattern(t, client, logmock.New(t), defaultGKEConfig())
 	gateway := newTestGateway("test-ns", "test-gateway", testGatewayClass)
@@ -788,7 +787,7 @@ func TestAdded_omitsOwnerReference_whenGatewayUIDIsEmpty(t *testing.T) {
 
 func TestDeleted_skipsExtension_whenOwnerUIDBelongsToDifferentGateway(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 	existing.SetOwnerReferences([]metav1.OwnerReference{gatewayOwnerReference("test-gateway", testOtherGatewayUID)})
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
@@ -806,7 +805,7 @@ func TestDeleted_skipsExtension_whenOwnerUIDBelongsToDifferentGateway(t *testing
 func TestDeleted_deletesLegacyExtension_withoutOwnerReference(t *testing.T) {
 	// Given extensions created by earlier agent versions carry no ownerReference and
 	// must stay deletable, otherwise disabling AppSec orphans every one of them.
-	ctx := context.Background()
+	ctx := t.Context()
 	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 	require.Empty(t, existing.GetOwnerReferences())
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
@@ -823,7 +822,7 @@ func TestDeleted_deletesLegacyExtension_withoutOwnerReference(t *testing.T) {
 
 func TestDeleted_deletesExtension_whenOwnerUIDMatchesGateway(t *testing.T) {
 	// Given the Gateway cleanupPattern hands us is the live owner of the extension.
-	ctx := context.Background()
+	ctx := t.Context()
 	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 	existing.SetOwnerReferences([]metav1.OwnerReference{gatewayOwnerReference("test-gateway", testGatewayUID)})
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
@@ -840,7 +839,7 @@ func TestDeleted_deletesExtension_whenOwnerUIDMatchesGateway(t *testing.T) {
 
 func TestDeleted_deletesExtension_whenGatewayUIDIsEmpty(t *testing.T) {
 	// Given a Gateway with no UID, an owned extension must not be read as a mismatch.
-	ctx := context.Background()
+	ctx := t.Context()
 	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 	existing.SetOwnerReferences([]metav1.OwnerReference{gatewayOwnerReference("test-gateway", testOtherGatewayUID)})
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
@@ -859,7 +858,7 @@ func TestDeleted_deletesExtension_whenGatewayUIDIsEmpty(t *testing.T) {
 
 func TestDeleted_sendsResourceUIDPrecondition(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 	existing.SetUID(testExtensionUID)
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
@@ -886,7 +885,7 @@ func TestDeleted_sendsResourceUIDPrecondition(t *testing.T) {
 
 func TestDeleted_omitsPrecondition_whenExtensionUIDIsEmpty(t *testing.T) {
 	// Given
-	ctx := context.Background()
+	ctx := t.Context()
 	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 	require.Empty(t, existing.GetUID())
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)
@@ -910,7 +909,7 @@ func TestDeleted_omitsPrecondition_whenExtensionUIDIsEmpty(t *testing.T) {
 func TestDeleted_returnsNilOnUIDPreconditionConflict(t *testing.T) {
 	// Given the fake object tracker drops delete preconditions, the conflict a real
 	// API server raises on a UID mismatch is injected through a reactor instead.
-	ctx := context.Background()
+	ctx := t.Context()
 	existing := newTestGCPTrafficExtension("test-ns", "test-gateway", map[string]string{kubernetes.KubeAppManagedByLabelKey: appsecconfig.ManagedByLabelValue})
 	existing.SetUID(testExtensionUID)
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gkeListKinds(), existing)

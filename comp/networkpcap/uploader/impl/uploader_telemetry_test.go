@@ -7,7 +7,6 @@ package uploaderimpl
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -103,7 +102,7 @@ func TestUploadTelemetrySuccess(t *testing.T) {
 	req, _ := pcapRequest(bytes.Repeat([]byte("pcap"), 64<<10))
 
 	before := snapshotUploadMetrics(u)
-	require.NoError(t, u.Upload(context.Background(), req))
+	require.NoError(t, u.Upload(t.Context(), req))
 	d := snapshotUploadMetrics(u).since(before)
 
 	assert.Equal(t, map[[2]string]float64{{"2xx", "false"}: 1}, d.attempts)
@@ -120,7 +119,7 @@ func TestUploadTelemetryRetryThenSuccess(t *testing.T) {
 	req, _ := pcapRequest([]byte("pcap"))
 
 	before := snapshotUploadMetrics(u)
-	require.NoError(t, u.Upload(context.Background(), req))
+	require.NoError(t, u.Upload(t.Context(), req))
 	d := snapshotUploadMetrics(u).since(before)
 
 	assert.Equal(t, map[[2]string]float64{
@@ -140,7 +139,7 @@ func TestUploadTelemetryTooLarge(t *testing.T) {
 	req, _ := pcapRequest([]byte("pcap"))
 
 	before := snapshotUploadMetrics(u)
-	require.Error(t, u.Upload(context.Background(), req))
+	require.Error(t, u.Upload(t.Context(), req))
 	d := snapshotUploadMetrics(u).since(before)
 
 	assert.Equal(t, map[[2]string]float64{{"4xx", "false"}: 1}, d.attempts)
@@ -160,7 +159,7 @@ func TestUploadTelemetryTransportError(t *testing.T) {
 	req, _ := pcapRequest([]byte("pcap"))
 
 	before := snapshotUploadMetrics(u)
-	require.Error(t, u.Upload(context.Background(), req))
+	require.Error(t, u.Upload(t.Context(), req))
 	d := snapshotUploadMetrics(u).since(before)
 
 	assert.Equal(t, map[[2]string]float64{
@@ -184,7 +183,7 @@ func TestUploadTelemetryCountsEachEndpoint(t *testing.T) {
 	req, _ := pcapRequest([]byte("pcap"))
 
 	before := snapshotUploadMetrics(u)
-	require.NoError(t, u.Upload(context.Background(), req))
+	require.NoError(t, u.Upload(t.Context(), req))
 	d := snapshotUploadMetrics(u).since(before)
 
 	assert.Equal(t, map[[2]string]float64{

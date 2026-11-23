@@ -8,7 +8,6 @@
 package errortracking
 
 import (
-	"context"
 	"log/slog"
 	"runtime"
 	"strings"
@@ -84,20 +83,20 @@ func TestHandler_FiltersByLevel(t *testing.T) {
 		{slog.LevelError + 4, true}, // Critical-ish levels remain enabled.
 	}
 	for _, c := range cases {
-		assert.Equalf(t, c.wantEnabled, h.Enabled(context.Background(), c.level),
+		assert.Equalf(t, c.wantEnabled, h.Enabled(t.Context(), c.level),
 			"Enabled(%v)", c.level)
 	}
 
 	// Handle drops below-threshold records even if a caller bypasses Enabled.
 	for _, lvl := range []slog.Level{slog.LevelDebug, slog.LevelInfo, slog.LevelWarn} {
 		r := slog.NewRecord(time.Now(), lvl, "skip", 0)
-		require.NoError(t, h.Handle(context.Background(), r))
+		require.NoError(t, h.Handle(t.Context(), r))
 	}
 	assert.Empty(t, rec.snapshot(), "below-threshold records must NOT leak to the Submitter")
 
 	// Error record is captured.
 	r := slog.NewRecord(time.Now(), slog.LevelError, "boom", 0)
-	require.NoError(t, h.Handle(context.Background(), r))
+	require.NoError(t, h.Handle(t.Context(), r))
 	got := rec.snapshot()
 	require.Len(t, got, 1)
 }
@@ -116,7 +115,7 @@ func TestHandler_CallsSubmitter_BuildsErrorLog(t *testing.T) {
 	r := slog.NewRecord(now, slog.LevelError, "boom", uintptr(0xC0FFEE))
 	r.AddAttrs(slog.Int("code", 500))
 
-	require.NoError(t, sh.Handle(context.Background(), r))
+	require.NoError(t, sh.Handle(t.Context(), r))
 
 	got := rec.snapshot()
 	require.Len(t, got, 1)
@@ -176,7 +175,7 @@ func TestHandler_BouncerSuppressesDuplicates(t *testing.T) {
 	pc := uintptr(0xABCDEF)
 	for i := 0; i < 4; i++ {
 		r := slog.NewRecord(time.Now(), slog.LevelError, "same site", pc)
-		require.NoError(t, h.Handle(context.Background(), r))
+		require.NoError(t, h.Handle(t.Context(), r))
 	}
 
 	got := rec.snapshot()
@@ -194,7 +193,7 @@ func TestHandle_BouncerRegisteredButNilDropsRecord(t *testing.T) {
 	h = h.WithBouncerLoader(func() *Bouncer { return nil })
 
 	r := slog.NewRecord(time.Now(), slog.LevelError, "boom", 0)
-	require.NoError(t, h.Handle(context.Background(), r))
+	require.NoError(t, h.Handle(t.Context(), r))
 
 	assert.Empty(t, rec.snapshot(), "registered-but-nil bouncer must DROP the record, not pass through")
 }
@@ -210,7 +209,7 @@ func TestHandler_BouncerNilLoaderDropsRecord(t *testing.T) {
 	pc := uintptr(0xABCDEF)
 	for i := 0; i < 3; i++ {
 		r := slog.NewRecord(time.Now(), slog.LevelError, "same site", pc)
-		require.NoError(t, h.Handle(context.Background(), r))
+		require.NoError(t, h.Handle(t.Context(), r))
 	}
 
 	assert.Empty(t, rec.snapshot(), "nil bouncer loader must drop all records")
@@ -280,7 +279,7 @@ func TestHandler_NeverBlocks_WhenNoSubmitter(t *testing.T) {
 	go func() {
 		defer close(done)
 		for i := 0; i < total; i++ {
-			_ = h.Handle(context.Background(), slog.NewRecord(time.Now(), slog.LevelError, "x", 0))
+			_ = h.Handle(t.Context(), slog.NewRecord(time.Now(), slog.LevelError, "x", 0))
 		}
 	}()
 

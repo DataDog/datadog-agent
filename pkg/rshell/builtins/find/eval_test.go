@@ -224,7 +224,7 @@ func TestEvalEmpty(t *testing.T) {
 	t.Run("empty directory matches", func(t *testing.T) {
 		called := false
 		ec := &evalContext{
-			ctx:       context.Background(),
+			ctx:       t.Context(),
 			info:      &fakeFileInfo{isDir: true},
 			printPath: "emptydir",
 			callCtx: &builtins.CallContext{
@@ -241,7 +241,7 @@ func TestEvalEmpty(t *testing.T) {
 
 	t.Run("non-empty directory does not match", func(t *testing.T) {
 		ec := &evalContext{
-			ctx:       context.Background(),
+			ctx:       t.Context(),
 			info:      &fakeFileInfo{isDir: true},
 			printPath: "nonemptydir",
 			callCtx: &builtins.CallContext{
@@ -257,7 +257,7 @@ func TestEvalEmpty(t *testing.T) {
 	t.Run("IsDirEmpty receives correct path", func(t *testing.T) {
 		var gotPath string
 		ec := &evalContext{
-			ctx:       context.Background(),
+			ctx:       t.Context(),
 			info:      &fakeFileInfo{isDir: true},
 			printPath: "some/nested/dir",
 			callCtx: &builtins.CallContext{
@@ -275,7 +275,7 @@ func TestEvalEmpty(t *testing.T) {
 	t.Run("IsDirEmpty error sets failed and returns false", func(t *testing.T) {
 		var stderr strings.Builder
 		ec := &evalContext{
-			ctx:       context.Background(),
+			ctx:       t.Context(),
 			info:      &fakeFileInfo{isDir: true},
 			printPath: "baddir",
 			callCtx: &builtins.CallContext{
@@ -293,7 +293,7 @@ func TestEvalEmpty(t *testing.T) {
 
 	t.Run("empty regular file matches", func(t *testing.T) {
 		ec := &evalContext{
-			ctx:  context.Background(),
+			ctx:  t.Context(),
 			info: &fakeFileInfo{size: 0, isDir: false},
 		}
 		assert.True(t, evalEmpty(ec), "zero-byte regular file should match -empty")
@@ -301,7 +301,7 @@ func TestEvalEmpty(t *testing.T) {
 
 	t.Run("non-empty regular file does not match", func(t *testing.T) {
 		ec := &evalContext{
-			ctx:  context.Background(),
+			ctx:  t.Context(),
 			info: &fakeFileInfo{size: 42, isDir: false},
 		}
 		assert.False(t, evalEmpty(ec), "non-empty regular file should not match -empty")
@@ -309,7 +309,7 @@ func TestEvalEmpty(t *testing.T) {
 
 	t.Run("symlink does not match", func(t *testing.T) {
 		ec := &evalContext{
-			ctx:  context.Background(),
+			ctx:  t.Context(),
 			info: &fakeFileInfo{mode: iofs.ModeSymlink},
 		}
 		assert.False(t, evalEmpty(ec), "symlink should not match -empty")
@@ -318,7 +318,7 @@ func TestEvalEmpty(t *testing.T) {
 	t.Run("IsDirEmpty not called for regular files", func(t *testing.T) {
 		called := false
 		ec := &evalContext{
-			ctx:  context.Background(),
+			ctx:  t.Context(),
 			info: &fakeFileInfo{size: 0, isDir: false},
 			callCtx: &builtins.CallContext{
 				IsDirEmpty: func(_ context.Context, _ string) (bool, error) {

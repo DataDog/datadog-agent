@@ -8,7 +8,6 @@
 package api
 
 import (
-	"context"
 	"net"
 	"os"
 	"testing"
@@ -41,14 +40,14 @@ func TestConnContextConnectionTypeUnix(t *testing.T) {
 		serverConn := <-done
 		defer serverConn.Close()
 
-		ctx := connContext(context.Background(), serverConn)
+		ctx := connContext(t.Context(), serverConn)
 		assert.Equal(t, ConnectionTypeUDS, GetConnectionType(ctx))
 	})
 
 	t.Run("unknown connection type defaults to ConnectionTypeUnknown", func(t *testing.T) {
 		// A connection type that is neither *net.TCPConn nor *net.UnixConn
 		// should fall through to the default case (ConnectionTypeUnknown on unix).
-		ctx := connContext(context.Background(), &fakeConn{})
+		ctx := connContext(t.Context(), &fakeConn{})
 		assert.Equal(t, ConnectionTypeUnknown, GetConnectionType(ctx))
 	})
 }

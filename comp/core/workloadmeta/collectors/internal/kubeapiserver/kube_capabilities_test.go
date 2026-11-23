@@ -124,7 +124,7 @@ func TestCollectKubeCapabilities(t *testing.T) {
 func TestCollectKubeCapabilitiesVersionNeverCollected(t *testing.T) {
 	discoveryCl, wmeta := newKubeCapabilitiesTest(t, -1, nil)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
 	defer cancel()
 	collectKubeCapabilities(ctx, discoveryCl, wmeta)
 
@@ -147,7 +147,7 @@ func TestCollectKubeCapabilitiesPublishesVersionBeforeFeatureGates(t *testing.T)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		collectKubeCapabilities(context.Background(), discoveryCl, wmeta)
+		collectKubeCapabilities(t.Context(), discoveryCl, wmeta)
 	}()
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {

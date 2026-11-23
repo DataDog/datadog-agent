@@ -661,7 +661,7 @@ func TestInvalidateOnServiceUpdate(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			provider := &kubeEndpointsConfigProvider{upToDate: true}
 			provider.invalidateOnServiceUpdate(tc.old, tc.obj)
 
@@ -1048,7 +1048,7 @@ func TestInvalidateIfChangedEndpoints(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			provider := &kubeEndpointsConfigProvider{
 				upToDate: true,
 				monitoredEndpoints: map[string]bool{

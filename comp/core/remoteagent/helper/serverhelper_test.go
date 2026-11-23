@@ -202,7 +202,7 @@ func TestNoSessionIDReturnsError(t *testing.T) {
 
 	// Start the server (impls call this explicitly after registering services).
 	server.Start()
-	defer lc.Stop(context.Background())
+	defer lc.Stop(t.Context())
 
 	// Create a client to the remote agent server
 	conn, err := grpc.NewClient(
@@ -216,7 +216,7 @@ func TestNoSessionIDReturnsError(t *testing.T) {
 	client := pbcore.NewStatusProviderClient(conn)
 
 	// Try to call the status service - should fail because no session ID is set
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	_, err = client.GetStatusDetails(ctx, &pbcore.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
@@ -258,7 +258,7 @@ func TestAuthTokenIsChecked(t *testing.T) {
 
 	// Start the server (impls call this explicitly after registering services).
 	server.Start()
-	defer lc.Stop(context.Background())
+	defer lc.Stop(t.Context())
 
 	tests := []struct {
 		name             string
@@ -291,7 +291,7 @@ func TestAuthTokenIsChecked(t *testing.T) {
 			defer conn.Close()
 
 			client := pbcore.NewStatusProviderClient(conn)
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancel()
 
 			require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -360,13 +360,13 @@ func TestServerLifecycle(t *testing.T) {
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		client := pbcore.NewStatusProviderClient(conn)
-		resp, err := client.GetStatusDetails(context.Background(), &pbcore.GetStatusDetailsRequest{})
+		resp, err := client.GetStatusDetails(t.Context(), &pbcore.GetStatusDetailsRequest{})
 		require.NoError(c, err)
 		assert.NotNil(c, resp)
 	}, 5*time.Second, 100*time.Millisecond)
 
 	// Stop the server
-	err = lc.Stop(context.Background())
+	err = lc.Stop(t.Context())
 	require.NoError(t, err)
 }
 
@@ -406,7 +406,7 @@ func TestCommandProviderStreamAuthSessionAndFrames(t *testing.T) {
 	require.NoError(t, err)
 	pbcore.RegisterRemoteCommandProviderServer(server.GetGRPCServer(), streamingCommandProvider{})
 	server.Start()
-	defer lc.Stop(context.Background())
+	defer lc.Stop(t.Context())
 
 	newClient := func(token string) (pbcore.RemoteCommandProviderClient, *grpc.ClientConn) {
 		conn, err := grpc.NewClient(server.listener.Addr().String(), grpc.WithTransportCredentials(credentials.NewTLS(ipcComp.GetTLSClientConfig())), grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(token)))
@@ -417,7 +417,7 @@ func TestCommandProviderStreamAuthSessionAndFrames(t *testing.T) {
 	t.Run("rejects invalid bearer token", func(t *testing.T) {
 		client, conn := newClient("invalid-token")
 		defer conn.Close()
-		stream, err := client.ExecuteCommand(context.Background(), &pbcore.ExecuteCommandRequest{})
+		stream, err := client.ExecuteCommand(t.Context(), &pbcore.ExecuteCommandRequest{})
 		require.NoError(t, err)
 		_, err = stream.Recv()
 		require.Equal(t, codes.Unauthenticated, status.Code(err))
@@ -427,7 +427,7 @@ func TestCommandProviderStreamAuthSessionAndFrames(t *testing.T) {
 	defer conn.Close()
 
 	require.Eventually(t, func() bool {
-		stream, err := client.ExecuteCommand(context.Background(), &pbcore.ExecuteCommandRequest{})
+		stream, err := client.ExecuteCommand(t.Context(), &pbcore.ExecuteCommandRequest{})
 		if err != nil {
 			return false
 		}
@@ -438,7 +438,7 @@ func TestCommandProviderStreamAuthSessionAndFrames(t *testing.T) {
 		return len(header.Get("session_id")) == 1 && header.Get("session_id")[0] == "stream-session"
 	}, 5*time.Second, 50*time.Millisecond)
 
-	stream, err := client.ExecuteCommand(context.Background(), &pbcore.ExecuteCommandRequest{})
+	stream, err := client.ExecuteCommand(t.Context(), &pbcore.ExecuteCommandRequest{})
 	require.NoError(t, err)
 	header, err := stream.Header()
 	require.NoError(t, err)
@@ -500,7 +500,7 @@ func TestRegisteredServicesReported(t *testing.T) {
 
 	// Start the server (impls call this explicitly after registering services).
 	server.Start()
-	defer lc.Stop(context.Background())
+	defer lc.Stop(t.Context())
 
 	// Wait for registration to complete
 	time.Sleep(600 * time.Millisecond)
@@ -569,7 +569,7 @@ func syncTestRegistrationRefreshContention(t *testing.T, lc *compdef.TestLifecyc
 
 	// Start the server (impls call this explicitly after registering services).
 	server.Start()
-	defer lc.Stop(context.Background())
+	defer lc.Stop(t.Context())
 
 	// Wait for registration to be retried after the first two timeouts.
 	// The third attempt should succeed and bring the counter to 3.
@@ -621,7 +621,7 @@ func TestSessionIDInResponseMetadata(t *testing.T) {
 
 	// Start the server (impls call this explicitly after registering services).
 	server.Start()
-	defer lc.Stop(context.Background())
+	defer lc.Stop(t.Context())
 
 	// Create a client and make a request
 	conn, err := grpc.NewClient(
@@ -633,7 +633,7 @@ func TestSessionIDInResponseMetadata(t *testing.T) {
 	defer conn.Close()
 
 	client := pbcore.NewStatusProviderClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -777,7 +777,7 @@ func newMockCoreAgentServer(
 	client, err := grpc.NewClient(listener.Addr().String(), grpc.WithTransportCredentials(credentials.NewTLS(ipcComp.GetTLSClientConfig())))
 	require.NoError(t, err)
 	echoClient := echo.NewEchoClient(client)
-	_, err = echoClient.UnaryEcho(context.Background(), &echo.EchoRequest{}, grpc.WaitForReady(true))
+	_, err = echoClient.UnaryEcho(t.Context(), &echo.EchoRequest{}, grpc.WaitForReady(true))
 	require.NoError(t, err)
 
 	return mock

@@ -37,14 +37,14 @@ func setupTestDatabase() error {
 	defer db.Close()
 	db.SetMaxOpenConns(1)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
 	defer cancel()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	if err := waitForTestDatabase(ctx, db, ticker.C); err != nil {
 		return fmt.Errorf("waiting for %s:%d/%s: %w", connection.Server, connection.Port, connection.ServiceName, err)
 	}
-	initCtx, cancelInit := context.WithTimeout(context.Background(), 5*time.Minute)
+	initCtx, cancelInit := context.WithTimeout(t.Context(), 5*time.Minute)
 	defer cancelInit()
 	return initializeTestDatabase(initCtx, db, os.DirFS("compose/initdb.d"))
 }
@@ -53,7 +53,7 @@ func TestInitializeTestDatabaseIsRepeatable(t *testing.T) {
 	db, err := getSysConnection(t)
 	require.NoError(t, err)
 	defer db.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 	for range 2 {
 		require.NoError(t, initializeTestDatabase(ctx, db, os.DirFS("compose/initdb.d")))

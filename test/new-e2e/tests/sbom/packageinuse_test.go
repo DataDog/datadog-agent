@@ -998,7 +998,7 @@ func startHostShell(t *testing.T, env *environments.Kubernetes) string {
 	}, metav1.CreateOptions{})
 	require.NoError(t, err, "failed to create the host shell pod")
 	t.Cleanup(func() {
-		_ = client.CoreV1().Pods(hostShellNamespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{})
+		_ = client.CoreV1().Pods(hostShellNamespace).Delete(t.Context(), pod.Name, metav1.DeleteOptions{})
 	})
 
 	require.EventuallyWithTf(t, func(c *assert.CollectT) {
@@ -1655,7 +1655,7 @@ func (s *packageInUseSuite) podExec(d pkgInUseDistro, cmd ...string) (string, st
 // workloadExec runs cmd in the container of the pod of workload and returns its
 // stdout and stderr.
 func (s *packageInUseSuite) workloadExec(t require.TestingT, workload string, cmd ...string) (string, string) {
-	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(sbomtargets.Namespace).List(context.Background(), metav1.ListOptions{
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(sbomtargets.Namespace).List(t.Context(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", workload).String(),
 	})
 	require.NoErrorf(t, err, "failed to list %s workload pods", workload)
@@ -1811,7 +1811,7 @@ func (s *packageInUseSuite) TestZZRunningBeforeSystemProbe() {
 		s.Require().NoError(s.SaveCoverage(dir), "save the coverage before the restart of system-probe")
 	} else {
 		t.Cleanup(func() {
-			if err := s.Env().KubernetesCluster.Client().CoreV1().Pods(agent.Namespace).Delete(context.Background(), agent.Name, metav1.DeleteOptions{}); err != nil {
+			if err := s.Env().KubernetesCluster.Client().CoreV1().Pods(agent.Namespace).Delete(t.Context(), agent.Name, metav1.DeleteOptions{}); err != nil {
 				t.Logf("failed to delete the Agent pod %s: %v", agent.Name, err)
 			}
 		})
@@ -1887,7 +1887,7 @@ func (s *packageInUseSuite) workloadStart(workload string) int64 {
 // of system-probe into the test trace, as they otherwise live in the flare
 // artifact alone. It is a debugging aid and always passes.
 func (s *packageInUseSuite) TestZZDumpAgentDiagnostics() {
-	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(t.Context(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 	})
 	if err != nil || len(pods.Items) == 0 {

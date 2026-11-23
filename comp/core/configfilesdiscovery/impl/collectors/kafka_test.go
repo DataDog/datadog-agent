@@ -176,7 +176,7 @@ func TestKafkaCollectorResolvesAndReadsRelativeProcessConfig(t *testing.T) {
 		Args: []string{"kafka-server-start.sh", "/etc/kafka/server.properties"},
 	}))
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/opt/kafka/config/server.properties"}, reader.readFileCalls)
@@ -234,7 +234,7 @@ func TestKafkaCollectorReadsDetectedConfig(t *testing.T) {
 	}
 	collector := NewKafka()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	requireKafkaEnvVarPredicate(t, reader)
@@ -310,7 +310,7 @@ func TestKafkaCollectorCollectsEnvOnly(t *testing.T) {
 				env:                tt.env,
 			}
 
-			collected, err := NewKafka().Collect(context.Background(), reader)
+			collected, err := NewKafka().Collect(t.Context(), reader)
 
 			require.NoError(t, err)
 			assert.Equal(t, slices.Concat(kafkaDefaultConfigPathGroups...), reader.readFileCalls)
@@ -336,7 +336,7 @@ func TestKafkaCollectorFiltersSecretEnvVars(t *testing.T) {
 		},
 	}
 
-	collected, err := NewKafka().Collect(context.Background(), reader)
+	collected, err := NewKafka().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
@@ -358,7 +358,7 @@ func TestKafkaCollectorSkipsDefaultsWhenCommandlineHasNoConfigFile(t *testing.T)
 	}
 	collector := NewKafka()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	requireKafkaEnvVarPredicate(t, reader)
@@ -378,7 +378,7 @@ func TestKafkaCollectorReadsDefaultConfig(t *testing.T) {
 		},
 	}
 
-	collected, err := NewKafka().Collect(context.Background(), reader)
+	collected, err := NewKafka().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, slices.Concat(kafkaDefaultConfigPathGroups...), reader.readFileCalls)
@@ -462,7 +462,7 @@ func TestKafkaCollectorSelectsActiveDistributionConfig(t *testing.T) {
 				files:              files,
 			}
 
-			collected, err := NewKafka().Collect(context.Background(), reader)
+			collected, err := NewKafka().Collect(t.Context(), reader)
 
 			require.NoError(t, err)
 			wantReadFileCalls := tt.wantReadFileCalls
@@ -491,7 +491,7 @@ func TestKafkaCollectorUsesFirstBrokerConfigAcrossProcesses(t *testing.T) {
 		file: configfilesdiscoveryimpl.ConfigFile{Path: "/etc/kafka/server.properties"},
 	}
 
-	collected, err := NewKafka().Collect(context.Background(), reader)
+	collected, err := NewKafka().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/kafka/server.properties"}, reader.readFileCalls)
@@ -510,7 +510,7 @@ func TestKafkaCollectorUsesRuntimeConfigBeforeProcessConfig(t *testing.T) {
 		file: configfilesdiscoveryimpl.ConfigFile{Path: "/etc/kafka/runtime.properties"},
 	}
 
-	collected, err := NewKafka().Collect(context.Background(), reader)
+	collected, err := NewKafka().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/kafka/runtime.properties"}, reader.readFileCalls)
@@ -530,7 +530,7 @@ func TestKafkaCollectorFallsBackToProcessCommandlineOnRuntimeCommandlineError(t 
 		},
 	}
 
-	collected, err := NewKafka().Collect(context.Background(), reader)
+	collected, err := NewKafka().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, reader.processCommandlineCalls)
@@ -543,7 +543,7 @@ func TestKafkaCollectorReturnsCommandlineErrors(t *testing.T) {
 	reader := &kafkaCollectorTestReader{commandlineErr: expectedErr}
 	collector := NewKafka()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Equal(t, 1, reader.processCommandlineCalls)
@@ -565,7 +565,7 @@ func TestKafkaCollectorReadsDetectedConfigWhenEnvVarsFail(t *testing.T) {
 	}
 	collector := NewKafka()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/kafka/server.properties"}, reader.readFileCalls)
@@ -589,7 +589,7 @@ func TestKafkaCollectorReturnsEnvVarErrorsWithoutConfigPath(t *testing.T) {
 	}
 	collector := NewKafka()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Equal(t, slices.Concat(kafkaDefaultConfigPathGroups...), reader.readFileCalls)
@@ -606,7 +606,7 @@ func TestKafkaCollectorReturnsReadFileErrors(t *testing.T) {
 	}
 	collector := NewKafka()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Equal(t, []string{"/etc/kafka/server.properties"}, reader.readFileCalls)

@@ -29,7 +29,7 @@ func TestJournalDiskUsageCountsAllocatedJournalFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(machineDir, "ignored.txt"), make([]byte, 8192), 0o600))
 
 	client := NewClient(Target{JournalDirs: []string{journalDir}, MachineIDPath: machineIDPath})
-	usage, err := client.JournalDiskUsage(context.Background())
+	usage, err := client.JournalDiskUsage(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 1, usage.Files)
 	assert.Greater(t, usage.Bytes, uint64(0))
@@ -49,7 +49,7 @@ func TestJournalDiskUsageCountsArchivedCorruptionFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(machineDir, archiveName), make([]byte, 8192), 0o600))
 
 	client := NewClient(Target{JournalDirs: []string{journalDir}, MachineIDPath: machineIDPath})
-	usage, err := client.JournalDiskUsage(context.Background())
+	usage, err := client.JournalDiskUsage(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 2, usage.Files)
 
@@ -71,14 +71,14 @@ func TestJournalDiskUsageReturnsZeroForEmptyTarget(t *testing.T) {
 	require.NoError(t, os.WriteFile(machineIDPath, []byte(machineID+"\n"), 0o600))
 
 	client := NewClient(Target{JournalDirs: []string{filepath.Join(root, "missing")}, MachineIDPath: machineIDPath})
-	usage, err := client.JournalDiskUsage(context.Background())
+	usage, err := client.JournalDiskUsage(t.Context())
 	require.NoError(t, err)
 	assert.Zero(t, usage.Files)
 	assert.Zero(t, usage.Bytes)
 }
 
 func TestJournalDiskUsageHonorsCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	root := t.TempDir()

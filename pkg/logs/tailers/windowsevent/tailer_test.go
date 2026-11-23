@@ -8,7 +8,6 @@
 package windowsevent
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -93,7 +92,7 @@ func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan
 		registry.SetOffset(tailer.Identifier(), bookmark)
 	}
 	tailer.Start()
-	_, err := backoff.Retry(context.Background(), func() (any, error) {
+	_, err := backoff.Retry(t.Context(), func() (any, error) {
 		if source.Status().IsSuccess() {
 			return nil, nil
 		} else if source.Status().IsError() {
@@ -189,7 +188,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 
 	// stop the EventLog service and assert the tailer detects the error
 	s.ti.KillEventLogService(s.T())
-	_, err = backoff.Retry(context.Background(), func() (any, error) {
+	_, err = backoff.Retry(t.Context(), func() (any, error) {
 		if tailer.source.Status().IsSuccess() {
 			return nil, errors.New("tailer is still running")
 		} else if tailer.source.Status().IsError() {
@@ -202,7 +201,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 
 	// start the EventLog service and assert the tailer resumes from the previous error
 	s.ti.StartEventLogService(s.T())
-	_, err = backoff.Retry(context.Background(), func() (any, error) {
+	_, err = backoff.Retry(t.Context(), func() (any, error) {
 		if tailer.source.Status().IsSuccess() {
 			return nil, nil
 		} else if tailer.source.Status().IsError() {

@@ -8,7 +8,6 @@
 package phonehome
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,13 +48,13 @@ func TestHTTPStackEveryStartRequiresRCAndPARScope(t *testing.T) {
 							f.body = `{"data":{"attributes":{"valid":true,"api_key_scopes":[]}}}`
 							f.mu.Unlock()
 						}
-						c.step(context.Background())
+						c.step(t.Context())
 						f.step()
 						require.Zero(t, f.aaaGETs.Load(), "unknown RC cannot dispatch AAA")
 						f.rc(enabled, authorized)
-						c.step(context.Background())
+						c.step(t.Context())
 						f.step()
-						c.step(context.Background())
+						c.step(t.Context())
 						if enabled && authorized {
 							require.EqualValues(t, 1, f.aaaGETs.Load())
 						} else {
@@ -87,18 +86,18 @@ func TestHTTPStackLaterScopeGrantStartsWithoutCoreRestart(t *testing.T) {
 	f.mu.Lock()
 	f.body = `{"data":{"attributes":{"valid":true,"api_key_scopes":[]}}}`
 	f.mu.Unlock()
-	c.step(context.Background())
+	c.step(t.Context())
 	f.step()
-	c.step(context.Background())
+	c.step(t.Context())
 	require.Zero(t, pm.starts)
 	f.mu.Lock()
 	f.body = grantedScopeJSON
 	f.mu.Unlock()
 	f.advance(f.s.GetPARScope().NextCheck.Sub(f.clock.Now()))
 	f.step()
-	c.step(context.Background())
+	c.step(t.Context())
 	require.Equal(t, 1, pm.starts)
-	c.step(context.Background())
+	c.step(t.Context())
 	require.Equal(t, 1, pm.starts, "controller cannot trigger a second enrollment by relaunching")
 }
 
@@ -108,7 +107,7 @@ func TestHTTPStackRejectsGateLossBeforeStartAndExpiredScope(t *testing.T) {
 			f := newScopeFixture(t)
 			c, pm := stackController(t, f)
 			f.rc(true, true)
-			c.step(context.Background())
+			c.step(t.Context())
 			f.step()
 			source := c.source
 			reads := 0
@@ -124,7 +123,7 @@ func TestHTTPStackRejectsGateLossBeforeStartAndExpiredScope(t *testing.T) {
 				}
 				return source.Read(now)
 			})
-			c.step(context.Background())
+			c.step(t.Context())
 			require.Zero(t, pm.starts)
 		})
 	}
@@ -138,9 +137,9 @@ func TestHTTPStackOutageRetainsLastSuccessfulRCGate(t *testing.T) {
 	f.rcCode = 503
 	f.mu.Unlock()
 	f.rc(false, false) // Failed fetch must retain the previous successful pair.
-	c.step(context.Background())
+	c.step(t.Context())
 	f.step()
-	c.step(context.Background())
+	c.step(t.Context())
 	require.EqualValues(t, 1, f.aaaGETs.Load())
 	require.Equal(t, 1, pm.starts)
 }
@@ -150,7 +149,7 @@ func TestHTTPStackMissingProducerFailsClosed(t *testing.T) {
 	c, pm := stackController(t, f)
 	f.rc(true, true)
 	c.source = NewScopedSource(f.s.rc, nil)
-	c.step(context.Background())
+	c.step(t.Context())
 	require.Zero(t, pm.starts)
 	require.Zero(t, f.aaaGETs.Load())
 }

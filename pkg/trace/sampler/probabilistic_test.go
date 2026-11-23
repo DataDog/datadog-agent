@@ -232,11 +232,11 @@ func FuzzConsistentWithOtel(f *testing.F) {
 			t.Skip("zero trace IDs are invalid per OpenTelemetry / W3C spec")
 		}
 		mc := &mockConsumer{} //Do this setup in here to avoid having to clear this data between tests
-		tp, err := pspFactory.CreateTraces(context.Background(), cfg, pspCfg, mc)
+		tp, err := pspFactory.CreateTraces(t.Context(), cfg, pspCfg, mc)
 		require.NoError(t, err)
 
 		otelTrace := makeOtelTraceWithID(tid)
-		err = tp.ConsumeTraces(context.Background(), otelTrace)
+		err = tp.ConsumeTraces(t.Context(), otelTrace)
 		assert.NoError(t, err)
 
 		sampled := sampler.Sample(&trace.Span{

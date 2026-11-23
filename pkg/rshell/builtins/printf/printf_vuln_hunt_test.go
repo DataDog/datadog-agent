@@ -25,7 +25,7 @@ import (
 // printf surfaces that should remain public-safe blocked-attack regressions.
 
 func TestVulnHuntBuiltinResourceExhaustion_LiteralWidthOverflowDoesNotAllocate(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	format := "%" + strings.Repeat("9", 2048) + "s\\n"
@@ -36,7 +36,7 @@ func TestVulnHuntBuiltinResourceExhaustion_LiteralWidthOverflowDoesNotAllocate(t
 }
 
 func TestVulnHuntBuiltinResourceExhaustion_LiteralPrecisionOverflowDoesNotAllocate(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	format := "%." + strings.Repeat("9", 2048) + "f\\n"
@@ -59,7 +59,7 @@ func TestVulnHuntBuiltinResourceExhaustion_OutputLimitStopsLargeFormatReuse(t *t
 	require.NoError(t, err)
 	defer runner.Close()
 
-	err = runner.Run(context.Background(), prog)
+	err = runner.Run(t.Context(), prog)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, interp.ErrOutputLimitExceeded), "got %v", err)
 	assert.LessOrEqual(t, stdout.Len(), 10*1024*1024)

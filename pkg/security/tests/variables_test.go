@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -182,7 +181,7 @@ func TestVariableInheritanceReparenting(t *testing.T) {
 	//     only possible if the value was snapshotted onto the grandchild before
 	//     its parent link was redirected away from the (now-gone) intermediate.
 	test.WaitSignalFromRule(t, func() error {
-		cmd := exec.CommandContext(context.Background(), syscallTester,
+		cmd := exec.CommandContext(t.Context(), syscallTester,
 			"subreaper-with-var", triggerFile, checkFile)
 		return cmd.Run()
 	}, func(_ *model.Event, rule *rules.Rule) {

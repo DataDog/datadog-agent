@@ -249,7 +249,7 @@ func TestReplay(t *testing.T) {
 			}
 		})
 
-		sleepCtx, cancel := context.WithCancel(context.Background())
+		sleepCtx, cancel := context.WithCancel(t.Context())
 
 		go func() {
 			cmd := dockerWrapper.CommandContext(sleepCtx, "sh", []string{"-c", "sleep 123"}, nil)

@@ -72,13 +72,14 @@ func TestPendingMsgIsResolvedSSHSession(t *testing.T) {
 // sbomStream hands over the messages GetSBOMStream sends, or fails to send
 // them when broken.
 type sbomStream struct {
+	ctx context.Context
 	grpc.ServerStream
 	sent   chan *sbompb.SBOMMessage
 	broken bool
 }
 
 func (s *sbomStream) Context() context.Context {
-	return context.Background()
+	return s.ctx
 }
 
 func (s *sbomStream) Send(msg *sbompb.SBOMMessage) error {
@@ -112,7 +113,7 @@ func TestGetSBOMStreamKind(t *testing.T) {
 				RequestID: tt.requestID,
 			})
 
-			stream := &sbomStream{sent: make(chan *sbompb.SBOMMessage, 1)}
+			stream := &sbomStream{ctx: t.Context(), sent: make(chan *sbompb.SBOMMessage, 1)}
 			done := make(chan error)
 			go func() {
 				done <- server.GetSBOMStream(&sbompb.SBOMStreamParams{}, stream)
@@ -143,7 +144,7 @@ func TestGetSBOMStreamKind(t *testing.T) {
 // TestSendSBOMDropsUnmarshalableReport checks that a report that fails to
 // marshal goes nowhere and reads as unsent.
 func TestSendSBOMDropsUnmarshalableReport(t *testing.T) {
-	stream := &sbomStream{sent: make(chan *sbompb.SBOMMessage, 1)}
+	stream := &sbomStream{ctx: t.Context(), sent: make(chan *sbompb.SBOMMessage, 1)}
 	report := sbom.NewPackagesReport([]sbomtypes.Package{{Name: "\xff"}}, "0123456789ab")
 
 	sent, err := sendSBOM(stream, &sbompkg.ScanResult{Report: report, RequestID: "0123456789ab"})
@@ -164,12 +165,12 @@ func TestGetSBOMStreamRequeuesFailedSend(t *testing.T) {
 		RequestID: "0123456789ab",
 	})
 
-	broken := &sbomStream{broken: true}
+	broken := &sbomStream{ctx: t.Context(), broken: true}
 	if err := server.GetSBOMStream(&sbompb.SBOMStreamParams{}, broken); err == nil {
 		t.Fatalf("GetSBOMStream returned no error on a broken stream")
 	}
 
-	stream := &sbomStream{sent: make(chan *sbompb.SBOMMessage, 1)}
+	stream := &sbomStream{ctx: t.Context(), sent: make(chan *sbompb.SBOMMessage, 1)}
 	done := make(chan error)
 	go func() {
 		done <- server.GetSBOMStream(&sbompb.SBOMStreamParams{}, stream)

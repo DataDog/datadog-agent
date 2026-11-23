@@ -6,7 +6,6 @@
 package packages
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -141,7 +140,7 @@ func isolateAgentConfig(t *testing.T) {
 func TestInstallDDOTExtensionIfEnabled_Disabled(t *testing.T) {
 	isolateAgentConfig(t)
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "false")
-	ctx := HookContext{Context: context.Background()}
+	ctx := HookContext{Context: t.Context()}
 	err := installAgentExtensions(ctx, "7.50.0-1", false)
 	require.NoError(t, err)
 }
@@ -161,7 +160,7 @@ func TestInstallDDOTExtensionIfEnabled_Enabled(t *testing.T) {
 	tmpDir := t.TempDir()
 	extensionsPkg.ExtensionsDBDir = tmpDir
 
-	ctx := HookContext{Context: context.Background(), PackagePath: tmpDir}
+	ctx := HookContext{Context: t.Context(), PackagePath: tmpDir}
 	err := extensionsPkg.SetPackage(ctx, agentPackage, "7.50.0-1", false)
 	require.NoError(t, err)
 

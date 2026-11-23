@@ -57,7 +57,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 	defer unsubscribe()
 
 	t.Run("1. Snapshot received first", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
 		select {
@@ -208,7 +208,7 @@ func TestMultipleSubscribers(t *testing.T) {
 
 	// Each subscriber should receive a snapshot
 	for i, sub := range subs {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		select {
 		case event := <-sub:
 			assert.NotNil(t, event.GetSnapshot(), "Subscriber %d should receive snapshot", i)
@@ -223,7 +223,7 @@ func TestMultipleSubscribers(t *testing.T) {
 
 	// All subscribers should receive the update
 	for i, sub := range subs {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		select {
 		case event := <-sub:
 			update := event.GetUpdate()
@@ -250,7 +250,7 @@ func TestDiscontinuityResync(t *testing.T) {
 	eventChan, unsubscribe := cs.Subscribe(req)
 	defer unsubscribe()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	select {
@@ -383,11 +383,11 @@ func buildComponent(t *testing.T) (Provides, *configInterceptor) {
 	require.NoError(t, err)
 
 	// Start the component's run loop
-	err = lc.Start(context.Background())
+	err = lc.Start(t.Context())
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		lc.Stop(context.Background())
+		lc.Stop(t.Context())
 	})
 
 	return provides, config

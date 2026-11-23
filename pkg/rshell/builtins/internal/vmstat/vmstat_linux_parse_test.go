@@ -70,7 +70,7 @@ func TestReadImpl_HappyPath(t *testing.T) {
 	writeTemp(t, dir, "loadavg", sampleLoadavg)
 	writeTemp(t, dir, "uptime", sampleUptime)
 
-	st, err := readImpl(context.Background(), dir)
+	st, err := readImpl(t.Context(), dir)
 	require.NoError(t, err)
 	assert.Equal(t, AllFields, st.Partial)
 	assert.InDelta(t, 12345.67, st.Uptime, 1e-9)
@@ -113,7 +113,7 @@ func TestReadImpl_PartialWhenFilesMissing(t *testing.T) {
 	writeTemp(t, dir, "meminfo", sampleMeminfo)
 	// stat, vmstat, loadavg are absent.
 
-	st, err := readImpl(context.Background(), dir)
+	st, err := readImpl(t.Context(), dir)
 	require.NoError(t, err)
 	assert.Equal(t, FieldMemory|FieldMemoryDetail|FieldSwap, st.Partial)
 	assert.EqualValues(t, 0, st.ProcsRunning, "no /proc/stat means procs fields stay zero")
@@ -121,7 +121,7 @@ func TestReadImpl_PartialWhenFilesMissing(t *testing.T) {
 
 func TestReadImpl_AllFilesMissing(t *testing.T) {
 	dir := t.TempDir()
-	_, err := readImpl(context.Background(), dir)
+	_, err := readImpl(t.Context(), dir)
 	assert.Error(t, err)
 }
 
@@ -129,7 +129,7 @@ func TestReadImpl_ContextCancelled(t *testing.T) {
 	dir := t.TempDir()
 	writeTemp(t, dir, "stat", sampleProcStat)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err := readImpl(ctx, dir)
 	assert.Error(t, err)
@@ -140,7 +140,7 @@ func TestReadProcStat_IncompleteCPULine(t *testing.T) {
 	writeTemp(t, dir, "stat", "cpu  1 2\nprocs_running 3\n")
 
 	var st Stats
-	foundProcs, foundSystem, foundCPU, err := readProcStat(context.Background(), filepath.Join(dir, "stat"), &st)
+	foundProcs, foundSystem, foundCPU, err := readProcStat(t.Context(), filepath.Join(dir, "stat"), &st)
 	require.NoError(t, err)
 	assert.EqualValues(t, 3, st.ProcsRunning)
 	assert.False(t, foundProcs, "a missing procs_blocked field makes the grouped procs result unavailable")
@@ -155,7 +155,7 @@ func TestReadImpl_PartialGroupsAreIndependentPerLine(t *testing.T) {
 	writeTemp(t, dir, "stat", "intr 42\n")
 	writeTemp(t, dir, "loadavg", sampleLoadavg)
 
-	st, err := readImpl(context.Background(), dir)
+	st, err := readImpl(t.Context(), dir)
 	require.NoError(t, err)
 	assert.Equal(t, FieldLoadAvg, st.Partial)
 	assert.EqualValues(t, 42, st.Interrupts)
@@ -183,7 +183,7 @@ func TestReadProcMeminfo_IncompleteGroupsStayUnavailable(t *testing.T) {
 
 	var st Stats
 	foundMemory, foundMemoryDetail, foundSwap, err := readProcMeminfo(
-		context.Background(), filepath.Join(dir, "meminfo"), &st,
+		t.Context(), filepath.Join(dir, "meminfo"), &st,
 	)
 	require.NoError(t, err)
 	assert.True(t, foundMemory)
@@ -195,7 +195,7 @@ func TestReadProcVmstat_IncompleteGroupRejected(t *testing.T) {
 	dir := t.TempDir()
 	writeTemp(t, dir, "vmstat", "pgpgin 1\npgpgout 2\n")
 
-	err := readProcVmstat(context.Background(), filepath.Join(dir, "vmstat"), &Stats{})
+	err := readProcVmstat(t.Context(), filepath.Join(dir, "vmstat"), &Stats{})
 	assert.ErrorContains(t, err, "incomplete paging fields")
 }
 
@@ -203,7 +203,7 @@ func TestReadProcLoadavg_NonFiniteRejected(t *testing.T) {
 	dir := t.TempDir()
 	writeTemp(t, dir, "loadavg", "NaN +Inf 0.1 1/1 1\n")
 
-	err := readProcLoadavg(context.Background(), filepath.Join(dir, "loadavg"), &Stats{})
+	err := readProcLoadavg(t.Context(), filepath.Join(dir, "loadavg"), &Stats{})
 	assert.Error(t, err)
 }
 
@@ -218,7 +218,7 @@ func TestScanBounded_RespectsLineCeiling(t *testing.T) {
 	writeTemp(t, dir, "stat", content)
 
 	seen := 0
-	err := scanBounded(context.Background(), filepath.Join(dir, "stat"), func(string) { seen++ })
+	err := scanBounded(t.Context(), filepath.Join(dir, "stat"), func(string) { seen++ })
 	assert.ErrorIs(t, err, errTooManyLines)
 	assert.Equal(t, maxLines, seen)
 }
@@ -228,7 +228,7 @@ func TestReadProcUptime(t *testing.T) {
 	writeTemp(t, dir, "uptime", sampleUptime)
 
 	var st Stats
-	err := readProcUptime(context.Background(), filepath.Join(dir, "uptime"), &st)
+	err := readProcUptime(t.Context(), filepath.Join(dir, "uptime"), &st)
 	require.NoError(t, err)
 	assert.InDelta(t, 12345.67, st.Uptime, 1e-9)
 }
@@ -238,11 +238,11 @@ func TestReadProcUptime_NegativeRejected(t *testing.T) {
 	writeTemp(t, dir, "uptime", "-5 0\n")
 
 	var st Stats
-	err := readProcUptime(context.Background(), filepath.Join(dir, "uptime"), &st)
+	err := readProcUptime(t.Context(), filepath.Join(dir, "uptime"), &st)
 	assert.Error(t, err)
 }
 
 func TestScanBounded_MissingFile(t *testing.T) {
-	err := scanBounded(context.Background(), "/nonexistent/path/for/vmstat/test", func(string) {})
+	err := scanBounded(t.Context(), "/nonexistent/path/for/vmstat/test", func(string) {})
 	assert.Error(t, err)
 }

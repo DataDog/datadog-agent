@@ -23,7 +23,7 @@ func TestCollectAncestorPIDsStopsAtTerminalMissingCycleAndCancellation(t *testin
 		require.Equal(
 			t,
 			map[int]bool{42: true, 7: true},
-			collectAncestorPIDs(context.Background(), byPID, 42, 1),
+			collectAncestorPIDs(t.Context(), byPID, 42, 1),
 		)
 	})
 
@@ -35,7 +35,7 @@ func TestCollectAncestorPIDsStopsAtTerminalMissingCycleAndCancellation(t *testin
 		require.Equal(
 			t,
 			map[int]bool{42: true, 7: true},
-			collectAncestorPIDs(context.Background(), byPID, 42, 1),
+			collectAncestorPIDs(t.Context(), byPID, 42, 1),
 		)
 	})
 
@@ -48,12 +48,12 @@ func TestCollectAncestorPIDsStopsAtTerminalMissingCycleAndCancellation(t *testin
 		require.Equal(
 			t,
 			map[int]bool{42: true, 7: true},
-			collectAncestorPIDs(context.Background(), byPID, 42, 1),
+			collectAncestorPIDs(t.Context(), byPID, 42, 1),
 		)
 	})
 
 	t.Run("cancelled", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		require.Empty(t, collectAncestorPIDs(ctx, map[int]ProcInfo{

@@ -6,7 +6,6 @@
 package metrics
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -189,7 +188,7 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 		appendHistogramPoint(slice, 1_000_000_000, sketchMax+1, 1)
 
 		consumer := newTestConsumer()
-		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
+		require.NoError(t, m.MapHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		assert.Equal(t, float64(sketchMax+1), seriesTotal(t, &consumer, ".count"), "only the sketch is dropped")
@@ -213,7 +212,7 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 		appendHistogramPoint(slice, 2_000_000_000, sketchMax+1_010, 2)
 
 		consumer := newTestConsumer()
-		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, false))
+		require.NoError(t, m.MapHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.histogram"}, slice, false))
 
 		require.Len(t, consumer.data.Metrics.Sketches, 1, "the second point has a delta of 10")
 		assert.Equal(t, int64(10), consumer.data.Metrics.Sketches[0].Summary.Cnt)
@@ -231,7 +230,7 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 		appendHistogramPoint(slice, 3_000_000_000, 10+sketchMax+11, 3)
 
 		consumer := newTestConsumer()
-		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, false))
+		require.NoError(t, m.MapHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.histogram"}, slice, false))
 
 		require.Len(t, consumer.data.Metrics.Sketches, 1, "the third point is computed against the second one, not against a stale cache entry")
 		assert.Equal(t, int64(10), consumer.data.Metrics.Sketches[0].Summary.Cnt)
@@ -257,7 +256,7 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 				appendBucketsPoint(slice, 2_000_000_000, 10, tc.after...)
 
 				consumer := newTestConsumer()
-				require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, false))
+				require.NoError(t, m.MapHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.histogram"}, slice, false))
 
 				assert.Empty(t, consumer.data.Metrics.TimeSeries, "a reset has no delta to report")
 				assert.Empty(t, consumer.data.Metrics.Sketches)
@@ -278,7 +277,7 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 		appendHistogramPoint(slice, 1_000_000_000, sketchMax+1, 1)
 
 		consumer := newTestConsumer()
-		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
+		require.NoError(t, m.MapHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		assert.Equal(t, float64(sketchMax+1), seriesTotal(t, &consumer, ".bucket"))
@@ -295,7 +294,7 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 		appendHistogramPoint(slice, 1_000_000_000, sketchMax+1, 1)
 
 		consumer := newTestConsumer()
-		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
+		require.NoError(t, m.MapHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		assert.Equal(t, float64(sketchMax+1), seriesTotal(t, &consumer, ".count"))
@@ -311,7 +310,7 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 		}
 
 		consumer := newTestConsumer()
-		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
+		require.NoError(t, m.MapHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		assert.Equal(t, 1, logs.Len(), "three dropped sketches, one warning")
@@ -329,7 +328,7 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 		dp.SetTimestamp(pcommon.Timestamp(1_000_000_000))
 
 		consumer := newTestConsumer()
-		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
+		require.NoError(t, m.MapHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
 
 		assert.Len(t, consumer.data.Metrics.Sketches, 1)
 		assert.Equal(t, float64(10), seriesTotal(t, &consumer, ".count"))
@@ -348,7 +347,7 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 		dp.SetTimestamp(pcommon.Timestamp(1_000_000_000))
 
 		consumer := newTestConsumer()
-		m.MapExponentialHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.exp_histogram"}, slice, true)
+		m.MapExponentialHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.exp_histogram"}, slice, true)
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		assert.Empty(t, consumer.data.Metrics.TimeSeries)
@@ -368,7 +367,7 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 		dp.SetTimestamp(pcommon.Timestamp(1_000_000_000))
 
 		consumer := newTestConsumer()
-		m.MapExponentialHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.exp_histogram"}, slice, true)
+		m.MapExponentialHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.exp_histogram"}, slice, true)
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		assert.Empty(t, consumer.data.Metrics.TimeSeries)
@@ -392,7 +391,7 @@ func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
 		appendBucketsPoint(slice, 1_000_000_000, 1, sketchMax, sketchMax, sketchMax)
 
 		consumer := newTestConsumer()
-		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
+		require.NoError(t, m.MapHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		require.Equal(t, 1, logs.Len())
@@ -408,7 +407,7 @@ func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
 		appendBucketsPoint(slice, 1_000_000_000, 10, 0, sketchMax+1)
 
 		consumer := newTestConsumer()
-		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
+		require.NoError(t, m.MapHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		require.Equal(t, 1, logs.Len())
@@ -423,7 +422,7 @@ func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
 		appendBucketsPoint(slice, 1_000_000_000, sketchMax, sketchMax/2, sketchMax-sketchMax/2)
 
 		consumer := newTestConsumer()
-		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
+		require.NoError(t, m.MapHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
 
 		require.Len(t, consumer.data.Metrics.Sketches, 1)
 		assert.Equal(t, int64(sketchMax), consumer.data.Metrics.Sketches[0].Summary.Cnt)
@@ -440,7 +439,7 @@ func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
 		appendBucketsPoint(slice, 3_000_000_000, 11, sketchMax+5, sketchMax+5)
 
 		consumer := newTestConsumer()
-		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, false))
+		require.NoError(t, m.MapHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.histogram"}, slice, false))
 
 		require.Len(t, consumer.data.Metrics.Sketches, 1, "the third point is computed against the second one, not against a stale cache entry")
 		assert.Equal(t, int64(10), consumer.data.Metrics.Sketches[0].Summary.Cnt)
@@ -457,7 +456,7 @@ func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
 		appendBucketsPoint(slice, 2_000_000_000, 1, 0, sketchMax, sketchMax)
 
 		consumer := newTestConsumer()
-		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, false))
+		require.NoError(t, m.MapHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.histogram"}, slice, false))
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		require.Equal(t, 1, logs.Len())
@@ -476,7 +475,7 @@ func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
 		dp.SetTimestamp(pcommon.Timestamp(1_000_000_000))
 
 		consumer := newTestConsumer()
-		m.MapExponentialHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.exp_histogram"}, slice, true)
+		m.MapExponentialHistogramMetrics(t.Context(), &consumer, &Dimensions{name: "test.exp_histogram"}, slice, true)
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		require.Equal(t, 1, logs.Len())

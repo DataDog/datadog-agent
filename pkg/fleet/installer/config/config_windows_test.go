@@ -160,7 +160,7 @@ func TestConfigV2ToV3(t *testing.T) {
 
 	assertDeploymentID(t, dirs, "", "")
 
-	err = dirs.WriteExperiment(context.Background(), Operations{
+	err = dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "experiment-456",
 		FileOperations: []FileOperation{
 			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "info"}`)},
@@ -175,7 +175,7 @@ func TestConfigV2ToV3(t *testing.T) {
 	assertConfigV3(t, originalDirPath)
 
 	// Promote
-	err = dirs.PromoteExperiment(context.Background())
+	err = dirs.PromoteExperiment(t.Context())
 	assert.NoError(t, err)
 	assertConfigV3(t, originalDirPath) // Make sure it changed
 
@@ -220,7 +220,7 @@ func TestConfigV2Rollback(t *testing.T) {
 		ExperimentPath: backupDirPath,
 	}
 
-	err = dirs.WriteExperiment(context.Background(), Operations{
+	err = dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "experiment-456",
 		FileOperations: []FileOperation{
 			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "info"}`)},
@@ -235,12 +235,12 @@ func TestConfigV2Rollback(t *testing.T) {
 	assertDeploymentID(t, dirs, "", "experiment-456")
 
 	// Rollback
-	err = dirs.RemoveExperiment(context.Background())
+	err = dirs.RemoveExperiment(t.Context())
 	assert.NoError(t, err)
 	assertConfigV2(t, originalDirPath) // Make sure it went back to the original state
 
 	// Write again
-	err = dirs.WriteExperiment(context.Background(), Operations{
+	err = dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "experiment-789",
 		FileOperations: []FileOperation{
 			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "info"}`)},
@@ -251,7 +251,7 @@ func TestConfigV2Rollback(t *testing.T) {
 	assertConfigV3(t, originalDirPath)
 
 	// Promote
-	err = dirs.PromoteExperiment(context.Background())
+	err = dirs.PromoteExperiment(t.Context())
 	assert.NoError(t, err)
 	assertConfigV3(t, originalDirPath) // Make sure it changed
 
@@ -562,7 +562,7 @@ func TestOperationApply_ApplicationMonitoringEveryoneRead(t *testing.T) {
 		FilePath:          "/application_monitoring.yaml",
 		Patch:             []byte(`[{"op": "replace", "path": "/enabled", "value": false}]`),
 	}
-	assert.NoError(t, op.apply(context.Background(), root))
+	assert.NoError(t, op.apply(t.Context(), root))
 
 	assert.True(t, everyoneCanRead(t, filePath), "application_monitoring.yaml should grant Everyone read")
 }
@@ -583,7 +583,7 @@ func TestOperationApply_RestrictedFileNoEveryoneRead(t *testing.T) {
 		FilePath:          "/datadog.yaml",
 		Patch:             []byte(`{"log_level":"debug"}`),
 	}
-	assert.NoError(t, op.apply(context.Background(), root))
+	assert.NoError(t, op.apply(t.Context(), root))
 
 	assert.False(t, everyoneCanRead(t, filePath), "datadog.yaml (0640) should not grant Everyone read")
 }
@@ -600,7 +600,7 @@ func TestRemoveExperiment_RestoresApplicationMonitoringEveryoneRead(t *testing.T
 		StablePath:     stablePath,
 		ExperimentPath: experimentPath,
 	}
-	err := dirs.WriteExperiment(context.Background(), Operations{
+	err := dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "delete-application-monitoring",
 		FileOperations: []FileOperation{
 			{FileOperationType: FileOperationDelete, FilePath: "/application_monitoring.yaml"},
@@ -609,7 +609,7 @@ func TestRemoveExperiment_RestoresApplicationMonitoringEveryoneRead(t *testing.T
 	assert.NoError(t, err)
 	assert.NoFileExists(t, filePath)
 
-	assert.NoError(t, dirs.RemoveExperiment(context.Background()))
+	assert.NoError(t, dirs.RemoveExperiment(t.Context()))
 	assert.FileExists(t, filePath)
 	assert.True(t, everyoneCanRead(t, filePath), "application_monitoring.yaml should regain Everyone read after rollback restore")
 }
@@ -627,7 +627,7 @@ func TestRemoveExperimentPreservesUnmanagedFilesAndConfigACLs(t *testing.T) {
 		StablePath:     stablePath,
 		ExperimentPath: experimentPath,
 	}
-	require.NoError(t, dirs.WriteExperiment(context.Background(), Operations{
+	require.NoError(t, dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "delete-and-create-config",
 		FileOperations: []FileOperation{
 			{FileOperationType: FileOperationDelete, FilePath: "/datadog.yaml"},
@@ -646,7 +646,7 @@ func TestRemoveExperimentPreservesUnmanagedFilesAndConfigACLs(t *testing.T) {
 	authTokenPath := filepath.Join(stablePath, "auth_token")
 	require.NoError(t, os.WriteFile(authTokenPath, []byte("token"), 0600))
 
-	require.NoError(t, dirs.RemoveExperiment(context.Background()))
+	require.NoError(t, dirs.RemoveExperiment(t.Context()))
 
 	require.FileExists(t, datadogPath)
 	assert.True(t, everyoneCanRead(t, datadogPath), "rollback should restore the original config ACL")
@@ -664,7 +664,7 @@ func TestRemoveExperimentPrunesEmptiedCheckDirectories(t *testing.T) {
 		StablePath:     stablePath,
 		ExperimentPath: experimentPath,
 	}
-	require.NoError(t, dirs.WriteExperiment(context.Background(), Operations{
+	require.NoError(t, dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "adds-a-check",
 		FileOperations: []FileOperation{
 			{
@@ -676,7 +676,7 @@ func TestRemoveExperimentPrunesEmptiedCheckDirectories(t *testing.T) {
 	}))
 	require.FileExists(t, filepath.Join(stablePath, "conf.d", "brand_new.d", "config.yaml"))
 
-	require.NoError(t, dirs.RemoveExperiment(context.Background()))
+	require.NoError(t, dirs.RemoveExperiment(t.Context()))
 
 	assert.NoFileExists(t, filepath.Join(stablePath, "conf.d", "brand_new.d", "config.yaml"))
 	assert.NoDirExists(t, filepath.Join(stablePath, "conf.d", "brand_new.d"),
@@ -700,7 +700,7 @@ func TestRemoveExperimentKeepsPreExistingEmptyCheckDirectory(t *testing.T) {
 		StablePath:     stablePath,
 		ExperimentPath: experimentPath,
 	}
-	require.NoError(t, dirs.WriteExperiment(context.Background(), Operations{
+	require.NoError(t, dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "writes-into-existing-check",
 		FileOperations: []FileOperation{
 			{
@@ -712,7 +712,7 @@ func TestRemoveExperimentKeepsPreExistingEmptyCheckDirectory(t *testing.T) {
 	}))
 	require.FileExists(t, filepath.Join(preExisting, "config.yaml"))
 
-	require.NoError(t, dirs.RemoveExperiment(context.Background()))
+	require.NoError(t, dirs.RemoveExperiment(t.Context()))
 
 	assert.NoFileExists(t, filepath.Join(preExisting, "config.yaml"), "experiment config must be cleaned up")
 	assert.DirExists(t, preExisting, "a check directory that predates the experiment must survive rollback")
@@ -772,7 +772,7 @@ func TestDeploymentIDAfterRollback(t *testing.T) {
 	assertDeploymentID(t, dirs, "", "")
 
 	// Start a config experiment with deployment ID "abc-def-ghi"
-	err := dirs.WriteExperiment(context.Background(), Operations{
+	err := dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "abc-def-ghi",
 		FileOperations: []FileOperation{
 			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
@@ -786,7 +786,7 @@ func TestDeploymentIDAfterRollback(t *testing.T) {
 	assertDeploymentID(t, dirs, "", "abc-def-ghi")
 
 	// Now rollback the experiment
-	err = dirs.RemoveExperiment(context.Background())
+	err = dirs.RemoveExperiment(t.Context())
 	assert.NoError(t, err)
 
 	// BUG: After RemoveExperiment, stable deployment ID is incorrectly set to "abc-def-ghi"

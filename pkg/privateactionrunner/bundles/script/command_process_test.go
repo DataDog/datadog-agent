@@ -64,7 +64,7 @@ func TestScriptProcess(t *testing.T) {
 func TestScriptCommandInheritedPipes(t *testing.T) {
 	for _, mode := range []string{"exit", "wait"} {
 		t.Run(mode, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			exe, err := os.Executable()
 			require.NoError(t, err)

@@ -72,7 +72,7 @@ func TestLoadProgramRejectsTooManyFilesBeforeOpening(t *testing.T) {
 	}
 	programFiles := make([]string, MaxProgramFiles+1)
 
-	_, _, err := loadProgram(context.Background(), callCtx, nil, programFiles)
+	_, _, err := loadProgram(t.Context(), callCtx, nil, programFiles)
 
 	require.EqualError(t, err, fmt.Sprintf("too many program files (maximum %d)", MaxProgramFiles))
 	assert.Zero(t, opened)
@@ -104,7 +104,7 @@ func TestLoadProgramCountsFileSeparatorsTowardSizeLimit(t *testing.T) {
 				},
 			}
 
-			program, _, err := loadProgram(context.Background(), callCtx, nil, []string{"first.awk", "empty.awk"})
+			program, _, err := loadProgram(t.Context(), callCtx, nil, []string{"first.awk", "empty.awk"})
 
 			if tt.wantErr {
 				require.EqualError(t, err, fmt.Sprintf("program exceeds %d bytes", MaxProgramBytes))
@@ -119,7 +119,7 @@ func TestLoadProgramCountsFileSeparatorsTowardSizeLimit(t *testing.T) {
 
 func TestReadProgramStdinCancellationInterruptsReaderWithoutDeadline(t *testing.T) {
 	reader := newBlockingProgramReader()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
 		total := 0
@@ -144,7 +144,7 @@ func TestReadProgramFileCancellationInterruptsReader(t *testing.T) {
 			return reader, nil
 		},
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
 		total := 0
@@ -164,7 +164,7 @@ func TestReadProgramFileCancellationInterruptsReader(t *testing.T) {
 }
 
 func TestReadProgramStdinCancellableContextReadsNonCloser(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	total := 0
 
@@ -185,7 +185,7 @@ func TestReadProgramStdinCancellationInterruptsNonCloser(t *testing.T) {
 		close(reader.release)
 		<-reader.finished
 	})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
 		total := 0

@@ -8,7 +8,6 @@
 package procfd
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -215,7 +214,7 @@ func TestListSelf(t *testing.T) {
 	}
 	defer f.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	files, err := List(ctx, procpath.Default, []int{pid}, nil)
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -307,7 +306,7 @@ func TestListSelfLiteralDeletedSuffixTreatedAsDeletionMarker(t *testing.T) {
 	}
 	defer f.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	files, err := List(ctx, procpath.Default, []int{pid}, nil)
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -341,7 +340,7 @@ func TestListSelfLiteralDeletedSuffixTreatedAsDeletionMarker(t *testing.T) {
 // broken ProcPath configuration itself.
 func TestResolvePIDsValidatesProcPathWithExplicitPIDs(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "does-not-exist")
-	if _, err := resolvePIDs(context.Background(), missing, []int{1}); err == nil {
+	if _, err := resolvePIDs(t.Context(), missing, []int{1}); err == nil {
 		t.Error("resolvePIDs with an inaccessible procPath and explicit PIDs should return an error")
 	}
 }
@@ -357,7 +356,7 @@ func TestResolvePIDsRejectsNonDirectoryProcPathWithExplicitPIDs(t *testing.T) {
 	if err := os.WriteFile(notADir, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := resolvePIDs(context.Background(), notADir, []int{1}); err == nil {
+	if _, err := resolvePIDs(t.Context(), notADir, []int{1}); err == nil {
 		t.Error("resolvePIDs with a non-directory procPath and explicit PIDs should return an error")
 	}
 }

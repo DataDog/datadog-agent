@@ -49,8 +49,8 @@ func TestLifecycleDoesNotWaitForPrerequisites(t *testing.T) {
 		return
 	}
 	require.Len(t, lc.hooks, 1)
-	require.NoError(t, lc.hooks[0].OnStart(context.Background()))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	require.NoError(t, lc.hooks[0].OnStart(t.Context()))
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	require.NoError(t, lc.hooks[0].OnStop(ctx))
 	// This configuration is unsupported on every platform: verify the real Run path reports it.

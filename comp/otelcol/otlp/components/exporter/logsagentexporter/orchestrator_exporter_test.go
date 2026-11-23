@@ -6,7 +6,6 @@
 package logsagentexporter
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -129,7 +128,7 @@ func TestConsumeK8sObjects_MultiCluster(t *testing.T) {
 	ldB := buildK8sLogs("uid-cluster-B", "cluster-B", "pod-b", "v1", false)
 	ldB.ResourceLogs().MoveAndAppendTo(ldA.ResourceLogs())
 
-	require.NoError(t, exporter.consumeK8sObjects(context.Background(), ldA))
+	require.NoError(t, exporter.consumeK8sObjects(t.Context(), ldA))
 
 	mu.Lock()
 	defer mu.Unlock()

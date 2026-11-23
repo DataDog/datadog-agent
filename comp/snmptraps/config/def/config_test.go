@@ -6,7 +6,6 @@
 package config
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -114,7 +113,7 @@ func buildTrapsConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace str
 func buildTrapsConfigWithHostname(t testing.TB, trapConfig *TrapsConfig, globalNamespace, hostname string) *TrapsConfig {
 	ddcfg := buildDDConfig(t, trapConfig, globalNamespace)
 	hnService, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname(hostname))
-	name, err := hnService.Get(context.Background())
+	name, err := hnService.Get(t.Context())
 	if err != nil {
 		t.Fatalf("%s", err)
 	}

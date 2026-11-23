@@ -6,7 +6,6 @@
 package handlers
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 	"time"
@@ -19,16 +18,16 @@ func TestDisabledHandlerEnabled(t *testing.T) {
 	handler := NewDisabled()
 
 	// Should always return false for any level
-	assert.False(t, handler.Enabled(context.Background(), slog.LevelDebug))
-	assert.False(t, handler.Enabled(context.Background(), slog.LevelInfo))
-	assert.False(t, handler.Enabled(context.Background(), slog.LevelWarn))
-	assert.False(t, handler.Enabled(context.Background(), slog.LevelError))
+	assert.False(t, handler.Enabled(t.Context(), slog.LevelDebug))
+	assert.False(t, handler.Enabled(t.Context(), slog.LevelInfo))
+	assert.False(t, handler.Enabled(t.Context(), slog.LevelWarn))
+	assert.False(t, handler.Enabled(t.Context(), slog.LevelError))
 }
 
 func TestDisabledHandlerHandle(t *testing.T) {
 	handler := NewDisabled()
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 	require.NoError(t, err)
 }

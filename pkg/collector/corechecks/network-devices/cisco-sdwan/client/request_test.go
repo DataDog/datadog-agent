@@ -58,7 +58,7 @@ func TestNewRequest(t *testing.T) {
 			client, err := NewClient(tt.host, "testuser", "testpassword", false)
 			require.NoError(t, err)
 
-			req, err := client.newRequest(context.Background(), tt.method, tt.uri, nil)
+			req, err := client.newRequest(t.Context(), tt.method, tt.uri, nil)
 
 			if tt.expectedError != "" {
 				require.ErrorContains(t, err, tt.expectedError)
@@ -198,7 +198,7 @@ func TestGetRequest(t *testing.T) {
 		"test2": "param2",
 	}
 
-	resp, err := client.get(context.Background(), "/test", params)
+	resp, err := client.get(t.Context(), "/test", params)
 	require.NoError(t, err)
 	require.Equal(t, []byte{}, resp)
 	require.Equal(t, 1, handler.numberOfCalls())
@@ -222,7 +222,7 @@ func TestGetRequestRetries(t *testing.T) {
 	// Set max retries to 10 for testing
 	client.maxAttempts = 10
 
-	resp, err := client.get(context.Background(), "/test", nil)
+	resp, err := client.get(t.Context(), "/test", nil)
 	require.ErrorContains(t, err, "http responded with 400 code")
 	require.Equal(t, []byte(nil), resp)
 	require.Equal(t, 10, handler.numberOfCalls())
@@ -286,7 +286,7 @@ func TestGetRequestRetrySendsOnlyCurrentToken(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	resp, err := client.get(context.Background(), "/test", nil)
+	resp, err := client.get(t.Context(), "/test", nil)
 	require.NoError(t, err)
 	require.Equal(t, []byte("ok"), resp)
 	require.Equal(t, 2, tokens.numberOfCalls())
@@ -312,7 +312,7 @@ func TestGetRequestBacksOffExponentially(t *testing.T) {
 
 	client.maxAttempts = 5
 
-	resp, err := client.get(context.Background(), "/test", nil)
+	resp, err := client.get(t.Context(), "/test", nil)
 	require.NoError(t, err)
 	require.Equal(t, []byte("ok"), resp)
 	require.Equal(t, 3, handler.numberOfCalls()) // 3 total calls made
@@ -378,7 +378,7 @@ func TestGetRequestAuthFailureBackoff(t *testing.T) {
 			client, err := testClient(server, WithMaxAttempts(5))
 			require.NoError(t, err)
 
-			resp, err := client.get(context.Background(), "/test", nil)
+			resp, err := client.get(t.Context(), "/test", nil)
 			if tt.expectedError == "" {
 				require.NoError(t, err)
 				require.Equal(t, []byte("ok"), resp)
@@ -406,7 +406,7 @@ func TestGetRequestAuthFailureExhaustsAttempts(t *testing.T) {
 	client, err := testClient(server, WithMaxAttempts(3))
 	require.NoError(t, err)
 
-	_, err = client.get(context.Background(), "/test", nil)
+	_, err = client.get(t.Context(), "/test", nil)
 	// The authentication failure is reported, not a misleading API status code
 	require.EqualError(t, err, "authentication failed, status code: 503")
 	require.Equal(t, 3, login.numberOfCalls())
@@ -425,7 +425,7 @@ func TestGetRequestAuthFailureHonorsRetryAfter(t *testing.T) {
 		transport := &recordingTransport{mux: mux, start: time.Now()}
 		client.httpClient.Transport = transport
 
-		_, err = client.get(context.Background(), "/test", nil)
+		_, err = client.get(t.Context(), "/test", nil)
 		require.NoError(t, err)
 		require.Equal(t, 2, login.numberOfCalls())
 		// Login retried after the server-provided 5s, then token and API requests followed
@@ -481,7 +481,7 @@ func TestGetRequestRateLimited(t *testing.T) {
 				client, transport, handler := rateLimitedTestClient(t, WithRateLimit(10, tt.burst, time.Second))
 
 				for i := 0; i < 3; i++ {
-					_, err := client.get(context.Background(), "/test", nil)
+					_, err := client.get(t.Context(), "/test", nil)
 					require.NoError(t, err)
 				}
 
@@ -515,7 +515,7 @@ func TestGetRequestRateLimitMaxWait(t *testing.T) {
 				// Once the burst is used, the next request would wait ~1000s for a token
 				client, transport, handler := rateLimitedTestClient(t, WithRateLimit(0.001, tt.burst, 100*time.Millisecond))
 
-				_, err := client.get(context.Background(), "/test", nil)
+				_, err := client.get(t.Context(), "/test", nil)
 				require.ErrorIs(t, err, middleware.ErrRateLimitTimeout)
 				// The limiter fails immediately instead of waiting for a token it cannot get in time,
 				// and the failure is not retried
@@ -532,7 +532,7 @@ func TestGetRequestRateLimitWaitExcludedFromTimeout(t *testing.T) {
 		// Requests are paced 20s apart, longer than the HTTP timeout
 		client, transport, handler := rateLimitedTestClient(t, WithRateLimit(0.05, 1, time.Minute))
 
-		_, err := client.get(context.Background(), "/test", nil)
+		_, err := client.get(t.Context(), "/test", nil)
 		require.NoError(t, err)
 		require.Equal(t, []time.Duration{0, 20 * time.Second, 40 * time.Second}, transport.sent)
 		require.Equal(t, 1, handler.numberOfCalls())
@@ -541,7 +541,7 @@ func TestGetRequestRateLimitWaitExcludedFromTimeout(t *testing.T) {
 
 func TestGetRequestRateLimitCancelled(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		client, transport, handler := rateLimitedTestClient(t, WithRateLimit(0.01, 1, time.Hour))
 
 		time.AfterFunc(100*time.Millisecond, cancel)
@@ -557,7 +557,7 @@ func TestGetRequestRateLimitCancelled(t *testing.T) {
 
 func TestGetRequestBackoffCancelled(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		mux := setupCommonServerMux()
 		handler := newHandler(func(w http.ResponseWriter, _ *http.Request, _ int32) {
 			w.Header().Set("Retry-After", "30")
@@ -594,7 +594,7 @@ func TestGetRequestMaxRetryDuration(t *testing.T) {
 		transport := &recordingTransport{mux: mux, start: time.Now()}
 		client.httpClient.Transport = transport
 
-		_, err = client.get(context.Background(), "/test", nil)
+		_, err = client.get(t.Context(), "/test", nil)
 		require.ErrorContains(t, err, "http responded with 503 code")
 		// Attempts at 0s, 30s and 60s, then a 4th wait would end after the 1m budget
 		require.Equal(t, 3, handler.numberOfCalls())
@@ -611,7 +611,7 @@ func TestGetRequestUnmarshalling(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	resp, err := get[Device](context.Background(), client, "/test", nil)
+	resp, err := get[Device](t.Context(), client, "/test", nil)
 	require.NoError(t, err)
 	require.Equal(t, "10.10.1.1", resp.Data[0].DeviceID)
 	require.Equal(t, 1, handler.numberOfCalls())
@@ -632,7 +632,7 @@ func TestGetRequestUnmarshallingError(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	resp, err := get[Device](context.Background(), client, "/test", nil)
+	resp, err := get[Device](t.Context(), client, "/test", nil)
 	var typeErr *json.UnmarshalTypeError
 	require.ErrorAs(t, err, &typeErr)
 	require.Equal(t, "string", typeErr.Value)
@@ -678,7 +678,7 @@ func TestGetMoreEntriesMaxPages(t *testing.T) {
 		MoreEntries: true,
 	}
 
-	_, err = getMoreEntries[Device](context.Background(), client, "/dataservice/device", pageInfo)
+	_, err = getMoreEntries[Device](t.Context(), client, "/dataservice/device", pageInfo)
 	require.ErrorContains(t, err, "max number of page reached")
 
 	// Ensure endpoint has been called 20 times
@@ -737,7 +737,7 @@ func TestGetMoreEntriesIndexPagination(t *testing.T) {
 		MoreEntries: true,
 	}
 
-	_, err = getMoreEntries[Device](context.Background(), client, "/dataservice/device", pageInfo)
+	_, err = getMoreEntries[Device](t.Context(), client, "/dataservice/device", pageInfo)
 	require.NoError(t, err)
 
 	// Ensure endpoint has been called 2 times
@@ -800,7 +800,7 @@ func TestGetMoreEntriesScrollPagination(t *testing.T) {
 		HasMoreData: true,
 	}
 
-	_, err = getMoreEntries[Device](context.Background(), client, "/dataservice/device", pageInfo)
+	_, err = getMoreEntries[Device](t.Context(), client, "/dataservice/device", pageInfo)
 	require.NoError(t, err)
 
 	// Ensure endpoint has been called 2 times

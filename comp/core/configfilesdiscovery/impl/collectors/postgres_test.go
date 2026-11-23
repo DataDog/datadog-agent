@@ -112,7 +112,7 @@ func TestPostgresCollectorCollectsEnvVars(t *testing.T) {
 	}
 	collector := NewPostgres()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
@@ -147,7 +147,7 @@ func TestPostgresCollectorSkipsWhenNoSelectedEnvVars(t *testing.T) {
 		},
 	}
 
-	collected, err := NewPostgres().Collect(context.Background(), reader)
+	collected, err := NewPostgres().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
@@ -158,7 +158,7 @@ func TestPostgresCollectorReturnsEnvVarErrors(t *testing.T) {
 	reader := &postgresCollectorTestReader{readEnvVarsErr: expectedErr}
 	collector := NewPostgres()
 
-	collected, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(t.Context(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
@@ -176,7 +176,7 @@ func TestPostgresCollectorReadsDetectedConfigWhenEnvVarsFail(t *testing.T) {
 		},
 	}
 
-	collected, err := NewPostgres().Collect(context.Background(), reader)
+	collected, err := NewPostgres().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{configPath}, reader.readFileCalls)
@@ -204,7 +204,7 @@ func TestPostgresCollectorReadsExplicitConfigAfterDockerEntrypoint(t *testing.T)
 		},
 	}
 
-	collected, err := NewPostgres().Collect(context.Background(), reader)
+	collected, err := NewPostgres().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{explicitConfigPath}, reader.readFileCalls)
@@ -223,7 +223,7 @@ func TestPostgresCollectorSkipsClientCommandline(t *testing.T) {
 		},
 	}
 
-	collected, err := NewPostgres().Collect(context.Background(), reader)
+	collected, err := NewPostgres().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Empty(t, collected)

@@ -6,7 +6,6 @@
 package configutils
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -83,9 +82,9 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 
 	// Get config.Config from both
 	factories := buildTestFactories(t)
-	cfg, err := mapProvider.Get(context.Background(), factories)
+	cfg, err := mapProvider.Get(t.Context(), factories)
 	require.NoError(t, err)
-	defaultCfg, err := defaultProvider.Get(context.Background(), factories)
+	defaultCfg, err := defaultProvider.Get(t.Context(), factories)
 	require.NoError(t, err)
 
 	assert.Equal(t, cfg, defaultCfg, "Custom constant provider does not provide same config as default provider.")

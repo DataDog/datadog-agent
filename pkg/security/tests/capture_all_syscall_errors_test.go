@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -64,7 +63,7 @@ func TestCaptureAllSyscallErrors(t *testing.T) {
 
 	t.Run("chmod-enoent", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "chmod-error", path)
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "chmod-error", path)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_chmod_capture_enoent")
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
@@ -122,7 +121,7 @@ func TestCaptureAllSyscallErrorsDisabledByDefault(t *testing.T) {
 
 	t.Run("chmod-enoent-dropped", func(t *testing.T) {
 		_ = test.GetSignal(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "chmod-error", path)
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "chmod-error", path)
 		}, func(_ *model.Event, rule *rules.Rule) {
 			t.Errorf("unexpected event for chmod ENOENT (rule %q): the kernel should have dropped it", rule.ID)
 		})

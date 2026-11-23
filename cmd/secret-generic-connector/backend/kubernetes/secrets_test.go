@@ -7,7 +7,6 @@
 package kubernetes
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -148,7 +147,7 @@ func TestGetSecretOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			output := backend.GetSecretOutput(ctx, tt.secretString)
 
 			if tt.expectError {
@@ -178,7 +177,7 @@ func TestGetSecretOutputEmptyData(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	output := backend.GetSecretOutput(ctx, "test-ns/empty-secret;password")
 
 	assert.NotNil(t, output.Error)
@@ -250,7 +249,7 @@ func TestGetSecretOutputEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			output := backend.GetSecretOutput(ctx, tt.secretString)
 
 			assert.NotNil(t, output.Error)

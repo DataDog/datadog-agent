@@ -87,7 +87,7 @@ func newContainerHealthTestStream(t *testing.T, reportRelease, resolveRelease <-
 	provider, err := NewContainerConfigProvider(nil, store, nil, nil, hp, nil)
 	require.NoError(t, err)
 	cp := provider.(*ContainerConfigProvider)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	return cp, store, hp, cp.Stream(ctx)
 }

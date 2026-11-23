@@ -207,7 +207,7 @@ func TestSubmitIfStopped(t *testing.T) {
 	assert.NotNil(t, forwarder.SubmitV1Series(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1Intake(nil, transaction.Series, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitV1IntakeDirect(context.Background(), nil, transaction.Series, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitV1IntakeDirect(t.Context(), nil, transaction.Series, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1CheckRuns(nil, make(http.Header)))
 }
 
@@ -487,7 +487,7 @@ func TestSubmitV1IntakeDirect(t *testing.T) {
 	defer forwarder.Stop()
 
 	payload := []byte("lifecycle event payload")
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	require.NoError(t, forwarder.SubmitV1IntakeDirect(ctx, transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload}), transaction.Events, make(http.Header)))
 

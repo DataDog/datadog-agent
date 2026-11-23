@@ -8,7 +8,6 @@
 package evictor
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -36,7 +35,7 @@ func TestEvictSuccess(t *testing.T) {
 	client := fake.NewSimpleClientset(newFakePod("default", "my-pod"))
 	c := NewClient(client, nil)
 
-	result, err := c.Evict(context.Background(), "default", "my-pod")
+	result, err := c.Evict(t.Context(), "default", "my-pod")
 
 	require.NoError(t, err)
 	assert.Equal(t, Evicted, result)
@@ -51,7 +50,7 @@ func TestEvictPDBLockedOrThrottle(t *testing.T) {
 	})
 	c := NewClient(client, nil)
 
-	result, err := c.Evict(context.Background(), "default", "my-pod")
+	result, err := c.Evict(t.Context(), "default", "my-pod")
 
 	require.NoError(t, err)
 	assert.Equal(t, PDBLockedOrThrottle, result)
@@ -64,7 +63,7 @@ func TestEvictError(t *testing.T) {
 	})
 	c := NewClient(client, nil)
 
-	result, err := c.Evict(context.Background(), "default", "my-pod")
+	result, err := c.Evict(t.Context(), "default", "my-pod")
 
 	assert.Error(t, err)
 	assert.Equal(t, Error, result)
@@ -74,7 +73,7 @@ func TestEvictNotLeader(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	c := NewClient(client, func() bool { return false })
 
-	result, err := c.Evict(context.Background(), "default", "my-pod")
+	result, err := c.Evict(t.Context(), "default", "my-pod")
 
 	require.NoError(t, err)
 	assert.Equal(t, Skipped, result)
@@ -87,14 +86,14 @@ func TestEvictLeadershipChange(t *testing.T) {
 	c := NewClient(client, func() bool { return isLeader })
 
 	// Not leader
-	result, err := c.Evict(context.Background(), "default", "my-pod")
+	result, err := c.Evict(t.Context(), "default", "my-pod")
 	require.NoError(t, err)
 	assert.Equal(t, Skipped, result)
 	assert.Empty(t, client.Actions())
 
 	// Become leader
 	isLeader = true
-	result, err = c.Evict(context.Background(), "default", "my-pod")
+	result, err = c.Evict(t.Context(), "default", "my-pod")
 	require.NoError(t, err)
 	assert.Equal(t, Evicted, result)
 	assert.NotEmpty(t, client.Actions())

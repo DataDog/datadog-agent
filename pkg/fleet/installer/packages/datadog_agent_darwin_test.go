@@ -222,13 +222,13 @@ func TestLoadStableJobEnablesDisabledJobBeforeBootstrap(t *testing.T) {
 		return nil, nil
 	}
 
-	require.NoError(t, loadStableJob(context.Background(), client, "com.datadoghq.agent"))
+	require.NoError(t, loadStableJob(t.Context(), client, "com.datadoghq.agent"))
 	assert.True(t, loaded)
 }
 
 func testHookContext(t *testing.T) HookContext {
 	t.Helper()
-	return HookContext{Context: context.Background(), Package: agentPackage, PackageType: PackageTypeOCI}
+	return HookContext{Context: t.Context(), Package: agentPackage, PackageType: PackageTypeOCI}
 }
 
 // TestStableJobsAreTheAgentsOwn pins the job set the install loads: the Agent's own daemons, the
@@ -522,7 +522,7 @@ func TestLoadStableJobKeepsTheOldDefinitionWhenBootoutFails(t *testing.T) {
 		return client
 	}
 
-	err := loadStableJob(context.Background(), launchdClient(), label)
+	err := loadStableJob(t.Context(), launchdClient(), label)
 
 	require.Error(t, err)
 	content, readErr := os.ReadFile(path)

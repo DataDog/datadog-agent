@@ -7,7 +7,6 @@ package privilegedhelper
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net"
 	"os"
@@ -104,7 +103,7 @@ func TestExecuteSignedTaskBuildsVersionedRequest(t *testing.T) {
 	}()
 
 	envelope := SignedEnvelope{Data: []byte("signed"), HashType: "SHA256"}
-	response, err := (Client{SocketPath: socketPath, Timeout: time.Second}).ExecuteSignedTask(context.Background(), envelope)
+	response, err := (Client{SocketPath: socketPath, Timeout: time.Second}).ExecuteSignedTask(t.Context(), envelope)
 	require.NoError(t, err)
 	require.Equal(t, 23, response.ExitCode)
 	require.Equal(t, NewExecuteRequest(envelope), <-received)

@@ -281,7 +281,7 @@ func TestPullSetsSharingModeOfTimeSlicedGPUs(t *testing.T) {
 		// it, disappear from the store.
 		c.store = testutil.GetWorkloadMetaMock(t)
 
-		events := containerGPUEvents(c, nil)
+		events := containerGPUEvents(t.Context(), c, nil)
 		require.Len(t, events, 1, "the gone container must be retracted")
 		assert.Equal(t, workloadmeta.EventTypeUnset, events[0].Type)
 		container, ok := events[0].Entity.(*workloadmeta.Container)

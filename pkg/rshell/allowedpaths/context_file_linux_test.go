@@ -78,7 +78,7 @@ func TestWithContextClose_Linux_RegularFile(t *testing.T) {
 	f, err := os.Open(path)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	wrapped := WithContextClose(ctx, f)
@@ -97,7 +97,7 @@ func TestWithContextClose_Linux_DevNull(t *testing.T) {
 	f, err := os.Open("/dev/null")
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	wrapped := WithContextClose(ctx, f)
@@ -116,7 +116,7 @@ func TestWithContextClose_Linux_DevZero(t *testing.T) {
 	f, err := os.Open("/dev/zero")
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	wrapped := WithContextClose(ctx, f)
@@ -135,7 +135,7 @@ func TestWithContextClose_Linux_DevUrandom(t *testing.T) {
 	f, err := os.Open("/dev/urandom")
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	wrapped := WithContextClose(ctx, f)
@@ -161,7 +161,7 @@ func TestWithContextClose_Linux_SymlinkToFile(t *testing.T) {
 	f, err := os.Open(link) // follows the symlink
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	wrapped := WithContextClose(ctx, f)
@@ -182,7 +182,7 @@ func TestWithContextClose_Linux_Directory(t *testing.T) {
 	f, err := os.Open(dir)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	wrapped := WithContextClose(ctx, f)
@@ -224,7 +224,7 @@ func TestWithContextClose_Linux_BlockDevice(t *testing.T) {
 	}
 	t.Logf("using block device: %s", chosen)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	wrapped := WithContextClose(ctx, f)
@@ -259,7 +259,7 @@ func TestWithContextClose_Linux_FIFO(t *testing.T) {
 	f, err := os.OpenFile(fifoPath, os.O_RDWR, 0)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	wrapped := WithContextClose(ctx, f)
@@ -286,7 +286,7 @@ func TestWithContextClose_Linux_UnixSocket(t *testing.T) {
 	c1, c2 := net.Pipe()
 	defer c2.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// net.Conn satisfies io.ReadWriteCloser.
@@ -313,7 +313,7 @@ func TestWithContextClose_Linux_DevRandom(t *testing.T) {
 		t.Skipf("/dev/random not available: %v", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	wrapped := WithContextClose(ctx, f)
@@ -339,7 +339,7 @@ func TestWithContextClose_Linux_TTY(t *testing.T) {
 		t.Skipf("/dev/tty not available: %v", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	wrapped := WithContextClose(ctx, f)
@@ -388,7 +388,7 @@ func TestWithContextClose_Linux_UnixSocketFile(t *testing.T) {
 	defer client.Close()
 
 	// server-side conn: client sends nothing, so Read blocks.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	wrapped := WithContextClose(ctx, serverConn)

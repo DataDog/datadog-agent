@@ -372,7 +372,7 @@ func TestBatchStrategyFlushWaitsForQueuedMessages(t *testing.T) {
 		messageMeta[idx] = &m.MessageMetadata
 	}
 
-	strategy.(*batchStrategy).Flush(context.Background())
+	strategy.(*batchStrategy).Flush(t.Context())
 
 	// Once Flush returns, every message queued before it is in a single payload on the output
 	if assert.Len(t, output, 1) {
@@ -408,13 +408,13 @@ func TestBatchStrategyFlushAfterPendingSendWaitTimesOut(t *testing.T) {
 
 	first := message.NewMessage([]byte("a"), nil, "", 0)
 	input <- first
-	batchStrategy.Flush(context.Background())
+	batchStrategy.Flush(t.Context())
 	if assert.Len(t, output, 1) {
 		assert.Equal(t, &first.MessageMetadata, (<-output).MessageMetas[0])
 	}
 
 	// The first payload is still pending, so the wait ends only when its context is done
-	waitCtx, cancelWait := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	waitCtx, cancelWait := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancelWait()
 	serverlessMeta.WaitPendingSends(waitCtx)
 	assert.ErrorIs(t, waitCtx.Err(), context.DeadlineExceeded)
@@ -422,7 +422,7 @@ func TestBatchStrategyFlushAfterPendingSendWaitTimesOut(t *testing.T) {
 	// The next flush must queue its payload without waiting for the first one to be sent
 	second := message.NewMessage([]byte("b"), nil, "", 0)
 	input <- second
-	flushCtx, cancelFlush := context.WithTimeout(context.Background(), 10*time.Second)
+	flushCtx, cancelFlush := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancelFlush()
 	batchStrategy.Flush(flushCtx)
 	assert.NoError(t, flushCtx.Err(), "the flush waited for the earlier pending send")
@@ -433,7 +433,7 @@ func TestBatchStrategyFlushAfterPendingSendWaitTimesOut(t *testing.T) {
 	// Once both payloads are sent, nothing is pending
 	serverlessMeta.PendingSendDone()
 	serverlessMeta.PendingSendDone()
-	doneCtx, cancelDone := context.WithTimeout(context.Background(), 10*time.Second)
+	doneCtx, cancelDone := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancelDone()
 	serverlessMeta.WaitPendingSends(doneCtx)
 	assert.NoError(t, doneCtx.Err(), "sends were still pending after both were marked as sent")

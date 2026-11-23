@@ -48,7 +48,7 @@ func TestRemoteAgentCreation(t *testing.T) {
 
 	lc.AssertHooksNumber(1)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	assert.NoError(t, lc.Start(ctx))
 	assert.NoError(t, lc.Stop(ctx))
 }
@@ -183,8 +183,8 @@ func TestGetRegisteredAgentsIdleTimeout(t *testing.T) {
 	config.SetInTest("remote_agent.registry.idle_timeout", time.Duration(time.Second*5))
 	config.SetInTest("remote_agent.registry.recommended_refresh_interval", time.Duration(time.Second*5))
 
-	lc.Start(context.Background())
-	defer lc.Stop(context.Background())
+	lc.Start(t.Context())
+	defer lc.Stop(t.Context())
 
 	remoteAgent := buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "123",
 		withStatusProvider(map[string]string{
@@ -217,8 +217,8 @@ func TestRegistryDialsUDSRemoteAgent(t *testing.T) {
 	cfg.SetInTest("remote_agent.registry.query_timeout", 2*time.Second)
 
 	component := provides.Comp.(*remoteAgentRegistry)
-	require.NoError(t, lc.Start(context.Background()))
-	t.Cleanup(func() { _ = lc.Stop(context.Background()) })
+	require.NoError(t, lc.Start(t.Context()))
+	t.Cleanup(func() { _ = lc.Stop(t.Context()) })
 
 	// macOS limits sun_path to 104 bytes; use a short fixed prefix instead of t.TempDir().
 	udsDir, err := os.MkdirTemp("/tmp", "rar-uds-")
@@ -503,7 +503,7 @@ func buildRemoteAgentOnListener(t *testing.T, ipcComp ipc.Component, listener ne
 	client, err := grpc.NewClient(probeTarget, probeDialOpts...)
 	require.NoError(t, err)
 	echoClient := echo.NewEchoClient(client)
-	_, err = echoClient.UnaryEcho(context.Background(), &echo.EchoRequest{}, grpc.WaitForReady(true))
+	_, err = echoClient.UnaryEcho(t.Context(), &echo.EchoRequest{}, grpc.WaitForReady(true))
 	require.NoError(t, err)
 
 	return testServer

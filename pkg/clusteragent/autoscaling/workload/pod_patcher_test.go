@@ -8,7 +8,6 @@
 package workload
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -1619,7 +1618,7 @@ func TestObservedPodCallback(t *testing.T) {
 			eventRecorder: fakeRecorder,
 		}
 
-		pa.observedPodCallback(context.Background(), pod)
+		pa.observedPodCallback(t.Context(), pod)
 
 		// Verify the patch was applied via the fake client actions
 		actions := fakeCl.Actions()
@@ -1648,7 +1647,7 @@ func TestObservedPodCallback(t *testing.T) {
 			eventRecorder: fakeRecorder,
 		}
 
-		pa.observedPodCallback(context.Background(), pod)
+		pa.observedPodCallback(t.Context(), pod)
 
 		assert.Empty(t, fakeCl.Actions(), "expected no API calls when not leader")
 		assert.Empty(t, fakeRecorder.Events, "expected no events when not leader")

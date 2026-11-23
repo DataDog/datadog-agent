@@ -40,7 +40,7 @@ func TestVulnHuntShellFeatureParserConfusion_NegationDoesNotInvertValidationErro
 	dir := t.TempDir()
 	created := filepath.Join(dir, "created.txt")
 
-	stdout, stderr, err := runNegationVulnHunt(context.Background(), t, "! echo hidden > created.txt\necho after\n", dir)
+	stdout, stderr, err := runNegationVulnHunt(t.Context(), t, "! echo hidden > created.txt\necho after\n", dir)
 
 	assert.Equal(t, "", stdout)
 	assert.Equal(t, "> file redirection is not supported\n", stderr)
@@ -52,7 +52,7 @@ func TestVulnHuntShellFeatureParserConfusion_NegationDoesNotInvertValidationErro
 func TestVulnHuntShellFeatureSignalContext_NegationDoesNotInvertTimeout(t *testing.T) {
 	dir := t.TempDir()
 
-	stdout, stderr, err := runNegationVulnHunt(context.Background(), t, "! while true; do true; done\n", dir, MaxExecutionTime(20*time.Millisecond))
+	stdout, stderr, err := runNegationVulnHunt(t.Context(), t, "! while true; do true; done\n", dir, MaxExecutionTime(20*time.Millisecond))
 
 	assert.Equal(t, "", stdout)
 	assert.Equal(t, "", stderr)

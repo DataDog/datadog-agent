@@ -9,7 +9,6 @@ package symdb_test
 
 import (
 	"compress/gzip"
-	"context"
 	"debug/buildinfo"
 	"debug/dwarf"
 	"encoding/json"
@@ -227,7 +226,7 @@ func TestSymDBSnapshot(t *testing.T) {
 					// >= 1 immediately). This makes batches align 1:1
 					// with iterator yields.
 					stats, err := uploader.RunUploadLoop(
-						context.Background(), enc, it, "", 1,
+						t.Context(), enc, it, "", 1,
 					)
 					require.NoError(t, err)
 

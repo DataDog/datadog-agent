@@ -8,7 +8,6 @@
 package v1
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -20,7 +19,7 @@ import (
 )
 
 func TestGetInstance(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	assert := assert.New(t)
 
 	ecsinterface, err := testutil.NewDummyECS(
@@ -52,7 +51,7 @@ func TestGetInstance(t *testing.T) {
 }
 
 func TestGetTasks(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	assert := assert.New(t)
 
 	ecsinterface, err := testutil.NewDummyECS(
@@ -100,7 +99,7 @@ func TestGetTasks(t *testing.T) {
 }
 
 func TestGetTasksFail(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	assert := assert.New(t)
 
 	ecsinterface, err := testutil.NewDummyECS(

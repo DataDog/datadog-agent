@@ -53,10 +53,10 @@ func TestNewComponent(t *testing.T) {
 
 	mockLifecycle.AssertHooksNumber(1)
 
-	err = mockLifecycle.Start(context.Background())
+	err = mockLifecycle.Start(t.Context())
 	assert.NoError(t, err)
 
-	err = mockLifecycle.Stop(context.Background())
+	err = mockLifecycle.Stop(t.Context())
 	assert.NoError(t, err)
 }
 
@@ -299,7 +299,7 @@ func TestRequestScan(t *testing.T) {
 			mockConfigProvider := tt.buildMockConfigProvider()
 			scanManager.snmpConfigProvider = mockConfigProvider
 
-			err = mockLifecycle.Start(context.Background())
+			err = mockLifecycle.Start(t.Context())
 			assert.NoError(t, err)
 
 			for _, req := range tt.scanReqs {
@@ -309,7 +309,7 @@ func TestRequestScan(t *testing.T) {
 			synctest.Wait()
 			assertDeviceScans(t, tt.expectedDeviceScans, scanManager)
 
-			err = mockLifecycle.Stop(context.Background())
+			err = mockLifecycle.Stop(t.Context())
 			assert.NoError(t, err)
 
 			mockScanner.AssertExpectations(t)
@@ -598,12 +598,12 @@ func TestProcessScanRequest(t *testing.T) {
 			mockConfigProvider := tt.buildMockConfigProvider()
 			scanManager.snmpConfigProvider = mockConfigProvider
 
-			err = mockLifecycle.Start(context.Background())
+			err = mockLifecycle.Start(t.Context())
 			assert.NoError(t, err)
 
 			scanErr := scanManager.processScanRequest(tt.scanRequest)
 
-			err = mockLifecycle.Stop(context.Background())
+			err = mockLifecycle.Stop(t.Context())
 			assert.NoError(t, err)
 
 			if tt.expectError {
@@ -971,13 +971,13 @@ func TestQueueDueScans(t *testing.T) {
 
 			scanManager.queueDueScans()
 
-			err = mockLifecycle.Start(context.Background())
+			err = mockLifecycle.Start(t.Context())
 			assert.NoError(t, err)
 
 			synctest.Wait()
 			assertDeviceScans(t, tt.expectedDeviceScans, scanManager)
 
-			err = mockLifecycle.Stop(context.Background())
+			err = mockLifecycle.Stop(t.Context())
 			assert.NoError(t, err)
 
 			mockScanner.AssertExpectations(t)

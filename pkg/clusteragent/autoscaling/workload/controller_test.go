@@ -8,7 +8,6 @@
 package workload
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -2145,7 +2144,7 @@ func TestUpdateAutoscalerStatusAndUpsertRequeuesOnConflict(t *testing.T) {
 	item, _ := c.store.Get(key)
 	defer item.Release()
 
-	result, err := c.updateAutoscalerStatusAndUpsert(context.Background(), item, ns, name, nil, internal, dpaTyped)
+	result, err := c.updateAutoscalerStatusAndUpsert(t.Context(), item, ns, name, nil, internal, dpaTyped)
 
 	require.Error(t, err, "the status conflict must be surfaced so Process() counts the retry")
 	assert.True(t, result.ShouldRequeue(), "a status-update conflict must requeue the reconcile")
@@ -2170,7 +2169,7 @@ func TestUpdateAutoscalerStatusAndUpsertNoConflict(t *testing.T) {
 	item, _ := c.store.Get(key)
 	defer item.Release()
 
-	result, err := c.updateAutoscalerStatusAndUpsert(context.Background(), item, ns, name, nil, internal, dpaTyped)
+	result, err := c.updateAutoscalerStatusAndUpsert(t.Context(), item, ns, name, nil, internal, dpaTyped)
 
 	require.NoError(t, err)
 	assert.False(t, result.ShouldRequeue(), "a successful status write must not requeue")

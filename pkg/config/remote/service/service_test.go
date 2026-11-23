@@ -545,13 +545,13 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 
 	// The Client object is missing
 	req := &pbgo.ClientGetConfigsRequest{}
-	_, err := service.ClientGetConfigs(context.Background(), req)
+	_, err := service.ClientGetConfigs(t.Context(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 
 	// The Client object is present, but State is missing
 	req.Client = &pbgo.Client{}
-	_, err = service.ClientGetConfigs(context.Background(), req)
+	_, err = service.ClientGetConfigs(t.Context(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 
@@ -559,7 +559,7 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 	req.Client = &pbgo.Client{
 		State: &pbgo.ClientState{},
 	}
-	_, err = service.ClientGetConfigs(context.Background(), req)
+	_, err = service.ClientGetConfigs(t.Context(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 
@@ -570,7 +570,7 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 		},
 		IsAgent: true,
 	}
-	_, err = service.ClientGetConfigs(context.Background(), req)
+	_, err = service.ClientGetConfigs(t.Context(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 
@@ -581,7 +581,7 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 		},
 		IsTracer: true,
 	}
-	_, err = service.ClientGetConfigs(context.Background(), req)
+	_, err = service.ClientGetConfigs(t.Context(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 
@@ -595,7 +595,7 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 		IsAgent:      true,
 		ClientTracer: &pbgo.ClientTracer{},
 	}
-	_, err = service.ClientGetConfigs(context.Background(), req)
+	_, err = service.ClientGetConfigs(t.Context(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 }
@@ -675,7 +675,7 @@ func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) 
 	// Checks in this state should look like the version of the client is unchanged (both will report 0 as the director targets meta, because
 	// no such file exists).
 	service.clients.seen(client)
-	response, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	response, err := service.ClientGetConfigs(t.Context(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
 	assert.Len(t, response.ClientConfigs, 0)
 	assert.Len(t, response.TargetFiles, 0)
@@ -685,7 +685,7 @@ func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) 
 
 	// If the repository is initialized, we should now return the expired message
 	service.mu.firstUpdate = false
-	response, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	response, err = service.ClientGetConfigs(t.Context(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
 	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, response.ConfigStatus)
 }
@@ -804,7 +804,7 @@ func TestService(t *testing.T) {
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
-	configResponse, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	configResponse, err := service.ClientGetConfigs(t.Context(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, [][]byte{canonicalRoot3, canonicalRoot4}, configResponse.Roots)
 	assert.ElementsMatch(t, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: fileAPM1}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: fileAPM2}}, configResponse.TargetFiles, nil)
@@ -938,7 +938,7 @@ func TestServiceClientPredicates(t *testing.T) {
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
-	configResponse, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	configResponse, err := service.ClientGetConfigs(t.Context(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(err)
 	assert.ElementsMatch(
 		configResponse.ClientConfigs,
@@ -1365,7 +1365,7 @@ func TestConfigExpiration(t *testing.T) {
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
-	configResponse, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	configResponse, err := service.ClientGetConfigs(t.Context(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(err)
 	assert.ElementsMatch(
 		configResponse.ClientConfigs,

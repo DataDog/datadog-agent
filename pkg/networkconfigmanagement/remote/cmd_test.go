@@ -78,7 +78,7 @@ func TestCommand(t *testing.T) {
 		expectErr: `Process exited with status 1: "bad command"`,
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := ExecuteCommand(context.Background(), client, tc.cmd)
+			result, err := ExecuteCommand(t.Context(), client, tc.cmd)
 			if tc.expectErr != "" {
 				assert.Error(t, err)
 				assert.ErrorContains(t, result.FormattedError(), tc.expectErr)
@@ -165,7 +165,7 @@ func TestSCPCommand(t *testing.T) {
 				Filepath:      "/mnt/flash/backup.txt",
 				Validator:     tc.validator,
 			}
-			response, err := ExecuteSCP(context.Background(), client, cmd, "this is the data")
+			response, err := ExecuteSCP(t.Context(), client, cmd, "this is the data")
 			if tc.expectErr != "" {
 				assert.ErrorContains(t, err, tc.expectErr)
 			} else {
@@ -213,7 +213,7 @@ func TestPagerCommand(t *testing.T) {
 		},
 	}
 
-	result, err := ExecuteCommand(context.Background(), client, cmd)
+	result, err := ExecuteCommand(t.Context(), client, cmd)
 	require.NoError(t, err)
 	assert.Empty(t, result.Error)
 	assert.Equal(t, config, result.Output)
@@ -241,6 +241,6 @@ func TestPagerCommand_MoreMarkerRejected(t *testing.T) {
 		},
 	}
 
-	_, err := ExecuteCommand(context.Background(), client, cmd)
+	_, err := ExecuteCommand(t.Context(), client, cmd)
 	assert.ErrorContains(t, err, "matches failure regex")
 }

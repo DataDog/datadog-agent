@@ -10,7 +10,6 @@ package dyninst_test
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -184,7 +183,7 @@ func testDyninst(
 	t.Cleanup(m.Close)
 
 	// Launch the sample service.
-	ctx := context.Background()
+	ctx := t.Context()
 	sampleProc, sampleStdin := dyninsttest.StartProcess(
 		ctx, t, tempDir, servicePath,
 	)

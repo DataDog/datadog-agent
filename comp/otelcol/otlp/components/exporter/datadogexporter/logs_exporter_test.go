@@ -141,8 +141,8 @@ func startTestLogsAgent(t *testing.T, cfg coreconfig.Component) logsagentpipelin
 		IntakeOrigin: logsconfig.DDOTIntakeOrigin,
 	})
 	require.NotNil(t, agent)
-	require.NoError(t, agent.Start(context.Background()))
-	t.Cleanup(func() { _ = agent.Stop(context.Background()) })
+	require.NoError(t, agent.Start(t.Context()))
+	t.Cleanup(func() { _ = agent.Stop(t.Context()) })
 	return agent
 }
 
@@ -161,10 +161,10 @@ func newTestLogsExporter(t *testing.T, agent logsagentpipeline.Component, retry 
 	cfg.QueueSettings = configoptional.None[exporterhelper.QueueBatchConfig]()
 	cfg.BackOffConfig = retry
 
-	exp, err := f.CreateLogs(context.Background(), set, cfg)
+	exp, err := f.CreateLogs(t.Context(), set, cfg)
 	require.NoError(t, err)
-	require.NoError(t, exp.Start(context.Background(), componenttest.NewNopHost()))
-	t.Cleanup(func() { require.NoError(t, exp.Shutdown(context.Background())) })
+	require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
+	t.Cleanup(func() { require.NoError(t, exp.Shutdown(t.Context())) })
 	return exp, reader
 }
 
@@ -186,7 +186,7 @@ func fastRetry() configretry.BackOffConfig {
 func exporterCounter(t *testing.T, reader *sdkmetric.ManualReader, name string) int64 {
 	t.Helper()
 	var rm metricdata.ResourceMetrics
-	require.NoError(t, reader.Collect(context.Background(), &rm))
+	require.NoError(t, reader.Collect(t.Context(), &rm))
 	var total int64
 	for _, sm := range rm.ScopeMetrics {
 		for _, m := range sm.Metrics {
@@ -225,7 +225,7 @@ func TestLogsExporter_AsyncPipeline_SwallowsIntakeErrors(t *testing.T) {
 			intake := newFakeLogsIntake(t, alwaysStatus(status))
 			exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, testLogsAgentConfig(t, intake.URL, nil)), noRetry())
 
-			require.NoError(t, exp.ConsumeLogs(context.Background(), testLogs(10)))
+			require.NoError(t, exp.ConsumeLogs(t.Context(), testLogs(10)))
 			require.Eventually(t, func() bool { return intake.payloads.Load() > 0 }, 10*time.Second, 10*time.Millisecond,
 				"the logs agent never tried to deliver the payload")
 
@@ -241,7 +241,7 @@ func TestLogsExporter_SyncSender_Delivers(t *testing.T) {
 	intake := newFakeLogsIntake(t, alwaysStatus(http.StatusOK))
 	exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, testLogsAgentConfig(t, intake.URL, nil)), noRetry())
 
-	require.NoError(t, exp.ConsumeLogs(context.Background(), testLogs(10)))
+	require.NoError(t, exp.ConsumeLogs(t.Context(), testLogs(10)))
 
 	assert.Equal(t, int64(10), intake.delivered.Load(), "records must reach the intake before ConsumeLogs returns")
 	assert.Equal(t, int64(10), exporterCounter(t, reader, sentLogRecordsMetric))
@@ -254,7 +254,7 @@ func TestLogsExporter_SyncSender_PermanentError(t *testing.T) {
 	// Retries stay enabled: a permanent error must be dropped without retrying.
 	exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, testLogsAgentConfig(t, intake.URL, nil)), fastRetry())
 
-	err := exp.ConsumeLogs(context.Background(), testLogs(10))
+	err := exp.ConsumeLogs(t.Context(), testLogs(10))
 
 	require.Error(t, err)
 	assert.True(t, consumererror.IsPermanent(err), "403 must be reported as a permanent error: %v", err)
@@ -269,7 +269,7 @@ func TestLogsExporter_SyncSender_RetryableError(t *testing.T) {
 	intake := newFakeLogsIntake(t, alwaysStatus(http.StatusServiceUnavailable))
 	exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, testLogsAgentConfig(t, intake.URL, nil)), noRetry())
 
-	err := exp.ConsumeLogs(context.Background(), testLogs(10))
+	err := exp.ConsumeLogs(t.Context(), testLogs(10))
 
 	require.Error(t, err)
 	assert.False(t, consumererror.IsPermanent(err), "503 must stay retryable: %v", err)
@@ -288,7 +288,7 @@ func TestLogsExporter_SyncSender_RetriesTransientErrors(t *testing.T) {
 	})
 	exp, reader := newTestLogsExporter(t, startTestLogsAgent(t, testLogsAgentConfig(t, intake.URL, nil)), fastRetry())
 
-	require.NoError(t, exp.ConsumeLogs(context.Background(), testLogs(10)))
+	require.NoError(t, exp.ConsumeLogs(t.Context(), testLogs(10)))
 
 	assert.Equal(t, int64(3), intake.payloads.Load())
 	assert.Equal(t, int64(10), intake.delivered.Load())
@@ -320,10 +320,10 @@ func TestLogsExporter_SyncSender_WarnsThatMultiRegionFailoverIsNotSupported(t *t
 			cfg.API.Key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 			cfg.HostMetadata.Enabled = false
 
-			exp, err := f.CreateLogs(context.Background(), set, cfg)
+			exp, err := f.CreateLogs(t.Context(), set, cfg)
 			require.NoError(t, err)
-			require.NoError(t, exp.Start(context.Background(), componenttest.NewNopHost()))
-			require.NoError(t, exp.Shutdown(context.Background()))
+			require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
+			require.NoError(t, exp.Shutdown(t.Context()))
 
 			assert.Equal(t, tt.warnings, logs.FilterMessageSnippet("multi_region_failover").Len())
 		})

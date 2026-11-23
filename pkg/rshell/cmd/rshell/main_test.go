@@ -24,7 +24,7 @@ import (
 
 func runCLI(t *testing.T, args ...string) (exitCode int, stdout, stderr string) {
 	t.Helper()
-	return runCLIContext(context.Background(), t, args...)
+	return runCLIContext(t.Context(), t, args...)
 }
 
 func runCLIContext(ctx context.Context, t *testing.T, args ...string) (exitCode int, stdout, stderr string) {
@@ -49,7 +49,7 @@ func TestShortFlag(t *testing.T) {
 func runCLIWithStdin(t *testing.T, stdin string, args ...string) (exitCode int, stdout, stderr string) {
 	t.Helper()
 	var out, errBuf bytes.Buffer
-	code := run(context.Background(), args, strings.NewReader(stdin), &out, &errBuf)
+	code := run(t.Context(), args, strings.NewReader(stdin), &out, &errBuf)
 	return code, out.String(), errBuf.String()
 }
 
@@ -458,13 +458,13 @@ func TestTimeoutFlagTimesOutExecution(t *testing.T) {
 	pr, pw := io.Pipe()
 	defer pw.Close()
 	var out, errBuf bytes.Buffer
-	code := run(context.Background(), []string{"--timeout", "50ms"}, pr, &out, &errBuf)
+	code := run(t.Context(), []string{"--timeout", "50ms"}, pr, &out, &errBuf)
 	assert.Equal(t, exitCodeTimeout, code)
 	assert.Contains(t, errBuf.String(), "execution timed out")
 }
 
 func TestCanceledContextExitsWithTimeoutCode(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // cancel before execution starts
 	code, _, stderr := runCLIContext(ctx, t, "--allow-all-commands", "-c", `echo hello`)
 	assert.Equal(t, exitCodeTimeout, code)

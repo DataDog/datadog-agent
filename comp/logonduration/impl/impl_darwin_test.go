@@ -8,7 +8,6 @@
 package logondurationimpl
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"sync"
@@ -662,7 +661,7 @@ func TestSysProbeClient_ReturnsTimestamps(t *testing.T) {
 	mockClient := &mockSysProbeClient{}
 	mockClient.On("GetLoginTimestamps", mock.Anything).Return(expectedTs, nil)
 
-	ts, err := mockClient.GetLoginTimestamps(context.Background())
+	ts, err := mockClient.GetLoginTimestamps(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedTs.LoginWindowTime, ts.LoginWindowTime)
@@ -678,7 +677,7 @@ func TestSysProbeClient_ReturnsError(t *testing.T) {
 	mockClient := &mockSysProbeClient{}
 	mockClient.On("GetLoginTimestamps", mock.Anything).Return(logonduration.LoginTimestamps{}, expectedErr)
 
-	ts, err := mockClient.GetLoginTimestamps(context.Background())
+	ts, err := mockClient.GetLoginTimestamps(t.Context())
 
 	require.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -702,7 +701,7 @@ func TestSysProbeClient_ThreadSafety(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = mockClient.GetLoginTimestamps(context.Background())
+			_, _ = mockClient.GetLoginTimestamps(t.Context())
 		}()
 	}
 	wg.Wait()

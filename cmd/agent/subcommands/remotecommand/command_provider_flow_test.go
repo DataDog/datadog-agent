@@ -72,8 +72,8 @@ func TestCommandProviderRegistrationDiscoveryCLIAndExecutionFlow(t *testing.T) {
 	registerCommandProviderFlowFixture(t, registry, ipcComponent, newProvider, "200")
 
 	remote := Commands(&command.GlobalParams{})[0]
-	require.NoError(t, AttachCommandProviders(remote, registry.ListCommands(context.Background()), func(providerName string, commandPath []string, arguments *structpb.Struct, _, _ io.Writer) error {
-		return registry.ExecuteCommand(context.Background(), &pb.ExecuteCommandRequest{ProviderName: providerName, CommandPath: commandPath, Arguments: arguments}, func(*pb.ExecuteCommandResponse) error { return nil })
+	require.NoError(t, AttachCommandProviders(remote, registry.ListCommands(t.Context()), func(providerName string, commandPath []string, arguments *structpb.Struct, _, _ io.Writer) error {
+		return registry.ExecuteCommand(t.Context(), &pb.ExecuteCommandRequest{ProviderName: providerName, CommandPath: commandPath, Arguments: arguments}, func(*pb.ExecuteCommandResponse) error { return nil })
 	}))
 
 	providerCommand, _, err := remote.Find([]string{"fixture-agent"})

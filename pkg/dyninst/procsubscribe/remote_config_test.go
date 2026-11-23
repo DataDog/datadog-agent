@@ -506,7 +506,7 @@ func TestRemoteConfigSymDBUpdates(t *testing.T) {
 		procsubscribe.WithClock(mockClock),
 	)
 	t.Cleanup(subscriber.Close)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	updatesCh := make(chan process.ProcessesUpdate, 2)
@@ -937,7 +937,7 @@ func TestSymDBStatePreservedWhenNotInMatchedConfigs(t *testing.T) {
 		procsubscribe.WithClock(mockClock),
 	)
 	t.Cleanup(subscriber.Close)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	updatesCh := make(chan process.ProcessesUpdate, 2)

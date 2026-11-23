@@ -7,7 +7,6 @@ package uploaderimpl
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -67,7 +66,7 @@ func TestUpload_RealIntake(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = u.Upload(context.Background(), uploader.UploadRequest{
+	err = u.Upload(t.Context(), uploader.UploadRequest{
 		Event: event,
 		Attachments: []uploader.Attachment{{
 			Name:     "pcap",

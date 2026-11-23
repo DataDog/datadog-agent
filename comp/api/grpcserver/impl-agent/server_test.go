@@ -85,7 +85,7 @@ func TestReportRemoteAgentEventHandler(t *testing.T) {
 		fake := &fakeRemoteAgentRegistry{}
 		srv := &remoteAgentServer{remoteAgentRegistry: fake}
 
-		_, err := srv.ReportRemoteAgentEvent(context.Background(), &pb.ReportRemoteAgentEventRequest{
+		_, err := srv.ReportRemoteAgentEvent(t.Context(), &pb.ReportRemoteAgentEventRequest{
 			SessionId: "session-123",
 			Events: []*pb.Event{
 				{
@@ -109,7 +109,7 @@ func TestReportRemoteAgentEventHandler(t *testing.T) {
 		fake := &fakeRemoteAgentRegistry{reportErr: errors.New("no remote agent found with session ID")}
 		srv := &remoteAgentServer{remoteAgentRegistry: fake}
 
-		_, err := srv.ReportRemoteAgentEvent(context.Background(), &pb.ReportRemoteAgentEventRequest{SessionId: "missing"})
+		_, err := srv.ReportRemoteAgentEvent(t.Context(), &pb.ReportRemoteAgentEventRequest{SessionId: "missing"})
 		require.Error(t, err)
 		assert.Equal(t, codes.NotFound, status.Code(err))
 	})
@@ -117,7 +117,7 @@ func TestReportRemoteAgentEventHandler(t *testing.T) {
 	t.Run("returns Unimplemented when the registry is not enabled", func(t *testing.T) {
 		srv := &remoteAgentServer{remoteAgentRegistry: nil}
 
-		_, err := srv.ReportRemoteAgentEvent(context.Background(), &pb.ReportRemoteAgentEventRequest{})
+		_, err := srv.ReportRemoteAgentEvent(t.Context(), &pb.ReportRemoteAgentEventRequest{})
 		require.Error(t, err)
 		assert.Equal(t, codes.Unimplemented, status.Code(err))
 	})
@@ -128,7 +128,7 @@ func TestRemoteCommandProviderExecuteCommandForwardsContextAndFrames(t *testing.
 	registry := &fakeRemoteAgentRegistry{commandFrames: []*pb.ExecuteCommandResponse{{Frame: &pb.ExecuteCommandResponse_Stdout{Stdout: "output"}}}}
 	srv := &remoteCommandProviderServer{remoteAgentRegistry: registry}
 
-	ctx := context.WithValue(context.Background(), commandContextKey{}, "caller-context")
+	ctx := context.WithValue(t.Context(), commandContextKey{}, "caller-context")
 	stream := &fakeCommandStream{ctx: ctx}
 	err := srv.ExecuteCommand(request, stream)
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestRemoteCommandProviderPreservesRegistryStatus(t *testing.T) {
 	registry := &fakeRemoteAgentRegistry{commandErr: status.Error(codes.NotFound, "agent missing")}
 	srv := &remoteCommandProviderServer{remoteAgentRegistry: registry}
 
-	err := srv.ExecuteCommand(&pb.ExecuteCommandRequest{CommandPath: []string{"dogstatsd", "top"}, ProviderName: "missing"}, &fakeCommandStream{ctx: context.Background()})
+	err := srv.ExecuteCommand(&pb.ExecuteCommandRequest{CommandPath: []string{"dogstatsd", "top"}, ProviderName: "missing"}, &fakeCommandStream{ctx: t.Context()})
 	require.Error(t, err)
 	require.Equal(t, codes.NotFound, status.Code(err))
 }

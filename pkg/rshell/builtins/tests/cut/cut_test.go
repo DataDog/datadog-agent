@@ -24,7 +24,7 @@ import (
 
 func runScript(t *testing.T, script, dir string, opts ...interp.RunnerOption) (string, string, int) {
 	t.Helper()
-	return runScriptCtx(context.Background(), t, script, dir, opts...)
+	return runScriptCtx(t.Context(), t, script, dir, opts...)
 }
 
 func runScriptCtx(ctx context.Context, t *testing.T, script, dir string, opts ...interp.RunnerOption) (string, string, int) {
@@ -495,7 +495,7 @@ func TestCutCharsComplementWithOutputDelim(t *testing.T) {
 func TestCutContextCancelled(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "input.txt", "a:b\n")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, _, _ = runScriptCtx(ctx, t, "cut -d: -f1 input.txt", dir, interp.AllowedPaths([]string{dir}))
 }

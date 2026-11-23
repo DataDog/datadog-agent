@@ -76,7 +76,7 @@ func TestVulnHuntSubsystemInterpRedirectHandling_InputRedirectGoesThroughOpenHan
 	r.openHandler = rec.handle
 	r.Dir = dir
 
-	err = r.Run(context.Background(), parseScript(t, "cat <"+fileName))
+	err = r.Run(t.Context(), parseScript(t, "cat <"+fileName))
 	require.NoError(t, err, "stderr=%q", stderr.String())
 
 	require.Len(t, rec.calls, 1, "expected exactly one open call routed through openHandler")
@@ -124,7 +124,7 @@ func TestVulnHuntSubsystemInterpRedirectHandling_FailedSecondRedirectClosesFirst
 		return &closeRecordingFile{ReadWriteCloser: f, closed: &closeCount}, nil
 	}
 
-	err = r.Run(context.Background(), parseScript(t, "cat < first.txt < blocked.txt\necho after\n"))
+	err = r.Run(t.Context(), parseScript(t, "cat < first.txt < blocked.txt\necho after\n"))
 	require.NoError(t, err, "stderr=%q", stderr.String())
 	assert.Equal(t, "after\n", stdout.String(),
 		"failed redirect must skip the cat command and restore stdout for the next statement")
@@ -157,7 +157,7 @@ func TestVulnHuntSubsystemInterpRedirectHandling_RecoveredPanicClosesRedirectAnd
 		panic("redirect panic sentinel")
 	}
 
-	err = r.Run(context.Background(), parseScript(t, "paniccmd 2> panic.txt"))
+	err = r.Run(t.Context(), parseScript(t, "paniccmd 2> panic.txt"))
 	require.EqualError(t, err, "internal error")
 	assert.Equal(t, 1, closeCount, "redirect file must be closed while unwinding the recovered panic")
 	assert.Contains(t, stderr.String(), "redirect panic sentinel",
@@ -190,7 +190,7 @@ func TestVulnHuntSubsystemInterpRedirectHandling_UnsupportedRedirectsAndProcSubs
 				return nil, errors.New("openHandler should not be called")
 			}
 
-			err = r.Run(context.Background(), parseScript(t, script))
+			err = r.Run(t.Context(), parseScript(t, script))
 			require.Error(t, err)
 			var es ExitStatus
 			require.True(t, errors.As(err, &es), "expected validation exit status, got %v", err)
@@ -213,7 +213,7 @@ func TestVulnHuntSubsystemInterpRedirectHandling_RuntimeDevNullDefenseRejectsMut
 	r.Reset()
 
 	target := filepath.Join(dir, "created.txt")
-	_, err = r.redir(context.Background(), &syntax.Redirect{
+	_, err = r.redir(t.Context(), &syntax.Redirect{
 		Op:   syntax.RdrOut,
 		Word: &syntax.Word{Parts: []syntax.WordPart{&syntax.Lit{Value: target}}},
 	})
@@ -239,7 +239,7 @@ func TestVulnHuntSubsystemInterpRedirectHandling_DevNullOutputDoesNotOpenFileHan
 		return nil, errors.New("openHandler should not be called for /dev/null output")
 	}
 
-	err = r.Run(context.Background(), parseScript(t, "echo hidden >/dev/null\necho visible\n"))
+	err = r.Run(t.Context(), parseScript(t, "echo hidden >/dev/null\necho visible\n"))
 	require.NoError(t, err, "stderr=%q", stderr.String())
 	assert.Equal(t, "visible\n", stdout.String())
 	assert.Empty(t, stderr.String())
@@ -265,7 +265,7 @@ func TestVulnHuntSubsystemInterpRedirectHandling_HeredocCommandSubstitutionUsesS
 	r.Dir = allowed
 
 	script := "cat <<EOF\n$(<../outside/secret.txt)\nEOF\necho after\n"
-	err = r.Run(context.Background(), parseScript(t, script))
+	err = r.Run(t.Context(), parseScript(t, script))
 	require.NoError(t, err, "stderr=%q", stderr.String())
 	assert.NotContains(t, stdout.String(), "classified")
 	assert.NotContains(t, stderr.String(), "classified")
@@ -283,7 +283,7 @@ func TestVulnHuntSubsystemInterpRedirectHandling_QuotedHeredocStaysLiteral(t *te
 	t.Cleanup(func() { _ = r.Close() })
 
 	script := "cat <<'EOF'\n$(echo should-not-run)\n~/literal\nEOF\n"
-	err = r.Run(context.Background(), parseScript(t, script))
+	err = r.Run(t.Context(), parseScript(t, script))
 	require.NoError(t, err, "stderr=%q", stderr.String())
 	assert.Equal(t, "$(echo should-not-run)\n~/literal\n", stdout.String())
 	assert.Empty(t, stderr.String())

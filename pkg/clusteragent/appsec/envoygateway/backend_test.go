@@ -8,7 +8,6 @@
 package envoygateway
 
 import (
-	"context"
 	stderrors "errors"
 	"testing"
 
@@ -73,7 +72,7 @@ func newTestPatternWithBackendSupport(t *testing.T) (*envoyGatewayInjectionPatte
 }
 
 func TestCreateBackend_CreatesObjectWithExpectedFields(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	pattern, client := newTestPatternWithBackendSupport(t)
 
 	err := pattern.createBackend(ctx, "test-ns", testSocketPath)
@@ -102,7 +101,7 @@ func TestCreateBackend_CreatesObjectWithExpectedFields(t *testing.T) {
 }
 
 func TestCreateBackend_Idempotent(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	pattern, client := newTestPatternWithBackendSupport(t)
 
 	require.NoError(t, pattern.createBackend(ctx, "test-ns", testSocketPath))
@@ -114,7 +113,7 @@ func TestCreateBackend_Idempotent(t *testing.T) {
 }
 
 func TestCreateBackend_ReturnsNonAlreadyExistsError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	pattern, client := newTestPatternWithBackendSupport(t)
 	boom := stderrors.New("create failed")
 	client.PrependReactor("create", "backends", func(_ k8stesting.Action) (bool, runtime.Object, error) {
@@ -126,7 +125,7 @@ func TestCreateBackend_ReturnsNonAlreadyExistsError(t *testing.T) {
 }
 
 func TestDeleteBackend_AbsentIsNoOp(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	pattern, _ := newTestPatternWithBackendSupport(t)
 
 	err := pattern.deleteBackend(ctx, "test-ns")
@@ -134,7 +133,7 @@ func TestDeleteBackend_AbsentIsNoOp(t *testing.T) {
 }
 
 func TestDeleteBackend_ReturnsNonNotFoundError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	pattern, client := newTestPatternWithBackendSupport(t)
 	require.NoError(t, pattern.createBackend(ctx, "test-ns", testSocketPath))
 	boom := stderrors.New("delete failed")
@@ -147,7 +146,7 @@ func TestDeleteBackend_ReturnsNonNotFoundError(t *testing.T) {
 }
 
 func TestDeleteBackend_CreateThenDelete(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	pattern, client := newTestPatternWithBackendSupport(t)
 
 	require.NoError(t, pattern.createBackend(ctx, "test-ns", testSocketPath))
@@ -159,7 +158,7 @@ func TestDeleteBackend_CreateThenDelete(t *testing.T) {
 }
 
 func TestDeleteBackend_LeavesForeignBackend(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	pattern, client := newTestPatternWithBackendSupport(t)
 	backend := newTestBackend("test-ns", testSocketPath)
 	backend.SetLabels(map[string]string{"app": "someone-else"})

@@ -6,7 +6,6 @@
 package attributes
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -70,11 +69,11 @@ func TestInternalTelemetryMetrics(t *testing.T) {
 
 	attributeSet := attribute.NewSet(attribute.String("signal", "test"))
 
-	_, _ = translator.ResourceToSource(context.Background(), resWithHostname, attributeSet, nil)
-	_, _ = translator.ResourceToSource(context.Background(), resWithoutHostname, attributeSet, nil)
-	_, _ = translator.ResourceToSource(context.Background(), resWithoutHostname, attributeSet, nil)
+	_, _ = translator.ResourceToSource(t.Context(), resWithHostname, attributeSet, nil)
+	_, _ = translator.ResourceToSource(t.Context(), resWithoutHostname, attributeSet, nil)
+	_, _ = translator.ResourceToSource(t.Context(), resWithoutHostname, attributeSet, nil)
 
 	rm := &metricdata.ResourceMetrics{}
-	assert.NoError(t, reader.Collect(context.Background(), rm))
+	assert.NoError(t, reader.Collect(t.Context(), rm))
 	AssertHasSumMetric[int64](t, rm, missingSourceMetricName, 2)
 }

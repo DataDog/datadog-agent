@@ -8,7 +8,6 @@
 package diskstats
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -25,7 +24,7 @@ func TestParseMountInfo_LineNearLimit(t *testing.T) {
 	if len(line) > maxMountInfoLine {
 		t.Fatalf("test setup error: line exceeds cap")
 	}
-	mounts, err := parseMountInfo(context.Background(), strings.NewReader(line))
+	mounts, err := parseMountInfo(t.Context(), strings.NewReader(line))
 	assert.NoError(t, err)
 	assert.Len(t, mounts, 1)
 }
@@ -38,7 +37,7 @@ func TestParseMountInfo_GrowingBuffer(t *testing.T) {
 	// initial 4 KiB buffer.
 	mid := strings.Repeat("a", 100_000)
 	line := "36 35 98:0 / / rw - ext4 " + mid + " rw\n"
-	mounts, err := parseMountInfo(context.Background(), strings.NewReader(line))
+	mounts, err := parseMountInfo(t.Context(), strings.NewReader(line))
 	assert.NoError(t, err)
 	assert.Len(t, mounts, 1)
 }
@@ -51,7 +50,7 @@ func TestParseMountInfo_ManyShortLinesUnderLimit(t *testing.T) {
 	for range n {
 		b.WriteString("36 35 98:0 / /m rw - ext4 /dev/x rw\n")
 	}
-	mounts, err := parseMountInfo(context.Background(), strings.NewReader(b.String()))
+	mounts, err := parseMountInfo(t.Context(), strings.NewReader(b.String()))
 	assert.NoError(t, err)
 	assert.Len(t, mounts, n)
 }
@@ -64,7 +63,7 @@ func TestParseMountInfo_AllMalformedDoesNotInfinite(t *testing.T) {
 	for range 5_000 {
 		b.WriteString("garbage line without separator\n")
 	}
-	mounts, err := parseMountInfo(context.Background(), strings.NewReader(b.String()))
+	mounts, err := parseMountInfo(t.Context(), strings.NewReader(b.String()))
 	assert.NoError(t, err)
 	assert.Empty(t, mounts)
 }
@@ -83,7 +82,7 @@ func TestParseMountInfo_RespectsCapNotJustLines(t *testing.T) {
 	for range MaxMounts + 50 {
 		b.WriteString("36 35 98:0 / /m rw - ext4 /dev/x rw\n")
 	}
-	mounts, err := parseMountInfo(context.Background(), strings.NewReader(b.String()))
+	mounts, err := parseMountInfo(t.Context(), strings.NewReader(b.String()))
 	assert.ErrorIs(t, err, ErrMaxMounts)
 	assert.Equal(t, MaxMounts, len(mounts))
 }

@@ -53,7 +53,7 @@ func TestVulnHuntSubsystemSignalHandling_PipelineEpipeDoesNotKillProcess(t *test
 	prog := parseScript(t, "while true; do echo x; done | head -n 1")
 
 	start := time.Now()
-	err = r.Run(context.Background(), prog)
+	err = r.Run(t.Context(), prog)
 	elapsed := time.Since(start)
 
 	// Outcome must be a clean cancellation from the runner's MaxExecutionTime,
@@ -91,7 +91,7 @@ func TestVulnHuntSubsystemSignalHandling_ParentCtxCancelStopsPipeline(t *testing
 
 	prog := parseScript(t, "while true; do echo x; done | head -n 1")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
 	defer cancel()
 
 	start := time.Now()
@@ -128,7 +128,7 @@ func TestVulnHuntSubsystemSignalHandling_PipelineLeftPanicRecovered(t *testing.T
 		return nil
 	}
 
-	err = r.Run(context.Background(), parseScript(t, "paniccmd | true"))
+	err = r.Run(t.Context(), parseScript(t, "paniccmd | true"))
 	require.Error(t, err)
 	assert.Equal(t, "internal error", err.Error())
 	assert.NotContains(t, fmt.Sprint(err), "left pipeline panic sentinel",

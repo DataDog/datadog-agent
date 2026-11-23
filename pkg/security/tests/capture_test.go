@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -101,7 +100,7 @@ func TestActionCaptureInherited(t *testing.T) {
 	script := fmt.Sprintf(`: < %s; sh -c ": < %s"`, triggerFile, checkFile)
 
 	test.WaitSignalFromRule(t, func() error {
-		return exec.CommandContext(context.Background(), "sh", "-c", script).Run()
+		return exec.CommandContext(t.Context(), "sh", "-c", script).Run()
 	}, func(_ *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "descendant_carries_command_id")
 	}, "descendant_carries_command_id")

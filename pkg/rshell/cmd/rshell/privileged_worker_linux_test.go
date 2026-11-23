@@ -42,7 +42,7 @@ func TestServePrivilegedWorker(t *testing.T) {
 	require.NoError(t, writeWorkerMessage(&input, workerRequest{Version: workerProtocolVersion, Command: command}))
 
 	var stdout, stderr bytes.Buffer
-	code := servePrivilegedWorker(context.Background(), &input, &stdout, &stderr, func(_ context.Context, got *privilegedhelper.VerifiedCommand) (*privilegedhelper.ExecuteResponse, error) {
+	code := servePrivilegedWorker(t.Context(), &input, &stdout, &stderr, func(_ context.Context, got *privilegedhelper.VerifiedCommand) (*privilegedhelper.ExecuteResponse, error) {
 		require.Equal(t, command, got)
 		return &privilegedhelper.ExecuteResponse{ExitCode: 7, Stdout: "out", Stderr: "err"}, nil
 	})
@@ -57,7 +57,7 @@ func TestServePrivilegedWorker(t *testing.T) {
 }
 
 func TestExecuteVerifiedCommandRejectsUnsupportedMode(t *testing.T) {
-	_, err := executeVerifiedCommand(context.Background(), &privilegedhelper.VerifiedCommand{
+	_, err := executeVerifiedCommand(t.Context(), &privilegedhelper.VerifiedCommand{
 		Command: "echo hello",
 		Mode:    privilegedhelper.ExecutionMode("unexpected"),
 	}, 1234)
@@ -113,7 +113,7 @@ func TestServePrivilegedWorkerReturnsExecutionError(t *testing.T) {
 		Command: &privilegedhelper.VerifiedCommand{Command: "echo hello"},
 	}))
 	var stdout, stderr bytes.Buffer
-	code := servePrivilegedWorker(context.Background(), &input, &stdout, &stderr, func(context.Context, *privilegedhelper.VerifiedCommand) (*privilegedhelper.ExecuteResponse, error) {
+	code := servePrivilegedWorker(t.Context(), &input, &stdout, &stderr, func(context.Context, *privilegedhelper.VerifiedCommand) (*privilegedhelper.ExecuteResponse, error) {
 		return nil, errors.New("sandbox unavailable")
 	})
 	require.Zero(t, code)
@@ -236,9 +236,9 @@ func TestHelperExecutorUsesFreshWorkersAndEffectivePolicy(t *testing.T) {
 		AllowedPaths:       []string{"/var/log:ro"},
 		ElevatableCommands: []string{"rshell:truncate"},
 	}
-	first, err := executor.Execute(context.Background(), command)
+	first, err := executor.Execute(t.Context(), command)
 	require.NoError(t, err)
-	second, err := executor.Execute(context.Background(), command)
+	second, err := executor.Execute(t.Context(), command)
 	require.NoError(t, err)
 	require.NotEqual(t, first.Stdout, second.Stdout, "each request must run in a fresh process")
 
@@ -249,7 +249,7 @@ func TestHelperExecutorUsesFreshWorkersAndEffectivePolicy(t *testing.T) {
 
 func TestHelperExecutorHonorsContextCancellation(t *testing.T) {
 	executor := &helperExecutor{newWorker: newTestWorkerCommand}
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
 	_, err := executor.Execute(ctx, &privilegedhelper.VerifiedCommand{Command: "block"})
 	require.ErrorIs(t, err, context.DeadlineExceeded)

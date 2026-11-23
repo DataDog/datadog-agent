@@ -9,7 +9,6 @@ package dyninst_test
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -108,7 +107,7 @@ func TestDurationThreshold(t *testing.T) {
 	require.NotEmpty(t, binPath,
 		"drop_tester binary not built; run `dda inv system-probe.build-dyninst-test-programs`")
 
-	ctx := context.Background()
+	ctx := t.Context()
 	proc, _ := dyninsttest.StartProcess(ctx, t, tempDir, binPath)
 	pid := proc.Process.Pid
 	t.Logf("launched drop_tester with pid %d", pid)

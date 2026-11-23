@@ -48,7 +48,7 @@ func TestNewRemoteCatalogSubscribesAndFailsClosed(t *testing.T) {
 	require.NotNil(t, client.handler)
 	requireCatalogNotReady(t, catalog)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	require.ErrorIs(t, catalog.WaitForReady(ctx), context.Canceled)
 
@@ -88,7 +88,7 @@ func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
 	}})
 	require.Equal(t, state.ApplyStateAcknowledged, status.State)
 	requireCatalogReady(t, catalog)
-	require.NoError(t, catalog.WaitForReady(context.Background()))
+	require.NoError(t, catalog.WaitForReady(t.Context()))
 
 	descriptor, err := catalog.Lookup(testExecutionFQN)
 	require.NoError(t, err)

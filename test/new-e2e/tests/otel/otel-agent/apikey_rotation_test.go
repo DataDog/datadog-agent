@@ -310,7 +310,7 @@ func linesWith(logs string, substrs ...string) []string {
 // and they log the identical text. The extension's lines are the ones carrying its
 // collector component scope.
 func (s *apiKeyRotationTestSuite) TestAPIKeyReachesDatadogExtension() {
-	ctx := context.Background()
+	ctx := t.Context()
 	pod := s.otelAgentPod(ctx)
 
 	// Sanity-check the starting state. The extension must be running, and its logs must

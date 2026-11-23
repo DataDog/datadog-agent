@@ -31,7 +31,7 @@ func (w panicWriter) Write([]byte) (int, error) {
 }
 
 func TestVulnHuntBuiltinResourceExhaustion_InertInputs(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	callCtx := &builtins.CallContext{

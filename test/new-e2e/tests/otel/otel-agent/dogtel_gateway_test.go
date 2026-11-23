@@ -7,7 +7,6 @@
 package otelagent
 
 import (
-	"context"
 	_ "embed"
 	"testing"
 	"time"
@@ -232,7 +231,7 @@ func (s *dogtelGatewayTestSuite) TestNoCoreAgent() {
 }
 
 func assertNoPodWithAppLabel(t *testing.T, client k8sclient.Interface, namespace, appLabel string) {
-	res, err := client.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
+	res, err := client.CoreV1().Pods(namespace).List(t.Context(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", appLabel).String(),
 	})
 	require.NoError(t, err)

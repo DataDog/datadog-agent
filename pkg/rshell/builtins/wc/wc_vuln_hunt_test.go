@@ -50,7 +50,7 @@ func TestVulnHuntBuiltinResourceExhaustion_ManyFileOperandsCloseHandles(t *testi
 		args = append(args, name)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	stdout, stderr, code := runScriptCtx(ctx, t, "wc "+strings.Join(args, " "), dir, interp.AllowedPaths([]string{dir}))
@@ -64,7 +64,7 @@ func TestVulnHuntBuiltinIntegerOverflow_LargeBoundedCountsAndWidths(t *testing.T
 	dir := t.TempDir()
 	writeFile(t, dir, "large.txt", strings.Repeat("word\n", 100_000))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	stdout, stderr, code := runScriptCtx(ctx, t, "wc -lwmcL large.txt", dir, interp.AllowedPaths([]string{dir}))

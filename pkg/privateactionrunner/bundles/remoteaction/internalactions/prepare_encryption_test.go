@@ -6,7 +6,6 @@
 package com_datadoghq_remoteaction_internal
 
 import (
-	"context"
 	"crypto/ecdh"
 	"crypto/hpke"
 	"encoding/base64"
@@ -77,7 +76,7 @@ func TestPrepareEncryptionRun(t *testing.T) {
 			store := encryptioncontext.NewStore()
 			handler := NewPrepareEncryptionHandler(store)
 
-			output, err := handler.Run(context.Background(), newTask("task-abc", testCase.inputs), nil)
+			output, err := handler.Run(t.Context(), newTask("task-abc", testCase.inputs), nil)
 			if testCase.wantErr {
 				require.Error(t, err)
 				return
@@ -100,7 +99,7 @@ func TestPrepareEncryptionGeneratesUniqueContextsPerRun(t *testing.T) {
 	results := make([]*PrepareEncryptionOutputs, 0, len(runs))
 	for _, name := range runs {
 		t.Run(name, func(_ *testing.T) {
-			output, err := handler.Run(context.Background(), newTask("task", map[string]any{"encryptionContextId": name}), nil)
+			output, err := handler.Run(t.Context(), newTask("task", map[string]any{"encryptionContextId": name}), nil)
 			require.NoError(t, err)
 			result, ok := output.(*PrepareEncryptionOutputs)
 			require.True(t, ok)

@@ -8,7 +8,6 @@
 package otlp
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -1647,7 +1646,7 @@ func TestUnmarshal(t *testing.T) {
 	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService(), nil)
 	require.NoError(t, err)
 
-	svccfg, err := provider.Get(context.Background(), components)
+	svccfg, err := provider.Get(t.Context(), components)
 	require.NoError(t, err)
 
 	scfgRaw := svccfg.Exporters[component.MustNewID(serializerexporter.TypeStr)]

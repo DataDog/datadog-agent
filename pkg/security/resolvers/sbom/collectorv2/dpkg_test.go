@@ -8,7 +8,6 @@
 package collectorv2
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -39,7 +38,7 @@ func TestDpkgListPackagesSkipsBadRecords(t *testing.T) {
 	require.NoError(t, err)
 	defer root.Close()
 
-	pkgs, err := (&dpkgScanner{}).ListPackages(context.Background(), root)
+	pkgs, err := (&dpkgScanner{}).ListPackages(t.Context(), root)
 	require.NoError(t, err)
 
 	files := make(map[string][]string)
@@ -214,7 +213,7 @@ func TestDpkgSkipsStatusDCopies(t *testing.T) {
 			require.NoError(t, err)
 			defer root.Close()
 
-			pkgs, err := (&dpkgScanner{}).ListPackages(context.Background(), root)
+			pkgs, err := (&dpkgScanner{}).ListPackages(t.Context(), root)
 			require.NoError(t, err)
 
 			var got []string

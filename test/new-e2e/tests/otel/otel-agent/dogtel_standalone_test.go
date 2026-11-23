@@ -7,7 +7,6 @@
 package otelagent
 
 import (
-	"context"
 	_ "embed"
 	"fmt"
 	"strings"
@@ -173,7 +172,7 @@ const dogtelNodefilterClusterName = "dogtel-standalone-e2e"
 // whose hostname comes from that telemetry's k8s.node.name.
 func (s *dogtelNodefilterTestSuite) TestDogtelHostnameWithoutKubelet() {
 	appLabel := s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]
-	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
+	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(t.Context(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", appLabel).String(),
 	})
 	require.NoError(s.T(), err)
@@ -423,13 +422,13 @@ func assertWorkloadmetaCollector(s utils.OTelTestSuite, namespace, appLabel, wan
 
 	pods := s.Env().KubernetesCluster.Client().CoreV1().Pods(namespace)
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		res, err := pods.List(context.Background(), metav1.ListOptions{
+		res, err := pods.List(t.Context(), metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("app", appLabel).String(),
 		})
 		require.NoError(c, err)
 		require.NotEmpty(c, res.Items, "no pod found with app label %q in namespace %q", appLabel, namespace)
 		for _, pod := range res.Items {
-			logs, err := pods.GetLogs(pod.Name, &corev1.PodLogOptions{Container: "otel-agent"}).DoRaw(context.Background())
+			logs, err := pods.GetLogs(pod.Name, &corev1.PodLogOptions{Container: "otel-agent"}).DoRaw(t.Context())
 			require.NoError(c, err)
 			// Keep only workloadmeta's collector lines, so that a failure prints
 			// those rather than the whole log.
@@ -448,7 +447,7 @@ func assertWorkloadmetaCollector(s utils.OTelTestSuite, namespace, appLabel, wan
 // serviceAccountCan reports whether the Kubernetes API server authorizes the
 // ServiceAccount name in namespace to perform access.
 func serviceAccountCan(s utils.OTelTestSuite, namespace, name string, access authorizationv1.ResourceAttributes) bool {
-	review, err := s.Env().KubernetesCluster.Client().AuthorizationV1().SubjectAccessReviews().Create(context.Background(), &authorizationv1.SubjectAccessReview{
+	review, err := s.Env().KubernetesCluster.Client().AuthorizationV1().SubjectAccessReviews().Create(t.Context(), &authorizationv1.SubjectAccessReview{
 		Spec: authorizationv1.SubjectAccessReviewSpec{
 			User:               fmt.Sprintf("system:serviceaccount:%s:%s", namespace, name),
 			Groups:             []string{"system:serviceaccounts", "system:serviceaccounts:" + namespace, "system:authenticated"},
@@ -460,7 +459,7 @@ func serviceAccountCan(s utils.OTelTestSuite, namespace, name string, access aut
 }
 
 func getPodByAppLabel(s *dogtelCoexistTestSuite, namespace, appLabel string) corev1.Pod {
-	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
+	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).List(t.Context(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", appLabel).String(),
 	})
 	require.NoError(s.T(), err)

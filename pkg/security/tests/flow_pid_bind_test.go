@@ -882,7 +882,7 @@ func TestMultipleProtocols(t *testing.T) {
 
 		test.WaitSignalFromRule(t, func() error {
 			go func() {
-				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				timeoutCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 				defer cancel()
 				cmd := exec.CommandContext(timeoutCtx, syscallTester, "bind-and-listen", "2663", "tcp")
 
@@ -944,7 +944,7 @@ func TestMultipleProtocols(t *testing.T) {
 
 		test.WaitSignalFromRule(t, func() error {
 			go func() {
-				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				timeoutCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 				defer cancel()
 				cmd := exec.CommandContext(timeoutCtx, syscallTester, "bind-and-listen", "2663", "udp")
 

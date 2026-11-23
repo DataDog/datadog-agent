@@ -159,7 +159,7 @@ func TestNewECSMetaTaskMetadataFallback(t *testing.T) {
 			})
 			fetchECSInstanceMetadata, fetchECSTaskMetadata = tt.instanceFunc, tt.taskFunc
 
-			meta, err := newECSMeta(context.Background())
+			meta, err := newECSMeta(t.Context())
 
 			if tt.expectErr != nil {
 				require.ErrorIs(t, err, tt.expectErr)

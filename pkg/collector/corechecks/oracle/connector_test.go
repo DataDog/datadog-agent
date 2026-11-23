@@ -34,7 +34,7 @@ func TestConnectorClosesSocketsOnFailedOpen(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				ctx, cancel := context.WithCancel(context.Background())
+				ctx, cancel := context.WithCancel(t.Context())
 				defer cancel()
 				socket := &recordedSocket{}
 				failure := errors.New("rejected login")
@@ -65,7 +65,7 @@ func TestConnectorClosesSocketsOnFailedOpen(t *testing.T) {
 
 func TestSuccessfulConnectorTransfersSocketOwnership(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		socket := &recordedSocket{}
 		var closed atomic.Int32
 		connector := &cleanupConnector{Connector: operationConnector{connect: func(ctx context.Context) (driver.Conn, error) {
@@ -94,7 +94,7 @@ func TestConnectorCleansUpPartialConnection(t *testing.T) {
 		attempt.conns = append(attempt.conns, socket)
 		return operationConn{close: func() error { closed.Add(1); return closeFailure }}, failure
 	}}}
-	conn, err := connector.Connect(context.Background())
+	conn, err := connector.Connect(t.Context())
 	require.Nil(t, conn)
 	require.ErrorIs(t, err, failure)
 	require.ErrorIs(t, err, closeFailure)
@@ -106,13 +106,13 @@ func TestSocketCancellationWatcherStopsBeforeReuse(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		socket := &recordedSocket{}
 		conn := &cancelableGoOraConn{sockets: []net.Conn{socket}}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		stop := conn.watch(ctx)
 		stop()
 		cancel()
 		synctest.Wait()
 		require.Zero(t, socket.closed.Load(), "an operation that already cleaned up cannot close a reused socket")
-		nextCtx, nextCancel := context.WithCancel(context.Background())
+		nextCtx, nextCancel := context.WithCancel(t.Context())
 		nextStop := conn.watch(nextCtx)
 		nextCancel()
 		nextStop()

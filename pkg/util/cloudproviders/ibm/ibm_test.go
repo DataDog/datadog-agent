@@ -6,7 +6,6 @@
 package ibm
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -45,7 +44,7 @@ func TestGetToken(t *testing.T) {
 	defer func(url string) { metadataURL = url }(metadataURL)
 	metadataURL = ts.URL
 
-	value, expiresAt, err := getToken(context.Background())
+	value, expiresAt, err := getToken(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "some data", value)
 
@@ -63,7 +62,7 @@ func TestGetTokenError(t *testing.T) {
 	defer func(url string) { metadataURL = url }(metadataURL)
 	metadataURL = ts.URL
 
-	_, _, err := getToken(context.Background())
+	_, _, err := getToken(t.Context())
 	require.NotNil(t, err)
 }
 
@@ -81,7 +80,7 @@ func TestGetTokenErrorParsingDate(t *testing.T) {
 	// passing some time to make sure renewDate is equal to 'expiresAt'
 	time.Sleep(100 * time.Millisecond)
 
-	value, expiresAt, err := getToken(context.Background())
+	value, expiresAt, err := getToken(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "some data", value)
 
@@ -107,7 +106,7 @@ func TestGetHostAliases(t *testing.T) {
 	defer func(url string) { metadataURL = url }(metadataURL)
 	metadataURL = ts.URL
 
-	aliases, err := GetHostAliases(context.Background())
+	aliases, err := GetHostAliases(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, []string{"an ID"}, aliases)
 }

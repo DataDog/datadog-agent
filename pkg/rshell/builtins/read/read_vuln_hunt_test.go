@@ -30,7 +30,7 @@ func (r infiniteByteReader) Read(p []byte) (int, error) {
 
 func TestVulnHuntBuiltinResourceExhaustion_BackslashContinuationConsumedCap(t *testing.T) {
 	input := strings.Repeat("\\\n", MaxReadBytes/2+2)
-	line, eof, err := readInput(context.Background(), strings.NewReader(input), '\n', false, -1, false, false)
+	line, eof, err := readInput(t.Context(), strings.NewReader(input), '\n', false, -1, false, false)
 	if err == nil {
 		t.Fatalf("expected consumed-input cap error, got line length=%d eof=%v", len(line), eof)
 	}
@@ -43,7 +43,7 @@ func TestVulnHuntBuiltinResourceExhaustion_BackslashContinuationConsumedCap(t *t
 }
 
 func TestVulnHuntBuiltinSpecialFiles_NULStreamConsumedCap(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	done := make(chan error, 1)

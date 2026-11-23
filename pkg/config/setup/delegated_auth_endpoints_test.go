@@ -52,7 +52,7 @@ func discoverEndpoints(t *testing.T, additionalEndpoints map[string][]string) *r
 	}
 
 	rec := newRecordingComponent()
-	configureAdditionalEndpointsDelegatedAuth(context.Background(), confFromYAML(t, yaml.String()), rec, nil)
+	configureAdditionalEndpointsDelegatedAuth(t.Context(), confFromYAML(t, yaml.String()), rec, nil)
 	return rec
 }
 
@@ -111,7 +111,7 @@ func TestTraceProxyAdditionalEndpointsRemainOutsideScope(t *testing.T) {
 		"https://trace.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
 	})
 
-	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	configureAdditionalEndpointsDelegatedAuth(t.Context(), config, rec, nil)
 	assert.Empty(t, rec.recorded)
 }
 
@@ -124,7 +124,7 @@ process_config:
       - "DELA[org-uuid-1, aws]"
 `)
 
-	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	configureAdditionalEndpointsDelegatedAuth(t.Context(), config, rec, nil)
 	require.Len(t, rec.recorded, 1)
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 }
@@ -330,7 +330,7 @@ func discoverListShape(t *testing.T, entries []map[string]any) *recordingCompone
 	}
 
 	rec := newRecordingComponent()
-	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), confFromYAML(t, yaml.String()), rec, nil)
+	configureListShapeAdditionalEndpointsDelegatedAuth(t.Context(), confFromYAML(t, yaml.String()), rec, nil)
 	return rec
 }
 
@@ -357,7 +357,7 @@ logs_config:
       api_key: DELA[org-uuid-2, aws]
 `)
 
-	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	configureListShapeAdditionalEndpointsDelegatedAuth(t.Context(), config, rec, nil)
 	assert.Empty(t, rec.recorded)
 }
 
@@ -375,7 +375,7 @@ func TestListShapeDirectiveRegistersWhenLogsUseHTTPWithoutForcing(t *testing.T) 
 	} {
 		t.Run(name, func(t *testing.T) {
 			rec := newRecordingComponent()
-			configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), confFromYAML(t, yaml), rec, nil)
+			configureListShapeAdditionalEndpointsDelegatedAuth(t.Context(), confFromYAML(t, yaml), rec, nil)
 			assert.Len(t, rec.recorded, 1)
 		})
 	}
@@ -391,7 +391,7 @@ logs_config:
       API_KEY: DELA[org-uuid-2, aws]
 `)
 
-	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	configureListShapeAdditionalEndpointsDelegatedAuth(t.Context(), config, rec, nil)
 	require.Len(t, rec.recorded, 1)
 	assert.Equal(t, "logs_config.additional_endpoints", rec.recorded[0].AdditionalEndpointsListConfigKey)
 }
@@ -440,7 +440,7 @@ func TestListShapeTwoOrgsOnOneHostStayDistinct(t *testing.T) {
 }
 
 func TestConfigureDelegatedAuthReturnsContextError(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	err := configureDelegatedAuth(ctx, confFromYAML(t, ""), newRecordingComponent())
@@ -468,7 +468,7 @@ runtime_security_config_activity_dump_remote_storage: placeholder
 	config.SetInTest("runtime_security_config.activity_dump.remote_storage.endpoints.additional_endpoints",
 		[]any{map[string]any{"host": "org4.datadoghq.com", "api_key": "DELA[org-uuid-3, aws]"}})
 
-	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	configureListShapeAdditionalEndpointsDelegatedAuth(t.Context(), config, rec, nil)
 	require.Len(t, rec.recorded, 3)
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 	assert.Equal(t, "org-uuid-2", rec.recorded[1].OrgUUID)
@@ -491,7 +491,7 @@ runtime_security_config:
 
 	// No logs_config.use_http/force_use_http: the logs pipeline would use TCP and
 	// ignore its delegated-auth entries, but the security pipelines are always HTTP.
-	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	configureListShapeAdditionalEndpointsDelegatedAuth(t.Context(), config, rec, nil)
 	require.Len(t, rec.recorded, 1)
 	assert.Equal(t, "org-uuid-2", rec.recorded[0].OrgUUID)
 }
@@ -502,14 +502,14 @@ func TestConfigureDelegatedAuthEndpointsCoversLateMergedValues(t *testing.T) {
 site: datadogh.com
 `)
 
-	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+	ConfigureDelegatedAuthEndpoints(t.Context(), config, rec)
 	assert.Empty(t, rec.recorded, "nothing to register yet")
 
 	// Values merged after LoadDatadog (e.g. security-agent.yaml) must still register.
 	config.SetInTest("runtime_security_config.endpoints.additional_endpoints",
 		[]any{map[string]any{"host": "org2.datadoghq.com", "api_key": "DELA[org-uuid-1, aws]"}})
 
-	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+	ConfigureDelegatedAuthEndpoints(t.Context(), config, rec)
 	require.Len(t, rec.recorded, 1)
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 }
@@ -564,13 +564,13 @@ site: datadogh.com
 	cwsKey := "runtime_security_config.endpoints.additional_endpoints"
 	config.SetInTest(cwsKey, []any{map[string]any{"host": "org2.datadoghq.com", "api_key": "DELA[org-uuid-1, aws]"}})
 
-	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+	ConfigureDelegatedAuthEndpoints(t.Context(), config, rec)
 	require.Len(t, rec.recorded, 1)
 
 	// The writeback replaces the directive with the resolved key; a re-scan of the
 	// effective config must not register the entry again.
 	config.SetInTest(cwsKey, []any{map[string]any{"host": "org2.datadoghq.com", "api_key": "resolved-api-key"}})
-	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+	ConfigureDelegatedAuthEndpoints(t.Context(), config, rec)
 	assert.Len(t, rec.recorded, 1, "resolved entry must not re-register")
 }
 
@@ -585,7 +585,7 @@ func TestOrchestratorEndpointsAreWithinScope(t *testing.T) {
 			"https://orchestrator.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
 		})
 
-		configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+		configureAdditionalEndpointsDelegatedAuth(t.Context(), config, rec, nil)
 		require.Len(t, rec.recorded, 1, "key %s", key)
 		assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 		assert.Equal(t, key, rec.recorded[0].AdditionalEndpointsConfigKey)
@@ -601,7 +601,7 @@ func TestEventPlatformEndpointsAreWithinScope(t *testing.T) {
 		map[string]any{"host": "org2.datadoghq.com", "api_key": "DELA[org-uuid-1, aws]"},
 	})
 
-	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	configureListShapeAdditionalEndpointsDelegatedAuth(t.Context(), config, rec, nil)
 	require.Len(t, rec.recorded, 1)
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 	assert.Equal(t, "container_image.additional_endpoints", rec.recorded[0].AdditionalEndpointsListConfigKey)
@@ -615,7 +615,7 @@ func TestTelemetryAndPcapEndpointsRegisterWithoutLogsHTTP(t *testing.T) {
 				{"host": "intake.datadoghq.eu", "api_key": "DELA[org-uuid-1, aws]"},
 			})
 			rec := newRecordingComponent()
-			ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+			ConfigureDelegatedAuthEndpoints(t.Context(), config, rec)
 			require.Len(t, rec.recorded, 1)
 			assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 			assert.Equal(t, configKey, rec.recorded[0].AdditionalEndpointsListConfigKey)
@@ -631,7 +631,7 @@ func TestAPMAdditionalEndpointsAreWithinScope(t *testing.T) {
 		"https://trace.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
 	})
 
-	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	configureAdditionalEndpointsDelegatedAuth(t.Context(), config, rec, nil)
 	require.Len(t, rec.recorded, 1)
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 	assert.Equal(t, "apm_config.additional_endpoints", rec.recorded[0].AdditionalEndpointsConfigKey)

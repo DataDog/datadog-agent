@@ -19,7 +19,7 @@ import (
 )
 
 func FuzzProcessStats(f *testing.F) {
-	agent, cancel := agentWithDefaults()
+	agent, cancel := agentWithDefaults(f.Context())
 	defer cancel()
 	encode := func(pbStats *pb.ClientStatsPayload) ([]byte, error) {
 		return pbStats.MarshalVT()
@@ -73,7 +73,7 @@ func FuzzProcessStats(f *testing.F) {
 }
 
 func FuzzObfuscateSpan(f *testing.F) {
-	agent, cancel := agentWithDefaults()
+	agent, cancel := agentWithDefaults(f.Context())
 	defer cancel()
 	encode := func(pbSpan *pb.Span) ([]byte, error) {
 		return pbSpan.MarshalMsg(nil)
@@ -138,7 +138,7 @@ func FuzzObfuscateSpan(f *testing.F) {
 }
 
 func FuzzNormalizeTrace(f *testing.F) {
-	agent, cancel := agentWithDefaults()
+	agent, cancel := agentWithDefaults(f.Context())
 	defer cancel()
 	encode := func(pbTrace pb.Trace) ([]byte, error) {
 		return pbTrace.MarshalMsg(nil)

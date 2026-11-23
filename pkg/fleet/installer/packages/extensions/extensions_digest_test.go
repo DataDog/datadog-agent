@@ -58,7 +58,7 @@ func (c *countingHooks) PreRemoveExtension(_ context.Context, _ string, _ string
 func realDigestForFixture(t *testing.T, s *fixtures.Server) string {
 	t.Helper()
 	d := oci.NewDownloader(&env.Env{}, http.DefaultClient)
-	pkg, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1WithExtension))
+	pkg, err := d.Download(t.Context(), s.PackageURL(fixtures.FixtureSimpleV1WithExtension))
 	require.NoError(t, err)
 	digest, err := pkg.Image.Digest()
 	require.NoError(t, err)
@@ -101,7 +101,7 @@ func TestSkipExtensionInstallWhenDigestMatches(t *testing.T) {
 
 	hooks := &countingHooks{}
 	err := Install(
-		context.Background(),
+		t.Context(),
 		oci.NewDownloader(&env.Env{}, http.DefaultClient),
 		s.PackageURL(fixtures.FixtureSimpleV1WithExtension),
 		[]string{fixtureExtensionName},
@@ -126,7 +126,7 @@ func TestReinstallExtensionWhenDigestChanges(t *testing.T) {
 	sentinel := errors.New("reinstall-triggered")
 	hooks := &countingHooks{preInstallErr: sentinel}
 	err := Install(
-		context.Background(),
+		t.Context(),
 		oci.NewDownloader(&env.Env{}, http.DefaultClient),
 		s.PackageURL(fixtures.FixtureSimpleV1WithExtension),
 		[]string{fixtureExtensionName},
@@ -181,7 +181,7 @@ func TestReinstallExtensionWithLegacyFormat(t *testing.T) {
 	sentinel := errors.New("reinstall-triggered")
 	hooks := &countingHooks{preInstallErr: sentinel}
 	err := Install(
-		context.Background(),
+		t.Context(),
 		oci.NewDownloader(&env.Env{}, http.DefaultClient),
 		s.PackageURL(fixtures.FixtureSimpleV1WithExtension),
 		[]string{fixtureExtensionName},

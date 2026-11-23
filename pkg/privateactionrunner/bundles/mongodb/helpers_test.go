@@ -6,7 +6,6 @@
 package com_datadoghq_mongodb
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -48,7 +47,7 @@ func TestGetConnectionURITLS(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
 
-			clientOptions, _, err := createMongoClientOptions(context.Background(), credentials)
+			clientOptions, _, err := createMongoClientOptions(t.Context(), credentials)
 			require.NoError(t, err)
 			require.NotNil(t, clientOptions)
 		})

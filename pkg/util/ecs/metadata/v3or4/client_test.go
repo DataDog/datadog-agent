@@ -8,7 +8,6 @@
 package v3or4
 
 import (
-	"context"
 	"errors"
 	"os"
 	"testing"
@@ -29,7 +28,7 @@ func TestGetTasks(t *testing.T) {
 	defer ts.Close()
 
 	client := NewClient(ts.URL+"/v4/1234-1", "v4")
-	tasks, err := client.GetTasks(context.Background())
+	tasks, err := client.GetTasks(t.Context())
 	require.NoError(t, err)
 	require.Len(t, tasks, 2)
 
@@ -56,7 +55,7 @@ func TestGetV4TaskWithTags(t *testing.T) {
 	defer ts.Close()
 
 	client := NewClient(ts.URL+"/v4/1234-1", "v4")
-	task, err := client.GetTaskWithTags(context.Background())
+	task, err := client.GetTaskWithTags(t.Context())
 	require.NoError(t, err)
 
 	require.Equal(t, expected, task)
@@ -72,7 +71,7 @@ func TestGetV4TaskWithTagsWithoutRetryWithDelay(t *testing.T) {
 	ts := dummyECS.Start()
 
 	client := NewClient(ts.URL+"/v4/1234-1", "v4")
-	task, err := client.GetTaskWithTags(context.Background())
+	task, err := client.GetTaskWithTags(t.Context())
 
 	ts.Close()
 
@@ -97,7 +96,7 @@ func TestGetV4TaskWithTagsWithRetryWithDelay(t *testing.T) {
 		WithTryOption(100*time.Millisecond, 2*time.Second, func(d time.Duration) time.Duration { return 2 * d }),
 	)
 
-	task, err := c.GetTaskWithTags(context.Background())
+	task, err := c.GetTaskWithTags(t.Context())
 
 	ts.Close()
 
@@ -110,7 +109,7 @@ func TestGetV4TaskWithTagsWithRetryWithDelay(t *testing.T) {
 }
 
 func TestGetContainerStats(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	handlerPath := "/v4/1234-1/task/stats"
 
 	tests := []struct {

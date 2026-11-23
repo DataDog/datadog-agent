@@ -9,7 +9,6 @@
 package infra
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -51,7 +50,7 @@ func (m *mockDatadogEventSender) SendEvent(body datadogV1.EventCreateRequest) {
 
 func TestStackManager(t *testing.T) {
 	stackManager := GetStackManager()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("should-succeed-on-successful-run-function", func(t *testing.T) {
 		t.Parallel()

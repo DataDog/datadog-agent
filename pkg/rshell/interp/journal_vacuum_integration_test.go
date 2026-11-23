@@ -9,7 +9,6 @@ package interp
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -50,7 +49,7 @@ func TestJournalctlVacuumEndToEnd(t *testing.T) {
 
 	program, err := ParseScript("journalctl --vacuum-time=48h", "")
 	require.NoError(t, err)
-	require.NoError(t, runner.Run(context.Background(), program))
+	require.NoError(t, runner.Run(t.Context(), program))
 	assert.Empty(t, stderr.String())
 	assert.Contains(t, stdout.String(), "Vacuuming done, freed")
 	assert.NoFileExists(t, archive)

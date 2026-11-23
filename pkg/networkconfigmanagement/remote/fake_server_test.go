@@ -55,7 +55,7 @@ func iosLikeSession(sessions *atomic.Int32) SessionFactory {
 // else arrived before it.
 func expectResponse(t testing.TB, sh Shell, response string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	out, err := sh.ReadUntil(ctx, through(response))
 	require.NoError(t, err, "got %q so far", out)

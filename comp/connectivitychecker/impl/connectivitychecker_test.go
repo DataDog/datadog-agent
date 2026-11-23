@@ -85,7 +85,7 @@ func TestConnectivityInitialDelay(t *testing.T) {
 	assert.NotNil(t, provides.Comp)
 
 	// Start the component
-	ctx := context.Background()
+	ctx := t.Context()
 	err = lifecycle.Start(ctx)
 	defer lifecycle.Stop(ctx)
 	require.NoError(t, err)

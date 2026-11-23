@@ -8,7 +8,6 @@
 package providers
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -74,7 +73,7 @@ func TestCollectBasicTargets(t *testing.T) {
 
 	provider := makeTestProvider(t, server.URL, defaultCheckTemplate())
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	assert.Len(t, configs, 2)
 
@@ -104,7 +103,7 @@ func TestCollectMultipleTargetGroups(t *testing.T) {
 
 	provider := makeTestProvider(t, server.URL, defaultCheckTemplate())
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	assert.Len(t, configs, 3)
 }
@@ -117,7 +116,7 @@ func TestCollectEmptyResponse(t *testing.T) {
 
 	provider := makeTestProvider(t, server.URL, defaultCheckTemplate())
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	assert.Empty(t, configs)
 }
@@ -131,7 +130,7 @@ func TestCollectServerError(t *testing.T) {
 
 	provider := makeTestProvider(t, server.URL, defaultCheckTemplate())
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	assert.Error(t, err)
 	assert.Nil(t, configs)
 	assert.Contains(t, err.Error(), "unexpected status 500")
@@ -265,7 +264,7 @@ func TestBuildConfigTags(t *testing.T) {
 
 	provider := makeTestProvider(t, server.URL, defaultCheckTemplate())
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 
@@ -299,7 +298,7 @@ func TestCollectTargetWithoutPort(t *testing.T) {
 
 	provider := makeTestProvider(t, server.URL, defaultCheckTemplate())
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 
@@ -321,10 +320,10 @@ func TestCollectDigestStability(t *testing.T) {
 
 	provider := makeTestProvider(t, server.URL, defaultCheckTemplate())
 
-	configs1, err := provider.Collect(context.Background())
+	configs1, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 
-	configs2, err := provider.Collect(context.Background())
+	configs2, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 
 	// Digests should be identical across polls (stable tag ordering)
@@ -406,7 +405,7 @@ func TestCollectPerEntryErrorIsolation(t *testing.T) {
 		{url: bad.URL, template: defaultCheckTemplate()},
 	})
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err, "Collect must succeed when at least one entry succeeds")
 	require.Len(t, configs, 1, "only the healthy entry's target should be returned")
 
@@ -431,7 +430,7 @@ func TestCollectAllEntriesFail(t *testing.T) {
 		{url: bad.URL, template: defaultCheckTemplate()},
 	})
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	assert.Error(t, err)
 	assert.Nil(t, configs)
 	assert.Contains(t, err.Error(), "all 2 endpoint(s) failed")
@@ -456,7 +455,7 @@ func TestCollectMergesEntries(t *testing.T) {
 		{url: serverB.URL, template: defaultCheckTemplate()},
 	})
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	require.Len(t, configs, 3)
 
@@ -482,7 +481,7 @@ func TestCollectCustomCheckTemplate(t *testing.T) {
 	tmpl := `{"name":"postgres","init_config":{"dbm":true},"instances":[{"host":"%%host%%","port":"%%port%%","dbname":"mydb"}]}`
 	provider := makeTestProvider(t, server.URL, tmpl)
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	assert.Equal(t, "postgres", configs[0].Name)
@@ -519,7 +518,7 @@ func TestExcludeFilterByLabel(t *testing.T) {
 		excludeFilter: `target.labels["__meta_service_type"].startsWith("ray")`,
 	}})
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 
@@ -554,7 +553,7 @@ func TestExcludeFilterCompoundExpression(t *testing.T) {
 			target.labels["__meta_service_type"] == "worker"`,
 	}})
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	require.Len(t, configs, 3)
 
@@ -587,7 +586,7 @@ func TestExcludeFilterNoMatch(t *testing.T) {
 		excludeFilter: `target.labels["__meta_service_type"].startsWith("ray")`,
 	}})
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	assert.Len(t, configs, 2)
 }
@@ -628,7 +627,7 @@ func TestExcludeFilterMissingLabelKey(t *testing.T) {
 		excludeFilter: `target.labels["__meta_service_type"].startsWith("ray")`,
 	}})
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	// host1 is excluded; host2 and host3 fail open (missing key → error → collected).
 	require.Len(t, configs, 2)
@@ -663,7 +662,7 @@ func TestExcludeFilterSafeGuardWithIn(t *testing.T) {
 		excludeFilter: `"__meta_service_type" in target.labels && target.labels["__meta_service_type"].startsWith("ray")`,
 	}})
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	// host1 excluded (has label, matches filter); host2 and host3 pass (label absent → "in" guard returns false).
 	require.Len(t, configs, 2)
@@ -693,7 +692,7 @@ func TestExcludeFilterEmpty(t *testing.T) {
 		// no excludeFilter — all targets collected
 	}})
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	assert.Len(t, configs, 2)
 }
@@ -785,7 +784,7 @@ func TestNewPrometheusHTTPSDConfigProviderFromConfig(t *testing.T) {
 	provider, ok := p.(types.CollectingConfigProvider)
 	require.True(t, ok, "expected PrometheusHTTPSDConfigProvider to implement CollectingConfigProvider")
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 
@@ -899,7 +898,7 @@ func TestRenameLabelsAppliedToSDTags(t *testing.T) {
 		template: `{"name":"openmetrics","init_config":{},"instances":[{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics","rename_labels":{"experiment":"appXYZ.experiment"}}]}`,
 	}})
 
-	configs, err := provider.Collect(context.Background())
+	configs, err := provider.Collect(t.Context())
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 

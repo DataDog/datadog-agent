@@ -9,7 +9,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"net"
 	"os"
 	"path/filepath"
@@ -210,13 +209,13 @@ func TestRunPrivilegedHelperSocketFlags(t *testing.T) {
 	}
 	socket := filepath.Join(shortTempDir(t), "h.sock")
 	var stderr bytes.Buffer
-	code := runPrivilegedHelper(context.Background(), []string{"--socket=" + socket, "--idle-timeout=5s"}, &stderr)
+	code := runPrivilegedHelper(t.Context(), []string{"--socket=" + socket, "--idle-timeout=5s"}, &stderr)
 	require.Equal(t, 2, code)
 	require.Contains(t, stderr.String(), "--socket requires --idle-timeout=0")
 
 	for _, args := range [][]string{{"--socket=" + socket}, {"--socket=" + socket, "--idle-timeout=0"}} {
 		stderr.Reset()
-		code = runPrivilegedHelper(context.Background(), args, &stderr)
+		code = runPrivilegedHelper(t.Context(), args, &stderr)
 		require.Equal(t, 1, code, "%v: the flags are accepted", args)
 		require.Contains(t, stderr.String(), "requires real uid 0")
 	}

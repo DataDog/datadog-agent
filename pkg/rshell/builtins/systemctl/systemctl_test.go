@@ -95,7 +95,7 @@ func runSystemctl(t *testing.T, args []string, callCtx *builtins.CallContext) in
 	fs.SetOutput(io.Discard)
 	handler := makeFlags(fs)
 	require.NoError(t, fs.Parse(args))
-	result := handler(context.Background(), callCtx, fs.Args())
+	result := handler(t.Context(), callCtx, fs.Args())
 	return invocation{result: result, stdout: stdout.String(), stderr: stderr.String()}
 }
 
@@ -463,7 +463,7 @@ func TestCanceledMutationStillReportsUncertainOutcome(t *testing.T) {
 	fs.SetOutput(io.Discard)
 	handler := makeFlags(fs)
 	require.NoError(t, fs.Parse([]string{"restart", "api.service"}))
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	result := handler(ctx, callCtx, fs.Args())
@@ -505,7 +505,7 @@ func TestDangerousHostSystemctlOptionsAreRejected(t *testing.T) {
 	} {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			result := handler(context.Background(), &builtins.CallContext{Stdout: &stdout, Stderr: &stderr, RemediationMode: true}, args)
+			result := handler(t.Context(), &builtins.CallContext{Stdout: &stdout, Stderr: &stderr, RemediationMode: true}, args)
 			assert.Equal(t, uint8(1), result.Code)
 			assert.Empty(t, stdout.String())
 			assert.Contains(t, stderr.String(), "unrecognized option")
@@ -526,7 +526,7 @@ func TestDangerousHostSystemctlOptionsAreRejected(t *testing.T) {
 	} {
 		t.Run("removed_"+strings.TrimLeft(test.option, "-"), func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			result := handler(context.Background(), &builtins.CallContext{Stdout: &stdout, Stderr: &stderr, RemediationMode: true}, test.args)
+			result := handler(t.Context(), &builtins.CallContext{Stdout: &stdout, Stderr: &stderr, RemediationMode: true}, test.args)
 			assert.Equal(t, uint8(1), result.Code)
 			assert.Empty(t, stdout.String())
 			assert.Equal(t, "systemctl: "+test.wantErr+"\nTry 'systemctl --help' for more information.\n", stderr.String())

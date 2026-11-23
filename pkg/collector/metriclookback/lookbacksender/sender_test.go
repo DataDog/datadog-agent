@@ -65,7 +65,7 @@ func (w *recordingWriter) snapshots() []recordedAppend {
 
 func TestSenderCommitWritesScalarMetricBatch(t *testing.T) {
 	writer := &recordingWriter{}
-	ctx := context.WithValue(context.Background(), testContextKey{}, "test")
+	ctx := context.WithValue(t.Context(), testContextKey{}, "test")
 	manager := NewSenderManager(ctx, "default-host", writer, func() float64 { return 42 })
 
 	gotSender, err := manager.GetSender(checkid.ID("cpu:shadow"))
@@ -134,7 +134,7 @@ func TestSenderCommitWritesScalarMetricBatch(t *testing.T) {
 
 func TestSenderCopiesTagsBeforeBuffering(t *testing.T) {
 	writer := &recordingWriter{}
-	manager := NewSenderManager(context.Background(), "default-host", writer, func() float64 { return 42 })
+	manager := NewSenderManager(t.Context(), "default-host", writer, func() float64 { return 42 })
 
 	gotSender, err := manager.GetSender(checkid.ID("cpu:shadow"))
 	require.NoError(t, err)
@@ -165,7 +165,7 @@ func TestSenderAppendsInfraTags(t *testing.T) {
 	require.NotNil(t, tagger)
 
 	writer := &recordingWriter{}
-	manager := NewSenderManager(context.Background(), "default-host", writer, func() float64 { return 42 })
+	manager := NewSenderManager(t.Context(), "default-host", writer, func() float64 { return 42 })
 
 	gotSender, err := manager.GetSender(checkid.ID("cpu:shadow"))
 	require.NoError(t, err)
@@ -184,7 +184,7 @@ func TestSenderAppendsInfraTags(t *testing.T) {
 
 func TestSenderDropsUnsupportedPayloadsAndRejectsInvalidTimestamps(t *testing.T) {
 	writer := &recordingWriter{}
-	manager := NewSenderManager(context.Background(), "default-host", writer, func() float64 { return 42 })
+	manager := NewSenderManager(t.Context(), "default-host", writer, func() float64 { return 42 })
 
 	gotSender, err := manager.GetSender(checkid.ID("cpu:shadow"))
 	require.NoError(t, err)
@@ -209,7 +209,7 @@ func TestSenderTelemetry(t *testing.T) {
 	mockConfig.SetInTest("telemetry.metric_lookback", "*")
 
 	writer := &recordingWriter{}
-	manager := NewSenderManager(context.Background(), "default-host", writer, func() float64 { return 42 })
+	manager := NewSenderManager(t.Context(), "default-host", writer, func() float64 { return 42 })
 
 	gotSender, err := manager.GetSender(checkid.ID("cpu:first:shadow"))
 	require.NoError(t, err)
@@ -245,7 +245,7 @@ func TestSenderTelemetry(t *testing.T) {
 }
 
 func TestSenderManagerReusesAndDestroysSendersByCheckID(t *testing.T) {
-	manager := NewSenderManager(context.Background(), "default-host", &recordingWriter{}, func() float64 { return 42 })
+	manager := NewSenderManager(t.Context(), "default-host", &recordingWriter{}, func() float64 { return 42 })
 	checkID := checkid.ID("cpu:shadow")
 
 	first, err := manager.GetSender(checkID)
@@ -261,7 +261,7 @@ func TestSenderManagerReusesAndDestroysSendersByCheckID(t *testing.T) {
 }
 
 func TestSenderManagerRejectsSenderForDifferentCheckID(t *testing.T) {
-	manager := NewSenderManager(context.Background(), "default-host", &recordingWriter{}, func() float64 { return 42 })
+	manager := NewSenderManager(t.Context(), "default-host", &recordingWriter{}, func() float64 { return 42 })
 
 	gotSender, err := manager.GetSender(checkid.ID("cpu:shadow"))
 	require.NoError(t, err)
@@ -272,9 +272,9 @@ func TestSenderManagerRejectsSenderForDifferentCheckID(t *testing.T) {
 }
 
 func TestSenderManagerRequiresWriterAndProvidesDefaultSender(t *testing.T) {
-	require.Nil(t, NewSenderManager(context.Background(), "default-host", nil, nil))
+	require.Nil(t, NewSenderManager(t.Context(), "default-host", nil, nil))
 
-	manager := NewSenderManager(context.Background(), "default-host", &recordingWriter{}, nil)
+	manager := NewSenderManager(t.Context(), "default-host", &recordingWriter{}, nil)
 	require.NotNil(t, manager)
 	defaultSender, err := manager.GetDefaultSender()
 	require.NoError(t, err)

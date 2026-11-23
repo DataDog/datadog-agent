@@ -59,7 +59,7 @@ func invokePwd(t *testing.T, callCtx *builtins.CallContext, args []string) (stdo
 	fs.SetOutput(io.Discard)
 	handler := makeFlags(fs)
 	require.NoError(t, fs.Parse(args))
-	res = handler(context.Background(), callCtx, fs.Args())
+	res = handler(t.Context(), callCtx, fs.Args())
 	return sout.String(), serr.String(), res
 }
 
@@ -86,7 +86,7 @@ func TestResolveSymlinksRejectsRelativePath(t *testing.T) {
 		LstatFile:    func(_ context.Context, _ string) (iofs.FileInfo, error) { return nil, errors.New("nope") },
 		ReadlinkFile: func(_ context.Context, _ string) (string, error) { return "", errors.New("nope") },
 	}
-	_, err := resolveSymlinks(context.Background(), cc, "relative/path")
+	_, err := resolveSymlinks(t.Context(), cc, "relative/path")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not an absolute path")
 }
@@ -94,13 +94,13 @@ func TestResolveSymlinksRejectsRelativePath(t *testing.T) {
 func TestResolveSymlinksMissingCallbacksError(t *testing.T) {
 	// Missing LstatFile callback.
 	cc := &builtins.CallContext{ReadlinkFile: func(_ context.Context, _ string) (string, error) { return "", nil }}
-	_, err := resolveSymlinks(context.Background(), cc, absRoot+"foo")
+	_, err := resolveSymlinks(t.Context(), cc, absRoot+"foo")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sandbox does not support symlink resolution")
 
 	// Missing ReadlinkFile callback.
 	cc2 := &builtins.CallContext{LstatFile: func(_ context.Context, _ string) (iofs.FileInfo, error) { return nil, nil }}
-	_, err = resolveSymlinks(context.Background(), cc2, absRoot+"foo")
+	_, err = resolveSymlinks(t.Context(), cc2, absRoot+"foo")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sandbox does not support symlink resolution")
 }
@@ -110,7 +110,7 @@ func TestResolveSymlinksContextCancelled(t *testing.T) {
 		LstatFile:    func(_ context.Context, _ string) (iofs.FileInfo, error) { return &fakeFileInfo{}, nil },
 		ReadlinkFile: func(_ context.Context, _ string) (string, error) { return "", nil },
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err := resolveSymlinks(ctx, cc, absRoot+"foo"+string(filepath.Separator)+"bar")
 	require.Error(t, err)
@@ -123,7 +123,7 @@ func TestResolveSymlinksContextCancelled(t *testing.T) {
 // would let a canceled run report success and stash a misleading
 // path on stdout.
 func TestPwdPhysicalCancelledDoesNotEmitLogical(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // pre-cancel so resolveSymlinks sees ctx.Err() on first iteration
 	cc := &builtins.CallContext{
 		WorkDir: func() string { return absRoot + "some" + string(filepath.Separator) + "path" },
@@ -169,7 +169,7 @@ func TestResolveSymlinksHandlesDotAndDotDot(t *testing.T) {
 	// branches are reached by symlink targets containing those segments,
 	// which TestPwdPhysicalDotDotResolvesAcrossDepth already exercises
 	// from end-to-end. Here we stick to a simple absolute path.
-	out, err := resolveSymlinks(context.Background(), cc, absRoot+"a"+sep+"b")
+	out, err := resolveSymlinks(t.Context(), cc, absRoot+"a"+sep+"b")
 	require.NoError(t, err)
 	assert.Equal(t, absRoot+"a"+sep+"b", out)
 }
@@ -187,7 +187,7 @@ func TestResolveSymlinksLoopDetected(t *testing.T) {
 			return "self", nil
 		},
 	}
-	_, err := resolveSymlinks(context.Background(), cc, absRoot+"a")
+	_, err := resolveSymlinks(t.Context(), cc, absRoot+"a")
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errSymlinkLoop))
 }
@@ -293,7 +293,7 @@ func TestResolveSymlinksReadlinkFails(t *testing.T) {
 		},
 	}
 	sep := string(filepath.Separator)
-	out, err := resolveSymlinks(context.Background(), cc, absRoot+"a"+sep+"b")
+	out, err := resolveSymlinks(t.Context(), cc, absRoot+"a"+sep+"b")
 	require.NoError(t, err)
 	// Both components got passed through.
 	assert.Equal(t, absRoot+"a"+sep+"b", out)
@@ -316,7 +316,7 @@ func TestResolveSymlinksDotInTarget(t *testing.T) {
 		},
 		ReadlinkFile: func(_ context.Context, _ string) (string, error) { return "./real", nil },
 	}
-	out, err := resolveSymlinks(context.Background(), cc, absRoot+"lnk")
+	out, err := resolveSymlinks(t.Context(), cc, absRoot+"lnk")
 	require.NoError(t, err)
 	assert.Equal(t, absRoot+"real", out)
 }
@@ -334,7 +334,7 @@ func TestResolveSymlinksTargetIsRoot(t *testing.T) {
 			return absRoot, nil
 		},
 	}
-	out, err := resolveSymlinks(context.Background(), cc, absRoot+"x")
+	out, err := resolveSymlinks(t.Context(), cc, absRoot+"x")
 	require.NoError(t, err)
 	// rootPrefix returns "/" on Unix and `C:\` on Windows; both equal
 	// absRoot in this test.

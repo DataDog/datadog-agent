@@ -8,7 +8,6 @@
 package com_datadoghq_script
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -32,7 +31,7 @@ func TestShellScriptHandlerExecutionErrors(t *testing.T) {
 			task.Data.Attributes = &types.Attributes{Inputs: map[string]interface{}{
 				"script": tc.script, "noFailOnError": tc.noFail, "timeout": tc.timeout,
 			}}
-			output, err := NewRunShellScriptHandler().Run(context.Background(), task, nil)
+			output, err := NewRunShellScriptHandler().Run(t.Context(), task, nil)
 			if tc.wantError != "" {
 				require.ErrorContains(t, err, tc.wantError)
 				require.Nil(t, output)

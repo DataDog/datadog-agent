@@ -53,9 +53,9 @@ type cancelAfterChecksContext struct {
 	canceled  bool
 }
 
-func newCancelAfterChecksContext(remaining int) *cancelAfterChecksContext {
+func newCancelAfterChecksContext(ctx context.Context, remaining int) *cancelAfterChecksContext {
 	return &cancelAfterChecksContext{
-		Context:   context.Background(),
+		Context:   ctx,
 		done:      make(chan struct{}),
 		remaining: remaining,
 	}
@@ -151,7 +151,7 @@ func TestRuntimeClosesInputsOnError(t *testing.T) {
 		},
 	}
 
-	result := newRuntime(callCtx, prog).run(context.Background(), []string{"input"})
+	result := newRuntime(callCtx, prog).run(t.Context(), []string{"input"})
 
 	assert.Equal(t, uint8(2), result.Code)
 	assert.Contains(t, stderr.String(), "division by zero attempted")
@@ -166,7 +166,7 @@ func TestRuntimeBoundsAggregateStatementExecutions(t *testing.T) {
 	rt := newRuntime(&builtins.CallContext{Stdout: &stdout, Stderr: &stderr}, prog)
 	rt.stmtExecutions = maxStatementExecutions - 1
 
-	result := rt.run(context.Background(), nil)
+	result := rt.run(t.Context(), nil)
 
 	assert.Equal(t, uint8(1), result.Code)
 	assert.Equal(t, "at-limit\n", stdout.String())
@@ -185,7 +185,7 @@ func TestRuntimeChargesOnlyNormalRulesAgainstMainRuleBudget(t *testing.T) {
 	}, prog)
 	rt.mainRuleEvals = maxMainRuleEvaluations - 1
 
-	result := rt.run(context.Background(), nil)
+	result := rt.run(t.Context(), nil)
 
 	assert.Equal(t, uint8(0), result.Code)
 	assert.Equal(t, "row\n", stdout.String())
@@ -204,7 +204,7 @@ func TestRuntimeBoundsAggregateInputBytes(t *testing.T) {
 	}, prog)
 	rt.inputBytes = maxInputBytes - 1
 
-	result := rt.run(context.Background(), nil)
+	result := rt.run(t.Context(), nil)
 
 	assert.Equal(t, uint8(1), result.Code)
 	assert.Equal(t, "awk: -: input byte limit exceeded (maximum 67108864 bytes)\n", stderr.String())
@@ -227,7 +227,7 @@ func TestParagraphRecordDoesNotWaitForFollowingInput(t *testing.T) {
 		_, err := io.WriteString(writer, "a\n\n")
 		written <- err
 	}()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	record, ok, err := src.readRecord(ctx)
 
@@ -242,7 +242,7 @@ func TestRecordSourceFallbackCancellationReturnsPromptly(t *testing.T) {
 	t.Cleanup(reader.unblock)
 	rt := newRuntime(&builtins.CallContext{}, &program{})
 	src := rt.newRecordSource("input", reader)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
 		_, _, err := src.readRecord(ctx)
@@ -275,10 +275,10 @@ func TestMainStdinCancellationClosesUnderlyingReader(t *testing.T) {
 	reader := newCloseInterruptedReader()
 	t.Cleanup(func() { _ = reader.Close() })
 	rt := newRuntime(&builtins.CallContext{Stdin: reader}, &program{})
-	src, err := rt.openRecordSource(context.Background(), "-")
+	src, err := rt.openRecordSource(t.Context(), "-")
 	require.NoError(t, err)
 	rt.mainInput = src
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
 		_, _, err := rt.readMainRecord(ctx)
@@ -303,7 +303,7 @@ func TestMainStdinCancellationClosesUnderlyingReader(t *testing.T) {
 func TestMainStdinCleanupDoesNotCloseCallerReader(t *testing.T) {
 	reader := &closeTrackedFile{Reader: strings.NewReader("")}
 	rt := newRuntime(&builtins.CallContext{Stdin: reader}, &program{})
-	src, err := rt.openRecordSource(context.Background(), "-")
+	src, err := rt.openRecordSource(t.Context(), "-")
 	require.NoError(t, err)
 
 	src.close()
@@ -319,12 +319,12 @@ func TestRecordSourceAcceptsMaxRecordWithMultibyteSeparator(t *testing.T) {
 	src := rt.newRecordSource("input", io.NopCloser(strings.NewReader(record+separator)))
 	t.Cleanup(src.close)
 
-	got, ok, err := src.readRecord(context.Background())
+	got, ok, err := src.readRecord(t.Context())
 	require.NoError(t, err)
 	require.True(t, ok)
 	assert.Len(t, got, MaxRecordBytes)
 
-	_, ok, err = src.readRecord(context.Background())
+	_, ok, err = src.readRecord(t.Context())
 	require.NoError(t, err)
 	assert.False(t, ok)
 }
@@ -336,7 +336,7 @@ func TestRecordSourceRejectsRecordOverLimitWithLargerScanBuffer(t *testing.T) {
 	src := rt.newRecordSource("input", io.NopCloser(strings.NewReader(strings.Repeat("x", MaxRecordBytes+1))))
 	t.Cleanup(src.close)
 
-	_, _, err := src.readRecord(context.Background())
+	_, _, err := src.readRecord(t.Context())
 	require.EqualError(t, err, "record exceeds 1048576 bytes")
 }
 
@@ -418,7 +418,7 @@ func TestRegexMatchingChecksCancellation(t *testing.T) {
 	t.Run("single match", func(t *testing.T) {
 		re, err := compileRegex(pattern)
 		require.NoError(t, err)
-		re.ctx = newCancelAfterChecksContext(3)
+		re.ctx = newCancelAfterChecksContext(t.Context(), 3)
 
 		loc, err := re.FindStringIndex(input)
 
@@ -429,7 +429,7 @@ func TestRegexMatchingChecksCancellation(t *testing.T) {
 	t.Run("all matches", func(t *testing.T) {
 		re, err := compileRegex(pattern)
 		require.NoError(t, err)
-		re.ctx = newCancelAfterChecksContext(3)
+		re.ctx = newCancelAfterChecksContext(t.Context(), 3)
 
 		locs, err := re.FindAllStringIndex(input, -1)
 
@@ -458,7 +458,7 @@ func TestCancellableRegexFindAllMatchesNativeResults(t *testing.T) {
 			re, err := compileRegex(tc.pattern)
 			require.NoError(t, err)
 			want := re.re.FindAllStringIndex(tc.input, tc.n)
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			re.ctx = ctx
 
@@ -520,7 +520,7 @@ func TestEnvironInitializationAccountsStorageAndCachesLimitError(t *testing.T) {
 }
 
 func TestEnvironInitializationHonorsCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	envCalls := 0
 	yields := 0
 	stopped := false
@@ -571,7 +571,7 @@ func TestEmptyMainInputFileOpenAttemptsAreBounded(t *testing.T) {
 	rt.inputArgs = []string{"empty", "empty", "empty"}
 	rt.fileOpenAttempts = maxFileOpenAttempts - 2
 
-	_, ok, err := rt.readMainRecord(context.Background())
+	_, ok, err := rt.readMainRecord(t.Context())
 
 	require.EqualError(t, err, "file open attempt limit exceeded (maximum 1024)")
 	assert.False(t, ok)

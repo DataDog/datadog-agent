@@ -6,7 +6,6 @@
 package snmpscanmanagerimpl
 
 import (
-	"context"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -73,7 +72,7 @@ func TestFillFlare(t *testing.T) {
 		Once()
 	scanManager.snmpConfigProvider = mockConfigProvider
 
-	err = mockLifecycle.Start(context.Background())
+	err = mockLifecycle.Start(t.Context())
 	assert.NoError(t, err)
 
 	provides.Comp.RequestScan(snmpscanmanager.ScanRequest{
@@ -89,7 +88,7 @@ func TestFillFlare(t *testing.T) {
 		}, scanManager)
 	}, 2*time.Second, 100*time.Millisecond)
 
-	err = mockLifecycle.Stop(context.Background())
+	err = mockLifecycle.Stop(t.Context())
 	assert.NoError(t, err)
 
 	mockScanner.AssertExpectations(t)
@@ -97,7 +96,7 @@ func TestFillFlare(t *testing.T) {
 
 	flareBuilderMock := helpers.NewFlareBuilderMock(t, false)
 
-	err = scanManager.fillFlare(context.Background(), flareBuilderMock)
+	err = scanManager.fillFlare(t.Context(), flareBuilderMock)
 	assert.NoError(t, err)
 
 	filePath := filepath.Join(flareDirName, flareFileName)
@@ -120,7 +119,7 @@ func TestFillFlare_FailedScan(t *testing.T) {
 		errors.New("scan failed: request timed out"), false)
 
 	flareBuilderMock := helpers.NewFlareBuilderMock(t, false)
-	require.NoError(t, scanManager.fillFlare(context.Background(), flareBuilderMock))
+	require.NoError(t, scanManager.fillFlare(t.Context(), flareBuilderMock))
 
 	filePath := filepath.Join(flareDirName, flareFileName)
 	flareBuilderMock.AssertFileContentMatch(
@@ -152,15 +151,15 @@ func TestFillFlare_NoCache(t *testing.T) {
 	scanManager, ok := provides.Comp.(*snmpScanManagerImpl)
 	assert.True(t, ok)
 
-	err = mockLifecycle.Start(context.Background())
+	err = mockLifecycle.Start(t.Context())
 	assert.NoError(t, err)
 
-	err = mockLifecycle.Stop(context.Background())
+	err = mockLifecycle.Stop(t.Context())
 	assert.NoError(t, err)
 
 	flareBuilderMock := helpers.NewFlareBuilderMock(t, false)
 
-	err = scanManager.fillFlare(context.Background(), flareBuilderMock)
+	err = scanManager.fillFlare(t.Context(), flareBuilderMock)
 	assert.NoError(t, err)
 
 	filePath := filepath.Join(flareDirName, flareFileName)

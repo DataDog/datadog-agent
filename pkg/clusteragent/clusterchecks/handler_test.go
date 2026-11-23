@@ -187,7 +187,7 @@ func TestHandlerRun(t *testing.T) {
 	//
 	// Initialisation and unknown state
 	//
-	ctx, cancelRun := context.WithCancel(context.Background())
+	ctx, cancelRun := context.WithCancel(t.Context())
 	runReturned := make(chan struct{}, 1)
 	go func() {
 		h.Run(ctx)

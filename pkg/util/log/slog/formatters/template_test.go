@@ -6,7 +6,6 @@
 package formatters
 
 import (
-	"context"
 	"log/slog"
 	"strings"
 	"testing"
@@ -29,7 +28,7 @@ func TestTemplateFormatterBasic(t *testing.T) {
 		0,
 	)
 
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Equal(t, "test message", result)
 }
 
@@ -51,7 +50,7 @@ func TestTemplateFormatterWithLevel(t *testing.T) {
 	for _, tc := range levels {
 		t.Run(tc.expected, func(t *testing.T) {
 			record := slog.NewRecord(time.Now(), tc.level, "test", 0)
-			result := formatter(context.Background(), record)
+			result := formatter(t.Context(), record)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -75,7 +74,7 @@ func TestTemplateFormatterWithLEVEL(t *testing.T) {
 	for _, tc := range levels {
 		t.Run(tc.expected, func(t *testing.T) {
 			record := slog.NewRecord(time.Now(), tc.level, "test", 0)
-			result := formatter(context.Background(), record)
+			result := formatter(t.Context(), record)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -85,7 +84,7 @@ func TestTemplateFormatterWithLevelChar(t *testing.T) {
 	formatter := Template("{{.l}} - {{.msg}}")
 
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test", 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Contains(t, result, " - test")
 	// The .l field is a single byte representing the first character of the level
 	parts := strings.Split(result, " - ")
@@ -100,7 +99,7 @@ func TestTemplateFormatterWithDateTime(t *testing.T) {
 	testTime := time.Date(2023, 11, 4, 15, 30, 45, 0, time.UTC)
 	record := slog.NewRecord(testTime, types.ToSlogLevel(types.InfoLvl), "test", 0)
 
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Equal(t, "2023-11-04 15:30:45.000 UTC | test", result)
 }
 
@@ -110,7 +109,7 @@ func TestTemplateFormatterWithDate(t *testing.T) {
 	testTime := time.Date(2023, 11, 4, 15, 30, 45, 0, time.UTC)
 	record := slog.NewRecord(testTime, types.ToSlogLevel(types.InfoLvl), "test", 0)
 
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Equal(t, "2023-11-04 | test", result)
 }
 
@@ -120,7 +119,7 @@ func TestTemplateFormatterWithCustomDateFormat(t *testing.T) {
 	testTime := time.Date(2023, 11, 4, 15, 30, 45, 0, time.UTC)
 	record := slog.NewRecord(testTime, types.ToSlogLevel(types.InfoLvl), "test", 0)
 
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Equal(t, "15:30:45 - test", result)
 }
 
@@ -130,7 +129,7 @@ func TestTemplateFormatterWithNs(t *testing.T) {
 	testTime := time.Date(2023, 11, 4, 15, 30, 45, 123456789, time.UTC)
 	record := slog.NewRecord(testTime, types.ToSlogLevel(types.InfoLvl), "test", 0)
 
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Contains(t, result, " | test")
 	nsPart := strings.Split(result, " | ")[0]
 	assert.Regexp(t, `^\d+$`, nsPart)
@@ -140,7 +139,7 @@ func TestTemplateFormatterWithToUpper(t *testing.T) {
 	formatter := Template(`{{ToUpper .msg}}`)
 
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test message", 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Equal(t, "TEST MESSAGE", result)
 }
 
@@ -172,7 +171,7 @@ func TestTemplateFormatterWithQuote(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), tc.message, 0)
-			result := formatter(context.Background(), record)
+			result := formatter(t.Context(), record)
 			// Quote function behavior depends on formatters.Quote implementation
 			assert.NotEmpty(t, result)
 		})
@@ -183,7 +182,7 @@ func TestTemplateFormatterWithFuncShort(t *testing.T) {
 	formatter := Template("{{FuncShort}} | {{.msg}}")
 
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test", 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Contains(t, result, " | test")
 }
 
@@ -191,7 +190,7 @@ func TestTemplateFormatterWithShortFilePath(t *testing.T) {
 	formatter := Template("{{ShortFilePath}} | {{.msg}}")
 
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test", 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Contains(t, result, " | test")
 }
 
@@ -199,7 +198,7 @@ func TestTemplateFormatterWithRelFile(t *testing.T) {
 	formatter := Template("{{RelFile}} | {{.msg}}")
 
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test", 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Contains(t, result, " | test")
 }
 
@@ -207,7 +206,7 @@ func TestTemplateFormatterWithLine(t *testing.T) {
 	formatter := Template("line:{{.line}} | {{.msg}}")
 
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test", 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Contains(t, result, "line:")
 	assert.Contains(t, result, " | test")
 }
@@ -216,7 +215,7 @@ func TestTemplateFormatterWithFile(t *testing.T) {
 	formatter := Template("{{.file}} | {{.msg}}")
 
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test", 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Contains(t, result, " | test")
 }
 
@@ -224,7 +223,7 @@ func TestTemplateFormatterWithFunc(t *testing.T) {
 	formatter := Template("{{.func}} | {{.msg}}")
 
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test", 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Contains(t, result, " | test")
 }
 
@@ -233,7 +232,7 @@ func TestTemplateFormatterWithExtraTextContext(t *testing.T) {
 
 	t.Run("no attributes", func(t *testing.T) {
 		record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test", 0)
-		result := formatter(context.Background(), record)
+		result := formatter(t.Context(), record)
 		assert.Equal(t, "test", result)
 	})
 
@@ -243,7 +242,7 @@ func TestTemplateFormatterWithExtraTextContext(t *testing.T) {
 			slog.String("key1", "value1"),
 			slog.Int("key2", 42),
 		)
-		result := formatter(context.Background(), record)
+		result := formatter(t.Context(), record)
 		assert.Contains(t, result, "test")
 		// ExtraTextContext should add attributes
 		assert.Contains(t, result, "key1")
@@ -258,7 +257,7 @@ func TestTemplateFormatterWithExtraJSONContext(t *testing.T) {
 
 	t.Run("no attributes", func(t *testing.T) {
 		record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test", 0)
-		result := formatter(context.Background(), record)
+		result := formatter(t.Context(), record)
 		assert.Equal(t, "test", result)
 	})
 
@@ -268,7 +267,7 @@ func TestTemplateFormatterWithExtraJSONContext(t *testing.T) {
 			slog.String("key1", "value1"),
 			slog.Int("key2", 42),
 		)
-		result := formatter(context.Background(), record)
+		result := formatter(t.Context(), record)
 		assert.Contains(t, result, "test")
 		// ExtraJSONContext should add attributes in JSON format
 		assert.Contains(t, result, "key1")
@@ -285,7 +284,7 @@ func TestTemplateFormatterComplexTemplate(t *testing.T) {
 	record := slog.NewRecord(testTime, types.ToSlogLevel(types.InfoLvl), "test message", 0)
 	record.AddAttrs(slog.String("user", "admin"))
 
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 
 	// Check all components are present
 	assert.Contains(t, result, "2023-11-04")
@@ -300,7 +299,7 @@ func TestTemplateFormatterEmptyMessage(t *testing.T) {
 	formatter := Template("{{.msg}}")
 
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "", 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Equal(t, "", result)
 }
 
@@ -309,7 +308,7 @@ func TestTemplateFormatterMultilineMessage(t *testing.T) {
 
 	message := "line1\nline2\nline3"
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), message, 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Equal(t, message, result)
 }
 
@@ -327,7 +326,7 @@ func TestTemplateFormatterSpecialCharacters(t *testing.T) {
 	for _, msg := range specialMessages {
 		t.Run(msg, func(t *testing.T) {
 			record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), msg, 0)
-			result := formatter(context.Background(), record)
+			result := formatter(t.Context(), record)
 			assert.Equal(t, msg, result)
 		})
 	}
@@ -340,7 +339,7 @@ func TestTemplateFormatterInvalidTemplate(t *testing.T) {
 	formatter := Template("{{.msg}}")
 
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test", 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Equal(t, "test", result)
 }
 
@@ -350,7 +349,7 @@ func TestTemplateFormatterAccessingRecordFields(t *testing.T) {
 	testTime := time.Date(2023, 11, 4, 15, 30, 45, 0, time.UTC)
 	record := slog.NewRecord(testTime, types.ToSlogLevel(types.InfoLvl), "test", 0)
 
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Equal(t, "test", result)
 }
 
@@ -358,7 +357,7 @@ func TestTemplateFormatterContextFields(t *testing.T) {
 	formatter := Template("level={{.level}} msg={{.msg}}")
 
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test", 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 
 	assert.Contains(t, result, "level=")
 	assert.Contains(t, result, "msg=test")
@@ -379,7 +378,7 @@ func TestTemplateFormatterTimeFields(t *testing.T) {
 	testTime := time.Date(2023, 11, 4, 15, 30, 45, 0, time.UTC)
 	record := slog.NewRecord(testTime, types.ToSlogLevel(types.InfoLvl), "test", 0)
 
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 	assert.Equal(t, "2023-11-04", result)
 }
 
@@ -387,7 +386,7 @@ func TestTemplateFormatterFrameFields(t *testing.T) {
 	formatter := Template(`{{.frame.Function}} {{.frame.Line}}`)
 
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test", 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 
 	// Frame fields should be present even if empty
 	assert.NotEmpty(t, result)
@@ -397,7 +396,7 @@ func TestTemplateFormatterCombinedFunctions(t *testing.T) {
 	formatter := Template(`{{ToUpper (Level)}} - {{Quote .msg}}`)
 
 	record := slog.NewRecord(time.Now(), types.ToSlogLevel(types.InfoLvl), "test", 0)
-	result := formatter(context.Background(), record)
+	result := formatter(t.Context(), record)
 
 	assert.Contains(t, result, "INFO")
 	assert.Contains(t, result, " - ")

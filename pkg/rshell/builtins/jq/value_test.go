@@ -17,7 +17,7 @@ import (
 )
 
 func TestOrderedObjectDuplicateKeepsPositionAndLastValue(t *testing.T) {
-	v, err := parseSingleJSON(context.Background(), `{"b":1,"a":2,"b":3}`)
+	v, err := parseSingleJSON(t.Context(), `{"b":1,"a":2,"b":3}`)
 	require.NoError(t, err)
 
 	got, err := encodeValue(v, false, MaxOutputBytes)
@@ -49,7 +49,7 @@ func TestNumberBoundsAndUnderflow(t *testing.T) {
 
 func TestContainerDepthIsConsistent(t *testing.T) {
 	text := strings.Repeat("[", MaxNestingDepth) + "0" + strings.Repeat("]", MaxNestingDepth)
-	v, err := parseSingleJSON(context.Background(), text)
+	v, err := parseSingleJSON(t.Context(), text)
 	require.NoError(t, err)
 	assert.Equal(t, MaxNestingDepth, v.depth)
 
@@ -57,25 +57,25 @@ func TestContainerDepthIsConsistent(t *testing.T) {
 	assert.ErrorIs(t, err, errValueDepth)
 
 	tooDeep := "[" + text + "]"
-	_, err = parseSingleJSON(context.Background(), tooDeep)
+	_, err = parseSingleJSON(t.Context(), tooDeep)
 	assert.ErrorIs(t, err, errValueDepth)
 }
 
 func TestSurrogateValidation(t *testing.T) {
-	_, err := parseSingleJSON(context.Background(), `"\ud800"`)
+	_, err := parseSingleJSON(t.Context(), `"\ud800"`)
 	assert.ErrorIs(t, err, errInvalidSurrogate)
 
-	v, err := parseSingleJSON(context.Background(), `"\ud83d\ude00"`)
+	v, err := parseSingleJSON(t.Context(), `"\ud83d\ude00"`)
 	require.NoError(t, err)
 	assert.Equal(t, "😀", v.str)
 
-	v, err = parseSingleJSON(context.Background(), "\"\xff\"")
+	v, err = parseSingleJSON(t.Context(), "\"\xff\"")
 	require.NoError(t, err)
 	assert.Equal(t, "�", v.str)
 }
 
 func TestUnterminatedStringDrainPreservesCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	reader := io.MultiReader(
 		strings.NewReader(`{"x":"\qbad`),
 		&cancelingReader{reader: strings.NewReader(`"`), cancel: cancel},
@@ -88,7 +88,7 @@ func TestUnterminatedStringDrainPreservesCancellation(t *testing.T) {
 func TestProvisionalObjectKeyWhitespaceDrainIsBuffered(t *testing.T) {
 	reader := &countingReader{reader: strings.NewReader("{ 0\n" + strings.Repeat(" ", 1<<20))}
 
-	_, err := newJSONValueDecoder(context.Background(), reader).next()
+	_, err := newJSONValueDecoder(t.Context(), reader).next()
 	assert.Error(t, err)
 	assert.Less(t, reader.reads, 100)
 }
@@ -101,7 +101,7 @@ func TestProvisionalObjectKeyDrainPushesBackTrailingBytes(t *testing.T) {
 		`{ 0` + "\n" + pad + `abc]]]`,
 	} {
 		t.Run(strings.TrimSpace(input[len(input)-12:]), func(t *testing.T) {
-			decoder := newJSONValueDecoder(context.Background(), strings.NewReader(input))
+			decoder := newJSONValueDecoder(t.Context(), strings.NewReader(input))
 
 			_, err := decoder.next()
 			assert.Error(t, err)
@@ -113,7 +113,7 @@ func TestProvisionalObjectKeyDrainPushesBackTrailingBytes(t *testing.T) {
 
 func TestStreamReplayBufferDoesNotRetainWholeStream(t *testing.T) {
 	const values = 20000
-	decoder := newJSONValueDecoder(context.Background(), strings.NewReader(strings.Repeat(`{"a":1}`+"\n", values)))
+	decoder := newJSONValueDecoder(t.Context(), strings.NewReader(strings.Repeat(`{"a":1}`+"\n", values)))
 
 	widest := 0
 	for range values {
@@ -140,7 +140,7 @@ func TestStreamReplayCompactionIsAmortized(t *testing.T) {
 }
 
 func TestStreamReplayRebaseKeepsUnterminatedTokenDrain(t *testing.T) {
-	decoder := newJSONValueDecoder(context.Background(), strings.NewReader(`{"a":1} "unterminated`))
+	decoder := newJSONValueDecoder(t.Context(), strings.NewReader(`{"a":1} "unterminated`))
 
 	_, err := decoder.next()
 	require.NoError(t, err)

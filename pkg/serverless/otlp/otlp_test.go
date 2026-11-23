@@ -8,7 +8,6 @@
 package otlp
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -112,7 +111,7 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 
 func testServerlessOTLPAgentReceivesTraces(client otlptrace.Client, traceChan <-chan struct{}) error {
 	// use opentelemetry to send spans
-	ctx := context.Background()
+	ctx := t.Context()
 	exporter, _ := otlptrace.New(ctx, client)
 	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),

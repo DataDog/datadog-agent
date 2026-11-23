@@ -6,7 +6,6 @@
 package ec2
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -29,7 +28,7 @@ func resetSpotTestVars() {
 }
 
 func TestIsSpotInstance(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	configmock.New(t)
 
 	tests := []struct {
@@ -103,7 +102,7 @@ func TestIsSpotInstance(t *testing.T) {
 }
 
 func TestGetRebalanceRecommendationTime(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	configmock.New(t)
 
 	tests := []struct {
@@ -202,7 +201,7 @@ func TestGetRebalanceRecommendationTime(t *testing.T) {
 }
 
 func TestGetSpotTerminationTime(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	configmock.New(t)
 
 	tests := []struct {

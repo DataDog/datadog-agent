@@ -56,7 +56,7 @@ func TestInputRedirectFromFIFOWithoutWriterEndsWithContext(t *testing.T) {
 			dir := t.TempDir()
 			require.NoError(t, unix.Mkfifo(filepath.Join(dir, "fifo"), 0o600))
 
-			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
 			defer cancel()
 			stdout, err := runFIFOInputScript(ctx, t, dir, script)
 			assert.ErrorIs(t, err, context.DeadlineExceeded)
@@ -78,7 +78,7 @@ func TestInputRedirectFromFIFOWithoutWriterEndsWithMaxExecutionTime(t *testing.T
 	r.Dir = dir
 
 	done := make(chan error, 1)
-	go func() { done <- r.Run(context.Background(), parseScript(t, "cat < fifo")) }()
+	go func() { done <- r.Run(t.Context(), parseScript(t, "cat < fifo")) }()
 	select {
 	case err = <-done:
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
@@ -110,7 +110,7 @@ func TestInputRedirectFromFIFOReadsWriterData(t *testing.T) {
 				writeErr <- err
 			}()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			stdout, err := runFIFOInputScript(ctx, t, dir, script)
 			require.NoError(t, err)
@@ -133,7 +133,7 @@ func TestInputRedirectFromRegularFileKeepsFileStdin(t *testing.T) {
 	r.Dir = dir
 	r.Reset()
 
-	cls, err := r.redir(context.Background(), parseScript(t, "cat < in.txt").Stmts[0].Redirs[0])
+	cls, err := r.redir(t.Context(), parseScript(t, "cat < in.txt").Stmts[0].Redirs[0])
 	require.NoError(t, err)
 	defer cls.Close()
 	require.NotNil(t, r.stdin)
@@ -155,7 +155,7 @@ func TestInputRedirectFromFIFOAttachesStdinPipe(t *testing.T) {
 	r.Dir = dir
 	r.Reset()
 
-	cls, err := r.redir(context.Background(), parseScript(t, "true < fifo").Stmts[0].Redirs[0])
+	cls, err := r.redir(t.Context(), parseScript(t, "true < fifo").Stmts[0].Redirs[0])
 	require.NoError(t, err)
 	defer cls.Close()
 	ic, ok := cls.(inputRedirCloser)
@@ -175,7 +175,7 @@ func (endlessReader) Close() error               { return nil }
 // redirect releases the stdin pipe, so the copy goroutine exits even when the
 // command never drained it and the source never ends.
 func TestInputRedirectCloserReleasesStdinPipe(t *testing.T) {
-	pr, done, err := stdinPipe(context.Background(), endlessReader{})
+	pr, done, err := stdinPipe(t.Context(), endlessReader{})
 	require.NoError(t, err)
 
 	require.NoError(t, inputRedirCloser{src: endlessReader{}, pipe: pr}.Close())

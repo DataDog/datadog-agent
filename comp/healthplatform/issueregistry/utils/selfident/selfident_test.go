@@ -429,7 +429,7 @@ func TestIdentityWithContextWaitsForReadiness(t *testing.T) {
 					assert.Empty(t, test.report(s))
 					reportWait <- time.Since(start)
 				}()
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 				defer cancel()
 				assert.Equal(t, "identity", test.resolve(s, ctx))
 				assert.Equal(t, 2200*time.Millisecond, time.Since(start))
@@ -457,7 +457,7 @@ func TestIdentityWithContextStopsWaiting(t *testing.T) {
 						func() (string, error) { return "", errors.New("not ready") },
 						func() (string, error) { return "", errors.New("unused") },
 					)
-					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+					ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 					defer cancel()
 					wantWait := 10 * time.Second
 					if cancelEarly {

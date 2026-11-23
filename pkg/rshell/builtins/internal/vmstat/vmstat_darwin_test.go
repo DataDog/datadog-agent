@@ -16,7 +16,7 @@ import (
 )
 
 func TestReadImpl_Darwin_HappyPath(t *testing.T) {
-	st, err := Read(context.Background(), "")
+	st, err := Read(t.Context(), "")
 	require.NoError(t, err)
 
 	assert.NotZero(t, st.Partial&FieldMemory, "macOS should always report FieldMemory via hw.memsize")
@@ -100,7 +100,7 @@ func TestReadSwap_AvailableExceedsTotal(t *testing.T) {
 }
 
 func TestReadImpl_Darwin_ContextCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	_, err := readImpl(ctx, "")

@@ -54,7 +54,7 @@ func TestVulnHuntBuiltinFileAccessBypass_SymlinkTargetOutsideSandbox(t *testing.
 	// observe that reading the outside file via the in-sandbox symlink
 	// fails: the sandbox blocks the read even though the symlink can be
 	// followed.
-	ctx, cancel := context.WithTimeout(context.Background(), 5)
+	ctx, cancel := context.WithTimeout(t.Context(), 5)
 	defer cancel()
 	_ = ctx
 	stdout, stderr, code := testutil.RunScript(t,

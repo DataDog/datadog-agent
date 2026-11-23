@@ -152,12 +152,12 @@ func TestFromEc2DefaultHostname(t *testing.T) {
 	// make AWS provider return an error
 	ec2GetInstanceID = func(context.Context) (string, error) { return "", errors.New("some error") }
 
-	_, err := fromEC2(context.Background(), "ip-hostname")
+	_, err := fromEC2(t.Context(), "ip-hostname")
 	assert.Error(t, err)
 
 	ec2GetInstanceID = func(context.Context) (string, error) { return "someHostname", nil }
 
-	hostname, err := fromEC2(context.Background(), "ip-hostname")
+	hostname, err := fromEC2(t.Context(), "ip-hostname")
 	assert.NoError(t, err)
 	assert.Equal(t, "someHostname", hostname)
 }
@@ -172,12 +172,12 @@ func TestFromEc2Prioritize(t *testing.T) {
 	// make AWS provider return an error
 	ec2GetInstanceID = func(context.Context) (string, error) { return "", errors.New("some error") }
 
-	_, err := fromEC2(context.Background(), "non-default-hostname")
+	_, err := fromEC2(t.Context(), "non-default-hostname")
 	assert.Error(t, err)
 
 	ec2GetInstanceID = func(context.Context) (string, error) { return "someHostname", nil }
 
-	hostname, err := fromEC2(context.Background(), "non-default-hostname")
+	hostname, err := fromEC2(t.Context(), "non-default-hostname")
 	assert.NoError(t, err)
 	assert.Equal(t, "someHostname", hostname)
 }
@@ -194,11 +194,11 @@ func TestFromEc2ECSManagedInstancesDaemon(t *testing.T) {
 	cfg.SetInTest("ecs_deployment_mode", "daemon")
 
 	ec2GetInstanceID = func(context.Context) (string, error) { return "", errors.New("imds error") }
-	_, err := fromEC2(context.Background(), "")
+	_, err := fromEC2(t.Context(), "")
 	assert.Error(t, err)
 
 	ec2GetInstanceID = func(context.Context) (string, error) { return "i-0abc123", nil }
-	hostname, err := fromEC2(context.Background(), "")
+	hostname, err := fromEC2(t.Context(), "")
 	assert.NoError(t, err)
 	assert.Equal(t, "i-0abc123", hostname)
 }
@@ -218,7 +218,7 @@ func TestFromEc2ECSManagedInstancesSidecarSkipsIMDS(t *testing.T) {
 		called = true
 		return "i-0abc123", nil
 	}
-	_, err := fromEC2(context.Background(), "")
+	_, err := fromEC2(t.Context(), "")
 	assert.Error(t, err)
 	assert.False(t, called, "IMDS should not be called in sidecar mode")
 }

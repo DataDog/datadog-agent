@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"os"
@@ -1886,7 +1885,7 @@ func TestFilterConnectAddrFamily(t *testing.T) {
 
 	err = test.GetProbeEvent(func() error {
 		return runSyscallTesterFunc(
-			context.Background(),
+			t.Context(),
 			t,
 			syscallTester,
 			"connect",
@@ -1937,7 +1936,7 @@ func TestFilterBindAddrFamily(t *testing.T) {
 
 	err = test.GetProbeEvent(func() error {
 		return runSyscallTesterFunc(
-			context.Background(),
+			t.Context(),
 			t,
 			syscallTester,
 			"bind",

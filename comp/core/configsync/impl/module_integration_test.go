@@ -6,7 +6,6 @@
 package configsyncimpl
 
 import (
-	"context"
 	"net"
 	"net/http"
 	"net/url"
@@ -55,7 +54,7 @@ func TestOptionalModule(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, comp.(configSync).enabled)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	require.NoError(t, lc.Start(ctx))
 	t.Cleanup(func() { lc.Stop(ctx) })
 

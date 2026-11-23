@@ -56,7 +56,7 @@ func TestPgbouncerCollectorCollectsDogfoodEnvVars(t *testing.T) {
 		"SERVER_RESET_QUERY": "DISCARD ALL",
 	}}
 
-	collected, err := NewPgbouncer().Collect(context.Background(), reader)
+	collected, err := NewPgbouncer().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
@@ -82,7 +82,7 @@ func TestPgbouncerCollectorCanCollectFromProcess(t *testing.T) {
 
 func TestPgbouncerCollectorReturnsEnvReadError(t *testing.T) {
 	expectedErr := errors.New("environment unavailable")
-	_, err := NewPgbouncer().Collect(context.Background(), &pgbouncerCollectorTestReader{readEnvVarsErr: expectedErr})
+	_, err := NewPgbouncer().Collect(t.Context(), &pgbouncerCollectorTestReader{readEnvVarsErr: expectedErr})
 	require.ErrorIs(t, err, expectedErr)
 }
 

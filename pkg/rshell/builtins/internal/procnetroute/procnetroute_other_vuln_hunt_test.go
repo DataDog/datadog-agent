@@ -8,13 +8,12 @@
 package procnetroute
 
 import (
-	"context"
 	"strings"
 	"testing"
 )
 
 func TestVulnHuntSubsystemPlatformDivergence_NonLinuxRouteReaderDoesNotOpenProc(t *testing.T) {
-	_, err := ReadRoutes(context.Background(), DefaultProcPath)
+	_, err := ReadRoutes(t.Context(), DefaultProcPath)
 	if err == nil {
 		t.Fatalf("expected non-Linux platform error")
 	}

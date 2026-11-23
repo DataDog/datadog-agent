@@ -399,7 +399,7 @@ func (s *parK8sSuite) waitForPARReady() {
 	started := time.Now()
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		pods, err := s.Env().KubernetesCluster.Client().CoreV1().
-			Pods(agentNamespace).List(context.Background(), metav1.ListOptions{
+			Pods(agentNamespace).List(t.Context(), metav1.ListOptions{
 			LabelSelector: "app=" + selector,
 		})
 		require.NoError(c, err)
@@ -447,7 +447,7 @@ func (s *parK8sSuite) waitForPARReady() {
 
 func (s *parK8sSuite) verifySplitPodSpec() {
 	pod, err := s.Env().KubernetesCluster.Client().CoreV1().
-		Pods(agentNamespace).Get(context.Background(), s.parPodName, metav1.GetOptions{})
+		Pods(agentNamespace).Get(t.Context(), s.parPodName, metav1.GetOptions{})
 	s.Require().NoError(err)
 	s.Require().NotNil(pod.Spec.TerminationGracePeriodSeconds)
 	s.Require().GreaterOrEqual(*pod.Spec.TerminationGracePeriodSeconds, int64(190))
@@ -537,7 +537,7 @@ func (s *parK8sSuite) waitForPARProcessStates(process string, states []string, t
 }
 
 func (s *parK8sSuite) logPARContainerLogs(selector, reason string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	pods, err := s.Env().KubernetesCluster.Client().CoreV1().

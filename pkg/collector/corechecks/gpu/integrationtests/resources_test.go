@@ -8,7 +8,6 @@
 package integrationtests
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -72,7 +71,7 @@ func TestGPUResources(t *testing.T) {
 	published := publishedResources(t, mockSender)
 	require.Len(t, published, len(expectedDevices), "expected one gpu_device per physical GPU")
 
-	agentHostname, err := hostname.Get(context.Background())
+	agentHostname, err := hostname.Get(t.Context())
 	require.NoError(t, err)
 
 	for uuid, info := range expectedDevices {

@@ -10,7 +10,6 @@
 package ssi
 
 import (
-	"context"
 	_ "embed"
 	"fmt"
 	"testing"
@@ -627,7 +626,7 @@ func (v *ssiSuite) testDatadogInstrumentation() {
 	dynamicClient, err := dynamic.NewForConfig(v.Env().KubernetesCluster.KubernetesClient.K8sConfig)
 	require.NoError(v.T(), err)
 	resourceClient := dynamicClient.Resource(ddiAPMGVR).Namespace(ddiNamespace)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ddi := &datadoghq.DatadogInstrumentation{
 		TypeMeta: metav1api.TypeMeta{

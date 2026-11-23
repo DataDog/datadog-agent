@@ -57,7 +57,7 @@ func TestKeyvaultBackend(t *testing.T) {
 	keyvaultSecretsBackend, err := NewKeyVaultBackend(keyvaultBackendParams)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// Top-level key will be fetched as json
 	secretOutput := keyvaultSecretsBackend.GetSecretOutput(ctx, "key1")
 	assert.Equal(t, "{\"user\":\"foo\",\"password\":\"bar\"}", *secretOutput.Value)
@@ -88,7 +88,7 @@ func TestKeyVaultBackend_issue39434(t *testing.T) {
 	keyvaultSecretsBackend, err := NewKeyVaultBackend(keyvaultBackendParams)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// Top-level keys are not fetchable
 	secretOutput := keyvaultSecretsBackend.GetSecretOutput(ctx, "key1")
 	assert.Equal(t, "{\\\"foo\\\":\\\"bar\\\"}", *secretOutput.Value)

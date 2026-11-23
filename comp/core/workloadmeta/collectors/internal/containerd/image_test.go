@@ -8,7 +8,6 @@
 package containerd
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -260,7 +259,7 @@ func blobDescriptor(mediaType string, data []byte) ocispec.Descriptor {
 // scan.
 func TestImageEventKeepsSBOM(t *testing.T) {
 	const namespace = "k8s.io"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	layer := digest.FromString("layer")
 	configBlob, err := json.Marshal(ocispec.Image{
@@ -303,7 +302,7 @@ func TestImageEventKeepsSBOM(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	provider, err := NewCollector(dependencies{Config: config.NewMock(t), FilterStore: workloadfilterfxmock.SetupMockFilter(t)})

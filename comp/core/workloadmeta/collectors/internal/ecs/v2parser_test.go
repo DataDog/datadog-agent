@@ -111,7 +111,7 @@ func TestParseTaskFromV2Endpoint(t *testing.T) {
 		seen:             make(map[workloadmeta.EntityID]struct{}),
 	}
 
-	events, err := collector.parseTaskFromV2Endpoint(context.Background())
+	events, err := collector.parseTaskFromV2Endpoint(t.Context())
 	require.NoError(t, err)
 	require.NotEmpty(t, events)
 
@@ -155,7 +155,7 @@ func TestParseTaskFromV2EndpointError(t *testing.T) {
 		},
 	}
 
-	events, err := collector.parseTaskFromV2Endpoint(context.Background())
+	events, err := collector.parseTaskFromV2Endpoint(t.Context())
 	require.Error(t, err)
 	assert.Nil(t, events)
 	assert.Contains(t, err.Error(), "connection refused")

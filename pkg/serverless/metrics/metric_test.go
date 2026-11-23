@@ -8,7 +8,6 @@
 package metrics
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"runtime"
@@ -230,7 +229,7 @@ func TestShutdownCascadeFlushesLateSample(t *testing.T) {
 
 	// Drive the shutdown cascade: OnStop fires dsdServer.stop -> demux.Stop()
 	// -> forwarder.Stop in reverse construction order.
-	require.NoError(t, app.Stop(context.Background()))
+	require.NoError(t, app.Stop(t.Context()))
 
 	require.Equal(t, int64(1), cf.sketchCount.Load(),
 		"the OnStop cascade must drain and flush the late sample to the forwarder")

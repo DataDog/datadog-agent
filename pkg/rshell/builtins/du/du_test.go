@@ -555,7 +555,7 @@ func TestDuDoesNotCrashOnDeepTree(t *testing.T) {
 	require.NoError(t, os.MkdirAll(deep, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(deep, "file"), []byte("ok"), 0o644))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	_, _, code := cmdRunCtx(ctx, t, "du .", dir)
 	assert.Equal(t, 0, code)
@@ -578,7 +578,7 @@ func TestDuRespectsRecursionLimit(t *testing.T) {
 	}
 	require.NoError(t, os.MkdirAll(deep, 0o755))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	_, stderr, code := cmdRunCtx(ctx, t, "du .", dir)
 	assert.Equal(t, 1, code)

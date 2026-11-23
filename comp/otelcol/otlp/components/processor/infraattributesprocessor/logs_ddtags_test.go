@@ -140,7 +140,7 @@ func TestLogsTagsAsDDTags(t *testing.T) {
 				return "test-host", nil
 			})
 			flp, err := factory.CreateLogs(
-				context.Background(),
+				t.Context(),
 				processortest.NewNopSettings(Type),
 				cfg,
 				next,
@@ -148,7 +148,7 @@ func TestLogsTagsAsDDTags(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, flp)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			require.NoError(t, flp.Start(ctx, nil))
 
 			ld := plog.NewLogs()

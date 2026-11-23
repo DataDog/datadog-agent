@@ -6,7 +6,6 @@
 package jq
 
 import (
-	"context"
 	"strings"
 	"testing"
 )
@@ -48,11 +47,11 @@ func FuzzJQEvaluator(f *testing.F) {
 		if err != nil {
 			return
 		}
-		v, err := parseSingleJSON(context.Background(), input)
+		v, err := parseSingleJSON(t.Context(), input)
 		if err != nil {
 			return
 		}
-		eval := newEvaluator(context.Background(), nil)
+		eval := newEvaluator(t.Context(), nil)
 		results, err := eval.evaluate(v, root)
 		// A retention imbalance is an internal invariant violation.
 		if err != nil && strings.Contains(err.Error(), "retention accounting imbalance") {
@@ -73,10 +72,10 @@ func FuzzJQJSONDecoder(f *testing.F) {
 	} {
 		f.Add(seed)
 	}
-	f.Fuzz(func(_ *testing.T, input string) {
+	f.Fuzz(func(t *testing.T, input string) {
 		if len(input) > 1<<20 {
 			return
 		}
-		_, _ = parseSingleJSON(context.Background(), input)
+		_, _ = parseSingleJSON(t.Context(), input)
 	})
 }

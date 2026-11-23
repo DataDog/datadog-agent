@@ -5634,7 +5634,7 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		}
 		// Connect the TCP to the server
 		go func() {
-			timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			timeoutCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			cmd := exec.CommandContext(timeoutCtx, syscallTester, "connect-and-send", "9004", "tcp", "9005", "4321")
 			stdout, err := cmd.StdoutPipe()
@@ -5694,7 +5694,7 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		// Connect the UDP to the server
 		go func() {
 			// args are "connect-and-send", port_server_listens, protocol, port_where_c_prog_listens, port_client_sends
-			timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			timeoutCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			cmd := exec.CommandContext(timeoutCtx, syscallTester, "connect-and-send", "9004", "udp", "9005", "4321")
 			stdout, err := cmd.StdoutPipe()

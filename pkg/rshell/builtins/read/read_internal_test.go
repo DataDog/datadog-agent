@@ -54,7 +54,7 @@ func TestReadInput_GoroutinePath_EOFWithData(t *testing.T) {
 	// handles n>0 + EOF correctly via its `if n == 1 { return ...
 	// }` short-circuit). A loose deadline keeps the context
 	// cancellable without firing during the test.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	// Read until newline. eofWithDataReader returns "abc\n" + EOF in
@@ -86,7 +86,7 @@ func TestReadInput_GoroutinePath_EOFWithData(t *testing.T) {
 // delimiter — readInput must include that final byte in the returned
 // string and report eof=true.
 func TestReadInput_GoroutinePath_EOFWithDataNoDelim(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	r := &eofWithDataReader{data: []byte("abc")}
@@ -135,7 +135,7 @@ func TestReadInput_GoroutinePath_PartialUTF8OnTimeout(t *testing.T) {
 	defer close(stall)
 	r := &stallAfterReader{data: []byte{0xc3}, stallCh: stall}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
 
 	line, eof, err := readInput(ctx, r, '\n', true, -1, false, true)

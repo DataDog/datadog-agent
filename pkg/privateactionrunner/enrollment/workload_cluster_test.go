@@ -63,7 +63,7 @@ func TestClusterWIFEnrollmentSharesIdentity(t *testing.T) {
 		signedRequest = request
 		return "workload-token", nil
 	}}
-	result, err := EnrollWithWorkloadToken(context.Background(), cfg, auth, &AgentIdentifier{Hostname: "replica-a", OrchClusterID: "cluster-id"})
+	result, err := EnrollWithWorkloadToken(t.Context(), cfg, auth, &AgentIdentifier{Hostname: "replica-a", OrchClusterID: "cluster-id"})
 	require.NoError(t, err)
 	var request partypes.CreateRunnerRequest
 	require.NoError(t, jsonapi.Unmarshal(<-received, &request))
@@ -83,10 +83,10 @@ func TestClusterWIFEnrollmentSharesIdentity(t *testing.T) {
 	require.Equal(t, "cluster-id", result.OrchClusterID)
 
 	client := fake.NewSimpleClientset()
-	require.NoError(t, writeIdentitySecret(context.Background(), client, "default", "par-identity", result))
+	require.NoError(t, writeIdentitySecret(t.Context(), client, "default", "par-identity", result))
 	// A follower reads the leader's secret through the existing coordination path.
 	synctest.Test(t, func(t *testing.T) {
-		secret, err := waitForLeaderAndSecret(context.Background(), make(chan struct{}), func() bool { return false }, client, "default", "par-identity", time.Second, storage.acceptsSecret)
+		secret, err := waitForLeaderAndSecret(t.Context(), make(chan struct{}), func() bool { return false }, client, "default", "par-identity", time.Second, storage.acceptsSecret)
 		require.NoError(t, err)
 		identity, err := parseSecretData(secret, "default", "par-identity")
 		require.NoError(t, err)
@@ -108,6 +108,6 @@ func TestClusterWIFEnrollmentRequiresClusterID(t *testing.T) {
 		t.Fatal("must reject missing cluster identity before requesting a token")
 		return "", nil
 	}}
-	_, err := EnrollWithWorkloadToken(context.Background(), coreconfig.NewMock(t), auth, &AgentIdentifier{Hostname: "replica-a"})
+	_, err := EnrollWithWorkloadToken(t.Context(), coreconfig.NewMock(t), auth, &AgentIdentifier{Hostname: "replica-a"})
 	require.ErrorContains(t, err, "orchestrator cluster ID")
 }

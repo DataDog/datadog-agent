@@ -1389,7 +1389,7 @@ func (s *TracerSuite) TestSelfConnect() {
 
 	tr := setupTracer(t, cfg)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Minute)
 	t.Cleanup(cancel)
 
 	cmd := exec.CommandContext(ctx, "testdata/fork.py")
@@ -1682,7 +1682,7 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 	var err error
 	for i := 0; i < 5; i++ {
 		err = func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			out, err = testutil.RunCommandWithContext(ctx, "testdata/reuseport.py")
 			if err != nil {
@@ -5463,7 +5463,7 @@ options ndots:1`
 		conn = expectDNSWorkload(ct, connections)
 	}, 5*time.Second, 200*time.Millisecond, "failed to find DNS connection with proper stats")
 
-	proc, err := process.NewProcessWithContext(context.Background(), int32(conn.Pid))
+	proc, err := process.NewProcessWithContext(t.Context(), int32(conn.Pid))
 	require.NoError(t, err)
 
 	createTime, err := proc.CreateTime()

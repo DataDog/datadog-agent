@@ -9,7 +9,6 @@ package ps_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -42,7 +41,7 @@ func runScriptWithProcPath(t *testing.T, script, procPath string) (stdout, stder
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	runErr := runner.Run(context.Background(), prog)
+	runErr := runner.Run(t.Context(), prog)
 	exitCode := 0
 	if runErr != nil {
 		var es interp.ExitStatus

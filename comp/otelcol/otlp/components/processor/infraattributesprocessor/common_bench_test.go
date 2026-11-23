@@ -6,7 +6,6 @@
 package infraattributesprocessor
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -82,7 +81,7 @@ func BenchmarkProcessMetrics(b *testing.B) {
 				require.NoError(b, err)
 
 				md := benchMetrics(resources, pods)
-				ctx := context.Background()
+				ctx := b.Context()
 				// Warm the attribute maps so the first timed iteration doesn't grow them.
 				_, err = iamp.processMetrics(ctx, md)
 				require.NoError(b, err)

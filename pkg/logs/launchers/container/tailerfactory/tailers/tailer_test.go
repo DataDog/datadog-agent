@@ -22,7 +22,7 @@ import (
 func TestBaseTailer_run_normal_stop(t *testing.T) {
 	b := base{}
 
-	b.ctx, b.cancel = context.WithCancel(context.Background())
+	b.ctx, b.cancel = context.WithCancel(t.Context())
 	b.stopped = make(chan struct{})
 
 	tailerStarted := false
@@ -48,7 +48,7 @@ func TestBaseTailer_run_normal_stop(t *testing.T) {
 
 func TestBaseTailer_run_erroredContainer(t *testing.T) {
 	b := base{}
-	b.ctx, b.cancel = context.WithCancel(context.Background())
+	b.ctx, b.cancel = context.WithCancel(t.Context())
 	b.stopped = make(chan struct{})
 
 	tailerStarted := atomic.NewInt32(0)
@@ -86,7 +86,7 @@ func TestBaseTailer_run_erroredContainer(t *testing.T) {
 
 func TestBaseTailer_run_canStopWithError(t *testing.T) {
 	b := base{}
-	b.ctx, b.cancel = context.WithCancel(context.Background())
+	b.ctx, b.cancel = context.WithCancel(t.Context())
 	b.stopped = make(chan struct{})
 
 	tailerStarted := atomic.NewInt32(0)
@@ -126,7 +126,7 @@ func TestBaseTailer_run_error_starting(t *testing.T) {
 	defer func() { backoffInitialDuration = 1 * time.Second }()
 
 	a := &APITailer{}
-	a.ctx, a.cancel = context.WithCancel(context.Background())
+	a.ctx, a.cancel = context.WithCancel(t.Context())
 	a.stopped = make(chan struct{})
 
 	tailerStarted := atomic.NewInt32(0)
@@ -167,7 +167,7 @@ func TestBaseTailer_run_error_starting_expires(t *testing.T) {
 	}()
 
 	b := base{}
-	b.ctx, b.cancel = context.WithCancel(context.Background())
+	b.ctx, b.cancel = context.WithCancel(t.Context())
 	b.stopped = make(chan struct{})
 
 	tailerStarted := atomic.NewInt32(0)

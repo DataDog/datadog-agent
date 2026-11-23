@@ -78,7 +78,7 @@ func TestConnectivityDiagnoseOperationSuccess(t *testing.T) {
 
 	testSuccessEndpoint := config.NewEndpoint("api-key", "", host, portInt, config.EmptyPathPrefix, false)
 	connManager := NewConnectionManager(testSuccessEndpoint, statusinterface.NewNoopStatusProvider())
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 
 	_, err = connManager.NewConnection(ctx)
@@ -106,7 +106,7 @@ func TestConnectivityDiagnoseOperationFail(t *testing.T) {
 
 	testFailEndpointWrongAddress := config.NewEndpoint("api-key", "", "failhost", portInt, config.EmptyPathPrefix, false)
 	connManager := NewConnectionManager(testFailEndpointWrongAddress, statusinterface.NewNoopStatusProvider())
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 
 	_, err = connManager.NewConnection(ctx)
@@ -114,7 +114,7 @@ func TestConnectivityDiagnoseOperationFail(t *testing.T) {
 
 	testFailEndpointWrongPort := config.NewEndpoint("api-key", "", host, portInt+1, config.EmptyPathPrefix, false)
 	connManager = NewConnectionManager(testFailEndpointWrongPort, statusinterface.NewNoopStatusProvider())
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel = context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 
 	_, err = connManager.NewConnection(ctx)

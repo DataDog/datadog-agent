@@ -58,7 +58,7 @@ func TestVulnHuntBuiltinResourceExhaustion_InfiniteNullStreamTimesOut(t *testing
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "zeros.bin"),
 		make([]byte, 8*1024*1024), 0644))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 35*time.Second)
 	defer cancel()
 	done := make(chan struct{})
 	go func() {

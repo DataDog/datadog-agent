@@ -315,7 +315,7 @@ func TestLogsExporter(t *testing.T) {
 				OtelSource:    tt.args.otelSource,
 				LogSourceName: tt.args.logSourceName,
 			}
-			ctx := context.Background()
+			ctx := t.Context()
 			exp, err := f.CreateLogs(ctx, params, cfg)
 
 			require.NoError(t, err)
@@ -350,7 +350,7 @@ func TestLogsExporterContextCancelled(t *testing.T) {
 		OtelSource:    otelSource,
 		LogSourceName: LogSourceName,
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	exp, err := f.CreateLogs(ctx, params, cfg)
 	require.NoError(t, err)
 
@@ -376,7 +376,7 @@ func TestLogsExporterContextCancelledPartialDelivery(t *testing.T) {
 		OtelSource:    otelSource,
 		LogSourceName: LogSourceName,
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	exp, err := f.CreateLogs(ctx, params, cfg)
 	require.NoError(t, err)
 
@@ -539,7 +539,7 @@ func TestConsumeLogs_OrchestratorBranching(t *testing.T) {
 		t.Helper()
 		params := exportertest.NewNopSettings(component.MustNewType(TypeStr))
 		f := NewFactory(ch, otel.NewDisabledGatewayUsage())
-		e, err := f.CreateLogs(context.Background(), params, cfg)
+		e, err := f.CreateLogs(t.Context(), params, cfg)
 		require.NoError(t, err)
 		return e
 	}
@@ -547,7 +547,7 @@ func TestConsumeLogs_OrchestratorBranching(t *testing.T) {
 	t.Run("orchestrator disabled routes everything to regular path", func(t *testing.T) {
 		ch := make(chan *message.Message, 4)
 		e := newExp(t, ch, &Config{OtelSource: otelSource, LogSourceName: LogSourceName})
-		require.NoError(t, e.ConsumeLogs(context.Background(), regularLog()))
+		require.NoError(t, e.ConsumeLogs(t.Context(), regularLog()))
 		select {
 		case <-ch:
 		default:
@@ -570,7 +570,7 @@ func TestConsumeLogs_OrchestratorBranching(t *testing.T) {
 				Enabled: true, Endpoint: server.URL, Key: "k", Hostname: stubHostname{name: "h"},
 			},
 		})
-		require.NoError(t, e.ConsumeLogs(context.Background(), regularLog()))
+		require.NoError(t, e.ConsumeLogs(t.Context(), regularLog()))
 		assert.Equal(t, int32(0), posts.Load(), "k8s consumer should not be invoked")
 		select {
 		case <-ch:
@@ -604,7 +604,7 @@ func TestConsumeLogs_OrchestratorBranching(t *testing.T) {
 				Enabled: true, Endpoint: server.URL, Key: "k", Hostname: stubHostname{name: "h"},
 			},
 		})
-		require.NoError(t, e.ConsumeLogs(context.Background(), ld))
+		require.NoError(t, e.ConsumeLogs(t.Context(), ld))
 		assert.Equal(t, int32(1), posts.Load(), "k8s consumer should be invoked once")
 		select {
 		case <-ch:
@@ -629,7 +629,7 @@ func TestConsumeLogs_OrchestratorBranching(t *testing.T) {
 				Enabled: true, Endpoint: server.URL, Key: "k", Hostname: stubHostname{name: "h"},
 			},
 		})
-		require.NoError(t, e.ConsumeLogs(context.Background(), mixedLogs()))
+		require.NoError(t, e.ConsumeLogs(t.Context(), mixedLogs()))
 		assert.Equal(t, int32(1), posts.Load(), "k8s consumer should be invoked once")
 		select {
 		case <-ch:

@@ -8,7 +8,6 @@
 package selinux
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -71,7 +70,7 @@ func TestRuntimePermissions(t *testing.T) {
 			if tc.chcon {
 				write("chcon", body)
 			}
-			err = SetRuntimePermissions(context.Background(), link)
+			err = SetRuntimePermissions(t.Context(), link)
 			if tc.wantError != "" {
 				require.ErrorContains(t, err, tc.wantError)
 			} else {
@@ -119,7 +118,7 @@ func TestRuntimeSELinuxDetection(t *testing.T) {
 			bin := t.TempDir()
 			t.Setenv("PATH", bin)
 			require.NoError(t, os.WriteFile(filepath.Join(bin, tc.program), []byte("#!/bin/sh\n"+tc.script+"\n"), 0755))
-			enabled, err := runtimeSELinuxEnabled(context.Background())
+			enabled, err := runtimeSELinuxEnabled(t.Context())
 			require.Equal(t, tc.enabled, enabled)
 			if tc.wantError {
 				require.Error(t, err)

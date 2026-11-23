@@ -7,7 +7,6 @@ package dupcheck_test
 
 import (
 	"compress/gzip"
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -447,7 +446,7 @@ func newDupcheckPipeline(t *testing.T, c dupcheckConfig) *dupcheckPipeline {
 	if c.configure != nil {
 		c.configure(cfg)
 	}
-	a := agent.NewAgent(context.Background(), cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzipcomp.NewComponent())
+	a := agent.NewAgent(t.Context(), cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzipcomp.NewComponent())
 	a.Concentrator = dupcheckNoopConcentrator{}
 	// NewAgent starts the senders of the stats writer. Run its loop so that
 	// Stop can shut them down.
@@ -528,7 +527,7 @@ func (p *dupcheckPipeline) run(t *testing.T, in *dupcheckInputs, newModifier fun
 	for _, rs := range in.otlp {
 		received := ptrace.NewResourceSpans()
 		rs.CopyTo(received)
-		_, err := p.otlp.ReceiveResourceSpans(context.Background(), received, http.Header{}, nil)
+		_, err := p.otlp.ReceiveResourceSpans(t.Context(), received, http.Header{}, nil)
 		require.NoError(t, err)
 		converted := <-p.otlpOut
 		out.otlpConversion = append(out.otlpConversion, dupcheckOTLPPair{in: rs, out: proto.Clone(converted.TracerPayload).(*pb.TracerPayload)})

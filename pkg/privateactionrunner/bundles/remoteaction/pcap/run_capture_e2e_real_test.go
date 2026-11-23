@@ -8,7 +8,6 @@
 package com_datadoghq_remoteaction_pcap
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -74,7 +73,7 @@ func TestRunCapture_RealEndToEnd(t *testing.T) {
 		capture:  &socketCaptureTrigger{},
 	}
 
-	out, err := handler.capture.Capture(context.Background(), RunCaptureInputs{
+	out, err := handler.capture.Capture(t.Context(), RunCaptureInputs{
 		BPFFilter:    "icmp",
 		DurationSecs: 3,
 		Interface:    iface,
@@ -85,7 +84,7 @@ func TestRunCapture_RealEndToEnd(t *testing.T) {
 	require.Greater(t, out.PacketCount, 0, "expected at least one ICMP packet — is traffic being generated on %s during the capture window?", iface)
 
 	captureID := "e2e-test-" + uuid.New().String()
-	err = uploadCapture(context.Background(), handler.uploader, handler.hostname, out.PcapPath, captureID)
+	err = uploadCapture(t.Context(), handler.uploader, handler.hostname, out.PcapPath, captureID)
 	require.NoError(t, err, "expected the real networkpcap intake to accept the upload (202); a failure here means the agent-side upload path is broken against a real, reachable intake, independent of any S3/Husky-landing question")
 
 	t.Logf("uploaded capture_id=%s (%d bytes) to https://%s/api/v2/networkpcap and got 202 — this confirms edge-accept only, NOT confirmed storage landing in S3/Husky", captureID, out.FileSizeBytes, intakeHost)
@@ -147,7 +146,7 @@ func TestRunCapture_RealEndToEndViaRun(t *testing.T) {
 		},
 	}
 
-	out, err := handler.Run(context.Background(), task, nil)
+	out, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err, "Run() must accept a task with no bpfFilter")
 
 	res, ok := out.(*RunCaptureResult)

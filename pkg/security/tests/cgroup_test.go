@@ -539,7 +539,7 @@ func TestCGroupPropagation(t *testing.T) {
 			}
 
 			test.WaitSignalFromRule(t, func() error {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 				defer cancel()
 				return runSyscallTesterFunc(ctx, t, syscallTester, "process-clone-into-cgroup", targetCGroupPath, testFile)
 			}, func(event *model.Event, rule *rules.Rule) {

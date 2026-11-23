@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"context"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -48,7 +47,7 @@ func TestPrCtl(t *testing.T) {
 
 	t.Run("prctl-set-name", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "my_thread")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "prctl-setname", "my_thread")
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_prctl")
 		}, "test_rule_prctl")
@@ -93,7 +92,7 @@ func TestPrCtlTruncated(t *testing.T) {
 
 	t.Run("prctl-set-name-truncated", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "my_thread_is_waaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaay_too_long")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "prctl-setname", "my_thread_is_waaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaay_too_long")
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_prctl_truncated")
 		}, "test_rule_prctl_truncated")
@@ -137,7 +136,7 @@ func TestPrCtlDiscarder(t *testing.T) {
 		// 1. send first event not matching the rule to create a discarder.
 		// it's expected that we receive the event
 		err = test.GetProbeEvent(func() error {
-			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", prName)
+			err = runSyscallTesterFunc(t.Context(), t, syscallTester, "prctl-setname", prName)
 			if err != nil {
 				t.Fatal("error calling prctl: %w", err)
 			}
@@ -156,7 +155,7 @@ func TestPrCtlDiscarder(t *testing.T) {
 
 		// 2. make sure that we're still receiving non-discarded messages
 		test.WaitSignalFromRule(t, func() error {
-			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "my_thread")
+			err = runSyscallTesterFunc(t.Context(), t, syscallTester, "prctl-setname", "my_thread")
 			if err != nil {
 				t.Fatal("error calling prctl: %w", err)
 			}
@@ -167,7 +166,7 @@ func TestPrCtlDiscarder(t *testing.T) {
 
 		// 3. trigger prctl again with the event that shall be discarded and check that we don't receive anything
 		err = test.GetProbeEvent(func() error {
-			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", prName)
+			err = runSyscallTesterFunc(t.Context(), t, syscallTester, "prctl-setname", prName)
 			if err != nil {
 				t.Fatal("error calling prctl: %w", err)
 			}
@@ -238,7 +237,7 @@ func TestPrCtlDiscarderReload(t *testing.T) {
 		// 1. send first event not matching the rule to create a discarder.
 		// it's expected that we receive the event
 		err = test.GetProbeEvent(func() error {
-			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", prName)
+			err = runSyscallTesterFunc(t.Context(), t, syscallTester, "prctl-setname", prName)
 			if err != nil {
 				t.Fatal("error calling prctl: %w", err)
 			}
@@ -257,7 +256,7 @@ func TestPrCtlDiscarderReload(t *testing.T) {
 
 		// 2. make sure that we're still receiving non-discarded messages
 		test.WaitSignalFromRule(t, func() error {
-			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "my_thread")
+			err = runSyscallTesterFunc(t.Context(), t, syscallTester, "prctl-setname", "my_thread")
 			if err != nil {
 				t.Fatal("error calling prctl: %w", err)
 			}
@@ -271,7 +270,7 @@ func TestPrCtlDiscarderReload(t *testing.T) {
 
 		// 4. trigger prctl again with the name that had previously been added to the discarders. we should receive it now
 		err = test.GetProbeEvent(func() error {
-			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", prName)
+			err = runSyscallTesterFunc(t.Context(), t, syscallTester, "prctl-setname", prName)
 			if err != nil {
 				t.Fatal("error calling prctl: %w", err)
 			}

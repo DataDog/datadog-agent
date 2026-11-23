@@ -26,7 +26,7 @@ import (
 )
 
 func TestNewCreditCardsObfuscator(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
@@ -42,7 +42,7 @@ func TestObfuscateStatsGroup(t *testing.T) {
 			Resource: resource,
 		}
 	}
-	agnt, stop := agentWithDefaults()
+	agnt, stop := agentWithDefaults(t.Context())
 	defer stop()
 	for _, tt := range []struct {
 		in  *pb.ClientGroupedStats // input stats
@@ -69,7 +69,7 @@ func TestObfuscateDefaults(t *testing.T) {
 			Resource: cmd,
 			Meta:     map[string]string{"redis.raw_command": cmd},
 		}
-		agnt, stop := agentWithDefaults()
+		agnt, stop := agentWithDefaults(t.Context())
 		defer stop()
 		agnt.ObfuscateSpan(span)
 		assert.Equal(t, cmd, span.Meta["redis.raw_command"])
@@ -83,7 +83,7 @@ func TestObfuscateDefaults(t *testing.T) {
 			Resource: cmd,
 			Meta:     map[string]string{"valkey.raw_command": cmd},
 		}
-		agnt, stop := agentWithDefaults()
+		agnt, stop := agentWithDefaults(t.Context())
 		defer stop()
 		agnt.ObfuscateSpan(span)
 		assert.Equal(t, cmd, span.Meta["valkey.raw_command"])
@@ -97,7 +97,7 @@ func TestObfuscateDefaults(t *testing.T) {
 			Resource: query,
 			Meta:     map[string]string{"sql.query": query},
 		}
-		agnt, stop := agentWithDefaults()
+		agnt, stop := agentWithDefaults(t.Context())
 		defer stop()
 		agnt.ObfuscateSpan(span)
 		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Meta["sql.query"])
@@ -105,8 +105,8 @@ func TestObfuscateDefaults(t *testing.T) {
 	})
 }
 
-func agentWithDefaults(features ...string) (agnt *Agent, stop func()) {
-	ctx, cancelFunc := context.WithCancel(context.Background())
+func agentWithDefaults(ctx context.Context, features ...string) (agnt *Agent, stop func()) {
+	ctx, cancelFunc := context.WithCancel(ctx)
 	cfg := config.New()
 	for _, f := range features {
 		cfg.Features[f] = struct{}{}
@@ -124,7 +124,7 @@ func TestObfuscateConfig(t *testing.T) {
 		ocfg *config.ObfuscationConfig,
 	) func(*testing.T) {
 		return func(t *testing.T) {
-			ctx, cancelFunc := context.WithCancel(context.Background())
+			ctx, cancelFunc := context.WithCancel(t.Context())
 			cfg := config.New()
 			cfg.Endpoints[0].APIKey = "test"
 			cfg.Obfuscation = ocfg
@@ -331,7 +331,7 @@ func TestObfuscateConfig(t *testing.T) {
 // obfuscateSpanInternal: when both elasticsearch and opensearch JSON obfuscation are enabled,
 // the code returns early if elasticsearch.body is missing and never obfuscates opensearch.body.
 func TestObfuscateSpan_openSearchWhenElasticEnabledWithoutElasticBody(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
@@ -398,7 +398,7 @@ func TestSQLResourceQuery(t *testing.T) {
 		},
 	}
 
-	agnt, stop := agentWithDefaults()
+	agnt, stop := agentWithDefaults(t.Context())
 	defer stop()
 	for _, tc := range testCases {
 		_, hadSQLQuery := tc.span.Meta["sql.query"]
@@ -454,7 +454,7 @@ ORDER BY [b].[Name]`,
 		},
 	}
 
-	agnt, stop := agentWithDefaults()
+	agnt, stop := agentWithDefaults(t.Context())
 	defer stop()
 	for _, tc := range testCases {
 		_, hadSQLQuery := tc.span.Meta["sql.query"]
@@ -607,7 +607,7 @@ func TestObfuscateSQLSpanDBAttributes(t *testing.T) {
 			wantMeta:     map[string]string{"db.statement": rawQuery, "sql.query": rawQuery},
 		},
 	} {
-		agnt, stop := agentWithDefaults()
+		agnt, stop := agentWithDefaults(t.Context())
 		assertSpan := func(t *testing.T, span obfuscateSpan) {
 			assert.Equal(t, tt.wantResource, span.Resource())
 			for k, want := range tt.wantMeta {
@@ -648,7 +648,7 @@ func TestSQLTableNames(t *testing.T) {
 			Resource: "SELECT * FROM users WHERE id = 42",
 			Type:     "sql",
 		}
-		agnt, stop := agentWithDefaults("table_names")
+		agnt, stop := agentWithDefaults(t.Context(), "table_names")
 		defer stop()
 		agnt.ObfuscateSpan(span)
 		assert.Equal(t, "users", span.Meta["sql.tables"])
@@ -659,7 +659,7 @@ func TestSQLTableNames(t *testing.T) {
 			Resource: "SELECT * FROM users WHERE id = 42",
 			Type:     "sql",
 		}
-		agnt, stop := agentWithDefaults()
+		agnt, stop := agentWithDefaults(t.Context())
 		defer stop()
 		agnt.ObfuscateSpan(span)
 		assert.Empty(t, span.Meta["sql.tables"])
@@ -667,7 +667,7 @@ func TestSQLTableNames(t *testing.T) {
 }
 
 func BenchmarkCCObfuscation(b *testing.B) {
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(b.Context())
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Obfuscation = &config.ObfuscationConfig{
@@ -691,7 +691,7 @@ func BenchmarkCCObfuscation(b *testing.B) {
 
 func TestObfuscateSpanEvent(t *testing.T) {
 	assert := assert.New(t)
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Obfuscation = &config.ObfuscationConfig{
@@ -763,7 +763,7 @@ func TestObfuscateSpanEvent(t *testing.T) {
 }
 
 func TestLexerObfuscation(t *testing.T) {
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Features["sqllexer"] = struct{}{}
@@ -806,7 +806,7 @@ func TestObfuscateSpanParameterized(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NoError(t, decoder.Decode(raw.Config))
 
-			ctx, cancelFunc := context.WithCancel(context.Background())
+			ctx, cancelFunc := context.WithCancel(t.Context())
 			defer cancelFunc()
 			cfg := config.New()
 			cfg.Endpoints[0].APIKey = "test"
@@ -841,7 +841,7 @@ func assertSpanEqual(t *testing.T, expected *pb.Span, actual *pb.Span) {
 // span whose event attribute declares Type=ARRAY_VALUE but has a nil ArrayValue
 // does not panic; the credit-card obfuscator skips the nil array.
 func TestObfuscateSpanEventNilArrayValueDoesNotPanic(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"

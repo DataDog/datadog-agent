@@ -114,7 +114,7 @@ func TestFingerprintHoldsNoCredentialMaterial(t *testing.T) {
 }
 
 func TestRunReportsATimeoutAsAReading(t *testing.T) {
-	r := Run(context.Background(), "127.0.0.1", testOptions())
+	r := Run(t.Context(), "127.0.0.1", testOptions())
 
 	require.NotNil(t, r)
 	assert.False(t, r.Success)
@@ -131,7 +131,7 @@ func TestRunReturnsTheLastReadingWhenEveryCredentialFails(t *testing.T) {
 		{ID: "cred-2", Version: "2c", Community: "other"},
 	}
 
-	r := Run(context.Background(), "127.0.0.1", opts)
+	r := Run(t.Context(), "127.0.0.1", opts)
 
 	require.NotNil(t, r)
 	assert.False(t, r.Success)
@@ -142,7 +142,7 @@ func TestRunWithNoCredentialIsAReadingAndNotAPanic(t *testing.T) {
 	opts := testOptions()
 	opts.Credentials = nil
 
-	r := Run(context.Background(), "127.0.0.1", opts)
+	r := Run(t.Context(), "127.0.0.1", opts)
 
 	require.NotNil(t, r)
 	assert.False(t, r.Success)
@@ -150,7 +150,7 @@ func TestRunWithNoCredentialIsAReadingAndNotAPanic(t *testing.T) {
 }
 
 func TestRunStopsOnACancelledContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	r := Run(ctx, "127.0.0.1", testOptions())

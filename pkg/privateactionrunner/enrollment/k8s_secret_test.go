@@ -89,7 +89,7 @@ func TestWaitForLeaderAndSecret_RetriesTransientThenSucceeds(t *testing.T) {
 	leadershipChange := make(chan struct{})
 	isLeader := func() bool { return false }
 
-	ctx := context.Background()
+	ctx := t.Context()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
 		testPollInterval, acceptAnySecret,
@@ -125,7 +125,7 @@ func TestWaitForLeaderAndSecret_HandlesAlternatingTransientAndNotFound(t *testin
 	leadershipChange := make(chan struct{})
 	isLeader := func() bool { return false }
 
-	ctx := context.Background()
+	ctx := t.Context()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
 		testPollInterval, acceptAnySecret,
@@ -145,7 +145,7 @@ func TestWaitForLeaderAndSecret_ExitsOnContextCancel(t *testing.T) {
 	leadershipChange := make(chan struct{})
 	isLeader := func() bool { return false }
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		cancel()
@@ -177,7 +177,7 @@ func TestWaitForLeaderAndSecret_ReturnsNilWhenBecomesLeader(t *testing.T) {
 		leadershipChange <- struct{}{}
 	}()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
 		testPollInterval, acceptAnySecret,
@@ -193,7 +193,7 @@ func TestWaitForLeaderAndSecret_ReturnsNilIfAlreadyLeader(t *testing.T) {
 	leadershipChange := make(chan struct{})
 	isLeader := func() bool { return true }
 
-	ctx := context.Background()
+	ctx := t.Context()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
 		testPollInterval, acceptAnySecret,
@@ -213,7 +213,7 @@ func TestWaitForLeaderAndSecret_FailsImmediatelyOnNonTransientError(t *testing.T
 	leadershipChange := make(chan struct{})
 	isLeader := func() bool { return false }
 
-	ctx := context.Background()
+	ctx := t.Context()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
 		testPollInterval, acceptAnySecret,
@@ -239,10 +239,10 @@ func TestWriteIdentitySecret_CreatesSecret(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	result := makeTestResult(t)
 
-	err := writeIdentitySecret(context.Background(), client, "default", "par-identity", result)
+	err := writeIdentitySecret(t.Context(), client, "default", "par-identity", result)
 	require.NoError(t, err)
 
-	secret, err := client.CoreV1().Secrets("default").Get(context.Background(), "par-identity", metav1.GetOptions{})
+	secret, err := client.CoreV1().Secrets("default").Get(t.Context(), "par-identity", metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, result.URN, string(secret.Data[urnField]))
 	assert.Equal(t, result.OrchClusterID, string(secret.Data[orchClusterIDField]))
@@ -273,10 +273,10 @@ func TestWriteIdentitySecret_UpdatesExistingSecret(t *testing.T) {
 		return false, nil, nil
 	})
 
-	err := writeIdentitySecret(context.Background(), client, "default", "par-identity", result)
+	err := writeIdentitySecret(t.Context(), client, "default", "par-identity", result)
 	require.NoError(t, err)
 
-	secret, err := client.CoreV1().Secrets("default").Get(context.Background(), "par-identity", metav1.GetOptions{})
+	secret, err := client.CoreV1().Secrets("default").Get(t.Context(), "par-identity", metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, result.URN, string(secret.Data[urnField]))
 	assert.Equal(t, result.OrchClusterID, string(secret.Data[orchClusterIDField]))
@@ -289,7 +289,7 @@ func TestWriteIdentitySecret_ReturnsErrorOnFailure(t *testing.T) {
 			schema.GroupResource{Resource: "secrets"}, "par-identity", errors.New("RBAC denied"))
 	})
 
-	err := writeIdentitySecret(context.Background(), client, "default", "par-identity", makeTestResult(t))
+	err := writeIdentitySecret(t.Context(), client, "default", "par-identity", makeTestResult(t))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create secret")
 }
@@ -304,7 +304,7 @@ func TestIdentitySecretStoreLoad(t *testing.T) {
 		return s
 	}
 	updateSecret := func(c *fake.Clientset, s *corev1.Secret) {
-		_, err := c.CoreV1().Secrets(ns).Update(context.Background(), s, metav1.UpdateOptions{})
+		_, err := c.CoreV1().Secrets(ns).Update(t.Context(), s, metav1.UpdateOptions{})
 		require.NoError(t, err)
 	}
 
@@ -359,7 +359,7 @@ func TestIdentitySecretStoreLoad(t *testing.T) {
 				time.AfterFunc(5*testPollInterval, func() { tt.afterStart(client, leader) })
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			identity, err := storage.Load(ctx)
 

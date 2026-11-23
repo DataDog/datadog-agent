@@ -66,7 +66,7 @@ func (f *horizontalControllerFixture) resetFakeScaler() {
 	f.controller.scaler = f.scaler
 }
 
-func (f *horizontalControllerFixture) runSync(fakePai *model.FakePodAutoscalerInternal) (model.PodAutoscalerInternal, autoscaling.ProcessResult, error) {
+func (f *horizontalControllerFixture) runSync(ctx context.Context, fakePai *model.FakePodAutoscalerInternal) (model.PodAutoscalerInternal, autoscaling.ProcessResult, error) {
 	// PodAutoscaler object is only used to attach events to the fake recorder
 	// The controller does not interact with the object itself
 	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{
@@ -84,11 +84,11 @@ func (f *horizontalControllerFixture) runSync(fakePai *model.FakePodAutoscalerIn
 	var scaleErr error
 	if autoscalerInternal.Spec() != nil {
 		if gvk, err := autoscalerInternal.TargetGVK(); err == nil {
-			scale, gr, scaleErr = f.scaler.get(context.Background(), fakePai.Namespace, autoscalerInternal.Spec().TargetRef.Name, gvk)
+			scale, gr, scaleErr = f.scaler.get(ctx, fakePai.Namespace, autoscalerInternal.Spec().TargetRef.Name, gvk)
 		}
 	}
 
-	res, err := f.controller.sync(context.Background(), fakeAutoscaler, &autoscalerInternal, scale, gr, scaleErr)
+	res, err := f.controller.sync(ctx, fakeAutoscaler, &autoscalerInternal, scale, gr, scaleErr)
 	return autoscalerInternal, res, err
 }
 
@@ -104,7 +104,7 @@ type horizontalScalingTestArgs struct {
 	scaleLimitReason string
 }
 
-func (f *horizontalControllerFixture) testScalingDecision(args horizontalScalingTestArgs) (autoscaling.ProcessResult, error) {
+func (f *horizontalControllerFixture) testScalingDecision(ctx context.Context, args horizontalScalingTestArgs) (autoscaling.ProcessResult, error) {
 	f.t.Helper()
 	f.resetFakeScaler()
 	f.scaler.mockGet(*args.fakePai, args.currentReplicas, args.statusReplicas, nil)
@@ -126,7 +126,7 @@ func (f *horizontalControllerFixture) testScalingDecision(args horizontalScaling
 		Replicas:    args.recReplicas,
 	})
 
-	autoscaler, result, err := f.runSync(args.fakePai)
+	autoscaler, result, err := f.runSync(ctx, args.fakePai)
 	f.scaler.AssertNumberOfCalls(f.t, "get", 1)
 	f.scaler.AssertNumberOfCalls(f.t, "update", expectedUpdateCalls)
 
@@ -172,7 +172,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	}
 
 	// Test case: no Spec, no action taken
-	autoscaler, result, err := f.runSync(fakePai)
+	autoscaler, result, err := f.runSync(t.Context(), fakePai)
 	assert.Equal(t, result, autoscaling.NoRequeue)
 	assert.Nil(t, err)
 	model.AssertPodAutoscalersEqual(t, fakePai.Build(), autoscaler)
@@ -215,7 +215,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 		targetGR,
 		nil,
 	)
-	autoscaler, result, err = f.runSync(fakePai)
+	autoscaler, result, err = f.runSync(t.Context(), fakePai)
 	f.scaler.AssertNumberOfCalls(t, "get", 1)
 	assert.Equal(t, result, autoscaling.NoRequeue)
 	assert.NoError(t, err)
@@ -232,7 +232,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	// Test case: Error returned while getting scale subresource
 	f.resetFakeScaler()
 	f.scaler.On("get", mock.Anything, autoscalerNamespace, autoscalerName, expectedGVK).Return(&autoscalingv1.Scale{}, schema.GroupResource{}, testutil.NewErrorString("some k8s error"))
-	autoscaler, result, err = f.runSync(fakePai)
+	autoscaler, result, err = f.runSync(t.Context(), fakePai)
 	f.scaler.AssertNumberOfCalls(t, "get", 1)
 	assert.Equal(t, result, autoscaling.Requeue)
 	assert.EqualError(t, err, "failed to get scale subresource for autoscaler default/test, err: some k8s error")
@@ -250,7 +250,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	fakePai.Spec.ApplyPolicy = &datadoghq.DatadogPodAutoscalerApplyPolicy{
 		Mode: datadoghq.DatadogPodAutoscalerApplyModePreview,
 	}
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		currentReplicas: 5,
@@ -270,7 +270,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 		MinReplicas: pointer.Ptr[int32](2),
 		MaxReplicas: pointer.Ptr[int32](8),
 	}
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		currentReplicas: 10,
@@ -286,7 +286,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	fakePai.Spec.ApplyPolicy = nil
 	fakePai.Spec.Constraints = nil
 	fakePai.Paused = true
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		currentReplicas: 5,
@@ -308,7 +308,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	fakePai.Spec.ApplyPolicy = &datadoghq.DatadogPodAutoscalerApplyPolicy{
 		Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
 	}
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
 		currentReplicas: 6,
@@ -327,7 +327,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	fakePai.Spec.ApplyPolicy = &datadoghq.DatadogPodAutoscalerApplyPolicy{
 		Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
 	}
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
 		currentReplicas: 6,
@@ -407,7 +407,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	}
 
 	// Step: same number of replicas, no action taken, only updating status
-	result, err := f.testScalingDecision(horizontalScalingTestArgs{
+	result, err := f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -422,7 +422,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	// Step: Received increased replicas, should scale up
 	// Step is 30s later
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -437,7 +437,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	// Step: Received decreased replicas, should scale down
 	// Step is 30s later
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -452,7 +452,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	// Step: Error while scaling down to 3 replicas
 	// Step is 30s later
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -468,7 +468,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	// Step:: No error, scaling resumed
 	// Step is 30s later
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -488,7 +488,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 		MinReplicas: pointer.Ptr[int32](2),
 		MaxReplicas: pointer.Ptr[int32](8),
 	}
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -508,7 +508,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 		MinReplicas: pointer.Ptr[int32](2),
 		MaxReplicas: pointer.Ptr[int32](8),
 	}
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -529,7 +529,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 		MinReplicas: pointer.Ptr[int32](8),
 		MaxReplicas: pointer.Ptr[int32](10),
 	}
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -549,7 +549,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 		MinReplicas: pointer.Ptr[int32](8),
 		MaxReplicas: pointer.Ptr[int32](10),
 	}
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -628,7 +628,7 @@ func TestHorizontalControllerSyncScaleUpWithRules(t *testing.T) {
 	}
 
 	// Step: Increase of 4 replicas in 30s, should scale up without limits
-	result, err := f.testScalingDecision(horizontalScalingTestArgs{
+	result, err := f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -643,7 +643,7 @@ func TestHorizontalControllerSyncScaleUpWithRules(t *testing.T) {
 	// Step: Another increase of 4 replicas 30s later (so 8 in 1min), should be blocked to 5 replicas due to first rule
 	// Earliest event expiration will be in 30s, so we should requeue after 31s
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -683,14 +683,14 @@ func TestHorizontalControllerSyncScaleUpWithRules(t *testing.T) {
 		args.scaleReplicas += addedReplicas
 		args.scaleLimitReason = fmt.Sprintf("desired replica count limited to %d (originally 125) due to scaling policy", args.scaleReplicas)
 
-		result, err = f.testScalingDecision(args)
+		result, err = f.testScalingDecision(t.Context(), args)
 		assert.Equal(t, autoscaling.Requeue.After(31*time.Second), result)
 		assert.NoError(t, err)
 	}
 
 	// Now we can check that we are limited to 120 replicas
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -714,7 +714,7 @@ func TestHorizontalControllerSyncScaleUpWithRules(t *testing.T) {
 
 	// Moving clock 6 minutes forward to only block on 100% rule
 	f.clock.Step(6 * time.Minute)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -731,7 +731,7 @@ func TestHorizontalControllerSyncScaleUpWithRules(t *testing.T) {
 	// 20% of 198 leads to 238
 	fakePai.Spec.ApplyPolicy.ScaleUp.Strategy = pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerMaxChangeStrategySelect)
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -810,7 +810,7 @@ func TestHorizontalControllerSyncScaleDownWithRules(t *testing.T) {
 	}
 
 	// Step: Decrease of 4 replicas in 30s, should scale down without limits
-	result, err := f.testScalingDecision(horizontalScalingTestArgs{
+	result, err := f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -825,7 +825,7 @@ func TestHorizontalControllerSyncScaleDownWithRules(t *testing.T) {
 	// Step: Another decrease of 4 replicas 30s later (so 8 in 1min), should be blocked to 5 replicas due to first rule
 	// Earliest event expiration will be in 30s, so we should requeue after 31s
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -865,14 +865,14 @@ func TestHorizontalControllerSyncScaleDownWithRules(t *testing.T) {
 		args.scaleReplicas -= deletedReplicas
 		args.scaleLimitReason = fmt.Sprintf("desired replica count limited to %d (originally 75) due to scaling policy", args.scaleReplicas)
 
-		result, err = f.testScalingDecision(args)
+		result, err = f.testScalingDecision(t.Context(), args)
 		assert.Equal(t, autoscaling.Requeue.After(31*time.Second), result)
 		assert.NoError(t, err)
 	}
 
 	// Now we can check that we are limited to 80 replicas
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -896,7 +896,7 @@ func TestHorizontalControllerSyncScaleDownWithRules(t *testing.T) {
 
 	// Moving clock 6 minutes forward to only block on 50% rule
 	f.clock.Step(6 * time.Minute)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -913,7 +913,7 @@ func TestHorizontalControllerSyncScaleDownWithRules(t *testing.T) {
 	// 20% of 52 leads to 41.6 (41)
 	fakePai.Spec.ApplyPolicy.ScaleDown.Strategy = pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerMaxChangeStrategySelect)
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -991,7 +991,7 @@ func TestHorizontalControllerSyncScaleDecisionsWithRules(t *testing.T) {
 
 	// Test scale up to 103 replicas (not limited)
 	f.clock.Step(defaultStepDuration)
-	result, err := f.testScalingDecision(horizontalScalingTestArgs{
+	result, err := f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -1005,7 +1005,7 @@ func TestHorizontalControllerSyncScaleDecisionsWithRules(t *testing.T) {
 
 	// Test scale down to 97 replicas (not limited)
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -1019,7 +1019,7 @@ func TestHorizontalControllerSyncScaleDecisionsWithRules(t *testing.T) {
 
 	// Test scale down to 92 replicas, limited to 95
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -1034,7 +1034,7 @@ func TestHorizontalControllerSyncScaleDecisionsWithRules(t *testing.T) {
 
 	// Test scale up to 110 replicas, limited to 105
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -1050,7 +1050,7 @@ func TestHorizontalControllerSyncScaleDecisionsWithRules(t *testing.T) {
 	// Test out of range current replicas of 130, limited to 120
 	// Moving clock 10 minutes forward to avoid the 5 pods rule
 	f.clock.Step(10 * time.Minute)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -1067,7 +1067,7 @@ func TestHorizontalControllerSyncScaleDecisionsWithRules(t *testing.T) {
 	// Moving clock 10 minutes forward to avoid the 5 pods rule
 	f.clock.Step(10 * time.Minute)
 	fakePai.Spec.ApplyPolicy.ScaleUp.Strategy = pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -1082,7 +1082,7 @@ func TestHorizontalControllerSyncScaleDecisionsWithRules(t *testing.T) {
 
 	// Verify scale down works as expected
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -1099,7 +1099,7 @@ func TestHorizontalControllerSyncScaleDecisionsWithRules(t *testing.T) {
 	f.clock.Step(10 * time.Minute)
 	fakePai.Spec.ApplyPolicy.ScaleDown.Strategy = pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect)
 	fakePai.Spec.ApplyPolicy.ScaleUp.Strategy = nil
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -1257,7 +1257,7 @@ func TestHorizontalControllerSyncScaleDownWithStabilization(t *testing.T) {
 
 	// Test scale up to 100 replicas (not limited)
 	f.clock.Step(defaultStepDuration)
-	result, err := f.testScalingDecision(horizontalScalingTestArgs{
+	result, err := f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -1271,7 +1271,7 @@ func TestHorizontalControllerSyncScaleDownWithStabilization(t *testing.T) {
 
 	// Test scale down to 97 replicas, limited to 100
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -1286,7 +1286,7 @@ func TestHorizontalControllerSyncScaleDownWithStabilization(t *testing.T) {
 
 	// Test scale down to 95 replicas, still limited to 100
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -1302,7 +1302,7 @@ func TestHorizontalControllerSyncScaleDownWithStabilization(t *testing.T) {
 	// Test scale down to 92 replicas (not limited)
 	// Moving clock 5 minutes forward to get past stabilization window
 	f.clock.Step(5 * time.Minute)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -1316,7 +1316,7 @@ func TestHorizontalControllerSyncScaleDownWithStabilization(t *testing.T) {
 
 	// Test scale up to 100 replicas (not limited)
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -1383,7 +1383,7 @@ func TestHorizontalControllerSyncScaleUpWithStabilization(t *testing.T) {
 
 	// Test scale down to 100 replicas (not limited)
 	f.clock.Step(defaultStepDuration)
-	result, err := f.testScalingDecision(horizontalScalingTestArgs{
+	result, err := f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -1397,7 +1397,7 @@ func TestHorizontalControllerSyncScaleUpWithStabilization(t *testing.T) {
 
 	// Test scale up to 102 replicas, limited to 100
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -1412,7 +1412,7 @@ func TestHorizontalControllerSyncScaleUpWithStabilization(t *testing.T) {
 
 	// Test scale up to 105 replicas, still limited to 100
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -1428,7 +1428,7 @@ func TestHorizontalControllerSyncScaleUpWithStabilization(t *testing.T) {
 	// Test scale up to 102 replicas (not limited)
 	// Moving clock 4 minutes forward to get past stabilization window
 	f.clock.Step(4 * time.Minute)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -1442,7 +1442,7 @@ func TestHorizontalControllerSyncScaleUpWithStabilization(t *testing.T) {
 
 	// Test scale down to 100 replicas (not limited)
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -1504,7 +1504,7 @@ func TestHorizontalControllerSyncScaleWithBothStabilizationWindows(t *testing.T)
 	// Step 1: Desired jumps to 120 but current (100) is inside the envelope [95, 120],
 	// so no scaling should occur, and stabilization should report a limit reason.
 	f.clock.Step(defaultStepDuration)
-	result, err := f.testScalingDecision(horizontalScalingTestArgs{
+	result, err := f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -1520,7 +1520,7 @@ func TestHorizontalControllerSyncScaleWithBothStabilizationWindows(t *testing.T)
 	// Step 2: After 5 minutes the lower bound (95) expires; the envelope allows scaling up.
 	// We should scale up to 120 now that we are outside the envelope.
 	f.clock.Step(5 * time.Minute)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -1535,7 +1535,7 @@ func TestHorizontalControllerSyncScaleWithBothStabilizationWindows(t *testing.T)
 	// Step 3: Desired drops to 80 but recent high recommendation (120) keeps the
 	// upper envelope bound at 120; current 120 is on the boundary, so no scale down.
 	f.clock.Step(defaultStepDuration)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:          fakePai,
 		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:       defaultStepDuration,
@@ -1551,7 +1551,7 @@ func TestHorizontalControllerSyncScaleWithBothStabilizationWindows(t *testing.T)
 	// Step 4: After 5 minutes the upper bound (120) expires; now current 120 is
 	// outside the envelope and we scale down to 80.
 	f.clock.Step(5 * time.Minute)
-	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+	result, err = f.testScalingDecision(t.Context(), horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 		dataOffset:      defaultStepDuration,
@@ -1609,8 +1609,8 @@ func TestHorizontalControllerForceReplicas(t *testing.T) {
 		horizontalSource, verticalSource := getActiveScalingSources(f.clock.Now(), &autoscalerInternal)
 		autoscalerInternal.SetActiveScalingValues(f.clock.Now(), horizontalSource, verticalSource)
 
-		scale, gr, scaleErr := f.scaler.get(context.Background(), fakePai.Namespace, fakePai.Spec.TargetRef.Name, expectedGVK)
-		_, err := f.controller.sync(context.Background(), &datadoghq.DatadogPodAutoscaler{
+		scale, gr, scaleErr := f.scaler.get(t.Context(), fakePai.Namespace, fakePai.Spec.TargetRef.Name, expectedGVK)
+		_, err := f.controller.sync(t.Context(), &datadoghq.DatadogPodAutoscaler{
 			ObjectMeta: metav1.ObjectMeta{Name: fakePai.Name, Namespace: fakePai.Namespace},
 		}, &autoscalerInternal, scale, gr, scaleErr)
 		require.NoError(f.t, err)
@@ -1723,8 +1723,8 @@ func TestHorizontalControllerForceReplicas(t *testing.T) {
 			autoscaler.UpdateFromOpsAnnotations(annotations)
 			horizontalSource, verticalSource := getActiveScalingSources(f.clock.Now(), &autoscaler)
 			autoscaler.SetActiveScalingValues(f.clock.Now(), horizontalSource, verticalSource)
-			scale, gr, scaleErr := f.scaler.get(context.Background(), fakePai.Namespace, fakePai.Spec.TargetRef.Name, expectedGVK)
-			_, err := f.controller.sync(context.Background(), &datadoghq.DatadogPodAutoscaler{
+			scale, gr, scaleErr := f.scaler.get(t.Context(), fakePai.Namespace, fakePai.Spec.TargetRef.Name, expectedGVK)
+			_, err := f.controller.sync(t.Context(), &datadoghq.DatadogPodAutoscaler{
 				ObjectMeta: metav1.ObjectMeta{Name: fakePai.Name, Namespace: fakePai.Namespace},
 			}, &autoscaler, scale, gr, scaleErr)
 			require.NoError(t, err)

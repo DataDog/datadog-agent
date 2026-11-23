@@ -48,7 +48,7 @@ func TestBlockingDestinationSend(t *testing.T) {
 			defer server.Stop()
 			d := NewBlockingDestination(server.Endpoint, JSONContentType, client.NewNoopDestinationMetadata(), cfg)
 
-			err := d.Send(context.Background(), &message.Payload{Encoded: []byte("payload")})
+			err := d.Send(t.Context(), &message.Payload{Encoded: []byte("payload")})
 
 			assert.Len(t, responses, 1, "Send must send the payload exactly once")
 			if !tt.wantErr {
@@ -70,7 +70,7 @@ func TestBlockingDestinationSendUsesCallerContext(t *testing.T) {
 	defer server.Stop()
 	d := NewBlockingDestination(server.Endpoint, JSONContentType, client.NewNoopDestinationMetadata(), cfg)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	err := d.Send(ctx, &message.Payload{Encoded: []byte("payload")})
 
@@ -89,7 +89,7 @@ func TestBlockingDestinationSendTagsTheSourceOfItsMetadata(t *testing.T) {
 	defer server.Stop()
 	d := NewBlockingDestination(server.Endpoint, JSONContentType, client.NewDestinationMetadata("logs", "sync", "reliable", "0", ""), cfg)
 
-	require.NoError(t, d.Send(context.Background(), &message.Payload{Encoded: []byte("payload"), UnencodedSize: 7}))
+	require.NoError(t, d.Send(t.Context(), &message.Payload{Encoded: []byte("payload"), UnencodedSize: 7}))
 
 	for _, name := range []string{"bytes_sent", "encoded_bytes_sent"} {
 		metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", name)

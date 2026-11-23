@@ -6,7 +6,6 @@
 package helper
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,7 +26,7 @@ func TestTelemetryProviderServerForwardsFilteredMetrics(t *testing.T) {
 
 	server := NewTelemetryProviderServer(tele, coretelemetry.StaticMetricFilter("helper_test__forwarded"))
 
-	resp, err := server.GetTelemetry(context.Background(), &pbcore.GetTelemetryRequest{})
+	resp, err := server.GetTelemetry(t.Context(), &pbcore.GetTelemetryRequest{})
 	require.NoError(t, err)
 
 	promText, ok := resp.Payload.(*pbcore.GetTelemetryResponse_PromText)

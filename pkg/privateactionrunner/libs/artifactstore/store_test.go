@@ -51,9 +51,9 @@ func TestEnsureCachesPopulatedArtifact(t *testing.T) {
 	}
 	validate := validateTestArtifact("valid")
 
-	first, err := store.Ensure(context.Background(), testKey, populate, validate)
+	first, err := store.Ensure(t.Context(), testKey, populate, validate)
 	require.NoError(t, err)
-	second, err := store.Ensure(context.Background(), testKey, populate, validate)
+	second, err := store.Ensure(t.Context(), testKey, populate, validate)
 	require.NoError(t, err)
 
 	assert.Equal(t, first, second)
@@ -70,11 +70,11 @@ func TestEnsureRepairsInvalidArtifact(t *testing.T) {
 		return os.WriteFile(filepath.Join(directory, "artifact"), []byte("valid"), 0o600)
 	}
 
-	artifact, err := store.Ensure(context.Background(), testKey, populate, validateTestArtifact("valid"))
+	artifact, err := store.Ensure(t.Context(), testKey, populate, validateTestArtifact("valid"))
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(artifact.Directory, "artifact"), []byte("corrupt"), 0o600))
 
-	repaired, err := store.Ensure(context.Background(), testKey, populate, validateTestArtifact("valid"))
+	repaired, err := store.Ensure(t.Context(), testKey, populate, validateTestArtifact("valid"))
 	require.NoError(t, err)
 	assert.Equal(t, artifact.Directory, repaired.Directory)
 	assert.Equal(t, int32(2), populateCalls.Load())
@@ -109,7 +109,7 @@ func TestEnsureSerializesConcurrentPopulation(t *testing.T) {
 		go func() {
 			defer callersDone.Done()
 			callersStarted.Done()
-			_, errorsByCaller[index] = stores[index%len(stores)].Ensure(context.Background(), testKey, populate, validateTestArtifact("valid"))
+			_, errorsByCaller[index] = stores[index%len(stores)].Ensure(t.Context(), testKey, populate, validateTestArtifact("valid"))
 		}()
 	}
 	callersStarted.Wait()
@@ -129,7 +129,7 @@ func TestEnsureCleansFailedPopulation(t *testing.T) {
 
 	expectedErr := errors.New("fetch failed")
 	_, err = store.Ensure(
-		context.Background(),
+		t.Context(),
 		testKey,
 		func(_ context.Context, directory string) error {
 			if err := os.WriteFile(filepath.Join(directory, "partial"), nil, 0o600); err != nil {
@@ -153,7 +153,7 @@ func TestEnsureRejectsUnsafeKey(t *testing.T) {
 		{Namespace: "sha256", ID: "", Variant: "variant"},
 		{Namespace: "sha256", ID: "id", Variant: "nested/variant"},
 	} {
-		_, err := store.Ensure(context.Background(), key, func(context.Context, string) error { return nil }, func(context.Context, string) error { return nil })
+		_, err := store.Ensure(t.Context(), key, func(context.Context, string) error { return nil }, func(context.Context, string) error { return nil })
 		require.ErrorContains(t, err, "single, non-empty path component")
 	}
 }

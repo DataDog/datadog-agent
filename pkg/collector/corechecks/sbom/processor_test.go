@@ -670,7 +670,7 @@ func TestProcessEvents(t *testing.T) {
 			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
 				fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
-				fx.Supply(context.Background()),
+				fx.Supply(t.Context()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
@@ -844,7 +844,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 		store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
-			fx.Supply(context.Background()),
+			fx.Supply(t.Context()),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		))
 		counter := atomic.NewInt32(0)
@@ -1096,7 +1096,7 @@ func TestCorruptedSBOM(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -1264,7 +1264,7 @@ func TestProcfsScansRunningContainers(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	scanner := &fakeScanner{}
@@ -1458,7 +1458,7 @@ func newImageGraceProcessor(t *testing.T) (*processor, workloadmetamock.Mock, <-
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 

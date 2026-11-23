@@ -36,8 +36,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 )
 
 // batchingQueueConfig returns what the shipped default produces: the empty `batch:` key in
@@ -83,7 +84,7 @@ func TestQueueSettingsWithoutBatch(t *testing.T) {
 // TestExporterHelperBatchImpliesMutatesData pins the upstream premise: sending_queue.batch
 // implies MutatesData. If a collector upgrade changes that, queueSettingsWithoutBatch can go.
 func TestExporterHelperBatchImpliesMutatesData(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	set := exportertest.NewNopSettings(Type)
 	cfg := CreateDefaultConfig().(*datadogconfig.Config)
 	cfg.QueueSettings = batchingQueueConfig()
@@ -109,7 +110,7 @@ func TestTracesExporterIsNotMutating(t *testing.T) {
 	require.True(t, cfg.QueueSettings.Get().Batch.HasValue())
 
 	h := newTracesTestHarness(t)
-	exp, err := h.factory.CreateTraces(context.Background(), h.params, cfg)
+	exp, err := h.factory.CreateTraces(t.Context(), h.params, cfg)
 	require.NoError(t, err)
 
 	assert.False(t, exp.Capabilities().MutatesData,
@@ -128,13 +129,13 @@ func TestMetricsAndLogsExportersStillBatch(t *testing.T) {
 	cfg.QueueSettings = batchingQueueConfig()
 
 	h := newTracesTestHarness(t)
-	_, err := h.factory.CreateTraces(context.Background(), h.params, cfg)
+	_, err := h.factory.CreateTraces(t.Context(), h.params, cfg)
 	require.NoError(t, err)
 
 	set := exportertest.NewNopSettings(Type)
 	noop := func(context.Context, ptrace.Traces) error { return nil }
 	// Stand-in for the metrics/logs exporters, which are handed cfg.QueueSettings verbatim.
-	batching, err := exporterhelper.NewTraces(context.Background(), set, cfg, noop,
+	batching, err := exporterhelper.NewTraces(t.Context(), set, cfg, noop,
 		exporterhelper.WithQueue(cfg.QueueSettings))
 	require.NoError(t, err)
 	assert.True(t, batching.Capabilities().MutatesData,
@@ -175,7 +176,7 @@ func newTracesTestHarness(t *testing.T, tcfgOpts ...func(*config.AgentConfig)) *
 		opt(tcfg)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	agent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
@@ -203,8 +204,8 @@ func newTracesTestHarness(t *testing.T, tcfgOpts ...func(*config.AgentConfig)) *
 
 // newExporter bypasses exporterhelper: ConsumeTraces is async once a queue is configured, so
 // a panic would land on another goroutine. Calling consumeTraces inline keeps stacks useful.
-func (h *tracesTestHarness) newExporter(cfg *datadogconfig.Config) *traceExporter {
-	return newTracesExporter(context.Background(), h.params, cfg, h.comp,
+func (h *tracesTestHarness) newExporter(ctx context.Context, cfg *datadogconfig.Config) *traceExporter {
+	return newTracesExporter(ctx, h.params, cfg, h.comp,
 		otel.NewDisabledGatewayUsage(), nil, nil, h.reporter)
 }
 
@@ -309,14 +310,14 @@ func TestConsumeTracesReadOnly(t *testing.T) {
 					tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 				}
 			})
-			exp := h.newExporter(readOnlySafetyConfig())
+			exp := h.newExporter(t.Context(), readOnlySafetyConfig())
 
 			readOnly := readOnlySafetyCorpus()
 			before := marshalTraces(t, readOnly)
 			readOnly.MarkReadOnly()
 
 			require.NotPanics(t, func() {
-				require.NoError(t, exp.consumeTraces(context.Background(), readOnly))
+				require.NoError(t, exp.consumeTraces(t.Context(), readOnly))
 			})
 			assert.Equal(t, before, marshalTraces(t, readOnly),
 				"the exporter must not modify the traces it is handed")
@@ -327,14 +328,14 @@ func TestConsumeTracesReadOnly(t *testing.T) {
 // TestConsumeTracesMutableAndReadOnlyAgree: same corpus, same trace-agent input, read-only or not.
 func TestConsumeTracesMutableAndReadOnlyAgree(t *testing.T) {
 	h := newTracesTestHarness(t)
-	exp := h.newExporter(readOnlySafetyConfig())
+	exp := h.newExporter(t.Context(), readOnlySafetyConfig())
 
 	mutable := readOnlySafetyCorpus()
-	require.NoError(t, exp.consumeTraces(context.Background(), mutable))
+	require.NoError(t, exp.consumeTraces(t.Context(), mutable))
 
 	readOnly := readOnlySafetyCorpus()
 	readOnly.MarkReadOnly()
-	require.NoError(t, exp.consumeTraces(context.Background(), readOnly))
+	require.NoError(t, exp.consumeTraces(t.Context(), readOnly))
 
 	assert.Equal(t, marshalTraces(t, mutable), marshalTraces(t, readOnly))
 }
@@ -343,7 +344,7 @@ func TestConsumeTracesMutableAndReadOnlyAgree(t *testing.T) {
 // ptrace.Traces concurrently instead of each getting a copy. Meaningful under -race.
 func TestConsumeTracesReadOnlyConcurrent(t *testing.T) {
 	h := newTracesTestHarness(t)
-	exp := h.newExporter(readOnlySafetyConfig())
+	exp := h.newExporter(t.Context(), readOnlySafetyConfig())
 
 	shared := readOnlySafetyCorpus()
 	before := marshalTraces(t, shared)
@@ -357,7 +358,7 @@ func TestConsumeTracesReadOnlyConcurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			if i%2 == 0 {
-				errs[i] = exp.consumeTraces(context.Background(), shared)
+				errs[i] = exp.consumeTraces(t.Context(), shared)
 				return
 			}
 			// Stand in for the datadog connector.

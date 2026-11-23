@@ -6,7 +6,6 @@
 package handlers
 
 import (
-	"context"
 	"log/slog"
 	"runtime"
 	"testing"
@@ -28,10 +27,10 @@ func TestLevelHandlerEnabled(t *testing.T) {
 	inner := newMockInnerHandler()
 	handler := NewLevel(types.NewRulesSyncFromLevel(types.InfoLvl), inner)
 
-	assert.False(t, handler.Enabled(context.Background(), slog.LevelDebug))
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelInfo))
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelWarn))
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelError))
+	assert.False(t, handler.Enabled(t.Context(), slog.LevelDebug))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelInfo))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelWarn))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelError))
 }
 
 func TestLevelHandlerHandle(t *testing.T) {
@@ -39,7 +38,7 @@ func TestLevelHandlerHandle(t *testing.T) {
 	handler := NewLevel(types.NewRulesSyncFromLevel(types.InfoLvl), inner)
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "info message", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 1, inner.recordCount())
@@ -64,7 +63,7 @@ func TestLevelHandlerMultipleMessages(t *testing.T) {
 	expectedCount := 0
 	for _, m := range messages {
 		record := slog.NewRecord(time.Now(), m.level, m.msg, 0)
-		handler.Handle(context.Background(), record)
+		handler.Handle(t.Context(), record)
 		if m.expected {
 			expectedCount++
 		}
@@ -81,8 +80,8 @@ func TestLevelHandlerWithAttrs(t *testing.T) {
 	newHandler := handler.WithAttrs(attrs)
 	require.NotNil(t, newHandler)
 
-	assert.True(t, newHandler.Enabled(context.Background(), slog.LevelInfo))
-	assert.False(t, newHandler.Enabled(context.Background(), slog.LevelDebug))
+	assert.True(t, newHandler.Enabled(t.Context(), slog.LevelInfo))
+	assert.False(t, newHandler.Enabled(t.Context(), slog.LevelDebug))
 }
 
 func TestLevelHandlerWithGroup(t *testing.T) {
@@ -92,28 +91,28 @@ func TestLevelHandlerWithGroup(t *testing.T) {
 	newHandler := handler.WithGroup("testgroup")
 	require.NotNil(t, newHandler)
 
-	assert.True(t, newHandler.Enabled(context.Background(), slog.LevelInfo))
-	assert.False(t, newHandler.Enabled(context.Background(), slog.LevelDebug))
+	assert.True(t, newHandler.Enabled(t.Context(), slog.LevelInfo))
+	assert.False(t, newHandler.Enabled(t.Context(), slog.LevelDebug))
 }
 
 func TestLevelHandlerDebugLevel(t *testing.T) {
 	inner := newMockInnerHandler()
 	handler := NewLevel(types.NewRulesSyncFromLevel(types.DebugLvl), inner)
 
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelDebug))
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelInfo))
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelWarn))
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelError))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelDebug))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelInfo))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelWarn))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelError))
 }
 
 func TestLevelHandlerErrorLevel(t *testing.T) {
 	inner := newMockInnerHandler()
 	handler := NewLevel(types.NewRulesSyncFromLevel(types.ErrorLvl), inner)
 
-	assert.False(t, handler.Enabled(context.Background(), slog.LevelDebug))
-	assert.False(t, handler.Enabled(context.Background(), slog.LevelInfo))
-	assert.False(t, handler.Enabled(context.Background(), slog.LevelWarn))
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelError))
+	assert.False(t, handler.Enabled(t.Context(), slog.LevelDebug))
+	assert.False(t, handler.Enabled(t.Context(), slog.LevelInfo))
+	assert.False(t, handler.Enabled(t.Context(), slog.LevelWarn))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelError))
 }
 
 func callerPC(t *testing.T) uintptr {
@@ -136,7 +135,7 @@ func TestLevelHandlerPackageRules(t *testing.T) {
 	handler := NewLevel(types.NewRulesSync(rules), inner)
 
 	record := slog.NewRecord(time.Now(), slog.LevelDebug, "debug message", pc)
-	err = handler.Handle(context.Background(), record)
+	err = handler.Handle(t.Context(), record)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, inner.recordCount())
@@ -150,6 +149,6 @@ func TestLevelHandlerChaining(t *testing.T) {
 	handler = handler.WithGroup("group1")
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "info", 0)
-	handler.Handle(context.Background(), record)
+	handler.Handle(t.Context(), record)
 	assert.Equal(t, 1, inner.recordCount())
 }

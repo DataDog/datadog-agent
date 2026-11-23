@@ -100,7 +100,7 @@ func TestSSMParameterStoreBackend_ParametersByPath(t *testing.T) {
 	ssmParameterStoreSecretsBackend, err := NewSSMParameterStoreBackend(ssmParameterStoreBackendParams)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	secretOutput := ssmParameterStoreSecretsBackend.GetSecretOutput(ctx, "/group1/key1")
 	assert.Equal(t, "value1", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)

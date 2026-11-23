@@ -7,7 +7,6 @@ package interp
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"strings"
 	"sync/atomic"
@@ -27,7 +26,7 @@ func runExpansionScript(t *testing.T, script string, opts ...RunnerOption) (stri
 		t.Fatalf("New: %v", err)
 	}
 	t.Cleanup(func() { runner.Close() })
-	err = runner.Run(context.Background(), prog)
+	err = runner.Run(t.Context(), prog)
 	return stdout.String(), stderr.String(), err
 }
 

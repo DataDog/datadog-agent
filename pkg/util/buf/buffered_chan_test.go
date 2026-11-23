@@ -16,7 +16,7 @@ import (
 )
 
 func TestBufferedChan(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	c := NewBufferedChan(ctx, 10, 3)
 	go func() {
@@ -36,7 +36,7 @@ func TestBufferedChan(t *testing.T) {
 }
 
 func TestBufferedChanContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	c := NewBufferedChan(ctx, 1, 1)
 	go func() {
 		cancel()
@@ -55,7 +55,7 @@ func TestBufferedChanContext(t *testing.T) {
 }
 
 func TestBufferedChanThreadSafety(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	c := NewBufferedChan(ctx, 10, 3)
 	go func() {
@@ -80,7 +80,7 @@ func TestBufferedChanThreadSafety(t *testing.T) {
 
 func TestBufferedChanWaitForValueTrue(t *testing.T) {
 	bufferSize := 3
-	c := NewBufferedChan(context.Background(), 10, bufferSize)
+	c := NewBufferedChan(t.Context(), 10, bufferSize)
 
 	go func() {
 		for i := 0; i <= bufferSize; i++ {
@@ -91,7 +91,7 @@ func TestBufferedChanWaitForValueTrue(t *testing.T) {
 }
 
 func TestBufferedChanWaitForValueFalse(t *testing.T) {
-	c := NewBufferedChan(context.Background(), 10, 3)
+	c := NewBufferedChan(t.Context(), 10, 3)
 
 	go func() {
 		c.Close()

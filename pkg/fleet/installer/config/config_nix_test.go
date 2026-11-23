@@ -8,7 +8,6 @@
 package config
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -181,7 +180,7 @@ func TestConfigV2ToV3(t *testing.T) {
 
 	assertDeploymentID(t, dirs, "", "")
 
-	err = dirs.WriteExperiment(context.Background(), Operations{
+	err = dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "experiment-456",
 		FileOperations: []FileOperation{
 			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "info"}`)},
@@ -195,7 +194,7 @@ func TestConfigV2ToV3(t *testing.T) {
 	assertConfigV3(t, experimentDirPath)
 
 	// Promote
-	err = dirs.PromoteExperiment(context.Background())
+	err = dirs.PromoteExperiment(t.Context())
 	assert.NoError(t, err)
 	assertConfigV3(t, stableDirPath) // Make sure it changed
 
@@ -219,7 +218,7 @@ func TestConfigV2Rollback(t *testing.T) {
 		ExperimentPath: experimentDirPath,
 	}
 
-	err = dirs.WriteExperiment(context.Background(), Operations{
+	err = dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "experiment-456",
 		FileOperations: []FileOperation{
 			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "info"}`)},
@@ -233,12 +232,12 @@ func TestConfigV2Rollback(t *testing.T) {
 	assertDeploymentID(t, dirs, "", "experiment-456")
 
 	// Rollback
-	err = dirs.RemoveExperiment(context.Background())
+	err = dirs.RemoveExperiment(t.Context())
 	assert.NoError(t, err)
 	assertConfigV2(t, stableDirPath) // Make sure it's still v2
 
 	// Write again
-	err = dirs.WriteExperiment(context.Background(), Operations{
+	err = dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "experiment-789",
 		FileOperations: []FileOperation{
 			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "info"}`)},
@@ -249,7 +248,7 @@ func TestConfigV2Rollback(t *testing.T) {
 	assertConfigV3(t, experimentDirPath)
 
 	// Promote
-	err = dirs.PromoteExperiment(context.Background())
+	err = dirs.PromoteExperiment(t.Context())
 	assert.NoError(t, err)
 	assertConfigV3(t, stableDirPath) // Make sure it changed
 
@@ -277,7 +276,7 @@ func TestOperationApply_NestedPathsStayDisallowed(t *testing.T) {
 				Patch:             []byte(`{"foo": "bar"}`),
 			}
 
-			err = op.apply(context.Background(), root)
+			err = op.apply(t.Context(), root)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "not allowed")
 		})

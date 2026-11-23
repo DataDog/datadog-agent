@@ -78,14 +78,14 @@ func TestAddsRemovesSource(t *testing.T) {
 	})
 
 	addedSources <- source
-	require.True(t, l.loop(context.Background(), addedSources, removedSources))
+	require.True(t, l.loop(t.Context(), addedSources, removedSources))
 
 	tailer := l.tailers[source].(*tailerfactory.TestTailer)
 	require.Equal(t, "test-source", tailer.Name)
 	require.True(t, tailer.Started)
 
 	removedSources <- source
-	require.True(t, l.loop(context.Background(), addedSources, removedSources))
+	require.True(t, l.loop(t.Context(), addedSources, removedSources))
 
 	require.Nil(t, l.tailers[source])
 	require.True(t, tailer.Stopped)
@@ -109,7 +109,7 @@ func TestCannotMakeTailer(t *testing.T) {
 	})
 
 	addedSources <- source
-	require.True(t, l.loop(context.Background(), addedSources, removedSources))
+	require.True(t, l.loop(t.Context(), addedSources, removedSources))
 	require.Nil(t, l.tailers[source])
 	require.Equal(t, "Error: uhoh", source.Status().GetError())
 }
@@ -132,7 +132,7 @@ func TestCannotStartTailer(t *testing.T) {
 	})
 
 	addedSources <- source
-	require.True(t, l.loop(context.Background(), addedSources, removedSources))
+	require.True(t, l.loop(t.Context(), addedSources, removedSources))
 	require.Nil(t, l.tailers[source])
 	require.Equal(t, "Error: uhoh", source.Status().GetError())
 }
@@ -160,7 +160,7 @@ func TestChildFileSourceAddedFromLoop(t *testing.T) {
 			}, nil
 		},
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	l.cancel = cancel
 	l.stopped = make(chan struct{})
 	go l.run(ctx, logSources)
@@ -233,7 +233,7 @@ func TestAddRemoveSourceWithoutWaiting(t *testing.T) {
 			}, nil
 		},
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	l.cancel = cancel
 	l.stopped = make(chan struct{})
 	go l.run(ctx, logSources)

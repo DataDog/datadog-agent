@@ -131,7 +131,7 @@ func TestReadJournalUsesPureGoFixtureBackend(t *testing.T) {
 
 	client := NewClient(Target{JournalDirs: []string{baseDir}, MachineIDPath: machineIDPath})
 	var entries []builtins.JournalEntry
-	err := client.ReadJournal(context.Background(), builtins.JournalQuery{
+	err := client.ReadJournal(t.Context(), builtins.JournalQuery{
 		Units:       []string{"rshell-fixture.service"},
 		CurrentBoot: true,
 		MaxEntries:  2,
@@ -145,7 +145,7 @@ func TestReadJournalUsesPureGoFixtureBackend(t *testing.T) {
 }
 
 func TestReadJournalReturnsCanceledContextBeforeFilesystemAccess(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	err := NewClient(Target{}).ReadJournal(ctx, builtins.JournalQuery{
 		Units:      []string{"api.service"},
@@ -171,7 +171,7 @@ func TestRealJournalFixtureRejectsCorruptedCompressedData(t *testing.T) {
 		MaxEntries: 10,
 	}, nil)
 	require.NoError(t, err)
-	_, _, err = iterator.previous(context.Background())
+	_, _, err = iterator.previous(t.Context())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errJournalCorrupt)
 }
@@ -202,7 +202,7 @@ func runFixtureJournalctl(t *testing.T, executable, journalPath string, selectio
 	t.Helper()
 	arguments := []string{"--file=" + journalPath, "--no-pager", "--quiet", "--output=cat"}
 	arguments = append(arguments, selection...)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, executable, arguments...)
 	var stderr bytes.Buffer

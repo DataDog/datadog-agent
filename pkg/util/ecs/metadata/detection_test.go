@@ -8,7 +8,6 @@
 package metadata
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -126,7 +125,7 @@ func TestGetAgentV1ContainerURLs(t *testing.T) {
 	env.SetFeatures(t, env.Docker)
 
 	cfg := mock.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	cfg.SetInTest("ecs_agent_container_name", "ecs-agent-custom")
 	defer cfg.SetInTest("ecs_agent_container_name", "ecs-agent")
 

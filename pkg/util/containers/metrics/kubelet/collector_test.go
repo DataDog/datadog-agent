@@ -8,7 +8,6 @@
 package kubelet
 
 import (
-	"context"
 	"os"
 	"testing"
 	"time"
@@ -29,7 +28,7 @@ import (
 func TestKubeletCollectorLinux(t *testing.T) {
 	metadataStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -162,7 +161,7 @@ func TestKubeletCollectorLinux(t *testing.T) {
 func TestKubeletCollectorWindows(t *testing.T) {
 	metadataStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	kubeletMock := mock.NewKubeletMock()
@@ -392,7 +391,7 @@ func TestContainerIDForPodUIDAndContName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			metadataStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
-				fx.Supply(context.Background()),
+				fx.Supply(t.Context()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 

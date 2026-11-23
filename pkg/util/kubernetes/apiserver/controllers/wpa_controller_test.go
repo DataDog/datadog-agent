@@ -521,7 +521,7 @@ func TestWPAGC(t *testing.T) {
 			hctrl, _ := newFakeAutoscalerController(t, client, alwaysLeader, datadogClientComp)
 			hctrl.wpaEnabled = true
 			inf := wpa_informers.NewDynamicSharedInformerFactory(wpaCl, 0)
-			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 			defer cancel()
 			inf.WaitForCacheSync(ctx.Done())
 			hctrl.enableWPA(inf)

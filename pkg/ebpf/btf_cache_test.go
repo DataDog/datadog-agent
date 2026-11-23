@@ -8,7 +8,6 @@
 package ebpf
 
 import (
-	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -71,7 +70,7 @@ func TestEmbeddedBTFCacheRepair(t *testing.T) {
 			require.NoError(t, os.Symlink(victim, filepath.Join(extract, b.kernelVersion+".btf")))
 			require.NoError(t, os.WriteFile(filepath.Join(extract, "vmlinux"), []byte("untrusted cached BTF"), 0666))
 			require.NoError(t, os.Chown(filepath.Dir(b.btfOutputDir), 65534, 65534))
-			ret, err := b.loadEmbedded(context.Background())
+			ret, err := b.loadEmbedded(t.Context())
 			require.NoError(t, err)
 			require.NotNil(t, ret.vmlinux)
 			data, err := os.ReadFile(victim)
@@ -109,7 +108,7 @@ func TestEmbeddedBTFUnsafeFileParents(t *testing.T) {
 				unsafe := dirs[parent]
 				require.NoError(t, os.WriteFile(filepath.Join(unsafe, "planted"), []byte("untrusted"), 0600))
 				require.NoError(t, os.Chmod(unsafe, mode))
-				ret, err := b.loadEmbedded(context.Background())
+				ret, err := b.loadEmbedded(t.Context())
 				require.NoError(t, err)
 				require.NotNil(t, ret.vmlinux)
 				_, err = os.Stat(filepath.Join(unsafe, "planted"))
@@ -125,7 +124,7 @@ func TestBTFCacheDirectorySymlink(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(extract), 0700))
 	target := t.TempDir()
 	require.NoError(t, os.Symlink(target, extract))
-	_, err := b.loadEmbedded(context.Background())
+	_, err := b.loadEmbedded(t.Context())
 	require.ErrorContains(t, err, "is a symlink")
 	entries, err := os.ReadDir(target)
 	require.NoError(t, err)
@@ -140,7 +139,7 @@ func TestBTFWithoutCacheAccess(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ret.vmlinux)
 	// Native loading also never touches the cache.
-	ret, err = b.loadKernel(context.Background())
+	ret, err = b.loadKernel(t.Context())
 	if err != nil {
 		t.Skipf("native kernel BTF unavailable: %v", err)
 	}
@@ -180,7 +179,7 @@ func TestRemoteBTFCacheRepair(t *testing.T) {
 	b, err := initBTFLoader(&Config{BTFOutputDir: cache, RemoteConfigBTFDownloadHost: serverURL}, nil, noopsimpl.NewComponent())
 	require.NoError(t, err)
 	t.Cleanup(b.Flush)
-	r := &rcBTFLoader{b: b, ctx: context.Background(), platform: platformUbuntu, platformVersion: "22.04", kernelVersion: b.kernelVersion, arch: b.arch}
+	r := &rcBTFLoader{b: b, ctx: t.Context(), platform: platformUbuntu, platformVersion: "22.04", kernelVersion: b.kernelVersion, arch: b.arch}
 	rel := relativeBTFTarballPath(r.platform, r.platformVersion, r.kernelVersion)
 	extract := filepath.Join(b.btfOutputDir, filepath.Dir(rel), r.kernelVersion)
 	require.NoError(t, SecureCacheDir(extract))

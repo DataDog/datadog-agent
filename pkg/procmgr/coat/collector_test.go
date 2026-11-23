@@ -148,7 +148,7 @@ func TestCollectInstalledViaStandaloneMarkerOnly(t *testing.T) {
 
 	collector := NewCollectorWithClient(root, &mockClient{})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.True(t, service.Installed,
 		"standalone datadog-agent-ddot layout uses embedded/bin/otel-agent without ext/ddot")
@@ -164,7 +164,7 @@ func TestCollectServiceProcmgrRunning(t *testing.T) {
 		},
 	})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.Equal(t, "ddot", service.ID)
@@ -190,7 +190,7 @@ func TestCollectServiceProcmgrSkippedStaysManaged(t *testing.T) {
 		},
 	})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.Equal(t, ProcessStateSkipped, service.ProcmgrState)
@@ -219,7 +219,7 @@ func TestCollectADPProcmgrRunning(t *testing.T) {
 		},
 	})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	service := serviceSnapshotByID(t, snapshot, "agent-data-plane")
 	assert.Equal(t, "agent-data-plane", service.ID)
@@ -252,7 +252,7 @@ func TestCollectProcessProcmgrRunning(t *testing.T) {
 		},
 	})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	service := serviceSnapshotByID(t, snapshot, "process")
 	assert.Equal(t, "process", service.ID)
@@ -296,7 +296,7 @@ func TestCollectActionProcmgrRunning(t *testing.T) {
 		},
 	})
 
-	service := serviceSnapshotByID(t, collector.Collect(context.Background()), "action")
+	service := serviceSnapshotByID(t, collector.Collect(t.Context()), "action")
 	assert.True(t, service.Installed)
 	assert.True(t, service.ProcmgrConfigured)
 	assert.Equal(t, ProcessStateRunning, service.ProcmgrState)
@@ -325,7 +325,7 @@ func TestCollectPARControlProcmgrRunningWithoutLegacyUnit(t *testing.T) {
 		},
 	})
 
-	service := serviceSnapshotByID(t, collector.Collect(context.Background()), "par-control")
+	service := serviceSnapshotByID(t, collector.Collect(t.Context()), "par-control")
 	assert.True(t, service.Installed)
 	assert.True(t, service.ProcmgrConfigured)
 	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
@@ -340,7 +340,7 @@ func TestCollectServiceProcmgrNotRunningStillManaged(t *testing.T) {
 		},
 	})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
@@ -352,7 +352,7 @@ func TestCollectNoProcmgrNoLegacy(t *testing.T) {
 
 	collector := NewCollectorWithClient(root, &mockClient{})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.False(t, service.Installed)
@@ -376,7 +376,7 @@ func TestCollectInstallMarkerAbsent(t *testing.T) {
 
 	collector := NewCollectorWithClient(root, &mockClient{})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.False(t, service.Installed, "without install marker, Installed must stay false")
@@ -404,7 +404,7 @@ func TestCollectInstallMarkerAbsentButProcmgrSupervises(t *testing.T) {
 		},
 	})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.True(t, service.Installed,
@@ -423,7 +423,7 @@ func TestCollectProcmgrConfigAbsent(t *testing.T) {
 
 	collector := NewCollectorWithClient(root, &mockClient{})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.True(t, service.Installed)
@@ -441,7 +441,7 @@ func TestCollectDaemonUnreachable(t *testing.T) {
 		},
 	})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	assert.False(t, snapshot.Daemon.Reachable, "daemon status error should yield empty snapshot")
 	assert.False(t, snapshot.Daemon.Ready)
@@ -473,7 +473,7 @@ func TestCollectLeavesTimeForTheServiceSweepWhenTheDaemonHangs(t *testing.T) {
 	collector := NewCollectorWithClient(t.TempDir(), client)
 
 	start := time.Now()
-	collector.Collect(context.Background())
+	collector.Collect(t.Context())
 
 	require.True(t, client.hasDeadline, "collection must bound every call it makes")
 	// Tolerance well under the reserve: at a tolerance of the reserve itself this would hold whether
@@ -492,7 +492,7 @@ func TestCollectKeepsDaemonBudgetWhenCallerGaveOnlyTheReserve(t *testing.T) {
 	collector := NewCollectorWithClient(t.TempDir(), client)
 
 	// Same budget pkg/fleet/daemon/ddot_state.go uses.
-	parent, cancel := context.WithTimeout(context.Background(), serviceSweepReserve)
+	parent, cancel := context.WithTimeout(t.Context(), serviceSweepReserve)
 	defer cancel()
 	parentDeadline, ok := parent.Deadline()
 	require.True(t, ok)
@@ -515,7 +515,7 @@ func TestCollectDaemonReachableListFails(t *testing.T) {
 		processes: map[string]ProcessSnapshot{"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: ProcessStateRunning}},
 	})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	assert.True(t, snapshot.Daemon.Reachable)
 	assert.True(t, snapshot.Daemon.Ready)
@@ -534,7 +534,7 @@ func TestCollectInvalidConfigDoesNotSetProcmgrManagement(t *testing.T) {
 		},
 	})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.True(t, service.ProcmgrConfigured)
 	assert.Equal(t, ProcessStateInvalidConfig, service.ProcmgrState)

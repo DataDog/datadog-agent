@@ -6,7 +6,6 @@
 package impl
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -36,7 +35,7 @@ func TestGetHostname(t *testing.T) {
 	err = json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	expectedHostname, _ := hostname.Get(context.Background())
+	expectedHostname, _ := hostname.Get(t.Context())
 	expectedResponse, _ := json.Marshal(expectedHostname)
 
 	require.Equal(t, expectedResponse, rr.Body.Bytes())

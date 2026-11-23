@@ -184,7 +184,7 @@ func TestHostPrefixRePrefixesUnrelatedAbsoluteTarget(t *testing.T) {
 		t.Skip("Unix-only path semantics")
 	}
 	callCtx := makeHostPrefixCallCtx(t, "/sandbox/link", "/var/log/data", "/mnt/host")
-	got, err := resolvePath(context.Background(), callCtx, "/sandbox/link", true)
+	got, err := resolvePath(t.Context(), callCtx, "/sandbox/link", true)
 	assert.NoError(t, err)
 	assert.Equal(t, "/mnt/host/var/log/data", got,
 		"absolute target without the host prefix must be re-prefixed")
@@ -198,7 +198,7 @@ func TestHostPrefixSkipsRePrefixWhenAlreadyPrefixed(t *testing.T) {
 		t.Skip("Unix-only path semantics")
 	}
 	callCtx := makeHostPrefixCallCtx(t, "/sandbox/link", "/mnt/host/var/log/data", "/mnt/host")
-	got, err := resolvePath(context.Background(), callCtx, "/sandbox/link", true)
+	got, err := resolvePath(t.Context(), callCtx, "/sandbox/link", true)
 	assert.NoError(t, err)
 	assert.Equal(t, "/mnt/host/var/log/data", got,
 		"a target already under the host prefix must not be re-prefixed")
@@ -212,7 +212,7 @@ func TestHostPrefixSkipsRePrefixWhenExactlyTheHostPrefix(t *testing.T) {
 		t.Skip("Unix-only path semantics")
 	}
 	callCtx := makeHostPrefixCallCtx(t, "/sandbox/link", "/mnt/host", "/mnt/host")
-	got, err := resolvePath(context.Background(), callCtx, "/sandbox/link", true)
+	got, err := resolvePath(t.Context(), callCtx, "/sandbox/link", true)
 	assert.NoError(t, err)
 	assert.Equal(t, "/mnt/host", got,
 		"target exactly equal to the host prefix must not be re-prefixed")
@@ -231,7 +231,7 @@ func TestHostPrefixRePrefixesPathPrefixCollision(t *testing.T) {
 		t.Skip("Unix-only path semantics")
 	}
 	callCtx := makeHostPrefixCallCtx(t, "/sandbox/link", "/mnt/hostile/foo", "/mnt/host")
-	got, err := resolvePath(context.Background(), callCtx, "/sandbox/link", true)
+	got, err := resolvePath(t.Context(), callCtx, "/sandbox/link", true)
 	assert.NoError(t, err)
 	assert.Equal(t, "/mnt/host/mnt/hostile/foo", got,
 		"hp+sep boundary must distinguish /mnt/host from /mnt/hostile and re-prefix the latter")

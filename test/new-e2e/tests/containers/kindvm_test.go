@@ -6,7 +6,6 @@
 package containers
 
 import (
-	"context"
 	_ "embed"
 	"encoding/json"
 	"regexp"
@@ -108,7 +107,7 @@ func (suite *kindSuite) TestKubeAIInferenceTagsOnContainerMetric() {
 	_, err = crds.Create(ctx, &crd, metav1.CreateOptions{})
 	suite.Require().NoError(err)
 	suite.T().Cleanup(func() {
-		ctx := context.Background()
+		ctx := t.Context()
 		suite.Require().NoError(crds.Delete(ctx, crd.GetName(), metav1.DeleteOptions{}))
 		suite.EventuallyWithT(func(c *assert.CollectT) {
 			_, err := crds.Get(ctx, crd.GetName(), metav1.GetOptions{})
@@ -137,7 +136,7 @@ func (suite *kindSuite) TestKubeAIInferenceTagsOnContainerMetric() {
 	}}, metav1.CreateOptions{})
 	suite.Require().NoError(err)
 	suite.T().Cleanup(func() {
-		suite.Require().NoError(models.Delete(context.Background(), model.GetName(), metav1.DeleteOptions{}))
+		suite.Require().NoError(models.Delete(t.Context(), model.GetName(), metav1.DeleteOptions{}))
 	})
 
 	// Kubelet does not refresh owner references on an existing pod. Set the Model
@@ -160,7 +159,7 @@ func (suite *kindSuite) TestKubeAIInferenceTagsOnContainerMetric() {
 	}, metav1.CreateOptions{})
 	suite.Require().NoError(err)
 	suite.T().Cleanup(func() {
-		ctx := context.Background()
+		ctx := t.Context()
 		err := pods.Delete(ctx, pod.Name, metav1.DeleteOptions{})
 		suite.Require().True(err == nil || apierrors.IsNotFound(err), "delete test pod: %v", err)
 		suite.EventuallyWithT(func(c *assert.CollectT) {
@@ -252,7 +251,7 @@ func (suite *kindSuite) testInferenceTagsOnContainerMetric(podLabels map[string]
 	}
 	suite.Require().NoError(setLabels(ctx, labels))
 	defer func() {
-		suite.Require().NoError(setLabels(context.Background(), originalLabels), "restore stress-ng pod labels")
+		suite.Require().NoError(setLabels(t.Context(), originalLabels), "restore stress-ng pod labels")
 	}()
 
 	expectedTags := append([]string{

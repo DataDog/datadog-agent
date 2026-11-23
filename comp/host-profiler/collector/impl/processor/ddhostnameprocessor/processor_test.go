@@ -39,7 +39,7 @@ var allSignals = []signal{
 			appendEmpty: func() pcommon.Map { return pd.ResourceProfiles().AppendEmpty().Resource().Attributes() },
 			at:          func(i int) pcommon.Map { return pd.ResourceProfiles().At(i).Resource().Attributes() },
 			process: func(p *ddhostnameProcessor) error {
-				_, err := p.processProfiles(context.Background(), pd)
+				_, err := p.processProfiles(context.TODO(), pd) // use context.TODO() as context is currently ignored in processProfiles
 				return err
 			},
 		}
@@ -50,7 +50,7 @@ var allSignals = []signal{
 			appendEmpty: func() pcommon.Map { return md.ResourceMetrics().AppendEmpty().Resource().Attributes() },
 			at:          func(i int) pcommon.Map { return md.ResourceMetrics().At(i).Resource().Attributes() },
 			process: func(p *ddhostnameProcessor) error {
-				_, err := p.processMetrics(context.Background(), md)
+				_, err := p.processMetrics(context.TODO(), md) // use context.TODO() as context is currently ignored in processMetrics
 				return err
 			},
 		}
@@ -61,7 +61,7 @@ var allSignals = []signal{
 			appendEmpty: func() pcommon.Map { return ld.ResourceLogs().AppendEmpty().Resource().Attributes() },
 			at:          func(i int) pcommon.Map { return ld.ResourceLogs().At(i).Resource().Attributes() },
 			process: func(p *ddhostnameProcessor) error {
-				_, err := p.processLogs(context.Background(), ld)
+				_, err := p.processLogs(context.TODO(), ld) // use context.TODO() as context is currently ignored in processLogs
 				return err
 			},
 		}
@@ -72,7 +72,7 @@ var allSignals = []signal{
 			appendEmpty: func() pcommon.Map { return td.ResourceSpans().AppendEmpty().Resource().Attributes() },
 			at:          func(i int) pcommon.Map { return td.ResourceSpans().At(i).Resource().Attributes() },
 			process: func(p *ddhostnameProcessor) error {
-				_, err := p.processTraces(context.Background(), td)
+				_, err := p.processTraces(context.TODO(), td) // use context.TODO() as context is currently ignored in processTraces
 				return err
 			},
 		}

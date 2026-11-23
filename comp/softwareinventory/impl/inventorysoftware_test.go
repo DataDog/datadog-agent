@@ -6,7 +6,6 @@
 package softwareinventoryimpl
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -169,7 +168,7 @@ func TestFlareProviderOutputDisabled(t *testing.T) {
 
 	// Create a mock FlareBuilder to test the callback
 	mockBuilder := helpers.NewFlareBuilderMock(t, false)
-	err := flareProvider.FlareFiller.Callback(context.Background(), mockBuilder)
+	err := flareProvider.FlareFiller.Callback(t.Context(), mockBuilder)
 	assert.NoError(t, err)
 
 	// Verify that the file does not exist since the module is disabled.
@@ -191,7 +190,7 @@ func TestFlareProviderOutputFailed(t *testing.T) {
 
 	// Create a mock FlareBuilder to test the callback
 	mockBuilder := helpers.NewFlareBuilderMock(t, false)
-	err := flareProvider.FlareFiller.Callback(context.Background(), mockBuilder)
+	err := flareProvider.FlareFiller.Callback(t.Context(), mockBuilder)
 	assert.NoError(t, err)
 
 	// Verify that the file does not exist since the module is disabled.
@@ -210,7 +209,7 @@ func TestFlareProviderOutput(t *testing.T) {
 
 	// Create a mock FlareBuilder to test the callback
 	mockBuilder := helpers.NewFlareBuilderMock(t, false)
-	err := flareProvider.FlareFiller.Callback(context.Background(), mockBuilder)
+	err := flareProvider.FlareFiller.Callback(t.Context(), mockBuilder)
 	assert.NoError(t, err)
 
 	// Verify the mock builder was called with the expected file

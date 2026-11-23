@@ -23,7 +23,7 @@ func TestOpenFiles(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		pid := os.Getpid()
 
-		files, err := openFiles(context.Background(), pid)
+		files, err := openFiles(t.Context(), pid)
 
 		require.NoError(t, err)
 		require.NotEmpty(t, files)
@@ -519,7 +519,7 @@ func TestRenderSocketInfo(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ofl := &openFilesLister{
-				ctx:             context.Background(),
+				ctx:             t.Context(),
 				lookupAddr:      lookupAddr,
 				remoteInfoCache: make(map[string]string),
 			}
@@ -529,7 +529,7 @@ func TestRenderSocketInfo(t *testing.T) {
 }
 
 func TestRenderSocketInfoUsesContextAndCache(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	lookups := 0
@@ -554,7 +554,7 @@ func TestFDStatOnlyResolvesMatchingSocket(t *testing.T) {
 	ofl := &openFilesLister{
 		pid:             123,
 		procPath:        "/myproc",
-		ctx:             context.Background(),
+		ctx:             t.Context(),
 		remoteInfoCache: make(map[string]string),
 		lookupAddr: func(_ context.Context, addr string) ([]string, error) {
 			lookups = append(lookups, addr)

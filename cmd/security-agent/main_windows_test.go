@@ -8,16 +8,16 @@
 package main
 
 import (
-	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestFxRun(t *testing.T) {
 	svc := service{}
-	ctx := context.Background()
+	ctx := t.Context()
 	fxutil.TestOneShot(t, func() {
 		err := svc.Run(ctx)
 		require.NoError(t, err)

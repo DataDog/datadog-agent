@@ -105,7 +105,7 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 		ledger:       newTaskLedger("", nil),
 	}
 
-	got, failureTask, err := executor.PrepareTask(context.Background(), dequeuedTask)
+	got, failureTask, err := executor.PrepareTask(t.Context(), dequeuedTask)
 
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -130,7 +130,7 @@ func TestWorkflowTaskExecutorPrepareTaskReturnsOriginalTaskWhenVerificationFails
 		resolver:     credentialResolver,
 	}
 
-	got, failureTask, err := executor.PrepareTask(context.Background(), dequeuedTask)
+	got, failureTask, err := executor.PrepareTask(t.Context(), dequeuedTask)
 
 	require.ErrorIs(t, err, verifyErr)
 	assert.Nil(t, got)
@@ -152,7 +152,7 @@ func TestWorkflowTaskExecutorPrepareTaskReturnsUnwrappedTaskWhenCredentialResolu
 		resolver:     &fakeCredentialResolver{err: resolveErr},
 	}
 
-	got, failureTask, err := executor.PrepareTask(context.Background(), dequeuedTask)
+	got, failureTask, err := executor.PrepareTask(t.Context(), dequeuedTask)
 
 	require.ErrorIs(t, err, resolveErr)
 	assert.Nil(t, got)
@@ -177,20 +177,20 @@ func TestWorkflowTaskExecutorPrepareTaskRefusesAlreadyAcceptedTask(t *testing.T)
 	}
 	executor := newExecutor("signed-task")
 
-	_, _, err := executor.PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-1"))
+	_, _, err := executor.PrepareTask(t.Context(), newWorkflowTask("wrapper-task", "b", "a", "job-1"))
 	require.NoError(t, err)
 
-	got, failureTask, err := executor.PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-2"))
+	got, failureTask, err := executor.PrepareTask(t.Context(), newWorkflowTask("wrapper-task", "b", "a", "job-2"))
 	require.ErrorContains(t, err, errTaskAlreadyAccepted.Error())
 	assert.Nil(t, got)
 	require.NotNil(t, failureTask)
 	assert.Equal(t, "job-2", failureTask.Data.Attributes.JobId)
 
 	// A new process sharing the ledger directory still refuses the task.
-	_, _, err = newExecutor("signed-task").PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-3"))
+	_, _, err = newExecutor("signed-task").PrepareTask(t.Context(), newWorkflowTask("wrapper-task", "b", "a", "job-3"))
 	require.ErrorContains(t, err, errTaskAlreadyAccepted.Error())
 
-	_, _, err = newExecutor("other-signed-task").PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-4"))
+	_, _, err = newExecutor("other-signed-task").PrepareTask(t.Context(), newWorkflowTask("wrapper-task", "b", "a", "job-4"))
 	require.NoError(t, err)
 }
 
@@ -206,11 +206,11 @@ func TestWorkflowTaskExecutorPrepareTaskDoesNotRecordTaskRefusedEarlier(t *testi
 		ledger:       newTaskLedger(t.TempDir(), nil),
 	}
 
-	_, _, err := executor.PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-1"))
+	_, _, err := executor.PrepareTask(t.Context(), newWorkflowTask("wrapper-task", "b", "a", "job-1"))
 	require.Error(t, err)
 
 	resolver.err = nil
-	_, _, err = executor.PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-2"))
+	_, _, err = executor.PrepareTask(t.Context(), newWorkflowTask("wrapper-task", "b", "a", "job-2"))
 	require.NoError(t, err)
 }
 
@@ -232,12 +232,12 @@ func TestWorkflowTaskExecutorEnforcesAuthoredScriptAllowlist(t *testing.T) {
 	task := newWorkflowTask("task-id", bundleID, actionName, "job-id")
 	prepared := &PreparedWorkflowTask{Task: task}
 
-	_, err := executor.RunTask(context.Background(), prepared)
+	_, err := executor.RunTask(t.Context(), prepared)
 	require.ErrorContains(t, err, "not allowlisted")
 	assert.False(t, action.called)
 
 	executor.config.ActionsAllowlist[bundleID] = sets.New(actionName)
-	output, err := executor.RunTask(context.Background(), prepared)
+	output, err := executor.RunTask(t.Context(), prepared)
 	require.NoError(t, err)
 	assert.Equal(t, "executed", output)
 	assert.True(t, action.called)
@@ -285,7 +285,7 @@ func TestWorkflowTaskExecutorRoutesNativeExecutionFQN(t *testing.T) {
 			task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
 			task.Data.Attributes.ExecutionFQN = tt.executionFQN
 
-			output, err := executor.RunTask(context.Background(), &PreparedWorkflowTask{Task: task})
+			output, err := executor.RunTask(t.Context(), &PreparedWorkflowTask{Task: task})
 			if tt.wantError != "" {
 				require.ErrorContains(t, err, tt.wantError)
 				assert.Nil(t, output)
@@ -346,7 +346,7 @@ func TestWorkflowTaskExecutorRoutesNewPublicActionToAuthoredScript(t *testing.T)
 			task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
 			task.Data.Attributes.ExecutionFQN = executionFQN
 
-			output, err := executor.RunTask(context.Background(), &PreparedWorkflowTask{Task: task})
+			output, err := executor.RunTask(t.Context(), &PreparedWorkflowTask{Task: task})
 			if tt.wantError != "" {
 				require.ErrorContains(t, err, tt.wantError)
 				assert.Nil(t, output)
@@ -394,7 +394,7 @@ func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {
 	}
 	done := make(chan struct{})
 	go func() {
-		runner.run(context.Background())
+		runner.run(t.Context())
 		close(done)
 	}()
 
@@ -423,7 +423,7 @@ func TestWorkflowRunner_StartHeartbeat_StopsOnJobNotFound(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		runner.startHeartbeat(context.Background(), task, log.FromContext(context.Background()))
+		runner.startHeartbeat(t.Context(), task, log.FromContext(t.Context()))
 		close(done)
 	}()
 
@@ -468,7 +468,7 @@ func TestPrepareTaskRejectsActionBeforeResolvingCredentials(t *testing.T) {
 			if test.allowed {
 				executor.config.ActionsAllowlist["com.datadoghq.mongodb"] = sets.New("find")
 			}
-			prepared, failureTask, err := executor.PrepareTask(context.Background(), newWorkflowTask("wrapper", "com.datadoghq.http", "sendRequest", "job-id"))
+			prepared, failureTask, err := executor.PrepareTask(t.Context(), newWorkflowTask("wrapper", "com.datadoghq.http", "sendRequest", "job-id"))
 			require.ErrorContains(t, err, test.wantError)
 			assert.Nil(t, prepared)
 			assert.Same(t, unwrapped, failureTask)
@@ -506,7 +506,7 @@ func TestWorkflowTaskExecutorExecutionReporting(t *testing.T) {
 	}
 	logger := &executionLogger{}
 	task := newWorkflowTask("task-id", bundleID, "test", "job-id")
-	output, err := executor.RunTask(log.ContextWithLogger(context.Background(), logger), &PreparedWorkflowTask{Task: task})
+	output, err := executor.RunTask(log.ContextWithLogger(t.Context(), logger), &PreparedWorkflowTask{Task: task})
 	require.NoError(t, err)
 	require.Equal(t, "executed", output)
 	require.Len(t, logger.entries, 2, "one shared start and one enriched completion")
@@ -562,7 +562,7 @@ func TestWorkflowTaskExecutorRunPreparedUsesConfiguredTimeout(t *testing.T) {
 			}
 
 			before := time.Now()
-			output, err := executor.RunPrepared(context.Background(), &PreparedWorkflowTask{Task: task})
+			output, err := executor.RunPrepared(t.Context(), &PreparedWorkflowTask{Task: task})
 			after := time.Now()
 
 			require.NoError(t, err)

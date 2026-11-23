@@ -6,7 +6,6 @@
 package alibaba
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,7 +18,7 @@ import (
 )
 
 func TestGetHostname(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	expected := "i-rj9aql2pwopjn4sm24ix"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +38,7 @@ func TestGetHostname(t *testing.T) {
 
 func TestGetNTPHosts(t *testing.T) {
 	cfg := configmock.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	expectedHosts := []string{
 		"ntp.aliyun.com", "ntp1.aliyun.com", "ntp2.aliyun.com", "ntp3.aliyun.com",
 		"ntp4.aliyun.com", "ntp5.aliyun.com", "ntp6.aliyun.com", "ntp7.aliyun.com",

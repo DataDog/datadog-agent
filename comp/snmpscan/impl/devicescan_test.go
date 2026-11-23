@@ -79,7 +79,7 @@ func TestExtractColumnSignatureIntegration(t *testing.T) {
 
 func TestGatherPDUsWithBulk_ContextCancellation(t *testing.T) {
 	// Test that the function respects context cancellation
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // Cancel immediately
 
 	snmp := &gosnmp.GoSNMP{
@@ -138,7 +138,7 @@ func TestGatherPDUsWithBulk_AdaptsMaxRepOnFailure(t *testing.T) {
 		},
 	}
 
-	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 0, 10)
+	err := gatherPDUsWithBulk(t.Context(), fake, "test-device", discardPDU, noopTick, 0, 0, 10)
 	require.NoError(t, err)
 
 	require.Len(t, fake.calls, 2)
@@ -163,7 +163,7 @@ func TestGatherPDUsWithBulk_GivesUpWhenMaxRepCannotShrink(t *testing.T) {
 		},
 	}
 
-	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 0, 4)
+	err := gatherPDUsWithBulk(t.Context(), fake, "test-device", discardPDU, noopTick, 0, 0, 4)
 	require.ErrorIs(t, err, timeoutErr)
 	assert.IsType(t, &gosnmplib.ConnectionError{}, err)
 	assert.Equal(t, []bulkCall{
@@ -299,7 +299,7 @@ func TestGatherPDUsWithBulk_StopsOnNonAdvancingOID(t *testing.T) {
 		},
 	}
 
-	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 0, defaultBulkMaxRepetitions)
+	err := gatherPDUsWithBulk(t.Context(), fake, "test-device", discardPDU, noopTick, 0, 0, defaultBulkMaxRepetitions)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "did not advance")
 }
@@ -322,7 +322,7 @@ func TestGatherPDUsWithBulk_TicksOncePerRoundTrip(t *testing.T) {
 		return nil
 	}
 
-	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, tick, 0, 0, defaultBulkMaxRepetitions)
+	err := gatherPDUsWithBulk(t.Context(), fake, "test-device", discardPDU, tick, 0, 0, defaultBulkMaxRepetitions)
 	require.NoError(t, err)
 	// The end-of-MIB response returns immediately, before reaching tick, so
 	// only the two data-yielding round-trips tick.
@@ -339,7 +339,7 @@ func TestGatherPDUsWithBulk_TreatsSNMPErrorAsFailure(t *testing.T) {
 		},
 	}
 
-	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 0, 10)
+	err := gatherPDUsWithBulk(t.Context(), fake, "test-device", discardPDU, noopTick, 0, 0, 10)
 	require.NoError(t, err)
 	require.Len(t, fake.calls, 2)
 	assert.Equal(t, uint32(10), fake.calls[0].maxRep)

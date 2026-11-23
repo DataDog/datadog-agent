@@ -6,7 +6,6 @@
 package packages
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -52,7 +51,7 @@ func TestEnableOTelCollectorConfigInDatadogYAML(t *testing.T) {
 				require.NoError(t, os.WriteFile(datadogYamlPath, []byte(tc.datadogYAML), 0o644))
 			}
 
-			ctx := HookContext{Context: context.Background()}
+			ctx := HookContext{Context: t.Context()}
 			require.NoError(t, enableOTelCollectorConfigInDatadogYAML(ctx, datadogYamlPath))
 
 			if tc.isDatadogYAML {
@@ -112,7 +111,7 @@ func TestWriteOTelConfigCommonSiteSubstitution(t *testing.T) {
 			require.NoError(t, os.WriteFile(templatePath, []byte(template), 0o644))
 
 			outPath := filepath.Join(dir, "otel-config.yaml")
-			ctx := HookContext{Context: context.Background()}
+			ctx := HookContext{Context: t.Context()}
 			require.NoError(t, writeOTelConfigCommon(ctx, datadogYamlPath, templatePath, outPath, false, 0o644))
 
 			content, err := os.ReadFile(outPath)

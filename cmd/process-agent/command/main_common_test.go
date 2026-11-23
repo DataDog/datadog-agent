@@ -6,7 +6,6 @@
 package command
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -54,7 +53,7 @@ func TestRequireEnabledDisabledDoesNotWritePIDFile(t *testing.T) {
 
 	app := newRequireEnabledApp(t, pidFilePath, false)
 
-	err := app.Start(context.Background())
+	err := app.Start(t.Context())
 	require.ErrorIs(t, err, errAgentDisabled)
 	assert.NoFileExists(t, pidFilePath)
 }
@@ -64,9 +63,9 @@ func TestRequireEnabledEnabledWritesAndRemovesPIDFile(t *testing.T) {
 
 	app := newRequireEnabledApp(t, pidFilePath, true)
 
-	require.NoError(t, app.Start(context.Background()))
+	require.NoError(t, app.Start(t.Context()))
 	assert.FileExists(t, pidFilePath)
 
-	require.NoError(t, app.Stop(context.Background()))
+	require.NoError(t, app.Stop(t.Context()))
 	assert.NoFileExists(t, pidFilePath)
 }

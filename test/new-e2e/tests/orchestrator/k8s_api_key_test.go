@@ -6,7 +6,6 @@
 package orchestrator
 
 import (
-	"context"
 	_ "embed"
 	"fmt"
 	"time"
@@ -64,8 +63,8 @@ func (suite *k8sSuite) applySecret(namespace, name string, secretData map[string
 	client := suite.Env().KubernetesCluster.KubernetesClient.K8sClient
 
 	// Check if the namespace exists, create it if not
-	if _, err := client.CoreV1().Namespaces().Get(context.Background(), namespace, v1.GetOptions{}); err != nil {
-		_, err = client.CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+	if _, err := client.CoreV1().Namespaces().Get(t.Context(), namespace, v1.GetOptions{}); err != nil {
+		_, err = client.CoreV1().Namespaces().Create(t.Context(), &corev1.Namespace{
 			ObjectMeta: v1.ObjectMeta{
 				Name: namespace,
 			},
@@ -84,10 +83,10 @@ func (suite *k8sSuite) applySecret(namespace, name string, secretData map[string
 
 	// Check if the secret already exists, update it if it does
 	var err error
-	if _, err = client.CoreV1().Secrets(namespace).Get(context.Background(), name, v1.GetOptions{}); err != nil {
-		_, err = client.CoreV1().Secrets(namespace).Create(context.Background(), secret, v1.CreateOptions{})
+	if _, err = client.CoreV1().Secrets(namespace).Get(t.Context(), name, v1.GetOptions{}); err != nil {
+		_, err = client.CoreV1().Secrets(namespace).Create(t.Context(), secret, v1.CreateOptions{})
 	} else {
-		_, err = client.CoreV1().Secrets(namespace).Update(context.Background(), secret, v1.UpdateOptions{})
+		_, err = client.CoreV1().Secrets(namespace).Update(t.Context(), secret, v1.UpdateOptions{})
 	}
 	require.NoError(suite.T(), err)
 }

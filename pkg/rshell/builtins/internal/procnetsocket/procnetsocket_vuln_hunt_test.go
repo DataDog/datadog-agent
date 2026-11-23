@@ -16,7 +16,7 @@ import (
 // Vulnerability-hunt regression coverage for campaign 2026-05-19-codex.
 
 func TestVulnHuntSubsystemInvariantViolation_RejectsTraversalProcPath(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	readers := []struct {
 		name string
 		fn   func(context.Context, string) ([]SocketEntry, error)

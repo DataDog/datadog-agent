@@ -30,7 +30,7 @@ func TestNewCommandWindowsWrapsPowerShellEntrypoint(t *testing.T) {
 		},
 	}
 
-	cmd, err := NewCommand(context.Background(), pkg, session, map[string]interface{}{"message": "hello"})
+	cmd, err := NewCommand(t.Context(), pkg, session, map[string]interface{}{"message": "hello"})
 
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(os.Getenv("SYSTEMROOT"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe"), cmd.Path)
@@ -53,7 +53,7 @@ func TestNewCommandWindowsRejectsUnsupportedEntrypoint(t *testing.T) {
 	session := newWindowsTestSession(t)
 	pkg := &Package{Command: []string{`C:\package\run.sh`}, Manifest: &Manifest{}}
 
-	_, err := NewCommand(context.Background(), pkg, session, nil)
+	_, err := NewCommand(t.Context(), pkg, session, nil)
 
 	require.ErrorContains(t, err, "unsupported Windows extension")
 }
@@ -62,7 +62,7 @@ func TestNewCommandWindowsPreservesCanceledContext(t *testing.T) {
 	setRequiredWindowsEnvironment(t)
 	session := newWindowsTestSession(t)
 	pkg := &Package{Command: []string{filepath.Join(t.TempDir(), "run.ps1")}, Manifest: &Manifest{}}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	cmd, err := NewCommand(ctx, pkg, session, nil)

@@ -8,7 +8,6 @@
 package summary
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -394,7 +393,7 @@ func creatFakeStore(t *testing.T) workloadmetamock.Mock {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -761,7 +760,7 @@ func TestStaticPodUIDMismatchFallback(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -841,7 +840,7 @@ func TestProvider_WindowsMemoryUsage(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)

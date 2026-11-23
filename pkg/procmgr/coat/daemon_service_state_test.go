@@ -263,7 +263,7 @@ func TestDaemonServiceStateQueryLeavesTimeForTheServiceSweep(t *testing.T) {
 		"the query must not be able to spend the whole reserve the service sweep runs on")
 
 	t.Run("a generous collection budget is capped at the query budget", func(t *testing.T) {
-		collection, cancel := clientContext(context.Background())
+		collection, cancel := clientContext(t.Context())
 		defer cancel()
 		collectionDeadline, ok := collection.Deadline()
 		require.True(t, ok)
@@ -281,7 +281,7 @@ func TestDaemonServiceStateQueryLeavesTimeForTheServiceSweep(t *testing.T) {
 
 	t.Run("a tighter collection deadline binds instead", func(t *testing.T) {
 		collectionDeadline := time.Now().Add(daemonServiceStateBudget / 2)
-		collection, cancel := context.WithDeadline(context.Background(), collectionDeadline)
+		collection, cancel := context.WithDeadline(t.Context(), collectionDeadline)
 		defer cancel()
 
 		query, cancelQuery := daemonServiceStateContext(collection)
@@ -300,7 +300,7 @@ func TestCollectSetsDaemonServiceStateWhenConnectFails(t *testing.T) {
 	}
 
 	collector := NewCollectorWithClient(t.TempDir(), &mockClient{connectErr: os.ErrNotExist})
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	assert.False(t, snapshot.Daemon.Reachable)
 	assert.False(t, snapshot.Daemon.Ready)
@@ -314,6 +314,6 @@ func TestCollectSkipsDaemonServiceStateOnOtherPlatforms(t *testing.T) {
 	}
 
 	collector := NewCollectorWithClient(t.TempDir(), &mockClient{connectErr: os.ErrNotExist})
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 	assert.Empty(t, snapshot.Daemon.ServiceState)
 }

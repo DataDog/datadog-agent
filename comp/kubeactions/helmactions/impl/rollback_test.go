@@ -6,7 +6,6 @@
 package helmactionsimpl
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -137,12 +136,12 @@ func TestRollbackExecutor_Run_CreatesJob(t *testing.T) {
 
 	opts := validOptions()
 	opts.Revision = 3
-	created, err := executor.Run(context.Background(), opts, helmactions.TaskMeta{ActionID: "action-1", OrgID: 42})
+	created, err := executor.Run(t.Context(), opts, helmactions.TaskMeta{ActionID: "action-1", OrgID: 42})
 	require.NoError(t, err)
 	require.NotNil(t, created)
 	assert.Equal(t, "ops", created.Namespace)
 
-	jobs, err := clientset.BatchV1().Jobs("ops").List(context.Background(), metav1.ListOptions{})
+	jobs, err := clientset.BatchV1().Jobs("ops").List(t.Context(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, jobs.Items, 1)
 	assert.Equal(t, []string{"rollback", "myrel", "3", "--namespace", "prod"},
@@ -153,10 +152,10 @@ func TestRollbackExecutor_Run_ValidationError(t *testing.T) {
 	clientset := fake.NewSimpleClientset()
 	executor := NewRollbackExecutor(clientset)
 
-	_, err := executor.Run(context.Background(), helmactions.RollbackInputs{}, helmactions.TaskMeta{})
+	_, err := executor.Run(t.Context(), helmactions.RollbackInputs{}, helmactions.TaskMeta{})
 	assert.Error(t, err)
 
-	jobs, listErr := clientset.BatchV1().Jobs("").List(context.Background(), metav1.ListOptions{})
+	jobs, listErr := clientset.BatchV1().Jobs("").List(t.Context(), metav1.ListOptions{})
 	require.NoError(t, listErr)
 	assert.Empty(t, jobs.Items, "no job should be created on validation failure")
 }

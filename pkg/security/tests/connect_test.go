@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -56,7 +55,7 @@ func TestConnectEventAFIntetTCP(t *testing.T) {
 	go listener.Accept()
 
 	test.WaitSignalFromRule(t, func() error {
-		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "tcp", "4242"); err != nil {
+		if err := runSyscallTesterFunc(t.Context(), t, syscallTester, "connect", "AF_INET", "any", "tcp", "4242"); err != nil {
 			return err
 		}
 		return err
@@ -184,7 +183,7 @@ func TestConnectEventAFInetAnyUDP(t *testing.T) {
 	defer conn.Close()
 
 	test.WaitSignalFromRule(t, func() error {
-		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "udp", "4244"); err != nil {
+		if err := runSyscallTesterFunc(t.Context(), t, syscallTester, "connect", "AF_INET", "any", "udp", "4244"); err != nil {
 			return err
 		}
 		return err
@@ -231,7 +230,7 @@ func TestConnectEventAFInet6AnyTCP(t *testing.T) {
 	go listener.Accept()
 
 	test.WaitSignalFromRule(t, func() error {
-		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "tcp", "4245"); err != nil {
+		if err := runSyscallTesterFunc(t.Context(), t, syscallTester, "connect", "AF_INET6", "any", "tcp", "4245"); err != nil {
 			return err
 		}
 		return err
@@ -276,7 +275,7 @@ func TestConnectEventAFInet6AnyUDP(t *testing.T) {
 	defer conn.Close()
 
 	test.WaitSignalFromRule(t, func() error {
-		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "udp", "4246"); err != nil {
+		if err := runSyscallTesterFunc(t.Context(), t, syscallTester, "connect", "AF_INET6", "any", "udp", "4246"); err != nil {
 			return err
 		}
 		return err

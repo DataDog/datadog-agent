@@ -7,7 +7,6 @@
 package file
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -34,7 +33,7 @@ func TestFileBackendGetSecretOutput(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name   string
@@ -163,7 +162,7 @@ func TestFileBackendMaxFileSize(t *testing.T) {
 	err = os.WriteFile(largeFile, make([]byte, 15*1024*1024), 0644) // 15 MB
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("default max file size allows small files", func(t *testing.T) {
 		backend, err := NewTextFileBackend(map[string]interface{}{

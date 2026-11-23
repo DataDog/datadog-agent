@@ -1496,14 +1496,14 @@ func TestHandleTerminate_WithForwarder_WaitsForSlowForward(t *testing.T) {
 // the contract main.go's defer chain depends on for non-MicroVM modes.
 func TestStopOnNilServerReturnsNil(t *testing.T) {
 	var srv *Server
-	require.NoError(t, srv.Stop(context.Background()))
+	require.NoError(t, srv.Stop(t.Context()))
 }
 
 // Stop on a constructed-but-never-Started server is also safe — http.Server.Shutdown
 // is documented to return immediately when there are no listeners.
 func TestStopWithoutStartReturnsNil(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 	require.NoError(t, srv.Stop(ctx))
 }
@@ -1535,7 +1535,7 @@ func TestServeAndStopGracefulShutdown(t *testing.T) {
 	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, srv.Stop(ctx))
 
@@ -1620,7 +1620,7 @@ func TestListenAndServe_StopDoesNotInvokeOnServeError(t *testing.T) {
 	called := atomic.NewBool(false)
 	require.NoError(t, srv.ListenAndServe(func(error) { called.Store(true) }))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, srv.Stop(ctx))
 
@@ -1818,7 +1818,7 @@ func TestDispatchHook_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 func TestFlushAllDrainTimeoutDoesNotBlock(t *testing.T) {
 	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &neverDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 50*time.Millisecond, nil, nil, HookToggles{}, nil)
 
-	ctx, cancel := context.WithTimeout(context.Background(), srv.flushTimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), srv.flushTimeout)
 	defer cancel()
 	start := time.Now()
 	srv.flushForSuspend(ctx)
@@ -1842,7 +1842,7 @@ func TestFlushAllNilLogsFlusherDoesNotPanic(t *testing.T) {
 	drainer := &mockSampleDrainer{}
 	srv := NewServer(0, metric, trace, nil, &mockMetricEmitter{}, drainer, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
 
-	ctx, cancel := context.WithTimeout(context.Background(), srv.flushTimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), srv.flushTimeout)
 	defer cancel()
 	start := time.Now()
 	assert.NotPanics(t, func() { srv.flushForSuspend(ctx) })
@@ -1981,7 +1981,7 @@ func TestServerStop_AlsoStopsHeartbeat(t *testing.T) {
 	srv.heartbeat.Start()
 	require.True(t, started())
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 	require.NoError(t, srv.Stop(ctx))
 

@@ -46,7 +46,7 @@ func defaultFakeProc() map[string]string {
 
 func runScript(t *testing.T, script, dir string, opts ...interp.RunnerOption) (string, string, int) {
 	t.Helper()
-	return runScriptCtx(context.Background(), t, script, dir, opts...)
+	return runScriptCtx(t.Context(), t, script, dir, opts...)
 }
 
 func runScriptCtx(ctx context.Context, t *testing.T, script, dir string, opts ...interp.RunnerOption) (string, string, int) {
@@ -348,7 +348,7 @@ func TestUnameContextCancellation(t *testing.T) {
 	requireLinux(t)
 	dir := t.TempDir()
 	writeFakeProc(t, dir, defaultFakeProc())
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // Cancel immediately.
 	_, _, code := runScriptCtx(ctx, t, "uname -a", dir, interp.ProcPath(dir))
 	assert.NotEqual(t, 0, code, "cancelled context should result in non-zero exit")

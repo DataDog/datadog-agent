@@ -103,7 +103,7 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 
 	cfg := &splite.Config{Socket: socketPath}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cmd := exec.CommandContext(ctx, binaryPath, cfg.Args()...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -269,7 +269,7 @@ func disableCloseOnExec(t *testing.T, f *os.File) {
 }
 
 func startProcessWithFile(t *testing.T, f *os.File) *exec.Cmd {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	// Disable close-on-exec so that the process gets it
 	t.Cleanup(func() { f.Close() })

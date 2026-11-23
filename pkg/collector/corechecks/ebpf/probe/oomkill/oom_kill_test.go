@@ -236,7 +236,7 @@ func triggerOOMKill(t *testing.T) int {
 	})
 	require.NoError(t, exec.Command("swapoff", "-a").Run())
 
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
 	t.Cleanup(cancel)
 	t.Cleanup(func() {
 		if err := os.Remove(oomFillFile); err != nil && !errors.Is(err, os.ErrNotExist) {

@@ -6,7 +6,6 @@
 package resolver
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -36,7 +35,7 @@ func TestResolveConnectionTokensV2FromConfig(t *testing.T) {
 		}},
 	}
 
-	credentials, err := resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+	credentials, err := resolver.ResolveCredentials(t.Context(), credentialTask(conn, types.Attributes{}))
 	require.NoError(t, err)
 	require.Len(t, credentials.Tokens, 1)
 	assert.Equal(t, "token", credentials.Tokens[0].Name)
@@ -44,20 +43,20 @@ func TestResolveConnectionTokensV2FromConfig(t *testing.T) {
 
 	// Secret refresh replaces the compound setting through configAssignAtPath.
 	config.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "rotated-value"}}, model.SourceSecret)
-	credentials, err = resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+	credentials, err = resolver.ResolveCredentials(t.Context(), credentialTask(conn, types.Attributes{}))
 	require.NoError(t, err)
 	require.Len(t, credentials.Tokens, 1)
 	assert.Equal(t, "rotated-value", credentials.Tokens[0].Value)
 
 	// Invalid updates must fail instead of falling back to stale credentials.
 	config.Set(par.CredentialsValues, map[string]any{"api_token": "invalid-secret-value"}, model.SourceSecret)
-	credentials, err = resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+	credentials, err = resolver.ResolveCredentials(t.Context(), credentialTask(conn, types.Attributes{}))
 	require.Error(t, err)
 	assert.Nil(t, credentials)
 	assert.NotContains(t, err.Error(), "invalid-secret-value")
 
 	config.Set(par.CredentialsValues, map[string]any{}, model.SourceSecret)
-	credentials, err = resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+	credentials, err = resolver.ResolveCredentials(t.Context(), credentialTask(conn, types.Attributes{}))
 	require.ErrorContains(t, err, "requested runner credential is not available")
 	assert.Nil(t, credentials)
 }
@@ -75,7 +74,7 @@ func TestResolveConnectionTokensV2FromPlainText(t *testing.T) {
 		}},
 	}
 
-	credentials, err := resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+	credentials, err := resolver.ResolveCredentials(t.Context(), credentialTask(conn, types.Attributes{}))
 	require.NoError(t, err)
 	require.Len(t, credentials.Tokens, 1)
 	assert.Equal(t, "token", credentials.Tokens[0].Name)
@@ -117,7 +116,7 @@ func TestResolveConnectionTokensV2UsesOneSnapshot(t *testing.T) {
 	}
 
 	for _, expected := range []string{"original", "rotated"} {
-		credentials, err := resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+		credentials, err := resolver.ResolveCredentials(t.Context(), credentialTask(conn, types.Attributes{}))
 		require.NoError(t, err)
 		require.Len(t, credentials.Tokens, 2)
 		for _, token := range credentials.Tokens {
@@ -147,13 +146,13 @@ private_action_runner:
 			},
 		}},
 	}
-	credentials, err := resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+	credentials, err := resolver.ResolveCredentials(t.Context(), credentialTask(conn, types.Attributes{}))
 	require.NoError(t, err)
 	require.Len(t, credentials.Tokens, 1)
 	assert.Equal(t, "resolved-value", credentials.Tokens[0].Value)
 
 	mockConfig.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "rotated-value"}}, model.SourceSecret)
-	credentials, err = resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+	credentials, err = resolver.ResolveCredentials(t.Context(), credentialTask(conn, types.Attributes{}))
 	require.NoError(t, err)
 	require.Len(t, credentials.Tokens, 1)
 	assert.Equal(t, "rotated-value", credentials.Tokens[0].Value)
@@ -250,7 +249,7 @@ func TestRunnerCredentialAllowedActions(t *testing.T) {
 			}
 			resolver, err := NewPrivateCredentialResolver(configmock.NewFromYAML(t, yaml))
 			require.NoError(t, err)
-			credentials, err := resolver.ResolveCredentials(context.Background(), credentialTask(runnerCredentialConnection("password"), types.Attributes{BundleID: test.bundle, Name: test.action}))
+			credentials, err := resolver.ResolveCredentials(t.Context(), credentialTask(runnerCredentialConnection("password"), types.Attributes{BundleID: test.bundle, Name: test.action}))
 			if test.allowed {
 				require.NoError(t, err)
 				require.Len(t, credentials.Tokens, 1)
@@ -294,13 +293,13 @@ func TestRunnerCredentialPolicyRefreshAndAllOrNothing(t *testing.T) {
 	require.NoError(t, err)
 	conn := runnerCredentialConnection("username", "password")
 	action := types.Attributes{BundleID: "com.datadoghq.mongodb", Name: "find"}
-	credentials, err := resolver.ResolveCredentials(context.Background(), credentialTask(conn, action))
+	credentials, err := resolver.ResolveCredentials(t.Context(), credentialTask(conn, action))
 	require.NoError(t, err)
 	require.Len(t, credentials.Tokens, 2)
 
 	for _, policy := range []any{[]string{}, []string{"com.datadoghq.http.*"}, nil, "invalid-secret-policy"} {
 		setPolicy(policy)
-		credentials, err = resolver.ResolveCredentials(context.Background(), credentialTask(conn, action))
+		credentials, err = resolver.ResolveCredentials(t.Context(), credentialTask(conn, action))
 		require.Error(t, err)
 		assert.Nil(t, credentials) // Even the unrestricted username must not escape.
 		assert.NotContains(t, err.Error(), "secret-value")
@@ -346,7 +345,7 @@ func TestRunnerCredentialHTTPDomains(t *testing.T) {
 					})
 				}
 			}
-			credentials, err := resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{BundleID: test.bundle, Name: test.action, Inputs: map[string]interface{}{"url": test.target}}))
+			credentials, err := resolver.ResolveCredentials(t.Context(), credentialTask(conn, types.Attributes{BundleID: test.bundle, Name: test.action, Inputs: map[string]interface{}{"url": test.target}}))
 			if test.allowed {
 				require.NoError(t, err)
 				require.Len(t, credentials.Tokens, 1)
@@ -383,13 +382,13 @@ func TestRunnerCredentialHTTPDomainsRequireEveryCredential(t *testing.T) {
 	require.NoError(t, err)
 	conn := runnerCredentialConnection("username", "password")
 	action := types.Attributes{BundleID: "com.datadoghq.http", Name: "request", Inputs: map[string]interface{}{"url": "https://api.example.com"}}
-	credentials, err := resolver.ResolveCredentials(context.Background(), credentialTask(conn, action))
+	credentials, err := resolver.ResolveCredentials(t.Context(), credentialTask(conn, action))
 	require.NoError(t, err)
 	require.Len(t, credentials.Tokens, 2)
 
 	// Matching one credential's domain list cannot authorize the other one.
 	action.Inputs["url"] = "https://other.example.com"
-	credentials, err = resolver.ResolveCredentials(context.Background(), credentialTask(conn, action))
+	credentials, err = resolver.ResolveCredentials(t.Context(), credentialTask(conn, action))
 	require.ErrorContains(t, err, "request domain is not allowed")
 	assert.Nil(t, credentials)
 	assert.NotContains(t, err.Error(), "secret-value")
@@ -439,7 +438,7 @@ func TestResolveCredentialsRejectsTokensWithoutName(t *testing.T) {
 					var credentials *privateconnection.PrivateCredentials
 					var resolveErr error
 					require.NotPanics(t, func() {
-						credentials, resolveErr = resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+						credentials, resolveErr = resolver.ResolveCredentials(t.Context(), credentialTask(conn, types.Attributes{}))
 					})
 					require.ErrorContains(t, resolveErr, "connection token and its name must not be empty")
 					assert.Nil(t, credentials)
@@ -460,7 +459,7 @@ func TestResolveCredentialsTokenAuthPlainText(t *testing.T) {
 		},
 	}
 
-	credentials, err := resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+	credentials, err := resolver.ResolveCredentials(t.Context(), credentialTask(conn, types.Attributes{}))
 	require.NoError(t, err)
 	require.Len(t, credentials.Tokens, 1)
 	assert.Equal(t, "token", credentials.Tokens[0].Name)

@@ -8,7 +8,6 @@
 package usm
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
 	"runtime"
@@ -118,7 +117,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 
 	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, s.isTLS)
 	t.Cleanup(cancel)
-	defaultCtx := context.Background()
+	defaultCtx := t.Context()
 
 	usmMonitor := setupUSMTLSMonitor(t, s.getConfig(), useExistingConsumer)
 	if s.isTLS {
@@ -284,8 +283,8 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			runClients: func(t *testing.T, clientsCount int) {
 				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
-				ctxWithoutHeaders := context.Background()
-				ctxWithHeaders := context.Background()
+				ctxWithoutHeaders := t.Context()
+				ctxWithHeaders := t.Context()
 				headers := make(map[string]string, 500)
 				for i := 1; i <= 500; i++ {
 					headers[fmt.Sprintf("header-%d", i)] = fmt.Sprintf("value-%d", i)
@@ -321,8 +320,8 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			runClients: func(t *testing.T, clientsCount int) {
 				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
-				ctxWithoutHeaders := context.Background()
-				ctxWithHeaders := context.Background()
+				ctxWithoutHeaders := t.Context()
+				ctxWithHeaders := t.Context()
 				headers := make(map[string]string, 20)
 				for i := 1; i <= 20; i++ {
 					headers[fmt.Sprintf("header-%d", i)] = "value"
@@ -361,7 +360,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			runClients: func(t *testing.T, clientsCount int) {
 				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
-				ctxWithHeaders := context.Background()
+				ctxWithHeaders := t.Context()
 				headers := make(map[string]string, http2.Http2MaxHeadersCountPerFiltering+1)
 				for i := 1; i <= http2.Http2MaxHeadersCountPerFiltering+1; i++ {
 					headers[fmt.Sprintf("header-%d", i)] = "value"
@@ -393,8 +392,8 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 				flake.MarkOnJobName(t, "ubuntu_25.10", "ubuntu_26.04")
 				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
-				ctxWithoutHeaders := context.Background()
-				ctxWithHeaders := context.Background()
+				ctxWithoutHeaders := t.Context()
+				ctxWithHeaders := t.Context()
 				headers := make(map[string]string, http2.Http2MaxHeadersCountPerFiltering+1)
 				for i := 1; i <= http2.Http2MaxHeadersCountPerFiltering+1; i++ {
 					headers[fmt.Sprintf("header-%d", i)] = "value"
@@ -448,7 +447,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 
 	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, s.isTLS)
 	t.Cleanup(cancel)
-	defaultCtx := context.Background()
+	defaultCtx := t.Context()
 
 	usmMonitor := setupUSMTLSMonitor(t, s.getConfig(), useExistingConsumer)
 	if s.isTLS {
