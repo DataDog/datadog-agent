@@ -480,3 +480,15 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 			filterDrops(&WorkloadService{}, noLogsTpl, logsTpl, ccaTpl))
 	})
 }
+
+func TestWorkloadServiceEqualExclusion(t *testing.T) {
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "foo"},
+		Runtime:  workloadmeta.ContainerRuntimeContainerd,
+	}
+
+	base := &WorkloadService{entity: container}
+	assert.True(t, base.Equal(&WorkloadService{entity: container}))
+	assert.False(t, base.Equal(&WorkloadService{entity: container, metricsExcluded: true}))
+	assert.False(t, base.Equal(&WorkloadService{entity: container, logsExcluded: true}))
+}

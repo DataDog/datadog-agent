@@ -62,7 +62,9 @@ func (s *WorkloadService) Equal(o Service) bool {
 		reflect.DeepEqual(s.checkNames, s2.checkNames) &&
 		s.hostname == s2.hostname &&
 		s.pid == s2.pid &&
-		s.ready == s2.ready
+		s.ready == s2.ready &&
+		s.metricsExcluded == s2.metricsExcluded &&
+		s.logsExcluded == s2.logsExcluded
 }
 
 // GetServiceID returns the AD entity ID of the service.
