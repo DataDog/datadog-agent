@@ -168,7 +168,8 @@ cleanup_aix-ppc64:
       fi
       echo "=== AIX: rebooting host ==="
       BOOT_BEFORE=$(aix_run_cmd 'who -b' | tr -d '\r' | tr -s ' ')
-      # nohup detaches the shutdown so the SSH session closes cleanly      aix_run_cmd 'nohup sh -c "sleep 3; /usr/sbin/shutdown -Fr" >/dev/null 2>&1 & exit 0'
+      # nohup detaches the shutdown so the SSH session closes cleanly
+      aix_run_cmd 'nohup sh -c "sleep 3; /usr/sbin/shutdown -Fr" >/dev/null 2>&1 & exit 0'
       echo "=== AIX: waiting for the host to come back ==="
       deadline=$(( $(date +%s) + 1500 ))
       while [ "$(date +%s)" -lt "$deadline" ]; do
