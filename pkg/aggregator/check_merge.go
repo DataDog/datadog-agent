@@ -25,7 +25,7 @@ import (
 // the next flush to merge with later commits.
 //
 // Like the rest of the Agent's output, it doesn't guard against sending a timestamp twice when the clock steps back,
-// or when a rule change moves a source between merged and unmerged output in the second it changes.
+// or when a rule change moves a source between merged and unmerged output at the timestamp it changes.
 //
 // Points are held per timestamp, of which there are only a few at a time: a flush checks each timestamp once, and
 // drops the series it sends along with their map.

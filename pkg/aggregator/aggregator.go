@@ -713,7 +713,7 @@ func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
 	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
 }
 
-// flushCheckOutputs sends the merged outputs of tag-filtered check metrics from seconds before the flush, holding
+// flushCheckOutputs sends the merged outputs of tag-filtered check metrics from timestamps before the flush, holding
 // the others for a later flush.
 func (agg *BufferedAggregator) flushCheckOutputs(now time.Time, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 	agg.mu.Lock()
