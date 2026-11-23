@@ -45,8 +45,7 @@ func macosProcmgrDescribe(t *testing.T, client *common.MacOSTestClient, name str
 	return detail
 }
 
-// assertMacosProcmgrRequiresRoot checks a mutating CLI command is denied. Execute returns
-// an empty string on failure and puts the command output in the error.
+// Execute returns an empty string on failure and puts the command output in the error.
 func assertMacosProcmgrRequiresRoot(t *testing.T, client *common.MacOSTestClient, command string) string {
 	t.Helper()
 	_, err := client.Execute(command)
@@ -86,9 +85,9 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	// and the restart would stop every managed process, including one this test did not start.
 	preconditionsPassed := false
 
-	// Registered first so it runs after diagnostics. On success the test has already stopped
-	// its child. On failure, stop and kill before the restart: each child has its own process
-	// group and would outlive the restart, which drops the runtime entry.
+	// Registered first so it runs after diagnostics. On failure, stop and kill before the
+	// restart: each child has its own process group and would outlive the restart, which
+	// drops the runtime entry.
 	t.Cleanup(func() {
 		if !preconditionsPassed {
 			return
@@ -100,14 +99,12 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthStartEntry); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthStartEntry, err)
 			}
-			// pkill returns before the process exits, after SIGTERM and after SIGKILL alike. Poll,
-			// then SIGKILL a survivor and poll again, so a retry does not inherit it after the
-			// daemon drops the entry.
+			// pkill returns before the process exits. Poll, then SIGKILL a survivor and poll
+			// again, so a retry does not inherit it after the daemon drops the entry.
 			check := "sudo sh -c 'pgrep -f \"^/bin/sleep " + sleepArg + "$\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
 			if _, err := client.Execute("sudo pkill -f '^/bin/sleep " + sleepArg + "$'"); err != nil {
 				t.Logf("cleanup: pkill /bin/sleep %s: %v", sleepArg, err)
 			}
-			// waitGone polls until the check reports no pid, the check fails, or the timeout passes.
 			waitGone := func(timeout time.Duration) (string, error) {
 				deadline := time.Now().Add(timeout)
 				for {
@@ -210,7 +207,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	if names, ok := macosProcmgrListNames(t, client, "sudo "+macosProcmgrCLI+" list --json"); ok {
 		assert.NotContains(t, names, macosCallerAuthAgentEntry)
 	}
-	// describe, not pgrep: the legacy sysprobe LaunchDaemon may have its own process.
+	// The legacy sysprobe LaunchDaemon may have its own process, so describe, not pgrep.
 	sysprobe := macosProcmgrDescribe(t, client, macosSysprobeProcess)
 	assert.Equal(t, "Skipped", sysprobe.State)
 	assert.Equal(t, []string{"auto_start_false"}, sysprobe.SkipReasons)
