@@ -135,11 +135,10 @@ cleanup_aix-ppc64:
     - |
       aix_run_cmd <<EOF
       set -eux
-      rm -rf /opt/dd-build
-      mkdir -p /opt/dd-build
+      rm -rf "$(dirname "$AIX_AGENT_SRC")"
       rm -f /tmp/go*.aix-ppc64.tar.gz
       /opt/freeware/bin/dnf-3 clean all || true
-      df -g /opt /tmp
+      df -g "$(dirname "$AIX_AGENT_SRC")" /tmp
       EOF
     # Marker lives outside /opt/dd-build so it survives the wipe
     - aix_run_cmd 'date +%s > /opt/.aix-ci-last-cleanup'
