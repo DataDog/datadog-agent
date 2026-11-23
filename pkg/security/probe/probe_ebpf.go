@@ -216,9 +216,10 @@ type EBPFProbe struct {
 	// onNewPCE / onCgroupUpdate are stored as function values rather than declared as
 	// methods because a `p.method` expression allocates a fresh method value on every
 	// call; binding them once at probe init keeps the per-event hot path allocation-free.
-	relatedEvents  []*model.Event
-	onNewPCE       func(*model.ProcessCacheEntry, error)
-	onCgroupUpdate func(*model.ProcessCacheEntry)
+	relatedEvents     []*model.Event
+	onNewPCE          func(*model.ProcessCacheEntry, error)
+	onCgroupUpdate    func(*model.ProcessCacheEntry)
+	slowEventWatchdog *slowEventWatchdog
 
 	// kernelTracksCGroupID mirrors get_current_cgroup_id() in ebpf/c/include/helpers/cgroup.h:
 	// the kernel only refreshes proc_cache's cgroup inode when bpf_get_current_cgroup_id() is
@@ -1073,6 +1074,14 @@ func (p *EBPFProbe) Start() error {
 		}()
 	}
 
+	if p.slowEventWatchdog != nil {
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.slowEventWatchdog.start(p.ctx)
+		}()
+	}
+
 	return p.eventStream.Start(&p.wg)
 }
 
@@ -1674,7 +1683,15 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		event         = p.zeroEvent()
 		dataLen       = uint64(len(data))
 		cgroupContext model.CGroupContext
+		eventType     model.EventType
 	)
+
+	startTime := p.slowEventWatchdog.begin()
+	defer func() {
+		if duration, trace, ok := p.slowEventWatchdog.end(startTime); ok {
+			p.reportSlowEvent(eventType, duration, trace)
+		}
+	}()
 
 	read, err := event.UnmarshalBinary(data)
 	if err != nil {
@@ -1683,7 +1700,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	}
 	offset += read
 
-	eventType := event.GetEventType()
+	eventType = event.GetEventType()
 	if eventType > model.MaxKernelEventType {
 		p.monitors.eventStreamMonitor.CountInvalidEvent(dataLen)
 		seclog.Errorf("unsupported event type %d", eventType)
@@ -1741,6 +1758,17 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// flush pending actions
 	p.processKiller.FlushPendingReports()
 	p.fileHasher.FlushPendingReports()
+}
+
+func (p *EBPFProbe) reportSlowEvent(eventType model.EventType, duration time.Duration, trace []ProcessingCheckpoint) {
+	if p.probe == nil {
+		return
+	}
+	originalRuleID := fmt.Sprintf("event_%s", eventType)
+	slowRule := events.NewSlowEventProcessingRule(originalRuleID, "", p.evalOpts())
+	slowEvent := newSlowProcessingEvent(p.GetAgentContainerContext(), eventType, duration, trace)
+	customEvent := events.NewCustomEvent(model.CustomEventType, slowEvent, "event_type:"+eventType.String())
+	p.probe.DispatchCustomEvent(slowRule, customEvent)
 }
 
 func (p *EBPFProbe) applyPostDispatchProcessUpdates(event *model.Event) {
@@ -3812,6 +3840,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		activeRemediations:   make(map[string]*Remediation),
 		pid:                  utils.Getpid(),
 		dropActionRuleIDs:    make(map[uint32]string),
+		slowEventWatchdog:    newSlowEventWatchdog(defaultSlowEventSampleInterval, defaultSlowEventThreshold),
 
 		capabilitiesExecutableMismatch: atomic.NewUint64(0),
 	}
