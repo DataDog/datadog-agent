@@ -952,6 +952,15 @@ const (
 	useExistingConsumer = false
 )
 
+// bpfDebugValues returns the BPFDebug values that load distinct programs in
+// the current build mode: only runtime compilation adds -DDEBUG=1.
+func bpfDebugValues() map[string]bool {
+	if ebpftest.GetBuildMode() == ebpftest.RuntimeCompiled {
+		return map[string]bool{"enabled": true, "disabled": false}
+	}
+	return map[string]bool{"disabled": false}
+}
+
 func setupUSMTLSMonitor(t *testing.T, cfg *config.Config, reinit bool) *Monitor {
 	usmMonitor, err := NewMonitor(cfg, nil, nil)
 	require.NoError(t, err)

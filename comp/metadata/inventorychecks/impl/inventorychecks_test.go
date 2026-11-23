@@ -28,6 +28,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -310,6 +311,9 @@ jmx_metrics: [{password: 'ENC[shared]'}]
 `), 0600))
 	}
 	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil)
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetSecrets(map[string]string{"shared": "secret-value"})
+	ic.secrets = secretsComp
 	providers.ResetReader([]string{confdPath})
 	t.Cleanup(func() { providers.ResetReader(nil) })
 	payload := ic.getPayload(true).(*Payload)
@@ -330,11 +334,27 @@ jmx_metrics: [{password: 'ENC[shared]'}]
 			{"path": "jmx_metrics.0.password", "kind": "enc", "handle": "shared"},
 		}, decoded.Secrets)
 	}
-	assert.Empty(t, ic.getPayload(false).(*Payload).FilesMetadata)
+
+	// enc_info aggregates the secrets of every file
+	encPaths := []string{"init_config.password", "instances.0.password", "jmx_metrics.0.password"}
+	rawPaths := []string{"instances.1.password", "logs.0.password"}
+	assert.ElementsMatch(t, append(encPaths, encPaths...), payload.EncInfo["paths"])
+	assert.Equal(t, []string{"shared", "shared", "shared", "shared", "shared", "shared"}, payload.EncInfo["handles"])
+	assert.ElementsMatch(t, append(rawPaths, rawPaths...), payload.EncInfo["scrubbed"])
+	assert.Equal(t, map[string]string{"shared": "31160254d1297393d2ad00e1c01851aec834361e02c524b89fe06aff2879ce6a"}, payload.EncInfo["hash_secret_id"])
+	encoded, err := json.Marshal(payload)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "secret-value")
+
+	expvarPayload := ic.getPayload(false).(*Payload)
+	assert.Empty(t, expvarPayload.FilesMetadata)
+	assert.Nil(t, expvarPayload.EncInfo)
 	ic.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
-	for _, file := range ic.getPayload(true).(*Payload).FilesMetadata {
+	payload = ic.getPayload(true).(*Payload)
+	for _, file := range payload.FilesMetadata {
 		assert.NotContains(t, file, "secrets")
 	}
+	assert.Nil(t, payload.EncInfo)
 }
 
 func TestFlareProviderFilename(t *testing.T) {
