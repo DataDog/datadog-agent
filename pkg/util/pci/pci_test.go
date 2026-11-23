@@ -180,3 +180,38 @@ func TestBridgesFromDevicePath(t *testing.T) {
 	_, err = bridgesFromDevicePath("0000:00:04.0/0000:00:05.0", "0000:00:05.0")
 	require.Error(t, err, "no host bridge")
 }
+
+func TestSingleNUMANodeHost(t *testing.T) {
+	for name, tc := range map[string]struct {
+		online string // contents of devices/system/node/online, empty for no file
+		want   int
+		known  bool
+	}{
+		"single node 0": {online: "0\n", want: 0, known: true},
+		"single node 1": {online: "1\n", want: 1, known: true},
+		"node range":    {online: "0-1\n"},
+		"node list":     {online: "0,2\n"},
+		"no node list":  {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			host := newFakeSysfs(t)
+			host.addDevice("pci0000:00/0000:00:1e.0", "-1", true)
+			host.addDevice("pci0000:00/0000:00:1f.0", "1", true)
+			if tc.online != "" {
+				dir := filepath.Join(host.root, "devices", "system", "node")
+				require.NoError(t, os.MkdirAll(dir, 0o755))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "online"), []byte(tc.online), 0o644))
+			}
+			sysfs := NewSysfs(host.root)
+
+			node, ok := sysfs.NUMANode("0000:00:1e.0")
+			require.Equal(t, tc.known, ok)
+			if tc.known {
+				require.Equal(t, tc.want, node)
+			}
+			node, ok = sysfs.NUMANode("0000:00:1f.0")
+			require.True(t, ok, "a reported node always wins")
+			require.Equal(t, 1, node)
+		})
+	}
+}

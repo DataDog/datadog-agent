@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    The ``gpu_device`` resource published with ``gpu.resources.enabled`` now
+    includes static PCI, NUMA and placement facts: PCIe path, GPU NUMA node,
+    PCI device and subsystem IDs, BAR1 size, board part number, host link
+    capabilities, and rack placement when a chassis is identified.

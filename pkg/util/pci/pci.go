@@ -55,6 +55,8 @@ func NormalizeBusID(busID string) (string, error) {
 // Sysfs reads PCI device attributes from sysfs mounts.
 type Sysfs struct {
 	devicesDirs []string
+	// nodeOnlineFiles are the NUMA node lists of the same mounts, in the same order.
+	nodeOnlineFiles []string
 }
 
 // NewSysfs reads from the given sysfs mount points (e.g. "/host/sys", "/sys"),
@@ -69,6 +71,7 @@ func NewSysfs(sysRoots ...string) *Sysfs {
 		if root != "" && !seen[dir] {
 			seen[dir] = true
 			s.devicesDirs = append(s.devicesDirs, dir)
+			s.nodeOnlineFiles = append(s.nodeOnlineFiles, filepath.Join(root, "devices", "system", "node", "online"))
 		}
 	}
 	return s
@@ -76,24 +79,40 @@ func NewSysfs(sysRoots ...string) *Sysfs {
 
 // NUMANode returns the host NUMA node of a PCI device. It reports false when
 // the device is not found, the attribute is missing, or the kernel reports -1
-// (unknown). Node 0 is valid, and a node may have no CPUs.
+// (unknown) on a host with several NUMA nodes. Single-node hosts, such as many
+// VMs, often report -1 for every device: there, the only node is returned.
+// Node 0 is valid, and a node may have no CPUs.
 func (s *Sysfs) NUMANode(busID string) (int, bool) {
 	address, err := NormalizeBusID(busID)
 	if err != nil {
 		return -1, false
 	}
-	for _, dir := range s.devicesDirs {
+	for i, dir := range s.devicesDirs {
 		content, err := os.ReadFile(filepath.Join(dir, address, "numa_node"))
 		if err != nil {
 			continue
 		}
 		node, err := strconv.Atoi(strings.TrimSpace(string(content)))
 		if err != nil || node < 0 {
-			return -1, false
+			return onlyNUMANode(s.nodeOnlineFiles[i])
 		}
 		return node, true
 	}
 	return -1, false
+}
+
+// onlyNUMANode returns the NUMA node of a host that has exactly one. The file
+// is the kernel's list of online nodes, e.g. "0" or "0-1".
+func onlyNUMANode(onlineFile string) (int, bool) {
+	content, err := os.ReadFile(onlineFile)
+	if err != nil {
+		return -1, false
+	}
+	node, err := strconv.Atoi(strings.TrimSpace(string(content)))
+	if err != nil || node < 0 {
+		return -1, false // several nodes, or unreadable
+	}
+	return node, true
 }
 
 // UpstreamBridges returns the normalized bus IDs of the bridges above a PCI
