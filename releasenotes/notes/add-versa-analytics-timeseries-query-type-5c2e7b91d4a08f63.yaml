@@ -24,11 +24,11 @@ features:
     Versa's buckets are wall-clock aligned and the current one is still accumulating, so
     set ``lookback_time_window_minutes`` to 45 or more on a tenant with 15 minute buckets;
     the check logs a warning below 45, including the default of 30, when an enabled query
-    uses timeseries. SLA, circuit QoS and interface are validated against Versa
-    responses from our lab and a customer environment, circuit QoS ``percent_drop``
-    including nonzero drops in our lab; path QoS against a customer environment; and
-    link usage and DIA against our lab only, with customer validation pending. Link
-    status, site, tunnel, application and top user metrics use ``tableData``. The tunnel
+    uses timeseries. SLA, circuit QoS, interface, SDWAN link usage and DIA are validated
+    against Versa responses from our lab and a customer environment, circuit QoS
+    ``percent_drop`` including nonzero drops in our lab, and path QoS against a customer
+    environment. Link status, site, tunnel, application and top user metrics use
+    ``tableData``. The tunnel
     query returned no rows in our lab, so tunnel timeseries is pending validation against
     a response with tunnel data, as is the tunnel ``tableData`` column order for
     ``volume-tx`` and ``volume-rx``.

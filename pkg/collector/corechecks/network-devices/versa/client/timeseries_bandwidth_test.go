@@ -25,7 +25,7 @@ import (
 )
 
 // Synthetic responses for the bandwidth endpoints, shaped after the query's group by
-// fields. Validated with synthetic responses only; customer validation pending.
+// fields. Real Versa responses are replayed in the report package's lab tests.
 
 var bandwidthBuckets = []int64{1704067200000, 1704068100000, 1704069000000}
 

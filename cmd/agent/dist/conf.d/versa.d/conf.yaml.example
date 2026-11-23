@@ -127,10 +127,9 @@ instances:
     ## volatile than with tableData, so review monitor thresholds before switching.
     ##
     ## timeseries applies to SLA, path QoS, circuit QoS, interface utilization, SDWAN
-    ## link usage and DIA metrics. SLA, circuit QoS and interface are validated against
-    ## Versa responses from our lab and a customer environment, path QoS against a
-    ## customer environment, and link usage and DIA against our lab only; customer
-    ## validation of link usage and DIA is pending.
+    ## link usage and DIA metrics. SLA, circuit QoS, interface, SDWAN link usage and DIA
+    ## are validated against Versa responses from our lab and a customer environment, and
+    ## path QoS against a customer environment.
     ## Link status, site, tunnel, application and top user metrics use tableData
     ## regardless of this setting: Versa returns link status timeseries per status value
     ## rather than per link, rejects the site query as timeseries, and the tunnel query

@@ -40,9 +40,8 @@ type timeseriesLayout struct {
 }
 
 // Layouts for the endpoints whose timeseries responses have been checked against real
-// Versa responses: SLA, circuit QoS and interface against our lab and a customer
-// environment, path QoS against a customer environment, and link usage and DIA against
-// our lab only, with customer validation pending.
+// Versa responses: SLA, circuit QoS, interface, link usage and DIA against our lab and
+// a customer environment, and path QoS against a customer environment.
 //
 // linkstatus(site,accckt), the site query and tunnelstats have no timeseries layout and
 // use tableData. A linkstatus timeseries response holds one series per link status value
