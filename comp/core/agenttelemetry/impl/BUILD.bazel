@@ -80,6 +80,7 @@ dd_agent_go_test(
         "//pkg/util/fxutil",
         "//pkg/util/jsonquery",
         "//pkg/util/log/errortracking",
+        "//pkg/util/scrubber",
         "//pkg/version",
         "@com_github_datadog_zstd//:zstd",
         "@com_github_prometheus_client_golang//prometheus",
