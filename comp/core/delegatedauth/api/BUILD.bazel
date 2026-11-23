@@ -5,6 +5,7 @@ go_library(
     name = "api",
     srcs = [
         "delegated_auth.go",
+        "oidc_testing.go",
         "workload_token.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api",

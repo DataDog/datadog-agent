@@ -9,7 +9,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"sync/atomic"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -26,6 +28,73 @@ func TestGetAPIKeyHonorsCanceledContext(t *testing.T) {
 	_, err := GetAPIKey(ctx, config, "proof", "")
 
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestGetAPIKeyRefusesPlaintextOIDCExchange(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requests.Add(1) }))
+	defer server.Close()
+	config := mock.New(t)
+	config.SetInTest("dd_url", server.URL)
+
+	_, err := GetAPIKey(context.Background(), config, "oidc-header.payload.signature", "")
+
+	require.ErrorContains(t, err, "requires an HTTPS endpoint")
+	assert.Zero(t, requests.Load())
+}
+
+func TestGetAPIKeyDoesNotFollowRedirectsWithOIDCProof(t *testing.T) {
+	var redirected atomic.Int32
+	target := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { redirected.Add(1) }))
+	defer target.Close()
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	defer server.Close()
+	TrustOIDCExchangeCertificate(t, server.Certificate())
+	config := mock.New(t)
+	config.SetInTest("dd_url", server.URL)
+
+	_, err := GetAPIKey(context.Background(), config, "oidc-header.payload.signature", "")
+
+	require.ErrorContains(t, err, "307")
+	assert.Zero(t, redirected.Load())
+}
+
+func TestGetAPIKeyVerifiesTLSForOIDCProofDespiteSkipSSLValidation(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+	config := mock.New(t)
+	config.SetInTest("dd_url", server.URL)
+	config.SetInTest("skip_ssl_validation", true)
+
+	_, err := GetAPIKey(context.Background(), config, "oidc-header.payload.signature", "")
+	require.ErrorContains(t, err, "certificate")
+	assert.Zero(t, requests.Load(), "the workload token reached an unverified server")
+
+	TrustOIDCExchangeCertificate(t, server.Certificate())
+	_, err = GetAPIKey(context.Background(), config, "oidc-header.payload.signature", "")
+	require.ErrorContains(t, err, "401")
+	assert.EqualValues(t, 1, requests.Load())
+}
+
+func TestGetAPIKeyKeepsSkipSSLValidationForNonOIDCProofs(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+	config := mock.New(t)
+	config.SetInTest("dd_url", server.URL)
+	config.SetInTest("skip_ssl_validation", true)
+
+	_, _ = GetAPIKey(context.Background(), config, "aws-proof", "")
+	assert.EqualValues(t, 1, requests.Load())
 }
 
 func TestParseResponse(t *testing.T) {
