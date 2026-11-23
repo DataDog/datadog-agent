@@ -70,14 +70,19 @@ func (m *checkOutputMerger) mergeSeries(series []*metrics.Serie) {
 			byKey := heldAt(m.series, timestamp)
 			merged, held := byKey[serie.ContextKey]
 			if !held {
+				if len(serie.Points) == 1 {
+					serie.Points[0].Ts = float64(timestamp)
+					byKey[serie.ContextKey] = serie
+					continue
+				}
 				merged = new(metrics.Serie)
 				*merged = *serie
-				merged.Points = []metrics.Point{{Ts: float64(timestamp)}}
+				merged.Points = []metrics.Point{{Ts: float64(timestamp), Value: point.Value}}
 				byKey[serie.ContextKey] = merged
-			} else {
-				merged.NoIndex = merged.NoIndex || serie.NoIndex
-				merged.Source = min(merged.Source, serie.Source)
+				continue
 			}
+			merged.NoIndex = merged.NoIndex || serie.NoIndex
+			merged.Source = min(merged.Source, serie.Source)
 			merged.Points[0].Value += point.Value
 		}
 	}
@@ -90,6 +95,10 @@ func (m *checkOutputMerger) mergeSketches(sketches []mergeableSketch) {
 			byKey := heldAt(m.sketches, point.Ts)
 			merged, held := byKey[s.key]
 			if !held {
+				if len(s.sketch.Points) == 1 {
+					byKey[s.key] = s.sketch
+					continue
+				}
 				merged = new(metrics.SketchSeries)
 				*merged = *s.sketch
 				merged.Points = []metrics.SketchPoint{{Sketch: point.Sketch, Ts: point.Ts}}
