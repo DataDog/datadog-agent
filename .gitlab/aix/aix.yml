@@ -100,10 +100,6 @@ deploy_packages_aix-ppc64:
 # /opt/dd-build and the dnf cache, re-provisions the host, warms the caches
 # the next AIX job needs and reboots the host. Nightly runs outside the
 # window succeed early; manual runs on main force it.
-#
-# No needs: it starts at pipeline start and holds the aix_ci_host resource
-# group before the other AIX jobs (which wait on setup_agent_version) are
-# eligible.
 cleanup_aix-ppc64:
   stage: setup
   extends: .aix_remote
