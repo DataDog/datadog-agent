@@ -193,3 +193,13 @@ func TestControllerExclusionChange(t *testing.T) {
 		ms.Stop()
 	})
 }
+
+func TestControllerExclusionChangeAfterStop(t *testing.T) {
+	ms := NewController()
+	excluded := makeConfig("one")
+	excluded.MetricsExcluded = true
+
+	assert.NotPanics(t, func() {
+		ms.applyExclusionChange(Digest(excluded.FastDigest()), &excluded)
+	})
+}

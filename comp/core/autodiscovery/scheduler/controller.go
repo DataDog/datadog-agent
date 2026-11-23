@@ -226,6 +226,9 @@ func (ms *Controller) applyExclusionChange(configDigest Digest, desired *integra
 	defer ms.m.Unlock()
 
 	scheduled := ms.scheduledConfigs[configDigest]
+	if scheduled == nil {
+		return
+	}
 	var changedScopes []workloadfilter.Scope
 	for _, scope := range []workloadfilter.Scope{workloadfilter.MetricsFilter, workloadfilter.LogsFilter} {
 		if scheduled.HasFilter(scope) != desired.HasFilter(scope) {
