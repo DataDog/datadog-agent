@@ -148,7 +148,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		runCfg:                   runCfg,
 		stopCh:                   chk.stopCh,
 		manifestBuffer:           manifestBuffer,
-		collectorDiscovery:       discovery.NewDiscoveryCollectorForInventory(),
+		collectorDiscovery:       discovery.NewDiscoveryCollector(chk.deps.serverGroupsAndResources),
 		discoveryRetrier:         newRetrier(collectionInterval, maxDiscoveryRetryDelay),
 		activatedCollectors:      map[string]struct{}{},
 		initializedCollectors:    map[string]struct{}{},

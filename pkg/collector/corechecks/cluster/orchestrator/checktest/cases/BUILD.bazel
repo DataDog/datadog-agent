@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cases",
+    srcs = [
+        "configurations.go",
+        "custom_resources.go",
+        "discovery.go",
+        "lifecycle.go",
+        "modes.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/checktest/cases",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//pkg/collector/corechecks/cluster/orchestrator/checktest/suite",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apiextensions_apiserver//pkg/apis/apiextensions/v1:apiextensions",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)
