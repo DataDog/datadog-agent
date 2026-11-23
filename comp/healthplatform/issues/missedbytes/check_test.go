@@ -9,13 +9,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/internal/logsissue"
 	logsmetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 )
 
@@ -69,8 +69,8 @@ func TestCheck_LossProducesOneSummaryReport(t *testing.T) {
 
 	report := reports[0]
 	assert.Equal(t, IssueName, report.IssueName)
-	assert.Equal(t, issueSource, report.Source)
-	assert.Equal(t, hostIssueID("host-a"), report.IssueID)
+	assert.Equal(t, logsissue.Source, report.Source)
+	assert.Equal(t, logsissue.HostIssueID(IssueID, "host-a"), report.IssueID)
 
 	assert.Equal(t, "4200512", report.Context[contextKeyBytes], "totals sum across every tuple")
 	assert.Equal(t, "3", report.Context[contextKeyRotations])
@@ -157,13 +157,4 @@ func TestCheck_BreakdownOrderIsDeterministicOnTies(t *testing.T) {
 		got[1].Source + "/" + got[1].Service,
 		got[2].Source + "/" + got[2].Service,
 	}, "ties break on source then service")
-}
-
-// An unstable id would file a new issue each tick instead of refreshing one.
-func TestHostIssueID_StableAndHostScoped(t *testing.T) {
-	base := hostIssueID("host-a")
-
-	assert.Equal(t, base, hostIssueID("host-a"))
-	assert.True(t, strings.HasPrefix(base, IssueID+":"), "id %q must keep the kebab-case prefix", base)
-	assert.NotEqual(t, base, hostIssueID("host-b"), "hostname must scope the id")
 }
