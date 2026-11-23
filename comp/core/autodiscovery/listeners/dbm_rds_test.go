@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -342,60 +343,60 @@ func TestDBMRdsListener(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			newSvc := make(chan Service, 10)
-			delSvc := make(chan Service, 10)
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			mockConfig := configmock.New(t)
-			mockConfig.SetInTest("autodiscover_rds_instances", tc.config)
-			mockAWSClient := aws.NewMockRdsClient(ctrl)
-			tc.rdsClientConfigurer(mockAWSClient)
-			ticks := make(chan time.Time, 1)
-			var newRdsConfig aws.Config
-			err := mapstructure.Decode(tc.config, &newRdsConfig)
-			assert.NoError(t, err)
-			l := newDBMRdsListener(newRdsConfig, mockAWSClient, ticks)
-			if tc.initialServices != nil {
-				l.(*DBMRdsListener).services = tc.initialServices
-			}
-			l.Listen(newSvc, delSvc)
-			// execute loop
-			for i := 0; i < tc.numDiscoveryIntervals; i++ {
-				ticks <- time.Now()
-			}
-
-			require.Eventually(t, func() bool {
-				return len(newSvc) == len(tc.expectedServices) && len(delSvc) == len(tc.expectedDelServices)
-			}, time.Second, time.Millisecond)
-
-			// shutdown service, and get output from channels
-			l.Stop()
-			close(newSvc)
-			close(delSvc)
-
-			// assert that the expected new services were created
-			createdServices := make([]*DBMRdsService, 0)
-			for newService := range newSvc {
-				dbmRdsService, ok := newService.(*DBMRdsService)
-				if !ok {
-					require.Fail(t, "received service of incorrect type on service chan")
+			synctest.Test(t, func(t *testing.T) {
+				newSvc := make(chan Service, 10)
+				delSvc := make(chan Service, 10)
+				ctrl := gomock.NewController(t)
+				defer ctrl.Finish()
+				mockConfig := configmock.New(t)
+				mockConfig.SetInTest("autodiscover_rds_instances", tc.config)
+				mockAWSClient := aws.NewMockRdsClient(ctrl)
+				tc.rdsClientConfigurer(mockAWSClient)
+				ticks := make(chan time.Time, 1)
+				var newRdsConfig aws.Config
+				err := mapstructure.Decode(tc.config, &newRdsConfig)
+				assert.NoError(t, err)
+				l := newDBMRdsListener(newRdsConfig, mockAWSClient, ticks)
+				if tc.initialServices != nil {
+					l.(*DBMRdsListener).services = tc.initialServices
 				}
-				createdServices = append(createdServices, dbmRdsService)
-			}
-			assert.Equal(t, len(tc.expectedServices), len(createdServices))
-			assert.ElementsMatch(t, tc.expectedServices, createdServices)
-
-			// assert that the expected deleted services were created
-			deletedServices := make([]*DBMRdsService, 0)
-			for delService := range delSvc {
-				dbmRdsService, ok := delService.(*DBMRdsService)
-				if !ok {
-					require.Fail(t, "received service of incorrect type on service chan")
+				l.Listen(newSvc, delSvc)
+				// execute loop
+				for i := 0; i < tc.numDiscoveryIntervals; i++ {
+					ticks <- time.Now()
 				}
-				deletedServices = append(deletedServices, dbmRdsService)
-			}
-			assert.Equal(t, len(tc.expectedDelServices), len(deletedServices))
-			assert.ElementsMatch(t, tc.expectedDelServices, deletedServices)
+
+				synctest.Wait()
+
+				// shutdown service, and get output from channels
+				l.Stop()
+				close(newSvc)
+				close(delSvc)
+
+				// assert that the expected new services were created
+				createdServices := make([]*DBMRdsService, 0)
+				for newService := range newSvc {
+					dbmRdsService, ok := newService.(*DBMRdsService)
+					if !ok {
+						require.Fail(t, "received service of incorrect type on service chan")
+					}
+					createdServices = append(createdServices, dbmRdsService)
+				}
+				assert.Equal(t, len(tc.expectedServices), len(createdServices))
+				assert.ElementsMatch(t, tc.expectedServices, createdServices)
+
+				// assert that the expected deleted services were created
+				deletedServices := make([]*DBMRdsService, 0)
+				for delService := range delSvc {
+					dbmRdsService, ok := delService.(*DBMRdsService)
+					if !ok {
+						require.Fail(t, "received service of incorrect type on service chan")
+					}
+					deletedServices = append(deletedServices, dbmRdsService)
+				}
+				assert.Equal(t, len(tc.expectedDelServices), len(deletedServices))
+				assert.ElementsMatch(t, tc.expectedDelServices, deletedServices)
+			})
 		})
 	}
 }
