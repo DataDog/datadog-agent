@@ -12,6 +12,8 @@ bazel_parity_check:
   needs:
     - agent_deb-x64-a7
     - agent_rpm-x64-a7
+    - iot_agent_deb-x64
+    - iot_agent_rpm-x64
     - bazel:package:linux-amd64
   script:
     - |

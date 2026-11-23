@@ -48,6 +48,11 @@ PRODUCTS = {
         omnibus_jobs=('agent_deb-x64-a7', 'agent_rpm-x64-a7'),
         debug_package=True,
     ),
+    'iot': Product(
+        'datadog-iot-agent',
+        '//packages/iot',
+        omnibus_jobs=('iot_agent_deb-x64', 'iot_agent_rpm-x64'),
+    ),
 }
 ARCHITECTURES = {'amd64': {'deb': 'amd64', 'rpm': 'x86_64'}}
 FORMATS = {'deb': read_deb_metadata, 'rpm': read_rpm_metadata}
