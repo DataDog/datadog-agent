@@ -106,8 +106,6 @@ cleanup_aix-ppc64:
   # Start at pipeline start instead of after setup_agent_version
   needs: []
   allow_failure: true
-  # wipe + re-clone + warm-up + reboot
-  timeout: 4h
   rules:
     - !reference [.except_light_pipeline]
     - !reference [.on_scheduled_main]
