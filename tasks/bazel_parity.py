@@ -27,6 +27,8 @@ from tasks.static_quality_gates.experimental_gates import FileInfo, FileUtilitie
 class Product:
     package: str
     bazel_package: str
+    bazel_job: str
+    omnibus_jobs: tuple[str, ...]
     formats: tuple[str, ...] = ('deb', 'rpm')
     debug_package: bool = False
 
@@ -41,7 +43,13 @@ class Product:
 
 
 PRODUCTS = {
-    'agent': Product('datadog-agent', '//packages/agent/linux', debug_package=True),
+    'agent': Product(
+        'datadog-agent',
+        '//packages/agent/linux',
+        bazel_job='bazel:package:linux-amd64',
+        omnibus_jobs=('agent_deb-x64-a7', 'agent_rpm-x64-a7'),
+        debug_package=True,
+    ),
 }
 ARCHITECTURES = {'amd64': {'deb': 'amd64', 'rpm': 'x86_64'}}
 FORMATS = {'deb': read_deb_metadata, 'rpm': read_rpm_metadata}
@@ -356,11 +364,9 @@ def check(ctx, omnibus_dir, bazel_dir, readelf):
         raise Exit(f'{len(failed)} packages could not be compared', code=1)
 
 
-def all_bazel_targets() -> list[str]:
-    return [target for product in PRODUCTS.values() for target in product.bazel_targets()]
-
-
-@task
-def targets(_):
-    """Print the Bazel package targets to build for the parity check, debug packages included."""
-    print(' '.join(all_bazel_targets()))
+@task(help={'product': f'Registered product to print the targets of: {", ".join(PRODUCTS)}'})
+def targets(_, product):
+    """Print a product's Bazel package targets to build for the parity check, debug packages included."""
+    if product not in PRODUCTS:
+        raise Exit(f'Unknown product {product}, expected one of: {", ".join(PRODUCTS)}', code=1)
+    print(' '.join(PRODUCTS[product].bazel_targets()))

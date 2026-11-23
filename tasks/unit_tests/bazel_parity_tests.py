@@ -5,10 +5,19 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+import yaml
+from invoke import Context
+from invoke.exceptions import Exit
+
 from tasks import bazel_parity as parity
+from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.package.binaries import binary_signatures, signature_differences
 from tasks.libs.package.metadata import RPM_FIELDS, parse_deb_control, read_rpm_metadata
 from tasks.static_quality_gates.experimental_gates import FileInfo
+
+
+def product(name, **kwargs):
+    return parity.Product(name, f'//{name}', bazel_job=f'{name}-bazel', omnibus_jobs=(f'{name}-omnibus',), **kwargs)
 
 
 class TestBazelParity(unittest.TestCase):
@@ -57,7 +66,7 @@ class TestBazelParity(unittest.TestCase):
             patch.object(parity, 'find_packages', return_value=Path('agent.deb')),
             patch.object(parity, 'measure_inventory', return_value=([FileInfo('opt/agent', 1)], {})),
             patch.dict(parity.FORMATS, {'deb': lambda _: next(metadata)}),
-            patch.dict(parity.PRODUCTS, {'deb-only': parity.Product('deb-only', '//deb_only', ('deb',))}, clear=True),
+            patch.dict(parity.PRODUCTS, {'deb-only': product('deb-only', formats=('deb',))}, clear=True),
         ):
             report = parity.build_report(None, 'omnibus', 'bazel', 'readelf')
         self.assertEqual([p['format'] for p in report['packages']], ['deb'])
@@ -71,21 +80,23 @@ class TestBazelParity(unittest.TestCase):
         self.assertEqual(items['field_postinst']['status'], 'done')
 
     def test_bazel_targets(self):
-        products = {
-            'with-debug': parity.Product('with-debug', '//with_debug', debug_package=True),
-            'rpm-only': parity.Product('rpm-only', '//rpm_only', ('rpm',)),
-        }
-        with patch.dict(parity.PRODUCTS, products, clear=True):
-            self.assertEqual(
-                parity.all_bazel_targets(),
-                [
-                    '//with_debug:debian',
-                    '//with_debug:debian_dbg',
-                    '//with_debug:rpm',
-                    '//with_debug:rpm_dbg',
-                    '//rpm_only:rpm',
-                ],
-            )
+        self.assertEqual(
+            product('with-debug', debug_package=True).bazel_targets(),
+            ['//with-debug:debian', '//with-debug:debian_dbg', '//with-debug:rpm', '//with-debug:rpm_dbg'],
+        )
+        self.assertEqual(product('rpm-only', formats=('rpm',)).bazel_targets(), ['//rpm-only:rpm'])
+        with self.assertRaises(Exit):
+            parity.targets(Context(), 'unknown')
+
+    def test_parity_job_needs_every_registered_package_job(self):
+        ci_file = Path(__file__).parents[2] / '.gitlab/test/functional_test/bazel_parity_check.yml'
+        yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+        needs = yaml.safe_load(ci_file.read_text())['bazel_parity_check']['needs']
+        expected = set()
+        for registered in parity.PRODUCTS.values():
+            expected.add(registered.bazel_job)
+            expected.update(registered.omnibus_jobs)
+        self.assertEqual(sorted(needs), sorted(expected))
 
     def test_metric_tags_and_submission_gating(self):
         tags = parity.metric_tags(path='Opt/My path', item='a' * 250)

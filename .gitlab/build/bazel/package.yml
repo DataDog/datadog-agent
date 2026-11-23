@@ -8,7 +8,7 @@ bazel:package:linux-amd64:
   script:
     - PACKAGE_VERSION="$(dda inv -- agent.version --url-safe)" || exit $?
     - export PACKAGE_VERSION
-    - TARGETS="$(dda inv -- bazel-parity.targets)" || exit $?
+    - TARGETS="$(dda inv -- bazel-parity.targets --product agent)" || exit $?
     - BAZEL_FLAGS="--//:install_stripped_binaries"
     - bazel build $BAZEL_FLAGS $TARGETS
     - mkdir -p bazel-packages
