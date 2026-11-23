@@ -2356,3 +2356,55 @@ func TestBucketWatermarksAreStoredInSeconds(t *testing.T) {
 	require.False(t, s.ShouldSendEntry(key, 1704067200), "the bucket that was just sent must not be sent again")
 	require.True(t, s.ShouldSendEntry(key, 1704067201), "a watermark in milliseconds would swallow every later bucket")
 }
+
+// Complements TestBucketWatermarksAreStoredInSeconds: on both sender paths, a watermark
+// older than IntegrationSender's six hour expiration is removed on Commit, so the key of
+// an entity that stops reporting goes away, while a recent one is kept.
+func TestDedupeWatermarksExpire(t *testing.T) {
+	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	previousVersaNow := TimeNow
+	TimeNow = func() time.Time { return now }
+	t.Cleanup(func() { TimeNow = previousVersaNow })
+	previousNow := ndmsender.TimeNow
+	ndmsender.TimeNow = func() time.Time { return now }
+	t.Cleanup(func() { ndmsender.TimeNow = previousNow })
+
+	old := now.Add(-7 * time.Hour)
+	recent := now.Add(-time.Hour)
+
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockSender.On("Commit").Return()
+	s := NewSender(mockSender, "default")
+
+	t.Run("timeseries buckets", func(t *testing.T) {
+		s.SendLinkUsageMetrics("tenant-1", []client.LinkUsageMetrics{
+			{DrillKey: "site-001,circuit-a", Site: "site-001", AccessCircuit: "circuit-a", Timestamp: old.UnixMilli()},
+			{DrillKey: "site-002,circuit-a", Site: "site-002", AccessCircuit: "circuit-a", Timestamp: recent.UnixMilli()},
+		}, nil)
+		oldKey := ndmsender.GetMetricKey("link_usage_metrics", "tenant-1", "site-001,circuit-a")
+		recentKey := ndmsender.GetMetricKey("link_usage_metrics", "tenant-1", "site-002,circuit-a")
+		// Before Commit both buckets are recorded as sent.
+		require.False(t, s.ShouldSendEntry(oldKey, float64(old.Unix())))
+		require.False(t, s.ShouldSendEntry(recentKey, float64(recent.Unix())))
+
+		s.Commit()
+		require.True(t, s.ShouldSendEntry(oldKey, float64(old.Unix())), "the old watermark expired")
+		require.False(t, s.ShouldSendEntry(recentKey, float64(recent.Unix())), "the recent watermark is kept")
+	})
+
+	t.Run("hardware metrics", func(t *testing.T) {
+		s.SendDeviceMetrics([]client.Appliance{
+			{IPAddress: "10.0.0.1", LastUpdatedTime: old.Format(versaTimestampFormat)},
+			{IPAddress: "10.0.0.2", LastUpdatedTime: recent.Format(versaTimestampFormat)},
+		})
+		oldKey := ndmsender.GetMetricKey("device_metrics", "10.0.0.1")
+		recentKey := ndmsender.GetMetricKey("device_metrics", "10.0.0.2")
+		require.False(t, s.ShouldSendEntry(oldKey, float64(old.Unix())))
+		require.False(t, s.ShouldSendEntry(recentKey, float64(recent.Unix())))
+
+		s.Commit()
+		require.True(t, s.ShouldSendEntry(oldKey, float64(old.Unix())), "the old watermark expired")
+		require.False(t, s.ShouldSendEntry(recentKey, float64(recent.Unix())), "the recent watermark is kept")
+	})
+}
