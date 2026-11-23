@@ -261,7 +261,7 @@ func (cs *CheckSampler) appendSeries(series []*metrics.Serie, errors map[ckey.Co
 		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		serie.Source = context.source
-		if filtered, ok := cs.contextResolver.resolver.filteredIdentityOf(context); ok {
+		if filtered := cs.contextResolver.resolver.filteredIdentityOf(context); filtered != nil {
 			serie.ContextKey, serie.Tags = filtered.key, filtered.Tags()
 			cs.mergeableSeries = append(cs.mergeableSeries, serie)
 			continue
@@ -293,7 +293,7 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 			tlmChecksFilteredMetrics.Inc()
 			continue
 		}
-		if filtered, ok := cs.contextResolver.resolver.filteredIdentityOf(ctx); ok {
+		if filtered := cs.contextResolver.resolver.filteredIdentityOf(ctx); filtered != nil {
 			series.Tags = filtered.Tags()
 			cs.mergeableSketches = append(cs.mergeableSketches, mergeableSketch{key: filtered.key, sketch: series})
 			continue

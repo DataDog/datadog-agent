@@ -123,13 +123,13 @@ func (cr *contextResolver) releaseFiltered(context *Context) {
 	}
 }
 
-// filteredIdentityOf returns the identity a context filters to at output. It is valid until the next context is
-// tracked.
-func (cr *contextResolver) filteredIdentityOf(context *Context) (*filteredIdentity, bool) {
+// filteredIdentityOf returns the identity a context filters to at output, or nil if it isn't filtered. It is valid
+// until the next context is tracked.
+func (cr *contextResolver) filteredIdentityOf(context *Context) *filteredIdentity {
 	if context.filteredIdentityRef == 0 {
-		return nil, false
+		return nil
 	}
-	return cr.filteredIdentities.get(context.filteredIdentityRef), true
+	return cr.filteredIdentities.get(context.filteredIdentityRef)
 }
 
 // refilter updates the identity every context filters to at output, after the rules changed.

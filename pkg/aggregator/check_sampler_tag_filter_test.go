@@ -56,8 +56,8 @@ func filteredTags(cs *CheckSampler, key ckey.ContextKey) ([]string, bool) {
 	if !ok {
 		return nil, false
 	}
-	identity, filtered := cs.contextResolver.resolver.filteredIdentityOf(ctx)
-	if !filtered {
+	identity := cs.contextResolver.resolver.filteredIdentityOf(ctx)
+	if identity == nil {
 		return nil, false
 	}
 	return tagsOf(identity.Tags()), true
