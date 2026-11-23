@@ -22,6 +22,8 @@ int hook_vm_mmap_pgoff(ctx_t *ctx) {
     struct syscall_cache_t syscall = {
         .type = EVENT_MMAP,
         .policy = policy,
+        // approvers run at return, after the path resolution, and the zero value ACCEPTED would skip the discarders
+        .state = APPROVED,
         .mmap.len = len,
         .mmap.protection = prot,
         .mmap.flags = flags,
