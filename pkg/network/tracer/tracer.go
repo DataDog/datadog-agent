@@ -194,7 +194,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	if natMap != nil {
 		// the tracer registered the shared map under its own module, which is keyed by map ID
 		ddebpf.AddNameMappingsForMap(natMap, probes.ConntrackMap, ebpfConntrackerModule)
-		tr.closedNATTranslations = newDeferredTranslationDeletes(int(cfg.MaxTrackedConnections))
+		tr.closedNATTranslations = newDeferredTranslationDeletes(natDeferralCap(cfg), natDeleteMinAge)
 	}
 	telemetryComponent.RegisterCollector(tr.ebpfTracer)
 
@@ -409,8 +409,16 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 	t.connVia(cs)
 	if cs.IPTranslation != nil {
 		// Only the other end of a same-host NAT'd pair still needs the entry, and only while it's open
-		if cs.LocalNATPeerOpen && t.closedNATTranslations.add(cs.ConnectionTuple) {
+		var evicted *network.ConnectionTuple
+		queued := false
+		if cs.LocalNATPeerOpen {
+			evicted, queued = t.closedNATTranslations.add(cs.ConnectionTuple, time.Now())
+		}
+		if queued {
 			tracerTelemetry.natDeletes.Inc("deferred")
+			if evicted != nil && !t.closedNATTranslations.wasActive(newTranslationKey(evicted)) {
+				t.conntracker.DeleteTranslation(evicted)
+			}
 		} else {
 			tracerTelemetry.natDeletes.Inc("immediate")
 			t.conntracker.DeleteTranslation(&cs.ConnectionTuple)
@@ -756,70 +764,109 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 	}
 }
 
-// deleteClosedNATTranslations deletes the translations of connections that closed before the previous call, except
+// natDeleteMinAge is how long a deferred conntrack entry is kept for the other end of a same-host NAT'd pair, which
+// looks it up when it closes. Entries are deleted at the first getConnections after they reach it.
+const natDeleteMinAge = 10 * time.Second
+
+// natDeferralCap bounds the deferred connections (two conntrack entries each) well below the conntrack map's capacity,
+// so hosts where most NAT'd pairs are local can't fill the map.
+func natDeferralCap(cfg *config.Config) int {
+	return max(min(cfg.ConntrackMaxStateSize/16, int(cfg.MaxTrackedConnections)/8), 1024)
+}
+
+// deleteClosedNATTranslations deletes the translations of closed connections at least natDeleteMinAge old, except
 // those whose tuple an active connection reuses.
 func (t *Tracer) deleteClosedNATTranslations(active []network.ConnectionStats) {
-	ready := t.closedNATTranslations.rotate()
-	if len(ready) == 0 {
+	if t.closedNATTranslations == nil {
 		return
 	}
-	// whether an active connection reuses the tuple
-	reused := make(map[translationKey]bool, len(ready))
-	for i := range ready {
-		reused[newTranslationKey(&ready[i])] = false
-	}
+	activeKeys := make(map[translationKey]struct{}, len(active))
 	for i := range active {
-		k := newTranslationKey(&active[i].ConnectionTuple)
-		if _, ok := reused[k]; ok {
-			reused[k] = true
-		}
+		activeKeys[newTranslationKey(&active[i].ConnectionTuple)] = struct{}{}
 	}
-	for i := range ready {
-		if !reused[newTranslationKey(&ready[i])] {
-			t.conntracker.DeleteTranslation(&ready[i])
+	expired := t.closedNATTranslations.expire(time.Now(), activeKeys)
+	for i := range expired {
+		if _, reused := activeKeys[newTranslationKey(&expired[i])]; !reused {
+			t.conntracker.DeleteTranslation(&expired[i])
 		}
 	}
 }
 
-// deferredTranslationDeletes holds closed NAT'd connections whose conntrack entries are deleted one getConnections
-// later. The peer of a NAT'd connection with both ends on this host looks the entry up when it closes, which is often
-// after userspace sees the first end's close, so only connections marked as having an open local peer are queued.
-// max bounds pending and ready together. A nil deferredTranslationDeletes defers nothing.
+// deferredTranslationDeletes holds closed NAT'd connections whose conntrack entries are deleted once they are minAge
+// old. The other end of a same-host NAT'd pair looks the entry up when it closes, which is often after userspace sees
+// the first end's close, so only connections marked as having an open local peer are queued. Over max, the oldest
+// entry is deleted first. A nil deferredTranslationDeletes defers nothing.
 type deferredTranslationDeletes struct {
-	mu      sync.Mutex
-	max     int
-	pending []network.ConnectionTuple
-	ready   []network.ConnectionTuple
+	mu     sync.Mutex
+	max    int
+	minAge time.Duration
+	queue  []deferredTranslation
+	// active holds the tuples of the active connections at the last expire, to skip reused tuples on eviction
+	active map[translationKey]struct{}
 }
 
-func newDeferredTranslationDeletes(maxPending int) *deferredTranslationDeletes {
-	return &deferredTranslationDeletes{max: maxPending}
+type deferredTranslation struct {
+	tuple    network.ConnectionTuple
+	closedAt time.Time
 }
 
-// add queues t, and returns false when the caller must delete it now.
-func (d *deferredTranslationDeletes) add(t network.ConnectionTuple) bool {
+func newDeferredTranslationDeletes(maxDeferred int, minAge time.Duration) *deferredTranslationDeletes {
+	return &deferredTranslationDeletes{max: maxDeferred, minAge: minAge}
+}
+
+// add queues t. queued is false when the caller must delete t now; evicted, when set, is the oldest queued tuple,
+// pushed out over the cap, which the caller deletes unless wasActive.
+func (d *deferredTranslationDeletes) add(t network.ConnectionTuple, now time.Time) (evicted *network.ConnectionTuple, queued bool) {
 	if d == nil {
-		return false
+		return nil, false
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if len(d.pending)+len(d.ready) >= d.max {
-		return false
+	if d.max <= 0 {
+		return nil, false
 	}
-	d.pending = append(d.pending, t)
-	return true
+	if len(d.queue) >= d.max {
+		oldest := d.queue[0].tuple
+		evicted = &oldest
+		d.queue = d.queue[1:]
+	}
+	d.queue = append(d.queue, deferredTranslation{tuple: t, closedAt: now})
+	return evicted, true
 }
 
-// rotate returns the tuples queued before the previous rotate.
-func (d *deferredTranslationDeletes) rotate() []network.ConnectionTuple {
+// expire removes and returns the tuples queued at least minAge before now, and records the active tuples for
+// wasActive.
+func (d *deferredTranslationDeletes) expire(now time.Time, active map[translationKey]struct{}) []network.ConnectionTuple {
 	if d == nil {
 		return nil
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	ready := d.ready
-	d.ready, d.pending = d.pending, nil
-	return ready
+	d.active = active
+	n := 0
+	for n < len(d.queue) && now.Sub(d.queue[n].closedAt) >= d.minAge {
+		n++
+	}
+	if n == 0 {
+		return nil
+	}
+	out := make([]network.ConnectionTuple, n)
+	for i := range out {
+		out[i] = d.queue[i].tuple
+	}
+	d.queue = append(d.queue[:0:0], d.queue[n:]...)
+	return out
+}
+
+// wasActive reports whether an active connection used k at the last expire.
+func (d *deferredTranslationDeletes) wasActive(k translationKey) bool {
+	if d == nil {
+		return false
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	_, ok := d.active[k]
+	return ok
 }
 
 // translationKey identifies the conntrack entry of a connection, which doesn't depend on its pid or direction.

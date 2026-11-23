@@ -3917,7 +3917,7 @@ func (s *TracerSuite) TestNATClassificationCleanup() {
 				// tcp_done only flushes, and cleans up, a connection it reports as failed
 				checkSkipFailureConnectionsTests(t)
 				tr.closedNATTranslations.setMax(0)
-				t.Cleanup(func() { tr.closedNATTranslations.setMax(int(cfg.MaxTrackedConnections)) })
+				t.Cleanup(func() { tr.closedNATTranslations.setMax(natDeferralCap(cfg)) })
 			}
 			ln, err := net.Listen("tcp4", "127.0.0.1:0")
 			require.NoError(t, err)
