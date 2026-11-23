@@ -7,6 +7,7 @@ package agenttelemetryimpl
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -694,9 +695,9 @@ func TestRun(t *testing.T) {
 
 	a.start()
 
-	// Default configuration has 7 jobs with different schedules:
+	// Default configuration has 8 jobs with different schedules:
 	fmt.Println(r.(*runnerMock).jobs)
-	assert.Equal(t, 7, len(r.(*runnerMock).jobs))
+	assert.Equal(t, 8, len(r.(*runnerMock).jobs))
 
 	// Verify we have the expected number of profiles across all jobs
 	totalProfiles := 0
@@ -704,10 +705,10 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 24 profiles total (par-phone-home, checks, logs-and-metrics, intake-routing, database, synthetics, connectivity, forwarder_stats, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, troubleshooting).
+	// Default config has 24 profiles total (par-phone-home, checks, logs-and-metrics, intake-routing, database, synthetics, connectivity, forwarder_stats, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, config-schema, troubleshooting).
 	// troubleshooting is scheduled like any other profile; it is skipped at
 	// collection time while its remote flag is off.
-	assert.Equal(t, 24, totalProfiles)
+	assert.Equal(t, 25, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -2936,6 +2937,8 @@ func TestDefaultProfilesExportGPUMetrics(t *testing.T) {
 		}
 	}
 
+	deviceTotal := tel.NewGauge("gpu", "device_total", append([]string{"gpu_sharing_mode"}, collectorTags[1:]...), "")
+	deviceTotal.Set(2, append([]string{"time-slicing"}, withDevice()...)...)
 	created := tel.NewCounter("gpu__collectors", "created", append([]string{"status"}, collectorTags...), "")
 	created.Add(2, withDevice("error", "device_events")...)
 	created.Add(3, withDevice("success", "stateless")...)
@@ -2968,6 +2971,16 @@ func TestDefaultProfilesExportGPUMetrics(t *testing.T) {
 		delete(labels, emitterTagName)
 		return labels
 	}
+
+	deviceMetrics := sent["gpu.device_total"]
+	require.Len(t, deviceMetrics, 1)
+	deviceLabels := expectedCollectorLabels("")
+	delete(deviceLabels, "collector")
+	deviceLabels["gpu_nvlink_capable"] = "true"
+	deviceLabels["gpu_nvlink_version"] = "4"
+	deviceLabels["gpu_sharing_mode"] = "time-slicing"
+	assert.Equal(t, deviceLabels, labelsWithoutEmitter(deviceMetrics[0]))
+	assert.Equal(t, 2.0, deviceMetrics[0].GetGauge().GetValue())
 
 	createdMetrics := sent["gpu.collectors__created"]
 	require.Len(t, createdMetrics, 2, "unsupported and disabled statuses must be excluded")
@@ -3023,6 +3036,7 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 		preserveTags   []string
 		aggregateTotal bool
 	}{
+		{name: "gpu.device_total", preserveTags: []string{"gpu_device", "gpu_virtualization_mode", "gpu_architecture", "gpu_slicing_mode", "gpu_nvlink_capable", "gpu_nvlink_version", "gpu_driver_version", "gpu_sharing_mode"}},
 		{name: "dogstatsd.udp_packets_bytes"},
 		{name: "dogstatsd.uds_packets_bytes"},
 		{name: "dogstatsd_client.bytes_sent", preserveTags: []string{"client", "client_transport"}},
@@ -3046,6 +3060,93 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 			require.Equal(t, testCase.aggregateTotal, metric.AggregateTotal)
 		})
 	}
+}
+
+func TestHealthPlatformMetricsInChecksProfile(t *testing.T) {
+	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
+	require.NoError(t, err)
+
+	var profile *Profile
+	for _, candidate := range cfg.Profiles {
+		if candidate.Name == "checks" {
+			profile = candidate
+			break
+		}
+	}
+	require.NotNil(t, profile)
+	require.NotNil(t, profile.Metric)
+	metrics := make(map[string][]string, len(profile.Metric.Metrics))
+	for _, metric := range profile.Metric.Metrics {
+		metrics[metric.Name] = metric.PreserveTags
+	}
+	for name, tags := range map[string][]string{
+		"health_platform.issues_detected": {"issue_type", "severity"},
+		"health_platform.active_issues":   {"issue_type"},
+		"health_platform.reports_sent":    {"status", "error_type"},
+		"health_platform.issues_resolved": {"issue_type"},
+	} {
+		require.Contains(t, metrics, name)
+		assert.ElementsMatch(t, tags, metrics[name], name)
+	}
+	require.NotNil(t, profile.Schedule)
+	assert.EqualValues(t, 900, profile.Schedule.Period)
+}
+
+func TestDefaultProfilesExportHealthPlatformMetrics(t *testing.T) {
+	tel := makeTelMock(t)
+	tel.NewGauge("health_platform", "active_issues", []string{"issue_type"}, "").Set(2, "test_issue")
+	tel.NewCounter("health_platform", "reports_sent", []string{"status", "error_type"}, "").Inc("error", "http_4xx")
+	tel.NewCounter("health_platform", "issues_resolved", []string{"issue_type"}, "").Inc("test_issue")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, ""), sender, nil, runner)
+	require.True(t, a.enabled)
+	a.start()
+	runner.(*runnerMock).run()
+
+	require.Len(t, sender.sentMetrics, 3)
+	for _, payload := range sender.sentMetrics {
+		require.Len(t, payload.metrics, 1, payload.name)
+		metric := payload.metrics[0]
+		labels := map[string]string{"issue_type": "test_issue", "emitter": "agent"}
+		switch payload.name {
+		case "health_platform.active_issues":
+			assert.Equal(t, 2.0, metric.GetGauge().GetValue())
+		case "health_platform.reports_sent":
+			assert.Equal(t, 1.0, metric.GetCounter().GetValue())
+			labels = map[string]string{"status": "error", "error_type": "http_4xx", "emitter": "agent"}
+		case "health_platform.issues_resolved":
+			assert.Equal(t, 1.0, metric.GetCounter().GetValue())
+		default:
+			t.Fatalf("unexpected metric: %s", payload.name)
+		}
+		assert.Equal(t, labels, metricLabels(metric), payload.name)
+	}
+}
+
+func TestDefaultProfilesExportAppsecInjectorWatchedChangesReasons(t *testing.T) {
+	tel := makeTelMock(t)
+	counter := tel.NewCounter("appsec_injector", "watched_changes", []string{"proxy_type", "operation", "success", "reason"}, "")
+	counter.Inc("envoy-gateway", "added", "false", "Forbidden")
+	counter.Add(2, "envoy-gateway", "added", "false", "Invalid")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, ""), sender, nil, runner)
+	require.True(t, a.enabled)
+	a.start()
+	runner.(*runnerMock).run()
+
+	require.Len(t, sender.sentMetrics, 1)
+	require.Equal(t, "appsec_injector.watched_changes", sender.sentMetrics[0].name)
+	byReason := map[string]float64{}
+	for _, metric := range sender.sentMetrics[0].metrics {
+		labels := metricLabels(metric)
+		assert.Equal(t, map[string]string{"proxy_type": "envoy-gateway", "operation": "added", "success": "false", "reason": labels["reason"], "emitter": "agent"}, labels)
+		byReason[labels["reason"]] = metric.GetCounter().GetValue()
+	}
+	assert.Equal(t, map[string]float64{"Forbidden": 1, "Invalid": 2}, byReason)
 }
 
 func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
@@ -3545,25 +3646,34 @@ func TestRemoteFlagSubscriberIsProvided(t *testing.T) {
 func TestShippedTroubleshootingProfileIsGated(t *testing.T) {
 	tel := makeTelMock(t)
 	// Only in the gated "troubleshooting" profile.
-	tel.NewCounter("transactions", "errors", []string{"domain", "endpoint", "error_type"}, "").Inc("d", "e", "dns")
+	txErrors := tel.NewCounter("transactions", "errors", []string{"domain", "endpoint", "error_type"}, "")
 	// Only in the non-gated "logs-and-metrics" profile: the control.
-	tel.NewCounter("transactions", "retries", []string{"domain", "endpoint"}, "").Inc("d", "e")
+	txRetries := tel.NewCounter("transactions", "retries", []string{"domain", "endpoint"}, "")
+	// Both profiles exclude zero metrics, which applies to per-flush deltas: increment before each
+	// collection so the metrics have something to report.
+	bump := func() {
+		txErrors.Inc("d", "e", "dns")
+		txRetries.Inc("d", "e")
+	}
 
 	sndr := &senderMock{}
 	a := getTestAtel(t, tel, getCommonYAMLConfig(true, "foo.bar"), sndr, nil, nil)
 	require.True(t, a.enabled, "default profiles must parse and compile")
 	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
 
+	bump()
 	names := collectMetricNames(t, a, sndr)
 	assert.NotContains(t, names, "transactions.errors")
 	assert.Contains(t, names, "transactions.retries")
 
 	require.NoError(t, a.flag.OnChange(true))
+	bump()
 	names = collectMetricNames(t, a, sndr)
 	assert.Contains(t, names, "transactions.errors")
 	assert.Contains(t, names, "transactions.retries")
 
 	a.flag.OnNoConfig()
+	bump()
 	names = collectMetricNames(t, a, sndr)
 	assert.NotContains(t, names, "transactions.errors")
 	assert.Contains(t, names, "transactions.retries")
@@ -3615,4 +3725,137 @@ func TestDetectedFeatures(t *testing.T) {
 
 	env.SetFeatures(t)
 	assert.Equal(t, []string{}, detectedFeatures())
+}
+
+// zeroMetricCountersConfig is a profile excluding zero metrics, with a counter keeping its "tag"
+// tag (foo.bar) and one without tags (zoo.cat).
+//
+//go:embed testdata/zero_metric_counters.yaml
+var zeroMetricCountersConfig string
+
+// zeroMetricHistogramConfig is a profile excluding zero metrics, for a single metric foo.bar.
+//
+//go:embed testdata/zero_metric_histogram.yaml
+var zeroMetricHistogramConfig string
+
+// TestZeroMetricExcludesZeroDeltas checks that exclude.zero_metric applies to the per-period delta
+// sent for a counter, not to its cumulative Prometheus value: a counter that was incremented once
+// must not keep being reported with value 0 in every later payload.
+func TestZeroMetricExcludesZeroDeltas(t *testing.T) {
+	c := zeroMetricCountersConfig
+
+	tel := makeTelMock(t)
+	s := makeSenderImpl(t, nil, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, c, s, nil, r)
+	require.True(t, a.enabled)
+
+	idle := tel.NewCounter("foo", "bar", []string{"tag"}, "")
+	busy := tel.NewCounter("zoo", "cat", nil, "")
+	metricsOf := func() map[string]interface{} {
+		payload, err := getPayload(a)
+		require.NoError(t, err)
+		return payload.Payload.(AgentMetricsPayload).Metrics
+	}
+
+	// Cycle 1: both counters move, both are reported.
+	idle.AddWithTags(5, map[string]string{"tag": "a"})
+	busy.Add(1)
+	m1 := metricsOf()
+	require.Contains(t, m1, "foo.bar")
+	assert.Equal(t, 5.0, m1["foo.bar"].(MetricPayload).Value)
+	assert.Equal(t, 1.0, m1["zoo.cat"].(MetricPayload).Value)
+
+	// Cycle 2: only busy moves. idle has a cumulative value of 5 but a delta of 0: it must be excluded.
+	busy.Add(1)
+	m2 := metricsOf()
+	assert.NotContains(t, m2, "foo.bar", "a counter with a zero delta must be excluded by zero_metric")
+	assert.Equal(t, 1.0, m2["zoo.cat"].(MetricPayload).Value)
+
+	// Cycle 3: idle moves again; its delta must account for the excluded cycle (7 - 5 = 2).
+	idle.AddWithTags(2, map[string]string{"tag": "a"})
+	busy.Add(1)
+	m3 := metricsOf()
+	require.Contains(t, m3, "foo.bar")
+	assert.Equal(t, 2.0, m3["foo.bar"].(MetricPayload).Value)
+}
+
+// TestZeroMetricHistogramDeltas checks that exclude.zero_metric sees de-cumulated histogram buckets:
+// a histogram whose new observations all landed in a lower bucket, or only in "+Inf", is reported,
+// and a histogram with no new observations is excluded.
+func TestZeroMetricHistogramDeltas(t *testing.T) {
+	c := zeroMetricHistogramConfig
+
+	tel := makeTelMock(t)
+	s := makeSenderImpl(t, nil, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, c, s, nil, r)
+	require.True(t, a.enabled)
+
+	hist := tel.NewHistogram("foo", "bar", nil, "", []float64{1, 2, 5, 100})
+
+	// Cycle 1: observations only in the first bucket; the last explicit bucket's delta is 0.
+	hist.Observe(1)
+	m1, ok := getPayloadMetric(a, "foo.bar")
+	require.True(t, ok, "a histogram with observations only in a lower bucket must be reported")
+	assert.Equal(t, uint64(1), m1.Buckets["1"])
+	assert.Equal(t, uint64(0), m1.Buckets["100"])
+
+	// Cycle 2: no new observations, the histogram must be excluded (the payload is then an empty batch).
+	payload, err := getPayload(a)
+	require.NoError(t, err)
+	batch, isBatch := payload.Payload.([]Payload)
+	require.True(t, isBatch, "expected an empty batch, got %T", payload.Payload)
+	assert.Empty(t, batch, "a histogram with no new observations must be excluded by zero_metric")
+
+	// Cycle 3: observations only above the largest bound.
+	hist.Observe(1000)
+	m3, ok := getPayloadMetric(a, "foo.bar")
+	require.True(t, ok, "a histogram with observations only in +Inf must be reported")
+	assert.Equal(t, uint64(1), m3.Buckets["+Inf"])
+	assert.Equal(t, uint64(0), m3.Buckets["1"])
+}
+
+// TestHistogramDeltaHandlesReset checks that a histogram series whose cumulative counts go down (it
+// was deleted and recreated) reports its current values as deltas instead of wrapping around uint64.
+func TestHistogramDeltaHandlesReset(t *testing.T) {
+	c := zeroMetricHistogramConfig
+
+	tel := makeTelMock(t)
+	s := makeSenderImpl(t, nil, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, c, s, nil, r)
+	require.True(t, a.enabled)
+
+	hist := tel.NewHistogram("foo", "bar", []string{"tag"}, "", []float64{1, 2})
+	observe := func(value float64, times int) {
+		for range times {
+			hist.Observe(value, "a")
+		}
+	}
+	requireBuckets := func(expected map[string]uint64) {
+		t.Helper()
+		m, ok := getPayloadMetric(a, "foo.bar")
+		require.True(t, ok)
+		assert.Equal(t, expected, m.Buckets)
+	}
+
+	// Period 1: cumulative buckets [5, 10], +Inf 12.
+	observe(1, 5)
+	observe(2, 5)
+	observe(10, 2)
+	requireBuckets(map[string]uint64{"1": 5, "2": 5, "+Inf": 2})
+
+	// Period 2: the series is recreated with cumulative buckets [3, 12], +Inf 13. Bucket "1" went
+	// down (5 -> 3) while the others went up: the whole series is reset, its values are the deltas.
+	hist.Delete("a")
+	observe(1, 3)
+	observe(2, 9)
+	observe(10, 1)
+	requireBuckets(map[string]uint64{"1": 3, "2": 9, "+Inf": 1})
+
+	// Period 3: deltas resume from the post-reset values, cumulative [4, 13], +Inf 15.
+	observe(1, 1)
+	observe(10, 1)
+	requireBuckets(map[string]uint64{"1": 1, "2": 0, "+Inf": 1})
 }

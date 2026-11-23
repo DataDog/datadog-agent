@@ -12,7 +12,7 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 Before deploying, make sure you have:
 
-- [OpenTelemetry Operator](https://opentelemetry.io/docs/kubernetes/operator/) installed.
+- [OpenTelemetry Operator](https://opentelemetry.io/docs/kubernetes/operator/) version **0.142.0** or later.
 - A namespace for the Host Profiler. You can reuse an existing namespace or create a dedicated one.
 - A Datadog API key available to the Collector as `DD_API_KEY`.
 
@@ -110,3 +110,9 @@ securityContext:
 ```
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
+
+## Partial deployment (optional)
+
+To run the Host Profiler on selected Linux nodes, add the labels that identify those nodes to `spec.nodeSelector` in [`operator/collector.yaml`](operator/collector.yaml). Keep `kubernetes.io/os: linux`. For more complex rules, use [required node affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity) under `spec.affinity.nodeAffinity`. If taints block scheduling, add matching [tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) under `spec.tolerations`.
+
+After rollout, verify that every intended node runs a Collector pod and that no Collector pods run on other nodes.

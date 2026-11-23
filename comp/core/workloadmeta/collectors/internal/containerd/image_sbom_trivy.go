@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/containerd/errdefs"
+
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -137,7 +139,17 @@ func (c *collector) processScanResult(ctx context.Context, result sbom.ScanResul
 
 	// Updating workloadmeta entities directly is not thread-safe, that's why we
 	// generate an update event here instead.
-	if err := c.handleImageCreateOrUpdate(ctx, result.ImgMeta.Namespace, result.ImgMeta.Name, result.ConvertScanResultToSBOM()); err != nil {
+	img, err := c.containerdClient.Image(result.ImgMeta.Namespace, result.ImgMeta.Name)
+	if errdefs.IsNotFound(err) {
+		log.Debugf("Dropping SBOM for image removed from containerd: namespace=%s name=%s, err: %s", result.ImgMeta.Namespace, result.ImgMeta.Name, err)
+		return
+	}
+	if err != nil {
+		err = fmt.Errorf("error getting image: %w", err)
+	} else {
+		err = c.notifyEventForImage(ctx, result.ImgMeta.Namespace, img, result.ConvertScanResultToSBOM())
+	}
+	if err != nil {
 		log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", result.ImgMeta.Namespace, result.ImgMeta.Name, err)
 	}
 }

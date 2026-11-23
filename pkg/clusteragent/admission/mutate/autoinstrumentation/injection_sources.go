@@ -81,7 +81,9 @@ type injectionSource interface {
 type injectionSourceEntry struct {
 	name              injectionSourceName
 	determinesSSIMode bool
-	source            injectionSource
+	// additive sources skip selection and add their plan to the selected one.
+	additive bool
+	source   injectionSource
 }
 
 // injectionPlan describes the libraries and tracer configuration selected

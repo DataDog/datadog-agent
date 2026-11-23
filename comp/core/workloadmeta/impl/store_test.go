@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 const (
@@ -2336,4 +2337,155 @@ func TestStartSignalsInitializedWhenNoCollectorApplicable(t *testing.T) {
 	w.pull(ctx)
 	w.updateCollectorStatus(wmdef.CollectorsInitialized)
 	require.True(t, w.IsInitialized())
+}
+
+func TestGetKubernetesKueueWorkloadForPod(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		namespace   string
+		podUID      string
+		managed     string
+		annotations map[string]string
+		labels      map[string]string
+		duplicate   bool
+		want        string
+	}{
+		{name: "pod UID", managed: "true", namespace: "team-a", podUID: "pod-uid", want: "by-uid"},
+		{name: "unmanaged pod", namespace: "team-a", podUID: "pod-uid"},
+		{name: "managed label false", namespace: "team-a", podUID: "pod-uid", managed: "false"},
+		{name: "admission annotation", namespace: "team-a", podUID: "pod-uid", annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "by-name"}, want: "by-name"},
+		{name: "group label", namespace: "team-a", labels: map[string]string{kubernetes.KueuePodGroupNameLabelKey: "by-name"}, want: "by-name"},
+		{name: "group annotation", namespace: "team-a", annotations: map[string]string{kubernetes.KueuePodGroupNameLabelKey: "by-name"}, want: "by-name"},
+		{name: "prebuilt label", namespace: "team-a", labels: map[string]string{kubernetes.KueuePrebuiltWorkloadNameKey: "by-name"}, want: "by-name"},
+		{name: "prebuilt annotation", namespace: "team-a", annotations: map[string]string{kubernetes.KueuePrebuiltWorkloadNameKey: "by-name"}, want: "by-name"},
+		{name: "group annotation precedes label", namespace: "team-a", annotations: map[string]string{kubernetes.KueuePodGroupNameLabelKey: "by-name"}, labels: map[string]string{kubernetes.KueuePodGroupNameLabelKey: "missing"}, want: "by-name"},
+		{name: "prebuilt annotation precedes label", namespace: "team-a", annotations: map[string]string{kubernetes.KueuePrebuiltWorkloadNameKey: "by-name"}, labels: map[string]string{kubernetes.KueuePrebuiltWorkloadNameKey: "missing"}, want: "by-name"},
+		{name: "admission annotation precedes group", namespace: "team-a", annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "by-name"}, labels: map[string]string{kubernetes.KueuePodGroupNameLabelKey: "missing"}, want: "by-name"},
+		{name: "explicit reference overrides ambiguous UID", managed: "true", namespace: "team-a", podUID: "pod-uid", duplicate: true, annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "by-name"}, want: "by-name"},
+		{name: "explicit reference is namespaced", namespace: "team-b", annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "by-name"}},
+		{name: "explicit reference missing", managed: "true", namespace: "team-a", podUID: "pod-uid", annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "missing"}},
+		{name: "other namespace", managed: "true", namespace: "team-b", podUID: "pod-uid"},
+		{name: "recreated pod", managed: "true", namespace: "team-a", podUID: "replacement-uid"},
+		{name: "no UID", managed: "true", namespace: "team-a"},
+		{name: "ambiguous UID", managed: "true", namespace: "team-a", podUID: "pod-uid", duplicate: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newWorkloadmetaObject(t)
+			for _, name := range []string{"by-name", "by-uid", "duplicate"} {
+				if name == "duplicate" && !tt.duplicate {
+					continue
+				}
+				wl := &wmdef.KubernetesKueueWorkload{
+					EntityID:   wmdef.EntityID{Kind: wmdef.KindKubernetesKueueWorkload, ID: wmdef.GenerateKueueWorkloadEntityID("team-a", name)},
+					EntityMeta: wmdef.EntityMeta{Name: name, Namespace: "team-a", UID: "uid-" + name},
+				}
+				if name != "by-name" {
+					wl.Labels = map[string]string{kubernetes.KueueJobUIDLabelKey: "pod-uid"}
+				}
+				s.handleEvents([]wmdef.CollectorEvent{{Type: wmdef.EventTypeSet, Source: fooSource, Entity: wl}})
+			}
+			if tt.managed != "" {
+				if tt.labels == nil {
+					tt.labels = make(map[string]string)
+				}
+				tt.labels[kubernetes.KueueManagedLabelKey] = tt.managed
+			}
+			pod := &wmdef.KubernetesPod{
+				EntityID:   wmdef.EntityID{Kind: wmdef.KindKubernetesPod, ID: tt.podUID},
+				EntityMeta: wmdef.EntityMeta{Namespace: tt.namespace, Labels: tt.labels, Annotations: tt.annotations},
+			}
+			wl, err := s.GetKubernetesKueueWorkloadForPod(pod)
+			if tt.want == "" {
+				require.Error(t, err)
+				assert.Nil(t, wl)
+				if tt.duplicate {
+					assert.False(t, errors.IsNotFound(err), "ambiguous associations must be distinguishable from missing Workloads")
+					assert.ErrorContains(t, err, "multiple Kueue Workloads")
+				} else {
+					assert.True(t, errors.IsNotFound(err))
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, wl)
+				assert.Equal(t, tt.want, wl.Name)
+			}
+		})
+	}
+}
+
+func TestKueuePodWorkloadSourceLifecycle(t *testing.T) {
+	s := newWorkloadmetaObject(t)
+	wl := &wmdef.KubernetesKueueWorkload{
+		EntityID: wmdef.EntityID{Kind: wmdef.KindKubernetesKueueWorkload, ID: "team-a/workload"},
+		EntityMeta: wmdef.EntityMeta{Name: "workload", Namespace: "team-a", Labels: map[string]string{
+			kubernetes.KueueJobUIDLabelKey: "pod-uid",
+		}},
+	}
+	pod := &wmdef.KubernetesPod{EntityID: wmdef.EntityID{ID: "pod-uid"}, EntityMeta: wmdef.EntityMeta{Namespace: "team-a", Labels: map[string]string{kubernetes.KueueManagedLabelKey: "true"}}}
+	for _, source := range []wmdef.Source{fooSource, barSource} {
+		s.handleEvents([]wmdef.CollectorEvent{{Type: wmdef.EventTypeSet, Source: source, Entity: wl}})
+	}
+	// ID-only unsets must use the stored metadata, and keep the association
+	// while another source still reports the Workload.
+	idOnly := &wmdef.KubernetesKueueWorkload{EntityID: wl.EntityID}
+	s.handleEvents([]wmdef.CollectorEvent{{Type: wmdef.EventTypeUnset, Source: fooSource, Entity: idOnly}})
+	got, err := s.GetKubernetesKueueWorkloadForPod(pod)
+	require.NoError(t, err)
+	assert.Equal(t, wl.Name, got.Name)
+	s.handleEvents([]wmdef.CollectorEvent{{Type: wmdef.EventTypeUnset, Source: barSource, Entity: idOnly}})
+	_, err = s.GetKubernetesKueueWorkloadForPod(pod)
+	require.Error(t, err)
+}
+
+// The UID index must reflect the merged entity after source changes, rather
+// than whichever collector event happened to arrive last.
+func TestKueueWorkloadIndexMergedLifecycle(t *testing.T) {
+	s := newWorkloadmetaObject(t)
+	workload := func(name, uid string) *wmdef.KubernetesKueueWorkload {
+		return &wmdef.KubernetesKueueWorkload{
+			EntityID:   wmdef.EntityID{Kind: wmdef.KindKubernetesKueueWorkload, ID: "team-a/" + name},
+			EntityMeta: wmdef.EntityMeta{Name: name, Namespace: "team-a", Labels: map[string]string{kubernetes.KueueJobUIDLabelKey: uid}},
+		}
+	}
+	check := func(uid, want string) {
+		t.Helper()
+		pod := &wmdef.KubernetesPod{EntityID: wmdef.EntityID{ID: uid}, EntityMeta: wmdef.EntityMeta{Namespace: "team-a", Labels: map[string]string{kubernetes.KueueManagedLabelKey: "true"}}}
+		got, err := s.GetKubernetesKueueWorkloadForPod(pod)
+		if want == "" {
+			require.Error(t, err)
+			require.Nil(t, got)
+			return
+		}
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, want, got.Name)
+	}
+	set := func(source wmdef.Source, name, uid string) {
+		s.handleEvents([]wmdef.CollectorEvent{{Type: wmdef.EventTypeSet, Source: source, Entity: workload(name, uid)}})
+	}
+	unset := func(source wmdef.Source, name string) {
+		s.handleEvents([]wmdef.CollectorEvent{{Type: wmdef.EventTypeUnset, Source: source, Entity: &wmdef.KubernetesKueueWorkload{EntityID: workload(name, "").EntityID}}})
+	}
+	set(fooSource, "first", "foo-uid")
+	check("foo-uid", "first")
+	// bar has alphabetical priority over foo, even when foo reports again.
+	set(barSource, "first", "bar-uid")
+	set(fooSource, "first", "updated-foo-uid")
+	check("foo-uid", "")
+	check("updated-foo-uid", "")
+	check("bar-uid", "first")
+	unset(barSource, "first")
+	check("bar-uid", "")
+	check("updated-foo-uid", "first")
+	// Ambiguity clears when a claim moves to another UID.
+	set(fooSource, "second", "updated-foo-uid")
+	check("updated-foo-uid", "")
+	set(fooSource, "second", "second-uid")
+	check("updated-foo-uid", "first")
+	check("second-uid", "second")
+	// Removing a label must remove the claim, even if the entity remains.
+	set(fooSource, "second", "")
+	check("second-uid", "")
+	unset(fooSource, "first")
+	require.Empty(t, s.kueueWorkloadsByJob)
 }

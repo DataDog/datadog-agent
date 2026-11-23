@@ -46,6 +46,12 @@ The payload is a JSON dict with the following fields
   Each object is composed of:
     - `raw_config` - **string**: the scrubbed configuration file.
     - `hash` - **string**: sha256 of the scrubbed file.
+    - `secrets` - **list of object**: the secret declarations in the file (see below).
+- `enc_info` - **object**: the secrets declared across all checks.
+    - `paths` - **list of string**: the paths of settings that contain secrets using the ENC directive.
+    - `handles` - **list of string**: the handles that correspond to these paths.
+    - `scrubbed` - **list of string**: the path of each raw credential replaced by the scrubber.
+    - `hash_secret_id` - **dict of string to string**: the sha256 of the resolved value of each secret.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -159,6 +165,12 @@ Here an example of an inventory payload:
             ]
         }
     },
+    "enc_info": {
+        "paths": ["instances.0.password"],
+        "handles": ["db_password"],
+        "scrubbed": ["instances.0.headers.Authorization"],
+        "hash_secret_id": {"db_password": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"}
+    },
     "hostname": "my-host",
     "timestamp": 1631281754507358895
 }
@@ -184,6 +196,8 @@ replaces a list or mapping, the reference identifies that whole field (for examp
 ENC references always retain their original indexed paths and handles, even inside
 a replaced container. Repeated handles retain one entry per location. These entries describe file
 contents; `agent_metadata.enc_info` continues reporting resolved handles and hashes.
+`enc_info` aggregates these entries across all files: paths are relative to each file and are not
+prefixed by the filename, so the same path can appear several times.
 `metadata_skip_secrets` suppresses these entries as well as `enc_info`.
 
 Secret references are collected independently of the existing integration configuration
