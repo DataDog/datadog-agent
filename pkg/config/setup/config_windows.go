@@ -10,6 +10,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
+// readFleetPoliciesDirFromRegistry reads the fleet_policies_dir registry value. Tests replace it with
+// SetFleetPoliciesDirFromRegistry rather than writing the machine-wide registry.
+var readFleetPoliciesDirFromRegistry = winutil.ReadFleetPoliciesDirFromRegistry
+
 // FleetConfigOverride sets the fleet_policies_dir config value to the value set in the registry.
 //
 // This value tells the agent to load a config experiment from Fleet Automation.
@@ -23,7 +27,7 @@ func FleetConfigOverride(config pkgconfigmodel.Config) {
 		return
 	}
 
-	val := winutil.ReadFleetPoliciesDirFromRegistry()
+	val := readFleetPoliciesDirFromRegistry()
 	if val == "" {
 		return
 	}

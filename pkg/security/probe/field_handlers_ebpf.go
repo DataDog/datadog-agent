@@ -188,6 +188,7 @@ func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.Mou
 			return ""
 		}
 		e.MountPointPath = mountPointPath
+		e.MountPointPathResolutionError = nil
 	}
 	return e.MountPointPath
 }
@@ -212,6 +213,7 @@ func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.Mo
 		}
 		rootStr = mount.TrimMountRoot(rootStr, bindSourceMountRoot)
 		e.MountSourcePath = path.Join(bindSourceMountPath, rootStr)
+		e.MountSourcePathResolutionError = nil
 	}
 	return e.MountSourcePath
 }
@@ -225,6 +227,7 @@ func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.Moun
 			return ""
 		}
 		e.MountRootPath = mountRootPath
+		e.MountRootPathResolutionError = nil
 	}
 	return e.MountRootPath
 }

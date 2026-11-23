@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix a race in container logs collection where a container stopping right after
+    it started could leave its file-based logs source behind until the Agent
+    restarted.

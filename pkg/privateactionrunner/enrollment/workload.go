@@ -33,9 +33,9 @@ func (identity *PersistedIdentity) MatchesWIFConfig(cfg configmodel.Reader) bool
 		identity.WIFSite == parconfig.Site(cfg)
 }
 
-// UsesWIF selects workload enrollment only for the primary intake WIF identity.
+// UsesWIF selects the primary intake WIF identity unless PAR has its own API key.
 func UsesWIF(cfg configmodel.Reader) bool {
-	return cfg.GetString("delegated_auth.org_uuid") != ""
+	return strings.TrimSpace(cfg.GetString(parconfig.APIKey)) == "" && cfg.GetString("delegated_auth.org_uuid") != ""
 }
 
 // EnrollWithWorkloadToken enrolls a new runner using its primary intake WIF

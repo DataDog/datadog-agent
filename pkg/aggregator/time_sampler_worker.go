@@ -10,7 +10,6 @@ import (
 	"io"
 	"time"
 
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
@@ -32,9 +31,9 @@ type timeSamplerWorker struct {
 
 	// tagFilterList is used to filter tags for specific metrics during context tracking.
 	// It determines which tags should be kept or stripped for distribution metrics.
-	tagFilterList filterlist.TagMatcher
+	tagFilterList metricname.TagMatcher
 	// use this chan to trigger a tagFilterList reconfiguration
-	tagFilterListChan chan filterlist.TagMatcher
+	tagFilterListChan chan metricname.TagMatcher
 
 	// flushFilterList is the filter applied when flushing metrics to the serializer.
 	// It's main use-case is to filter out some metrics after their aggregation
@@ -74,7 +73,7 @@ type dumpTrigger struct {
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
 	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store,
-	flushFilterList metricname.Matcher, tagFilterList filterlist.TagMatcher) *timeSamplerWorker {
+	flushFilterList metricname.Matcher, tagFilterList metricname.TagMatcher) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 
@@ -92,7 +91,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		flushChan:            make(chan flushTrigger),
 		dumpChan:             make(chan dumpTrigger),
 		metricFilterListChan: make(chan metricname.Matcher),
-		tagFilterListChan:    make(chan filterlist.TagMatcher),
+		tagFilterListChan:    make(chan metricname.TagMatcher),
 
 		tagsStore: tagsStore,
 	}
@@ -162,7 +161,7 @@ func (w *timeSamplerWorker) processBatch(ms []metrics.MetricSample) {
 }
 
 // Set a new filterlist, ensuring we also clear the context resolver strip cache
-func (w *timeSamplerWorker) setFilterList(matcher filterlist.TagMatcher) {
+func (w *timeSamplerWorker) setFilterList(matcher metricname.TagMatcher) {
 	w.sampler.contextResolver.resolver.clearTagFilterCache()
 	w.tagFilterList = matcher
 }

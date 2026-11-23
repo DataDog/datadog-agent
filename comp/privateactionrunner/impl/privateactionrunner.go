@@ -39,7 +39,6 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
@@ -137,6 +136,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	mode, err := deployment.Resolve(reqs.Config)
 	if err != nil {
+		if errors.Is(err, deployment.ErrFIPSUnsupported) {
+			reqs.Log.Error("private-action-runner is enabled but not supported in FIPS mode; it will not start. Set private_action_runner.enabled: false to disable this message.")
+			reqs.Log.Flush()
+		}
 		return Provides{}, err
 	}
 	if mode == deployment.Split {
@@ -250,7 +253,10 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		persistedIdentity != nil && !persistedIdentity.MatchesWIFConfig(p.coreConfig) {
 		persistedIdentity = nil
 	}
-	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
+	if persistedIdentity != nil && !persistedIdentity.MatchesPAROverrides(p.coreConfig) {
+		persistedIdentity = nil
+	}
+	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, par.EnrollmentAPIKey(p.coreConfig)) {
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
@@ -365,7 +371,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 
 	// The executor has its own span buffer; start its sender only after setup succeeds.
 	if cfg != nil {
-		p.startTelemetry(cfg)
+		p.startTelemetry()
 	}
 
 	go func() {
@@ -384,12 +390,8 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
 	}
-	buildFIPS, err := fips.Enabled()
-	if err != nil {
+	if err := deployment.EnsureSupported(p.coreConfig); err != nil {
 		return runCtx, nil, err
-	}
-	if buildFIPS || p.coreConfig.GetBool("fips.enabled") {
-		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
 	}
 	cfg, err := p.getRunnerConfig(ctx)
 	if errors.Is(err, opms.ErrEnrollmentRejected) {
@@ -514,7 +516,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	// runner_id is only finalized after enrollment.
 	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
 
-	p.startTelemetry(cfg)
+	p.startTelemetry()
 
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
@@ -581,11 +583,11 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 	return stopErr
 }
 
-func (p *PrivateActionRunner) startTelemetry(cfg *parconfig.Config) {
+func (p *PrivateActionRunner) startTelemetry() {
 	p.telemetry = telemetry.NewTelemetry(
 		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
 		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
-		cfg.DatadogSite,
+		par.AgentSite(p.coreConfig),
 		observability.ParService,
 	)
 }
@@ -607,8 +609,8 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 	return nil
 }
 
-// wifEnrollmentEnabled follows primary intake authentication. WIF configured
-// only for another endpoint (for example logs) does not select PAR enrollment.
+// wifEnrollmentEnabled follows primary intake authentication unless PAR overrides its API key.
+// WIF configured only for another endpoint (for example logs) does not select PAR enrollment.
 func (p *PrivateActionRunner) wifEnrollmentEnabled() bool {
 	return enrollment.UsesWIF(p.coreConfig)
 }
@@ -629,7 +631,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		}
 		return p.saveEnrollmentIdentity(ctx, cfg, result)
 	}
-	apiKey := p.coreConfig.GetString("api_key")
+	apiKey := par.EnrollmentAPIKey(p.coreConfig)
 	apiKeyOnlyEnrollment := p.coreConfig.GetBool(par.APIKeyOnlyEnrollment)
 
 	if apiKeyOK, err := util.ValidateAPIKey(apiKey); err != nil {

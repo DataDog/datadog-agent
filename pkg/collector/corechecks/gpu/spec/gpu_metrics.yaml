@@ -205,6 +205,23 @@ metrics:
         mig_parent: true
         physical: true
         vgpu: false
+  clock.throttle_reasons.hbm_thermal_slowdown:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Fraction of the collection interval, from 0 to 1, during which the clocks of AMD Instinct MI300 and MI350 Series GPUs were throttled to keep the HBM within its temperature limit, from the amdgpu gpu_metrics table.
+      aggregation: sensor_data
+    tagsets:
+      - device
+    validator:
+      range: {min: 0, max: 1}
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   clock.throttle_reasons.hw_power_brake_slowdown:
     metadata:
       metric_type: gauge
@@ -327,6 +344,23 @@ metrics:
       device_modes:
         mig: false
         mig_parent: true
+        physical: true
+        vgpu: false
+  clock.throttle_reasons.vr_thermal_slowdown:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Fraction of the collection interval, from 0 to 1, during which the clocks of AMD Instinct MI300 and MI350 Series GPUs were throttled to keep a voltage regulator within its temperature limit, from the amdgpu gpu_metrics table.
+      aggregation: sensor_data
+    tagsets:
+      - device
+    validator:
+      range: {min: 0, max: 1}
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
         physical: true
         vgpu: false
   clock.throttled_while_active:
@@ -455,7 +489,7 @@ metrics:
       description: >-
         Fraction of the GPU assigned to the container, when the GPU is shared
         between containers that are each assigned a fraction of it, as described
-        by the gpu_sharing_mode tag (for example, kai_fraction for KAI Scheduler
+        by the gpu_sharing_mode tag (for example, kai-fraction for KAI Scheduler
         GPU fractions). Not reported for containers without an assigned fraction.
       aggregation: absolute_usage
     workload_only: true
@@ -483,7 +517,7 @@ metrics:
       description: >-
         GPU memory the container is allowed to use, when the GPU is shared
         between containers that are each assigned a fraction of it, as described
-        by the gpu_sharing_mode tag (for example, kai_fraction for KAI Scheduler
+        by the gpu_sharing_mode tag (for example, kai-fraction for KAI Scheduler
         GPU fractions). The GPU memory not assigned to any container can be
         computed with `max:gpu.memory.limit{*} by {gpu_uuid} -
         sum:gpu.device.sharing_memory{*} by {gpu_uuid}`. Not reported for
@@ -516,22 +550,6 @@ metrics:
       - device
     validator:
       values: [1]
-    support:
-      unsupported_architectures: []
-      device_modes:
-        mig: true
-        mig_parent: true
-        physical: true
-        vgpu: true
-  device.unhealthy:
-    metadata:
-      metric_type: gauge
-      description: Whether the GPU device is unhealthy
-      aggregation: absolute_usage
-    tagsets:
-      - device
-    validator:
-      values: [0, 1]
     support:
       unsupported_architectures: []
       device_modes:
@@ -582,10 +600,10 @@ metrics:
       description: >-
         Corrected ECC (Error Correcting Code) errors indicate GPU memory
         corruption that was detected and successfully corrected by the hardware.
-        While these errors do not immediately impact application correctness,
-        recurring corrected errors can be an early sign of degrading memory or
-        underlying hardware issues. The counter reports errors seen for the entire
-        lifetime of the device.
+        Recurring corrected errors can be an early sign of degrading memory or
+        hardware issues. The counter reports errors seen for the entire lifetime
+        of the device. On AMD GPUs, amdgpu RAS counts since the driver loaded,
+        summed like amd-smi, without memory_location.
       aggregation: lifetime_error
     tagsets:
       - device
@@ -624,7 +642,9 @@ metrics:
         Uncorrectable ECC (Error Correcting Code) errors indicate GPU memory
         corruption that could not be automatically fixed. These errors can lead
         to data corruption, application crashes, or incorrect computation
-        results. The counter reports errors seen for the entire lifetime of the device.
+        results. The counter reports errors seen for the entire lifetime of the
+        device. On AMD GPUs, amdgpu RAS counts since the driver loaded, summed
+        like amd-smi, without memory_location.
       aggregation: lifetime_error
     tagsets:
       - device
@@ -655,6 +675,26 @@ metrics:
         mig_parent: true
         physical: true
         vgpu: true
+  errors.ecc.deferred.total:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Deferred ECC (Error Correcting Code) errors of AMD GPUs: uncorrectable
+        errors the hardware deferred, poisoning the affected data. The amdgpu
+        RAS counts summed as amd-smi does, since the driver loaded (on a virtual
+        function, as the host reports). In practice only the UMC (HBM) block
+        counts them; 0 where the driver does not (such as MI200). Not
+        reported without a deferred count.
+      aggregation: lifetime_error
+    tagsets:
+      - device
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   errors.ecc.sram.threshold_exceeded:
     metadata:
       metric_type: gauge
@@ -766,6 +806,7 @@ metrics:
     custom_tags:
       - origin
       - type
+      - xid_code
     support:
       unsupported_architectures: []
       device_modes:
@@ -790,6 +831,7 @@ metrics:
     custom_tags:
       - origin
       - type
+      - xid_code
     support:
       unsupported_architectures: []
       device_modes:
@@ -1165,7 +1207,8 @@ metrics:
         action), unschedulable (the node is cordoned, not Ready or matches a rule).
         Series carry device tags but no workload tags. Only unschedulable series
         carry unschedulable_reason tags, one per cause, and report 0 for 10 minutes
-        after the cause clears.
+        after the cause clears. A change of the GPU availability is also sent as a
+        gpu_availability_change event.
       aggregation: absolute_usage
     tagsets:
       - device
@@ -1202,6 +1245,27 @@ metrics:
         mig_parent: true
         physical: true
         vgpu: false
+  nvlink.link_up:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether the NVLink port is up (1) or down (0). A change of value is also
+        sent as a gpu_nvlink_state_change event.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+      - nvlink
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        mig_parent: false
+        physical: true
+        vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.count.active:
     metadata:
       metric_type: gauge
@@ -2242,6 +2306,60 @@ metrics:
       device_modes:
         mig: false
         mig_parent: true
+        physical: true
+        vgpu: false
+  pci.nak_received_counter:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Number of PCIe NAKs received of AMD Instinct MI300 and MI350 Series GPUs, from a 32-bit firmware counter of the amdgpu gpu_metrics table: the value read when the check starts, plus the increases since, including wraps at 2^32. On a virtual function the firmware counter can persist across guest driver loads.
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  pci.nak_sent_counter:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Number of PCIe NAKs sent of AMD Instinct MI300 and MI350 Series GPUs, from a 32-bit firmware counter of the amdgpu gpu_metrics table: the value read when the check starts, plus the increases since, including wraps at 2^32. On a virtual function the firmware counter can persist across guest driver loads.
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  pci.recovery_counter:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Number of times the PCIe link entered recovery from L0 of AMD Instinct MI300 and MI350 Series GPUs, from a 32-bit firmware counter of the amdgpu gpu_metrics table: the value read when the check starts, plus the increases since, including wraps at 2^32. On a virtual function the firmware counter can persist across guest driver loads.
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
         physical: true
         vgpu: false
   pci.throughput.rx:

@@ -83,11 +83,11 @@ bazel_dep(name = "gawk", version = "5.4.0.bcr.5")
 bazel_dep(name = "gazelle", version = "0.54.0")
 bazel_dep(name = "gcc_toolchain", version = "0.12.1")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.3")
-bazel_dep(name = "llvm", version = "0.8.26")
+bazel_dep(name = "llvm", version = "0.8.27")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
-bazel_dep(name = "re.bzl", version = "0.4.1")
-bazel_dep(name = "rules_bison", version = "0.4.bcr.1")
+bazel_dep(name = "re.bzl", version = "0.5.0")
+bazel_dep(name = "rules_bison", version = "0.4.bcr.2")
 bazel_dep(name = "rules_cc", version = "0.2.27")
 bazel_dep(name = "rules_flex", version = "0.4.1")
 bazel_dep(name = "rules_foreign_cc", version = "0.17.0")
@@ -101,7 +101,7 @@ bazel_dep(name = "rules_python", version = "2.5.1")
 bazel_dep(name = "rules_rs", version = "0.1.3")
 bazel_dep(name = "rules_shell", version = "0.10.0")
 bazel_dep(name = "rules_wine", version = "0.1.3")
-bazel_dep(name = "toml.bzl", version = "0.5.0")
+bazel_dep(name = "toml.bzl", version = "0.6.0")
 bazel_dep(name = "toolchains_msvc", version = "0.1.0")
 bazel_dep(name = "with_cfg.bzl", version = "1.1.0")
 
@@ -123,7 +123,7 @@ single_version_override(
         # Additional -L directory so -static links find real glibc archives; upstream proposal pending
         "//bazel/patches:llvm/0001-glibc-additional-library-search-directory.patch",
     ],
-    version = "0.8.26",
+    version = "0.8.27",
 )
 
 single_version_override(
@@ -300,8 +300,6 @@ llvm_bpf_ext.configure(
     sha256s = {
         "clang.amd64": "fe8b6949807895ef99d112db3c83b8d093d4d4b6bc6c7cd59a4fd93a86651e7c",
         "clang.arm64": "18fc009137b869c9b207f38c05d2651886307eecef2bb9d3aa63b8d6ca357100",
-        "llc.amd64": "cffbb2d24b0d04091bc6d12dc01ee2ae9adc2459f1b20f7f06aa3ea2aaaa65a4",
-        "llc.arm64": "7d14c81e996722f9366f70296fdf0e9120aad4c97a9b6fca6499e7f4a321121e",
         "llvm-strip.amd64": "aea858c07cc9b719f2de087e4387d4f30a6c064d4d13cc7bf6d04d92c69339bb",
         "llvm-strip.arm64": "8a0497a6a951f0d049f80ff318ffd09039b24075f3f5562c078b269ef9c0fc32",
     },
@@ -619,6 +617,9 @@ include("//deps/libpcap:libpcap.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/libxml2:libxml2.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/s6_overlay:s6_overlay.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/security_agent_policies:security_agent_policies.MODULE.bazel")
