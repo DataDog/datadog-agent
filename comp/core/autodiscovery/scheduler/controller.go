@@ -182,9 +182,10 @@ func (ms *Controller) processNextWorkItem() bool {
 	if desiredState == currentState {
 		if desiredState == Scheduled {
 			ms.applyExclusionChange(configDigest, desiredConfigState.config)
+		} else {
+			ms.configStateStore.Cleanup(configDigest)
 		}
-		ms.queue.Done(configDigest)               // no action needed
-		ms.configStateStore.Cleanup(configDigest) // cleanup the config state if it is unscheduled already
+		ms.queue.Done(configDigest)
 		return true
 	}
 	log.Tracef("Controller starts processing config %s: currentState: %d, desiredState: %d", configName, currentState, desiredState)
@@ -193,13 +194,19 @@ func (ms *Controller) processNextWorkItem() bool {
 	ms.schedulerOperationStartTime.Store(time.Now().Unix())
 
 	ms.m.Lock() //lock on activeSchedulers
+	// Unschedule the config the schedulers were given: a pending update may
+	// have changed its exclusions, and schedulers skip excluded configs.
+	unscheduled := desiredConfigState.config
+	if scheduled, ok := ms.scheduledConfigs[configDigest]; ok {
+		unscheduled = scheduled
+	}
 	for _, scheduler := range ms.activeSchedulers {
 		if desiredState == Scheduled {
 			//to be scheduled
 			scheduler.Schedule(([]integration.Config{*desiredConfigState.config})) // TODO: check status of action
 		} else {
 			//to be unscheduled
-			scheduler.Unschedule(([]integration.Config{*desiredConfigState.config})) // TODO: check status of action
+			scheduler.Unschedule(([]integration.Config{*unscheduled})) // TODO: check status of action
 		}
 	}
 	if desiredState == Scheduled {

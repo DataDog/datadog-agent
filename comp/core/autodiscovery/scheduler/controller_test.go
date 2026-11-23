@@ -255,3 +255,87 @@ func TestControllerExclusionTransitions(t *testing.T) {
 		}
 	}
 }
+
+// filteringScheduler tracks active configs the way the check and logs
+// schedulers do: it skips configs excluded for its scope on both Schedule and
+// Unschedule.
+type filteringScheduler struct {
+	scope      workloadfilter.Scope
+	active     map[string]bool
+	onSchedule func()
+}
+
+func (s *filteringScheduler) Schedule(configs []integration.Config) {
+	for _, c := range configs {
+		if !c.HasFilter(s.scope) {
+			s.active[c.Name] = true
+		}
+	}
+	if s.onSchedule != nil {
+		s.onSchedule()
+	}
+}
+
+func (s *filteringScheduler) Unschedule(configs []integration.Config) {
+	for _, c := range configs {
+		if !c.HasFilter(s.scope) {
+			delete(s.active, c.Name)
+		}
+	}
+}
+
+func (s *filteringScheduler) Stop() {}
+
+func (s *filteringScheduler) ExclusionScope() workloadfilter.Scope {
+	return s.scope
+}
+
+func TestControllerDeletionDuringExclusionChange(t *testing.T) {
+	ms := NewController()
+	sch := &filteringScheduler{scope: workloadfilter.MetricsFilter, active: map[string]bool{}}
+	ms.Register("metrics", sch, false)
+
+	included := makeConfig("one")
+	ms.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{included}})
+	ms.processNextWorkItem()
+	assert.True(t, sch.active["one"])
+
+	excluded := included
+	excluded.MetricsExcluded = true
+	sch.onSchedule = func() {
+		sch.onSchedule = nil
+		ms.ApplyChanges(integration.ConfigChanges{Unschedule: []integration.Config{excluded}})
+	}
+	ms.ApplyChanges(integration.ConfigChanges{
+		Unschedule: []integration.Config{included},
+		Schedule:   []integration.Config{excluded},
+	})
+	ms.processNextWorkItem() // exclusion change; the deletion lands meanwhile
+	ms.processNextWorkItem() // the deletion
+
+	assert.Empty(t, ms.scheduledConfigs)
+	assert.Equal(t, 0, ms.queue.Len())
+}
+
+func TestControllerDeletionSupersedesPendingLogsExclusion(t *testing.T) {
+	ms := NewController()
+	logs := &filteringScheduler{scope: workloadfilter.LogsFilter, active: map[string]bool{}}
+	ms.Register("logs", logs, false)
+
+	included := makeConfig("one")
+	ms.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{included}})
+	ms.processNextWorkItem()
+	assert.True(t, logs.active["one"])
+
+	excluded := included
+	excluded.LogsExcluded = true
+	ms.ApplyChanges(integration.ConfigChanges{
+		Unschedule: []integration.Config{included},
+		Schedule:   []integration.Config{excluded},
+	})
+	ms.ApplyChanges(integration.ConfigChanges{Unschedule: []integration.Config{excluded}})
+	ms.processNextWorkItem()
+
+	assert.Empty(t, logs.active)
+	assert.Empty(t, ms.scheduledConfigs)
+}
