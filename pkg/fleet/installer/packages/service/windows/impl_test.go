@@ -458,3 +458,75 @@ func TestWinServiceManager_RestartAgentServices(t *testing.T) {
 		mockAPI.AssertExpectations(t)
 	})
 }
+
+func TestWinServiceManager_DeleteAgentServices(t *testing.T) {
+	// Keep this list explicit so a newly retained MSI service needs test coverage.
+	services := []string{
+		"datadog-trace-agent", "datadog-process-agent", "datadog-security-agent",
+		"datadog-system-probe", "datadog-agent-action", "dd-procmgr-service",
+		"Datadog Installer", "datadogagent",
+	}
+	t.Run("repeated purge", func(t *testing.T) {
+		api := &mockSystemAPI{}
+		for _, name := range services {
+			api.On("GetServiceState", name).Return(svc.Stopped, nil).Once()
+			api.On("DeleteService", name).Return(nil).Once()
+			api.On("GetServiceState", name).Return(svc.Stopped, windows.ERROR_SERVICE_DOES_NOT_EXIST).Once()
+		}
+		manager := NewWinServiceManagerWithAPI(api)
+		assert.NoError(t, manager.DeleteAgentServices(context.Background()))
+		assert.NoError(t, manager.DeleteAgentServices(context.Background()))
+		api.AssertExpectations(t)
+	})
+
+	for _, tt := range []struct {
+		name      string
+		queryErr  error
+		running   bool
+		stopErr   error
+		deleteErr error
+		wantErr   error
+	}{
+		{name: "retained stopped services skip dependent enumeration"},
+		{name: "running service is stopped", running: true},
+		{name: "query failure continues with remaining services", queryErr: windows.ERROR_ACCESS_DENIED, wantErr: windows.ERROR_ACCESS_DENIED},
+		{name: "service already absent", queryErr: windows.ERROR_SERVICE_DOES_NOT_EXIST},
+		{name: "service already marked for deletion", queryErr: windows.ERROR_SERVICE_MARKED_FOR_DELETE},
+		{name: "service disappears before deletion", deleteErr: windows.ERROR_SERVICE_DOES_NOT_EXIST},
+		{name: "service marked for deletion before deletion", deleteErr: windows.ERROR_SERVICE_MARKED_FOR_DELETE},
+		{name: "stop failure continues with remaining services", running: true, stopErr: windows.ERROR_ACCESS_DENIED, wantErr: windows.ERROR_ACCESS_DENIED},
+		{name: "delete failure continues with remaining services", deleteErr: windows.ERROR_ACCESS_DENIED, wantErr: windows.ERROR_ACCESS_DENIED},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			api := &mockSystemAPI{}
+			for i, name := range services {
+				state := svc.Stopped
+				queryErr, stopErr, deleteErr := error(nil), error(nil), error(nil)
+				if i == 0 {
+					queryErr, stopErr, deleteErr = tt.queryErr, tt.stopErr, tt.deleteErr
+					if tt.running {
+						state = svc.Running
+					}
+				}
+				api.On("GetServiceState", name).Return(state, queryErr).Once()
+				if queryErr != nil {
+					continue
+				}
+				if state != svc.Stopped {
+					api.On("StopService", name).Return(stopErr).Once()
+				}
+				if stopErr == nil {
+					api.On("DeleteService", name).Return(deleteErr).Once()
+				}
+			}
+			err := NewWinServiceManagerWithAPI(api).DeleteAgentServices(context.Background())
+			if tt.wantErr == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorIs(t, err, tt.wantErr)
+				assert.ErrorContains(t, err, services[0])
+			}
+			api.AssertExpectations(t)
+		})
+	}
+}

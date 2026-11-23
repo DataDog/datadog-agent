@@ -43,6 +43,26 @@ func checkAgentFlavor(fipsMode bool, findProducts func(string) ([]Product, error
 	return fmt.Errorf("cannot install %s while %s is installed; use the %s installer to manage the existing Agent", AgentProductName(fipsMode), installedProduct, matchingInstaller)
 }
 
+// IsAgentInstalled checks both Agent flavors using Windows Installer. Lookup
+// errors are returned so purge cannot mistake an inaccessible product for absence.
+func IsAgentInstalled() (bool, error) {
+	return isAgentInstalled(FindAllProductCodes)
+}
+
+func isAgentInstalled(findProducts func(string) ([]Product, error)) (bool, error) {
+	for _, fipsMode := range []bool{false, true} {
+		_, err := findProducts(AgentProductName(fipsMode))
+		if errors.Is(err, errProductNotFound) {
+			continue
+		}
+		if err != nil {
+			return false, fmt.Errorf("could not check installed Agent: %w", err)
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
 // readMSIProductName reads ProductName without installing the package.
 func readMSIProductName(filename string) (string, error) {
 	filenamePtr, err := windows.UTF16PtrFromString(filename)

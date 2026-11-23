@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -623,6 +624,19 @@ func removeAgentIfInstalled(ctx context.Context, windowsArgs ...string) (err err
 }
 
 func removeAgentIfInstalledAndRestartOnFailure(ctx context.Context, windowsArgs ...string) (err error) {
+	if slices.Contains(windowsArgs, "FLEET_PURGE=1") && !msi.IsProductInstalled(msi.AgentProductName(getenv().FIPSMode)) {
+		// Preserve the targeted MSI uninstall path when this flavor is installed.
+		// Only orphan cleanup needs a successful check of both flavors.
+		installed, err := msi.IsAgentInstalled()
+		if err != nil {
+			return err
+		}
+		if !installed {
+			// Fleet removal retains disabled services after unregistering the MSI. There
+			// is no MSI left to delete them, and no installed Agent to restart on failure.
+			return windowssvc.NewWinServiceManager().DeleteAgentServices(ctx)
+		}
+	}
 	err = removeAgentIfInstalled(ctx, windowsArgs...)
 	if err != nil {
 		// failed to remove existing Agent, try to restart it if we can.
