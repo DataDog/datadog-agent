@@ -32,7 +32,19 @@ func DisableRuntimeSecurity(config *config.Config) {
 	config.Probe.NetworkEnabled = false
 	config.RuntimeSecurity.ActivityDumpEnabled = false
 	config.RuntimeSecurity.SecurityProfileEnabled = false
+	config.RuntimeSecurity.SecurityProfileV2Enabled = false
 	config.RuntimeSecurity.SysCtlEnabled = false
+	// The task storage syscall cache allocates on every hooked syscall entry and frees on exit; the LRU hash costs
+	// less per syscall. Only the default changes: an explicit setting is kept.
+	if !syscallTaskStorageConfigured() {
+		config.Probe.EventStreamUseSyscallTaskStorage = false
+	}
+}
+
+func syscallTaskStorageConfigured() bool {
+	sp := pkgconfigsetup.SystemProbe()
+	return sp.IsConfigured("event_monitoring_config.event_stream.use_syscall_task_storage") ||
+		sp.IsConfigured("runtime_security_config.event_stream.use_syscall_task_storage")
 }
 
 // platform specific init function

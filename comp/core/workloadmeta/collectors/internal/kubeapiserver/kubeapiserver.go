@@ -67,9 +67,10 @@ func podsRequiredAtStartup(cfg config.Reader) bool {
 	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") ||
 		cfg.GetBool("autoscaling.cluster.spot.enabled") ||
 		// The kube metadata stream sends each node the KAI PodGroups and Kueue
-		// Workloads of its pods.
+		// Workloads of its pods, and the autoscalers of its workloads.
 		shouldHaveKAIMetadata(cfg) ||
 		shouldScopeKueueWorkloadsPerNode(cfg) ||
+		shouldHaveAutoscalerStores(cfg) ||
 		len(metadataAsTags.GetPodLabelsAsTags()) > 0 ||
 		len(metadataAsTags.GetPodAnnotationsAsTags()) > 0
 }
