@@ -33,7 +33,7 @@ replace (
 )
 
 require (
-	cel.dev/cel-go v0.32.0
+	cel.dev/cel-go v0.33.2
 	code.cloudfoundry.org/bbs v1.30.0
 	code.cloudfoundry.org/bbs/models v1.29.0
 	code.cloudfoundry.org/garden v0.12.0
