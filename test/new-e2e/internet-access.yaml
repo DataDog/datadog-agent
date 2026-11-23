@@ -369,13 +369,9 @@ entries:
   status: debt
   reason: Runs the public install script and `agent integration install` from the public wheels CDN; should use a QA-account mirror.
 - file: test/new-e2e/tests/agent-platform/tests/macos_install_test.go
-  function: TestMacosInstallScript
+  function: macosAWSProvisioner
   status: debt
-  reason: Fetches the macOS install script from install.datadoghq.com or the dd-agent-macostesting bucket; should use a QA-account mirror.
-- file: test/new-e2e/tests/agent-platform/tests/macos_upgrade_test.go
-  function: TestMacosInstallScriptUpgradeFromStable
-  status: debt
-  reason: Fetches the macOS install script from install.datadoghq.com and the released Agent .dmg it installs before upgrading; should use a QA-account mirror.
+  reason: Shared by TestMacosInstallScript and TestMacosInstallScriptUpgradeFromStable, which fetch the macOS install script from install.datadoghq.com or the dd-agent-macostesting bucket, and the released Agent .dmg the upgrade installs first; should use a QA-account mirror.
 - file: test/new-e2e/tests/agent-platform/tests/package_signing_test.go
   function: TestPackageSigningComponent
   status: debt
