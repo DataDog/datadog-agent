@@ -103,7 +103,7 @@ deploy_packages_aix-ppc64:
 cleanup_aix-ppc64:
   stage: setup
   extends: .aix_remote
-  # pipeline-start, see header
+  # Start at pipeline start instead of after setup_agent_version
   needs: []
   allow_failure: true
   # wipe + re-clone + warm-up + reboot
