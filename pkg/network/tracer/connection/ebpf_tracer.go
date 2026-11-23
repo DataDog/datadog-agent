@@ -23,7 +23,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
@@ -55,6 +54,9 @@ const (
 var tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
 var tlsTagsMapTTL = 3 * time.Minute.Nanoseconds()
 
+// orphanIterErrorLimiter rate-limits the log emitted when the orphan sockets iterator fails
+var orphanIterErrorLimiter = log.NewLogLimit(10, 10*time.Minute)
+
 var (
 	// these primarily exist for mocking out in tests
 	fentryTracerLoader = fentry.LoadTracer
@@ -83,6 +85,7 @@ type EbpfTracerTelemetryData struct {
 	iterationDups               telemetryComponent.Counter
 	iterationAborts             telemetryComponent.Counter
 	sslCertMissed               telemetryComponent.Counter
+	orphanIterationErrors       telemetryComponent.Counter
 }
 
 // EbpfTracerTelemetry holds telemetry from the EBPF tracer
@@ -106,6 +109,7 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
 	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "__ssl_cert_missed", []string{}, "Counter measuring the number of times the agent tried to fetch a cert that was missing from the cert info map (probably because it was full)"),
+	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "orphan_iteration_errors", []string{}, "Counter measuring how many times listing the TCP sockets closed by the application failed, so that a check missed some of them"),
 }
 
 type ebpfTracer struct {
@@ -140,7 +144,7 @@ type ebpfTracer struct {
 	ch *cookieHasher
 
 	socketDumpIter         *manager.Probe
-	orphanSocketIter       *link.Iter
+	orphanSocketIter       iteratorOpener
 	initialSocketIter      *manager.Probe
 	initialPortBindingIter *manager.Probe
 }
@@ -377,11 +381,12 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component, opts o
 		}
 
 		if sk.OrphanSocketsIteratorEnabled(config) {
-			tr.orphanSocketIter, err = sk.AttachOrphanSocketsIterator(m.Manager)
+			orphanIter, err := sk.AttachOrphanSocketsIterator(m.Manager)
 			if err != nil {
 				tr.Stop()
 				return nil, err
 			}
+			tr.orphanSocketIter = orphanIter
 		}
 
 		tr.initialSocketIter, ok = m.Manager.GetProbe(manager.ProbeIdentificationPair{
@@ -622,17 +627,7 @@ func (t *ebpfTracer) getConnectionsIterator(buffer *network.ConnectionBuffer, fi
 	}
 
 	// sockets closed by the application stay active until the kernel is done with them
-	if t.orphanSocketIter != nil {
-		orphanIter, err := t.orphanSocketIter.Open()
-		if err != nil {
-			return fmt.Errorf("error opening orphan socket iterator: %w", err)
-		}
-		err = t.readIteratorConnections(orphanIter, buffer, filter, &counts)
-		orphanIter.Close()
-		if err != nil {
-			return err
-		}
-	}
+	t.readOrphanConnections(buffer, filter, &counts)
 
 	// A TCP socket's close event is sent just before the iterators stop listing it, so a close that
 	// happens during the iteration is only in the ring buffer. Flush it now, so that this check sees
@@ -645,6 +640,35 @@ func (t *ebpfTracer) getConnectionsIterator(buffer *network.ConnectionBuffer, fi
 	EbpfTracerTelemetry.connections.Set(counts.udp4, "udp", "v4")
 	EbpfTracerTelemetry.connections.Set(counts.udp6, "udp", "v6")
 	return nil
+}
+
+// iteratorOpener opens an iterator attached outside the manager, such as a *link.Iter
+type iteratorOpener interface {
+	Open() (io.ReadCloser, error)
+	Close() error
+}
+
+// readOrphanConnections adds the TCP sockets closed by the application, but not yet torn down by
+// the kernel, to buffer. A failure only loses those sockets: it's logged and counted, and the
+// check goes on with the connections the task_file iterator listed. The sockets read before an
+// error are kept.
+func (t *ebpfTracer) readOrphanConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool, counts *connCounts) {
+	if t.orphanSocketIter == nil {
+		return
+	}
+	orphanIter, err := t.orphanSocketIter.Open()
+	if err != nil {
+		err = fmt.Errorf("error opening orphan socket iterator: %w", err)
+	} else {
+		err = t.readIteratorConnections(orphanIter, buffer, filter, counts)
+		orphanIter.Close()
+	}
+	if err != nil {
+		EbpfTracerTelemetry.orphanIterationErrors.Inc()
+		if orphanIterErrorLimiter.ShouldLog() {
+			log.Warnf("error listing the TCP sockets closed by the application, some connections are missing from this check: %s", err)
+		}
+	}
 }
 
 type connCounts struct {

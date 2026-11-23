@@ -11,7 +11,10 @@ package connection
 import (
 	"errors"
 	"fmt"
+	"io"
 	"maps"
+	"os"
+	"syscall"
 	"testing"
 	"unsafe"
 
@@ -23,6 +26,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -416,4 +420,67 @@ func TestConntrackNATMapUnsharedBeforeKprobeFallback(t *testing.T) {
 			assert.Equal(t, tt.wantType, tracerType)
 		})
 	}
+}
+
+// fakeIteratorOpener opens a fakeIteratorReader with the given results, or fails with openErr
+type fakeIteratorOpener struct {
+	openErr error
+	results []fakeReadResult
+}
+
+func (f *fakeIteratorOpener) Open() (io.ReadCloser, error) {
+	if f.openErr != nil {
+		return nil, f.openErr
+	}
+	return io.NopCloser(&fakeIteratorReader{results: f.results}), nil
+}
+
+func (f *fakeIteratorOpener) Close() error { return nil }
+
+func TestReadOrphanConnectionsFailureKeepsCheck(t *testing.T) {
+	errorCount := func() float64 { return EbpfTracerTelemetry.orphanIterationErrors.WithValues().Get() }
+	record := make([]byte, netebpf.SizeofConn)
+	(*netebpf.Conn)(unsafe.Pointer(&record[0])).Tup.Sport = 1234
+
+	t.Run("open error", func(t *testing.T) {
+		tr := &ebpfTracer{ch: newCookieHasher(), orphanSocketIter: &fakeIteratorOpener{openErr: errors.New("open failed")}}
+		buffer := network.NewConnectionBuffer(4, 4)
+		*buffer.Next() = network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{SPort: 80}}
+		before := errorCount()
+
+		var counts connCounts
+		tr.readOrphanConnections(buffer, nil, &counts)
+
+		assert.Equal(t, before+1, errorCount(), "the failure should be counted")
+		require.Len(t, buffer.Connections(), 1, "the connections already listed should be kept")
+		assert.Equal(t, uint16(80), buffer.Connections()[0].SPort)
+	})
+
+	t.Run("read error", func(t *testing.T) {
+		tr := &ebpfTracer{ch: newCookieHasher(), orphanSocketIter: &fakeIteratorOpener{results: []fakeReadResult{
+			{data: record},
+			{err: &os.PathError{Op: "read", Path: "bpf_iter", Err: syscall.EINVAL}},
+		}}}
+		buffer := network.NewConnectionBuffer(4, 4)
+		before := errorCount()
+
+		var counts connCounts
+		tr.readOrphanConnections(buffer, nil, &counts)
+
+		assert.Equal(t, before+1, errorCount(), "the failure should be counted")
+		require.Len(t, buffer.Connections(), 1, "the sockets read before the error should be kept")
+		assert.Equal(t, uint16(1234), buffer.Connections()[0].SPort)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		tr := &ebpfTracer{ch: newCookieHasher(), orphanSocketIter: &fakeIteratorOpener{results: []fakeReadResult{{data: record}}}}
+		buffer := network.NewConnectionBuffer(4, 4)
+		before := errorCount()
+
+		var counts connCounts
+		tr.readOrphanConnections(buffer, nil, &counts)
+
+		assert.Equal(t, before, errorCount())
+		require.Len(t, buffer.Connections(), 1)
+	})
 }
