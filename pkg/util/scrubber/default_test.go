@@ -700,6 +700,21 @@ task_id: task-1
 	})
 }
 
+func TestOIDCProof(t *testing.T) {
+	jwt := "eyJhbGciOiJSUzI1NiJ9.eyJhdWQiOiJkYXRhZG9nL29yZyJ9.c2lnbmF0dXJl"
+	assertClean(t,
+		`header value "Delegated oidc-`+jwt+`"`,
+		`header value "Delegated oidc-********"`)
+	assertClean(t,
+		`failed to exchange oidc-`+jwt+` for an API key: 401`,
+		`failed to exchange oidc-******** for an API key: 401`)
+	unsigned := "eyJhbGciOiJub25lIn0.eyJhdWQiOiJkYXRhZG9nL29yZyJ9."
+	assertClean(t, `proof oidc-`+unsigned, `proof oidc-********`)
+
+	issuer := `issuer https://oidc-provider.example.com/.well-known/openid-configuration`
+	assertClean(t, issuer, issuer)
+}
+
 func TestBearerToken(t *testing.T) {
 	assertClean(t,
 		`Bearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62ba`,

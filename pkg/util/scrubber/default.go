@@ -76,6 +76,16 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		LastUpdated: parseVersion("7.78.5"),
 	}
 
+	// Custom OIDC delegated-auth proof: "oidc-" + a JWS compact token (RFC 7515). Minimum part
+	// lengths keep hostnames such as oidc-provider.example.com from matching.
+	oidcProofReplacer := Replacer{
+		Regex: regexp.MustCompile(`\boidc-[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]*`),
+		Hints: []string{"oidc-"},
+		Repl:  []byte("oidc-" + defaultReplacement),
+
+		LastUpdated: parseVersion("7.87.0"),
+	}
+
 	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
 	// the token has a different size we scrub it entirely.
 	hintedBearerReplacer := Replacer{
@@ -369,6 +379,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		hintedAPIKeyReplacer,
 		hintedAPPKeyReplacer,
 		prefixedAPPKeyReplacer,
+		oidcProofReplacer,
 		hintedBearerReplacer,
 		hintedBearerInvalidReplacer,
 		httpHeaderKeyReplacer,
