@@ -3703,6 +3703,86 @@ func (s *TracerSuite) TestTCPCloseWithoutOrphanIterator() {
 	assert.InDelta(t, serverMessageSize, totals.recvBytes, 1, "bytes received by the client\n%s", strings.Join(totals.reports, "\n"))
 }
 
+// TestTCPOrphanReportsClosingProcess checks that a TCP connection the application closed is credited
+// to the process that closed it, both while its orphaned socket is listed and in its close event,
+// even when no pid was stored with the socket before the close. Neither runs in that process: the
+// orphan sockets iterator runs in system-probe, and the close event is sent when the socket is
+// destroyed, here from the softirq handling the server's FIN.
+func (s *TracerSuite) TestTCPOrphanReportsClosingProcess() {
+	t := s.T()
+	if ebpftest.GetBuildMode() != ebpftest.SK {
+		t.Skip("only the SK tracer lists closed sockets as active until they are destroyed")
+	}
+	tr := setupTracer(t, testConfig())
+
+	closeServerSide := make(chan struct{})
+	var closeServerSideOnce sync.Once
+	releaseServer := func() { closeServerSideOnce.Do(func() { close(closeServerSide) }) }
+	t.Cleanup(releaseServer)
+
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		<-closeServerSide
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	keepOrphanInFinWait2(t, c)
+	_, err = c.Write([]byte("ping\n"))
+	require.NoError(t, err)
+	clientAddr, serverAddr := c.LocalAddr(), c.RemoteAddr()
+
+	// Hand the socket over to a child process, which closes it when it exits.
+	f, err := c.(*net.TCPConn).File()
+	require.NoError(t, err)
+	// Delete what the tracer stored for the socket (with this process's pid) when it connected, so
+	// that tcp_close creates the storage again, as for a socket whose storage is created lazily.
+	skTCPStats, err := tr.GetMap("sk_tcp_stats")
+	require.NoError(t, err)
+	require.NoError(t, skTCPStats.Delete(uint32(f.Fd())))
+	require.NoError(t, c.Close())
+	child := exec.Command("sh", "-c", "read _")
+	child.ExtraFiles = []*os.File{f}
+	childStdin, err := child.StdinPipe()
+	require.NoError(t, err)
+	require.NoError(t, child.Start())
+	t.Cleanup(func() { _ = child.Process.Kill() })
+	require.NoError(t, f.Close())
+	childPid := uint32(child.Process.Pid)
+	require.NoError(t, childStdin.Close())
+	require.NoError(t, child.Wait())
+	t.Logf("test pid %d, child pid %d", os.Getpid(), childPid)
+
+	// FIN_WAIT1 (0x04) until the server acks the client's FIN, then FIN_WAIT2 (0x05)
+	require.Contains(t, []int{0x04, 0x05}, procNetTCPState(t, clientAddr, serverAddr), "the client socket should be waiting for the server's FIN")
+	// The connections a check reports are only those whose stats changed, so look at what the
+	// tracer lists.
+	_, active, err := tr.getConnections(network.NewConnectionBuffer(512, 512))
+	require.NoError(t, err)
+	var listed []uint32
+	for _, conn := range active {
+		if conn.Type == network.TCP && network.ByTuple(clientAddr, serverAddr)(conn) {
+			listed = append(listed, conn.Pid)
+		}
+	}
+	require.Equal(t, []uint32{childPid}, listed, "the orphaned socket should be listed once, with the pid of the process that closed it (test pid %d)", os.Getpid())
+
+	releaseServer()
+	var closedPids []uint32
+	waitForTCPTeardown(t, tr, clientAddr, serverAddr, func(conns *network.Connections) {
+		for _, conn := range network.FilterConnections(conns, network.ByTuple(clientAddr, serverAddr)) {
+			if conn.Last.TCPClosed > 0 {
+				closedPids = append(closedPids, conn.Pid)
+			}
+		}
+	})
+	assert.Equal(t, []uint32{childPid}, closedPids, "the close should be reported once, with the pid of the process that closed the connection (test pid %d)", os.Getpid())
+}
+
 // TestTCPCloseReportsDataSentAfterClose checks that the bytes an application wrote before closing
 // a TCP connection are all reported, including those the kernel only sends after the close.
 func (s *TracerSuite) TestTCPCloseReportsDataSentAfterClose() {

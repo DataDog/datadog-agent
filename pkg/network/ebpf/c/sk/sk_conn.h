@@ -18,8 +18,16 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
     if (sk_stats) {
         copy_conn_tuple(&conn->tup, &sk_stats->tup);
     }
-    if (!read_conn_tuple_sk(&conn->tup, sk, task)) {
+    if (!read_conn_tuple_sk(&conn->tup, sk)) {
         return 0;
+    }
+    // Without a pid stored with the socket, only an iterated task tells who owns it. The other
+    // callers run in the orphan iterator (system-probe) or when the socket is destroyed or
+    // disconnected (often from a softirq or a timer, in whatever task it interrupted), so the
+    // current task isn't the socket's owner there, and pid 0 is reported rather than a wrong one.
+    // tcp_close_entry stores the pid of the closing process for those.
+    if (!conn->tup.pid && task) {
+        conn->tup.pid = task->tgid;
     }
     conn->tup.metadata |= CONN_TYPE_TCP;
 
@@ -65,8 +73,11 @@ static __always_inline int create_udp_conn(conn_t *conn, struct sock *sk, sk_udp
     if (sk_stats) {
         copy_conn_tuple(&conn->tup, &sk_stats->tup);
     }
-    if (!read_conn_tuple_sk(&conn->tup, sk, task)) {
+    if (!read_conn_tuple_sk(&conn->tup, sk)) {
         return 0;
+    }
+    if (!conn->tup.pid) {
+        conn->tup.pid = task ? task->tgid : GET_USER_MODE_PID(bpf_get_current_pid_tgid());
     }
     conn->tup.metadata |= CONN_TYPE_UDP;
     conn->conn_stats.cookie = (__u32)(bpf_get_socket_cookie(sk) & 0xFFFFFFFF);

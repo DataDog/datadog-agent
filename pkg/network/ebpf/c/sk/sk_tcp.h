@@ -335,6 +335,12 @@ int BPF_PROG(tcp_close_entry, struct sock *sk) {
     }
     log_debug("tcp_close: sk=%p", sk);
     sk_stats->app_closed = 1;
+    if (!sk_stats->tup.pid) {
+        // The storage was created lazily, so no hook stored the socket's owner yet. tcp_close runs
+        // in the closing process, which is the last time it's known: the orphan iterator and the
+        // hooks that send the close event don't run in that process.
+        sk_stats->tup.pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
+    }
     handle_sk_tcp_failure(sk, sk_stats);
     if (!sk_orphan_iter_enabled()) {
         // Nothing lists the socket once it has no file, so report the connection closed now. The
