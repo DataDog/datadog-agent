@@ -19,6 +19,14 @@ __maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
     return val > 0;
 }
 
+// sk_orphan_iter_enabled returns whether userspace lists the sockets closed by the application
+// with bpf_iter__sk_storage_map_tcp_orphans, which needs sk_storage map iterators (5.9).
+static __always_inline bool sk_orphan_iter_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("sk_orphan_iter_enabled", val);
+    return val > 0;
+}
+
 // get_tcp_failure returns an error code for tcp_done/tcp_close, if there was one
 static __always_inline int get_tcp_failure(struct sock *sk) {
     int err = sk->sk_err;
@@ -77,6 +85,8 @@ static __always_inline bool handle_sk_tcp_failure(struct sock *sk, sk_tcp_stats_
 //   before. It ends the connection when the application closes with SO_LINGER 0, or a connect
 //   fails or is cancelled, or the socket is disconnected with connect(AF_UNSPEC). The socket
 //   itself can then be connected again, see reset_sk_tcp_stats.
+// - tcp_close, if the kernel doesn't support bpf_iter__sk_storage_map_tcp_orphans, see
+//   sk_orphan_iter_enabled. Nothing lists the socket after that.
 // Sending an event for both tcp_close and tcp_done (as both happen for nearly every connection,
 // in either order, and possibly far apart) made userspace report a connection closed twice,
 // double counting all of its stats, when the two events straddled a check.
@@ -324,11 +334,18 @@ int BPF_PROG(tcp_close_entry, struct sock *sk) {
         return 0;
     }
     log_debug("tcp_close: sk=%p", sk);
+    sk_stats->app_closed = 1;
+    handle_sk_tcp_failure(sk, sk_stats);
+    if (!sk_orphan_iter_enabled()) {
+        // Nothing lists the socket once it has no file, so report the connection closed now. The
+        // data the kernel sends after this isn't counted.
+        sk_stats->state_transitions |= (1 << TCP_CLOSE);
+        send_tcp_close_event(sk, sk_stats);
+        return 0;
+    }
     // The close event is sent later, when the socket is destroyed, see send_tcp_close_event.
     // The connection only reaches TCP_CLOSE then, so until that point it's listed as active,
     // and not closed, by bpf_iter__sk_storage_map_tcp_orphans.
-    sk_stats->app_closed = 1;
-    handle_sk_tcp_failure(sk, sk_stats);
     return 0;
 }
 

@@ -6,6 +6,7 @@ go_library(
         "manager.go",
         "probes.go",
         "tracer.go",
+        "tracer_testutil.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/sk",
     visibility = ["//visibility:public"],

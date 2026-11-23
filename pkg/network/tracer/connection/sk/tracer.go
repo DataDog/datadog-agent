@@ -109,6 +109,8 @@ func initSKTracer(ar bytecode.AssetReader, o manager.Options, config *config.Con
 	if config.FailedConnectionsSupported() {
 		util.AddBoolConst(&o, "tcp_failed_connections_enabled", true)
 	}
+	// without the orphan sockets iterator, the close event is sent when the application closes the socket
+	util.AddBoolConst(&o, "sk_orphan_iter_enabled", OrphanSocketsIteratorEnabled(config))
 
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes, err := enabledPrograms(config)
@@ -161,7 +163,7 @@ var haveSkStorageMapIterator = funcs.MemoizeNoError(func() bool {
 		License: "GPL",
 	}, ebpf.ProgramOptions{LogDisabled: true})
 	if err != nil {
-		log.Warnf("TCP sockets closed by the application won't be reported as active until the kernel destroys them: sk_storage map iterators aren't supported: %s", err)
+		log.Warnf("sk_storage map iterators aren't supported, so TCP connections will be reported closed when the application closes them, and the data the kernel sends after that won't be counted: %s", err)
 		return false
 	}
 	_ = prog.Close()

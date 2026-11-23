@@ -3646,6 +3646,63 @@ func (s *TracerSuite) TestTCPLingerCloseStaysListed() {
 	assert.Less(t, totals.sentBytes, uint64(2*written), "bytes sent by the client, counted twice?\n%s", strings.Join(totals.reports, "\n"))
 }
 
+// TestTCPCloseWithoutOrphanIterator checks that, on kernels without sk_storage map iterators, the SK
+// tracer reports a TCP connection closed when the application closes it, since nothing lists the
+// socket after that, and that it reports it only once.
+func (s *TracerSuite) TestTCPCloseWithoutOrphanIterator() {
+	t := s.T()
+	if ebpftest.GetBuildMode() != ebpftest.SK {
+		t.Skip("only the SK tracer uses the orphan sockets iterator")
+	}
+	t.Cleanup(sk.DisableOrphanSocketsIterator())
+	tr := setupTracer(t, testConfig())
+
+	closeServerSide := make(chan struct{})
+	var closeServerSideOnce sync.Once
+	releaseServer := func() { closeServerSideOnce.Do(func() { close(closeServerSide) }) }
+	t.Cleanup(releaseServer)
+
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Write(genPayload(serverMessageSize))
+		<-closeServerSide
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	keepOrphanInFinWait2(t, c)
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+	r := bufio.NewReader(c)
+	_, err = r.ReadBytes(byte('\n'))
+	require.NoError(t, err)
+
+	// the client closes first, so its socket waits in FIN_WAIT2 for the server's FIN
+	c.Close()
+
+	clientAddr, serverAddr := c.LocalAddr(), c.RemoteAddr()
+	var totals tcpConnTotals
+	require.True(t, pollConnections(t, tr, 3*time.Second, func(conns *network.Connections) bool {
+		totals.add(conns, clientAddr, serverAddr)
+		return totals.closed > 0
+	}), "connection not reported closed when the client closed it\n%s", strings.Join(totals.reports, "\n"))
+	// FIN_WAIT1 (0x04) until the server acks the client's FIN, then FIN_WAIT2 (0x05)
+	require.Contains(t, []int{0x04, 0x05}, procNetTCPState(t, clientAddr, serverAddr), "the client socket should still be waiting for the server's FIN")
+
+	releaseServer()
+	waitForTCPTeardown(t, tr, clientAddr, serverAddr, func(conns *network.Connections) {
+		totals.add(conns, clientAddr, serverAddr)
+	})
+
+	assert.Equal(t, uint16(1), totals.closed, "connection should be reported closed exactly once\n%s", strings.Join(totals.reports, "\n"))
+	assert.Equal(t, uint64(clientMessageSize), totals.sentBytes, "bytes sent by the client\n%s", strings.Join(totals.reports, "\n"))
+	assert.InDelta(t, serverMessageSize, totals.recvBytes, 1, "bytes received by the client\n%s", strings.Join(totals.reports, "\n"))
+}
+
 // TestTCPCloseReportsDataSentAfterClose checks that the bytes an application wrote before closing
 // a TCP connection are all reported, including those the kernel only sends after the close.
 func (s *TracerSuite) TestTCPCloseReportsDataSentAfterClose() {
