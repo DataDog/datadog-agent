@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fixed an issue where CNM and USM connections from some long-running
+    processes were missing their container ID and process tags after
+    system-probe restarted, until the next restart. The network module
+    dropped process events when system-probe replayed all running
+    processes at startup, because its event channels were too small.
