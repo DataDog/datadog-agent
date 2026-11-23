@@ -129,7 +129,9 @@ func labClient(t *testing.T, ep labEndpoint, queryType string) (*client.Client, 
 }
 
 // expectedBuckets returns, per series name, the bucket timestamps (ms) that should be
-// published: those where every series of the entity has a value, minus the newest.
+// published: those where every series of the entity has a value, minus the newest bucket
+// in the response, which Versa is still filling. An entity that stopped reporting earlier
+// has no bucket at that time, so its final bucket is published.
 func expectedBuckets(t *testing.T, raw []byte) (map[string][]int64, int) {
 	var resp struct {
 		Data []struct {
@@ -153,6 +155,15 @@ func expectedBuckets(t *testing.T, raw []byte) (map[string][]int64, int) {
 			}
 		}
 	}
+	var newest int64
+	for _, byTime := range filled {
+		for ts := range byTime {
+			if ts > newest {
+				newest = ts
+			}
+		}
+	}
+
 	out := map[string][]int64{}
 	total := 0
 	for name, byTime := range filled {
@@ -161,8 +172,8 @@ func expectedBuckets(t *testing.T, raw []byte) (map[string][]int64, int) {
 			all = append(all, ts)
 		}
 		sort.Slice(all, func(i, j int) bool { return all[i] < all[j] })
-		for _, ts := range all[:len(all)-1] {
-			if byTime[ts] == len(metricsPerEntity[name]) {
+		for _, ts := range all {
+			if ts != newest && byTime[ts] == len(metricsPerEntity[name]) {
 				complete = append(complete, ts)
 			}
 		}

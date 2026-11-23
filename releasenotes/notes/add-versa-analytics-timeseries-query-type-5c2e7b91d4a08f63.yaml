@@ -20,7 +20,7 @@ features:
     (``collect_link_metrics``) and DIA (``collect_dia_metrics``) metrics collected this
     way are submitted with the timestamp of their own bucket and deduplicated per tenant
     and entity, so a lookback window longer than the check interval does not double
-    report. The newest bucket of each entity is held back for one collection, because
+    report. The newest bucket in the response is held back for one collection, because
     Versa's buckets are wall-clock aligned and the current one is still accumulating, so
     set ``lookback_time_window_minutes`` to 45 or more on a tenant with 15 minute buckets;
     the check logs a warning below 45, including the default of 30, when an enabled query

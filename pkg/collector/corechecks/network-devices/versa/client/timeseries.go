@@ -55,11 +55,11 @@ type timeseriesLayout struct {
 // traffic, so its series names are not yet known.
 var (
 	// slam(localsite,remotesite,localaccckt,remoteaccckt,fc)
-	slaTimeseriesLayout = &timeseriesLayout{drillKeyFields: 5}
+	slaTimeseriesLayout = &timeseriesLayout{drillKeyFields: 5, strictKeyParts: true}
 	// pathcos(localsitename,remotesitename)
-	pathQoSTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2}
+	pathQoSTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, strictKeyParts: true}
 	// cos(site,accckt)
-	circuitQoSTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2}
+	circuitQoSTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, strictKeyParts: true}
 	// intfUtil(site,accCkt,intf): the name is the tableData drill key.
 	interfaceTimeseriesLayout = &timeseriesLayout{drillKeyFields: 3, strictKeyParts: true}
 	// linkusage(site,accckt,accckt.uplinkBW,accckt.downlinkBW,accckt.type,accckt.media,
@@ -115,11 +115,13 @@ func rebuildDrillKeys(rows []timeseriesRow, layout *timeseriesLayout) {
 //
 // A bucket is only emitted once every requested metric has reported a value for it, since
 // the parsers index columns positionally and a missing value would shift everything after
-// it. The newest bucket of each entity is also held back, because Versa buckets are wall
+// it. The newest bucket in the response is also held back, because Versa buckets are wall
 // clock aligned and the current one is still filling: publishing it would pin a partial
 // value at that timestamp, and the dedupe would then refuse the complete value that
-// arrives on the next run. The count of buckets dropped for either reason is returned so
-// the caller can log it.
+// arrives on the next run. The holdback is by bucket time rather than per entity, so an
+// entity that stops reporting still has its final, complete bucket published instead of
+// having it held until it leaves the lookback window and is lost. The count of buckets
+// dropped for either reason is returned so the caller can log it.
 func flattenTimeseries(series []AnalyticsTimeseries, metrics []string, groupBy int) ([]timeseriesRow, int) {
 	metricIndex := make(map[string]int, len(metrics))
 	for i, metric := range metrics {
@@ -172,8 +174,17 @@ func flattenTimeseries(series []AnalyticsTimeseries, metrics []string, groupBy i
 	}
 
 	names := make([]string, 0, len(buckets))
-	for name := range buckets {
+	// newest is the bucket Versa is still filling. Every entity reports into the same
+	// wall clock aligned buckets, so any older bucket is closed, whichever entity it
+	// belongs to.
+	var newest int64
+	for name, byTime := range buckets {
 		names = append(names, name)
+		for timestamp := range byTime {
+			if timestamp > newest {
+				newest = timestamp
+			}
+		}
 	}
 	sort.Strings(names)
 
@@ -195,8 +206,8 @@ func flattenTimeseries(series []AnalyticsTimeseries, metrics []string, groupBy i
 		}
 		sort.Slice(timestamps, func(i, j int) bool { return timestamps[i] < timestamps[j] })
 
-		for i, timestamp := range timestamps {
-			if i == len(timestamps)-1 {
+		for _, timestamp := range timestamps {
+			if timestamp == newest {
 				// The newest bucket is still accumulating; it lands on the next run.
 				dropped++
 				continue

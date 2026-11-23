@@ -92,19 +92,42 @@ func TestFlattenTimeseries(t *testing.T) {
 	}, rows[1].row)
 }
 
-func TestFlattenTimeseriesHoldsBackNewestBucketPerEntity(t *testing.T) {
+func TestFlattenTimeseriesHoldsBackTheNewestBucket(t *testing.T) {
 	rows, dropped := flattenTimeseries([]AnalyticsTimeseries{
 		series("branch-1,hub-1", "delay", point(1700000000000, 99.0), point(1700000900000, 98.0)),
 		series("branch-2,hub-1", "delay", point(1700000000000, 50.0), point(1700000900000, 51.0)),
 	}, []string{"delay"}, 2)
 
-	// One bucket held back for each entity, not one overall.
+	// Both entities reported into the filling bucket, so both have one held back.
 	require.Equal(t, 2, dropped)
 	require.Len(t, rows, 2)
 	assert.Equal(t, "branch-1,hub-1", rows[0].row[0])
 	assert.Equal(t, int64(1700000000000), rows[0].timestamp)
 	assert.Equal(t, "branch-2,hub-1", rows[1].row[0])
 	assert.Equal(t, int64(1700000000000), rows[1].timestamp)
+}
+
+// An entity that stops reporting keeps its last bucket as its own newest on every later
+// collection. Holding that bucket back per entity would discard it until it left the
+// lookback window, so the holdback is by bucket time: only the bucket Versa is still
+// filling is held, and the stalled entity's final bucket is published.
+func TestFlattenTimeseriesPublishesTheFinalBucketOfAStalledEntity(t *testing.T) {
+	rows, dropped := flattenTimeseries([]AnalyticsTimeseries{
+		series("branch-1,hub-1", "delay",
+			point(1700000000000, 99.0), point(1700000900000, 98.0), point(1700001800000, 97.0)),
+		// Stopped reporting two buckets ago.
+		series("branch-2,hub-1", "delay", point(1700000000000, 50.0)),
+	}, []string{"delay"}, 2)
+
+	// Only branch-1's bucket at the newest time is held back.
+	require.Equal(t, 1, dropped)
+	require.Len(t, rows, 3)
+	assert.Equal(t, "branch-1,hub-1", rows[0].row[0])
+	assert.Equal(t, int64(1700000000000), rows[0].timestamp)
+	assert.Equal(t, "branch-1,hub-1", rows[1].row[0])
+	assert.Equal(t, int64(1700000900000), rows[1].timestamp)
+	assert.Equal(t, "branch-2,hub-1", rows[2].row[0])
+	assert.Equal(t, int64(1700000000000), rows[2].timestamp)
 }
 
 func TestFlattenTimeseriesDropsIncompleteBuckets(t *testing.T) {
@@ -159,7 +182,7 @@ func TestFlattenTimeseriesRepeatedSeriesDoesNotDoubleCount(t *testing.T) {
 
 // TestFlattenTimeseriesRealShape runs a response shaped like a real Director reply (many
 // paths, sixteen buckets, all six SLA metrics, one null) through flatten and the SLA
-// parser, pinning row count, row width and the per path holdback.
+// parser, pinning row count, row width and the holdback.
 func TestFlattenTimeseriesRealShape(t *testing.T) {
 	var resp AnalyticsTimeseriesResponse
 	require.NoError(t, json.Unmarshal([]byte(fixtures.GetSLAMetricsTimeseriesRealShape), &resp))
