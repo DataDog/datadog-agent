@@ -34,26 +34,22 @@ static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, 
     t->pid = GET_USER_MODE_PID(pid_tgid);
     t->metadata = type;
 
-    if (t->saddr_l == 0) {
-        t->saddr_l = BPF_CORE_READ(fl4, saddr);
-    }
-    if (t->daddr_l == 0) {
-        t->daddr_l = BPF_CORE_READ(fl4, daddr);
-    }
+    // The flow is IPv4 and fl4 holds what the kernel actually sends with. The
+    // failed socket read may have left IPv6 address bits (an AF_INET6 socket
+    // sending to an IPv4-mapped address) or a source that a per-send override
+    // (IP_PKTINFO/IPV6_PKTINFO) replaced, so take everything from fl4.
+    t->saddr_h = 0;
+    t->daddr_h = 0;
+    t->saddr_l = BPF_CORE_READ(fl4, saddr);
+    t->daddr_l = BPF_CORE_READ(fl4, daddr);
 
     if (t->saddr_l == 0 || t->daddr_l == 0) {
         log_debug("ERR(fl4): src/dst addr not set src:%llu,dst:%llu", t->saddr_l, t->daddr_l);
         return 0;
     }
 
-    if (t->sport == 0) {
-        t->sport = BPF_CORE_READ(fl4, fl4_sport);
-        t->sport = bpf_ntohs(t->sport);
-    }
-    if (t->dport == 0) {
-        t->dport = BPF_CORE_READ(fl4, fl4_dport);
-        t->dport = bpf_ntohs(t->dport);
-    }
+    t->sport = bpf_ntohs(BPF_CORE_READ(fl4, fl4_sport));
+    t->dport = bpf_ntohs(BPF_CORE_READ(fl4, fl4_dport));
 
     if (t->sport == 0 || t->dport == 0) {
         log_debug("ERR(fl4): src/dst port not set: src:%d, dst:%d", t->sport, t->dport);

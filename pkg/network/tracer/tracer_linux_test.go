@@ -2892,6 +2892,75 @@ func (s *TracerSuite) TestUnconnectedDualStackUDPReplyIPv4() {
 	}, 3*time.Second, 100*time.Millisecond)
 }
 
+// TestUnconnectedDualStackUDPSendSourceOverride covers an unconnected AF_INET6
+// UDP socket (IPV6_V6ONLY off) bound to an IPv4-mapped address that sends to an
+// IPv4-mapped peer with an IPV6_PKTINFO source override. The kernel sends it as
+// IPv4 from the override address, not the bound one, so the send must land on a
+// single IPv4 connection with the override as its source.
+func (s *TracerSuite) TestUnconnectedDualStackUDPSendSourceOverride() {
+	t := s.T()
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK tracer doesn't track unconnected dual-stack UDP sockets per flow yet")
+	}
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+
+	server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	require.NoError(t, err)
+	t.Cleanup(func() { server.Close() })
+	require.NoError(t, tracertestutil.SetTestDeadline(server))
+	serverPort := server.LocalAddr().(*net.UDPAddr).Port
+
+	mapped := func(a [4]byte) [16]byte { return netip.AddrFrom4(a).As16() }
+	bound := [4]byte{127, 0, 0, 1}
+	override := [4]byte{127, 0, 0, 2}
+
+	fd, err := unix.Socket(unix.AF_INET6, unix.SOCK_DGRAM, unix.IPPROTO_UDP)
+	require.NoError(t, err)
+	t.Cleanup(func() { unix.Close(fd) })
+	require.NoError(t, unix.SetsockoptInt(fd, unix.IPPROTO_IPV6, unix.IPV6_V6ONLY, 0))
+	require.NoError(t, unix.Bind(fd, &unix.SockaddrInet6{Addr: mapped(bound)}))
+	sa, err := unix.Getsockname(fd)
+	require.NoError(t, err)
+	clientPort := sa.(*unix.SockaddrInet6).Port
+
+	payload := []byte("dual-stack send")
+	oob := unix.PktInfo6(&unix.Inet6Pktinfo{Addr: mapped(override)})
+	to := &unix.SockaddrInet6{Port: serverPort, Addr: mapped(bound)}
+	require.NoError(t, unix.Sendmsg(fd, payload, oob, to, 0))
+
+	buf := make([]byte, 64)
+	n, from, err := server.ReadFromUDP(buf)
+	require.NoError(t, err)
+	require.Equal(t, len(payload), n)
+	require.Equal(t, "127.0.0.2", from.IP.String(), "the kernel didn't apply the source override")
+	require.Equal(t, clientPort, from.Port)
+
+	// A connection is only reported when it has new activity, so accumulate the
+	// client-side records across polls, keeping the latest copy of each.
+	client := map[network.StatCookie]network.ConnectionStats{}
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		for _, c := range network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			return cs.Type == network.UDP && cs.SPort == uint16(clientPort) && cs.DPort == uint16(serverPort)
+		}) {
+			client[c.Cookie] = c
+		}
+		var v4 []network.ConnectionStats
+		for _, c := range client {
+			if !assert.Equal(ct, network.AFINET, c.Family, "client connection has the wrong family: %s", c) {
+				continue
+			}
+			v4 = append(v4, c)
+		}
+		require.Len(ct, v4, 1, "client connections: %v", client)
+		assert.Equal(ct, "127.0.0.2", v4[0].Source.String())
+		assert.Equal(ct, "127.0.0.1", v4[0].Dest.String())
+		assert.Equal(ct, uint64(len(payload)), v4[0].Monotonic.SentBytes, "sent bytes")
+	}, 3*time.Second, 100*time.Millisecond)
+}
+
 // TestUnconnectedDualStackDNSClient covers a DNS client that, like the musl
 // resolver when both IPv4 and IPv6 nameservers are configured, sends its
 // queries from one unconnected AF_INET6 UDP socket to the IPv4-mapped address
