@@ -55,16 +55,18 @@ jobs:
           PR_ID: ${{ github.event.pull_request.number }}
         run: dda inv -- -e linter.releasenote
 
-  fetch-labels:
+  team-label-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
-    outputs:
-      LABELS: ${{ steps.pr-labels.outputs.LABELS }}
+    permissions:
+      pull-requests: read
     steps:
+      # Fetch in each check job: failed-job reruns reuse successful prerequisite outputs.
       - name: Get PR labels
+        id: pr-labels
+        shell: bash
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        id: pr-labels
         run: |
           labels="$(curl --retry 4 -fsSL \
             -H "Accept: application/vnd.github+json" \
@@ -74,11 +76,6 @@ jobs:
           echo "Fetched labels for PR $PR_NUMBER: $labels"
           echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
 
-  team-label-check:
-    needs: fetch-labels
-    if: github.triggering_actor != 'dd-devflow[bot]'
-    runs-on: ubuntu-latest
-    steps:
       - name: Check team assignment
         run: |
           for label in $LABELS; do
@@ -94,14 +91,14 @@ jobs:
           echo "PR ${{ github.event.pull_request.number }} requires at least one non-triage team assignment label (label starting by 'team/')"
           exit 1
         env:
-          LABELS: ${{ needs.fetch-labels.outputs.LABELS }}
+          LABELS: ${{ steps.pr-labels.outputs.LABELS }}
 
   skip-qa-check:
-    needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -116,9 +113,23 @@ jobs:
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
+      # Keep this fetch in the check job so failed-job reruns see current labels.
+      - name: Get PR labels
+        id: pr-labels
+        shell: bash
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          labels="$(curl --retry 4 -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER" \
+            | jq -r '[.labels[].name] | join(" ")')"
+          echo "Fetched labels for PR $PR_NUMBER: $labels"
+          echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
       - name: Check qa/[done|no-code-change] labels are not set together
         env:
-          LABELS: ${{ needs.fetch-labels.outputs.LABELS }}
+          LABELS: ${{ steps.pr-labels.outputs.LABELS }}
         run: |
           dda inv -- -e github.check-qa-labels --labels "${LABELS[@]}"
 
