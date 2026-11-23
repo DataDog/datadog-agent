@@ -5,7 +5,7 @@
 
 //go:build linux
 
-// host-profiler is a standalone binary that runs the Host Profiler.
+// host-profiler is a standalone binary that runs the Datadog Host Profiler.
 package main
 
 import (
