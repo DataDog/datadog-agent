@@ -224,16 +224,19 @@ func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string)
 
 	probesCountNoLazyDeletion := make(map[uint32]int)
 
+	var linkName string
 	for tcKey, entry := range tcr.programs {
 		if !entry.probe.IsTCFilterActive() {
 			tcr.detachHook(tcKey, entry, m)
 		} else {
 			link, err := entry.probe.ResolveLink()
-			if err != nil {
-				continue
+			if err == nil {
+				linkName = link.Attrs().Name
+			} else {
+				linkName = ""
 			}
 			// ignore interfaces that are lazily deleted
-			if link.Attrs().HardwareAddr.String() != "" && !isLazy(link.Attrs().Name) {
+			if link.Attrs().HardwareAddr.String() != "" && !isLazy(linkName) {
 				probesCountNoLazyDeletion[tcKey.NetNS]++
 			}
 		}
