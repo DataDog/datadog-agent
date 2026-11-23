@@ -7,9 +7,7 @@ package diagnose
 
 import (
 	"encoding/json"
-	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -20,15 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// counters contains the count of the diagnosis results
-type counters struct {
-	Total         int `json:"total,omitempty"`
-	Success       int `json:"success,omitempty"`
-	Fail          int `json:"fail,omitempty"`
-	Warnings      int `json:"warnings,omitempty"`
-	UnexpectedErr int `json:"unexpected_error,omitempty"`
-}
 
 // diagnoseResult contains the results of the diagnose command
 type diagnoseResult struct {
@@ -89,48 +78,43 @@ func (v *baseDiagnoseSuite) TestDiagnoseList() {
 }
 
 func (v *baseDiagnoseSuite) AssertDiagnoseInclude() {
-	diagnose := getDiagnoseOutput(v)
-	diagnoseSummary := getDiagnoseSummary(diagnose)
-	for _, suite := range v.suites {
-		diagnoseInclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--include", suite}))
-		resultInclude := getDiagnoseSummary(diagnoseInclude)
-		assert.Less(v.T(), resultInclude.Total, diagnoseSummary.Total, "Expected number of checks for suite %v to be lower than the total amount of checks (%v) but was %v", suite, diagnoseSummary.Total, resultInclude.Total)
-		assert.Zero(v.T(), resultInclude.Fail)
-		assert.Zero(v.T(), resultInclude.UnexpectedErr)
+	// Retry only one transiently failing invocation across both formats. This
+	// keeps failure handling bounded without giving every case a polling window.
+	retryAvailable := true
+	for _, format := range []string{"text", "json"} {
+		v.Run(format, func() {
+			for _, suite := range v.suites {
+				v.Run(suite, func() {
+					v.assertDiagnoseSelection(format, []string{suite}, &retryAvailable, true)
+				})
+			}
+			v.Run("all", func() {
+				baseline := v.assertDiagnoseSelection(format, v.suites, &retryAvailable, false)
+				included := v.assertDiagnoseSelection(format, v.suites, &retryAvailable, true)
+				assert.Equal(v.T(), baseline.identities(), included.identities(), "including every suite must select the same diagnoses as the default")
+			})
+		})
 	}
-	// Create an args array to include all suites
-	includeArgs := strings.Split("--include "+strings.Join(v.suites, " --include "), " ")
-	// Diagnose with all suites included should be equal to diagnose without args
-	diagnoseIncludeEverySuite := getDiagnoseOutput(v, agentclient.WithArgs(includeArgs))
-	diagnoseIncludeEverySuiteSummary := getDiagnoseSummary(diagnoseIncludeEverySuite)
-	assert.Equal(v.T(), diagnoseIncludeEverySuiteSummary, diagnoseSummary)
 }
 
-func (v *baseDiagnoseSuite) AssertDiagnoseJSONInclude() {
-	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json"}))
-	diagnoseResult := unmarshalDiagnose(diagnose)
-	require.NotNil(v.T(), diagnoseResult)
-	diagnoseSummary := diagnoseResult.Summary
-	for _, suite := range v.suites {
-		diagnoseInclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json", "--include", suite}))
-		diagnoseIncludeResult := unmarshalDiagnose(diagnoseInclude)
-		assert.NotNil(v.T(), diagnoseIncludeResult)
-
-		resultInclude := diagnoseIncludeResult.Summary
-
-		assert.Less(v.T(), resultInclude.Total, diagnoseSummary.Total, "Expected number of checks for suite %v to be lower than the total amount of checks (%v) but was %v", suite, diagnoseSummary.Total, resultInclude.Total)
-		assert.Zero(v.T(), resultInclude.Fail)
-		assert.Zero(v.T(), resultInclude.UnexpectedErr)
+func (v *baseDiagnoseSuite) assertDiagnoseSelection(format string, suites []string, retryAvailable *bool, include bool) includeOutput {
+	args := []string{"--verbose"}
+	if format == "json" {
+		args = append(args, "--json")
 	}
-
-	// Create an args array to include all suites
-	includeArgs := strings.Split(" --json "+" --include "+strings.Join(v.suites, " --include "), " ")
-
-	// Diagnose with all suites included should be equal to diagnose without args
-	diagnoseIncludeEverySuite := getDiagnoseOutput(v, agentclient.WithArgs(includeArgs))
-	diagnoseIncludeEverySuiteResult := unmarshalDiagnose(diagnoseIncludeEverySuite)
-	require.NotNil(v.T(), diagnoseIncludeEverySuiteResult)
-	assert.Equal(v.T(), diagnoseIncludeEverySuiteResult.Summary, diagnoseSummary)
+	if include {
+		for _, suite := range suites {
+			args = append(args, "--include", "^"+regexp.QuoteMeta(suite)+"$")
+		}
+	}
+	result, err := runIncludeSelection(func() (includeOutput, error) {
+		output := getDiagnoseOutput(v, agentclient.WithArgs(args))
+		return parseIncludeOutput(output, format)
+	}, suites, retryAvailable)
+	require.NoError(v.T(), err)
+	assert.Zero(v.T(), result.Summary.Fail, "diagnose reported failed checks for %v", suites)
+	assert.Zero(v.T(), result.Summary.UnexpectedErr, "diagnose reported unexpected errors for %v", suites)
+	return result
 }
 
 func (v *baseDiagnoseSuite) AssertDiagnoseExclude() {
@@ -203,44 +187,6 @@ func (v *baseDiagnoseSuite) TestDiagnoseJSON() {
 func (v *baseDiagnoseSuite) AssertOutputNotError(diagnose string) {
 	assert.NotContains(v.T(), diagnose, "FAIL")
 	assert.NotContains(v.T(), diagnose, "UNEXPECTED ERROR")
-}
-
-var summaryRE = createSummaryRegex()
-
-func createSummaryRegex() *regexp.Regexp {
-	// success, fail, warning and error are optional in the diagnose output (they're printed when their value != 0)
-	successRegex := `(?:, Success:(?P<success>\d+))?`
-	failRegex := `(?:, Fail:(?P<fail>\d+))?`
-	warningRegex := `(?:, Warning:(?P<warning>\d+))?`
-	errorRegex := `(?:, Error:(?P<error>\d+))?`
-	regexTemplate := `Total:(?P<total>\d+)` + successRegex + failRegex + warningRegex + errorRegex
-	return regexp.MustCompile(regexTemplate)
-}
-
-// getDiagnoseSummary parses the diagnose output and returns a struct containing number of success, fail, error and warning
-func getDiagnoseSummary(diagnoseOutput string) counters {
-	matches := summaryRE.FindStringSubmatch(diagnoseOutput)
-	return counters{
-		Total:         getRegexGroupValue(summaryRE, matches, "total"),
-		Success:       getRegexGroupValue(summaryRE, matches, "success"),
-		Warnings:      getRegexGroupValue(summaryRE, matches, "warning"),
-		Fail:          getRegexGroupValue(summaryRE, matches, "fail"),
-		UnexpectedErr: getRegexGroupValue(summaryRE, matches, "error"),
-	}
-}
-
-// getRegexGroupValue returns the value of a specific named group, or 0 if there is no value for this group
-func getRegexGroupValue(re *regexp.Regexp, matches []string, groupName string) int {
-	index := re.SubexpIndex(groupName)
-	if index < 0 || index >= len(matches) {
-		panic(fmt.Sprintf("An error occurred while looking for group '%v' in diagnose output", groupName))
-	}
-	val, err := strconv.Atoi(matches[index])
-	if err != nil {
-		return 0
-	}
-
-	return val
 }
 
 // unmarshalDiagnose converts a diagnose string to a diagnoseResult struct

@@ -55,7 +55,6 @@ func (v *linuxDiagnoseSuite) TestDiagnoseLocalFallback() {
 
 func (v *linuxDiagnoseSuite) TestDiagnoseInclude() {
 	v.AssertDiagnoseInclude()
-	v.AssertDiagnoseJSONInclude()
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseExclude() {

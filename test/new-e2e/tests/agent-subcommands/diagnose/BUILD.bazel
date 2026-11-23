@@ -1,5 +1,7 @@
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# gazelle:exclude include_test.go
 dd_agent_go_test(
     name = "diagnose_test",
     srcs = [
@@ -7,6 +9,7 @@ dd_agent_go_test(
         "diagnose_nix_test.go",
         "diagnose_win_test.go",
     ],
+    embed = [":diagnose"],
     tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
@@ -17,6 +20,23 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
         "//test/new-e2e/tests/agent-platform/common/svc-manager",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_library(
+    name = "diagnose",
+    srcs = ["include.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-subcommands/diagnose",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "include_test",
+    srcs = ["include_test.go"],
+    embed = [":diagnose"],
+    deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
