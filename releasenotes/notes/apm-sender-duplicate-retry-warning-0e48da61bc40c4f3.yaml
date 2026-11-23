@@ -8,6 +8,6 @@
 ---
 fixes:
   - |
-    APM: The trace-agent no longer logs ``Retried payload N times`` for a
-    payload's last retry. The ``Dropping Payload after N retries`` warning
-    logged for the same attempt already reports the retry count and the error.
+    APM: When the Agent drops a trace payload after its last retry, it now logs
+    only the ``Dropping Payload after N retries`` warning. Before, it also logged
+    a duplicate ``Retried payload N times`` warning.
