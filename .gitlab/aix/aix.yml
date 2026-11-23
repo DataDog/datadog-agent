@@ -138,10 +138,12 @@ cleanup_aix-ppc64:
       rm -rf "$(dirname "$AIX_AGENT_SRC")"
       rm -f /tmp/go*.aix-ppc64.tar.gz
       /opt/freeware/bin/dnf-3 clean all || true
-      df -g "$(dirname "$AIX_AGENT_SRC")" /tmp
       EOF
     # Marker lives outside /opt/dd-build so it survives the wipe
     - aix_run_cmd 'date +%s > /opt/.aix-ci-last-cleanup'
+    - 'echo "=== AIX: rebooting host ==="'
+    - aix_reboot_and_wait
+    - aix_run_cmd 'df -g'
     # Redo the before_script's clone, wiped above
     - 'echo "=== AIX: re-cloning agent source ==="'
     - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_git_setup.sh
@@ -155,8 +157,6 @@ cleanup_aix-ppc64:
       sh packaging/aix/stages/00-checkout.sh || echo "WARNING: 00-checkout failed"
       sh packaging/aix/stages/05-agent-data-plane.sh || echo "WARNING: 05-agent-data-plane failed"
       EOF
-    - 'echo "=== AIX: rebooting host ==="'
-    - aix_reboot_and_wait
 
 # The install script is promoted to the public bucket by agent-release-management.
 deploy_aix_install_script:

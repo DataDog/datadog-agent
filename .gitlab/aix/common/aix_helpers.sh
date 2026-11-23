@@ -161,8 +161,6 @@ aix_reboot_and_wait() {
         if boot_now=$(ssh $AIX_SSH_COMMON_OPTS -o ConnectTimeout=10 $AIX_SSH_DEST 'who -b' 2>/dev/null | tr -d '\r' | tr -s ' '); then
             if [ -n "$boot_now" ] && [ "$boot_now" != "$boot_before" ]; then
                 echo "Host back up, new boot time: $boot_now"
-                # shellcheck disable=SC2086  # AIX_SSH_COMMON_OPTS intentionally word-splits into multiple ssh options
-                ssh $AIX_SSH_COMMON_OPTS -o ConnectTimeout=10 $AIX_SSH_DEST 'df -g /opt'
                 return 0
             fi
             echo "Host still up — waiting for the reboot to take effect ($(( deadline - $(date +%s) ))s left)"
