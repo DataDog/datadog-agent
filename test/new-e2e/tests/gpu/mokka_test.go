@@ -143,7 +143,8 @@ func (s *gpuMokkaK8sSuite) TestMockGPUAllocationTags() {
 		var allocatedWithPodTags []*aggregator.MetricSeries
 		for _, metric := range metrics {
 			uuid := tagValue(metric.GetTags(), "gpu_uuid")
-			if !hasPointSince(metric, podRunningSince) {
+			// A series without gpu_uuid is not a real GPU and must not count towards the GPUs that reported.
+			if uuid == "" || !hasPointSince(metric, podRunningSince) {
 				continue
 			}
 			reportedUUIDs[uuid] = struct{}{}
