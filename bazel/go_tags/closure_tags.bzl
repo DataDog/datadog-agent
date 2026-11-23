@@ -2056,6 +2056,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/gcp/kubernetes": ["grpcnotrace", "test"],
     "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/gcp/kubernetes/openshiftvm": ["grpcnotrace", "test"],
     "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/host": ["grpcnotrace", "test"],
+    "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/host/byohost": ["grpcnotrace", "test"],
     "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/kubernetes": ["grpcnotrace", "test"],
     "github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner": ["grpcnotrace", "test"],
     "github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters": ["grpcnotrace", "test"],
