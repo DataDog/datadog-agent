@@ -476,6 +476,10 @@ func (d *PhysicalDevice) warnIfMIGDevicesInvisible() {
 		}
 		return true
 	})
+	// A MIG device that is visible now, with or without processes, is warned about again if it becomes invisible
+	for instance := range visible {
+		invisibleMIGWarned.Delete(migInstanceKey(d.UUID, instance))
+	}
 	for _, instance := range seenVisible {
 		invisibleMIGWarned.Delete(migInstanceKey(d.UUID, instance))
 	}

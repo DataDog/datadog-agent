@@ -736,8 +736,16 @@ func TestWarnIfMIGDevicesInvisible(t *testing.T) {
 	_, warned = invisibleMIGWarned.Load(visibleKey)
 	require.False(t, warned, "GPU instance 11 is visible")
 
-	// once visible, the first time a process was seen on it is forgotten
+	// once visible, even without processes, its warning is forgotten
+	idle := processes
+	processes = processes[:1]
 	parent.MIGChildren = append(parent.MIGChildren, &MIGDevice{MIGInstanceID: 13, ComputeInstanceID: 0})
+	parent.warnIfMIGDevicesInvisible()
+	_, warned = invisibleMIGWarned.Load(invisibleKey)
+	require.False(t, warned, "forgotten once visible, even while idle")
+	processes = idle
+
+	// once visible, the first time a process was seen on it is forgotten
 	parent.warnIfMIGDevicesInvisible()
 	_, tracked := invisibleMIGFirstSeen.Load(invisibleKey)
 	require.False(t, tracked)
