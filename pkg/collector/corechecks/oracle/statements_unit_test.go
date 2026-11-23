@@ -313,3 +313,68 @@ func TestStatementMetricsBaselinesCacheOnFirstRun(t *testing.T) {
 	assert.Equal(t, float64(4), c.lastOracleRows[0].Executions)
 	assert.Equal(t, float64(400), c.lastOracleRows[0].ElapsedTime)
 }
+
+func TestStatementMetricsReplacesCacheAndCombinesQueries(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	c, _ := statementMetricsTestCheck(t, sqlx.NewDb(db, "sqlmock"))
+
+	fmsKey := StatementMetricsKeyDB{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "2001"}
+	sqlIDKey := StatementMetricsKeyDB{ConID: 1, PDBName: "PDB1", SQLID: "sql_only"}
+	staleKey := StatementMetricsKeyDB{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "stale_fms"}
+
+	c.statementMetricsMonotonicCountsPrevious = map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB{
+		fmsKey:   {Executions: 10},
+		sqlIDKey: {Executions: 5},
+		staleKey: {Executions: 99},
+	}
+
+	// Interval 1: both FMS and SQL_ID queries return active rows; staleKey is absent and must be evicted.
+	dbMock.ExpectQuery("DD_QM_FMS").WillReturnRows(
+		sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(1, "PDB1", "sql_fms", "2001", uint64(0), "SELECT * FROM fms_tbl", 21, 0.0, 12.0, 100.0, 1.0, 1024.0, 0.0),
+	)
+	dbMock.ExpectQuery("DD_QM_SQLID").WillReturnRows(
+		sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(1, "PDB1", "sql_only", "", uint64(0), "SELECT * FROM sqlid_tbl", 23, 0.0, 8.0, 200.0, 1.0, 1024.0, 0.0),
+	)
+
+	c.statementsLastRun = time.Now().Add(-2 * time.Hour)
+	sqlCount, err := c.StatementMetrics()
+	require.NoError(t, err)
+	assert.Equal(t, 2, sqlCount)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+
+	require.Len(t, c.lastOracleRows, 2)
+	rowsByHash := make(map[string]OracleRow, len(c.lastOracleRows))
+	for _, row := range c.lastOracleRows {
+		rowsByHash[row.QueryHash] = row
+	}
+	assert.Equal(t, float64(2), rowsByHash["2001"].Executions)
+	assert.Equal(t, float64(3), rowsByHash["sql_only"].Executions)
+
+	assert.Contains(t, c.statementMetricsMonotonicCountsPrevious, fmsKey)
+	assert.Contains(t, c.statementMetricsMonotonicCountsPrevious, sqlIDKey)
+	assert.NotContains(t, c.statementMetricsMonotonicCountsPrevious, staleKey, "stale keys absent from lookback must be evicted")
+
+	// Interval 2: SQL_ID query returns 0 rows; FMS row still computes accurately and sqlIDKey is evicted.
+	dbMock.ExpectQuery("DD_QM_FMS").WillReturnRows(
+		sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(1, "PDB1", "sql_fms", "2001", uint64(0), "SELECT * FROM fms_tbl", 21, 0.0, 15.0, 300.0, 1.0, 1024.0, 0.0),
+	)
+	dbMock.ExpectQuery("DD_QM_SQLID").WillReturnRows(sqlmock.NewRows(statementMetricsTestColumns))
+
+	c.statementsLastRun = time.Now().Add(-2 * time.Hour)
+	sqlCount, err = c.StatementMetrics()
+	require.NoError(t, err)
+	assert.Equal(t, 1, sqlCount)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+
+	require.Len(t, c.lastOracleRows, 1)
+	assert.Equal(t, "2001", c.lastOracleRows[0].QueryHash)
+	assert.Equal(t, float64(3), c.lastOracleRows[0].Executions)
+	assert.Len(t, c.statementMetricsMonotonicCountsPrevious, 1)
+	assert.Contains(t, c.statementMetricsMonotonicCountsPrevious, fmsKey)
+}
