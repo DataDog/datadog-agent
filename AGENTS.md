@@ -128,12 +128,19 @@ eBPF programs, runtime-compilation bundles, and cgo godefs are built with Bazel 
 
 ## Testing Strategy
 
+Put each assertion in the cheapest test category that still catches the failure it exists for:
+a unit test, then an integration test (real components wired with fx, a local fakeintake),
+and E2E only when the installed Agent or its real environment is part of the behavior.
+A kernel-specific failure is an integration test run on the kernel matrix, and an assertion that
+needs only the built binaries on one machine stays E2E until binary tests have an agreed home.
+The criteria are in `doc/guidelines/testing/test-categories.md`: read it before choosing where a
+test goes. To choose the level and write the test, use the `/write-test` skill.
+
 ### Unit Tests
 Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table above) or `bazel test //pkg/... //comp/...`; Python checks use pytest.
 Both go through Bazel, so a new package has no test target until `bazel run //:gazelle -- <dir>` generates its `BUILD.bazel`.
 Run the same command after adding, removing, or renaming a `.go` file (tests included) or changing imports in an existing package, and commit the `BUILD.bazel` diff with it; otherwise the `bazel:run-gazelle` CI job fails.
 After adding a package or changing imports or build constraints, also run `dda inv go.write-tag-manifest` and commit the generated `bazel/go_tags/closure_tags.bzl` diff. A stale manifest can drop required build tags and cause duplicate-package linker errors; see `bazel/AGENTS.md` for details.
-To decide whether a change needs a unit, integration or E2E test and write it, use the `/write-test` skill.
 
 ### System-probe and eBPF Tests
 Kernel code needs a Linux kernel to test, and results hold only for the build modes and kernels that ran; see `pkg/ebpf/AGENTS.md` before testing or claiming a system-probe or eBPF change works.
