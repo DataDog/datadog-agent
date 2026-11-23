@@ -57,7 +57,7 @@ kmt_setup_env_secagent_x64:
     - !reference [.write_ssh_key_file]
   script:
     # copy agent tests
-    - bazel --batch run //internal/tools:install_gotestsum_linux_$ARCH -- --destdir=$CI_PROJECT_DIR/kmt-deps/ci/$ARCH/opt/testing-tools/go/bin
+    - bazel run //internal/tools:install_gotestsum_linux_$ARCH -- --destdir=$CI_PROJECT_DIR/kmt-deps/ci/$ARCH/opt/testing-tools/go/bin
     - pushd $CI_PROJECT_DIR/kmt-deps/ci/$ARCH
     - tar czvf $TEST_ARCHIVE_NAME opt
     - popd

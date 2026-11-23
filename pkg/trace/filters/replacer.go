@@ -155,6 +155,9 @@ func (f Replacer) replaceNumericTag(re *regexp.Regexp, s *pb.Span, key string, s
 	if rf, err := strconv.ParseFloat(replacedValue, 64); err == nil {
 		s.Metrics[key] = rf
 	} else {
+		if s.Meta == nil {
+			s.Meta = make(map[string]string)
+		}
 		s.Meta[key] = replacedValue
 		delete(s.Metrics, key)
 	}

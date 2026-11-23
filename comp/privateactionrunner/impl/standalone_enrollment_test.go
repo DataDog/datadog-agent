@@ -29,17 +29,24 @@ import (
 
 func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		logsOrg string
+		name, logsOrg, mainOrg, parKey, parSite string
 	}{
 		{name: "static API key"},
 		{name: "logs-only WIF", logsOrg: "logs-org"},
+		{name: "independent US1 backend", parKey: "par-key", parSite: "datadoghq.com"},
+		{name: "PAR key overrides primary WIF", mainOrg: "main-org", parKey: "par-key", parSite: "datadoghq.com"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
+			var expectedKey atomic.Value
+			expectedKey.Store("test-key")
+			if tc.parKey != "" {
+				expectedKey.Store(tc.parKey)
+			}
 			var posts atomic.Int32
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				posts.Add(1)
+				require.Equal(t, expectedKey.Load(), r.Header.Get("DD-API-KEY"))
 				require.Equal(t, "/api/unstable/on_prem_runners/api_key_only", r.URL.Path)
 				var body struct {
 					Data struct {
@@ -54,7 +61,10 @@ func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 			}))
 			defer srv.Close()
 			overrides := map[string]interface{}{
-				"delegated_auth.org_uuid":             "",
+				"delegated_auth.org_uuid":             tc.mainOrg,
+				"site":                                "datadoghq.eu",
+				"private_action_runner.api_key":       tc.parKey,
+				"private_action_runner.site":          tc.parSite,
 				"logs_config.delegated_auth.org_uuid": tc.logsOrg,
 				"api_key":                             "test-key", "dd_url": srv.URL, "private_action_runner.enabled": true,
 				"private_action_runner.self_enroll": true, "private_action_runner.api_key_only_enrollment": true,
@@ -71,11 +81,27 @@ func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, identity)
 			require.NotEmpty(t, identity.PrivateKey)
+			region := "eu1"
+			if tc.parSite == "datadoghq.com" {
+				region = "us1"
+			}
+			require.Equal(t, "urn:dd:apps:on-prem-runner:"+region+":42:runner", identity.URN)
+			require.Equal(t, enrollment.HashAPIKey(expectedKey.Load().(string)), identity.APIKeyHash)
+			require.Equal(t, "test-key", cfg.GetString("api_key"))
+			require.Equal(t, "datadoghq.eu", cfg.GetString("site"))
 			_, err = runner.getRunnerConfig(context.Background())
 			require.NoError(t, err)
 			require.EqualValues(t, 1, posts.Load(), "a saved identity follows existing reuse behavior")
-			// Without primary intake WIF, API-key rotation keeps the existing path.
+			// Only rotation of the effective enrollment key replaces the runner.
 			overrides["api_key"] = "rotated-key"
+			if tc.parKey != "" {
+				cfg.SetInTest("api_key", "rotated-key")
+				_, err = runner.getRunnerConfig(context.Background())
+				require.NoError(t, err)
+				require.EqualValues(t, 1, posts.Load(), "main Agent key rotation must not replace PAR's identity")
+				overrides["private_action_runner.api_key"] = "rotated-key"
+			}
+			expectedKey.Store("rotated-key")
 			cfg = coreconfig.NewMockWithOverrides(t, overrides)
 			// Config mocks share a backing store; discard identity populated by the previous startup.
 			cfg.UnsetForSource("private_action_runner.urn", model.SourceAgentRuntime)

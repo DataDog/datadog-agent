@@ -187,12 +187,13 @@ func (e *envoyGatewayInjectionPattern) Deleted(ctx context.Context, obj *unstruc
 
 	e.logger.Debugf("Processing deleted gateway for envoygateway: %s/%s", name, namespace)
 	policy, err := e.client.Resource(extensionGVR).Namespace(namespace).Get(ctx, extProcName, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
+	policyDeleted := errors.IsNotFound(err)
+	if policyDeleted && e.Mode() == appsecconfig.InjectionModeSidecar {
 		e.logger.Debug("Envoy extension policy already deleted")
 		return nil
 	}
 
-	if err != nil {
+	if err != nil && !policyDeleted {
 		return fmt.Errorf("could not check if Envoy extension policy was already deleted: %w", err)
 	}
 
@@ -202,6 +203,14 @@ func (e *envoyGatewayInjectionPattern) Deleted(ctx context.Context, obj *unstruc
 	}
 	if !alone {
 		e.logger.Debugf("Skipping Envoy extension policy creation for gateway %s/%s: not alone in namespace", namespace, name)
+		return nil
+	}
+
+	if policyDeleted {
+		// An earlier attempt may have deleted the policy and then failed to clean up the grant
+		if err := e.grantManager.RemoveNamespaceToGrant(ctx, namespace); err != nil {
+			return fmt.Errorf("could not remove namespace %s from ReferenceGrant: %w", namespace, err)
+		}
 		return nil
 	}
 

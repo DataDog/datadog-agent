@@ -502,3 +502,13 @@ func instantiateForTest(t testing.TB, catalog *componentCatalog, settings Compon
 	require.NoError(t, err)
 	return detectors, correlators, scorer, extractors, components
 }
+
+func TestDefaultCatalogPreservesBothLogExtractors(t *testing.T) {
+	_, _, _, extractors, components := instantiateForTest(t, defaultCatalog(), ComponentSettings{})
+	require.Len(t, extractors, 2)
+	require.Equal(t, LogMetricsExtractorName, extractors[0].Name())
+	require.Equal(t, LogPatternExtractorName, extractors[1].Name())
+	require.Contains(t, components, LogPatternExtractorName)
+	require.Equal(t, 0.6, extractors[0].(*LogMetricsExtractor).config.MinTokenMatchRatio)
+	require.Equal(t, DefaultLogPatternExtractorConfig(), extractors[1].(*LogPatternExtractor).config)
+}
