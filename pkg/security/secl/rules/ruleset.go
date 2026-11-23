@@ -51,13 +51,20 @@ func (rs *RuleSet) parseSetField(field string) (*setField, error) {
 		return nil, fmt.Errorf("invalid field '%s': %w", field, err)
 	}
 
+	// an action isn't evaluated over the elements of an iterator, an iterator
+	// variable would read the element of another evaluation
+	if ast.Any(node, func(n ast.Node) bool {
+		ref, ok := n.(*ast.FieldRef)
+		return ok && ref.Iter != nil
+	}) {
+		return nil, fmt.Errorf("invalid field '%s': iterator variables aren't supported in a set action", field)
+	}
+
 	switch n := node.(type) {
 	case *ast.FieldRef:
-		if n.Iter == nil {
-			return &setField{name: n.Name}, nil
-		}
+		return &setField{name: n.Name}, nil
 	case *ast.Index:
-		if ref, ok := n.Base.(*ast.FieldRef); ok && ref.Iter == nil {
+		if ref, ok := n.Base.(*ast.FieldRef); ok {
 			return &setField{name: ref.Name, indexed: true}, nil
 		}
 	}

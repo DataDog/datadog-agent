@@ -3258,6 +3258,33 @@ func TestActionSetVariableValidation(t *testing.T) {
 			t.Log(err)
 		}
 	})
+
+	// an action isn't evaluated over the elements of an iterator, so an iterator
+	// variable is rejected wherever it is in the field
+	for _, field := range []string{
+		`process.ancestors[A].file.name`,
+		`process.argv[process.ancestors[A].uid[0]]`,
+	} {
+		t.Run("iterator-variable/"+field, func(t *testing.T) {
+			testPolicy := &PolicyDef{
+				Rules: []*RuleDefinition{{
+					ID:         "test_rule",
+					Expression: `open.file.path == "/tmp/test"`,
+					Actions: []*ActionDefinition{{
+						Set: &SetDefinition{
+							Name:  "var1",
+							Field: field,
+						},
+					}},
+				}},
+			}
+
+			_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+			if err == nil || !strings.Contains(err.Error(), "iterator variables aren't supported in a set action") {
+				t.Errorf("expected the iterator variable to be rejected, got %v", err)
+			}
+		})
+	}
 }
 
 func TestActionSetVariableArrayIndex(t *testing.T) {
