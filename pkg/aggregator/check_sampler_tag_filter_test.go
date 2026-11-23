@@ -65,15 +65,15 @@ func filteredTags(cs *CheckSampler, key ckey.ContextKey) ([]string, bool) {
 
 // samplerOutput is what a sampler committed since its last flush: what goes to the merger, and the rest.
 type samplerOutput struct {
-	mergedSeries   []*metrics.Serie
-	mergedSketches []mergedSketch
-	series         metrics.Series
-	sketches       metrics.SketchSeriesList
+	mergeableSeries   []*metrics.Serie
+	mergeableSketches []mergeableSketch
+	series            metrics.Series
+	sketches          metrics.SketchSeriesList
 }
 
 func flushSampler(cs *CheckSampler) samplerOutput {
 	var out samplerOutput
-	out.mergedSeries, out.mergedSketches = cs.flushMerged()
+	out.mergeableSeries, out.mergeableSketches = cs.flushMergeable()
 	out.series, out.sketches = cs.flush()
 	return out
 }
@@ -99,15 +99,15 @@ func TestCheckSamplerFiltersTagsAtOutput(t *testing.T) {
 
 	assert.Empty(t, out.series)
 	assert.Empty(t, out.sketches)
-	require.Len(t, out.mergedSeries, 2, "sources are aggregated apart, then merged after the sampler")
-	assert.Equal(t, out.mergedSeries[0].ContextKey, out.mergedSeries[1].ContextKey)
-	for _, s := range out.mergedSeries {
+	require.Len(t, out.mergeableSeries, 2, "sources are aggregated apart, then merged after the sampler")
+	assert.Equal(t, out.mergeableSeries[0].ContextKey, out.mergeableSeries[1].ContextKey)
+	for _, s := range out.mergeableSeries {
 		assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(s.Tags))
 	}
 
-	require.Len(t, out.mergedSketches, 2)
-	assert.Equal(t, out.mergedSketches[0].key, out.mergedSketches[1].key)
-	for _, s := range out.mergedSketches {
+	require.Len(t, out.mergeableSketches, 2)
+	assert.Equal(t, out.mergeableSketches[0].key, out.mergeableSketches[1].key)
+	for _, s := range out.mergeableSketches {
 		assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(s.sketch.Tags))
 		require.Len(t, s.sketch.Points, 1)
 		assert.Equal(t, int64(100), s.sketch.Points[0].Ts)
@@ -160,8 +160,8 @@ func TestCheckSamplerRefiltersWhenRulesChange(t *testing.T) {
 	require.False(t, filtered)
 	cs.addSample(podSample("my.dist", metrics.DistributionType, "a", 1, 100.1), filterlistimpl.NewNoopTagMatcher())
 	cs.commit(100.3, &flushMatcher)
-	_, merged := cs.flushMerged()
-	assert.Empty(t, merged)
+	_, mergeable := cs.flushMergeable()
+	assert.Empty(t, mergeable)
 	_, sketches := cs.flush()
 	require.Len(t, sketches, 1)
 	assert.ElementsMatch(t, []string{"env:prod", "pod:a"}, tagsOf(sketches[0].Tags))
@@ -194,10 +194,10 @@ func TestCheckSamplerFiltersOnlyMergeableOutputOfSharedContexts(t *testing.T) {
 			cs.commit(101, &flushMatcher)
 			out := flushSampler(cs)
 
-			assert.Empty(t, out.mergedSeries)
+			assert.Empty(t, out.mergeableSeries)
 			assert.Empty(t, out.sketches)
-			require.Len(t, out.mergedSketches, 1)
-			assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(out.mergedSketches[0].sketch.Tags))
+			require.Len(t, out.mergeableSketches, 1)
+			assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(out.mergeableSketches[0].sketch.Tags))
 			require.NotEmpty(t, out.series)
 			for _, s := range out.series {
 				assert.Contains(t, tagsOf(s.Tags), "pod:a", s.Name)
@@ -229,7 +229,7 @@ func TestCheckSamplerOnlyMergesSeriesThatAddUp(t *testing.T) {
 	cs.addSample(podSample("my.metric", metrics.CounterType, "a", 5, 105.2), matcher)
 	cs.commit(105.5, &flushMatcher)
 	out := flushSampler(cs)
-	for _, s := range out.mergedSeries {
+	for _, s := range out.mergeableSeries {
 		assert.Empty(t, s.NameSuffix, "%s: a histogram's statistics don't add up", s.Name)
 		assert.NotEqual(t, metrics.APIGaugeType, s.MType, s.Name)
 	}
@@ -248,8 +248,8 @@ func TestCheckSamplerDoesNotFilterSketchesStampedPerSecond(t *testing.T) {
 	cs.commit(101.4, &flushMatcher)
 	out := flushSampler(cs)
 
-	require.Len(t, out.mergedSeries, 1, "counters are still filtered and merged")
-	assert.Empty(t, out.mergedSketches)
+	require.Len(t, out.mergeableSeries, 1, "counters are still filtered and merged")
+	assert.Empty(t, out.mergeableSketches)
 	require.Len(t, out.sketches, 1)
 	assert.Contains(t, tagsOf(out.sketches[0].Tags), "pod:a", "sketches stamped per second aren't filtered")
 	assert.Equal(t, int64(100), out.sketches[0].Points[0].Ts)

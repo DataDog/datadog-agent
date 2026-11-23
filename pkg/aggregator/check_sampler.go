@@ -33,8 +33,8 @@ type CheckSampler struct {
 	id                     checkid.ID
 	series                 []*metrics.Serie
 	sketches               metrics.SketchSeriesList
-	mergedSeries           []*metrics.Serie
-	mergedSketches         []mergedSketch
+	mergeableSeries        []*metrics.Serie
+	mergeableSketches      []mergeableSketch
 	contextResolver        *countBasedContextResolver
 	metrics                metrics.CheckMetrics
 	pendingSketches        contextSketches
@@ -263,7 +263,7 @@ func (cs *CheckSampler) appendSeries(series []*metrics.Serie, errors map[ckey.Co
 		serie.Source = context.source
 		if filtered, ok := cs.contextResolver.resolver.filteredIdentityOf(context); ok && addsUp(serie) {
 			serie.ContextKey, serie.Tags = filtered.key, filtered.Tags()
-			cs.mergedSeries = append(cs.mergedSeries, serie)
+			cs.mergeableSeries = append(cs.mergeableSeries, serie)
 			continue
 		}
 
@@ -295,7 +295,7 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 		}
 		if filtered, ok := cs.contextResolver.resolver.filteredIdentityOf(ctx); ok {
 			series.Tags = filtered.Tags()
-			cs.mergedSketches = append(cs.mergedSketches, mergedSketch{key: filtered.key, sketch: series})
+			cs.mergeableSketches = append(cs.mergeableSketches, mergeableSketch{key: filtered.key, sketch: series})
 			continue
 		}
 		cs.sketches = append(cs.sketches, series)
@@ -402,10 +402,10 @@ func (cs *CheckSampler) hasState(key ckey.ContextKey) bool {
 	return bucket || byBound || sketch || (cs.sketchesPerTimestamp != nil && cs.sketchesPerTimestamp.contains(key))
 }
 
-// flushMerged returns the output committed since the last call that goes to the check output merger.
-func (cs *CheckSampler) flushMerged() ([]*metrics.Serie, []mergedSketch) {
-	series, sketches := cs.mergedSeries, cs.mergedSketches
-	cs.mergedSeries, cs.mergedSketches = nil, nil
+// flushMergeable returns the output committed since the last call that goes to the check output merger.
+func (cs *CheckSampler) flushMergeable() ([]*metrics.Serie, []mergeableSketch) {
+	series, sketches := cs.mergeableSeries, cs.mergeableSketches
+	cs.mergeableSeries, cs.mergeableSketches = nil, nil
 	return series, sketches
 }
 

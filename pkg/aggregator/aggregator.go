@@ -603,9 +603,9 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 			sketchesSink.Append(sk)
 		}
 
-		mergedSeries, mergedSketches := checkSampler.flushMerged()
-		agg.checkOutputMerger.mergeSeries(mergedSeries)
-		agg.checkOutputMerger.mergeSketches(mergedSketches)
+		mergeableSeries, mergeableSketches := checkSampler.flushMergeable()
+		agg.checkOutputMerger.mergeSeries(mergeableSeries)
+		agg.checkOutputMerger.mergeSketches(mergeableSketches)
 
 		if checkSampler.deregistered {
 			checkSampler.release()

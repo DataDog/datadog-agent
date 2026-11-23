@@ -34,8 +34,8 @@ type checkOutputMerger struct {
 	sketches map[int64]map[ckey.ContextKey]*metrics.SketchSeries
 }
 
-// mergedSketch is a sketch series handed to the merger, with the key of the series it merges into.
-type mergedSketch struct {
+// mergeableSketch is a sketch series handed to the merger, with the key of the series it merges into.
+type mergeableSketch struct {
 	key    ckey.ContextKey
 	sketch *metrics.SketchSeries
 }
@@ -84,7 +84,7 @@ func (m *checkOutputMerger) mergeSeries(series []*metrics.Serie) {
 }
 
 // mergeSketches merges sketch series with the other sources of the same series.
-func (m *checkOutputMerger) mergeSketches(sketches []mergedSketch) {
+func (m *checkOutputMerger) mergeSketches(sketches []mergeableSketch) {
 	for _, s := range sketches {
 		for _, point := range s.sketch.Points {
 			byKey := heldAt(m.sketches, point.Ts)
