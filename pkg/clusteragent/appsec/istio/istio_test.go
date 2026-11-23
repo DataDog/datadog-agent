@@ -586,7 +586,7 @@ func TestDeleted_OptedOutResourcesDoNotKeepFilter(t *testing.T) {
 // EnvoyFilter via the K8s GatewayClass pattern even when native Istio Gateways are present.
 // cleanupPattern calls Deleted on live GatewayClasses with a cleanup context.
 func TestDeleted_CleanupMode_WithNativeGateways(t *testing.T) {
-	ctx := appsecconfig.Wit.Cleanup(context.Background())
+	ctx := appsecconfig.WithCleanup(context.Background())
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 

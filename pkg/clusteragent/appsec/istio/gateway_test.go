@@ -426,7 +426,7 @@ func TestGateway_Added_FilterCreationError(t *testing.T) {
 // even when multiple native gateways are still present in the cluster.
 // cleanupPattern calls Deleted on live (not yet deleted) resources with a cleanup context.
 func TestGateway_Deleted_CleanupMode_MultipleGateways(t *testing.T) {
-	ctx := appsecconfig.Wit.Cleanup(context.Background())
+	ctx := appsecconfig.WithCleanup(context.Background())
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
