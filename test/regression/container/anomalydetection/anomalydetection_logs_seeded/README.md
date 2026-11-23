@@ -24,9 +24,12 @@ before container framing. It uses a versioned Python image. Observer accepts
 `info` logs with a medium-priority cap of 10,000 logs/s. Kubelet and internal
 log sources are disabled to isolate the container workload.
 
-The detector settings preserve the playground case, with baseline analysis
-disabled and 30 seconds of point retention. This measures that fixed workload
-and configuration rather than the production defaults.
+BOCPD and ScanMW are the only enabled metric detectors. The log metrics and
+log pattern extractors remain enabled to produce signals from the input logs.
+Baseline analysis is disabled, so baseline muting cannot suppress those
+signals. Storage uses the Agent defaults, including point retention derived
+from the enabled detector windows; this case does not impose a retention
+override.
 
 The seed repeats the payload sequence, not the exact number of logs accepted
 over a timed run. Scheduling, Docker metadata, rate limiting, and ingestion
@@ -51,6 +54,15 @@ Before interpreting a remote performance comparison, check that Observer
 starts, accepts container logs at comparable rates, and has no channel-full
 or sampler drops. Compare learned pattern counts as well as CPU and memory.
 An identical-image comparison establishes the run-to-run noise floor.
+
+For that comparison, use the exact same published Agent image and commit SHA
+for SMP's baseline and comparison variants, with this same scenario
+configuration on both sides. Use `--experiment-name-allow-filter
+anomalydetection_logs_seeded` with `smp job submit-regression` to run only this
+case, rather than the manifest's additional always-selected experiments.
+Compare CPU and memory alongside accepted-log and drop counts. A difference
+between these two variants measures run-to-run variation, not a code change
+or the overhead of enabling Observer.
 
 Memory is the comparative optimization goal; CPU and memory bounds are also
 reported. The bounds are inherited from the playground experiment and need
