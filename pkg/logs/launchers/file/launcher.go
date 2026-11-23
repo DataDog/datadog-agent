@@ -222,7 +222,6 @@ func (s *Launcher) resolveScan(files []*tailer.File) {
 func (s *Launcher) cleanup() {
 	s.clearFingerprintRotationErrors()
 	stopper := startstop.NewParallelStopper()
-	s.cleanUpRotatedTailers()
 	for _, tailer := range s.rotatedTailers {
 		stopper.Add(tailer)
 	}
@@ -453,7 +452,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		if oldInfo.Source == nil || !slices.Contains(s.activeSources, oldInfo.Source) {
 			continue
 		}
-		if oldInfo.Path != "" {
+		if oldInfo.Path != "" && (oldInfo.Source.Config == nil || oldInfo.Source.Config.Path != oldInfo.Path) {
 			if _, err := os.Stat(oldInfo.Path); errors.Is(err, os.ErrNotExist) {
 				continue
 			}

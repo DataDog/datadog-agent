@@ -45,9 +45,11 @@ type Launcher struct {
 	registry               auditor.Registry
 	tailers                map[string]tailer
 	activeSources          map[string]*sources.LogSource
-	pendingSources         map[string]*sources.LogSource
+	pendingSources         map[string][]*sources.LogSource
+	removedSet             map[*sources.LogSource]struct{}
 	sourceGenerations      map[string]uint64
 	nextGeneration         atomic.Uint64
+	stoppingWg             sync.WaitGroup
 	stop                   chan struct{}
 	publisherMetadataCache publishermetadatacachedef.Component
 	stopOnce               sync.Once
@@ -59,7 +61,8 @@ func NewLauncher() *Launcher {
 	return &Launcher{
 		tailers:                make(map[string]tailer),
 		activeSources:          make(map[string]*sources.LogSource),
-		pendingSources:         make(map[string]*sources.LogSource),
+		pendingSources:         make(map[string][]*sources.LogSource),
+		removedSet:             make(map[*sources.LogSource]struct{}),
 		sourceGenerations:      make(map[string]uint64),
 		sourcesDone:            make(chan struct{}),
 		removedSourcesDone:     make(chan struct{}),
@@ -86,26 +89,50 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 func (l *Launcher) run() {
 	retryTicker := time.NewTicker(time.Second)
 	defer retryTicker.Stop()
+	enqueuePending := func(identifier string, src *sources.LogSource) {
+		for _, existing := range l.pendingSources[identifier] {
+			if existing == src {
+				return
+			}
+		}
+		l.pendingSources[identifier] = append(l.pendingSources[identifier], src)
+	}
 	removeSource := func(removed *sources.LogSource) {
-		for identifier, pending := range l.pendingSources {
-			if pending == removed {
+		l.removedSet[removed] = struct{}{}
+		for identifier, queue := range l.pendingSources {
+			kept := queue[:0]
+			for _, pending := range queue {
+				if pending != removed {
+					kept = append(kept, pending)
+				}
+			}
+			if len(kept) == 0 {
 				delete(l.pendingSources, identifier)
+			} else {
+				l.pendingSources[identifier] = kept
 			}
 		}
 		for identifier, active := range l.activeSources {
 			if active == removed {
-				if t, ok := l.tailers[identifier]; ok {
-					t.Stop()
-					delete(l.tailers, identifier)
-				}
+				t, hasTailer := l.tailers[identifier]
+				delete(l.tailers, identifier)
 				delete(l.activeSources, identifier)
-				if efp, ok := l.pipelineProvider.(*pipeline.EndpointFilteredProvider); ok {
-					if gen, hasGen := l.sourceGenerations[identifier]; hasGen {
-						delete(l.sourceGenerations, identifier)
-						ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-						_ = efp.RetireSource(ctx, identifier, gen)
-						cancel()
-					}
+				gen, hasGen := l.sourceGenerations[identifier]
+				delete(l.sourceGenerations, identifier)
+				if hasTailer {
+					// Stop and retire off the notification loop so a blocked
+					// tailer cannot stall other source adds, removals, or retries.
+					efp, isEFP := l.pipelineProvider.(*pipeline.EndpointFilteredProvider)
+					l.stoppingWg.Add(1)
+					go func(id string, stopTailer tailer, retireGen uint64, retire bool) {
+						defer l.stoppingWg.Done()
+						stopTailer.Stop()
+						if retire && isEFP {
+							ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+							_ = efp.RetireSource(ctx, id, retireGen)
+							cancel()
+						}
+					}(identifier, t, gen, hasGen)
 				}
 			}
 		}
@@ -113,18 +140,25 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case source := <-l.sources:
+			if _, wasRemoved := l.removedSet[source]; wasRemoved {
+				delete(l.removedSet, source)
+				continue
+			}
 			sanitized := l.sanitizedConfig(source.Config)
 			identifier := windowsevent.Identifier(sanitized.ChannelPath, sanitized.Query)
 			if _, exists := l.tailers[identifier]; exists {
-				// tailer already setup
+				// Retain additional configured source for this identifier so it
+				// can take over if the current owner is removed.
+				if l.activeSources[identifier] != source {
+					enqueuePending(identifier, source)
+				}
 				continue
 			}
 			tailer, err := l.setupTailer(source, sanitized, identifier)
 			if err != nil {
 				log.Info("Could not set up windows event log tailer (will retry): ", err)
-				l.pendingSources[identifier] = source
+				enqueuePending(identifier, source)
 			} else {
-				delete(l.pendingSources, identifier)
 				l.tailers[identifier] = tailer
 				l.activeSources[identifier] = source
 			}
@@ -141,18 +175,22 @@ func (l *Launcher) run() {
 					break drainRemovals
 				}
 			}
-			for identifier, source := range l.pendingSources {
-				if _, exists := l.tailers[identifier]; exists {
-					delete(l.pendingSources, identifier)
+			for identifier, queue := range l.pendingSources {
+				if _, exists := l.tailers[identifier]; exists || len(queue) == 0 {
 					continue
 				}
+				source := queue[0]
 				sanitized := l.sanitizedConfig(source.Config)
 				tailer, err := l.setupTailer(source, sanitized, identifier)
 				if err != nil {
 					log.Debug("Retrying windows event log tailer setup failed: ", err)
 					continue
 				}
-				delete(l.pendingSources, identifier)
+				if len(queue) == 1 {
+					delete(l.pendingSources, identifier)
+				} else {
+					l.pendingSources[identifier] = queue[1:]
+				}
 				l.tailers[identifier] = tailer
 				l.activeSources[identifier] = source
 			}
@@ -174,13 +212,10 @@ func (l *Launcher) Stop() {
 			delete(l.tailers, tailer.Identifier())
 		}
 		stopper.Stop()
+		l.stoppingWg.Wait()
 		if efp, ok := l.pipelineProvider.(*pipeline.EndpointFilteredProvider); ok {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-			defer cancel()
-			for identifier, gen := range l.sourceGenerations {
-				_ = efp.RetireSource(ctx, identifier, gen)
-				delete(l.sourceGenerations, identifier)
-			}
+			clear(l.sourceGenerations)
+			_ = efp
 		}
 		l.publisherMetadataCache.Flush()
 	})

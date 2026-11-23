@@ -341,6 +341,7 @@ type EndpointFilteredProvider struct {
 	streams          []*endpointStream
 	selectionsMu     sync.Mutex
 	selections       map[uint64]endpointSelection
+	boundDispatchKey map[uint64]string
 	sharedParkMu     sync.Mutex
 	sharedParks      map[string]*sharedSourcePark
 	totalParked      int
@@ -384,23 +385,24 @@ func NewEndpointFilteredProvider(opts EndpointFilteredOptions) (*EndpointFiltere
 	context.AfterFunc(ctx, progress.StopForwarding)
 
 	p := &EndpointFilteredProvider{
-		opts:            opts,
-		destinationsCtx: client.NewDestinationsContext(),
-		policy:          policy,
-		progress:        progress,
-		ingress:         newManagedInput(make(chan *message.Message, routedIngressCapacity)),
-		processed:       make(chan *message.Message, routedProcessedCapacity),
-		streams:         make([]*endpointStream, policy.EndpointCount()),
-		selections:      make(map[uint64]endpointSelection),
-		sharedParks:     make(map[string]*sharedSourcePark),
-		ctx:             ctx,
-		cancel:          cancel,
-		sourceDispatch:  make(map[string]*efSourceDispatch),
-		sourceInputs:    make(map[sourceInputKey]*managedInput),
-		pendingInputs:   make(map[sourceInputKey]chan struct{}),
-		inputKeys:       make(map[*managedInput]sourceInputKey),
-		processedDone:   make(chan struct{}),
-		stopRequested:   make(chan struct{}),
+		opts:             opts,
+		destinationsCtx:  client.NewDestinationsContext(),
+		policy:           policy,
+		progress:         progress,
+		ingress:          newManagedInput(make(chan *message.Message, routedIngressCapacity)),
+		processed:        make(chan *message.Message, routedProcessedCapacity),
+		streams:          make([]*endpointStream, policy.EndpointCount()),
+		selections:       make(map[uint64]endpointSelection),
+		boundDispatchKey: make(map[uint64]string),
+		sharedParks:      make(map[string]*sharedSourcePark),
+		ctx:              ctx,
+		cancel:           cancel,
+		sourceDispatch:   make(map[string]*efSourceDispatch),
+		sourceInputs:     make(map[sourceInputKey]*managedInput),
+		pendingInputs:    make(map[sourceInputKey]chan struct{}),
+		inputKeys:        make(map[*managedInput]sourceInputKey),
+		processedDone:    make(chan struct{}),
+		stopRequested:    make(chan struct{}),
 	}
 	p.evalWarnBudget.Store(20)
 	p.inputs = append(p.inputs, p.ingress)
@@ -586,7 +588,22 @@ func (p *EndpointFilteredProvider) popSelection(token uint64) (endpointSelection
 func (p *EndpointFilteredProvider) deleteSelection(token uint64) {
 	p.selectionsMu.Lock()
 	delete(p.selections, token)
+	delete(p.boundDispatchKey, token)
 	p.selectionsMu.Unlock()
+}
+
+func (p *EndpointFilteredProvider) setBoundDispatchKey(token uint64, key string) {
+	p.selectionsMu.Lock()
+	p.boundDispatchKey[token] = key
+	p.selectionsMu.Unlock()
+}
+
+func (p *EndpointFilteredProvider) popBoundDispatchKey(token uint64) string {
+	p.selectionsMu.Lock()
+	key := p.boundDispatchKey[token]
+	delete(p.boundDispatchKey, token)
+	p.selectionsMu.Unlock()
+	return key
 }
 
 // GuardRegistry wraps direct source checkpoint writes through bounded progress.
@@ -761,7 +778,13 @@ func (p *EndpointFilteredProvider) admit(input <-chan *message.Message, bound *s
 
 		if err == nil {
 			if bound != nil {
-				_, err = p.progress.Reserve(p.ctx, msg, generation)
+				var tok uint64
+				tok, err = p.progress.Reserve(p.ctx, msg, generation)
+				if err == nil && identifier == "" && tok != 0 {
+					// Preserve bound producer isolation for uncheckpointed
+					// rotated-file drain records without mutating Origin.Identifier.
+					p.setBoundDispatchKey(tok, "\x02"+bound.identifier)
+				}
 			} else {
 				_, err = p.progress.ReserveShared(p.ctx, msg, generation)
 			}
@@ -1118,7 +1141,11 @@ func (p *EndpointFilteredProvider) dispatchProcessed() {
 		}
 		sourceIdentifier := identifier
 		if identifier == "" {
-			identifier = "\x00"
+			if boundKey := p.popBoundDispatchKey(msg.RoutingToken()); boundKey != "" {
+				identifier = boundKey
+			} else {
+				identifier = "\x00"
+			}
 		} else {
 			identifier = "\x01" + identifier
 		}
@@ -1622,6 +1649,15 @@ func (p *EndpointFilteredProvider) Flush(ctx context.Context) {
 	p.lifecycle.RUnlock()
 	defer p.opsWg.Done()
 
+	// Nudge all endpoint streams non-blockingly up front so healthy partial
+	// batches already buffered flush immediately even if an unrelated bound
+	// input or shared park is blocked.
+	for _, stream := range p.streams {
+		select {
+		case stream.flush <- struct{}{}:
+		default:
+		}
+	}
 	// Drain bound inputs first, then shared ingress last so post-barrier
 	// shared records cannot accumulate while waiting on bound inputs before
 	// processor barriers are injected.
@@ -1795,6 +1831,16 @@ func (p *EndpointFilteredProvider) Stop() {
 
 		p.monitor.Stop()
 
+		// Nudge all endpoint streams non-blockingly so healthy partial batches
+		// start draining immediately even if a stalled bound input is still
+		// draining behind backpressure.
+		for _, stream := range p.streams {
+			select {
+			case stream.flush <- struct{}{}:
+			default:
+			}
+		}
+
 		for _, mi := range inputs {
 			mi.closeOnce()
 		}
@@ -1830,6 +1876,7 @@ func (p *EndpointFilteredProvider) Stop() {
 		p.destinationsCtx.Stop()
 		p.selectionsMu.Lock()
 		clear(p.selections)
+		clear(p.boundDispatchKey)
 		p.selectionsMu.Unlock()
 	})
 }
