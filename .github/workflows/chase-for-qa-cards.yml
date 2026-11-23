@@ -13,6 +13,7 @@ permissions: {}
 jobs:
   chase_for_qa_cards:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     permissions:
       contents: read
     environment:
