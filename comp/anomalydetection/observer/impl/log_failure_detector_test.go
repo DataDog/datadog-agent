@@ -45,6 +45,16 @@ func TestApplicationSeverityIsNotTransportSeverity(t *testing.T) {
 		{`INFO: received ERROR response from upstream`, "error", "info", true},
 		{`ERROR: retrying at INFO level`, "info", "error", true},
 		{`{"severity":50,"msg":"write failed"}`, "info", "error", true},
+		// A level word counts only in the leading position, not in message text.
+		{`health check completed, previous response was ERROR: timeout`, "info", "", false},
+		{`request failed with ERROR code 500`, "info", "", false},
+		{`user saw error: bad password`, "info", "", false},
+		{`myworker ERROR job failed`, "info", "error", true},
+		{`ERROR:root:connection refused`, "info", "error", true},
+		{`2026-11-23 10:00:00.123 UTC [123] FATAL:  too many connections`, "info", "fatal", true},
+		{`2026-11-23 10:00:00.123 UTC [123] LOG:  checkpoint starting`, "error", "info", true},
+		{`2026-11-16 10:00:00,123 - payments - ERROR - charge failed`, "info", "error", true},
+		{`E, [2026-11-23T10:00:00.123456 #1] ERROR -- : charge failed`, "info", "error", true},
 	} {
 		t.Run(tc.content, func(t *testing.T) {
 			got, known := applicationLogSeverity(&logObs{content: tc.content, status: tc.status})

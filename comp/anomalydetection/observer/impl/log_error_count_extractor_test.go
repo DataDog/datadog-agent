@@ -8,6 +8,8 @@ package observerimpl
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 	"testing"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -258,6 +260,25 @@ func TestDeclaredErrorAdmissionRequiresErrorCountExtraction(t *testing.T) {
 	observe(`{"severity":50,"msg":"write failed"}`)
 	require.Len(t, logsCh, 1, "numeric levels under any supported key pass the pre-check")
 	require.Equal(t, "error", (<-logsCh).log.status)
+}
+
+// TestErrorLevelPreCheckMatchesReferenceRegexp keeps the scan equivalent to the
+// regexp it replaced, which was too slow for every below-minimum stdout line.
+func TestErrorLevelPreCheckMatchesReferenceRegexp(t *testing.T) {
+	keys := make([]string, len(jsonLevelKeys))
+	for i, key := range jsonLevelKeys {
+		keys[i] = regexp.QuoteMeta(key)
+	}
+	reference := regexp.MustCompile(`(?i)err|crit|fatal|panic|alert|emerg|"(?:` + strings.Join(keys, "|") + `)"\s*:\s*[56]0|^\s*[EF]\d{4} `)
+	for _, content := range []string{
+		"", "nothing here", "stderr stream", "Terror", "alerting rules", "CRITICAL path", "Fatal", "PaNiC", "EMERGENCY",
+		"E1123 10:00:00.1 x", "  f1123 x", "\tF1123 ", "I1123 10:00:00.1 x", "E112 x", "xE1123 x", "E1123",
+		`{"level":50}`, `{"LEVEL" : 60}`, "{\"lvl\":\t50}", `{"log.level":50}`, `{"logXlevel":50}`, `{"levelname":60}`,
+		`{"level":40}`, `{"level":"50"}`, `{"severity":500}`, `{"level":5}`, `{"level"`, `"`, `{"level":30,"msg":"ok"}`,
+		`2026-11-16 10:00:00 INFO request served`, "naïve café ünïcode", "\x02level\":50",
+	} {
+		require.Equal(t, reference.MatchString(content), mayDeclareErrorLevel(content), "%q", content)
+	}
 }
 
 func TestLogErrorCountHostEnvironmentAndIngressIsolation(t *testing.T) {

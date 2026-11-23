@@ -75,18 +75,65 @@ func hasLogErrorCountExtractor(extractors []observerdef.LogMetricsExtractor) boo
 	return false
 }
 
-// errorLevelHint cheaply rejects lines that cannot declare an error level, so
-// routine output below a source's minimum skips the full parse.
-var errorLevelHint = regexp.MustCompile(`(?i)err|crit|fatal|panic|alert|emerg|"(?:` + jsonLevelKeyPattern() + `)"\s*:\s*[56]0|^\s*[EF]\d{4} `)
-
-// jsonLevelKeyPattern matches every key jsonLogLevel reads, so numeric levels
-// under any of them reach the full parse.
-func jsonLevelKeyPattern() string {
-	quoted := make([]string, len(jsonLevelKeys))
-	for i, key := range jsonLevelKeys {
-		quoted[i] = regexp.QuoteMeta(key)
+// mayDeclareErrorLevel cheaply rejects lines that cannot declare an error
+// level, so routine output below a source's minimum skips the full parse. It
+// accepts err, crit, fatal, panic, alert or emerg anywhere, ignoring case; a
+// quoted level key with the numeric value 50 or 60; or a leading klog E/F
+// header. It is a plain scan because a regexp cannot skip ahead for these
+// alternatives and would examine every byte of every routine line.
+func mayDeclareErrorLevel(s string) bool {
+	if t := strings.TrimLeft(s, levelSpace); len(t) > 5 && (t[0]|0x20 == 'e' || t[0]|0x20 == 'f') && isDigits(t[1:5]) && t[5] == ' ' {
+		return true
 	}
-	return strings.Join(quoted, "|")
+	for i := 0; i < len(s); i++ {
+		if s[i] == '"' && numericErrorLevelAt(s[i+1:]) {
+			return true
+		}
+		if c := s[i] | 0x20; c == 'e' || c == 'c' || c == 'f' || c == 'p' || c == 'a' {
+			for _, word := range errorLevelWords {
+				if word[0] == c && hasPrefixFold(s[i:], word) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+var errorLevelWords = []string{"err", "emerg", "crit", "fatal", "panic", "alert"}
+
+// numericErrorLevelAt reports whether s, which follows an opening quote, starts
+// with a key jsonLogLevel reads and a numeric pino/bunyan error or fatal level.
+func numericErrorLevelAt(s string) bool {
+	for _, key := range jsonLevelKeys {
+		if !hasPrefixFold(s, key) || len(s) == len(key) || s[len(key)] != '"' {
+			continue
+		}
+		rest := strings.TrimLeft(s[len(key)+1:], levelSpace)
+		if rest, ok := strings.CutPrefix(rest, ":"); ok {
+			rest = strings.TrimLeft(rest, levelSpace)
+			if len(rest) >= 2 && (rest[0] == '5' || rest[0] == '6') && rest[1] == '0' {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// levelSpace is the whitespace class used by level parsing (RE2's \s).
+const levelSpace = " \t\n\f\r"
+
+func hasPrefixFold(s, prefix string) bool {
+	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
+}
+
+func isDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // declaredErrorStatus raises a below-minimum log to its declared application
@@ -97,7 +144,7 @@ func (h *handle) declaredErrorStatus(msg observerdef.LogView, status string, buc
 		return status, bucket
 	}
 	content := msg.GetContent()
-	if len(content) > 16384 || !errorLevelHint.MatchString(content) {
+	if len(content) > 16384 || !mayDeclareErrorLevel(content) {
 		return status, bucket
 	}
 	level, ok := applicationLogSeverity(msg)
@@ -127,17 +174,19 @@ func (b *materializedLogCountBucketizer) hasErrorCountCapacity(seriesKey uint64,
 // Explicit application severity takes precedence over transport status. Container
 // stderr is not an application error level. Unknown logs establish no zero history.
 // Parsing is bounded; production defaults leave this experimental extractor off.
-var applicationLevelPattern = regexp.MustCompile(`(?i)(?:^|[\s\]])(TRACE|DEBUG|LOG|INFO|NOTICE|WARNING|WARN|ERROR|CRITICAL|FATAL|PANIC):`)
-
-// Header formats are matched only near the start of a line, where loggers put
-// the level: klog (`E1116 10:00:00.000000`), logfmt (`level=error`), bracketed
-// (`[ERROR]`) and a bare upper-case level after a timestamp (`... ERROR [main]`).
-// The earliest match across these and applicationLevelPattern wins, so the
-// application's leading level takes precedence over level words in the message.
+//
+// Text levels are read only from the line header, where loggers put them: klog
+// (`E1116 10:00:00.000000`), logfmt (`level=error`), bracketed (`[ERROR]`), and a
+// level word in the leading position (see leadingLevel). The earliest match wins,
+// so the application's own level takes precedence over level words in the message.
 var (
 	klogLevelPattern   = regexp.MustCompile(`^([IWEF])\d{4} \d{2}:\d{2}:\d{2}\.\d+ `)
-	headerLevelPattern = regexp.MustCompile(`(?:^|[\s\[(|])(?:(?i:level|lvl|severity|loglevel)=["']?([A-Za-z]+)|\[((?i:TRACE|DEBUG|INFO|NOTICE|WARNING|WARN|ERROR|ERR|CRITICAL|CRIT|FATAL|PANIC))\]|(TRACE|DEBUG|INFO|NOTICE|WARNING|WARN|ERROR|CRITICAL|FATAL|PANIC)(?:\s|$))`)
+	headerLevelPattern = regexp.MustCompile(`(?:^|[\s\[(|])(?:(?i:level|lvl|severity|loglevel)=["']?([A-Za-z]+)|\[((?i:TRACE|DEBUG|INFO|NOTICE|WARNING|WARN|ERROR|ERR|CRITICAL|CRIT|FATAL|PANIC))\])`)
 )
+
+// levelWords count as a bare upper-case word, or in any case before a colon.
+// LOG, PostgreSQL's informational level, counts only before a colon.
+var levelWords = []string{"TRACE", "DEBUG", "INFO", "NOTICE", "WARNING", "WARN", "ERROR", "CRITICAL", "FATAL", "PANIC", "LOG"}
 
 const applicationLevelHeaderBytes = 256
 
@@ -173,27 +222,76 @@ func applicationLogSeverity(log observerdef.LogView) (string, bool) {
 }
 
 // earliestTextLevel returns the recognized level whose match starts first among
-// the header formats (searched near the start of the line) and the `LEVEL:` form.
+// the marked header formats and the leading level word.
 func earliestTextLevel(content string) (string, bool) {
-	start, level := -1, ""
 	header := content[:min(len(content), applicationLevelHeaderBytes)]
-	if loc := headerLevelPattern.FindStringSubmatchIndex(header); loc != nil {
+	level, start, ok := leadingLevel(header)
+	if loc := headerLevelPattern.FindStringSubmatchIndex(header); loc != nil && (!ok || loc[0] < start) {
 		for group := 1; 2*group+1 < len(loc); group++ {
 			if loc[2*group] < 0 {
 				continue
 			}
-			if declared, ok := declaredLogLevel(header[loc[2*group]:loc[2*group+1]]); ok {
-				start, level = loc[0], declared
+			if declared, valid := declaredLogLevel(header[loc[2*group]:loc[2*group+1]]); valid {
+				return declared, true
 			}
 			break
 		}
 	}
-	if loc := applicationLevelPattern.FindStringSubmatchIndex(content); loc != nil && (start < 0 || loc[0] < start) {
-		if declared, ok := declaredLogLevel(content[loc[2]:loc[3]]); ok {
-			start, level = loc[0], declared
+	return level, ok
+}
+
+// leadingLevel reads a level word from the leading position of a line: after
+// any timestamps, numbers, time zones, separators and bracketed fields, and at
+// most one other word such as a logger name. A level word later in the line is
+// message text, as in `previous response was ERROR: timeout`.
+func leadingLevel(header string) (level string, start int, ok bool) {
+	otherWords := 0
+	for i := 0; i < len(header); {
+		for i < len(header) && strings.IndexByte(levelSpace, header[i]) >= 0 {
+			i++
+		}
+		start = i
+		if i < len(header) && (header[i] == '[' || header[i] == '(') {
+			closing := byte(']')
+			if header[i] == '(' {
+				closing = ')'
+			}
+			end := strings.IndexByte(header[i+1:], closing)
+			if end < 0 {
+				break
+			}
+			i += end + 2
+			continue
+		}
+		for i < len(header) && strings.IndexByte(levelSpace, header[i]) < 0 {
+			i++
+		}
+		word := header[start:i]
+		if word == "" {
+			break
+		}
+		if level, ok := levelWord(word); ok {
+			return level, start, true
+		}
+		if word[0] >= '0' && word[0] <= '9' || word == "UTC" || word == "GMT" || strings.Trim(word, "-|:>") == "" {
+			continue
+		}
+		if otherWords++; otherWords > 1 {
+			break
 		}
 	}
-	return level, start >= 0
+	return "", -1, false
+}
+
+// levelWord accepts `ERROR`, `ERROR:` and `error:`, including `ERROR:root:...`.
+func levelWord(word string) (string, bool) {
+	name, _, colon := strings.Cut(word, ":")
+	for _, candidate := range levelWords {
+		if colon && strings.EqualFold(name, candidate) || !colon && candidate != "LOG" && word == candidate {
+			return declaredLogLevel(candidate)
+		}
+	}
+	return "", false
 }
 
 // jsonLogLevel reads the first recognized level key, ignoring key case.
