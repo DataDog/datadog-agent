@@ -178,7 +178,7 @@ func validateToken(ipc ipc.Component) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			validator := localTokenValidator
-			if isExternalPath(r.URL.String()) {
+			if isExternalPath(r.URL.EscapedPath()) {
 				validator = dcaTokenValidator
 			}
 			if err := validator(w, r); err != nil {
@@ -189,16 +189,14 @@ func validateToken(ipc ipc.Component) func(http.Handler) http.Handler {
 	}
 }
 
-// isNodeStatusPath returns whether path is exactly /api/v1/info/node/<node>/status, without a query string.
+// isNodeStatusPath returns whether path is exactly /api/v1/info/node/<node>/status.
 func isNodeStatusPath(path string) bool {
 	segments := strings.Split(path, "/")
-	return strings.HasPrefix(path, "/api/v1/info/node/") && !strings.Contains(path, "?") &&
-		len(segments) == 7 && segments[5] != "" && segments[6] == "status"
+	return strings.HasPrefix(path, "/api/v1/info/node/") && len(segments) == 7 && segments[5] != "" && segments[6] == "status"
 }
 
-// isNodeInfoPath returns whether path is /api/v1/info/node/<node>, with an optional query string.
+// isNodeInfoPath returns whether path is exactly /api/v1/info/node/<node>.
 func isNodeInfoPath(path string) bool {
-	path, _, _ = strings.Cut(path, "?")
 	segments := strings.Split(path, "/")
 	return strings.HasPrefix(path, "/api/v1/info/node/") && len(segments) == 6 && segments[5] != ""
 }

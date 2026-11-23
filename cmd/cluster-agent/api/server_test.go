@@ -100,7 +100,7 @@ func TestValidateTokenMiddleware(t *testing.T) {
 		{
 			"/api/v1/info/node/node-1/status?x=1",
 			"abc123",
-			http.StatusForbidden,
+			http.StatusOK,
 		},
 		{
 			"/api/v1/info/node//status",
@@ -135,6 +135,21 @@ func TestValidateTokenMiddleware(t *testing.T) {
 		{
 			"/version",
 			ipcToken,
+			http.StatusForbidden,
+		},
+		{
+			"/version?x=1",
+			"abc123",
+			http.StatusOK,
+		},
+		{
+			"/version?x=1",
+			ipcToken,
+			http.StatusForbidden,
+		},
+		{
+			"/stop?x=/version",
+			"abc123",
 			http.StatusForbidden,
 		},
 	}
