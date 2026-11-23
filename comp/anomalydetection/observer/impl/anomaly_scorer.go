@@ -879,7 +879,7 @@ func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 }
 
 // episodeListsFailure reports whether the episode already lists failure evidence
-// from the same detector and series. Direct failure detectors re-emit on every
+// from the same detector and series. Failure detectors re-emit on every
 // fresh interval; listing each repeat would crowd out other detectors' examples
 // from the capped member list. Repeats still contribute to the score.
 func episodeListsFailure(episode *observerdef.ActiveCorrelation, a observerdef.Anomaly) bool {

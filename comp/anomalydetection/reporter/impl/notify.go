@@ -655,6 +655,9 @@ func BuildChangeMessage(c observerdef.ActiveCorrelation, storage observerdef.Sto
 	for _, a := range c.Anomalies {
 		if IsLogDerivedAnomaly(a) {
 			anomalyLines = append(anomalyLines, "- "+logDerivedDescription(a, storage))
+		} else if a.Evidence == observerdef.EvidenceFailure && a.DebugInfo != nil {
+			// Failure evidence has no baseline; report the qualifying count.
+			anomalyLines = append(anomalyLines, fmt.Sprintf("- %s: %.0f errors in %ds", anomalyDisplayKey(a), a.DebugInfo.CurrentValue, a.DebugInfo.FailureWindowSeconds))
 		} else if a.DebugInfo != nil {
 			display := anomalyDisplayKey(a)
 			anomalyLines = append(anomalyLines, fmt.Sprintf("- %s: %.2f (baseline mean: %.2f, %.1f sigma)", display, a.DebugInfo.CurrentValue, a.DebugInfo.BaselineMean, a.DebugInfo.DeviationSigma))

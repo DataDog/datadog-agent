@@ -322,8 +322,8 @@ func TestDetectorFilterMetadataAndCleanup(t *testing.T) {
 func TestDetectorFilterOutputsMatchUnfiltered(t *testing.T) {
 	for _, entry := range defaultCatalog().Entries() {
 		// This fixture exercises arbitrary numeric series and all aggregations.
-		// Direct failure rules have dedicated typed-signal replay tests.
-		if entry.kind != componentDetector || isDirectFailureDetector(entry.name) {
+		// log_failure has dedicated typed-signal replay tests.
+		if entry.kind != componentDetector || entry.name == LogFailureDetectorName {
 			continue
 		}
 		t.Run(entry.name, func(t *testing.T) {
@@ -382,8 +382,8 @@ func TestDetectorFilterRemovalClearsAllAggregates(t *testing.T) {
 func TestDetectorAggregationReplayParity(t *testing.T) {
 	for _, entry := range defaultCatalog().Entries() {
 		// This fixture exercises arbitrary numeric series and all aggregations.
-		// Direct failure rules have dedicated typed-signal replay tests.
-		if entry.kind != componentDetector || isDirectFailureDetector(entry.name) {
+		// log_failure has dedicated typed-signal replay tests.
+		if entry.kind != componentDetector || entry.name == LogFailureDetectorName {
 			continue
 		}
 		for _, agg := range []observer.Aggregate{observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount} {

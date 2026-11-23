@@ -68,8 +68,8 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Correlator | `time_cluster` | off |
 | Correlator | `anomaly_scorer` | off |
 
-`log_failure` and the `log_error_count_extractor` it runs are described in
-[direct-failure.md](direct-failure.md).
+`log_failure` sees container application logs only when `logs.containers.enabled`
+is true.
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
 

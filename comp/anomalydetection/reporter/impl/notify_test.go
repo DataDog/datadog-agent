@@ -221,6 +221,27 @@ func TestBuildChangeMessage_LogMetricsExtractorFallsBackToPatternWhenNoExample(t
 	assert.Contains(t, msg, "C3:C8_C1")
 }
 
+func TestBuildChangeMessage_FailureEvidenceReportsErrorCount(t *testing.T) {
+	c := observerdef.ActiveCorrelation{
+		Pattern: "p",
+		Anomalies: []observerdef.Anomaly{
+			{
+				Type:         observerdef.AnomalyTypeLog,
+				DetectorName: "log_failure",
+				Evidence:     observerdef.EvidenceFailure,
+				Source: observerdef.SeriesDescriptor{
+					Name: "log.errors.count", Host: "web-1", Aggregate: observerdef.AggregateAverage,
+					Tags: tagset.CompositeTagsFromSlice([]string{"service:checkout", "env:prod"}),
+				},
+				DebugInfo: &observerdef.AnomalyDebugInfo{CurrentValue: 12, Threshold: 3, FailureWindowSeconds: 30},
+			},
+		},
+	}
+	msg := BuildChangeMessage(c, nil)
+	assert.Contains(t, msg, "- log.errors.count:avg{host:web-1,service:checkout,env:prod}: 12 errors in 30s")
+	assert.NotContains(t, msg, "baseline mean")
+}
+
 func TestBuildEventTags_LogMetricsExtractorTreatedAsLog(t *testing.T) {
 	c := observerdef.ActiveCorrelation{
 		Pattern: "p",

@@ -247,7 +247,8 @@ const (
 // EvidenceKind describes the meaning of a detection; it is not its confidence.
 type EvidenceKind string
 
-// EvidenceFailure denotes qualified direct failure evidence.
+// EvidenceFailure marks an observed failure, such as repeated application
+// errors, rather than a statistical deviation.
 const EvidenceFailure EvidenceKind = "failure"
 
 // Anomaly is a detected anomaly event.
@@ -306,7 +307,7 @@ type LevelChangeEvidence struct {
 
 // AnomalyDebugInfo provides detailed information about why an anomaly was detected.
 type AnomalyDebugInfo struct {
-	// Direct failure rule identity and window, captured for output formatting.
+	// Failure rule identity and window, captured for output formatting.
 	FailureRule          string `json:"-"`
 	FailureWindowSeconds int64  `json:"-"`
 	FailureMinIntervals  int    `json:"-"`

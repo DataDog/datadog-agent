@@ -308,7 +308,7 @@ func BenchmarkLogFailureFresh256(b *testing.B) {
 	}
 }
 
-func TestDirectLogFailureDoesNotAllocateStatisticalErrorModels(t *testing.T) {
+func TestLogFailureDoesNotAllocateStatisticalErrorModels(t *testing.T) {
 	b := NewBOCPDDetector(BOCPDConfig{WarmupPoints: 2})
 	e := newErrorCountTestEngine(b, NewLogFailureDetector())
 	for sec := int64(100); sec < 160; sec += 5 {

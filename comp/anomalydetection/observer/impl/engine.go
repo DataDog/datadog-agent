@@ -338,7 +338,7 @@ func newEngine(cfg engineConfig) (*engine, error) {
 		storage:         cfg.storage,
 		extractors:      cfg.extractors,
 		errorCounts:     errorCountBucketizer(cfg.extractors),
-		detectors:       withDirectFailureFilters(cfg.detectors),
+		detectors:       withLogFailureFilters(cfg.detectors),
 		correlators:     correlators,
 		logKeyGenerator: NewSliceKeyGenerator(),
 		scorer:          cfg.scorer,
@@ -1270,7 +1270,7 @@ func (e *engine) SetDetectors(detectors []detectorRegistration) {
 	for i := range detectors {
 		detectors[i].timing = &detectorTiming{}
 	}
-	e.detectors = withDirectFailureFilters(detectors)
+	e.detectors = withLogFailureFilters(detectors)
 	e.emissionCounts = make(map[emissionKey]uint64)
 	e.logObservers = nil
 	for _, registration := range e.detectors {

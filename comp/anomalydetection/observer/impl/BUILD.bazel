@@ -17,7 +17,6 @@ go_library(
         "debug.go",
         "detect_digest.go",
         "detect_digest_log.go",
-        "direct_failure.go",
         "engine.go",
         "events.go",
         "filter_rules.go",

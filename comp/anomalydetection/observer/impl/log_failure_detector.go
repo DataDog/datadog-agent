@@ -153,7 +153,7 @@ func (d *LogFailureDetector) Detect(storage observer.StorageReader, dataTime int
 		// visible long after it completed. Judge each new bucket by the window
 		// ending at that bucket: late analysis neither drops nor re-reports it,
 		// and zero counts or old buckets cannot renew evidence.
-		_, d.points = directWindow(storage, meta.Ref, newAfter-logFailureWindowSeconds, dataTime, observer.AggregateAverage, d.points)
+		d.points = readErrorCountWindow(storage, meta.Ref, newAfter-logFailureWindowSeconds, dataTime, observer.AggregateAverage, d.points)
 		latest, total, ok := d.newestQualifiedBucket(d.points, newAfter)
 		if !ok {
 			continue
@@ -187,7 +187,7 @@ func (d *LogFailureDetector) newestQualifiedBucket(points []observer.Point, newA
 		}
 		windowStart := candidate.Timestamp - logFailureWindowSeconds
 		first := sort.Search(i+1, func(j int) bool { return points[j].Timestamp > windowStart })
-		total, occupied, _ := countFailureWindow(points[first:i+1], defaultLogCountBucketSeconds)
+		total, occupied := countFailureWindow(points[first:i+1], defaultLogCountBucketSeconds)
 		if total >= logFailureMinErrors && occupied >= logFailureMinIntervals {
 			return candidate.Timestamp, total, true
 		}
@@ -202,4 +202,63 @@ func hasLogFailureDetector(registrations []detectorRegistration) bool {
 		}
 	}
 	return false
+}
+
+// readErrorCountWindow reads into detector-owned scratch space. Production
+// storage's existing snapshot primitive avoids escaping one callback closure per
+// scope. Instrumented readers and test doubles retain the ordinary reader contract.
+func readErrorCountWindow(storage observer.StorageReader, ref observer.SeriesRef, start, end int64, agg observer.Aggregate, dst []observer.Point) []observer.Point {
+	if reader, ok := storage.(interface {
+		snapshotRange(observer.SeriesRef, int64, int64, observer.Aggregate, []observer.Point) (observer.Series, []observer.Point, bool)
+	}); ok {
+		_, points, ok := reader.snapshotRange(ref, start, end, agg, dst)
+		if !ok {
+			points = points[:0]
+		}
+		return points
+	}
+	dst = dst[:0]
+	storage.ForEachPoint(ref, start, end, agg, func(_ *observer.Series, p observer.Point) {
+		dst = append(dst, p)
+	})
+	return dst
+}
+
+// countFailureWindow counts distinct occupied intervals, rather than samples.
+// Negative or zero values cannot create or renew failure evidence.
+func countFailureWindow(points []observer.Point, interval int64) (total float64, occupied int) {
+	lastInterval := int64(-1)
+	for _, point := range points {
+		if !(point.Value > 0) || math.IsInf(point.Value, 0) {
+			continue
+		}
+		total += point.Value
+		if math.IsInf(total, 1) {
+			total = math.MaxFloat64
+		}
+		bucket := point.Timestamp / interval
+		if bucket != lastInterval {
+			occupied++
+			lastInterval = bucket
+		}
+	}
+	return
+}
+
+// withLogFailureFilters hides error-count series from every other detector.
+// Apply exclusions before selection/model initialization, not after Detect has
+// already paid for the statistical models. Registration filters are owned copies.
+func withLogFailureFilters(detectors []detectorRegistration) []detectorRegistration {
+	if !hasLogFailureDetector(detectors) {
+		return detectors
+	}
+	out := append([]detectorRegistration(nil), detectors...)
+	for i := range out {
+		if out[i].detector.Name() == LogFailureDetectorName {
+			continue
+		}
+		namespaces := append([]string(nil), out[i].filter.ExcludeNamespaces...)
+		out[i].filter.ExcludeNamespaces = append(namespaces, LogErrorCountExtractorName)
+	}
+	return out
 }

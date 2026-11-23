@@ -475,7 +475,7 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	}
 
 	for _, entry := range c.entries {
-		if settings.UseMetricPipeline && entry.kind == componentDetector && !isDirectFailureDetector(entry.name) {
+		if settings.UseMetricPipeline && entry.kind == componentDetector && entry.name != LogFailureDetectorName {
 			continue
 		}
 
