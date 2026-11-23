@@ -1170,8 +1170,8 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUSharingMode, sharingModeTagValue(gpu))
 	tagList.AddLow(tags.GPUMIGProfile, migProfileTagValue(gpu))
 	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
-	// NVML indexes MIG devices within their parent, which applications don't see.
-	if gpu.Index >= 0 && gpu.DeviceType != workloadmeta.GPUDeviceTypeMIG {
+	// AMD only for now: the NVML index isn't guaranteed stable across reboots.
+	if strings.EqualFold(gpu.Vendor, "amd") && gpu.Index >= 0 {
 		tagList.AddLow(tags.GPUIndex, strconv.Itoa(gpu.Index))
 	}
 	tagList.AddLow(tags.GPUNVLinkVersion, gpu.NVLinkVersion)

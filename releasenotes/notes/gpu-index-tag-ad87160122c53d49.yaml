@@ -8,10 +8,8 @@
 ---
 features:
   - |
-    GPU monitoring: GPU metrics now carry the ``gpu_index`` tag, the
-    GPU index that ``nvidia-smi`` or ``amd-smi`` reports, except on MIG
-    devices. An AMD GPU split into compute
+    GPU monitoring: AMD GPU metrics now carry the ``gpu_index`` tag, the
+    GPU index that ``amd-smi`` reports. A GPU split into compute
     partitions takes the index of its first partition, since
-    ``amd-smi`` numbers every partition. The tag is omitted on AMD
-    GPUs when the KFD topology (``/sys/class/kfd``) is not fully
-    readable.
+    ``amd-smi`` numbers every partition. The tag is omitted when the KFD
+    topology (``/sys/class/kfd``) is not fully readable.

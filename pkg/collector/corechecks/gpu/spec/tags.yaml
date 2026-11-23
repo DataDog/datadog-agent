@@ -38,7 +38,7 @@ tags:
   gpu_pci_bus_id:
     regex: "^[0-9a-f]{4,8}:[0-9a-f]{2}:[0-9a-f]{2}\\.[0-7]$"
   gpu_index:
-    # The index nvidia-smi or amd-smi reports; a partitioned AMD GPU has the index of its first partition. Absent on MIG devices, and on AMD when the KFD topology is not fully readable.
+    # AMD only: the index amd-smi reports; a partitioned GPU has the index of its first partition. Absent when the KFD topology is not fully readable.
     regex: "^\\d+$"
     optional: true
   gpu_nvlink_version:
