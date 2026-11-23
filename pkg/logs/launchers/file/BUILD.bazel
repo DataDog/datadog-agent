@@ -37,6 +37,7 @@ go_library(
 dd_agent_go_test(
     name = "file_test",
     srcs = [
+        "endpoint_filtering_restart_test.go",
         "fingerprint_tailer_diagnostics_test.go",
         "launcher_privileged_logs_test.go",
         "launcher_test.go",

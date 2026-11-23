@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/routing"
 	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -125,8 +126,43 @@ func buildHTTPEndpointsForRestart(coreConfig model.Reader) (*config.Endpoints, e
 	return config.BuildEndpointsWithVectorOverride(coreConfig, config.HTTPConnectivitySuccess, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
+func hasEndpointSelectors(selectors []routing.EndpointSelector) bool {
+	for _, sel := range selectors {
+		if sel != nil {
+			return true
+		}
+	}
+	return false
+}
+
 // buildPipelineProvider builds a new pipeline provider with the given configuration
 func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule, tagFilters *tagfilter.Filters, diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver, destinationsCtx *client.DestinationsContext) pipeline.Provider {
+	if a.endpoints != nil && a.endpoints.UseHTTP && !a.endpoints.UseProto && hasEndpointSelectors(a.endpointSelectors) {
+		numPipelines := a.config.GetInt("logs_config.pipelines")
+		if numPipelines < 1 {
+			numPipelines = 1
+		}
+		provider, err := pipeline.NewEndpointFilteredProvider(pipeline.EndpointFilteredOptions{
+			NumberOfPipelines:         numPipelines,
+			Sink:                      a.auditor,
+			DiagnosticMessageReceiver: diagnosticMessageReceiver,
+			ProcessingRules:           processingRules,
+			TagFilters:                tagFilters,
+			Endpoints:                 a.endpoints,
+			Selectors:                 a.endpointSelectors,
+			DestinationsContext:       destinationsCtx,
+			Hostname:                  a.hostname,
+			Config:                    a.config,
+			Compression:               a.compression,
+			Secrets:                   a.secrets,
+		})
+		if err == nil {
+			return provider
+		}
+		if a.log != nil {
+			a.log.Warnf("Failed to initialize endpoint-filtered pipeline provider, falling back to default provider: %v", err)
+		}
+	}
 	pipelineProvider := pipeline.NewProvider(
 		a.config.GetInt("logs_config.pipelines"),
 		a.auditor,

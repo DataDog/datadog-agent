@@ -135,6 +135,18 @@ func NewForRouting(config pkgconfigmodel.Reader, inputChan, outputChan chan *mes
 	return p
 }
 
+// NewForEndpointFiltering keeps common processing, MRF classification, and
+// encoding shared for normal-mode endpoint filtering. selectForRouting runs
+// once after common processing, tag filter resolution, and MRF allowlist
+// classification, before rendering destroys access to structured attributes.
+func NewForEndpointFiltering(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
+	tagFilters *tagfilter.Filters, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
+	pipelineMonitor metrics.PipelineMonitor, instanceID string, terminalLoss func(*message.Message), selectForRouting func(*message.Message) RoutingDecision) *Processor {
+	p := newProcessor(config, inputChan, outputChan, processingRules, tagFilters, encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, instanceID, terminalLoss, true)
+	p.selectForRouting = selectForRouting
+	return p
+}
+
 // onLogsFailoverSettingChanged is called when any config value changes
 func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64, _ pkgconfigmodel.Source) {
 	// Only update if the changed setting affects failover configuration
@@ -270,6 +282,11 @@ func (p *Processor) processMessage(msg *message.Message) {
 		if p.selectForRouting != nil {
 			// Prepare existing metadata while structured attributes are still available.
 			p.resolveTagFilter(msg)
+			if p.failoverConfig.isFailoverActive && !p.disableMRF {
+				p.filterMRFMessages(msg)
+			} else if p.disableMRF {
+				msg.IsMRFAllow = false
+			}
 			if p.selectForRouting(msg) != RoutingContinue {
 				forwarded = true // The callback owns exclusion or unresolved selection.
 				return
@@ -289,10 +306,12 @@ func (p *Processor) processMessage(msg *message.Message) {
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
-		if p.failoverConfig.isFailoverActive && !p.disableMRF {
-			p.filterMRFMessages(msg)
-		} else if p.disableMRF {
-			msg.IsMRFAllow = false
+		if p.selectForRouting == nil {
+			if p.failoverConfig.isFailoverActive && !p.disableMRF {
+				p.filterMRFMessages(msg)
+			} else if p.disableMRF {
+				msg.IsMRFAllow = false
+			}
 		}
 
 		// encode the message to its final format, it is done in-place

@@ -28,11 +28,24 @@ var (
 // fill that stage on its own.
 const SourcePendingLimit = 64
 
+// CompletionMode controls how group completions satisfy a record's obligation.
+type CompletionMode uint8
+
+const (
+	// CompletionRequireAll requires every selected group to reach a terminal
+	// outcome before releasing source progress (PR #59049 default).
+	CompletionRequireAll CompletionMode = iota
+	// CompletionRequireAny releases a record's reliable-set obligation as soon
+	// as any one matching reliable group reaches a terminal delivery outcome.
+	CompletionRequireAny
+)
+
 // Progress coordinates terminal outcomes for original records. Its capacity
 // counts record references, not log bodies. Full capacity backpressures callers
 // before ownership transfers; it never acknowledges a rejected registration.
 type Progress struct {
 	mu           sync.Mutex
+	mode         CompletionMode
 	limit        int
 	sourceLimit  int
 	next         uint64
@@ -71,11 +84,20 @@ type sourceProgress struct {
 // in the default sender. Start a real auditor before processing records. Call
 // Close after all group senders and sinks have stopped.
 func NewProgress(limit int, sink sender.Sink) (*Progress, error) {
+	return NewProgressWithMode(limit, sink, CompletionRequireAll)
+}
+
+// NewProgressWithMode creates bounded progress state with the specified
+// completion semantics (CompletionRequireAll or CompletionRequireAny).
+func NewProgressWithMode(limit int, sink sender.Sink, mode CompletionMode) (*Progress, error) {
 	if limit < 1 || sink == nil {
 		return nil, errors.New("invalid routing progress capacity or sink")
 	}
+	if mode != CompletionRequireAll && mode != CompletionRequireAny {
+		return nil, errors.New("invalid routing progress completion mode")
+	}
 	p := &Progress{
-		limit: limit, sourceLimit: min(limit, SourcePendingLimit), records: make(map[uint64]*record),
+		mode: mode, limit: limit, sourceLimit: min(limit, SourcePendingLimit), records: make(map[uint64]*record),
 		sources: make(map[string]*sourceProgress),
 		ready:   make(chan *message.Payload, limit), shutdown: make(chan struct{}), finished: make(chan struct{}), sink: sink,
 	}
@@ -372,7 +394,44 @@ func (p *Progress) CompleteLocal(token uint64) {
 
 // CompleteGroup resolves only the named group's obligations from a terminal
 // reliable sender output. It does not infer success from queue admission.
+// In CompletionRequireAny mode, any one matching group completing satisfies
+// the record's reliable-set obligation.
 func (p *Progress) CompleteGroup(group string, payload *message.Payload) {
+	if payload == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, meta := range payload.MessageMetas {
+		if meta == nil {
+			continue
+		}
+		r := p.records[meta.RoutingToken()]
+		if r == nil || r.done || r.selectionPending {
+			continue
+		}
+		if _, selected := r.remaining[group]; !selected {
+			continue
+		}
+		if p.mode == CompletionRequireAny {
+			clear(r.remaining)
+			r.done = true
+			p.advance(r)
+			continue
+		}
+		delete(r.remaining, group)
+		if len(r.remaining) == 0 {
+			r.done = true
+			p.advance(r)
+		}
+	}
+}
+
+// FailGroupLocal removes only the named group's obligation after a local
+// terminal processing or batching loss (for example, message too large).
+// Even in CompletionRequireAny mode, a local loss on one reliable endpoint
+// does not complete the record while another reliable endpoint remains pending.
+func (p *Progress) FailGroupLocal(group string, payload *message.Payload) {
 	if payload == nil {
 		return
 	}

@@ -748,3 +748,44 @@ func TestRoutingSelectionOwnsItsOutcomeAndPrecedesEncoding(t *testing.T) {
 		})
 	}
 }
+
+func TestEndpointFilteringSelectionSeesMRFAndUnfilteredLocalTags(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set(configMRFFailoverLogs, true, pkgconfigmodel.SourceRC)
+	cfg.Set(configMRFServiceAllowlist, []string{"payments"}, pkgconfigmodel.SourceRC)
+
+	globalTagFilters, _ := (&config.TagFilters{Exclude: []string{"internal_only:*"}}).Compile()
+	output := make(chan *message.Message, 2)
+	var seenMRF []bool
+	var seenLocalTags [][]string
+
+	p := NewForEndpointFiltering(
+		cfg, nil, output, nil, globalTagFilters, JSONEncoder,
+		routingTestDiagnostic{}, nil, metrics.NewNoopPipelineMonitor(""), "",
+		nil,
+		func(m *message.Message) RoutingDecision {
+			seenMRF = append(seenMRF, m.IsMRFAllow)
+			seenLocalTags = append(seenLocalTags, m.Origin.Tags())
+			return RoutingContinue
+		},
+	)
+	// Drain initial failover config notification into processor state.
+	p.failoverConfig = <-p.configChan
+
+	webSrc := sources.NewLogSource("web", &config.LogsConfig{Service: "web", Tags: []string{"internal_only:yes", "env:prod"}})
+	paySrc := sources.NewLogSource("payments", &config.LogsConfig{Service: "payments", Tags: []string{"internal_only:yes", "env:prod"}})
+
+	p.processMessage(message.NewMessage([]byte("from web"), message.NewOrigin(webSrc), message.StatusInfo, 0))
+	p.processMessage(message.NewMessage([]byte("from pay"), message.NewOrigin(paySrc), message.StatusInfo, 0))
+
+	require.Equal(t, []bool{false, true}, seenMRF)
+	require.Len(t, seenLocalTags, 2)
+	assert.Contains(t, seenLocalTags[0], "internal_only:yes")
+	assert.Contains(t, seenLocalTags[1], "internal_only:yes")
+
+	// Encoded output still applies outgoing tag_filters (internal_only:yes stripped).
+	require.Len(t, output, 2)
+	out1 := <-output
+	assert.NotContains(t, string(out1.GetContent()), "internal_only:yes")
+	assert.Contains(t, string(out1.GetContent()), "env:prod")
+}

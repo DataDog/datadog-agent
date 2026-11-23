@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "pipeline",
     srcs = [
+        "endpoint_filtered_provider.go",
         "pipeline.go",
         "processor_only_provider.go",
         "provider.go",
@@ -14,6 +15,7 @@ go_library(
     deps = [
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/secrets/def",
+        "//comp/core/telemetry/impl",
         "//comp/logs-library/client",
         "//comp/logs-library/client/http",
         "//comp/logs-library/diagnostic",
@@ -40,6 +42,8 @@ go_library(
 dd_agent_go_test(
     name = "pipeline_test",
     srcs = [
+        "endpoint_filtered_provider_bench_test.go",
+        "endpoint_filtered_provider_test.go",
         "provider_failover_integration_test.go",
         "provider_failover_test.go",
         "provider_test.go",

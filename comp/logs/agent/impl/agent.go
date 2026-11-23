@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/routing"
 	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
@@ -132,6 +133,13 @@ type logAgent struct {
 	tagFiltersConfigured    bool
 	tagFilterSubscriberDone chan struct{}
 
+	// endpointSelectorCompiler is the OTTL compilation stub boundary; production
+	// compilation wires in once OTTL filtering lands.
+	endpointSelectorCompiler routing.SelectorCompiler
+	// endpointSelectors holds compiled per-endpoint selectors aligned with
+	// a.endpoints.Endpoints. Empty/nil keeps the default pipeline provider.
+	endpointSelectors []routing.EndpointSelector
+
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
 
@@ -164,23 +172,24 @@ func NewComponent(deps Requires) Provides {
 		integrationsLogs := integrationsimpl.NewLogsIntegration()
 
 		logsAgent := &logAgent{
-			log:                deps.Log,
-			config:             deps.Config,
-			inventoryAgent:     deps.InventoryAgent,
-			hostname:           deps.Hostname,
-			started:            atomic.NewUint32(status.StatusNotStarted),
-			auditor:            deps.Auditor,
-			sources:            sources.NewLogSources(),
-			services:           service.NewServices(),
-			tracker:            tailers.NewTailerTracker(),
-			flarecontroller:    flareController.NewFlareController(),
-			wmeta:              deps.WMeta,
-			schedulerProviders: deps.SchedulerProviders,
-			integrationsLogs:   integrationsLogs,
-			tagger:             deps.Tagger,
-			compression:        deps.Compression,
-			secrets:            deps.Secrets,
-			intakeRouting:      deps.IntakeRouting,
+			log:                      deps.Log,
+			config:                   deps.Config,
+			inventoryAgent:           deps.InventoryAgent,
+			hostname:                 deps.Hostname,
+			started:                  atomic.NewUint32(status.StatusNotStarted),
+			auditor:                  deps.Auditor,
+			sources:                  sources.NewLogSources(),
+			services:                 service.NewServices(),
+			tracker:                  tailers.NewTailerTracker(),
+			flarecontroller:          flareController.NewFlareController(),
+			wmeta:                    deps.WMeta,
+			schedulerProviders:       deps.SchedulerProviders,
+			integrationsLogs:         integrationsLogs,
+			tagger:                   deps.Tagger,
+			compression:              deps.Compression,
+			secrets:                  deps.Secrets,
+			intakeRouting:            deps.IntakeRouting,
+			endpointSelectorCompiler: routing.StubSelectorCompiler{},
 		}
 		deps.Lc.Append(compdef.Hook{
 			OnStart: logsAgent.start,
