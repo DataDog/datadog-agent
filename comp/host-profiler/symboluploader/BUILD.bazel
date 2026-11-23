@@ -115,6 +115,7 @@ dd_agent_go_test(
         "GO_BINARY_RLOCATION": "$(rlocationpath @go_work_sdk//:bin/go)",
         "GO_ROOT_RLOCATION": "$(rlocationpath @go_work_sdk//:ROOT)",
     },
+    pure = "on",
     target_compatible_with = ["@platforms//os:linux"],
     deps = select({
         "@rules_go//go/platform:android": [
