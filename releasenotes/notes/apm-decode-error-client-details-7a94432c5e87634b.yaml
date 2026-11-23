@@ -8,7 +8,6 @@
 ---
 enhancements:
   - |
-    APM: The Agent error ``Cannot decode <version> traces payload`` now helps you
-    find the application that sent the payload. It includes the payload size, the
-    client address, the container ID, and container tags such as ``service``,
-    ``kube_namespace``, ``pod_name`` and ``container_name`` when they are available.
+    APM: The trace-agent error ``Cannot decode <version> traces payload`` now includes
+    the language, tracer version and Content-Length of the rejected request, to help
+    diagnose oversized, truncated or slow payloads.
