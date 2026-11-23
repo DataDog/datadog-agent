@@ -11,3 +11,5 @@ fixes:
     DDOT now sets the ``ecs_cluster_name`` tag to the ECS cluster name instead of
     the full cluster ARN when it is derived from the ``aws.ecs.cluster.arn``
     resource attribute, matching the value reported by the Agent's ECS Fargate check.
+    The original ARN is kept on the ``cluster_arn`` tag. A value that is not an ECS
+    cluster ARN is left unchanged and does not set ``cluster_arn``.

@@ -972,16 +972,17 @@ func TestParseAzureResourceID(t *testing.T) {
 
 func TestECSClusterNameFromARN(t *testing.T) {
 	tests := []struct {
-		name  string
-		value string
-		want  string
+		name    string
+		value   string
+		want    string
+		wantARN string
 	}{
-		{"cluster ARN", "arn:aws:ecs:us-east-1:123456789012:cluster/my-cluster", "my-cluster"},
-		{"GovCloud cluster ARN", "arn:aws-us-gov:ecs:us-gov-west-1:123456789012:cluster/my-cluster", "my-cluster"},
-		{"plain name", "my-cluster", "my-cluster"},
-		{"ARN without cluster resource", "arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc", "arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc"},
-		{"ARN with empty cluster name", "arn:aws:ecs:us-east-1:123456789012:cluster/", "arn:aws:ecs:us-east-1:123456789012:cluster/"},
-		{"malformed ARN", "arn:aws:ecs:cluster", "arn:aws:ecs:cluster"},
+		{"cluster ARN", "arn:aws:ecs:us-east-1:123456789012:cluster/my-cluster", "my-cluster", "arn:aws:ecs:us-east-1:123456789012:cluster/my-cluster"},
+		{"GovCloud cluster ARN", "arn:aws-us-gov:ecs:us-gov-west-1:123456789012:cluster/my-cluster", "my-cluster", "arn:aws-us-gov:ecs:us-gov-west-1:123456789012:cluster/my-cluster"},
+		{"plain name", "my-cluster", "my-cluster", ""},
+		{"ARN without cluster resource", "arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc", "arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc", ""},
+		{"ARN with empty cluster name", "arn:aws:ecs:us-east-1:123456789012:cluster/", "arn:aws:ecs:us-east-1:123456789012:cluster/", ""},
+		{"malformed ARN", "arn:aws:ecs:cluster", "arn:aws:ecs:cluster", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -989,16 +990,31 @@ func TestECSClusterNameFromARN(t *testing.T) {
 			attrs := pcommon.NewMap()
 			attrs.PutStr(key, tt.value)
 
-			assert.Equal(t, tt.want, ContainerTagsFromResourceAttributes(attrs)["ecs_cluster_name"])
-			assert.Equal(t, tt.want, ContainerTagFromAttributes(map[string]string{key: tt.value})["ecs_cluster_name"])
+			assertECSClusterTags(t, ContainerTagsFromResourceAttributes(attrs), tt.want, tt.wantARN)
+			assertECSClusterTags(t, ContainerTagFromAttributes(map[string]string{key: tt.value}), tt.want, tt.wantARN)
 			assert.Contains(t, TagsFromAttributes(attrs), "ecs_cluster_name:"+tt.want)
+			if tt.wantARN != "" {
+				assert.Contains(t, TagsFromAttributes(attrs), "cluster_arn:"+tt.wantARN)
+			}
 
 			res := pcommon.NewResource()
 			attrs.CopyTo(res.Attributes())
 			tags, _ := ConsumeContainerTagsFromResource(res)
-			assert.Equal(t, tt.want, tags["ecs_cluster_name"])
+			assertECSClusterTags(t, tags, tt.want, tt.wantARN)
 		})
 	}
+}
+
+func assertECSClusterTags(t *testing.T, tags map[string]string, wantName, wantARN string) {
+	t.Helper()
+	assert.Equal(t, wantName, tags["ecs_cluster_name"])
+	gotARN, ok := tags["cluster_arn"]
+	if wantARN == "" {
+		assert.False(t, ok)
+		return
+	}
+	assert.True(t, ok)
+	assert.Equal(t, wantARN, gotARN)
 }
 
 func TestECSClusterNameFromARNOnlyForClusterTag(t *testing.T) {

@@ -318,6 +318,7 @@ func ContainerTagsFromResourceAttributes(attrs pcommon.Map) map[string]string {
 			}
 			if str := value.Str(); str != "" {
 				ddtags[datadogKey] = containerTagValue(datadogKey, str)
+				keepECSClusterARN(ddtags, datadogKey, str)
 			}
 		}
 		// Custom (datadog.container.tag namespace)
@@ -404,6 +405,11 @@ func ConsumeContainerTagsFromResource(res pcommon.Resource) (map[string]string, 
 
 		if tagSource > tagSources[mappedKey] {
 			if tagSource == containerTagSourceOTel {
+				// OTel outranks a cluster_arn already set from a custom or pre-mapped tag.
+				if _, arn, ok := splitECSClusterARN(mappedKey, valueStr); ok && tagSource > tagSources[ecsClusterARNTag] {
+					ddtags[ecsClusterARNTag] = arn
+					tagSources[ecsClusterARNTag] = tagSource
+				}
 				valueStr = containerTagValue(mappedKey, valueStr)
 			}
 			ddtags[mappedKey] = valueStr
@@ -428,6 +434,7 @@ func ContainerTagFromAttributes(attr map[string]string) map[string]string {
 			continue
 		}
 		ddtags[datadogKey] = containerTagValue(datadogKey, val)
+		keepECSClusterARN(ddtags, datadogKey, val)
 	}
 	return ddtags
 }
@@ -436,15 +443,39 @@ func ContainerTagFromAttributes(attr map[string]string) map[string]string {
 // e.g. arn:aws:ecs:us-east-1:123456789012:cluster/my-cluster.
 const ecsClusterARNSeparator = ":cluster/"
 
+const (
+	ecsClusterNameTag = "ecs_cluster_name"
+	ecsClusterARNTag  = "cluster_arn"
+)
+
+// splitECSClusterARN reports the bare cluster name and the original ARN when val is an ECS
+// cluster ARN mapped onto ecs_cluster_name. A bare name, or an ARN that is not :cluster/<name>,
+// is not a cluster ARN.
+func splitECSClusterARN(ddKey, val string) (name, arn string, ok bool) {
+	if ddKey != ecsClusterNameTag || !strings.HasPrefix(val, "arn:") {
+		return "", "", false
+	}
+	_, name, found := strings.Cut(val, ecsClusterARNSeparator)
+	if !found || name == "" {
+		return "", "", false
+	}
+	return name, val, true
+}
+
+// keepECSClusterARN stores the original cluster ARN on cluster_arn. Datadog's ECS check emits
+// ecs_cluster_name and cluster_arn as separate tags; trimming the name would otherwise drop the ARN.
+func keepECSClusterARN(ddtags map[string]string, ddKey, val string) {
+	if _, arn, ok := splitECSClusterARN(ddKey, val); ok {
+		ddtags[ecsClusterARNTag] = arn
+	}
+}
+
 // containerTagValue converts the value of an OTel attribute to the value expected for the
 // Datadog container tag ddKey. OTel reports the ECS cluster as an ARN, while Datadog's
 // ecs_cluster_name tag holds the bare cluster name (as set by the Agent's ECS checks).
 // Values that are not ECS cluster ARNs are returned unchanged.
 func containerTagValue(ddKey, val string) string {
-	if ddKey != "ecs_cluster_name" || !strings.HasPrefix(val, "arn:") {
-		return val
-	}
-	if _, name, found := strings.Cut(val, ecsClusterARNSeparator); found && name != "" {
+	if name, _, ok := splitECSClusterARN(ddKey, val); ok {
 		return name
 	}
 	return val
