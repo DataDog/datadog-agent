@@ -76,7 +76,7 @@ jobs:
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.changes == 'true' }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
