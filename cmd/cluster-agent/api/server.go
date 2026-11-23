@@ -173,22 +173,16 @@ func StopServer() {
 // As we have 2 different tokens for the validation, we need to validate accordingly.
 func validateToken(ipc ipc.Component) func(http.Handler) http.Handler {
 	dcaTokenValidator := util.TokenValidator(util.GetDCAAuthToken)
-	localTokenGetter := util.TokenValidator(ipc.GetAuthToken)
+	localTokenValidator := util.TokenValidator(ipc.GetAuthToken)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			path := r.URL.String()
-			var isValid bool
-			// If communication is intra-pod
-			if !isExternalPath(path) {
-				if err := localTokenGetter(w, r); err == nil {
-					isValid = true
-				}
+			validator := localTokenValidator
+			if isExternalPath(r.URL.String()) {
+				validator = dcaTokenValidator
 			}
-			if !isValid {
-				if err := dcaTokenValidator(w, r); err != nil {
-					return
-				}
+			if err := validator(w, r); err != nil {
+				return
 			}
 			next.ServeHTTP(w, r)
 		})

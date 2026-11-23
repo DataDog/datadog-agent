@@ -24,6 +24,7 @@ func TestValidateTokenMiddleware(t *testing.T) {
 	mockConfig.SetInTest("cluster_agent.auth_token", "abc123")
 	util.InitDCAAuthToken(mockConfig)
 	ipcComp := ipcmock.New(t)
+	ipcToken := ipcComp.GetAuthToken()
 
 	tests := []struct {
 		path, authToken    string
@@ -111,6 +112,31 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			"bandit!",
 			http.StatusForbidden,
 		},
+		{
+			"/stop",
+			ipcToken,
+			http.StatusOK,
+		},
+		{
+			"/stop",
+			"abc123",
+			http.StatusForbidden,
+		},
+		{
+			"/api/v1/clusterchecks/rebalance",
+			ipcToken,
+			http.StatusOK,
+		},
+		{
+			"/api/v1/clusterchecks/rebalance",
+			"abc123",
+			http.StatusForbidden,
+		},
+		{
+			"/version",
+			ipcToken,
+			http.StatusForbidden,
+		},
 	}
 
 	for i, tt := range tests {
@@ -122,7 +148,9 @@ func TestValidateTokenMiddleware(t *testing.T) {
 
 			rr := httptest.NewRecorder()
 
+			handlerCalled := false
 			nopHandler := func(w http.ResponseWriter, _ *http.Request) {
+				handlerCalled = true
 				w.WriteHeader(http.StatusOK)
 			}
 
@@ -131,6 +159,7 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			handler.ServeHTTP(rr, req)
 
 			assert.Equal(t, tt.expectedStatusCode, rr.Code)
+			assert.Equal(t, tt.expectedStatusCode == http.StatusOK, handlerCalled)
 		})
 	}
 }
