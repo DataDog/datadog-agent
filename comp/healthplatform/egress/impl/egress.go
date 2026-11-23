@@ -8,7 +8,9 @@ package egressimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
@@ -45,6 +48,7 @@ type egress struct {
 	agentFlavor string
 	store       storedef.Component
 	forwarder   forwarderdef.Component
+	reportsSent telemetry.Counter
 
 	resolvedCh chan *healthplatform.Issue       // transit: store → run()
 	resolved   map[string]*healthplatform.Issue // dedup store for tombstones; owned by run()
@@ -68,6 +72,7 @@ type Requires struct {
 	Hostname  hostnameinterface.Component
 	Store     storedef.Component
 	Forwarder forwarderdef.Component
+	Telemetry telemetry.Component
 }
 
 // NewComponent creates the egress component and registers its lifecycle hooks.
@@ -94,6 +99,7 @@ func NewComponent(reqs Requires) egressdef.Component {
 		agentFlavor: flavor.GetFlavor(),
 		store:       reqs.Store,
 		forwarder:   reqs.Forwarder,
+		reportsSent: reqs.Telemetry.NewCounter("health_platform", "reports_sent", []string{"status", "error_type"}, "Number of health report send attempts"),
 		resolvedCh:  make(chan *healthplatform.Issue, resolvedChBuf),
 		resolved:    make(map[string]*healthplatform.Issue),
 		stopCh:      make(chan struct{}),
@@ -174,6 +180,7 @@ func (e *egress) tick() {
 
 	bytesSent, err := e.forwarder.Send(ctx, e.buildReport(merged))
 	if err != nil {
+		e.reportsSent.Inc("error", classifySendError(err))
 		e.log.Errorf("Health platform egress: failed to send %d issues: %v", len(merged), err)
 		e.statusMu.Lock()
 		e.lastErr = err
@@ -182,6 +189,7 @@ func (e *egress) tick() {
 		return
 	}
 
+	e.reportsSent.Inc("success", "none")
 	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", len(merged)))
 
 	e.statusMu.Lock()
@@ -193,6 +201,23 @@ func (e *egress) tick() {
 	// Resolved tombstones are consumed after a successful send; active issues
 	// are always re-fetched fresh from the store on the next tick.
 	e.resolved = make(map[string]*healthplatform.Issue)
+}
+
+func classifySendError(err error) string {
+	var timeout net.Error
+	if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &timeout) && timeout.Timeout()) {
+		return "timeout"
+	}
+	var status *forwarderdef.StatusCodeError
+	if errors.As(err, &status) {
+		switch {
+		case status.Code >= 400 && status.Code < 500:
+			return "http_4xx"
+		case status.Code >= 500 && status.Code < 600:
+			return "http_5xx"
+		}
+	}
+	return "other"
 }
 
 // Status returns the current health of the egress send pipeline.

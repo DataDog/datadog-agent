@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Keep Windows Agent services disabled between Fleet package removals and
+    reinstalls. Explicit installer purge removes the retained services.

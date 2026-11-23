@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+// Public genresources wire contract, shared with integrations-core:
+// datadog_checks_base/datadog_checks/base/utils/genresources/proto/genericresource.proto
+// Coordinate wire changes with both producers and the REDAPL intake owners.
+package datadog.genresources.v1;
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/genresources";
+
+import "google/protobuf/timestamp.proto";
+
+message GenericResource {
+  reserved 1, 3, 4, 5, 8, 9, 10, 11, 14;
+  string type = 2;
+  google.protobuf.Timestamp seen_at = 6;
+  google.protobuf.Timestamp expire_at = 7;
+  bytes fields_json = 12;
+  string key = 13;
+}
+
+message GenericResourceEvent {
+  string source = 1;
+  reserved 2;
+  GenericResource resource = 3;
+}

@@ -50,7 +50,7 @@ func main() {
 
 	cfg := pkgconfigsetup.GlobalConfigBuilder()
 	cfg.SetConfigFile(os.Args[1])
-	err = pkgconfigsetup.LoadDatadog(cfg, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{})
+	err = pkgconfigsetup.LoadDatadog(cfg, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{}, false)
 	if err != nil {
 		log.Warnf("Failed to load the configuration: %v", err)
 		execOrExit(os.Environ(), fullPath)
@@ -350,7 +350,7 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 	}
 
 	// OTLP TCP receiver
-	if configcheck.IsConfigEnabled(cfg) {
+	if configcheck.IsTraceInternalReceiverEnabled(cfg) {
 		grpcPort := cfg.GetInt(pkgconfigsetup.OTLPTracePort)
 		log.Infof("Listening to otlp port %d", grpcPort)
 		ln, err := loader.GetTCPListener(net.JoinHostPort(traceCfgReceiverHost, strconv.Itoa(grpcPort)))
@@ -365,6 +365,10 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 		}
 
 		listeners["DD_OTLP_CONFIG_GRPC_FD"] = fd
+	} else if err := configcheck.ValidateDataPlaneProxy(cfg); err != nil {
+		log.Errorf("Not listening on %s: %v", pkgconfigsetup.OTLPTracePort, err)
+	} else if configcheck.IsConfigEnabled(cfg) && configcheck.IsDataPlaneOnlyEnabled(cfg) {
+		log.Infof("Not listening on %s because the data plane handles OTLP ingest", pkgconfigsetup.OTLPTracePort)
 	} else {
 		log.Info("Trace-agent OTLP receiver is disabled")
 	}

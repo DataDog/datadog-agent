@@ -11,10 +11,12 @@ package tests
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -164,16 +166,27 @@ func (d *dockerCmdWrapper) Type() wrapperType {
 	return dockerWrapperType
 }
 
-func (d *dockerCmdWrapper) selectImageFromLibrary(kind string) error {
+// selectImageFromLibrary only inspects the images on CI, and errors if none is found.
+func (d *dockerCmdWrapper) selectImageFromLibrary(t testing.TB, kind string) error {
+	t.Helper()
+
+	action, args := "pull", []string{"pull"}
+	if os.Getenv("CI_JOB_NAME") != "" {
+		action, args = "inspect", []string{"image", "inspect", "--format", "{{.Id}}"}
+	}
+
 	var err error
 	var output []byte
 	for _, entry := range dockerImageLibrary[kind] {
-		cmd := exec.Command(d.executable, "pull", entry)
-		output, err = cmd.CombinedOutput()
+		t.Logf("docker %s of image %s", action, entry)
+		start := time.Now()
+		output, err = exec.Command(d.executable, append(args, entry)...).CombinedOutput()
 		if err == nil {
+			t.Logf("docker %s of image %s succeeded in %s", action, entry, time.Since(start))
 			d.image = entry
 			break
 		}
+		t.Logf("docker %s of image %s failed after %s: %v, cmd output:\n%s", action, entry, time.Since(start), err, output)
 	}
 	if err != nil {
 		return fmt.Errorf("%w, cmd output:\n%s", err, string(output))
@@ -181,7 +194,13 @@ func (d *dockerCmdWrapper) selectImageFromLibrary(kind string) error {
 	return nil
 }
 
-func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand string) (*dockerCmdWrapper, error) {
+func newDockerCmdWrapper(t testing.TB, mountSrc, mountDest string, kind string, runtimeCommand string) (*dockerCmdWrapper, error) {
+	t.Helper()
+
+	if err := checkContainerRuntime(); err != nil {
+		return nil, err
+	}
+
 	if runtimeCommand == "" {
 		runtimeCommand = "docker"
 	}
@@ -213,7 +232,7 @@ func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand
 		mountDest:  mountDest,
 	}
 
-	if err := wrapper.selectImageFromLibrary(kind); err != nil {
+	if err := wrapper.selectImageFromLibrary(t, kind); err != nil {
 		return nil, err
 	}
 

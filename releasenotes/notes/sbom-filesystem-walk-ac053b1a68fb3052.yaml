@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Fixed SBOM scans with the ``languages`` analyzer failing on a directory
+    whose name is invalid UTF-8, such as a Latin-1 name, and on a damaged
+    inode of a file that the scan skips.
+  - |
+    Fixed SBOM scans with the ``os`` analyzer alone reporting the packages or
+    OS release of the filesystem the Agent runs in when the scanned container
+    or host links a package database or OS release file to an absolute path,
+    and failing when such a link loops.

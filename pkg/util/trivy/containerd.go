@@ -204,10 +204,6 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 	}, history, ref, nil
 }
 
-const (
-	cleanupTimeout = 30 * time.Second
-)
-
 type fakeContainerdContainer struct {
 	*fakeContainer
 	*image
@@ -347,45 +343,6 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 	}
 
 	return c.scanImage(ctx, fanalImage, scanOptions)
-}
-
-// ScanContainerdImageFromFilesystem scans containerd image from file-system
-func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	imagePath, err := os.MkdirTemp("", "containerd-image-*")
-	if err != nil {
-		return nil, fmt.Errorf("unable to create temp dir, err: %w", err)
-	}
-	defer func() {
-		err := os.RemoveAll(imagePath)
-		if err != nil {
-			log.Errorf("Unable to remove temp dir: %s, err: %v", imagePath, err)
-		}
-	}()
-
-	// Computing duration of containerd lease
-	deadline, _ := ctx.Deadline()
-	expiration := deadline.Sub(time.Now().Add(cleanupTimeout))
-
-	cleanUp, err := client.MountImage(ctx, expiration, imgMeta.Namespace, img, imagePath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to mount containerd image, err: %w", err)
-	}
-
-	defer func() {
-		cleanUpContext, cleanUpContextCancel := context.WithTimeout(context.Background(), cleanupTimeout)
-		err := cleanUp(cleanUpContext)
-		cleanUpContextCancel()
-		if err != nil {
-			log.Errorf("Unable to clean up mounted image, err: %v", err)
-		}
-	}()
-
-	report, err := c.scanFilesystem(ctx, imagePath, scanOptions, false, imgMeta.Created)
-	if err != nil {
-		return nil, fmt.Errorf("unable to scan image %s, err: %w", imgMeta.ID, err)
-	}
-
-	return report, err
 }
 
 func extractLayersFromOverlayFSMounts(mounts []mount.Mount) []string {

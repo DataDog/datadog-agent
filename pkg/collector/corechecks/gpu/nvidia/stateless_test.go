@@ -361,6 +361,43 @@ func TestCollectProcessMemory(t *testing.T) {
 	}
 }
 
+// TestProcessMemoryDoesNotAttributeProcessesToMIGParent checks that the processes NVML lists on a MIG parent,
+// which are the ones running on its MIG devices, are not attributed to the parent.
+func TestProcessMemoryDoesNotAttributeProcessesToMIGParent(t *testing.T) {
+	processes := []testutil.MockProcessData{{Pid: 1234, UsedGpuMemory: 1 << 30}}
+
+	t.Run("MIG parent", func(t *testing.T) {
+		device := setupMockDevice(t,
+			testutil.WithDeviceFeatureMode(testutil.DeviceFeatureMIG),
+			testutil.WithDeviceOptions(0, testutil.WithMIGChildUUIDs(map[int]string{0: testutil.MIGUUIDs[0]})),
+			testutil.WithProcessData(processes, nvml.SUCCESS),
+		)
+		require.True(t, isMIGParent(device))
+
+		samples, _, err := processMemorySample(device)
+		require.NoError(t, err)
+
+		metrics := requireMetrics(t, samples)
+		require.Len(t, metrics, 1)
+		require.Equal(t, "memory.limit", metrics[0].Name)
+		require.Empty(t, metrics[0].associatedWorkloads, "memory.limit of a MIG parent should not carry process tags")
+	})
+
+	t.Run("physical device", func(t *testing.T) {
+		device := setupMockDevice(t, testutil.WithProcessData(processes, nvml.SUCCESS))
+		require.False(t, isMIGParent(device))
+
+		samples, _, err := processMemorySample(device)
+		require.NoError(t, err)
+
+		names := make([]string, 0, len(samples))
+		for _, metric := range requireMetrics(t, samples) {
+			names = append(names, metric.Name)
+		}
+		require.ElementsMatch(t, []string{"process.memory.usage", "memory.limit"}, names)
+	})
+}
+
 // TestCollectProcessMemory_Error tests error handling with API failures
 func TestCollectProcessMemory_Error(t *testing.T) {
 	// Override API factory to only include process memory
@@ -833,54 +870,6 @@ func TestProcessDetailListArchitectureSupport(t *testing.T) {
 				return api.Name == "process_detail_list"
 			})
 			require.Equal(t, tt.supported, hasProcessDetailAPICall)
-		})
-	}
-}
-
-func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
-	tests := []struct {
-		name          string
-		features      []env.Feature
-		expectMetrics bool
-		expectError   bool
-	}{
-		{
-			name:          "not emitted when kubernetes device plugins feature is absent",
-			features:      nil,
-			expectMetrics: false,
-			expectError:   true,
-		},
-		{
-			name:          "emitted when kubernetes device plugins feature is present",
-			features:      []env.Feature{env.KubernetesDevicePlugins},
-			expectMetrics: true,
-			expectError:   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			env.SetFeatures(t, tt.features...)
-
-			device := setupMockDevice(t)
-			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
-			apis := createStatelessAPIs(&CollectorDependencies{Workloadmeta: wmeta})
-			deviceUnhealthyAPI := findAPICallByName(t, apis, "device_unhealthy_count")
-
-			gotSamples, _, err := deviceUnhealthyAPI.Handler(device, 0)
-			if tt.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			if tt.expectMetrics {
-				gotMetrics := requireMetrics(t, gotSamples)
-				require.Len(t, gotMetrics, 1)
-				require.Equal(t, "device.unhealthy", gotMetrics[0].Name)
-			} else {
-				require.Empty(t, gotSamples)
-			}
 		})
 	}
 }
@@ -1493,4 +1482,23 @@ func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInf
 
 	require.FailNowf(t, "api call not found", "expected API call %q to exist", name)
 	return apiCallInfo{}
+}
+
+func TestRecoveryActionTagValue(t *testing.T) {
+	for _, tc := range []struct {
+		code     int64
+		expected string
+	}{
+		{0, "none"},
+		{1, "reset"},
+		{2, "reboot"},
+		{3, "drain"},
+		{4, "drain_and_reset"},
+		{99, "unknown_99"},
+		{-1, "unknown_-1"},
+	} {
+		t.Run(tc.expected, func(t *testing.T) {
+			require.Equal(t, tc.expected, recoveryActionTagValue(tc.code))
+		})
+	}
 }

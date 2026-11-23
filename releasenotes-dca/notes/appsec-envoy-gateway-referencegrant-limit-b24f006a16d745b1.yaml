@@ -1,0 +1,16 @@
+---
+fixes:
+  - |
+    Fix App and API Protection injection for Envoy Gateway in external mode, with the
+    processor Service in a different namespace than the Gateways, failing on Gateways
+    once more than 16 namespaces needed access to the processor Service. The Cluster
+    Agent now creates one ``ReferenceGrant`` per Gateway namespace, named
+    ``datadog-appsec-extproc-<namespace>``, instead of a single shared grant limited
+    to 16 namespaces. The shared ``datadog-appsec-extproc`` grant created by previous
+    versions is removed as its namespaces lose their last Gateway.
+  - |
+    The App and API Protection proxy injector no longer retries Forbidden and invalid
+    requests for hours, for every proxy type. Forbidden errors from a ``ResourceQuota``
+    (exhausted, or with its usage not computed yet) or from admission plugins still
+    starting up are still retried. After fixing the Cluster Agent RBAC or an admission
+    policy that rejected the injector, restart the Cluster Agent to apply the injection.

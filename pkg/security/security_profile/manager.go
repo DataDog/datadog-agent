@@ -496,7 +496,6 @@ func (m *Manager) SendStats() error {
 		m.pendingCacheLock.Lock()
 		defer m.pendingCacheLock.Unlock()
 
-		profilesLoadedInKernel := 0
 		profileVersions := make(map[string]int)
 		for selector, profile := range m.profiles {
 			if profile.LoadedInKernel.Load() { // make sure the profile is loaded
@@ -504,7 +503,6 @@ func (m *Manager) SendStats() error {
 				if err := profile.SendStats(m.statsdClient); err != nil {
 					return fmt.Errorf("couldn't send metrics for [%s]: %w", profile.GetSelectorStr(), err)
 				}
-				profilesLoadedInKernel++
 			}
 		}
 
@@ -512,13 +510,6 @@ func (m *Manager) SendStats() error {
 			if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileVersions, float64(nbVersions), []string{"security_profile_image_name:" + imageName}, 1.0); err != nil {
 				return fmt.Errorf("couldn't send MetricSecurityProfileVersions: %w", err)
 			}
-		}
-
-		t := []string{
-			"in_kernel:" + strconv.FormatInt(int64(profilesLoadedInKernel), 10),
-		}
-		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(len(m.profiles)), t, 1.0); err != nil {
-			return fmt.Errorf("couldn't send MetricSecurityProfileProfiles: %w", err)
 		}
 
 		if val := float64(m.pendingCache.Len()); val > 0 {
@@ -758,3 +749,6 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 
 	return result
 }
+
+// DrainPendingEvents is a no-op for V1 Manager
+func (m *Manager) DrainPendingEvents() {}

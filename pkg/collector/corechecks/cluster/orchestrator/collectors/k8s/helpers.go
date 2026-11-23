@@ -66,21 +66,23 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 		func(opts *metav1.ListOptions) {
 			opts.LabelSelector = NonHelmReleaseLabelSelector
 		})
+	helmReleaseConfigMapInformerFactory := informers.NewSharedInformerFactoryWithOptions(client, 300*time.Second,
+		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+			opts.LabelSelector = HelmReleaseLabelSelector
+		}))
 
 	// Create OrchestratorInformerFactory with fake informers
 	orchestratorInformerFactory := &collectors.OrchestratorInformerFactory{
 		InformerFactory: informerFactory,
 	}
+	orchestratorInformerFactory.HelmReleaseConfigMapInformerFactory = helmReleaseConfigMapInformerFactory
 	orchestratorInformerFactory.ConfigMapMetadataInformerFactory = configMapMetadataInformerFactory
 	orchestratorInformerFactory.SecretMetadataInformerFactory = secretMetadataInformerFactory
 
-	apiClient := &apiserver.APIClient{Cl: client, InformerCl: client}
+	apiClient := &apiserver.APIClient{Cl: client}
 
 	orchestratorCfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
 	orchestratorCfg.KubeClusterName = "test-cluster"
-
-	stopCh := make(chan struct{})
-	defer close(stopCh)
 
 	runCfg := &collectors.CollectorRunConfig{
 		K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
@@ -90,7 +92,6 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 		ClusterID:   "test-cluster",
 		Config:      orchestratorCfg,
 		MsgGroupRef: atomic.NewInt32(0),
-		StopCh:      stopCh,
 	}
 
 	// Run additional setup if provided
@@ -102,8 +103,11 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 	collector.Init(runCfg)
 
 	// Start the informer factories
+	stopCh := make(chan struct{})
+	defer close(stopCh)
 	informerFactory.Start(stopCh)
 	secretMetadataInformerFactory.Start(stopCh)
+	helmReleaseConfigMapInformerFactory.Start(stopCh)
 	configMapMetadataInformerFactory.Start(stopCh)
 
 	// Wait for the informer to sync

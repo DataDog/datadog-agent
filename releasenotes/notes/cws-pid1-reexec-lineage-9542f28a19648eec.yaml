@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    CWS evaluates rules again on the processes started after systemd
+    re-executes itself, as it does on ``systemctl daemon-reexec`` or on a
+    systemd package upgrade. The Agent reported a broken process lineage
+    for them and skipped most of their events until it restarted.
