@@ -28,6 +28,7 @@ type DBMAuroraListener struct {
 	newService   chan<- Service
 	delService   chan<- Service
 	stop         chan bool
+	done         chan struct{}
 	services     map[string]Service
 	config       aws.Config
 	awsRdsClient aws.RdsClient
@@ -82,12 +83,16 @@ func newDBMAuroraListener(config aws.Config, awsClient aws.RdsClient, ticks <-ch
 func (l *DBMAuroraListener) Listen(newSvc, delSvc chan<- Service) {
 	l.newService = newSvc
 	l.delService = delSvc
+	l.done = make(chan struct{})
 	go l.run()
 }
 
 // Stop stops the listener
 func (l *DBMAuroraListener) Stop() {
 	close(l.stop)
+	if l.done != nil {
+		<-l.done
+	}
 	if l.ticker != nil {
 		l.ticker.Stop()
 	}
@@ -95,6 +100,7 @@ func (l *DBMAuroraListener) Stop() {
 
 // run is the main loop for the aurora listener discovery
 func (l *DBMAuroraListener) run() {
+	defer close(l.done)
 	for {
 		l.discoverAuroraClusters()
 		select {
