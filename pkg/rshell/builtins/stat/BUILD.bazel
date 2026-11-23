@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "stat",
+    srcs = ["stat.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/stat",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/internal/flagparser",
+    ],
+)
+
+dd_agent_go_test(
+    name = "stat_test",
+    srcs = ["stat_test.go"],
+    embed = [":stat"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "@com_github_spf13_pflag//:pflag",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

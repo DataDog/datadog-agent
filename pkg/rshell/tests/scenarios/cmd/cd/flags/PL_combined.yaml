@@ -1,0 +1,16 @@
+description: cd -PL is parsed as -P followed by -L; last (-L) wins.
+setup:
+  files:
+    - path: a/b/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd a/b
+    cd -PL ..
+    pwd
+expect:
+  stdout_contains: ["/a"]
+  stdout_contains_windows: ["\\a"]
+  stderr: ""
+  exit_code: 0

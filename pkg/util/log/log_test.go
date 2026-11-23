@@ -8,23 +8,19 @@ package log
 import (
 	"bufio"
 	"bytes"
-	"fmt"
-	"log/slog"
-	"reflect"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func changeLogLevel(level LogLevel) error {
-	return logger.changeLogLevel(level)
+	return logger.changeLogLevelRules(types.NewLevelRules(level))
 }
 
 func TestBasicLogging(t *testing.T) {
@@ -144,27 +140,6 @@ func setupScrubbing(t *testing.T) {
 		Repl:  []byte("******"),
 	})
 	t.Cleanup(func() { scrubber.DefaultScrubber = oldScrubber })
-}
-
-func TestCredentialScrubbingLogging(t *testing.T) {
-	setupScrubbing(t)
-
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-
-	l, err := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, DebugLvl)
-	assert.NoError(t, err)
-
-	SetupLogger(l, "info")
-	assert.NotNil(t, logger.Load())
-
-	Info("don't tell anyone: ", "SECRET")
-	Infof("this is a SECRET password: %s", "hunter2")
-	w.Flush()
-
-	assert.Equal(t, strings.Count(b.String(), "SECRET"), 0)
-	assert.Equal(t, strings.Count(b.String(), "don't tell anyone:  ******"), 1)
-	assert.Equal(t, strings.Count(b.String(), "this is a ****** password: hunter2"), 1)
 }
 
 func TestFormatErrorfScrubbing(t *testing.T) {
@@ -448,123 +423,6 @@ func TestStackDepthfLogging(t *testing.T) {
 	}
 }
 
-func mockScrubBytesWithCount(t *testing.T) *atomic.Int32 {
-	oldScrubber := scrubBytesFunc
-	t.Cleanup(func() { scrubBytesFunc = oldScrubber })
-
-	counterPtr := atomic.NewInt32(0)
-
-	scrubBytesFunc = func(msg []byte) ([]byte, error) {
-		counterPtr.Add(1)
-		return msg, nil
-	}
-
-	return counterPtr
-}
-
-func getFuncName(val reflect.Value) (string, error) {
-	fun := runtime.FuncForPC(val.Pointer())
-	if fun == nil {
-		return "", fmt.Errorf("cannot get function name for %v", val)
-	}
-
-	funcName := fun.Name()
-	if parts := strings.Split(funcName, "."); len(parts) > 0 {
-		funcName = parts[len(parts)-1]
-	}
-
-	return funcName, nil
-}
-
-func TestLoggerScrubbingCount(t *testing.T) {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	l, err := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, TraceLvl)
-	require.NoError(t, err)
-	SetupLogger(l, "trace")
-
-	testCases := []struct {
-		name  string
-		funcs []any
-		args  []any
-	}{
-		// package public methods
-		{
-			"public functions basic",
-			[]any{Trace, Debug, Info, Warn, Error, Critical},
-			[]any{"a", "b"},
-		},
-		{
-			"public functions with format",
-			[]any{Tracef, Debugf, Infof, Warnf, Errorf, Criticalf},
-			[]any{"a %s c", "b"},
-		},
-		{
-			"public functions with format and stack depth",
-			[]any{TracefStackDepth, DebugfStackDepth, InfofStackDepth, WarnfStackDepth, ErrorfStackDepth, CriticalfStackDepth},
-			[]any{1, "a %s c", "b"},
-		},
-		{
-			"public functions with context",
-			[]any{Tracec, Debugc, Infoc, Warnc, Errorc, Criticalc},
-			[]any{"a b", "1 %s 3", "2"},
-		},
-		{
-			"public functions with context and stack depth",
-			[]any{TracecStackDepth, DebugcStackDepth, InfocStackDepth, WarncStackDepth, ErrorcStackDepth, CriticalcStackDepth},
-			[]any{"a b", 1, "1 %s 3", "2"},
-		},
-		{
-			"public functions with anonymous function",
-			[]any{TraceFunc, DebugFunc, InfoFunc, WarnFunc, ErrorFunc, CriticalFunc},
-			[]any{func() string { return "a b" }},
-		},
-		// loggerPointer methods
-		{
-			"loggerPointer methods basic",
-			[]any{logger.trace, logger.debug, logger.info, logger.warn, logger.error, logger.critical},
-			[]any{"a b"},
-		},
-		{
-			"loggerPointer methods with format",
-			[]any{logger.tracef, logger.debugf, logger.infof, logger.warnf, logger.errorf, logger.criticalf},
-			[]any{"a %s c", "b"},
-		},
-		{
-			"loggerPointer methods with stack depth",
-			[]any{logger.traceStackDepth, logger.debugStackDepth, logger.infoStackDepth, logger.warnStackDepth, logger.errorStackDepth, logger.criticalStackDepth},
-			[]any{"a b", 1},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run("scrub count "+tc.name, func(t *testing.T) {
-			for _, fun := range tc.funcs {
-				val := reflect.ValueOf(fun)
-				funcName, err := getFuncName(val)
-				if !assert.NoError(t, err) {
-					continue
-				}
-
-				valTy := reflect.TypeOf(fun)
-				if !assert.Equalf(t, valTy.Kind(), reflect.Func, "expected %s to be a function", funcName) {
-					continue
-				}
-
-				// create a slice of reflect.Value from the args
-				reflArgs := make([]reflect.Value, 0, len(tc.args))
-				for _, arg := range tc.args {
-					reflArgs = append(reflArgs, reflect.ValueOf(arg))
-				}
-
-				counter := mockScrubBytesWithCount(t)
-				val.Call(reflArgs)
-				assert.Equalf(t, 1, int(counter.Load()), "expected %s to call scrubBytesFunc once", funcName)
-			}
-		})
-	}
-}
-
 func TestLogNilLogger(t *testing.T) {
 	// reset buffer state
 	logsBuffer = []func(){}
@@ -644,10 +502,7 @@ func TestChangeLogLevel(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("change log level to "+tc.String(), func(t *testing.T) {
-			levelVar := new(slog.LevelVar)
-			levelVar.Set(slog.LevelDebug)
-
-			SetupLoggerWithLevelVar(Default(), levelVar)
+			SetupLoggerWithLevelRules(Default(), types.NewRulesSyncFromLevel(DebugLvl))
 
 			err := ChangeLogLevel(tc)
 			assert.NoError(t, err)
@@ -663,7 +518,7 @@ func TestChangeLogLevel(t *testing.T) {
 func TestChangeLogLevelNilLogger(t *testing.T) {
 	logger.Store(nil)
 
-	err := logger.changeLogLevel(InfoLvl)
+	err := logger.changeLogLevelRules(types.NewLevelRules(InfoLvl))
 	assert.Error(t, err)
 	assert.Equal(t, "cannot change loglevel: logger not initialized", err.Error())
 }
@@ -672,7 +527,7 @@ func TestChangeLogLevelNilInnerLogger(t *testing.T) {
 	SetupLogger(Default(), DebugStr)
 	logger.Load().inner = nil
 
-	err := logger.changeLogLevel(InfoLvl)
+	err := logger.changeLogLevelRules(types.NewLevelRules(InfoLvl))
 	assert.Error(t, err)
 	assert.Equal(t, "cannot change loglevel: logger is initialized however logger.inner is nil", err.Error())
 }
@@ -683,6 +538,31 @@ func TestGetLogLevel(t *testing.T) {
 	level, err := GetLogLevel()
 	assert.NoError(t, err)
 	assert.Equal(t, WarnLvl, level)
+}
+
+func TestGetLogLevelSpec(t *testing.T) {
+	SetupLogger(Default(), WarnStr)
+
+	spec, err := GetLogLevelSpec()
+	assert.NoError(t, err)
+	assert.Equal(t, "warn", spec, "a plain level setup yields the level name")
+
+	rules, err := types.ParseLevelRules("error,./pkg/collector/...=debug", "github.com/DataDog/datadog-agent")
+	require.NoError(t, err)
+	require.NoError(t, ChangeLogLevelRules(rules))
+
+	spec, err = GetLogLevelSpec()
+	assert.NoError(t, err)
+	assert.Equal(t, "error,./pkg/collector/...=debug", spec)
+}
+
+func TestGetLogLevelSpecNilLogger(t *testing.T) {
+	logger.Store(nil)
+
+	spec, err := GetLogLevelSpec()
+	assert.Error(t, err)
+	assert.Equal(t, "", spec)
+	assert.Equal(t, "cannot get loglevel: logger not initialized", err.Error())
 }
 
 func TestGetLogLevelNilLogger(t *testing.T) {

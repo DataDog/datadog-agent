@@ -210,6 +210,13 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 		"injector__boot_recovery_crash_boots_detected",
 		"injector__boot_recovery_driver_self_disabled",
 		"injector__boot_recovery_stability_timer_fired",
+		"injector__processes_automatically_added_to_skip_list",
+		"injector__processes_skipped_default",
+		"injector__processes_skipped_custom",
+		"injector__processes_skipped_crash_recovery",
+		"injector__processes_skipped_signature_policy",
+		"injector__processes_signature_policy_unknown",
+		"injector__processes_skipped_short_name",
 
 		// eBPF metrics
 		"ebpf__core_load_success",

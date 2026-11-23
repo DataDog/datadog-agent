@@ -65,6 +65,12 @@ func (s *eventReflectorStore) Replace(list []interface{}, resourceVersion string
 	return nil
 }
 
+// eventReflectorStore.Bookmark is not implemented: the reflector doesn't call it.
+func (s *eventReflectorStore) Bookmark(_ string) {}
+
+// eventReflectorStore.LastStoreSyncResourceVersion is not implemented: the reflector doesn't call it.
+func (s *eventReflectorStore) LastStoreSyncResourceVersion() string { return "" }
+
 // eventReflectorStore.List is not implemented.
 func (s *eventReflectorStore) List() []interface{} { return nil }
 

@@ -1,0 +1,15 @@
+description: wc -lwcmL shows all counts in a single line.
+setup:
+  files:
+    - path: test.txt
+      content: "hello\nworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -lwcmL test.txt
+expect:
+  stdout_contains:
+    - "test.txt"
+    - "2"
+  stderr: ""
+  exit_code: 0

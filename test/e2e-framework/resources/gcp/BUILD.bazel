@@ -13,7 +13,7 @@ go_library(
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/common/namer",
-        "@com_github_pulumi_pulumi_gcp_sdk_v9//go/gcp",
+        "@com_github_pulumi_pulumi_gcp_sdk_v10//go/gcp",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi/config",
     ],

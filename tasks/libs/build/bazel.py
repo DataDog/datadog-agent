@@ -5,14 +5,17 @@ from __future__ import annotations
 import asyncio
 import codecs
 import os
+import platform
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import IO, NamedTuple
 
+from tasks.flavor import FipsBackend
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import get_repo_root, join_command
+from tasks.libs.types.arch import Arch
 
 
 class Label(NamedTuple):
@@ -87,6 +90,15 @@ def package_from_path(path: str) -> str:
     return result
 
 
+def is_bazel_workspace() -> bool:
+    """Whether the current directory is a Bazel workspace.
+
+    Branches that predate the Bazel migration (e.g. Agent 6, handled by release tasks running from main) have no
+    `MODULE.bazel`, so Bazel targets cannot be used there.
+    """
+    return os.path.exists("MODULE.bazel")
+
+
 def bazel_not_found_message(color: str) -> str:
     return color_message("Please run `inv install-tools` for `bazel` support!", color)
 
@@ -118,7 +130,7 @@ def _run_command(
         input=input,
         stdin=subprocess.DEVNULL if input is None else None,
         stdout=subprocess.PIPE if capture_stdout else None,
-        stderr=None,
+        stderr=subprocess.PIPE if capture_stderr else None,
         encoding="utf-8",
         errors="backslashreplace",
     )
@@ -207,23 +219,31 @@ def _run_command_with_tee(
 
 def bazel(
     *args: str,
+    allowed_exit_codes: frozenset[int] = frozenset(),
     capture_stderr: bool = False,
     capture_output: bool = False,
     env: dict[str, str] | None = None,
+    fips_backend: FipsBackend = FipsBackend.none,
     ignore_errors: bool = False,
     input: str | None = None,
 ) -> str | subprocess.CompletedProcess[str]:
     """Execute a bazel command.
 
+    allowed_exit_codes: nonzero exit codes to tolerate, keeping the command's live output and
+        returning normally instead of failing fast.  Inert when `ignore_errors` is set, since the
+        caller then decides what to do with the raw `CompletedProcess`.
     env: environment variables when passing them through the corresponding Bazel `--*_env=` flags is not suitable.
     input: text to pass to the Bazel subprocess stdin.
     ignore_errors: do not fail fast, but instead return the raw `CompletedProcess`, whether the Bazel command
         succeeded or not.
     """
 
+    if capture_output and capture_stderr and not ignore_errors:
+        raise ValueError("Capturing both stdout and stderr requires ignore_errors to return both.")
+
     if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
         raise SystemExit(bazel_not_found_message("red"))
-    cmd = (bazelisk, *_insert_omnibazel_flags(args))
+    cmd = (bazelisk, *_insert_omnibazel_flags(args, fips_backend))
     cmdline = join_command(cmd)
     print(color_message(cmdline.replace(bazelisk, "bazel", 1), "bold"), file=sys.stderr)  # brevity: abspath -> bazel
 
@@ -237,25 +257,33 @@ def bazel(
     )
     if ignore_errors:
         return completed
-    if completed.returncode != 0:
+    if completed.returncode != 0 and completed.returncode not in allowed_exit_codes:
+        if capture_stderr:
+            sys.stderr.write(completed.stderr)
         raise SystemExit(completed.returncode)
+    if capture_stderr:
+        return completed.stderr
     return completed.stdout if capture_output else ""
 
 
-def _bazel_output_path(target: str, args: list[str]) -> str:
+def _bazel_output_path(target: str, args: list[str], fips_backend: FipsBackend) -> str:
     # We need cquery to find the output path that has the configuration hash in it.
-    output = bazel("cquery", "--output=files", target, *args, capture_output=True).strip()
+    output = bazel("cquery", "--output=files", target, *args, capture_output=True, fips_backend=fips_backend).strip()
     outputs = [line for line in output.splitlines() if line]
     if len(outputs) != 1:
         raise SystemExit(f"Expected exactly one output file for Bazel target {target!r}, got: {outputs!r}")
     # Resolved against the execution root rather than the `bazel-out` convenience symlink,
     # which CI disables (--symlink_prefix=/dev/null) and would otherwise leave unresolvable.
-    execroot = bazel("info", "execution_root", capture_output=True).strip()
+    execroot = bazel("info", "execution_root", capture_output=True, fips_backend=fips_backend).strip()
     return os.path.join(execroot, outputs[0])
 
 
 def build_binary_with_bazel(
-    target: str, args: list[str] | None = None, bin_path: str = None, embedded_path: str | None = None
+    target: str,
+    args: list[str] | None = None,
+    bin_path: str = None,
+    embedded_path: str | None = None,
+    fips_backend: FipsBackend = FipsBackend.none,
 ) -> None:
     """Build a Bazel target and copy its output to bin_path.
 
@@ -269,8 +297,8 @@ def build_binary_with_bazel(
         Bazel's sandbox paths.
     """
     args = args or []
-    bazel("build", target, *args)
-    src = _bazel_output_path(target, args)
+    bazel("build", target, *args, fips_backend=fips_backend)
+    src = _bazel_output_path(target, args, fips_backend)
 
     if bin_path:
         os.makedirs(os.path.dirname(bin_path), exist_ok=True)
@@ -284,16 +312,30 @@ def build_binary_with_bazel(
         if embedded_path:
             # `bazel run` executes with the execution root as cwd, not the caller's cwd,
             # so bin_path must be absolute for the tool to find it.
-            bazel("run", "//bazel/rules:replace_prefix", "--", "--prefix", embedded_path, os.path.abspath(bin_path))
+            bazel(
+                "run",
+                "//bazel/rules:replace_prefix",
+                "--",
+                "--prefix",
+                embedded_path,
+                os.path.abspath(bin_path),
+                fips_backend=fips_backend,
+            )
 
 
-def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
-    """Insert --//packages/agent:flavor, --//:install_dir and --//:output_config_dir, pinned from the corresponding
-    omnibus build environment variables.
+def _insert_omnibazel_flags(args: tuple[str, ...], fips_backend: FipsBackend) -> tuple[str, ...]:
+    """Insert either --platforms for the given FIPS backend or --//packages/agent:flavor, then --//:install_dir and
+    --//:output_config_dir, pinned from the corresponding omnibus build environment variables.
     💡 Mirrors `omnibazel_flags` in omnibus/lib/ostools.rb.
     """
     flags = []
-    if agent_flavor := os.environ.get("AGENT_FLAVOR"):
+    if fips_backend == FipsBackend.msgo:
+        flags.append(f"--platforms=//bazel/platforms:{platform.system().lower()}_{Arch.local().bazel_cpu}_fips")
+    elif fips_backend != FipsBackend.none:
+        raise NotImplementedError(f"Bazel does not support --fips-backend={fips_backend} yet.")
+    elif (agent_flavor := os.environ.get("AGENT_FLAVOR")) == "fips":
+        raise ValueError("AGENT_FLAVOR=fips but fips_backend=FipsBackend.none: missing fips_backend=FipsBackend.msgo?")
+    elif agent_flavor:
         flags.append(f"--//packages/agent:flavor={agent_flavor}")
     if install_dir := os.environ.get("INSTALL_DIR"):
         # In macos, omnibus install_dir is the build location, which is different from the expected install location

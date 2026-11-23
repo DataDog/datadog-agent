@@ -1,0 +1,16 @@
+description: read from a file via input redirection.
+setup:
+  files:
+    - path: data.txt
+      content: |
+        hello world
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    read X < data.txt
+    echo "$X"
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

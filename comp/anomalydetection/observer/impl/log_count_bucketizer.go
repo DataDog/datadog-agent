@@ -7,9 +7,9 @@ package observerimpl
 
 import (
 	"sort"
-	"strings"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkgmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -19,13 +19,13 @@ const (
 	defaultLogCountRetentionSeconds = int64(600)
 )
 
-// LogCountBucketConfig controls materialization of fixed-width log count
-// buckets. It applies only to .count metrics emitted by log extractors.
+// LogCountBucketConfig controls fixed-width logical log count
+// buckets. It applies only to count metrics emitted by log extractors.
 type LogCountBucketConfig struct {
-	Enabled          bool
-	BucketSeconds    int64
-	IdleTTLSeconds   int64
-	RetentionSeconds int64
+	Enabled          bool  `json:"enabled"`
+	BucketSeconds    int64 `json:"bucket_seconds"`
+	IdleTTLSeconds   int64 `json:"idle_ttl_seconds"`
+	RetentionSeconds int64 `json:"retention_seconds"`
 }
 
 // DefaultLogCountBucketConfig returns the evaluated five-second cadence. The
@@ -61,8 +61,9 @@ type logCountBucketSeries struct {
 }
 
 // materializedLogCountBucketizer incrementally turns sparse log occurrences
-// into one stored count per completed bucket. Empty buckets are written as
-// zero only after the series has been discovered and only through its idle TTL.
+// into one logical count per completed bucket. Storage retains nonzero values
+// and compact completed intervals, reconstructing zeros on reads only after
+// discovery and through the idle TTL.
 // It is confined to the engine's single dispatch goroutine.
 type materializedLogCountBucketizer struct {
 	config         LogCountBucketConfig
@@ -87,8 +88,8 @@ func newMaterializedLogCountBucketizer(config LogCountBucketConfig) *materialize
 	}
 }
 
-func (b *materializedLogCountBucketizer) handlesMetric(name string) bool {
-	return strings.HasSuffix(name, ".count")
+func (b *materializedLogCountBucketizer) handlesMetric(metric observerdef.MetricOutput) bool {
+	return metric.MetricType == pkgmetrics.CountType
 }
 
 // observe adds one extractor output to its pending bucket. False means
@@ -152,17 +153,19 @@ func (b *materializedLogCountBucketizer) observe(
 	return true
 }
 
-// flush writes every completed bucket through upTo into shared storage.
-func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo int64) {
+// flush writes every completed bucket through upTo into shared storage and
+// returns any series evicted while admitting newly materialized series.
+func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo int64) []observerdef.SeriesRef {
 	if upTo <= b.flushedThrough {
-		return
+		return nil
 	}
+	var capacityEvictedRefs []observerdef.SeriesRef
 	for key, state := range b.series {
 		remaining := state.intervals[:0]
 		for _, interval := range state.intervals {
 			nextEnd := interval.firstEnd
 			for nextEnd <= interval.lastEnd && nextEnd <= upTo {
-				result := storage.AddWithKeyAndHostComposite(
+				result := storage.addWithKeyAndHost(
 					state.namespace,
 					state.name,
 					state.host,
@@ -170,7 +173,14 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 					nextEnd,
 					state.tags,
 					state.seriesKey,
+					pkgmetrics.CountType,
+					b.config.BucketSeconds,
 				)
+				// Delete evicted schedules before the map iterator can visit them.
+				// Otherwise a synthetic zero can resurrect a series and evict
+				// the real observations that were just admitted.
+				b.removeSeriesByRefs(result.CapacityEvictedRefs)
+				capacityEvictedRefs = append(capacityEvictedRefs, result.CapacityEvictedRefs...)
 				if state.hasContext && result.Ref >= 0 {
 					storage.SetContext(result.Ref, state.context)
 				}
@@ -194,6 +204,7 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 		}
 	}
 	b.flushedThrough = upTo
+	return capacityEvictedRefs
 }
 
 func (b *materializedLogCountBucketizer) removeMetricName(namespace, name string) {

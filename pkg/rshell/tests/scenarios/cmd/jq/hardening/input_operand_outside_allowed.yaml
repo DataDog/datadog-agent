@@ -1,0 +1,19 @@
+description: jq cannot read a file operand outside AllowedPaths.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: allowed/ok.json
+      content: |+
+        {"scope":"allowed"}
+    - path: secret.json
+      content: |+
+        {"scope":"secret"}
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    jq '.' secret.json
+expect:
+  stdout: |+
+  stderr: |+
+    jq: secret.json: permission denied
+  exit_code: 2

@@ -1,0 +1,15 @@
+description: For loop can be used inside a brace group.
+input:
+  script: |+
+    {
+      for i in x y z; do
+        echo "$i"
+      done
+    }
+expect:
+  stdout: |+
+    x
+    y
+    z
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,24 @@
+receivers:
+    otlp:
+
+exporters:
+    nop:
+    datadog:
+        api:
+            key: exporter-key
+
+extensions:
+    datadog:
+
+service:
+    extensions: [datadog]
+    pipelines:
+        traces:
+            receivers: [nop]
+            exporters: [nop]
+        metrics:
+            receivers: [nop]
+            exporters: [nop]
+        logs:
+            receivers: [nop]
+            exporters: [nop]

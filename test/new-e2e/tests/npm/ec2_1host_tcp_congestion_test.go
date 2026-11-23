@@ -37,6 +37,10 @@ const slowReaderScript = `import socket,time;` +
 	` c.setsockopt(socket.IPPROTO_TCP,10,1);` +
 	` time.sleep(300)`
 
+// tcpCongestionNetPrefix is the address prefix of the tcp-congestion-net
+// network (192.168.48.0/24) defined in config/dockercompose_tcp_congestion.yaml.
+const tcpCongestionNetPrefix = "192.168.48."
+
 type ec2TCPCongestionSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
@@ -124,7 +128,7 @@ func (v *ec2TCPCongestionSuite) BeforeTest(suiteName, testName string) {
 func (v *ec2TCPCongestionSuite) startIperf3Client(extraArgs string) {
 	host := v.Env().RemoteHost
 	for attempt := 0; attempt < 3; attempt++ {
-		host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 172.28.0.10 -p 5201 -t 60 " + extraArgs)
+		host.MustExecute("docker exec -d tcp-congestion-client iperf3 -c 192.168.48.10 -p 5201 -t 60 " + extraArgs)
 		_, err := host.Execute("sleep 2 && docker exec tcp-congestion-client pgrep iperf3")
 		if err == nil {
 			return
@@ -141,7 +145,7 @@ func (v *ec2TCPCongestionSuite) AfterTest(suiteName, testName string) {
 	v.BaseSuite.AfterTest(suiteName, testName)
 }
 
-// pollForTCPCongestionSignal polls fakeintake until a TCP connection on the 172.28.0.0/16
+// pollForTCPCongestionSignal polls fakeintake until a TCP connection on the 192.168.48.0/24
 // tcp-congestion-net network matches the given predicate, or times out after 120 seconds.
 func (v *ec2TCPCongestionSuite) pollForTCPCongestionSignal(description string, predicate func(*agentmodel.Connection) bool) {
 	t := v.T()
@@ -161,7 +165,7 @@ func (v *ec2TCPCongestionSuite) pollForTCPCongestionSignal(description string, p
 			if conn.Laddr == nil || conn.Raddr == nil {
 				return
 			}
-			if !strings.HasPrefix(conn.Laddr.Ip, "172.28.") && !strings.HasPrefix(conn.Raddr.Ip, "172.28.") {
+			if !strings.HasPrefix(conn.Laddr.Ip, tcpCongestionNetPrefix) && !strings.HasPrefix(conn.Raddr.Ip, tcpCongestionNetPrefix) {
 				return
 			}
 			if predicate(conn) {
@@ -240,7 +244,7 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_ZeroWindowProbes() {
 	host.MustExecute("timeout 30 bash -c 'until docker exec tcp-congestion-server nc -z localhost 9999 2>/dev/null; do sleep 0.5; done'")
 
 	// Client floods data to the slow reader — send blocks once receive buffer fills
-	host.MustExecute("docker exec -d tcp-congestion-client bash -c 'dd if=/dev/zero bs=64k count=10000 2>/dev/null | nc 172.28.0.10 9999'")
+	host.MustExecute("docker exec -d tcp-congestion-client bash -c 'dd if=/dev/zero bs=64k count=10000 2>/dev/null | nc 192.168.48.10 9999'")
 	t.Cleanup(func() {
 		host.MustExecute("docker exec tcp-congestion-client pkill -9 -x nc 2>/dev/null; docker exec tcp-congestion-client pkill -9 -x dd 2>/dev/null || true")
 	})

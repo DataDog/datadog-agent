@@ -8,6 +8,7 @@
 package retry
 
 import (
+	"expvar"
 	"testing"
 	"time"
 
@@ -218,6 +219,50 @@ func TestTransactionRetryQueueDropsOldestFirst(t *testing.T) {
 	a.Contains(survivingTimes, middle.CreatedAt)
 	a.Contains(survivingTimes, recent.CreatedAt)
 	a.NotContains(survivingTimes, old.CreatedAt)
+}
+
+// Verifies that each evicted transaction is counted once in the generic drop
+// telemetry, tagged with its own endpoint rather than the incoming one.
+func TestTransactionRetryQueueDropTelemetryPerEndpoint(t *testing.T) {
+	a := assert.New(t)
+	container := NewTransactionRetryQueue(nil, 20, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+
+	newTx := func(endpoint string, payloadSize int) *transaction.HTTPTransaction {
+		tr := createTransactionWithPayloadSize(payloadSize)
+		tr.Endpoint.Name = endpoint
+		return tr
+	}
+	endpoints := []string{"drop_test_a", "drop_test_b", "drop_test_c"}
+	tlmBefore := map[string]float64{}
+	expvarBefore := map[string]int64{}
+	for _, e := range endpoints {
+		tlmBefore[e] = transaction.TlmTxDropped.WithValues("domain", e).Get()
+		if v, ok := transaction.TransactionsDroppedByEndpoint.Get(e).(*expvar.Int); ok {
+			expvarBefore[e] = v.Value()
+		}
+	}
+	droppedBefore := transaction.TransactionsDropped.Value()
+
+	_, err := container.Add(newTx("drop_test_a", 5))
+	a.NoError(err)
+	_, err = container.Add(newTx("drop_test_b", 6))
+	a.NoError(err)
+
+	// (5+6+20)-20=11 bytes to free: both queued transactions are evicted.
+	dropCount, err := container.Add(newTx("drop_test_c", 20))
+	a.NoError(err)
+	a.Equal(2, dropCount)
+
+	expectedDelta := map[string]int64{"drop_test_a": 1, "drop_test_b": 1, "drop_test_c": 0}
+	for _, e := range endpoints {
+		a.Equal(tlmBefore[e]+float64(expectedDelta[e]), transaction.TlmTxDropped.WithValues("domain", e).Get(), e)
+		var after int64
+		if v, ok := transaction.TransactionsDroppedByEndpoint.Get(e).(*expvar.Int); ok {
+			after = v.Value()
+		}
+		a.Equal(expvarBefore[e]+expectedDelta[e], after, e)
+	}
+	a.Equal(droppedBefore+2, transaction.TransactionsDropped.Value())
 }
 
 func createTransactionWithPayloadSize(payloadSize int) *transaction.HTTPTransaction {

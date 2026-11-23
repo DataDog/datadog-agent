@@ -76,8 +76,7 @@ func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 func (pc *ProcessCacheEntry) copyProcessContextFrom(parent *ProcessCacheEntry) {
 	pc.copySSHUserSessionFrom(parent)
 	pc.copyAUIDFrom(parent)
-	pc.copyCGroupFrom(parent)
-	pc.copyContainerContextFrom(parent)
+	pc.copyCGroupAndContainerFrom(parent)
 	pc.copyNSFrom(parent)
 }
 
@@ -98,10 +97,12 @@ func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
 	pc.ExecTime = entry.ExecTime
 }
 
+const cloneNewNS = 0x20000
+
 // SetExecParent set the parent of the exec entry
 func (pc *ProcessCacheEntry) SetExecParent(parent *ProcessCacheEntry) {
-	pc.setAncestor(parent)
 	pc.IsExec = true
+	pc.setAncestor(parent)
 	pc.IsExecExec = pc.Parent != nil && pc.Parent.IsExec
 }
 
@@ -141,18 +142,13 @@ func (pc *ProcessCacheEntry) GetContainerPIDs() ([]uint32, []string) {
 	return pids, paths
 }
 
-func (pc *ProcessCacheEntry) copyCGroupFrom(parent *ProcessCacheEntry) {
-	if !parent.CGroup.CGroupPathKey.IsNull() && pc.CGroup.IsNull() {
-		pc.CGroup = parent.CGroup
+func (pc *ProcessCacheEntry) copyCGroupAndContainerFrom(parent *ProcessCacheEntry) {
+	if parent.CGroup.IsNull() || !pc.CGroup.IsNull() {
+		return
 	}
-}
 
-func (pc *ProcessCacheEntry) copyContainerContextFrom(parent *ProcessCacheEntry) {
-	parentHasContainerContext := parent.ContainerContext.ContainerID != "" || parent.ContainerContext.PodUID != ""
-	currentHasContainerContext := pc.ContainerContext.ContainerID != "" || pc.ContainerContext.PodUID != ""
-	if parentHasContainerContext && !currentHasContainerContext {
-		pc.ContainerContext = parent.ContainerContext
-	}
+	pc.CGroup = parent.CGroup
+	pc.ContainerContext = parent.ContainerContext
 }
 
 func (pc *ProcessCacheEntry) copyNSFrom(parent *ProcessCacheEntry) {
@@ -160,7 +156,7 @@ func (pc *ProcessCacheEntry) copyNSFrom(parent *ProcessCacheEntry) {
 		pc.NetNS = parent.NetNS
 	}
 
-	if pc.MntNS == 0 {
+	if pc.MntNS == 0 && (pc.IsExec || pc.ForkFlags&cloneNewNS == 0) {
 		pc.MntNS = parent.MntNS
 	}
 }
@@ -191,11 +187,13 @@ func (pc *ProcessCacheEntry) Fork(child *ProcessCacheEntry) {
 	child.TTYName = pc.TTYName
 	child.Comm = pc.Comm
 	child.FileEvent = pc.FileEvent
+	child.FileCapabilities = pc.FileCapabilities
 	child.ExecTime = pc.ExecTime
 	child.Credentials = pc.Credentials
 	child.LinuxBinprm = pc.LinuxBinprm
 	child.Cookie = pc.Cookie
 	child.Tracer.Metadata = pc.Tracer.Metadata
+	child.Tracer.MetadataSource = pc.Tracer.MetadataSource
 
 	child.SetForkParent(pc)
 }
@@ -208,8 +206,16 @@ func (pc *ProcessCacheEntry) Reparent(newParent *ProcessCacheEntry) {
 	pc.setAncestor(newParent)
 }
 
-// Equals returns whether process cache entries share the same values for file and args/envs
+// Equals returns whether process cache entries share the same executable metadata,
+// file capabilities, credentials and args/envs.
 func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
+	return pc.FileCapabilities == entry.FileCapabilities && pc.EqualsForProcfs(entry)
+}
+
+// EqualsForProcfs compares the fields used to infer fork/exec from procfs.
+// It ignores file capabilities because they are optional and procfs reads current
+// xattrs, which may differ from the metadata collected at exec time.
+func (pc *ProcessCacheEntry) EqualsForProcfs(entry *ProcessCacheEntry) bool {
 	return (pc.FileEvent.Equals(&entry.FileEvent) &&
 		pc.Credentials.Equals(&entry.Credentials) &&
 		pc.ArgsEntry.Equals(entry.ArgsEntry) &&

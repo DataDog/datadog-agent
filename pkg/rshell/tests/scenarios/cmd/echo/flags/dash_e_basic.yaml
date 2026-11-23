@@ -1,0 +1,10 @@
+description: Echo -e interprets backslash-n as newline.
+input:
+  script: |+
+    echo -e 'hello\nworld'
+expect:
+  stdout: |+
+    hello
+    world
+  stderr: ""
+  exit_code: 0

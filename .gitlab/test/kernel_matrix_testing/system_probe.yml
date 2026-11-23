@@ -3,7 +3,6 @@ upload_dependencies_sysprobe_x64:
   extends:
     - .package_dependencies
   needs:
-    - !reference [.kmt_setup_needs]
     - pull_test_dockers_x64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
@@ -16,7 +15,6 @@ upload_dependencies_sysprobe_arm64:
     - .package_dependencies
   timeout: 1h 05m
   needs:
-    - !reference [.kmt_setup_needs]
     - pull_test_dockers_arm64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
@@ -95,7 +93,6 @@ upload_minimized_btfs_sysprobe_x64:
   extends:
     - .upload_minimized_btfs
   needs:
-    - !reference [.kmt_setup_needs]
     - generate_minimized_btfs_x64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
@@ -109,7 +106,6 @@ upload_minimized_btfs_sysprobe_arm64:
     - .upload_minimized_btfs
   timeout: 1h 00m
   needs:
-    - !reference [.kmt_setup_needs]
     - generate_minimized_btfs_arm64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
@@ -148,7 +144,6 @@ kmt_setup_env_sysprobe_x64:
   stage: kernel_matrix_testing_prepare
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
   script:
@@ -163,9 +158,7 @@ kmt_setup_env_sysprobe_x64:
     - !reference [.setup_ssh_config]
     - scp $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
     # build connector
-    - pushd $CI_PROJECT_DIR/test/new-e2e
-    - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
-    - popd
+    - bazel run //test/new-e2e/system-probe/connector:install_linux_$ARCH -- --destdir=$CI_PROJECT_DIR
     # upload connector to metal instance
     - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
   after_script:
@@ -187,7 +180,6 @@ upload_sysprobe_tests_x64:
   extends:
     - .upload_sysprobe_tests
   needs:
-    - !reference [.kmt_setup_needs]
     - prepare_sysprobe_ebpf_functional_tests_x64
     - tests_ebpf_x64
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -201,7 +193,6 @@ upload_sysprobe_tests_arm64:
     - .upload_sysprobe_tests
   timeout: 55m
   needs:
-    - !reference [.kmt_setup_needs]
     - prepare_sysprobe_ebpf_functional_tests_arm64
     - tests_ebpf_arm64
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -239,6 +230,7 @@ kmt_run_sysprobe_tests_x64:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.10"
+          - "ubuntu_26.04"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
@@ -280,6 +272,7 @@ kmt_run_sysprobe_tests_arm64:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.10"
+          - "ubuntu_26.04"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"

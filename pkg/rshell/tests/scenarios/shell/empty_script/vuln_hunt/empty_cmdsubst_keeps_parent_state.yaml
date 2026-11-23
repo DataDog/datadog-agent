@@ -1,0 +1,11 @@
+description: Empty command substitution does not mutate or leak parent variables.
+input:
+  script: |+
+    value=parent
+    empty=$()
+    echo "$value:$empty"
+expect:
+  stdout: |+
+    parent:
+  stderr: ""
+  exit_code: 0

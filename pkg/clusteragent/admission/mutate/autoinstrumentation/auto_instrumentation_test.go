@@ -1345,7 +1345,7 @@ func TestAutoinstrumentation(t *testing.T) {
 					"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
 				},
 				expectedAnnotations: map[string]string{
-					"internal.apm.datadoghq.com/applied-target": `{"name":"datadoginstrumentation:default/ddi-deployment","workload":{"Kind":"Deployment","Namespace":"application","Name":"deployment"},"ddTraceVersions":{"python":"v4"},"ddTraceConfigs":[{"name":"DD_SERVICE","value":"web"}]}`,
+					"internal.apm.datadoghq.com/applied-config": `{"name":"datadoginstrumentation:default/ddi-deployment","workload":{"Kind":"Deployment","Namespace":"application","Name":"deployment"},"ddTraceVersions":{"python":"v4"},"ddTraceConfigs":[{"name":"DD_SERVICE","value":"web"}]}`,
 				},
 			},
 		},
@@ -1430,7 +1430,7 @@ func TestAutoinstrumentation(t *testing.T) {
 					"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
 				},
 				expectedAnnotations: map[string]string{
-					"internal.apm.datadoghq.com/applied-target": `{"name":"datadoginstrumentation:default/ddi-deployment","workload":{"Kind":"Deployment","Namespace":"application","Name":"deployment"},"ddTraceVersions":{"python":"v4"}}`,
+					"internal.apm.datadoghq.com/applied-config": `{"name":"datadoginstrumentation:default/ddi-deployment","workload":{"Kind":"Deployment","Namespace":"application","Name":"deployment"},"ddTraceVersions":{"python":"v4"}}`,
 				},
 			},
 		},
@@ -1529,8 +1529,7 @@ func TestAutoinstrumentation(t *testing.T) {
 					autoinstrumentation.AppliedPolicyEnvVar,
 				},
 				unsetAnnotations: []string{
-					"internal.apm.datadoghq.com/applied-target",
-					"internal.apm.datadoghq.com/applied-policy",
+					"internal.apm.datadoghq.com/applied-config",
 				},
 			},
 		},
@@ -2762,7 +2761,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			},
 		},
 		// Target annotation tests
-		"target with matching rule sets applied-target annotation": {
+		"target with matching rule sets applied-config annotation": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 				"apm_config.instrumentation.targets": []autoinstrumentation.Target{
@@ -2795,7 +2794,7 @@ func TestAutoinstrumentation(t *testing.T) {
 				},
 				containerNames: defaultContainerNames,
 				expectedAnnotations: map[string]string{
-					"internal.apm.datadoghq.com/applied-target": `{"name":"Python Apps","namespaceSelector":{"matchNames":["application"]},"ddTraceVersions":{"python":"v3"}}`,
+					"internal.apm.datadoghq.com/applied-config": `{"name":"Python Apps","namespaceSelector":{"matchNames":["application"]},"ddTraceVersions":{"python":"v3"}}`,
 				},
 			},
 		},

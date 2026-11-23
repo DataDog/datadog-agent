@@ -14,10 +14,10 @@ import (
 
 const scanMaxPoints = 120
 
-// scanDetectorWorkspace is bounded detector-local scratch space for scan
-// statistics. Detectors are single-writer, so a workspace can be reused across
-// series and aggregations instead of allocating proportional to every scan.
-type scanDetectorWorkspace struct {
+// stableDetectorWorkspace is bounded detector-local scratch space for
+// stable-series statistics. Detectors are single-writer, so a workspace can be
+// reused across series and aggregations instead of allocating per scan.
+type stableDetectorWorkspace struct {
 	values      []float64
 	ranks       []float64
 	indexed     []scanIndexedValue
@@ -30,7 +30,7 @@ type scanIndexedValue struct {
 	index int
 }
 
-func (w *scanDetectorWorkspace) valuesFromPoints(points []observer.Point) []float64 {
+func (w *stableDetectorWorkspace) valuesFromPoints(points []observer.Point) []float64 {
 	w.values = reuseFloat64(w.values, len(points))
 	for i, point := range points {
 		w.values[i] = point.Value
@@ -38,7 +38,7 @@ func (w *scanDetectorWorkspace) valuesFromPoints(points []observer.Point) []floa
 	return w.values
 }
 
-func (w *scanDetectorWorkspace) assignRanks(values []float64) ([]float64, float64) {
+func (w *stableDetectorWorkspace) assignRanks(values []float64) ([]float64, float64) {
 	n := len(values)
 	w.indexed = reuseScanIndexedValues(w.indexed, n)
 	for i, value := range values {
@@ -66,7 +66,7 @@ func (w *scanDetectorWorkspace) assignRanks(values []float64) ([]float64, float6
 	return w.ranks, tieCorrection
 }
 
-func (w *scanDetectorWorkspace) median(values []float64) float64 {
+func (w *stableDetectorWorkspace) median(values []float64) float64 {
 	if len(values) == 0 {
 		return 0
 	}
@@ -80,7 +80,7 @@ func (w *scanDetectorWorkspace) median(values []float64) float64 {
 	return w.sortScratch[n/2]
 }
 
-func (w *scanDetectorWorkspace) mad(values []float64, median float64) float64 {
+func (w *stableDetectorWorkspace) mad(values []float64, median float64) float64 {
 	if len(values) == 0 {
 		return 0
 	}
@@ -96,7 +96,7 @@ func (w *scanDetectorWorkspace) mad(values []float64, median float64) float64 {
 	return w.sortScratch[n/2]
 }
 
-func (w *scanDetectorWorkspace) medianPointInterval(points []observer.Point) int64 {
+func (w *stableDetectorWorkspace) medianPointInterval(points []observer.Point) int64 {
 	if len(points) < 2 {
 		return 0
 	}
@@ -139,30 +139,33 @@ func appendPointWindow(buf []observer.Point, maxPoints int, point observer.Point
 	return buf
 }
 
-func parseAggregateConfig(names []string) []observer.Aggregate {
-	if len(names) == 0 {
-		return nil
-	}
-	aggregations := make([]observer.Aggregate, 0, len(names))
-	for _, name := range names {
-		if agg, ok := parseAggregateSuffix(name); ok {
-			aggregations = append(aggregations, agg)
-		}
-	}
-	return aggregations
+func detectorSeriesFilter(filter observer.DetectionFilter) observer.SeriesFilter {
+	selection := observer.WorkloadSeriesFilter()
+	selection.MetricKind, selection.MetricType = filter.MetricKind, filter.MetricType
+	return selection
 }
 
-func parseAggregateSuffix(s string) (observer.Aggregate, bool) {
-	switch s {
-	case "avg":
-		return observer.AggregateAverage, true
-	case "sum":
-		return observer.AggregateSum, true
-	case "count":
-		return observer.AggregateCount, true
-	default:
-		return 0, false
+// detectorAggregations returns valid, unique selections in invocation order.
+func detectorAggregations(requested []observer.Aggregate) (values [3]observer.Aggregate, count int) {
+	if len(requested) == 0 {
+		return [3]observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, 2
 	}
+	var seen uint8
+	for _, agg := range requested {
+		switch agg {
+		case observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount:
+		default:
+			continue
+		}
+		mask := aggregateMask(agg)
+		if seen&mask != 0 {
+			continue
+		}
+		seen |= mask
+		values[count] = agg
+		count++
+	}
+	return values, count
 }
 
 // seriesStatus holds point count and write generation for a single series.
@@ -230,13 +233,6 @@ func supportsSeriesAggregate(storage observer.StorageReader, ref observer.Series
 		return support.SupportsAggregate(ref, agg)
 	}
 	return true
-}
-
-// workloadSeriesRefs returns the workload series refs used by detector hot
-// paths. It avoids the metadata-heavy ListSeries allocation when the storage
-// implementation provides a ref-only listing.
-func workloadSeriesRefs(storage observer.StorageReader, dst []observer.SeriesRef) []observer.SeriesRef {
-	return listSeriesRefs(storage, observer.WorkloadSeriesFilter(), dst)
 }
 
 func listSeriesRefs(storage observer.StorageReader, filter observer.SeriesFilter, dst []observer.SeriesRef) []observer.SeriesRef {

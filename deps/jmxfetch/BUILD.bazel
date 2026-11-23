@@ -1,17 +1,30 @@
 # jmxfetch JAR file.
 
 load("@agent_volatile//:env_vars.bzl", "env_vars")
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("//bazel/rules/macos/codesign:code_sign_jar_macos.bzl", "code_sign_jar_macos")
-load(":module_utils_test.bzl", "jmxfetch_module_utils_test_suite")
 
 package(default_visibility = ["//packages:__subpackages__"])
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:BSD-3-Clause"],
+    license_text = "@jmxfetch_license//file",
+)
+
+copy_file(
+    name = "jmxfetch_jar",
+    src = "@maven2//:com_datadoghq_jmxfetch_jar_with_dependencies",
+    out = "jmxfetch.jar",
+)
 
 # Code-sign the jmxfetch JAR file (macOS only)
 # This only really signs if SIGN_MAC is set in the environment.
 code_sign_jar_macos(
     name = "signed_jmxfetch_jar",
-    jar = "@jmxfetch//:jmxfetch.jar",
+    jar = ":jmxfetch_jar",
     output = "signed/jmxfetch.jar",
     # For testing signing on a developer machine, you can set the
     # identity to "-", to get a mock signing. Then build with
@@ -33,14 +46,14 @@ pkg_files(
     name = "jar_file",
     srcs = select({
         "@platforms//os:macos": [
-            ":signed_jmxfetch_jar" if sign_jar else "@jmxfetch//:jmxfetch.jar",
+            ":signed_jmxfetch_jar" if sign_jar else ":jmxfetch_jar",
         ],
-        "//conditions:default": ["@jmxfetch//:jmxfetch.jar"],
+        "//conditions:default": [":jmxfetch_jar"],
     }),
     attributes = pkg_attributes(mode = "0644"),
     # This is essentially redundant, but it serves to document that
     # the code is under a different license.
-    package_metadata = ["@jmxfetch//:license"],
+    package_metadata = [":license"],
     prefix = "bin/agent/dist/jmx",
     tags = ["manual"],
 )
@@ -52,6 +65,3 @@ pkg_filegroup(
     ],
     tags = ["manual"],
 )
-
-# Tests
-jmxfetch_module_utils_test_suite(name = "_jmxfetch_module_utils_tests")

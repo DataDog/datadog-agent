@@ -25,7 +25,7 @@
 --     inlined or specified separately as a one-line module.
 --   - Other (post-tokenization) aggregation strategies for the
 --     downstream Aggregator contract (regex, combining,
---     detecting, pass-through). Those live in their own modules.
+--     pass-through). Those live in their own modules.
 --   - Telemetry counters (TlmAutoMultilineJSONAggregatorFlush)
 --   - Per-source decoder configuration that selects this
 --     aggregator and constructs its dependencies

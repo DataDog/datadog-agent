@@ -31,6 +31,7 @@ import (
 	lib "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
@@ -45,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -75,6 +77,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -222,6 +225,9 @@ type EBPFProbe struct {
 	// usable, which requires kernel >= 4.18 and a pure cgroup v2 hierarchy. Cached because it
 	// is read on the event hot path.
 	kernelTracksCGroupID bool
+
+	// ID of the host's initial mount namespace, 0 if it couldn't be resolved
+	hostMntNS uint32
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -346,15 +352,6 @@ func isFentrySupportedImpl(kernelVersion *kernel.Version) error {
 		return errors.New("fentry enabled but not supported")
 	}
 
-	tailCallsBroken, err := constantfetch.AreFentryTailCallsBroken()
-	if err != nil {
-		return fmt.Errorf("fentry enabled but failed to verify tail call support: %w", err)
-	}
-
-	if tailCallsBroken {
-		return errors.New("fentry disabled on kernels >= 6.11 (or with breaking tail calls patch backported)")
-	}
-
 	if !kernelVersion.HaveFentrySupportWithStructArgs() {
 		return errors.New("fentry enabled but not supported with struct args")
 	}
@@ -460,8 +457,15 @@ func (p *EBPFProbe) sanityChecks() error {
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
-		seclog.Warnf("The capabilities monitoring feature of CWS requires a kernel version between 5.17 and 6.13, setting event_monitoring_config.capabilities_monitoring.enabled to false")
+		seclog.Warnf("The capabilities monitoring feature of CWS requires kernel 5.19 or later (or 5.17.13+ / 5.18.2+), setting event_monitoring_config.capabilities_monitoring.enabled to false")
 		p.config.Probe.CapabilitiesMonitoringEnabled = false
+	}
+
+	if p.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) && !p.kernelVersion.HasBPFForEachMapElemHelper() {
+		seclog.Warnf("The syscalls event type of workload profiles requires a kernel with support for the bpf_for_each_map_elem helper, removing it from runtime_security_config.security_profile.v2.event_types")
+		p.config.RuntimeSecurity.SecurityProfileV2EventTypes = slices.DeleteFunc(slices.Clone(p.config.RuntimeSecurity.SecurityProfileV2EventTypes), func(eventType model.EventType) bool {
+			return eventType == model.SyscallsEventType
+		})
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && p.config.Probe.CapabilitiesMonitoringPeriod < 1*time.Second {
@@ -472,7 +476,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	// without these capable and netlink_capable hooks, the initial/host user ns capabilities fields stay empty
 	// which reads like a process that uses no capability in this user namespace rather than missing data, so better warn about this
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
-		if missing, err := ddebpf.VerifyKernelFuncs("capable", "netlink_capable"); err != nil {
+		if missing, err := ksyms.VerifyKernelFuncs("capable", "netlink_capable"); err != nil {
 			seclog.Warnf("Unable to tell whether capabilities monitoring can report usage of the initial user namespace: %v", err)
 		} else if len(missing) > 0 {
 			seclog.Warnf("Capabilities monitoring cannot report which capabilities were used in the initial user namespace on this kernel: %v not available", slices.Sorted(maps.Keys(missing)))
@@ -512,7 +516,12 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 		}
 
 		if mounted, _ := mountinfo.Mounted(p.kernelVersion.OsReleasePath); !mounted {
-			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", p.kernelVersion.OsReleasePath))
+			hostRoot := os.Getenv("HOST_ROOT")
+			if hostRoot == "" || !strings.HasPrefix(p.kernelVersion.OsReleasePath, hostRoot) {
+				err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", p.kernelVersion.OsReleasePath))
+			} else if mounted, _ := mountinfo.Mounted(hostRoot); !mounted {
+				err = multierror.Append(err, fmt.Errorf("neither %s nor %s seem to be a mountpoint", p.kernelVersion.OsReleasePath, hostRoot))
+			}
 		}
 
 		// securityfs may not be mounted explicitly, but can still be reachable through the host root mount
@@ -679,7 +688,7 @@ func (p *EBPFProbe) Init() error {
 
 	p.processKiller.Start(p.ctx, &p.wg)
 
-	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled {
+	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled || p.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()
@@ -1084,6 +1093,9 @@ func (p *EBPFProbe) ReplayEvents() {
 type replayEntry struct {
 	event       *model.Event
 	mmapedFiles []procfs.MmapedFile
+	// script is the script the process runs through an interpreter, see
+	// procfsScript.
+	script string
 }
 
 func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
@@ -1102,16 +1114,18 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		event.AddToFlags(model.EventFlagsFromReplay)
 
 		var mmapedFiles []procfs.MmapedFile
+		var script string
 
-		// Replay mmaped files (only needed if SBOM resolver is enabled)
+		// Replay mmaped files and the script (only needed if SBOM resolver is enabled)
 		if p.config.RuntimeSecurity.SBOMResolverEnabled {
 			var err error
 			if mmapedFiles, err = procfs.GetMmapedFiles(entry.Pid); err != nil {
 				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
 			}
+			script = procfsScript(entry)
 		}
 
-		entries = append(entries, replayEntry{event: event, mmapedFiles: mmapedFiles})
+		entries = append(entries, replayEntry{event: event, mmapedFiles: mmapedFiles, script: script})
 	}
 
 	p.Walk(entryToEvent)
@@ -1138,6 +1152,10 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	for _, re := range entries {
 		p.DispatchEvent(re.event, notifyConsumers)
 
+		if re.script != "" {
+			p.creditScript(re.event.ProcessCacheEntry, re.script)
+		}
+
 		for _, file := range re.mmapedFiles {
 			openEvent := p.newOpenEventFromReplay(re.event.ProcessCacheEntry, file)
 			openEvent.Source = model.EventSourceReplay
@@ -1153,6 +1171,35 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	if !notifyConsumers {
 		p.removeFiltersNotUsedAndApplyPersistantOnes()
 	}
+}
+
+// procfsScript returns the path of the script that entry, a process read from
+// procfs, runs through an interpreter, or "". procfs gives the interpreter as
+// the executable of the process, where the exec event of a script names the
+// script.
+func procfsScript(entry *model.ProcessCacheEntry) string {
+	if (entry.Source != model.ProcessCacheEntryFromSnapshot && entry.Source != model.ProcessCacheEntryFromProcFS) || entry.ArgsEntry == nil {
+		return ""
+	}
+	// The scrubber of the arguments rewrites their values in place, under the
+	// lock.
+	entry.ArgsEntry.Lock()
+	defer entry.ArgsEntry.Unlock()
+	return procfs.ScriptPath(entry.Comm, entry.FileEvent.PathnameStr, entry.ArgsEntry.Values)
+}
+
+// creditScript records the run of script by entry, a process read from procfs,
+// as usage of the package that owns the script, behind the gate DispatchEvent
+// puts on the SBOM resolution of an event. The path comes from the arguments of
+// the process, resolved through its root, so it goes to the SBOM resolver alone
+// rather than to the rule engine and its discarders, which take the paths the
+// kernel resolves.
+func (p *EBPFProbe) creditScript(entry *model.ProcessCacheEntry, script string) {
+	if p.Resolvers.SBOMResolver == nil || (entry.ContainerContext.IsNull() && !p.config.RuntimeSecurity.SBOMResolverHostEnabled) {
+		return
+	}
+	file := procfs.StatScript(entry.Pid, script)
+	p.Resolvers.SBOMResolver.ResolvePackage(&entry.ProcessContext, &file)
 }
 
 // newSyntheticUnknownLoaderEntry returns a transient PCE used as the anchor for
@@ -1216,10 +1263,6 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		if p.profileManager.HasActiveActivityDump(event) {
 			event.AddToFlags(model.EventFlagsHasActiveActivityDump)
 		}
-	} else {
-		if event.Error == nil {
-			p.profileManager.ProcessEvent(event)
-		}
 	}
 
 	// send event to wildcard handlers, like the CWS rule engine, first
@@ -1232,15 +1275,33 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 
 	// handle sbom resolution
 	if p.Resolvers.SBOMResolver != nil {
-		if !event.ProcessContext.Process.ContainerContext.IsNull() {
+		if !event.ProcessContext.Process.ContainerContext.IsNull() || p.config.RuntimeSecurity.SBOMResolverHostEnabled {
 			if event.GetEventType() == model.ExecEventType {
 				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
-			} else if event.GetEventType() == model.FileOpenEventType {
-				// force resolution of the file path
-				p.fieldHandlers.ResolveFilePath(event, &event.Open.File)
+				// The kernel runs a script through its interpreter, which LinuxBinprm names.
+				if event.Exec.Process.HasInterpreter() {
+					p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.LinuxBinprm.FileEvent)
+				}
+			} else if event.GetEventType() == model.FileOpenEventType && readsFile(&event.Open) {
+				// Resolve the path on a copy of the file, which keeps the error of a
+				// path the SBOM resolver fails to resolve off the event: the v1
+				// profiles skip an event carrying an error, and the probe monitor
+				// reports it as an abnormal path.
+				file := event.Open.File
+				if !file.IsPathnameStrResolved && len(file.PathnameStr) == 0 {
+					if path, _, _, _, err := p.Resolvers.PathResolver.ResolveFullFilePath(&file.FileFields, &event.PIDContext); err == nil {
+						file.SetPathnameStr(path)
+					}
+				}
 
 				// NOTE(safchain) pass the file path & the required metadata to the resolver instead of the file event
-				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Open.File)
+				if event.IsEventFromReplay() {
+					// A replayed open stands for an executable mapping of a
+					// running process, which runs whatever becomes of the file.
+					p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &file)
+				} else {
+					p.Resolvers.SBOMResolver.ResolveOpen(event.ProcessContext, &file)
+				}
 			}
 		}
 	}
@@ -1275,9 +1336,17 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 			p.profileManager.ProcessEvent(event)
 		}
+	} else if event.Error == nil {
+		p.profileManager.ProcessEvent(event)
 	}
 
 	p.monitors.ProcessEvent(event, p.probe.scrubber)
+}
+
+// readsFile reports whether an open succeeded and opened its file for reading,
+// as a process opens the libraries and data files of a package it uses.
+func readsFile(open *model.OpenEvent) bool {
+	return open.Retval >= 0 && open.Flags&unix.O_PATH == 0 && open.Flags&unix.O_ACCMODE != unix.O_WRONLY
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -1355,8 +1424,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupCon
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
 	switch eventType {
-	case model.ShortDNSResponseEventType,
-		model.DNSEventType,
+	case model.DNSEventType,
 		model.IMDSEventType,
 		model.RawPacketFilterEventType,
 		model.LoadModuleEventType,
@@ -1480,6 +1548,10 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// cache, the process called setsid(). Update the cache entry.
 			if event.PIDContext.SID != 0 {
 				p.Resolvers.ProcessResolver.UpdateSID(entry, event.PIDContext.SID)
+			}
+
+			if event.PIDContext.MntNS != 0 {
+				p.Resolvers.ProcessResolver.UpdateMntNS(entry, event.PIDContext.MntNS)
 			}
 
 			// Attempt to repair the lineage of processes that were orphaned
@@ -1610,13 +1682,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	netNS := event.PIDContext.NetNS
-	pid := event.PIDContext.Pid
-	go func() {
-		_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(netNS, func() *utils.NSPath {
-			return utils.NewNSPathFromPid(pid, utils.NetNsType)
-		})
-	}()
+	p.Resolvers.NamespaceResolver.PushNetworkNamespaceHandleRequest(event.PIDContext.NetNS, event.PIDContext.Pid)
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	if !p.handleBeforeProcessContext(event, data, offset, dataLen, cgroupContext) {
@@ -2118,6 +2184,20 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Unshare, eventType, offset, dataLen, data) {
 			return false
 		}
+	case model.SetNSEventType:
+		if !p.regularUnmarshalEvent(&event.SetNS, eventType, offset, dataLen, data) {
+			return false
+		}
+		event.SetNS.MntNSHost = p.hostMntNS != 0 && event.SetNS.MntNS == p.hostMntNS
+		// the root's MntNS follows its unshare and setns calls, its initial one stays the
+		// container's base even when the root itself is the one leaving it
+		if event.SetNS.MntNS != 0 && event.ProcessContext.ContainerContext.ContainerID != "" {
+			if root := activity_tree.FindRootProcess(event.ProcessContext); root != nil {
+				if baseMntNS := root.Process.GetInitialMntNS(); baseMntNS != 0 {
+					event.SetNS.MntNSOutsideBase = event.SetNS.MntNS != baseMntNS
+				}
+			}
+		}
 	case model.CapabilitiesEventType:
 		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false
@@ -2159,6 +2239,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 	case model.CgroupWriteEventType:
 		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
+			return false
+		}
+		// the process remains in its previous cgroup if the write failed
+		if event.CgroupWrite.Retval < 0 {
 			return false
 		}
 		pid := event.CgroupWrite.Pid
@@ -2293,6 +2377,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		}
 		return false
 	case model.ShortDNSResponseEventType:
+		// Always stop here: the record has no process, span or cgroup context to decode.
 		if p.config.Probe.DNSResolutionEnabled {
 			decodeErr := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback)
 			if decodeErr == nil {
@@ -2306,7 +2391,9 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			event.FailedDNS = model.FailedDNSEvent{
 				Payload: trimRightZeros(data[offset:]),
 			}
+			p.monitors.ProcessEvent(event, p.probe.scrubber)
 		}
+		return false
 	}
 	return true
 }
@@ -2414,8 +2501,8 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 
 	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
 
-	if handler, ok := allDiscarderHandlers[field]; ok {
-		discarderPushed, _ := handler(rs, ev, p, Discarder{Field: field})
+	if d, ok := allDiscarders[field]; ok {
+		discarderPushed, _ := d.handler(rs, ev, p, Discarder{Field: field})
 
 		if discarderPushed {
 			p.discarderPushedCallbacksLock.RLock()
@@ -2556,6 +2643,12 @@ func (p *EBPFProbe) isNeededForActivityDump(eventType eval.EventType) bool {
 	return false
 }
 
+// isSyscallMonitorEnabled reports whether activity dumps or syscall drift detection consume raw syscalls
+func (p *EBPFProbe) isSyscallMonitorEnabled() bool {
+	return (p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
+		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType))
+}
+
 func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 	if p.config.RuntimeSecurity.SecurityProfileEnabled {
 		for _, e := range p.config.RuntimeSecurity.AnomalyDetectionEventTypes {
@@ -2580,6 +2673,8 @@ func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
 		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType)
 	case model.ConnectEventType.String():
 		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType)
+	case model.BindEventType.String():
+		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType)
 	}
 	return false
 }
@@ -2667,11 +2762,11 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	}
 
 	// Attach raw_syscalls tracepoints once when any consumer needs them.
-	if needRawSyscalls ||
-		(p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
-		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
-		p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if needRawSyscalls || p.isSyscallMonitorEnabled() {
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
+	}
+	if p.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
+		activatedProbes = append(activatedProbes, probes.SyscallUsageSelectors()...)
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -2721,7 +2816,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 
 func (p *EBPFProbe) updateEBPFCheckMapping() {
 	ddebpf.ClearProgramIDMappings("cws")
-	ddebpf.AddNameMappings(p.Manager.Get(), "cws")
+	p.Manager.AddNameMappings("cws")
 	ddebpf.AddProbeFDMappings(p.Manager.Get())
 
 }
@@ -2821,6 +2916,9 @@ func (p *EBPFProbe) Stop() {
 
 // Close the probe
 func (p *EBPFProbe) Close() error {
+	// the namespace resolver goroutines clone TC programs, they must be done before the manager stops
+	p.Resolvers.NamespaceResolver.Stop()
+
 	for i, col := range p.rawPacketFilterCollections {
 		if col != nil {
 			col.Close()
@@ -3218,6 +3316,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: getDoTruncateHasIdmapArg(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "get_vfs_caps_from_disk_argc",
+			Value: getVFSCapsFromDiskArgCount(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "ovl_path_in_ovl_inode",
 			Value: getOvlPathInOvlInode(p.kernelVersion),
 		},
@@ -3288,6 +3390,14 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "anomaly_syscalls",
 			Value: utils.BoolTouint64(slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)),
+		},
+		manager.ConstantEditor{
+			Name:  "syscall_monitor_enabled",
+			Value: utils.BoolTouint64(p.isSyscallMonitorEnabled()),
+		},
+		manager.ConstantEditor{
+			Name:  "raw_syscall_kill_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EnforcementEnabled && p.config.RuntimeSecurity.EnforcementRawSyscallEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "monitor_syscalls_map_enabled",
@@ -3378,24 +3488,28 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectThreshold),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_bind_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType)),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "sample_refresh_period_ns",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
+			Name:  "syscall_usage_max_events_per_tick",
+			Value: uint64(p.config.RuntimeSecurity.SecurityProfileV2MaxSyscallsEventsPerSecond),
+		},
+		manager.ConstantEditor{
 			Name:  "sample_entry_ttl_ns",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout.Nanoseconds()),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_syscalls_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType)),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_syscalls_rate",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingSyscallsRate),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_syscalls_threshold",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingSyscallsThreshold),
 		},
 		manager.ConstantEditor{
 			Name:  "dynamic_sampling_enabled",
@@ -3508,8 +3622,9 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType),
+		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType),
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType),
-		EventSamplingSyscallsEnabled:  p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType),
+		EventSamplingSyscallsEnabled:  p.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType),
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 
@@ -3576,6 +3691,10 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetCapabilitiesMonitoringProgramFunctions()...)
 	}
 
+	if !p.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SyscallUsageFunctionNames()...)
+	}
+
 	// on kernel before 4.15, you can only attach one eBPF program per tracepoint
 	// to prevent conflicts with other eBPF using programs, we exclude our sched_process_fork tracepoint program
 	// and use the get_task_pid kretprobe fallback instead
@@ -3589,10 +3708,11 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 // initManagerOptionsActivatedProbes initializes the eBPF manager activated probes options
 func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 	// Attach raw_syscalls tracepoints once when any consumer needs them.
-	if (p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
-		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
-		p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if p.isSyscallMonitorEnabled() {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
+	}
+	if p.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallUsageSelectors()...)
 	}
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
 
@@ -3614,6 +3734,13 @@ func (p *EBPFProbe) initManagerOptions() error {
 
 // NewEBPFProbe instantiates a new runtime security agent probe
 func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opts) (*EBPFProbe, error) {
+	// kernels < 5.11 account BPF memory against RLIMIT_MEMLOCK; the kernel
+	// feature checks below fail with EPERM unless the limit is raised, and
+	// CWS would then report those features as unsupported
+	if err := rlimit.RemoveMemlock(); err != nil {
+		seclog.Warnf("failed to remove the memlock limit: %v", err)
+	}
+
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -3677,6 +3804,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	}
 
 	p.initCgroup2MountPath()
+
+	// read through the host procfs, so that it's the host's PID 1 even when the agent runs in a container
+	if p.hostMntNS, err = utils.NewNSPathFromPid(1, utils.MntNsType).GetNSID(); err != nil {
+		seclog.Warnf("failed to resolve the host mount namespace, setns.mntns_host won't be reported: %v", err)
+	}
 	p.kernelTracksCGroupID = utils.IsPureCGroupV2Available() && p.kernelVersion.HasBpfGetCurrentCgroupID()
 
 	if err := p.sanityChecks(); err != nil {
@@ -3864,6 +3996,31 @@ func getDoTruncateHasIdmapArg(kernelVersion *kernel.Version) uint64 {
 	return 0
 }
 
+func getVFSCapsFromDiskArgCount(kernelVersion *kernel.Version) uint64 {
+	count, _ := constantfetch.GetBTFFunctionArgCount("get_vfs_caps_from_disk")
+	return vfsCapsFromDiskArgCount(kernelVersion, count)
+}
+
+func vfsCapsFromDiskArgCount(kernelVersion *kernel.Version, btfArgCount int) uint64 {
+	// Keep the minimum supported release gate separate from prototype and
+	// structure-layout detection. The latter uses the constant fetchers' field offsets.
+	if kernelVersion.Code < kernel.Kernel4_14 {
+		return 0
+	}
+
+	// Prefer the real prototype to account for idmapped-mount backports.
+	if btfArgCount != 0 {
+		if btfArgCount == 2 || btfArgCount == 3 {
+			return uint64(btfArgCount)
+		}
+		return 0
+	}
+	if kernelVersion.Code >= kernel.Kernel5_12 {
+		return 3
+	}
+	return 2
+}
+
 func getExitItimersTakesTaskStruct(kernelVersion *kernel.Version) uint64 {
 	// prefer the actual BTF prototype, as the exit_itimers(struct task_struct *) signature was
 	// backported to stable kernels (e.g. 5.10.y, 5.15.y) below the 5.19 mainline cut-off
@@ -3936,7 +4093,7 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 		return 1
 	}
 
-	check, err := ddebpf.VerifyKernelFuncs(patchSentinel)
+	check, err := ksyms.VerifyKernelFuncs(patchSentinel)
 	if err != nil {
 		return 0
 	}
@@ -3991,6 +4148,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperBlockStructSFlags, "struct super_block", "s_flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperBlockStructSMagic, "struct super_block", "s_magic")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryStructDSB, "struct dentry", "d_sb")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructLive, "struct signal_struct", "live")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructGroupExitCode, "struct signal_struct", "group_exit_code")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructFlags, "struct signal_struct", "flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name")
 	// since kernel 5.19, exit_itimers takes a struct task_struct* so we need the offset of its signal field
@@ -4001,6 +4161,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealCred, "struct task_struct", "real_cred")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructUID, "struct cred", "uid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructCapInheritable, "struct cred", "cap_inheritable")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCPUVFSCapDataStructPermitted, "struct cpu_vfs_cap_data", "permitted")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCPUVFSCapDataStructInheritable, "struct cpu_vfs_cap_data", "inheritable")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc")
@@ -4027,6 +4189,28 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyMntNs, "struct nsproxy", "mnt_ns")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyNetNs, "struct nsproxy", "net_ns")
+
+	// setns namespace IDs. They are read through struct ns_common, so on older kernels the pointers
+	// to the namespaces are left unresolved as well, which makes the IDs report 0 instead of garbage
+	if kv.Code >= kernel.Kernel3_19 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructNsproxy, "struct task_struct", "nsproxy")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyPidNsForChildren, "struct nsproxy", "pid_ns_for_children")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyUtsNs, "struct nsproxy", "uts_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyIpcNs, "struct nsproxy", "ipc_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructUserNs, "struct cred", "user_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePidNamespaceNs, "struct pid_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameUtsNamespaceNs, "struct uts_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIpcNamespaceNs, "struct ipc_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameUserNamespaceNs, "struct user_namespace", "ns")
+
+		// cgroup (4.6) and time (5.6) namespaces were backported to older distro kernels (ubuntu 16.04
+		// 4.4, sles 15.2 5.3), so they aren't gated on the upstream version: BTF/BTFHub tells whether
+		// they exist. They are optional constants: a kernel without them doesn't log an error
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyCgroupNs, "struct nsproxy", "cgroup_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCgroupNamespaceNs, "struct cgroup_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyTimeNs, "struct nsproxy", "time_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTimeNamespaceNs, "struct time_namespace", "ns")
+	}
 
 	if kv.Code >= kernel.Kernel6_8 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")
@@ -4236,7 +4420,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshUserCacheRuleID:
 			_ = p.RefreshUserCache(ev.ProcessContext.Process.ContainerContext.ContainerID)
 
-		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ProcessContext.Process.ContainerContext.ContainerID) > 0:
+		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && (len(ev.ProcessContext.Process.ContainerContext.ContainerID) > 0 || p.config.RuntimeSecurity.SBOMResolverHostEnabled):
 			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ProcessContext.Process.ContainerContext.ContainerID); err != nil {
 				seclog.Infof("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ProcessContext.Process.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
 			}
@@ -4398,8 +4582,8 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 		event.LoadModule.File.FileFields.Inode = fileStats.Ino
 		event.LoadModule.File.FileFields.UID = fileStats.Uid
 		event.LoadModule.File.FileFields.GID = fileStats.Gid
-		event.LoadModule.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
-		event.LoadModule.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+		event.LoadModule.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).UnixNano())
+		event.LoadModule.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).UnixNano())
 		event.LoadModule.File.Mode = fileStats.Mode
 		event.LoadModule.File.Inode = fileStats.Ino
 		event.LoadModule.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor

@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment attributes the accesses of a process with an
+    empty container ID to the host only when the root of the process is the
+    root of the host, which leaves out processes of system containers and
+    snaps. Opening a directory leaves the usage of the package owning it as
+    it is. The rpm database lists directories among the files of a package,
+    and a listing or the walk of a filesystem scan opens them all.

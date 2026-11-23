@@ -57,6 +57,9 @@ func TestECSSuite(t *testing.T) {
 
 	runOptions := []scenecs.RunOption{
 		scenecs.WithFakeIntakeOptions(
+			// The task memory is shared with a datadog-agent sidecar. With 31m of retention, a smaller
+			// task gets OOM-killed and replaced by one with a new IP, failing all remaining queries.
+			fakeintake.WithMemory(4096),
 			fakeintake.WithRetentionPeriod("31m"),
 		),
 		scenecs.WithTestingWorkload(),

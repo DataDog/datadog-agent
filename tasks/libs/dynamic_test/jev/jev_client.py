@@ -15,6 +15,22 @@ from tasks.libs.dynamic_test.jev.pr_context import MAX_DESCRIPTION_BYTES, trunca
 from tasks.libs.dynamic_test.jev.test_discovery import MAX_TEST_CODE_BYTES
 
 SYSTEMONE_PATH = "/v1/systemone"
+CHAT_COMPLETIONS_PATH = "/v1/chat/completions"
+
+# The LLM PR summary that replaces the raw diff in the Jev states when the
+# 'datadog-agent-jev-llm-summary' feature flag is enabled (see summarize_pr)
+SUMMARY_MAX_TOKENS = 400
+MAX_SUMMARY_BYTES = 2_000
+SUMMARY_SYSTEM_PROMPT = (
+    "You summarize pull request changes for a CI e2e-test-selection system. "
+    "Given a PR's title, description, changed files and diff, produce a concise "
+    "factual summary of WHAT the PR changes and WHY: the components, packages and "
+    "behavior touched, the platforms or install flows affected, with the exact "
+    "configuration keys or code paths involved. Do not speculate beyond the diff, "
+    "do not restate the file list, and do NOT judge which tests or features the "
+    "change might affect - another model decides that from this summary. "
+    "Plain text, no markdown headings, at most a dozen sentences."
+)
 
 
 QUESTIONS = {
@@ -79,8 +95,42 @@ def ask_jev(token: str, state: str, *, model: str, dc: str, source: str) -> dict
         "model": model,
         "questions": QUESTIONS,
     }
+    return _ai_gateway_post(token, SYSTEMONE_PATH, payload, dc=dc, source=source)
+
+
+def summarize_pr(
+    token: str, pr: dict, files: list, merge_base: str, diff: str, *, model: str, dc: str, source: str
+) -> str:
+    """One AI Gateway chat completions call returning a short LLM summary of
+    the PR changes (the System One endpoint only answers structured
+    questions). Raises RuntimeError on failure; callers fail open to the
+    raw diff."""
+    files_section = "\n".join(f"- {f} ({kind})" if kind else f"- {f}" for f, kind in files)
+    prompt = (
+        f"## PR title\n{pr.get('title') or '(unknown)'}\n\n"
+        f"## PR description\n{truncate(pr.get('description') or '(none)', MAX_DESCRIPTION_BYTES, 'description')}\n\n"
+        f"## Changed files ({len(files)}, merge base {str(merge_base)[:12]})\n{files_section}\n\n"
+        f"## Diff\n```diff\n{diff}\n```\n\nSummarize what this PR changes and why."
+    )
+    payload = {
+        "model": model,
+        "messages": [{"role": "system", "content": SUMMARY_SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
+        "temperature": 0.2,
+        "max_tokens": SUMMARY_MAX_TOKENS,
+    }
+    body = _ai_gateway_post(token, CHAT_COMPLETIONS_PATH, payload, dc=dc, source=source)
+    try:
+        summary = body["choices"][0]["message"]["content"].strip()
+    except (KeyError, TypeError, IndexError, AttributeError) as e:
+        raise RuntimeError(f"unexpected chat completions response: {json.dumps(body)[:500]}") from e
+    if not summary:
+        raise RuntimeError(f"empty summary from model {model}")
+    return truncate(summary, MAX_SUMMARY_BYTES, "summary")
+
+
+def _ai_gateway_post(token: str, path: str, payload: dict, *, dc: str, source: str) -> dict:
     req = urllib.request.Request(
-        f"https://ai-gateway.{dc}{SYSTEMONE_PATH}",
+        f"https://ai-gateway.{dc}{path}",
         data=json.dumps(payload).encode(),
         headers={
             "Content-Type": "application/json",
@@ -108,11 +158,12 @@ def build_context_state(
     diff: str,
     ddci: dict | None = None,
     suite_def_code: str = "",
+    pr_summary: str = "",
 ) -> str:
     """The shared part of the System One state: the PR context (title,
-    description, changed files, full diff) and the suite provisioning
-    definition - everything every Jev call for the suite sees, without the
-    per-test code."""
+    description, changed files, full diff - or its LLM summary when
+    pr_summary is set) and the suite provisioning definition - everything
+    every Jev call for the suite sees, without the per-test code."""
     files_section = "\n".join(f"- {f} ({kind})" if kind else f"- {f}" for f, kind in files)
     author = f", author: @{pr['author']}" if pr.get("author") else ""
     impacted = ""
@@ -120,7 +171,10 @@ def build_context_state(
         impacted = "\n\n## Impacted build targets (from DDCI build impact analysis)\n" + ", ".join(
             ddci["impacted_targets"][:100]
         )
-    diff_section = f"\n## Full PR diff (per-file patches, truncated to fit)\n```diff\n{diff}\n```" if diff else ""
+    if pr_summary:
+        diff_section = f"\n## LLM summary of the changes in this PR\n{pr_summary}"
+    else:
+        diff_section = f"\n## Full PR diff (per-file patches, truncated to fit)\n```diff\n{diff}\n```" if diff else ""
     suite_def_section = (
         (
             f"\n## E2E suite provisioning definition (base suite: platforms, components, install method)\n"
@@ -151,10 +205,13 @@ def build_state(
     diff: str,
     ddci: dict | None = None,
     suite_def_code: str = "",
+    pr_summary: str = "",
 ) -> str:
     """Assemble the System One state sent to Jev for one test entry point: the shared context (see build_context_state) plus the test under evaluation."""
     return (
-        build_context_state(suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code)
+        build_context_state(
+            suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code, pr_summary=pr_summary
+        )
         + "\n\n## E2E test under evaluation\n"
         f"Test: {name}\n"
         f"Suite: {suite} ({path})\n"

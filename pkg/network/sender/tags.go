@@ -23,10 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func formatTags(c network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], connDynamicTags map[string]struct{}) ([]int32, uint32) {
+func formatTags(c *network.ConnectionStats, connStaticTags uint64, tagsSet *indexedset.IndexedSet[string], connDynamicTags map[string]struct{}) ([]int32, uint32) {
 	var checksum uint32
 
-	staticTags := tls.GetStaticTags(c.StaticTags)
+	staticTags := tls.GetStaticTags(connStaticTags)
 	tagsIdx := make([]int32, 0, len(staticTags)+len(connDynamicTags)+len(c.Tags))
 
 	for _, tag := range staticTags {
@@ -74,7 +74,7 @@ func (d *directSender) addContainerTags(builder *model.ConnectionBuilder, source
 	builder.SetLocalContainerTagsIndex(-1)
 }
 
-func (d *directSender) addRemoteServiceTags(builder *model.ConnectionBuilder, nc network.ConnectionStats, resolver *serviceResolver, tagsEncoder model.TagEncoder) {
+func (d *directSender) addRemoteServiceTags(builder *model.ConnectionBuilder, nc *network.ConnectionStats, resolver *serviceResolver, tagsEncoder model.TagEncoder) {
 	srcContainerID := getInternedString(nc.ContainerID.Source)
 	// USM supports TCP only; skip UDP connections.
 	if nc.IntraHost && srcContainerID == "" && nc.Type == network.TCP {
@@ -86,7 +86,7 @@ func (d *directSender) addRemoteServiceTags(builder *model.ConnectionBuilder, nc
 	builder.SetRemoteServiceTagsIdx(-1)
 }
 
-func (d *directSender) addTags(builder *model.ConnectionBuilder, nc network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], usmEncoders []marshal.USMEncoder, connectionsTagsEncoder model.TagEncoder) {
+func (d *directSender) addTags(builder *model.ConnectionBuilder, nc *network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], usmEncoders []marshal.USMEncoder, connectionsTagsEncoder model.TagEncoder) {
 	var staticTags uint64
 	dynamicTags := nc.TLSTags.GetDynamicTags()
 	for _, encoder := range usmEncoders {
@@ -98,25 +98,34 @@ func (d *directSender) addTags(builder *model.ConnectionBuilder, nc network.Conn
 		maps.Copy(dynamicTags, encoderDynamicTags)
 	}
 
-	nc.StaticTags |= staticTags
-	tagIndexes, tagChecksum := formatTags(nc, tagsSet, dynamicTags)
+	// nc points into the shared connections buffer, so the encoder tags are merged locally
+	tagIndexes, tagChecksum := formatTags(nc, nc.StaticTags|staticTags, tagsSet, dynamicTags)
 	builder.SetTagsChecksum(tagChecksum)
 
 	tagsStr := tagsSet.Subset(tagIndexes)
 	if nc.Pid > 0 {
+		// a socket reattributed to its network namespace's container is still owned by the proxy
+		// process, so the PID's service context and process tags describe the proxy, not the pod
+		reattributed := nc.NetNSOriginalContainerID != nil
 		var serviceTags []string
 		if dsc := directSenderConsumerInstance.Load(); dsc != nil {
-			serviceTags = dsc.extractor.GetServiceContext(int32(nc.Pid))
+			if !reattributed {
+				serviceTags = dsc.extractor.GetServiceContext(int32(nc.Pid))
+			}
+			// process_name is kept for reattributed connections: it names the socket's owning process
+			// (for example ztunnel), not a service, and lets users find proxied traffic
 			if processName := dsc.processNameExtractor.GetProcessName(int32(nc.Pid)); processName != "" {
 				tagsStr = append(tagsStr, "process_name:"+processName)
 			}
 		}
 		tagsStr = append(tagsStr, serviceTags...)
-		processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(nc.Pid)))
-		if processTags, err := d.tagger.Tag(processEntityID, types.HighCardinality); err != nil {
-			log.Debugf("error getting tags for process %v: %v", nc.Pid, err)
-		} else {
-			tagsStr = append(tagsStr, processTags...)
+		if !reattributed {
+			processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(nc.Pid)))
+			if processTags, err := d.tagger.Tag(processEntityID, types.HighCardinality); err != nil {
+				log.Debugf("error getting tags for process %v: %v", nc.Pid, err)
+			} else {
+				tagsStr = append(tagsStr, processTags...)
+			}
 		}
 	}
 	if len(tagsStr) > 0 {

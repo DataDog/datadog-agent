@@ -29,3 +29,7 @@ const (
 	ciscoFieldApplicationTrafficClass      uint16 = 12243
 	ciscoFieldApplicationBusinessRelevance uint16 = 12244
 )
+
+// enterpriseBit is the top bit of a field type, which marks enterprise-specific fields (RFC 7011 3.2).
+// NetFlow v9 has no PEN, so Cisco's convention is to set this bit on its enterprise field types instead
+const enterpriseBit uint16 = 0x8000

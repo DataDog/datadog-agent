@@ -26,8 +26,11 @@ go_library(
     ],
     embedsrcs = [
         "scripts/apt-disable-unattended-upgrades.sh",
+        "scripts/register-track-ssh-activity.ps1",
         "scripts/setup-ssh.ps1",
         "scripts/ssh-allow-sftp-root.sh",
+        "scripts/track-ssh-activity.ps1",
+        "scripts/track-ssh-activity.sh",
         "scripts/zypper-disable-unattended-upgrades.sh",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/os",
@@ -44,6 +47,9 @@ go_library(
 
 dd_agent_go_test(
     name = "os_test",
-    srcs = ["generic_packagemanager_test.go"],
+    srcs = [
+        "generic_packagemanager_test.go",
+        "os_test.go",
+    ],
     embed = [":os"],
 )

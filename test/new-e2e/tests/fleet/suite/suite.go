@@ -40,10 +40,10 @@ var (
 	}
 	// WindowsPlatforms is the list of supported Windows platforms.
 	WindowsPlatforms = []e2eos.Descriptor{
-		e2eos.WindowsServer2016E2E,
-		e2eos.WindowsServer2019E2E,
-		e2eos.WindowsServer2022E2E,
-		e2eos.WindowsServer2025E2E,
+		e2eos.WindowsServer2016,
+		e2eos.WindowsServer2019,
+		e2eos.WindowsServer2022,
+		e2eos.WindowsServer2025,
 	}
 	// AllPlatforms is the list of all supported platforms.
 	AllPlatforms = append(LinuxPlatforms, WindowsPlatforms...)
@@ -115,7 +115,14 @@ func Run(t *testing.T, f func() e2e.Suite[environments.Host], platforms []e2eos.
 			t.Parallel()
 			name := regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(t.Name(), "_")
 			// clone opts and shadow it to avoid race condition when running in parallel
-			opts := append(slices.Clone(opts), awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(platform), ec2.WithInternetAccess()), ec2.WithoutAgent()))
+			// Fleet tests install the Agent themselves and point it at the real backend
+			// (remote config), so no fakeintake is needed: skipping it saves a Fargate task
+			// and its IP in the CI subnets for every stack.
+			opts := append(slices.Clone(opts), awshost.WithRunOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithOS(platform), ec2.WithInternetAccess()),
+				ec2.WithoutAgent(),
+				ec2.WithoutFakeIntake(),
+			))
 			e2e.Run(t, s, e2e.WithProvisioner(awshost.Provisioner(opts...)), e2e.WithStackName(name))
 		})
 	}

@@ -1,0 +1,67 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "resources",
+    srcs = [
+        "publisher.go",
+        "snapshot.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gpu/resources",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/proto/pbgo/genresources",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/gpu/safenvml",
+            "//pkg/util/gpu",
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/gpu/safenvml",
+            "//pkg/util/gpu",
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "resources_test",
+    srcs = [
+        "contract_test.go",
+        "publisher_test.go",
+        "snapshot_test.go",
+    ],
+    data = [
+        "testdata/gpu_device_contract.json",
+        "testdata/python_event.pb",
+    ],
+    embed = [":resources"],
+    gotags_sets = [["nvml"]],
+    deps = [
+        "//pkg/proto/pbgo/genresources",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/tagger/collectors",
+            "//comp/core/tagger/taglist",
+            "//comp/core/workloadmeta/def",
+            "//pkg/gpu/safenvml",
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/tagger/collectors",
+            "//comp/core/tagger/taglist",
+            "//comp/core/workloadmeta/def",
+            "//pkg/gpu/safenvml",
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+        ],
+        "//conditions:default": [],
+    }),
+)

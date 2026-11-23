@@ -211,8 +211,8 @@ func (s *basicSuite) TestAdditionalCheckWorks() {
 init_config:
 
 instances:
-  - name: Example website
-    url: http://example.com
+  - name: Agent expvar endpoint
+    url: http://127.0.0.1:5000/debug/vars
     timeout: 1
 `
 

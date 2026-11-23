@@ -30,6 +30,26 @@ func ToProto(at *ActivityTree) []*adproto.ProcessActivityNode {
 	return out
 }
 
+// MountsToProto encodes the workload's deduplicated mount table to its protobuf representation
+func MountsToProto(at *ActivityTree) []*adproto.MountNode {
+	if len(at.Mounts) == 0 {
+		return nil
+	}
+
+	out := make([]*adproto.MountNode, 0, len(at.Mounts))
+	for _, mn := range at.Mounts {
+		out = append(out, &adproto.MountNode{
+			NodeBase:      nodeBaseToProto(&mn.NodeBase, at.GetTagFromID),
+			MountPoint:    mn.MountPoint,
+			MountRoot:     mn.MountRoot,
+			Filesystem:    mn.Filesystem,
+			MountFlags:    mn.MountFlags,
+			BaseNamespace: mn.InBaseNamespace,
+		})
+	}
+	return out
+}
+
 func processActivityNodeToProto(pan *ProcessNode, tagIDToImageTag func(id uint64) string) *adproto.ProcessActivityNode {
 	if pan == nil {
 		return nil
@@ -276,6 +296,7 @@ func fileActivityNodeToProto(fan *FileNode, tagIDToImageTag func(id uint64) stri
 	*pfan = adproto.FileActivityNode{
 		MatchedRules:   make([]*adproto.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:           escape(fan.Name),
+		IsPattern:      fan.IsPattern,
 		File:           fileInfoToProto(fan.File),
 		GenerationType: adproto.GenerationType(fan.GenerationType),
 		Open:           openNodeToProto(fan.Open),

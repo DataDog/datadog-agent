@@ -1,0 +1,11 @@
+# skip: rshell uses an isolated environment that does not inherit from the parent process
+skip_assert_against_bash: true
+description: Without input.envs, no environment variables are available except builtins.
+input:
+  script: |+
+    echo "val=$SOME_RANDOM_VAR"
+expect:
+  stdout: |+
+    val=
+  stderr: ""
+  exit_code: 0

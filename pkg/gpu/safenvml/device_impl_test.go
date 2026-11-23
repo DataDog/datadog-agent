@@ -176,14 +176,13 @@ func TestNewDeviceMemoryInfoFailureLeavesMemoryUnset(t *testing.T) {
 
 func TestDeviceWithMissingSymbol(t *testing.T) {
 	// Create mock with MaxClockInfo symbol missing, not critical, should succeed
-	symbols := maps.Clone(allSymbols)
+	symbols := defaultMockCapabilities()
 	delete(symbols, toNativeName("GetMaxClockInfo"))
 
 	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(symbols),
 	)
 
-	// Use WithMockNVML to set the mock
 	WithPartialMockNVML(t, mockNvml, symbols)
 
 	// Create device
@@ -210,7 +209,7 @@ func TestGetRetiredPagesCountRequiresVersionedAPISymbol(t *testing.T) {
 	// Simulate an NVML library that does not contain nvmlDeviceGetRetiredPages_v2.
 	// The wrapper must return a function-not-found error without invoking the
 	// underlying NVIDIA API.
-	symbols := maps.Clone(allSymbols)
+	symbols := defaultMockCapabilities()
 	delete(symbols, toNativeName("GetRetiredPages_v2"))
 
 	mockNvml := testutil.NewMockNVML(
@@ -242,7 +241,7 @@ func TestGetGridLicensableFeaturesRequiresVersionedAPISymbol(t *testing.T) {
 	// Simulate an NVML library that does not contain nvmlDeviceGetGridLicensableFeatures_v4.
 	// The wrapper must return a function-not-found error without invoking the
 	// underlying NVIDIA API.
-	symbols := maps.Clone(allSymbols)
+	symbols := defaultMockCapabilities()
 	delete(symbols, toNativeName("GetGridLicensableFeatures_v4"))
 
 	mockNvml := testutil.NewMockNVML(
@@ -427,6 +426,49 @@ func TestGetMIGInstanceProfileName(t *testing.T) {
 	}
 }
 
+func TestGetGpuFabricInfoV3(t *testing.T) {
+	clusterUUID := [16]uint8{0x33, 0x34, 0xf8}
+	v3 := nvml.GpuFabricInfo_v3{ClusterUuid: clusterUUID, Status: uint32(nvml.SUCCESS), CliqueId: 7, State: nvml.GPU_FABRIC_STATE_COMPLETED, HealthMask: 0xaa, HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_HEALTHY}
+	v2 := nvml.GpuFabricInfo_v2{ClusterUuid: clusterUUID, Status: uint32(nvml.SUCCESS), CliqueId: 7, State: nvml.GPU_FABRIC_STATE_COMPLETED, HealthMask: 0xaa}
+
+	for _, tt := range []struct {
+		name       string
+		v3Ret      nvml.Return
+		v2Ret      nvml.Return
+		want       nvml.GpuFabricInfo_v3
+		wantErr    nvml.Return
+		wantV2Call bool
+	}{
+		{name: "v3 supported", v3Ret: nvml.SUCCESS, want: v3},
+		{
+			name:  "older driver falls back to v2",
+			v3Ret: nvml.ERROR_ARGUMENT_VERSION_MISMATCH, v2Ret: nvml.SUCCESS, wantV2Call: true,
+			// V2 fields are kept and the health summary stays unsupported.
+			want: nvml.GpuFabricInfo_v3{ClusterUuid: clusterUUID, Status: uint32(nvml.SUCCESS), CliqueId: 7, State: nvml.GPU_FABRIC_STATE_COMPLETED, HealthMask: 0xaa, HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED},
+		},
+		{name: "v2 error is returned", v3Ret: nvml.ERROR_ARGUMENT_VERSION_MISMATCH, v2Ret: nvml.ERROR_NOT_SUPPORTED, wantErr: nvml.ERROR_NOT_SUPPORTED, wantV2Call: true},
+		{name: "v3 error is returned without fallback", v3Ret: nvml.ERROR_UNKNOWN, wantErr: nvml.ERROR_UNKNOWN},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			v2Called := false
+			info, err := getGpuFabricInfoV3(
+				func() (nvml.GpuFabricInfo_v3, nvml.Return) { return v3, tt.v3Ret },
+				func() (nvml.GpuFabricInfo_v2, nvml.Return) { v2Called = true; return v2, tt.v2Ret },
+			)
+			require.Equal(t, tt.wantV2Call, v2Called)
+			if tt.wantErr != nvml.SUCCESS {
+				var nvmlErr *NvmlAPIError
+				require.ErrorAs(t, err, &nvmlErr)
+				require.Equal(t, tt.wantErr, nvmlErr.NvmlErrorCode)
+				require.Equal(t, nvml.GpuFabricInfo_v3{}, info)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, info)
+		})
+	}
+}
+
 func TestFixedSizeString(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -540,4 +582,37 @@ func int8s(s string) []int8 {
 		out[i] = int8(c)
 	}
 	return out
+}
+
+func TestDeviceCachesStaticAttributes(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+		d.GetMemoryBusWidthFunc = func() (uint32, nvml.Return) { return 512, nvml.SUCCESS }
+		d.GetSerialFunc = func() (string, nvml.Return) { return " BOARD ", nvml.SUCCESS }
+		d.GetPlatformInfoFunc = func() (nvml.PlatformInfo, nvml.Return) {
+			info := nvml.PlatformInfo{SlotNumber: 2, TrayIndex: 3, ModuleId: 4}
+			copy(info.ChassisSerialNumber[:], "CHASSIS")
+			info.IbGuid[0] = 0xab
+			return info, nvml.SUCCESS
+		}
+	})))
+	WithMockNVML(t, mockNvml)
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+	require.Equal(t, uint32(512), device.MemoryBusWidth)
+	require.Equal(t, "BOARD", device.BoardSerial)
+	require.Equal(t, "CHASSIS", device.ChassisSerial)
+	require.Equal(t, "0x00000000000000ab", device.FabricGUID)
+	require.Equal(t, uint8(2), device.SlotNumber)
+	require.Equal(t, "none", device.VirtualizationModeName)
+	require.Equal(t, testutil.DefaultNvidiaDriverVersion, device.DriverVersion)
+}
+
+func TestDeviceFailedVirtualizationQueryStaysUnknown(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+		d.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) { return 0, nvml.ERROR_UNKNOWN }
+	})))
+	WithMockNVML(t, mockNvml)
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+	require.Empty(t, device.VirtualizationModeName)
 }

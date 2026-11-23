@@ -1,0 +1,7 @@
+description: Zero-padded scientific notation with width and precision.
+input:
+  script: |+
+    printf "%015.2e\n" 3.14
+expect:
+  stdout: "00000003.14e+00\n"
+  exit_code: 0

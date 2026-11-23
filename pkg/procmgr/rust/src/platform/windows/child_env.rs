@@ -168,6 +168,7 @@ fn legacy_scm_service_name(process_name: &str) -> Option<&'static str> {
         "datadog-agent-action" => Some("datadog-agent-action"),
         "datadog-agent-ddot" => Some("datadog-otel-agent"),
         "datadog-agent-trace" => Some("datadog-trace-agent"),
+        "datadog-agent-security" => Some("datadog-security-agent"),
         _ => None,
     }
 }
@@ -449,7 +450,10 @@ mod legacy_scm_tests {
             legacy_scm_service_name("datadog-agent-trace"),
             Some("datadog-trace-agent")
         );
-        assert_eq!(legacy_scm_service_name("datadog-agent-security"), None);
+        assert_eq!(
+            legacy_scm_service_name("datadog-agent-security"),
+            Some("datadog-security-agent")
+        );
     }
 
     #[test]

@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !e2eunit
-
 package installer
 
 import (
@@ -23,6 +21,7 @@ const (
 	ddotProcmgrProcess         = "datadog-agent-ddot"
 	processAgentProcmgrProcess = "datadog-agent-process"
 	sysprobeProcmgrProcess     = "datadog-agent-sysprobe"
+	securityProcmgrProcess     = "datadog-agent-security"
 )
 
 // assertManagedByProcmgr verifies processName has a processes.d config and that dd-procmgrd

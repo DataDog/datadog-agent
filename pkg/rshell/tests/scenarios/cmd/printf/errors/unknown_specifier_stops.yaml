@@ -1,0 +1,8 @@
+description: Printf stops processing format string after unknown specifier (no trailing output).
+input:
+  script: |+
+    printf '%yABC\n'
+expect:
+  stdout: ""
+  stderr_contains: ["invalid format character"]
+  exit_code: 1

@@ -64,6 +64,13 @@ const (
 	maximalMaxBackoffTime = 5 * time.Minute
 )
 
+// Minimum delay between two DC switch recovery attempts. The recovery
+// re-requests a full fresh-join payload from the backend, so it must not run
+// on every poll: the cooldown is deliberately well above the (1 minute)
+// default refresh interval. The first attempt after a TUF failure is
+// immediate; only the retries are spaced out.
+const dcSwitchRecoveryCooldown = 5 * time.Minute
+
 const (
 	// When the agent continuously has the same authorization error when fetching RC updates
 	// The first initialLogRefreshError are logged as ERROR, and then it's only logged as INFO
@@ -147,6 +154,7 @@ type CoreAgentService struct {
 
 	clients         *clients
 	orgStatusPoller *orgStatusPoller
+	status          StatusInstance
 
 	// Channels to stop the services main goroutines
 	stopConfigPoller chan struct{}
@@ -188,6 +196,11 @@ type CoreAgentService struct {
 		// of our backoff policy
 		backoffErrorCount int
 
+		// Last time a DC switch recovery was attempted (zero until the first
+		// attempt). Recovery re-requests a full payload from the backend, so it
+		// is rate limited to one attempt per cooldown.
+		lastDCSwitchRecoveryAttempt time.Time
+
 		products    map[rdata.Product]struct{}
 		newProducts map[rdata.Product]struct{}
 	}
@@ -214,6 +227,8 @@ type uptaneClient interface {
 type coreAgentUptaneClient interface {
 	uptaneClient
 	Update(response *pbgo.LatestConfigsResponse) error
+	TryRecoverFromEmbeddedRoot(response *pbgo.LatestConfigsResponse) error
+	EmbeddedRootVersions() (uptane.TUFVersions, error)
 }
 
 // RcTelemetryReporter should be implemented by the agent to publish metrics
@@ -236,6 +251,34 @@ type RcTelemetryReporter interface {
 	// SetConfigSubscriptionClientsTracked sets the DdRcTelemetryReporter
 	// ConfigSubscriptionClientsTracked gauge to the given value.
 	SetConfigSubscriptionClientsTracked(value int)
+}
+
+// StatusInstance receives the exported state of one service, so a process running
+// several of them can report each separately. Implementations own their locking.
+type StatusInstance interface {
+	SetOrgEnabled(enabled bool)
+	SetAPIKeyAuthorized(authorized bool)
+	// SetLastError reports the last refresh error, or nil on success
+	SetLastError(err error)
+}
+
+// expvarStatusInstance reports to the process-wide "remoteConfigStatus" expvars
+type expvarStatusInstance struct{}
+
+func (expvarStatusInstance) SetOrgEnabled(enabled bool) {
+	exportedStatusOrgEnabled.Set(strconv.FormatBool(enabled))
+}
+
+func (expvarStatusInstance) SetAPIKeyAuthorized(authorized bool) {
+	exportedStatusKeyAuthorized.Set(strconv.FormatBool(authorized))
+}
+
+func (expvarStatusInstance) SetLastError(err error) {
+	if err == nil {
+		exportedLastUpdateErr.Set("")
+		return
+	}
+	exportedLastUpdateErr.Set(err.Error())
 }
 
 // orgStatusPoller handles periodic polling of the organization status from the remote config backend
@@ -261,14 +304,14 @@ func newOrgStatusPoller(refreshInterval time.Duration) *orgStatusPoller {
 }
 
 // start begins the periodic polling of org status
-func (p *orgStatusPoller) start(clock clock.Clock, apiClient api.API, rcType string) {
+func (p *orgStatusPoller) start(clock clock.Clock, apiClient api.API, rcType string, status StatusInstance) {
 	go func() {
 		timer := clock.Timer(0)
 		defer timer.Stop()
 		for {
 			select {
 			case <-timer.C:
-				p.poll(apiClient, rcType)
+				p.poll(apiClient, rcType, status)
 				timer.Reset(p.refreshInterval)
 			case <-p.stopChan:
 				log.Infof("[%s] Stopping Remote Config org status poller", rcType)
@@ -291,7 +334,7 @@ func (p *orgStatusPoller) getPreviousStatus() *pbgo.OrgStatusResponse {
 }
 
 // poll fetches and processes the current organization status
-func (p *orgStatusPoller) poll(apiClient api.API, rcType string) {
+func (p *orgStatusPoller) poll(apiClient api.API, rcType string, status StatusInstance) {
 	response, err := apiClient.FetchOrgStatus(context.Background())
 
 	p.mu.Lock()
@@ -339,8 +382,8 @@ func (p *orgStatusPoller) poll(apiClient api.API, rcType string) {
 		Enabled:    response.Enabled,
 		Authorized: response.Authorized,
 	}
-	exportedStatusOrgEnabled.Set(strconv.FormatBool(response.Enabled))
-	exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
+	status.SetOrgEnabled(response.Enabled)
+	status.SetAPIKeyAuthorized(response.Authorized)
 }
 
 func init() {
@@ -368,6 +411,7 @@ type options struct {
 	clientTTL                      time.Duration
 	disableConfigPollLoop          bool
 	orgStatusRefreshInterval       time.Duration
+	statusInstance                 StatusInstance
 	// for mocking creating db instance in test
 	uptaneFactory func(md *uptane.Metadata) (coreAgentUptaneClient, error)
 	// The allowed products for each subscription products value. Overridable
@@ -404,6 +448,7 @@ var defaultOptions = options{
 	clientTTL:                           defaultClientsTTL,
 	disableConfigPollLoop:               false,
 	orgStatusRefreshInterval:            defaultRefreshInterval,
+	statusInstance:                      expvarStatusInstance{},
 	subscriptionProductMappings:         defaultSubscriptionProductMappings,
 	maxConcurrentSubscriptions:          defaultMaxConcurrentSubscriptions,
 	maxTrackedRuntimeIDsPerSubscription: defaultMaxTrackedRuntimeIDsPerSubscription,
@@ -501,6 +546,17 @@ func WithRcKey(rcKey string) func(s *options) {
 // WithAPIKey sets the service API key
 func WithAPIKey(apiKey string) func(s *options) {
 	return func(s *options) { s.apiKey = apiKey }
+}
+
+// WithStatusInstance sets the service status instance, so a second service in the
+// process does not overwrite the default one's status. A nil instance is ignored.
+func WithStatusInstance(instance StatusInstance) func(s *options) {
+	return func(s *options) {
+		if instance == nil {
+			return
+		}
+		s.statusInstance = instance
+	}
 }
 
 // WithPARJWT sets the JWT for the private action runner
@@ -658,6 +714,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		maxConcurrentSubscriptions:          options.maxConcurrentSubscriptions,
 		maxTrackedRuntimeIDsPerSubscription: options.maxTrackedRuntimeIDsPerSubscription,
 		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval),
+		status:                              options.statusInstance,
 	}
 	cas.mu.subscriptions = newSubscriptions(
 		options.subscriptionProductMappings,
@@ -684,11 +741,24 @@ func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 	}
 }
 
+// GetOrgStatus returns a copy of the last successfully fetched org/key status,
+// or nil if none has been fetched. Failed polls retain the last status.
+func (s *CoreAgentService) GetOrgStatus() *pbgo.OrgStatusResponse {
+	status := s.orgStatusPoller.getPreviousStatus()
+	if status == nil {
+		return nil
+	}
+	return &pbgo.OrgStatusResponse{
+		Enabled:    status.Enabled,
+		Authorized: status.Authorized,
+	}
+}
+
 // Start the remote configuration management service
 func (s *CoreAgentService) Start() {
 	refreshBypassCh := make(chan chan<- struct{})
 	s.refreshBypassCh = refreshBypassCh
-	s.orgStatusPoller.start(s.clock, s.api, s.rcType)
+	s.orgStatusPoller.start(s.clock, s.api, s.rcType, s.status)
 
 	go func() {
 		if s.disableConfigPollLoop {
@@ -764,7 +834,7 @@ func (s *CoreAgentService) logRefreshError(err error) {
 			defer s.mu.Unlock()
 			return s.mu.fetchConfigs503And504ErrCount
 		}()
-		exportedLastUpdateErr.Set(err.Error())
+		s.status.SetLastError(err)
 		if fetchConfigs503And504ErrCount < maxFetchConfigsUntilLogLevelErrors {
 			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		} else {
@@ -881,7 +951,54 @@ func (s *CoreAgentService) refresh() error {
 	if err != nil {
 		s.mu.backoffErrorCount = s.backoffPolicy.IncError(s.mu.backoffErrorCount)
 		s.mu.lastUpdateErr = fmt.Errorf("tuf: %v", err)
-		return err
+
+		// When an org moves to another DC behind the same URL,
+		// the TUF update fails permanently on signature verification: the
+		// latched state belongs to the old DC, and the new DC's root chain
+		// cannot even be sent through a normal update since both DCs share the
+		// embedded root version (no root files are sent at all). Attempt to
+		// recover by re-requesting a fresh-join payload and verifying it from
+		// the embedded root; on success the RC DB is wiped and the new DC's
+		// state is accepted.
+		if s.mu.lastDCSwitchRecoveryAttempt.IsZero() || s.clock.Now().Sub(s.mu.lastDCSwitchRecoveryAttempt) >= dcSwitchRecoveryCooldown {
+			s.mu.lastDCSwitchRecoveryAttempt = s.clock.Now()
+
+			embeddedVersions, embeddedErr := s.mu.uptane.EmbeddedRootVersions()
+			if embeddedErr != nil {
+				log.Warnf("[%s] could not get the embedded root versions, skipping the DC switch recovery: %v", s.rcType, embeddedErr)
+				return err
+			}
+			// A fresh-join request: the embedded root versions, so the backend
+			// sends the full root chain starting from the embedded root, all the
+			// other versions zeroed, and the TUF error reported for backend
+			// observability.
+			recoveryRequest := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.tagsGetter(), s.traceAgentEnv, orgUUID, embeddedVersions, activeClients, s.mu.products, s.mu.newProducts, s.mu.lastUpdateErr, clientState)
+			var recoveryResponse *pbgo.LatestConfigsResponse
+			var recoveryErr error
+			func() {
+				s.mu.Unlock()
+				defer s.mu.Lock()
+				ctx := context.Background()
+				recoveryResponse, recoveryErr = s.api.Fetch(ctx, recoveryRequest)
+			}()
+			if recoveryErr != nil {
+				log.Debugf("[%s] could not fetch a fresh-join payload for the DC switch recovery: %v", s.rcType, recoveryErr)
+				return err
+			}
+			if recoveryErr = s.mu.uptane.TryRecoverFromEmbeddedRoot(recoveryResponse); recoveryErr != nil {
+				log.Warnf("[%s] DC switch recovery failed, keeping the current TUF state: %v", s.rcType, recoveryErr)
+				return err
+			}
+			log.Infof("[%s] recovered from a DC switch: the Remote Config database was reset and re-verified from the embedded root", s.rcType)
+			// The TUF error was transient (caused by the DC switch) and is now
+			// resolved: do not report a stale error to the backend on the next
+			// poll.
+			s.mu.lastUpdateErr = nil
+		} else {
+			// Within the recovery cooldown: do not hammer the backend, keep
+			// the original error.
+			return err
+		}
 	}
 	// If a user hasn't explicitly set the refresh interval, allow the backend to override it based
 	// on the contents of our update request
@@ -904,7 +1021,7 @@ func (s *CoreAgentService) refresh() error {
 
 	s.mu.backoffErrorCount = s.backoffPolicy.DecError(s.mu.backoffErrorCount)
 
-	exportedLastUpdateErr.Set("")
+	s.status.SetLastError(nil)
 
 	return nil
 }

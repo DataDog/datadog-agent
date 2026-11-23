@@ -1,0 +1,17 @@
+# vuln-hunt 2026-05-19-codex / tr.
+description: Path-looking operands are SET strings, not file operands.
+setup:
+  files:
+    - path: secret
+      content: |+
+        should-not-be-read
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tr secret SECRET
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr: ""
+  exit_code: 0

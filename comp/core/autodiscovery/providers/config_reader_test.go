@@ -6,9 +6,12 @@
 package providers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -17,10 +20,12 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func TestConfigReaderConcurrentInitialization(t *testing.T) {
@@ -179,6 +184,135 @@ func TestGetIntegrationConfig(t *testing.T) {
 	assert.Empty(t, config.Instances)
 	assert.Nil(t, config.MetricConfig)
 	assert.Nil(t, config.LogsConfig)
+}
+
+func TestConfigMetadataPreservesYAMLV2Config(t *testing.T) {
+	for _, relativePath := range []string{"compatibility.yaml", filepath.Join("compatibility.d", "conf.yaml")} {
+		t.Run(relativePath, func(t *testing.T) {
+			configmock.New(t)
+			dir := t.TempDir()
+			file := filepath.Join(dir, relativePath)
+			const content = `instances:
+  - password: compatibility-plaintext-password
+    api_key: ENC[compatibility-key]
+    options:
+      1: numeric-value
+      "1": string-value
+`
+			require.NoError(t, os.MkdirAll(filepath.Dir(file), 0700))
+			require.NoError(t, os.WriteFile(file, []byte(content), 0600))
+
+			withoutMetadata, _, err := getIntegrationConfigFromFile("compatibility", file, false)
+			require.NoError(t, err)
+			require.Len(t, withoutMetadata.Instances, 1)
+
+			withMetadata, format, err := getIntegrationConfigFromFile("compatibility", file, true)
+			require.NoError(t, err)
+			assert.Equal(t, withoutMetadata, withMetadata)
+			assert.Empty(t, format.Secrets, "strict YAML validation only affects secret references")
+			assert.Equal(t, file, format.Filename)
+			assert.NotContains(t, format.ConfigFormat, "compatibility-plaintext-password")
+			assert.Contains(t, format.ConfigFormat, "ENC[compatibility-key]")
+			assert.Contains(t, format.ConfigFormat, "numeric-value")
+			assert.Contains(t, format.ConfigFormat, "string-value")
+			assertLegacyConfigFormat(t, content, format)
+
+			supportedFile := filepath.Join(dir, "supported.yaml")
+			require.NoError(t, os.WriteFile(supportedFile, []byte("instances: [{password: raw-password, api_key: 'ENC[supported-key]'}]\n"), 0600))
+			supportedConfig, supportedFormat, err := getIntegrationConfigFromFile("supported", supportedFile, true)
+			require.NoError(t, err)
+			require.ElementsMatch(t, []scrubber.ConfigSecret{
+				{Path: "instances.0.password", Kind: "raw"},
+				{Path: "instances.0.api_key", Kind: "enc", Handle: "supported-key"},
+			}, supportedFormat.Secrets)
+			assertLegacyConfigFormat(t, "instances: [{password: raw-password, api_key: 'ENC[supported-key]'}]\n", supportedFormat)
+
+			ResetReader([]string{dir})
+			t.Cleanup(func() { ResetReader(nil) })
+			configs, configErrors, err := ReadConfigFiles(GetAll)
+			require.NoError(t, err)
+			require.Empty(t, configErrors)
+			require.ElementsMatch(t, []integration.Config{withoutMetadata, supportedConfig}, configs)
+			formats := ReadConfigFormats()
+			require.ElementsMatch(t, []ConfigFormatWrapper{format, supportedFormat}, formats)
+			afterMetadata, configErrors, err := ReadConfigFiles(GetAll)
+			require.NoError(t, err)
+			assert.Empty(t, configErrors)
+			assert.Equal(t, configs, afterMetadata)
+		})
+	}
+}
+
+// Integration configs have always been parsed as YAML 1.1 by yaml v2. Later yaml
+// major versions reject or reinterpret these inputs, so any parser or scrubber
+// change on this path must keep loading them the same way.
+func TestGetIntegrationConfigYamlV2Compatibility(t *testing.T) {
+	tests := []struct {
+		name         string
+		content      string
+		wantInstance []string
+	}{
+		{
+			name: "duplicate keys keep the last value",
+			content: `
+instances:
+  - host: first
+    host: last
+    password: hunter2`,
+			wantInstance: []string{"host: last"},
+		},
+		{
+			name: "integer and string keys with the same text",
+			content: `
+instances:
+  - 1: integer
+    "1": string
+    password: hunter2`,
+			wantInstance: []string{"1: integer", `"1": string`},
+		},
+		{
+			name: "YAML 1.1 booleans",
+			content: `
+instances:
+  - tls_verify: yes
+    tls_ignore_warning: off
+    password: hunter2`,
+			wantInstance: []string{"tls_verify: true", "tls_ignore_warning: false"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configmock.New(t)
+			fpath := filepath.Join(t.TempDir(), "foo.yaml")
+			require.NoError(t, os.WriteFile(fpath, []byte(tt.content), 0o660))
+
+			config, format, err := GetIntegrationConfigFromFile("foo", fpath)
+			require.NoError(t, err)
+			require.Len(t, config.Instances, 1)
+			for _, want := range tt.wantInstance {
+				assert.Contains(t, string(config.Instances[0]), want)
+			}
+
+			assert.Equal(t, fpath, format.Filename)
+			assert.NotEmpty(t, format.Hash)
+			assert.Contains(t, format.ConfigFormat, "password:")
+			assert.NotContains(t, format.ConfigFormat, "hunter2")
+		})
+	}
+}
+
+func assertLegacyConfigFormat(t *testing.T, input string, format ConfigFormatWrapper) {
+	t.Helper()
+	var cf configFormat
+	require.NoError(t, yaml.Unmarshal([]byte(input), &cf))
+	serialized, err := yaml.Marshal(cf)
+	require.NoError(t, err)
+	expected, err := scrubber.ScrubYamlString(string(serialized))
+	require.NoError(t, err)
+	assert.Equal(t, expected, format.ConfigFormat)
+	hash := sha256.Sum256([]byte(expected))
+	assert.Equal(t, hex.EncodeToString(hash[:]), format.Hash)
 }
 
 func TestReadConfigFiles(t *testing.T) {
@@ -365,6 +499,54 @@ func TestReadConfigFilesConcurrentMatchesSequential(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReadConfigFormats(t *testing.T) {
+	testFileContent := `
+init_config:
+
+instances:
+  - host: localhost
+    password: hunter2`
+
+	tempDir := t.TempDir()
+	testFilePath := filepath.Join(tempDir, "foo.yaml")
+	require.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
+
+	configmock.New(t)
+	// The initial scan at startup does not build the formats
+	ResetReader([]string{tempDir})
+	configs, _, err := ReadConfigFiles(GetAll)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	_, found := reader.cache.Get("configFormats")
+	assert.False(t, found)
+
+	// ReadConfigFormats builds and caches them
+	formats := ReadConfigFormats()
+	require.Len(t, formats, 1)
+	format := formats[0]
+	assert.Equal(t, testFilePath, format.Filename)
+	assert.False(t, format.IsDiscovery)
+	assert.Contains(t, format.ConfigFormat, "host: localhost")
+	assert.NotContains(t, format.ConfigFormat, "hunter2")
+	hash := sha256.Sum256([]byte(format.ConfigFormat))
+	assert.Equal(t, hex.EncodeToString(hash[:]), format.Hash)
+	_, found = reader.cache.Get("configFormats")
+	assert.True(t, found)
+
+	// They match the ones built by GetIntegrationConfigFromFile
+	_, expectedFormat, err := GetIntegrationConfigFromFile("foo", testFilePath)
+	require.NoError(t, err)
+	assert.Equal(t, expectedFormat, format)
+
+	// Scans after the initial one, like the ones triggered by ReadConfigFiles on a cache miss, build the formats
+	reader.cache.Flush()
+	_, _, err = ReadConfigFiles(GetAll)
+	require.NoError(t, err)
+	cachedFormats, found := reader.cache.Get("configFormats")
+	require.True(t, found)
+	assert.Equal(t, formats, cachedFormats)
 }
 
 func TestReadConfigFilesCache(t *testing.T) {

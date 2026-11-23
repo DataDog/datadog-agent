@@ -21,6 +21,7 @@ pkg/gpu/
 ├── context.go         # systemContext holds GPU device info, caches
 ├── cuda/              # CUDA binary parsing (fatbin, cubin, symbols)
 ├── safenvml/          # Safe wrapper around NVML library
+├── resources/         # GPU resource models and publication
 ├── ebpf/              # eBPF program and types
 ├── containers/        # Container detection for GPU workloads
 └── config/            # Configuration
@@ -218,6 +219,25 @@ require.Equal(t, stats.get, stats.put)  // Balanced get/put
 - Caches device info to reduce NVML calls
 - `DeviceCache.Refresh` keeps a previously enumerated physical GPU when that index returns `NVML_ERROR_GPU_IS_LOST`. No lost-state attribute is added to `DeviceInfo`; callers that need the current state must query NVML. Any other per-device error still drops that index.
 
+### Static resource publication (`resources/`)
+
+- The GPU core check owns the feature-gated publisher and invokes it after its
+  existing cache refresh. Consume cached `DeviceInfo`; do not add another
+  enumeration, static query pass or background scheduler.
+- NVML handles must not escape into publisher state. Share hardware-formatting
+  helpers with other collectors to preserve metric/resource join formats.
+- The check sender acknowledges submission, not delivery. Periodic full refresh
+  repairs missed events; it is not safe to advance destructive scope watermarks
+  based on sender submission.
+- `Snapshot` assumes cached `DeviceInfo` is complete: a GPU is either fully
+  populated or not enumerated. Most static queries are best-effort in
+  `safenvml` (logged, not fatal), so a rare single-query failure can publish a
+  partial record until the next refresh replaces it; this is accepted rather
+  than handled. In particular, a failed `GetVirtualizationMode` leaves
+  `VirtualizationMode` at its zero value (`NONE`) with an empty
+  `VirtualizationModeName`, so the zero value does not establish mode `none`
+  and a vGPU can be published as a physical GPU in that case.
+
 ### NVML test mocks (`testutil/`)
 - Use `safenvml/testutil.SetupMockNVML` as the main setup entry point outside
   the `safenvml` package; it installs and returns the canonical `MockNVML`
@@ -239,7 +259,7 @@ The GPU monitoring system emits two active time metrics:
 - **`process.sm_active`**: Per-process percentage of time the GPU had active kernels
 - **`sm_active`**: Device-wide percentage of time any GPU kernels were active
 
-Both are emitted with **Low priority** to serve as fallbacks when NVML or GPM-based metrics are unavailable.
+`process.sm_active` is emitted with **Low priority**. Device-wide `sm_active` is emitted with **MediumLow priority**, below NVML sampling and above the GPM fallback.
 
 ### How They Are Generated
 
@@ -247,6 +267,13 @@ Active time is derived from kernel execution intervals captured within each coll
 
 - **Per-process**: Merge intervals for a single process, then compute the percentage of the window that was active.
 - **Device-wide**: Merge intervals across all processes on the device, then compute the percentage of the window that was active.
+
+### Other `sm_active` Sources
+
+- `sampling` collector (Medium): derived from NVML per-process utilization samples.
+- `gpm` collector with `gpu.legacy_sm_active` (High): `GPM_METRIC_SM_UTIL`.
+- `gpm` collector (Low, High with `gpu.prefer_gr_engine_sm_active`, off with
+  `gpu.legacy_sm_active`): `GPM_METRIC_GRAPHICS_UTIL`.
 
 ## GPU Spec Guidance
 

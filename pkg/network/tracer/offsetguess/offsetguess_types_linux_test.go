@@ -9,13 +9,13 @@ import (
 )
 
 func TestCgoAlignment_Proc(t *testing.T) {
-	ebpftest.TestCgoAlignment[Proc](t)
+	ebpftest.AssertCgoAlignment[Proc](t)
 }
 
 func TestCgoAlignment_TracerStatus(t *testing.T) {
-	ebpftest.TestCgoAlignment[TracerStatus](t)
+	ebpftest.AssertCgoAlignment[TracerStatus](t)
 }
 
 func TestCgoAlignment_ConntrackStatus(t *testing.T) {
-	ebpftest.TestCgoAlignment[ConntrackStatus](t)
+	ebpftest.AssertCgoAlignment[ConntrackStatus](t)
 }

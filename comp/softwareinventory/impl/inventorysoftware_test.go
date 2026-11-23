@@ -26,7 +26,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -83,7 +83,7 @@ func (m *mockEventPlatform) GetCallCount() int {
 
 func newFixtureWithData(t *testing.T, enabled bool, mockData []software.Entry) *testFixture {
 	sp := &mockSysProbeClient{}
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
+	sp.On("GetCheck", sysconfigtypes.SoftwareInventoryModule).Return(mockData, nil)
 
 	logComp := logmock.New(t)
 	hostnameComp := &mockHostname{}
@@ -180,7 +180,7 @@ func TestFlareProviderOutputDisabled(t *testing.T) {
 func TestFlareProviderOutputFailed(t *testing.T) {
 	f := newFixtureWithData(t, true, []software.Entry{{DisplayName: "TestApp"}})
 	sp := &mockSysProbeClient{}
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(nil, errors.New("error"))
+	sp.On("GetCheck", sysconfigtypes.SoftwareInventoryModule).Return(nil, errors.New("error"))
 	f.sysProbeClient = sp
 	sut := f.sut().WaitForSystemProbe()
 

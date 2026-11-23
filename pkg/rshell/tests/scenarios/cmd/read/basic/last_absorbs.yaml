@@ -1,0 +1,9 @@
+description: With more fields than variables, the last variable absorbs the remainder.
+input:
+  script: |+
+    echo "one two three four five" | { read A B C; echo "[$A][$B][$C]"; }
+expect:
+  stdout: |+
+    [one][two][three four five]
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,7 @@
+description: Variable value containing a tab preserves it when quoted.
+input:
+  script: "VAR=\"a\tb\"\necho \"$VAR\"\n"
+expect:
+  stdout: "a\tb\n"
+  stderr: ""
+  exit_code: 0

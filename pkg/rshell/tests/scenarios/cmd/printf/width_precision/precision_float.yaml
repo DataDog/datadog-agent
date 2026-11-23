@@ -1,0 +1,9 @@
+description: Printf applies precision to a floating point number.
+input:
+  script: |+
+    printf "%.2f\n" 3.14159
+expect:
+  stdout: |+
+    3.14
+  stderr: ""
+  exit_code: 0

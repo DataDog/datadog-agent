@@ -4,6 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 pub mod agent_yaml;
+#[cfg(test)]
+mod aio_catalog;
 pub mod command;
 pub mod config;
 pub mod config_gate;
@@ -12,6 +14,8 @@ pub mod env;
 mod fleet_data_plane_template;
 #[cfg(all(test, windows))]
 mod fleet_process_template;
+#[cfg(all(test, windows))]
+mod fleet_security_template;
 #[cfg(all(test, windows))]
 mod fleet_sysprobe_template;
 #[cfg(all(test, windows))]

@@ -295,7 +295,6 @@ github.com/aquasecurity/go-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
 github.com/aquasecurity/trivy-java-db: Copyright 2019-2020 Aqua Security
 github.com/spdx/tools-golang: Copyright (c) 2018 The Authors
 github.com/google/flatbuffers: Copyright (c) 2014 Google
-github.com/gocomply/scap: "CC0 1.0 Universal"
 github.com/anchore/go-struct-converter: Copyright (c) 2022-2023 Anchore, Inc.
 github.com/bitnami/go-version/pkg/version: Copyright (c) 2023-2024 Carlos Rodríguez Hernández
 github.com/kylelemons/godebug: Copyright (c) 2013-2020 Kyle Lemons

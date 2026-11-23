@@ -8,13 +8,16 @@
 package netlink
 
 import (
+	"context"
 	"crypto/rand"
 	"net/netip"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -422,6 +425,97 @@ func crossCheckCacheOrphans(t *testing.T, cc *conntrackCache) {
 		require.True(t, ok)
 		require.Equal(t, l, v.orphan)
 	}
+}
+
+// TestConntrackerCloseConcurrentRegister reproduces a shutdown crash: Close() used to purge the
+// cache without holding the conntracker lock while the event loop was still registering
+// buffered conntrack events, which crashed system-probe with "concurrent map writes".
+//
+// There are no assertions: a regression shows up as a runtime fatal error (or a -race report),
+// which fails the test binary. A cache of 5000 entries makes Purge() take long enough that
+// the overlap with register() is reliable.
+func TestConntrackerCloseConcurrentRegister(_ *testing.T) {
+	const cacheSize = 5000
+	genIP := randomIPGen()
+
+	for i := 0; i < 20; i++ {
+		rt := newConntracker(cacheSize)
+		rt.consumer = &Consumer{
+			breaker:   NewCircuitBreaker(-1, time.Second),
+			rootNetNs: netns.None(),
+		}
+		rt.compactTicker = time.NewTicker(time.Hour)
+		rt.exit = make(chan struct{})
+
+		for j := 0; j < cacheSize; j++ {
+			rt.register(makeTranslatedConn(genIP(), genIP(), genIP(), unix.IPPROTO_TCP, 12345, 80, 80))
+		}
+
+		// This goroutine stands in for the event loop started by run(), which calls register()
+		// for each conntrack event; run() itself needs a real netlink socket.
+		stop := make(chan struct{})
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					rt.register(makeTranslatedConn(genIP(), genIP(), genIP(), unix.IPPROTO_TCP, 12345, 80, 80))
+				}
+			}
+		}()
+
+		rt.Close()
+		close(stop)
+		<-done
+	}
+}
+
+// TestConntrackerConcurrentDumpAndCollect checks that dumping the cached table (debug endpoint
+// and flares) and collecting telemetry are safe while the event loop registers entries.
+//
+// Like TestConntrackerCloseConcurrentRegister, there are no assertions on the races: an unlocked
+// DumpCachedTable fails with "concurrent map read and map write" (or a -race report). An
+// unlocked Collect only reads list lengths, so only -race catches it.
+func TestConntrackerConcurrentDumpAndCollect(t *testing.T) {
+	const cacheSize = 5000
+	genIP := randomIPGen()
+
+	rt := newConntracker(cacheSize)
+	for j := 0; j < cacheSize; j++ {
+		rt.register(makeTranslatedConn(genIP(), genIP(), genIP(), unix.IPPROTO_TCP, 12345, 80, 80))
+	}
+
+	// This goroutine stands in for the event loop started by run().
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				rt.register(makeTranslatedConn(genIP(), genIP(), genIP(), unix.IPPROTO_TCP, 12345, 80, 80))
+			}
+		}
+	}()
+
+	metrics := make(chan prometheus.Metric, 2)
+	for i := 0; i < 20; i++ {
+		table, err := rt.DumpCachedTable(context.Background())
+		require.NoError(t, err)
+		assert.NotEmpty(t, table[0])
+
+		rt.Collect(metrics)
+		<-metrics
+		<-metrics
+	}
+
+	close(stop)
+	<-done
 }
 
 func newConntracker(maxSize int) *realConntracker {

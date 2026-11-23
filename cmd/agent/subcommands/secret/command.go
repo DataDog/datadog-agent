@@ -8,6 +8,8 @@ package secret
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -20,6 +22,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -128,7 +131,7 @@ func secretRefresh(config config.Component, _ log.Component, client ipc.HTTPClie
 	return nil
 }
 
-func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigName string, client ipc.HTTPClient) ([]byte, error) {
+func commonSubAgentSecretRefresh(conf config.Component, agentName, host, portConfigName string, client ipc.HTTPClient) ([]byte, error) {
 	port := conf.GetInt(portConfigName)
 	if port <= 0 {
 		return nil, fmt.Errorf("invalid %s -- %d", portConfigName, port)
@@ -136,7 +139,7 @@ func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigNam
 
 	timeout := conf.GetDuration("server_timeout") * time.Second
 
-	url := fmt.Sprintf("https://127.0.0.1:%d/secret/refresh", port)
+	url := fmt.Sprintf("https://%s/secret/refresh", net.JoinHostPort(host, strconv.Itoa(port)))
 	res, err := client.Get(url, ipchttp.WithCloseConnection, ipchttp.WithTimeout(timeout))
 	if err != nil {
 		return nil, fmt.Errorf("could not contact %s: %s", agentName, err)
@@ -146,13 +149,13 @@ func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigNam
 }
 
 func traceAgentSecretRefresh(conf config.Component, client ipc.HTTPClient) ([]byte, error) {
-	return commonSubAgentSecretRefresh(conf, "trace-agent", "apm_config.debug.port", client)
+	return commonSubAgentSecretRefresh(conf, "trace-agent", pkgconfighelper.APMDebugHost(conf), "apm_config.debug.port", client)
 }
 
 func securityAgentSecretRefresh(conf config.Component, client ipc.HTTPClient) ([]byte, error) {
-	return commonSubAgentSecretRefresh(conf, "security-agent", "security_agent.cmd_port", client)
+	return commonSubAgentSecretRefresh(conf, "security-agent", "127.0.0.1", "security_agent.cmd_port", client)
 }
 
 func processAgentSecretRefresh(conf config.Component, client ipc.HTTPClient) ([]byte, error) {
-	return commonSubAgentSecretRefresh(conf, "process-agent", "process_config.cmd_port", client)
+	return commonSubAgentSecretRefresh(conf, "process-agent", "127.0.0.1", "process_config.cmd_port", client)
 }

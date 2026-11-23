@@ -28,9 +28,9 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.159.0"
+OCB_VERSION = "0.165.0"
 # The version the core collector and collector-contrib may or may not match
-OTEL_CONTRIB_VERSION = "0.159.0"
+OTEL_CONTRIB_VERSION = "0.165.1"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -122,6 +122,13 @@ def versions_equal(version1, version2, fuzzy=False):
         return major_minor_match and parts1 == parts2
 
 
+def is_stable_version(version):
+    """Return True for a v1+ module version, which follows its own (stable) versioning line."""
+    # Like versions_equal, only consider the last version of a "v1.xx.0/v0.yyy.0" pair
+    version = version.split("/")[-1]
+    return int(version.removeprefix("v").split(".")[0]) >= 1
+
+
 def validate_manifest(manifest) -> list:
     """Return a list of components to remove, or empty list if valid.
     If invalid components are found, raise a YAMLValidationError."""
@@ -143,6 +150,10 @@ def validate_manifest(manifest) -> list:
                     module_info = module.split(" ")
                     if len(module_info) == 2:
                         _, module_version = module_info
+                        # Stable (v1+) components (e.g. k8sattributesprocessor) are versioned
+                        # independently of the collector release, so they cannot match OCB_VERSION.
+                        if is_stable_version(module_version):
+                            continue
                         if not versions_equal(module_version, OCB_VERSION, True):
                             raise YAMLValidationError(
                                 f"Component {module}) in manifest does not match required OCB version ({OCB_VERSION})"
@@ -181,7 +192,7 @@ def strip_invalid_components(file_path, components_to_remove):
         ) from e
 
 
-@task(post=[tidy])
+@task
 def generate(ctx):
     arch = platform.machine()
     system = platform.system()
@@ -284,6 +295,22 @@ def generate(ctx):
                     f.write(content)
                 ctx.run(f"gofmt -l -s -w {file_path}")
                 print(f"Updated package name and ensured license header in: {file_path}")
+
+    # Imported here so it doesn't also get collected as a `collector.add-all-replace` task
+    from tasks.modules import add_all_replace
+
+    # OCB writes impl/go.mod from scratch, so the intra-repo replace block is gone and the local modules it pointed at
+    # resolve to their published versions instead. Restore it, otherwise `tidy` bakes those published versions into
+    # go.sum and CI's modules.check-all-replace fails.
+    #
+    # Two passes are needed. add-all-replace ends with check-go-mod-replaces, which repairs replaces that are missing
+    # according to go.sum — and spells them `../../../core/config` where add-all-replace itself writes the canonical
+    # `../../../../comp/core/config`. Until tidy drops the published versions from go.sum, that repair keeps firing and
+    # leaves the non-canonical spelling behind, which check-all-replace then reports as a diff.
+    print("Restoring intra-repo replace directives")
+    add_all_replace(ctx)
+    tidy(ctx)
+    add_all_replace(ctx)
 
 
 def update_go_mod_file(go_mod_path, module_versions):

@@ -64,10 +64,12 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 		checkBasicMetrics(c, fakeIntake)
 	}, 2*time.Minute, 10*time.Second)
 
+	agentHostname := v.Env().Agent.Client.Hostname()
+
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
 		require.NotEmpty(c, ndmPayload.Devices)
-		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0], agentHostname)
 	}, 6*time.Minute, 10*time.Second)
 
 	apiKey1 := strings.Repeat("0", 32)
@@ -113,7 +115,7 @@ secret_backend_arguments:
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
 		require.NotEmpty(c, ndmPayload.Devices)
-		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0], agentHostname)
 	}, 6*time.Minute, 10*time.Second)
 
 	secretClient.SetSecret("api_key", apiKey2)
@@ -135,6 +137,6 @@ secret_backend_arguments:
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
 		require.NotEmpty(c, ndmPayload.Devices)
-		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0], agentHostname)
 	}, 6*time.Minute, 10*time.Second)
 }

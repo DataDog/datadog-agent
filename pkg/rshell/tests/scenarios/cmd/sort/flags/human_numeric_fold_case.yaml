@@ -1,0 +1,23 @@
+description: |+
+  sort -fh folds case before parsing the human-numeric suffix, so lowercase
+  SI letters (m, g, t, ...) are recognised as their uppercase counterparts.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        1m
+        1G
+        1g
+        1M
+        500K
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -fh -u file.txt
+expect:
+  stdout: |+
+    500K
+    1m
+    1G
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,21 @@
+description: Glob results are used as iteration items in for loop.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: ""
+    - path: c.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    for f in [a-b].txt; do
+      echo "match:$f"
+    done
+expect:
+  stdout: |+
+    match:a.txt
+    match:b.txt
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "boundedreplace",
+    srcs = ["boundedreplace.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/internal/boundedreplace",
+    visibility = ["//pkg/rshell/builtins:__subpackages__"],
+)
+
+dd_agent_go_test(
+    name = "boundedreplace_test",
+    srcs = ["boundedreplace_test.go"],
+    embed = [":boundedreplace"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

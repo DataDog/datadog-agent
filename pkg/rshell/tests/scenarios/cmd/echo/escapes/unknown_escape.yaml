@@ -1,0 +1,8 @@
+description: Echo -e with unknown escape sequence outputs backslash and character literally.
+input:
+  script: |+
+    echo -e '\z'
+expect:
+  stdout: "\\z\n"
+  stderr: ""
+  exit_code: 0

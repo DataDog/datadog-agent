@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixes unbounded memory growth in system-probe when Cloud Network Monitoring
+    resolves cluster IPs on nodes where Cilium replaces kube-proxy. Backends
+    removed from Cilium are now evicted from system-probe's cache 10 minutes
+    after they disappear.

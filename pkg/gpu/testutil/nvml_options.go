@@ -180,6 +180,15 @@ func WithGpmSupport(supported bool) NvmlDeviceOption {
 	})
 }
 
+// WithNvLinkErrorCounters keeps GetNvLinkErrorCounter supported on Blackwell and newer
+// architectures, which do not support it on real hardware. Use it to exercise the
+// nvlink_stateless collector together with the Blackwell-only collectors.
+func WithNvLinkErrorCounters() NvmlDeviceOption {
+	return deviceOption(func(o *deviceOptions) {
+		o.nvlinkErrorCountersForced = true
+	})
+}
+
 // WithGpmSampleGetCallback customizes GPM sample collection for devices in
 // this option's scope.
 func WithGpmSampleGetCallback(callback func(*MockGpmSample) nvml.Return) NvmlDeviceOption {

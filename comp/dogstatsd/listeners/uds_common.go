@@ -278,6 +278,7 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 				default:
 					log.Errorf("dogstatsd-uds: %s: error reading payload length: %v", l.transport, err)
 				}
+				l.releaseBuffers(packet, oob)
 				return nil
 			}
 			expectedPacketLength = binary.LittleEndian.Uint32(b)
@@ -288,6 +289,7 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 				} else {
 					log.Infof("dogstatsd-uds: dropping connection, packet length %d is too large.", expectedPacketLength)
 				}
+				l.releaseBuffers(packet, oob)
 				return nil
 			}
 			maxPacketLength = expectedPacketLength
@@ -306,6 +308,7 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 
 			if nRead == 0 && oobn == 0 && l.transport == "unix" {
 				log.Debugf("dogstatsd-uds: %s connection closed", l.transport)
+				l.releaseBuffers(packet, oob)
 				return nil
 			}
 			// If framing is disabled (unixgram, unixpacket), we always will have read the whole packet
@@ -318,11 +321,25 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 			}
 			if uint32(n) > expectedPacketLength {
 				log.Info("dogstatsd-uds: read length mismatch, dropping connection")
+				l.releaseBuffers(packet, oob)
 				return nil
 			}
 		}
 
 		t1 = time.Now()
+
+		if err != nil {
+			// A failed read reaches neither capture nor server.
+			l.releaseBuffers(packet, oob)
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
+
+			log.Errorf("dogstatsd-uds: error reading packet: %v", err)
+			udsPacketReadingErrors.Add(1)
+			l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "error")
+			continue
+		}
 
 		if oob != nil {
 			// Extract container id from credentials
@@ -345,9 +362,6 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 				capBuff.Pb.AncillarySize = int32(oobn)
 				capBuff.Pb.Ancillary = oobS[:oobn]
 			}
-
-			// Return the buffer back to the pool for reuse
-			l.oobPoolManager.Put(oob)
 		}
 
 		if capBuff != nil {
@@ -359,17 +373,11 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 			l.trafficCapture.Enqueue(capBuff)
 		}
 
-		if err != nil {
-			// connection has been closed
-			if errors.Is(err, net.ErrClosed) {
-				return nil
-			}
-
-			log.Errorf("dogstatsd-uds: error reading packet: %v", err)
-			udsPacketReadingErrors.Add(1)
-			l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "error")
-			continue
+		// Capture must retain its reference before the listener releases its own.
+		if oob != nil {
+			l.oobPoolManager.Put(oob)
 		}
+
 		l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "ok")
 
 		udsBytes.Add(int64(n))
@@ -380,6 +388,15 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 
 		// packetsBuffer handles the forwarding of the packets to the dogstatsd server intake channel
 		packetsBuffer.Append(packet)
+	}
+}
+
+// releaseBuffers returns this iteration's buffers on paths that reach neither
+// capture nor server: read and framing errors.
+func (l *UDSListener) releaseBuffers(packet *packets.Packet, oob *[]byte) {
+	l.sharedPacketPoolManager.Put(packet)
+	if oob != nil {
+		l.oobPoolManager.Put(oob)
 	}
 }
 

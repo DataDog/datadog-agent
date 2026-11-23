@@ -1,8 +1,10 @@
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use crate::backend::ScannedColumn;
 use crate::config::{CheckConfig, SubTask};
 use crate::proto::{
     self, PostgresScannedColumn, ScanMetadata, ScanResult, ScanTaskMetadata, SdsResultPayload,
-    Status, TableMatch,
+    Status, TableMatch, Timestamp,
 };
 
 /// The result of scanning one sub task: the matches plus the statistics
@@ -17,6 +19,19 @@ pub(crate) struct ScanOutcome {
     pub scanned_row_count: i64,
 }
 
+/// When a sub task started and how long it ran.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ScanTiming {
+    pub started_at: SystemTime,
+    pub duration: Duration,
+}
+
+impl ScanTiming {
+    fn ended_at(&self) -> SystemTime {
+        self.started_at + self.duration
+    }
+}
+
 /// Builds the `SdsResultPayload` protobuf for one sub task.
 pub(crate) fn build_sds_result(
     config: &CheckConfig,
@@ -24,6 +39,7 @@ pub(crate) fn build_sds_result(
     status: Status,
     failure_reason: &str,
     outcome: ScanOutcome,
+    timing: ScanTiming,
 ) -> SdsResultPayload {
     let entity = &sub_task.entity;
 
@@ -53,17 +69,18 @@ pub(crate) fn build_sds_result(
         ..Default::default()
     };
 
-    // TODO(DSEC-180): populate duration, started_at and ended_at.
     let scan_result = ScanResult {
         table_matches: outcome.matches,
         location: Some(location),
+        duration: timing.duration.as_millis() as i64,
         scan_metadata: Some(ScanMetadata {
             scan_task_metadata: Some(ScanTaskMetadata {
                 task_id: config.task_id.clone(),
                 sub_task_id: sub_task.sub_task_id.clone(),
+                started_at: Some(to_timestamp(timing.started_at)),
+                ended_at: Some(to_timestamp(timing.ended_at())),
                 status: status as i32,
                 failure_reason: (!failure_reason.is_empty()).then(|| failure_reason.to_string()),
-                ..Default::default()
             }),
         }),
         ..Default::default()
@@ -92,11 +109,18 @@ pub(crate) fn build_sds_result(
     }
 }
 
+/// Converts to a protobuf timestamp, clamped to the Unix epoch if earlier.
+fn to_timestamp(time: SystemTime) -> Timestamp {
+    let since_epoch = time.duration_since(UNIX_EPOCH).unwrap_or_default();
+    Timestamp {
+        seconds: since_epoch.as_secs() as i64,
+        nanos: since_epoch.subsec_nanos() as i32,
+    }
+}
+
 /// Current Unix time in milliseconds, clamped to zero if the system clock is
 /// set before the Unix epoch.
 fn now_unix_millis() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)

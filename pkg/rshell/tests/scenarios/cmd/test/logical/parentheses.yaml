@@ -1,0 +1,16 @@
+description: "test parenthesized expressions"
+input:
+  script: |+
+    test '(' "hello" ')'
+    echo "paren-str: $?"
+    test '(' "" ')'
+    echo "paren-empty: $?"
+    test '(' "a" = "a" ')'
+    echo "paren-eq: $?"
+expect:
+  stdout: |
+    paren-str: 0
+    paren-empty: 1
+    paren-eq: 0
+  stderr: ""
+  exit_code: 0

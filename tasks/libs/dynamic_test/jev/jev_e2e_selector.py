@@ -39,6 +39,7 @@ from tasks.libs.dynamic_test.jev.jev_client import (
     decide,
     fail_open,
     get_ai_gateway_token,
+    summarize_pr,
 )
 from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_ddci_metadata, fetch_pr_info
 from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suites, suite_definition
@@ -48,6 +49,36 @@ from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suite
 # suites of a selection share the same context, so printing it per suite
 # would repeat the same diff over and over
 _printed_contexts: set[tuple[str, str]] = set()
+
+DEFAULT_SUMMARY_MODEL = "gpt-4o-mini"
+
+
+def generate_pr_summary(
+    *,
+    base: str | None = None,
+    model: str | None = None,
+    dc: str = "us1.ddbuild.io",
+    source: str = "datadog-agent",
+    token: str | None = None,
+    token_cmd: str | None = None,
+) -> str:
+    """One LLM call summarizing the current checkout's PR changes.
+
+    Meant to run ONCE (dyntest.generate-jev-pr-summary, its own CI job) and
+    the result passed to every selection as select_suite(pr_summary=...),
+    instead of each selection calling the LLM. Raises on failure.
+    """
+    base = base or os.environ.get("COMPARE_TO_BRANCH", "main")
+    model = model or os.environ.get("JEV_SUMMARY_MODEL") or DEFAULT_SUMMARY_MODEL
+    ddci = fetch_ddci_metadata()
+    pr = fetch_pr_info(base, ddci)
+    files, merge_base = changed_files(base, ddci)
+    diff = pr_diff(merge_base)
+    print(f"[info] summarizing {len(files)} changed files, diff {len(diff)} chars (merge base {str(merge_base)[:8]})")
+    token = get_ai_gateway_token(token=token, token_cmd=token_cmd, dc=dc)
+    summary = summarize_pr(token, pr, files, merge_base, diff, model=model, dc=dc, source=source)
+    print(f"[info] LLM PR summary from {model}: {len(summary)} chars")
+    return summary
 
 
 def select_suite(
@@ -65,6 +96,7 @@ def select_suite(
     workers: int = 8,
     output: str | None = None,
     dry_run: bool = False,
+    pr_summary: str = "",
 ) -> dict | None:
     """Run the Jev selection for one suite and return its summary dict.
 
@@ -73,7 +105,9 @@ def select_suite(
     "decisions"}. The shared context (PR, diff, suite definition - everything
     but the per-test code) is printed once per run (per unique base/merge
     base) so the passed diff is inspectable; the per-test states are not
-    printed (use --dry-run for those). Fail-open is per test: a failed Jev
+    printed (use --dry-run for those). A non-empty pr_summary (generated
+    beforehand by generate_pr_summary, never here) replaces the raw diff in
+    every state. Fail-open is per test: a failed Jev
     call yields a RUN decision, never a skip. Raises ValueError on invalid
     arguments.
     """
@@ -114,6 +148,9 @@ def select_suite(
 
     token = None if dry_run else get_ai_gateway_token(token=token, token_cmd=token_cmd, dc=dc)
 
+    if pr_summary:
+        print(f"[info] the given LLM PR summary ({len(pr_summary)} chars) replaces the diff")
+
     suite_def_path, suite_def_code = suite_definition(suite_dir)
     if suite_def_code:
         print(f"[info] suite definition included: {suite_def_path} ({len(suite_def_code)} chars)")
@@ -125,7 +162,7 @@ def select_suite(
     if not dry_run and (base, str(merge_base)) not in _printed_contexts:
         _printed_contexts.add((base, str(merge_base)))
         context = build_context_state(
-            suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code
+            suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code, pr_summary=pr_summary
         )
         with gitlab_section(f"Jev input context (suite {suite})", collapsed=True, echo=True):
             print(
@@ -137,7 +174,18 @@ def select_suite(
     def select_test(entry):
         name, path, code = entry
         state = build_state(
-            name, path, code, suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code
+            name,
+            path,
+            code,
+            suite,
+            team,
+            pr,
+            files,
+            merge_base,
+            diff,
+            ddci=ddci,
+            suite_def_code=suite_def_code,
+            pr_summary=pr_summary,
         )
         if dry_run:
             print(f"--- state for {name} (dry run, not sent) ---\n{state}\n")

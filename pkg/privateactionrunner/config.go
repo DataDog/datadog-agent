@@ -8,8 +8,10 @@
 package privateactionrunner
 
 const (
-	Enabled = "private_action_runner.enabled"
-	LogFile = "private_action_runner.log_file"
+	Enabled         = "private_action_runner.enabled"
+	LogFile         = "private_action_runner.log_file"
+	RunnerURL       = "private_action_runner.par_dd_url"
+	RemoteConfigURL = "remote_configuration.rc_dd_url"
 
 	// Identity / enrollment configuration
 	SelfEnroll             = "private_action_runner.self_enroll"
@@ -29,11 +31,15 @@ const (
 	DefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 	ExecutorSocketPath    = "private_action_runner.executor.socket_path"
 	SplitEnabled          = "private_action_runner.split_enabled"
+	CredentialsValues     = "private_action_runner.credentials.values"
 
 	// HTTP Action related
 	HTTPTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
 	HTTPAllowlist         = "private_action_runner.http_allowlist"
 	HTTPAllowIMDSEndpoint = "private_action_runner.http_allow_imds_endpoint"
+
+	// Domains actions may reach; replaces HTTPAllowlist when set
+	DomainAllowlist = "private_action_runner.domain_allowlist"
 
 	// Kubernetes action related
 	KubernetesAllowedCustomResources = "private_action_runner.kubernetes_allowed_custom_resources"
@@ -55,3 +61,13 @@ const (
 	// Meant for internal usage
 	OPMSExtraHeaders = "private_action_runner.opms_extra_headers"
 )
+
+// CredentialConfig defines a named credential and its usage configuration.
+type CredentialConfig struct {
+	Value string `mapstructure:"value"`
+	// Nil allows every action; a configured empty list denies every action.
+	AllowedActions []string `mapstructure:"allowed_actions"`
+	// Nil leaves destinations unrestricted; an empty list denies every destination.
+	// When set, only HTTP actions may use the credential.
+	AllowedHTTPDomains []string `mapstructure:"allowed_http_domains"`
+}

@@ -19,9 +19,13 @@ func TestFormatAnomaly(t *testing.T) {
 			"ScanMW changepoint: cpu.user:avg", "cpu.user:avg increased (pre_median=10.0000, post_median=25.0000, p=1.00e-08, effect=0.85, 5.0 MADs)"},
 		{"scanmw down", Anomaly{Source: series, DetectorName: "scanmw", DebugInfo: &AnomalyDebugInfo{BaselineMedian: 25, CurrentValue: 10, PValue: 2e-9, EffectSize: -0.7, DeviationSigma: 4}},
 			"ScanMW changepoint: cpu.user:avg", "cpu.user:avg decreased (pre_median=25.0000, post_median=10.0000, p=2.00e-09, effect=-0.70, 4.0 MADs)"},
+		{"stable scanmw", Anomaly{Source: series, DetectorName: "stable_pipeline:scanmw", DebugInfo: &AnomalyDebugInfo{BaselineMedian: 10, CurrentValue: 25, PValue: 1e-8, EffectSize: 0.85, DeviationSigma: 5}},
+			"ScanMW changepoint: cpu.user:avg", "cpu.user:avg increased (pre_median=10.0000, post_median=25.0000, p=1.00e-08, effect=0.85, 5.0 MADs)"},
 		{"scanwelch up", Anomaly{Source: series, DetectorName: "scanwelch", DebugInfo: &AnomalyDebugInfo{BaselineMedian: 10, CurrentValue: 25, TestStatistic: 7.2, PValue: 3e-9, EffectSize: 0.8, DeviationSigma: 4}},
 			"ScanWelch changepoint: cpu.user:avg", "cpu.user:avg increased (pre_median=10.0000, post_median=25.0000, t=7.20, p=3.00e-09, effect=0.80, 4.0 MADs)"},
 		{"scanwelch down", Anomaly{Source: series, DetectorName: "scanwelch", DebugInfo: &AnomalyDebugInfo{BaselineMedian: 25, CurrentValue: 10, TestStatistic: 8.4, PValue: 1e-8, EffectSize: -0.85, DeviationSigma: 5}},
+			"ScanWelch changepoint: cpu.user:avg", "cpu.user:avg decreased (pre_median=25.0000, post_median=10.0000, t=8.40, p=1.00e-08, effect=-0.85, 5.0 MADs)"},
+		{"stable scanwelch", Anomaly{Source: series, DetectorName: "stable_pipeline:scanwelch", DebugInfo: &AnomalyDebugInfo{BaselineMedian: 25, CurrentValue: 10, TestStatistic: 8.4, PValue: 1e-8, EffectSize: -0.85, DeviationSigma: 5}},
 			"ScanWelch changepoint: cpu.user:avg", "cpu.user:avg decreased (pre_median=25.0000, post_median=10.0000, t=8.40, p=1.00e-08, effect=-0.85, 5.0 MADs)"},
 		{"bocpd change point", Anomaly{Source: series, DetectorName: "bocpd", DebugInfo: &AnomalyDebugInfo{Threshold: 0.5, BOCPDTrigger: BOCPDTriggerChangePointProbability, BOCPDChangePointProb: 0.6, BOCPDShortRunMass: 0.2, BOCPDShortRunLength: 3}},
 			"BOCPD changepoint detected: cpu.user:avg", "cpu.user:avg changepoint probability 0.60 exceeded threshold 0.50 (cp=0.60, short-run<=3 mass=0.20)"},
@@ -49,5 +53,30 @@ func TestFormatAnomaly(t *testing.T) {
 				t.Fatalf("FormatAnomaly() = (%q, %q), want (%q, %q)", title, details, tc.wantTitle, tc.wantDetails)
 			}
 		})
+	}
+}
+
+func TestMetricKindString(t *testing.T) {
+	cases := []struct {
+		kind MetricKind
+		want string
+	}{
+		{UNSET, "unset"},
+		{UNKNOWN, "unknown"},
+		{STABLE, "stable"},
+		{LINEAR, "linear"},
+		{MetricKind(99), "unknown"},
+	}
+	for _, tc := range cases {
+		if got := tc.kind.String(); got != tc.want {
+			t.Fatalf("MetricKind(%d).String() = %q, want %q", tc.kind, got, tc.want)
+		}
+	}
+}
+
+func TestMetricKindZeroValue(t *testing.T) {
+	var kind MetricKind
+	if kind != UNSET {
+		t.Fatalf("zero metric kind = %v, want UNSET", kind)
 	}
 }

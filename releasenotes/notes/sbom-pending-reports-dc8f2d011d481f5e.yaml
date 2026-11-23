@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The Agent keeps the package usage that system-probe reports for a
+    container while the SBOM of its image is pending or failed, and merges
+    it once a scan of the image succeeds, as after an Agent restart.

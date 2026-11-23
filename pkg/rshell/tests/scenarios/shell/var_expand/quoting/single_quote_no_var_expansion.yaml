@@ -1,0 +1,10 @@
+description: Variables inside single quotes are not expanded, even when set.
+input:
+  script: |+
+    X=hello
+    echo '$X' '${X}'
+expect:
+  stdout: |+
+    $X ${X}
+  stderr: ""
+  exit_code: 0
