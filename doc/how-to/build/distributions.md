@@ -244,8 +244,8 @@ Both commands below must be run as root, from a checkout of this repository:
 1. Prepare the host by running <<<repo("packaging/aix/setup-host.sh", "`packaging/aix/setup-host.sh`")>>>. The script is idempotent and installs the required toolchain (Go, GCC, Python, dnf packages). It grows `/opt` to about 40 GiB, and requires the IBM MQ Client archive at `/opt/dd-build/mqclient.tar.Z` (an installp fileset downloaded from IBM Fix Central) unless the MQ client is already installed on the host.
 2. Run the build orchestrator, which executes every stage up to the final `package.sh`:
     ```sh
-    AGENT_BUILD=1 ./packaging/aix/build.sh
+    AGENT_BUILD=1 sh ./packaging/aix/build.sh
     ```
-    `AGENT_BUILD` is the installp build counter; it must increase with each release so that package upgrades are ordered correctly. `AGENT_VERSION` is auto-detected when not set.
+    `AGENT_BUILD` is the installp build counter; it should increase with each build of the same Agent version so upgrades are ordered correctly. `AGENT_VERSION` is auto-detected when not set.
 
-The resulting artifact is written to `/opt/dd-build/datadog-agent-<AGENT_VERSION>-<AGENT_BUILD>.aix.ppc64.bff`, alongside the per-stage logs in `/opt/dd-build/logs/`.
+The resulting artifact is written to `/opt/dd-build/datadog-agent-<AGENT_VERSION>-<AGENT_BUILD>.aix.ppc64.bff`.
