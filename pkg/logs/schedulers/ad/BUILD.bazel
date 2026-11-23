@@ -29,6 +29,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers/names",
+        "//comp/core/autodiscovery/scheduler",
         "//comp/logs/agent/config",
         "//pkg/logs/schedulers",
         "//pkg/logs/sources",

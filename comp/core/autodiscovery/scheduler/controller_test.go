@@ -6,6 +6,7 @@
 package scheduler
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -202,4 +203,55 @@ func TestControllerExclusionChangeAfterStop(t *testing.T) {
 	assert.NotPanics(t, func() {
 		ms.applyExclusionChange(Digest(excluded.FastDigest()), &excluded)
 	})
+}
+
+func TestControllerExclusionTransitions(t *testing.T) {
+	setExcluded := func(cfg *integration.Config, scope workloadfilter.Scope, excluded bool) {
+		if scope == workloadfilter.MetricsFilter {
+			cfg.MetricsExcluded = excluded
+		} else {
+			cfg.LogsExcluded = excluded
+		}
+	}
+
+	for _, scope := range []workloadfilter.Scope{workloadfilter.MetricsFilter, workloadfilter.LogsFilter} {
+		for _, fromExcluded := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/from_excluded=%t", scope, fromExcluded), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					ms := NewControllerAndStart()
+					defer ms.Stop()
+
+					metrics := &exclusionAwareScheduler{scope: workloadfilter.MetricsFilter}
+					logs := &exclusionAwareScheduler{scope: workloadfilter.LogsFilter}
+					ms.Register("metrics", metrics, false)
+					ms.Register("logs", logs, false)
+
+					before := makeConfig("one")
+					setExcluded(&before, scope, fromExcluded)
+					ms.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{before}})
+					synctest.Wait()
+					for _, s := range []*exclusionAwareScheduler{metrics, logs} {
+						s.reset()
+						s.excluded = nil
+					}
+
+					after := before
+					setExcluded(&after, scope, !fromExcluded)
+					ms.ApplyChanges(integration.ConfigChanges{
+						Unschedule: []integration.Config{before},
+						Schedule:   []integration.Config{after},
+					})
+					synctest.Wait()
+
+					target, other := metrics, logs
+					if scope == workloadfilter.LogsFilter {
+						target, other = logs, metrics
+					}
+					assert.Equal(t, []event{{false, "one"}, {true, "one"}}, target.events)
+					assert.Equal(t, []bool{!fromExcluded}, target.excluded)
+					assert.Empty(t, other.events)
+				})
+			})
+		}
+	}
 }

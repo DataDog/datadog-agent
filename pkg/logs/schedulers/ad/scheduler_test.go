@@ -6,13 +6,16 @@
 package ad
 
 import (
+	"slices"
 	"testing"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	adscheduler "github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -508,4 +511,61 @@ func TestUnscheduleDetectsAnotherConfigForSameContainer(t *testing.T) {
 	// With a single config for the container, nothing is reported.
 	spy.Sources = []*sourcesPkg.LogSource{vaultSource, fileSource}
 	assert.Empty(t, scheduler.removeSourcesFor(containerID, "vault"))
+}
+
+type trackingSourceManager struct {
+	schedulers.MockSourceManager
+}
+
+func (sm *trackingSourceManager) AddSource(source *sourcesPkg.LogSource) {
+	sm.MockSourceManager.AddSource(source)
+	sm.Sources = append(sm.Sources, source)
+}
+
+func (sm *trackingSourceManager) RemoveSource(source *sourcesPkg.LogSource) {
+	sm.MockSourceManager.RemoveSource(source)
+	sm.Sources = slices.DeleteFunc(sm.Sources, func(s *sourcesPkg.LogSource) bool { return s == source })
+}
+
+func TestLogsExclusionChangeThroughController(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sch := New(nil).(*Scheduler)
+		mgr := &trackingSourceManager{}
+		sch.mgr = mgr
+
+		controller := adscheduler.NewControllerAndStart()
+		defer controller.Stop()
+		controller.Register("logs", sch.listener, false)
+
+		included := integration.Config{
+			Name:       "foo",
+			LogsConfig: []byte(`[{"service":"foo","source":"bar"}]`),
+			Provider:   names.Kubernetes,
+			ServiceID:  "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		}
+		excluded := included
+		excluded.LogsExcluded = true
+
+		controller.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{included}})
+		synctest.Wait()
+		require.Len(t, mgr.Sources, 1)
+
+		controller.ApplyChanges(integration.ConfigChanges{
+			Unschedule: []integration.Config{included},
+			Schedule:   []integration.Config{excluded},
+		})
+		synctest.Wait()
+		assert.Empty(t, mgr.Sources)
+
+		controller.ApplyChanges(integration.ConfigChanges{
+			Unschedule: []integration.Config{excluded},
+			Schedule:   []integration.Config{included},
+		})
+		synctest.Wait()
+		require.Len(t, mgr.Sources, 1)
+
+		controller.ApplyChanges(integration.ConfigChanges{Unschedule: []integration.Config{included}})
+		synctest.Wait()
+		assert.Empty(t, mgr.Sources)
+	})
 }

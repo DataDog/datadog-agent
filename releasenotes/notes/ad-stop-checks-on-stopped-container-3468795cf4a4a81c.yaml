@@ -6,3 +6,7 @@ fixes:
     sidecar, and keeps collecting its logs. Previously the checks kept
     running and failing until the container was removed, and an update to
     such a container could re-add its log source.
+  - |
+    Autodiscovery now applies a change to a running container's metrics or
+    logs exclusion, for example from an exclusion annotation added to a live
+    pod, without restarting the container's other collection.
