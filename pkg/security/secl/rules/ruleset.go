@@ -51,15 +51,6 @@ func (rs *RuleSet) parseSetField(field string) (*setField, error) {
 		return nil, fmt.Errorf("invalid field '%s': %w", field, err)
 	}
 
-	// an action isn't evaluated over the elements of an iterator, an iterator
-	// variable would read the element of another evaluation
-	if ast.Any(node, func(n ast.Node) bool {
-		ref, ok := n.(*ast.FieldRef)
-		return ok && ref.Iter != nil
-	}) {
-		return nil, fmt.Errorf("invalid field '%s': iterator variables aren't supported in a set action", field)
-	}
-
 	switch n := node.(type) {
 	case *ast.FieldRef:
 		return &setField{name: n.Name}, nil
@@ -844,9 +835,19 @@ func (rs *RuleSet) compileActionValue(expr string) (eval.Evaluator, eval.EventTy
 		return nil, "", err
 	}
 	state := eval.NewState(rs.model)
-	evaluator, _, err := eval.Compile(node, rs.evalOpts, state)
+	evaluator, tree, _, err := eval.Compile(node, rs.evalOpts, state)
 	if err != nil {
 		return nil, "", err
+	}
+
+	// an action isn't evaluated over the elements of an iterator, an iterator
+	// variable would read the element of another evaluation. The tree is the one
+	// compiled, a macro holding one included.
+	if ast.Any(tree, func(n ast.Node) bool {
+		ref, ok := n.(*ast.FieldRef)
+		return ok && ref.Iter != nil
+	}) {
+		return nil, "", errors.New("iterator variables aren't supported in an action")
 	}
 	eventType, err := eval.EventTypeFromState(rs.model, state)
 	return evaluator.(eval.Evaluator), eventType, err

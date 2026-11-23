@@ -3260,27 +3260,29 @@ func TestActionSetVariableValidation(t *testing.T) {
 	})
 
 	// an action isn't evaluated over the elements of an iterator, so an iterator
-	// variable is rejected wherever it is in the field
-	for _, field := range []string{
-		`process.ancestors[A].file.name`,
-		`process.argv[process.ancestors[A].uid[0]]`,
+	// variable is rejected wherever it is in its source, a macro included
+	for name, set := range map[string]*SetDefinition{
+		"field":           {Name: "var1", Field: `process.ancestors[A].file.name`},
+		"field-subscript": {Name: "var1", Field: `process.argv[process.ancestors[A].uid[0]]`},
+		"field-macro":     {Name: "var1", Field: `process.argv[first_ancestor_uid + 0]`},
+		"expression":      {Name: "var1", Expression: `"%{process.ancestors[A].file.name}"`, DefaultValue: ""},
+		"scope-field":     {Name: "var1", Value: 1, Scope: "process", ScopeField: `process.ancestors[A].pid`},
 	} {
-		t.Run("iterator-variable/"+field, func(t *testing.T) {
+		t.Run("iterator-variable/"+name, func(t *testing.T) {
 			testPolicy := &PolicyDef{
+				Macros: []*MacroDefinition{{
+					ID:         "first_ancestor_uid",
+					Expression: `process.ancestors[A].uid[0]`,
+				}},
 				Rules: []*RuleDefinition{{
 					ID:         "test_rule",
 					Expression: `open.file.path == "/tmp/test"`,
-					Actions: []*ActionDefinition{{
-						Set: &SetDefinition{
-							Name:  "var1",
-							Field: field,
-						},
-					}},
+					Actions:    []*ActionDefinition{{Set: set}},
 				}},
 			}
 
 			_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
-			if err == nil || !strings.Contains(err.Error(), "iterator variables aren't supported in a set action") {
+			if err == nil || !strings.Contains(err.Error(), "iterator variables aren't supported in an action") {
 				t.Errorf("expected the iterator variable to be rejected, got %v", err)
 			}
 		})

@@ -16,22 +16,28 @@ import (
 )
 
 // Compile runs the compilation passes over a node, and builds its evaluator, of a
-// concrete type depending on the node.
-func Compile(node ast.Node, opts *Opts, state *State) (interface{}, ast.Position, error) {
+// concrete type depending on the node. It returns the tree it compiled, the
+// passes run over it.
+func Compile(node ast.Node, opts *Opts, state *State) (interface{}, ast.Node, ast.Position, error) {
 	pos := node.Position()
 	node, err := pass.Run(node, opts.passes()...)
 	if err != nil {
-		return nil, pos, err
+		return nil, nil, pos, err
 	}
 
-	switch node := node.(type) {
+	root := node
+	switch n := node.(type) {
 	case *ast.Rule:
-		return compileExpr(node.Root, opts, state)
+		root = n.Root
 	case *ast.Macro:
-		return compileExpr(node.Root, opts, state)
+		root = n.Root
 	}
 
-	return compileExpr(node, opts, state)
+	evaluator, pos, err := compileExpr(root, opts, state)
+	if err != nil {
+		return nil, nil, pos, err
+	}
+	return evaluator, node, pos, nil
 }
 
 // compileExpr compiles the root of a rule or a macro, or an operand of `&&`/`||`.
