@@ -23,11 +23,11 @@ import (
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type StatementMetricsKeyDB struct {
-	ConID                  int    `db:"CON_ID"`
-	PDBName                string `db:"PDB_NAME"`
-	SQLID                  string `db:"SQL_ID"`
-	ForceMatchingSignature string `db:"FORCE_MATCHING_SIGNATURE"`
-	PlanHashValue          uint64 `db:"PLAN_HASH_VALUE"`
+	ConID                  int            `db:"CON_ID"`
+	PDBName                sql.NullString `db:"PDB_NAME"`
+	SQLID                  string         `db:"SQL_ID"`
+	ForceMatchingSignature string         `db:"FORCE_MATCHING_SIGNATURE"`
+	PlanHashValue          uint64         `db:"PLAN_HASH_VALUE"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -582,12 +582,16 @@ func (c *Check) StatementMetrics() (int, error) {
 			} else {
 				queryHash = statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature
 			}
+			pdbName := ""
+			if statementMetricRow.PDBName.Valid {
+				pdbName = statementMetricRow.PDBName.String
+			}
 			oracleRow := OracleRow{
 				QueryRow:                queryRow,
 				SQLText:                 SQLStatement,
 				QueryHash:               queryHash,
 				PlanHash:                strconv.FormatUint(statementMetricRow.PlanHashValue, 10),
-				PDBName:                 c.getFullPDBName(statementMetricRow.PDBName),
+				PDBName:                 c.getFullPDBName(pdbName),
 				OracleRowMonotonicCount: diff,
 				OracleRowGauge:          OracleRowGauge(statementMetricRow.StatementMetricsGaugeDB),
 			}
@@ -766,7 +770,7 @@ func (c *Check) StatementMetrics() (int, error) {
 									oraclePlan.Other = stepRow.Other.String
 								}
 
-								oraclePlan.PDBName = statementMetricRow.PDBName
+								oraclePlan.PDBName = pdbName
 								oraclePlan.SQLID = statementMetricRow.SQLID
 								oraclePlan.ForceMatchingSignature = statementMetricRow.ForceMatchingSignature
 								oraclePlan.Executions = statementMetricRow.Executions
@@ -790,7 +794,14 @@ func (c *Check) StatementMetrics() (int, error) {
 								Statement:      SQLStatement,
 								Metadata:       planStatementMetadata,
 							}
-							tags := strings.Join(append(c.tags, "pdb:"+statementMetricRow.PDBName), ",")
+							tags := strings.Join(c.tags, ",")
+							if pdbName != "" {
+								if tags != "" {
+									tags += ",pdb:" + pdbName
+								} else {
+									tags = "pdb:" + pdbName
+								}
+							}
 
 							planPayload := PlanPayload{
 								Timestamp:        float64(time.Now().UnixMilli()),
