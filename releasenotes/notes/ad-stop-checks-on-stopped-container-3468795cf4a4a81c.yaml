@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Autodiscovery now stops the checks of a container that stops while its
+    pod keeps running, for example a finished Job container or an exited
+    sidecar, and keeps collecting its logs. Previously the checks kept
+    running and failing until the container was removed, and an update to
+    such a container could re-add its log source.

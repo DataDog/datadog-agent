@@ -11,6 +11,7 @@ package scheduler
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 // Scheduler is the interface that should be implemented if you want to schedule and
@@ -27,4 +28,15 @@ type Scheduler interface {
 	// method.  Note that currently-scheduled configs are _not_ unscheduled when
 	// the Controller stops.
 	Stop()
+}
+
+// ExclusionAwareScheduler is a Scheduler that skips configs excluded for one
+// filter scope. When a scheduled config changes only in its exclusion for that
+// scope, the Controller unschedules the old config and schedules the new one on
+// these schedulers alone, so the other schedulers keep what they run.
+type ExclusionAwareScheduler interface {
+	Scheduler
+
+	// ExclusionScope returns the filter scope the scheduler honors.
+	ExclusionScope() workloadfilter.Scope
 }

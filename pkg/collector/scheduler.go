@@ -176,6 +176,11 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 // Stop satisfies the autodiscovery scheduler interface.
 func (s *CheckScheduler) Stop() {}
 
+// ExclusionScope implements scheduler.ExclusionAwareScheduler.
+func (s *CheckScheduler) ExclusionScope() filter.Scope {
+	return filter.MetricsFilter
+}
+
 // addLoader adds a new Loader that AutoConfig can use to load a check.
 func (s *CheckScheduler) addLoader(loader check.Loader) {
 	if slices.Contains(s.loaders, loader) {

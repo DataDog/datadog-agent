@@ -246,3 +246,27 @@ func newTestListenerWithWait(
 
 	return listener.(*workloadmetaListenerImpl)
 }
+
+func TestAddServiceSendsUpdateAsOneEvent(t *testing.T) {
+	listener := newTestListenerWithWait(t, func(workloadmeta.Entity) {}, nil, time.Second)
+	newSvc := make(chan Service, 2)
+	delSvc := make(chan Service, 2)
+	listener.newService = newSvc
+	listener.delService = delSvc
+
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "foo"},
+		Runtime:  workloadmeta.ContainerRuntimeContainerd,
+	}
+	running := &WorkloadService{entity: container}
+	stopped := &WorkloadService{entity: container, metricsExcluded: true}
+	svcID := running.GetServiceID()
+
+	listener.AddService(svcID, running, "")
+	require.Equal(t, running, <-newSvc)
+
+	listener.AddService(svcID, stopped, "")
+	require.Equal(t, &ServiceUpdate{Service: stopped, Old: running}, <-newSvc)
+	require.Empty(t, delSvc)
+	require.Same(t, stopped, listener.services[svcID])
+}

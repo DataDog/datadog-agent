@@ -55,6 +55,13 @@ type Service interface {
 	FilterTemplates(configs map[string]integration.Config)
 }
 
+// ServiceUpdate is sent on the new-service channel when a service replaces Old,
+// so that both sides of the update reach the schedulers in a single batch.
+type ServiceUpdate struct {
+	Service
+	Old Service
+}
+
 // ServiceListener monitors running services and triggers check (un)scheduling
 //
 // It holds a cache of running services, listens to new/killed services and

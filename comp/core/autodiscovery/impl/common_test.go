@@ -24,6 +24,7 @@ type dummyService struct {
 	Pid             int
 	Hostname        string
 	Tags            []string
+	MetricsExcluded bool
 	filterTemplates func(map[string]integration.Config)
 }
 
@@ -77,9 +78,9 @@ func (s *dummyService) IsReady() bool {
 	return true
 }
 
-// HasFilter returns false
-func (s *dummyService) HasFilter(_ workloadfilter.Scope) bool {
-	return false
+// HasFilter only supports the metrics scope
+func (s *dummyService) HasFilter(fs workloadfilter.Scope) bool {
+	return fs == workloadfilter.MetricsFilter && s.MetricsExcluded
 }
 
 // GetExtraConfig isn't supported

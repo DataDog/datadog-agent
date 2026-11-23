@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 func makeConfig(name string) integration.Config {
@@ -130,5 +131,65 @@ func TestController(t *testing.T) {
 		ms.Stop()
 		synctest.Wait()
 		s3.reset()
+	})
+}
+
+type exclusionAwareScheduler struct {
+	scheduler
+	scope    workloadfilter.Scope
+	excluded []bool
+}
+
+func (s *exclusionAwareScheduler) Schedule(configs []integration.Config) {
+	s.scheduler.Schedule(configs)
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	for _, config := range configs {
+		s.excluded = append(s.excluded, config.HasFilter(s.scope))
+	}
+}
+
+func (s *exclusionAwareScheduler) ExclusionScope() workloadfilter.Scope {
+	return s.scope
+}
+
+func TestControllerExclusionChange(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ms := NewControllerAndStart()
+
+		metrics := &exclusionAwareScheduler{scope: workloadfilter.MetricsFilter}
+		logs := &exclusionAwareScheduler{scope: workloadfilter.LogsFilter}
+		plain := &scheduler{}
+		ms.Register("metrics", metrics, false)
+		ms.Register("logs", logs, false)
+		ms.Register("plain", plain, false)
+
+		included := makeConfig("one")
+		ms.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{included}})
+		synctest.Wait()
+		metrics.reset()
+		metrics.excluded = nil
+		logs.reset()
+		plain.reset()
+
+		excluded := included
+		excluded.MetricsExcluded = true
+		ms.ApplyChanges(integration.ConfigChanges{
+			Unschedule: []integration.Config{included},
+			Schedule:   []integration.Config{excluded},
+		})
+		synctest.Wait()
+
+		assert.Equal(t, []event{{false, "one"}, {true, "one"}}, metrics.events)
+		assert.Equal(t, []bool{true}, metrics.excluded)
+		assert.Empty(t, logs.events)
+		assert.Empty(t, plain.events)
+
+		// A scheduler registered afterwards replays the excluded config.
+		late := &exclusionAwareScheduler{scope: workloadfilter.MetricsFilter}
+		ms.Register("late", late, true)
+		assert.Equal(t, []bool{true}, late.excluded)
+
+		ms.Stop()
 	})
 }

@@ -87,6 +87,11 @@ func (s *JmxScheduler) Unschedule(configs []integration.Config) {
 func (s *JmxScheduler) Stop() {
 }
 
+// ExclusionScope implements scheduler.ExclusionAwareScheduler.
+func (s *JmxScheduler) ExclusionScope() workloadfilter.Scope {
+	return workloadfilter.MetricsFilter
+}
+
 // RegisterWith adds the JMX scheduler to receive events from the autodiscovery.
 func RegisterWith(ac autodiscovery.Component) {
 	ac.AddScheduler("jmx", newJmxScheduler(), true)

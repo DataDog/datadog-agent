@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -179,6 +180,9 @@ func (ms *Controller) processNextWorkItem() bool {
 		currentState = Scheduled
 	}
 	if desiredState == currentState {
+		if desiredState == Scheduled {
+			ms.applyExclusionChange(configDigest, desiredConfigState.config)
+		}
 		ms.queue.Done(configDigest)               // no action needed
 		ms.configStateStore.Cleanup(configDigest) // cleanup the config state if it is unscheduled already
 		return true
@@ -212,6 +216,38 @@ func (ms *Controller) processNextWorkItem() bool {
 
 	ms.queue.Done(configDigest)
 	return true
+}
+
+// applyExclusionChange reschedules an already-scheduled config on the
+// schedulers whose exclusion scope changed between the scheduled config and
+// the desired one. Both share a digest, since the digest ignores exclusions.
+func (ms *Controller) applyExclusionChange(configDigest Digest, desired *integration.Config) {
+	ms.m.Lock()
+	defer ms.m.Unlock()
+
+	scheduled := ms.scheduledConfigs[configDigest]
+	var changedScopes []workloadfilter.Scope
+	for _, scope := range []workloadfilter.Scope{workloadfilter.MetricsFilter, workloadfilter.LogsFilter} {
+		if scheduled.HasFilter(scope) != desired.HasFilter(scope) {
+			changedScopes = append(changedScopes, scope)
+		}
+	}
+	if len(changedScopes) == 0 {
+		return
+	}
+
+	ms.schedulerOperationStartTime.Store(time.Now().Unix())
+	for _, scope := range changedScopes {
+		for _, s := range ms.activeSchedulers {
+			if es, ok := s.(ExclusionAwareScheduler); ok && es.ExclusionScope() == scope {
+				es.Unschedule([]integration.Config{*scheduled})
+				es.Schedule([]integration.Config{*desired})
+			}
+		}
+	}
+	ms.schedulerOperationStartTime.Store(0)
+
+	ms.scheduledConfigs[configDigest] = desired
 }
 
 // Stop handles clean stop of registered schedulers
