@@ -137,8 +137,8 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	macosLogDiagnosticsOnFailure(t, client)
 
 	assertMacosProcmgrAnswers(t, client, 1)
-	statOut, statErr := client.Execute("sudo stat -f '%Su:%Sg %Lp' " + macosProcmgrSocket)
 	require.False(t, t.Failed(), "preconditions failed")
+	statOut, statErr := client.Execute("sudo stat -f '%Su:%Sg %Lp' " + macosProcmgrSocket)
 	require.NoError(t, statErr, "stat %s failed:\n%s", macosProcmgrSocket, statOut)
 	require.Equal(t, "root:daemon 660", strings.TrimSpace(statOut), "socket owner or mode")
 	preconditionsPassed = true

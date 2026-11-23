@@ -29,6 +29,7 @@ const (
 	macosProcmgrCLI         = "/opt/datadog-agent/embedded/bin/dd-procmgr"
 	macosPostinstallLogPath = "/opt/datadog-agent/logs/postinstall.log"
 	macosPreinstallLogPath  = "/opt/datadog-agent/logs/preinstall.log"
+	macosProcmgrLogPath     = "/opt/datadog-agent/logs/launchd_procmgr.log"
 
 	macosInstallDir        = "/opt/datadog-agent"
 	macosProcessesDir      = macosInstallDir + "/processes.d"
@@ -94,10 +95,13 @@ func macosReadRemoteFile(t require.TestingT, client *common.MacOSTestClient, pat
 }
 
 // macosLogLaunchDaemonDiagnostics logs what is needed to understand a LaunchDaemon failure: the
-// tail of the postinstall log, the job definitions on disk and what launchd reports for each job.
+// tail of the postinstall and procmgr logs, the job definitions on disk and what launchd reports
+// for each job.
 func macosLogLaunchDaemonDiagnostics(t *testing.T, client *common.MacOSTestClient) {
 	out, _ := client.Execute("sudo tail -n 100 " + macosPostinstallLogPath + " 2>&1")
 	t.Logf("tail of %s:\n%s", macosPostinstallLogPath, out)
+	out, _ = client.Execute("sudo tail -n 100 " + macosProcmgrLogPath + " 2>&1")
+	t.Logf("tail of %s:\n%s", macosProcmgrLogPath, out)
 	out, _ = client.Execute("ls -le /Library/LaunchDaemons/ " + macosInstallerBinary + "* 2>&1")
 	t.Logf("job definitions and installer:\n%s", out)
 	for _, label := range append(append(append([]string{}, macosStableLaunchDaemons...), macosInstallerLaunchDaemon), macosUnexpectedLaunchDaemons...) {
