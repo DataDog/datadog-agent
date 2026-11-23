@@ -46,6 +46,10 @@ func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
 		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerContext.ContainerID
 
 		if pc.Pid == 1 {
+			// pid 1 can re-execute itself, as systemd does on daemon-reexec
+			for pc.IsExec && pc.Ancestor != nil && pc.Ancestor.Pid == 1 {
+				pc = pc.Ancestor
+			}
 			if pc.Ancestor == nil {
 				return true, nil
 			}

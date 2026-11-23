@@ -8,9 +8,19 @@ package forwarder
 
 import (
 	"context"
+	"fmt"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
+
+// StatusCodeError reports an unexpected HTTP response from the health intake.
+type StatusCodeError struct {
+	Code int
+}
+
+func (e *StatusCodeError) Error() string {
+	return fmt.Sprintf("unexpected status code: %d", e.Code)
+}
 
 // team: fleet-remediation
 

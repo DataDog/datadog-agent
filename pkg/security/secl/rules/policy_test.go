@@ -2684,7 +2684,7 @@ func TestActionSetVariableValidation(t *testing.T) {
 		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
-			assert.ErrorContains(t, err, "value and field cardinality mismatch for variable 'connection_hostname': field 'connect.addr.hostname' is an array, but append is not set for variable 'connection_hostname' with value ''")
+			assert.ErrorContains(t, err, "expression 'connect.addr.hostname' for variable 'connection_hostname': incompatible types: expression returns slice but default_value is string")
 		}
 	})
 
@@ -2793,7 +2793,7 @@ func TestActionSetVariableValidation(t *testing.T) {
 		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
-			assert.ErrorContains(t, err, "value and field have different types for variable 'connection_id_pid' (string != int)")
+			assert.ErrorContains(t, err, "expression 'process.pid' for variable 'connection_id_pid': incompatible types: expression returns int but default_value is string")
 		}
 	})
 

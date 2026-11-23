@@ -74,7 +74,7 @@ func TestUpdateAdvancedDispatchingMode(t *testing.T) {
 			}
 			d.advancedDispatching.Store(tt.initialAdvancedDispatching)
 
-			d.UpdateAdvancedDispatchingMode()
+			d.updateAdvancedDispatchingMode()
 
 			assert.Equal(t, tt.expectedAdvancedDispatching, d.advancedDispatching.Load())
 		})

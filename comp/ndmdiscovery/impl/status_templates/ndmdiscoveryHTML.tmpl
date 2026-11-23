@@ -1,0 +1,46 @@
+{{- with .ndmDiscoveryStats -}}
+  <div class="stat">
+    <span class="stat_title">NDM Discovery</span>
+    <span class="stat_data">
+      Workers: {{.Workers}}
+      <br>Ranges: {{len .Ranges}}
+      {{- if .Rejected }}
+      <br>Rejected ranges: {{len .Rejected}}
+      {{- end }}
+      {{- range .Ranges }}
+      <span class="stat_subtitle">{{.NetworkAddress}} ({{.ID}})</span>
+      State: {{.State}}
+      <br>Namespace: {{.Namespace}}
+      <br>Probes: {{.Probes}}
+      <br>Interval: {{.IntervalSec}}s
+      <br>Progress: {{.Scanned}} / {{.Total}} addresses ({{.ProgressPct}}%)
+      {{- if .RunID }}
+      <br>Run ID: {{.RunID}}
+      {{- end }}
+      {{- if .StartedAt }}
+      <br>Started: {{.StartedAt}}
+      {{- end }}
+      {{- if .EndedAt }}
+      <br>Ended: {{.EndedAt}}
+      {{- end }}
+      {{- if .NextRunAt }}
+      <br>Next run: {{.NextRunAt}}
+      {{- end }}
+      {{- if .NextRunIn }}
+      <br>Next run in: {{.NextRunIn}}
+      {{- end }}
+      {{- range .Issues }}
+      <br>Issue: {{.}}
+      {{- end }}
+      <br>
+      {{- end }}
+      {{- if .Rejected }}
+      <span class="stat_subtitle">Rejected ranges</span>
+      {{- range .Rejected }}
+      {{.NetworkAddress}} ({{.ID}}): {{.Error}}
+      <br>
+      {{- end }}
+      {{- end }}
+    </span>
+  </div>
+{{- end -}}

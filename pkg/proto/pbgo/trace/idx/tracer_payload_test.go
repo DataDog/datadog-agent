@@ -51,15 +51,16 @@ func TestUnmarshalTracerPayload(t *testing.T) {
 		expectedStrings := []string{"", "cidcid", "go", "1.24", "v11.24", "runtime-id", "env", "hostname", "appver"}
 
 		expectedTP := &InternalTracerPayload{
-			Strings:            tp.Strings, // We will assert on this separately for improved readability here
-			containerIDRef:     1,
-			languageNameRef:    2,
-			languageVersionRef: 3,
-			tracerVersionRef:   4,
-			runtimeIDRef:       5,
-			envRef:             6,
-			hostnameRef:        7,
-			appVersionRef:      8,
+			Strings:                  tp.Strings, // We will assert on this separately for improved readability here
+			chunkEnvVersionOverrides: true,
+			containerIDRef:           1,
+			languageNameRef:          2,
+			languageVersionRef:       3,
+			tracerVersionRef:         4,
+			runtimeIDRef:             5,
+			envRef:                   6,
+			hostnameRef:              7,
+			appVersionRef:            8,
 			Attributes: map[uint32]*AnyValue{
 				1: {Value: &AnyValue_IntValue{IntValue: 2}},
 			},
@@ -90,15 +91,16 @@ func TestUnmarshalTracerPayload(t *testing.T) {
 		assert.Len(t, o, 0)
 
 		expectedTP := &InternalTracerPayload{
-			Strings:            tp.Strings, // We will assert on this separately for improved readability here
-			containerIDRef:     1,
-			languageNameRef:    2,
-			languageVersionRef: 3,
-			tracerVersionRef:   4,
-			runtimeIDRef:       5,
-			envRef:             6,
-			hostnameRef:        7,
-			appVersionRef:      8,
+			Strings:                  tp.Strings, // We will assert on this separately for improved readability here
+			chunkEnvVersionOverrides: true,
+			containerIDRef:           1,
+			languageNameRef:          2,
+			languageVersionRef:       3,
+			tracerVersionRef:         4,
+			runtimeIDRef:             5,
+			envRef:                   6,
+			hostnameRef:              7,
+			appVersionRef:            8,
 			Attributes: map[uint32]*AnyValue{
 				1: {Value: &AnyValue_IntValue{IntValue: 2}},
 			},
@@ -461,5 +463,82 @@ func TestDecodersRejectCountsAboveLimit(t *testing.T) {
 		tp := &InternalTracerPayload{}
 		_, err := tp.UnmarshalMsgConverted(append(b, nils...))
 		assert.ErrorContains(t, err, "too long payload")
+	})
+}
+
+func TestTraceChunkEnvAppVersionAttributes(t *testing.T) {
+	t.Run("read and set string chunk attributes", func(t *testing.T) {
+		strs := NewStringTable()
+		c := NewInternalTraceChunk(strs, 1, "", nil, nil, false, nil, 0)
+		assert.Empty(t, c.Env())
+		assert.Empty(t, c.AppVersion())
+		c.SetEnv("staging")
+		c.SetAppVersion("v2")
+		assert.Equal(t, "staging", c.Env())
+		assert.Equal(t, "v2", c.AppVersion())
+		c.SetEnv("prod")
+		assert.Equal(t, "prod", c.Env())
+		assert.Len(t, c.Attributes, 2, "SetEnv replaces the existing env attribute")
+		back := fromProtoChunk(strs, c.ToProto())
+		assert.Equal(t, "prod", back.Env())
+		assert.Equal(t, "v2", back.AppVersion())
+	})
+
+	t.Run("non-string attributes mean no override", func(t *testing.T) {
+		strs := NewStringTable()
+		c := &InternalTraceChunk{Strings: strs, Attributes: map[uint32]*AnyValue{
+			strs.Add("env"): {Value: &AnyValue_IntValue{IntValue: 3}},
+		}}
+		assert.Empty(t, c.Env())
+	})
+
+	t.Run("canonicalize normalizes env and drops empty or non-string overrides", func(t *testing.T) {
+		strs := NewStringTable()
+		c := NewInternalTraceChunk(strs, 1, "", nil, nil, false, nil, 0)
+		c.SetEnv("PROD")
+		c.Attributes[strs.Add("version")] = &AnyValue{Value: &AnyValue_IntValue{IntValue: 2}}
+		c.SetStringAttribute("other", "kept")
+		c.CanonicalizeEnvVersion(func(s string) string { return string(bytes.ToLower([]byte(s))) })
+		assert.Equal(t, "prod", c.Env())
+		assert.Len(t, c.Attributes, 2, "the non-string version attribute is removed")
+
+		c.SetEnv("")
+		c.CanonicalizeEnvVersion(nil)
+		assert.Len(t, c.Attributes, 1, "the empty env attribute is removed")
+		assert.Equal(t, "kept", strs.Get(c.Attributes[strs.Lookup("other")].GetStringValueRef()))
+	})
+
+	t.Run("canonicalize drops an env that normalizes to empty", func(t *testing.T) {
+		strs := NewStringTable()
+		c := NewInternalTraceChunk(strs, 1, "", nil, nil, false, nil, 0)
+		c.SetEnv("!!!")
+		c.SetAppVersion("v2")
+		c.CanonicalizeEnvVersion(func(string) string { return "" })
+		assert.Empty(t, c.Env())
+		_, hasEnv := c.Attributes[strs.Lookup("env")]
+		assert.False(t, hasEnv, "the env attribute is removed")
+		assert.Equal(t, "v2", c.AppVersion())
+	})
+
+	t.Run("only native msgpack decode enables overrides", func(t *testing.T) {
+		assert.False(t, (&InternalTracerPayload{}).ChunkEnvVersionOverridesEnabled())
+		tp := &InternalTracerPayload{}
+		_, err := tp.UnmarshalMsg(msgp.AppendMapHeader(nil, 0))
+		require.NoError(t, err)
+		assert.True(t, tp.ChunkEnvVersionOverridesEnabled())
+	})
+
+	t.Run("msgpack round trip", func(t *testing.T) {
+		strs := NewStringTable()
+		c := NewInternalTraceChunk(strs, 1, "", nil, nil, false, nil, 0)
+		c.SetEnv("prod")
+		c.SetAppVersion("1.2.3")
+		bts, err := c.MarshalMsg(nil, NewSerializedStrings(uint32(strs.Len())))
+		require.NoError(t, err)
+		got := &InternalTraceChunk{Strings: NewStringTable()}
+		_, err = got.UnmarshalMsg(bts)
+		require.NoError(t, err)
+		assert.Equal(t, "prod", got.Env())
+		assert.Equal(t, "1.2.3", got.AppVersion())
 	})
 }

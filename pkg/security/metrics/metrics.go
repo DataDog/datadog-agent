@@ -421,8 +421,10 @@ var (
 
 	// Security Profile metrics
 
-	// MetricSecurityProfileProfiles is the name of the metric used to report the count of Security Profiles per category
-	// Tags: in_kernel (true or false), anomaly_detection (true or false), workload_hardening (true or false)
+	// MetricSecurityProfileProfiles is the gauge of security profiles currently tracked by the
+	// Security Profile V2 manager on this host, enabled or disabled, per image. A profile disabled
+	// after reaching the max dump size stays tracked until it is removed.
+	// Tags: profile_image_name
 	MetricSecurityProfileProfiles = newRuntimeMetric(".security_profile.profiles")
 	// MetricSecurityProfileCacheLen is the name of the metric used to report the size of the Security Profile cache
 	// Tags: -
@@ -602,8 +604,9 @@ var (
 	// Tags: source (runtime, replay or related), event_type
 	MetricSecurityProfileV2EventsImmediate = newRuntimeMetric(".security_profile_v2.events.immediate")
 
-	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report activity-tree
-	// insertion failures that are not routine filtering rejections (i.e. unexpected errors).
+	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report events that carry
+	// an error and activity-tree insertion failures that are not routine filtering rejections
+	// (i.e. unexpected errors). Such events are dropped.
 	// Tags: event_type, error_type
 	MetricSecurityProfileV2InsertionErrors = newRuntimeMetric(".security_profile_v2.insertion_errors")
 
