@@ -135,6 +135,8 @@ jobs:
           bazel mod tidy
           bazel mod deps
           bazel run @maven2//:pin
+          bazel run //deps:py_agent_integrations_tool_requirements.update
+          bazel run //deps:py_dev_requirements.update
       - uses: ./.github/actions/deps-tidy-push
         with:
           token: ${{ steps.setup.outputs.token }}
