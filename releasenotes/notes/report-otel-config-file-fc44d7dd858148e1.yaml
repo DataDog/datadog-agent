@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Report scrubbed standalone ``otel-config.yaml`` metadata for Fleet Automation
+    independently of the collector lifecycle. Configuration file reports are
+    limited to 1 MiB before and after scrubbing.

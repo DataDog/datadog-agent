@@ -10,9 +10,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -489,6 +491,10 @@ func getSystemProbeFilename(opt option.Option[sysprobeconfig.Component]) string 
 	return comp.ConfigFileUsed()
 }
 
+const maxFileConfigBytes = 1 << 20
+
+var otelCredentialKeys = regexp.MustCompile(`^(key|headers)$`)
+
 func (ia *inventoryagent) getRawFiles() map[string]agentmetadata.RawFile {
 	if !ia.conf.GetBool("inventories_configuration_enabled") {
 		return nil
@@ -500,6 +506,7 @@ func (ia *inventoryagent) getRawFiles() map[string]agentmetadata.RawFile {
 		fetchSystemProbeFilename(ia.sysprobeConf),
 		filepath.Join(configDir, "security-agent.yaml"),
 		filepath.Join(configDir, "application_monitoring.yaml"),
+		filepath.Join(configDir, "otel-config.yaml"),
 	}
 
 	rawConfigFiles := make(map[string]agentmetadata.RawFile)
@@ -520,17 +527,30 @@ func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, []scrubber.Co
 	if path == "" {
 		return nil, nil, false
 	}
-	rawContent, err := os.ReadFile(path)
+	file, err := os.Open(path)
 	if err != nil {
 		ia.log.Debugf("could not read configuration file metadata for %q", path)
+		return nil, nil, false
+	}
+	defer file.Close()
+	rawContent, err := io.ReadAll(io.LimitReader(file, maxFileConfigBytes+1))
+	if err != nil || len(rawContent) > maxFileConfigBytes {
+		ia.log.Debugf("could not read bounded configuration file metadata for %q", path)
 		return nil, nil, false
 	}
 	// Preserve yaml structure, except fields like `additional_endpoints` may
 	// lose order. This is acceptable behavior, since this setting isn't really used
 	// too often, and already has some strange edge-cases we handle specially.
-	scrubbedConfig, secrets, err := scrubber.ScrubYamlPreserveStructure(rawContent)
-	if err != nil {
-		ia.log.Warnf("could not safely scrub configuration file metadata for %q", path)
+	configScrubber := scrubber.DefaultScrubber
+	if filepath.Base(path) == "otel-config.yaml" {
+		// OTel uses api.key and arbitrary credential header names. Redact all
+		// key and headers fields rather than depend on credential value shapes.
+		configScrubber = scrubber.NewWithDefaults()
+		configScrubber.AddReplacer(scrubber.SingleLine, scrubber.Replacer{YAMLKeyRegex: otelCredentialKeys})
+	}
+	scrubbedConfig, secrets, err := configScrubber.ScrubYamlPreserveStructure(rawContent)
+	if err != nil || len(scrubbedConfig) > maxFileConfigBytes {
+		ia.log.Warnf("could not safely scrub bounded configuration file metadata for %q", path)
 		return nil, nil, false
 	}
 	if ia.conf.GetBool("metadata_skip_secrets") {

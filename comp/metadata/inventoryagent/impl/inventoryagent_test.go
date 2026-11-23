@@ -1158,6 +1158,7 @@ api_key: datadog-secret
 		filepath.Join(tmpDir, "system-probe.yaml"):           "network_config:\n  enabled: true\nauth_token: system-probe-secret\n",
 		filepath.Join(tmpDir, "security-agent.yaml"):         "runtime_security_config:\n  enabled: true\npassword: security-secret\n",
 		filepath.Join(tmpDir, "application_monitoring.yaml"): "tracing:\n  enabled: true\napi_key: application-secret\n",
+		filepath.Join(tmpDir, "otel-config.yaml"):            "service:\n  telemetry:\n    logs:\n      level: info\nexporters:\n  datadog:\n    api:\n      key: otel-secret\n",
 	}
 	for path, contents := range configFiles {
 		require.NoError(t, os.WriteFile(path, []byte(contents+"\nlogs_config:\n  api_key: ENC[shared_key]\n"), 0600))
@@ -1267,4 +1268,41 @@ func TestGetProvidedConfiguration(t *testing.T) {
 	assert.Contains(t, payload.Metadata, "remote_configuration")
 	assert.Contains(t, payload.Metadata, "cli_configuration")
 	assert.Contains(t, payload.Metadata, "source_local_configuration")
+}
+
+func TestOTelFileMetadataWithoutRunningCollector(t *testing.T) {
+	tmpDir := t.TempDir()
+	configmock.New(t).SetConfigFile(filepath.Join(tmpDir, "datadog.yaml"))
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+		"otelcollector.enabled":             false,
+	}, nil)
+	path := filepath.Join(tmpDir, "otel-config.yaml")
+	payload := ia.getPayload().(*agentmetadata.Payload)
+	assert.NotContains(t, payload.FilesMetadata, path)
+
+	require.NoError(t, os.WriteFile(path, []byte("service: {telemetry: {logs: {level: info}}}\nexporters: {datadog: {api: {key: synthetic-otel-secret}}}\nheaders: {X-Custom-Credential: synthetic-header-secret}\n"), 0600))
+	payload = ia.getPayload().(*agentmetadata.Payload)
+	file, found := payload.FilesMetadata[path]
+	require.True(t, found)
+	assert.Contains(t, file.RawConfig, "level: info")
+	assert.NotContains(t, file.RawConfig, "synthetic-otel-secret")
+	assert.NotContains(t, file.RawConfig, "synthetic-header-secret")
+
+	require.NoError(t, os.WriteFile(path, []byte("service: {telemetry: {logs: {level: debug}}}\nexporters: {datadog: {api: {key: synthetic-otel-secret}}}\nheaders: {X-Custom-Credential: synthetic-header-secret}\n"), 0600))
+	payload = ia.getPayload().(*agentmetadata.Payload)
+	changed, found := payload.FilesMetadata[path]
+	require.True(t, found)
+	assert.NotEqual(t, file.Hash, changed.Hash)
+	assert.Contains(t, changed.RawConfig, "level: debug")
+
+	for _, content := range []string{
+		"service: [invalid",
+		"#" + strings.Repeat("x", maxFileConfigBytes),
+		"items: [" + strings.Repeat("0,", maxFileConfigBytes/3) + "]",
+	} {
+		require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+		payload = ia.getPayload().(*agentmetadata.Payload)
+		assert.NotContains(t, payload.FilesMetadata, path, "unsafe or oversized files remain unavailable")
+	}
 }
