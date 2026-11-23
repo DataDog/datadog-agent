@@ -51,9 +51,7 @@ def _download_llvm_bpf_impl(rctx):
             sha256_key = "{}.{}".format(url_prefix, arch)
             sha256 = sha256s.get(sha256_key, "")
 
-            if rctx.attr.verbose:
-                # buildifier: disable=print
-                print("Downloading {} from {}".format(binary, url))
+            rctx.report_progress("Downloading {} from {}".format(binary, url))
 
             result = rctx.download(
                 url = url,
@@ -129,7 +127,6 @@ download_llvm_bpf = repository_rule(
         "clang_version": attr.string(mandatory = True),
         "clang_build_version": attr.string(mandatory = True),
         "sha256s": attr.string_dict(doc = "SHA256 checksums keyed by '{binary_prefix}.{arch}', e.g. 'clang.amd64'."),
-        "verbose": attr.bool(default = False),
     },
 )
 
@@ -142,9 +139,7 @@ def _download_llvm_bpf_clang_impl(rctx):
         rctx.attr.clang_build_version,
     )
 
-    if rctx.attr.verbose:
-        # buildifier: disable=print
-        print("Downloading clang-bpf ({}) from {}".format(rctx.attr.arch, url))
+    rctx.report_progress("Downloading clang-bpf ({}) from {}".format(rctx.attr.arch, url))
 
     result = rctx.download(
         url = url,
@@ -176,7 +171,6 @@ download_llvm_bpf_clang = repository_rule(
         "clang_build_version": attr.string(mandatory = True),
         "arch": attr.string(mandatory = True, doc = "arch of the clang-bpf binary, e.g. 'amd64'"),
         "sha256": attr.string(doc = "sha256 of the clang-bpf binary"),
-        "verbose": attr.bool(default = False),
     },
 )
 
@@ -186,7 +180,6 @@ _configure = tag_class(
         "clang_version": attr.string(default = "12.0.1"),
         "clang_build_version": attr.string(default = "v150220922-61ce1181"),
         "sha256s": attr.string_dict(doc = "SHA256 checksums keyed by '{binary_prefix}.{arch}', e.g. 'clang.amd64'."),
-        "verbose": attr.bool(default = False),
     },
 )
 
@@ -196,7 +189,6 @@ def _llvm_bpf_extension_impl(ctx):
         clang_version = "12.0.1",
         clang_build_version = "v150220922-61ce1181",
         sha256s = {},
-        verbose = False,
     )
     download_llvm_bpf(
         name = NAME,
@@ -204,7 +196,6 @@ def _llvm_bpf_extension_impl(ctx):
         clang_version = cfg.clang_version,
         clang_build_version = cfg.clang_build_version,
         sha256s = cfg.sha256s,
-        verbose = cfg.verbose,
     )
     repos = {"llvm_bpf_{}".format(arch): arch for arch in _ARCH_TO_CPU.keys()}
     for repo_name, arch in repos.items():
@@ -215,7 +206,6 @@ def _llvm_bpf_extension_impl(ctx):
             clang_build_version = cfg.clang_build_version,
             arch = arch,
             sha256 = cfg.sha256s.get("clang.{}".format(arch)),
-            verbose = cfg.verbose,
         )
 
     return ctx.extension_metadata(
