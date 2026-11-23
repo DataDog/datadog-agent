@@ -19,9 +19,10 @@ import (
 )
 
 const (
-	macosCallerAuthEntry      = "e2e-caller-auth"
-	macosCallerAuthAgentEntry = "e2e-caller-auth-agent"
-	macosCallerAuthStartEntry = "e2e-caller-auth-start"
+	macosCallerAuthEntry       = "e2e-caller-auth"
+	macosCallerAuthAgentEntry  = "e2e-caller-auth-agent"
+	macosCallerAuthStartEntry  = "e2e-caller-auth-start"
+	macosCallerAuthReloadEntry = "e2e-caller-auth-reload"
 	// _dd-agent is in group daemon, so it can reach the socket, but it is not root.
 	macosCallerAuthAgentCLI = "sudo -u _dd-agent " + macosProcmgrCLI
 
@@ -126,6 +127,10 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 				t.Errorf("cleanup: /bin/sleep %s still running:\n%s", sleepArg, left)
 			}
 		}
+		// The restart loads processes.d.
+		if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
+			t.Logf("cleanup: failed to remove %s: %v", macosCallerAuthReloadEntry, err)
+		}
 		if _, err := client.Execute("sudo launchctl kickstart -k system/com.datadoghq.procmgr"); err != nil {
 			t.Logf("cleanup: failed to restart dd-procmgrd: %v", err)
 		}
@@ -193,6 +198,10 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	deniedLower := strings.ToLower(denied)
 	assert.NotContains(t, deniedLower, "notfound")
 	assert.NotContains(t, deniedLower, "not found")
+	// Reload keeps runtime entries, so an unchanged catalog would hide a reload that ran and then
+	// returned PermissionDenied.
+	_, err = client.Execute("printf '%s\\n' 'command: /bin/sleep' 'auto_start: false' 'restart: never' | sudo tee " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml >/dev/null")
+	require.NoError(t, err)
 	assertMacosProcmgrRequiresRoot(t, client, macosCallerAuthAgentCLI+" reload")
 
 	stillRunning := macosProcmgrDescribe(t, client, macosCallerAuthEntry)
@@ -203,6 +212,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	assert.Equal(t, 0, stillSkipped.Pid)
 	if names, ok := macosProcmgrListNames(t, client, "sudo "+macosProcmgrCLI+" list --json"); ok {
 		assert.NotContains(t, names, macosCallerAuthAgentEntry)
+		assert.NotContains(t, names, macosCallerAuthReloadEntry)
 	}
 	// The legacy sysprobe LaunchDaemon may have its own process, so describe, not pgrep.
 	sysprobe := macosProcmgrDescribe(t, client, macosSysprobeProcess)
@@ -219,10 +229,15 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	reloadOut, err := client.Execute("sudo " + macosProcmgrCLI + " reload --json")
 	if assert.NoError(t, err, "dd-procmgr reload") {
 		var reload struct {
+			Added     []string `json:"added"`
 			Unchanged []string `json:"unchanged"`
 		}
 		if assert.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(reloadOut)), &reload), "dd-procmgr reload output:\n%s", reloadOut) {
+			assert.Contains(t, reload.Added, macosCallerAuthReloadEntry, "dd-procmgr reload output:\n%s", reloadOut)
 			assert.Contains(t, reload.Unchanged, macosSysprobeProcess, "dd-procmgr reload output:\n%s", reloadOut)
 		}
 	}
+	reloaded := macosProcmgrDescribe(t, client, macosCallerAuthReloadEntry)
+	assert.Equal(t, "Skipped", reloaded.State)
+	assert.Equal(t, 0, reloaded.Pid)
 }
