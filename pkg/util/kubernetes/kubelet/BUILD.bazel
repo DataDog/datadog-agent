@@ -34,6 +34,7 @@ go_library(
         "//pkg/errors",
         "//pkg/util/cache",
         "//pkg/util/containers",
+        "//pkg/util/ddot",
         "//pkg/util/docker",
         "//pkg/util/filesystem",
         "//pkg/util/kubernetes",

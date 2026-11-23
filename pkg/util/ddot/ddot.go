@@ -22,7 +22,9 @@ func IsStandalone(cfg pkgconfigmodel.Reader) bool {
 
 // KubeletDisabled reports whether cfg leaves the agent without kubelet access,
 // so that nothing should create a kubelet client: the local node's name must
-// come from the environment and pods from the API server. That is otel-agent
+// come from the environment and pods from the API server. kubelet.GetKubeUtil
+// fails permanently then, and callers that need a fallback check it before
+// calling the kubelet. That is otel-agent
 // in DDOT standalone mode with otelcollector.standalone.use_kubelet_collector
 // set to false, which watches pods through the API server with the nodefilter
 // workloadmeta collector instead, and whose deployment lacks the kubelet API
