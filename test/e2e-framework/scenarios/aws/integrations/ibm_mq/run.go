@@ -52,8 +52,7 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 	// Force RHEL 8 x86_64 (AMD64) to match the target IBM MQ deployment environment.
 	// RedHat is a first-class flavor with a framework-maintained AMI in the
 	// default descriptor map; NewDescriptor(RedHat, "8") defaults to AMD64Arch. ibm_mq
-	// has no arm64 build, so amd64 is mandatory. (AlmaLinux9 was rejected: it carries an
-	// empty version and requires WithLatestAMI, absent from LinuxDescriptorsDefault.)
+	// has no arm64 build, so amd64 is mandatory.
 	instanceOptions := append([]ec2.VMOption{ec2.WithOS(compos.RedHat8)}, params.instanceOptions...)
 
 	host, err := ec2.NewVM(awsEnv, params.Name, instanceOptions...)

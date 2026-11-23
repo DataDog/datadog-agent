@@ -80,37 +80,37 @@ static u32 __attribute__((always_inline)) get_mount_offset_of_mount_id(void) {
     return offset; // offsetof(struct mount, mnt_id)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_mount_id_unique(void) {
+static __always_inline u32 get_mount_offset_of_mount_id_unique(void) {
     u64 offset;
     LOAD_CONSTANT("mount_id_unique_offset", offset);
     return offset; // offsetof(struct mount, mnt_id_unique)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_mount_ns(void) {
+static __always_inline u32 get_mount_offset_of_mount_ns(void) {
     u64 offset;
     LOAD_CONSTANT("mount_ns_offset", offset);
     return offset; // offsetof(struct mount, mnt_ns)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_parent(void) {
+static __always_inline u32 get_mount_offset_of_parent(void) {
     u64 offset;
     LOAD_CONSTANT("mount_parent_offset", offset);
     return offset; // offsetof(struct mount, mnt_parent)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_mountpoint(void) {
+static __always_inline u32 get_mount_offset_of_mountpoint(void) {
     u64 offset;
     LOAD_CONSTANT("mount_mountpoint_offset", offset);
     return offset; // offsetof(struct mount, mnt_mp)
 }
 
-u32 __attribute__((always_inline)) get_mnt_namespace_ns(void) {
+static __always_inline u32 get_mnt_namespace_ns(void) {
     u64 offset;
     LOAD_CONSTANT("mnt_namespace_ns", offset);
     return offset; // offsetof(struct mnt_namespace, ns)
 }
 
-u32 __attribute__((always_inline)) get_ns_common_inum_offset(void) {
+static __always_inline u32 get_ns_common_inum_offset(void) {
     u64 offset;
     LOAD_CONSTANT("ns_common_inum_offset", offset);
     return offset; // offsetof(struct ns_common, inum)
@@ -169,24 +169,36 @@ static struct dentry *__attribute__((always_inline)) get_mount_mountpoint_dentry
     return dentry;
 }
 
-u64 __attribute__((always_inline)) get_mount_mount_id_unique(void *mnt) {
+static __always_inline u64 get_mount_mount_id_unique(void *mnt) {
     u64 mount_id;
 
     bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id_unique());
     return mount_id;
 }
 
-u32 __attribute__((always_inline)) get_mount_mount_ns_inum(void *mnt) {
-    void* mnt_ns = NULL;
-    u32   inum = 0;
-
-    bpf_probe_read(&mnt_ns, sizeof(mnt_ns), mnt + get_mount_offset_of_mount_ns());
+static __always_inline u32 get_mnt_namespace_inum(void *mnt_ns) {
     if (!mnt_ns) {
         return 0;
     }
 
-    bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + get_ns_common_inum_offset());
+    u32 inum = 0;
+    u32 ns_inum_offset = get_ns_common_inum_offset();
+    if (ns_inum_offset == 0) {
+        // Before Linux 3.19 (no struct ns_common), struct mnt_namespace starts with
+        // atomic_t count followed by unsigned int proc_inum at offset 4.
+        bpf_probe_read(&inum, sizeof(inum), mnt_ns + sizeof(atomic_t));
+        return inum;
+    }
+
+    bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + ns_inum_offset);
     return inum;
+}
+
+static __always_inline u32 get_mount_mount_ns_inum(void *mnt) {
+    void* mnt_ns = NULL;
+
+    bpf_probe_read(&mnt_ns, sizeof(mnt_ns), mnt + get_mount_offset_of_mount_ns());
+    return get_mnt_namespace_inum(mnt_ns);
 }
 
 static void * __attribute__((always_inline)) get_vfsmount_mount(struct vfsmount *mnt) {
@@ -206,14 +218,14 @@ static int __attribute__((always_inline)) is_internal_mount(struct vfsmount *mnt
     return mnt_ns == MNT_NS_INTERNAL_PTR;
 }
 
-struct mount * __attribute__((always_inline)) get_mount_parent(void *mnt) {
+static __always_inline struct mount *get_mount_parent(void *mnt) {
     struct mount *mnt_parent = NULL;
 
     bpf_probe_read(&mnt_parent, sizeof(mnt_parent), mnt + get_mount_offset_of_parent());
     return mnt_parent;
 }
 
-struct mountpoint * __attribute__((always_inline)) get_mount_mountpoint(void *mnt) {
+static __always_inline struct mountpoint *get_mount_mountpoint(void *mnt) {
     struct mountpoint *mnt_mp = NULL;
 
     bpf_probe_read(&mnt_mp, sizeof(mnt_mp), mnt + get_mount_offset_of_mountpoint());
@@ -360,6 +372,20 @@ static const char *__attribute__((always_inline)) get_dentry_name_ptr_at(struct 
 
 static const char *__attribute__((always_inline)) get_dentry_name_ptr(struct dentry *dentry) {
     return get_dentry_name_ptr_at(dentry, get_dentry_name_offset());
+}
+
+// get_dentry_name_len returns qstr.len of the dentry name, or 0 when the offset could not be resolved.
+static u32 __attribute__((always_inline)) get_dentry_name_len(struct dentry *dentry) {
+    u64 dentry_d_name_offset;
+    LOAD_CONSTANT("dentry_d_name_offset", dentry_d_name_offset);
+    u64 qstr_len_offset;
+    LOAD_CONSTANT("qstr_len_offset", qstr_len_offset);
+
+    u32 len = 0;
+    if (qstr_len_offset) {
+        bpf_probe_read(&len, sizeof(len), (void *)dentry + dentry_d_name_offset + qstr_len_offset);
+    }
+    return len;
 }
 
 static void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {

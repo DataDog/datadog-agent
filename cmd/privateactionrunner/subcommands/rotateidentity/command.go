@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
@@ -53,7 +53,7 @@ Restart the Private Action Runner process to apply the new identity.`,
 func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component) error {
 	ctx := context.Background()
 
-	if !cfg.GetBool(pkgconfigsetup.PAREnabled) {
+	if !cfg.GetBool(par.Enabled) {
 		return errors.New("private_action_runner.enabled is false - set it to true before rotating the identity")
 	}
 
@@ -81,7 +81,7 @@ func run(logger log.Component, cfg config.Component, hostnameComp hostname.Compo
 	} else {
 		autoconnections.CreateConnectionsIfEnabled(
 			ctx, cfg, parCfg,
-			cfg.GetString("api_key"), cfg.GetString("app_key"), urnParts.RunnerID,
+			par.EnrollmentAPIKey(cfg), cfg.GetString("app_key"), urnParts.RunnerID,
 			result, autoconnections.NewBasicTagsProvider(),
 		)
 	}

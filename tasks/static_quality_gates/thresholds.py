@@ -13,6 +13,11 @@ from tasks.static_quality_gates.metrics import GateMetricsData
 
 BUFFER_SIZE = 1000000
 
+# Only trim threshold headroom when surplus exceeds this; then bank 70% and keep 30%.
+MIN_HEADROOM_TO_TRIM = 10 * 1024 * 1024  # 10 MiB
+HEADROOM_TRIM_NUMERATOR = 7
+HEADROOM_TRIM_DENOMINATOR = 10
+
 # Threshold for considering a size change as meaningful (not noise)
 # Changes below this threshold are considered neutral and won't trigger a bump
 SIZE_INCREASE_THRESHOLD_BYTES = 2 * 1024  # 2 KiB
@@ -70,8 +75,8 @@ def identify_gates_with_size_increase(pr_metrics: dict[str, GateMetricsData]) ->
 
 
 def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler, exception_bump=False):
-    # The new limit is decreased when the difference between current and max value is greater than the `BUFFER_SIZE`
-    # unless it is an exception bump where we will bump gates by the amount increased
+    # When headroom (max - current) is above MIN_HEADROOM_TO_TRIM, bank 70% of it and keep 30%.
+    # Exception bumps raise the limit by the measured increase instead.
     curr_size = metric_handler.metrics[current_gate][current_key]
     max_curr_size = metric_handler.metrics[current_gate][max_key]
     if exception_bump:
@@ -81,8 +86,8 @@ def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_hand
     remaining_allowed_size = max_curr_size - curr_size
     gate_limit = max_curr_size
     saved_amount = 0
-    if remaining_allowed_size > BUFFER_SIZE:
-        saved_amount = remaining_allowed_size - BUFFER_SIZE
+    if remaining_allowed_size > MIN_HEADROOM_TO_TRIM:
+        saved_amount = (remaining_allowed_size * HEADROOM_TRIM_NUMERATOR) // HEADROOM_TRIM_DENOMINATOR
         gate_limit -= saved_amount
     return gate_limit, saved_amount
 

@@ -1,0 +1,6 @@
+# HELP memory_bandwidth_utilization_node Current percentage of the accelerator memory bandwidth that is being used.
+# TYPE memory_bandwidth_utilization_node gauge
+memory_bandwidth_utilization_node{accelerator_id="5197990447957134550-0",make="cloud-tpu",model="tpu-v6e-slice",tpu_topology="1x1"} 0
+# HELP tensorcore_utilization_node Current percentage of the TensorCore that is utilized.
+# TYPE tensorcore_utilization_node gauge
+tensorcore_utilization_node{accelerator_id="5197990447957134550-0",make="cloud-tpu",model="tpu-v6e-slice",tpu_topology="1x1"} 0

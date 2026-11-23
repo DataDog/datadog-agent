@@ -2,6 +2,8 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:runtime_compilation.bzl", "runtime_compilation_bundle")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# gazelle:exclude asset_reader_bindata_*.go
+
 _EBPF_HEADERS = ["//pkg/ebpf/c:ebpf_c_headers_files"]
 
 _CORECHECK_HEADERS = _EBPF_HEADERS + [
@@ -101,6 +103,20 @@ runtime_compilation_bundle(
     out_go_file = "//pkg/ebpf/bytecode/runtime:offsetguess-test.go",
     out_name = "offsetguess-test",
     src_c = "//pkg/network/ebpf/c/runtime:offsetguess-test.c",
+    visibility = ["//visibility:public"],
+)
+
+runtime_compilation_bundle(
+    name = "skb-parse-test",
+    header_deps = _NETWORK_HEADERS,
+    include_dirs = [
+        "pkg/ebpf/c",
+        "pkg/network/ebpf/c/runtime",
+        "pkg/network/ebpf/c",
+    ],
+    out_go_file = "//pkg/ebpf/bytecode/runtime:skb-parse-test.go",
+    out_name = "skb-parse-test",
+    src_c = "//pkg/network/ebpf/c/co-re:skb-parse-test.c",
     visibility = ["//visibility:public"],
 )
 

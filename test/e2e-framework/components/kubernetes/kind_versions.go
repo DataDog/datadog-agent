@@ -9,6 +9,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 	"text/template"
 
@@ -31,12 +32,25 @@ type KindConfigFlags struct {
 	KubeProxyReplacement        bool             // whether to set kubeProxyMode to "none" in the kind config
 	MountDockerSocket           bool             // whether to bind-mount /var/run/docker.sock from the host into each kind node
 	WorkerNodes                 []KindWorkerNode // additional worker nodes beyond the control-plane
+	APIServerAddress            string           // address the API server is published on; empty means kind's default, 127.0.0.1
+	APIServerPort               int              // host port the API server is published on; 0 means kind picks a free one
 }
 
 // KindWorkerNode describes a kind worker node.
 type KindWorkerNode struct {
 	Labels []Label
 	Taints []Taint
+	// KubeletExtraArgs maps kubelet flag names, such as config-dir, to their
+	// values. Node labels go in Labels.
+	KubeletExtraArgs map[string]string
+	ExtraMounts      []Mount
+}
+
+// Mount is a host path bind-mounted into a kind node container. Docker
+// creates a missing host path as an empty directory owned by root.
+type Mount struct {
+	HostPath      string
+	ContainerPath string
 }
 
 // Label represents a Kubernetes node label as a key-value pair.
@@ -83,6 +97,14 @@ func kindUsesNewContainerdConfig(kindVersion string) bool {
 	return !v.LessThan(threshold)
 }
 
+func KindBinaryName(kindVersion string) string {
+	v, err := semver.NewVersion(kindVersion)
+	if err != nil || v.Major() != 0 || v.Patch() != 0 || v.Prerelease() != "" || v.Metadata() != "" {
+		return ""
+	}
+	return fmt.Sprintf("kind0%d", v.Minor())
+}
+
 // GetKindVersionConfig returns the kind version and the kind node image to use based on kubernetes version
 func GetKindVersionConfig(kubeVersion string) (*KindConfig, error) {
 	kubeSemVer, err := semver.NewVersion(kubeVersion)
@@ -112,6 +134,18 @@ func kubeSupportedVersions() []string {
 // generateKindConfig generates a kind cluster configuration based on the provided flags.
 // the embed.FS should contain the kind-cluster.yaml template file.
 func generateKindConfig(kindClusterTemplateFs embed.FS, flags KindConfigFlags) (string, error) {
+	if flags.APIServerPort < 0 || flags.APIServerPort > 65535 {
+		return "", fmt.Errorf("invalid kind API server port %d", flags.APIServerPort)
+	}
+	if flags.APIServerAddress != "" && net.ParseIP(flags.APIServerAddress) == nil {
+		return "", fmt.Errorf("invalid kind API server address %q", flags.APIServerAddress)
+	}
+	for i, node := range flags.WorkerNodes {
+		if _, ok := node.KubeletExtraArgs["node-labels"]; ok {
+			return "", fmt.Errorf("kind worker node %d: set node-labels with Labels", i)
+		}
+	}
+
 	tmpl, err := template.ParseFS(kindClusterTemplateFs, "kind-cluster.yaml")
 	if err != nil {
 		return "", err

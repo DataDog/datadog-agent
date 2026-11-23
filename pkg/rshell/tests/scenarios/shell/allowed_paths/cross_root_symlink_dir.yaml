@@ -1,0 +1,18 @@
+description: Symlink to a directory in another allowed root can be traversed
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir1/sub/file.txt
+      content: "deep content\n"
+    - path: dir2/link
+      symlink: ../dir1/sub
+input:
+  allowed_paths: ["dir1", "dir2"]
+  script: |+
+    cat dir2/link/file.txt
+expect:
+  stdout: |+
+    deep content
+  stderr: |+
+  exit_code: 0

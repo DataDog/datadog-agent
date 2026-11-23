@@ -5,11 +5,7 @@
 
 package observerimpl
 
-import (
-	"sort"
-
-	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-)
+import "sort"
 
 // BaselineConfig controls detector-specific baseline qualification windows.
 // DurationSec is the qualification duration after a detector becomes ready.
@@ -59,13 +55,11 @@ type BaselineDebugStatus struct {
 // run on the engine goroutine.
 //
 //	data time ──►  [ warmup ] [ qualification ] [ detection ]
-//	normal detector  model       suppress + mute    forward
-//	RRCF             model       suppress           forward
+//	detector        model       suppress + mute    forward
 //
 // Each detector owns its first two windows and must not emit anomalies during
-// warmup. A normal detector's anomalies observed while analysing can mute their
-// source series globally; RRCF has no source series and therefore only uses the
-// windows to suppress its own reports.
+// warmup. Detector anomalies observed while analysing can mute their
+// storage-backed source series globally.
 type baselineController struct {
 	config    BaselineConfig
 	startSec  int64
@@ -86,9 +80,10 @@ func newBaselineController(cfg BaselineConfig, detectorNames []string) *baseline
 	return b
 }
 
-func detectorNames(detectors []observerdef.Detector) []string {
+func detectorNames(detectors []detectorRegistration) []string {
 	names := make([]string, 0, len(detectors))
-	for _, detector := range detectors {
+	for _, registration := range detectors {
+		detector := registration.detector
 		names = append(names, detector.Name())
 	}
 	return names

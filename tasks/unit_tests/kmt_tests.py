@@ -1,7 +1,11 @@
+import os
 import unittest
 from typing import TYPE_CHECKING, cast
+from unittest.mock import MagicMock, patch
 
-from tasks.kernel_matrix_testing import platforms, vmconfig
+import invoke.exceptions as ie
+
+from tasks.kernel_matrix_testing import compiler, platforms, tool, vmconfig
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS
 from tasks.libs.types.arch import Arch
 
@@ -90,3 +94,241 @@ class TestFilterByCIComponent(unittest.TestCase):
                         f"{component}: job {job.name} is missing microVMs for "
                         f"{job.kernels - set(by_set[test_set][job.arch].keys())}",
                     )
+
+
+def _result(ok: bool, stdout: str = "", stderr: str = "") -> MagicMock:
+    return MagicMock(ok=ok, stdout=stdout, stderr=stderr)
+
+
+class TestGetBuildbarnToken(unittest.TestCase):
+    def setUp(self):
+        env = {k: v for k, v in os.environ.items() if k not in ("BUILDBARN_ID_TOKEN", "DD_BAZEL_REMOTE_CACHE")}
+        self.enterContext(patch.dict(os.environ, env, clear=True))
+        self.which = self.enterContext(patch.object(compiler.shutil, "which", return_value="/usr/bin/vault"))
+        self.isatty = self.enterContext(patch.object(compiler.sys.stdin, "isatty", return_value=False))
+        self.warn = self.enterContext(patch.object(compiler, "warn"))
+        self.wants_cache = self.enterContext(patch.object(compiler, "_host_wants_remote_cache", return_value=True))
+        self.ctx = MagicMock()
+
+    def test_env_token_is_used_without_vault(self):
+        os.environ["BUILDBARN_ID_TOKEN"] = "from-env"
+        self.assertEqual(compiler.get_buildbarn_token(self.ctx), "from-env")
+        self.ctx.run.assert_not_called()
+
+    def test_env_token_is_dropped_when_host_opts_out(self):
+        os.environ["BUILDBARN_ID_TOKEN"] = "from-env"
+        self.wants_cache.return_value = False
+        self.assertIsNone(compiler.get_buildbarn_token(self.ctx))
+
+    def test_remote_cache_opt_out_skips_minting(self):
+        os.environ["DD_BAZEL_REMOTE_CACHE"] = "off"
+        os.environ["BUILDBARN_ID_TOKEN"] = "from-env"
+        self.assertIsNone(compiler.get_buildbarn_token(self.ctx))
+        self.ctx.run.assert_not_called()
+
+    def test_ineligible_host_skips_vault(self):
+        self.wants_cache.return_value = False
+        self.assertIsNone(compiler.get_buildbarn_token(self.ctx))
+        self.ctx.run.assert_not_called()
+        self.warn.assert_not_called()
+
+    def test_vault_read(self):
+        self.ctx.run.return_value = _result(True, "minted\n")
+        self.assertEqual(compiler.get_buildbarn_token(self.ctx), "minted")
+        self.assertEqual(self.ctx.run.call_count, 1)
+
+    def test_missing_vault_cli(self):
+        self.which.return_value = None
+        self.assertIsNone(compiler.get_buildbarn_token(self.ctx))
+        self.ctx.run.assert_not_called()
+
+    def test_read_failure_without_tty_does_not_login(self):
+        self.ctx.run.return_value = _result(False, stderr="Code: 403. Errors:\n\t* invalid token\n")
+        self.assertIsNone(compiler.get_buildbarn_token(self.ctx))
+        self.assertEqual(self.ctx.run.call_count, 1)
+        self.assertIn("(* invalid token)", self.warn.call_args.args[0])
+
+    def test_read_failure_with_tty_logs_in_on_host(self):
+        self.isatty.return_value = True
+        self.ctx.run.side_effect = [_result(False), _result(True), _result(True, "minted")]
+        self.assertEqual(compiler.get_buildbarn_token(self.ctx), "minted")
+        self.assertIn("vault login", self.ctx.run.call_args_list[1].args[0])
+
+    def test_vault_addr_is_quoted(self):
+        os.environ["VAULT_ADDR"] = "https://proxy/vault?a=1&b=$HOME"
+        self.isatty.return_value = True
+        self.ctx.run.side_effect = [_result(False), _result(True), _result(True, "minted")]
+        compiler.get_buildbarn_token(self.ctx)
+        for call in self.ctx.run.call_args_list:
+            self.assertIn("'-address=https://proxy/vault?a=1&b=$HOME'", call.args[0])
+
+
+class TestHostWantsRemoteCache(unittest.TestCase):
+    def test_true_when_selector_emits_config_cache(self):
+        ctx = MagicMock()
+        ctx.run.return_value = _result(True, "--config=cache\n")
+        self.assertTrue(compiler._host_wants_remote_cache(ctx))
+        cmd, kwargs = ctx.run.call_args.args[0], ctx.run.call_args.kwargs
+        self.assertIn("remote-cache-select.sh", cmd)
+        self.assertIn("_remote_cache_config", cmd)
+        self.assertEqual(kwargs["env"]["BUILDBARN_ID_TOKEN"], "probe")
+
+    def test_false_when_selector_emits_nothing(self):
+        ctx = MagicMock()
+        ctx.run.return_value = _result(True, "")
+        self.assertFalse(compiler._host_wants_remote_cache(ctx))
+
+
+class TestCompilerExecBuildbarnToken(unittest.TestCase):
+    def setUp(self):
+        env = {k: v for k, v in os.environ.items() if k != "DD_BAZEL_REMOTE_CACHE"}
+        self.enterContext(patch.dict(os.environ, env, clear=True))
+        self.ctx = MagicMock()
+        self.cc = compiler.CompilerImage(self.ctx, Arch.local())
+        self.enterContext(patch.object(compiler.CompilerImage, "ensure_running"))
+        self.enterContext(patch.object(compiler.CompilerImage, "ensure_in_git_repo"))
+        self.get_token = self.enterContext(patch.object(compiler, "get_buildbarn_token", return_value="secret"))
+
+    def test_token_is_forwarded_by_name_only(self):
+        self.cc.exec("bazel build //...", user="dev", buildbarn_token=True)
+        cmd = self.ctx.run.call_args.args[0]
+        self.assertIn("-e BUILDBARN_ID_TOKEN ", cmd)
+        self.assertNotIn("secret", cmd)
+        self.assertEqual(self.ctx.run.call_args.kwargs["env"], {"BUILDBARN_ID_TOKEN": "secret"})
+
+    def test_no_token_unless_requested(self):
+        self.cc.exec("true", user="dev")
+        self.get_token.assert_not_called()
+        self.assertNotIn("BUILDBARN_ID_TOKEN", self.ctx.run.call_args.args[0])
+        self.assertEqual(self.ctx.run.call_args.kwargs["env"], {})
+
+    def test_unavailable_token_is_not_forwarded(self):
+        self.get_token.return_value = None
+        self.cc.exec("bazel build //...", user="dev", buildbarn_token=True)
+        self.assertNotIn("BUILDBARN_ID_TOKEN", self.ctx.run.call_args.args[0])
+        self.assertEqual(self.ctx.run.call_args.kwargs["env"], {})
+
+    def test_cache_policy_is_forwarded_to_builds(self):
+        os.environ["DD_BAZEL_REMOTE_CACHE"] = "off"
+        self.get_token.return_value = None
+        self.cc.exec("bazel build //...", user="dev", buildbarn_token=True)
+        self.assertIn("-e DD_BAZEL_REMOTE_CACHE ", self.ctx.run.call_args.args[0])
+        self.cc.exec("true", user="dev")
+        self.assertNotIn("DD_BAZEL_REMOTE_CACHE", self.ctx.run.call_args.args[0])
+
+
+class TestCompilerUser(unittest.TestCase):
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.cc = compiler.CompilerImage(self.ctx, Arch.local())
+
+    def _security_options(self, options: str):
+        self.ctx.run.side_effect = lambda cmd, **_: (
+            _result(True, options) if cmd.startswith("docker info") else _result(True, "502\n")
+        )
+
+    def test_rootless_engine_builds_as_root(self):
+        self._security_options('["name=seccomp,profile=default","name=rootless"]')
+        self.assertTrue(self.cc.is_rootless)
+        self.assertEqual((self.cc.compiler_uid, self.cc.compiler_gid), ("0", "0"))
+
+    def test_rootful_engine_builds_as_host_user(self):
+        self._security_options('["name=seccomp,profile=default"]')
+        self.assertFalse(self.cc.is_rootless)
+        self.assertEqual((self.cc.compiler_uid, self.cc.compiler_gid), ("502", "502"))
+
+    def test_user_and_home_come_from_container_passwd(self):
+        self.enterContext(patch.object(compiler.CompilerImage, "compiler_uid", "0"))
+        exec_ = self.enterContext(
+            patch.object(
+                compiler.CompilerImage, "exec", return_value=_result(True, "root:x:0:0:root:/root:/bin/bash\n")
+            )
+        )
+        self.assertEqual((self.cc.compiler_user, self.cc.compiler_home), ("root", "/root"))
+        exec_.assert_called_once_with("getent passwd 0", user="root")
+
+
+def _proc(code: int) -> MagicMock:
+    return MagicMock(returncode=code)
+
+
+@patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+class TestEnsureSudoPrivileges(unittest.TestCase):
+    def _ctx(self, groups: str) -> MagicMock:
+        ctx = MagicMock()
+        ctx.run.return_value = MagicMock(ok=True, stdout=groups)
+        return ctx
+
+    @patch("tasks.kernel_matrix_testing.tool.authenticate_sudo")
+    @patch("tasks.kernel_matrix_testing.tool.os.path.exists", return_value=True)
+    @patch("tasks.kernel_matrix_testing.tool.sys.platform", "darwin")
+    def test_requests_privileges_before_authenticating(self, _exists, auth, _root):
+        ctx = self._ctx("staff everyone")
+        auth.side_effect = lambda: ctx.run.assert_called_with(f"'{tool.PRIVILEGES_CLI}' --add --reason 'test'")
+        tool.ensure_sudo_privileges(ctx, "test")
+        auth.assert_called_once()
+
+    @patch("tasks.kernel_matrix_testing.tool.authenticate_sudo")
+    @patch("tasks.kernel_matrix_testing.tool.os.path.exists", return_value=True)
+    @patch("tasks.kernel_matrix_testing.tool.sys.platform", "darwin")
+    def test_already_admin_still_authenticates(self, _exists, auth, _root):
+        ctx = self._ctx("staff admin everyone")
+        tool.ensure_sudo_privileges(ctx, "test")
+        ctx.run.assert_called_once_with("id -Gn", hide=True, warn=True)
+        auth.assert_called_once()
+
+    @patch("tasks.kernel_matrix_testing.tool.authenticate_sudo")
+    @patch("tasks.kernel_matrix_testing.tool.os.path.exists", return_value=False)
+    @patch("tasks.kernel_matrix_testing.tool.sys.platform", "darwin")
+    def test_without_privileges_app(self, _exists, auth, _root):
+        ctx = self._ctx("staff")
+        tool.ensure_sudo_privileges(ctx, "test")
+        ctx.run.assert_not_called()
+        auth.assert_called_once()
+
+    @patch("tasks.kernel_matrix_testing.tool.authenticate_sudo")
+    @patch("tasks.kernel_matrix_testing.tool.sys.platform", "linux")
+    def test_linux(self, auth, _root):
+        ctx = self._ctx("staff")
+        tool.ensure_sudo_privileges(ctx, "test")
+        ctx.run.assert_not_called()
+        auth.assert_called_once()
+
+
+@patch("tasks.kernel_matrix_testing.tool.subprocess.run")
+class TestAuthenticateSudo(unittest.TestCase):
+    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=True)
+    def test_root(self, _root, run):
+        tool.authenticate_sudo()
+        run.assert_not_called()
+
+    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    def test_cached(self, _root, run):
+        run.return_value = _proc(0)
+        tool.authenticate_sudo()
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[0], ["sudo", "-n", "true"])
+
+    @patch("tasks.kernel_matrix_testing.tool.sys.stdin")
+    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    def test_headless(self, _root, stdin, run):
+        stdin.isatty.return_value = False
+        run.return_value = _proc(1)
+        tool.authenticate_sudo()
+        run.assert_called_once()
+
+    @patch("tasks.kernel_matrix_testing.tool.sys.stdin")
+    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    def test_prompts_on_tty(self, _root, stdin, run):
+        stdin.isatty.return_value = True
+        run.side_effect = [_proc(1), _proc(0)]
+        tool.authenticate_sudo()
+        self.assertEqual(run.call_args.args[0], ["sudo", "-v"])
+
+    @patch("tasks.kernel_matrix_testing.tool.sys.stdin")
+    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    def test_failure_raises(self, _root, stdin, run):
+        stdin.isatty.return_value = True
+        run.side_effect = [_proc(1), _proc(1)]
+        with self.assertRaises(ie.Exit):
+            tool.authenticate_sudo()

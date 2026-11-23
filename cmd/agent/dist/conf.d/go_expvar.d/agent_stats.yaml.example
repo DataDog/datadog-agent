@@ -1,3 +1,11 @@
+# DEPRECATED: Users should prefer collecting the Agent's internal telemetry through the
+# OpenMetrics telemetry endpoint, which has richer telemetry data: distinct metric types,
+# better/more granular tagging, and an increased number of available metrics. An equivalent
+# example check configuration can be found at `conf.d/openmetrics.d/agent_stats.yaml.example`.
+#
+# The go_expvar check itself is not deprecated and remains supported for instrumenting your own
+# Go applications.
+
 init_config:
 instances:
   # Most memstats metrics are exported by default
@@ -153,41 +161,40 @@ instances:
       - path: logs-agent/HttpDestinationStats/logs_0_reliable_0/idleMs
         type: rate
         alias: batch_strategy.idle_time
-        tags: 
+        tags:
         - sender:0
       - path: logs-agent/HttpDestinationStats/logs_0_reliable_0/inUseMs
         type: rate
         alias: batch_strategy.in_use_time
-        tags: 
+        tags:
         - sender:0
       - path: logs-agent/HttpDestinationStats/logs_1_reliable_0/idleMs
         type: rate
         alias: batch_strategy.idle_time
-        tags: 
+        tags:
         - sender:1
       - path: logs-agent/HttpDestinationStats/logs_1_reliable_0/inUseMs
         type: rate
         alias: batch_strategy.in_use_time
-        tags: 
+        tags:
         - sender:1
       - path: logs-agent/HttpDestinationStats/logs_2_reliable_0/idleMs
         type: rate
         alias: batch_strategy.idle_time
-        tags: 
+        tags:
         - sender:2
       - path: logs-agent/HttpDestinationStats/logs_2_reliable_0/inUseMs
         type: rate
         alias: batch_strategy.in_use_time
-        tags: 
+        tags:
         - sender:2
       - path: logs-agent/HttpDestinationStats/logs_3_reliable_0/idleMs
         type: rate
         alias: batch_strategy.idle_time
-        tags: 
+        tags:
         - sender:3
       - path: logs-agent/HttpDestinationStats/logs_3_reliable_0/inUseMs
         type: rate
         alias: batch_strategy.in_use_time
-        tags: 
+        tags:
         - sender:3
-

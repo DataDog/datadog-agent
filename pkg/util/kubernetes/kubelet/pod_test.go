@@ -29,9 +29,10 @@ func TestPodOwners(t *testing.T) {
 	legacyDsAnnotation := "{\"kind\":\"SerializedReference\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"DaemonSet\",\"namespace\":\"default\",\"name\":\"dd-agent\",\"uid\":\"12c56a58-33ca-11e6-ac8f-42010af00003\",\"apiVersion\":\"extensions\",\"resourceVersion\":\"456736\"}}\n"
 	legacyDsOwner := []PodOwner{
 		{
-			Kind: "DaemonSet",
-			Name: "dd-agent",
-			ID:   "12c56a58-33ca-11e6-ac8f-42010af00003",
+			APIVersion: "extensions",
+			Kind:       "DaemonSet",
+			Name:       "dd-agent",
+			ID:         "12c56a58-33ca-11e6-ac8f-42010af00003",
 		},
 	}
 

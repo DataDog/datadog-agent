@@ -1,0 +1,9 @@
+description: Basic subshell executes commands.
+input:
+  script: |+
+    (echo hello)
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

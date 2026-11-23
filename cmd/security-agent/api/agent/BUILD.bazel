@@ -7,6 +7,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/common/signals",
+        "//comp/api/api/apiimpl/observability",
+        "//comp/core/ipc/def",
         "//comp/core/secrets/def",
         "//comp/core/settings/def",
         "//comp/core/status",

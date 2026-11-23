@@ -100,7 +100,7 @@ def filter_by_ci_component(platforms: Platforms, component: Component) -> dict[s
                 # Every architecture starts empty: a test set only gets microVMs on the
                 # architectures that actually have a CI job running it. Seeding with the
                 # full platform list would provision VMs for architectures with no job
-                # (e.g. `cws_req`, which only runs on x86_64) that nothing ever uses.
+                # (e.g. a test set that only runs on x86_64) that nothing ever uses.
                 new_platforms_by_set[s] = cast("Platforms", {**platforms, **{arch: {} for arch in KMT_SUPPORTED_ARCHS}})
 
             new_platforms_by_set[s][cur_arch].update({k: v for k, v in platforms[cur_arch].items() if k in job.kernels})

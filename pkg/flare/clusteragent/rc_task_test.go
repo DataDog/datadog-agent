@@ -8,6 +8,8 @@ package clusteragent
 import (
 	"errors"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -120,24 +122,28 @@ func TestHandleRCFlareTask_SendError(t *testing.T) {
 func TestHandleRCFlareTask_HappyPath(t *testing.T) {
 	origCreate := createDCAArchiveFunc
 	origSend := sendFlareFunc
+	origIdentity := getClusterAgentIdentityFunc
 	t.Cleanup(func() {
 		createDCAArchiveFunc = origCreate
 		sendFlareFunc = origSend
+		getClusterAgentIdentityFunc = origIdentity
 	})
 
 	// Use a real temp file to verify it gets removed after successful upload.
-	tmpFile, err := os.CreateTemp("", "flare-*.zip")
-	require.NoError(t, err)
-	tmpFile.Close()
-	tmpPath := tmpFile.Name()
+	tmpPath := filepath.Join(t.TempDir(), "datadog-agent-2026-09-14T19-55-00Z-info.zip")
+	require.NoError(t, os.WriteFile(tmpPath, nil, 0600))
 
-	var capturedCaseID, capturedUserHandle string
+	var capturedArchivePath, capturedCaseID, capturedUserHandle string
 	var capturedSource flarehelpers.FlareSource
 
 	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
 		return tmpPath, nil
 	}
-	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, caseID, userHandle, _, _ string, source flarehelpers.FlareSource) (string, error) {
+	getClusterAgentIdentityFunc = func() (string, string, string, error) {
+		return "squirtle-b", "datadog-agent", "datadog-agent-cluster-agent-abc123", nil
+	}
+	sendFlareFunc = func(_ pkgconfigmodel.Reader, archivePath, caseID, userHandle, _, _ string, source flarehelpers.FlareSource) (string, error) {
+		capturedArchivePath = archivePath
 		capturedCaseID = caseID
 		capturedUserHandle = userHandle
 		capturedSource = source
@@ -150,13 +156,24 @@ func TestHandleRCFlareTask_HappyPath(t *testing.T) {
 		"user_handle": "support@example.com",
 	})
 
-	err = HandleRCFlareTask(task, cfg, nil, nil, nil)
+	err := HandleRCFlareTask(task, cfg, nil, nil, nil)
 	require.NoError(t, err)
+	expectedArchivePath := filepath.Join(filepath.Dir(tmpPath), "datadog-agent-squirtle-b__datadog-agent__datadog-agent-cluster-agent-abc123__2026-09-14T19-55-00Z-info.zip")
+	assert.Equal(t, expectedArchivePath, capturedArchivePath)
 	assert.Equal(t, "99999", capturedCaseID)
 	assert.Equal(t, "support@example.com", capturedUserHandle)
 	assert.Equal(t, flarehelpers.NewRemoteConfigFlareSource("uuid-5"), capturedSource)
-	_, statErr := os.Stat(tmpPath)
+	_, statErr := os.Stat(expectedArchivePath)
 	assert.True(t, os.IsNotExist(statErr), "flare archive should be removed after successful upload")
+}
+
+func TestRenameClusterAgentFlareArchive_RenameFailureKeepsOriginal(t *testing.T) {
+	originalPath := filepath.Join(t.TempDir(), "datadog-agent-flare.zip")
+	require.NoError(t, os.WriteFile(originalPath, nil, 0600))
+
+	archivePath := renameClusterAgentFlareArchive(originalPath, "cluster", "namespace", strings.Repeat("a", 300))
+	assert.Equal(t, originalPath, archivePath)
+	assert.FileExists(t, originalPath)
 }
 
 func TestHandleRCFlareTask_NoCleanupOnSendError(t *testing.T) {

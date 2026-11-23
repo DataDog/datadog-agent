@@ -39,8 +39,7 @@ struct bind_event_t {
     u16 port;
     u16 protocol;
     u16 padding;
-    u32 sample_cookie;
-    u32 sample_padding;
+    u64 sample_cookie;
 };
 
 struct socket_event_t {
@@ -70,8 +69,7 @@ struct connect_event_t {
     u16 port;
     u16 protocol;
     u16 padding;
-    u32 sample_cookie;
-    u32 sample_padding;
+    u64 sample_cookie;
 };
 
 struct bpf_event_t {
@@ -178,6 +176,7 @@ struct cgroup_write_event_t {
     struct cgroup_context_t cgroup;
     struct path_key_t path_key;
     u32 pid; // pid of the process added to the cgroup
+    s32 retval; // return value of the cgroup write
 };
 
 struct utimes_event_t {
@@ -414,8 +413,7 @@ struct open_event_t {
     struct file_t file;
     u32 flags;
     u32 mode;
-    u32 sample_cookie;
-    u32 sample_padding;
+    u64 sample_cookie;
 };
 
 struct ptrace_event_t {
@@ -614,6 +612,19 @@ struct setrlimit_event_t {
     u64 rlim_max;
 };
 
+struct setns_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct go_labels_context_t go_labels;
+    struct cgroup_context_t cgroup;
+    struct syscall_t syscall;
+
+    s32 nstype;
+    struct namespace_ids_t before;
+    struct namespace_ids_t after;
+};
+
 struct setsockopt_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -680,8 +691,7 @@ struct otel_process_ctx_event_t {
 
 struct sample_refresh_event_t {
     struct kevent_t event;
-    u32 cookie;
-    u32 padding;
+    u64 cookie;
 };
 
 struct nop_event_t {
@@ -745,6 +755,7 @@ union event_t {
     struct network_flow_monitor_event_t network_flow_monitor;
     struct sysctl_event_t sysctl;
     struct setrlimit_event_t setrlimit;
+    struct setns_event_t setns;
     struct setsockopt_event_t setsockopt;
     struct capabilities_event_t capabilities;
     struct prctl_event_t prctl;

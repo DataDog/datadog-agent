@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
@@ -127,8 +129,20 @@ type HTTPReceiver struct {
 
 	rateLimiterResponse int // HTTP status code when refusing
 
-	wg   sync.WaitGroup // waits for all requests to be processed
+	// wg tracks open server connections (see trackConnState), so that Stop can
+	// wait for every request handler to return.
+	wg   sync.WaitGroup
 	exit chan struct{}
+
+	// shutdownTimeout bounds the graceful server shutdown in Stop.
+	shutdownTimeout time.Duration
+
+	// shutdownTimedOut is closed when the graceful server shutdown times out,
+	// telling handlers still blocked on the out channels to drop their payloads.
+	shutdownTimedOut chan struct{}
+
+	// droppedOnShutdown counts payloads dropped because shutdownTimedOut was closed.
+	droppedOnShutdown atomic.Int64
 
 	// recvsem is a semaphore that controls the number goroutines that can
 	// be simultaneously deserializing incoming payloads.
@@ -208,7 +222,9 @@ func NewHTTPReceiver(
 
 		rateLimiterResponse: rateLimiterResponse,
 
-		exit: make(chan struct{}),
+		exit:             make(chan struct{}),
+		shutdownTimeout:  5 * time.Second,
+		shutdownTimedOut: make(chan struct{}),
 
 		// Based on experimentation, 4 simultaneous readers
 		// is enough to keep 16 threads busy processing the
@@ -347,6 +363,7 @@ func (r *HTTPReceiver) Start() {
 		ErrorLog:    stdlog.New(httpLogger, "http.Server: ", 0),
 		Handler:     r.buildMux(),
 		ConnContext: connContext,
+		ConnState:   r.trackConnState,
 	}
 
 	if r.conf.ReceiverIdleTimeout > r.server.ReadTimeout {
@@ -493,19 +510,68 @@ func (r *HTTPReceiver) Stop() error {
 	r.exit <- struct{}{}
 	<-r.exit
 
-	expiry := time.Now().Add(5 * time.Second) // give it 5 seconds
-	ctx, cancel := context.WithDeadline(context.Background(), expiry)
+	ctx, cancel := context.WithTimeout(context.Background(), r.shutdownTimeout)
 	defer cancel()
-	if err := r.server.Shutdown(ctx); err != nil {
+	err := r.server.Shutdown(ctx)
+	if err != nil {
 		log.Warnf("Error shutting down HTTPReceiver: %v", err)
-		return err
+		// Some handlers are still running. Unblock those waiting to hand off a
+		// payload and force-close remaining connections so the wait below can't hang.
+		close(r.shutdownTimedOut)
+		if cerr := r.server.Close(); cerr != nil {
+			log.Warnf("Error closing HTTPReceiver: %v", cerr)
+		}
 	}
-	r.wg.Wait()
+	// Wait for in-flight handlers: the caller closes the out channels as soon
+	// as Stop returns, and a late send would panic. Handlers honor request
+	// cancellation, so this is quick once connections are closed; the bound
+	// only guards against one that doesn't hanging shutdown forever.
+	done := make(chan struct{})
+	go func() {
+		r.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(r.shutdownTimeout):
+		log.Warnf("HTTPReceiver request handlers did not return within %s of closing the server, continuing shutdown", r.shutdownTimeout)
+	}
+	if n := r.droppedOnShutdown.Load(); n > 0 {
+		log.Warnf("HTTPReceiver dropped %d payloads that were still in flight at shutdown", n)
+	}
 	r.telemetryForwarder.Stop()
-	return nil
+	return err
 }
 
-// BuildHandlers builds the handlers so they are available in the trace component
+// trackConnState is the server's ConnState hook. It tracks connections rather
+// than requests in r.wg: the server calls the StateNew hook from its accept
+// loop, which Shutdown waits on, so every wg.Add happens before Stop reaches
+// wg.Wait. StateClosed is only set once the connection's handler has returned.
+// Handlers served by another server (see BuildHandlers) are not tracked.
+func (r *HTTPReceiver) trackConnState(_ net.Conn, state http.ConnState) {
+	switch state {
+	case http.StateNew:
+		r.wg.Add(1)
+	case http.StateClosed, http.StateHijacked:
+		r.wg.Done()
+	}
+}
+
+// sendPayload sends p on out, or drops it if the graceful shutdown times out
+// first. Stop waits for all connections to close before returning, so out
+// can't be closed while a handler is sending.
+func sendPayload[T any](r *HTTPReceiver, out chan<- T, p T) {
+	select {
+	case out <- p:
+	case <-r.shutdownTimedOut:
+		r.droppedOnShutdown.Inc()
+	}
+}
+
+// BuildHandlers builds the handlers so they are available in the trace component.
+// Stop only waits for requests served by r.server, so trace intake handlers
+// must not be served elsewhere: they could send on the out channels after the
+// agent has closed them.
 func (r *HTTPReceiver) BuildHandlers() {
 	r.buildMux()
 }
@@ -559,6 +625,12 @@ const (
 	// pairs representing information about the container (Docker, EC2, etc).
 	tagContainersTags = "_dd.tags.container"
 	tagProcessTags    = "_dd.tags.process"
+
+	// tagSDKOtlpExport specifies the name of the tag which records whether the
+	// Datadog SDK that produced the payload exports its telemetry via OTLP
+	// ("true") or via the native Datadog protocols ("false"). An absent tag means
+	// the tracer predates the tag; an empty value is never written.
+	tagSDKOtlpExport = "_dd.sdk.otlp_export"
 )
 
 // TagStats returns the stats and tags coinciding with the information found in header.
@@ -571,15 +643,41 @@ func (r *HTTPReceiver) tagStats(v Version, req *http.Request, service string) *i
 	httpHeader := req.Header
 	connectionType := GetConnectionType(req.Context())
 	return r.Stats.GetTagStats(info.Tags{
-		Lang:            httpHeader.Get(header.Lang),
-		LangVersion:     httpHeader.Get(header.LangVersion),
-		Interpreter:     httpHeader.Get(header.LangInterpreter),
-		LangVendor:      httpHeader.Get(header.LangInterpreterVendor),
-		TracerVersion:   httpHeader.Get(header.TracerVersion),
+		Lang:            truncateMetaValue(httpHeader.Get(header.Lang)),
+		LangVersion:     truncateMetaValue(httpHeader.Get(header.LangVersion)),
+		Interpreter:     truncateMetaValue(httpHeader.Get(header.LangInterpreter)),
+		LangVendor:      truncateMetaValue(httpHeader.Get(header.LangInterpreterVendor)),
+		TracerVersion:   truncateMetaValue(httpHeader.Get(header.TracerVersion)),
 		EndpointVersion: string(v),
 		ConnectionType:  string(connectionType),
-		Service:         service,
+		// The service is normalized further down the pipeline, which truncates
+		// it to the same length; doing it here too keeps the service reported
+		// by the receiver's own metrics in agreement with the rest.
+		Service: cloneIfTruncated(service, normalizeutil.MaxServiceLen),
 	})
+}
+
+// maxMetaValueLen bounds the length of a Datadog-Meta-* header value used as
+// part of a stats map key. Real values are short ("go", "1.22.3", "v2.1.0");
+// the limit only exists because the values are otherwise bounded by the size
+// of the request headers, which would let a single request hold a megabyte of
+// them in the map and in every metric tag derived from it.
+const maxMetaValueLen = 200
+
+func truncateMetaValue(v string) string {
+	return cloneIfTruncated(v, maxMetaValueLen)
+}
+
+// cloneIfTruncated truncates v to limit and, only if that actually shortened
+// it, clones the result: TruncateUTF8 returns a substring backed by v's
+// original allocation, so a clipped megabyte-sized value would otherwise
+// keep that whole allocation alive in the stats map.
+func cloneIfTruncated(v string, limit int) string {
+	t := normalizeutil.TruncateUTF8(v, limit)
+	if len(t) == len(v) {
+		return v
+	}
+	return strings.Clone(t)
 }
 
 // decodeTracerPayload decodes the payload in http request `req`, it handles non v1.0 requests.
@@ -888,9 +986,6 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		r.handleTracesV1(v, w, req)
 		return
 	}
-	r.wg.Add(1)
-	defer r.wg.Done()
-
 	tracen, err := traceCount(req)
 	if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)
@@ -973,7 +1068,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 				ts.TracesDropped.DecodingError.Add(tracen)
 			}
 		}
-		log.Errorf("Cannot decode %s traces payload: %v", v, err)
+		log.Errorf("Cannot decode %s traces payload (%s): %v", v, r.decodeErrorClient(req), err)
 		return
 	}
 	if n, ok := r.replyOK(req, v, w); ok {
@@ -998,6 +1093,15 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		}
 		tp.Tags[tagProcessTags] = ptags
 	}
+	// Normalize the SDK export mode into TracerPayload.Tags. Note this is
+	// deliberately not propagated to Payload (the stats path); see
+	// getSDKOtlpExport.
+	if otlpExport := getSDKOtlpExport(tp); otlpExport != "" {
+		if tp.Tags == nil {
+			tp.Tags = make(map[string]string)
+		}
+		tp.Tags[tagSDKOtlpExport] = otlpExport
+	}
 	payload := &Payload{
 		Source:                 ts,
 		TracerPayload:          tp,
@@ -1007,13 +1111,47 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		ProcessTags:            ptags,
 		ContainerTags:          ctags,
 	}
-	r.out <- payload
+	sendPayload(r, r.out, payload)
+}
+
+// decodeErrorClientTagKeys are the container tags that decodeErrorClient
+// logs. They name the client app. The lang and tracer version are not logged:
+// they are already tags on the datadog.trace_agent.receiver.* metrics.
+var decodeErrorClientTagKeys = []string{
+	"service", "kube_namespace", "kube_deployment", "pod_name", "task_family", "ecs_service", "container_name", "short_image",
+}
+
+// decodeErrorClient describes the client that sent a traces payload that
+// could not be decoded, so that an operator can find the app from the log
+// line. The payload is not usable, so it uses only the request: the
+// Content-Length, the remote address, the container ID that the headers or
+// the connection give, and a few tags of that container. It runs only on the
+// decode error path; the container ID and tags lookups are the same that a
+// successful request does.
+func (r *HTTPReceiver) decodeErrorClient(req *http.Request) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "content_length:%d, remote_addr:%q", req.ContentLength, req.RemoteAddr)
+	var containerID string
+	if r.containerIDProvider != nil {
+		containerID = r.containerIDProvider.GetContainerID(req.Context(), req.Header)
+	}
+	fmt.Fprintf(&b, ", container_id:%q", containerID)
+	if containerID == "" || r.conf.ContainerTags == nil {
+		return b.String()
+	}
+	for _, tag := range getContainerTagsList(r.conf.ContainerTags, containerID) {
+		key, value, _ := strings.Cut(tag, ":")
+		if slices.Contains(decodeErrorClientTagKeys, key) {
+			// Quote the value: it can come from the client's environment
+			// (for example DD_SERVICE) and must not break the log line.
+			fmt.Fprintf(&b, ", %s:%q", key, value)
+		}
+	}
+	return b.String()
 }
 
 // handleTracesV1 knows how to handle a bunch of traces and converts them to the internal format if needed
 func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *http.Request) {
-	r.wg.Add(1)
-	defer r.wg.Done()
 	tracen, err := traceCount(req)
 	if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)
@@ -1096,7 +1234,7 @@ func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *htt
 				ts.TracesDropped.DecodingError.Add(tracen)
 			}
 		}
-		log.Errorf("Cannot decode %s traces payload: %v", v, err)
+		log.Errorf("Cannot decode %s traces payload (%s): %v", v, r.decodeErrorClient(req), err)
 		return
 	}
 	if n, ok := r.replyOK(req, v, w); ok {
@@ -1115,6 +1253,12 @@ func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *htt
 	if ptags != "" {
 		tp.SetStringAttribute(tagProcessTags, ptags)
 	}
+	// Normalize the SDK export mode into the payload attributes. Note this is
+	// deliberately not propagated to PayloadV1 (the stats path); see
+	// getSDKOtlpExport.
+	if otlpExport := getSDKOtlpExportV1(tp); otlpExport != "" {
+		tp.SetStringAttribute(tagSDKOtlpExport, otlpExport)
+	}
 	payload := &PayloadV1{
 		Source:                 ts,
 		TracerPayload:          tp,
@@ -1124,7 +1268,7 @@ func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *htt
 		ProcessTags:            ptags,
 		ContainerTags:          ctags,
 	}
-	r.outV1 <- payload
+	sendPayload(r, r.outV1, payload)
 }
 
 // isHeaderTrue returns true if value is non-empty and not a "false"-like value as defined by strconv.ParseBool
@@ -1191,6 +1335,52 @@ func getProcessTags(h http.Header, p *pb.TracerPayload) string {
 	return h.Get(header.ProcessTags)
 }
 
+// getSDKOtlpExport extracts the "_dd.sdk.otlp_export" value from a v0.7 tracer
+// payload, normalizing whichever carrier the tracer used into a single value.
+// Order of priority mirrors getProcessTags:
+//  1. tags in the v0.7 payload
+//  2. tags in the first span of the first non-empty chunk (v0.4/v0.5, which have
+//     no payload-level field on the wire)
+//
+// If neither carrier holds the value, the empty string is returned.
+//
+// The original span meta entry is deliberately not stripped, so a v0.4/v0.5
+// payload legitimately carries the value in both places; the values always agree.
+//
+// The OTLP receive path (pkg/trace/api/otlp.go) deliberately does NOT use this
+// hoist. That receiver builds a pb.TracerPayload covering many resources at
+// once, so reading one span's meta and stamping it onto the whole payload would
+// mis-tag payloads mixing export modes. OTLP-origin spans carry the value in
+// span meta only, by design.
+func getSDKOtlpExport(p *pb.TracerPayload) string {
+	if p.Tags != nil {
+		if v, ok := p.Tags[tagSDKOtlpExport]; ok {
+			return v
+		}
+	}
+	if span, ok := getFirstSpan(p); ok {
+		if v, ok := span.Meta[tagSDKOtlpExport]; ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// getSDKOtlpExportV1 is the idx/v1 equivalent of getSDKOtlpExport. See that
+// function for the priority order and for why the OTLP receive path does not
+// use it.
+func getSDKOtlpExportV1(p *idx.InternalTracerPayload) string {
+	if v, ok := p.GetAttributeAsString(tagSDKOtlpExport); ok {
+		return v
+	}
+	if span, ok := getFirstSpanV1(p); ok {
+		if v, ok := span.GetAttributeAsString(tagSDKOtlpExport); ok {
+			return v
+		}
+	}
+	return ""
+}
+
 func getFirstSpan(p *pb.TracerPayload) (*pb.Span, bool) {
 	for _, chunk := range p.Chunks {
 		if len(chunk.Spans) != 0 {
@@ -1250,19 +1440,25 @@ func (r *HTTPReceiver) loop() {
 			r.Stats.PublishAndReset(r.statsd)
 
 			if now.Sub(lastLog) >= time.Minute {
-				// We expose the stats accumulated to expvar
-				info.UpdateReceiverStats(accStats)
-
-				// We reset the stats accumulated during the last minute
-				accStats.LogAndResetStats()
+				r.logAndResetPeriodicStats(accStats)
 				lastLog = now
-
-				// Also publish rates by service (they are updated by receiver)
-				rates := r.dynConf.RateByService.GetNewState("").Rates
-				info.UpdateRateByService(rates)
 			}
 		}
 	}
+}
+
+// logAndResetPeriodicStats exposes the stats accumulated over the last minute
+// to expvar and resets them.
+func (r *HTTPReceiver) logAndResetPeriodicStats(accStats *info.ReceiverStats) {
+	// We expose the stats accumulated to expvar
+	info.UpdateReceiverStats(accStats)
+
+	// We reset the stats accumulated during the last minute
+	accStats.LogAndResetStats()
+
+	// Also publish rates by service (they are updated by receiver)
+	rates := r.dynConf.RateByService.GetNewState("").Rates
+	info.UpdateRateByService(rates)
 }
 
 // killProcess exits the process with the given msg; replaced in tests.

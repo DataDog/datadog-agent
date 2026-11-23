@@ -16,6 +16,7 @@ type deviceScan struct {
 	ScanStatus scanStatus `json:"scan_status"`
 	ScanEndTs  time.Time  `json:"scan_end_ts"`
 	Failures   int        `json:"failures"`
+	Error      string     `json:"error,omitempty"`
 }
 
 type scanStatus string

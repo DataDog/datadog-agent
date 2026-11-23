@@ -8,7 +8,6 @@ package networkconfigmanagementimpl
 import (
 	"context"
 	"fmt"
-	"time"
 
 	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 	ncmprofile "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
@@ -19,7 +18,7 @@ type UnknownDeviceError struct {
 	deviceID string
 }
 
-// Type implements [types.RollbackError].
+// Type implements [types.TypedError].
 func (u *UnknownDeviceError) Type() types.ErrorType {
 	return types.ErrNoSuchDevice
 }
@@ -28,21 +27,18 @@ func (u *UnknownDeviceError) Error() string {
 	return fmt.Sprintf("unknown device: %q", u.deviceID)
 }
 
-var _ types.RollbackError = (*UnknownDeviceError)(nil)
+var _ types.TypedError = (*UnknownDeviceError)(nil)
 
 // DeviceMap wraps a sync.Map of DeviceContexts to streamline the process of
 // fetching and locking them.
 type DeviceMap struct {
 	devices *Map[*DeviceContext]
-	timeout time.Duration
 }
 
-// NewDeviceMap creates an empty DeviceMap. timeout is the maximum time to wait
-// for a device lock when calling RegisterDevice or GetAndLock.
-func NewDeviceMap(timeout time.Duration) *DeviceMap {
+// NewDeviceMap creates an empty DeviceMap.
+func NewDeviceMap() *DeviceMap {
 	return &DeviceMap{
 		devices: NewMap[*DeviceContext](),
-		timeout: timeout,
 	}
 }
 
@@ -55,7 +51,7 @@ func (d *DeviceMap) RegisterDevice(ctx context.Context, device *ncmconfig.Device
 		// it doesn't need to be reset.
 		return nil
 	}
-	err := dc.Lock(ctx, d.timeout)
+	err := dc.Lock(ctx, deviceTimeout)
 	if err != nil {
 		return err
 	}
@@ -81,7 +77,7 @@ func (d *DeviceMap) GetAndLock(ctx context.Context, deviceID string) (*DeviceCon
 	if err != nil {
 		return nil, err
 	}
-	err = dc.Lock(ctx, d.timeout)
+	err = dc.Lock(ctx, deviceTimeout)
 	if err != nil {
 		return nil, err
 	}

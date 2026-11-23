@@ -17,6 +17,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -176,10 +177,8 @@ func TestFilterListUpdateWithValidMetrics(t *testing.T) {
 	require.ElementsMatch([]string{"test.metric.1", "test.metric.2"}, metricNames)
 }
 
-// TestFilterListUpdateWithPrefixedMetrics tests that a metric name delivered by
-// RC and ending with `*` is a prefix pattern, exactly like one read from the
-// configuration file.
-func TestFilterListUpdateWithPrefixedMetrics(t *testing.T) {
+// blocked_metrics entries from RC stay exact; `*` is not a prefix marker.
+func TestFilterListUpdateBlockedMetricsStarIsLiteral(t *testing.T) {
 	require := require.New(t)
 
 	filterList, configComponent := newFilterList(t)
@@ -194,7 +193,7 @@ func TestFilterListUpdateWithPrefixedMetrics(t *testing.T) {
 			"blocked_metrics": {
 				"by_name": {
 					"values": [
-						{"metric_name": "test.prefixed.*"},
+						{"metric_name": "test.exactfoo*"},
 						{"metric_name": "test.exact"}
 					]
 				}
@@ -206,19 +205,317 @@ func TestFilterListUpdateWithPrefixedMetrics(t *testing.T) {
 	require.Len(results[state.ApplyStateAcknowledged], 1)
 	require.Len(results[state.ApplyStateError], 0)
 
-	// The pattern is stored as-is, so `agent config` reports what RC sent.
 	metricNames := configComponent.GetStringSlice("metric_filterlist")
-	require.ElementsMatch([]string{"test.prefixed.*", "test.exact"}, metricNames)
+	require.ElementsMatch([]string{"test.exactfoo", "test.exact"}, metricNames)
 
 	matcher := filterList.GetMetricFilterList()
-	require.True(matcher.Test("test.prefixed.anything"))
+	require.True(matcher.Test("test.exactfoo"))
+	require.False(matcher.Test("test.exactfooX"))
 	require.True(matcher.Test("test.exact"))
 	require.False(matcher.Test("test.exact.suffix"))
 	require.False(matcher.Test("test.other"))
+}
 
-	// The prefix entry is kept in the histogram subset used at flush time.
+// RC prefix rules are converted to the local config shape.
+func TestFilterListUpdateWithMetricPrefixRules(t *testing.T) {
+	require := require.New(t)
+
+	filterList, configComponent := newFilterList(t)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"metric_filterlist_prefix": {
+				"by_prefix": {
+					"values": [
+						{
+							"prefix": "test.prefixed.",
+							"except_prefix": [{"prefix": "test.prefixed.locks."}],
+							"except_exact": [{"name": "test.prefixed.keep"}]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	var prefixEntries []MetricPrefixListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_filterlist_prefix", &prefixEntries)
+	require.NoError(err)
+	require.Len(prefixEntries, 1)
+	require.Equal(MetricPrefixListEntry{
+		Prefix:       "test.prefixed.",
+		ExceptPrefix: []string{"test.prefixed.locks."},
+		ExceptExact:  []string{"test.prefixed.keep"},
+	}, prefixEntries[0])
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("test.prefixed.anything"))
+	require.False(matcher.Test("test.prefixed.keep"), "except_exact entry should be kept")
+	require.False(matcher.Test("test.prefixed.locks.waiting"), "except_prefix entry should be kept")
+	require.False(matcher.Test("test.other"))
+
+	// Prefix rules also apply to histogram aggregates.
 	histo := filterList.GetHistoFilterList()
 	require.True(histo.Test("test.prefixed.histo.avg"))
+	require.False(histo.Test("test.prefixed.keep"))
+}
+
+func TestFilterListUpdateWithDuplicateMetricPrefixRulesPreservesBoth(t *testing.T) {
+	require := require.New(t)
+
+	filterList, configComponent := newFilterList(t)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"metric_filterlist_prefix": {
+				"by_prefix": {
+					"values": [
+						{
+							"prefix": "test.dup.",
+							"except_exact": [{"name": "test.dup.keep.one"}, {"name": "test.dup.keep.both"}]
+						},
+						{
+							"prefix": "test.dup.",
+							"except_exact": [{"name": "test.dup.keep.two"}, {"name": "test.dup.keep.both"}]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	var prefixEntries []MetricPrefixListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_filterlist_prefix", &prefixEntries)
+	require.NoError(err)
+	require.Len(prefixEntries, 2)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("test.dup.anything"))
+	require.False(matcher.Test("test.dup.keep.one"), "exceptions apply across duplicate rules")
+	require.False(matcher.Test("test.dup.keep.two"), "exceptions apply across duplicate rules")
+	require.False(matcher.Test("test.dup.keep.both"), "excepted by both duplicate rules")
+}
+
+// RC configs with only prefix rules are not empty.
+func TestFilterListUpdateWithOnlyPrefixRulesIsNotSkipped(t *testing.T) {
+	require := require.New(t)
+
+	filterList, _ := newFilterList(t)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"metric_filterlist_prefix": {
+				"by_prefix": {
+					"values": [{"prefix": "test.prefixed."}]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("test.prefixed.anything"), "a config carrying only prefix rules must not be skipped")
+}
+
+// RC exact and prefix-rule fields fall back independently.
+func TestFilterListUpdateMetricNamesAndPrefixRulesAreIndependent(t *testing.T) {
+	require := require.New(t)
+
+	cfg := map[string]interface{}{
+		"metric_filterlist": []string{"local.exact"},
+		"metric_filterlist_prefix": []map[string]interface{}{
+			{"prefix": "local.prefixed."},
+		},
+	}
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	// Only prefix rules come from RC.
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"metric_filterlist_prefix": {
+				"by_prefix": {
+					"values": [{"prefix": "rc.prefixed."}]
+				}
+			}
+		}`)},
+	}
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("local.exact"), "metric_filterlist should fall back to local config")
+	require.True(matcher.Test("rc.prefixed.anything"), "metric_filterlist_prefix should come from RC")
+	require.False(matcher.Test("local.prefixed.anything"), "the local prefix rule should have been replaced by RC's")
+
+	// Now only exact names come from RC.
+	results = updateRes{}
+	updates = map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": [{"metric_name": "rc.exact"}]
+				}
+			}
+		}`)},
+	}
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	matcher = filterList.GetMetricFilterList()
+	require.True(matcher.Test("rc.exact"), "metric_filterlist should come from RC")
+	require.False(matcher.Test("local.exact"), "the local exact metric should have been replaced by RC's")
+	require.True(matcher.Test("local.prefixed.anything"), "metric_filterlist_prefix should fall back to local config")
+}
+
+func TestFilterListUpdateRestoresDeprecatedStatsdMetricBlocklistFromFile(t *testing.T) {
+	require := require.New(t)
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockFromYAML(t, `
+statsd_metric_blocklist:
+  - local.legacy
+statsd_metric_blocklist_match_prefix: true
+`)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	require.ElementsMatch([]string{"local.legacy"}, configComponent.GetStringSlice("metric_filterlist"))
+	require.Equal(model.SourceFile, configComponent.GetSource("metric_filterlist"))
+	require.True(configComponent.GetBool("metric_filterlist_match_prefix"))
+	require.Equal(model.SourceFile, configComponent.GetSource("metric_filterlist_match_prefix"))
+	require.False(configComponent.IsConfigured("statsd_metric_blocklist"))
+	require.False(configComponent.IsConfigured("statsd_metric_blocklist_match_prefix"))
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": [{"metric_name": "rc.exact"}]
+				}
+			}
+		}`)},
+	}
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	require.ElementsMatch([]string{"rc.exact"}, configComponent.GetStringSlice("metric_filterlist"))
+	require.Equal(model.SourceRC, configComponent.GetSource("metric_filterlist"))
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("rc.exact"), "metric_filterlist should come from RC")
+	require.False(matcher.Test("local.legacy"), "the deprecated local metric should not be applied while RC is active")
+
+	results = updateRes{}
+	emptyUpdates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": []
+				}
+			}
+		}`)},
+	}
+	filterList.onFilterListUpdateCallback(emptyUpdates, callback)
+	require.Len(results[state.ApplyStateError], 0)
+
+	require.ElementsMatch([]string{"local.legacy"}, configComponent.GetStringSlice("metric_filterlist"))
+	require.Equal(model.SourceFile, configComponent.GetSource("metric_filterlist"))
+	matcher = filterList.GetMetricFilterList()
+	require.True(matcher.Test("local.legacy.anything"), "empty RC update should restore the deprecated file config after migration")
+	require.False(matcher.Test("rc.exact"), "empty RC update should remove the RC metric_filterlist")
+}
+
+// Empty RC prefix rules restore the local prefix rules.
+func TestFilterListUpdatePrefixRulesEmptyRestoresLocal(t *testing.T) {
+	require := require.New(t)
+
+	cfg := map[string]interface{}{
+		"metric_filterlist_prefix": []map[string]interface{}{
+			{"prefix": "local.prefixed."},
+		},
+	}
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"metric_filterlist_prefix": {
+				"by_prefix": {
+					"values": [{"prefix": "rc.prefixed."}]
+				}
+			}
+		}`)},
+	}
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("rc.prefixed.anything"))
+	require.False(matcher.Test("local.prefixed.anything"))
+
+	// No prefix rules in RC: fall back to local config.
+	results = updateRes{}
+	emptyUpdates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": [{"metric_name": "still.here"}]
+				}
+			}
+		}`)},
+	}
+	filterList.onFilterListUpdateCallback(emptyUpdates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	matcher = filterList.GetMetricFilterList()
+	require.False(matcher.Test("rc.prefixed.anything"), "RC's prefix rule should be gone")
+	require.True(matcher.Test("local.prefixed.anything"), "the local prefix rule should be restored")
+	require.True(matcher.Test("still.here"), "the exact metric from this same update should still apply")
 }
 
 // TestFilterListUpdateWithValidTags tests the callback with valid tag filter list updates
@@ -504,13 +801,16 @@ func TestFilterListUpdateWithCombinedMetricsAndTags(t *testing.T) {
 func TestFilterListUpdateEmptyRestoresLocal(t *testing.T) {
 	require := require.New(t)
 
-	cfg := make(map[string]interface{})
-	cfg["metric_filterlist"] = []string{"local.metric.1", "local.metric.2"}
-
 	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
+	configComponent := config.NewMockFromYAML(t, `
+metric_filterlist:
+  - local.metric.1
+  - local.metric.2
+`)
 	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
 	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	require.Equal(model.SourceFile, configComponent.GetSource("metric_filterlist"))
 
 	// First, set RC config
 	results := updateRes{}
@@ -586,9 +886,10 @@ func TestFilterListUpdateEmptyRestoresLocal(t *testing.T) {
 	filterList.onFilterListUpdateCallback(emptyUpdates, callback)
 	require.Len(results[state.ApplyStateError], 0)
 
-	// metric filterlist has been reset to default
+	// metric filterlist has been reset to local file config
 	metricNames = configComponent.GetStringSlice("metric_filterlist")
 	require.ElementsMatch([]string{"local.metric.1", "local.metric.2"}, metricNames)
+	require.Equal(model.SourceFile, configComponent.GetSource("metric_filterlist"))
 
 	// tag entries should be as configured through RC
 	err = structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
@@ -736,89 +1037,6 @@ func TestFilterListUpdateMultipleMetrics(t *testing.T) {
 	)
 }
 
-// TestNewHashedMetricTagListTagsAreSorted verifies that newHashedMetricTagList always returns
-// a hashedMetricTagList with tags in sorted order, regardless of input order.
-func TestNewHashedMetricTagListTagsAreSorted(t *testing.T) {
-	require := require.New(t)
-
-	// Use tags whose hash values are unlikely to already be in sorted order.
-	tags := []string{"zzz", "aaa", "mmm", "bbb", "env", "host"}
-	hashedTags := hashTags(tags)
-	result := newHashedMetricTagList(exclude, hashedTags)
-	require.True(slices.IsSorted(result.tags), "tags in hashedMetricTagList must always be sorted")
-
-	// Also verify with include action.
-	result = newHashedMetricTagList(include, hashedTags)
-	require.True(slices.IsSorted(result.tags), "tags in hashedMetricTagList must always be sorted")
-}
-
-// TestBuildTagFilterListConfigTagsAreSorted verifies that hashedMetricTagList entries produced by
-// buildTagFilterListConfig always have their tags in sorted order when first created.
-func TestBuildTagFilterListConfigTagsAreSorted(t *testing.T) {
-	require := require.New(t)
-
-	filterList, _ := newFilterList(t)
-
-	updates := []filteredTags{
-		{
-			ByName: tagByName{
-				Metrics: []tagEntry{
-					{
-						Name:       "test.metric",
-						ExcludeTag: true,
-						Tags:       []string{"zzz", "aaa", "mmm", "bbb"},
-					},
-				},
-			},
-		},
-	}
-
-	tags, _ := filterList.buildTagFilterListConfig(updates)
-	require.True(slices.IsSorted(tags["test.metric"].tags), "newly created hashedMetricTagList tags must be sorted")
-}
-
-// TestMergeMetricTagListEntryTagsAreSorted verifies that after merging two entries with the same action,
-// the resulting hashedMetricTagList always has its tags in sorted order.
-func TestMergeMetricTagListEntryTagsAreSorted(t *testing.T) {
-	require := require.New(t)
-
-	filterList, _ := newFilterList(t)
-
-	// Use tags whose hashes are unlikely to already be ordered after concatenation.
-	currentHashed := newHashedMetricTagList(exclude, hashTags([]string{"zzz", "mmm"}))
-	currentEntry := MetricTagListEntry{
-		MetricName: "test.metric",
-		Action:     "exclude",
-		Tags:       []string{"zzz", "mmm"},
-	}
-
-	newMetric := tagEntry{
-		Name:       "test.metric",
-		ExcludeTag: true,
-		Tags:       []string{"aaa", "bbb"},
-	}
-
-	hashedResult, _ := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
-	require.True(slices.IsSorted(hashedResult.tags), "merged hashedMetricTagList tags must be sorted")
-
-	// Also test with include action.
-	currentHashed = newHashedMetricTagList(include, hashTags([]string{"zzz", "mmm"}))
-	currentEntry = MetricTagListEntry{
-		MetricName: "test.metric",
-		Action:     "include",
-		Tags:       []string{"zzz", "mmm"},
-	}
-
-	newMetric = tagEntry{
-		Name:       "test.metric",
-		ExcludeTag: false,
-		Tags:       []string{"aaa", "bbb"},
-	}
-
-	hashedResult, _ = filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
-	require.True(slices.IsSorted(hashedResult.tags), "merged hashedMetricTagList tags must be sorted")
-}
-
 // TestMergeMetricTagListEntry_SameActionInclude tests merging tags when both entries have include action
 func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 	require := require.New(t)
@@ -826,10 +1044,6 @@ func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 	filterList, _ := newFilterList(t)
 
 	// Setup: current entry with include action
-	currentHashed := hashedMetricTagList{
-		action: include,
-		tags:   hashTags([]string{"env", "host"}),
-	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "include",
@@ -844,14 +1058,7 @@ func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 	}
 
 	// Execute merge
-	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
-
-	tags := hashTags([]string{"env", "host", "pod", "cluster"})
-	slices.Sort(tags)
-	require.Equal(hashedResult, hashedMetricTagList{
-		action: include,
-		tags:   tags,
-	})
+	entryResult := filterList.mergeMetricTagListEntry(newMetric, currentEntry)
 
 	require.Equal(entryResult, MetricTagListEntry{
 		MetricName: "test.metric",
@@ -867,10 +1074,6 @@ func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
 	filterList, _ := newFilterList(t)
 
 	// Setup: current entry with exclude action
-	currentHashed := hashedMetricTagList{
-		action: exclude,
-		tags:   hashTags([]string{"env", "host"}),
-	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "exclude",
@@ -885,14 +1088,7 @@ func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
 	}
 
 	// Execute merge
-	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
-
-	tags := hashTags([]string{"env", "host", "pod", "cluster"})
-	slices.Sort(tags)
-	require.Equal(hashedResult, hashedMetricTagList{
-		action: exclude,
-		tags:   tags,
-	})
+	entryResult := filterList.mergeMetricTagListEntry(newMetric, currentEntry)
 
 	require.Equal(entryResult, MetricTagListEntry{
 		MetricName: "test.metric",
@@ -908,10 +1104,6 @@ func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
 	filterList, _ := newFilterList(t)
 
 	// Setup: current entry with include action
-	currentHashed := hashedMetricTagList{
-		action: include,
-		tags:   hashTags([]string{"env", "host"}),
-	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "include",
@@ -926,12 +1118,7 @@ func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
 	}
 
 	// Execute merge
-	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
-
-	require.Equal(hashedResult, hashedMetricTagList{
-		action: exclude,
-		tags:   hashTags([]string{"pod"}),
-	})
+	entryResult := filterList.mergeMetricTagListEntry(newMetric, currentEntry)
 
 	require.Equal(entryResult, MetricTagListEntry{
 		MetricName: "test.metric",
@@ -947,10 +1134,6 @@ func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 	filterList, _ := newFilterList(t)
 
 	// Setup: current entry with exclude action
-	currentHashed := hashedMetricTagList{
-		action: exclude,
-		tags:   hashTags([]string{"env", "host"}),
-	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "exclude",
@@ -965,14 +1148,9 @@ func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 	}
 
 	// Execute merge
-	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
+	entryResult := filterList.mergeMetricTagListEntry(newMetric, currentEntry)
 
-	// Results should be the original exclude
-	require.Equal(hashedResult, hashedMetricTagList{
-		action: exclude,
-		tags:   hashTags([]string{"env", "host"}),
-	})
-
+	// Result should be the original exclude
 	require.Equal(entryResult, MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "exclude",

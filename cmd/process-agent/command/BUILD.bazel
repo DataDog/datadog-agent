@@ -97,7 +97,21 @@ go_library(
 
 dd_agent_go_test(
     name = "command_test",
-    srcs = ["deprecated_test.go"],
+    srcs = [
+        "deprecated_test.go",
+        "main_common_test.go",
+    ],
     embed = [":command"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/pid/fx",
+        "//comp/core/pid/impl",
+        "//comp/process/agent/def",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
 )

@@ -169,6 +169,18 @@ func TestClient(t *testing.T) {
 		assert.Nil(t, payloads)
 	})
 
+	t.Run("getFakePayloads should time out a hung request", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			<-r.Context().Done()
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL, WithGetBackoffRetries(1), WithGetTimeout(10*time.Millisecond))
+		payloads, err := client.getFakePayloads("/foo/bar")
+		require.Error(t, err)
+		assert.Nil(t, payloads)
+	})
+
 	t.Run("getMetrics", func(t *testing.T) {
 		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write(apiV2SeriesResponse)
@@ -811,15 +823,31 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getNetpathEvents", func(t *testing.T) {
+		// Serve the fixture payload twice so all and latest events differ.
+		var resp struct {
+			Payloads []json.RawMessage `json:"payloads"`
+		}
+		require.NoError(t, json.Unmarshal(apiV2Netpath, &resp))
+		resp.Payloads = append(resp.Payloads, resp.Payloads[0])
+		body, err := json.Marshal(resp)
+		require.NoError(t, err)
 		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Write(apiV2Netpath)
+			w.Write(body)
 		}))
 		defer ts.Close()
 
 		client := NewClient(ts.URL)
-		err := client.getNetpathEvents()
+		err = client.getNetpathEvents()
 		require.NoError(t, err)
 		assert.True(t, client.netpathAggregator.ContainsPayloadName("api.datadoghq.eu:443 TCP"))
+
+		netpaths, err := client.GetNetpathEvents()
+		require.NoError(t, err)
+		assert.Len(t, netpaths, 2)
+
+		latest, err := client.GetLatestNetpathEvents()
+		require.NoError(t, err)
+		assert.Len(t, latest, 1)
 	})
 
 	t.Run("test strict fakeintakeid check mode", func(t *testing.T) {

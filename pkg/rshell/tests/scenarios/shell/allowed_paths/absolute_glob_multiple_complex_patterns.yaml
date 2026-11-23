@@ -1,0 +1,30 @@
+description: Multiple absolute glob patterns expand independently inside allowed paths.
+setup:
+  files:
+    - path: data/src/apple/one.txt
+      content: |+
+        apple-one
+    - path: data/src/apricot/one.txt
+      content: |+
+        apricot-one
+    - path: data/src/banana/two-a.txt
+      content: |+
+        banana-two-a
+    - path: data/src/banana/two-b.txt
+      content: |+
+        banana-two-b
+    - path: data/src/cherry/two-a.txt
+      content: |+
+        cherry-two-a
+input:
+  allowed_paths: ["data"]
+  script: |+
+    cat "$PWD"/data/src/a*/one.txt "$PWD"/data/src/b*/two-[ab].txt
+expect:
+  stdout: |+
+    apple-one
+    apricot-one
+    banana-two-a
+    banana-two-b
+  stderr: |+
+  exit_code: 0

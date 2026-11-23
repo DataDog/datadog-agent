@@ -1,0 +1,16 @@
+description: |
+  vuln-hunt P2 (2026-05-18-initial-audit): multiple inline assignments with
+  distinct names on a single command. After the command returns, all three
+  are restored to their prior (unset or original) values; the inline scope
+  does NOT leak.
+input:
+  script: |+
+    A=preA
+    A=v1 B=v2 C=v3 echo done
+    echo "out=[$A][$B][$C]"
+expect:
+  stdout: |+
+    done
+    out=[preA][][]
+  stderr: ""
+  exit_code: 0

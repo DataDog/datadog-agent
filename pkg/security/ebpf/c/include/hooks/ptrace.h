@@ -45,7 +45,7 @@ HOOK_SYSCALL_ENTRY3(ptrace, u32, request, pid_t, pid, void *, addr) {
     return 0;
 }
 
-int __attribute__((always_inline)) ptrace_check_attach_common(struct task_struct *child) {
+static __always_inline int ptrace_check_attach_common(struct task_struct *child) {
     if (!child) {
         return 0;
     }
@@ -74,15 +74,15 @@ int hook_arch_ptrace(ctx_t *ctx) {
     return ptrace_check_attach_common((struct task_struct *)CTX_PARM1(ctx));
 }
 
-int __attribute__((always_inline)) sys_ptrace_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_PTRACE);
+static __always_inline int sys_ptrace_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_PTRACE);
     if (!syscall) {
         return 0;
     }
 
     struct ptrace_event_t *event = SPAN_FILL_EVENT(struct ptrace_event_t, EVENT_PTRACE);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->request = syscall->ptrace.request;
@@ -90,14 +90,19 @@ int __attribute__((always_inline)) sys_ptrace_ret_impl(void *ctx, int retval, en
     event->addr = syscall->ptrace.addr;
     event->ns_pid = syscall->ptrace.ns_pid;
 
+    pop_syscall(EVENT_PTRACE);
+
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_PTRACE);
     return 0;
 }
 
-int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
+static __always_inline int sys_ptrace_ret(void *ctx, int retval) {
     return sys_ptrace_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

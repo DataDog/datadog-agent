@@ -47,6 +47,7 @@ dd_agent_go_test(
             "//pkg/security/utils",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/resolvers/cgroup/model",
@@ -55,6 +56,7 @@ dd_agent_go_test(
             "//pkg/security/utils",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

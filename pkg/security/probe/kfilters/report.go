@@ -9,7 +9,6 @@ package kfilters
 import (
 	"encoding/json"
 	"slices"
-	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -139,94 +138,13 @@ func ruleListToMap(rules []*rules.Rule) map[eval.RuleID]bool {
 
 // ComputeFilters computes the approver and discarder and returns a FilterReport
 func ComputeFilters(config *config.Config, rs *rules.RuleSet) (*FilterReport, error) {
-	computeFilters := func(rs *rules.RuleSet, capabilities map[eval.EventType]rules.FieldCapabilities) (*FilterReport, error) {
-		filterReport, noDiscarderRules, err := computeApprovers(config, rs, capabilities)
-		if err != nil {
-			return nil, err
-		}
-		rs.WithExcludedRuleFromDiscarders(ruleListToMap(noDiscarderRules))
-
-		discarderReport, err := rs.GetDiscardersReport()
-		if err != nil {
-			return nil, err
-		}
-
-		filterReport.DiscardersReport = discarderReport
-
-		return filterReport, nil
-	}
-
-	var (
-		filterReport *FilterReport
-		err          error
-	)
-
-	// first attempt to compute the approvers and discarders
-	filterReport, err = computeFilters(rs, allCapabilities)
+	filterReport, noDiscarderRules, err := computeApprovers(config, rs, allCapabilities)
 	if err != nil {
 		return nil, err
 	}
+	rs.WithExcludedRuleFromDiscarders(ruleListToMap(noDiscarderRules))
 
-	// if some invalid discarders, try to improve putting some approvers in ApproverOnly mode
-	if len(filterReport.DiscardersReport.Invalid) > 0 {
-		event := rs.NewEvent()
-
-		for _, invalid := range filterReport.DiscardersReport.Invalid {
-			eventType, _, _, _, err := event.GetFieldMetadata(invalid.Field)
-			if err != nil {
-				return nil, err
-			}
-
-			capabilities := allCapabilities.Clone()
-
-			evtCapabilities, ok := capabilities[eventType]
-			if !ok {
-				continue
-			}
-
-			// effectiveWeight mirrors getApprovers: for capabilities whose weight depends on
-			// the actual filter values (e.g. a coarse parent-basename path approver weighs less
-			// than a precise leaf-basename one), take the minimum weight across the field values
-			// present in the rule set instead of the static FilterWeight.
-			effectiveWeight := func(cap *rules.FieldCapability) int {
-				weight := cap.FilterWeight
-				if cap.FilterWeightFnc != nil {
-					for _, value := range rs.GetFieldValues(cap.Field) {
-						filterValue := rules.FilterValue{Field: cap.Field, Value: value.Value, Type: value.Type, Mode: cap.FilterMode}
-						weight = min(weight, cap.FilterWeightFnc(filterValue))
-					}
-				}
-				return weight
-			}
-
-			// try to convert the most efficient approver so that weak approvers are still backed by a discarder
-			sort.Slice(evtCapabilities, func(i, j int) bool {
-				return effectiveWeight(evtCapabilities[i]) > effectiveWeight(evtCapabilities[j])
-			})
-
-			for _, evtCapability := range evtCapabilities {
-				evtCapability.FilterMode = rules.ApproverOnlyMode
-
-				filterReport, err = computeFilters(rs, capabilities)
-				if err != nil {
-					return nil, err
-				}
-
-				// revert the capability
-				evtCapability.FilterMode = rules.DefaultMode
-
-				if len(filterReport.DiscardersReport.Invalid) == 0 {
-					return filterReport, nil
-				}
-			}
-		}
-	} else {
-		return filterReport, nil
-	}
-
-	// no improvement, return the initial report
-	filterReport, err = computeFilters(rs, allCapabilities)
-	if err != nil {
+	if filterReport.DiscardersReport, err = rs.GetDiscardersReport(); err != nil {
 		return nil, err
 	}
 

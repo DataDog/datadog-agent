@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -22,6 +23,11 @@ import (
 // oscap-io is the patched OpenSCAP engine the agent shells out to; we drive it directly
 // for the cross-check.
 const oscapIO = "/opt/datadog-agent/embedded/bin/oscap-io"
+
+// oscapIOTimeout bounds the cross-check's oscap-io run, in timeout(1) syntax. The agent
+// skips a rule that stalls for 60 seconds, and a stall here would otherwise last until the
+// Go test timeout ends the whole suite.
+const oscapIOTimeout = "5m"
 
 //go:embed testdata/golden
 var goldenFS embed.FS
@@ -149,27 +155,37 @@ func benchmarkInput(run func(string) string, read, frameworkID string) (datastre
 }
 
 // runOscapIO evaluates rules with the bundled oscap-io directly (bypassing the agent's Go
-// layer) and returns rule->result. invoke runs oscap-io in the target ("sudo <oscap-io>" on
-// the host, "OSCAP_PROBE_ROOT=/host <oscap-io>" in a container scanning the mounted host
-// root, the same probe root the agent sets). Returns nil if oscap-io cannot be driven.
-func runOscapIO(run func(string) string, invoke, datastream, profile string, rules []string) map[string]string {
+// layer) and returns rule->result and oscap-io's exit status. prefix runs oscap-io in the
+// target ("sudo" on the host, "OSCAP_PROBE_ROOT=/host" in a container scanning the mounted
+// host root, the same probe root the agent sets), and timeout(1) stops it after
+// oscapIOTimeout with status 124, or kills it 10 seconds later with status 137. The status
+// is -1 if the output lacks it. Returns a nil map if oscap-io cannot be driven.
+func runOscapIO(run func(string) string, prefix, datastream, profile string, rules []string) (map[string]string, int) {
 	if datastream == "" || profile == "" || len(rules) == 0 {
-		return nil
+		return nil, 0
 	}
 	var stdin strings.Builder
 	for _, r := range rules {
 		fmt.Fprintf(&stdin, "%s %s\n", profile, r)
 	}
-	out := run(fmt.Sprintf("%s %s 2>/dev/null <<'OSCAPEOF'\n%sOSCAPEOF", invoke, datastream, stdin.String()))
+	out := run(fmt.Sprintf("%s timeout -k 10s %s %s %s 2>/dev/null <<'OSCAPEOF'\n%sOSCAPEOF\necho oscap-io-status=$?",
+		prefix, oscapIOTimeout, oscapIO, datastream, stdin.String()))
 	m := map[string]string{}
+	status := -1
 	for _, line := range strings.Split(out, "\n") {
+		if s, ok := strings.CutPrefix(strings.TrimSpace(line), "oscap-io-status="); ok {
+			if n, err := strconv.Atoi(s); err == nil {
+				status = n
+			}
+			continue
+		}
 		if f := strings.Fields(line); len(f) == 2 {
 			if res, ok := oscapResults[f[1]]; ok {
 				m[f[0]] = res
 			}
 		}
 	}
-	return m
+	return m, status
 }
 
 // TestGolden logs the per-rule results and their diff against the committed baseline.
@@ -185,17 +201,32 @@ func (s *containerBenchmarksSuite) TestGolden() {
 
 // assertCrossCheck drives oscap-io directly and asserts the agent's per-rule results match
 // it. read reads the bundled benchmark files ("sudo cat" on the host, "cat" in a container),
-// and invoke runs oscap-io with the right probe root. The agent and oscap-io share an engine,
-// so any divergence is an agent Go-layer bug (rule selection, result mapping, probe-root
-// handling) and is fatal. Failing to drive oscap-io at all is also fatal: it ships with the
-// agent, so that signals a real breakage, not an environment quirk to skip silently.
-func assertCrossCheck(t *testing.T, d distro, outDir string, agent map[string]string, run func(string) string, read, invoke string) {
+// and prefix runs oscap-io with the right privileges and probe root. The agent and oscap-io
+// share an engine, so any divergence is an agent Go-layer bug (rule selection, result
+// mapping, probe-root handling) and is fatal. Failing to drive oscap-io at all is also
+// fatal: it ships with the agent, so that signals a real breakage, not an environment quirk
+// to skip silently.
+func assertCrossCheck(t *testing.T, d distro, outDir string, agent map[string]string, run func(string) string, read, prefix string) {
 	rules := make([]string, 0, len(agent))
 	for rule := range agent {
 		rules = append(rules, rule)
 	}
 	datastream, profile := benchmarkInput(run, read, d.frameworkID)
-	oscap := runOscapIO(run, invoke, datastream, profile, rules)
+	oscap, status := runOscapIO(run, prefix, datastream, profile, rules)
+	if status != 0 {
+		// oscap-io answers in request order, so the first rule without a result is the
+		// one it stopped on.
+		next := "(none)"
+		for _, r := range rules {
+			if _, ok := oscap[r]; !ok {
+				next = r
+				break
+			}
+		}
+		require.FailNowf(t, "oscap-io failed",
+			"exit status %d after %d of %d rules, next rule %s (124 or 137: timeout(1) stopped it after %s)",
+			status, len(oscap), len(rules), next, oscapIOTimeout)
+	}
 	require.GreaterOrEqualf(t, len(oscap), d.minRules,
 		"oscap-io cross-check could not run: evaluated %d rules (datastream=%q profile=%q)",
 		len(oscap), datastream, profile)
@@ -218,7 +249,7 @@ func assertCrossCheck(t *testing.T, d distro, outDir string, agent map[string]st
 // TestCrossCheck asserts the host agent's results match the bundled oscap-io run directly.
 func (s *hostBenchmarksSuite) TestCrossCheck() {
 	run := func(cmd string) string { out, _ := s.Env().RemoteHost.Execute(cmd); return out }
-	assertCrossCheck(s.T(), s.distro, s.SessionOutputDir(), resultsByRule(s.distro, s.check), run, "sudo cat", "sudo "+oscapIO)
+	assertCrossCheck(s.T(), s.distro, s.SessionOutputDir(), resultsByRule(s.distro, s.check), run, "sudo cat", "sudo")
 }
 
 // TestCrossCheck asserts the containerized agent matches the bundled oscap-io run directly
@@ -228,5 +259,5 @@ func (s *containerBenchmarksSuite) TestCrossCheck() {
 	run := func(cmd string) string {
 		return s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", cmd)
 	}
-	assertCrossCheck(s.T(), s.distro, s.SessionOutputDir(), resultsByRule(s.distro, s.check), run, "cat", "OSCAP_PROBE_ROOT=/host "+oscapIO)
+	assertCrossCheck(s.T(), s.distro, s.SessionOutputDir(), resultsByRule(s.distro, s.check), run, "cat", "OSCAP_PROBE_ROOT=/host")
 }

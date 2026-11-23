@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The system-probe SBOM scan of rpm hosts and containers reads the
+    transactions held in the write-ahead log of rpmdb.sqlite. Packages
+    installed or removed while another process held the database open
+    showed in the SBOM only after a later checkpoint.

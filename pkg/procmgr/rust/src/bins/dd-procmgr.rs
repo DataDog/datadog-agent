@@ -7,14 +7,16 @@ use clap::{Parser, Subcommand};
 use dd_procmgr_client::proto;
 use dd_procmgr_client::proto::process_manager_client::ProcessManagerClient;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use tonic::transport::Channel;
 
 #[derive(Parser)]
 #[command(name = "dd-procmgr", about = "CLI for dd-procmgrd process manager")]
 struct Cli {
-    /// Override the daemon socket path (default: DD_PM_SOCKET_PATH or /var/run/datadog/dd-procmgrd.sock)
+    /// Override the daemon socket path (default: DD_PM_SOCKET_PATH, else the platform
+    /// default. On Unix, if that path is absent and the all-in-one socket exists, that
+    /// socket is used instead)
     #[arg(long, global = true)]
     socket: Option<String>,
 
@@ -111,14 +113,52 @@ async fn main() -> ExitCode {
     }
 }
 
+/// The all-in-one entrypoint exports DD_PM_SOCKET_PATH with this path, which `docker exec`
+/// does not inherit.
+#[cfg(unix)]
+const AIO_SOCKET_PATH: &str = "/opt/datadog-agent/run/dd-procmgrd.sock";
+
+fn socket_candidates(socket_override: Option<&str>, env_socket: Option<String>) -> Vec<PathBuf> {
+    if let Some(path) = socket_override.map(str::to_owned).or(env_socket) {
+        return vec![PathBuf::from(path)];
+    }
+    #[cfg_attr(not(unix), allow(unused_mut))]
+    let mut candidates = vec![dd_procmgr_client::default_ipc_path()];
+    #[cfg(unix)]
+    candidates.push(PathBuf::from(AIO_SOCKET_PATH));
+    candidates
+}
+
+/// A single candidate is not probed, because probing a Windows named pipe opens it.
+fn select_socket_path(candidates: &[PathBuf]) -> &Path {
+    let first = &candidates[0];
+    if candidates.len() == 1 {
+        return first;
+    }
+    candidates
+        .iter()
+        .find(|path| path.exists())
+        .unwrap_or(first)
+}
+
+fn connect_error(path: &Path, candidates: &[PathBuf], err: impl std::fmt::Display) -> String {
+    let mut msg = format!("failed to connect to {}: {err}", path.display());
+    if candidates.len() > 1 {
+        let tried: Vec<String> = candidates.iter().map(|p| p.display().to_string()).collect();
+        msg.push_str(&format!(
+            " (looked for {}, pass --socket or set DD_PM_SOCKET_PATH to choose)",
+            tried.join(" and ")
+        ));
+    }
+    msg
+}
+
 async fn connect(socket_override: Option<&str>) -> Result<ProcessManagerClient<Channel>, String> {
-    let path: PathBuf = match socket_override {
-        Some(s) => PathBuf::from(s),
-        None => dd_procmgr_client::ipc_path(),
-    };
-    let channel = dd_procmgr_client::connect(&path)
+    let candidates = socket_candidates(socket_override, std::env::var("DD_PM_SOCKET_PATH").ok());
+    let path = select_socket_path(&candidates);
+    let channel = dd_procmgr_client::connect(path)
         .await
-        .map_err(|e| format!("failed to connect to {}: {e}", path.display()))?;
+        .map_err(|e| connect_error(path, &candidates, e))?;
     Ok(ProcessManagerClient::new(channel))
 }
 
@@ -200,6 +240,8 @@ fn state_name(val: i32) -> &'static str {
         Ok(proto::ProcessState::Crashed) => "Crashed",
         Ok(proto::ProcessState::Exited) => "Exited",
         Ok(proto::ProcessState::Failed) => "Failed",
+        Ok(proto::ProcessState::InvalidConfig) => "InvalidConfig",
+        Ok(proto::ProcessState::Skipped) => "Skipped",
         Err(_) => "Unknown",
     }
 }
@@ -208,11 +250,30 @@ fn short_uuid(uuid: &str) -> &str {
     if uuid.len() >= 8 { &uuid[..8] } else { uuid }
 }
 
+/// Same rule as `platform::is_crash_exit` on Windows: `STATUS_SEVERITY_ERROR`,
+/// plus the terminating codes below that severity (`STATUS_BREAKPOINT`,
+/// `STATUS_SINGLE_STEP`, `STATUS_FATAL_APP_EXIT`). Repeated here because the CLI
+/// binary does not link the daemon library, and because it must label a retained
+/// exit code once the process has restarted out of `Crashed`. Change both together.
+fn is_windows_crash_exit_code(code: i32) -> bool {
+    let code = code as u32;
+    code >> 30 == 0b11 || matches!(code, 0x8000_0003 | 0x8000_0004 | 0x4000_0015)
+}
+
+/// Classifies from the stored exit, not the current state: `spawn()` keeps the
+/// last exit while moving back to `Starting` and `Running`, so a Windows crash
+/// followed by a restart must still render as `exception 0xC0000005` rather
+/// than `exit -1073741819`. Unix crashes carry a signal and render as
+/// `signal 11`.
 fn format_last_exit(exit_code: Option<i32>, signal: Option<i32>) -> String {
     if let Some(sig) = signal {
         format!("signal {sig}")
     } else if let Some(code) = exit_code {
-        format!("exit {code}")
+        if cfg!(windows) && is_windows_crash_exit_code(code) {
+            format!("exception {:#010X}", code as u32)
+        } else {
+            format!("exit {code}")
+        }
     } else {
         "-".to_string()
     }
@@ -270,6 +331,8 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                     "restart_count": p.restart_count,
                     "last_exit_code": p.last_exit_code,
                     "last_signal": p.last_signal,
+                    "config_error": p.config_error,
+                    "skip_reasons": p.skip_reasons,
                 })
             })
             .collect();
@@ -292,6 +355,7 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
         "RESTARTS",
         "LAST EXIT",
         "COMMAND",
+        "SKIP REASONS",
     ];
 
     let rows: Vec<Vec<String>> = resp
@@ -312,6 +376,11 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                 p.restart_count.to_string(),
                 format_last_exit(p.last_exit_code, p.last_signal),
                 p.command.clone(),
+                if p.skip_reasons.is_empty() {
+                    "-".to_string()
+                } else {
+                    p.skip_reasons.join(",")
+                },
             ]
         })
         .collect();
@@ -358,7 +427,10 @@ async fn cmd_describe(
             "condition_path_exists": detail.condition_path_exists,
             "after": detail.after,
             "before": detail.before,
+            "skip_reasons": detail.skip_reasons,
+            "exit_with_supervisor": detail.exit_with_supervisor,
             "runtime_user": detail.runtime_user,
+            "config_error": detail.config_error,
         });
         println!("{}", serde_json::to_string_pretty(&val).unwrap());
         return Ok(());
@@ -399,6 +471,9 @@ async fn cmd_describe(
         println!("Last Exit:           {}", exit_str);
     }
     println!("Auto Start:          {}", detail.auto_start);
+    if detail.exit_with_supervisor {
+        println!("Exit w/ Supervisor:  true");
+    }
     println!("Stdout:              {}", detail.stdout);
     println!("Stderr:              {}", detail.stderr);
     if !detail.condition_path_exists.is_empty() {
@@ -410,6 +485,9 @@ async fn cmd_describe(
     if !detail.before.is_empty() {
         println!("Before:              [{}]", detail.before.join(", "));
     }
+    if !detail.skip_reasons.is_empty() {
+        println!("Skip Reasons:        {}", detail.skip_reasons.join(", "));
+    }
     if !detail.env.is_empty() {
         let mut keys: Vec<&String> = detail.env.keys().collect();
         keys.sort();
@@ -417,6 +495,9 @@ async fn cmd_describe(
         for k in keys {
             println!("  {}={}", k, detail.env[k]);
         }
+    }
+    if !detail.config_error.is_empty() {
+        println!("Config Error:        {}", detail.config_error);
     }
     Ok(())
 }
@@ -437,10 +518,13 @@ async fn cmd_status(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
             "running_processes": resp.running_processes,
             "stopped_processes": resp.stopped_processes,
             "created_processes": resp.created_processes,
+            "crashed_processes": resp.crashed_processes,
             "failed_processes": resp.failed_processes,
             "exited_processes": resp.exited_processes,
             "starting_processes": resp.starting_processes,
             "stopping_processes": resp.stopping_processes,
+            "invalid_config_processes": resp.invalid_config_processes,
+            "skipped_processes": resp.skipped_processes,
         });
         println!("{}", serde_json::to_string_pretty(&val).unwrap());
         return Ok(());
@@ -454,8 +538,11 @@ async fn cmd_status(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
     println!("  Running:           {}", resp.running_processes);
     println!("  Stopped:           {}", resp.stopped_processes);
     println!("  Created:           {}", resp.created_processes);
+    println!("  Skipped:           {}", resp.skipped_processes);
     println!("  Failed:            {}", resp.failed_processes);
+    println!("  Crashed:           {}", resp.crashed_processes);
     println!("  Exited:            {}", resp.exited_processes);
+    println!("  Invalid Config:    {}", resp.invalid_config_processes);
     if resp.starting_processes > 0 {
         println!("  Starting:          {}", resp.starting_processes);
     }
@@ -674,12 +761,49 @@ mod tests {
         assert_eq!(state_name(proto::ProcessState::Crashed as i32), "Crashed");
         assert_eq!(state_name(proto::ProcessState::Exited as i32), "Exited");
         assert_eq!(state_name(proto::ProcessState::Failed as i32), "Failed");
+        assert_eq!(
+            state_name(proto::ProcessState::InvalidConfig as i32),
+            "InvalidConfig"
+        );
+        assert_eq!(state_name(proto::ProcessState::Skipped as i32), "Skipped");
     }
 
     #[test]
     fn test_state_name_invalid() {
         assert_eq!(state_name(9999), "Unknown");
         assert_eq!(state_name(-1), "Unknown");
+    }
+
+    #[test]
+    fn test_format_last_exit_signal() {
+        assert_eq!(format_last_exit(None, Some(11)), "signal 11");
+    }
+
+    /// A Windows crash has no signal and reports the fatal exception code as
+    /// the exit code, which `exit -1073741819` renders unreadably. No state is
+    /// passed, so this also holds once the process has restarted.
+    #[cfg(windows)]
+    #[test]
+    fn test_format_last_exit_crash_exit_code_is_hex() {
+        assert_eq!(
+            format_last_exit(Some(0xC0000005u32 as i32), None),
+            "exception 0xC0000005"
+        );
+        assert_eq!(
+            format_last_exit(Some(0x80000003u32 as i32), None),
+            "exception 0x80000003"
+        );
+    }
+
+    #[test]
+    fn test_format_last_exit_failed_stays_decimal() {
+        assert_eq!(format_last_exit(Some(1), None), "exit 1");
+        assert_eq!(format_last_exit(Some(0), None), "exit 0");
+    }
+
+    #[test]
+    fn test_format_last_exit_never_ran() {
+        assert_eq!(format_last_exit(None, None), "-");
     }
 
     #[test]
@@ -748,6 +872,71 @@ mod tests {
         let args: Vec<String> = vec![];
         let map = parse_env_args(&args).unwrap();
         assert!(map.is_empty());
+    }
+
+    #[test]
+    fn test_socket_candidates_explicit_path_wins() {
+        assert_eq!(
+            socket_candidates(Some("/flag.sock"), Some("/env.sock".to_string())),
+            [PathBuf::from("/flag.sock")]
+        );
+        assert_eq!(
+            socket_candidates(None, Some("/env.sock".to_string())),
+            [PathBuf::from("/env.sock")]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_socket_candidates_default_then_aio() {
+        assert_eq!(
+            socket_candidates(None, None),
+            [
+                dd_procmgr_client::default_ipc_path(),
+                PathBuf::from(AIO_SOCKET_PATH)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_select_socket_path_prefers_first_existing() {
+        let dir = tempfile::tempdir().unwrap();
+        let primary = dir.path().join("primary.sock");
+        let fallback = dir.path().join("fallback.sock");
+        let candidates = [primary.clone(), fallback.clone()];
+
+        assert_eq!(select_socket_path(&candidates), primary, "neither exists");
+
+        std::fs::write(&fallback, b"").unwrap();
+        assert_eq!(select_socket_path(&candidates), fallback, "only fallback");
+
+        std::fs::write(&primary, b"").unwrap();
+        assert_eq!(select_socket_path(&candidates), primary, "both exist");
+
+        std::fs::remove_file(&fallback).unwrap();
+        assert_eq!(select_socket_path(&candidates), primary, "only primary");
+    }
+
+    #[test]
+    fn test_select_socket_path_single_candidate_is_not_probed() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("missing.sock");
+        assert_eq!(select_socket_path(std::slice::from_ref(&missing)), missing);
+    }
+
+    #[test]
+    fn test_connect_error_names_every_candidate() {
+        let primary = PathBuf::from("/a/dd-procmgrd.sock");
+        let fallback = PathBuf::from("/b/dd-procmgrd.sock");
+        let msg = connect_error(&fallback, &[primary.clone(), fallback.clone()], "refused");
+        assert!(msg.starts_with("failed to connect to /b/dd-procmgrd.sock: refused"));
+        assert!(msg.contains("/a/dd-procmgrd.sock and /b/dd-procmgrd.sock"));
+
+        let explicit = connect_error(&primary, std::slice::from_ref(&primary), "refused");
+        assert_eq!(
+            explicit,
+            "failed to connect to /a/dd-procmgrd.sock: refused"
+        );
     }
 
     #[test]

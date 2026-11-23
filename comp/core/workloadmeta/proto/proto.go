@@ -9,7 +9,10 @@ package proto
 import (
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
@@ -209,6 +212,8 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		ResolvedAllocatedResources: protoResolvedAllocatedResources,
 		Resources:                  toProtoContainerResources(container.Resources),
 		Owner:                      ownerEntityID,
+		SecurityContext:            toProtoContainerSecurityContext(container.SecurityContext),
+		GpuDeviceIDs:               container.GPUDeviceIDs,
 	}, nil
 }
 
@@ -352,8 +357,10 @@ func toProtoResolvedAllocatedResources(resources []workloadmeta.ContainerAllocat
 	var protoResolvedAllocatedResources []*pb.ContainerAllocatedResource
 	for _, resource := range resources {
 		protoResolvedAllocatedResources = append(protoResolvedAllocatedResources, &pb.ContainerAllocatedResource{
-			Name: resource.Name,
-			ID:   resource.ID,
+			Name:       resource.Name,
+			ID:         resource.ID,
+			PoolName:   resource.PoolName,
+			CdiDevices: resource.CdiDevices,
 		})
 	}
 
@@ -373,6 +380,63 @@ func toProtoContainerResources(resources workloadmeta.ContainerResources) *pb.Co
 		CpuLimit:      resources.CPULimit,
 		MemoryRequest: resources.MemoryRequest,
 		MemoryLimit:   resources.MemoryLimit,
+	}
+}
+
+func toProtoContainerSecurityContext(sc *workloadmeta.ContainerSecurityContext) *pb.ContainerSecurityContext {
+	if sc == nil {
+		return nil
+	}
+	return &pb.ContainerSecurityContext{
+		Capabilities:             toProtoCapabilities(sc.Capabilities),
+		Privileged:               sc.Privileged,
+		SeccompProfile:           toProtoSeccompProfile(sc.SeccompProfile),
+		RunAsNonRoot:             copyBoolPtr(sc.RunAsNonRoot),
+		AllowPrivilegeEscalation: copyBoolPtr(sc.AllowPrivilegeEscalation),
+		ReadOnlyRootFilesystem:   copyBoolPtr(sc.ReadOnlyRootFilesystem),
+	}
+}
+
+// copyBoolPtr returns a fresh *bool with src's value, or nil if src is nil,
+// so wire-side callers never alias workloadmeta cache storage.
+func copyBoolPtr(src *bool) *bool {
+	if src == nil {
+		return nil
+	}
+	v := *src
+	return &v
+}
+
+func toProtoPodSecurityContext(sc *workloadmeta.PodSecurityContext) *pb.PodSecurityContext {
+	if sc == nil {
+		return nil
+	}
+	return &pb.PodSecurityContext{
+		RunAsUser:      sc.RunAsUser,
+		RunAsGroup:     sc.RunAsGroup,
+		FsGroup:        sc.FsGroup,
+		RunAsNonRoot:   copyBoolPtr(sc.RunAsNonRoot),
+		SeccompProfile: toProtoSeccompProfile(sc.SeccompProfile),
+	}
+}
+
+func toProtoCapabilities(caps *workloadmeta.Capabilities) *pb.Capabilities {
+	if caps == nil {
+		return nil
+	}
+	return &pb.Capabilities{
+		Add:  caps.Add,
+		Drop: caps.Drop,
+	}
+}
+
+func toProtoSeccompProfile(sp *workloadmeta.SeccompProfile) *pb.SeccompProfile {
+	if sp == nil {
+		return nil
+	}
+	return &pb.SeccompProfile{
+		Type:             string(sp.Type),
+		LocalhostProfile: sp.LocalhostProfile,
 	}
 }
 
@@ -426,6 +490,11 @@ func protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(container
 		})
 	}
 
+	var created *timestamppb.Timestamp
+	if !containerImageMetadata.Created.IsZero() {
+		created = timestamppb.New(containerImageMetadata.Created)
+	}
+
 	containerImageMetadataProto := &pb.ContainerImageMetadata{
 		EntityId:     protoEntityID,
 		EntityMeta:   toProtoEntityMetaFromContainerImageMetadata(containerImageMetadata),
@@ -437,6 +506,7 @@ func protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(container
 		OsVersion:    containerImageMetadata.OSVersion,
 		Architecture: containerImageMetadata.Architecture,
 		Variant:      containerImageMetadata.Variant,
+		Created:      created,
 		Layers:       protoLayers,
 	}
 
@@ -505,6 +575,7 @@ func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta
 		RuntimeClass:               kubernetesPod.RuntimeClass,
 		KubeServices:               kubernetesPod.KubeServices,
 		NamespaceLabels:            kubernetesPod.NamespaceLabels,
+		SecurityContext:            toProtoPodSecurityContext(kubernetesPod.SecurityContext),
 	}, nil
 }
 
@@ -629,11 +700,11 @@ func protoProcessFromWorkloadmetaProcess(process *workloadmeta.Process) (*pb.Pro
 		Pid:            process.Pid,
 		Nspid:          process.NsPid,
 		Ppid:           process.Ppid,
-		Name:           process.Name,
-		Cwd:            process.Cwd,
-		Exe:            process.Exe,
-		Comm:           process.Comm,
-		Cmdline:        process.Cmdline,
+		Name:           toValidUTF8(process.Name),
+		Cwd:            toValidUTF8(process.Cwd),
+		Exe:            toValidUTF8(process.Exe),
+		Comm:           toValidUTF8(process.Comm),
+		Cmdline:        toValidUTF8Slice(process.Cmdline),
 		Uids:           process.Uids,
 		Gids:           process.Gids,
 		ContainerId:    process.ContainerID,
@@ -643,6 +714,23 @@ func protoProcessFromWorkloadmetaProcess(process *workloadmeta.Process) (*pb.Pro
 		Service:        toProtoService(process.Service),
 		InjectionState: pb.InjectionState(process.InjectionState),
 	}, nil
+}
+
+func toValidUTF8(s string) string {
+	return strings.ToValidUTF8(s, string(utf8.RuneError))
+}
+
+func toValidUTF8Slice(ss []string) []string {
+	for i, s := range ss {
+		if !utf8.ValidString(s) {
+			out := slices.Clone(ss)
+			for j := i; j < len(out); j++ {
+				out[j] = toValidUTF8(out[j])
+			}
+			return out
+		}
+	}
+	return ss
 }
 
 func toProtoEntityMetaFromCrd(crd *workloadmeta.CRD) *pb.EntityMeta {
@@ -956,6 +1044,8 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 		ResolvedAllocatedResources: resources,
 		Resources:                  toWorkloadmetaContainerResources(protoContainer.Resources),
 		Owner:                      owner,
+		SecurityContext:            toWorkloadmetaContainerSecurityContext(protoContainer.SecurityContext),
+		GPUDeviceIDs:               protoContainer.GpuDeviceIDs,
 	}, nil
 }
 
@@ -971,8 +1061,10 @@ func toWorkloadmetaResolvedAllocatedResources(protoResolvedAllocatedResources []
 	var resources []workloadmeta.ContainerAllocatedResource
 	for _, protoResource := range protoResolvedAllocatedResources {
 		resources = append(resources, workloadmeta.ContainerAllocatedResource{
-			Name: protoResource.Name,
-			ID:   protoResource.ID,
+			Name:       protoResource.Name,
+			ID:         protoResource.ID,
+			PoolName:   protoResource.PoolName,
+			CdiDevices: protoResource.CdiDevices,
 		})
 	}
 
@@ -989,6 +1081,53 @@ func toWorkloadmetaContainerResources(protoResources *pb.ContainerResources) wor
 		CPULimit:      protoResources.CpuLimit,
 		MemoryRequest: protoResources.MemoryRequest,
 		MemoryLimit:   protoResources.MemoryLimit,
+	}
+}
+
+func toWorkloadmetaContainerSecurityContext(sc *pb.ContainerSecurityContext) *workloadmeta.ContainerSecurityContext {
+	if sc == nil {
+		return nil
+	}
+	return &workloadmeta.ContainerSecurityContext{
+		Capabilities:             toWorkloadmetaCapabilities(sc.Capabilities),
+		Privileged:               sc.Privileged,
+		SeccompProfile:           toWorkloadmetaSeccompProfile(sc.SeccompProfile),
+		RunAsNonRoot:             copyBoolPtr(sc.RunAsNonRoot),
+		AllowPrivilegeEscalation: copyBoolPtr(sc.AllowPrivilegeEscalation),
+		ReadOnlyRootFilesystem:   copyBoolPtr(sc.ReadOnlyRootFilesystem),
+	}
+}
+
+func toWorkloadmetaPodSecurityContext(sc *pb.PodSecurityContext) *workloadmeta.PodSecurityContext {
+	if sc == nil {
+		return nil
+	}
+	return &workloadmeta.PodSecurityContext{
+		RunAsUser:      sc.RunAsUser,
+		RunAsGroup:     sc.RunAsGroup,
+		FsGroup:        sc.FsGroup,
+		RunAsNonRoot:   copyBoolPtr(sc.RunAsNonRoot),
+		SeccompProfile: toWorkloadmetaSeccompProfile(sc.SeccompProfile),
+	}
+}
+
+func toWorkloadmetaCapabilities(caps *pb.Capabilities) *workloadmeta.Capabilities {
+	if caps == nil {
+		return nil
+	}
+	return &workloadmeta.Capabilities{
+		Add:  caps.Add,
+		Drop: caps.Drop,
+	}
+}
+
+func toWorkloadmetaSeccompProfile(sp *pb.SeccompProfile) *workloadmeta.SeccompProfile {
+	if sp == nil {
+		return nil
+	}
+	return &workloadmeta.SeccompProfile{
+		Type:             workloadmeta.SeccompProfileType(sp.Type),
+		LocalhostProfile: sp.LocalhostProfile,
 	}
 }
 
@@ -1155,6 +1294,7 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 		RuntimeClass:               protoKubernetesPod.RuntimeClass,
 		KubeServices:               protoKubernetesPod.KubeServices,
 		NamespaceLabels:            protoKubernetesPod.NamespaceLabels,
+		SecurityContext:            toWorkloadmetaPodSecurityContext(protoKubernetesPod.SecurityContext),
 	}, nil
 }
 
@@ -1287,6 +1427,10 @@ func toWorkloadmetaContainerImageMetadata(protoContainerImageMetadata *pb.Contai
 		Architecture: protoContainerImageMetadata.Architecture,
 		Variant:      protoContainerImageMetadata.Variant,
 		Layers:       layers,
+	}
+
+	if protoContainerImageMetadata.Created != nil {
+		containerImageMetadata.Created = protoContainerImageMetadata.Created.AsTime()
 	}
 
 	if protoContainerImageMetadata.Sbom != nil {

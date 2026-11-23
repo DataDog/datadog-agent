@@ -175,6 +175,17 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 	return combinedErr.ErrorOrNil()
 }
 
+// AddProgramNameMappings registers the TC programs in the eBPF telemetry again, after the mappings of the module were
+// cleared
+func (tcr *Resolver) AddProgramNameMappings() {
+	tcr.RLock()
+	defer tcr.RUnlock()
+
+	for _, entry := range tcr.programs {
+		ddebpf.AddProgramNameMapping(entry.programID, entry.probe.EBPFFuncName, "cws")
+	}
+}
+
 // detachHook detaches and deletes a TC hook from the resolver, needs to be called with the lock held
 func (tcr *Resolver) detachHook(tcKey ProgramKey, entry programEntry, m *manager.Manager) {
 	if err := m.DetachHook(entry.probe.ProbeIdentificationPair); err != nil {

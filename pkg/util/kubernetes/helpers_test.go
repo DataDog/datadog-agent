@@ -39,6 +39,84 @@ func TestParseDeploymentForReplicaSet(t *testing.T) {
 	}
 }
 
+func TestResolvePodRootOwner(t *testing.T) {
+	tests := []struct {
+		name         string
+		ownerKind    string
+		ownerName    string
+		podLabels    map[string]string
+		expectedKind string
+		expectedName string
+	}{
+		{
+			name:         "replicaset resolves to deployment",
+			ownerKind:    ReplicaSetKind,
+			ownerName:    "my-app-6d4f5b7c8",
+			expectedKind: DeploymentKind,
+			expectedName: "my-app",
+		},
+		{
+			name:         "argo replicaset resolves to rollout",
+			ownerKind:    ReplicaSetKind,
+			ownerName:    "my-rollout-9b8dc4bd6",
+			podLabels:    map[string]string{ArgoRolloutLabelKey: "9b8dc4bd6"},
+			expectedKind: RolloutKind,
+			expectedName: "my-rollout",
+		},
+		{
+			name:         "unparseable replicaset stays replicaset",
+			ownerKind:    ReplicaSetKind,
+			ownerName:    "invalid-name",
+			podLabels:    map[string]string{ArgoRolloutLabelKey: "invalid"},
+			expectedKind: ReplicaSetKind,
+			expectedName: "invalid-name",
+		},
+		{
+			name:         "job resolves to cronjob",
+			ownerKind:    JobKind,
+			ownerName:    "backup-1562319360",
+			expectedKind: CronJobKind,
+			expectedName: "backup",
+		},
+		{
+			name:         "workflow created by a cronworkflow resolves to cronworkflow",
+			ownerKind:    WorkflowKind,
+			ownerName:    "hello-world-1697040000",
+			expectedKind: CronWorkflowKind,
+			expectedName: "hello-world",
+		},
+		{
+			name:         "workflow with a generated name stays unchanged",
+			ownerKind:    WorkflowKind,
+			ownerName:    "hello-world-tj6fe",
+			expectedKind: WorkflowKind,
+			expectedName: "hello-world-tj6fe",
+		},
+		{
+			name:         "standalone workflow stays unchanged",
+			ownerKind:    WorkflowKind,
+			ownerName:    "whalesay",
+			expectedKind: WorkflowKind,
+			expectedName: "whalesay",
+		},
+		{
+			name:         "direct owner stays unchanged",
+			ownerKind:    StatefulSetKind,
+			ownerName:    "database",
+			expectedKind: StatefulSetKind,
+			expectedName: "database",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			kind, name := ResolvePodRootOwner(test.ownerKind, test.ownerName, test.podLabels)
+			assert.Equal(t, test.expectedKind, kind)
+			assert.Equal(t, test.expectedName, name)
+		})
+	}
+}
+
 func TestParseDeploymentForPodName(t *testing.T) {
 	for in, out := range map[string]string{
 		// Nominal 1.6 cases
@@ -116,6 +194,26 @@ func TestParseCronJobForJob(t *testing.T) {
 				string
 				int
 			}{cronjobName, id})
+		})
+	}
+}
+
+func TestParseCronWorkflowForWorkflow(t *testing.T) {
+	for in, out := range map[string]string{
+		"hello-world-1697040000": "hello-world",
+		"job-2024-1697040000":    "job-2024",
+		"hello-world-tj6fe":      "",
+		"build-123":              "",
+		"foo-169704000":          "",    // 9 digits
+		"foo-16970400000":        "foo", // 11 digits
+		"foo-169704000a":         "",
+		"foo-":                   "",
+		"helloworld":             "",
+		"-1697040000":            "",
+		"":                       "",
+	} {
+		t.Run("case: "+in, func(t *testing.T) {
+			assert.Equal(t, out, ParseCronWorkflowForWorkflow(in))
 		})
 	}
 }

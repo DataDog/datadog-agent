@@ -6,23 +6,23 @@ load("@rules_testing//lib:util.bzl", "util")
 load(":package_naming.bzl", "package_name_variables")
 
 # -- Transitions for flavor testing ------------------------------------------
-# Each transition forces //packages/agent:flavor to a specific value so we can
-# verify _inject_flavor() output without changing the default flag in the repo.
+# Each transition forces a FIPS target platform or a //packages/agent:flavor value
+# so we can verify _inject_fips() output without changing the defaults of the repo.
 
 def _fips_transition_impl(_settings, _attr):
-    return {"//packages/agent:flavor": "fips"}
+    return {"//command_line_option:platforms": "//bazel/platforms:fips_test_platform"}
 
 _fips_transition = transition(
     implementation = _fips_transition_impl,
     inputs = [],
-    outputs = ["//packages/agent:flavor"],
+    outputs = ["//command_line_option:platforms"],
 )
 
-def _heroku_transition_impl(_settings, _attr):
-    return {"//packages/agent:flavor": "heroku"}
+def _iot_transition_impl(_settings, _attr):
+    return {"//packages/agent:flavor": "iot"}
 
-_heroku_transition = transition(
-    implementation = _heroku_transition_impl,
+_iot_transition = transition(
+    implementation = _iot_transition_impl,
     inputs = [],
     outputs = ["//packages/agent:flavor"],
 )
@@ -40,10 +40,10 @@ _fips_vars = rule(
     },
 )
 
-_heroku_vars = rule(
+_iot_vars = rule(
     implementation = _flavored_vars_impl,
     attrs = {
-        "inner": attr.label(cfg = _heroku_transition, providers = [PackageVariablesInfo]),
+        "inner": attr.label(cfg = _iot_transition, providers = [PackageVariablesInfo]),
     },
 )
 
@@ -166,29 +166,29 @@ def _test_fips_flavor_single_word_impl(env, target):
     pvi = target[PackageVariablesInfo]
     env.expect.that_str(pvi.values.get("product_name")).equals("agent-fips")
 
-# -- Test 6: Heroku flavor ---------------------------------------------------
-# "datadog-agent" => "datadog-heroku-agent"
+# -- Test 6: Non-fips flavors leave the name alone ---------------------------
+# "datadog-agent" => "datadog-agent"
 
-def _test_heroku_flavor_product_name(name):
+def _test_iot_flavor_product_name(name):
     util.helper_target(
         package_name_variables,
         name = name + "_inner",
         product_name = "datadog-agent",
     )
     util.helper_target(
-        _heroku_vars,
+        _iot_vars,
         name = name + "_subject",
         inner = name + "_inner",
     )
     analysis_test(
         name = name,
-        impl = _test_heroku_flavor_product_name_impl,
+        impl = _test_iot_flavor_product_name_impl,
         target = name + "_subject",
     )
 
-def _test_heroku_flavor_product_name_impl(env, target):
+def _test_iot_flavor_product_name_impl(env, target):
     pvi = target[PackageVariablesInfo]
-    env.expect.that_str(pvi.values.get("product_name")).equals("datadog-heroku-agent")
+    env.expect.that_str(pvi.values.get("product_name")).equals("datadog-agent")
 
 # -- Test 7: arch_deb and arch_rpm map correctly for the current platform ----
 # x86_64 / k8  => deb: "amd64",  rpm: "x86_64"
@@ -261,7 +261,7 @@ def package_naming_test_suite(name):
             _test_fips_flavor_product_name,
             _test_fips_flavor_multiword,
             _test_fips_flavor_single_word,
-            _test_heroku_flavor_product_name,
+            _test_iot_flavor_product_name,
             _test_arch_values,
             _test_version_nonempty,
         ],

@@ -74,7 +74,7 @@ func (s *testInstallSuite) TestInstall() {
 
 	// run tests
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 	s.testCodeSignatures(t, remoteMSIPath)
 	for _, f := range filesThatNeedToBeReplaced {
@@ -231,7 +231,7 @@ func (s *testInstallAltDirSuite) TestInstallAltDir() {
 
 	// run tests
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	s.uninstallAgentAndRunUninstallTests(t)
@@ -318,15 +318,15 @@ func (s *testRepairSuite) TestRepair() {
 
 	// Run Repair through the MSI
 	if !s.Run("repair install", func() {
-		err = windowsAgent.RepairAllAgent(t.host, "", filepath.Join(s.SessionOutputDir(), "repair.log"))
+		err = s.RepairAllAgent(t.host, "", filepath.Join(s.SessionOutputDir(), "repair.log"))
 		s.Require().NoError(err)
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// run tests, agent should function normally after repair
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	s.uninstallAgentAndRunUninstallTests(t)
@@ -364,6 +364,7 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		windowsAgent.WithProxyUser("puser"),
 		windowsAgent.WithProxyPassword("ppass"),
 		windowsAgent.WithSite("eu"),
+		windowsAgent.WithEnvironment("staging"),
 		windowsAgent.WithDdURL("https://someurl.datadoghq.com"),
 		windowsAgent.WithLogsDdURL("https://logs.someurl.datadoghq.com"),
 		windowsAgent.WithProcessDdURL("https://process.someurl.datadoghq.com"),
@@ -389,6 +390,7 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 	assert.Equal(s.T(), cmdPort, confYaml["cmd_port"], "cmd_port should match")
 	assert.Contains(s.T(), confYaml, "site")
 	assert.Equal(s.T(), "eu", confYaml["site"], "site should match")
+	assert.Equal(s.T(), "staging", confYaml["env"], "env should match")
 	assert.Contains(s.T(), confYaml, "dd_url")
 	assert.Equal(s.T(), "https://someurl.datadoghq.com", confYaml["dd_url"], "dd_url should match")
 
@@ -485,7 +487,7 @@ func (s *testInstallFailSuite) TestInstallFail() {
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// currently the install failure tests are the same as the uninstall tests

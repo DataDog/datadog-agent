@@ -29,12 +29,9 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 // default memory management functions
 rtloader_malloc_t _malloc = malloc;
 rtloader_free_t _free = free;
-#pragma clang diagnostic pop
 #pragma GCC diagnostic pop
 
 static size_t allocations = 0;
@@ -47,10 +44,7 @@ void *_tracked_malloc(size_t sz)
 {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     void *ptr = malloc(sz);
-#pragma clang diagnostic pop
 #pragma GCC diagnostic pop
 
     if (ptr != NULL) {
@@ -74,10 +68,7 @@ void _tracked_free(void *ptr)
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     free(ptr);
-#pragma clang diagnostic pop
 #pragma GCC diagnostic pop
 }
 

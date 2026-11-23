@@ -1,6 +1,7 @@
+import os
 import unittest
 
-from tasks.libs.common.utils import clean_nested_paths
+from tasks.libs.common.utils import DEFAULT_GITLAB_PROJECT_URL, clean_nested_paths, environ, gitlab_project_url
 from tasks.libs.package.utils import get_package_name
 
 
@@ -35,6 +36,34 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(clean_nested_paths(paths), expected_paths)
 
 
+class TestEnviron(unittest.TestCase):
+    def test_restores_var_after_exception(self):
+        """A raise inside the `with` block must not leave the deleted/overridden var stuck."""
+        os.environ["SOME_TEST_VAR"] = "original"
+        try:
+            with self.assertRaises(RuntimeError):
+                with environ({"SOME_TEST_VAR": "DELETE"}):
+                    self.assertNotIn("SOME_TEST_VAR", os.environ)
+                    raise RuntimeError("boom")
+            self.assertEqual(os.environ.get("SOME_TEST_VAR"), "original")
+        finally:
+            os.environ.pop("SOME_TEST_VAR", None)
+
+    def test_sequential_delete_after_exception_does_not_raise(self):
+        """A second `environ()` DELETE call must not KeyError once the first one restored properly."""
+        os.environ["SOME_TEST_VAR"] = "original"
+        try:
+            with self.assertRaises(RuntimeError):
+                with environ({"SOME_TEST_VAR": "DELETE"}):
+                    raise RuntimeError("boom")
+
+            with environ({"SOME_TEST_VAR": "DELETE"}):
+                self.assertNotIn("SOME_TEST_VAR", os.environ)
+            self.assertEqual(os.environ.get("SOME_TEST_VAR"), "original")
+        finally:
+            os.environ.pop("SOME_TEST_VAR", None)
+
+
 class TestGetPackageName(unittest.TestCase):
     def test_get_package_name_no_flavor(self):
         """Test get_package_name with no flavor (empty string)"""
@@ -62,3 +91,13 @@ class TestGetPackageName(unittest.TestCase):
         result = get_package_name(binary, flavor)
 
         self.assertEqual(result, "datadog-dogstatsd")
+
+
+class TestGitlabProjectUrl(unittest.TestCase):
+    def test_uses_ci_project_url(self):
+        with environ({"CI_PROJECT_URL": "https://gitlab.example.com/ddoghq/datadog-agent"}):
+            self.assertEqual(gitlab_project_url(), "https://gitlab.example.com/ddoghq/datadog-agent")
+
+    def test_defaults_outside_ci(self):
+        with environ({"CI_PROJECT_URL": "DELETE"}):
+            self.assertEqual(gitlab_project_url(), DEFAULT_GITLAB_PROJECT_URL)

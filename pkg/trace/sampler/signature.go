@@ -6,7 +6,7 @@
 package sampler
 
 import (
-	"sort"
+	"slices"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
@@ -20,12 +20,6 @@ type Signature uint64
 // spanHash is the type of the hashes used during the computation of a signature
 // Use FNV for hashing since it is super-cheap and we have no cryptographic needs
 type spanHash uint32
-type spanHashSlice []spanHash
-
-func (p spanHashSlice) Len() int           { return len(p) }
-func (p spanHashSlice) Less(i, j int) bool { return p[i] < p[j] }
-func (p spanHashSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-func sortHashes(hashes []spanHash)         { sort.Sort(spanHashSlice(hashes)) }
 
 // computeSignatureWithRootAndEnv generates the signature of a trace knowing its root
 // Signature based on the hash of (env, service, name, resource, is_error) for the root, plus the set of
@@ -38,7 +32,7 @@ func computeSignatureWithRootAndEnv(trace pb.Trace, root *pb.Span, env string) S
 		spanHashes = append(spanHashes, computeSpanHash(trace[i], env, false))
 	}
 	// Now sort, dedupe then merge all the hashes to build the signature
-	sortHashes(spanHashes)
+	slices.Sort(spanHashes)
 
 	last := spanHashes[0]
 	traceHash := last ^ rootHash
@@ -63,7 +57,7 @@ func computeSignatureWithRootAndEnvV1(chunk *idx.InternalTraceChunk, root *idx.I
 		spanHashes = append(spanHashes, computeSpanHashV1(chunk.Spans[i], env, false))
 	}
 	// Now sort, dedupe then merge all the hashes to build the signature
-	sortHashes(spanHashes)
+	slices.Sort(spanHashes)
 
 	last := spanHashes[0]
 	traceHash := last ^ rootHash

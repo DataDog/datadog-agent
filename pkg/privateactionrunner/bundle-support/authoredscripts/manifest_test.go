@@ -30,9 +30,7 @@ const validManifest = `
 func writeManifest(t *testing.T, contents string) string {
 	t.Helper()
 	artifactDirectory := t.TempDir()
-	scriptDir := filepath.Join(artifactDirectory, scriptDirectory)
-	require.NoError(t, os.MkdirAll(scriptDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(scriptDir, manifestFile), []byte(contents), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(artifactDirectory, manifestFile), []byte(contents), 0o644))
 	return artifactDirectory
 }
 
@@ -199,7 +197,18 @@ func TestValidateManifest(t *testing.T) {
 				Command:       validCommand,
 				Dependencies:  []Dependency{{Name: "jq"}},
 			},
-			expectError: "dependencies require a name and version",
+			expectError: "requires a version",
+		},
+		{
+			name: "dependency name contains path components",
+			manifest: &Manifest{
+				SchemaVersion: manifestSchemaVersion,
+				Version:       "0.0.1",
+				FQN:           "com.datadoghq.authoredscripts.echo",
+				Command:       validCommand,
+				Dependencies:  []Dependency{{Name: "../jq", Version: "1.7.1"}},
+			},
+			expectError: "dependency name",
 		},
 		{
 			name: "valid manifest",

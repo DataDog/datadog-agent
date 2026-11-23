@@ -1,0 +1,19 @@
+description: "test string lexicographic comparison with < and >"
+input:
+  script: |+
+    test "a" \< "b"
+    echo "lt: $?"
+    test "a" \< "a"
+    echo "lt-eq: $?"
+    test "b" \> "a"
+    echo "gt: $?"
+    test "a" \> "a"
+    echo "gt-eq: $?"
+expect:
+  stdout: |
+    lt: 0
+    lt-eq: 1
+    gt: 0
+    gt-eq: 1
+  stderr: ""
+  exit_code: 0

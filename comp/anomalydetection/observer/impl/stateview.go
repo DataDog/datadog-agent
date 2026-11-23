@@ -46,6 +46,12 @@ func (sv *stateView) Anomalies() []observerdef.Anomaly {
 	return sv.engine.RawAnomalies()
 }
 
+// DetectorOutputAnomalies returns every detector result before downstream
+// filtering when replay tracking is enabled.
+func (sv *stateView) DetectorOutputAnomalies() []observerdef.Anomaly {
+	return sv.engine.DetectorOutputAnomalies()
+}
+
 // ScoreState returns a snapshot of the scorer's accumulated state.
 // Returns an empty AnomalyScoreState if no scorer is configured.
 func (sv *stateView) ScoreState() observerdef.AnomalyScoreState {
@@ -55,6 +61,17 @@ func (sv *stateView) ScoreState() observerdef.AnomalyScoreState {
 		return observerdef.AnomalyScoreState{}
 	}
 	return sv.engine.scorer.ScoreState()
+}
+
+// ScorerHistory returns the original replay's scorer timeline.
+func (sv *stateView) ScorerHistory() ScorerHistory {
+	sv.engine.mu.RLock()
+	scorer := sv.engine.scorer
+	sv.engine.mu.RUnlock()
+	if scorer == nil {
+		return ScorerHistory{}
+	}
+	return scorer.historyState()
 }
 
 // TotalAnomalyCount returns the total number of anomalies ever detected.
@@ -77,7 +94,7 @@ func (sv *stateView) ListDetectors() []ComponentStateInfo {
 	result := make([]ComponentStateInfo, len(sv.engine.detectors))
 	for i, d := range sv.engine.detectors {
 		result[i] = ComponentStateInfo{
-			Name:    d.Name(),
+			Name:    d.detector.Name(),
 			Enabled: true, // detectors in the engine are always enabled
 		}
 	}

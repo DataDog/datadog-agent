@@ -37,13 +37,12 @@ needs-rules:
     - publish_winget_7_x64
     - revert_latest_7
     - security_go_generate_check
+    - new_e2e_scenario_imports_check
     - setup_agent_version
     - tests_ebpf_arm64
     - tests_ebpf_x64
     - tests_macos_gitlab_amd64
     - tests_macos_gitlab_arm64
-    - tests_windows_secagent_x64
-    - tests_windows_sysprobe_x64
     - trigger_auto_staging_release
     - trigger_manual_prod_release
     - trigger_distribution

@@ -1,0 +1,10 @@
+description: tr -d with [:digit:] class deletes all digits.
+input:
+  script: |+
+    cat <<'EOF' | tr -d '[:digit:]'
+    a0b1c2d3e4f5g6h7i8j9k
+    EOF
+expect:
+  stdout: "abcdefghijk\n"
+  stderr: ""
+  exit_code: 0

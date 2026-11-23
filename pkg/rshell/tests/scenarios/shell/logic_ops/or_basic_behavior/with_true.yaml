@@ -1,0 +1,8 @@
+description: The true builtin succeeds so || skips the right side.
+input:
+  script: |+
+    true || echo skipped
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

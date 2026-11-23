@@ -1,0 +1,21 @@
+description: sort -h orders no-suffix lines below any-suffix lines, then numerically.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        1K
+        500
+        50
+        2K
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -h file.txt
+expect:
+  stdout: |+
+    50
+    500
+    1K
+    2K
+  stderr: |+
+  exit_code: 0

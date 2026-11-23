@@ -199,16 +199,9 @@ func TestGetMultiNetworkInfo(t *testing.T) {
 	tests := []struct {
 		name           string
 		interfaces     []networkInterface
-		interfacesErr  error
-		expectedErr    bool
 		expectedIfaces int
 		validate       func(t *testing.T, ifaces []Interface)
 	}{
-		{
-			name:          "interfaces error",
-			interfacesErr: errors.New("mock error"),
-			expectedErr:   true,
-		},
 		{
 			name:           "no interfaces",
 			interfaces:     []networkInterface{},
@@ -239,7 +232,8 @@ func TestGetMultiNetworkInfo(t *testing.T) {
 				assert.Equal(t, "eth0", ifaces[0].Name)
 				assert.Empty(t, ifaces[0].IPv4)
 				assert.Empty(t, ifaces[0].IPv6)
-				// MacAddress should be an error since there are no addresses
+				// With reportMacWithoutAddress off (forced below), an interface without
+				// addresses has no MacAddress. Windows and macOS report it by default.
 				_, err := ifaces[0].MacAddress.Value()
 				assert.Error(t, err)
 			},
@@ -377,16 +371,10 @@ func TestGetMultiNetworkInfo(t *testing.T) {
 		},
 	}
 
+	setReportMacWithoutAddress(t, false)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setMockInterfaces(t, tt.interfaces, tt.interfacesErr)
-
-			ifaces, err := getMultiNetworkInfo()
-			if tt.expectedErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
+			ifaces := getMultiNetworkInfo(tt.interfaces)
 			assert.Len(t, ifaces, tt.expectedIfaces)
 
 			if tt.validate != nil {
@@ -396,19 +384,51 @@ func TestGetMultiNetworkInfo(t *testing.T) {
 	}
 }
 
+func TestGetMultiNetworkInfoMacWithoutAddress(t *testing.T) {
+	ifaces := []networkInterface{
+		createMockInterface("en4", net.FlagUp, "42:52:1c:e5:c2:ec", []net.Addr{}),
+		createMockInterface("utun0", net.FlagUp, "", []net.Addr{}),
+	}
+
+	t.Run("reported", func(t *testing.T) {
+		setReportMacWithoutAddress(t, true)
+		result := getMultiNetworkInfo(ifaces)
+		require.Len(t, result, 2)
+
+		mac, err := result[0].MacAddress.Value()
+		require.NoError(t, err)
+		assert.Equal(t, "42:52:1c:e5:c2:ec", mac)
+
+		_, err = result[1].MacAddress.Value()
+		assert.ErrorIs(t, err, ErrAddressNotFound)
+	})
+
+	t.Run("not reported", func(t *testing.T) {
+		setReportMacWithoutAddress(t, false)
+		result := getMultiNetworkInfo(ifaces)
+		require.Len(t, result, 2)
+
+		_, err := result[0].MacAddress.Value()
+		assert.ErrorIs(t, err, ErrAddressNotFound)
+	})
+}
+
+func setReportMacWithoutAddress(t *testing.T, value bool) {
+	t.Helper()
+	original := reportMacWithoutAddress
+	reportMacWithoutAddress = value
+	t.Cleanup(func() {
+		reportMacWithoutAddress = original
+	})
+}
+
 func TestExternalIPAddress(t *testing.T) {
 	tests := []struct {
-		name          string
-		interfaces    []networkInterface
-		interfacesErr error
-		expectedErr   bool
-		expectedIP    string
+		name        string
+		interfaces  []networkInterface
+		expectedErr bool
+		expectedIP  string
 	}{
-		{
-			name:          "interfaces error",
-			interfacesErr: errors.New("mock error"),
-			expectedErr:   true,
-		},
 		{
 			name:        "no interfaces",
 			interfaces:  []networkInterface{},
@@ -480,9 +500,7 @@ func TestExternalIPAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setMockInterfaces(t, tt.interfaces, tt.interfacesErr)
-
-			ip, err := externalIPAddress()
+			ip, err := externalIPAddress(tt.interfaces)
 			if tt.expectedErr {
 				require.Error(t, err)
 				return
@@ -495,17 +513,11 @@ func TestExternalIPAddress(t *testing.T) {
 
 func TestExternalIpv6Address(t *testing.T) {
 	tests := []struct {
-		name          string
-		interfaces    []networkInterface
-		interfacesErr error
-		expectedErr   bool
-		expectedIP    string
+		name        string
+		interfaces  []networkInterface
+		expectedErr bool
+		expectedIP  string
 	}{
-		{
-			name:          "interfaces error",
-			interfacesErr: errors.New("mock error"),
-			expectedErr:   true,
-		},
 		{
 			name:       "no interfaces returns empty string",
 			interfaces: []networkInterface{},
@@ -561,9 +573,7 @@ func TestExternalIpv6Address(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setMockInterfaces(t, tt.interfaces, tt.interfacesErr)
-
-			ip, err := externalIpv6Address()
+			ip, err := externalIpv6Address(tt.interfaces)
 			if tt.expectedErr {
 				require.Error(t, err)
 				return
@@ -576,17 +586,11 @@ func TestExternalIpv6Address(t *testing.T) {
 
 func TestMacAddress(t *testing.T) {
 	tests := []struct {
-		name          string
-		interfaces    []networkInterface
-		interfacesErr error
-		expectedErr   bool
-		expectedMac   string
+		name        string
+		interfaces  []networkInterface
+		expectedErr bool
+		expectedMac string
 	}{
-		{
-			name:          "interfaces error",
-			interfacesErr: errors.New("mock error"),
-			expectedErr:   true,
-		},
 		{
 			name:        "no interfaces",
 			interfaces:  []networkInterface{},
@@ -640,9 +644,7 @@ func TestMacAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setMockInterfaces(t, tt.interfaces, tt.interfacesErr)
-
-			mac, err := macAddress()
+			mac, err := macAddress(tt.interfaces)
 			if tt.expectedErr {
 				require.Error(t, err)
 				return
@@ -941,6 +943,47 @@ func TestIfacesToJSON(t *testing.T) {
 	}
 }
 
+func TestInterfaceMarshalJSON(t *testing.T) {
+	ifaces := []Interface{
+		{
+			Name:        "eth0",
+			IPv4:        []string{"192.168.1.100"},
+			IPv6:        []string{"fe80::1"},
+			IPv4Network: utils.NewValue("192.168.1.0/24"),
+			IPv6Network: utils.NewValue("fe80::/64"),
+			MacAddress:  utils.NewValue("00:11:22:33:44:55"),
+		},
+		{
+			Name:        "en4",
+			IPv4:        []string{},
+			IPv6:        []string{},
+			IPv4Network: utils.NewErrorValue[string](ErrAddressNotFound),
+			IPv6Network: utils.NewErrorValue[string](ErrAddressNotFound),
+			MacAddress:  utils.NewValue("42:52:1c:e5:c2:ec"),
+		},
+		{
+			Name:        "utun0",
+			IPv4:        []string{},
+			IPv6:        []string{"fe80::2"},
+			IPv4Network: utils.NewErrorValue[string](errors.New("ipv4 error")),
+			IPv6Network: utils.NewValue("fe80::/64"),
+		},
+	}
+
+	marshalled, err := json.Marshal(ifaces)
+	require.NoError(t, err)
+	assert.JSONEq(t, `[
+		{"name":"eth0","ipv4":["192.168.1.100"],"ipv6":["fe80::1"],"ipv4-network":"192.168.1.0/24","ipv6-network":"fe80::/64","macaddress":"00:11:22:33:44:55"},
+		{"name":"en4","ipv4":[],"ipv6":[],"macaddress":"42:52:1c:e5:c2:ec"},
+		{"name":"utun0","ipv4":[],"ipv6":["fe80::2"],"ipv6-network":"fe80::/64"}
+	]`, string(marshalled))
+
+	asJSON, _ := ifacesToJSON(ifaces)
+	expected, err := json.Marshal(asJSON)
+	require.NoError(t, err)
+	assert.Equal(t, string(expected), string(marshalled))
+}
+
 func TestResolveFromHostname(t *testing.T) {
 	// Test with localhost which should be resolvable on any system
 	ipv4s, ipv6s, err := ResolveFromHostname("localhost")
@@ -979,9 +1022,8 @@ func TestExternalIpv6AddressWithIPAddr(t *testing.T) {
 			},
 		},
 	}
-	setMockInterfaces(t, ifaces, nil)
 
-	ip, err := externalIpv6Address()
+	ip, err := externalIpv6Address(ifaces)
 	require.NoError(t, err)
 	assert.Equal(t, "fe80::1", ip)
 }
@@ -995,9 +1037,8 @@ func TestExternalIpv6AddressAddrsError(t *testing.T) {
 			addrsErr: errors.New("addrs error"),
 		},
 	}
-	setMockInterfaces(t, ifaces, nil)
 
-	_, err := externalIpv6Address()
+	_, err := externalIpv6Address(ifaces)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "addrs error")
 }
@@ -1013,9 +1054,8 @@ func TestExternalIPAddressWithIPAddr(t *testing.T) {
 			},
 		},
 	}
-	setMockInterfaces(t, ifaces, nil)
 
-	ip, err := externalIPAddress()
+	ip, err := externalIPAddress(ifaces)
 	require.NoError(t, err)
 	assert.Equal(t, "192.168.1.100", ip)
 }
@@ -1029,9 +1069,8 @@ func TestExternalIPAddressAddrsError(t *testing.T) {
 			addrsErr: errors.New("addrs error"),
 		},
 	}
-	setMockInterfaces(t, ifaces, nil)
 
-	_, err := externalIPAddress()
+	_, err := externalIPAddress(ifaces)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "addrs error")
 }
@@ -1049,9 +1088,8 @@ func TestMacAddressWithIPAddr(t *testing.T) {
 			},
 		},
 	}
-	setMockInterfaces(t, ifaces, nil)
 
-	mac, err := macAddress()
+	mac, err := macAddress(ifaces)
 	require.NoError(t, err)
 	assert.Equal(t, "00:11:22:33:44:55", mac)
 }
@@ -1065,83 +1103,10 @@ func TestMacAddressAddrsError(t *testing.T) {
 			addrsErr: errors.New("addrs error"),
 		},
 	}
-	setMockInterfaces(t, ifaces, nil)
 
-	_, err := macAddress()
+	_, err := macAddress(ifaces)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "addrs error")
-}
-
-func TestGetNetworkInfoExternalIpv6Error(t *testing.T) {
-	// Test that externalIpv6Address error is propagated
-	// We need macAddress and externalIPAddress to succeed, but externalIpv6Address to fail
-	// This requires a stateful mock that returns different results on different calls
-
-	// Create a counter to track calls
-	callCount := 0
-	original := getInterfaces
-
-	hw, _ := net.ParseMAC("00:11:22:33:44:55")
-	normalIface := &mockNetworkInterface{
-		name:         "eth0",
-		flags:        net.FlagUp,
-		hardwareAddr: hw,
-		addrs: []net.Addr{
-			createIPNetAddr("192.168.1.100/24"),
-		},
-	}
-
-	getInterfaces = func() ([]networkInterface, error) {
-		callCount++
-		// First two calls (macAddress and externalIPAddress) succeed
-		// Third call (externalIpv6Address) fails
-		if callCount <= 2 {
-			return []networkInterface{normalIface}, nil
-		}
-		return nil, errors.New("ipv6 lookup error")
-	}
-	t.Cleanup(func() {
-		getInterfaces = original
-	})
-
-	_, err := getNetworkInfo()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "ipv6 lookup error")
-}
-
-func TestGetNetworkInfoExternalIPAddressError(t *testing.T) {
-	// Test that externalIPAddress error is propagated after macAddress succeeds
-	// We need macAddress to succeed but externalIPAddress to fail
-
-	callCount := 0
-	original := getInterfaces
-
-	hw, _ := net.ParseMAC("00:11:22:33:44:55")
-	normalIface := &mockNetworkInterface{
-		name:         "eth0",
-		flags:        net.FlagUp,
-		hardwareAddr: hw,
-		addrs: []net.Addr{
-			createIPNetAddr("192.168.1.100/24"),
-		},
-	}
-
-	getInterfaces = func() ([]networkInterface, error) {
-		callCount++
-		// First call (macAddress) succeeds
-		// Second call (externalIPAddress) fails
-		if callCount == 1 {
-			return []networkInterface{normalIface}, nil
-		}
-		return nil, errors.New("ip lookup error")
-	}
-	t.Cleanup(func() {
-		getInterfaces = original
-	})
-
-	_, err := getNetworkInfo()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "ip lookup error")
 }
 
 func TestGetMultiNetworkInfoWithNilIP(t *testing.T) {
@@ -1163,10 +1128,8 @@ func TestGetMultiNetworkInfoWithNilIP(t *testing.T) {
 			}(),
 		},
 	}
-	setMockInterfaces(t, ifaces, nil)
 
-	result, err := getMultiNetworkInfo()
-	require.NoError(t, err)
+	result := getMultiNetworkInfo(ifaces)
 	require.Len(t, result, 1)
 	assert.Equal(t, []string{"192.168.1.100"}, result[0].IPv4)
 }
@@ -1218,9 +1181,39 @@ func TestRealNetworkInterfaceMethods(t *testing.T) {
 	assert.Equal(t, net.FlagUp|net.FlagBroadcast, realIface.GetFlags())
 	assert.Equal(t, "00:11:22:33:44:55", realIface.GetHardwareAddr().String())
 
-	// Addrs() may or may not return an error depending on the system
-	// We're just testing that the method can be called
-	_, _ = realIface.Addrs()
+	realIface.addrs = []net.Addr{createIPNetAddr("192.0.2.10/24")}
+	addrs, err := realIface.Addrs()
+	require.NoError(t, err)
+	require.Len(t, addrs, 1)
+	assert.Equal(t, "192.0.2.10/24", addrs[0].String())
+}
+
+func TestCollectInfoLoadsInterfacesOnce(t *testing.T) {
+	original := getInterfaces
+	t.Cleanup(func() { getInterfaces = original })
+	calls := 0
+	ifaces := []networkInterface{
+		createMockInterface("eth0", net.FlagUp, "00:11:22:33:44:55",
+			[]net.Addr{createIPNetAddr("192.0.2.10/24")}),
+	}
+	getInterfaces = func() ([]networkInterface, error) {
+		calls++
+		return ifaces, nil
+	}
+
+	info, err := CollectInfo()
+	require.NoError(t, err)
+	require.Equal(t, "192.0.2.10", info.IPAddress)
+	require.Equal(t, 1, calls)
+}
+
+func BenchmarkCollectInfo(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := CollectInfo(); err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 // Helpers

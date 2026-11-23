@@ -1,0 +1,16 @@
+# Security: unknown flags must be rejected (not silently ignored).
+description: An unrecognized flag is rejected with exit 1 and a clear error message.
+setup:
+  files:
+    - path: f.txt
+      content: "data"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    truncate --reference=other f.txt
+expect:
+  stdout: |+
+  stderr_contains: ["unrecognized option"]
+  exit_code: 1
+skip_assert_against_bash: true

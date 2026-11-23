@@ -127,7 +127,11 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	}
 
 	// Map DD_PRIVATE_ACTION_RUNNER_ENABLED env var into datadog.yaml
-	if parEnabledEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ENABLED"); strings.EqualFold(parEnabledEnv, "true") {
+	parEnabledEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ENABLED")
+	if strings.EqualFold(parEnabledEnv, "true") && env.FIPSMode {
+		s.Out.WriteString("Warning: DD_PRIVATE_ACTION_RUNNER_ENABLED is ignored: the private action runner is not supported in FIPS mode.\n")
+	}
+	if strings.EqualFold(parEnabledEnv, "true") && !env.FIPSMode {
 		if appKey := os.Getenv("DD_APP_KEY"); appKey != "" {
 			s.Config.DatadogYAML.AppKey = appKey
 		}
@@ -140,6 +144,10 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 			runtime.GOOS,
 			freshInstall,
 		)
+		if parSplitEnabledEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"); parSplitEnabledEnv != "" {
+			parSplitEnabled := strings.EqualFold(parSplitEnabledEnv, "true") || parSplitEnabledEnv == "1"
+			s.Config.DatadogYAML.PrivateActionRunner.SplitEnabled = config.BoolToPtr(parSplitEnabled)
+		}
 	}
 
 	return s, nil
@@ -214,9 +222,13 @@ func (s *Setup) Run() (err error) {
 	if !s.NoConfig && runtime.GOOS == "windows" && len(freshConfigs) > 0 {
 		s.backfillConfigTemplates(freshConfigs)
 	}
-	err = s.restartServices(ctx, packages)
-	if err != nil {
-		return fmt.Errorf("failed to restart services: %w", err)
+	if installOnlyEnabled() {
+		s.Out.WriteString("Skipping service restart as requested by DD_INSTALL_ONLY\n")
+	} else {
+		err = s.restartServices(ctx, packages)
+		if err != nil {
+			return fmt.Errorf("failed to restart services: %w", err)
+		}
 	}
 	if s.DelayedAgentRestartConfig.Scheduled {
 		ScheduleDelayedAgentRestart(s, s.DelayedAgentRestartConfig.Delay, s.DelayedAgentRestartConfig.LogFile)
@@ -371,4 +383,15 @@ func ScheduleDelayedAgentRestart(s *Setup, delay time.Duration, logFile string) 
 	if err := cmd.Start(); err != nil {
 		s.Out.WriteString(fmt.Sprintf("Failed to schedule restart: %v\n", err))
 	}
+}
+
+// installOnlyEnabled reports whether the operator requested the executable
+// setup flow to leave Agent services stopped after installation.
+func installOnlyEnabled() bool {
+	if runtime.GOOS != "windows" {
+		// only supported on Windows right now
+		return false
+	}
+	value := os.Getenv("DD_INSTALL_ONLY")
+	return value == "1" || strings.EqualFold(value, "true")
 }

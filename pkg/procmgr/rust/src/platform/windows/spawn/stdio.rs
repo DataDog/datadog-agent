@@ -14,7 +14,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_APPEND_DATA, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
     FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_ALWAYS, OPEN_EXISTING,
 };
-use windows_sys::Win32::System::Console::{GetStdHandle, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
+use windows_sys::Win32::System::Console::GetStdHandle;
 use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
 use crate::spawn::StdioSetting;
@@ -51,23 +51,25 @@ pub(super) fn map_stdio_setting(
     }
 }
 
+/// Inherit duplicates the current standard handle; a service without one
+/// retains the NUL fallback.
 fn map_stdio_inherit(kind: u32) -> Result<MappedStdioHandle> {
-    let inheritable = match kind {
-        STD_OUTPUT_HANDLE => super::super::stdout_inheritable(),
-        STD_ERROR_HANDLE => super::super::stderr_inheritable(),
-        _ => false,
-    };
-    if !inheritable {
+    map_stdio_source(unsafe { GetStdHandle(kind) })
+}
+
+fn map_stdio_source(source: HANDLE) -> Result<MappedStdioHandle> {
+    // INVALID_HANDLE_VALUE is also a Win32 pseudo-handle for the current process.
+    // Never let DuplicateHandle turn a missing standard stream into that object.
+    if source.is_null() || source == INVALID_HANDLE_VALUE {
         return MappedStdioHandle::nul();
     }
-    let source = unsafe {
-        let h = GetStdHandle(kind);
-        if h == INVALID_HANDLE_VALUE || h.is_null() {
-            bail!("GetStdHandle({kind}) returned invalid");
+    match duplicate_inheritable_handle(source) {
+        Ok(handle) => Ok(MappedStdioHandle(handle)),
+        Err(error) => {
+            warn!("standard stream duplication failed: {error}; using NUL");
+            MappedStdioHandle::nul()
         }
-        h
-    };
-    Ok(MappedStdioHandle(duplicate_inheritable_handle(source)?))
+    }
 }
 
 pub(super) fn map_stdio_handle_nul() -> Result<MappedStdioHandle> {
@@ -215,6 +217,23 @@ fn duplicate_inheritable_handle(source: HANDLE) -> Result<HANDLE> {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+    use windows_sys::Win32::System::Console::STD_OUTPUT_HANDLE;
+
+    #[test]
+    fn unusable_inheritance_source_falls_back_to_nul() {
+        assert!(
+            !map_stdio_source(std::ptr::null_mut())
+                .unwrap()
+                .raw()
+                .is_null()
+        );
+        assert!(
+            !map_stdio_source(INVALID_HANDLE_VALUE)
+                .unwrap()
+                .raw()
+                .is_null()
+        );
+    }
 
     #[test]
     fn unopenable_file_path_falls_back_to_inherit() {

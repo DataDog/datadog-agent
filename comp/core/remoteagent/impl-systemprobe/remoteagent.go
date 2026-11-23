@@ -177,11 +177,15 @@ func collectComplianceFiles(logger log.Component, complianceDir string, files ma
 }
 
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
-	prometheusText, err := r.telemetry.GatherText(false, telemetry.StaticMetricFilter(
+	prometheusText, err := r.telemetry.GatherText(telemetry.StaticMetricFilter(
 		// Metrics to forward from system-probe to core agent.
 		// The emitter tag is set to "system-probe" via metrics.SetAgentIdentity() above.
 		"logs__bytes_sent",
 		"logs__encoded_bytes_sent",
+
+		// API server request telemetry for the token-authenticated endpoint. The system-probe
+		// HTTP server is plain (non-TLS), so requests are tagged "no_tls" rather than mTLS/token.
+		helper.APIServerRequestDurationMetric,
 
 		// Windows Injector metrics (using double underscore format from telemetry component)
 		"injector__processes_added_to_injection_tracker",
@@ -206,6 +210,13 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 		"injector__boot_recovery_crash_boots_detected",
 		"injector__boot_recovery_driver_self_disabled",
 		"injector__boot_recovery_stability_timer_fired",
+		"injector__processes_automatically_added_to_skip_list",
+		"injector__processes_skipped_default",
+		"injector__processes_skipped_custom",
+		"injector__processes_skipped_crash_recovery",
+		"injector__processes_skipped_signature_policy",
+		"injector__processes_signature_policy_unknown",
+		"injector__processes_skipped_short_name",
 
 		// eBPF metrics
 		"ebpf__core_load_success",

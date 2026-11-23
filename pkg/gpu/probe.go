@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	usmutils "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	"io"
@@ -158,7 +158,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	ebpfCfg := deps.EBPFConfig
 
 	if !ebpfCfg.EnableRuntimeCompiler && !ebpfCfg.EnableCORE {
-		return nil, fmt.Errorf("%s probe supports CO-RE or Runtime Compilation modes, but none of them are enabled", sysconfig.GPUMonitoringModule)
+		return nil, fmt.Errorf("%s probe supports CO-RE or Runtime Compilation modes, but none of them are enabled", sysconfigtypes.GPUMonitoringModule)
 	}
 
 	sysCtx, err := getSystemContext(
@@ -184,12 +184,12 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	allowRC := ebpfCfg.EnableRuntimeCompiler && ebpfCfg.AllowRuntimeCompiledFallback
 	//try CO-RE first
 	if ebpfCfg.EnableCORE {
-		err = p.initCOREGPU(ebpfCfg)
+		err = p.initCOREGPU()
 		if err != nil {
 			if allowRC {
-				log.Warnf("error loading CO-RE %s, falling back to runtime compiled: %v", sysconfig.GPUMonitoringModule, err)
+				log.Warnf("error loading CO-RE %s, falling back to runtime compiled: %v", sysconfigtypes.GPUMonitoringModule, err)
 			} else {
-				return nil, fmt.Errorf("error loading CO-RE %s: %w", sysconfig.GPUMonitoringModule, err)
+				return nil, fmt.Errorf("error loading CO-RE %s: %w", sysconfigtypes.GPUMonitoringModule, err)
 			}
 		}
 	} else {
@@ -201,7 +201,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	if p.m == nil && allowRC {
 		err = p.initRCGPU(ebpfCfg)
 		if err != nil {
-			return nil, fmt.Errorf("unable to compile %s probe: %w", sysconfig.GPUMonitoringModule, err)
+			return nil, fmt.Errorf("unable to compile %s probe: %w", sysconfigtypes.GPUMonitoringModule, err)
 		}
 	}
 
@@ -301,20 +301,11 @@ func (p *Probe) initRCGPU(ebpfCfg *ddebpf.Config) error {
 	return p.setupManager(buf, manager.Options{})
 }
 
-func (p *Probe) initCOREGPU(ebpfCfg *ddebpf.Config) error {
-	asset := getAssetName("gpu", ebpfCfg.BPFDebug)
-	err := ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
+func (p *Probe) initCOREGPU() error {
+	err := ddebpf.LoadCOREAsset("gpu.o", func(ar bytecode.AssetReader, o manager.Options) error {
 		return p.setupManager(ar, o)
 	})
 	return err
-}
-
-func getAssetName(module string, debug bool) string {
-	if debug {
-		return module + "-debug.o"
-	}
-
-	return module + ".o"
 }
 
 func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {

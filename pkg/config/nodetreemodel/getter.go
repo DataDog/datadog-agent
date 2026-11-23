@@ -8,6 +8,7 @@ package nodetreemodel
 import (
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -38,6 +39,60 @@ func (c *ntmConfig) GetEnvVars() []string {
 	slices.Sort(vars)
 	vars = slices.Compact(vars)
 	return vars
+}
+
+// FilterSensitiveEnvVars returns envVars without the env vars bound to sensitive settings
+func (c *ntmConfig) FilterSensitiveEnvVars(envVars []string) []string {
+	c.RLock()
+	defer c.RUnlock()
+	var filtered []string
+	for _, envVar := range envVars {
+		if _, found := c.sensitiveEnvVars[strings.ToUpper(envVar)]; !found {
+			filtered = append(filtered, envVar)
+		}
+	}
+	return filtered
+}
+
+// computeSensitiveEnvVars must be called with the lock held
+func (c *ntmConfig) computeSensitiveEnvVars() map[string]struct{} {
+	vars := map[string]struct{}{}
+	for key := range c.sensitiveKeys {
+		for _, envVar := range c.configEnvVars[key] {
+			vars[strings.ToUpper(envVar)] = struct{}{}
+		}
+	}
+	return vars
+}
+
+// EnvVarSettings walks the env layer and returns each setting it provides, mapped to the env vars
+// the schema binds to that setting. The layer is walked on each call rather than kept as it is built.
+func (c *ntmConfig) EnvVarSettings() map[string][]string {
+	c.RLock()
+	defer c.RUnlock()
+
+	settings := map[string][]string{}
+	if c.envs == nil {
+		return settings
+	}
+	var collect func(node *nodeImpl, path string)
+	collect = func(node *nodeImpl, path string) {
+		for _, name := range node.ChildrenKeys() {
+			child, _ := node.GetChild(name)
+			key := name
+			if path != "" {
+				key = path + "." + name
+			}
+			if child.IsLeafNode() {
+				// The layer does not record which of the bound vars provided the value, so return all of them.
+				settings[key] = slices.Clone(c.configEnvVars[key])
+				continue
+			}
+			collect(child, key)
+		}
+	}
+	collect(c.envs, "")
+	return settings
 }
 
 // GetProxies returns the proxy settings from the configuration

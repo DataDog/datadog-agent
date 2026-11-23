@@ -74,7 +74,7 @@ func TestActionKill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -231,7 +231,7 @@ func TestActionKillExcludeBinary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	sleepCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -292,7 +292,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -590,7 +590,7 @@ func TestActionKillDisarm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -632,7 +632,7 @@ func TestActionHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("test-hash-action")
 	if err != nil {
@@ -891,7 +891,7 @@ func TestActionKillWithSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var capturedSignature string
 	var tailCmd *exec.Cmd
@@ -1049,7 +1049,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 	})
 
 	// 1. Start a Docker container first
-	dockerInstance, err := newDockerCmdWrapper("/tmp", "/tmp", "alpine", "")
+	dockerInstance, err := newDockerCmdWrapper(t, "/tmp", "/tmp", "alpine", "")
 	if err != nil {
 		t.Fatalf("failed to create docker wrapper: %v", err)
 	}
@@ -1082,7 +1082,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var capturedSignature string
 	var tailCmd *exec.Cmd
@@ -1185,7 +1185,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 	}
 
 	// Now start a new container and run tail - it should NOT be killed because it has a different signature
-	dockerInstance2, err := newDockerCmdWrapper("/tmp", "/tmp", "alpine", "")
+	dockerInstance2, err := newDockerCmdWrapper(t, "/tmp", "/tmp", "alpine", "")
 	if err != nil {
 		t.Fatalf("failed to create second docker wrapper: %v", err)
 	}
@@ -1253,7 +1253,7 @@ func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 	})
 
 	// 1. Start a Docker container first
-	dockerInstance, err := newDockerCmdWrapper("/tmp", "/tmp", "alpine", "")
+	dockerInstance, err := newDockerCmdWrapper(t, "/tmp", "/tmp", "alpine", "")
 	if err != nil {
 		t.Fatalf("failed to create docker wrapper: %v", err)
 	}
@@ -1287,7 +1287,7 @@ func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var capturedSignature string
 	var catCmd *exec.Cmd
@@ -1478,7 +1478,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -1824,7 +1824,7 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("not-triggered-sent-at-startup", func(t *testing.T) {
 		newRuleDefs := []*rules.RuleDefinition{remediationNotTriggeredRule}
@@ -1932,7 +1932,7 @@ func TestCustomEventContainer(t *testing.T) {
 	})
 
 	// 1. Start a Docker container first
-	dockerInstance, err := newDockerCmdWrapper("/tmp", "/tmp", "alpine", "")
+	dockerInstance, err := newDockerCmdWrapper(t, "/tmp", "/tmp", "alpine", "")
 	if err != nil {
 		t.Fatalf("failed to create docker wrapper: %v", err)
 	}
@@ -1966,7 +1966,7 @@ func TestCustomEventContainer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var cGroupID string
 	var catCmd *exec.Cmd

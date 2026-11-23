@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !e2eunit
-
 package installer
 
 import (
@@ -111,6 +109,45 @@ func (s *testInstallExeSuite) TestInstallAgentPackage() {
 	systemProbeContent, err := s.Env().RemoteHost.ReadFile(configDir + `\system-probe.yaml`)
 	s.Require().NoError(err, "failed to read system-probe.yaml")
 	s.Assert().Contains(string(systemProbeContent), "## System Probe Configuration ##", "system-probe.yaml should contain template section banners from system-probe.yaml.example")
+}
+
+// TestInstallAgentPackageInstallOnly verifies that DD_INSTALL_ONLY leaves the
+// Agent service stopped without disabling it.
+func (s *testInstallExeSuite) TestInstallAgentPackageInstallOnly() {
+	// Arrange
+	packageConfig, err := NewPackageConfig(
+		WithPackage(s.CurrentAgentVersion().OCIPackage()),
+	)
+	s.Require().NoError(err)
+
+	// Act
+	output, err := s.InstallScript().Run(WithExtraEnvVars(map[string]string{
+		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": packageConfig.Version,
+		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        packageConfig.Registry,
+		"DD_INSTALL_ONLY": "1",
+	}))
+
+	// Assert
+	if s.NoError(err) {
+		fmt.Printf("%s\n", output)
+	}
+	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+	s.Require().Host(s.Env().RemoteHost).
+		HasAService("datadogagent").
+		WithStatus("Stopped")
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().Status().
+		HasPackage("datadog-agent").
+		WithStableVersionMatchPredicate(func(actual string) {
+			s.Require().Contains(actual, s.CurrentAgentVersion().PackageVersion())
+		}).
+		WithExperimentVersionEqual("")
+
+	// DD_INSTALL_ONLY suppresses startup for this setup invocation, rather
+	// than disabling the installed service.
+	s.Require().NoError(wincommon.StartService(s.Env().RemoteHost, "datadogagent"))
+	s.Require().NoError(s.WaitForAgentService("Running"))
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 }
 
 // TestSetupHandoffToStableVersion verifies the current installer hands off

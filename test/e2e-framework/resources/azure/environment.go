@@ -30,7 +30,6 @@ const (
 	DDInfraDefaultResourceGroup            = "az/defaultResourceGroup"
 	DDInfraDefaultVNetParamName            = "az/defaultVNet"
 	DDInfraDefaultSubnetParamName          = "az/defaultSubnet"
-	DDInfraDefaultSecurityGroupParamName   = "az/defaultSecurityGroup"
 	DDInfraDefaultInstanceTypeParamName    = "az/defaultInstanceType"
 	DDInfraDefaultARMInstanceTypeParamName = "az/defaultARMInstanceType"
 	DDInfraDefaultPublicKeyPath            = "az/defaultPublicKeyPath"
@@ -87,9 +86,9 @@ func (e *Environment) InternalDockerhubMirror() string {
 	return "registry-1.docker.io"
 }
 
-// DatadogPublicRegistry returns gcr.io/datadoghq: there is no Datadog-operated Azure registry, so use the GCP one as Azure customers do.
+// DatadogPublicRegistry returns registry.datadoghq.com: use the official Datadog registry when no internal cache is available.
 func (e *Environment) DatadogPublicRegistry() string {
-	return "gcr.io/datadoghq"
+	return "registry.datadoghq.com"
 }
 
 func (e *Environment) InternalRegistryImageTagExists(_, _ string) (bool, error) {
@@ -119,10 +118,6 @@ func (e *Environment) DefaultVNet() string {
 
 func (e *Environment) DefaultSubnet() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultSubnetParamName, e.envDefault.ddInfra.defaultSubnet)
-}
-
-func (e *Environment) DefaultSecurityGroup() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultSecurityGroupParamName, e.envDefault.ddInfra.defaultSecurityGroup)
 }
 
 func (e *Environment) DefaultInstanceType() string {

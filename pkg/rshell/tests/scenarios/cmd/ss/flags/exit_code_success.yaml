@@ -1,0 +1,13 @@
+description: ss exits 0 even when no sockets match the filter (empty result is not an error).
+# skip: output depends on live kernel socket state which differs between hosts.
+skip_assert_against_bash: true
+input:
+  # /proc/net is required on Linux; on macOS/Windows ss uses sysctl/iphlpapi.
+  allowed_paths: ["/proc/net"]
+  script: |+
+    ss -an; echo "code:$?"
+expect:
+  stdout_contains:
+    - "code:0"
+  stderr: ""
+  exit_code: 0

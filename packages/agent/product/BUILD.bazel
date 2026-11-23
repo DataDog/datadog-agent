@@ -12,8 +12,8 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
-load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
-load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
+load("//packages/rules:agent_path.bzl", "ETC_DIR_SELECTOR", "etc_dir")
 
 _USE_RELATIVE_RPATHS = select({
     "@platforms//os:macos": True,
@@ -36,42 +36,46 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
+        "//packages/agent/python-scripts:all_files",
         ":agent_binary",
 
         # TODO: sysprobe - windows
         ":trace_agent_binary",
         ":process_agent_binary",
-        ":privateactionrunner_binary",
-
-        # TODO: system-probe
-        # TODO: system-probe - eBPF
+        ":secret_generic_connector_binary",
+        ":security_agent_binary",
 
         # TODO: //pkg/discovery/module/rust
         # TODO: cacerts
-        # TODO: dependency 'datadog-agent-integrations-py3'
+        # TODO: integrations on macOS, Windows and Linux FIPS (cryptography and psycopg need the FIPS OpenSSL)
     ] + select({
-        "//packages/agent:linux_heroku": [],
-        "//conditions:default": [
-            ":secret_generic_connector_binary",
-            ":security_agent_binary",
-        ],
-    }) + select({
-        "//packages/agent:linux_default": [
+        "@platforms//os:linux": [
+            ":conf_dir_files",
             ":cws_instrumentation_binary",
             ":installer_binary",
+            ":system_probe_files",
+            ":system_probe_install_dir_files",
+            "//deps/agent_integrations:integration_configuration_files",
+            "//deps/agent_integrations:integrations_bin_files",
+            "//deps/agent_integrations:integrations_runtime_files",
+            "//deps/agent_integrations:requirements_agent_release_file",
             "//pkg/discovery/module/rust:all_files",
-            "//pkg/privateactionrunner/par-control:all_files",
-            "//pkg/privateactionrunner/rshell:all_files_linux",
-            "//pkg/procmgr/rust:all_files_linux",
+            "//pkg/procmgr/rust:all_files",
         ],
         "//packages/agent:linux_fips": [
+            ":conf_dir_files",
             ":cws_instrumentation_binary",
             ":installer_binary",
+            ":system_probe_files",
+            ":system_probe_install_dir_files",
             "//pkg/discovery/module/rust:all_files",
-            "//pkg/procmgr/rust:all_files_linux",
+            "//pkg/procmgr/rust:all_files",
         ],
-        "//packages/agent:linux_heroku": [],
         "//conditions:default": [],
+    }) + select({
+        # Private action runner is not supported in FIPS.
+        "//bazel/platforms:fips": [],
+        "//conditions:default": [":privateactionrunner_files"],
     }) + select({
         "@platforms//os:linux": [
             "//cmd/loader:trace_loader_all_files",
@@ -79,14 +83,14 @@ pkg_filegroup(
         "@platforms//os:macos": [
             "//cmd/loader:trace_loader_all_files",
             "//packages/macos/app:all_files",
+            "//pkg/procmgr/rust:all_files",
             # TODO: systray
         ],
         "@platforms//os:windows": [
             ":installer_binary",
             ":systray_binary",
             "//packages/windows:all_files",
-            "//pkg/privateactionrunner/par-control:all_files",
-            "//pkg/procmgr/rust:all_files_windows",
+            "//pkg/procmgr/rust:all_files",
             "//rtloader:all_files",
         ],
         "//conditions:default": [],
@@ -104,6 +108,7 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
+        "//packages/agent/python-scripts:all_files",
     ],
 )
 
@@ -128,38 +133,30 @@ pkg_mkdirs(
     attributes = pkg_attributes(mode = "755"),
     dirs = [
         "bin",
-    ] + select({
-        "@platforms//os:macos": ["etc"],
-        "//conditions:default": ["etc/datadog-agent"],
-    }) + select({
+    ] + select({k: [v] for k, v in ETC_DIR_SELECTOR.items()}) + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
             "run",
             "scripts",
         ],
+    }) + select({
+        "@platforms//os:linux": ["processes.d"],
+        "//conditions:default": [],
     }),
 )
 
 pkg_files(
     name = "example_config",
     srcs = [
-        "//pkg/config:agent_config",
+        "//pkg/config:security_agent_example_config_src",
     ] + select({
-        "//packages/agent:heroku_flavor": [],
-        "//conditions:default": ["//pkg/config:security_agent_example_config_src"],
-    }) + select({
         "@platforms//os:linux": ["//pkg/config:application_monitoring_example_config_src"],
         "//conditions:default": [],
     }),
-    prefix = select(ETC_DIR_SELECTOR),
-    renames = {
-        "//pkg/config:agent_config": "datadog.yaml.example",
-    },
+    prefix = etc_dir(),
 )
 
-# Files that get staged directly under conf_dir (as opposed to :all_install_dir_files,
-# which stages relative to install_dir). Add more conf_dir-relative files here as they
-# migrate off Omnibus (e.g. bin/agent/dist/system-probe.yaml).
+# Files installed under the config root (etc_dir).
 pkg_filegroup(
     name = "conf_dir_files",
     srcs = select({
@@ -168,6 +165,7 @@ pkg_filegroup(
         ],
         "//conditions:default": [],
     }),
+    prefix = etc_dir(),
 )
 
 # Temporary during migration. Only called from omnibus scripts.
@@ -176,123 +174,93 @@ pkg_install(
     srcs = [":conf_dir_files"],
 )
 
-rewrite_rpath(
-    name = "agent_binary_rpath",
-    destination = "{install_dir}/bin/agent",
-    inputs = select({
-        "//packages/agent:linux_heroku": ["//cmd/agent:agent-heroku"],
-        "//conditions:default": ["//cmd/agent"],
-    }),
-    use_relative_rpaths = _USE_RELATIVE_RPATHS,
-)
-
-pkg_files(
+agent_binary_for_package(
     name = "agent_binary",
-    srcs = [":agent_binary_rpath"],
-    attributes = pkg_attributes(mode = "755"),
+    patch_rpath = True,
     prefix = "bin/agent",
-    renames = select({
-        "//packages/agent:linux_heroku": {":agent_binary_rpath": "agent"},
-        "//conditions:default": {},
-    }),
-)
-
-rewrite_rpath(
-    name = "process_agent_binary_rpath",
-    destination = select({
-        "@platforms//os:windows": "{install_dir}/bin/agent",
-        "//conditions:default": "{install_dir}/embedded/bin",
-    }),
-    inputs = select({
-        "//packages/agent:linux_heroku": ["//cmd/process-agent:process-agent-heroku"],
-        "//conditions:default": ["//cmd/process-agent"],
-    }),
+    target = "//cmd/agent",
     use_relative_rpaths = _USE_RELATIVE_RPATHS,
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "process_agent_binary",
-    srcs = [":process_agent_binary_rpath"],
-    attributes = pkg_attributes(mode = "755"),
+    patch_rpath = True,
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
     }),
-    renames = select({
-        "//packages/agent:linux_heroku": {":process_agent_binary_rpath": "process-agent"},
-        "//conditions:default": {},
-    }),
+    target = "//cmd/process-agent",
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "privateactionrunner_binary",
-    srcs = [
-        "//cmd/privateactionrunner",
-    ],
-    attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+    target = "//cmd/privateactionrunner",
 )
 
-pkg_files(
+# Everything the private action runner ships. Not shipped in FIPS builds (see all_files).
+pkg_filegroup(
+    name = "privateactionrunner_files",
+    srcs = [":privateactionrunner_binary"] + select({
+        "@platforms//os:linux": [
+            "//pkg/privateactionrunner/par-control:all_files",
+            "//pkg/privateactionrunner/rshell:all_files_linux",
+        ],
+        "@platforms//os:windows": ["//pkg/privateactionrunner/par-control:all_files"],
+        "//conditions:default": [],
+    }),
+)
+
+agent_binary_for_package(
     name = "trace_agent_binary",
-    srcs = select({
-        "//packages/agent:linux_heroku": ["//cmd/trace-agent:trace-agent-heroku"],
-        "//conditions:default": ["//cmd/trace-agent"],
-    }),
-    attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
-    renames = select({
-        "//packages/agent:linux_heroku": {"//cmd/trace-agent:trace-agent-heroku": "trace-agent"},
-        "//conditions:default": {},
-    }),
+    target = "//cmd/trace-agent",
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "secret_generic_connector_binary",
-    srcs = ["//cmd/secret-generic-connector"],
-    attributes = pkg_attributes(mode = "755"),
+    attributes = select({
+        "@platforms//os:linux": pkg_attributes(mode = "0500"),
+        "//conditions:default": pkg_attributes(mode = "0755"),
+    }),
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
     }),
+    target = "//cmd/secret-generic-connector",
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "security_agent_binary",
-    srcs = ["//cmd/security-agent"],
-    attributes = pkg_attributes(mode = "755"),
+    patch_rpath = True,
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
     }),
+    target = "//cmd/security-agent",
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "cws_instrumentation_binary",
-    srcs = ["//cmd/cws-instrumentation"],
-    attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+    target = "//cmd/cws-instrumentation",
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "systray_binary",
-    srcs = ["//cmd/systray"],
-    attributes = pkg_attributes(mode = "755"),
     prefix = "bin/agent",
+    target = "//cmd/systray",
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "installer_binary",
-    srcs = ["//cmd/installer"],
-    attributes = pkg_attributes(mode = "755"),
     prefix = select({
         "@platforms//os:windows": "",
         "//conditions:default": "embedded/bin",
     }),
-    renames = select({
-        "@platforms//os:windows": {"//cmd/installer": "datadog-installer.exe"},
-        "//conditions:default": {},
-    }),
+    target = "//cmd/installer",
 )
 
 pkg_files(
@@ -314,9 +282,7 @@ pkg_files(
     },
 )
 
-# Files that get staged directly under conf_dir (as opposed to :all_install_dir_files,
-# which stages relative to install_dir). Add more conf_dir-relative files here as they
-# migrate off Omnibus (e.g. bin/agent/dist/system-probe.yaml).
+# Files installed under the config root (etc_dir).
 pkg_filegroup(
     name = "system_probe_files",
     srcs = [
@@ -327,6 +293,7 @@ pkg_filegroup(
             ":system_probe_selinux_policy_files",
         ],
     }),
+    prefix = etc_dir(),
 )
 
 # Temporary during omnibus migration.
@@ -334,4 +301,80 @@ pkg_install(
     name = "install_system_probe",
     srcs = [":system_probe_files"],
     visibility = ["//visibility:public"],
+)
+
+agent_binary_for_package(
+    name = "system_probe_binary",
+    prefix = "embedded/bin",
+    target = "//cmd/system-probe",
+)
+
+pkg_files(
+    name = "system_probe_ebpf_objects",
+    srcs = [
+        "//pkg/ebpf:prebuilt_objects",
+        "//pkg/ebpf/c:COPYING",
+    ],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "embedded/share/system-probe/ebpf",
+)
+
+pkg_files(
+    name = "system_probe_co_re_objects",
+    srcs = ["//pkg/ebpf:co_re_objects"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "embedded/share/system-probe/ebpf/co-re",
+)
+
+pkg_files(
+    name = "system_probe_runtime_sources",
+    srcs = ["//pkg/ebpf:runtime_sources"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "embedded/share/system-probe/ebpf/runtime",
+)
+
+# clang-bpf only. llvm-strip stays a toolchain file.
+pkg_files(
+    name = "system_probe_llvm_bpf",
+    srcs = select({
+        "@platforms//os:linux": ["@llvm_bpf//:bin/clang-bpf"],
+        "//conditions:default": [],
+    }),
+    attributes = pkg_attributes(mode = "744"),
+    prefix = "embedded/bin",
+)
+
+# Temporary during omnibus migration.
+pkg_install(
+    name = "install_system_probe_llvm_bpf",
+    srcs = [":system_probe_llvm_bpf"],
+)
+
+pkg_files(
+    name = "system_probe_dist_config",
+    srcs = ["//pkg/config:system_probe_config"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "bin/agent/dist",
+)
+
+# Not wired into Omnibus. FIPS omits the binary.
+pkg_filegroup(
+    name = "system_probe_install_dir_files",
+    srcs = [
+        ":system_probe_co_re_objects",
+        ":system_probe_dist_config",
+        ":system_probe_ebpf_objects",
+        ":system_probe_llvm_bpf",
+        ":system_probe_runtime_sources",
+    ] + select({
+        "//bazel/platforms:fips": [],
+        "//conditions:default": [":system_probe_binary"],
+    }),
+)
+
+pkg_install(
+    name = "install_system_probe_install_dir",
+    srcs = [":system_probe_install_dir_files"],
+    destdir_flag = "//:install_dir",
+    target_compatible_with = ["@platforms//os:linux"],
 )

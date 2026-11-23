@@ -17,6 +17,8 @@ import (
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
 var legacyFields = map[Field]Field{
@@ -79,6 +81,8 @@ type testEvent struct {
 	listEvaluated bool
 	uidEvaluated  bool
 	gidEvaluated  bool
+
+	isRootEvalCount int
 }
 
 type testModel struct {
@@ -238,9 +242,14 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Eva
 	case "process.is_root":
 
 		return &BoolEvaluator{
-			EvalFnc: func(ctx *Context) bool { return ctx.Event.(*testEvent).process.isRoot },
-			Field:   field,
-			Offset:  offset,
+			EvalFnc: func(ctx *Context) bool {
+				// to test that the evaluator isn't called more than once per evaluation
+				ctx.Event.(*testEvent).isRootEvalCount++
+
+				return ctx.Event.(*testEvent).process.isRoot
+			},
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.list.length":
@@ -973,28 +982,28 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 	return &ErrFieldNotFound{Field: field}
 }
 
-var testConstants = map[string]interface{}{
+var testConstants = map[string]ast.Node{
 	// boolean
-	"true":  &BoolEvaluator{Value: true},
-	"false": &BoolEvaluator{Value: false},
+	"true":  &ast.Literal{Value: ast.MakeBool(true)},
+	"false": &ast.Literal{Value: ast.MakeBool(false)},
 
 	// open flags
-	"O_RDONLY": &IntEvaluator{Value: syscall.O_RDONLY},
-	"O_WRONLY": &IntEvaluator{Value: syscall.O_WRONLY},
-	"O_RDWR":   &IntEvaluator{Value: syscall.O_RDWR},
-	"O_APPEND": &IntEvaluator{Value: syscall.O_APPEND},
-	"O_CREAT":  &IntEvaluator{Value: syscall.O_CREAT},
-	"O_EXCL":   &IntEvaluator{Value: syscall.O_EXCL},
-	"O_SYNC":   &IntEvaluator{Value: syscall.O_SYNC},
-	"O_TRUNC":  &IntEvaluator{Value: syscall.O_TRUNC},
+	"O_RDONLY": &ast.Literal{Value: ast.MakeInt(syscall.O_RDONLY)},
+	"O_WRONLY": &ast.Literal{Value: ast.MakeInt(syscall.O_WRONLY)},
+	"O_RDWR":   &ast.Literal{Value: ast.MakeInt(syscall.O_RDWR)},
+	"O_APPEND": &ast.Literal{Value: ast.MakeInt(syscall.O_APPEND)},
+	"O_CREAT":  &ast.Literal{Value: ast.MakeInt(syscall.O_CREAT)},
+	"O_EXCL":   &ast.Literal{Value: ast.MakeInt(syscall.O_EXCL)},
+	"O_SYNC":   &ast.Literal{Value: ast.MakeInt(syscall.O_SYNC)},
+	"O_TRUNC":  &ast.Literal{Value: ast.MakeInt(syscall.O_TRUNC)},
 
 	// retval
-	"EPERM":        &IntEvaluator{Value: int(syscall.EPERM)},
-	"EACCES":       &IntEvaluator{Value: int(syscall.EACCES)},
-	"EPFNOSUPPORT": &IntEvaluator{Value: int(syscall.EPFNOSUPPORT)},
-	"EPIPE":        &IntEvaluator{Value: int(syscall.EPIPE)},
+	"EPERM":        &ast.Literal{Value: ast.MakeInt(int(syscall.EPERM))},
+	"EACCES":       &ast.Literal{Value: ast.MakeInt(int(syscall.EACCES))},
+	"EPFNOSUPPORT": &ast.Literal{Value: ast.MakeInt(int(syscall.EPFNOSUPPORT))},
+	"EPIPE":        &ast.Literal{Value: ast.MakeInt(int(syscall.EPIPE))},
 
 	// string constants
-	"my_constant_1": &StringEvaluator{Value: "my_constant_1"},
-	"my_constant_2": &StringEvaluator{Value: "my_constant_2"},
+	"my_constant_1": &ast.Literal{Value: ast.MakeString("my_constant_1")},
+	"my_constant_2": &ast.Literal{Value: ast.MakeString("my_constant_2")},
 }

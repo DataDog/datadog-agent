@@ -39,6 +39,39 @@ func ParseReplicaSetForPodName(name string) string {
 	return removeKubernetesNameSuffix(name)
 }
 
+// ResolvePodRootOwner resolves a pod's direct owner to its root workload owner.
+// ReplicaSets are resolved to Deployments or Argo Rollouts, Jobs created by
+// CronJobs are resolved to their CronJob, and Argo Workflows created by
+// CronWorkflows are resolved to their CronWorkflow.
+func ResolvePodRootOwner(ownerKind, ownerName string, podLabels map[string]string) (string, string) {
+	switch ownerKind {
+	case ReplicaSetKind:
+		// Argo Rollouts manage ReplicaSets named like Deployment ones (`<owner>-<hash>`),
+		// so the rollout pod label is the only way to tell the two apart here. A real
+		// Rollout always sets a non-empty hash, so an empty value is not one.
+		rootName := ParseDeploymentForReplicaSet(ownerName)
+		if rootName == "" {
+			return ownerKind, ownerName
+		}
+		if podLabels[ArgoRolloutLabelKey] != "" {
+			return RolloutKind, rootName
+		}
+		return DeploymentKind, rootName
+	case JobKind:
+		if cronJobName, _ := ParseCronJobForJob(ownerName); cronJobName != "" {
+			return CronJobKind, cronJobName
+		}
+	case WorkflowKind:
+		// Argo CronWorkflows own the Workflow, not the Pod. The Workflow name
+		// carries the CronWorkflow name, like Job names carry the CronJob name.
+		if cronWorkflowName := ParseCronWorkflowForWorkflow(ownerName); cronWorkflowName != "" {
+			return CronWorkflowKind, cronWorkflowName
+		}
+	}
+
+	return ownerKind, ownerName
+}
+
 // ParseCronJobForJob gets the cronjob name from a job,
 // or returns an empty string if no parent cronjob is found.
 // https://github.com/kubernetes/kubernetes/blob/b4e3bd381bd4d7c0db1959341b39558b45187345/pkg/controller/cronjob/utils.go#L156
@@ -61,6 +94,27 @@ func ParseCronJobForJob(name string) (string, int) {
 	}
 
 	return name[:lastDash], id
+}
+
+// minCronWorkflowSuffixLen is the digit count of a Unix timestamp in seconds
+// (10 digits from 2001 until 2286). Shorter numeric suffixes are treated as
+// part of a user-chosen Workflow name.
+const minCronWorkflowSuffixLen = 10
+
+// ParseCronWorkflowForWorkflow returns the CronWorkflow name for a Workflow
+// created by the Argo Workflows cron controller, or "" when the name does not
+// have that shape. Argo names those Workflows <cronworkflow>-<scheduled time in Unix seconds>.
+// https://github.com/argoproj/argo-workflows/blob/main/workflow/cron/operator.go (getChildWorkflowName)
+func ParseCronWorkflowForWorkflow(name string) string {
+	lastDash := strings.LastIndexByte(name, '-')
+	if lastDash <= 0 {
+		return ""
+	}
+	suffix := name[lastDash+1:]
+	if len(suffix) < minCronWorkflowSuffixLen || !stringInRuneset(suffix, Digits) {
+		return ""
+	}
+	return name[:lastDash]
 }
 
 // stringInRuneset tests whether all runes of a string are in a given subset

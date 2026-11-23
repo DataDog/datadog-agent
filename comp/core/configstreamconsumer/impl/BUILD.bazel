@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "bootstrap.go",
         "consumer.go",
+        "overrides.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/impl",
     visibility = ["//visibility:public"],

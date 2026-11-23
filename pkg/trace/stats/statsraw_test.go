@@ -7,6 +7,7 @@ package stats
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"testing"
 	"time"
@@ -382,10 +383,10 @@ func TestSpanConcentratorAdditionalMetricTagsCardinalityLimitResetsPerBucket(t *
 	secondBlocked := newAdditionalMetricTagStatSpan("second-blocked")
 	secondBlocked.start = bsize + 2
 
-	sc.addSpan(firstAdmitted, aggKey, infraTags{}, "", 1)
-	sc.addSpan(firstBlocked, aggKey, infraTags{}, "", 1)
-	sc.addSpan(secondAdmitted, aggKey, infraTags{}, "", 1)
-	sc.addSpan(secondBlocked, aggKey, infraTags{}, "", 1)
+	sc.addSpan(firstAdmitted, aggKey, infraTags{}, "", 1, time.Now().UnixNano())
+	sc.addSpan(firstBlocked, aggKey, infraTags{}, "", 1, time.Now().UnixNano())
+	sc.addSpan(secondAdmitted, aggKey, infraTags{}, "", 1, time.Now().UnixNano())
+	sc.addSpan(secondBlocked, aggKey, infraTags{}, "", 1, time.Now().UnixNano())
 
 	assert.Equal(t, []string{"customer_id:first-admitted"}, firstAdmitted.matchingAdditionalMetricTags)
 	assert.Equal(t, []string{"customer_id:first-blocked"}, firstBlocked.matchingAdditionalMetricTags)
@@ -800,5 +801,27 @@ func TestNSTimestampToFloat(t *testing.T) {
 
 	for _, n := range ns {
 		assert.Equal(t, oldNSTimestampToFloat(n), nsTimestampToFloat(n), "uint64 10 bits mantissa truncation failed "+fmt.Sprintf("%d 0x%x", n, n))
+	}
+}
+
+func TestRoundClampsToUint64Range(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   float64
+		want uint64
+	}{
+		{"zero", 0, 0},
+		{"integer", 3, 3},
+		{"largest float below 2^64", math.Nextafter(1<<64, 0), 1<<64 - 2048},
+		{"negative", -1, 0},
+		{"NaN", math.NaN(), 0},
+		{"2^64", 1 << 64, math.MaxUint64},
+		{"huge", 1e300, math.MaxUint64},
+		{"positive infinity", math.Inf(1), math.MaxUint64},
+		{"negative infinity", math.Inf(-1), 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, round(tc.in))
+		})
 	}
 }

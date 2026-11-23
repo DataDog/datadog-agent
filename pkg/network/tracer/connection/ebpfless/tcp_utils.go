@@ -130,14 +130,40 @@ func (ss *synState) isSynAcked() bool {
 	return *ss == synStateAcked || *ss == synStateMissed
 }
 
-func isSeqBefore(prev, cur uint32) bool {
+// IsSeqBefore reports whether TCP sequence number prev comes before cur,
+// accounting for wraparound.
+func IsSeqBefore(prev, cur uint32) bool {
 	// check for wraparound with unsigned subtraction
 	diff := cur - prev
 	// constrain the maximum difference to half the number space
 	return diff > 0 && diff < tcpSeqMidpoint
 }
 func isSeqBeforeEq(prev, cur uint32) bool {
-	return prev == cur || isSeqBefore(prev, cur)
+	return prev == cur || IsSeqBefore(prev, cur)
+}
+
+// SentSeqTracker tracks the highest outgoing sequence number of a TCP flow so
+// that new data can be told apart from retransmissions.
+type SentSeqTracker struct {
+	hasSent bool
+	maxSeq  uint32
+}
+
+// Observe records an outgoing segment starting at seq whose next sequence
+// number is nextSeq (see CalcNextSeq). advanced is true when the segment moves
+// the high-water mark; overlap is then the number of its sequence numbers that
+// were already sent. Otherwise retransmit is true unless the segment consumes
+// no sequence space, as TCP keepalives do.
+func (s *SentSeqTracker) Observe(seq, nextSeq uint32) (advanced bool, overlap uint32, retransmit bool) {
+	if !s.hasSent || IsSeqBefore(s.maxSeq, nextSeq) {
+		if s.hasSent && IsSeqBefore(seq, s.maxSeq) {
+			overlap = s.maxSeq - seq
+		}
+		s.hasSent = true
+		s.maxSeq = nextSeq
+		return true, overlap, false
+	}
+	return false, 0, nextSeq != seq
 }
 
 func debugPacketDir(pktType uint8) string {

@@ -49,6 +49,9 @@ type Program struct {
 	GoMapHashInfo    ir.GoMapHashInfo
 	CommonTypes      ir.CommonTypes
 	IsARM64          bool
+	// SessionThrottlerIdx is the index, into Throttlers, of the throttler that
+	// holds the whole session's snapshot budget.
+	SessionThrottlerIdx uint32
 }
 
 type generator struct {
@@ -155,6 +158,11 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 				}
 				throttleMode := computeThrottleMode(event, conditionEventKind, splitCondition)
 				for _, injectionPoint := range event.InjectionPoints {
+					// Only gated events need a trace_id.
+					var traceIDSrc traceIDSource
+					if throttleMode != ThrottleNone {
+						traceIDSrc = resolveTraceIDSource(inst.Subprogram, injectionPoint.PC)
+					}
 					err := g.addEventHandler(
 						injectionPoint,
 						throttlerIdx,
@@ -164,6 +172,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 						event.Kind,
 						event.Condition,
 						throttleMode,
+						traceIDSrc,
 					)
 					if err != nil {
 						return Program{}, err
@@ -212,6 +221,17 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 
 		}
 	})
+	// One throttler for the whole session. The first probe of a trace asks it
+	// whether to keep that trace, and every kept snapshot draws from it.
+	sessionBudget := int64(ir.DefaultSessionSnapshotsPerSecond)
+	if cs := program.CoordinatedSampling; cs != nil && cs.SnapshotsPerSecond > 0 {
+		sessionBudget = int64(cs.SnapshotsPerSecond)
+	}
+	sessionThrottlerIdx := uint32(len(throttlers))
+	throttlers = append(throttlers, Throttler{
+		PeriodNs: uint64(time.Second),
+		Budget:   sessionBudget,
+	})
 	return Program{
 		ID:               uint32(program.ID),
 		Functions:        g.functions,
@@ -222,6 +242,8 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		GoMapHashInfo:    program.GoMapHashInfo,
 		CommonTypes:      program.CommonTypes,
 		IsARM64:          program.IsARM64,
+
+		SessionThrottlerIdx: sessionThrottlerIdx,
 	}, nil
 }
 
@@ -274,6 +296,75 @@ func computeThrottleMode(
 	return ThrottleAtStart
 }
 
+// Where a probe's context.Context lives. Must match the CTX_LOC_* values in
+// pkg/dyninst/ebpf/types.h.
+const (
+	ctxLocNone      uint8 = 0
+	ctxLocRegisters uint8 = 1
+	ctxLocStack     uint8 = 2
+)
+
+// traceIDSource tells the eBPF side where to find a probe's context.Context,
+// which is where it reads the trace id from. The zero value means there is no
+// context in scope, and the probe falls back to its own throttler.
+type traceIDSource struct {
+	kind        uint8
+	regTab      uint8
+	regData     uint8
+	stackOffset int32
+}
+
+// resolveTraceIDSource finds a context.Context parameter live at pc. It returns
+// the "none" source when there is no such parameter or we can't read where it
+// lives.
+func resolveTraceIDSource(sub *ir.Subprogram, pc uint64) traceIDSource {
+	none := traceIDSource{kind: ctxLocNone}
+	if sub == nil {
+		return none
+	}
+	for _, v := range sub.Variables {
+		if v.Role != ir.VariableRoleParameter {
+			continue
+		}
+		if it, ok := v.Type.(*ir.GoInterfaceType); !ok || it.GetName() != "context.Context" {
+			continue
+		}
+		for i := range v.Locations {
+			loc := &v.Locations[i]
+			if pc < loc.Range[0] || pc >= loc.Range[1] {
+				continue
+			}
+			if src, ok := traceIDSourceFromLocation(loc); ok {
+				return src
+			}
+		}
+	}
+	return none
+}
+
+// traceIDSourceFromLocation accepts a two-register interface or a CFA-relative
+// stack slot; anything else is unsupported.
+func traceIDSourceFromLocation(loc *ir.Location) (traceIDSource, bool) {
+	if len(loc.Pieces) == 2 &&
+		loc.Pieces[0].Size == 8 && loc.Pieces[1].Size == 8 {
+		r0, ok0 := loc.Pieces[0].Op.(ir.Register)
+		r1, ok1 := loc.Pieces[1].Op.(ir.Register)
+		if ok0 && ok1 && r0.Shift == 0 && r1.Shift == 0 {
+			return traceIDSource{
+				kind:    ctxLocRegisters,
+				regTab:  r0.RegNo,
+				regData: r1.RegNo,
+			}, true
+		}
+	}
+	if len(loc.Pieces) >= 1 {
+		if c, ok := loc.Pieces[0].Op.(ir.Cfa); ok {
+			return traceIDSource{kind: ctxLocStack, stackOffset: c.CfaOffset}, true
+		}
+	}
+	return traceIDSource{kind: ctxLocNone}, false
+}
+
 // Generates a function called when a probe (represented by the root type)
 // is triggered with a particular event (injectionPC). The function
 // dispatches expression handlers.
@@ -286,10 +377,15 @@ func (g *generator) addEventHandler(
 	eventKind ir.EventKind,
 	condition *ir.Expression,
 	throttleMode ThrottleMode,
+	traceIDSrc traceIDSource,
 ) error {
 	id := ProcessEvent{
 		InjectionPC:         injectionPoint.PC,
 		ThrottlerIdx:        throttlerIdx,
+		CtxLocKind:          traceIDSrc.kind,
+		CtxRegTab:           traceIDSrc.regTab,
+		CtxRegData:          traceIDSrc.regData,
+		CtxStackOffset:      traceIDSrc.stackOffset,
 		PointerChasingLimit: captureConfig.GetMaxReferenceDepth(),
 		CollectionSizeLimit: captureConfig.GetMaxCollectionSize(),
 		// StringSizeLimit is forwarded as configured. The BPF stack

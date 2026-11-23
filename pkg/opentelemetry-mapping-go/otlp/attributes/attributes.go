@@ -16,6 +16,7 @@
 package attributes
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -75,6 +76,9 @@ var (
 		string(semconv1_27.AWSECSClusterARNKey):   "ecs_cluster_name",
 		string(semconv1_27.AWSECSTaskRevisionKey): "task_version",
 		string(semconv1_27.AWSECSContainerARNKey): "ecs_container_name",
+
+		// EKS conventions
+		string(semconv1_27.AWSEKSClusterARNKey): "eks_cluster_arn",
 
 		// Kubernetes resource name (via semantic conventions)
 		// https://github.com/DataDog/datadog-agent/blob/e081bed/pkg/util/kubernetes/const.go
@@ -270,13 +274,31 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 			"name:"+appService.name,
 			"subscription_id:"+appService.subscriptionID,
 			"resource_group:"+appService.resourceGroup,
-			"instance:"+appService.instanceID,
 		)
+	}
+
+	if src, ok := awsLambdaSourceFromAttributes(attrs); ok {
+		tags = appendSourceDimensions(tags, src)
+	}
+
+	if src, ok := gcpCloudRunJobsSourceFromAttributes(attrs); ok {
+		tags = appendSourceDimensions(tags, src)
+	}
+
+	if src, ok := gcpServerlessSourceFromAttributes(attrs); ok {
+		tags = appendSourceDimensions(tags, src)
 	}
 
 	tags = append(tags, processAttributes.extractTags()...)
 	tags = append(tags, systemAttributes.extractTags()...)
 
+	return tags
+}
+
+func appendSourceDimensions(tags []string, src source.Source) []string {
+	for key, value := range src.SourceIdentifier.Dimensions {
+		tags = append(tags, key+":"+value)
+	}
 	return tags
 }
 
@@ -748,21 +770,83 @@ func GetSpecifiedKeysFromOTelAttributes(signalAttrs pcommon.Map, resourceAttrs p
 
 // GetHost returns the DD hostname based on OTel resource attributes.
 func GetHost(resourceAttrs pcommon.Map, fallbackHost string) string {
+	if IsGCPServerless(resourceAttrs) {
+		return ""
+	}
 	src, srcok := SourceFromAttrs(resourceAttrs, nil)
 	if !srcok {
 		if v := GetOTelAttrVal(resourceAttrs, false, "_dd.hostname"); v != "" {
-			src = source.Source{Kind: source.HostnameKind, Identifier: v}
+			src = source.Source{
+				Kind:             source.HostnameKind,
+				SourceIdentifier: source.SourceIdentifier{Primary: v},
+			}
 			srcok = true
 		}
 	}
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			return src.Identifier
+			return src.SourceIdentifier.Primary
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			return ""
 		}
 	}
 	return fallbackHost
+}
+
+// azureResourceID holds the fields extracted from an Azure ARM resource ID.
+type azureResourceID struct {
+	SubscriptionID    string
+	ResourceGroup     string
+	ProviderNamespace string
+	ResourceType      string
+	ResourceName      string
+}
+
+func (id azureResourceID) matches(providerNamespace, resourceType string) bool {
+	return strings.EqualFold(id.ProviderNamespace, providerNamespace) &&
+		strings.EqualFold(id.ResourceType, resourceType)
+}
+
+// parseAzureResourceID parses the cloud.resource_id string for Azure resources
+// that match: /subscriptions/{sub}/resourceGroups/{rg}/providers/{provider}/{type}/{name}
+// (e.g. Azure Container Apps: .../containerApps/{name}).
+func parseAzureResourceID(resourceID string) (azureResourceID, error) {
+	if resourceID == "" {
+		return azureResourceID{}, errors.New("empty resource ID")
+	}
+
+	parts := strings.Split(resourceID, "/")
+	// Example: /subscriptions/11111111.../resourceGroups/rg-name/providers/Microsoft.Web/sites/site-name
+	// parts[0] = ""
+	// parts[1] = "subscriptions"
+	// parts[2] = "11111111..."
+	// parts[3] = "resourceGroups"
+	// parts[4] = "rg-name"
+	// parts[5] = "providers"
+	// parts[6] = "Microsoft.App" (or Microsoft.Web)
+	// parts[7] = "containerApps" (or sites)
+	// parts[8] = "site-name"
+
+	if len(parts) < 9 ||
+		parts[0] != "" ||
+		!strings.EqualFold(parts[1], "subscriptions") ||
+		parts[2] == "" ||
+		!strings.EqualFold(parts[3], "resourceGroups") ||
+		parts[4] == "" ||
+		!strings.EqualFold(parts[5], "providers") ||
+		parts[6] == "" ||
+		parts[7] == "" ||
+		parts[8] == "" {
+		return azureResourceID{}, errors.New("invalid Azure resource ID format: " + resourceID)
+	}
+
+	return azureResourceID{
+		SubscriptionID:    parts[2],
+		ResourceGroup:     parts[4],
+		ProviderNamespace: parts[6],
+		ResourceType:      parts[7],
+		ResourceName:      parts[8],
+	}, nil
 }

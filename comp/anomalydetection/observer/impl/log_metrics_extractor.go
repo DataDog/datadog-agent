@@ -7,28 +7,42 @@ package observerimpl
 
 import (
 	"encoding/json"
-	"strconv"
+	"math"
 	"strings"
 	"unicode"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/logsignature"
+	pkgmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // LogMetricsExtractorConfig holds configuration for the LogMetricsExtractor.
 type LogMetricsExtractorConfig struct {
-	// MaxEvalBytes caps how many bytes we evaluate for unstructured signature generation (0 = no cap).
-	MaxEvalBytes int
+	MaxEvalBytes       int     `json:"max_eval_bytes,omitempty"`
+	MinTokenMatchRatio float64 `json:"min_token_match_ratio,omitempty"`
+
+	// Cache bounds are internal; non-positive values use the defaults.
+	maxPatterns           int
+	maxPatternsPerGroup   int
+	maxTagGroups          int
+	patternIdleTTLSeconds int64
 
 	// IncludeFields, if non-empty, restricts JSON numeric extraction to these field names.
-	IncludeFields map[string]struct{}
+	IncludeFields map[string]struct{} `json:"include_fields,omitempty"`
 	// ExcludeFields always excludes JSON fields from numeric extraction.
-	ExcludeFields map[string]struct{}
+	ExcludeFields map[string]struct{} `json:"exclude_fields,omitempty"`
 }
 
 // DefaultLogMetricsExtractorConfig returns a LogMetricsExtractorConfig with default values.
 func DefaultLogMetricsExtractorConfig() LogMetricsExtractorConfig {
 	return LogMetricsExtractorConfig{
-		MaxEvalBytes: 4096,
+		MaxEvalBytes:          4096,
+		MinTokenMatchRatio:    0.6,
+		maxPatterns:           3000,
+		maxPatternsPerGroup:   1024,
+		maxTagGroups:          256,
+		patternIdleTTLSeconds: 4 * 60 * 60,
 		ExcludeFields: map[string]struct{}{
 			"timestamp": {}, "ts": {}, "time": {},
 			"pid": {}, "ppid": {}, "uid": {}, "gid": {},
@@ -43,36 +57,110 @@ const LogMetricsExtractorName = "log_metrics_extractor"
 // - JSON logs: numeric fields -> Avg aggregation
 // - Unstructured logs: pattern frequency -> Sum aggregation
 //
-// This is intentionally minimal; cardinality controls live in the observer storage (Step 5).
+// The engine is the single writer; the cache reuses tokenizer scratch and
+// retains only bounded, owned representatives.
 type LogMetricsExtractor struct {
-	config LogMetricsExtractorConfig
+	config    LogMetricsExtractorConfig
+	patterns  *logsignature.Cache
+	telemetry *observerTelemetry
 }
 
-// NewLogMetricsExtractor creates a LogMetricsExtractor with the given config.
+// resolveLogMetricsExtractorConfig applies bounded defaults before ingestion.
+func resolveLogMetricsExtractorConfig(config LogMetricsExtractorConfig) LogMetricsExtractorConfig {
+	defaults := DefaultLogMetricsExtractorConfig()
+	if config.MaxEvalBytes <= 0 {
+		config.MaxEvalBytes = defaults.MaxEvalBytes
+	}
+	if config.MinTokenMatchRatio <= 0 || config.MinTokenMatchRatio > 1 || math.IsNaN(config.MinTokenMatchRatio) {
+		config.MinTokenMatchRatio = defaults.MinTokenMatchRatio
+	}
+	if config.maxPatterns <= 0 {
+		config.maxPatterns = defaults.maxPatterns
+	}
+	if config.maxPatternsPerGroup <= 0 {
+		config.maxPatternsPerGroup = defaults.maxPatternsPerGroup
+	}
+	if config.maxTagGroups <= 0 {
+		config.maxTagGroups = defaults.maxTagGroups
+	}
+	if config.patternIdleTTLSeconds <= 0 {
+		config.patternIdleTTLSeconds = defaults.patternIdleTTLSeconds
+	}
+	return config
+}
+
+// NewLogMetricsExtractor constructs a bounded pattern cache and JSON field extractor.
 func NewLogMetricsExtractor(config LogMetricsExtractorConfig) *LogMetricsExtractor {
-	return &LogMetricsExtractor{config: config}
+	config = resolveLogMetricsExtractorConfig(config)
+	return &LogMetricsExtractor{config: config, patterns: logsignature.NewCache(logsignature.CacheConfig{
+		MaxEvalBytes: config.MaxEvalBytes, MatchThreshold: config.MinTokenMatchRatio,
+		MaxPatterns: config.maxPatterns, MaxPatternsPerGroup: config.maxPatternsPerGroup,
+		MaxGroups: config.maxTagGroups, IdleTTLSeconds: config.patternIdleTTLSeconds,
+	})}
+}
+
+// Reset drops cached representatives when the engine resets its series.
+func (a *LogMetricsExtractor) Reset() {
+	a.patterns.Reset()
+	if a.telemetry != nil {
+		a.telemetry.setLogMetricsPatternCount(0)
+	}
+}
+
+// SetObserverTelemetry publishes the active pattern count without scanning.
+func (a *LogMetricsExtractor) SetObserverTelemetry(t *observerTelemetry) {
+	a.telemetry = t
+	if t != nil {
+		t.setLogMetricsPatternCount(a.patterns.Len())
+	}
+}
+
+func logMetricsGroup(log observer.LogView) logsignature.Group {
+	var group logsignature.Group
+	for _, tag := range log.Tags() {
+		key, value, ok := strings.Cut(tag, ":")
+		if !ok {
+			continue
+		}
+		switch key {
+		case "source":
+			group.Source = value
+		case "service":
+			group.Service = value
+		case "env":
+			group.Env = value
+		case "host":
+			group.Host = value
+		}
+	}
+	if group.Host == "" {
+		group.Host = log.GetHostname()
+	}
+	return group
 }
 
 func (a *LogMetricsExtractor) Name() string { return LogMetricsExtractorName }
 
 func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetricsExtractorOutput {
 	content := log.GetContent()
-	tags := log.Tags()
+	tags := tagset.CompositeTagsFromSlice(log.Tags())
 
-	// Always emit pattern frequency metric for all logs
-	patternSig := logSignature(content, a.config.MaxEvalBytes)
-	if patternSig == "" {
-		return observer.LogMetricsExtractorOutput{}
+	pattern, evicted := a.patterns.Match(logMetricsGroup(log), content, log.GetTimestampUnixMilli()/1000)
+	if a.telemetry != nil {
+		a.telemetry.setLogMetricsPatternCount(a.patterns.Len())
+	}
+	if pattern == nil {
+		return observer.LogMetricsExtractorOutput{EvictedMetricNames: evicted}
 	}
 
-	metricName := patternCountMetricName(patternSig)
-
 	metrics := []observer.MetricOutput{{
-		Name:  metricName,
-		Value: 1,
-		Tags:  tags,
-		Context: &observer.MetricContext{
-			Pattern: patternSig,
+		Name:       pattern.SeriesName,
+		Value:      1,
+		MetricType: pkgmetrics.CountType,
+		Tags:       tags,
+		HasContext: true,
+		Context: observer.MetricContext{
+			Pattern: pattern.Signature,
 			Example: content,
 			Source:  "log_metrics_extractor",
 		},
@@ -83,7 +171,7 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
 	}
 
-	return observer.LogMetricsExtractorOutput{Metrics: metrics}
+	return observer.LogMetricsExtractorOutput{Metrics: metrics, EvictedMetricNames: evicted}
 }
 
 func isJSONObject(s string) bool {
@@ -92,7 +180,7 @@ func isJSONObject(s string) bool {
 }
 
 // extractJSONFieldMetrics extracts numeric field metrics from JSON content.
-func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags []string) []observer.MetricOutput {
+func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags tagset.CompositeTags) []observer.MetricOutput {
 	dec := json.NewDecoder(strings.NewReader(content))
 	dec.UseNumber()
 
@@ -121,10 +209,12 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags []str
 		}
 
 		out = append(out, observer.MetricOutput{
-			Name:  "log.field." + sanitizeMetricFragment(k),
-			Value: f,
-			Tags:  tags,
-			Context: &observer.MetricContext{
+			Name:       "log.field." + sanitizeMetricFragment(k),
+			Value:      f,
+			MetricType: pkgmetrics.GaugeType,
+			Tags:       tags,
+			HasContext: true,
+			Context: observer.MetricContext{
 				Pattern: k,
 				Example: example,
 				Source:  "log_metrics_extractor",
@@ -162,10 +252,6 @@ func coerceNumber(v any) (float64, bool) {
 	}
 }
 
-func patternCountMetricName(signature string) string {
-	return "log.pattern." + strconv.FormatUint(fnv64aString(signature), 16) + ".count"
-}
-
 func sanitizeMetricFragment(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -188,333 +274,4 @@ func sanitizeMetricFragment(s string) string {
 		}
 	}
 	return b.String()
-}
-
-// ---------------------------------------------------------------------------
-// Inlined log signature generation (avoids dependency on pkg/logs/pattern)
-// ---------------------------------------------------------------------------
-
-// maxRun is the maximum run of a char or digit before it is capped.
-const maxRun = 10
-
-// Token types for log signature generation
-type sigToken byte
-
-const (
-	tokSpace sigToken = iota
-	tokColon
-	tokSemicolon
-	tokDash
-	tokUnderscore
-	tokFslash
-	tokBslash
-	tokPeriod
-	tokComma
-	tokSinglequote
-	tokDoublequote
-	tokBacktick
-	tokTilda
-	tokStar
-	tokPlus
-	tokEqual
-	tokParenopen
-	tokParenclose
-	tokBraceopen
-	tokBraceclose
-	tokBracketopen
-	tokBracketclose
-	tokAmpersand
-	tokExclamation
-	tokAt
-	tokPound
-	tokDollar
-	tokPercent
-	tokUparrow
-	// Digit runs D1..D10
-	tokD1
-	tokD2
-	tokD3
-	tokD4
-	tokD5
-	tokD6
-	tokD7
-	tokD8
-	tokD9
-	tokD10
-	// Char runs C1..C10
-	tokC1
-	tokC2
-	tokC3
-	tokC4
-	tokC5
-	tokC6
-	tokC7
-	tokC8
-	tokC9
-	tokC10
-	// Special tokens
-	tokMonth
-	tokDay
-	tokApm
-	tokZone
-	tokT
-	tokEnd
-)
-
-// logSignature returns a deterministic signature for the input string, capped to maxEvalBytes if > 0.
-func logSignature(input string, maxEvalBytes int) string {
-	if len(input) == 0 {
-		return ""
-	}
-	maxBytes := len(input)
-	if maxEvalBytes > 0 && maxBytes > maxEvalBytes {
-		maxBytes = maxEvalBytes
-	}
-	input = input[:maxBytes]
-
-	var out strings.Builder
-	out.Grow(len(input))
-
-	var buf [maxRun]byte
-	bufLen := 0
-	resetBuf := func() { bufLen = 0 }
-	appendBuf := func(b byte) {
-		if bufLen < len(buf) {
-			if b >= 'a' && b <= 'z' {
-				b = b - 'a' + 'A'
-			}
-			buf[bufLen] = b
-			bufLen++
-		}
-	}
-
-	run := 0
-	lastToken := getTokenType(input[0])
-	resetBuf()
-	appendBuf(input[0])
-
-	insertToken := func() {
-		defer func() {
-			run = 0
-			resetBuf()
-		}()
-
-		if lastToken == tokC1 {
-			if bufLen == 1 {
-				if specialToken := getSpecialShortToken(buf[0]); specialToken != tokEnd {
-					out.WriteString(sigTokenToString(specialToken))
-					return
-				}
-			} else if bufLen > 1 {
-				if specialToken := getSpecialLongToken(string(buf[:bufLen])); specialToken != tokEnd {
-					out.WriteString(sigTokenToString(specialToken))
-					return
-				}
-			}
-		}
-
-		if lastToken == tokC1 || lastToken == tokD1 {
-			if run >= maxRun {
-				run = maxRun - 1
-			}
-			out.WriteString(sigTokenToString(lastToken + sigToken(run)))
-			return
-		}
-
-		out.WriteString(sigTokenToString(lastToken))
-	}
-
-	for i := 1; i < len(input); i++ {
-		char := input[i]
-		currentToken := getTokenType(char)
-		if currentToken != lastToken {
-			insertToken()
-		} else {
-			run++
-		}
-		appendBuf(char)
-		lastToken = currentToken
-	}
-	insertToken()
-
-	return out.String()
-}
-
-func getTokenType(char byte) sigToken {
-	if unicode.IsDigit(rune(char)) {
-		return tokD1
-	} else if unicode.IsSpace(rune(char)) {
-		return tokSpace
-	}
-
-	switch char {
-	case ':':
-		return tokColon
-	case ';':
-		return tokSemicolon
-	case '-':
-		return tokDash
-	case '_':
-		return tokUnderscore
-	case '/':
-		return tokFslash
-	case '\\':
-		return tokBslash
-	case '.':
-		return tokPeriod
-	case ',':
-		return tokComma
-	case '\'':
-		return tokSinglequote
-	case '"':
-		return tokDoublequote
-	case '`':
-		return tokBacktick
-	case '~':
-		return tokTilda
-	case '*':
-		return tokStar
-	case '+':
-		return tokPlus
-	case '=':
-		return tokEqual
-	case '(':
-		return tokParenopen
-	case ')':
-		return tokParenclose
-	case '{':
-		return tokBraceopen
-	case '}':
-		return tokBraceclose
-	case '[':
-		return tokBracketopen
-	case ']':
-		return tokBracketclose
-	case '&':
-		return tokAmpersand
-	case '!':
-		return tokExclamation
-	case '@':
-		return tokAt
-	case '#':
-		return tokPound
-	case '$':
-		return tokDollar
-	case '%':
-		return tokPercent
-	case '^':
-		return tokUparrow
-	}
-
-	return tokC1
-}
-
-func getSpecialShortToken(char byte) sigToken {
-	switch char {
-	case 'T':
-		return tokT
-	case 'Z':
-		return tokZone
-	}
-	return tokEnd
-}
-
-func getSpecialLongToken(input string) sigToken {
-	switch input {
-	case "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL",
-		"AUG", "SEP", "OCT", "NOV", "DEC":
-		return tokMonth
-	case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
-		return tokDay
-	case "AM", "PM":
-		return tokApm
-	case "UTC", "GMT", "EST", "EDT", "CST", "CDT",
-		"MST", "MDT", "PST", "PDT", "JST", "KST",
-		"IST", "MSK", "CEST", "CET", "BST", "NZST",
-		"NZDT", "ACST", "ACDT", "AEST", "AEDT",
-		"AWST", "AWDT", "AKST", "AKDT", "HST",
-		"HDT", "CHST", "CHDT", "NST", "NDT":
-		return tokZone
-	}
-	return tokEnd
-}
-
-func sigTokenToString(token sigToken) string {
-	if token >= tokD1 && token <= tokD10 {
-		return strings.Repeat("D", int(token-tokD1)+1)
-	} else if token >= tokC1 && token <= tokC10 {
-		return strings.Repeat("C", int(token-tokC1)+1)
-	}
-
-	switch token {
-	case tokSpace:
-		return " "
-	case tokColon:
-		return ":"
-	case tokSemicolon:
-		return ";"
-	case tokDash:
-		return "-"
-	case tokUnderscore:
-		return "_"
-	case tokFslash:
-		return "/"
-	case tokBslash:
-		return "\\"
-	case tokPeriod:
-		return "."
-	case tokComma:
-		return ","
-	case tokSinglequote:
-		return "'"
-	case tokDoublequote:
-		return "\""
-	case tokBacktick:
-		return "`"
-	case tokTilda:
-		return "~"
-	case tokStar:
-		return "*"
-	case tokPlus:
-		return "+"
-	case tokEqual:
-		return "="
-	case tokParenopen:
-		return "("
-	case tokParenclose:
-		return ")"
-	case tokBraceopen:
-		return "{"
-	case tokBraceclose:
-		return "}"
-	case tokBracketopen:
-		return "["
-	case tokBracketclose:
-		return "]"
-	case tokAmpersand:
-		return "&"
-	case tokExclamation:
-		return "!"
-	case tokAt:
-		return "@"
-	case tokPound:
-		return "#"
-	case tokDollar:
-		return "$"
-	case tokPercent:
-		return "%"
-	case tokUparrow:
-		return "^"
-	case tokMonth:
-		return "MTH"
-	case tokDay:
-		return "DAY"
-	case tokApm:
-		return "PM"
-	case tokT:
-		return "T"
-	case tokZone:
-		return "ZONE"
-	}
-	return ""
 }

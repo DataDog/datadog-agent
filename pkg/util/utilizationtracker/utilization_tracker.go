@@ -12,17 +12,36 @@ import (
 	"github.com/benbjohnson/clock"
 )
 
-type trackerEvent int
+type trackerEventKind int
 
 const (
-	started trackerEvent = iota
+	started trackerEventKind = iota
 	stopped
 	trackerTick
 )
 
+// trackerEvent is sent over eventsChan to drive the tracker's state machine.
+// excluded is only meaningful for the started kind.
+type trackerEvent struct {
+	kind     trackerEventKind
+	excluded bool
+}
+
+// Value is a utilization reading produced on a tracker's Output channel.
+type Value struct {
+	// Utilization is the utilization fraction as of this reading.
+	Utilization float64
+	// Excluded is true when the work in progress at the time of this reading
+	// was marked as excluded via Started. Callers that aggregate utilization
+	// across multiple components can use this to skip readings that are not
+	// representative of normal load, e.g. a unit of work expected to occupy
+	// the component indefinitely.
+	Excluded bool
+}
+
 // UtilizationTracker tracks the utilization of a component.
 type UtilizationTracker struct {
-	Output chan float64
+	Output chan Value
 
 	eventsChan chan trackerEvent
 
@@ -30,6 +49,9 @@ type UtilizationTracker struct {
 	busy time.Duration
 	// value is the utilization fraction as observed at the last tick
 	value float64
+	// excluded mirrors the excluded flag passed to the most recent Started
+	// call, and applies until the matching Finished call.
+	excluded bool
 	// alpha is the ewma smoothing factor.
 	alpha float64
 
@@ -46,17 +68,17 @@ func NewUtilizationTracker(
 	interval time.Duration,
 	alpha float64,
 ) *UtilizationTracker {
-	return newUtilizationTrackerWithClock(
+	return NewUtilizationTrackerWithClock(
 		interval,
 		clock.New(),
 		alpha,
 	)
 }
 
-// newUtilizationTrackerWithClock is primarely used for testing.
-// Does not start the background goroutines, so that the tests can call update() to get
-// deterministic results.
-func newUtilizationTrackerWithClock(interval time.Duration, clk clock.Clock, alpha float64) *UtilizationTracker {
+// NewUtilizationTrackerWithClock instantiates a tracker driven by the given clock,
+// so that callers (tests, or callers that need to coordinate their own tick timing
+// deterministically) can control the passage of time.
+func NewUtilizationTrackerWithClock(interval time.Duration, clk clock.Clock, alpha float64) *UtilizationTracker {
 	ut := &UtilizationTracker{
 		clock: clk,
 
@@ -65,7 +87,7 @@ func newUtilizationTrackerWithClock(interval time.Duration, clk clock.Clock, alp
 		nextTick: clk.Now(),
 		interval: interval,
 		alpha:    alpha,
-		Output:   make(chan float64, 1),
+		Output:   make(chan Value, 1),
 	}
 
 	go ut.run()
@@ -82,13 +104,15 @@ func (ut *UtilizationTracker) run() {
 		ut.update(now)
 		// invariant: ut.nextTick > now
 
-		switch ev {
+		switch ev.kind {
 		case started:
 			// invariant: ut.nextTick > ut.started
 			ut.started = now
+			ut.excluded = ev.excluded
 		case stopped:
 			ut.busy += now.Sub(ut.started)
 			ut.started = time.Time{}
+			ut.excluded = false
 		case trackerTick:
 			// nothing, just tick
 		}
@@ -110,7 +134,7 @@ func (ut *UtilizationTracker) update(now time.Time) {
 		ut.nextTick = ut.nextTick.Add(ut.interval)
 	}
 	// invariant: ut.nextTick > now
-	ut.Output <- ut.value
+	ut.Output <- Value{Utilization: ut.value, Excluded: ut.excluded}
 }
 
 // Stop should be invoked when a component is about to exit
@@ -124,15 +148,16 @@ func (ut *UtilizationTracker) Stop() {
 //
 // Produces one value on the Output channel.
 func (ut *UtilizationTracker) Tick() {
-	ut.eventsChan <- trackerTick
+	ut.eventsChan <- trackerEvent{kind: trackerTick}
 }
 
 // Started should be invoked when a compnent's work is about to being so that we can track the
-// start time and the utilization.
+// start time and the utilization. Pass excluded=true when this unit of work should be flagged
+// as excluded (see Value.Excluded) on every reading produced until the matching Finished call.
 //
 // Produces one value on the Output channel.
-func (ut *UtilizationTracker) Started() {
-	ut.eventsChan <- started
+func (ut *UtilizationTracker) Started(excluded bool) {
+	ut.eventsChan <- trackerEvent{kind: started, excluded: excluded}
 }
 
 // Finished should be invoked when a compnent's work is complete so that we can calculate the
@@ -140,5 +165,5 @@ func (ut *UtilizationTracker) Started() {
 //
 // Produces one value on the Output channel.
 func (ut *UtilizationTracker) Finished() {
-	ut.eventsChan <- stopped
+	ut.eventsChan <- trackerEvent{kind: stopped}
 }

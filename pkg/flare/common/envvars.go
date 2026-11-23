@@ -41,6 +41,12 @@ var allowedEnvvarNames = []string{
 	"GOMAXPROCS",
 	"GOTRACEBACK",
 
+	// Go TLS trusted root certificate locations (see crypto/x509 in the Go
+	// standard library). These take precedence over the OS default locations
+	// on Unix systems and are a common cause of TLS trust issues.
+	"SSL_CERT_FILE",
+	"SSL_CERT_DIR",
+
 	// Trace agent
 	"DD_APM_ENABLED",
 	"DD_APM_NON_LOCAL_TRAFFIC",

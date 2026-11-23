@@ -243,8 +243,14 @@ func (t TransactionRetryQueueTelemetry) setTransactionsCount(count int) {
 	transactionsCountTelemetry.set(float64(count), t.domainName)
 }
 
-func (t TransactionRetryQueueTelemetry) addTransactionsDroppedCount(count int) {
-	transactionsDroppedCountTelemetry.add(float64(count), t.domainName)
+func (t TransactionRetryQueueTelemetry) addTransactionsDropped(transactions []transaction.Transaction) {
+	transactionsDroppedCountTelemetry.add(float64(len(transactions)), t.domainName)
+	transaction.TransactionsDropped.Add(int64(len(transactions)))
+	for _, tr := range transactions {
+		endpoint := tr.GetEndpointName()
+		transaction.TransactionsDroppedByEndpoint.Add(endpoint, 1)
+		transaction.TlmTxDropped.Inc(t.domainName, endpoint)
+	}
 }
 
 func (t TransactionRetryQueueTelemetry) incErrorsCount() {

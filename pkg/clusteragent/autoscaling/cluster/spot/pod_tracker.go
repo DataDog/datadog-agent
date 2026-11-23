@@ -46,6 +46,8 @@ type podInfo struct {
 //     the spot/on-demand decision before the pod is visible in Kubernetes.
 //   - The Kubernetes watch calls addedOrUpdated/deleted as pods appear
 //     converting in-flight admission counts into UID-keyed records.
+//     An admission whose pod creation was rejected never appears in the watch, so in-flight
+//     admission counts are cleared when pod set was not updated for admissionTTL.
 //
 // Pods are grouped first by top-level owner (e.g. Deployment) and then by direct owner
 // (e.g. ReplicaSet). This enables O(1) per-workload operations.
@@ -53,17 +55,19 @@ type podTracker struct {
 	defaultConfig workloadSpotConfig
 	configSource  func(objectRef) (workloadSpotConfig, bool)
 	telemetry     *telemetry
+	admissionTTL  time.Duration
 
 	mu              sync.RWMutex
 	podSets         map[objectRef]map[objectRef]*ownerPodSet
 	pendingSpotPods map[string]pendingSpotPod
 }
 
-func newPodTracker(defaultConfig workloadSpotConfig, configSource func(objectRef) (workloadSpotConfig, bool), tel *telemetry) *podTracker {
+func newPodTracker(defaultConfig workloadSpotConfig, configSource func(objectRef) (workloadSpotConfig, bool), tel *telemetry, admissionTTL time.Duration) *podTracker {
 	return &podTracker{
 		defaultConfig:   defaultConfig,
 		configSource:    configSource,
 		telemetry:       tel,
+		admissionTTL:    admissionTTL,
 		podSets:         make(map[objectRef]map[objectRef]*ownerPodSet),
 		pendingSpotPods: make(map[string]pendingSpotPod),
 	}
@@ -197,6 +201,7 @@ func (t *podTracker) deletePodLocked(o podOwnership, uid string) {
 
 // getPodSetLocked returns the ownerPodSet for the given ownership, creating it if absent,
 // and always applies the latest config from configSource to the returned pod set.
+// It drops expired in-flight admissions of an existing pod set.
 // When configSource has no entry for the top-level owner it removes
 // tracking state for the owner and returns (nil, false).
 // Must be called with t.mu held.
@@ -217,6 +222,8 @@ func (t *podTracker) getPodSetLocked(o podOwnership) (*ownerPodSet, bool) {
 	if !exists {
 		ps = t.newOwnerPodSet()
 		owners[o.directOwner] = ps
+	} else {
+		ps.expireAdmissions(t.admissionTTL)
 	}
 	ps.config = cfg
 	return ps, true
@@ -243,6 +250,9 @@ func (t *podTracker) getPodToDelete(rebalanceStabilizationPeriod time.Duration) 
 			ps.config = cfg
 			if ps.config.isDisabled(now) {
 				continue
+			}
+			if n := ps.expireAdmissions(t.admissionTTL); n > 0 {
+				log.Debugf("Expired %d in-flight admissions for %s that did not become pods", n, topLevel)
 			}
 			if uid, name, isSpot := ps.getPodToDelete(lastUpdatedBefore); uid != "" {
 				ps.lastUpdate = now // suppress re-selection until stabilization period elapses
@@ -332,7 +342,19 @@ func (ps *ownerPodSet) admit(isSpot bool) bool {
 	} else {
 		ps.admissionOnDemandCount++
 	}
+	ps.lastUpdate = time.Now()
 	return isSpot
+}
+
+// expireAdmissions clears in-flight admissions if the pod set was not updated for admissionTTL
+// and returns how many it cleared. Must be called before the update that refreshes lastUpdate.
+func (ps *ownerPodSet) expireAdmissions(admissionTTL time.Duration) int {
+	if !ps.hasAdmissions() || time.Since(ps.lastUpdate) <= admissionTTL {
+		return 0
+	}
+	n := ps.admissionSpotCount + ps.admissionOnDemandCount
+	ps.admissionSpotCount, ps.admissionOnDemandCount = 0, 0
+	return n
 }
 
 // track upserts the pod UID with its info, decrementing the in-flight admission count on first appearance.

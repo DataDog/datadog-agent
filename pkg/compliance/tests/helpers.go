@@ -30,6 +30,7 @@ type suite struct {
 	t        *testing.T
 	hostname string
 	rootDir  string
+	hostRoot string
 
 	dockerClient docker.APIClient
 	auditClient  compliance.LinuxAuditClient
@@ -64,6 +65,11 @@ func newTestBench(t *testing.T) *suite {
 
 func (s *suite) WithHostname(hostname string) *suite {
 	s.hostname = hostname
+	return s
+}
+
+func (s *suite) WithHostRoot(root string) *suite {
+	s.hostRoot = root
 	return s
 }
 
@@ -105,6 +111,7 @@ func (s *suite) Run() {
 		s.t.Run(c.name, func(t *testing.T) {
 			options := compliance.ResolverOptions{
 				Hostname: s.hostname,
+				HostRoot: s.hostRoot,
 			}
 			if s.auditClient != nil {
 				options.LinuxAuditProvider = func(context.Context) (compliance.LinuxAuditClient, error) { return s.auditClient, nil }

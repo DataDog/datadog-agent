@@ -1,0 +1,14 @@
+description: Cut handles lines with consecutive delimiters producing empty fields.
+setup:
+  files:
+    - path: input.txt
+      content: ":::\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -d: -f1-3 input.txt
+expect:
+  stdout: "::\n"
+  stderr: ""
+  exit_code: 0

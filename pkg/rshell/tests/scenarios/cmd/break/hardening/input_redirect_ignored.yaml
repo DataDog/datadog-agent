@@ -1,0 +1,21 @@
+# skip: allowed_paths setup is rshell-specific; bash parity for loop-control itself is covered elsewhere.
+skip_assert_against_bash: true
+description: Break ignores redirected stdin from an allowed file and does not leak its contents.
+setup:
+  files:
+    - path: allowed/secret.txt
+      content: |
+        TOP SECRET
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    for i in 1; do
+      break < allowed/secret.txt
+      echo TOP SECRET
+    done
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

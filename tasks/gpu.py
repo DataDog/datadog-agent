@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import tempfile
 import traceback
@@ -12,6 +13,7 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.libs.common.auth import datadog_infra_token, dd_auth_api_app_keys
+from tasks.libs.common.utils import join_command
 from tasks.schema.generate import schema_codegen
 
 SPEC_PACKAGE = "./pkg/collector/corechecks/gpu/spec"
@@ -27,6 +29,8 @@ DEFAULT_METRICS_LIST_PATH = "gpu_metrics.tsv"
 VALIDATOR_PACKAGE = f"{SPEC_PACKAGE}/metrics-validator"
 VALIDATOR_BINARY = f"{VALIDATOR_PACKAGE}/gpu-metrics-validator"
 VALIDATOR_SITE = "datadoghq.com"
+RELEASE_BRANCH_RE = re.compile(r"^(?P<major>\d+)\.(?P<minor>\d+)\.x$")
+RELEASE_CANDIDATE_TAG_RE = re.compile(r"^(?P<version>\d+\.\d+\.(?P<patch>\d+))-rc\.?\d+$")
 GPU_BURNER_BRANCH = "main"
 GPU_BURNER_VERSION = "87719309"
 MASS_READ_URL = "https://mass-read.us1.ddbuild.io/internal/artifact"
@@ -47,6 +51,32 @@ def build_binary(ctx, package: str, output_path: str, label: str) -> str:
 
     ctx.run(f"go build -o {shlex.quote(output_path)} {package}")
     return output_path
+
+
+def agent_version_from_branch(ctx) -> str:
+    branch = ctx.run("git branch --show-current", hide=True).stdout.strip()
+    branch_match = RELEASE_BRANCH_RE.fullmatch(branch)
+    if branch_match is None:
+        raise Exit(message=f"cannot derive agent version: branch {branch!r} is not a release branch")
+
+    tag_pattern = f"{branch_match['major']}.{branch_match['minor']}.*"
+    list_tags = join_command(["git", "tag", "--list", tag_pattern, "--sort=-v:refname"])
+    tags = ctx.run(list_tags, hide=True).stdout.splitlines()
+    if not tags:
+        ctx.run("git fetch --tags")
+        tags = ctx.run(list_tags, hide=True).stdout.splitlines()
+    if not tags:
+        raise Exit(message=f"cannot derive agent version: no tags found for branch {branch!r}")
+
+    tag = tags[0]
+    tag_match = RELEASE_CANDIDATE_TAG_RE.fullmatch(tag)
+    if tag_match is None:
+        raise Exit(message=f"cannot derive agent version: latest tag {tag!r} is not a release candidate")
+
+    version = tag_match["version"]
+    if tag_match["patch"] == "0":
+        return version.rsplit(".", 1)[0] + ".*"
+    return version + "*"
 
 
 @task(
@@ -95,10 +125,17 @@ def download_gpu_burner(ctx, output_path: str):
     help={
         "lookback_seconds": "Metrics lookback window in seconds",
         "org": "Datadog org filter: prod, staging. If not provided, use all configured orgs",
+        "agent_version": "Agent image-tag wildcard to validate (default: derive from the current release branch)",
         "metric_filter": "Additional Datadog metric filter expression, ANDed with the GPU config filter",
     },
 )
-def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None, metric_filter: str | None = None):
+def validate_metrics(
+    ctx,
+    lookback_seconds=3600,
+    org: str | None = None,
+    agent_version: str | None = None,
+    metric_filter: str | None = None,
+):
     """
     Validate live GPU metrics for the selected Datadog org(s).
     """
@@ -115,6 +152,9 @@ def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None, metric_
     else:
         orgs = list(orgs_by_name.values())
 
+    if agent_version is None:
+        agent_version = agent_version_from_branch(ctx)
+
     binary_path = build_binary(ctx, VALIDATOR_PACKAGE, VALIDATOR_BINARY, "validator")
     results: ValidationResults | None = None
     org_errors: list[str] = []
@@ -126,16 +166,21 @@ def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None, metric_
                 dd_auth_api_app_keys(ctx, dd_auth_domain) as _,
                 tempfile.NamedTemporaryFile(prefix="gpu-metrics-validator-", suffix=".json") as tmp,
             ):
-                command = (
-                    f"{shlex.quote(binary_path)} "
-                    f"--site {shlex.quote(VALIDATOR_SITE)} "
-                    f"--lookback-seconds {int(lookback_seconds)} "
-                    f"--output-file {shlex.quote(tmp.name)}"
-                )
+                args = [
+                    binary_path,
+                    "--site",
+                    VALIDATOR_SITE,
+                    "--lookback-seconds",
+                    str(int(lookback_seconds)),
+                    "--output-file",
+                    tmp.name,
+                ]
+                if agent_version:
+                    args += ["--agent-version", agent_version]
                 if metric_filter:
-                    command += f" --metric-filter {shlex.quote(metric_filter)}"
+                    args += ["--metric-filter", metric_filter]
                 print(" - running validator...")
-                res = ctx.run(command, warn=True)
+                res = ctx.run(join_command(args), warn=True)
                 result = validation_results_from_dict(json.load(tmp), site=VALIDATOR_SITE)
 
                 if results is None:
@@ -172,7 +217,7 @@ def update_metrics_allowlist(ctx, allowlist_path: str = DEFAULT_ALLOWLIST_PATH):
     Update the GPU metrics entries in the standard metric allowlist.
     """
     binary_path = build_binary(ctx, ALLOWLIST_PACKAGE, ALLOWLIST_BINARY, "allowlist updater")
-    command = f"{shlex.quote(binary_path)} " f"--allowlist-path {shlex.quote(allowlist_path)}"
+    command = f"{shlex.quote(binary_path)} --allowlist-path {shlex.quote(allowlist_path)}"
     print(f"== Updating GPU metric allowlist at {allowlist_path} ==")
     ctx.run(command)
 
@@ -220,6 +265,6 @@ def generate_metrics_list(
     Generate a GPU metrics list TSV from the shared GPU spec.
     """
     binary_path = build_binary(ctx, METRICS_LIST_PACKAGE, METRICS_LIST_BINARY, "metrics list generator")
-    command = f"{shlex.quote(binary_path)} " f"--output-path {shlex.quote(output_path)}"
+    command = f"{shlex.quote(binary_path)} --output-path {shlex.quote(output_path)}"
     print(f"== Generating GPU metrics list TSV at {output_path} ==")
     ctx.run(command)

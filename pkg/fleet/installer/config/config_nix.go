@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,7 +50,7 @@ func (d *Directories) GetState() (State, error) {
 
 // WriteExperiment writes the experiment to the directories.
 func (d *Directories) WriteExperiment(ctx context.Context, operations Operations) error {
-	err := os.RemoveAll(d.ExperimentPath)
+	err := paths.RemoveAll(ctx, d.ExperimentPath)
 	if err != nil {
 		return err
 	}
@@ -85,8 +86,8 @@ func (d *Directories) PromoteExperiment(_ context.Context) error {
 }
 
 // RemoveExperiment removes the experiment from the directories.
-func (d *Directories) RemoveExperiment(_ context.Context) error {
-	err := os.RemoveAll(d.ExperimentPath)
+func (d *Directories) RemoveExperiment(ctx context.Context) error {
+	err := paths.RemoveAll(ctx, d.ExperimentPath)
 	if err != nil {
 		return err
 	}

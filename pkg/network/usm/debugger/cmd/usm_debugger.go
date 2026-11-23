@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build usm_debugger
+//go:build usm_debugger && linux && bpf
 
 package main
 
@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
@@ -46,7 +47,7 @@ func main() {
 	go func() {
 		t := time.NewTicker(10 * time.Second)
 		for range t.C {
-			_, cleaners = monitor.GetProtocolStats()
+			_, cleaners := monitor.GetProtocolStats()
 			cleaners()
 		}
 	}()
@@ -66,13 +67,11 @@ func checkError(err error) {
 
 func getConfiguration() *networkconfig.Config {
 	// done for the purposes of initializing the configuration values
-	_, err := config.New("", "")
+	_, err := config.New("", "", &schemanoopimpl.SchemaNoop{})
 	checkError(err)
 
 	c := networkconfig.New()
 
-	// run debug version of the eBPF program
-	c.BPFDebug = true
 	c.EnableUSMEventStream = false
 
 	// don't buffer data in userspace

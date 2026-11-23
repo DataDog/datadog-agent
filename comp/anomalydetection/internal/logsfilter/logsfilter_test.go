@@ -187,3 +187,16 @@ func TestRateTierForBucket(t *testing.T) {
 	assert.Equal(t, "high", RateTierForBucket(ErrorPriority))
 	assert.Equal(t, "high", RateTierForBucket(CriticalPriority))
 }
+
+func TestRateWindowAllowAt_BoundariesAndNonAdvancingTime(t *testing.T) {
+	var w RateWindow
+	t0 := time.Unix(1_700_000_000, 0)
+
+	// 0.1/s over a 10s window allows exactly 1 log per window.
+	assert.True(t, w.AllowAt(0.1, t0))
+	assert.False(t, w.AllowAt(0.1, t0.Add(5*time.Second)))
+	// Non-advancing timestamp stays in the current window rather than resetting it.
+	assert.False(t, w.AllowAt(0.1, t0.Add(-1*time.Second)))
+	// At window boundary (10s), window resets and allows again.
+	assert.True(t, w.AllowAt(0.1, t0.Add(RateWindowDuration)))
+}

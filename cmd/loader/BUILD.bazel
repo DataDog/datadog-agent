@@ -3,41 +3,35 @@
 load("@rules_go//go:def.bzl", "go_library")
 load(
     "@rules_pkg//pkg:mappings.bzl",
-    "pkg_attributes",
-    "pkg_files",
+    "pkg_filegroup",
 )
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "LOADER_TAGS")
 
-package(default_visibility = ["//packages:__subpackages__"])
+package(
+    default_package_metadata = ["//:package_metadata"],
+    default_visibility = ["//packages:__subpackages__"],
+)
 
-pkg_files(
-    name = "trace_loader_all_files",
-    # Temporary: Point to prebuilt trace_loader. When we can stamp module deps
-    # in the file, swap to :loader and rename that as trace-loader.
-    srcs = select({
-        "//packages/agent:linux_default": [
-            "@trace_loader_binary//:trace_loader",
-        ],
-        "//packages/agent:linux_fips": [
-            "@trace_loader_binary//:trace_loader",
-        ],
-        # This shouldn't be needed in practice, but it is used by the systemd
-        # service, which is used when installing the deb manually.
-        "//packages/agent:linux_heroku": [
-            "main_noop.sh",
-        ],
-        "@platforms//os:macos": [
-            "@trace_loader_binary//:trace_loader",
-        ],
+exports_files(
+    ["main_noop.sh"],
+    visibility = ["//packages/heroku:__subpackages__"],
+)
+
+agent_binary_for_package(
+    name = "loader_binary",
+    prefix = "embedded/bin",
+    target = ":loader",
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
-    attributes = pkg_attributes(mode = "755"),
-    prefix = "embedded/bin",
-    renames = select({
-        "//packages/agent:linux_heroku": {":main_noop.sh": "trace-loader"},
-        "//conditions:default": {},
-    }),
+)
+
+pkg_filegroup(
+    name = "trace_loader_all_files",
+    srcs = [":loader_binary"],
 )
 
 go_library(
@@ -53,6 +47,7 @@ go_library(
         "@rules_go//go/platform:android": [
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
+            "//comp/core/schema/noop-impl",
             "//comp/core/secrets/noop-impl/types",
             "//comp/otelcol/otlp/configcheck",
             "//pkg/config/env",
@@ -68,6 +63,7 @@ go_library(
         "@rules_go//go/platform:darwin": [
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
+            "//comp/core/schema/noop-impl",
             "//comp/core/secrets/noop-impl/types",
             "//comp/otelcol/otlp/configcheck",
             "//pkg/config/env",
@@ -83,6 +79,7 @@ go_library(
         "@rules_go//go/platform:ios": [
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
+            "//comp/core/schema/noop-impl",
             "//comp/core/secrets/noop-impl/types",
             "//comp/otelcol/otlp/configcheck",
             "//pkg/config/env",
@@ -98,6 +95,7 @@ go_library(
         "@rules_go//go/platform:linux": [
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
+            "//comp/core/schema/noop-impl",
             "//comp/core/secrets/noop-impl/types",
             "//comp/otelcol/otlp/configcheck",
             "//pkg/config/env",
@@ -114,9 +112,9 @@ go_library(
     }),
 )
 
-# TODO(ABLD-294): Rename to trace-loader and use this instead of @trace_loader_binary//:trace_loader
 dd_agent_go_binary(
     name = "loader",
+    basename = "trace-loader",
     embed = [":loader_lib"],
     # LOADER_TAGS is actually empty. We're including it to keep a consistent style.
     exact_gotags = list(LOADER_TAGS) + select({

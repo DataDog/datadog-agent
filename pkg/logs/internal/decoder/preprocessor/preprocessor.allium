@@ -65,7 +65,7 @@
 --     abstract contract describes the steady-state per-line flow
 --     only.
 
-use "./tokenizer.allium" as tokenizer
+use "../../../tokenizer/tokenizer.allium" as tokenizer
 
 ------------------------------------------------------------
 -- Value Types

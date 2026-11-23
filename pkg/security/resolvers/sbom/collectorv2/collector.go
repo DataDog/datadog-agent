@@ -11,7 +11,12 @@ package collectorv2
 import (
 	"context"
 	"errors"
+	"fmt"
+	"hash/fnv"
 	"os"
+	"slices"
+	"strconv"
+	"strings"
 
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -57,5 +62,47 @@ func (s *OSScanner) ScanInstalledPackages(ctx context.Context, root string) ([]s
 		}
 		pkgs = append(pkgs, result...)
 	}
+
+	for i := range pkgs {
+		// The dpkg entries of the architectures of a package share one slice.
+		files := make([]string, 0, len(pkgs[i].InstalledFiles))
+		for _, file := range pkgs[i].InstalledFiles {
+			if !isDoc(file) {
+				files = append(files, file)
+			}
+		}
+		pkgs[i].InstalledFiles = files
+	}
 	return pkgs, nil
+}
+
+// docDirs hold the documentation and translations of packages, which processes
+// read as data.
+var docDirs = []string{"/usr/share/doc/", "/usr/share/info/", "/usr/share/licenses/", "/usr/share/locale/", "/usr/share/man/"}
+
+func isDoc(path string) bool {
+	return slices.ContainsFunc(docDirs, func(dir string) bool {
+		return strings.HasPrefix(path, dir)
+	})
+}
+
+// databases lists the files the scanners read packages from.
+var databases = append(append([]string{statusPath, statusDPath, apkInstalledPath}, rpmdbPaths...), rpmdbWALs...)
+
+// Fingerprint digests the size and modification time of the package databases in
+// root, which every package change updates. It returns "" for a root it cannot open.
+func (s *OSScanner) Fingerprint(root string) string {
+	rootFS, err := os.OpenRoot(root)
+	if err != nil {
+		return ""
+	}
+	defer rootFS.Close()
+
+	h := fnv.New64a()
+	for _, db := range databases {
+		if info, err := rootFS.Stat(strings.TrimSuffix(db, "/")); err == nil {
+			fmt.Fprintf(h, "%s %d %d\n", db, info.Size(), info.ModTime().UnixNano())
+		}
+	}
+	return strconv.FormatUint(h.Sum64(), 16)
 }

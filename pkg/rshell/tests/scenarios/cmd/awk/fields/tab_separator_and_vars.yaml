@@ -1,0 +1,19 @@
+description: awk supports tab field separators, -v variables, and multi-file counters.
+setup:
+  files:
+    - path: one.tsv
+      content: |+
+        a	1
+    - path: two.tsv
+      content: |+
+        b	2
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk -F '\t' -v prefix=row 'BEGIN { OFS=":" } { print prefix, FILENAME, FNR, NR, $2 }' one.tsv two.tsv
+expect:
+  stdout: |+
+    row:one.tsv:1:1:1
+    row:two.tsv:1:2:2
+  stderr: |+
+  exit_code: 0

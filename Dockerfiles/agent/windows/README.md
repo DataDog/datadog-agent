@@ -25,6 +25,7 @@ The build artifact will be in `build-out`.
 
 ```
 Copy-Item .\build-out\entrypoint.exe .\Dockerfiles\agent\
+bazel run @temurin_jre_windows_x64//:install -- --destdir=Dockerfiles/agent/java
 Copy-Item .\omnibus\pkg\datadog-agent-*-x86_64.zip -Destination .\Dockerfiles\agent\datadog-agent-latest.amd64.zip
 ```
 

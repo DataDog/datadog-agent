@@ -40,6 +40,10 @@ type Profile struct {
 	Metric   *AgentMetricConfig `yaml:"metric,omitempty"`
 	Schedule *Schedule          `yaml:"schedule,omitempty"`
 	Events   []*Event           `yaml:"events"`
+	// RemoteFlag optionally gates the whole profile behind a remote flag
+	// (see remoteflag.go). When set, the profile is only collected while that
+	// flag is enabled through Remote Config; it is off by default.
+	RemoteFlag string `yaml:"remote_flag,omitempty"`
 
 	// compiled
 	metricsMap        map[string]*MetricConfig
@@ -99,6 +103,11 @@ type Event struct {
 // ------------------------------------------------
 // When included, specifies whether metrics with zero value should be excluded from the
 // agent telemetry metrics payloads. If not specified, default value of `false` will be used.
+// The value checked is each timeseries' value before tag aggregation: for counters and
+// histograms, the per-flush delta (a histogram is zero when all its buckets, including "+Inf",
+// had no new observations); for gauges, the sampled value. A counter that stops moving is
+// therefore excluded until it moves again, and its next delta still accounts for the flushes it
+// was excluded from.
 //
 // profiles[].metric.exclude.tags[] (optional)
 // ------------------------------------------
@@ -133,7 +142,14 @@ type Event struct {
 // -----------------------------------------------------
 // When included, emits one total independently for each emitter. A special tag "total"
 // containing that emitter's source-timeseries count is added to the metric's JSON object
-// (accordingly "total" is a reserved tag).
+// (accordingly "total" is a reserved tag). The count only includes the timeseries that pass the
+// profile's and the metric's filters: with zero_metric, a counter or histogram timeseries that
+// did not move during the flush is not counted, even though it still exists.
+//
+// profiles[].remote_flag (optional)
+// ---------------------------------
+// When specified, the profile is only collected while the named remote flag is enabled
+// through Remote Config.
 //
 // profiles[].schedule (optional)
 // --------------------------------
@@ -283,6 +299,10 @@ func validateProfiles(cfg *Config) error {
 	for i, p := range cfg.Profiles {
 		if len(p.Name) == 0 {
 			return fmt.Errorf("profile requires 'name' attribute to be specified. Profile index: %d", i)
+		}
+
+		if p.RemoteFlag != "" && p.RemoteFlag != flagTroubleshooting {
+			return fmt.Errorf("profile '%s' references unknown remote flag '%s'", p.Name, p.RemoteFlag)
 		}
 	}
 

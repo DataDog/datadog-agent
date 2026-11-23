@@ -30,3 +30,4 @@ files:
         
         Learn more about tagging at https://docs.datadoghq.com/tagging
       required: false
+  - template: logs

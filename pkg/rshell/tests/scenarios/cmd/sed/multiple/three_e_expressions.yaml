@@ -1,0 +1,13 @@
+description: Three -e expressions apply in sequence to each line.
+setup:
+  files:
+    - path: input.txt
+      content: "abc\ndef\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -e 's/a/A/' -e 's/b/B/' -e 's/c/C/' input.txt
+expect:
+  stdout: "ABC\ndef\n"
+  stderr: ""
+  exit_code: 0

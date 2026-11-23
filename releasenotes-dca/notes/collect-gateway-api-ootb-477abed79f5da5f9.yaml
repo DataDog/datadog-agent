@@ -1,0 +1,14 @@
+---
+enhancements:
+  - |
+    Orchestrator Explorer now collects supported Gateway API, ingress controller,
+    and service mesh custom resources by default when the resources are installed
+    and the Cluster Agent has permission to list and watch them. Set
+    ``orchestrator_explorer.custom_resources.ootb.gateway_api``,
+    ``orchestrator_explorer.custom_resources.ootb.ingress_controllers``, or
+    ``orchestrator_explorer.custom_resources.ootb.service_mesh`` to ``false`` to
+    disable automatic collection for the corresponding family.
+fixes:
+  - |
+    Scrub sensitive values in custom resource fields outside ``spec``, including
+    inline credentials in the top-level ``config`` field of Kong plugins.

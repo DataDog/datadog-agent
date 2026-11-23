@@ -1,0 +1,17 @@
+description: If with test builtin combined with && and || operators.
+input:
+  script: |+
+    A=1
+    B=2
+    if [ "$A" -eq 1 ] && [ "$B" -eq 2 ]; then echo both; else echo nope; fi
+    if [ "$A" -eq 1 ] && [ "$B" -eq 9 ]; then echo both; else echo nope; fi
+    if [ "$A" -eq 9 ] || [ "$B" -eq 2 ]; then echo either; else echo nope; fi
+    if [ "$A" -eq 9 ] || [ "$B" -eq 9 ]; then echo either; else echo nope; fi
+expect:
+  stdout: |+
+    both
+    nope
+    either
+    nope
+  stderr: ""
+  exit_code: 0

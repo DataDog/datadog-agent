@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -23,6 +24,10 @@ func TestUpdaterWithoutRemoteConfig(t *testing.T) {
 	_, err := NewComponent(Requires{
 		Lifecycle:    &mockLifecycle{},
 		RemoteConfig: option.None[rcservice.Component](),
+		Config: config.NewMockWithOverrides(t, map[string]interface{}{
+			"remote_updates":               true,
+			"remote_configuration.enabled": true,
+		}),
 	})
-	assert.ErrorIs(t, err, errRemoteConfigRequired)
+	assert.EqualError(t, err, "remote config failed to initialize")
 }

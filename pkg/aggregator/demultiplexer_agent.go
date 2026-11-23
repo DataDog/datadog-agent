@@ -27,15 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // DemultiplexerWithAggregator is a Demultiplexer running an Aggregator.
@@ -88,10 +87,14 @@ type AgentDemultiplexerOptions struct {
 
 	NoAggregationPipelineWorkersCount int
 
+	// MetricsEndpointRouting must be validated before initialization.
+	MetricsEndpointRouting utils.MetricsEndpointRouting
+
 	DogStatsDLookback        DogStatsDLookback
 	DogStatsDLookbackFactory DogStatsDLookbackFactory
 
-	FinalDogStatsDSerieObservers []FinalDogStatsDSerieObserver
+	FinalDogStatsDSerieObservers     []FinalDogStatsDSerieObserver
+	FinalDogStatsDSerieFlushListener FinalDogStatsDSerieFlushListener
 
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
 
@@ -165,15 +168,10 @@ func initAgentDemultiplexer(log log.Component,
 	hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
-	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.dogstatsd_origin") && !pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store") {
-		log.Warn("DogStatsD origin telemetry is not supported when aggregator_use_tags_store is disabled.")
-		pkgconfigsetup.Datadog().Set("telemetry.dogstatsd_origin", false, model.SourceAgentRuntime)
-	}
-
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
+	sharedSerializer := serializer.NewSerializerWithEndpointRouting(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname, options.MetricsEndpointRouting)
 	if options.DogStatsDLookback == nil && options.DogStatsDLookbackFactory != nil {
 		options.DogStatsDLookback = options.DogStatsDLookbackFactory(sharedSerializer)
 	}
@@ -195,7 +193,7 @@ func initAgentDemultiplexer(log log.Component,
 
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
-		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
+		tagsStore := tags.NewStore(fmt.Sprintf("timesampler #%d", i))
 
 		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
 		statsdSampler.dogStatsDLookback = options.DogStatsDLookback
@@ -216,7 +214,7 @@ func initAgentDemultiplexer(log log.Component,
 		noAggSerializers = make([]serializer.MetricSerializer, workersCount)
 		noAggSamplesChan = make(chan metrics.MetricSampleBatch, pkgconfigsetup.Datadog().GetInt("dogstatsd_queue_size"))
 		for i := 0; i < workersCount; i++ {
-			noAggSerializers[i] = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
+			noAggSerializers[i] = serializer.NewSerializerWithEndpointRouting(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname, options.MetricsEndpointRouting)
 			noAggWorkers[i] = newNoAggregationStreamWorker(
 				pkgconfigsetup.Datadog().GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 				metricSamplePool,
@@ -576,6 +574,12 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				<-t.trigger.blockChan
 			}
 
+			// Evaluate the client drop detector after all DogStatsD workers have
+			// contributed to this serializer-flush window.
+			if d.options.FinalDogStatsDSerieFlushListener != nil {
+				d.options.FinalDogStatsDSerieFlushListener.CompleteFinalDogStatsDSerieFlush()
+			}
+
 			// flush the aggregator (check samplers)
 			// -------------------------------------
 
@@ -610,6 +614,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
 	aggregatorNumberOfFlush.Add(1)
+	tlmNumberOfFlush.Inc()
 }
 
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
@@ -622,7 +627,7 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 	return d.aggregator.GetEventPlatformForwarder()
 }
 
-func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagMatcher filterlist.TagMatcher) {
+func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagMatcher metricname.TagMatcher) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 

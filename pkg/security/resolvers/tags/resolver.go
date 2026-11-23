@@ -10,12 +10,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
+
+var taggerResubscribeDelay = time.Second
 
 // Event defines the tags event type
 type Event int
@@ -31,6 +34,12 @@ const (
 type Tagger interface {
 	Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error)
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
+}
+
+// SubscribableTagger is an optional interface implemented by taggers that support entity event subscriptions
+type SubscribableTagger interface {
+	Tagger
+	Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error)
 }
 
 // Resolver represents a cache resolver
@@ -89,8 +98,21 @@ func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) (
 		return nil, nil
 	}
 
-	entityID := types.NewEntityID(types.ContainerID, string(containerID))
-	return tagger.Tag(entityID, types.OrchestratorCardinality)
+	entityContainerID := types.NewEntityID(types.ContainerID, string(containerID))
+	tags, err := tagger.Tag(entityContainerID, types.OrchestratorCardinality)
+
+	if imageTag := utils.GetTagValue("image_tag", tags); len(imageTag) != 0 {
+		return tags, err
+	}
+	// If we don't have image_tag we fallback and try to get it from the Container Image Metadata
+	if imageID := utils.GetTagValue("image_id", tags); len(imageID) != 0 {
+		entityContainerImageMetadataID := types.NewEntityID(types.ContainerImageMetadata, string(imageID))
+		fallbackTags, _ := tagger.Tag(entityContainerImageMetadataID, types.OrchestratorCardinality)
+		if imageTag := utils.GetTagValue("image_tag", fallbackTags); len(imageTag) != 0 {
+			tags = append(tags, "image_tag:"+imageTag)
+		}
+	}
+	return tags, err
 }
 
 // GetValue return the tag value for the given id and tag name
@@ -105,6 +127,71 @@ func (t *DefaultResolver) Start(_ context.Context) error {
 
 // Stop the resolver
 func (t *DefaultResolver) Stop() error {
+	return nil
+}
+
+// SubscribeContainerTags subscribes to container and container image metadata tag updates
+// and invokes onTagsUpdated whenever tags are added or modified.
+func (t *DefaultResolver) SubscribeContainerTags(ctx context.Context, subscriptionID string, onTagsUpdated func()) error {
+	if t == nil || t.tagger == nil || onTagsUpdated == nil {
+		return nil
+	}
+	subscribable, ok := t.tagger.(SubscribableTagger)
+	if !ok {
+		return nil
+	}
+
+	filter := types.NewFilterBuilder().
+		Include(types.ContainerID, types.ContainerImageMetadata).
+		Build(types.OrchestratorCardinality)
+
+	sub, err := subscribable.Subscribe(subscriptionID, filter)
+	if err != nil || sub == nil {
+		return err
+	}
+
+	go func() {
+		defer func() {
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+		}()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case events, ok := <-sub.EventsChan():
+				if !ok {
+					for {
+						if ctx.Err() != nil {
+							return
+						}
+						var err error
+						sub, err = subscribable.Subscribe(subscriptionID, filter)
+						if err == nil && sub != nil {
+							onTagsUpdated()
+							break
+						}
+						seclog.Warnf("failed to resubscribe to tagger events: %v", err)
+						select {
+						case <-ctx.Done():
+							return
+						case <-time.After(taggerResubscribeDelay):
+						}
+					}
+					continue
+				}
+				for _, ev := range events {
+					if ev.EventType == types.EventTypeAdded || ev.EventType == types.EventTypeModified {
+						onTagsUpdated()
+						break
+					}
+				}
+			}
+		}
+	}()
+
 	return nil
 }
 

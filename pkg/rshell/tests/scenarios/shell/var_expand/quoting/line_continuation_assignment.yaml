@@ -1,0 +1,14 @@
+description: Line continuation in assignment value.
+input:
+  script: |+
+    fo\
+    o\
+    =\
+    b\
+    ar
+    echo $foo
+expect:
+  stdout: |+
+    bar
+  stderr: ""
+  exit_code: 0

@@ -25,8 +25,8 @@ type detectDigest struct {
 	PointCount          int      `json:"point_count"`
 }
 
-// anomalyFingerprint produces a stable string identifying an anomaly's key fields.
-// Uses the same fields as anomalyDedupKey minus DetectorName (already on the digest).
+// anomalyFingerprint identifies an anomaly by source and time. DetectorName is
+// already recorded on the enclosing digest; display text is not identity.
 func anomalyFingerprint(a observerdef.Anomaly) string {
-	return fmt.Sprintf("%s|%d|%s", a.Source.Key(), a.Timestamp, a.Title)
+	return fmt.Sprintf("%s|%d", a.Source.Key(), a.Timestamp)
 }

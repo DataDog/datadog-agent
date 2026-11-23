@@ -1,0 +1,16 @@
+description: Help inherits remediation mode through find and xargs child command dispatch.
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    find . -maxdepth 0 -exec help \; | grep -c 'remediation mode$'
+    find . -maxdepth 0 -execdir help \; | grep -c 'remediation mode$'
+    printf '' | xargs help | grep -c 'remediation mode$'
+expect:
+  stdout: |+
+    1
+    1
+    1
+  stderr: |+
+  exit_code: 0

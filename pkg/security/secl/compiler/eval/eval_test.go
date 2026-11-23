@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"reflect"
 	"runtime"
 	"strings"
 	"syscall"
@@ -22,9 +23,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 )
 
-func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]Field) *Opts {
+func newOptsWithParams(constants map[string]ast.Node, legacyFields map[Field]Field) *Opts {
 	opts := &Opts{
 		Constants:    constants,
 		LegacyFields: legacyFields,
@@ -43,7 +45,7 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 }
 
 func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
-	pc := ast.NewParsingContext(false)
+	pc := parser.NewParsingContext(false)
 	rule, err := NewRule("id1", expr, pc, opts)
 	if err != nil {
 		return nil, fmt.Errorf("parsing error: %v", err)
@@ -112,6 +114,57 @@ func TestBoolError(t *testing.T) {
 	_, err = NewRuleEvaluator(rule.GetAst(), model, opts)
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 38 {
 		t.Fatal("should report a bool type error")
+	}
+}
+
+func TestCIDRArrayScalarComparisonError(t *testing.T) {
+	model := &testModel{}
+
+	opts := newOptsWithParams(nil, nil)
+	rule, err := parseRule(`network.cidrs < 10.0.0.0/8`, model, opts)
+	if rule == nil {
+		t.Fatal(err)
+	}
+
+	// an ordering operator on an array of CIDRs is not supported, it used to panic
+	if _, err = NewRuleEvaluator(rule.GetAst(), model, opts); err == nil {
+		t.Fatal("should report an unknown operator error")
+	}
+}
+
+func TestIdentArrayError(t *testing.T) {
+	for expr, expected := range map[string]string{
+		`process.uid in [process.gid]`: "`process.gid` is not a constant",
+		// the family of an array is the one of its first member
+		`open.flags in [O_CREAT, true]`: "array of int expected",
+		`open.flags in [true, O_CREAT]`: "array of bool expected",
+	} {
+		_, err := parseRule(expr, &testModel{}, newOptsWithParams(testConstants, nil))
+		if err == nil || !strings.Contains(err.Error(), expected) {
+			t.Fatalf("%s: should report `%s`, got `%v`", expr, expected, err)
+		}
+	}
+}
+
+func TestCompareLeftOperandError(t *testing.T) {
+	for expr, expected := range map[string]string{
+		`["a", "b"] == "a"`:                        "string expected: 1:1",
+		`process.uid == 0 && ["a"] =~ "a*"`:        "string expected: 1:21",
+		`[1.1.1.1, 10.0.0.0/8] != 1.1.1.1`:         "struct expected: 1:1",
+		`process.array.flag in [true]`:             "bool expected: 1:1",
+		`process.uid == 0 && [true] not in [true]`: "bool expected: 1:21",
+	} {
+		model := &testModel{}
+		opts := newOptsWithParams(testConstants, nil)
+		rule, err := parseRule(expr, model, opts)
+		if rule == nil {
+			t.Fatal(err)
+		}
+
+		_, err = NewRuleEvaluator(rule.GetAst(), model, opts)
+		if err == nil || err.Error() != expected {
+			t.Errorf("%s: should report `%s`, got `%v`", expr, expected, err)
+		}
 	}
 }
 
@@ -384,9 +437,16 @@ func TestVariables(t *testing.T) {
 	}{
 		{Expr: `process.name == "/proc/${pid}/maps/${str}"`, Expected: true},
 		{Expr: `process.name == "/proc/${pid}/maps/${str}3"`, Expected: false},
-		{Expr: `process.name == "/proc/${pid}/maps/${str"`, Expected: false},
-		{Expr: `process.name == "/proc/${pid/maps/${str"`, Expected: false},
 		{Expr: `process.pid == ${pid}`, Expected: true},
+	}
+
+	// a `${` left open in a string is a syntax error
+	for _, expr := range []string{
+		`process.name == "/proc/${pid}/maps/${str"`,
+		`process.name == "/proc/${pid/maps/${str"`,
+	} {
+		_, _, err := eval(NewContext(event), expr)
+		assert.ErrorContains(t, err, "invalid variable", expr)
 	}
 
 	for _, test := range tests {
@@ -566,6 +626,11 @@ func TestPartial(t *testing.T) {
 		{Expr: `process.name == "abc" || ^process.uid == 0`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `process.name == "abc" || ^process.uid != 0`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `process.name =~ "/usr/sbin/*" && process.uid == 0 && process.is_root`, Field: "process.uid", IsDiscarder: true},
+
+		// an event with the same field value and another uid matches
+		{Expr: `!(open.filename == "xyz" && process.uid == 456)`, Field: "open.filename", IsDiscarder: false},
+		// an event with the same field value and another uid matches
+		{Expr: `process.uid + 1 - 1 == process.gid`, Field: "process.gid", IsDiscarder: false},
 	}
 
 	for _, test := range tests {
@@ -629,8 +694,8 @@ func TestConstants(t *testing.T) {
 
 func TestMacroList(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"list",
@@ -656,10 +721,32 @@ func TestMacroList(t *testing.T) {
 	}
 }
 
+func TestMacroEmptyValues(t *testing.T) {
+	model := &testModel{}
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
+
+	macro, err := NewStringValuesMacro("list", nil, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.MacroStore.Add(macro)
+
+	expr := `open.filename in list`
+	rule, err := parseRule(expr, model, opts)
+	if err != nil {
+		t.Fatalf("error while evaluating `%s`: %s", expr, err)
+	}
+
+	ctx := NewContext(&testEvent{open: testOpen{filename: "/etc/shadow"}})
+	if rule.Eval(ctx) {
+		t.Fatalf("should return false")
+	}
+}
+
 func TestMacroExpression(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
@@ -697,8 +784,8 @@ func TestMacroExpression(t *testing.T) {
 
 func TestMacroPartial(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
@@ -758,8 +845,8 @@ func TestNestedMacros(t *testing.T) {
 	}
 
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro1, err := NewMacro(
 		"sensitive_files",
@@ -794,6 +881,43 @@ func TestNestedMacros(t *testing.T) {
 	if !rule.Eval(ctx) {
 		t.Fatalf("should return true")
 	}
+}
+
+func TestNestedMacrosPartial(t *testing.T) {
+	model := &testModel{}
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
+
+	for _, def := range []struct{ id, expr string }{
+		{"is_passwd", `open.filename == "/etc/passwd" || open.filename == "/etc/shadow"`},
+		{"httpd_passwd", `is_passwd && process.name == "httpd"`},
+	} {
+		macro, err := NewMacro(def.id, def.expr, model, pc, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts.MacroStore.Add(macro)
+	}
+
+	rule, err := parseRule(`httpd_passwd`, model, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	event := &testEvent{
+		process: testProcess{name: "nginx"},
+		open:    testOpen{filename: "/etc/passwd"},
+	}
+	ctx := NewContext(event)
+
+	result, err := rule.PartialEval(ctx, "open.filename")
+	assert.NoError(t, err)
+	assert.True(t, result, "open.filename shouldn't be a discarder")
+
+	event.open.filename = "/etc/group"
+	result, err = rule.PartialEval(ctx, "open.filename")
+	assert.NoError(t, err)
+	assert.False(t, result, "open.filename should be a discarder")
 }
 
 func TestFieldValidator(t *testing.T) {
@@ -1463,7 +1587,7 @@ func TestFieldValues(t *testing.T) {
 		{Expr: `process.name == "/proc/1/maps"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/maps", Type: ScalarValueType}},
 		{Expr: `process.name =~ "/proc/1/*"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/*", Type: GlobValueType}},
 		{Expr: `process.name =~ r"/proc/1/.*"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/.*", Type: RegexpValueType}},
-		{Expr: `process.name == "/proc/${pid}/maps"`, Field: "process.name", Expected: FieldValue{Value: "/proc/${pid}/maps", Type: VariableValueType}},
+		{Expr: `process.name == "/proc/${pid}/maps"`, Field: "process.name", Expected: FieldValue{Value: "", Type: VariableValueType}},
 		{Expr: `open.filename =~ "/proc/1/*"`, Field: "open.filename", Expected: FieldValue{Value: "/proc/1/*", Type: PatternValueType}},
 	}
 
@@ -1486,6 +1610,22 @@ func TestFieldValues(t *testing.T) {
 	}
 }
 
+// A field written `%{process.name}` is the same field as written bare.
+func TestFieldReferenceFields(t *testing.T) {
+	rule, err := parseRule(`%{process.name} == "test" && process.uid == 1000`, &testModel{}, newOptsWithParams(testConstants, nil))
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.ElementsMatch(t, []Field{"process.name", "process.uid"}, rule.GetFields())
+
+	// so is a field interpolated in a string
+	rule, err = parseRule(`"pid:%{process.pid}" != "" && process.uid == 1000`, &testModel{}, newOptsWithParams(testConstants, nil))
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.ElementsMatch(t, []Field{"process.pid", "process.uid"}, rule.GetFields())
+}
+
 func TestFieldReferenceSyntax(t *testing.T) {
 	// Test the new %{field} syntax for explicit field references
 	event := &testEvent{
@@ -1500,10 +1640,11 @@ func TestFieldReferenceSyntax(t *testing.T) {
 	}
 
 	tests := []struct {
-		Expr        string
-		Expected    bool
-		ShouldError bool
-		Desc        string
+		Expr          string
+		Expected      bool
+		ShouldError   bool
+		ErrorContains string
+		Desc          string
 	}{
 		{
 			Expr:     `%{process.name} == "test"`,
@@ -1526,9 +1667,16 @@ func TestFieldReferenceSyntax(t *testing.T) {
 			Desc:     "multiple field references in string",
 		},
 		{
-			Expr:        `${process.pid} > 0`,
-			ShouldError: true,
-			Desc:        "variable syntax without variable should fail (no fallback)",
+			Expr:          `${process.pid} > 0`,
+			ShouldError:   true,
+			ErrorContains: "use %{process.pid} to reference the field",
+			Desc:          "variable syntax without variable should fail (no fallback)",
+		},
+		{
+			Expr:          `"${process.name}" == "test"`,
+			ShouldError:   true,
+			ErrorContains: "use %{process.name} to reference the field",
+			Desc:          "variable syntax in string interpolation hints at the field",
 		},
 		{
 			Expr:        `${nonexistent.variable} == "test"`,
@@ -1550,6 +1698,12 @@ func TestFieldReferenceSyntax(t *testing.T) {
 			if test.ShouldError {
 				if err == nil {
 					t.Fatalf("expected error for `%s` but got none", test.Expr)
+				}
+				if test.ErrorContains != "" && !strings.Contains(err.Error(), test.ErrorContains) {
+					t.Fatalf("expected error for `%s` to contain `%s`, got `%s`", test.Expr, test.ErrorContains, err)
+				}
+				if test.ErrorContains == "" && strings.Contains(err.Error(), "to reference the field") {
+					t.Fatalf("unexpected field hint for `%s`: `%s`", test.Expr, err)
 				}
 				return
 			}
@@ -1718,6 +1872,7 @@ func TestMatchingSubExprs(t *testing.T) {
 		{Expr: `network.ips allin [192.168.0.0/16, 192.168.0.0/24]`, Expected: `<b>network.ips</b> allin [<b>192.168.0.0/16, 192.168.0.0/24</b>]`},
 		{Expr: `process.name in [~"aaals*", ~"ls*"]`, Expected: `<b>process.name</b> in [~"aaals*", ~<b>"ls*"</b>]`},
 		{Expr: `process.name in [~"aaals*", ~"ls*"]`, Expected: `<b>process.name</b> in [~"aaals*", ~<b>"ls*"</b>]`},
+		{Expr: `process.is_root || process.list.key == 10 || process.uid == 22`, Expected: `<b>process.is_root</b> || process.list.key == 10 || process.uid == 22`},
 
 		// need to add varname in the evaluators
 		//{Expr: `true && process.pid == ${pid}`, Expected: `true && <b>process.pid</b> == ${pid}`},
@@ -1740,6 +1895,186 @@ func TestMatchingSubExprs(t *testing.T) {
 			decorated, err := decorateRuleExprs(&subExprs, test.Expr, "<b>", "</b>")
 			if test.Expected != decorated {
 				t.Errorf("rule decoration error : %s vs %s => %v : %v", test.Expected, decorated, res, err)
+			}
+		})
+	}
+}
+
+// TestMatchingSubExprReportedValues ensures that the values reported along with the matching
+// sub expressions are the evaluated values, and not the evaluator functions themselves.
+func TestMatchingSubExprReportedValues(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			name:   "ls",
+			argv0:  "-al",
+			uid:    22,
+			isRoot: true,
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected []interface{}
+	}{
+		// Or, static left hand side and dynamic right hand side
+		{Expr: `false || process.is_root`, Expected: []interface{}{true}},
+		// StringEquals, dynamic on both sides
+		{Expr: `true && process.name == process.name`, Expected: []interface{}{"ls", "ls"}},
+		// the mirrored branches of the same operators, which report from the other side
+		{Expr: `process.is_root || false`, Expected: []interface{}{true}},
+		{Expr: `true && process.name == "ls"`, Expected: []interface{}{"ls", "ls"}},
+		{Expr: `true && "ls" == process.name`, Expected: []interface{}{"ls", "ls"}},
+		{Expr: `true && process.uid == 22`, Expected: []interface{}{22, 22}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			ctx := NewContext(event)
+
+			if _, _, err := eval(ctx, test.Expr); err != nil {
+				t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+			}
+
+			var values []interface{}
+			for _, subExpr := range ctx.GetMatchingSubExprs() {
+				for _, value := range []MatchingValue{subExpr.ValueA, subExpr.ValueB} {
+					if value.Field == "" && value.Value == nil {
+						continue
+					}
+
+					if kind := reflect.ValueOf(value.Value).Kind(); kind == reflect.Func {
+						t.Errorf("reported an evaluator function instead of a value for `%s`", value.Field)
+						continue
+					}
+					values = append(values, value.Value)
+				}
+			}
+
+			if !reflect.DeepEqual(test.Expected, values) {
+				t.Errorf("expected reported values `%v`, got `%v`", test.Expected, values)
+			}
+		})
+	}
+}
+
+// TestMatchingSubExprSingleEvaluation ensures that reporting a matching sub expression doesn't
+// re-evaluate the operands it reports. Operands can be arbitrarily expensive (patterns, regexps,
+// iterators), so evaluating them twice on every match is not acceptable.
+func TestMatchingSubExprSingleEvaluation(t *testing.T) {
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		// `process.is_root` is a bare boolean field, so the `And` operator itself reports it
+		{Expr: `process.is_root && process.uid == 22`, Expected: true},
+		{Expr: `process.uid == 22 && process.is_root`, Expected: true},
+		{Expr: `process.is_root && true`, Expected: true},
+		{Expr: `true && process.is_root`, Expected: true},
+		{Expr: `process.is_root || process.uid == 22`, Expected: true},
+		{Expr: `false || process.is_root`, Expected: true},
+		{Expr: `process.is_root || false`, Expected: true},
+		// non matching rules, the operand still must not be evaluated more than once
+		{Expr: `process.is_root && process.uid == 33`, Expected: false},
+		{Expr: `process.uid == 33 || process.is_root == false`, Expected: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			event := &testEvent{
+				process: testProcess{
+					uid:    22,
+					isRoot: true,
+				},
+			}
+			ctx := NewContext(event)
+
+			res, _, err := eval(ctx, test.Expr)
+			if err != nil {
+				t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+			}
+
+			if res != test.Expected {
+				t.Fatalf("expected result `%t`, got `%t`", test.Expected, res)
+			}
+
+			if event.isRootEvalCount > 1 {
+				t.Errorf("`process.is_root` evaluated %d times, expected at most once", event.isRootEvalCount)
+			}
+		})
+	}
+}
+
+// TestMatchingSubExprOperandSwap ensures that the operand reordering performed by `Or` and `And`,
+// which evaluates the cheaper operand first, doesn't attribute a match to the wrong operand.
+//
+// The evaluators are built by hand because the test model has no boolean field carrying a weight,
+// so the reordering can't be triggered from a SECL expression here.
+func TestMatchingSubExprOperandSwap(t *testing.T) {
+	newOperand := func(field string, offset int, weight int, res bool) *BoolEvaluator {
+		return &BoolEvaluator{
+			Field:   field,
+			Offset:  offset,
+			Weight:  weight,
+			EvalFnc: func(*Context) bool { return res },
+		}
+	}
+
+	tests := []struct {
+		Name           string
+		A, B           *BoolEvaluator
+		ExpectedField  string
+		ExpectedOffset int
+	}{
+		{
+			Name:           "heavier operand first, the cheaper one matches",
+			A:              newOperand("process.heavy", 0, RegexpWeight, false),
+			B:              newOperand("process.cheap", 20, 0, true),
+			ExpectedField:  "process.cheap",
+			ExpectedOffset: 20,
+		},
+		{
+			Name:           "heavier operand first, it is the one matching",
+			A:              newOperand("process.heavy", 0, RegexpWeight, true),
+			B:              newOperand("process.cheap", 20, 0, false),
+			ExpectedField:  "process.heavy",
+			ExpectedOffset: 0,
+		},
+		{
+			Name:           "cheaper operand first, no reordering",
+			A:              newOperand("process.cheap", 0, 0, true),
+			B:              newOperand("process.heavy", 20, RegexpWeight, false),
+			ExpectedField:  "process.cheap",
+			ExpectedOffset: 0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			evaluator, err := Or(test.A, test.B, NewState(&testModel{}))
+			if err != nil {
+				t.Fatalf("failed to build the `Or` evaluator: %s", err)
+			}
+
+			ctx := NewContext(&testEvent{})
+			if !evaluator.EvalFnc(ctx) {
+				t.Fatal("expected the expression to match")
+			}
+
+			subExprs := ctx.GetMatchingSubExprs()
+			if len(subExprs) != 1 {
+				t.Fatalf("expected a single matching sub expression, got %d", len(subExprs))
+			}
+
+			reported := subExprs[0].ValueA
+			if reported.Field == "" {
+				reported = subExprs[0].ValueB
+			}
+
+			if reported.Field != test.ExpectedField {
+				t.Errorf("expected field `%s` to be reported, got `%s`", test.ExpectedField, reported.Field)
+			}
+			if reported.Offset != test.ExpectedOffset {
+				t.Errorf("expected offset `%d` to be reported, got `%d`", test.ExpectedOffset, reported.Offset)
 			}
 		})
 	}

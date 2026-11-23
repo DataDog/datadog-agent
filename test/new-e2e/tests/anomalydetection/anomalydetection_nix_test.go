@@ -62,8 +62,6 @@ anomaly_detection:
     bocpd:
       enabled: true
       warmup_points: 5
-    rrcf:
-      enabled: false
   baseline_analysis:
     enabled: false
 `

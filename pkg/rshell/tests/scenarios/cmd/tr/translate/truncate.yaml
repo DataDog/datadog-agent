@@ -1,0 +1,10 @@
+description: tr -t truncates set1 to set2 length.
+input:
+  script: |+
+    cat <<'EOF' | tr -t abc xy
+    abcde
+    EOF
+expect:
+  stdout: "xycde\n"
+  stderr: ""
+  exit_code: 0

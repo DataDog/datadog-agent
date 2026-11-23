@@ -197,6 +197,12 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 func (c *GenericCollector) Run() {
 	recvWithoutTimeout := c.Config.GetBool("workloadmeta.remote.recv_without_timeout")
 
+	// A server may end each stream at once, as on an unknown service or an
+	// invalid token, so a new stream waits a delay that grows until a response.
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.MaxInterval = 5 * time.Minute
+	var opened time.Time
+
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -206,9 +212,15 @@ func (c *GenericCollector) Run() {
 
 		if c.stream == nil {
 			if err := c.startWorkloadmetaStream(noTimeout); err != nil {
+				// The collector context is canceled when the Agent stops.
+				if c.ctx.Err() != nil {
+					log.Debugf("stopped trying to start stream: %s", err)
+					return
+				}
 				log.Warnf("error received trying to start stream: %s", err)
 				continue
 			}
+			opened = time.Now()
 		}
 
 		var (
@@ -237,11 +249,28 @@ func (c *GenericCollector) Run() {
 
 			if err != io.EOF {
 				telemetry.RemoteClientErrors.Inc(c.CollectorID)
-				log.Warnf("error received from remote workloadmeta: %s", err)
+				// The collector context is canceled when the Agent stops, which
+				// makes Recv fail with codes.Canceled: that is not a stream error.
+				if c.ctx.Err() != nil {
+					log.Debugf("remote workloadmeta stream closed on stop: %s", err)
+				} else {
+					log.Warnf("error received from remote workloadmeta: %s", err)
+				}
 			}
 
+			// A stream that outlived the longest delay restarts the delays, as a
+			// response does.
+			if time.Since(opened) > expBackoff.MaxInterval {
+				expBackoff.Reset()
+			}
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-time.After(expBackoff.NextBackOff()):
+			}
 			continue
 		}
+		expBackoff.Reset()
 
 		collectorEvents, err := c.StreamHandler.HandleResponse(c.store, response)
 		if err != nil {

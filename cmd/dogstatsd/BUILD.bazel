@@ -2,6 +2,8 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "DOGSTATSD_TAGS")
 
+package(default_package_metadata = ["//:package_metadata"])
+
 # gazelle:dd_agent_go_test on
 
 go_library(
@@ -122,18 +124,21 @@ go_library(
 
 dd_agent_go_binary(
     name = "dogstatsd",
-    # keep
     srcs = select({
         "@platforms//os:windows": ["//cmd/dogstatsd/windows_resources:rsrc"],
         "//conditions:default": [],
     }),
-    # FIPS requires cgo; Windows cgo is provided by dd_agent_go_binary default.
-    cgo = select({
-        "//packages/agent:fips_flavor": True,
-        "@platforms//os:windows": True,
-        "//conditions:default": False,
-    }),
     embed = [":dogstatsd_lib"],
     gotags = DOGSTATSD_TAGS,
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_binary(
+    name = "dogstatsd_static",
+    embed = [":dogstatsd_lib"],
+    gotags = DOGSTATSD_TAGS,
+    static = "on",
+    # Only needed for the Linux container images.
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

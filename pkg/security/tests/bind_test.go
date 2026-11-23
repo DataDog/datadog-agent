@@ -78,7 +78,7 @@ func TestBindEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -319,4 +319,77 @@ func TestBindEvent(t *testing.T) {
 			test.validateBindSchema(t, event)
 		}, "test_bind_af_unix")
 	})
+}
+
+// TestBindSampleAfterFailure checks that a failed bind, kept because capture_all_errors is enabled,
+// doesn't take the sampling slot of its endpoint: a later successful bind of the same process to the
+// same endpoint must still be sampled for security profiles.
+var _ = declare(TestBindSampleAfterFailure, testOpts{
+	captureAllSyscallErrorsEnabled: true,
+})
+
+func TestBindSampleAfterFailure(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// only AF_UNIX binds are approved, so AF_INET binds go through sampling
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_bind_af_unix",
+			Expression: `bind.addr.family == AF_UNIX && process.file.name == "syscall_tester"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	port, err := getFreePort("tcp")
+	if err != nil {
+		t.Fatalf("failed to get free port: %v", err)
+	}
+	sa := &unix.SockaddrInet4{Port: port, Addr: [4]byte{127, 0, 0, 1}}
+
+	// hold the port so that the first bind fails with EADDRINUSE
+	holder, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if holder != -1 {
+			unix.Close(holder)
+		}
+	}()
+	if err := unix.Bind(holder, sa); err != nil {
+		t.Fatal(err)
+	}
+
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(fd)
+
+	err = test.GetProbeEvent(func() error {
+		if err := unix.Bind(fd, sa); !errors.Is(err, unix.EADDRINUSE) {
+			return fmt.Errorf("expected EADDRINUSE, got %v", err)
+		}
+		err := unix.Close(holder)
+		holder = -1
+		if err != nil {
+			return err
+		}
+		return unix.Bind(fd, sa)
+	}, func(event *model.Event) bool {
+		if event.Bind.Addr.Port != uint16(port) {
+			return false
+		}
+		assert.Equal(t, int64(0), event.Bind.Retval, "the failed bind shouldn't be sampled")
+		assert.True(t, event.IsSavedByActivityDumps(), "the successful bind should be a sample")
+		return true
+	}, getEventTimeout, model.BindEventType)
+	if err != nil {
+		t.Fatal(err)
+	}
 }

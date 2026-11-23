@@ -29,7 +29,7 @@ module Omnibus
     #
     def inspect_binary(binary_path, &block)
       @inspectors ||= []
-      @inspectors.append(GoSymbolsInspector.new(binary_path, &block))
+      @inspectors.append(GoSymbolsInspector.new(omnibazel_flags, binary_path, &block))
     end
 
     # Override the package_me step to sign the binaries just before the packagers run
@@ -77,18 +77,6 @@ module Omnibus
       else
         normalize_path_permissions(root)
       end
-    end
-
-    def external_package_path?(path)
-      expanded_path = File.expand_path(path)
-      project_root = File.expand_path(Omnibus::Config.project_root)
-      install_root = File.expand_path(install_dir)
-
-      !path_inside?(expanded_path, project_root) && !path_inside?(expanded_path, install_root)
-    end
-
-    def path_inside?(path, root)
-      path == root || path.start_with?("#{root}/")
     end
 
     def normalize_path_permissions(path)

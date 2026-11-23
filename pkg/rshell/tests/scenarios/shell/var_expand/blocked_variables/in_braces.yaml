@@ -1,0 +1,11 @@
+# skip: special variable is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Variables without special meaning also expand to empty with brace syntax.
+input:
+  script: |+
+    echo "[${RANDOM}]"
+expect:
+  stdout: |+
+    []
+  stderr: ""
+  exit_code: 0

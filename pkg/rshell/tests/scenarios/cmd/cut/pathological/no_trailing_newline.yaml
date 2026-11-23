@@ -1,0 +1,14 @@
+description: cut on a file with no trailing newline still produces correctly delimited output with a trailing newline (GNU cut normalizes line endings).
+setup:
+  files:
+    - path: file.txt
+      content: "alpha:beta:gamma"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -d: -f2 file.txt
+expect:
+  stdout: "beta\n"
+  stderr: ""
+  exit_code: 0

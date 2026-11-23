@@ -1,0 +1,9 @@
+description: Backslash-quoting special characters outside any quotes removes the backslash.
+input:
+  script: |+
+    echo \! \# \( \) \{ \}
+expect:
+  stdout: |+
+    ! # ( ) { }
+  stderr: ""
+  exit_code: 0

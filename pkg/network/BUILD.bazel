@@ -167,6 +167,7 @@ dd_agent_go_test(
         "dns_test.go",
         "driver_interface_fail_test.go",
         "driver_interface_test.go",
+        "event_common_tag_test.go",
         "event_linux_test.go",
         "event_test.go",
         "event_windows_test.go",

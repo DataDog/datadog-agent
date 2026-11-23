@@ -20,6 +20,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -120,7 +121,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 	}
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
-		missing, err := ddebpf.VerifyKernelFuncs("sockfd_lookup_light")
+		missing, err := ksyms.VerifyKernelFuncs("sockfd_lookup_light")
 		if err == nil && len(missing) == 0 {
 			mgr.Probes = append(mgr.Probes, []*manager.Probe{
 				{
@@ -265,8 +266,7 @@ func (e *ebpfProgram) Close() error {
 }
 
 func (e *ebpfProgram) initCORE() error {
-	assetName := getAssetName("usm", e.cfg.BPFDebug)
-	return ddebpf.LoadCOREAsset(assetName, e.init)
+	return ddebpf.LoadCOREAsset("usm.o", e.init)
 }
 
 func (e *ebpfProgram) initRuntimeCompiler() error {
@@ -279,7 +279,7 @@ func (e *ebpfProgram) initRuntimeCompiler() error {
 }
 
 func (e *ebpfProgram) initPrebuilt() error {
-	bc, err := netebpf.ReadHTTPModule(e.cfg.BPFDir, e.cfg.BPFDebug)
+	bc, err := netebpf.ReadHTTPModule(e.cfg.BPFDir)
 	if err != nil {
 		return err
 	}
@@ -324,6 +324,15 @@ func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protoc
 	// Populate sets with existing elements
 	for _, m := range e.Maps {
 		existingMaps[m.Name] = struct{}{}
+	}
+	// Maps, PerfMaps and RingBuffers share one namespace that the manager
+	// requires to be disjoint, so a map already registered as a perf map or a
+	// ring buffer must not be re-added to e.Maps on a subsequent load attempt.
+	for _, pm := range e.PerfMaps {
+		existingMaps[pm.Name] = struct{}{}
+	}
+	for _, rb := range e.RingBuffers {
+		existingMaps[rb.Name] = struct{}{}
 	}
 	for _, p := range e.Probes {
 		existingProbes[p.EBPFFuncName] = struct{}{}
@@ -522,14 +531,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	return err
-}
-
-func getAssetName(module string, debug bool) string {
-	if debug {
-		return module + "-debug.o"
-	}
-
-	return module + ".o"
 }
 
 func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap *ebpf.Map) {

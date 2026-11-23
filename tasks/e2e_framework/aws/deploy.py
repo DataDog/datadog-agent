@@ -7,6 +7,7 @@ from invoke.exceptions import Exit
 
 from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import deploy as common_deploy
+from tasks.e2e_framework.image_pull import agent_qa_ecr_credential, agent_sandbox_ecr_credential
 
 
 def deploy(
@@ -35,7 +36,12 @@ def deploy(
     pulumi_extra_args: str = "",
     pulumi_env: dict[str, str] | None = None,
     needs_agent_containers: bool = True,
+    extra_image_paths: list[str | None] | None = None,
 ) -> str:
+    """
+    extra_image_paths are the images of the scenarios deploying several Agents, like benchmarkeks, whose registries
+    need pull credentials just like those of full_image_path and cluster_agent_full_image_path.
+    """
     from pydantic_core._pydantic_core import ValidationError
 
     from tasks.e2e_framework import config
@@ -49,7 +55,7 @@ def deploy(
 
     # Keep ~/.aws/config in sync: add the SSO profile if it's missing (e.g. after a role
     # rename like account-admin -> account-admin-8h). No-op if already present.
-    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION, ECR_CACHE_PROFILE, setup_aws_sso_config
+    from tasks.e2e_framework.setup.aws import setup_aws_sso_config
 
     setup_aws_sso_config(cfg, interactive=False)
 
@@ -77,31 +83,8 @@ def deploy(
     if key_pair_required and cfg.get_options().checkKeyPair:
         _check_key_pair(awsKeyPairName)
 
-    if needs_agent_containers and (
-        pipeline_id is not None
-        or full_image_path is not None
-        and full_image_path.startswith("669783387624.dkr.ecr.us-east-1.amazonaws.com/")
-        or cluster_agent_full_image_path is not None
-        and cluster_agent_full_image_path.startswith("669783387624.dkr.ecr.us-east-1.amazonaws.com/")
-    ):
-        flags["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
-        flags["ddagent:imagePullUsername"] = "AWS"
-        flags["ddagent:imagePullPassword"] = ctx.run(
-            f"aws-vault exec {ECR_CACHE_PROFILE} -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}",
-            hide=True,
-        ).stdout.strip()
-    elif (
-        full_image_path is not None
-        and full_image_path.startswith("376334461865.dkr.ecr.us-east-1.amazonaws.com/")
-        or cluster_agent_full_image_path is not None
-        and cluster_agent_full_image_path.startswith("376334461865.dkr.ecr.us-east-1.amazonaws.com/")
-    ):
-        flags["ddagent:imagePullRegistry"] = "376334461865.dkr.ecr.us-east-1.amazonaws.com"
-        flags["ddagent:imagePullUsername"] = "AWS"
-        flags["ddagent:imagePullPassword"] = ctx.run(
-            "aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password --region us-east-1",
-            hide=True,
-        ).stdout.strip()
+    if needs_agent_containers:
+        flags.update(_image_pull_flags(ctx, full_image_path, cluster_agent_full_image_path, *(extra_image_paths or [])))
     return common_deploy(
         ctx,
         scenario_name,
@@ -126,6 +109,19 @@ def deploy(
         pulumi_extra_args=pulumi_extra_args,
         pulumi_env=pulumi_env,
     )
+
+
+def _image_pull_flags(ctx: Context, *images: str | None) -> dict[str, str]:
+    """Pull secret flags for the cluster: agent-qa always, plus agent-sandbox when an image lives there."""
+    creds = [c for c in (agent_qa_ecr_credential(ctx), agent_sandbox_ecr_credential(ctx, *images)) if c is not None]
+    if not creds:
+        return {}
+    registries, usernames, passwords = zip(*creds, strict=True)
+    return {
+        "ddagent:imagePullRegistry": ",".join(registries),
+        "ddagent:imagePullUsername": ",".join(usernames),
+        "ddagent:imagePullPassword": ",".join(passwords),
+    }
 
 
 def _check_key_pair(key_pair_to_search: str | None):

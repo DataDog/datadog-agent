@@ -5,15 +5,19 @@
 
 #[cfg(any(test, windows))]
 mod agent_password_logon;
+mod identity;
 mod profile;
 mod request;
 mod stdio;
 
 #[cfg(all(windows, not(test)))]
 pub(crate) use agent_password_logon::{AgentSpawnLogon, resolve_agent_spawn_logon};
-#[cfg(windows)]
-pub(crate) use profile::DATADOG_AGENT_PROCESS;
+#[cfg(test)]
+pub(crate) use identity::{Grant, RunAs};
+pub(crate) use identity::{RequestedIdentity, translate};
 pub(crate) use profile::SpawnProfile;
+#[cfg(windows)]
+pub(crate) use profile::{DATADOG_AGENT_PROCESS, DATADOG_AGENT_SYSPROBE};
 pub(crate) use request::SpawnRequest;
 pub(crate) use stdio::StdioSetting;
 #[cfg(all(test, unix))]

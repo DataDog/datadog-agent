@@ -1,0 +1,7 @@
+description: Empty script exits with 0.
+input:
+  script: ""
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

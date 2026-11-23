@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -26,7 +25,7 @@ func syscfgWithNPM(npmEnabled bool) *sysconfigtypes.Config {
 		EnabledModules: make(map[sysconfigtypes.ModuleName]struct{}),
 	}
 	if npmEnabled {
-		cfg.EnabledModules[sysconfig.NetworkTracerModule] = struct{}{}
+		cfg.EnabledModules[sysconfigtypes.NetworkTracerModule] = struct{}{}
 	}
 	return cfg
 }

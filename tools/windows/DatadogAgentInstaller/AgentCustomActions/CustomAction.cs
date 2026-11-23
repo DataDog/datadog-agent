@@ -60,18 +60,6 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult ReportFailure(Session session)
-        {
-            return Datadog.CustomActions.Telemetry.ReportFailure(session);
-        }
-
-        [CustomAction]
-        public static ActionResult ReportSuccess(Session session)
-        {
-            return Datadog.CustomActions.Telemetry.ReportSuccess(session);
-        }
-
-        [CustomAction]
         public static ActionResult EnsureNpmServiceDependency(Session session)
         {
             return Datadog.CustomActions.ServiceCustomAction.EnsureNpmServiceDependency(session);
@@ -177,6 +165,12 @@ namespace Datadog.AgentCustomActions
         public static ActionResult ConfigureServicesRollback(Session session)
         {
             return Datadog.CustomActions.ServiceCustomAction.ConfigureServicesRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult StopDDServicesRollback(Session session)
+        {
+            return Datadog.CustomActions.ServiceCustomAction.StopDDServicesRollback(session);
         }
 
         [CustomAction]
