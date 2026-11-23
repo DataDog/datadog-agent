@@ -7,11 +7,14 @@ package agenttelemetryimpl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
+	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -29,6 +32,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // captureClient records every Do(req) call's request and body, and returns
@@ -659,4 +663,41 @@ func TestTelemetryDelegatedAdditionalEndpointUpdates(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSendLogsBatch_TagsSurviveKeyBasedScrubbing: a secret handle under a config
+// key named "tags" must not mask the event tags. AddStrippedKeys is process-wide
+// and irreversible, so the real scrubber runs in a child process.
+func TestSendLogsBatch_TagsSurviveKeyBasedScrubbing(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=^TestSendLogsBatchRealScrubberHelper$")
+	cmd.Env = append(os.Environ(), "ET_SCRUB_HELPER=1")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "child process output:\n%s", out)
+}
+
+func TestSendLogsBatchRealScrubberHelper(t *testing.T) {
+	if os.Getenv("ET_SCRUB_HELPER") == "" {
+		t.Skip("runs only as a child of TestSendLogsBatch_TagsSurviveKeyBasedScrubbing")
+	}
+	scrubber.AddStrippedKeys([]string{"tags"})
+
+	cl := &captureClient{}
+	s := newTestSender(t, cl)
+	const tags = "agent.version:7.1.0,owner_team:fleet-automation"
+	require.NoError(t, s.sendLogsBatch(context.Background(), []Log{
+		{Level: LogLevelError, Tags: tags, Count: 1, TracerTime: 1},
+		{Level: LogLevelError, Tags: tags + ",agent.rc:true", Count: 2, TracerTime: 2},
+	}))
+
+	_, bodies := cl.snapshot()
+	require.Len(t, bodies, 1)
+	var got struct {
+		Payload struct {
+			Logs []Log `json:"logs"`
+		} `json:"payload"`
+	}
+	require.NoError(t, json.Unmarshal(bodies[0], &got)) // newTestSender does not compress
+	require.Len(t, got.Payload.Logs, 2)
+	assert.Equal(t, tags, got.Payload.Logs[0].Tags)
+	assert.Equal(t, tags+",agent.rc:true", got.Payload.Logs[1].Tags)
 }

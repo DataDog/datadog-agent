@@ -27,6 +27,26 @@ import (
 // scrubbing is done.
 const commitSHAPlaceholder = "FULL_SHA_TO_BE_REPLACED"
 
+// The secrets component registers every config key that held an ENC[...] handle
+// as a scrubber stripped key (scrubber.AddStrippedKeys), so a handle under a key
+// named "tags" would mask every event's tags and drop the owner team and version
+// identity. The agent builds the tags string itself, so the JSON key is renamed
+// around the scrub. Quotes inside JSON strings are escaped, so the key bytes
+// cannot occur in a value. Remove once the secrets component or the scrubber can
+// exempt such keys.
+var (
+	tagsKey         = []byte(`"tags":`)
+	shieldedTagsKey = []byte(`"tags_shielded_from_key_scrub":`)
+)
+
+func scrubKeepingTags(payloadJSON []byte) ([]byte, error) {
+	scrubbed, err := scrubber.ScrubJSON(bytes.ReplaceAll(payloadJSON, tagsKey, shieldedTagsKey))
+	if err != nil {
+		return nil, err
+	}
+	return bytes.ReplaceAll(scrubbed, shieldedTagsKey, tagsKey), nil
+}
+
 // sendLogsBatch takes already-converted wire Log structs (produced by
 // enrichErrorLog) and POSTs them as a single LogsPayload-envelope to every
 // configured endpoint.
@@ -59,7 +79,7 @@ func (s *senderImpl) sendLogsBatch(ctx context.Context, logs []Log) error {
 	if err != nil {
 		return fmt.Errorf("marshal %s payload: %w", logsPayloadType, err)
 	}
-	reqBodyRaw, err := scrubber.ScrubJSON(payloadJSON)
+	reqBodyRaw, err := scrubKeepingTags(payloadJSON)
 	if err != nil {
 		return fmt.Errorf("scrub %s payload: %w", logsPayloadType, err)
 	}
