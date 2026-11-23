@@ -9,6 +9,8 @@ package v1
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -982,17 +984,21 @@ func TestKubeMetadataStreamFilter(t *testing.T) {
 	pod := &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "p1"}}
 	podGroup := &workloadmeta.KubernetesKAIPodGroup{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKAIPodGroup, ID: "ns/pg"}}
 
-	disabled := kubeMetadataStreamFilter(false, false)
+	disabled := kubeMetadataStreamFilter(false, false, false)
 	assert.False(t, disabled.MatchEntity(pod))
 	assert.False(t, disabled.MatchEntity(podGroup))
 
-	enabled := kubeMetadataStreamFilter(true, false)
+	enabled := kubeMetadataStreamFilter(true, false, false)
 	assert.True(t, enabled.MatchEntity(pod))
 	assert.True(t, enabled.MatchEntity(podGroup))
 
-	kueueOnly := kubeMetadataStreamFilter(false, true)
+	kueueOnly := kubeMetadataStreamFilter(false, true, false)
 	assert.True(t, kueueOnly.MatchEntity(pod))
 	assert.False(t, kueueOnly.MatchEntity(podGroup))
+
+	autoscalersOnly := kubeMetadataStreamFilter(false, false, true)
+	assert.True(t, autoscalersOnly.MatchEntity(pod))
+	assert.False(t, autoscalersOnly.MatchEntity(podGroup))
 }
 
 func testNamedKueueWorkloadEvent(eventType workloadmeta.EventType, namespace, name, queue string) workloadmeta.Event {
@@ -1636,6 +1642,211 @@ func TestMetadataUpdatesSinceHistoryOverflow(t *testing.T) {
 	assert.Equal(t, "1", first.KueueWorkloads[0].Uid, "overwriting history cannot mutate in-flight responses")
 }
 
+func TestNodeAutoscalers(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	srv.autoscalersPerNodeEnabled = true
+
+	// web runs on node1 and db on node2.
+	srv.processWmetaEvents([]workloadmeta.Event{
+		testDeploymentPodEvent(workloadmeta.EventTypeSet, "web-0", "node1", "web"),
+		testDeploymentPodEvent(workloadmeta.EventTypeSet, "db-0", "node2", "db"),
+	})
+
+	node1Ch := srv.subscribeToNamespaceEvents("node1")
+	node2Ch := srv.subscribeToNamespaceEvents("node2")
+	node1 := srv.buildNodeMetadataState("node1")
+	node2 := srv.buildNodeMetadataState("node2")
+	_, version := srv.buildMetadataSnapshotWithVersion()
+	// updates returns the autoscaler changes sent to the node since last, and
+	// moves last forward.
+	updates := func(nodeName string, last *nodeMetadataState) map[string]pb.KubeMetadataEventType {
+		t.Helper()
+		current := srv.nodeMetadataStateSince(nodeName, *last)
+		diff := current.diffResponse(*last)
+		*last = current
+		if diff == nil {
+			return nil
+		}
+		return autoscalerEvents(diff.KubernetesAutoscalers)
+	}
+
+	// my-hpa is created for web: only node1 gets it, and the shared diffs
+	// don't have it.
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: newTestAutoscaler("web")}})
+	assertNotified(t, "node1", node1Ch)
+	assertNotNotified(t, "node2", node2Ch)
+	assert.Equal(
+		t,
+		map[string]pb.KubeMetadataEventType{"my-hpa": pb.KubeMetadataEventType_SET},
+		updates("node1", &node1),
+	)
+	shared, _, ok := srv.metadataUpdatesSince(version)
+	require.True(t, ok)
+	assert.Empty(t, shared)
+
+	// my-hpa is set again, unchanged: node1 doesn't wake up.
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: newTestAutoscaler("web")}})
+	assertNotNotified(t, "node1", node1Ch)
+	assert.Nil(t, updates("node1", &node1))
+
+	// web-vpa also targets web, and is then deleted: node1 gets it and loses
+	// it, and keeps my-hpa.
+	webVPA := &workloadmeta.KubernetesAutoscaler{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesAutoscaler,
+			ID:   "verticalpodautoscaler/ns1/web-vpa",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "web-vpa",
+			Namespace: "ns1",
+		},
+		AutoscalerKind: workloadmeta.AutoscalerKindVPA,
+		TargetKind:     workloadmeta.AutoscalerTargetDeployment,
+		TargetName:     "web",
+	}
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: webVPA}})
+	assertNotified(t, "node1", node1Ch)
+	assert.Equal(
+		t,
+		map[string]pb.KubeMetadataEventType{"web-vpa": pb.KubeMetadataEventType_SET},
+		updates("node1", &node1),
+	)
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: webVPA}})
+	assertNotified(t, "node1", node1Ch)
+	assert.Equal(
+		t,
+		map[string]pb.KubeMetadataEventType{"web-vpa": pb.KubeMetadataEventType_UNSET},
+		updates("node1", &node1),
+	)
+	assert.Equal(t, []string{"horizontalpodautoscaler/ns1/my-hpa"}, slices.Collect(maps.Keys(node1.autoscalers)))
+
+	// my-hpa is retargeted to db: node1 loses it and node2 gets it.
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: newTestAutoscaler("db")}})
+	assertNotified(t, "node1", node1Ch)
+	assertNotified(t, "node2", node2Ch)
+	assert.Equal(
+		t,
+		map[string]pb.KubeMetadataEventType{"my-hpa": pb.KubeMetadataEventType_UNSET},
+		updates("node1", &node1),
+	)
+	assert.Equal(
+		t,
+		map[string]pb.KubeMetadataEventType{"my-hpa": pb.KubeMetadataEventType_SET},
+		updates("node2", &node2),
+	)
+
+	// A db pod lands on node1: node1 gets my-hpa.
+	srv.processWmetaEvents([]workloadmeta.Event{testDeploymentPodEvent(workloadmeta.EventTypeSet, "db-1", "node1", "db")})
+	assertNotified(t, "node1", node1Ch)
+	assert.Equal(
+		t,
+		map[string]pb.KubeMetadataEventType{"my-hpa": pb.KubeMetadataEventType_SET},
+		updates("node1", &node1),
+	)
+
+	// The db pod leaves node1: node1 loses my-hpa.
+	srv.processWmetaEvents([]workloadmeta.Event{testDeploymentPodEvent(workloadmeta.EventTypeUnset, "db-1", "node1", "db")})
+	assertNotified(t, "node1", node1Ch)
+	assert.Equal(
+		t,
+		map[string]pb.KubeMetadataEventType{"my-hpa": pb.KubeMetadataEventType_UNSET},
+		updates("node1", &node1),
+	)
+
+	// A pod of cache, which has no autoscaler, lands on node1: node1 wakes up
+	// but has nothing to update.
+	srv.processWmetaEvents([]workloadmeta.Event{testDeploymentPodEvent(workloadmeta.EventTypeSet, "cache-0", "node1", "cache")})
+	assertNotified(t, "node1", node1Ch)
+	assert.Nil(t, updates("node1", &node1))
+
+	// my-hpa is deleted: only node2 had it, and nothing is left in the index.
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: newTestAutoscaler("db")}})
+	assertNotNotified(t, "node1", node1Ch)
+	assertNotified(t, "node2", node2Ch)
+	assert.Equal(
+		t,
+		map[string]pb.KubeMetadataEventType{"my-hpa": pb.KubeMetadataEventType_UNSET},
+		updates("node2", &node2),
+	)
+	assert.Empty(t, srv.autoscalersByWorkload)
+}
+
+func TestStreamKubeMetadata_AutoscalersPerNode(t *testing.T) {
+	wmetaMock, store := newTestWmetaAndStore(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	srv := NewKubeMetadataStreamServer(store, wmetaMock)
+	srv.autoscalersPerNodeEnabled = true
+	srv.Start(ctx)
+
+	// web-hpa targets the web deployment, and db-hpa the db deployment.
+	wmetaMock.Set(&workloadmeta.KubernetesAutoscaler{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesAutoscaler,
+			ID:   "horizontalpodautoscaler/ns1/web-hpa",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "web-hpa",
+			Namespace: "ns1",
+		},
+		AutoscalerKind: workloadmeta.AutoscalerKindHPA,
+		TargetKind:     workloadmeta.AutoscalerTargetDeployment,
+		TargetName:     "web",
+	})
+	wmetaMock.Set(&workloadmeta.KubernetesAutoscaler{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesAutoscaler,
+			ID:   "horizontalpodautoscaler/ns1/db-hpa",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "db-hpa",
+			Namespace: "ns1",
+		},
+		AutoscalerKind: workloadmeta.AutoscalerKindHPA,
+		TargetKind:     workloadmeta.AutoscalerTargetDeployment,
+		TargetName:     "db",
+	})
+
+	// node1 connects before any pod is known: its full state has no autoscalers.
+	next := startTestStream(t, srv, "node1", nil)
+	resp := next()
+	assert.True(t, resp.IsFullState)
+	assert.Empty(t, resp.KubernetesAutoscalers)
+
+	// web runs on node1 and db on node2: node1 only gets web-hpa, in a diff.
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{
+		testDeploymentPodCollectorEvent("web-0", "node1", "web"),
+		testDeploymentPodCollectorEvent("db-0", "node2", "db"),
+	})
+	resp = next()
+	assert.False(t, resp.IsFullState)
+	assert.Equal(
+		t,
+		map[string]pb.KubeMetadataEventType{"web-hpa": pb.KubeMetadataEventType_SET},
+		autoscalerEvents(resp.KubernetesAutoscalers),
+	)
+
+	// node2 connects once the pods are known: its full state only has db-hpa.
+	resp = startTestStream(t, srv, "node2", nil)()
+	assert.True(t, resp.IsFullState)
+	assert.Equal(
+		t,
+		map[string]pb.KubeMetadataEventType{"db-hpa": pb.KubeMetadataEventType_SET},
+		autoscalerEvents(resp.KubernetesAutoscalers),
+	)
+
+	// A db pod lands on node1: node1 gets db-hpa, in a diff.
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{testDeploymentPodCollectorEvent("db-1", "node1", "db")})
+	resp = next()
+	assert.False(t, resp.IsFullState)
+	assert.Equal(
+		t,
+		map[string]pb.KubeMetadataEventType{"db-hpa": pb.KubeMetadataEventType_SET},
+		autoscalerEvents(resp.KubernetesAutoscalers),
+	)
+}
+
 func testKueueWorkloadEvent(uid string, eventType workloadmeta.EventType) workloadmeta.Event {
 	return workloadmeta.Event{
 		Type: eventType,
@@ -1679,6 +1890,49 @@ func newTestAutoscaler(targetName string) *workloadmeta.KubernetesAutoscaler {
 		TargetKind:     workloadmeta.AutoscalerTargetDeployment,
 		TargetName:     targetName,
 	}
+}
+
+func testDeploymentPodEvent(eventType workloadmeta.EventType, uid, nodeName, deployment string) workloadmeta.Event {
+	return workloadmeta.Event{
+		Type: eventType,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: uid},
+			EntityMeta: workloadmeta.EntityMeta{Name: uid, Namespace: "ns1"},
+			Owners: []workloadmeta.KubernetesPodOwner{
+				{
+					Kind: kubernetes.ReplicaSetKind,
+					Name: deployment + "-6d4b5c7f9",
+				},
+			},
+			NodeName: nodeName,
+		},
+	}
+}
+
+func testDeploymentPodCollectorEvent(uid, nodeName, deployment string) workloadmeta.CollectorEvent {
+	return workloadmeta.CollectorEvent{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceKubeAPIServer,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: uid},
+			EntityMeta: workloadmeta.EntityMeta{Name: uid, Namespace: "ns1"},
+			Owners: []workloadmeta.KubernetesPodOwner{
+				{
+					Kind: kubernetes.ReplicaSetKind,
+					Name: deployment + "-6d4b5c7f9",
+				},
+			},
+			NodeName: nodeName,
+		},
+	}
+}
+
+func autoscalerEvents(autoscalers []*pb.KubernetesAutoscaler) map[string]pb.KubeMetadataEventType {
+	events := make(map[string]pb.KubeMetadataEventType, len(autoscalers))
+	for _, autoscaler := range autoscalers {
+		events[autoscaler.Name] = autoscaler.Type
+	}
+	return events
 }
 
 func assertNotified(t *testing.T, name string, ch <-chan struct{}) {

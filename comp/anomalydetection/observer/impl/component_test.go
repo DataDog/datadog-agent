@@ -276,3 +276,26 @@ func TestLogPatternLimitFromAgentConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestLogMetricsMatchingFromAgentConfig(t *testing.T) {
+	for _, test := range []struct {
+		value string
+		want  float64
+	}{
+		{"0.6", 0.6}, {"0.9", 0.9}, {"0", 0.6}, {"1.1", 0.6},
+	} {
+		t.Run(test.value, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  detectors:\n    log_metrics_extractor:\n      min_token_match_ratio: "+test.value+"\n")
+			settings, err := settingsFromAgentConfig(defaultCatalog(), cfg)
+			require.NoError(t, err)
+			actual := settings.configs[LogMetricsExtractorName].(LogMetricsExtractorConfig)
+			require.Equal(t, test.want, actual.MinTokenMatchRatio)
+			require.Equal(t, test.want, NewLogMetricsExtractor(actual).config.MinTokenMatchRatio)
+			defaults := DefaultLogMetricsExtractorConfig()
+			require.Equal(t, defaults.maxPatterns, actual.maxPatterns)
+			require.Equal(t, defaults.maxPatternsPerGroup, actual.maxPatternsPerGroup)
+			require.Equal(t, defaults.maxTagGroups, actual.maxTagGroups)
+			require.Equal(t, defaults.patternIdleTTLSeconds, actual.patternIdleTTLSeconds)
+		})
+	}
+}

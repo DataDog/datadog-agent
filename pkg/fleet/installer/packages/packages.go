@@ -49,7 +49,7 @@ type hooks struct {
 // Hooks is the interface for the hooks.
 type Hooks interface {
 	PreInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error
-	PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error
+	PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, windowsArgs ...string) error
 	PostInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, winArgs []string) error
 
 	PreStartExperiment(ctx context.Context, pkg string) error
@@ -87,8 +87,8 @@ func (h *hooksCLI) PreInstall(ctx context.Context, pkg string, pkgType PackageTy
 }
 
 // PreRemove calls the pre-remove hook for the package.
-func (h *hooksCLI) PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error {
-	return h.callHook(ctx, false, pkg, "preRemove", pkgType, upgrade, nil, "")
+func (h *hooksCLI) PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, windowsArgs ...string) error {
+	return h.callHook(ctx, false, pkg, "preRemove", pkgType, upgrade, windowsArgs, "")
 }
 
 // PostInstall calls the post-install hook for the package.

@@ -70,6 +70,7 @@
 /CHANGELOG-DCA.rst                              @DataDog/container-integrations @DataDog/container-platform
 /CHANGELOG-INSTALLSCRIPT.rst                    @DataDog/agent-delivery
 /*.md                                           @DataDog/agent-devx
+/CHANGELOG-SERVERLESS-INIT.md                   @DataDog/serverless-azure-and-gcp
 /AGENTS.md                                      @DataDog/agent-devx
 /CLAUDE.md                                      @DataDog/agent-devx
 /NOTICE                                         @DataDog/agent-delivery
@@ -814,6 +815,8 @@
 /pkg/flare/certificates*.go                                           @DataDog/agent-runtimes
 /pkg/fleet/                                                           @DataDog/fleet
 /pkg/fleet/**/*_windows*.go                                           @DataDog/fleet @DataDog/windows-products
+/pkg/fleet/installer/msi/                                             @DataDog/fleet @DataDog/windows-products
+/pkg/fleet/**/windows/                                                @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/installer/setup/djm/                                       @DataDog/fleet @DataDog/data-observability
 /pkg/inventory/                                                       @DataDog/windows-products
 /pkg/inventory/software/                                              @DataDog/windows-products
@@ -882,6 +885,7 @@
 /pkg/util/ktime                                                       @DataDog/agent-security
 /pkg/util/kubelet/                                                    @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/                                                 @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
+/pkg/util/kubernetes/autoscalers/                                     @DataDog/container-integrations @Datadog/container-autoscaling @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/nodename/                                        @DataDog/opentelemetry-agent
 /pkg/util/podman/                                                     @DataDog/container-integrations
 /pkg/util/port/                                                       @DataDog/cloud-network-monitoring
@@ -1029,6 +1033,9 @@
 /tasks/go_deps.py                                               @DataDog/agent-runtimes
 /tasks/gotest.py                                                @DataDog/agent-devx @DataDog/agent-build
 /tasks/dogstatsd.py                                             @DataDog/agent-metric-pipelines
+/tasks/serverless_init.py                                       @DataDog/serverless-azure-and-gcp
+/tasks/libs/serverless_init/                                    @DataDog/serverless-azure-and-gcp
+/tasks/unit_tests/serverless_init_tests.py                      @DataDog/serverless-azure-and-gcp
 /tasks/update_go.py                                             @DataDog/agent-runtimes
 /tasks/python_version.py                                        @DataDog/agent-integrations
 /tasks/unit_tests/update_go_tests.py                            @DataDog/agent-runtimes
@@ -1176,7 +1183,7 @@
 /test/new-e2e/tests/language-detection                          @DataDog/container-experiences
 /test/new-e2e/tests/ndm                                         @DataDog/network-device-monitoring-core
 /test/new-e2e/tests/ndm/netflow                                 @DataDog/ndm-integrations
-/test/new-e2e/tests/netpath                                     @DataDog/windows-products @DataDog/network-path
+/test/new-e2e/tests/netpath                                     @DataDog/network-path @DataDog/windows-products
 /test/new-e2e/tests/npm                                         @DataDog/cloud-network-monitoring
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go                  @DataDog/cloud-network-monitoring @DataDog/windows-products
 /test/new-e2e/tests/npm/ecs_1host_test.go                       @DataDog/ecs-experiences

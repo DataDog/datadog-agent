@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The logs agent status now warns when several tailers read the same file,
+    which sends its logs more than once.
