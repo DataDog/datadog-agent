@@ -58,6 +58,22 @@ func TestBuildAgentConfig(t *testing.T) {
 	assert.Contains(t, config, `logs_enabled: true`)
 }
 
+func TestBuildAgentConfigWithPathPrefix(t *testing.T) {
+	env := &environments.Host{FakeIntake: &components.FakeIntake{
+		FakeintakeOutput: compfakeintake.FakeintakeOutput{
+			Scheme:     "http",
+			Host:       "fakeintake.internal",
+			Port:       8080,
+			PathPrefix: "3f2c9a1e",
+		},
+	}}
+
+	config, err := buildAgentConfig(env, "test-api-key", "")
+	require.NoError(t, err)
+	assert.Contains(t, config, `dd_url: http://fakeintake.internal:8080/3f2c9a1e`)
+	assert.Contains(t, config, `logs_dd_url: http://fakeintake.internal:8080/3f2c9a1e`)
+}
+
 func TestCommand(t *testing.T) {
 	t.Run("pinned version sets major and minor", func(t *testing.T) {
 		cmd := command("7.65.0", "test-api-key")

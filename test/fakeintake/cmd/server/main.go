@@ -26,6 +26,7 @@ func main() {
 	rcStatePath := flag.String("rc-state", "", "Remote Config: YAML file with initial config to preload")
 	rcVersion := flag.Uint64("rc-version", 0, "Remote Config: initial version counter (default 1)")
 	rcKeyPath := flag.String("rc-key-path", "", "Remote Config: ed25519 signing key path (default ~/.fakeintake/signing.key)")
+	pathPrefix := flag.String("path-prefix", "", "only accept intake requests under /<path-prefix>, stripped before routing; other intake requests get a 404. Control endpoints (/fakeintake/...) are served at the root too")
 	rcKeyData := flag.String("rc-key-data", "", "Remote Config: hex-encoded 32-byte ed25519 seed (takes precedence over --rc-key-path; use for ephemeral envs)")
 
 	flag.Parse()
@@ -39,6 +40,10 @@ func main() {
 	}
 	if *dddevForward {
 		fiOptions = append(fiOptions, fakeintake.WithDDDevForward())
+	}
+
+	if *pathPrefix != "" {
+		fiOptions = append(fiOptions, fakeintake.WithPathPrefix(*pathPrefix))
 	}
 
 	if retentionPeriodPtr != nil {

@@ -19,9 +19,16 @@ const hostPort = 30080
 func NewLocalDockerFakeintake(e config.Env, resourceName string) (*Fakeintake, error) {
 	return components.NewComponent(e, resourceName, func(comp *Fakeintake) error {
 
-		_, err := docker.NewContainer(e.Ctx(), e.CommonNamer().ResourceName("local-docker-container"), &docker.ContainerArgs{
-			Image:   pulumi.String(ImageURL(e.DatadogPublicRegistry() + "/fakeintake")),
-			Command: pulumi.ToStringArray([]string{"--rc-key-data=" + DefaultRCSigningKeySeed}),
+		pathPrefix, err := NewPathPrefix(e, resourceName, pulumi.Parent(comp))
+		if err != nil {
+			return err
+		}
+
+		_, err = docker.NewContainer(e.Ctx(), e.CommonNamer().ResourceName("local-docker-container"), &docker.ContainerArgs{
+			Image: pulumi.String(ImageURL(e.DatadogPublicRegistry() + "/fakeintake")),
+			Command: pathPrefix.ApplyT(func(prefix string) []string {
+				return append([]string{"--rc-key-data=" + DefaultRCSigningKeySeed}, PathPrefixArgs(prefix)...)
+			}).(pulumi.StringArrayOutput),
 			Ports: docker.ContainerPortArray{
 				&docker.ContainerPortArgs{
 					Internal: pulumi.Int(80),
@@ -41,7 +48,10 @@ func NewLocalDockerFakeintake(e config.Env, resourceName string) (*Fakeintake, e
 		comp.Host = pulumi.Sprintf("%s", localIP.String())
 		comp.Port = pulumi.Int(hostPort).ToIntOutput()
 		comp.Scheme = pulumi.Sprintf("%s", "http")
-		comp.URL = pulumi.Sprintf("%s://%s:%d", comp.Scheme, comp.Host, comp.Port)
+		comp.PathPrefix = pathPrefix
+		comp.URL = pulumi.All(pulumi.Sprintf("%s://%s:%d", comp.Scheme, comp.Host, comp.Port), pathPrefix).ApplyT(func(args []any) string {
+			return URLWithPathPrefix(args[0].(string), args[1].(string))
+		}).(pulumi.StringOutput)
 
 		return nil
 	})

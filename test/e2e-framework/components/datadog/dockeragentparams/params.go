@@ -254,11 +254,12 @@ type additionalLogEndpointInput struct {
 	Hostname   string `json:"host"`
 	APIKey     string `json:"api_key,omitempty"`
 	Port       string `json:"port,omitempty"`
+	PathPrefix string `json:"path_prefix,omitempty"`
 	IsReliable bool   `json:"is_reliable,omitempty"`
 }
 
-func WithAdditionalFakeintake(fakeintake *fakeintake.Fakeintake) func(*Params) error {
-	additionalEndpointsContentInput := fakeintake.URL.ToStringOutput().ApplyT(func(url string) (string, error) {
+func WithAdditionalFakeintake(fi *fakeintake.Fakeintake) func(*Params) error {
+	additionalEndpointsContentInput := fi.URL.ToStringOutput().ApplyT(func(url string) (string, error) {
 		endpoints := map[string][]string{
 			fmt.Sprintf("%s", url): {"00000000000000000000000000000000"},
 		}
@@ -266,10 +267,11 @@ func WithAdditionalFakeintake(fakeintake *fakeintake.Fakeintake) func(*Params) e
 		return string(jsonContent), err
 	}).(pulumi.StringOutput)
 
-	additionalLogsEndpointsContentInput := fakeintake.Host.ToStringOutput().ApplyT(func(host string) (string, error) {
+	additionalLogsEndpointsContentInput := pulumi.All(fi.Host, fi.PathPrefix).ApplyT(func(args []any) (string, error) {
 		endpoints := []additionalLogEndpointInput{
 			{
-				Hostname: host,
+				Hostname:   args[0].(string),
+				PathPrefix: fakeintake.PathPrefixPath(args[1].(string)),
 			},
 		}
 		jsonContent, err := json.Marshal(endpoints)
@@ -277,7 +279,7 @@ func WithAdditionalFakeintake(fakeintake *fakeintake.Fakeintake) func(*Params) e
 	}).(pulumi.StringOutput)
 
 	// fakeintake without LB does not have a valid SSL certificate and accepts http only
-	shouldEnforceHTTPInputAndSkipSSL := fakeintake.Scheme.ApplyT(func(scheme string) bool { return scheme == "http" }).(pulumi.BoolInput)
+	shouldEnforceHTTPInputAndSkipSSL := fi.Scheme.ApplyT(func(scheme string) bool { return scheme == "http" }).(pulumi.BoolInput)
 
 	return func(p *Params) error {
 		logsEnvVars := pulumi.Map{

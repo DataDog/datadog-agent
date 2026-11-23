@@ -25,7 +25,10 @@ type FakeintakeOutput struct { // nolint:revive, We want to keep the name as <Co
 	Host   string `json:"host"`
 	Scheme string `json:"scheme"`
 	Port   uint32 `json:"port"`
-	URL    string `json:"url"`
+	// PathPrefix is the path segment the fakeintake accepts intake requests under, empty when it accepts any path.
+	// URL already includes it; add it yourself when building an endpoint from Host and Port.
+	PathPrefix string `json:"pathPrefix"`
+	URL        string `json:"url"`
 }
 
 type Fakeintake struct {
@@ -36,6 +39,11 @@ type Fakeintake struct {
 	Scheme pulumi.StringOutput `pulumi:"scheme"` // Scheme is a string as it's known in code and is useful to check HTTP/HTTPS
 	Port   pulumi.IntOutput    `pulumi:"port"`   // Same for Port
 
+	// PathPrefix is the path segment the fakeintake accepts intake requests under, empty when it accepts any path.
+	// URL already includes it; add it yourself when building an endpoint from Host and Port.
+	PathPrefix pulumi.StringOutput `pulumi:"pathPrefix"`
+
+	// URL is the base URL to send intake requests to, path prefix included.
 	URL pulumi.StringOutput `pulumi:"url"`
 }
 
