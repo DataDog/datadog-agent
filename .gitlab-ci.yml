@@ -139,6 +139,7 @@
   - Cargo.lock
 
 include:
+  - local: .gitlab/common/checkout.yml
   - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
   - local: .gitlab/build/**.yml
@@ -261,9 +262,6 @@ variables:
   SECRET_GENERIC_CONNECTOR_BINARIES_DIR: bin/secret-generic-connector
   CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
   CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
-  SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
-  DEB_S3_BUCKET: apt.datad0g.com
-  RPM_S3_BUCKET: yum.datad0g.com
   MACOS_S3_BUCKET: dd-agent-macostesting
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
@@ -284,8 +282,6 @@ variables:
   # uppercase path (e.g. A7) would 404.
   # Symbols for release builds are handled by agent-release-management.
   WINDOWS_SYMBOLS_S3_BUCKET: pipelines/windows-symbols
-  WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
-  DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   S3_CP_OPTIONS: --no-progress --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
   S3_ARTIFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
@@ -308,38 +304,35 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v153199977-a2a96aa6
+  CI_IMAGE_BTF_GEN: v154724683-ae4099a8
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v153199977-a2a96aa6
+  CI_IMAGE_DOCKER_X64: v154724683-ae4099a8
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v153199977-a2a96aa6
+  CI_IMAGE_DOCKER_ARM64: v154724683-ae4099a8
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v153199977-a2a96aa6
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v154724683-ae4099a8
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v153199977-a2a96aa6
+  CI_IMAGE_LINUX: v154724683-ae4099a8
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v153199977-a2a96aa6
+  CI_IMAGE_RPM_X64: v154724683-ae4099a8
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v153199977-a2a96aa6
+  CI_IMAGE_RPM_ARM64: v154724683-ae4099a8
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v153199977-a2a96aa6
+  CI_IMAGE_RPM_ARMHF: v154724683-ae4099a8
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v153199977-a2a96aa6
+  CI_IMAGE_WIN_LTSC2022_X64: v154696753-09b90e4c
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v153199977-a2a96aa6
+  CI_IMAGE_WIN_LTSC2025_X64: v154696753-09b90e4c
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  DEB_GPG_KEY_ID: c0962c7d
   DEB_GPG_KEY_NAME: "Datadog, Inc. APT key"
-  RPM_GPG_KEY_ID: b01082d3
   RPM_GPG_KEY_NAME: "Datadog, Inc. RPM key"
   # note the unusual ID for a GPG key:
   # it's the path of a Vault key to be used with gpg-vault
   # (https://github.com/DataDog/dd-source/tree/main/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault)
   GPG_TEST_KEY_ID: crypto/k8s/keys/k8s_gitlab-runner-datadog-agent_datadog-agent_testing_signing-key
   DOCKER_REGISTRY_URL: docker.io
-  KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   CLANG_LLVM_VER: 12.0.1
   CLANG_BUILD_VERSION: "v150220922-61ce1181"
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-05b3973acf5422348"
@@ -372,7 +365,6 @@ variables:
   MACOS_KEYCHAIN_PWD: ci-keychain # agent-delivery
   SLACK_AGENT: slack-agent-ci # agent-devx
   SMP_ACCOUNT: smp # single-machine-performance
-  VCPKG_BLOB_SAS_URL: vcpkg-blob-sas # windows-products
   VIRUS_TOTAL: virus-total # windows-products
   WINGET_PAT: winget-pat # windows-products
   # End vault variables
@@ -380,12 +372,8 @@ variables:
   # POSIX only (Linux and macOS): Windows jobs override this in .windows_docker_default
   DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: tools/ci/read_ci_secret.sh feature-flags-client token
 
-  DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
-  # Shallow clone by default.
-  GIT_STRATEGY: "fetch"
-  GIT_DEPTH: 1
   DISABLE_GIT_CACHE: true
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)

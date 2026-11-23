@@ -242,6 +242,13 @@ func TestPodsRequiredAtStartup(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "autoscaler tags",
+			cfg: map[string]interface{}{
+				"cluster_agent.autoscaler_tags.enabled": true,
+			},
+			expected: true,
+		},
+		{
 			name: "workload autoscaling alone is not a startup-time requirement",
 			cfg: map[string]interface{}{
 				"autoscaling.workload.enabled": true,

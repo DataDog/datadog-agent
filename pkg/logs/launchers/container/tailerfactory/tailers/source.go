@@ -23,21 +23,17 @@ type WrappedSource struct {
 }
 
 // Start implements Tailer#Start.
+//
+// It is called from the container launcher's loop. Adding the source
+// synchronously is safe because the container launcher only subscribes to
+// container source types, so Source (a file source) is not delivered back to
+// it.
 func (t *WrappedSource) Start() error {
-
-	// this method is typically called while the container launcher is handling
-	// a channel message from `sources.AddSource`; if we send this
-	// synchronously, it causes a deadlock because the added source is
-	// delivered to the container launcher.  As a workaround, add the source
-	// in a temporary goroutine.  The long-term fix is that launchers should
-	// not be adding sources.
-	go t.Sources.AddSource(t.Source)
-
+	t.Sources.AddSource(t.Source)
 	return nil
 }
 
 // Stop implements Tailer#Stop.
 func (t *WrappedSource) Stop() {
-	// (see comment in Start())
-	go t.Sources.RemoveSource(t.Source)
+	t.Sources.RemoveSource(t.Source)
 }

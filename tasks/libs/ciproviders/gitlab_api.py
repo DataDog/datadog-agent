@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from difflib import Differ
 from functools import lru_cache
 from itertools import product
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 import gitlab
@@ -46,6 +46,15 @@ CONFIG_SPECIAL_OBJECTS = {
     "stages",
     "variables",
     "workflow",
+}
+
+# These values simulate the child entry point for lint only. Never emit them
+# as runtime defaults in the generated configuration.
+GITLAB_CI_LINT_CONTEXTS = {
+    ".gitlab/childs/post-validation.yml": {
+        "CI_PIPELINE_SOURCE": "parent_pipeline",
+        "POST_VALIDATION_PARENT_ID": "1",
+    },
 }
 
 
@@ -784,9 +793,12 @@ def test_gitlab_configuration(entry_point: str, config_object: dict, context=Non
     # Apply the new variables from context
     # Important to DISABLE CLEAN AND FILTERING - the config at this point is minimally resolved (only includes)
     # Thus, removing anything like `extends` and dotted jobs will render the config invalid
-    config_object = post_process_gitlab_ci_configuration(
-        config_object, variable_overrides=context, do_filtering=False, clean=False
+    config_object = post_process_gitlab_ci_configuration(config_object, do_filtering=False, clean=False)
+    lint_context = GITLAB_CI_LINT_CONTEXTS.get(PurePosixPath(entry_point.replace("\\", "/")).as_posix(), {}) | (
+        context or {}
     )
+    if lint_context:
+        config_object.setdefault('variables', {}).update(lint_context)
     config_dump = yaml.safe_dump(config_object)
     lint_request = {"content": config_dump, "dry_run": True, "include_jobs": True}
     # Lint the configuration in the context of its baseline branch ($COMPARE_TO_BRANCH), since the `rules` of
@@ -996,7 +1008,15 @@ def resolve_gitlab_ci_configuration(
         return input_config
 
     agent = get_gitlab_repo()
-    lint_request = {"content": yaml.safe_dump(input_config), "dry_run": True, "include_jobs": True}
+    lint_context = (
+        GITLAB_CI_LINT_CONTEXTS.get(PurePosixPath(input_config_or_file.replace("\\", "/")).as_posix(), {})
+        if isinstance(input_config_or_file, str)
+        else {}
+    )
+    lint_config = deepcopy(input_config)
+    if lint_context:
+        lint_config.setdefault('variables', {}).update(lint_context)
+    lint_request = {"content": yaml.safe_dump(lint_config), "dry_run": True, "include_jobs": True}
     # Lint the configuration in the context of its baseline branch ($COMPARE_TO_BRANCH), since the `rules` of
     # the configuration are written against it, rather than in the context of the default branch
     lint_ref = (input_config.get('variables') or {}).get('COMPARE_TO_BRANCH')
@@ -1008,7 +1028,17 @@ def resolve_gitlab_ci_configuration(
         errors = '; '.join(res.errors)
         raise RuntimeError(f"{color_message('Invalid configuration', Color.RED)}: {errors}")
 
-    return yaml.safe_load(res.merged_yaml)
+    merged_config = yaml.safe_load(res.merged_yaml)
+    if lint_context:
+        original_variables = input_config.get('variables', {})
+        for name in lint_context:
+            if name in original_variables:
+                merged_config['variables'][name] = original_variables[name]
+            else:
+                merged_config.get('variables', {}).pop(name, None)
+        if not merged_config.get('variables'):
+            merged_config.pop('variables', None)
+    return merged_config
 
 
 def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_path=False, git_ref: str | None = None):
@@ -1047,8 +1077,11 @@ def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_
     # Merge all files
     if return_config:
         full_configuration = {}
-        for yaml_file in includes:
-            full_configuration.update(yaml_file)
+        for config in includes:
+            # Later variable definitions override earlier defaults without dropping other keys.
+            if isinstance(full_configuration.get('variables'), dict) and isinstance(config.get('variables'), dict):
+                config = config | {'variables': full_configuration['variables'] | config['variables']}
+            full_configuration.update(config)
 
         return full_configuration
 

@@ -360,11 +360,19 @@ func TestNetDevQueueProbeSelection(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			netDevQueueTPBTFSupported = func() bool { return tc.tpBTFSupported }
 			util.NetDevQueueTPBTFRejected.Store(tc.tpBTFRejected)
-			enabled, err := enabledProbes(cfg, tc.runtime, tc.core)
+			enabled, err := enabledProbes(cfg, tc.runtime, tc.core, false)
 			require.NoError(t, err)
 			for _, p := range netDevQueueProbes {
 				_, ok := enabled[manager.ProbeIdentificationPair{EBPFFuncName: p, UID: probeUID}]
 				assert.Equal(t, p == tc.expectedNetDevQ, ok, "probe %s", p)
+			}
+
+			// with the conntracker's map, no net_dev_queue probe is enabled
+			enabled, err = enabledProbes(cfg, tc.runtime, tc.core, true)
+			require.NoError(t, err)
+			for _, p := range netDevQueueProbes {
+				_, ok := enabled[manager.ProbeIdentificationPair{EBPFFuncName: p, UID: probeUID}]
+				assert.False(t, ok, "probe %s with natFromConntrack", p)
 			}
 		})
 	}

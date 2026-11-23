@@ -87,7 +87,7 @@ func TestEnabledProgramsTCPRecvMsgExit(t *testing.T) {
 	expected, err := selectTCPRecvMsgReturn(n)
 	require.NoError(t, err)
 
-	enabled, err := enabledPrograms(cfg, false)
+	enabled, err := enabledPrograms(cfg, false, false)
 	require.NoError(t, err)
 
 	found := filterEnabled(enabled, tcpRecvMsgReturn, tcpRecvMsgNoAddrLenReturn, tcpRecvMsgPre5190Return)
@@ -146,11 +146,19 @@ func TestEnabledProgramsSkipsRejectedTPBTF(t *testing.T) {
 	cfg.CollectUDPv6Conns = false
 	for _, rejected := range []bool{false, true} {
 		util.NetDevQueueTPBTFRejected.Store(rejected)
-		enabled, err := enabledPrograms(cfg, true)
+		enabled, err := enabledPrograms(cfg, true, false)
 		require.NoError(t, err)
 		_, tpBTF := enabled[netDevQueueTPBTF]
 		_, rawTP := enabled[netDevQueueRawTracepoint]
 		assert.Equal(t, !rejected, tpBTF, "rejected=%v", rejected)
 		assert.Equal(t, rejected, rawTP, "rejected=%v", rejected)
+
+		// with the conntracker's map, neither net_dev_queue program is enabled
+		enabled, err = enabledPrograms(cfg, true, true)
+		require.NoError(t, err)
+		_, tpBTF = enabled[netDevQueueTPBTF]
+		_, rawTP = enabled[netDevQueueRawTracepoint]
+		assert.False(t, tpBTF, "rejected=%v", rejected)
+		assert.False(t, rawTP, "rejected=%v", rejected)
 	}
 }
