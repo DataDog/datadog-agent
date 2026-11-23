@@ -61,9 +61,7 @@ func (d *directSenderConsumer) ID() string {
 
 // ChanSize implements eventmonitor.EventConsumerHandler
 func (d *directSenderConsumer) ChanSize() int {
-	// sized to absorb the burst of replayed processes when system-probe
-	// starts; the event monitor drops events when the channel is full
-	return 4096
+	return 100
 }
 
 type process struct {

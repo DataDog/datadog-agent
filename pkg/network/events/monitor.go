@@ -30,9 +30,11 @@ const (
 	// system-probe starts, it replays every running process at once, and that
 	// replay event is the only one a long-running process gets, so a dropped
 	// one leaves the process's connections without tags or a container ID
-	// until the next restart. The channel holds interface values, so a large
-	// buffer is cheap.
-	chanSize = 4096
+	// until the next restart. A buffered channel allocates its whole buffer up
+	// front (16 bytes per slot here), so this is sized from observed startup
+	// bursts, about 150 events, with headroom, rather than from the process
+	// count.
+	chanSize = 1024
 )
 
 var (

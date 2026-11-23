@@ -23,10 +23,8 @@ import (
 
 const (
 	// the queue is oversized to account for the procfs snapshot when system-probe starts.
-	// these are pointers, so the memory cost is not severe. Keep it at least as
-	// large as the event monitor consumer channel (events.chanSize) so the
-	// startup burst isn't dropped here instead.
-	maxProcessQueueLen = 4096
+	// these are pointers, so the memory cost is not severe
+	maxProcessQueueLen = 2048
 	// maxProcessListSize is the max size of a processList
 	maxProcessListSize     = 3
 	processCacheModuleName = "network_tracer__process_cache"
