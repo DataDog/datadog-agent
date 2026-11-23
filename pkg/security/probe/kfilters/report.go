@@ -139,7 +139,8 @@ func ComputeFilters(config *config.Config, rs *rules.RuleSet) (*FilterReport, er
 	if err != nil {
 		return nil, err
 	}
-	rs.WithExcludedRuleFromDiscarders(ruleListToMap(noDiscarderRules))
+	// the kernel checks the auid discarders before the approvers, the approver-only ones included
+	rs.WithExcludedRuleFromDiscarders(ruleListToMap(noDiscarderRules), "process.auid")
 
 	if filterReport.DiscardersReport, err = rs.GetDiscardersReport(); err != nil {
 		return nil, err

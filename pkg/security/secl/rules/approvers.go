@@ -620,9 +620,10 @@ func getApprovers(rules []*Rule, model ApproverModel) (Approvers, *ApproverStats
 			stats.FieldStats[field]++
 		}
 
-		// The events approved by an approver in ApproverOnly mode are immune to the discarders: a rule all the approvers of
-		// which are in this mode can be excluded from the discarder discovery, the discarders never drop its events. One
-		// approver in another mode would let the discarders drop the events it approves.
+		// The events approved by an approver in ApproverOnly mode are immune to the discarders, but those of the fields the
+		// rule set keeps the excluded rules for: a rule all the approvers of which are in this mode can be excluded from the
+		// discovery of the other discarders, they never drop its events. One approver in another mode would let the
+		// discarders drop the events it approves.
 		// ex: open.file.name != "" && process.auid == 1000 # this rule avoid open.file.path discarder discovery, but with a ApproverOnly on process.auid the problem disappear
 		//     open.file.filename == "/etc/passwd"
 		if approverOnly {

@@ -732,6 +732,40 @@ func TestRuleSetApprovers16(t *testing.T) {
 	}
 }
 
+// The rules excluded from the discarders still take part in the discarders of
+// the fields the rule set keeps them for.
+func TestRuleSetExcludedRuleDiscarderFields(t *testing.T) {
+	excludedExpr := `open.file.path != "/tmp/sample" && process.auid == 1000`
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, excludedExpr, `open.file.path == "/tmp/sample" && process.auid != 1000`)
+
+	excluded := make(map[eval.RuleID]bool)
+	rules := rs.GetBucket("open").GetRules()
+	for _, rule := range rules {
+		if rule.Rule.Expression == excludedExpr {
+			excluded[rule.Rule.ID] = true
+		}
+	}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	if err := event.SetFieldValue("process.auid", 1000); err != nil {
+		t.Fatal(err)
+	}
+	fields := []eval.Field{"process.auid"}
+
+	rs.WithExcludedRuleFromDiscarders(excluded)
+	if isDiscarder, _, err := rs.IsDiscarder(eval.NewContext(event), fields, rules); err != nil || !isDiscarder {
+		t.Errorf("expected a discarder without the excluded rule, got %v, %v", isDiscarder, err)
+	}
+
+	rs.WithExcludedRuleFromDiscarders(excluded, "process.auid")
+	if isDiscarder, _, err := rs.IsDiscarder(eval.NewContext(event), fields, rules); err != nil || isDiscarder {
+		t.Errorf("expected no discarder with the excluded rule, got %v, %v", isDiscarder, err)
+	}
+}
+
 func TestRuleSetApprovers17(t *testing.T) {
 	exprs := []string{
 		`open.file.path in ["/etc/passwd", "/etc/shadow"] && open.file.path != ~"/var/*"`,

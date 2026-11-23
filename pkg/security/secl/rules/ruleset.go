@@ -640,9 +640,11 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 	return eventType, nil
 }
 
-// WithExcludedRuleFromDiscarders set excluded rule from discarders
-func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool) {
+// WithExcludedRuleFromDiscarders set excluded rule from discarders, but from the
+// discarders of some fields
+func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool, discarderFields ...eval.Field) {
 	rs.opts.ExcludedRuleFromDiscarders = excludedRuleFromDiscarders
+	rs.opts.ExcludedRuleDiscarderFields = discarderFields
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
@@ -985,7 +987,9 @@ func (rs *RuleSet) IsDiscarder(ctx *eval.Context, fields []eval.Field, rules []*
 
 	for _, rule := range rules {
 		// ignore rule that can't generate discarders
-		if _, exists := rs.opts.ExcludedRuleFromDiscarders[rule.ID]; exists {
+		if _, exists := rs.opts.ExcludedRuleFromDiscarders[rule.ID]; exists && !slices.ContainsFunc(fields, func(field eval.Field) bool {
+			return slices.Contains(rs.opts.ExcludedRuleDiscarderFields, field)
+		}) {
 			continue
 		}
 
