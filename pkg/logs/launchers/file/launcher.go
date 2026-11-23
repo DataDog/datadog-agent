@@ -424,7 +424,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 					filesTailed[scanKey] = true
 					s.resolveFingerprintSkip(file)
 				} else {
-					s.oldInfoMap[scanKey] = &oldTailerInfo{Source: file.Source.UnderlyingSource(), Path: file.Path}
+					s.oldInfoMap[scanKey] = &oldTailerInfo{Source: file.Source.UnderlyingSource(), Path: file.Path, RecordedAt: time.Now()}
 				}
 			}
 		} else {

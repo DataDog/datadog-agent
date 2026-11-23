@@ -52,6 +52,7 @@ type Launcher struct {
 	nextGeneration         atomic.Uint64
 	stoppingWg             sync.WaitGroup
 	stop                   chan struct{}
+	runDone                chan struct{}
 	publisherMetadataCache publishermetadatacachedef.Component
 	stopOnce               sync.Once
 }
@@ -69,6 +70,7 @@ func NewLauncher() *Launcher {
 		sourcesDone:            make(chan struct{}),
 		removedSourcesDone:     make(chan struct{}),
 		stop:                   make(chan struct{}),
+		runDone:                make(chan struct{}),
 		publisherMetadataCache: cache,
 	}
 }
@@ -89,6 +91,7 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 
 // run starts new tailers and retries any transiently failed registrations.
 func (l *Launcher) run() {
+	defer close(l.runDone)
 	retryTicker := time.NewTicker(time.Second)
 	defer retryTicker.Stop()
 	enqueuePending := func(identifier string, src *sources.LogSource) {
@@ -224,7 +227,10 @@ func (l *Launcher) Stop() {
 	l.stopOnce.Do(func() {
 		close(l.sourcesDone)
 		close(l.removedSourcesDone)
-		l.stop <- struct{}{}
+		// Broadcast shutdown to both run() and any removal workers, and wait
+		// for run() to exit before touching launcher maps.
+		close(l.stop)
+		<-l.runDone
 		stopper := startstop.NewParallelStopper()
 		for _, tailer := range l.tailers {
 			stopper.Add(tailer)
