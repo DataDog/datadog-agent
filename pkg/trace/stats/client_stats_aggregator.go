@@ -68,7 +68,8 @@ type ClientStatsAggregator struct {
 	exitWG sync.WaitGroup
 	mu     sync.Mutex
 	// flushMu serializes flushes from bucket collection through writer
-	// submission. It is separate from mu so add() is not blocked by a write.
+	// submission. It is separate from mu so add() is not blocked while a
+	// flush serializes or writes the buckets it detached.
 	flushMu sync.Mutex
 
 	statsd statsd.ClientInterface
@@ -161,21 +162,23 @@ func (a *ClientStatsAggregator) flush(now time.Time, force bool) {
 	a.flushMu.Lock()
 	defer a.flushMu.Unlock()
 
+	// Only detach the buckets under mu. Serializing their sketches can be
+	// slow, so it happens after mu is released, and add() is not blocked.
 	a.mu.Lock()
-	var toFlush [][]*pb.ClientStatsPayload
+	var toFlush []*bucket
 	for ts, b := range a.buckets {
 		if !force && !flushTs.After(b.ts) {
 			continue
 		}
 		log.Debugf("css aggregator: flushing bucket %d", ts)
-		toFlush = append(toFlush, b.aggregationToPayloads())
+		toFlush = append(toFlush, b)
 		delete(a.buckets, ts)
 	}
 	a.oldestTs = flushTs
 	a.mu.Unlock()
 
-	for _, p := range toFlush {
-		a.flushPayloads(p)
+	for _, b := range toFlush {
+		a.flushPayloads(b.aggregationToPayloads())
 	}
 }
 
