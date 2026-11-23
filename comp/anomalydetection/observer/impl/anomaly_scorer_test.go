@@ -2187,6 +2187,81 @@ func TestPendingEvents_EpisodeStartedIncludesContributors(t *testing.T) {
 	}
 }
 
+func TestPendingEventsHistoricalMediumThreshold(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	cfg.CorrelationEventThreshold = "medium"
+	cfg.ReorderingWindowSecs = 600
+	s := newScorerWithTelemetry(cfg)
+
+	s.Advance(1000)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "historical"))
+	s.Advance(1010)
+
+	events := s.PendingEvents()
+	require.Len(t, events, 1)
+	require.Equal(t, observer.CorrelatorEventEpisodeStarted, events[0].Kind)
+	require.Equal(t, severityeventsdef.SeverityMedium, events[0].ToLevel)
+	require.EqualValues(t, 1010, events[0].Timestamp)
+	require.EqualValues(t, 1000, events[0].HistoricalTimestamp)
+	require.Len(t, s.ActiveCorrelations(), 1)
+
+	s.Advance(1011)
+	events = s.PendingEvents()
+	require.Len(t, events, 1)
+	require.Equal(t, observer.CorrelatorEventEpisodeEnded, events[0].Kind)
+	require.Empty(t, s.ActiveCorrelations())
+}
+
+func TestHistoricalMediumUpgradeDoesNotReopenMediumEpisode(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	cfg.CorrelationEventThreshold = "medium"
+	cfg.ReorderingWindowSecs = 600
+	s := newScorerWithTelemetry(cfg)
+
+	s.Advance(1000)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "historical"))
+	s.Advance(1010)
+	require.Len(t, s.PendingEvents(), 1)
+	require.Len(t, s.ActiveCorrelations(), 1)
+
+	strong := makeAnomaly("scanmw", 1000, scorePtr(20))
+	strong.Source.Name = "historical"
+	s.ProcessAnomaly(strong)
+	s.Advance(1011)
+	require.Empty(t, s.PendingEvents(), "Medium to High must not open a second episode")
+	require.Len(t, s.ActiveCorrelations(), 1)
+
+	s.Advance(1012)
+	events := s.PendingEvents()
+	require.Len(t, events, 1)
+	require.Equal(t, observer.CorrelatorEventEpisodeEnded, events[0].Kind)
+	require.Equal(t, severityeventsdef.SeverityHigh, events[0].FromLevel)
+}
+
+func TestHistoricalMediumReaderAndRenewal(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.ReorderingWindowSecs = 600
+	cfg.CooldownSecs = 5
+	s := newScorerWithTelemetry(cfg)
+	readerSub, err := s.SubscribeSeverityEventsReader(severityeventsdef.SeverityEventsConfiguration{
+		CooldownSecs: cfg.CooldownSecs,
+	})
+	require.NoError(t, err)
+	defer readerSub.Unsubscribe()
+
+	s.Advance(999)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "first"))
+	s.Advance(1000)
+	require.Equal(t, severityeventsdef.SeverityMedium, readerSub.Reader.GetSeverity())
+
+	s.Advance(1001)
+	s.ProcessAnomaly(mediumTestAnomaly(1002, "second"))
+	s.Advance(1002)
+	require.Equal(t, severityeventsdef.SeverityMedium, readerSub.Reader.GetSeverity())
+}
+
 // TestPendingEvents_EpisodeEnded verifies that PendingEvents returns an EpisodeEnded
 // event on the advance that drops out of High severity.
 func TestPendingEvents_EpisodeEnded(t *testing.T) {
