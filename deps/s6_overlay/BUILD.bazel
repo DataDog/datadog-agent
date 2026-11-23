@@ -1,0 +1,28 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+pkg_files(
+    name = "s6_overlay_amd64",
+    srcs = ["@s6_overlay_amd64//file"],
+    renames = {"@s6_overlay_amd64//file": "s6.tgz"},
+    tags = ["manual"],
+)
+
+pkg_install(
+    name = "install_amd64",
+    srcs = [":s6_overlay_amd64"],
+    tags = ["manual"],
+)
+
+pkg_files(
+    name = "s6_overlay_arm64",
+    srcs = ["@s6_overlay_aarch64//file"],
+    renames = {"@s6_overlay_aarch64//file": "s6.tgz"},
+    tags = ["manual"],
+)
+
+pkg_install(
+    name = "install_arm64",
+    srcs = [":s6_overlay_arm64"],
+    tags = ["manual"],
+)

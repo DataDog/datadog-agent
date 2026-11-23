@@ -1,0 +1,26 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Cloud Network Monitoring now resolves the packet tuples of NAT'd
+    connections for protocol classification from the eBPF conntracker's map,
+    instead of recording them on every egress packet, which lowers per-packet
+    overhead on hosts where the eBPF conntracker loads and protocol
+    classification is supported. Sharing is turned off automatically when
+    classification is unsupported or disabled, or when Cilium or Calico eBPF
+    maps are found, and can be turned off with
+    ``network_config.share_conntrack_nat_map: false``. While the map is
+    shared, conntrack entries of closed NAT'd connections are deleted one
+    collection later, so the other end of a connection between two processes
+    on the same host still finds its NAT translation when it closes; without
+    sharing, entries are deleted as soon as the first end's close is seen,
+    as before. The
+    conntracker's map holds every NAT'd flow on the host, so under heavy NAT
+    churn a connection's entry can be evicted, and that connection is then no
+    longer classified under its NAT'd tuple until it closes.

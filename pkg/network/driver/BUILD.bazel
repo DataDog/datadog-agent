@@ -8,7 +8,6 @@ exports_files(["types_windows.go"])
 cc_library(
     name = "ddnpmapi",
     hdrs = ["ddnpmapi.h"],
-    target_compatible_with = ["@platforms//os:windows"],
 )
 
 cgo_godefs(

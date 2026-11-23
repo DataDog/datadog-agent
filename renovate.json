@@ -207,7 +207,7 @@
       },
       {
         "matchManagers": ["dockerfile", "docker-compose"],
-        "matchDepNames": ["golang"],
+        "matchDepNames": ["golang", "docker.io/library/golang"],
         "enabled": false
       },
       {
