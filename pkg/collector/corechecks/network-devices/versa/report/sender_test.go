@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client"
+	ndmsender "github.com/DataDog/datadog-agent/pkg/networkdevice/sender"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -2328,4 +2329,30 @@ func TestSendTimeseriesFallbacks(t *testing.T) {
 	mockSender.AssertMetric(t, "Count", versaMetricPrefix+"timeseries.fallback", 1, "", []string{"tenant:tenant-1", "query:linkusage", "reason:key_parts"})
 	mockSender.AssertMetric(t, "Count", versaMetricPrefix+"timeseries.fallback", 1, "", []string{"tenant:tenant-1", "query:slam", "reason:http_error"})
 	mockSender.AssertNumberOfCalls(t, "Count", 2)
+}
+
+// The dedupe watermarks must be in the unit IntegrationSender.expireTimeSent compares
+// against, epoch seconds. A millisecond watermark is always newer than its six hour
+// cutoff, so no key would ever expire and every entity ever seen would stay in the map.
+func TestBucketWatermarksAreStoredInSeconds(t *testing.T) {
+	TimeNow = mockTimeNow
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	const drillKey = "branch-1,hub-1,INET-1,INET-1,fc_nc"
+	s := NewSender(mockSender, "default")
+	s.SendSLAMetrics("datadog", []client.SLAMetrics{{
+		DrillKey:            drillKey,
+		LocalSite:           "branch-1",
+		RemoteSite:          "hub-1",
+		LocalAccessCircuit:  "INET-1",
+		RemoteAccessCircuit: "INET-1",
+		ForwardingClass:     "fc_nc",
+		Delay:               99,
+		Timestamp:           1704067200000,
+	}}, nil)
+
+	key := ndmsender.GetMetricKey("sla_metrics", "datadog", drillKey)
+	require.False(t, s.ShouldSendEntry(key, 1704067200), "the bucket that was just sent must not be sent again")
+	require.True(t, s.ShouldSendEntry(key, 1704067201), "a watermark in milliseconds would swallow every later bucket")
 }

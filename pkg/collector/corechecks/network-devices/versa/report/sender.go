@@ -71,13 +71,15 @@ func (s *Sender) SendDeviceMetrics(appliances []client.Appliance) {
 			log.Warnf("Error parsing timestamp %s: %s. Sending device metrics...", appliance.LastUpdatedTime, err)
 			lastUpdatedTime = float64(TimeNow().UnixMilli())
 		}
-		if !s.ShouldSendEntry(key, lastUpdatedTime) {
+		ts := lastUpdatedTime / 1000 // convert to seconds
+		// The watermark is stored in seconds for the same reason as in bucketTimestamp:
+		// expireTimeSent compares it against an epoch seconds cutoff.
+		if !s.ShouldSendEntry(key, ts) {
 			// If the timestamp is before the max timestamp already sent, do not re-send
 			continue
 		}
-		ndmsender.SetNewSentTimestamp(newTimestamps, key, lastUpdatedTime)
+		ndmsender.SetNewSentTimestamp(newTimestamps, key, ts)
 
-		ts := lastUpdatedTime / 1000 // convert to seconds
 		cpuLoad := appliance.Hardware.CPULoad
 
 		// Parse memory metrics
@@ -206,12 +208,16 @@ func (s *Sender) bucketTimestamp(metric string, tenant string, drillKey string, 
 	// produce the same drill key. Without it the second organization's buckets would look
 	// like ones already sent and be dropped on every run.
 	key := ndmsender.GetMetricKey(metric, tenant, drillKey)
-	millis := float64(timestampMillis)
-	if !s.ShouldSendEntry(key, millis) {
+	// Seconds, not milliseconds: IntegrationSender.expireTimeSent drops watermarks older
+	// than six hours by comparing them against an epoch seconds cutoff, so a millisecond
+	// watermark is always in the future and the key is never expired. Buckets are minutes
+	// apart, so second resolution still tells two of them apart.
+	seconds := float64(timestampMillis) / 1000
+	if !s.ShouldSendEntry(key, seconds) {
 		return 0, false
 	}
-	ndmsender.SetNewSentTimestamp(newTimestamps, key, millis)
-	return millis / 1000, true
+	ndmsender.SetNewSentTimestamp(newTimestamps, key, seconds)
+	return seconds, true
 }
 
 // sendBucketGauge sends a gauge at the given bucket timestamp, or at collection time when
