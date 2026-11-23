@@ -189,7 +189,8 @@ func (w *errptWriter) flushBlock() {
 	if w.match != nil && !containsAny(w.block.Bytes(), w.match) {
 		return
 	}
-	w.kept.Write(w.block.Bytes())
+	// boundedWriter never fails; it reports full writes so errpt keeps draining.
+	_ = w.kept.Write(w.block.Bytes())
 }
 
 // containsAny reports whether b contains one of the strings.
