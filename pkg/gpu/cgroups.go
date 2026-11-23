@@ -30,11 +30,18 @@ import (
 // ConfigureDeviceCgroups configures the cgroups for a process to allow access to the NVIDIA character devices
 // reapplyInfinitely controls whether the configuration should be reapplied infinitely (true) or only once (false)
 func ConfigureDeviceCgroups(pid uint32, hostRoot string) error {
-	cgroupMode := cgroups.Mode()
-	cgroupPath, err := getAbsoluteCgroupForProcess("/", hostRoot, SelfHostPID(), pid, cgroupMode)
+	cgroupPath, err := getAbsoluteCgroupForProcess("/", hostRoot, SelfHostPID(), pid, cgroups.Mode())
 	if err != nil {
 		return fmt.Errorf("failed to get cgroup for pid %d: %w", pid, err)
 	}
+	return ConfigureCgroupDevices(cgroupPath, hostRoot)
+}
+
+// ConfigureCgroupDevices configures a cgroup, as seen from the host (see CgroupPathForProcess), to allow access to
+// the NVIDIA character devices.
+func ConfigureCgroupDevices(cgroupPath string, hostRoot string) error {
+	cgroupMode := cgroups.Mode()
+	var err error
 
 	// Configure systemd device allow first, so that in case of a reload we get the correct permissions
 	// The containerID for systemd is the last part of the cgroup path
@@ -43,15 +50,15 @@ func ConfigureDeviceCgroups(pid uint32, hostRoot string) error {
 	}
 
 	if cgroupMode == cgroups.Legacy {
-		log.Debugf("Configuring PID %d cgroupv1 device allow, cgroup path %s", pid, cgroupPath)
+		log.Debugf("Configuring cgroupv1 device allow, cgroup path %s", cgroupPath)
 		err = configureCgroupV1DeviceAllow(hostRoot, cgroupPath, nvidiaDeviceMajor)
 	} else {
-		log.Debugf("Configuring PID %d cgroupv2 device programs, cgroup path %s", pid, cgroupPath)
+		log.Debugf("Configuring cgroupv2 device programs, cgroup path %s", cgroupPath)
 		err = detachAllDeviceCgroupPrograms(hostRoot, cgroupPath)
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to configure cgroup device allow for cgroup path %s of PID %d: %w", cgroupPath, pid, err)
+		return fmt.Errorf("failed to configure cgroup device allow for cgroup path %s: %w", cgroupPath, err)
 	}
 
 	return nil

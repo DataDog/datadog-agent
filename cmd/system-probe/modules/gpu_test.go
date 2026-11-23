@@ -111,7 +111,7 @@ func TestGetAgentPIDs(t *testing.T) {
 	assert.ElementsMatch(t, []uint32{1, 3}, pids)
 }
 
-func TestAgentPIDsNextToSystemProbe(t *testing.T) {
+func TestAgentsNextToSystemProbe(t *testing.T) {
 	cgroups := map[uint32]string{
 		10: "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podA.slice/cri-containerd-agent.scope",
 		11: "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podB.slice/cri-containerd-other-agent.scope",
@@ -124,16 +124,23 @@ func TestAgentPIDsNextToSystemProbe(t *testing.T) {
 		return "", errors.New("gone")
 	}
 	sysprobe := "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podA.slice/cri-containerd-sysprobe.scope"
+	pids := func(agents []agentCgroup) []uint32 {
+		var result []uint32
+		for _, agent := range agents {
+			result = append(result, agent.pid)
+		}
+		return result
+	}
 
-	// Only the agents of the system-probe pod, and those whose cgroup cannot be read (kept as before)
-	require.Equal(t, []uint32{10, 12, 13}, agentPIDsNextToSystemProbe(sysprobe, []uint32{10, 11, 12, 13}, cgroupOf))
+	// Only the agents of the system-probe pod; an agent whose cgroup cannot be read (13) is skipped
+	agents := agentsNextToSystemProbe(sysprobe, []uint32{10, 11, 12, 13}, cgroupOf)
+	require.Equal(t, []uint32{10, 12}, pids(agents))
+	require.Equal(t, cgroups[10], agents[0].cgroup)
 	// Host services
-	require.Equal(t, []uint32{20}, agentPIDsNextToSystemProbe("/system.slice/datadog-agent-sysprobe.service", []uint32{20},
-		func(uint32) (string, error) { return "/system.slice/datadog-agent.service", nil }))
-	// Unknown system-probe cgroup: all the agents, as before
-	require.Equal(t, []uint32{10, 11}, agentPIDsNextToSystemProbe("", []uint32{10, 11}, cgroupOf))
+	require.Equal(t, []uint32{20}, pids(agentsNextToSystemProbe("/system.slice/datadog-agent-sysprobe.service", []uint32{20},
+		func(uint32) (string, error) { return "/system.slice/datadog-agent.service", nil })))
 	// The agent of the system-probe pod is restarting: the other agents are not touched
-	require.Empty(t, agentPIDsNextToSystemProbe(sysprobe, []uint32{11}, cgroupOf))
+	require.Empty(t, agentsNextToSystemProbe(sysprobe, []uint32{11}, cgroupOf))
 }
 
 func TestForgetDepartedAgentWarnings(t *testing.T) {

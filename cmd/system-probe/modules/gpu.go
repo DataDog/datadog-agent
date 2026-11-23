@@ -553,23 +553,28 @@ func forgetDepartedAgentWarnings(agentPIDs []uint32) {
 	})
 }
 
-// agentPIDsNextToSystemProbe keeps the agent processes whose cgroup is a sibling of the system-probe one: the
-// agent container of the same pod in Kubernetes, the agent service next to the system-probe service on a host.
-// Other agents on the node (e.g. another agent DaemonSet or cluster check runners) are left alone. When the
-// system-probe cgroup cannot be read, all the agent processes are kept, as before; an agent process whose cgroup
-// cannot be read is kept too.
-func agentPIDsNextToSystemProbe(sysprobeCgroup string, agentPIDs []uint32, cgroupOf func(uint32) (string, error)) []uint32 {
-	if sysprobeCgroup == "" {
-		return agentPIDs
-	}
+// agentCgroup is an agent process and its cgroup, as seen from the host
+type agentCgroup struct {
+	pid    uint32
+	cgroup string
+}
+
+// agentsNextToSystemProbe returns the agent processes whose cgroup is a sibling of the system-probe one: the agent
+// container of the same pod in Kubernetes, the agent service next to the system-probe service on a host. Other
+// agents on the node (e.g. another agent DaemonSet or cluster check runners) are left alone, and so are the agent
+// processes whose cgroup cannot be read, so that a lookup failure never targets another deployment.
+func agentsNextToSystemProbe(sysprobeCgroup string, agentPIDs []uint32, cgroupOf func(uint32) (string, error)) []agentCgroup {
 	parent := filepath.Dir(sysprobeCgroup)
-	var kept []uint32
+	var kept []agentCgroup
 	for _, pid := range agentPIDs {
 		cgroup, err := cgroupOf(pid)
-		if err != nil || filepath.Dir(cgroup) == parent {
-			kept = append(kept, pid)
-		} else {
+		switch {
+		case err != nil:
+			log.Debugf("Not configuring cgroup permissions for agent process with PID %d: cannot get its cgroup: %v", pid, err)
+		case filepath.Dir(cgroup) != parent:
 			log.Debugf("Not configuring cgroup permissions for agent process with PID %d: its cgroup %s is not next to the system-probe one %s", pid, cgroup, sysprobeCgroup)
+		default:
+			kept = append(kept, agentCgroup{pid: pid, cgroup: cgroup})
 		}
 	}
 	if len(kept) == 0 {
@@ -599,20 +604,23 @@ func doConfigureCgroupPermissions(root string) {
 	}
 	cgroupPermissionWarnings.Delete("agent-pids")
 
+	forgetDepartedAgentWarnings(agentPIDs)
 	sysprobeCgroup, err := gpu.CgroupPathForProcess(sysprobePID, root)
 	if err != nil {
-		log.Debugf("Cannot get the system-probe cgroup, configuring the cgroup permissions of all the agent processes: %v", err)
+		// Without it, the agent of this pod cannot be told apart from the other agents of the node
+		warnCgroupPermissionsOnce("system-probe-cgroup", "Failed to get the system-probe cgroup: %v. Cannot patch the agent cgroup permissions, gpu-monitoring module might not work properly", err)
+		return
 	}
-	agentPIDs = agentPIDsNextToSystemProbe(sysprobeCgroup, agentPIDs, func(pid uint32) (string, error) {
+	cgroupPermissionWarnings.Delete("system-probe-cgroup")
+
+	agents := agentsNextToSystemProbe(sysprobeCgroup, agentPIDs, func(pid uint32) (string, error) {
 		return gpu.CgroupPathForProcess(pid, root)
 	})
-
-	forgetDepartedAgentWarnings(agentPIDs)
-	for _, agentPID := range agentPIDs {
-		log.Debugf("Configuring cgroup permissions for agent process with PID %d", agentPID)
-		key := fmt.Sprintf("agent-%d", agentPID)
-		if err := gpu.ConfigureDeviceCgroups(agentPID, root); err != nil {
-			warnCgroupPermissionsOnce(key, "Failed to configure cgroup permissions for agent process with PID %d: %v. gpu-monitoring module might not work properly", agentPID, err)
+	for _, agent := range agents {
+		log.Debugf("Configuring cgroup permissions for agent process with PID %d, cgroup %s", agent.pid, agent.cgroup)
+		key := fmt.Sprintf("agent-%d", agent.pid)
+		if err := gpu.ConfigureCgroupDevices(agent.cgroup, root); err != nil {
+			warnCgroupPermissionsOnce(key, "Failed to configure cgroup permissions for agent process with PID %d: %v. gpu-monitoring module might not work properly", agent.pid, err)
 		} else {
 			cgroupPermissionWarnings.Delete(key)
 		}
