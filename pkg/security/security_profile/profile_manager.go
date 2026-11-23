@@ -56,7 +56,7 @@ type ProfileManager interface {
 	// ListActivityDumps returns the list of active activity dumps
 	ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error)
 
-	// StopActivityDump stops an active activity dump if it exists
+	// StopActivityDump stops an active activity dump or flushes the matching security profile if it exists
 	StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error)
 
 	// DumpActivity dumps the activity dump

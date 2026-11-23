@@ -95,6 +95,25 @@ func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesInclude
 	suite.False(agentDiscoveryDesc.useStreamStrategy)
 }
 
+func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesIncludesDataStreams() {
+	var dataStreamsDesc passthroughPipelineDesc
+	found := false
+	for _, desc := range getPassthroughPipelines() {
+		if desc.eventType == eventTypeDataStreamsMessage {
+			dataStreamsDesc = desc
+			found = true
+			break
+		}
+	}
+
+	suite.Require().True(found)
+	suite.Equal("data_streams.forwarder.", dataStreamsDesc.endpointsConfigPrefix)
+	suite.Equal(10, dataStreamsDesc.defaultBatchMaxConcurrentSend)
+	suite.Equal(500, dataStreamsDesc.defaultInputChanSize)
+	suite.Equal(500, dataStreamsDesc.effectiveInputChanSize(100))
+	suite.Equal(1000, dataStreamsDesc.effectiveInputChanSize(1000))
+}
+
 func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineCompression() {
 
 	tests := []struct {
