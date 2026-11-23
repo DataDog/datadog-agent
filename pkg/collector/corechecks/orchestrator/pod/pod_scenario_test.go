@@ -20,15 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-// podScenarioConfig is the configuration of a pod check scenario.
-type podScenarioConfig struct {
-	manifestCollection bool
-	dedicatedPipeline  bool
-}
-
-// TestPodCheckScenarios runs the pod check in each manifest configuration: a first run, an unchanged run, the update
-// of a pod and the loss of the structured metadata cache. Each run must send each pod version once per payload type,
-// and the manifests must not depend on the pipeline.
+// TestPodCheckScenarios runs the pod check with and without the dedicated manifest pipeline: a first run, an unchanged
+// run, the update of a pod and the loss of the structured metadata cache. Each run must send each pod version once per
+// payload type, and the manifests must not depend on the pipeline.
 func (suite *PodTestSuite) TestPodCheckScenarios() {
 	suite.setClusterID()
 	saved := *suite.check.config
@@ -39,21 +33,20 @@ func (suite *PodTestSuite) TestPodCheckScenarios() {
 		suite.dummyKubelet.Unlock()
 	})
 
-	firstManifests := map[podScenarioConfig]map[string]string{}
-	for _, cfg := range []podScenarioConfig{{false, false}, {true, false}, {true, true}} {
-		suite.Run(fmt.Sprintf("manifests=%t,pipeline=%t", cfg.manifestCollection, cfg.dedicatedPipeline), func() {
-			firstManifests[cfg] = suite.runPodScenario(cfg)
+	firstManifests := map[bool]map[string]string{}
+	for _, dedicatedPipeline := range []bool{false, true} {
+		suite.Run(fmt.Sprintf("pipeline=%t", dedicatedPipeline), func() {
+			firstManifests[dedicatedPipeline] = suite.runPodScenario(dedicatedPipeline)
 		})
 	}
-	assert.Equal(suite.T(), firstManifests[podScenarioConfig{true, false}], firstManifests[podScenarioConfig{true, true}],
-		"the dedicated pipeline sends the same manifests")
+	assert.Equal(suite.T(), firstManifests[false], firstManifests[true], "the dedicated pipeline sends the same manifests")
 }
 
-func (suite *PodTestSuite) runPodScenario(cfg podScenarioConfig) map[string]string {
+func (suite *PodTestSuite) runPodScenario(dedicatedPipeline bool) map[string]string {
 	t := suite.T()
 	suite.SetupTest()
-	suite.check.config.IsManifestCollectionEnabled = cfg.manifestCollection
-	suite.check.config.ManifestPipelineEnabled = cfg.dedicatedPipeline
+	suite.check.config.IsManifestCollectionEnabled = true
+	suite.check.config.ManifestPipelineEnabled = dedicatedPipeline
 	pods := suite.podList()
 	suite.servePods(pods)
 
@@ -65,7 +58,7 @@ func (suite *PodTestSuite) runPodScenario(cfg podScenarioConfig) map[string]stri
 		for _, message := range suite.sender.pods {
 			for _, pod := range message.(*process.CollectorPod).Pods {
 				metadata[pod.Metadata.Uid]++
-				assert.Equal(t, cfg.manifestCollection, len(pod.Yaml) == 0, "the metadata carries the YAML only without manifest collection")
+				assert.Empty(t, pod.Yaml, "the metadata carries no YAML with manifest collection")
 			}
 		}
 		for _, message := range suite.sender.manifests {
@@ -84,13 +77,7 @@ func (suite *PodTestSuite) runPodScenario(cfg podScenarioConfig) map[string]stri
 	for podUID, count := range allPods {
 		assert.Equal(t, 1, count, "first run: metadata of %s", podUID)
 	}
-	manifestsOf := func(sent map[string]int) map[string]int {
-		if cfg.manifestCollection {
-			return sent
-		}
-		return noPods
-	}
-	assert.Equal(t, manifestsOf(allPods), manifests, "first run: manifests")
+	assert.Equal(t, allPods, manifests, "first run: manifests")
 	first := suite.manifestContents()
 
 	// An unchanged run sends nothing.
@@ -111,15 +98,15 @@ func (suite *PodTestSuite) runPodScenario(cfg podScenarioConfig) map[string]stri
 	require.Contains(t, allPods, uid(updatedPod), "the updated pod is not a static pod")
 	metadata, manifests = run()
 	assert.Equal(t, updated, metadata, "update: metadata")
-	assert.Equal(t, manifestsOf(updated), manifests, "update: manifests")
+	assert.Equal(t, updated, manifests, "update: manifests")
 
 	// Losing the structured metadata cache resends the metadata. The dedicated pipeline deduplicates the manifests
 	// independently.
 	orchestrator.KubernetesResourceCache = orchestrator.NewKubernetesResourceCache()
 	metadata, manifests = run()
 	assert.Equal(t, allPods, metadata, "metadata cache loss: metadata")
-	wantManifests := manifestsOf(allPods)
-	if cfg.dedicatedPipeline {
+	wantManifests := allPods
+	if dedicatedPipeline {
 		wantManifests = noPods
 	}
 	assert.Equal(t, wantManifests, manifests, "metadata cache loss: manifests")

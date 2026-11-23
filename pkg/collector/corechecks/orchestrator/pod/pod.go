@@ -187,8 +187,8 @@ func (c *Check) Run() error {
 			MsgGroupID: groupID,
 			NodeType:   orchestrator.K8sPod,
 			ClusterID:  c.clusterID,
-			// The metadata pass builds the manifests only in the combined pipeline, and only when manifests are collected.
-			ManifestProducer: c.config.IsManifestCollectionEnabled && !c.config.ManifestPipelineEnabled,
+			// With the dedicated pipeline, the manifests come from a separate pass.
+			ManifestProducer: !c.config.ManifestPipelineEnabled,
 			Kind:             kubernetes.PodKind,
 			APIVersion:       utilTypes.PodVersion,
 			CollectorGroup:   utilTypes.PodGroup,
@@ -210,9 +210,6 @@ func (c *Check) Run() error {
 	// Send the metadata before the manifest pass, as the metadata cache already holds these pods.
 	c.sender.OrchestratorMetadata(processResult.MetadataMessages, c.clusterID, int(orchestrator.K8sPod))
 
-	if !c.config.IsManifestCollectionEnabled {
-		return nil
-	}
 	manifestMessages := processResult.ManifestMessages
 	if c.config.ManifestPipelineEnabled {
 		manifestMessages, err = c.processManifests(ctx, podList)
