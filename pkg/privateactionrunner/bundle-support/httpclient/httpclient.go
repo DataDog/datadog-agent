@@ -27,7 +27,9 @@ const (
 type RunnerHttpClient struct{}
 
 type RunnerHttpClientConfig struct {
-	MaxRedirect        int
+	MaxRedirect int
+	// DisableRedirects returns 3xx responses to the caller instead of following them.
+	DisableRedirects   bool
 	Transport          *RunnerHttpTransportConfig
 	AllowIMDSEndpoints bool
 	HTTPTimeout        time.Duration
@@ -39,6 +41,8 @@ type RunnerHttpClientConfig struct {
 
 type RunnerHttpTransportConfig struct {
 	AllowExpiredCertificate bool
+	// DisableCompression returns the response body as the server encoded it.
+	DisableCompression bool
 }
 
 func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, error) {
@@ -49,6 +53,7 @@ func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, er
 	}
 
 	if clientConfig.Transport != nil {
+		transport.DisableCompression = clientConfig.Transport.DisableCompression
 		if clientConfig.Transport.AllowExpiredCertificate {
 			// crypto/tls cannot relax only the validity-period check, so verification moves to VerifyConnection.
 			transport.TLSClientConfig.InsecureSkipVerify = true
@@ -60,7 +65,11 @@ func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, er
 		Timeout:   clientConfig.HTTPTimeout,
 		Transport: transport,
 	}
-	if clientConfig.SameOriginRedirectsOnly {
+	if clientConfig.DisableRedirects {
+		client.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	} else if clientConfig.SameOriginRedirectsOnly {
 		maxRedirect := clientConfig.MaxRedirect
 		if maxRedirect == 0 {
 			maxRedirect = defaultMaxRedirects

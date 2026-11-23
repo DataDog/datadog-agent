@@ -1,5 +1,5 @@
 static_quality_gate_docker_cluster_agent_amd64:
-  max_on_disk_size: 218.78 MiB
+  max_on_disk_size: 218.83 MiB
   max_on_wire_size: 75.71 MiB
 static_quality_gate_docker_cluster_agent_arm64:
   max_on_disk_size: 231.51 MiB

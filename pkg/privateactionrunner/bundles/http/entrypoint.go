@@ -7,6 +7,7 @@ package com_datadoghq_http
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -14,10 +15,10 @@ type HttpBundle struct {
 	actions map[string]types.Action
 }
 
-func NewHttpBundle(cfg *config.Config) types.Bundle {
+func NewHttpBundle(cfg *config.Config, encryptionStore *encryptioncontext.Store) types.Bundle {
 	return &HttpBundle{
 		actions: map[string]types.Action{
-			"request":            NewHttpRequestAction(cfg),
+			"request":            NewHttpRequestAction(cfg).WithEncryptionStore(encryptionStore),
 			"getChecksumFromURL": NewGetChecksumFromURLHandler(cfg),
 			"testConnection":     NewTestConnectionHandler(cfg),
 		},

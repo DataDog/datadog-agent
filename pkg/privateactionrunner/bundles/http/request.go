@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -27,10 +28,17 @@ type Handler struct {
 	allowIMDSEndpoints bool
 	httpTimeout        time.Duration
 	httpClientProvider httpclient.Provider
+	encryptionStore    *encryptioncontext.Store
 }
 
 func (h *Handler) WithHttpClientProvider(httpClientProvider httpclient.Provider) *Handler {
 	h.httpClientProvider = httpClientProvider
+	return h
+}
+
+// WithEncryptionStore enables secret inputs (encryptedCredentials) in raw mode.
+func (h *Handler) WithEncryptionStore(encryptionStore *encryptioncontext.Store) *Handler {
+	h.encryptionStore = encryptionStore
 	return h
 }
 
@@ -77,6 +85,13 @@ type RequestInputs struct {
 	ErrorOnStatus           []string        `json:"errorOnStatus,omitempty"`
 	ResponseParsing         *string         `json:"responseParsing,omitempty"`
 	ResponseEncoding        *string         `json:"responseEncoding,omitempty"`
+
+	// Raw mode only.
+	ResponseMode         *string                             `json:"responseMode,omitempty"`
+	BodyBase64           string                              `json:"bodyBase64,omitempty"`
+	EncryptResponseTo    *ResponseKey                        `json:"encryptResponseTo,omitempty"`
+	EncryptionContext    encryptioncontext.EncryptionContext `json:"encryptionContext,omitempty"`
+	EncryptedCredentials string                              `json:"encryptedCredentials,omitempty"`
 }
 
 var allowedVerbs = []string{
@@ -105,6 +120,11 @@ type RequestOutputs struct {
 	Status  int         `json:"status"`
 	Body    interface{} `json:"body,omitempty"`
 	Headers http.Header `json:"headers"`
+
+	// Raw mode only.
+	BodyBase64    string `json:"bodyBase64,omitempty"`
+	EncryptedBody string `json:"encryptedBody,omitempty"`
+	BodyTruncated bool   `json:"bodyTruncated,omitempty"`
 }
 
 func (h *Handler) Run(
@@ -115,6 +135,12 @@ func (h *Handler) Run(
 	inputs, err := types.ExtractInputs[RequestInputs](task)
 	if err != nil {
 		return nil, util.DefaultActionError(err)
+	}
+	if err := validateResponseMode(inputs); err != nil {
+		return nil, util.DefaultActionErrorWithDisplayError(err, err.Error())
+	}
+	if isRawMode(inputs) {
+		return h.runRaw(ctx, task, inputs, credential)
 	}
 	verb, err := normalizeVerb(inputs.Verb)
 	if err != nil {
