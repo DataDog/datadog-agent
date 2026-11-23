@@ -9,6 +9,7 @@
 package ddprofilingextensionimpl
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -106,7 +107,7 @@ func TestAgentExtensionUnixSocket(t *testing.T) {
 	require.True(t, e.agentMode, "a non-nil trace agent must still select agent mode")
 
 	require.NoError(t, ext.Start(t.Context(), componenttest.NewNopHost()))
-	t.Cleanup(func() { assert.NoError(t, ext.Shutdown(t.Context())) })
+	t.Cleanup(func() { assert.NoError(t, ext.Shutdown(context.Background())) })
 
 	assert.Nil(t, e.server, "the local forwarding server must not be started when a socket is configured")
 
@@ -142,7 +143,7 @@ func TestStandaloneExtensionUnixSocket(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, ext.Start(t.Context(), componenttest.NewNopHost()))
-	t.Cleanup(func() { assert.NoError(t, ext.Shutdown(t.Context())) })
+	t.Cleanup(func() { assert.NoError(t, ext.Shutdown(context.Background())) })
 
 	select {
 	case <-got:

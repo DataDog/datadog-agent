@@ -29,8 +29,7 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -218,7 +217,7 @@ func TestRegistryDialsUDSRemoteAgent(t *testing.T) {
 
 	component := provides.Comp.(*remoteAgentRegistry)
 	require.NoError(t, lc.Start(t.Context()))
-	t.Cleanup(func() { _ = lc.Stop(t.Context()) })
+	t.Cleanup(func() { _ = lc.Stop(context.Background()) })
 
 	// macOS limits sun_path to 104 bytes; use a short fixed prefix instead of t.TempDir().
 	udsDir, err := os.MkdirTemp("/tmp", "rar-uds-")

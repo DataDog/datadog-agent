@@ -173,7 +173,7 @@ func newTestMetricsProcessor(t testing.TB, tc types.TaggerClient, cfg *Config, n
 	proc, err := factory.CreateMetrics(t.Context(), processortest.NewNopSettings(Type), cfg, next)
 	require.NoError(t, err)
 	require.NoError(t, proc.Start(t.Context(), nil))
-	t.Cleanup(func() { assert.NoError(t, proc.Shutdown(t.Context())) })
+	t.Cleanup(func() { assert.NoError(t, proc.Shutdown(context.Background())) })
 	return proc
 }
 

@@ -63,7 +63,7 @@ func startPreparationTestComponent(t *testing.T, reqs Requires) *AutoConfig {
 	reqs.Lc = lc
 	ac := NewComponent(reqs).Comp.(*AutoConfig)
 	require.NoError(t, lc.Start(t.Context()))
-	t.Cleanup(func() { require.NoError(t, lc.Stop(t.Context())) })
+	t.Cleanup(func() { require.NoError(t, lc.Stop(context.Background())) })
 	return ac
 }
 

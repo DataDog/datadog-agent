@@ -2075,7 +2075,7 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 		AllowAsyncStartup:            true,
 	}
 	comp.clock = clock.NewMock()
-	t.Cleanup(func() { require.NoError(t, comp.stopStartupRecovery(t.Context(), apiKeyConfigKey)) })
+	t.Cleanup(func() { require.NoError(t, comp.stopStartupRecovery(context.Background(), apiKeyConfigKey)) })
 	require.NoError(t, comp.AddInstance(t.Context(), params))
 
 	got := mockConfig.GetStringMapStringSlice("additional_endpoints")

@@ -269,7 +269,7 @@ func TestWaitForProcmgrStartupOutcome(t *testing.T) {
 		{name: "suppresses when the state query fails", ctx: t.Context(), err: errors.New("access denied"), suppress: true},
 		// Shutdown stops dd-procmgr-service, so a wait that outlived the agent would see
 		// Stopped and tell the caller to start the legacy service the stop pass just stopped.
-		{name: "suppresses when the agent is shutting down", ctx: cancelledContext(), state: svc.Stopped, suppress: true},
+		{name: "suppresses when the agent is shutting down", ctx: cancelledContext(t), state: svc.Stopped, suppress: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -335,7 +335,7 @@ func stubStartPendingExit(t *testing.T, fn func(context.Context, string, svc.Sta
 	})
 }
 
-func cancelledContext() context.Context {
+func cancelledContext(t *testing.T) context.Context {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	return ctx

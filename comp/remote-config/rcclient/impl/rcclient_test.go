@@ -8,6 +8,7 @@
 package rcclientimpl
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -107,7 +108,7 @@ func TestRCClientCreate(t *testing.T) {
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	)
 	assert.NoError(t, err)
-	t.Cleanup(func() { app.Stop(t.Context()) }) //nolint:errcheck
+	t.Cleanup(func() { app.Stop(context.Background()) }) //nolint:errcheck
 	assert.NotNil(t, deps.Comp)
 	assert.NotNil(t, deps.Comp.(*rcClient).client)
 }

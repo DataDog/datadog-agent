@@ -325,7 +325,7 @@ func newAgentExporter(t *testing.T, rec *metricRecorder, hostTags HostTagsFunc) 
 	exp, err := f.CreateMetrics(ctx, exportertest.NewNopSettings(component.MustNewType("serializer")), cfg)
 	require.NoError(t, err)
 	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
-	t.Cleanup(func() { require.NoError(t, exp.Shutdown(t.Context())) })
+	t.Cleanup(func() { require.NoError(t, exp.Shutdown(context.Background())) })
 	return exp
 }
 

@@ -463,7 +463,7 @@ func TestMappedRemoteValuesMergeWithoutPublishingNewExpvars(t *testing.T) {
 	provides, lc, _, _, ipcComp := buildComponent(t)
 	component := provides.Comp.(*remoteAgentRegistry)
 	require.NoError(t, lc.Start(t.Context()))
-	t.Cleanup(func() { _ = lc.Stop(t.Context()) })
+	t.Cleanup(func() { _ = lc.Stop(context.Background()) })
 
 	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, adpAgentFlavor, "Agent Data Plane", "123",
 		withTelemetryProvider("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 5\n"),

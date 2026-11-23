@@ -6,6 +6,7 @@
 package ndmdiscoveryimpl
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -183,7 +184,7 @@ func newScheduleTestComponent(t *testing.T) (ndmdiscovery.Component, *compdef.Te
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
 	require.NoError(t, lc.Start(t.Context()))
-	t.Cleanup(func() { require.NoError(t, lc.Stop(t.Context())) })
+	t.Cleanup(func() { require.NoError(t, lc.Stop(context.Background())) })
 	return provides.Comp, lc
 }
 

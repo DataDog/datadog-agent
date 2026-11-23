@@ -267,7 +267,7 @@ func newFixture(t *testing.T, opts ...func(*routerOptions)) *fixture {
 			idle <- struct{}{}
 		}
 	}
-	t.Cleanup(func() { require.NoError(t, r.stop(t.Context())) })
+	t.Cleanup(func() { require.NoError(t, r.stop(context.Background())) })
 	return &fixture{t: t, r: r, clock: clk, client: client, paths: paths, tel: tel, idle: idle}
 }
 
@@ -404,7 +404,7 @@ func TestTelemetryInitializedToZero(t *testing.T) {
 		Log:       logmock.New(t),
 		Telemetry: tel,
 	})
-	t.Cleanup(func() { require.NoError(t, lc.Stop(t.Context())) })
+	t.Cleanup(func() { require.NoError(t, lc.Stop(context.Background())) })
 
 	series := func(name string, tagNames ...string) []string {
 		get := tel.GetCountMetric
@@ -483,7 +483,7 @@ func TestEnabledUsesConfiguredPreflightPath(t *testing.T) {
 		Log:       logmock.New(t),
 		Telemetry: telemetrymock.New(t),
 	})
-	t.Cleanup(func() { require.NoError(t, lc.Stop(t.Context())) })
+	t.Cleanup(func() { require.NoError(t, lc.Stop(context.Background())) })
 	require.IsType(t, &router{}, provides.Comp)
 	client, ok := provides.Comp.(*router).client.(*httpRoutingClient)
 	require.True(t, ok)

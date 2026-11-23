@@ -8,6 +8,7 @@
 package dogtelextensionimpl
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -80,7 +81,7 @@ func TestStart_StandaloneMode_TaggerDisabled(t *testing.T) {
 	err := ext.Start(t.Context(), nil)
 	require.NoError(t, err)
 	assert.Nil(t, ext.taggerServer)
-	t.Cleanup(func() { _ = ext.Shutdown(t.Context()) })
+	t.Cleanup(func() { _ = ext.Shutdown(context.Background()) })
 }
 
 // TestShutdown_NoTaggerServer verifies Shutdown does not panic when no server is running.
@@ -208,7 +209,7 @@ func TestStart_StandaloneMode_NoopSecretsWarning(t *testing.T) {
 	// Start should succeed; the warning is logged but not fatal.
 	err := ext.Start(t.Context(), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = ext.Shutdown(t.Context()) })
+	t.Cleanup(func() { _ = ext.Shutdown(context.Background()) })
 }
 
 // TestLivenessLoop_ExitsOnStop verifies that livenessMetricLoop returns promptly

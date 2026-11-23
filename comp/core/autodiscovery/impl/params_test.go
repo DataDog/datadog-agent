@@ -70,7 +70,7 @@ func TestPreparationParams(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			require.NoError(t, app.Start(ctx))
-			t.Cleanup(func() { require.NoError(t, app.Stop(t.Context())) })
+			t.Cleanup(func() { require.NoError(t, app.Stop(context.Background())) })
 			if tc.params != nil && tc.params.PreloadConfigsOnStart {
 				require.NotNil(t, ac.preparation.done, "startup must launch preparation when enabled")
 			} else {

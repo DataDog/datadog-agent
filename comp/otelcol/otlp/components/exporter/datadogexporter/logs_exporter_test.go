@@ -142,7 +142,7 @@ func startTestLogsAgent(t *testing.T, cfg coreconfig.Component) logsagentpipelin
 	})
 	require.NotNil(t, agent)
 	require.NoError(t, agent.Start(t.Context()))
-	t.Cleanup(func() { _ = agent.Stop(t.Context()) })
+	t.Cleanup(func() { _ = agent.Stop(context.Background()) })
 	return agent
 }
 
@@ -164,7 +164,7 @@ func newTestLogsExporter(t *testing.T, agent logsagentpipeline.Component, retry 
 	exp, err := f.CreateLogs(t.Context(), set, cfg)
 	require.NoError(t, err)
 	require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
-	t.Cleanup(func() { require.NoError(t, exp.Shutdown(t.Context())) })
+	t.Cleanup(func() { require.NoError(t, exp.Shutdown(context.Background())) })
 	return exp, reader
 }
 
