@@ -53,11 +53,6 @@ func NewDiscoveryCollector(fetch ServerGroupsAndResourcesFunc) *DiscoveryCollect
 	}
 }
 
-// NewDiscoveryCollectorForInventory returns a new DiscoveryCollector instance backed by the API server.
-func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
-	return NewDiscoveryCollector(GetServerGroupsAndResources)
-}
-
 // GroupsAndResources returns the groups and resources stored in the cache.
 func (d *DiscoveryCollector) GroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList) {
 	return d.cache.Groups, d.cache.Resources
@@ -141,7 +136,7 @@ func (d *DiscoveryCollector) VerifyForInventory(resource string, groupVersion st
 
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (d *DiscoveryCollector) DiscoverCRDResource(resource string, groupVersion string) (collectors.K8sCollector, error) {
-	collector, err := k8sCollectors.NewCRCollectorVersion(resource, groupVersion)
+	collector, err := k8sCollectors.NewCRCollector(resource, groupVersion)
 	if err != nil {
 		return nil, err
 	}

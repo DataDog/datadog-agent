@@ -1,0 +1,18 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "checktest_test",
+    srcs = ["check_test.go"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
+    deps = [
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks/cluster/orchestrator/checktest/cases",
+        "//pkg/collector/corechecks/cluster/orchestrator/checktest/suite",
+    ],
+)

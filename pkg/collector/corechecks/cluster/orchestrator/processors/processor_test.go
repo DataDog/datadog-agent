@@ -18,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
@@ -31,6 +32,7 @@ type ProcessorTestSuite struct {
 
 func (s *ProcessorTestSuite) SetupTest() {
 	orchestrator.KubernetesResourceCache = orchestrator.NewKubernetesResourceCache()
+	orchestrator.KubernetesManifestCache = orchestrator.NewKubernetesResourceCache()
 }
 
 type testProcessScenario struct {
@@ -157,6 +159,33 @@ func (s *ProcessorTestSuite) TestProcess_TerminatedResources_DeletionTimestampMi
 	})
 }
 
+// TestProcess_TerminatedResources_ReportedVersion checks that a terminated resource is sent although the cache holds
+// its resource version, as for a deletion that the informer missed.
+func (s *ProcessorTestSuite) TestProcess_TerminatedResources_ReportedVersion() {
+	processorContext := processorstest.NewProcessorContext()
+	processorContext.TerminatedResources = true
+	deletionTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	processorContext.Clock.Set(deletionTime)
+
+	resource := processorstest.NewResource()
+	orchestrator.KubernetesResourceCache.Set(resource.ResourceUID, resource.ResourceVersion, 0)
+
+	outputResourceMetadata := processorstest.NewExpectedResourceMetadata()
+	outputResourceMetadata.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: deletionTime}
+	outputResourceManifest := processorstest.NewExpectedResourceManifest()
+	outputResourceManifest.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: deletionTime}
+
+	s.testProcessScenario(testProcessScenario{
+		inputHandlers:          &TestResourceHandlers{},
+		inputProcessorContext:  processorContext,
+		inputResource:          resource,
+		outputListed:           1,
+		outputProcessed:        1,
+		outputResourceMetadata: outputResourceMetadata,
+		outputResourceManifest: outputResourceManifest,
+	})
+}
+
 func (s *ProcessorTestSuite) TestProcess_TerminatedResources_DeletionTimestampPresent() {
 	processorContext := processorstest.NewProcessorContext()
 	processorContext.TerminatedResources = true
@@ -192,6 +221,20 @@ func (s *ProcessorTestSuite) TestProcess_NotManifestProducer() {
 		outputProcessed:        1,
 		outputResourceMetadata: processorstest.NewExpectedResourceMetadata(),
 	})
+}
+
+// TestProcess_NotManifestProducerDoesNotMarshal checks that a metadata pass that sends neither manifests nor YAML
+// skips marshalling.
+func (s *ProcessorTestSuite) TestProcess_NotManifestProducerDoesNotMarshal() {
+	processor := Processor{h: &TestResourceHandlers{}}
+	processorContext := processorstest.NewProcessorContext()
+	processorContext.ManifestProducer = false
+	notReported := func(types.UID, string) bool { return false }
+
+	metadataModels, manifestModels := processor.processResources(processorContext, []interface{}{processorstest.NewResource()}, notReported, false)
+	s.Require().Len(metadataModels, 1)
+	s.Require().Len(manifestModels, 1)
+	s.Empty(manifestModels[0].(*model.Manifest).Content)
 }
 
 func (s *ProcessorTestSuite) TestProcess_SkipCacheHit() {
@@ -248,6 +291,35 @@ func (s *ProcessorTestSuite) TestProcess_SkipBeforeMarshalling() {
 		outputListed:          1,
 		outputProcessed:       0,
 	})
+}
+
+func (s *ProcessorTestSuite) TestProcessManifests() {
+	processor := Processor{h: &TestResourceHandlers{}}
+	resource := processorstest.NewResource()
+	processorContext := processorstest.NewProcessorContext()
+	// The node Agent pod check builds manifests with the context of its structured metadata pass.
+	processorContext.ManifestProducer = false
+
+	// The structured metadata cache does not affect the manifests.
+	orchestrator.KubernetesResourceCache.Set(resource.ResourceUID, resource.ResourceVersion, 0)
+
+	manifests, processed := processor.ProcessManifests(processorContext, []interface{}{resource})
+	s.Require().Equal(1, processed)
+	s.Require().Len(manifests, 1)
+	manifest := manifests[0].(*model.Manifest)
+	s.Equal(processorstest.MustMarshalJSON(processorstest.NewExpectedResourceManifest()), manifest.Content)
+	s.Equal([]string{"collector_tag:collector_tag_value", "metadata_tag:metadata_tag_value"}, manifest.Tags)
+
+	// An unchanged resource is reported once.
+	manifests, processed = processor.ProcessManifests(processorContext, []interface{}{resource})
+	s.Equal(0, processed)
+	s.Empty(manifests)
+}
+
+func (s *ProcessorTestSuite) TestProcessManifests_Panic() {
+	processor := Processor{h: &TestResourceHandlers{}}
+	_, processed := processor.ProcessManifests(processorstest.NewProcessorContext(), []interface{}{"not a resource"})
+	s.Equal(-1, processed)
 }
 
 func TestProcessorTestSuite(t *testing.T) {

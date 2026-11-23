@@ -35,7 +35,7 @@ import (
 
 // PodHandlers implements the Handlers interface for Kubernetes Pods.
 type PodHandlers struct {
-	common.BaseHandlers
+	common.TypedHandlers[*corev1.Pod]
 	tagProvider podtagprovider.PodTagProvider
 }
 
@@ -55,16 +55,6 @@ func NewPodHandlers(cfg config.Component, store workloadmeta.Component, tagger t
 func (h *PodHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Pod)
 	m.Yaml = yaml
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *PodHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	r := resource.(*corev1.Pod)
-	r.Kind = ctx.GetKind()
-	r.APIVersion = ctx.GetAPIVersion()
 	return
 }
 
@@ -149,28 +139,6 @@ func (h *PodHandlers) ExtractResource(ctx processors.ProcessorContext, resource 
 	return k8sTransformers.ExtractPod(ctx, r)
 }
 
-// ResourceList is a handler called to convert a list passed as a generic
-// interface to a list of generic interfaces.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *PodHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*corev1.Pod)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
-}
-
-// CloneResource returns a deep copy of the resource.
-//
-//nolint:revive
-func (h *PodHandlers) CloneResource(resource interface{}) interface{} {
-	return resource.(*corev1.Pod).DeepCopy()
-}
-
 // ResourceVersionFromRaw returns an empty string because Pod uses a custom
 // resource version hash computed from the extracted model, not the native
 // Kubernetes ResourceVersion.
@@ -178,13 +146,6 @@ func (h *PodHandlers) CloneResource(resource interface{}) interface{} {
 //nolint:revive
 func (h *PodHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, _ interface{}) string {
 	return ""
-}
-
-// ResourceUID is a handler called to retrieve the resource UID.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *PodHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
-	return resource.(*corev1.Pod).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
@@ -203,15 +164,6 @@ func (h *PodHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceM
 		return nil
 	}
 	return m.Tags
-}
-
-// ScrubBeforeExtraction is a handler called to redact the raw resource before
-// it is extracted as an internal resource model.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *PodHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
-	r := resource.(*corev1.Pod)
-	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before

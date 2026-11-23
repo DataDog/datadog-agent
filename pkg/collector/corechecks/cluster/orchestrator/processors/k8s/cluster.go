@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"sync"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -27,6 +29,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/client-go/discovery"
 	corev1Client "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
@@ -46,6 +50,8 @@ var (
 type ClusterProcessor struct {
 	processors.Processor
 	nodeHandlers processors.Handlers
+	// manifestsOnly makes the processor check the manifest cache, as the manifest pipeline does.
+	manifestsOnly bool
 }
 
 // NewClusterProcessor creates a new processor for the Kubernetes cluster
@@ -53,6 +59,15 @@ type ClusterProcessor struct {
 func NewClusterProcessor() *ClusterProcessor {
 	return &ClusterProcessor{
 		nodeHandlers: new(NodeHandlers),
+	}
+}
+
+// NewClusterManifestProcessor creates a new processor for the Kubernetes cluster
+// resource of the manifest pipeline.
+func NewClusterManifestProcessor() *ClusterProcessor {
+	return &ClusterProcessor{
+		nodeHandlers:  new(NodeHandlers),
+		manifestsOnly: true,
 	}
 }
 
@@ -137,7 +152,7 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 		return processResult, 0, fmt.Errorf("error getting server kube system creation timestamp: %s", err.Error())
 	}
 
-	apiVersion, err := pctx.APIClient.Cl.Discovery().ServerVersion()
+	apiVersion, err := serverVersion(pctx.APIClient.Cl.Discovery())
 	if err != nil {
 		return processResult, 0, fmt.Errorf("error getting server apiVersion: %s", err.Error())
 	}
@@ -152,7 +167,11 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 		return processResult, 0, fmt.Errorf("failed to compute resource version: %s", err.Error())
 	}
 
-	if orchestrator.SkipKubernetesResource(types.UID(pctx.ClusterID), clusterModel.ResourceVersion, orchestrator.K8sCluster) {
+	if p.manifestsOnly {
+		if orchestrator.SkipKubernetesManifest(types.UID(pctx.ClusterID), clusterModel.ResourceVersion) {
+			return processResult, 0, nil
+		}
+	} else if orchestrator.SkipKubernetesResource(types.UID(pctx.ClusterID), clusterModel.ResourceVersion, orchestrator.K8sCluster) {
 		stats := orchestrator.CheckStats{
 			CacheHits: 1,
 			CacheMiss: 0,
@@ -228,6 +247,31 @@ func fillClusterResourceVersion(c *model.Cluster) error {
 	c.ResourceVersion = strconv.FormatUint(version, 10)
 
 	return nil
+}
+
+// serverVersionTTL is shorter than the check interval, so each run reads the version once, whether one or both collector
+// bundles process the cluster.
+const serverVersionTTL = 5 * time.Second
+
+var lastServerVersion struct {
+	sync.Mutex
+	version   *version.Info
+	fetchedAt time.Time
+}
+
+// serverVersion returns the API server version, reusing the version that the other collector bundle read in the same run.
+func serverVersion(client discovery.ServerVersionInterface) (*version.Info, error) {
+	lastServerVersion.Lock()
+	defer lastServerVersion.Unlock()
+	if lastServerVersion.version != nil && time.Since(lastServerVersion.fetchedAt) < serverVersionTTL {
+		return lastServerVersion.version, nil
+	}
+	v, err := client.ServerVersion()
+	if err != nil {
+		return nil, err
+	}
+	lastServerVersion.version, lastServerVersion.fetchedAt = v, time.Now()
+	return v, nil
 }
 
 // getKubeSystemCreationTimeStamp returns the timestamp of the kube-system namespace from the cluster

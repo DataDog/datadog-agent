@@ -28,3 +28,19 @@ func TestKubeCacheHits(t *testing.T) {
 	skip = SkipKubernetesResource(types.UID(uid), newResourceVersion, K8sPod)
 	assert.False(t, skip)
 }
+
+func TestKubeManifestCacheIsIndependent(t *testing.T) {
+	uid := types.UID("manifest-cache-uid")
+	resourceVersion := "1"
+
+	// the metadata pipeline reports the resource first.
+	assert.False(t, SkipKubernetesResource(uid, resourceVersion, K8sPod))
+
+	// the manifest pipeline still reports it, then skips it while it does not change.
+	assert.False(t, SkipKubernetesManifest(uid, resourceVersion))
+	assert.True(t, SkipKubernetesManifest(uid, resourceVersion))
+	assert.False(t, SkipKubernetesManifest(uid, "2"))
+
+	// the manifest pipeline does not change what the metadata pipeline skips.
+	assert.True(t, SkipKubernetesResource(uid, resourceVersion, K8sPod))
+}

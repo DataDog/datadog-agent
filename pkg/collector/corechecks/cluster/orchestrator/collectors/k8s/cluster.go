@@ -29,6 +29,8 @@ func NewClusterCollectorVersions() collectors.CollectorVersions {
 
 // ClusterCollector is a collector for Kubernetes clusters.
 type ClusterCollector struct {
+	// The cluster has no deleted resources, so its queue stays empty.
+	collectors.TerminatedQueue
 	informer  corev1Informers.NodeInformer
 	lister    corev1Listers.NodeLister
 	metadata  *collectors.CollectorMetadata
@@ -51,6 +53,14 @@ func NewClusterCollector() *ClusterCollector {
 		},
 		processor: k8sProcessors.NewClusterProcessor(),
 	}
+}
+
+// NewClusterManifestCollector creates a new collector for the Kubernetes cluster resource of the manifest pipeline.
+func NewClusterManifestCollector() *ClusterCollector {
+	collector := NewClusterCollector()
+	collector.metadata.IsMetadataProducer = false
+	collector.processor = k8sProcessors.NewClusterManifestProcessor()
+	return collector
 }
 
 // Informer returns the shared informer.

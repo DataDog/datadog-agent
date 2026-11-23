@@ -8,6 +8,8 @@
 package collectors
 
 import (
+	"sync"
+
 	"github.com/benbjohnson/clock"
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
@@ -25,6 +27,12 @@ type K8sCollector interface {
 
 	// Informer returns the shared informer for that resource.
 	Informer() cache.SharedInformer
+
+	// QueueTerminated queues a resource that was reported as deleted.
+	QueueTerminated(obj interface{})
+
+	// DrainTerminated returns the queued deleted resources and empties the queue.
+	DrainTerminated() []interface{}
 }
 
 // CollectorVersions represents the list of collector implementations that are
@@ -65,6 +73,32 @@ type OrchestratorInformerFactory struct {
 	ConfigMapMetadataInformerFactory metadatainformer.SharedInformerFactory
 	// SecretMetadataInformerFactory watches Secret metadata.
 	SecretMetadataInformerFactory metadatainformer.SharedInformerFactory
+	// PodDeletions sends the events of the single pod deletion watch to the collectors of every bundle.
+	PodDeletions DeletionHandlers
+}
+
+// DeletionHandlers sends the deletions of a watch that is not an informer to several handlers.
+type DeletionHandlers struct {
+	mu       sync.Mutex
+	handlers []func(any)
+}
+
+// Add registers a handler. It returns true for the first handler, whose caller must start the watch.
+func (d *DeletionHandlers) Add(handler func(any)) (first bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.handlers = append(d.handlers, handler)
+	return len(d.handlers) == 1
+}
+
+// Notify sends a deleted object to every handler.
+func (d *DeletionHandlers) Notify(obj any) {
+	d.mu.Lock()
+	handlers := d.handlers
+	d.mu.Unlock()
+	for _, handler := range handlers {
+		handler(obj)
+	}
 }
 
 // NewK8sProcessorContext creates a new processor context for k8s resources.
@@ -74,7 +108,7 @@ func NewK8sProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadat
 			Cfg:                 rcfg.Config,
 			MsgGroupID:          rcfg.MsgGroupRef.Inc(),
 			NodeType:            metadata.NodeType,
-			ManifestProducer:    true,
+			ManifestProducer:    rcfg.Role != MetadataRole,
 			ClusterID:           rcfg.ClusterID,
 			Kind:                metadata.Kind,
 			APIVersion:          metadata.GroupVersion(),

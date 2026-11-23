@@ -48,6 +48,7 @@ type OrchestratorConfig struct {
 	IsManifestCollectionEnabled    bool
 	BufferedManifestEnabled        bool
 	ManifestBufferFlushInterval    time.Duration
+	ManifestPipelineEnabled        bool
 	KubeletConfigCheckEnabled      bool
 }
 
@@ -122,6 +123,7 @@ func (oc *OrchestratorConfig) Load() error {
 	oc.IsManifestCollectionEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.enabled"))
 	oc.BufferedManifestEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.buffer_manifest"))
 	oc.ManifestBufferFlushInterval = pkgconfigsetup.Datadog().GetDuration(OrchestratorNSKey("manifest_collection.buffer_flush_interval"))
+	oc.ManifestPipelineEnabled = oc.IsManifestCollectionEnabled && pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.dedicated_pipeline.enabled"))
 	oc.KubeletConfigCheckEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("kubelet_config_check.enabled"))
 	return nil
 }

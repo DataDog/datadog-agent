@@ -13,6 +13,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"go.uber.org/atomic"
+	v1 "k8s.io/api/core/v1"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -181,12 +182,13 @@ func (c *Check) Run() error {
 	groupID := nextGroupID()
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              c.config,
-			Clock:            clock.New(),
-			MsgGroupID:       groupID,
-			NodeType:         orchestrator.K8sPod,
-			ClusterID:        c.clusterID,
-			ManifestProducer: true,
+			Cfg:        c.config,
+			Clock:      clock.New(),
+			MsgGroupID: groupID,
+			NodeType:   orchestrator.K8sPod,
+			ClusterID:  c.clusterID,
+			// The metadata pass builds the manifests only in the combined pipeline, and only when manifests are collected.
+			ManifestProducer: c.config.IsManifestCollectionEnabled && !c.config.ManifestPipelineEnabled,
 			Kind:             kubernetes.PodKind,
 			APIVersion:       utilTypes.PodVersion,
 			CollectorGroup:   utilTypes.PodGroup,
@@ -205,8 +207,31 @@ func (c *Check) Run() error {
 
 	orchestrator.SetCacheStats(listed, processed, ctx.NodeType)
 
+	// Send the metadata before the manifest pass, as the metadata cache already holds these pods.
 	c.sender.OrchestratorMetadata(processResult.MetadataMessages, c.clusterID, int(orchestrator.K8sPod))
-	c.sender.OrchestratorManifest(processResult.ManifestMessages, c.clusterID)
+
+	if !c.config.IsManifestCollectionEnabled {
+		return nil
+	}
+	manifestMessages := processResult.ManifestMessages
+	if c.config.ManifestPipelineEnabled {
+		manifestMessages, err = c.processManifests(ctx, podList)
+		if err != nil {
+			return err
+		}
+	}
+	c.sender.OrchestratorManifest(manifestMessages, c.clusterID)
 
 	return nil
+}
+
+// processManifests builds the pod manifests in a separate pass, as the dedicated manifest pipeline of the Cluster Agent
+// does. The manifests are deduplicated independently of the metadata.
+func (c *Check) processManifests(ctx *processors.K8sProcessorContext, podList []*v1.Pod) ([]model.MessageBody, error) {
+	handlers := c.processor.Handlers()
+	manifests, processed := c.processor.ProcessManifests(ctx, handlers.ResourceList(ctx, podList))
+	if processed == -1 {
+		return nil, errors.New("unable to process pod manifests: a panic occurred")
+	}
+	return processors.ChunkManifest(ctx, handlers.BuildManifestMessageBody, manifests), nil
 }

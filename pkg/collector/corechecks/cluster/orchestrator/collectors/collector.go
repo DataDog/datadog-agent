@@ -54,7 +54,6 @@ type CollectorMetadata struct {
 	IsSkipped                            bool
 	SkippedReason                        string
 	SupportsTerminatedResourceCollection bool
-	IsGenericCollector                   bool
 }
 
 // CollectorTags returns static tags to be added to all resources collected by the collector.
@@ -111,17 +110,29 @@ type ECSCollectorRunConfig struct {
 type CollectorRunConfig struct {
 	K8sCollectorRunConfig
 	ECSCollectorRunConfig
-	ClusterID                 string
-	Config                    *config.OrchestratorConfig
-	MsgGroupRef               *atomic.Int32
-	TerminatedResources       bool
-	AgentVersion              *model.AgentVersion
-	StopCh                    chan struct{}
-	TerminatedResourceHandler TerminatedResourceHandler
+	ClusterID           string
+	Config              *config.OrchestratorConfig
+	MsgGroupRef         *atomic.Int32
+	TerminatedResources bool
+	AgentVersion        *model.AgentVersion
+	StopCh              chan struct{}
+	// TerminatedResourceGate reports whether collectors queue the resources that are reported as deleted.
+	TerminatedResourceGate *TerminatedResourceGate
+	// Role is the role of the collector bundle that runs the collectors.
+	Role BundleRole
 }
 
-// TerminatedResourceHandler is used to handle collected terminated resources.
-type TerminatedResourceHandler func(k8sCollector K8sCollector, obj any)
+// BundleRole selects the collectors of a bundle and the payloads that it sends.
+type BundleRole int
+
+const (
+	// MetadataAndManifestRole sends structured metadata and manifests from the same collectors.
+	MetadataAndManifestRole BundleRole = iota
+	// MetadataRole sends structured metadata only. It skips the collectors that only produce manifests.
+	MetadataRole
+	// ManifestRole sends manifests only, from the collectors of the resource registry.
+	ManifestRole
+)
 
 // CollectorRunResult contains information about what the collector has done.
 // Metadata is a list of payload, each payload contains a list of k8s resources metadata and manifest

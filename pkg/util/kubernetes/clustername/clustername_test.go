@@ -337,15 +337,6 @@ func TestGetClusterIDClusterAgent(t *testing.T) {
 	}
 }
 
-// stubNodeClusterNameLabel replaces the node-label discovery with stub for the
-// duration of the test.
-func stubNodeClusterNameLabel(t *testing.T, stub func(context.Context, string) (string, error)) {
-	t.Helper()
-	previous := nodeClusterNameLabel
-	t.Cleanup(func() { nodeClusterNameLabel = previous })
-	nodeClusterNameLabel = stub
-}
-
 func clearClusterIDCache(t *testing.T) {
 	t.Helper()
 	key := cache.BuildAgentKey(constants.ClusterIDCacheKey)

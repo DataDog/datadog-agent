@@ -18,15 +18,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
-	"github.com/DataDog/datadog-agent/pkg/redact"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // NodeHandlers implements the Handlers interface for Kubernetes Nodes.
 type NodeHandlers struct {
-	common.BaseHandlers
+	common.TypedHandlers[*corev1.Node]
 	tagger tagger.Component
 }
 
@@ -62,16 +60,6 @@ func (h *NodeHandlers) AfterMarshalling(ctx processors.ProcessorContext, resourc
 	return
 }
 
-// BeforeMarshalling is a handler called before resource marshalling.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NodeHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	r := resource.(*corev1.Node)
-	r.Kind = ctx.GetKind()
-	r.APIVersion = ctx.GetAPIVersion()
-	return
-}
-
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *NodeHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -101,49 +89,6 @@ func (h *NodeHandlers) ExtractResource(ctx processors.ProcessorContext, resource
 	return k8sTransformers.ExtractNode(ctx, r)
 }
 
-// ResourceList is a handler called to convert a list passed as a generic
-// interface to a list of generic interfaces.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NodeHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*corev1.Node)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
-}
-
-// CloneResource returns a deep copy of the resource.
-//
-//nolint:revive
-func (h *NodeHandlers) CloneResource(resource interface{}) interface{} {
-	return resource.(*corev1.Node).DeepCopy()
-}
-
-// ResourceVersionFromRaw returns the resource version from the raw resource.
-//
-//nolint:revive
-func (h *NodeHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
-	return resource.(*corev1.Node).ResourceVersion
-}
-
-// ResourceUID is a handler called to retrieve the resource UID.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NodeHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
-	return resource.(*corev1.Node).UID
-}
-
-// ResourceVersion is a handler called to retrieve the resource version.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NodeHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
-	return resource.(*corev1.Node).ResourceVersion
-}
-
 // GetMetadataTags returns the tags in the metadata model.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
@@ -153,15 +98,6 @@ func (h *NodeHandlers) GetMetadataTags(ctx processors.ProcessorContext, resource
 		return nil
 	}
 	return m.Tags
-}
-
-// ScrubBeforeExtraction is a handler called to redact the raw resource before
-// it is extracted as an internal resource model.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NodeHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
-	r := resource.(*corev1.Node)
-	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before

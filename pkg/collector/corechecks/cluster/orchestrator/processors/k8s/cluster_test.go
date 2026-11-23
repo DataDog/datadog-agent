@@ -26,6 +26,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -271,4 +272,61 @@ func createTestClusterNode(name, kubeletVersion, cpu, memory, pods string) *core
 			},
 		},
 	}
+}
+
+func TestClusterManifestProcessor_UsesManifestCache(t *testing.T) {
+	resourceCache, manifestCache := orchestrator.KubernetesResourceCache, orchestrator.KubernetesManifestCache
+	t.Cleanup(func() {
+		orchestrator.KubernetesResourceCache, orchestrator.KubernetesManifestCache = resourceCache, manifestCache
+	})
+	orchestrator.KubernetesResourceCache = orchestrator.NewKubernetesResourceCache()
+	orchestrator.KubernetesManifestCache = orchestrator.NewKubernetesResourceCache()
+
+	node := createTestClusterNode("node-1", "v1.20.0", "1000m", "2Gi", "110")
+	client := fake.NewClientset(node, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "kube-system"}})
+	client.Discovery().(*fakediscovery.FakeDiscovery).FakedServerVersion = &version.Info{GitVersion: "v1.20.0"}
+
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	cfg.KubeClusterName = "test-cluster"
+	ctx := &processors.K8sProcessorContext{
+		BaseProcessorContext: processors.BaseProcessorContext{
+			Cfg:              cfg,
+			Clock:            clock.New(),
+			ClusterID:        "test-cluster-id",
+			ManifestProducer: true,
+		},
+		APIClient: &apiserver.APIClient{Cl: client},
+	}
+
+	// The structured metadata pipeline reports the cluster first.
+	_, processed, err := NewClusterProcessor().Process(ctx, []*corev1.Node{node})
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+
+	// The manifest pipeline still reports it once.
+	manifestProcessor := NewClusterManifestProcessor()
+	result, processed, err := manifestProcessor.Process(ctx, []*corev1.Node{node})
+	require.NoError(t, err)
+	assert.Equal(t, 1, processed)
+	assert.Len(t, result.ManifestMessages, 1)
+
+	_, processed, err = manifestProcessor.Process(ctx, []*corev1.Node{node})
+	require.NoError(t, err)
+	assert.Equal(t, 0, processed)
+}
+
+func TestServerVersionIsReusedWithinARun(t *testing.T) {
+	lastServerVersion.Lock()
+	lastServerVersion.version = nil
+	lastServerVersion.Unlock()
+
+	client := fake.NewClientset()
+	client.Discovery().(*fakediscovery.FakeDiscovery).FakedServerVersion = &version.Info{GitVersion: "v1.20.0"}
+
+	for range 2 {
+		v, err := serverVersion(client.Discovery())
+		require.NoError(t, err)
+		assert.Equal(t, "v1.20.0", v.String())
+	}
+	assert.Len(t, client.Actions(), 1)
 }

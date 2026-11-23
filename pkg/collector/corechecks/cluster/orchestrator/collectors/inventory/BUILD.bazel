@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "inventory",
@@ -11,6 +12,25 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//pkg/collector/corechecks/cluster/orchestrator/collectors",
         "//pkg/collector/corechecks/cluster/orchestrator/collectors/k8s",
-        "//pkg/orchestrator",
+        "//pkg/collector/corechecks/cluster/orchestrator/registry",
+    ],
+)
+
+dd_agent_go_test(
+    name = "inventory_test",
+    srcs = ["inventory_test.go"],
+    embed = [":inventory"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
+    deps = [
+        "//pkg/collector/corechecks/cluster/orchestrator/collectors",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

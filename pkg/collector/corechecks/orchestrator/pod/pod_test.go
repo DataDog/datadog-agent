@@ -35,6 +35,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -60,10 +61,13 @@ func (d *dummyKubelet) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer d.Unlock()
 	switch r.URL.Path {
 	case "/pods":
-		podList, err := os.ReadFile("../testdata/pods.json")
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
+		podList := d.PodsBody
+		if podList == nil {
+			var err error
+			if podList, err = os.ReadFile("../testdata/pods.json"); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
 		s, err := w.Write(podList)
 		log.Debugf("dummyKubelet wrote %d bytes, err: %v", s, err)
@@ -151,14 +155,24 @@ func (suite *PodTestSuite) SetupSuite() {
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.tagger = fakeTagger
 
+	// The check configuration matches the manifest collection setting above.
+	orchestratorConfig := oconfig.NewDefaultOrchestratorConfig(nil)
+	orchestratorConfig.IsManifestCollectionEnabled = true
+
 	suite.check = &Check{
 		cfg:       mockConfig,
 		sender:    sender,
 		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(mockConfig, mockStore, fakeTagger)),
 		hostName:  testHostName,
-		config:    oconfig.NewDefaultOrchestratorConfig(nil),
+		config:    orchestratorConfig,
 		tagger:    fakeTagger,
 	}
+}
+
+func (suite *PodTestSuite) SetupTest() {
+	suite.sender.pods, suite.sender.manifests = nil, nil
+	orchestrator.KubernetesResourceCache = orchestrator.NewKubernetesResourceCache()
+	orchestrator.KubernetesManifestCache = orchestrator.NewKubernetesResourceCache()
 }
 
 func (suite *PodTestSuite) TearDownSuite() {
@@ -216,15 +230,7 @@ func TestNewCheckInfraTags(t *testing.T) {
 }
 
 func (suite *PodTestSuite) TestPodCheck() {
-	cacheKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
-	cachedClusterID, found := cache.Cache.Get(cacheKey)
-	if !found {
-		cache.Cache.Set(cacheKey, strings.Repeat("1", 36), cache.NoExpiration)
-	}
-
-	defer func() {
-		cache.Cache.Set(cacheKey, cachedClusterID, cache.NoExpiration)
-	}()
+	suite.setClusterID()
 
 	err := suite.check.Run()
 	require.NoError(suite.T(), err)
@@ -248,6 +254,48 @@ func (suite *PodTestSuite) TestPodCheck() {
 	require.Equal(suite.T(),
 		sorted(suite.sender.manifests[0].(*process.CollectorManifest).Manifests[0].Tags...),
 		sorted("kube_api_version:v1", "kube_condition_podscheduled:true", "pod_status:pending"))
+}
+
+func (suite *PodTestSuite) TestPodCheckDedicatedManifestPipeline() {
+	suite.setClusterID()
+	cfg := *suite.check.config
+	suite.T().Cleanup(func() { *suite.check.config = cfg })
+	suite.check.config.IsManifestCollectionEnabled = true
+
+	require.NoError(suite.T(), suite.check.Run())
+	require.Len(suite.T(), suite.sender.manifests, 1)
+	expected := suite.sender.manifests[0].(*process.CollectorManifest).Manifests
+
+	suite.SetupTest()
+	suite.check.config.ManifestPipelineEnabled = true
+	require.NoError(suite.T(), suite.check.Run())
+
+	// The metadata pass sends the same pods without manifests, and the manifest pass sends the same manifests.
+	require.Len(suite.T(), suite.sender.pods, 1)
+	pods := suite.sender.pods[0].(*process.CollectorPod).Pods
+	require.Len(suite.T(), pods, 10)
+	for _, pod := range pods {
+		require.Empty(suite.T(), pod.Yaml)
+	}
+	require.Len(suite.T(), suite.sender.manifests, 1)
+	require.ElementsMatch(suite.T(), expected, suite.sender.manifests[0].(*process.CollectorManifest).Manifests)
+
+	// The two passes deduplicate independently: resetting the metadata cache resends only the metadata.
+	suite.sender.pods, suite.sender.manifests = nil, nil
+	orchestrator.KubernetesResourceCache = orchestrator.NewKubernetesResourceCache()
+	require.NoError(suite.T(), suite.check.Run())
+	require.Len(suite.T(), suite.sender.pods[0].(*process.CollectorPod).Pods, 10)
+	require.Empty(suite.T(), suite.sender.manifests)
+}
+
+// setClusterID caches a cluster ID for the check, and restores the cached value when the test ends.
+func (suite *PodTestSuite) setClusterID() {
+	cacheKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
+	cachedClusterID, found := cache.Cache.Get(cacheKey)
+	if !found {
+		cache.Cache.Set(cacheKey, strings.Repeat("1", 36), cache.NoExpiration)
+	}
+	suite.T().Cleanup(func() { cache.Cache.Set(cacheKey, cachedClusterID, cache.NoExpiration) })
 }
 
 func sorted(l ...string) []string {

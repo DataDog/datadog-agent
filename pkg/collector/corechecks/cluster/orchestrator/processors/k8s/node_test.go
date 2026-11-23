@@ -84,71 +84,6 @@ func TestNodeHandlers_ExtractResource(t *testing.T) {
 	assert.Equal(t, "Ready", nodeModel.Status.Status)
 }
 
-func TestNodeHandlers_ResourceList(t *testing.T) {
-	handlers := &NodeHandlers{}
-
-	// Create test nodes
-	node1 := createTestNode("node-1", "namespace-1")
-	node2 := createTestNode("node-2", "namespace-2")
-
-	// Create processor context
-	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
-	ctx := &processors.K8sProcessorContext{
-		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              cfg,
-			Clock:            clock.New(),
-			ClusterID:        "test-cluster-id",
-			MsgGroupID:       1,
-			ManifestProducer: true,
-		},
-		APIClient: &apiserver.APIClient{},
-		HostName:  "test-host",
-	}
-
-	// Convert list
-	resourceList := []*corev1.Node{node1, node2}
-	resources := handlers.ResourceList(ctx, resourceList)
-
-	// Validate conversion
-	assert.Len(t, resources, 2)
-
-	// Verify raw informer references are returned
-	resource1, ok := resources[0].(*corev1.Node)
-	assert.True(t, ok)
-	assert.Equal(t, "node-1", resource1.Name)
-	assert.Same(t, node1, resource1) // ResourceList returns raw informer references
-
-	resource2, ok := resources[1].(*corev1.Node)
-	assert.True(t, ok)
-	assert.Equal(t, "node-2", resource2.Name)
-	assert.Same(t, node2, resource2) // ResourceList returns raw informer references
-}
-
-func TestNodeHandlers_ResourceUID(t *testing.T) {
-	handlers := &NodeHandlers{}
-
-	node := createTestNode("test-node", "test-namespace")
-	expectedUID := types.UID("test-uid-123")
-	node.UID = expectedUID
-
-	uid := handlers.ResourceUID(nil, node)
-	assert.Equal(t, expectedUID, uid)
-}
-
-func TestNodeHandlers_ResourceVersion(t *testing.T) {
-	handlers := &NodeHandlers{}
-
-	node := createTestNode("test-node", "test-namespace")
-	expectedVersion := "v123"
-	node.ResourceVersion = expectedVersion
-
-	// Create a mock resource model
-	resourceModel := &model.Node{}
-
-	version := handlers.ResourceVersion(nil, node, resourceModel)
-	assert.Equal(t, expectedVersion, version)
-}
-
 func TestNodeHandlers_BuildMessageBody(t *testing.T) {
 	handlers := &NodeHandlers{}
 
@@ -188,39 +123,6 @@ func TestNodeHandlers_BuildMessageBody(t *testing.T) {
 	assert.Len(t, collectorMsg.Nodes, 2)
 	assert.Equal(t, "node-1", collectorMsg.Nodes[0].Metadata.Name)
 	assert.Equal(t, "node-2", collectorMsg.Nodes[1].Metadata.Name)
-}
-
-func TestNodeHandlers_BeforeMarshalling(t *testing.T) {
-	handlers := &NodeHandlers{}
-
-	node := createTestNode("test-node", "test-namespace")
-
-	// Create processor context
-	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
-	ctx := &processors.K8sProcessorContext{
-		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              cfg,
-			Clock:            clock.New(),
-			ClusterID:        "test-cluster-id",
-			MsgGroupID:       1,
-			ManifestProducer: true,
-			Kind:             "Node",
-			APIVersion:       "v1",
-		},
-		APIClient: &apiserver.APIClient{},
-		HostName:  "test-host",
-	}
-
-	// Create resource model
-	resourceModel := &model.Node{}
-
-	// Call BeforeMarshalling
-	skip := handlers.BeforeMarshalling(ctx, node, resourceModel)
-
-	// Validate
-	assert.False(t, skip)
-	assert.Equal(t, "Node", node.Kind)
-	assert.Equal(t, "v1", node.APIVersion)
 }
 
 func TestNodeHandlers_AfterMarshalling(t *testing.T) {
@@ -282,22 +184,6 @@ func TestNodeHandlers_GetNodeName(t *testing.T) {
 
 	// Validate
 	assert.Equal(t, "test-node", nodeName)
-}
-
-func TestNodeHandlers_ScrubBeforeExtraction(t *testing.T) {
-	handlers := &NodeHandlers{}
-
-	// Create node with sensitive annotations and labels
-	node := createTestNode("test-node", "test-namespace")
-	node.Annotations["kubectl.kubernetes.io/last-applied-configuration"] = "secret-value"
-	node.Labels["kubectl.kubernetes.io/last-applied-configuration"] = "secret-value"
-
-	// Call ScrubBeforeExtraction
-	handlers.ScrubBeforeExtraction(nil, node)
-
-	// Validate that sensitive data was removed
-	assert.Equal(t, "-", node.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
-	assert.Equal(t, "-", node.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestNodeProcessor_Process(t *testing.T) {
@@ -472,14 +358,4 @@ func createTestNode(name, namespace string) *corev1.Node {
 			},
 		},
 	}
-}
-
-func TestNodeHandlers_CloneResource(t *testing.T) {
-	handlers := &NodeHandlers{}
-	original := createTestNode("test", "ns")
-	cloned := handlers.CloneResource(original)
-	clonedTyped, ok := cloned.(*corev1.Node)
-	assert.True(t, ok)
-	assert.NotSame(t, original, clonedTyped)
-	assert.Equal(t, original, clonedTyped)
 }

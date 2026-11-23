@@ -51,250 +51,14 @@ func TestClusterRoleHandlers_BeforeCacheCheck(t *testing.T) {
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
 
-func TestClusterRoleHandlers_ExtractResource(t *testing.T) {
-	handlers := &ClusterRoleHandlers{}
-
-	// Create test cluster role
-	clusterRole := createTestClusterRole("test-clusterrole", "test-namespace")
-
-	// Create processor context
-	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
-	cfg.KubeClusterName = "test-cluster"
-
-	ctx := &processors.K8sProcessorContext{
-		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              cfg,
-			Clock:            clock.New(),
-			ClusterID:        "test-cluster-id",
-			MsgGroupID:       1,
-			ManifestProducer: true,
-		},
-		APIClient: &apiserver.APIClient{},
-		HostName:  "test-host",
-	}
-
-	// Extract resource
-	resourceModel := handlers.ExtractResource(ctx, clusterRole)
-
-	// Validate extraction
-	clusterRoleModel, ok := resourceModel.(*model.ClusterRole)
-	assert.True(t, ok)
-	assert.NotNil(t, clusterRoleModel)
-	assert.Equal(t, "test-clusterrole", clusterRoleModel.Metadata.Name)
-	assert.Equal(t, "test-namespace", clusterRoleModel.Metadata.Namespace)
-	assert.Len(t, clusterRoleModel.Rules, 2)
-	assert.Len(t, clusterRoleModel.AggregationRules, 1)
-}
-
-func TestClusterRoleHandlers_ResourceList(t *testing.T) {
-	handlers := &ClusterRoleHandlers{}
-
-	// Create test cluster roles
-	clusterRole1 := createTestClusterRole("clusterrole-1", "namespace-1")
-	clusterRole2 := createTestClusterRole("clusterrole-2", "namespace-2")
-
-	// Create processor context
-	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
-	ctx := &processors.K8sProcessorContext{
-		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              cfg,
-			Clock:            clock.New(),
-			ClusterID:        "test-cluster-id",
-			MsgGroupID:       1,
-			ManifestProducer: true,
-		},
-		APIClient: &apiserver.APIClient{},
-		HostName:  "test-host",
-	}
-
-	// Convert list
-	resourceList := []*rbacv1.ClusterRole{clusterRole1, clusterRole2}
-	resources := handlers.ResourceList(ctx, resourceList)
-
-	// Validate conversion
-	assert.Len(t, resources, 2)
-
-	// Verify raw informer references are returned
-	resource1, ok := resources[0].(*rbacv1.ClusterRole)
-	assert.True(t, ok)
-	assert.Equal(t, "clusterrole-1", resource1.Name)
-	assert.Same(t, clusterRole1, resource1) // ResourceList returns raw informer references
-
-	resource2, ok := resources[1].(*rbacv1.ClusterRole)
-	assert.True(t, ok)
-	assert.Equal(t, "clusterrole-2", resource2.Name)
-	assert.Same(t, clusterRole2, resource2) // ResourceList returns raw informer references
-}
-
-func TestClusterRoleHandlers_ResourceUID(t *testing.T) {
-	handlers := &ClusterRoleHandlers{}
-
-	clusterRole := createTestClusterRole("test-clusterrole", "test-namespace")
-	expectedUID := types.UID("test-uid-123")
-	clusterRole.UID = expectedUID
-
-	uid := handlers.ResourceUID(nil, clusterRole)
-	assert.Equal(t, expectedUID, uid)
-}
-
-func TestClusterRoleHandlers_ResourceVersion(t *testing.T) {
-	handlers := &ClusterRoleHandlers{}
-
-	clusterRole := createTestClusterRole("test-clusterrole", "test-namespace")
-	expectedVersion := "v123"
-	clusterRole.ResourceVersion = expectedVersion
-
-	// Create a mock resource model
-	resourceModel := &model.ClusterRole{}
-
-	version := handlers.ResourceVersion(nil, clusterRole, resourceModel)
-	assert.Equal(t, expectedVersion, version)
-}
-
-func TestClusterRoleHandlers_BuildMessageBody(t *testing.T) {
-	handlers := &ClusterRoleHandlers{}
-
-	clusterRole1 := createTestClusterRole("clusterrole-1", "namespace-1")
-	clusterRole2 := createTestClusterRole("clusterrole-2", "namespace-2")
-
-	// Create processor context
-	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
-	cfg.KubeClusterName = "test-cluster"
-
-	ctx := &processors.K8sProcessorContext{
-		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              cfg,
-			Clock:            clock.New(),
-			ClusterID:        "test-cluster-id",
-			MsgGroupID:       1,
-			ManifestProducer: true,
-		},
-		APIClient: &apiserver.APIClient{},
-		HostName:  "test-host",
-	}
-
-	clusterRole1Model := k8sTransformers.ExtractClusterRole(ctx, clusterRole1)
-	clusterRole2Model := k8sTransformers.ExtractClusterRole(ctx, clusterRole2)
-
-	// Build message body
-	resourceModels := []interface{}{clusterRole1Model, clusterRole2Model}
-	messageBody := handlers.BuildMessageBody(ctx, resourceModels, 2)
-
-	// Validate message body
-	collectorMsg, ok := messageBody.(*model.CollectorClusterRole)
-	assert.True(t, ok)
-	assert.Equal(t, "test-cluster", collectorMsg.ClusterName)
-	assert.Equal(t, "test-cluster-id", collectorMsg.ClusterId)
-	assert.Equal(t, int32(1), collectorMsg.GroupId)
-	assert.Equal(t, int32(2), collectorMsg.GroupSize)
-	assert.Len(t, collectorMsg.ClusterRoles, 2)
-	assert.Equal(t, "clusterrole-1", collectorMsg.ClusterRoles[0].Metadata.Name)
-	assert.Equal(t, "clusterrole-2", collectorMsg.ClusterRoles[1].Metadata.Name)
-}
-
-func TestClusterRoleHandlers_BeforeMarshalling(t *testing.T) {
-	handlers := &ClusterRoleHandlers{}
-
-	clusterRole := createTestClusterRole("test-clusterrole", "test-namespace")
-
-	// Create processor context
-	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
-	ctx := &processors.K8sProcessorContext{
-		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              cfg,
-			Clock:            clock.New(),
-			ClusterID:        "test-cluster-id",
-			MsgGroupID:       1,
-			ManifestProducer: true,
-			Kind:             "ClusterRole",
-			APIVersion:       "rbac.authorization.k8s.io/v1",
-		},
-		APIClient: &apiserver.APIClient{},
-		HostName:  "test-host",
-	}
-
-	// Create resource model
-	resourceModel := &model.ClusterRole{}
-
-	// Call BeforeMarshalling
-	skip := handlers.BeforeMarshalling(ctx, clusterRole, resourceModel)
-
-	// Validate
-	assert.False(t, skip)
-	assert.Equal(t, "ClusterRole", clusterRole.Kind)
-	assert.Equal(t, "rbac.authorization.k8s.io/v1", clusterRole.APIVersion)
-}
-
-func TestClusterRoleHandlers_AfterMarshalling(t *testing.T) {
-	handlers := &ClusterRoleHandlers{}
-
-	clusterRole := createTestClusterRole("test-clusterrole", "test-namespace")
-	resourceModel := &model.ClusterRole{}
-
-	// Create processor context
-	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
-	ctx := &processors.K8sProcessorContext{
-		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              cfg,
-			Clock:            clock.New(),
-			ClusterID:        "test-cluster-id",
-			MsgGroupID:       1,
-			ManifestProducer: true,
-		},
-		APIClient: &apiserver.APIClient{},
-		HostName:  "test-host",
-	}
-
-	// Test YAML
-	testYAML := []byte(`{"apiVersion":"rbac.authorization.k8s.io/v1","kind":"ClusterRole","metadata":{"name":"test"}}`)
-
-	// Call AfterMarshalling
-	skip := handlers.AfterMarshalling(ctx, clusterRole, resourceModel, testYAML)
-
-	// Validate
-	assert.False(t, skip)
-	assert.Equal(t, testYAML, resourceModel.Yaml)
-}
-
-func TestClusterRoleHandlers_GetMetadataTags(t *testing.T) {
-	handlers := &ClusterRoleHandlers{}
-
-	// Create cluster role model with tags
-	clusterRoleModel := &model.ClusterRole{
-		Tags: []string{"tag1", "tag2", "tag3"},
-	}
-
-	// Get metadata tags
-	tags := handlers.GetMetadataTags(nil, clusterRoleModel)
-
-	// Validate
-	assert.Equal(t, []string{"tag1", "tag2", "tag3"}, tags)
-}
-
 func TestClusterRoleHandlers_GetMetadataTags_InvalidType(t *testing.T) {
-	handlers := &ClusterRoleHandlers{}
+	handlers := NewClusterRoleHandlers(nil)
 
 	// Pass invalid type
 	tags := handlers.GetMetadataTags(nil, "invalid-type")
 
 	// Should return nil
 	assert.Nil(t, tags)
-}
-
-func TestClusterRoleHandlers_ScrubBeforeExtraction(t *testing.T) {
-	handlers := &ClusterRoleHandlers{}
-
-	// Create cluster role with sensitive annotations and labels
-	clusterRole := createTestClusterRole("test-clusterrole", "test-namespace")
-	clusterRole.Annotations["kubectl.kubernetes.io/last-applied-configuration"] = "secret-value"
-	clusterRole.Labels["kubectl.kubernetes.io/last-applied-configuration"] = "secret-value"
-
-	// Call ScrubBeforeExtraction
-	handlers.ScrubBeforeExtraction(nil, clusterRole)
-
-	// Validate that sensitive data was removed
-	assert.Equal(t, "-", clusterRole.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
-	assert.Equal(t, "-", clusterRole.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestClusterRoleProcessor_Process(t *testing.T) {
@@ -331,7 +95,7 @@ func TestClusterRoleProcessor_Process(t *testing.T) {
 	}
 
 	// Create processor and process cluster roles
-	processor := processors.NewProcessor(&ClusterRoleHandlers{tagger: processorstest.NewEmptyFakeTagger()})
+	processor := processors.NewProcessor(NewClusterRoleHandlers(processorstest.NewEmptyFakeTagger()))
 	result, listed, processed := processor.Process(ctx, []*rbacv1.ClusterRole{clusterRole1, clusterRole2})
 
 	assert.Equal(t, 2, listed)
@@ -423,14 +187,4 @@ func createTestClusterRole(name, namespace string) *rbacv1.ClusterRole {
 			},
 		},
 	}
-}
-
-func TestClusterRoleHandlers_CloneResource(t *testing.T) {
-	handlers := &ClusterRoleHandlers{}
-	original := createTestClusterRole("test", "ns")
-	cloned := handlers.CloneResource(original)
-	clonedTyped, ok := cloned.(*rbacv1.ClusterRole)
-	assert.True(t, ok)
-	assert.NotSame(t, original, clonedTyped)
-	assert.Equal(t, original, clonedTyped)
 }

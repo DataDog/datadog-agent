@@ -37,6 +37,10 @@ var (
 	// KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
 	KubernetesResourceCache = NewKubernetesResourceCache()
 
+	// KubernetesManifestCache is the resource cache of the dedicated manifest pipeline, so that it reports resources
+	// independently of the structured metadata pipeline.
+	KubernetesManifestCache = NewKubernetesResourceCache()
+
 	// Telemetry
 	tlmCacheHits   = telemetryimpl.GetCompatComponent().NewCounter("orchestrator", "cache_hits", []string{"orchestrator", "resource"}, "Number of cache hits")
 	tlmCacheMisses = telemetryimpl.GetCompatComponent().NewCounter("orchestrator", "cache_misses", []string{"orchestrator", "resource"}, "Number of cache misses")
@@ -61,20 +65,28 @@ func NewKubernetesResourceCache() *cache.Cache {
 // It will return true in case the UID is in the cache and the resourceVersion did not change. Else it will return false.
 // 0 == defaultDuration
 func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType pkgorchestratormodel.NodeType) bool {
-	cacheKey := string(uid)
-	value, hit := KubernetesResourceCache.Get(cacheKey)
-
-	if !hit {
-		KubernetesResourceCache.Set(cacheKey, resourceVersion, 0)
+	skip := skipResource(KubernetesResourceCache, uid, resourceVersion)
+	if skip {
+		incCacheHit(nodeType)
+	} else {
 		incCacheMiss(nodeType)
-		return false
-	} else if value != resourceVersion {
-		incCacheMiss(nodeType)
-		KubernetesResourceCache.Set(cacheKey, resourceVersion, 0)
-		return false
 	}
-	incCacheHit(nodeType)
-	return true
+	return skip
+}
+
+// SkipKubernetesManifest checks with the manifest pipeline cache whether the resource manifest was already reported.
+// It does not update the cache statistics, which describe the structured metadata pipeline.
+func SkipKubernetesManifest(uid types.UID, resourceVersion string) bool {
+	return skipResource(KubernetesManifestCache, uid, resourceVersion)
+}
+
+func skipResource(c *cache.Cache, uid types.UID, resourceVersion string) bool {
+	cacheKey := string(uid)
+	if value, hit := c.Get(cacheKey); hit && value == resourceVersion {
+		return true
+	}
+	c.Set(cacheKey, resourceVersion, 0)
+	return false
 }
 
 func incCacheHit(nodeType pkgorchestratormodel.NodeType) {

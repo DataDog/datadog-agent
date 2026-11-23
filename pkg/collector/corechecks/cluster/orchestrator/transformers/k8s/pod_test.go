@@ -713,6 +713,7 @@ func boolPointer(b bool) *bool {
 
 func TestComputeStatus(t *testing.T) {
 	restartPolicyAlways := v1.ContainerRestartPolicyAlways
+	deletionTime := metav1.NewTime(time.Date(2021, time.April, 16, 15, 30, 0, 0, time.UTC))
 	for nb, tc := range []struct {
 		pod    *v1.Pod
 		status string
@@ -808,6 +809,27 @@ func TestComputeStatus(t *testing.T) {
 				},
 			},
 			status: "Running",
+		}, {
+			// A deleted pod that still runs is terminating.
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &deletionTime},
+				Status:     v1.PodStatus{Phase: "Running"},
+			},
+			status: "Terminating",
+		}, {
+			// A deleted pod in a terminal phase keeps its phase.
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &deletionTime},
+				Status:     v1.PodStatus{Phase: "Succeeded"},
+			},
+			status: "Succeeded",
+		}, {
+			// A deleted pod on an unreachable node has an unknown status.
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &deletionTime},
+				Status:     v1.PodStatus{Phase: "Running", Reason: nodeUnreachablePodReason},
+			},
+			status: "Unknown",
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d", nb), func(t *testing.T) {

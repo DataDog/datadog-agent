@@ -72,57 +72,6 @@ func TestPodHandlers_ExtractResource(t *testing.T) {
 	assert.Equal(t, "Running", podModel.Status)
 }
 
-func TestPodHandlers_ResourceList(t *testing.T) {
-	handlers := &PodHandlers{}
-
-	// Create test pods
-	pod1 := createTestPod("pod-1", "namespace-1")
-	pod2 := createTestPod("pod-2", "namespace-2")
-
-	// Create processor context
-	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
-	ctx := &processors.K8sProcessorContext{
-		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              cfg,
-			Clock:            clock.New(),
-			ClusterID:        "test-cluster-id",
-			MsgGroupID:       1,
-			ManifestProducer: true,
-		},
-		APIClient: &apiserver.APIClient{},
-		HostName:  "test-host",
-	}
-
-	// Convert list
-	resourceList := []*corev1.Pod{pod1, pod2}
-	resources := handlers.ResourceList(ctx, resourceList)
-
-	// Validate conversion
-	assert.Len(t, resources, 2)
-
-	// Verify raw informer references are returned
-	resource1, ok := resources[0].(*corev1.Pod)
-	assert.True(t, ok)
-	assert.Equal(t, "pod-1", resource1.Name)
-	assert.Same(t, pod1, resource1) // ResourceList returns raw informer references
-
-	resource2, ok := resources[1].(*corev1.Pod)
-	assert.True(t, ok)
-	assert.Equal(t, "pod-2", resource2.Name)
-	assert.Same(t, pod2, resource2) // ResourceList returns raw informer references
-}
-
-func TestPodHandlers_ResourceUID(t *testing.T) {
-	handlers := &PodHandlers{}
-
-	pod := createTestPod("test-pod", "test-namespace")
-	expectedUID := types.UID("test-uid-123")
-	pod.UID = expectedUID
-
-	uid := handlers.ResourceUID(nil, pod)
-	assert.Equal(t, expectedUID, uid)
-}
-
 func TestPodHandlers_ResourceVersion(t *testing.T) {
 	handlers := &PodHandlers{}
 
@@ -182,39 +131,6 @@ func TestPodHandlers_BuildMessageBody(t *testing.T) {
 	assert.Equal(t, "pod-2", collectorMsg.Pods[1].Metadata.Name)
 }
 
-func TestPodHandlers_BeforeMarshalling(t *testing.T) {
-	handlers := &PodHandlers{}
-
-	pod := createTestPod("test-pod", "test-namespace")
-
-	// Create processor context
-	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
-	ctx := &processors.K8sProcessorContext{
-		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              cfg,
-			Clock:            clock.New(),
-			ClusterID:        "test-cluster-id",
-			MsgGroupID:       1,
-			ManifestProducer: true,
-			Kind:             "Pod",
-			APIVersion:       "v1",
-		},
-		APIClient: &apiserver.APIClient{},
-		HostName:  "test-host",
-	}
-
-	// Create resource model
-	resourceModel := &model.Pod{}
-
-	// Call BeforeMarshalling
-	skip := handlers.BeforeMarshalling(ctx, pod, resourceModel)
-
-	// Validate
-	assert.False(t, skip)
-	assert.Equal(t, "Pod", pod.Kind)
-	assert.Equal(t, "v1", pod.APIVersion)
-}
-
 func TestPodHandlers_AfterMarshalling(t *testing.T) {
 	handlers := &PodHandlers{}
 
@@ -258,22 +174,6 @@ func TestPodHandlers_GetMetadataTags(t *testing.T) {
 
 	// Validate
 	assert.Equal(t, []string{"tag1", "tag2", "tag3"}, tags)
-}
-
-func TestPodHandlers_ScrubBeforeExtraction(t *testing.T) {
-	handlers := &PodHandlers{}
-
-	// Create pod with sensitive annotations and labels
-	pod := createTestPod("test-pod", "test-namespace")
-	pod.Annotations["kubectl.kubernetes.io/last-applied-configuration"] = "secret-value"
-	pod.Labels["kubectl.kubernetes.io/last-applied-configuration"] = "secret-value"
-
-	// Call ScrubBeforeExtraction
-	handlers.ScrubBeforeExtraction(nil, pod)
-
-	// Validate that sensitive data was removed
-	assert.Equal(t, "-", pod.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
-	assert.Equal(t, "-", pod.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestPodHandlers_ScrubBeforeMarshalling(t *testing.T) {
@@ -476,14 +376,4 @@ func createTestPod(name, namespace string) *corev1.Pod {
 			},
 		},
 	}
-}
-
-func TestPodHandlers_CloneResource(t *testing.T) {
-	handlers := &PodHandlers{}
-	original := createTestPod("test", "ns")
-	cloned := handlers.CloneResource(original)
-	clonedTyped, ok := cloned.(*corev1.Pod)
-	assert.True(t, ok)
-	assert.NotSame(t, original, clonedTyped)
-	assert.Equal(t, original, clonedTyped)
 }

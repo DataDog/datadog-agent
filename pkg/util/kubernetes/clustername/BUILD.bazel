@@ -7,6 +7,7 @@ go_library(
         "clusterid_kubeapiserver.go",
         "clusterid_nokubeapiserver.go",
         "clustername.go",
+        "clustername_testing.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername",
     visibility = ["//visibility:public"],

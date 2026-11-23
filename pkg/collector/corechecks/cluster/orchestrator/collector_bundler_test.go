@@ -14,9 +14,13 @@ import (
 	"slices"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+	appsv1 "k8s.io/api/apps/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	crdfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,12 +31,17 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/registry"
 	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -106,8 +115,8 @@ func TestImportBuiltinCollectors(t *testing.T) {
 		collectorDiscovery:  collectorDiscovery,
 		activatedCollectors: make(map[string]struct{}),
 		collectors: []collectors.K8sCollector{
-			k8s.NewUnassignedPodCollector(nil, nil, nil),
-			k8s.NewCRDCollector(),
+			newTestCollector(t, "v1/pods"),
+			newTestCollector(t, "apiextensions.k8s.io/v1/customresourcedefinitions"),
 		},
 		inventory: inventory.NewCollectorInventory(cfg, nil, nil),
 		runCfg: &collectors.CollectorRunConfig{
@@ -306,7 +315,7 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 
 			cb.collectors = []collectors.K8sCollector{}
 			if testCase.hasCrdCollectors {
-				cb.collectors = []collectors.K8sCollector{k8s.NewCRDCollector()}
+				cb.collectors = []collectors.K8sCollector{newTestCollector(t, "apiextensions.k8s.io/v1/customresourcedefinitions")}
 			}
 
 			crCollectors := cb.getBuiltinCustomResourceCollectors()
@@ -349,7 +358,7 @@ func TestGetTerminatedPodCollector(t *testing.T) {
 			name:                  "Terminated pods collector enabled",
 			terminatedPodsEnabled: true,
 			unassignedPod:         true,
-			expected:              k8s.NewTerminatedPodCollector(nil, nil, nil),
+			expected:              newTestCollector(t, "v1/terminated-pods"),
 		},
 		{
 			name:                  "Terminated pods collector enabled without unassigned pod collector",
@@ -368,7 +377,7 @@ func TestGetTerminatedPodCollector(t *testing.T) {
 			}
 
 			if testCase.unassignedPod {
-				cb.collectors = []collectors.K8sCollector{k8s.NewUnassignedPodCollector(nil, nil, nil)}
+				cb.collectors = []collectors.K8sCollector{newTestCollector(t, "v1/pods")}
 			}
 
 			collector := cb.getTerminatedPodCollector()
@@ -528,13 +537,13 @@ func TestBuiltinGAIECollector(t *testing.T) {
 			}
 			if testCase.version != "" {
 				cache.CollectorForVersion[discovery.CollectorVersion{
-					GroupVersion: GAIEAPIGroup + "/" + testCase.version,
+					GroupVersion: registry.GAIEAPIGroup + "/" + testCase.version,
 					Kind:         "inferencepools",
 				}] = struct{}{}
 				cache.Groups = []*v1.APIGroup{{
-					Name: GAIEAPIGroup,
+					Name: registry.GAIEAPIGroup,
 					Versions: []v1.GroupVersionForDiscovery{{
-						GroupVersion: GAIEAPIGroup + "/" + testCase.version,
+						GroupVersion: registry.GAIEAPIGroup + "/" + testCase.version,
 						Version:      testCase.version,
 					}},
 				}}
@@ -543,7 +552,7 @@ func TestBuiltinGAIECollector(t *testing.T) {
 			collectorDiscovery.SetCache(cache)
 			cb := CollectorBundle{collectorDiscovery: collectorDiscovery}
 			for _, config := range newBuiltinCRDConfigs() {
-				if config.group != GAIEAPIGroup {
+				if config.group != registry.GAIEAPIGroup {
 					continue
 				}
 				crCollectors := cb.collectorsForBuiltinCRD(config)
@@ -564,24 +573,24 @@ func TestNewBuiltinKServeCRDConfigs(t *testing.T) {
 
 	var kserveConfigs []builtinCRDConfig
 	for _, config := range newBuiltinCRDConfigs() {
-		if config.group == KServeAPIGroup {
+		if config.group == registry.KServeAPIGroup {
 			kserveConfigs = append(kserveConfigs, config)
 		}
 	}
 
 	expectedConfigs := []builtinCRDConfig{
-		newBuiltinCRDConfig(KServeAPIGroup, "clusterstoragecontainers", true, "v1alpha1"),
-		newBuiltinCRDConfig(KServeAPIGroup, "llminferenceserviceconfigs", true, "v1alpha2", "v1alpha1"),
-		newBuiltinCRDConfig(KServeAPIGroup, "llminferenceservices", true, "v1alpha2", "v1alpha1"),
-		newBuiltinCRDConfig(KServeAPIGroup, "localmodelcaches", true, "v1alpha1"),
-		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnamespacecaches", true, "v1alpha1"),
-		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnodegroups", true, "v1alpha1"),
-		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnodes", true, "v1alpha1"),
-		newBuiltinCRDConfig(KServeAPIGroup, "clusterservingruntimes", true, "v1alpha1"),
-		newBuiltinCRDConfig(KServeAPIGroup, "inferencegraphs", true, "v1alpha1"),
-		newBuiltinCRDConfig(KServeAPIGroup, "inferenceservices", true, "v1beta1"),
-		newBuiltinCRDConfig(KServeAPIGroup, "servingruntimes", true, "v1alpha1"),
-		newBuiltinCRDConfig(KServeAPIGroup, "trainedmodels", true, "v1alpha1"),
+		newBuiltinCRDConfig(registry.KServeAPIGroup, "clusterstoragecontainers", true, "v1alpha1"),
+		newBuiltinCRDConfig(registry.KServeAPIGroup, "llminferenceserviceconfigs", true, "v1alpha2", "v1alpha1"),
+		newBuiltinCRDConfig(registry.KServeAPIGroup, "llminferenceservices", true, "v1alpha2", "v1alpha1"),
+		newBuiltinCRDConfig(registry.KServeAPIGroup, "localmodelcaches", true, "v1alpha1"),
+		newBuiltinCRDConfig(registry.KServeAPIGroup, "localmodelnamespacecaches", true, "v1alpha1"),
+		newBuiltinCRDConfig(registry.KServeAPIGroup, "localmodelnodegroups", true, "v1alpha1"),
+		newBuiltinCRDConfig(registry.KServeAPIGroup, "localmodelnodes", true, "v1alpha1"),
+		newBuiltinCRDConfig(registry.KServeAPIGroup, "clusterservingruntimes", true, "v1alpha1"),
+		newBuiltinCRDConfig(registry.KServeAPIGroup, "inferencegraphs", true, "v1alpha1"),
+		newBuiltinCRDConfig(registry.KServeAPIGroup, "inferenceservices", true, "v1beta1"),
+		newBuiltinCRDConfig(registry.KServeAPIGroup, "servingruntimes", true, "v1alpha1"),
+		newBuiltinCRDConfig(registry.KServeAPIGroup, "trainedmodels", true, "v1alpha1"),
 	}
 
 	require.ElementsMatch(t, expectedConfigs, kserveConfigs)
@@ -668,15 +677,15 @@ func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 
 			configs := newBuiltinCRDConfigs()
 
-			gatewayAPIGroups := map[string]bool{GatewayAPIGroup: true}
+			gatewayAPIGroups := map[string]bool{registry.GatewayAPIGroup: true}
 			serviceMeshGroups := map[string]bool{
-				IstioNetworkingAPIGroup: true, EnvoyGatewayAPIGroup: true,
-				TraefikLegacyAPIGroup: true, LinkerdPolicyAPIGroup: true,
-				ConsulAPIGroup: true, ConsulMeshAPIGroup: true, KumaAPIGroup: true,
+				registry.IstioNetworkingAPIGroup: true, registry.EnvoyGatewayAPIGroup: true,
+				registry.TraefikLegacyAPIGroup: true, registry.LinkerdPolicyAPIGroup: true,
+				registry.ConsulAPIGroup: true, registry.ConsulMeshAPIGroup: true, registry.KumaAPIGroup: true,
 			}
 			ingressGroups := map[string]bool{
-				NginxAPIGroup: true, TraefikAPIGroup: true, KongAPIGroup: true,
-				HAProxyCoreAPIGroup: true, HAProxyIngressV1APIGroup: true,
+				registry.NginxAPIGroup: true, registry.TraefikAPIGroup: true, registry.KongAPIGroup: true,
+				registry.HAProxyCoreAPIGroup: true, registry.HAProxyIngressV1APIGroup: true,
 			}
 
 			var gatewayCount, meshCount, ingressCount int
@@ -1203,9 +1212,9 @@ func TestCollectorBundleRefreshDiscovery(t *testing.T) {
 
 func TestCollectorBundleMergeCollectors(t *testing.T) {
 	var (
-		cronjobV1Beta1Collector = k8s.NewCronJobV1Beta1Collector(nil)
-		cronjobV1Collector      = k8s.NewCronJobV1Collector(nil)
-		jobCollector            = k8s.NewJobCollector(nil)
+		cronjobV1Beta1Collector = newTestCollector(t, "batch/v1beta1/cronjobs")
+		cronjobV1Collector      = newTestCollector(t, "batch/v1/cronjobs")
+		jobCollector            = newTestCollector(t, "batch/v1/jobs")
 	)
 
 	cases := []struct {
@@ -1251,7 +1260,8 @@ func TestCollectorBundleInitialize(t *testing.T) {
 	apiClient := &apiserver.APIClient{Cl: client, InformerCl: client}
 	stopCh := make(chan struct{})
 	cb := CollectorBundle{
-		collectors:            []collectors.K8sCollector{k8s.NewDeploymentCollector(nil)},
+		check:                 &OrchestratorCheck{runningInformers: map[cache.Store]struct{}{}},
+		collectors:            []collectors.K8sCollector{newTestCollector(t, "apps/v1/deployments")},
 		initializedCollectors: map[string]struct{}{},
 		runCfg: &collectors.CollectorRunConfig{
 			Config: &orchcfg.OrchestratorConfig{},
@@ -1283,7 +1293,7 @@ func TestCollectorBundleInitialize(t *testing.T) {
 
 	// A new selected collector after a discovery retry is initialized.
 
-	cb.collectors = append(cb.collectors, k8s.NewJobCollector(nil))
+	cb.collectors = append(cb.collectors, newTestCollector(t, "batch/v1/jobs"))
 	cb.Initialize()
 
 	expectedInitializedCollectors = map[string]struct{}{
@@ -1297,6 +1307,44 @@ func TestCollectorBundleInitialize(t *testing.T) {
 
 	require.Equal(t, expectedInitializedCollectors, cb.initializedCollectors)
 	require.Equal(t, expectedStartedInformers, cb.startedInformers)
+}
+
+// TestCollectorBundleSkippedStatusPerRole checks that the metadata and manifest bundles report the skipped status of
+// collectors with the same name separately.
+func TestCollectorBundleSkippedStatusPerRole(t *testing.T) {
+	client := k8sfake.NewClientset()
+	apiClient := &apiserver.APIClient{Cl: client, InformerCl: client}
+	stopCh := make(chan struct{})
+	t.Cleanup(func() { close(stopCh) })
+	check := &OrchestratorCheck{runningInformers: map[cache.Store]struct{}{}}
+	informerFactory := getOrchestratorInformerFactory(apiClient)
+	newBundle := func(role collectors.BundleRole) *CollectorBundle {
+		return &CollectorBundle{
+			check:                 check,
+			collectors:            []collectors.K8sCollector{newTestCollector(t, "apps/v1/deployments")},
+			initializedCollectors: map[string]struct{}{},
+			runCfg: &collectors.CollectorRunConfig{
+				Config: &orchcfg.OrchestratorConfig{},
+				K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+					APIClient:                   apiClient,
+					OrchestratorInformerFactory: informerFactory,
+				},
+				Role: role,
+			},
+			startedInformers: map[cache.Store]struct{}{},
+			stopCh:           stopCh,
+		}
+	}
+	metadataBundle, manifestBundle := newBundle(collectors.MetadataRole), newBundle(collectors.ManifestRole)
+	metadataBundle.Initialize()
+	manifestBundle.Initialize()
+
+	metadataBundle.skipCollector("apps/v1/deployments", errors.New("sync timeout"))
+
+	assert.True(t, metadataBundle.collectors[0].Metadata().IsSkipped)
+	assert.False(t, manifestBundle.collectors[0].Metadata().IsSkipped)
+	assert.Equal(t, "sync timeout", skippedResources["apps/v1/deployments"].Value())
+	assert.Empty(t, skippedResources["manifest/apps/v1/deployments"].Value())
 }
 
 func TestCollectorBundleRefreshDiscoveryAfterCRDChange(t *testing.T) {
@@ -1468,7 +1516,8 @@ func TestCollectorBundleInitializeWatchesCRDs(t *testing.T) {
 		stopCh := make(chan struct{})
 
 		cb := CollectorBundle{
-			collectors:            []collectors.K8sCollector{k8s.NewCRDCollector()},
+			check:                 &OrchestratorCheck{runningInformers: map[cache.Store]struct{}{}},
+			collectors:            []collectors.K8sCollector{newTestCollector(t, "apiextensions.k8s.io/v1/customresourcedefinitions")},
 			collectedGroups:       map[string]struct{}{"datadoghq.com": {}},
 			extraSyncTimeout:      defaultExtraSyncTimeout,
 			initializedCollectors: map[string]struct{}{},
@@ -1632,4 +1681,157 @@ func TestImportBuiltinHelmReleaseConfigMapCollector(t *testing.T) {
 			}
 		})
 	}
+}
+
+// newTestCollector returns a collector of the combined pipeline inventory by full name, such as "apps/v1/deployments".
+func newTestCollector(t *testing.T, fullName string) collectors.K8sCollector {
+	return collectorByName(t, inventory.NewCollectorInventory(mockconfig.New(t), nil, nil), fullName)
+}
+
+// fakeK8sCollector is a minimal K8sCollector whose Process returns a
+// fixed result containing manifest messages, or a fixed error.
+type fakeK8sCollector struct {
+	collectors.TerminatedQueue
+	metadata      *collectors.CollectorMetadata
+	processResult *collectors.CollectorRunResult
+	processErr    error
+}
+
+func (f *fakeK8sCollector) Init(*collectors.CollectorRunConfig) {}
+func (f *fakeK8sCollector) Metadata() *collectors.CollectorMetadata {
+	return f.metadata
+}
+func (f *fakeK8sCollector) Run(*collectors.CollectorRunConfig) (*collectors.CollectorRunResult, error) {
+	return f.processResult, nil
+}
+func (f *fakeK8sCollector) Process(*collectors.CollectorRunConfig, interface{}) (*collectors.CollectorRunResult, error) {
+	return f.processResult, f.processErr
+}
+func (f *fakeK8sCollector) Informer() cache.SharedInformer { return nil }
+
+func newFakeReplicaSetCollector(name string) *fakeK8sCollector {
+	return &fakeK8sCollector{
+		metadata: &collectors.CollectorMetadata{
+			Name:                                 name,
+			SupportsManifestBuffering:            true,
+			IsMetadataProducer:                   true,
+			NodeType:                             orchestrator.K8sReplicaSet,
+			SupportsTerminatedResourceCollection: true,
+			Version:                              "v1",
+			Group:                                "apps",
+		},
+		processResult: &collectors.CollectorRunResult{
+			Result: processors.ProcessResult{
+				ManifestMessages: []model.MessageBody{
+					&model.CollectorManifest{
+						Manifests: []*model.Manifest{{Type: int32(1), Uid: name}},
+					},
+				},
+			},
+			ResourcesListed:    1,
+			ResourcesProcessed: 1,
+		},
+	}
+}
+
+// newTerminatedTestBundle returns a bundle without collectors to run, which queues terminated resources, and the
+// sender it sends to.
+func newTerminatedTestBundle(t *testing.T, bufferedManifests bool) (*CollectorBundle, *mocksender.MockSender) {
+	checkBase := core.NewCheckBase("test-orchestrator")
+	mockSender := mocksender.NewMockSender(t, checkBase.ID())
+	mockSender.On("OrchestratorManifest", mock.Anything, mock.Anything).Return()
+	mockSender.On("OrchestratorMetadata", mock.Anything, mock.Anything, mock.Anything).Return()
+
+	cfg := &orchcfg.OrchestratorConfig{
+		IsManifestCollectionEnabled: true,
+		BufferedManifestEnabled:     bufferedManifests,
+		ManifestBufferFlushInterval: time.Minute,
+		MaxPerMessage:               100,
+		MaxWeightPerMessageBytes:    1000000,
+	}
+	orchCheck := &OrchestratorCheck{CheckBase: checkBase, orchestratorConfig: cfg, groupID: atomic.NewInt32(0)}
+	_ = orchCheck.CommonConfigure(mockSender.GetSenderManager(), nil, nil, "test", "provider")
+
+	gate := &collectors.TerminatedResourceGate{}
+	gate.Enable()
+	cb := &CollectorBundle{
+		check:          orchCheck,
+		runCfg:         &collectors.CollectorRunConfig{ClusterID: "test-cluster", Config: cfg, TerminatedResourceGate: gate},
+		manifestBuffer: NewManifestBuffer(orchCheck),
+		terminatedGate: gate,
+	}
+	return cb, mockSender
+}
+
+// addTerminatedCollector adds a collector whose deleted resources the bundle sends, as Initialize does.
+func addTerminatedCollector(cb *CollectorBundle, name string) *fakeK8sCollector {
+	collector := newFakeReplicaSetCollector(name)
+	collector.SetTerminatedResourceGate(cb.terminatedGate)
+	cb.terminatedCollectors = append(cb.terminatedCollectors, collector)
+	return collector
+}
+
+// runWithTimeout fails the test when fn does not return, as when a manifest is sent to a manifest buffer that does not
+// run.
+func runWithTimeout(t *testing.T, fn func()) {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		fn()
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("blocked: a manifest was sent through the channel of a manifest buffer that does not run")
+	}
+}
+
+func deletedReplicaSet(name string) *appsv1.ReplicaSet {
+	return &appsv1.ReplicaSet{ObjectMeta: v1.ObjectMeta{Name: name}}
+}
+
+// TestDisableSendsQueuedResourcesDirectly checks that Disable sends the queued resources without the manifest buffer,
+// which may already be stopped, and stops queueing.
+func TestDisableSendsQueuedResourcesDirectly(t *testing.T) {
+	cb, mockSender := newTerminatedTestBundle(t, true)
+	collector := addTerminatedCollector(cb, "deleted-rs")
+	collector.QueueTerminated(deletedReplicaSet("deleted-rs"))
+
+	runWithTimeout(t, cb.DisableTerminatedResources)
+
+	mockSender.AssertNumberOfCalls(t, "OrchestratorManifest", 1)
+	collector.QueueTerminated(deletedReplicaSet("deleted-later"))
+	assert.Empty(t, collector.DrainTerminated(), "a disabled bundle queues nothing")
+}
+
+// TestRunSendsTerminatedResourcesWithoutManifestBuffer checks that a run sends deleted resources directly when
+// manifest buffering is disabled, as no goroutine reads the channel of the manifest buffer.
+func TestRunSendsTerminatedResourcesWithoutManifestBuffer(t *testing.T) {
+	cb, mockSender := newTerminatedTestBundle(t, false)
+	collector := addTerminatedCollector(cb, "deleted-rs")
+	collector.QueueTerminated(deletedReplicaSet("deleted-rs"))
+
+	runWithTimeout(t, func() { cb.Run(mockSender) })
+
+	mockSender.AssertNumberOfCalls(t, "OrchestratorMetadata", 1)
+	mockSender.AssertNumberOfCalls(t, "OrchestratorManifest", 1)
+	assert.Empty(t, collector.DrainTerminated())
+}
+
+// TestRunSendsTerminatedResourcesDespiteFailingCollector checks that a collector that fails to process its deleted
+// resources does not prevent the other collectors from sending theirs.
+func TestRunSendsTerminatedResourcesDespiteFailingCollector(t *testing.T) {
+	cb, mockSender := newTerminatedTestBundle(t, false)
+	failing := addTerminatedCollector(cb, "failing")
+	failing.processErr = errors.New("processing failed")
+	working := addTerminatedCollector(cb, "working")
+	failing.QueueTerminated(deletedReplicaSet("failing"))
+	working.QueueTerminated(deletedReplicaSet("working"))
+
+	runWithTimeout(t, func() { cb.Run(mockSender) })
+
+	mockSender.AssertNumberOfCalls(t, "OrchestratorManifest", 1)
+	manifests := mockSender.Calls[len(mockSender.Calls)-1].Arguments.Get(0).([]model.MessageBody)
+	assert.Equal(t, "working", manifests[0].(*model.CollectorManifest).Manifests[0].Uid)
+	assert.Empty(t, failing.DrainTerminated(), "the failed resources are dropped, not retried")
 }

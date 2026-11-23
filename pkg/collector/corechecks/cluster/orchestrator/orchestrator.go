@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math/rand"
 	"slices"
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -24,6 +25,7 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/metadata/metadatainformer"
+	"k8s.io/client-go/tools/cache"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -37,7 +39,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/registry"
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -95,6 +98,41 @@ type OrchestratorCheck struct {
 	apiClient                   *apiserver.APIClient
 	orchestratorInformerFactory *collectors.OrchestratorInformerFactory
 	agentVersion                *model.AgentVersion
+
+	// manifestBundle sends the manifests when the dedicated manifest pipeline is enabled. collectorBundle then sends
+	// structured metadata only.
+	manifestBundle *CollectorBundle
+	// runningInformers makes sure that an informer shared by both bundles runs once. Like
+	// CollectorBundle.startedInformers, it is keyed by the informer store.
+	runningInformers map[cache.Store]struct{}
+	// discovery is the API discovery of both bundles.
+	discovery *sharedDiscovery
+	// configMu protects the payload tags of the configuration, which Cancel reads from another goroutine.
+	configMu sync.Mutex
+	// deps are the services that the check reaches outside of the process.
+	deps checkDependencies
+}
+
+// checkDependencies are the services that the check reaches outside of the process. Tests replace them to run the
+// check against fake clients.
+type checkDependencies struct {
+	waitForAPIClient         func(ctx context.Context) (*apiserver.APIClient, error)
+	runLeaderElection        func() (leader string, err error)
+	serverGroupsAndResources discovery.ServerGroupsAndResourcesFunc
+}
+
+// withDefaults returns the dependencies, with the production services for the ones that are not set.
+func (d checkDependencies) withDefaults() checkDependencies {
+	if d.waitForAPIClient == nil {
+		d.waitForAPIClient = apiserver.WaitForAPIClient
+	}
+	if d.runLeaderElection == nil {
+		d.runLeaderElection = cluster.RunLeaderElection
+	}
+	if d.serverGroupsAndResources == nil {
+		d.serverGroupsAndResources = discovery.GetServerGroupsAndResources
+	}
+	return d
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, cfg configcomp.Component, wlmStore workloadmeta.Component, tagger tagger.Component) *OrchestratorCheck {
@@ -120,6 +158,7 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, c
 			Meta:   agentVersion.Meta,
 			Commit: agentVersion.Commit,
 		},
+		runningInformers: map[cache.Store]struct{}{},
 	}
 }
 
@@ -205,36 +244,75 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
 	defer apiCancel()
 
-	o.apiClient, err = apiserver.WaitForAPIClient(apiCtx)
+	o.apiClient, err = o.deps.withDefaults().waitForAPIClient(apiCtx)
 	if err != nil {
 		return err
 	}
 
 	o.orchestratorInformerFactory = getOrchestratorInformerFactory(o.apiClient)
 
-	// Create a new bundle for the check.
-	o.collectorBundle = NewCollectorBundle(o)
+	o.discovery = newSharedDiscovery(o.deps.withDefaults().serverGroupsAndResources)
+
+	// Create the bundles for the check.
+	if o.orchestratorConfig.ManifestPipelineEnabled {
+		log.Infoc("Sending manifests from the dedicated manifest pipeline", orchestrator.ExtraLogContext...)
+		o.collectorBundle = NewCollectorBundle(o, collectors.MetadataRole)
+		o.manifestBundle = NewCollectorBundle(o, collectors.ManifestRole)
+	} else {
+		o.collectorBundle = NewCollectorBundle(o, collectors.MetadataAndManifestRole)
+	}
 
 	return nil
+}
+
+// bundles returns the collector bundles of the check.
+func (o *OrchestratorCheck) bundles() []*CollectorBundle {
+	if o.collectorBundle == nil {
+		return nil
+	}
+	if o.manifestBundle == nil {
+		return []*CollectorBundle{o.collectorBundle}
+	}
+	return []*CollectorBundle{o.collectorBundle, o.manifestBundle}
+}
+
+// runInformer runs an informer until stopCh is closed, unless another bundle already runs it.
+func (o *OrchestratorCheck) runInformer(informer cache.SharedInformer, stopCh chan struct{}) {
+	store := informer.GetStore()
+	if _, found := o.runningInformers[store]; found {
+		return
+	}
+	o.runningInformers[store] = struct{}{}
+	go informer.Run(stopCh)
 }
 
 // Run runs the orchestrator check
 func (o *OrchestratorCheck) Run() error {
 	o.refreshInfraTags()
+	if o.discovery != nil {
+		o.discovery.nextRun()
+	}
 
 	if ok, err := o.IsLeader(); !ok {
-		// Disable terminated resource bundle if not leader so we don't buffer terminated resources by informer DeleteFunc
-		o.collectorBundle.GetTerminatedResourceBundle().Disable()
+		// Stop queueing terminated resources if not leader, so that informer delete handlers queue nothing
+		for _, bundle := range o.bundles() {
+			bundle.DisableTerminatedResources()
+		}
 		return err
 	}
 
-	// Enable terminated resource bundle to start buffering terminated resources
-	o.collectorBundle.EnableTerminatedResourceBundle()
+	// Start queueing terminated resources in every bundle before any bundle work, so that the bundles queue the same
+	// deletions.
+	for _, bundle := range o.bundles() {
+		bundle.EnableTerminatedResources()
+	}
 
-	o.collectorBundle.RefreshDiscovery()
+	for _, bundle := range o.bundles() {
+		bundle.RefreshDiscovery()
 
-	// Initialize collectors
-	o.collectorBundle.Initialize()
+		// Initialize collectors
+		bundle.Initialize()
+	}
 
 	// access serializer
 	sender, err := o.GetSender()
@@ -243,7 +321,9 @@ func (o *OrchestratorCheck) Run() error {
 	}
 
 	// Run all collectors.
-	o.collectorBundle.Run(sender)
+	for _, bundle := range o.bundles() {
+		bundle.Run(sender)
+	}
 
 	return nil
 }
@@ -255,7 +335,7 @@ func (o *OrchestratorCheck) Run() error {
 //
 // Other goroutines read the tags in two places: the manifest buffer, which only
 // runs inside a collector bundle run and so never overlaps this call, and the
-// terminated resource flush that Cancel triggers, which the bundle lock covers.
+// terminated resource flush that Cancel triggers, which configMu covers.
 func (o *OrchestratorCheck) refreshInfraTags() {
 	infraTags := o.tagger.GetInfraTags()
 	missing := slices.ContainsFunc(infraTags, func(tag string) bool {
@@ -265,14 +345,9 @@ func (o *OrchestratorCheck) refreshInfraTags() {
 		return
 	}
 
-	update := func() {
-		o.orchestratorConfig.ExtraTags = taggerutils.AppendUniqueTags(o.orchestratorConfig.ExtraTags, infraTags...)
-	}
-	if o.collectorBundle != nil {
-		o.collectorBundle.GetTerminatedResourceBundle().withLock(update)
-	} else {
-		update()
-	}
+	o.configMu.Lock()
+	o.orchestratorConfig.ExtraTags = taggerutils.AppendUniqueTags(o.orchestratorConfig.ExtraTags, infraTags...)
+	o.configMu.Unlock()
 	log.Infoc(fmt.Sprintf("Adding infrastructure mode tags %v to orchestrator payloads", infraTags), orchestrator.ExtraLogContext...)
 }
 
@@ -280,9 +355,11 @@ func (o *OrchestratorCheck) refreshInfraTags() {
 func (o *OrchestratorCheck) Cancel() {
 	log.Infoc(fmt.Sprintf("Shutting down informers used by the check '%s'", o.ID()), orchestrator.ExtraLogContext...)
 	close(o.stopCh)
-	// flush and disable terminated resource bundle
-	if o.collectorBundle != nil {
-		o.collectorBundle.GetTerminatedResourceBundle().Disable()
+	// send the queued terminated resources and stop queueing
+	o.configMu.Lock()
+	defer o.configMu.Unlock()
+	for _, bundle := range o.bundles() {
+		bundle.DisableTerminatedResources()
 	}
 }
 
@@ -291,7 +368,7 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
 	}
 	helmReleasesTweakListOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = k8s.HelmReleaseLabelSelector
+		options.LabelSelector = registry.HelmReleaseLabelSelector
 	}
 
 	of := &collectors.OrchestratorInformerFactory{
@@ -308,7 +385,7 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 	var configMapTweakListOptions metadatainformer.TweakListOptionsFunc
 	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.helm_releases.configmaps.enabled") {
 		configMapTweakListOptions = func(options *metav1.ListOptions) {
-			options.LabelSelector = k8s.NonHelmReleaseLabelSelector
+			options.LabelSelector = registry.NonHelmReleaseLabelSelector
 		}
 	}
 	of.ConfigMapMetadataInformerFactory = metadatainformer.NewFilteredSharedInformerFactory(apiClient.MetadataInformerCl, defaultResyncInterval, metav1.NamespaceAll, configMapTweakListOptions)
@@ -354,7 +431,7 @@ func (o *OrchestratorCheck) IsLeader() (bool, error) {
 		return false, log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
 	}
 
-	leader, err := cluster.RunLeaderElection()
+	leader, err := o.deps.withDefaults().runLeaderElection()
 	if err != nil {
 		if err == apiserver.ErrNotLeader {
 			log.Debugf("Not leader (leader is %q). Skipping the Orchestrator check", leader)

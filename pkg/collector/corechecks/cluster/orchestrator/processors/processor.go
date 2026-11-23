@@ -260,9 +260,62 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 	defer RecoverOnPanic()
 
 	// ResourceList now returns raw (uncopied) references from the informer cache.
-	rawList := p.h.ResourceList(ctx, list)
-	resourceMetadataModels := make([]interface{}, 0, len(rawList))
-	resourceManifestModels := make([]interface{}, 0, len(rawList))
+	return p.ProcessList(ctx, p.h.ResourceList(ctx, list))
+}
+
+// ProcessList is Process for resources that are already in a slice, such as the content of an informer store.
+func (p *Processor) ProcessList(ctx ProcessorContext, rawList []interface{}) (processResult ProcessResult, listed, processed int) {
+	// This default allows detection of panic recoveries.
+	processed = -1
+
+	processResult = ProcessResult{
+		MetadataMessages: []model.MessageBody{},
+		ManifestMessages: []model.MessageBody{},
+	}
+
+	// Make sure to recover if a panic occurs.
+	defer RecoverOnPanic()
+
+	isReported := func(uid types.UID, resourceVersion string) bool {
+		return orchestrator.SkipKubernetesResource(uid, resourceVersion, ctx.GetNodeType())
+	}
+	// The structured metadata pipeline of the dedicated manifest pipeline sends neither manifests nor YAML.
+	marshal := ctx.IsManifestProducer() || !ctx.GetOrchestratorConfig().IsManifestCollectionEnabled
+	resourceMetadataModels, resourceManifestModels := p.processResources(ctx, rawList, isReported, marshal)
+
+	processResult.MetadataMessages = ChunkMetadata(ctx, p, resourceMetadataModels, resourceManifestModels)
+
+	if ctx.IsManifestProducer() {
+		processResult.ManifestMessages = ChunkManifest(ctx, p.h.BuildManifestMessageBody, resourceManifestModels)
+	}
+
+	return processResult, len(rawList), len(resourceMetadataModels)
+}
+
+// ProcessManifests is used to build the manifests of raw resources, without their structured metadata. It checks the
+// manifest cache, which is independent from the cache that Process uses.
+func (p *Processor) ProcessManifests(ctx ProcessorContext, rawList []interface{}) (resourceManifestModels []interface{}, processed int) {
+	// This default allows detection of panic recoveries.
+	processed = -1
+
+	// Make sure to recover if a panic occurs.
+	defer RecoverOnPanic()
+
+	_, resourceManifestModels = p.processResources(ctx, rawList, orchestrator.SkipKubernetesManifest, true)
+
+	return resourceManifestModels, len(resourceManifestModels)
+}
+
+// processResources builds the metadata models and manifests of the resources that isReported does not report as
+// unchanged. Without marshal, the manifests have no content.
+func (p *Processor) processResources(ctx ProcessorContext, rawList []interface{}, isReported func(uid types.UID, resourceVersion string) bool, marshal bool) (resourceMetadataModels, resourceManifestModels []interface{}) {
+	// A deletion is sent once. A deletion that the informer missed carries the last reported resource version, which
+	// the cache would report as unchanged.
+	if ctx.IsTerminatedResources() {
+		isReported = func(types.UID, string) bool { return false }
+	}
+	resourceMetadataModels = make([]interface{}, 0, len(rawList))
+	resourceManifestModels = make([]interface{}, 0, len(rawList))
 	now := ctx.GetClock().Now()
 
 	for _, rawResource := range rawList {
@@ -273,7 +326,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 		cacheChecked := false
 		if rawVersion := p.h.ResourceVersionFromRaw(ctx, rawResource); rawVersion != "" {
 			uid := p.h.ResourceUID(ctx, rawResource)
-			if orchestrator.SkipKubernetesResource(uid, rawVersion, ctx.GetNodeType()) {
+			if isReported(uid, rawVersion) {
 				continue
 			}
 			cacheChecked = true
@@ -304,7 +357,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 		// For handlers that could not pre-check (Pod with custom version hashing,
 		// ECS Task), perform the cache check now using the extracted model version.
 		if !cacheChecked {
-			if orchestrator.SkipKubernetesResource(resourceUID, resourceVersion, ctx.GetNodeType()) {
+			if isReported(resourceUID, resourceVersion) {
 				continue
 			}
 		}
@@ -314,21 +367,25 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			continue
 		}
 
-		// Scrub the resource before marshalling.
-		p.h.ScrubBeforeMarshalling(ctx, resource)
+		var yaml []byte
+		if marshal {
+			// Scrub the resource before marshalling.
+			p.h.ScrubBeforeMarshalling(ctx, resource)
 
-		// Marshal the resource to generate the YAML field.
-		yaml, err := json.Marshal(resource)
-		if err != nil {
-			log.Warnc(NewMarshallingError(err).Error(), orchestrator.ExtraLogContext...)
-			continue
-		}
-
-		// Stop sending yaml if manifest collection is enabled
-		if !ctx.GetOrchestratorConfig().IsManifestCollectionEnabled {
-			// Execute code after marshalling.
-			if skip := p.h.AfterMarshalling(ctx, resource, resourceMetadataModel, yaml); skip {
+			// Marshal the resource to generate the YAML field.
+			var err error
+			yaml, err = json.Marshal(resource)
+			if err != nil {
+				log.Warnc(NewMarshallingError(err).Error(), orchestrator.ExtraLogContext...)
 				continue
+			}
+
+			// Stop sending yaml if manifest collection is enabled
+			if !ctx.GetOrchestratorConfig().IsManifestCollectionEnabled {
+				// Execute code after marshalling.
+				if skip := p.h.AfterMarshalling(ctx, resource, resourceMetadataModel, yaml); skip {
+					continue
+				}
 			}
 		}
 
@@ -351,13 +408,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 		})
 	}
 
-	processResult.MetadataMessages = ChunkMetadata(ctx, p, resourceMetadataModels, resourceManifestModels)
-
-	if ctx.IsManifestProducer() {
-		processResult.ManifestMessages = ChunkManifest(ctx, p.h.BuildManifestMessageBody, resourceManifestModels)
-	}
-
-	return processResult, len(rawList), len(resourceMetadataModels)
+	return resourceMetadataModels, resourceManifestModels
 }
 
 // ChunkManifest is to chunk Manifest payloads

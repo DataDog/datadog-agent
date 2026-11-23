@@ -1,0 +1,23 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add the ``orchestrator_explorer.manifest_collection.dedicated_pipeline.enabled`` option. When enabled,
+    the orchestrator check sends Kubernetes manifests from a dedicated collection pipeline, and the
+    structured metadata pipeline sends no manifests. The option is disabled by default.
+fixes:
+  - |
+    The orchestrator check no longer hangs when manifest collection is enabled and
+    ``orchestrator_explorer.manifest_collection.buffer_manifest`` is disabled.
+  - |
+    The orchestrator check now reports deleted nodes, and deleted resources that the informer
+    only reports after a relist.
+  - |
+    A Kubernetes resource collector that fails to process its deleted resources no longer
+    blocks the deleted resources of the other collectors.
