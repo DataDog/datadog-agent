@@ -129,6 +129,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("FLEET_PURGE", "0")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("DD_INSTALL_ONLY")
                 {
                     AttributesDefinition = "Secure=yes"
@@ -436,7 +440,7 @@ namespace WixSetup.Datadog_Agent
                 document
                     .Select("Wix/Package/InstallExecuteSequence")
                     .AddElement("DeleteServices",
-                        "Condition=(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
+                        "Condition=(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE) AND (FLEET_INSTALL<>\"1\" OR FLEET_PURGE=\"1\"))");
 
                 // We don't use the Wix "Merge" MSM feature because it seems to be a no-op...
                 document

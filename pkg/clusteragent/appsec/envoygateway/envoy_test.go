@@ -10,8 +10,10 @@ package envoygateway
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,10 +22,12 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -77,25 +81,34 @@ func newTestEnvoyExtensionPolicy(namespace string) *unstructured.Unstructured {
 	return policy
 }
 
-// newTestReferenceGrant creates a test ReferenceGrant unstructured object
+// newTestReferenceGrant creates the per-namespace ReferenceGrant for fromNamespace
 func newTestReferenceGrant(namespace, fromNamespace string) *unstructured.Unstructured {
+	grant := newTestLegacyReferenceGrant(namespace, fromNamespace)
+	grant.SetName(referenceGrantName(fromNamespace))
+	return grant
+}
+
+// newTestLegacyReferenceGrant creates the shared ReferenceGrant older versions created, listing fromNamespaces
+func newTestLegacyReferenceGrant(namespace string, fromNamespaces ...string) *unstructured.Unstructured {
+	from := make([]any, 0, len(fromNamespaces))
+	for _, ns := range fromNamespaces {
+		from = append(from, map[string]any{
+			"group":     "gateway.envoyproxy.io",
+			"kind":      "EnvoyExtensionPolicy",
+			"namespace": ns,
+		})
+	}
 	grant := &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": "gateway.networking.k8s.io/v1beta1",
 			"kind":       "ReferenceGrant",
 			"metadata": map[string]any{
-				"name":      referenceGrantName,
+				"name":      legacyReferenceGrantName,
 				"namespace": namespace,
 				"labels":    map[string]any{"app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue},
 			},
 			"spec": map[string]any{
-				"from": []any{
-					map[string]any{
-						"group":     "gateway.envoyproxy.io",
-						"kind":      "EnvoyExtensionPolicy",
-						"namespace": fromNamespace,
-					},
-				},
+				"from": from,
 				"to": []any{
 					map[string]any{
 						"kind": "Service",
@@ -188,7 +201,7 @@ func TestAdded_SuccessfulCreation(t *testing.T) {
 	assert.Equal(t, "gateway.envoyproxy.io/v1alpha1", createdPolicy.GetAPIVersion())
 
 	assert.Equal(t, config.Processor.Namespace, createdGrant.GetNamespace())
-	assert.Equal(t, referenceGrantName, createdGrant.GetName())
+	assert.Equal(t, referenceGrantName("test-ns"), createdGrant.GetName())
 }
 
 func TestAdded_SidecarCreatesBackendAndPolicyWithoutReferenceGrant(t *testing.T) {
@@ -300,15 +313,28 @@ func TestAdded_ExternalRegressionCreatesServicePolicyAndReferenceGrant(t *testin
 	assert.NotContains(t, backendRef, "group")
 	assert.NotContains(t, backendRef, "kind")
 
-	grant, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
+	assert.Equal(t, []string{"test-ns"}, grantFromNamespaces(t, client, referenceGrantName("test-ns")))
+}
+
+// grantFromNamespaces returns the spec.from namespaces of the named ReferenceGrant in the processor namespace
+func grantFromNamespaces(t *testing.T, client dynamic.Interface, name string) []string {
+	t.Helper()
+	grant, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(context.Background(), name, metav1.GetOptions{})
 	require.NoError(t, err)
 	from, found, err := unstructured.NestedSlice(grant.Object, "spec", "from")
-	require.NoError(t, err)
+	require.NoError(t, err, "spec.from must stay a list")
 	require.True(t, found)
-	require.Len(t, from, 1)
-	fromRef, ok := from[0].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "test-ns", fromRef["namespace"])
+	var namespaces []string
+	for _, entry := range from {
+		ref, ok := entry.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "gateway.envoyproxy.io", ref["group"])
+		assert.Equal(t, "EnvoyExtensionPolicy", ref["kind"])
+		ns, ok := ref["namespace"].(string)
+		require.True(t, ok)
+		namespaces = append(namespaces, ns)
+	}
+	return namespaces
 }
 
 func TestAdded_SuccessfulCreationSecondGateway(t *testing.T) {
@@ -377,17 +403,17 @@ func TestAdded_SuccessfulCreationSecondGateway(t *testing.T) {
 	assert.Equal(t, "gateway.envoyproxy.io/v1alpha1", createdPolicy.GetAPIVersion())
 
 	assert.Equal(t, config.Processor.Namespace, createdGrant.GetNamespace())
-	assert.Equal(t, referenceGrantName, createdGrant.GetName())
+	assert.Equal(t, referenceGrantName("test-ns2"), createdGrant.GetName())
 
 	assert.Equal(t, 2, countPolicyCreate)
-	assert.Equal(t, 1, countRefGrantCreate)
-	assert.Equal(t, 2, countRefGrantPatch)
+	assert.Equal(t, 2, countRefGrantCreate)
+	assert.Equal(t, 0, countRefGrantPatch)
 }
 
 // The ReferenceGrant tests below check the stored objects rather than counting client calls: the
 // fake client applies JSON patches like the API server, so a patch that corrupts spec.from shows up.
 
-func TestAdded_GatewaysInMultipleNamespacesShareReferenceGrant(t *testing.T) {
+func TestAdded_GatewaysInManyNamespacesGetOneReferenceGrantEach(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)
 	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
@@ -403,7 +429,11 @@ func TestAdded_GatewaysInMultipleNamespacesShareReferenceGrant(t *testing.T) {
 	}
 	pattern := newTestEnvoyGatewayPattern(t, client, logger, config)
 
-	namespaces := []string{"test-ns1", "test-ns2", "test-ns3"}
+	// The fake client does not enforce the 16-entry spec.from limit, so check that each namespace gets its own grant
+	var namespaces []string
+	for i := range 20 {
+		namespaces = append(namespaces, fmt.Sprintf("test-ns%d", i))
+	}
 	for _, ns := range namespaces {
 		require.NoError(t, pattern.Added(ctx, newTestGateway(ns, "test-gateway")))
 	}
@@ -411,41 +441,42 @@ func TestAdded_GatewaysInMultipleNamespacesShareReferenceGrant(t *testing.T) {
 	for _, ns := range namespaces {
 		_, err := client.Resource(extensionGVR).Namespace(ns).Get(ctx, extProcName, metav1.GetOptions{})
 		require.NoError(t, err, "EnvoyExtensionPolicy should exist in namespace %s", ns)
+		assert.Equal(t, []string{ns}, grantFromNamespaces(t, client, referenceGrantName(ns)))
 	}
 
-	grant, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
-	require.NoError(t, err)
-	from, found, err := unstructured.NestedSlice(grant.Object, "spec", "from")
-	require.NoError(t, err, "spec.from must stay a list")
-	require.True(t, found)
-
-	var fromNamespaces []string
-	for _, entry := range from {
-		ref, ok := entry.(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "gateway.envoyproxy.io", ref["group"])
-		assert.Equal(t, "EnvoyExtensionPolicy", ref["kind"])
-		ns, ok := ref["namespace"].(string)
-		require.True(t, ok)
-		fromNamespaces = append(fromNamespaces, ns)
-	}
-	assert.Equal(t, namespaces, fromNamespaces)
-
-	// Removing a namespace keeps the others
 	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns2"))
-	grant, err = client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
-	require.NoError(t, err)
-	from, _, err = unstructured.NestedSlice(grant.Object, "spec", "from")
-	require.NoError(t, err)
-	require.Len(t, from, 2)
-	for i, want := range []string{"test-ns1", "test-ns3"} {
-		ref, ok := from[i].(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, want, ref["namespace"])
-	}
+	_, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName("test-ns2"), metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "ReferenceGrant of test-ns2 should be deleted")
+	assert.Equal(t, []string{"test-ns3"}, grantFromNamespaces(t, client, referenceGrantName("test-ns3")))
 }
 
-func TestAdded_RetryAfterPolicyFailureDoesNotDuplicateGrantEntry(t *testing.T) {
+func TestRemoveNamespaceToGrant_DrainsLegacySharedGrant(t *testing.T) {
+	ctx := context.Background()
+	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), newTestLegacyReferenceGrant("datadog", "test-ns1", "test-ns2"))
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{
+				ServiceName: "appsec-processor",
+				Namespace:   "datadog",
+				Port:        8080,
+			},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns1"))
+	assert.Equal(t, []string{"test-ns2"}, grantFromNamespaces(t, client, legacyReferenceGrantName))
+
+	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns3"))
+	assert.Equal(t, []string{"test-ns2"}, grantFromNamespaces(t, client, legacyReferenceGrantName))
+
+	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns2"))
+	_, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, legacyReferenceGrantName, metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "legacy ReferenceGrant should be deleted with its last namespace")
+}
+
+func TestAdded_RetryAfterPolicyFailureKeepsSingleGrant(t *testing.T) {
 	ctx := context.Background()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds())
 
@@ -462,25 +493,9 @@ func TestAdded_RetryAfterPolicyFailureDoesNotDuplicateGrantEntry(t *testing.T) {
 	gateway1 := newTestGateway("test-ns1", "test-gateway")
 	gateway2 := newTestGateway("test-ns2", "test-gateway")
 
-	grantNamespaces := func() []string {
-		grant, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
-		require.NoError(t, err)
-		from, _, err := unstructured.NestedSlice(grant.Object, "spec", "from")
-		require.NoError(t, err)
-		var namespaces []string
-		for _, entry := range from {
-			ref, ok := entry.(map[string]any)
-			require.True(t, ok)
-			ns, ok := ref["namespace"].(string)
-			require.True(t, ok)
-			namespaces = append(namespaces, ns)
-		}
-		return namespaces
-	}
-
 	require.NoError(t, pattern.Added(ctx, gateway1))
 
-	// The first policy creation in test-ns2 fails after the grant was extended, then the item is retried
+	// The retry exercises the existing-grant path after policy creation fails
 	failOnce := true
 	client.PrependReactor("create", "envoyextensionpolicies", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 		if failOnce && action.GetNamespace() == "test-ns2" {
@@ -491,14 +506,15 @@ func TestAdded_RetryAfterPolicyFailureDoesNotDuplicateGrantEntry(t *testing.T) {
 	})
 	require.Error(t, pattern.Added(ctx, gateway2))
 	require.NoError(t, pattern.Added(ctx, gateway2))
-	assert.Equal(t, []string{"test-ns1", "test-ns2"}, grantNamespaces())
+	assert.Equal(t, []string{"test-ns2"}, grantFromNamespaces(t, client, referenceGrantName("test-ns2")))
 
-	// Deleting the last Gateway of test-ns2 removes its grant entry
 	client.PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*gateway2}}, nil
 	})
 	require.NoError(t, pattern.Deleted(ctx, gateway2))
-	assert.Equal(t, []string{"test-ns1"}, grantNamespaces())
+	_, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName("test-ns2"), metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "ReferenceGrant of test-ns2 should be deleted")
+	assert.Equal(t, []string{"test-ns1"}, grantFromNamespaces(t, client, referenceGrantName("test-ns1")))
 }
 
 func TestAdded_PolicyAlreadyExists(t *testing.T) {
@@ -640,7 +656,7 @@ func TestDeleted_SuccessfulDeletion_AloneInNamespace(t *testing.T) {
 
 	// Pre-create the EnvoyExtensionPolicy and ReferenceGrant
 	existingPolicy := newTestEnvoyExtensionPolicy("test-ns")
-	existingGrant := newTestReferenceGrant("datadog", "test-ns")
+	existingGrant := newTestLegacyReferenceGrant("datadog", "test-ns")
 
 	// Create client with custom list kinds for Gateway resources
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
@@ -753,7 +769,7 @@ func TestDeleted_PolicyAlreadyDeleted(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
-	client := dynamicfake.NewSimpleDynamicClient(scheme) // No existing policy
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, envoyGatewayListKinds()) // No existing policy
 
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
@@ -1037,7 +1053,9 @@ func TestDeleted_OnlyDeletesResourcesCreatedByInjector(t *testing.T) {
 			policy.SetLabels(tc.labels)
 			grant := newTestReferenceGrant("datadog", "test-ns")
 			grant.SetLabels(tc.labels)
-			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), policy, grant)
+			legacyGrant := newTestLegacyReferenceGrant("datadog", "test-ns")
+			legacyGrant.SetLabels(tc.labels)
+			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), policy, grant, legacyGrant)
 			config := appsecconfig.Config{
 				Product: appsecconfig.Product{
 					Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
@@ -1049,13 +1067,16 @@ func TestDeleted_OnlyDeletesResourcesCreatedByInjector(t *testing.T) {
 			require.NoError(t, pattern.Deleted(ctx, newTestGateway("test-ns", "test-gateway")))
 
 			_, policyErr := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
-			_, grantErr := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
+			_, grantErr := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName("test-ns"), metav1.GetOptions{})
+			_, legacyGrantErr := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, legacyReferenceGrantName, metav1.GetOptions{})
 			if tc.deleted {
 				assert.True(t, apierrors.IsNotFound(policyErr), "EnvoyExtensionPolicy created by the injector must be deleted")
 				assert.True(t, apierrors.IsNotFound(grantErr), "ReferenceGrant created by the injector must be deleted")
+				assert.True(t, apierrors.IsNotFound(legacyGrantErr), "legacy ReferenceGrant created by the injector must be deleted")
 			} else {
 				require.NoError(t, policyErr, "EnvoyExtensionPolicy not created by the injector must be left in place")
 				require.NoError(t, grantErr, "ReferenceGrant not created by the injector must be left in place")
+				require.NoError(t, legacyGrantErr, "legacy ReferenceGrant not created by the injector must be left in place")
 			}
 		})
 	}
@@ -1065,7 +1086,9 @@ func TestRemoveNamespaceToGrant_LeavesForeignGrant(t *testing.T) {
 	ctx := context.Background()
 	grant := newTestReferenceGrant("datadog", "test-ns")
 	grant.SetLabels(map[string]string{"app": "someone-else"})
-	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant)
+	legacyGrant := newTestLegacyReferenceGrant("datadog", "test-ns", "other-ns")
+	legacyGrant.SetLabels(map[string]string{"app": "someone-else"})
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant, legacyGrant)
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
 			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
@@ -1075,8 +1098,9 @@ func TestRemoveNamespaceToGrant_LeavesForeignGrant(t *testing.T) {
 
 	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns"))
 
-	_, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
+	_, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName("test-ns"), metav1.GetOptions{})
 	require.NoError(t, err, "ReferenceGrant not created by the injector must be left in place")
+	assert.Equal(t, []string{"test-ns", "other-ns"}, grantFromNamespaces(t, client, legacyReferenceGrantName), "legacy ReferenceGrant not created by the injector must be left untouched")
 }
 
 func TestDeleted_SidecarForeignPolicyStillDeletesOurBackend(t *testing.T) {
@@ -1102,46 +1126,195 @@ func TestDeleted_SidecarForeignPolicyStillDeletesOurBackend(t *testing.T) {
 	assert.True(t, apierrors.IsNotFound(err), "Backend created by the injector must still be deleted")
 }
 
-func TestAddNamespaceToGrant_ForeignGrant(t *testing.T) {
+func TestAddNamespaceToGrant_ForeignLegacyGrant(t *testing.T) {
+	ctx := context.Background()
+	legacyGrant := newTestLegacyReferenceGrant("datadog", "other-ns")
+	legacyGrant.SetLabels(map[string]string{"app": "someone-else"})
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), legacyGrant)
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
 			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
 		},
 	}
-	newClient := func() *dynamicfake.FakeDynamicClient {
-		grant := newTestReferenceGrant("datadog", "other-ns")
-		grant.SetLabels(map[string]string{"app": "someone-else"})
-		return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant)
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+	require.NoError(t, pattern.Added(ctx, newTestGateway("test-ns", "test-gateway")))
+
+	_, err := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"test-ns"}, grantFromNamespaces(t, client, referenceGrantName("test-ns")))
+	assert.Equal(t, []string{"other-ns"}, grantFromNamespaces(t, client, legacyReferenceGrantName), "legacy ReferenceGrant not created by the injector must be left untouched")
+}
+
+func TestAddNamespaceToGrant_ExistingGrantMustAuthorizeTheReference(t *testing.T) {
+	from := func(namespace string) []any {
+		return []any{map[string]any{"group": "gateway.envoyproxy.io", "kind": "EnvoyExtensionPolicy", "namespace": namespace}}
 	}
-	grantNamespaces := func(t *testing.T, client *dynamicfake.FakeDynamicClient) []any {
-		got, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(context.Background(), referenceGrantName, metav1.GetOptions{})
-		require.NoError(t, err)
-		from, _, err := unstructured.NestedSlice(got.Object, "spec", "from")
-		require.NoError(t, err)
-		return from
+	to := func(service map[string]any) []any { return []any{service} }
+	for name, tc := range map[string]struct {
+		from, to []any
+		wantErr  bool
+	}{
+		"matching grant":               {from: from("test-ns"), to: to(map[string]any{"kind": "Service", "name": "appsec-processor"})},
+		"grant for any Service":        {from: from("test-ns"), to: to(map[string]any{"kind": "Service"})},
+		"grant from another namespace": {from: from("other-ns"), to: to(map[string]any{"kind": "Service", "name": "appsec-processor"}), wantErr: true},
+		"grant to another Service":     {from: from("test-ns"), to: to(map[string]any{"kind": "Service", "name": "other-service"}), wantErr: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			grant := newTestReferenceGrant("datadog", "test-ns")
+			grant.Object["spec"] = map[string]any{"from": tc.from, "to": tc.to}
+			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant)
+			config := appsecconfig.Config{
+				Product: appsecconfig.Product{
+					Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+				},
+			}
+			pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+			err := pattern.Added(ctx, newTestGateway("test-ns", "test-gateway"))
+
+			_, getErr := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.True(t, apierrors.IsNotFound(getErr), "no EnvoyExtensionPolicy must be created when the grant does not authorize it")
+			} else {
+				require.NoError(t, err)
+				require.NoError(t, getErr)
+			}
+		})
 	}
+}
 
-	t.Run("namespace not listed: no policy is created and the grant is untouched", func(t *testing.T) {
-		ctx := context.Background()
-		client := newClient()
-		pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+func TestRemoveNamespaceToGrant_DeletesWithPreconditions(t *testing.T) {
+	ctx := context.Background()
+	grant := newTestReferenceGrant("datadog", "test-ns")
+	grant.SetUID("grant-uid")
+	grant.SetResourceVersion("11")
+	legacyGrant := newTestLegacyReferenceGrant("datadog", "test-ns")
+	legacyGrant.SetUID("legacy-grant-uid")
+	legacyGrant.SetResourceVersion("22")
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant, legacyGrant)
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
 
-		require.Error(t, pattern.Added(ctx, newTestGateway("test-ns", "test-gateway")))
-
-		_, err := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
-		assert.True(t, apierrors.IsNotFound(err), "no EnvoyExtensionPolicy may reference the processor without a grant")
-		assert.Len(t, grantNamespaces(t, client), 1, "ReferenceGrant not created by the injector must be left untouched")
+	preconditions := map[string]metav1.Preconditions{}
+	client.PrependReactor("delete", "referencegrants", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		deleteAction := action.(k8stesting.DeleteAction)
+		if p := deleteAction.GetDeleteOptions().Preconditions; p != nil {
+			preconditions[deleteAction.GetName()] = *p
+		}
+		return false, nil, nil
 	})
 
-	t.Run("namespace already listed: the policy is created", func(t *testing.T) {
-		ctx := context.Background()
-		client := newClient()
-		pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns"))
+	assert.Equal(t, map[string]metav1.Preconditions{
+		referenceGrantName("test-ns"): {UID: ptr.To(types.UID("grant-uid")), ResourceVersion: ptr.To("11")},
+		legacyReferenceGrantName:      {UID: ptr.To(types.UID("legacy-grant-uid")), ResourceVersion: ptr.To("22")},
+	}, preconditions)
+}
 
-		require.NoError(t, pattern.Added(ctx, newTestGateway("other-ns", "test-gateway")))
-
-		_, err := client.Resource(extensionGVR).Namespace("other-ns").Get(ctx, extProcName, metav1.GetOptions{})
-		require.NoError(t, err)
-		assert.Len(t, grantNamespaces(t, client), 1, "ReferenceGrant not created by the injector must be left untouched")
+func TestDeleted_RetryCleansUpGrantAfterPolicyDeleted(t *testing.T) {
+	ctx := context.Background()
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(),
+		newTestEnvoyExtensionPolicy("test-ns"), newTestReferenceGrant("datadog", "test-ns"))
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+	gateway := newTestGateway("test-ns", "test-gateway")
+	client.PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*gateway}}, nil
 	})
+	failOnce := true
+	client.PrependReactor("delete", "referencegrants", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		if failOnce {
+			failOnce = false
+			return true, nil, errors.New("transient error")
+		}
+		return false, nil, nil
+	})
+
+	require.Error(t, pattern.Deleted(ctx, gateway))
+	_, err := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.True(t, apierrors.IsNotFound(err), "the first attempt deletes the policy")
+
+	require.NoError(t, pattern.Deleted(ctx, gateway))
+	_, err = client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName("test-ns"), metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "the retry must delete the grant even though the policy is gone")
+}
+
+func TestAddNamespaceToGrant_RetryDoesNotRecreateExistingGrant(t *testing.T) {
+	ctx := context.Background()
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), newTestReferenceGrant("datadog", "test-ns"))
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+	gr := schema.GroupResource{Group: referenceGrantGVR.Group, Resource: referenceGrantGVR.Resource}
+	client.PrependReactor("create", "referencegrants", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, nil, apierrors.NewForbidden(gr, referenceGrantName("test-ns"), errors.New("exceeded quota: grants"))
+	})
+
+	require.NoError(t, pattern.Added(ctx, newTestGateway("test-ns", "test-gateway")))
+	_, err := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.NoError(t, err)
+}
+
+func TestAddNamespaceToGrant_TerminatingGrantIsRetried(t *testing.T) {
+	ctx := context.Background()
+	grant := newTestReferenceGrant("datadog", "test-ns")
+	grant.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
+	grant.SetFinalizers([]string{"example.com/finalizer"})
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant)
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+	addErr := pattern.Added(ctx, newTestGateway("test-ns", "test-gateway"))
+	require.Error(t, addErr)
+	assert.False(t, apierrors.IsForbidden(addErr) || apierrors.IsInvalid(addErr), "the injector drops Forbidden and Invalid errors, so a terminating grant must report a retryable error")
+	_, err := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "no EnvoyExtensionPolicy must rely on a grant being deleted")
+}
+
+func TestRemoveNamespaceToGrant_LegacyPatchIsGuardedByResourceVersion(t *testing.T) {
+	ctx := context.Background()
+	legacyGrant := newTestLegacyReferenceGrant("datadog", "test-ns1", "test-ns2", "test-ns3")
+	legacyGrant.SetResourceVersion("42")
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), legacyGrant)
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+	var patch k8stesting.PatchAction
+	client.PrependReactor("patch", "referencegrants", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		patch = action.(k8stesting.PatchAction)
+		return true, legacyGrant, nil
+	})
+
+	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns2"))
+	require.NotNil(t, patch)
+	assert.Equal(t, types.MergePatchType, patch.GetPatchType())
+	assert.JSONEq(t, `{
+		"metadata": {"resourceVersion": "42"},
+		"spec": {"from": [
+			{"group": "gateway.envoyproxy.io", "kind": "EnvoyExtensionPolicy", "namespace": "test-ns1"},
+			{"group": "gateway.envoyproxy.io", "kind": "EnvoyExtensionPolicy", "namespace": "test-ns3"}
+		]}
+	}`, string(patch.GetPatch()))
 }
