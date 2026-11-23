@@ -111,11 +111,20 @@ static __always_inline void send_tcp_close_event(struct sock *sk, sk_tcp_stats_t
 // reset_sk_tcp_stats starts tracking a new connection on a socket that was already used for
 // one, which tcp_disconnect makes possible.
 static __always_inline void reset_sk_tcp_stats(struct sock *sk, sk_tcp_stats_t *sk_stats) {
+    // cleared first, so that the new connection is tracked even if the counters can't be read
+    __u32 netns = sk_stats->tup.netns;
+    sk_stats->tup = (conn_tuple_t){};
+    sk_stats->tup.netns = netns;
+    sk_stats->state_transitions = 0;
+    sk_stats->failure_reason = 0;
+    sk_stats->tcp_event_stats = (tcp_event_stats_t){};
+    sk_stats->close_sent = 0;
+    sk_stats->app_closed = 0;
+
     struct tcp_sock *tp = bpf_skc_to_tcp_sock(sk);
     if (!tp) {
         return;
     }
-
     // tcp_disconnect already zeroed these, but they are offsets, so stay consistent anyway
     sk_stats->initial.sent_bytes = tp->bytes_sent;
     sk_stats->initial.recv_bytes = tp->bytes_received;
@@ -125,15 +134,6 @@ static __always_inline void reset_sk_tcp_stats(struct sock *sk, sk_tcp_stats_t *
     sk_stats->initial.reord_seen = tp->reord_seen;
     sk_stats->initial.rcv_ooopack = tp->rcv_ooopack;
     sk_stats->initial.delivered_ce = tp->delivered_ce;
-
-    __u32 netns = sk_stats->tup.netns;
-    sk_stats->tup = (conn_tuple_t){};
-    sk_stats->tup.netns = netns;
-    sk_stats->state_transitions = 0;
-    sk_stats->failure_reason = 0;
-    sk_stats->tcp_event_stats = (tcp_event_stats_t){};
-    sk_stats->close_sent = 0;
-    sk_stats->app_closed = 0;
 }
 
 static __always_inline void sockops_tcp_close(struct bpf_sock_ops *ctx, struct sock *sk, sk_tcp_stats_t *sk_stats) {
