@@ -137,8 +137,10 @@ func TestReport_SubmitEntropy(t *testing.T) {
 	report.Submit(sender)
 	tags := []string{"device_namespace:ns", "exporter_ip:127.0.0.1", "interface_index:1", "observation_point:ingress",
 		"dd.internal.resource:ndm_device:ns:127.0.0.1"}
-	sender.AssertMetricInRange(t, "Gauge", "datadog.netflow.entropy.bytes", 3-1e-9, 3+1e-9, "", tags)
-	sender.AssertMetricInRange(t, "Gauge", "datadog.netflow.entropy.normalized_bytes", 1-1e-9, 1+1e-9, "", tags)
+	for _, name := range []string{"byte_weighted", "packet_weighted", "record_weighted"} {
+		sender.AssertMetricInRange(t, "Gauge", "datadog.netflow.entropy."+name, 3-1e-9, 3+1e-9, "", tags)
+		sender.AssertMetricInRange(t, "Gauge", "datadog.netflow.entropy.normalized_"+name, 1-1e-9, 1+1e-9, "", tags)
+	}
 }
 
 func TestAccumulator_Windows(t *testing.T) {

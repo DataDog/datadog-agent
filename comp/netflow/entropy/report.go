@@ -19,6 +19,7 @@ const ndmDeviceResourcePrefix = "dd.internal.resource:ndm_device:"
 
 // Submit sends the entropy of valid windows, tagged by interface, and counts.
 // Drops are tagged by exporter like the aggregator's sequence metrics. No metric has peer tags.
+// Entropy is in bits across peers, weighted by bytes, packets or records. normalized_* is divided by log2(peers), 0 to 1.
 func (r Report) Submit(s sender.Sender) {
 	windowsByStatus := make(map[qualityStatus]int)
 	for _, w := range r.Windows {
@@ -33,10 +34,20 @@ func (r Report) Submit(s sender.Sender) {
 			"observation_point:" + string(w.observationPoint),
 			ndmDeviceResourcePrefix + w.Namespace + ":" + w.Exporter.String(),
 		}
-		s.Gauge(metricPrefix+"bytes", w.ByteEntropy, "", tags)
-		// ByteEntropy / log2(DistinctCount), undefined below 2 peers
-		if w.DistinctCount >= 2 {
-			s.Gauge(metricPrefix+"normalized_bytes", w.ByteEntropy/math.Log2(float64(w.DistinctCount)), "", tags)
+		maxEntropy := math.Log2(float64(w.DistinctCount))
+		for _, e := range [...]struct {
+			name  string
+			value float64
+		}{
+			{"byte_weighted", w.ByteEntropy},
+			{"packet_weighted", w.PacketEntropy},
+			{"record_weighted", w.RecordEntropy},
+		} {
+			s.Gauge(metricPrefix+e.name, e.value, "", tags)
+			// undefined below 2 peers
+			if w.DistinctCount >= 2 {
+				s.Gauge(metricPrefix+"normalized_"+e.name, e.value/maxEntropy, "", tags)
+			}
 		}
 	}
 	for status, n := range windowsByStatus {
