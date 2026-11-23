@@ -27,6 +27,13 @@ const (
 	MaxReportInterval              = 24 * time.Hour
 	MaxReportIntervalSeconds       = int(MaxReportInterval / time.Second)
 	MaxReportMaxPathsPerReport     = 100_000
+	// DefaultUploadTimeout is the time allowed to upload a small symbol file.
+	DefaultUploadTimeout = 15 * time.Second
+	// DefaultUploadTimeoutPerMiB is the extra time allowed per MiB of symbol file.
+	// It assumes a minimum upload throughput of 1 MiB/s.
+	DefaultUploadTimeoutPerMiB = 1 * time.Second
+	// DefaultMaxUploadTimeout caps the upload time of one symbol file, whatever its size.
+	DefaultMaxUploadTimeout = 5 * time.Minute
 )
 
 // ReportConfig configures the batched upload report emitted periodically.
@@ -53,6 +60,12 @@ type SymbolUploaderOptions struct {
 	// Sites to upload symbols to.
 	SymbolEndpoints []SymbolEndpoint `mapstructure:"symbol_endpoints"`
 	Report          ReportConfig     `mapstructure:"report"`
+	// UploadTimeout is the time allowed to upload a symbol file smaller than 1 MiB.
+	UploadTimeout time.Duration `mapstructure:"upload_timeout"`
+	// UploadTimeoutPerMiB is the extra time allowed for each MiB of the symbol file.
+	UploadTimeoutPerMiB time.Duration `mapstructure:"upload_timeout_per_mib"`
+	// MaxUploadTimeout caps the time allowed to upload one symbol file.
+	MaxUploadTimeout time.Duration `mapstructure:"max_upload_timeout"`
 }
 
 type SymbolUploaderConfig struct {
@@ -81,6 +94,9 @@ func DefaultSymbolUploaderConfig(profilerName string) SymbolUploaderConfig {
 				Interval:          DefaultReportIntervalSeconds,
 				MaxPathsPerReport: DefaultReportMaxPathsPerReport,
 			},
+			UploadTimeout:       DefaultUploadTimeout,
+			UploadTimeoutPerMiB: DefaultUploadTimeoutPerMiB,
+			MaxUploadTimeout:    DefaultMaxUploadTimeout,
 		},
 		Name:    profilerName,
 		Version: version.ProfilerVersion,

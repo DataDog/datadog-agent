@@ -50,7 +50,7 @@ func NewDatadogSymbolQuerier(ddSite, ddAPIKey string) (SymbolQuerier, error) {
 	return &datadogSymbolQuerier{
 		ddAPIKey:       ddAPIKey,
 		symbolQueryURL: symbolQueryURL,
-		client:         &http.Client{Timeout: uploadTimeout},
+		client:         &http.Client{Timeout: symbolQueryTimeout},
 	}, nil
 }
 

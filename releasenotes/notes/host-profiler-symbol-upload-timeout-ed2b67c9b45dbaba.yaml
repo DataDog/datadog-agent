@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The host profiler no longer fails to upload large debug symbol files
+    because of a fixed 15-second limit. The time allowed for an upload now
+    grows with the file size, up to a maximum of 5 minutes, so profiles of
+    large programs show function names. You can change the limits with the
+    ``upload_timeout``, ``upload_timeout_per_mib`` and ``max_upload_timeout``
+    symbol uploader settings (``hostprofiler.symbol_uploader.options`` in
+    ``datadog.yaml``).

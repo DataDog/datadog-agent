@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
@@ -438,7 +439,8 @@ func TestProviderSymbolUploaderOptions(t *testing.T) {
   "use_http2": true,
   "symbol_query_interval": "0s",
   "dry_run": true,
-  "disable_debug_section_compression": true
+  "disable_debug_section_compression": true,
+  "max_upload_timeout": "10m"
 }`)
 				t.Setenv("DD_HOSTPROFILER_SYMBOL_UPLOADER_ENABLED", "false")
 			}
@@ -454,6 +456,7 @@ hostprofiler:
       symbol_query_interval: 0s
       dry_run: false
       disable_debug_section_compression: true
+      max_upload_timeout: 10m
 `)
 			generated := confmap.NewFromStringMap(buildConfig(newConfigManager(cfg), testCollectorParams{}))
 			require.NoError(t, validateOTelConfig(t, generated))
@@ -470,6 +473,8 @@ hostprofiler:
 			require.Zero(t, uploader.SymbolQueryInterval)
 			require.Equal(t, source == "env", uploader.DryRun)
 			require.True(t, uploader.DisableDebugSectionCompression)
+			require.Equal(t, 10*time.Minute, uploader.MaxUploadTimeout)
+			require.Equal(t, 15*time.Second, uploader.UploadTimeout, "unset options keep their default")
 		})
 	}
 }

@@ -58,9 +58,9 @@ const (
 
 	sourceMapEndpoint = "/api/v2/srcmap"
 
-	symbolCopyTimeout       = 10 * time.Second
-	uploadTimeout           = 15 * time.Second
-	minUploadBytesPerSecond = 1024 * 1024
+	symbolCopyTimeout  = 10 * time.Second
+	symbolQueryTimeout = 15 * time.Second
+	mib                = 1024 * 1024
 	// DefaultMemoryBudget is the symbol upload memory budget used when the
 	// process runs without a cgroup memory limit.
 	//
@@ -86,6 +86,7 @@ type DatadogSymbolUploader struct {
 	retrievalQueue      chan *reporter.ExecutableMetadata
 	pipeline            pipeline.Pipeline[*reporter.ExecutableMetadata]
 	reporter            *uploadReporter
+	uploadTimeouts      uploadTimeouts
 	mut                 sync.Mutex
 	biggestBinarySize   int64
 }
@@ -152,6 +153,7 @@ func NewDatadogSymbolUploader(ctx context.Context, cfg *SymbolUploaderConfig) (*
 		symbolQueryInterval:   cfg.SymbolQueryInterval,
 		compressDebugSections: compressDebugSections,
 		reporter:              newUploadReporter(cfg.Report),
+		uploadTimeouts:        newUploadTimeouts(cfg.SymbolUploaderOptions),
 	}, nil
 }
 
@@ -550,7 +552,7 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 	if err != nil {
 		return fmt.Errorf("failed to stat symbol file: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, uploadDeadline(symbolFileInfo.Size()))
+	ctx, cancel := context.WithTimeout(ctx, d.uploadTimeouts.deadline(symbolFileInfo.Size()))
 	defer cancel()
 
 	pipeR, pipeW := io.Pipe()
@@ -614,8 +616,48 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 	return nil
 }
 
-func uploadDeadline(size int64) time.Duration {
-	return uploadTimeout + time.Duration(size/minUploadBytesPerSecond)*time.Second
+// uploadTimeouts holds the settings that bound the upload time of one symbol file.
+type uploadTimeouts struct {
+	base   time.Duration
+	perMiB time.Duration
+	max    time.Duration
+}
+
+// newUploadTimeouts uses the default for an unset base or cap, and for a negative
+// per-MiB value. A per-MiB value of 0 disables scaling.
+func newUploadTimeouts(opts SymbolUploaderOptions) uploadTimeouts {
+	t := uploadTimeouts{
+		base:   opts.UploadTimeout,
+		perMiB: opts.UploadTimeoutPerMiB,
+		max:    opts.MaxUploadTimeout,
+	}
+	if t.base <= 0 {
+		t.base = DefaultUploadTimeout
+	}
+	if t.perMiB < 0 {
+		t.perMiB = DefaultUploadTimeoutPerMiB
+	}
+	if t.max <= 0 {
+		t.max = DefaultMaxUploadTimeout
+	}
+	if t.max < t.base {
+		t.max = t.base
+	}
+	return t
+}
+
+// deadline returns the time allowed to upload a symbol file of size bytes:
+// base plus perMiB for each full MiB, capped at max.
+func (t uploadTimeouts) deadline(size int64) time.Duration {
+	sizeMiB := size / mib
+	if t.perMiB == 0 || sizeMiB <= 0 {
+		return t.base
+	}
+	// Compare before multiplying, so that a huge size cannot overflow.
+	if sizeMiB >= int64((t.max-t.base)/t.perMiB)+1 {
+		return t.max
+	}
+	return min(t.base+time.Duration(sizeMiB)*t.perMiB, t.max)
 }
 
 func streamRequestBody(symbolFile *os.File, e *symbolUploadRequestMetadata, mw *multipart.Writer) error {

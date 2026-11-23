@@ -145,6 +145,9 @@ The component is configured via an OpenTelemetry Collector YAML file. See [`dist
 - **`extensions.ddprofiling`**: Datadog profiling extension (Agent mode only)
 - **`symbol_uploader.report.interval`**: How often, in seconds, a pending report is flushed. Default `300` (5 minutes), max `86400` (24h)
 - **`symbol_uploader.report.max_paths_per_report`**: Maximum number of sampled binary paths kept per report. Default `100`, max `100000`.
+- **`symbol_uploader.upload_timeout`**: Time allowed to upload a symbol file smaller than 1 MiB. Default `15s`. Must be positive.
+- **`symbol_uploader.upload_timeout_per_mib`**: Extra time allowed for each MiB of symbol file. Default `1s` (a minimum throughput of 1 MiB/s). `0s` gives every file the same `upload_timeout`.
+- **`symbol_uploader.max_upload_timeout`**: Maximum time allowed to upload one symbol file, whatever its size. Default `5m`. Must be at least `upload_timeout`.
 
 ### Configuration Inference
 

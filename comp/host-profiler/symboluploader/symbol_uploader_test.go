@@ -16,6 +16,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"math"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -827,8 +828,49 @@ func TestNewDatadogSymbolUploaderPropagatesReportConfig(t *testing.T) {
 }
 
 func TestUploadDeadline(t *testing.T) {
-	assert.Equal(t, uploadTimeout, uploadDeadline(0))
-	assert.Equal(t, uploadTimeout, uploadDeadline(minUploadBytesPerSecond-1))
-	assert.Equal(t, uploadTimeout+time.Second, uploadDeadline(minUploadBytesPerSecond))
-	assert.Equal(t, uploadTimeout+200*time.Second, uploadDeadline(200*minUploadBytesPerSecond))
+	defaults := newUploadTimeouts(DefaultSymbolUploaderConfig("test").SymbolUploaderOptions)
+	unset := newUploadTimeouts(SymbolUploaderOptions{})
+	require.Equal(t, DefaultUploadTimeout, unset.base, "an unset base must use the default")
+	require.Equal(t, DefaultMaxUploadTimeout, unset.max, "an unset cap must use the default")
+
+	tests := []struct {
+		name     string
+		timeouts uploadTimeouts
+		size     int64
+		want     time.Duration
+	}{
+		{"empty file gets the base", defaults, 0, DefaultUploadTimeout},
+		{"file under 1 MiB gets the base", defaults, mib - 1, DefaultUploadTimeout},
+		{"1 MiB adds one step", defaults, mib, DefaultUploadTimeout + DefaultUploadTimeoutPerMiB},
+		{"200 MiB scales linearly", defaults, 200 * mib, DefaultUploadTimeout + 200*DefaultUploadTimeoutPerMiB},
+		{"file just under the cap", defaults, 284 * mib, 299 * time.Second},
+		{"file at the cap", defaults, 285 * mib, DefaultMaxUploadTimeout},
+		{"huge file gets the cap", defaults, 1 << 40, DefaultMaxUploadTimeout},
+		{"max int64 size does not overflow", defaults, math.MaxInt64, DefaultMaxUploadTimeout},
+		{
+			"configured values override defaults",
+			newUploadTimeouts(SymbolUploaderOptions{UploadTimeout: 30 * time.Second, UploadTimeoutPerMiB: 2 * time.Second, MaxUploadTimeout: time.Minute}),
+			10 * mib, 50 * time.Second,
+		},
+		{
+			"configured cap applies",
+			newUploadTimeouts(SymbolUploaderOptions{UploadTimeout: 30 * time.Second, UploadTimeoutPerMiB: 2 * time.Second, MaxUploadTimeout: time.Minute}),
+			100 * mib, time.Minute,
+		},
+		{
+			"zero per-MiB disables scaling",
+			newUploadTimeouts(SymbolUploaderOptions{UploadTimeout: 20 * time.Second, MaxUploadTimeout: time.Minute}),
+			100 * mib, 20 * time.Second,
+		},
+		{
+			"cap below base is raised to base",
+			newUploadTimeouts(SymbolUploaderOptions{UploadTimeout: 20 * time.Second, UploadTimeoutPerMiB: time.Second, MaxUploadTimeout: 10 * time.Second}),
+			100 * mib, 20 * time.Second,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.timeouts.deadline(tt.size))
+		})
+	}
 }

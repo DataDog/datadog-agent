@@ -59,6 +59,15 @@ func errSymbolEndpointsAPIKeyRequired() error {
 func errSymbolUploaderReportIntervalInvalid() error {
 	return fmt.Errorf("symbol_uploader.report.interval must be positive and at most %s", symboluploader.MaxReportInterval)
 }
+func errSymbolUploaderUploadTimeoutInvalid() error {
+	return errors.New("symbol_uploader.upload_timeout must be positive")
+}
+func errSymbolUploaderUploadTimeoutPerMiBInvalid() error {
+	return errors.New("symbol_uploader.upload_timeout_per_mib must not be negative")
+}
+func errSymbolUploaderMaxUploadTimeoutInvalid() error {
+	return errors.New("symbol_uploader.max_upload_timeout must be at least symbol_uploader.upload_timeout")
+}
 func errSymbolUploaderReportMaxInvalid() error {
 	return fmt.Errorf("symbol_uploader.report.max_paths_per_report must be positive and at most %d", symboluploader.MaxReportMaxPathsPerReport)
 }
@@ -107,6 +116,15 @@ func (c *Config) Validate() error {
 		}
 		if c.SymbolUploader.Report.MaxPathsPerReport <= 0 || c.SymbolUploader.Report.MaxPathsPerReport > symboluploader.MaxReportMaxPathsPerReport {
 			return errSymbolUploaderReportMaxInvalid()
+		}
+		if c.SymbolUploader.UploadTimeout <= 0 {
+			return errSymbolUploaderUploadTimeoutInvalid()
+		}
+		if c.SymbolUploader.UploadTimeoutPerMiB < 0 {
+			return errSymbolUploaderUploadTimeoutPerMiBInvalid()
+		}
+		if c.SymbolUploader.MaxUploadTimeout < c.SymbolUploader.UploadTimeout {
+			return errSymbolUploaderMaxUploadTimeoutInvalid()
 		}
 	}
 	return nil

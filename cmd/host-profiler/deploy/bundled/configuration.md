@@ -54,6 +54,11 @@ The following settings can be overridden in the Datadog Agent configuration for 
 | `hostprofiler.symbol_uploader.enabled` | bool | `true` | Uploads debug symbols to Datadog using the Agent's profiling intake destinations and API keys. Disabling it can leave native and Go frames unresolved. |
 | `hostprofiler.symbol_uploader.report.interval`   | int    | `300`   | Interval, in seconds, at which the Host Profiler logs symbol upload reports. Maximum `86400` (24 hours). Values outside `1` to `86400` are ignored and fall back to the default. |
 | `hostprofiler.symbol_uploader.report.max_paths_per_report` | int | `100` | Maximum number of binary paths kept per symbol upload report, per log level. Maximum `100000`. Values outside `1` to `100000` fall back to the default. |
+| `hostprofiler.symbol_uploader.options.upload_timeout` | duration | `15s` | Time allowed to upload a symbol file smaller than 1 MiB. Must be positive. |
+| `hostprofiler.symbol_uploader.options.upload_timeout_per_mib` | duration | `1s` | Extra time allowed for each MiB of symbol file. `0s` gives every file the same `upload_timeout`. |
+| `hostprofiler.symbol_uploader.options.max_upload_timeout` | duration | `5m` | Maximum time allowed to upload one symbol file, whatever its size. Must be at least `upload_timeout`. |
+
+The time allowed for one upload is `upload_timeout` plus `upload_timeout_per_mib` for each MiB of the symbol file, up to `max_upload_timeout`. With the defaults, a 100 MiB file gets 1 minute 55 seconds, and files of 285 MiB or more get 5 minutes. To set these options with an environment variable, put all of them in one JSON object, for example `DD_HOSTPROFILER_SYMBOL_UPLOADER_OPTIONS='{"max_upload_timeout":"10m"}'`.
 
 ### Host Profiler self-profiling
 

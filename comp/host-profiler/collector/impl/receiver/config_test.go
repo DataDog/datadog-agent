@@ -351,3 +351,64 @@ func TestSymbolUploaderReportDisabledSkipsValidation(t *testing.T) {
 	require.Equal(t, 0, cfg.SymbolUploader.Report.Interval)
 	require.Equal(t, 0, cfg.SymbolUploader.Report.MaxPathsPerReport)
 }
+
+func TestSymbolUploaderUploadTimeoutDefaults(t *testing.T) {
+	cfg := defaultConfig(profilerName).(Config)
+	err := confmap.NewFromStringMap(map[string]any{
+		"symbol_uploader": map[string]any{
+			"enabled":          true,
+			"symbol_endpoints": []any{map[string]any{"site": "datadoghq.com", "api_key": "test-key"}},
+		},
+	}).Unmarshal(&cfg)
+	require.NoError(t, err)
+	require.NoError(t, cfg.Validate())
+
+	require.Equal(t, symboluploader.DefaultUploadTimeout, cfg.SymbolUploader.UploadTimeout)
+	require.Equal(t, symboluploader.DefaultUploadTimeoutPerMiB, cfg.SymbolUploader.UploadTimeoutPerMiB)
+	require.Equal(t, symboluploader.DefaultMaxUploadTimeout, cfg.SymbolUploader.MaxUploadTimeout)
+}
+
+func TestSymbolUploaderUploadTimeoutOverride(t *testing.T) {
+	cfg := defaultConfig(profilerName).(Config)
+	err := confmap.NewFromStringMap(map[string]any{
+		"symbol_uploader": map[string]any{
+			"enabled":                true,
+			"symbol_endpoints":       []any{map[string]any{"site": "datadoghq.com", "api_key": "test-key"}},
+			"upload_timeout":         "30s",
+			"upload_timeout_per_mib": "500ms",
+			"max_upload_timeout":     "10m",
+		},
+	}).Unmarshal(&cfg)
+	require.NoError(t, err)
+	require.NoError(t, cfg.Validate())
+
+	require.Equal(t, 30*time.Second, cfg.SymbolUploader.UploadTimeout)
+	require.Equal(t, 500*time.Millisecond, cfg.SymbolUploader.UploadTimeoutPerMiB)
+	require.Equal(t, 10*time.Minute, cfg.SymbolUploader.MaxUploadTimeout)
+}
+
+func TestSymbolUploaderUploadTimeoutInvalidIsRejected(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]any
+		wantErr  error
+	}{
+		{"zero base", map[string]any{"upload_timeout": "0s"}, errSymbolUploaderUploadTimeoutInvalid()},
+		{"negative per MiB", map[string]any{"upload_timeout_per_mib": "-1s"}, errSymbolUploaderUploadTimeoutPerMiBInvalid()},
+		{"cap below base", map[string]any{"upload_timeout": "1m", "max_upload_timeout": "30s"}, errSymbolUploaderMaxUploadTimeoutInvalid()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uploader := map[string]any{
+				"enabled":          true,
+				"symbol_endpoints": []any{map[string]any{"site": "datadoghq.com", "api_key": "test-key"}},
+			}
+			for k, v := range tt.settings {
+				uploader[k] = v
+			}
+			cfg := defaultConfig(profilerName).(Config)
+			require.NoError(t, confmap.NewFromStringMap(map[string]any{"symbol_uploader": uploader}).Unmarshal(&cfg))
+			require.EqualError(t, cfg.Validate(), tt.wantErr.Error())
+		})
+	}
+}
