@@ -189,8 +189,9 @@ func (l *KubeletListener) createContainerService(
 		},
 		hosts: map[string]string{"pod": pod.IP},
 
-		// Exclude non-running containers (including init containers)
-		// from metrics collection but keep them for collecting logs.
+		// Exclude non-running containers (including init containers) and
+		// the containers of a terminating pod, even if they still run, from
+		// metrics collection, but keep them for collecting logs.
 		metricsExcluded:   l.metricsFilter.IsExcluded(filterableContainer) || !container.State.Running || pod.DeletionTimestamp != nil,
 		logsExcluded:      l.logsFilter.IsExcluded(filterableContainer),
 		tagger:            l.tagger,
