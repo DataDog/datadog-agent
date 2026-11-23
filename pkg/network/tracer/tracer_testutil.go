@@ -8,8 +8,11 @@
 package tracer
 
 import (
+	"fmt"
+
 	"github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 )
 
@@ -26,4 +29,22 @@ func (t *Tracer) USMMonitor() *usm.Monitor {
 // GetMap returns the map with the given name
 func (t *Tracer) GetMap(name string) (*ebpf.Map, error) {
 	return t.ebpfTracer.GetMap(name)
+}
+
+// ProbeRunning reports whether the connection tracer's manager has a running probe for the given eBPF function.
+func (t *Tracer) ProbeRunning(name probes.ProbeFuncName) (bool, error) {
+	pr, ok := t.ebpfTracer.(interface {
+		ProbeRunning(probes.ProbeFuncName) bool
+	})
+	if !ok {
+		return false, fmt.Errorf("%T does not expose its probes", t.ebpfTracer)
+	}
+	return pr.ProbeRunning(name), nil
+}
+
+// setMax sets how many closed NAT translations can be deferred; 0 deletes each one when its connection closes.
+func (d *deferredTranslationDeletes) setMax(n int) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.max = n
 }

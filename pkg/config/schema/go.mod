@@ -10,8 +10,8 @@ require (
 
 require (
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
-	github.com/klauspost/compress v1.20.3 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	github.com/klauspost/compress v1.20.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

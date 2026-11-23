@@ -14,6 +14,9 @@ go_library(
         "poller_linux.go",
         "poller_windows.go",
         "portlist.go",
+        "tcp.go",
+        "tcp_linux.go",
+        "tcp_others.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/port/portlist",
     visibility = ["//visibility:public"],
@@ -53,6 +56,7 @@ dd_agent_go_test(
         "poller_darwin_test.go",
         "poller_linux_test.go",
         "poller_test.go",
+        "tcp_linux_test.go",
     ],
     embed = [":portlist"],
     env_inherit = select({

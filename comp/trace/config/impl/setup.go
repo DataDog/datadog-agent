@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -39,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -183,6 +185,11 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.
 // The format for cfgKey should be a map which has the URL as a key and one or
 // more API keys as an array value.
+//
+// DELA[...] delegated-auth directives are held aside as pending: the endpoint is
+// kept with no key until the delegatedauth component writes the resolved key back
+// into the config. Only keys whose writers are enrolled for delegated auth will
+// resolve; the others warn so the pending endpoint is not a silent no-op.
 func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endpoint {
 	if !pkgconfigsetup.Datadog().IsConfigured(cfgKey) {
 		return endpoints
@@ -192,8 +199,19 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 			log.Errorf("'%s' entries must have at least one API key present", cfgKey)
 			continue
 		}
-		for _, key := range keys {
-			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: utils.SanitizeAPIKey(key)})
+		for index, key := range keys {
+			endpoint := &config.Endpoint{Host: url, APIKey: utils.SanitizeAPIKey(key)}
+			if cfgKey == "apm_config.additional_endpoints" {
+				endpoint.APIKeyConfigIndex = &index
+			}
+			if utils.IsDelaDirective(key) {
+				endpoint.APIKey = ""
+				endpoint.HasPendingDelegatedAuth = true
+				if !pkgconfigsetup.IsDelegatedAuthMapEndpointKey(cfgKey) {
+					log.Warnf("DELA[...] is not supported in '%s'; this additional endpoint entry (%q) will not send data. Configure an API key or remove the entry", cfgKey, url)
+				}
+			}
+			endpoints = append(endpoints, endpoint)
 		}
 	}
 	return endpoints
@@ -256,6 +274,31 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
+
+	// Subscribe before reconciling so writeback between the snapshot and subscription
+	// is delivered even when the first credential resolved before sender construction.
+	c.OnAdditionalEndpointsUpdate = func(cb func(host string, apiKeys []string)) {
+		var mu sync.Mutex
+		deliver := func() {
+			mu.Lock()
+			defer mu.Unlock()
+			for host, keys := range core.GetStringMapStringSlice("apm_config.additional_endpoints") {
+				apiKeys := make([]string, len(keys))
+				for i, key := range keys {
+					if !utils.IsDelaDirective(key) {
+						apiKeys[i] = utils.SanitizeAPIKey(key)
+					}
+				}
+				cb(host, apiKeys)
+			}
+		}
+		core.OnUpdate(func(setting string, _ model.Source, _, _ any, _ uint64, _ model.Source) {
+			if setting == "apm_config.additional_endpoints" {
+				deliver()
+			}
+		})
+		deliver()
+	}
 
 	// Traces/stats sibling of apm_config.profiling_send_to_main_endpoint: when
 	// false, the trace and stats writers skip the main endpoint and only send to
@@ -468,8 +511,17 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.GUIPort = core.GetString("GUI_port")
 
 	var grpcPort int
-	if configcheck.IsEnabled(pkgconfigsetup.Datadog()) {
+	if datadog := pkgconfigsetup.Datadog(); configcheck.IsEnabled(datadog) {
 		grpcPort = core.GetInt(pkgconfigsetup.OTLPTracePort)
+		// ADP does not own DDOT's embedded trace-agent listeners.
+		if flavor.GetFlavor() != flavor.OTelAgent && !configcheck.IsTraceInternalReceiverEnabled(datadog) {
+			grpcPort = 0
+			if err := configcheck.ValidateDataPlaneProxy(datadog); err != nil {
+				log.Errorf("Not listening on %s: %v", pkgconfigsetup.OTLPTracePort, err)
+			} else {
+				log.Infof("Not listening on %s because the data plane handles OTLP ingest", pkgconfigsetup.OTLPTracePort)
+			}
+		}
 	}
 
 	// We use a noop set of telemetry settings. This silences all warnings and metrics from the attributes translator.

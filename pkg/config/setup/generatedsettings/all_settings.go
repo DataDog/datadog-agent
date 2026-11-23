@@ -802,6 +802,7 @@ func InitCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.storage.inactive_series_ttl", 5*time.Minute)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention", time.Duration(0))
+	config.BindEnvAndSetDefault("anomaly_detection.use_metric_pipeline", false)
 	config.BindEnvAndSetDefault("appsec.proxy.auto_detect", true)
 	config.BindEnvAndSetDefault("appsec.proxy.enabled", false)
 	config.BindEnvAndSetDefault("appsec.proxy.gke.gateway_classes", []string{
@@ -1778,8 +1779,6 @@ func InitCommonBase(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.num_workers", 2)
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false)
 	config.BindEnvAndSetDefault("bosh_id", "")
-	config.BindEnvAndSetDefault("c_core_dump", false)
-	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("check_runner_utilization_monitor_interval", 1*time.Minute)

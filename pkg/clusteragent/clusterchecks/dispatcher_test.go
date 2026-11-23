@@ -216,6 +216,47 @@ func TestDescheduleRescheduleSameNode(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
+func TestNodesRunningCheck(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	dispatcher.store.getOrCreateNodeStore("runner", "").nodetype = types.NodeTypeCLCRunner
+	dispatcher.store.getOrCreateNodeStore("agent-hostname", "").nodetype = types.NodeTypeNodeAgent
+	dispatcher.addConfig(generateIntegration("kueue"), "runner")
+	dispatcher.addConfig(generateIntegration("other"), "agent-hostname")
+	dispatcher.addEndpointConfig(generateEndpointsIntegration("kueue", "node1", false), "node1")
+	dispatcher.addEndpointConfig(generateEndpointsIntegration("other", "node2", false), "node2")
+
+	_, ok := dispatcher.nodesRunningCheck("kueue")
+	assert.False(t, ok, "the dispatcher is not running")
+
+	dispatcher.store.active = true
+	_, ok = dispatcher.nodesRunningCheck("absent")
+	assert.False(t, ok, "a check that is not dispatched may run as a node Agent check")
+	dispatcher.addConfig(generateIntegration("dangling"), "")
+	_, ok = dispatcher.nodesRunningCheck("dangling")
+	assert.False(t, ok, "a check waiting for a node is not dispatched yet")
+	nodes, ok := dispatcher.nodesRunningCheck("kueue")
+	assert.True(t, ok)
+	assert.Equal(t, map[string]struct{}{"node1": {}}, nodes, "cluster check runners are not returned")
+
+	// A check dispatched only to cluster check runners runs on no node Agent.
+	onRunnerOnly := newDispatcher(fakeTagger)
+	onRunnerOnly.store.getOrCreateNodeStore("runner", "").nodetype = types.NodeTypeCLCRunner
+	onRunnerOnly.addConfig(generateIntegration("kueue"), "runner")
+	onRunnerOnly.store.active = true
+	nodes, ok = onRunnerOnly.nodesRunningCheck("kueue")
+	assert.True(t, ok)
+	assert.Empty(t, nodes)
+
+	// A cluster check on a node Agent is dispatched by hostname, which may not
+	// be the node name.
+	kueueOnAgent := generateIntegration("kueue")
+	kueueOnAgent.InitConfig = []byte("on-agent")
+	dispatcher.addConfig(kueueOnAgent, "agent-hostname")
+	_, ok = dispatcher.nodesRunningCheck("kueue")
+	assert.False(t, ok)
+}
+
 func TestGetNodeTypeCounts(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
@@ -227,7 +268,7 @@ func TestGetNodeTypeCounts(t *testing.T) {
 	dispatcher.processNodeStatus("agent2", "10.0.0.21", types.NodeStatus{LastChange: 4, NodeType: types.NodeTypeNodeAgent})
 	dispatcher.processNodeStatus("agent3", "10.0.0.22", types.NodeStatus{LastChange: 5, NodeType: types.NodeTypeNodeAgent})
 
-	clcRunnerCount, nodeAgentCount := dispatcher.store.CountNodeTypes()
+	clcRunnerCount, nodeAgentCount := dispatcher.store.countNodeTypes()
 	assert.Equal(t, 2, clcRunnerCount)
 	assert.Equal(t, 3, nodeAgentCount)
 }
@@ -510,11 +551,10 @@ func TestDanglingConfig(t *testing.T) {
 	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
 	assert.True(t, dispatcher.shouldDispatchDangling())
 
-	// get the danglings and make sure they are removed from the store
-	configs := dispatcher.retrieveDangling()
-	dispatcher.deleteDangling([]string{config.Digest()})
-	assert.Len(t, configs, 1)
+	// dispatch the danglings and make sure they are removed from the store
+	dispatcher.dispatchDangling()
 	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
+	assert.Len(t, dispatcher.store.nodes["nodeA"].digestToConfig, 1)
 }
 
 func TestUnscheduleDanglingConfig(t *testing.T) {

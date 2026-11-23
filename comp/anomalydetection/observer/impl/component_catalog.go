@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
@@ -55,6 +56,7 @@ type componentEntry struct {
 type detectorRegistration struct {
 	detector observerdef.Detector
 	filter   observerdef.DetectionFilter
+	timing   *detectorTiming
 }
 
 // componentInstance tracks a component entry paired with its runtime instance and enabled state.
@@ -89,6 +91,21 @@ type ComponentSettings struct {
 	// Baseline controls the baseline analysis window.
 	Baseline BaselineConfig
 
+	// LogCountBuckets optionally overrides log time buckets for replay. Nil
+	// preserves the current setting across DebugView resets.
+	LogCountBuckets *LogCountBucketConfig
+
+	// UseMetricPipeline selects the kind-routed metric workflow. Zero keeps the
+	// previous configured detector workflow.
+	UseMetricPipeline bool
+
+	// StablePipeline optionally overrides the stable pipeline configuration.
+	// Nil selects defaults.
+	StablePipeline *StablePipelineConfig
+	// MetricPipelineAnomalyCutoff controls whether reactivated-series anomalies
+	// are suppressed until a fresh point is observed. Nil uses the enabled default.
+	MetricPipelineAnomalyCutoff *bool
+
 	// configs is populated internally by readConfig functions on catalog
 	// entries (e.g. from agent config). It is not exported because the
 	// values must match the typed config expected by each component's
@@ -108,15 +125,23 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 	if settings.configs == nil {
 		settings.configs = make(map[string]any)
 	}
+	if settings.StablePipeline == nil {
+		cfg := DefaultStablePipelineConfig()
+		settings.StablePipeline = &cfg
+	}
+	if settings.MetricPipelineAnomalyCutoff == nil {
+		enabled := true
+		settings.MetricPipelineAnomalyCutoff = &enabled
+	}
 
 	bocpd := DefaultBOCPDConfig()
-	bocpd.WarmupPoints = 40
+	bocpd.WarmupPoints = 20
 	holt := DefaultHoltResidualConfig()
 	holt.WarmupPoints = 15
 	holt.ResidualWindow = 25
 	tukey := DefaultTukeyBiweightConfig()
 	tukey.WindowSize = 40
-	tukey.MinPoints = 40
+	tukey.MinPoints = 20
 
 	for name, cfg := range map[string]any{
 		"bocpd":          bocpd,
@@ -152,7 +177,7 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 //
 //	catalog := defaultCatalog()
 //	settings := ComponentSettings{ ... } // from agent config, testbench UI, etc.
-//	detectors, correlators, scorer, extractors, components := catalog.Instantiate(settings)
+//	detectors, correlators, scorer, extractors, components, err := catalog.Instantiate(settings)
 type componentCatalog struct {
 	entries []componentEntry
 }
@@ -172,6 +197,18 @@ func defaultCatalog() *componentCatalog {
 				defaultConfig:  DefaultLogMetricsExtractorConfig(),
 				factory:        func(cfg any) any { return NewLogMetricsExtractor(cfg.(LogMetricsExtractorConfig)) },
 				defaultEnabled: true,
+				readConfig: func(reader ConfigReader, prefix string) any {
+					cfg := DefaultLogMetricsExtractorConfig()
+					cfg.MinTokenMatchRatio = reader.GetFloat64(prefix + "min_token_match_ratio")
+					return resolveLogMetricsExtractorConfig(cfg)
+				},
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(LogMetricsExtractorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("log_metrics_extractor: failed to parse JSON config: %w", err)
+					}
+					return cfg, nil
+				},
 			},
 			{
 				name:           "connection_error_extractor",
@@ -390,10 +427,29 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	scorer *anomalyScorer,
 	extractors []observerdef.LogMetricsExtractor,
 	components map[string]*componentInstance,
+	err error,
 ) {
 	components = make(map[string]*componentInstance, len(c.entries))
 
+	if settings.UseMetricPipeline {
+		logging.Info("metric pipeline enabled")
+		anomalyCutoff := settings.MetricPipelineAnomalyCutoff
+		if anomalyCutoff == nil {
+			enabled := true
+			anomalyCutoff = &enabled
+		}
+		pipeline, pipelineErr := newStableMetricPipeline(settings.StablePipeline, *anomalyCutoff)
+		if pipelineErr != nil {
+			return nil, nil, nil, nil, nil, pipelineErr
+		}
+		detectors = append(detectors, detectorRegistration{detector: pipeline})
+	}
+
 	for _, entry := range c.entries {
+		if settings.UseMetricPipeline && entry.kind == componentDetector {
+			continue
+		}
+
 		cfg := entry.defaultConfig
 		if override, ok := settings.configs[entry.name]; ok {
 			cfg = override
@@ -440,7 +496,7 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 			}
 		}
 	}
-	return detectors, correlators, scorer, extractors, components
+	return detectors, correlators, scorer, extractors, components, err
 }
 
 // CatalogEntry is a public view of a catalog component.
@@ -459,9 +515,12 @@ const TestbenchPassthroughComponentName = "passthrough"
 // StorageConfigForComponents returns bounded storage defaults derived from the
 // enabled, configured detectors, using the same retention policy as the Agent.
 // Replay callers should apply their testbench component defaults first.
-func StorageConfigForComponents(settings ComponentSettings) StorageConfig {
-	detectors, _, _, _, _ := defaultCatalog().Instantiate(settings)
-	return storageConfigFromAgentConfig(nil, detectors)
+func StorageConfigForComponents(settings ComponentSettings) (StorageConfig, error) {
+	detectors, _, _, _, _, err := defaultCatalog().Instantiate(settings)
+	if err != nil {
+		return StorageConfig{}, err
+	}
+	return storageConfigFromAgentConfig(nil, detectors), nil
 }
 
 // ParseSettingsFromJSON builds ComponentSettings from a map of JSON-encoded

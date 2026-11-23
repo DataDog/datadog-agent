@@ -103,6 +103,11 @@ type Event struct {
 // ------------------------------------------------
 // When included, specifies whether metrics with zero value should be excluded from the
 // agent telemetry metrics payloads. If not specified, default value of `false` will be used.
+// The value checked is each timeseries' value before tag aggregation: for counters and
+// histograms, the per-flush delta (a histogram is zero when all its buckets, including "+Inf",
+// had no new observations); for gauges, the sampled value. A counter that stops moving is
+// therefore excluded until it moves again, and its next delta still accounts for the flushes it
+// was excluded from.
 //
 // profiles[].metric.exclude.tags[] (optional)
 // ------------------------------------------
@@ -137,7 +142,9 @@ type Event struct {
 // -----------------------------------------------------
 // When included, emits one total independently for each emitter. A special tag "total"
 // containing that emitter's source-timeseries count is added to the metric's JSON object
-// (accordingly "total" is a reserved tag).
+// (accordingly "total" is a reserved tag). The count only includes the timeseries that pass the
+// profile's and the metric's filters: with zero_metric, a counter or histogram timeseries that
+// did not move during the flush is not counted, even though it still exists.
 //
 // profiles[].remote_flag (optional)
 // ---------------------------------

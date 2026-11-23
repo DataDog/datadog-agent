@@ -163,6 +163,66 @@ func TestAMDOnlyHostEmitsMetrics(t *testing.T) {
 	// 32 GT/s x16 with 128b/130b encoding.
 	require.Len(t, gauges["gpu.pci.link.speed.current"], 1)
 	assert.InDelta(t, 32e9*128/130/8*16, gauges["gpu.pci.link.speed.current"][0].Arguments.Get(1), 1)
+	assert.NotContains(t, gauges, "gpu.errors.ecc.uncorrected.total", "no ras directory")
+}
+
+func TestAMDECCMetrics(t *testing.T) {
+	fs := amdgpu.NewFakeSysfs(t)
+	devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", amdgpu.MI300XAttributes("00c0ffee00c0ffee"))
+	fs.WriteFiles(filepath.Join(devDir, "ras"), map[string]string{
+		"features":      "feature mask: 0x20065bff\n",
+		"umc_err_count": "ue: 2\nce: 7\nde: 1\n",
+		"gfx_err_count": "ue: 1\nce: 0\n",
+	})
+	fs.AddCard("card0", devDir)
+	check, mockSender := setupAMDCheck(t, fs.Root, nil)
+
+	require.NoError(t, check.Run())
+	gauges := emittedGauges(mockSender)
+	for name, value := range map[string]float64{
+		"gpu.errors.ecc.uncorrected.total": 3,
+		"gpu.errors.ecc.corrected.total":   7,
+		"gpu.errors.ecc.deferred.total":    1,
+	} {
+		require.Len(t, gauges[name], 1, name)
+		assert.Equal(t, value, gauges[name][0].Arguments.Get(1), name)
+		assert.Contains(t, gauges[name][0].Arguments.Get(3), "gpu_uuid:"+testAMDUUID, name)
+	}
+	assert.Len(t, gauges["gpu.gr_engine_active"], 1, "other metrics are unaffected")
+
+	specs, err := gpuspec.LoadSpecs()
+	require.NoError(t, err)
+	for name, observations := range gpu.GetEmittedGPUMetrics(mockSender) {
+		if !strings.HasPrefix(name, "errors.") {
+			continue
+		}
+		metricSpec, ok := specs.Metrics.Metrics[name]
+		require.True(t, ok, "%s is not in the spec", name)
+		expectedTags, _, err := gpuspec.ExpectedTagsForMetric(specs.Tags, metricSpec)
+		require.NoError(t, err)
+		for _, observation := range observations {
+			require.NotNil(t, observation.Value, name)
+			assert.NoError(t, metricSpec.Validator.ValidateStaticValue(*observation.Value), name)
+			tags := gpuspec.TagsToKeyValues(observation.Tags)
+			for tagName, values := range tags {
+				tagSpec, ok := expectedTags[tagName]
+				if !assert.True(t, ok, "%s has unexpected tag %s", name, tagName) {
+					continue
+				}
+				for _, value := range values {
+					if tagSpec.Regex != nil {
+						assert.Regexp(t, tagSpec.Regex, value, "%s tag %s", name, tagName)
+					}
+				}
+			}
+			// The ECC totals have no memory_location on AMD, as their spec describes.
+			for _, tagName := range metricSpec.CustomTags {
+				if tagName != "memory_location" {
+					assert.Contains(t, tags, tagName, "%s is missing tag %s", name, tagName)
+				}
+			}
+		}
+	}
 }
 
 func TestAMDDeviceExcludedByConfig(t *testing.T) {
@@ -180,7 +240,7 @@ func TestAMDSamplesOmitUnavailableValues(t *testing.T) {
 		VRAMUsedBytes:        amdgpu.Reading{Value: 150, Valid: true}, // inconsistent snapshot
 		PCIeLinkSpeedGTs:     amdgpu.Reading{Value: 7, Valid: true},   // not a PCIe rate
 		PCIeLinkWidth:        amdgpu.Reading{Value: 16, Valid: true},
-	})
+	}, activity{})
 
 	values := map[string]float64{}
 	for _, s := range samples {
@@ -537,6 +597,8 @@ func TestAMDKubernetesAllocationsTagDeviceMetrics(t *testing.T) {
 	// One partition each, with the "mixed" strategy resource name.
 	addPod("part1", workloadmeta.ContainerAllocatedResource{Name: "amd.com/cpx_nps4", ID: "amdgpu_xcp_1"})
 	addPod("part2", workloadmeta.ContainerAllocatedResource{Name: "amd.com/cpx_nps4", ID: "amdgpu_xcp_2"})
+	// A partition allocated through the AMD DRA driver, named after its render node.
+	addPod("dra", workloadmeta.ContainerAllocatedResource{Name: "gpu.amd.com", ID: "gpu-1-129", CdiDevices: []string{"k8s.gpu.amd.com/gpu=common"}})
 	// NVIDIA and unknown AMD allocations are not attributed to AMD GPUs.
 	addPod("nvidia", workloadmeta.ContainerAllocatedResource{Name: "nvidia.com/gpu", ID: "GPU-00000000-1234-1234-1234-123456789012"})
 	addPod("stale", workloadmeta.ContainerAllocatedResource{Name: "amd.com/gpu", ID: "0000:e1:00.0"})
@@ -559,7 +621,7 @@ func TestAMDKubernetesAllocationsTagDeviceMetrics(t *testing.T) {
 	}
 	require.Len(t, containersByUUID, 2)
 	assert.ElementsMatch(t, []string{"whole"}, containersByUUID[testAMDUUID])
-	assert.ElementsMatch(t, []string{"part1", "part2"}, containersByUUID["amd-0000-d1-00-0"])
+	assert.ElementsMatch(t, []string{"part1", "part2", "dra"}, containersByUUID["amd-0000-d1-00-0"])
 }
 
 func TestAMDCheckDisabledByConfig(t *testing.T) {
