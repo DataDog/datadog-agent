@@ -42,10 +42,6 @@ def build(
         return
 
     if enable_bazel:
-        if console:
-            raise NotImplementedError(
-                "--enable-bazel does not support --console (the Bazel target hardcodes the windows subsystem)."
-            )
         if debug:
             raise NotImplementedError(
                 "--enable-bazel does not support --debug (stripping is tied to Bazel's release mode, not this flag)."
@@ -53,7 +49,10 @@ def build(
         if race:
             raise NotImplementedError("--enable-bazel does not support --race.")
         build_binary_with_bazel(
-            "//cmd/systray:systray", bin_path=os.path.join(BIN_PATH, bin_name("ddtray")), fips_backend=fips_backend
+            "//cmd/systray:systray",
+            args=[f"--//cmd/systray:console={console}"],
+            bin_path=os.path.join(BIN_PATH, bin_name("ddtray")),
+            fips_backend=fips_backend,
         )
         return
 
