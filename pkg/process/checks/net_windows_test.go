@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 )
 
@@ -52,8 +51,7 @@ func TestRemoteServiceTags_IIS(t *testing.T) {
 		}
 
 		ex := parser.NewServiceExtractor(false, false, false)
-		hostTagsProvider := hosttags.NewHostTagProvider()
-		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
+		chunks := batchConnections(&HostInfo{}, nil, nil, nil, 10, 0,
 			[]*model.Connection{conn}, nil, "nid", nil, nil,
 			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
 			ex, nil, nil, iisTags, nil, nil, nil)
@@ -80,8 +78,7 @@ func TestRemoteServiceTags_IIS(t *testing.T) {
 		}
 
 		ex := parser.NewServiceExtractor(false, false, false)
-		hostTagsProvider := hosttags.NewHostTagProvider()
-		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
+		chunks := batchConnections(&HostInfo{}, nil, nil, nil, 10, 0,
 			[]*model.Connection{conn}, nil, "nid", nil, nil,
 			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
 			ex, nil, nil, iisTags, nil, nil, nil)

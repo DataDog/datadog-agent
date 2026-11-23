@@ -10,6 +10,8 @@ package container
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sync"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -112,7 +114,12 @@ func (l *Launcher) Stop() {
 func (l *Launcher) run(ctx context.Context, sourceProvider launchers.SourceProvider) {
 	log.Info("Starting Container launcher")
 
-	addedSources, removedSources := sourceProvider.SubscribeAll(l.addedSourcesDone, l.removedSourcesDone)
+	// Subscribe only to the container source types: tailers add file sources
+	// synchronously from this loop (see tailers.WrappedSource), so receiving
+	// them here would deadlock. A single subscription is used so that the
+	// addition and the removal of a source are received in that order.
+	addedSources, removedSources := sourceProvider.SubscribeForTypes(
+		slices.Collect(maps.Keys(containerSourceTypes)), l.addedSourcesDone, l.removedSourcesDone)
 
 	for {
 		if !l.loop(ctx, addedSources, removedSources) {

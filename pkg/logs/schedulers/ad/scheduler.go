@@ -79,7 +79,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		}
 		switch {
 		case s.newSources(config):
-			log.Infof("Received a new logs config: %v", configName(config))
+			log.Infof("Received a new logs config: %v, entity: %v", configName(config), config.ServiceID)
 			sources, err := CreateSources(config)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)

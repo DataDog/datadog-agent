@@ -159,6 +159,7 @@ type CustomEvent struct {
 	eventType     model.EventType
 	tags          []string
 	marshalerCtor func() EventMarshaler
+	workloadID    string
 }
 
 // Clone returns a copy of the current CustomEvent
@@ -167,6 +168,7 @@ func (ce *CustomEvent) Clone() CustomEvent {
 		eventType:     ce.eventType,
 		tags:          ce.tags,
 		marshalerCtor: ce.marshalerCtor,
+		workloadID:    ce.workloadID,
 	}
 }
 
@@ -187,7 +189,12 @@ func (ce *CustomEvent) GetActionReports() []model.ActionReport {
 
 // GetWorkloadID returns the workload id
 func (ce *CustomEvent) GetWorkloadID() string {
-	return ""
+	return ce.workloadID
+}
+
+func (ce *CustomEvent) WithWorkloadID(id string) *CustomEvent {
+	ce.workloadID = id
+	return ce
 }
 
 // GetFieldValue returns the field value

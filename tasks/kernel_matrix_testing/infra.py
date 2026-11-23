@@ -278,6 +278,27 @@ def get_ssh_key_name(pubkey: Path) -> str | None:
     return parts[2]
 
 
+def find_ssh_key_files(ssh_dir: PathOrStr = "~/.ssh") -> list[SSHKey]:
+    """Return a SSHKey for each public key in ssh_dir, paired with its private key.
+
+    Key names can contain dots (for example `id_rsa_user.name.pub`), so the private key path is
+    built by stripping the `.pub` suffix rather than with Path.with_suffix. AWS-created key pairs
+    are often saved as `<name>.pem`, which is used when there is no file without an extension.
+    """
+    keys: list[SSHKey] = []
+    for pubkey in sorted(glob.glob(os.path.join(os.path.expanduser(os.fspath(ssh_dir)), "*.pub"))):
+        pubkey_path = Path(pubkey)
+        base_name = pubkey_path.name[: -len(".pub")]
+        privkey = pubkey_path.with_name(base_name)
+        pem = privkey.with_name(f"{base_name}.pem")
+        if not privkey.is_file() and pem.is_file():
+            privkey = pem
+        # The .pem fallback only changes the private key path; the key pair name stays the basename.
+        key_name = get_ssh_key_name(pubkey_path) or base_name
+        keys.append({'path': os.fspath(privkey), 'name': key_name, 'aws_key_name': ''})
+    return keys
+
+
 def get_ssh_agent_key_names(ctx: Context) -> list[str]:
     """Return the key names found in the SSH agent"""
     agent_output = ctx.run("ssh-add -l")

@@ -281,6 +281,81 @@ func TestProcessWorkItem_ErrorRetry(t *testing.T) {
 	assert.Equal(t, 1, queue.NumRequeues(item), "Item should have 1 requeue")
 }
 
+func TestProcessWorkItem_PermanentErrorNotRetried(t *testing.T) {
+	gr := schema.GroupResource{Group: "gateway.networking.k8s.io", Resource: "referencegrants"}
+	for name, permanentErr := range map[string]error{
+		"forbidden": apierrors.NewForbidden(gr, "grant", errors.New("no RBAC")),
+		"invalid":   apierrors.NewInvalid(schema.GroupKind{Group: gr.Group, Kind: "ReferenceGrant"}, "grant", nil),
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			injector := newMockSecurityInjector(ctx, dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()), logmock.New(t), appsecconfig.Config{})
+			mockPattern := &mockInjectionPattern{addedErr: fmt.Errorf("could not ensure ReferenceGrant: %w", permanentErr)}
+
+			queue := workqueue.NewTypedRateLimitingQueue[workItem](
+				workqueue.NewTypedItemExponentialFailureRateLimiter[workItem](100*time.Millisecond, 1*time.Second),
+			)
+			defer queue.ShutDown()
+
+			item := workItem{obj: &unstructured.Unstructured{}, typ: workItemAdded}
+			queue.Add(item)
+
+			assert.False(t, injector.processWorkItem(ctx, appsecconfig.ProxyTypeEnvoyGateway, mockPattern, queue))
+			assert.Equal(t, 1, mockPattern.addedCalls)
+			assert.Zero(t, queue.NumRequeues(item), "permanent errors must not be requeued")
+			assert.Zero(t, queue.Len())
+		})
+	}
+}
+
+func TestProcessWorkItem_TransientForbiddenRetried(t *testing.T) {
+	gr := schema.GroupResource{Group: "gateway.networking.k8s.io", Resource: "referencegrants"}
+	for name, transientErr := range map[string]error{
+		"quota exceeded":     apierrors.NewForbidden(gr, "grant", errors.New("exceeded quota: grants, requested: count/referencegrants.gateway.networking.k8s.io=1, used: count/referencegrants.gateway.networking.k8s.io=10, limited: count/referencegrants.gateway.networking.k8s.io=10")),
+		"quota not computed": apierrors.NewForbidden(gr, "grant", errors.New("status unknown for quota: grants, resources: count/referencegrants.gateway.networking.k8s.io")),
+		"admission startup":  apierrors.NewForbidden(gr, "grant", errors.New("not yet ready to handle request")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			injector := newMockSecurityInjector(ctx, dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()), logmock.New(t), appsecconfig.Config{})
+			mockPattern := &mockInjectionPattern{addedErr: fmt.Errorf("could not ensure ReferenceGrant: %w", transientErr)}
+
+			queue := workqueue.NewTypedRateLimitingQueue[workItem](
+				workqueue.NewTypedItemExponentialFailureRateLimiter[workItem](100*time.Millisecond, 1*time.Second),
+			)
+			defer queue.ShutDown()
+
+			item := workItem{obj: &unstructured.Unstructured{}, typ: workItemAdded}
+			queue.Add(item)
+
+			assert.False(t, injector.processWorkItem(ctx, appsecconfig.ProxyTypeEnvoyGateway, mockPattern, queue))
+			assert.Equal(t, 1, mockPattern.addedCalls)
+			assert.Equal(t, 1, queue.NumRequeues(item), "transient denials can clear, so the item must be requeued")
+		})
+	}
+}
+
+func TestFailureReason(t *testing.T) {
+	gr := schema.GroupResource{Group: "gateway.envoyproxy.io", Resource: "envoyextensionpolicies"}
+	assert.Equal(t, "none", failureReason(nil))
+	assert.Equal(t, "unknown", failureReason(errors.New("boom")))
+	assert.Equal(t, "Forbidden", failureReason(fmt.Errorf("wrapped: %w", apierrors.NewForbidden(gr, "p", errors.New("no RBAC")))))
+	assert.Equal(t, "Invalid", failureReason(errors.Join(errors.New("other"), apierrors.NewInvalid(schema.GroupKind{Group: gr.Group, Kind: "EnvoyExtensionPolicy"}, "p", nil))))
+	webhookErr := &apierrors.StatusError{ErrStatus: metav1.Status{Status: metav1.StatusFailure, Code: 400, Reason: "PolicyViolation"}}
+	assert.Equal(t, "unknown", failureReason(webhookErr), "a reason set by an admission webhook must not become a tag value")
+}
+
+func TestIsPermanentError_JoinedErrors(t *testing.T) {
+	gr := schema.GroupResource{Group: "gateway.networking.k8s.io", Resource: "referencegrants"}
+	forbidden := apierrors.NewForbidden(gr, "grant", errors.New("no RBAC"))
+	invalid := apierrors.NewInvalid(schema.GroupKind{Group: gr.Group, Kind: "ReferenceGrant"}, "grant", nil)
+	timeout := apierrors.NewTimeoutError("cleanup timed out", 1)
+
+	assert.True(t, isPermanentError(fmt.Errorf("wrapped: %w", errors.Join(forbidden, fmt.Errorf("legacy: %w", invalid)))))
+	assert.False(t, isPermanentError(errors.Join(forbidden, fmt.Errorf("legacy: %w", timeout))), "the timeout can still succeed on retry")
+	assert.False(t, isPermanentError(errors.Join(timeout, fmt.Errorf("new grant: %w", forbidden))), "the timeout can still succeed on retry")
+}
+
 func TestProcessWorkItem_NotLeader(t *testing.T) {
 	mockLogger := logmock.New(t)
 	mockClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())

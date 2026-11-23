@@ -6,8 +6,9 @@
 #include "maps.h"
 #include "rate_limiter.h"
 
+// size of the prefix and suffix basename keys, which share one key on the stack;
 // has to be in sync with the userspace definition
-#define PATTERN_PREFIX_SIZE 3
+#define PATTERN_AFFIX_SIZE 3
 
 static struct approver_stats_t * __attribute__((always_inline)) get_active_approver_stats(u64 event_type) {
     struct bpf_map_def *approver_stats = select_buffer(&fb_approver_stats, &bb_approver_stats, APPROVER_MONITOR_KEY);
@@ -291,26 +292,42 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(str
         return APPROVED;
     }
 
-    // prefix fallback: build a key from the first PATTERN_PREFIX_SIZE bytes of
+    // prefix fallback: build a key from the first PATTERN_AFFIX_SIZE bytes of
     // the event basename with type=LEAF_BASENAME_PREFIX. Userspace inserts the
     // same shape for any rule whose basename contains '*' (e.g. rule
     // "abc*xyz" -> key {LEAF_BASENAME_PREFIX, "abc"}), so this matches every
     // event whose basename shares that prefix — broader than the rule. The
     // userspace re-evaluation rejects the false positives; distinct rules
     // sharing an N-byte prefix collide on a single map entry.
-    struct basename_t prefix = {
+    struct basename_t affix = {
         .type = LEAF_BASENAME_PREFIX,
     };
     #ifndef USE_FENTRY
     #pragma unroll
     #endif
-    for (int i = 0; i != PATTERN_PREFIX_SIZE; i++) {
-        prefix.value[i] = basename.value[i];
+    for (int i = 0; i != PATTERN_AFFIX_SIZE; i++) {
+        affix.value[i] = basename.value[i];
     }
 
-    if (is_basename_in_map(&prefix, event_type)) {
+    if (is_basename_in_map(&affix, event_type)) {
         monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         return APPROVED;
+    }
+
+    // suffix fallback: same idea for rules whose basename starts with '*' ("*.php" -> key
+    // {LEAF_BASENAME_SUFFIX, "php"}). The tail is read from the dentry name itself, not from
+    // basename.value, which truncates names longer than BASENAME_FILTER_SIZE - 1 and would lose it.
+    u32 len = get_dentry_name_len(dentry);
+    if (len >= PATTERN_AFFIX_SIZE) {
+        // reuse the key: only its first PATTERN_AFFIX_SIZE bytes were written, all overwritten below
+        affix.type = LEAF_BASENAME_SUFFIX;
+        const char *name = get_dentry_name_ptr(dentry);
+        bpf_probe_read(affix.value, PATTERN_AFFIX_SIZE, (void *)name + len - PATTERN_AFFIX_SIZE);
+
+        if (is_basename_in_map(&affix, event_type)) {
+            monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
+            return APPROVED;
+        }
     }
 
     return DISCARDED;

@@ -792,6 +792,15 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		runtimeSecurityEnabled = false
 	}
 
+	workloadProfileStorageDir := opts.workloadProfileStorageDir
+	if workloadProfileStorageDir == "" {
+		var err error
+		workloadProfileStorageDir, err = os.MkdirTemp(cfgDir, "profiles-*")
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":                         cfgDir,
@@ -801,8 +810,9 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"EnableSecurityProfileV2":                 true,
 		"SecurityProfileNodeEvictionTimeout":      opts.securityProfileNodeEvictionTimeout,
 		"SecurityProfileSampleRefreshPeriod":      opts.securityProfileSampleRefreshPeriod,
+		"SecurityProfileMaxImageTags":             opts.securityProfileMaxImageTags,
 		"EnableAnomalyDetection":                  opts.enableAnomalyDetection,
-		"WorkloadProfileStorageDir":               opts.workloadProfileStorageDir,
+		"WorkloadProfileStorageDir":               workloadProfileStorageDir,
 		"WorkloadProfilePersistencePeriod":        opts.workloadProfilePersistencePeriod,
 		"WorkloadProfileEventTypes":               opts.workloadProfileEventTypes,
 		"WorkloadProfileDifferentiateArgs":        opts.workloadProfileDifferentiateArgs,
@@ -894,7 +904,7 @@ func setupOptionalDatadogConfigWithDir(t testing.TB, configDir, configFile strin
 		cfg.SetConfigFile(configFile)
 	}
 	// load the configuration
-	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), &schemanoopimpl.SchemaNoop{})
+	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), &schemanoopimpl.SchemaNoop{}, false)
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	if err != nil && !errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) {
 		// special-case permission-denied with a clearer error message
@@ -905,7 +915,7 @@ func setupOptionalDatadogConfigWithDir(t testing.TB, configDir, configFile strin
 				err = fmt.Errorf("cannot access the Datadog config file (%w); try running the command under the same user as the Datadog Agent", err)
 			}
 		} else {
-			err = fmt.Errorf("unable to load Datadog config file: %w", err)
+			err = fmt.Errorf("unable to load Datadog config: %w", err)
 		}
 		return err
 	}

@@ -40,6 +40,9 @@ type workloadmeta struct {
 	storeMut sync.RWMutex
 	store    map[wmdef.Kind]map[string]*cachedEntity // store[entity.Kind][entity.ID] = &cachedEntity{}
 
+	// Protected by storeMut and updated atomically with the merged Workloads.
+	kueueWorkloadsByJob map[kueueJob]map[string]struct{}
+
 	subscribersMut sync.RWMutex
 	subscribers    []subscriber
 
@@ -99,6 +102,7 @@ func NewComponent(deps Dependencies) Provider {
 		config: deps.Config,
 
 		store:                 make(map[wmdef.Kind]map[string]*cachedEntity),
+		kueueWorkloadsByJob:   make(map[kueueJob]map[string]struct{}),
 		candidates:            candidates,
 		collectors:            make(map[string]wmdef.Collector),
 		eventCh:               make(chan []wmdef.CollectorEvent, eventChBufferSize),

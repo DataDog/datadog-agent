@@ -168,3 +168,47 @@ func TestAPIBaseURLFakeIntake(t *testing.T) {
 		assert.True(t, ShouldWarnAboutRCOverride(cfg))
 	}
 }
+
+func TestPARBackendOverrides(t *testing.T) {
+	t.Setenv(constants.InternalUseDDURLForOPMSEnvVar, "false")
+	for _, tc := range []struct {
+		name, key, site, wantKey, wantSite string
+	}{
+		{"inherit", "", "", "agent-key", "datadoghq.eu"},
+		{"own key", "par-key", "", "par-key", "datadoghq.eu"},
+		{"own site", "", "datadoghq.com", "agent-key", "datadoghq.com"},
+		{"own backend", "par-key", "datadoghq.com", "par-key", "datadoghq.com"},
+		{"normalized", " par-key\n", " US3.DATADOGHQ.COM. ", "par-key", "us3.datadoghq.com"},
+		{"empty overrides", " ", " ", "agent-key", "datadoghq.eu"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("api_key", "agent-key")
+			cfg.SetInTest("site", "datadoghq.eu")
+			cfg.SetInTest(APIKey, tc.key)
+			cfg.SetInTest(RunnerSite, tc.site)
+			require.Equal(t, tc.wantKey, EnrollmentAPIKey(cfg))
+			require.Equal(t, tc.wantSite, Site(cfg))
+			endpoint, err := APIBaseURL(cfg, Site(cfg))
+			require.NoError(t, err)
+			require.Equal(t, "https://api."+tc.wantSite, endpoint)
+			cfg.SetInTest(RunnerURL, "https://proxy.example.com")
+			endpoint, err = APIBaseURL(cfg, Site(cfg))
+			require.NoError(t, err)
+			require.Equal(t, "https://proxy.example.com", endpoint)
+			require.Equal(t, tc.wantSite, Site(cfg))
+			require.Equal(t, "agent-key", cfg.GetString("api_key"))
+			require.Equal(t, "datadoghq.eu", cfg.GetString("site"))
+		})
+	}
+}
+
+func TestPARBackendOverridesFromEnvironment(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_API_KEY", "par-key")
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_SITE", "datadoghq.com")
+	cfg := configmock.New(t)
+	cfg.SetInTest("api_key", "agent-key")
+	cfg.SetInTest("site", "datadoghq.eu")
+	require.Equal(t, "par-key", EnrollmentAPIKey(cfg))
+	require.Equal(t, "datadoghq.com", Site(cfg))
+}

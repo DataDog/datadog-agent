@@ -21,7 +21,6 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	coretaggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	filterlistdef "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -100,7 +100,7 @@ func (c *recordingComponent) SubscribeSeverityEventsReader(_ severityeventsdef.S
 // TestTimeSamplerObserverHandle verifies that ObserveMetric is called for each
 // sample fed to the TimeSampler when an observerHandle is wired.
 func TestTimeSamplerObserverHandle(t *testing.T) {
-	store := tags.NewStore(false, "test")
+	store := tags.NewStore("test")
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	handle := &recordingHandle{}
 	sampler.observerHandle = handle
@@ -134,7 +134,7 @@ func TestTimeSamplerObserverHandle(t *testing.T) {
 
 func TestTimeSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
-	store := tags.NewStore(false, "test")
+	store := tags.NewStore("test")
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	handle := &recordingHandle{}
 	sampler.observerHandle = handle
@@ -161,14 +161,14 @@ func TestTimeSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 	type samplerCase struct {
 		name    string
-		observe func(*testing.T, tagger.Component, *metrics.MetricSample, filterlistdef.TagMatcher) recordedCall
+		observe func(*testing.T, tagger.Component, *metrics.MetricSample, metricname.TagMatcher) recordedCall
 	}
 	cases := []samplerCase{
 		{
 			name: "time sampler",
-			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher filterlistdef.TagMatcher) recordedCall {
+			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher metricname.TagMatcher) recordedCall {
 				t.Helper()
-				sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), tagger, "host")
+				sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore("test"), tagger, "host")
 				handle := &recordingHandle{}
 				sampler.observerHandle = handle
 				sampler.sample(sample, 1000, matcher)
@@ -178,9 +178,9 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 		},
 		{
 			name: "check sampler",
-			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher filterlistdef.TagMatcher) recordedCall {
+			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher metricname.TagMatcher) recordedCall {
 				t.Helper()
-				sampler := newCheckSampler(10, false, false, 0, false, true, tags.NewStore(false, "test"), "test-check", tagger)
+				sampler := newCheckSampler(10, false, false, 0, false, true, tags.NewStore("test"), "test-check", tagger)
 				handle := &recordingHandle{}
 				sampler.SetObserverHandle(handle)
 				sampler.addSample(sample, matcher)
@@ -271,7 +271,7 @@ func TestNoAggStreamWorkerObserverHandleUsesSerializedTags(t *testing.T) {
 
 // TestTimeSamplerObserverHandleNil verifies no panic when observerHandle is nil.
 func TestTimeSamplerObserverHandleNil(t *testing.T) {
-	store := tags.NewStore(false, "test")
+	store := tags.NewStore("test")
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	// observerHandle is nil by default — must not panic
 
@@ -351,7 +351,7 @@ func TestSetObserverReportingEventsGateOn(t *testing.T) {
 // TestCheckSamplerObserverHandle verifies that ObserveMetric is called for each
 // sample fed to CheckSampler.addSample when an observerHandle is wired.
 func TestCheckSamplerObserverHandle(t *testing.T) {
-	store := tags.NewStore(false, "test")
+	store := tags.NewStore("test")
 	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent())
 	handle := &recordingHandle{}
 	cs.SetObserverHandle(handle)
@@ -381,7 +381,7 @@ func TestCheckSamplerObserverHandle(t *testing.T) {
 
 func TestCheckSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
-	store := tags.NewStore(false, "test")
+	store := tags.NewStore("test")
 	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent())
 	handle := &recordingHandle{}
 	cs.SetObserverHandle(handle)
@@ -406,7 +406,7 @@ func TestCheckSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 
 // TestCheckSamplerObserverHandleNil verifies no panic when observerHandle is nil.
 func TestCheckSamplerObserverHandleNil(t *testing.T) {
-	store := tags.NewStore(false, "test")
+	store := tags.NewStore("test")
 	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent())
 	// observerHandle is nil by default
 

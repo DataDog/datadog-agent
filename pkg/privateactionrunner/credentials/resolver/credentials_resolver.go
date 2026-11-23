@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	connlib "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/connection"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/httpdomain"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
@@ -102,7 +103,7 @@ func readCredentialValues(config model.Reader) (map[string]par.CredentialConfig,
 		return nil, fmt.Errorf("failed to decode %s", par.CredentialsValues)
 	}
 	for _, credential := range values {
-		if err := validateHTTPDomains(credential.AllowedHTTPDomains); err != nil {
+		if err := httpdomain.ValidatePatterns(credential.AllowedHTTPDomains); err != nil {
 			return nil, fmt.Errorf("invalid allowed_http_domains in %s: expected hostnames, IP addresses, or *.domain patterns", par.CredentialsValues)
 		}
 		for _, pattern := range credential.AllowedActions {
@@ -228,7 +229,7 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 			return nil, errors.New("cannot authorize runner credential: invalid HTTP destination")
 		}
 		for _, domains := range domainRestrictions {
-			if !allowsHTTPURL(domains, target) {
+			if !httpdomain.AllowsURL(domains, target) {
 				return nil, errors.New("request domain is not allowed by runner credential policy")
 			}
 		}
