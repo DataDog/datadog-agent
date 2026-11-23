@@ -7,10 +7,8 @@ load(
     "pkg_filegroup",
     "pkg_mkdirs",
 )
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@supply_chain_tools//sbom:sbom.bzl", "sbom")
 load("@supply_chain_tools//sbom:spdx.bzl", "spdx")
-load("//bazel/rules:compression.bzl", "get_compression_level")
 load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
 load("//bazel/rules/dd_strip:get_debug_symbols.bzl", "get_debug_symbols")
 load("//bazel/tools/healthcheck:gate.bzl", "healthcheck_gate")
@@ -107,6 +105,13 @@ forwards metrics from your applications as well as system services.
 See http://www.datadoghq.com/ for more information
 """
 
+get_debug_symbols(
+    name = "debug_symbols",
+    srcs = [":whole_distro"],
+    prefix = "{install_dir}/.debug",
+    tags = ["manual"],
+)
+
 # TODO: Look at omnibus/config/projects/agent.rb for more content here.
 dd_pkg_deb(
     name = "debian",
@@ -116,6 +121,7 @@ dd_pkg_deb(
     ],
     out = "debian.deb",
     conflicts = ["datadog-iot-agent"],
+    debug_symbols = ":debug_symbols",
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     license = "Apache License Version 2.0",
@@ -160,11 +166,7 @@ dd_pkg_rpm(
         "datadog-iot-agent",
         "glibc-common < 2.17",
     ],
-    # brp-strip corrupts eBPF objects, and fails on the read-only files that
-    # pkg_rpm copies from TreeArtifacts (Python extension modules).
-    defines = {
-        "__strip": "/bin/true",
-    },
+    debug_symbols = ":debug_symbols",
     description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",
@@ -261,19 +263,4 @@ pkg_filegroup(
 pkg_install(
     name = "install",
     srcs = [":all_files"],
-)
-
-get_debug_symbols(
-    name = "everything_debug",
-    srcs = [":everything"],
-    tags = ["manual"],
-)
-
-pkg_tar(
-    name = "debug_tar",
-    srcs = [":everything_debug"],
-    compression_level = get_compression_level(),
-    extension = "tar.xz",
-    owner = "0.0",
-    tags = ["manual"],
 )

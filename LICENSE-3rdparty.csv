@@ -1050,6 +1050,7 @@ core,github.com/containerd/errdefs/pkg/internal/cause,Apache-2.0,"Copyright 2012
 core,github.com/containerd/errdefs/pkg/internal/types,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/fifo,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/log,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/log/otel,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/platforms,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/plugin,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/ttrpc,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -1442,8 +1443,6 @@ core,github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus,Apache-2.
 core,github.com/grpc-ecosystem/go-grpc-middleware/v2,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
-core,github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
-core,github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-middleware/v2/util/backoffutils,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
 core,github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
@@ -1728,13 +1727,13 @@ core,github.com/moby/moby/api/types/system,Apache-2.0,"Copyright 2012-2017 Docke
 core,github.com/moby/moby/api/types/volume,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client/internal,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/client/internal/httperror,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client/internal/mod,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client/internal/timestamp,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client/pkg/versions,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/spdystream,Apache-2.0,"Copyright 2009-2013 The Go Authors | Copyright 2013-2021 Docker, inc. Released under the [Apache 2.0 license](LICENSE) | Copyright 2014-2021 Docker Inc"
 core,github.com/moby/spdystream/spdy,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2009-2013 The Go Authors | Copyright 2013-2021 Docker, inc. Released under the [Apache 2.0 license](LICENSE) | Copyright 2014-2021 Docker Inc"
 core,github.com/moby/sys/mountinfo,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
-core,github.com/moby/sys/sequential,Apache-2.0,Kir Kolyshkin <kolyshkin@gmail.com>|Sebastiaan van Stijn <github@gone.nl>|Sebastiaan van Stijn <thaJeztah@users.noreply.github.com>|Tibor Vass <teabee89@gmail.com>|Brian Goff <cpuguy83@gmail.com>|John Howard <jhoward@microsoft.com>|Victor Vieux <victor.vieux@docker.com>|Michael Crosby <crosby.michael@gmail.com>|Daniel Nephin <dnephin@docker.com>|Tianon Gravi <admwiggin@gmail.com>|Vincent Batts <vbatts@redhat.com>|Akihiro Suda <akihiro.suda.cz@hco.ntt.co.jp>|Michael Crosby <michael@crosbymichael.com>|Yong Tang <yong.tang.github@outlook.com>|Kir Kolyshkin <kolyshkin@users.noreply.github.com>|Christopher Jones <tophj@linux.vnet.ibm.com>|Guillaume J. Charmes <guillaume@charmes.net>|Kato Kazuyoshi <kato.kazuyoshi@gmail.com>|Manu Gupta <manugupt1@gmail.com>|Michael Crosby <crosbymichael@gmail.com>|Vincent Demeester <vincent@sbr.pm>|Aleksa Sarai <cyphar@cyphar.com>|Amit Krishnan <amit.krishnan@oracle.com>|Arnaud Porterie <arnaud.porterie@docker.com>|Brian Goff <brian.goff@microsoft.com>|Brian Goff <cpuguy@hey.com>|Dan Walsh <dwalsh@redhat.com>|Michael Crosby <michael@docker.com>|Phil Estes <estesp@gmail.com>|Shengjing Zhu <zhsj@debian.org>|Solomon Hykes <solomon@docker.com>|Tobias Klauser <tklauser@distanz.ch>|lalyos <lalyos@yahoo.com>|unclejack <unclejacksons@gmail.com>|Akihiro Suda <suda.kyoto@gmail.com>|Alexander Morozov <lk4d4@docker.com>|Jessica Frazelle <acidburn@docker.com>|Jessica Frazelle <jess@docker.com>|Jessie Frazelle <jfrazelle@users.noreply.github.com>|Justas Brazauskas <brazauskasjustas@gmail.com>|Justin Cormack <justin.cormack@docker.com>|Kazuyoshi Kato <katokazu@amazon.com>|Naveed Jamil <naveed.jamil@tenpearls.com>|Vincent Demeester <vincent.demeester@docker.com>|shuai-z <zs.broccoli@gmail.com>|Ahmet Alp Balkan <ahmetb@microsoft.com>|Aleksa Sarai <asarai@suse.com>|Alexander Larsson <alexl@redhat.com>|Alexander Morozov <lk4d4math@gmail.com>|Alexandr Morozov <lk4d4@docker.com>|Alexandr Morozov <lk4d4math@gmail.com>|Antonio Murdaca <me@runcom.ninja>|Antonio Murdaca <runcom@linux.com>|Antonio Murdaca <runcom@users.noreply.github.com>|Artem Khramov <akhramov@pm.me>|Cezar Sa Espinola <cezarsa@gmail.com>|Chen Hanxiao <chenhanxiao@cn.fujitsu.com>|Darren Stahl <darst@microsoft.com>|David Calavera <david.calavera@gmail.com>|Derek McGowan <derek@mcgstyle.net>|Eng Zer Jun <engzerjun@gmail.com>|Erik Dubbelboer <erik@dubbelboer.com>|Fabian Kramm <kramm@covexo.com>|Guillaume Dufour <gdufour.prestataire@voyages-sncf.com>|Guillaume J. Charmes <guillaume.charmes@docker.com>|Hajime Tazaki <thehajime@gmail.com>|Jamie Hannaford <jamie.hannaford@rackspace.com>|Jason A. Donenfeld <Jason@zx2c4.com>|Jhon Honce <jhonce@redhat.com>|Josh Soref <jsoref@users.noreply.github.com>|Kasper Fabæch Brandt <poizan@poizan.dk>|Kathryn Baldauf <kabaldau@microsoft.com>|Kenfe-Mickael Laventure <mickael.laventure@gmail.com>|Kirill Kolyshkin <kolyshkin@users.noreply.github.com>|Muhammad Kaisar Arkhan <hi@yukiisbo.red>|Oli <oli@overrateddev.co>|Olli Janatuinen <olli.janatuinen@gmail.com>|Paul Nasrat <pnasrat@gmail.com>|Peter Bourgon <peter@bourgon.org>|Peter Waller <peter@scraperwiki.com>|Phil Estes <estesp@linux.vnet.ibm.com>|Samuel Karp <skarp@amazon.com>|Stefan J. Wernli <swernli@microsoft.com>|Steven Hartland <steven.hartland@multiplay.co.uk>|Stig Larsson <stig@larsson.dev>|Tim Wang <timwangdev@gmail.com>|Victor Vieux <victorvieux@gmail.com>|Victor Vieux <vieux@docker.com>|Yan Feng <yanfeng2@huawei.com>|jhowardmsft <jhoward@microsoft.com>|liuxiaodong <liuxiaodong@loongson.cn>|phineas <phin@phineas.io>|unclejack <unclejack@users.noreply.github.com>|yuexiao-wang <wang.yuexiao@zte.com.cn>|谢致邦 (XIE Zhibang) <Yeking@Red54.com>
 core,github.com/moby/sys/signal,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/moby/sys/user,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/moby/sys/userns,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
@@ -2409,6 +2408,8 @@ core,github.com/prometheus/client_golang/prometheus/testutil/promlint/validation
 core,github.com/prometheus/client_model/go,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/assets,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/config,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/common/config/internal/secretvalue,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/common/config/secret,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/expfmt,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/helpers/templates,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/model,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
@@ -2612,6 +2613,7 @@ core,github.com/sijms/go-ora/v2/network/security,MIT,Copyright (c) 2020 Samy Sul
 core,github.com/sijms/go-ora/v2/network/security/md4,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sijms/go-ora/v2/trace,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sirupsen/logrus,MIT,Copyright (c) 2014 Simon Eskildsen
+core,github.com/sirupsen/logrus/hooks/slog,MIT,Copyright (c) 2014 Simon Eskildsen
 core,github.com/skydive-project/go-debouncer,Apache-2.0,"Copyright (C) 2018 Red Hat, Inc."
 core,github.com/smira/go-ftp-protocol/protocol,MIT,Copyright (c) 2014 Andrey Smirnov
 core,github.com/smira/go-xz,MIT,Copyright (c) 2015 Andrey Smirnov
@@ -3267,8 +3269,10 @@ core,go.temporal.io/api/workflowservicemock/v1,MIT,Copyright (c) 2025 Temporal T
 core,go.temporal.io/sdk/client,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/converter,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/codecerror,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/backoff,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/cache,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/common/converter,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/metrics,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/retry,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/serializer,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"

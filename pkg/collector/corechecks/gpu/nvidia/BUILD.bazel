@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "nvidia",
     srcs = [
+        "availability.go",
         "base.go",
         "collector.go",
         "device_events.go",
@@ -22,6 +23,7 @@ go_library(
         "rates.go",
         "sampling.go",
         "sharing.go",
+        "state_changes.go",
         "stateless.go",
         "strict_interval.go",
         "stub.go",
@@ -87,6 +89,7 @@ go_library(
 dd_agent_go_test(
     name = "nvidia_test",
     srcs = [
+        "availability_test.go",
         "base_test.go",
         "collector_test.go",
         "device_events_test.go",
@@ -103,6 +106,7 @@ dd_agent_go_test(
         "rates_test.go",
         "sampling_test.go",
         "sharing_test.go",
+        "state_changes_test.go",
         "stateless_test.go",
         "strict_interval_test.go",
         "types_test.go",

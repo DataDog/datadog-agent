@@ -19,6 +19,7 @@ jobs:
       id-token: write # Required for dd-octo-sts OIDC token
       pull-requests: write # Required to auto-close PRs that bump the root go directive
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -66,6 +67,7 @@ jobs:
       contents: read
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -124,6 +126,7 @@ jobs:
       contents: read
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -135,6 +138,8 @@ jobs:
           bazel mod tidy
           bazel mod deps
           bazel run @maven2//:pin
+          bazel run //deps:py_agent_integrations_tool_requirements.update
+          bazel run //deps:py_dev_requirements.update
       - uses: ./.github/actions/deps-tidy-push
         with:
           token: ${{ steps.setup.outputs.token }}

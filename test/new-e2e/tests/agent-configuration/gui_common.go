@@ -75,18 +75,12 @@ func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken str
 	guiClient := host.NewHTTPClient()
 	guiClient.Jar = jar
 
-	// Make the GET request
+	// Cookie issuance and the redirect to "/" are covered by Test_guiHTTPFlow in
+	// comp/core/gui/impl/gui_test.go; here we only need an authenticated client.
 	resp, err := guiClient.Get(guiURL.String())
 	require.NoErrorf(t, err, "failed to reach GUI at address %s", guiURL.String())
 	defer resp.Body.Close()
 	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
-
-	cookies := guiClient.Jar.Cookies(&guiURL)
-	require.NotEmpty(t, cookies)
-	assert.Equal(t, cookies[0].Name, "accessToken", "GUI server didn't the accessToken cookie")
-
-	// Assert redirection to "/"
-	assert.Equal(t, fmt.Sprintf("http://%v", net.JoinHostPort("localhost", strconv.Itoa(guiPort)))+"/", resp.Request.URL.String(), "GUI auth endpoint didn't redirect to root endpoint")
 
 	return guiClient
 }
@@ -155,18 +149,4 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 		assert.Equalf(t, expectedBodyContent, bodyContent, "content of the file %v is not the same as expected", link)
 		resp.Body.Close()
 	}
-}
-
-func checkPingEndpoint(t *testing.T, client *http.Client) {
-	guiURL := url.URL{
-		Scheme: "http",
-		Host:   net.JoinHostPort("localhost", strconv.Itoa(guiPort)),
-		Path:   "/agent/ping",
-	}
-
-	// Make the GET request
-	resp, err := client.Post(guiURL.String(), "", nil)
-	require.NoErrorf(t, err, "failed to reach GUI at address %s", guiURL.String())
-	defer resp.Body.Close()
-	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
 }

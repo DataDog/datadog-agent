@@ -15,6 +15,7 @@ import (
 	libebpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 
+	ddfeatures "github.com/DataDog/datadog-agent/pkg/ebpf/features"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -22,7 +23,18 @@ import (
 	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// netDevQueueTPBTFSupported trial-loads a tp_btf program on net_dev_queue that makes a BPF_PROBE_MEM load.
+// Kernel BTF alone is not enough: JIT_ALWAYS_ON kernels without JIT exception tables reject the load.
+var netDevQueueTPBTFSupported = func() bool {
+	err := ddfeatures.SupportsTPBTFProbeMem("net_dev_queue")
+	if err != nil {
+		log.Debugf("tp_btf/net_dev_queue not supported, falling back: %s", err)
+	}
+	return err == nil
+}
 
 func enableProbe(enabled map[manager.ProbeIdentificationPair]struct{}, name probes.ProbeFuncName) {
 	probeIdentifier := manager.ProbeIdentificationPair{
@@ -32,9 +44,10 @@ func enableProbe(enabled map[manager.ProbeIdentificationPair]struct{}, name prob
 	enabled[probeIdentifier] = struct{}{}
 }
 
-// enabledProbes returns a map of probes that are enabled per config settings.
+// enabledProbes returns the probes to attach. With natFromConntrack, the eBPF conntracker's map supplies NAT'd
+// connections' packet tuples, so the net_dev_queue probe isn't needed.
 // This map does not include the probes used exclusively in the offset guessing process.
-func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manager.ProbeIdentificationPair]struct{}, error) {
+func enabledProbes(c *config.Config, runtimeTracer, coreTracer, natFromConntrack bool) (map[manager.ProbeIdentificationPair]struct{}, error) {
 	enabled := make(map[manager.ProbeIdentificationPair]struct{}, 0)
 
 	kv410 := kernel.VersionCode(4, 1, 0)
@@ -52,8 +65,11 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 	// Default to kprobe fallback for net_dev_queue (works on all kernel versions)
 	netDevQueue := probes.DevQueueXmitNitKprobe
 
-	// Upgrade to tracepoint or raw tracepoint based on kernel version and capabilities
-	if features.HaveProgramType(libebpf.RawTracepoint) == nil {
+	// Upgrade to tp_btf, raw tracepoint, or tracepoint based on kernel version and capabilities.
+	// Only the CO-RE object has the tp_btf program.
+	if coreTracer && !util.NetDevQueueTPBTFRejected.Load() && netDevQueueTPBTFSupported() {
+		netDevQueue = probes.NetDevQueueTPBTF
+	} else if features.HaveProgramType(libebpf.RawTracepoint) == nil {
 		// Kernel >= 4.17 typically - use raw tracepoint (most efficient)
 		netDevQueue = probes.NetDevQueueRawTracepoint
 	} else if kv >= kv415 {
@@ -72,7 +88,9 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 			enableProbe(enabled, probes.ProtocolClassifierQueuesSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierDBsSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierGRPCSocketFilter)
-			enableProbe(enabled, netDevQueue)
+			if !natFromConntrack {
+				enableProbe(enabled, netDevQueue)
+			}
 			enableProbe(enabled, probes.TCPCloseCleanProtocolsReturn)
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))

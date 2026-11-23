@@ -269,10 +269,7 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
 }
 
 static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
-    ssl_ctx_pid_tgid_t key = {
-        .pid_tgid = pid_tgid,
-        .ctx = ssl_ctx,
-    };
+    ssl_ctx_pid_tgid_t key = ssl_sock_by_ctx_key(pid_tgid, ssl_ctx);
     ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &key);
     if (ssl_sock == NULL) {
         // Best-effort fallback mechanism to guess the socket address without
@@ -313,11 +310,7 @@ static __always_inline void init_ssl_sock(void *ssl_ctx, u32 socket_fd) {
     ssl_sock_t ssl_sock = {
         .fd = socket_fd,
     };
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    ssl_ctx_pid_tgid_t key = {
-        .pid_tgid = pid_tgid,
-        .ctx = ssl_ctx,
-    };
+    ssl_ctx_pid_tgid_t key = ssl_sock_by_ctx_key(bpf_get_current_pid_tgid(), ssl_ctx);
     bpf_map_update_with_telemetry(ssl_sock_by_ctx, &key, &ssl_sock, BPF_ANY);
 }
 
@@ -336,10 +329,7 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
 
     // copy map value to stack. required for older kernels
     void *ssl_ctx = *ssl_ctx_map_val;
-    ssl_ctx_pid_tgid_t key = {
-        .pid_tgid = pid_tgid,
-        .ctx = ssl_ctx,
-    };
+    ssl_ctx_pid_tgid_t key = ssl_sock_by_ctx_key(pid_tgid, ssl_ctx);
     bpf_map_update_with_telemetry(ssl_sock_by_ctx, &key, &ssl_sock, BPF_ANY);
     bpf_map_update_with_telemetry(ssl_ctx_by_tuple, &ssl_sock.tup, &ssl_ctx, BPF_ANY);
 }

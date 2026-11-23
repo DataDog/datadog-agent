@@ -730,13 +730,24 @@ func TestSendMetadataTooBig(t *testing.T) {
 	require.ErrorContains(t, err, "metadata payload was too big to send")
 	f.AssertNotCalled(t, "SubmitMetadata", mock.Anything, mock.Anything)
 
-	assert.Equal(t, float64(1), dropMetrics.payloads.WithValues(split.CompressedLimit.String()).Get())
-	assert.Zero(t, dropMetrics.payloads.WithValues(split.UncompressedLimit.String()).Get())
+	assert.Equal(t, float64(1), dropMetrics.payloads.WithValues(split.CompressedLimit.String(), "agent_metadata").Get())
+	assert.Zero(t, dropMetrics.payloads.WithValues(split.UncompressedLimit.String(), "agent_metadata").Get())
 
-	compressed := dropMetrics.bytes.WithValues("compressed").Get()
+	compressed := dropMetrics.bytes.WithValues("compressed", "agent_metadata").Get()
 	assert.Equal(t, uint64(1), compressed.Count)
 	assert.Greater(t, compressed.Sum, float64(2<<20))
-	uncompressed := dropMetrics.bytes.WithValues("uncompressed").Get()
+	uncompressed := dropMetrics.bytes.WithValues("uncompressed", "agent_metadata").Get()
 	assert.Equal(t, uint64(1), uncompressed.Count)
 	assert.Equal(t, float64(len(payload)), uncompressed.Sum)
+
+	// payloads that don't report a type are attributed to "unknown"
+	err = s.SendMetadata(untypedRawJSONPayload(payload))
+	require.ErrorContains(t, err, "metadata payload was too big to send")
+	assert.Equal(t, float64(1), dropMetrics.payloads.WithValues(split.CompressedLimit.String(), "unknown").Get())
+	assert.Equal(t, uint64(1), dropMetrics.bytes.WithValues("compressed", "unknown").Get().Count)
 }
+
+// untypedRawJSONPayload does not implement marshaler.TypedJSONMarshaler, like payloads built outside this repository.
+type untypedRawJSONPayload []byte
+
+func (p untypedRawJSONPayload) MarshalJSON() ([]byte, error) { return p, nil }

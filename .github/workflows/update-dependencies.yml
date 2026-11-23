@@ -15,6 +15,7 @@ jobs:
   backport:
     name: Update golang.org/x/... dependencies
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       id-token: write # This is required for getting the required OIDC token from GitHub
@@ -52,7 +53,7 @@ jobs:
           # depending on module order
           dda inv -- -e tidy
           dda inv -- -e tidy
-      - uses: peter-evans/create-pull-request@15733dbdfeedb4f7fdb73d13c6f5ac83b710fab8 # v8.1.2
+      - uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
         name: Create pull request
         with:
           commit-message: "chore(deps): update all golang.org/x/... dependencies"

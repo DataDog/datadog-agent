@@ -668,7 +668,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.probe.startTime, p.opts.FilterStore)
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.triggerNopEvent, p.hostname, p.probe.startTime, p.opts.FilterStore)
 		if err != nil {
 			return err
 		}
@@ -1242,7 +1242,7 @@ func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
 
 	p.probe.DispatchCustomEvent(
 		rule,
-		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtorWithRule(event, rule), tags...),
+		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtorWithRule(event, rule), tags...).WithWorkloadID(event.GetWorkloadID()),
 	)
 }
 
@@ -1336,7 +1336,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 			p.profileManager.ProcessEvent(event)
 		}
-	} else if event.Error == nil {
+	} else {
 		p.profileManager.ProcessEvent(event)
 	}
 
@@ -1518,9 +1518,32 @@ func (p *EBPFProbe) newRelatedCGroupWriteEvent(pce *model.ProcessCacheEntry) *mo
 	return relatedEvent
 }
 
+// newContainerPlaceholder returns the placeholder of a process that couldn't be resolved, in the container of the
+// cgroup reported by the kernel. Returns nil if that cgroup isn't the one of a known container.
+func (p *EBPFProbe) newContainerPlaceholder(pidContext model.PIDContext, cgroupContext model.CGroupContext) *model.ProcessCacheEntry {
+	// without bpf_get_current_cgroup_id(), the cgroup reported by the kernel can be stale
+	if !p.kernelTracksCGroupID || cgroupContext.CGroupPathKey.Inode == 0 {
+		return nil
+	}
+	cgroupEntry := p.Resolvers.CGroupResolver.GetCacheEntryByInode(cgroupContext.CGroupPathKey.Inode)
+	if cgroupEntry == nil || cgroupEntry.IsContainerContextNull() {
+		return nil
+	}
+	entry := model.NewPlaceholderProcessCacheEntry(pidContext.Pid, pidContext.Tid, false)
+	entry.PIDContext = pidContext
+	entry.CGroup = cgroupEntry.GetCGroupContext()
+	entry.ContainerContext = cgroupEntry.GetContainerContext()
+	return entry
+}
+
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
 func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, cgroupContext model.CGroupContext) bool {
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, p.onNewPCE)
+	if !isResolved && !event.PIDContext.IsKworker {
+		if placeholder := p.newContainerPlaceholder(event.PIDContext, cgroupContext); placeholder != nil {
+			entry = placeholder
+		}
+	}
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
@@ -1774,8 +1797,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
-				netNSPath := utils.NewNSPathFromPath(mountPath, utils.NetNsType)
-				_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, netNSPath)
+				p.Resolvers.NamespaceResolver.PushNetworkNamespaceMountRequest(nsid, event.PIDContext.Pid, mountPath)
 			}
 		}
 
@@ -1788,8 +1810,11 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
-			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
-				p.FlushNetworkNamespace(namespace)
+			// a dropped release would leave our handle keeping the namespace alive, so flush it here instead
+			if !p.Resolvers.NamespaceResolver.PushNetworkNamespaceUnmountRequest(nsid) {
+				if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
+					p.FlushNetworkNamespace(namespace)
+				}
 			}
 		}
 
@@ -2038,9 +2063,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			}
 		}
 
-		// remember who sent the request, so that the response can be attributed to it. Security
-		// profiles only cover containers.
-		if event.Error == nil && !event.ProcessContext.Process.ContainerContext.IsNull() && p.dnsRequests != nil {
+		// remember who sent the request, so that the response can be attributed to it
+		if p.dnsRequests != nil && needsDNSRequestTracking(event) {
 			p.dnsRequests.RecordRequest(event.DNS.ID, event.DNS.Question.Name, event.DNS.Question.Type, event.ProcessCacheEntry, time.Now())
 		}
 
@@ -2078,9 +2102,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 					}
 				}
 
-				// a rule needing the response sends it here instead of the short path. A response already
-				// attributed to a container reaches the profile with its own process context.
-				if event.ProcessContext.Process.ContainerContext.IsNull() {
+				// a rule needing the response sends it here instead of the short path
+				if needsDNSResponseCorrelation(event) {
 					p.correlateDNSResponseForActivityDump(p.dnsLayer, ips, cnames)
 				}
 			}
@@ -2325,6 +2348,9 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		}
 		return false
 	case model.NopEventType:
+		if p.profileManager != nil {
+			p.profileManager.DrainPendingEvents()
+		}
 		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
 		seclog.Debugf("nop event received, skipping further event handling")
 		return false
@@ -2817,6 +2843,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 func (p *EBPFProbe) updateEBPFCheckMapping() {
 	ddebpf.ClearProgramIDMappings("cws")
 	p.Manager.AddNameMappings("cws")
+	p.Resolvers.TCResolver.AddProgramNameMappings()
 	ddebpf.AddProbeFDMappings(p.Manager.Get())
 
 }
@@ -4396,6 +4423,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDInode, "struct dentry", "d_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDName, "struct dentry", "d_name")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameQstrName, "struct qstr", "name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameQstrLen, "struct qstr", "len")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDParent, "struct dentry", "d_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathDentry, "struct path", "dentry")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathMnt, "struct path", "mnt")

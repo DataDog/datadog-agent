@@ -56,7 +56,7 @@ log "Refreshing dnf metadata"
 dnf_install \
     cyrus-sasl \
     gcc8 gcc8-c++ \
-    git make cmake binutils diffutils \
+    git make cmake binutils diffutils rsync \
     protobuf protobuf-compiler \
     zstd xz curl bash \
     libffi-devel ncurses-devel readline-devel libxslt-devel libiconv \
@@ -190,6 +190,7 @@ verify "g++-8"      "/opt/freeware/bin/g++-8 --version | head -1" "8\\."        
 verify "go"         "/opt/go/bin/go version" "go${GO_VERSION}"                       || _rc=1
 verify "pydantic"   "/opt/freeware/bin/python3.12 -c 'import pydantic;print(pydantic.VERSION)'" "2.11" || _rc=1
 verify "git"        "git --version" "git version"                                  || _rc=1
+verify "rsync"      "/opt/freeware/bin/rsync --version | head -1" "rsync"           || _rc=1
 verify "make"       "make --version | head -1" "GNU Make"                         || _rc=1
 verify "cmake"      "cmake --version | head -1" "cmake version"                   || _rc=1
 verify "protoc"     "protoc --version" "libprotoc"                                || _rc=1
