@@ -117,6 +117,7 @@ const ownerRules = `8 /.*
 21 /CHANGELOG-DCA.rst
 7 /CHANGELOG-INSTALLSCRIPT.rst
 8 /*.md
+47 /CHANGELOG-SERVERLESS-INIT.md
 8 /AGENTS.md
 8 /CLAUDE.md
 7 /NOTICE
@@ -335,7 +336,7 @@ const ownerRules = `8 /.*
 13 /cmd/agent/dist/conf.d/cpu.d/
 21 /cmd/agent/dist/conf.d/cri.d/
 22 /cmd/agent/dist/conf.d/datadog_csi_driver.d/
-9 /cmd/agent/dist/conf.d/discovery.d/
+11 /cmd/agent/dist/conf.d/discovery.d/
 13 /cmd/agent/dist/conf.d/disk.d/
 21 /cmd/agent/dist/conf.d/docker.d/
 13 /cmd/agent/dist/conf.d/file_handle.d/
@@ -350,6 +351,7 @@ const ownerRules = `8 /.*
 11 /cmd/agent/dist/conf.d/myapp.d/
 26 /cmd/agent/dist/conf.d/mysql.d/
 0 /cmd/agent/dist/conf.d/amd_gpu.d/
+0 /cmd/agent/dist/conf.d/tpu.d/
 0 /cmd/agent/dist/conf.d/nccl.d/
 13 /cmd/agent/dist/conf.d/network.d/
 37 /cmd/agent/dist/conf.d/network_config_management.d/
@@ -430,6 +432,7 @@ const ownerRules = `8 /.*
 28 /cmd/system-probe/modules/dynamic_instrumentation*
 20 /cmd/system-probe/modules/noisy_neighbor*
 0 /cmd/system-probe/modules/gpu*
+11 /cmd/system-probe/modules/privileged_logs*
 50 /cmd/system-probe/windows/
 50 /cmd/system-probe/windows_resources/
 50 /cmd/system-probe/main_windows*.go
@@ -488,7 +491,6 @@ const ownerRules = `8 /.*
 4 /omnibus/package-scripts/agent-rpm/
 4 /omnibus/package-scripts/agent-deb/
 4 /omnibus/package-scripts/agent-dmg/
-10 /omnibus/python-scripts/
 4 /deps/openscap/
 10 /omnibus/config/software/datadog-agent-integrations-*.rb
 4 /deps/agent_integrations/
@@ -498,6 +500,7 @@ const ownerRules = `8 /.*
 4 /packages/macos
 4 /packages/windows
 4 /packages/installer
+10 /packages/agent/python-scripts/
 4 /packaging/aix/
 13 /comp
 13 /comp/agent
@@ -649,9 +652,24 @@ const ownerRules = `8 /.*
 22 /pkg/cli/subcommands/workloadfilter
 19 /pkg/cli/subcommands/autoscalerlist
 20 /pkg/cli/subcommands/processchecks
-9 /pkg/discovery/
+30 /pkg/discovery/
+9 /pkg/discovery/core/
+9 /pkg/discovery/language/
+9 /pkg/discovery/model/
+9 /pkg/discovery/usm/
+9 /pkg/discovery/module/rust/src/params.rs
+9 /pkg/discovery/module/rust/src/ust.rs
+9 /pkg/discovery/tracermetadata/
+9 /pkg/discovery/module/rust/src/comm.rs
+9 /pkg/discovery/module/rust/src/procfs/fd.rs
+9 /pkg/discovery/module/rust/src/services.rs
+9 /pkg/discovery/module/rust/src/service_name*
+9 /pkg/discovery/module/rust/src/language.rs
+9 /pkg/discovery/module/rust/src/apm.rs
+9 /pkg/discovery/module/rust/src/procfs/maps.rs
+9 /pkg/discovery/module/rust/src/tracer_metadata.rs
 13 /pkg/errors/
-9 /pkg/privileged-logs/
+11 /pkg/privileged-logs/
 13 /pkg/fips
 33 /pkg/gohai
 0 /pkg/gpu/
@@ -691,7 +709,7 @@ const ownerRules = `8 /.*
 11 /comp/core/autodiscovery/providers/file*.go
 22 /comp/core/autodiscovery/providers/config_reader*.go
 10 /comp/core/autodiscovery/providers/cloudfoundry*.go
-9 /comp/core/autodiscovery/providers/process_log*.go
+11 /comp/core/autodiscovery/providers/process_log*.go
 25 /comp/core/autodiscovery/providers/datastreams
 46 /comp/core/autodiscovery/providers/datasecurity
 39 /comp/core/autodiscovery/providers/networkpath
@@ -725,7 +743,7 @@ const ownerRules = `8 /.*
 22 /pkg/collector/corechecks/containers/csi_driver/
 21 /pkg/collector/corechecks/containerimage/
 21 /pkg/collector/corechecks/containerlifecycle/
-9 /pkg/collector/corechecks/discovery/
+11 /pkg/collector/corechecks/discovery/
 21 /pkg/collector/corechecks/ebpf/
 30 /pkg/collector/corechecks/ebpf/ebpf*
 20 /pkg/collector/corechecks/ebpf/noisyneighbor/
@@ -810,6 +828,8 @@ const ownerRules = `8 /.*
 13 /pkg/flare/certificates*.go
 32 /pkg/fleet/
 32 /pkg/fleet/**/*_windows*.go
+32 /pkg/fleet/installer/msi/
+32 /pkg/fleet/**/windows/
 32 /pkg/fleet/installer/setup/djm/
 50 /pkg/inventory/
 50 /pkg/inventory/software/
@@ -831,6 +851,7 @@ const ownerRules = `8 /.*
 1 /pkg/privateactionrunner/bundles/remoteaction/pcap
 13 /pkg/proto/
 12 /pkg/proto/datadog/dogstatsdhttp
+0 /pkg/proto/datadog/genresources
 22 /pkg/proto/datadog/kubemetadata
 20 /pkg/proto/datadog/languagedetection
 1 /pkg/proto/datadog/privateactionrunner
@@ -877,13 +898,15 @@ const ownerRules = `8 /.*
 14 /pkg/util/ktime
 21 /pkg/util/kubelet/
 21 /pkg/util/kubernetes/
+21 /pkg/util/kubernetes/autoscalers/
 41 /pkg/util/kubernetes/nodename/
 21 /pkg/util/podman/
-13 /pkg/util/port/
+18 /pkg/util/port/
 50 /pkg/util/port/portlist/*windows*.go
 21 /pkg/util/prometheus
 41 /pkg/util/quantile/
 22 /pkg/util/tags/
+34 /pkg/util/telemetry/
 22 /pkg/util/tmplvar/
 14 /pkg/util/trivy/
 13 /pkg/util/uuid/
@@ -1018,6 +1041,9 @@ const ownerRules = `8 /.*
 13 /tasks/go_deps.py
 8 /tasks/gotest.py
 12 /tasks/dogstatsd.py
+47 /tasks/serverless_init.py
+47 /tasks/libs/serverless_init/
+47 /tasks/unit_tests/serverless_init_tests.py
 13 /tasks/update_go.py
 10 /tasks/python_version.py
 13 /tasks/unit_tests/update_go_tests.py
@@ -1165,7 +1191,7 @@ const ownerRules = `8 /.*
 20 /test/new-e2e/tests/language-detection
 38 /test/new-e2e/tests/ndm
 37 /test/new-e2e/tests/ndm/netflow
-50 /test/new-e2e/tests/netpath
+39 /test/new-e2e/tests/netpath
 18 /test/new-e2e/tests/npm
 18 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go
 31 /test/new-e2e/tests/npm/ecs_1host_test.go
@@ -1207,6 +1233,7 @@ const ownerRules = `8 /.*
 48 /test/regression/container/quality_gates/quality_gate_private_action_runner*
 48 /test/regression/container/selection.yaml
 11 /test/regression/container/logs/
+12 /test/regression/container/agent-metric-pipelines/
 8 /tools/
 42 /tools/host-profiler/
 4 /tools/bazel*

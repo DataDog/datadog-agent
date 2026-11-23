@@ -181,6 +181,7 @@
 AGENTS.md	agent-devx
 CHANGELOG-DCA.rst	container-integrations
 CHANGELOG-INSTALLSCRIPT.rst	agent-delivery
+CHANGELOG-SERVERLESS-INIT.md	serverless-azure-and-gcp
 CHANGELOG.rst	agent-delivery
 CLAUDE.md	agent-devx
 Cargo.lock	agent-build
@@ -278,6 +279,7 @@ cmd/agent/dist/conf.d/systemd.d	agent-runtimes
 cmd/agent/dist/conf.d/tcp_queue_length.d	agent-runtimes
 cmd/agent/dist/conf.d/telemetry.d	agent-runtimes
 cmd/agent/dist/conf.d/thermal.d	agent-runtimes
+cmd/agent/dist/conf.d/tpu.d	agent-runtimes
 cmd/agent/dist/conf.d/uptime.d	agent-runtimes
 cmd/agent/dist/conf.d/vdi.d	agent-runtimes
 cmd/agent/dist/conf.d/versa.d	agent-runtimes
@@ -368,6 +370,7 @@ cmd/system-probe/modules/noisy_neighborx/z.go	container-experiences
 cmd/system-probe/modules/oom_kill_probex/z.go	container-integrations
 cmd/system-probe/modules/packet_capturex/z.go	cloud-network-monitoring
 cmd/system-probe/modules/pingx/z.go	network-device-monitoring-core
+cmd/system-probe/modules/privileged_logsx/z.go	agent-log-pipelines
 cmd/system-probe/modules/processx/z.go	container-experiences
 cmd/system-probe/modules/tcp_queue_tracerx/z.go	container-integrations
 cmd/system-probe/modules/traceroutex/z.go	network-path
@@ -415,7 +418,7 @@ comp/core/autodiscovery/providers/datastreams/z.go	data-streams-monitoring
 comp/core/autodiscovery/providers/filex.go	agent-log-pipelines
 comp/core/autodiscovery/providers/ndm/z.go	network-device-monitoring-core
 comp/core/autodiscovery/providers/networkpath/z.go	network-path
-comp/core/autodiscovery/providers/process_logx.go	agent-discovery
+comp/core/autodiscovery/providers/process_logx.go	agent-log-pipelines
 comp/core/autodiscovery/providers/z.go	container-platform
 comp/core/autodiscovery/z.go	container-platform
 comp/core/config/impl/config.go	fleet-automation
@@ -594,8 +597,8 @@ omnibus/config/software/datadog-agent-integrations-x.rb	agent-integrations
 omnibus/package-scripts/agent-deb/z.go	agent-build
 omnibus/package-scripts/agent-dmg/z.go	agent-build
 omnibus/package-scripts/agent-rpm/z.go	agent-build
-omnibus/python-scripts/z.go	agent-integrations
 omnibus/z.go	agent-build
+packages/agent/python-scripts/z.go	agent-integrations
 packages/debian/z.go	agent-build
 packages/installer/z.go	agent-build
 packages/macos/z.go	agent-build
@@ -646,7 +649,7 @@ pkg/collector/corechecks/containerimage/z.go	container-integrations
 pkg/collector/corechecks/containerlifecycle/z.go	container-integrations
 pkg/collector/corechecks/containers/csi_driver/z.go	container-platform
 pkg/collector/corechecks/containers/z.go	container-integrations
-pkg/collector/corechecks/discovery/z.go	agent-discovery
+pkg/collector/corechecks/discovery/z.go	agent-log-pipelines
 pkg/collector/corechecks/ebpf/c/runtime/ebpfx/z.go	ebpf-platform
 pkg/collector/corechecks/ebpf/c/runtime/noisy-neighborx/z.go	container-experiences
 pkg/collector/corechecks/ebpf/ebpfx/z.go	ebpf-platform
@@ -730,7 +733,22 @@ pkg/diagnose/firewallscanner/z.go	network-device-monitoring-core
 pkg/diagnose/ports/xwindowsx.go	windows-products
 pkg/diagnose/ports/z.go	fleet-remediation
 pkg/diagnose/z.go	fleet-remediation
-pkg/discovery/z.go	agent-discovery
+pkg/discovery/core/z.go	agent-discovery
+pkg/discovery/language/z.go	agent-discovery
+pkg/discovery/model/z.go	agent-discovery
+pkg/discovery/module/rust/src/apm.rs	agent-discovery
+pkg/discovery/module/rust/src/comm.rs	agent-discovery
+pkg/discovery/module/rust/src/language.rs	agent-discovery
+pkg/discovery/module/rust/src/params.rs	agent-discovery
+pkg/discovery/module/rust/src/procfs/fd.rs	agent-discovery
+pkg/discovery/module/rust/src/procfs/maps.rs	agent-discovery
+pkg/discovery/module/rust/src/service_namex/z.go	agent-discovery
+pkg/discovery/module/rust/src/services.rs	agent-discovery
+pkg/discovery/module/rust/src/tracer_metadata.rs	agent-discovery
+pkg/discovery/module/rust/src/ust.rs	agent-discovery
+pkg/discovery/tracermetadata/z.go	agent-discovery
+pkg/discovery/usm/z.go	agent-discovery
+pkg/discovery/z.go	ebpf-platform
 pkg/dyninst/z.go	debugger-go
 pkg/ebpf/map_cleanerx.go	ebpf-platform
 pkg/ebpf/z.go	ebpf-platform
@@ -742,7 +760,9 @@ pkg/flare/x_win.go	windows-products
 pkg/flare/x_windows.go	windows-products
 pkg/flare/x_windows_test.go	windows-products
 pkg/flare/z.go	fleet-remediation
+pkg/fleet/a/b/windows/z.go	fleet
 pkg/fleet/a/b/x_windowsx.go	fleet
+pkg/fleet/installer/msi/z.go	fleet
 pkg/fleet/installer/setup/djm/z.go	fleet
 pkg/fleet/z.go	fleet
 pkg/gohai/z.go	fleet-automation
@@ -813,7 +833,7 @@ pkg/privateactionrunner/bundles/remoteaction/networks/z.go	action-platform
 pkg/privateactionrunner/bundles/remoteaction/pcap/z.go	action-platform
 pkg/privateactionrunner/bundles/remoteaction/rshell/z.go	action-platform
 pkg/privateactionrunner/z.go	action-platform
-pkg/privileged-logs/z.go	agent-discovery
+pkg/privileged-logs/z.go	agent-log-pipelines
 pkg/process/checks/netx.go	cloud-network-monitoring
 pkg/process/metadata/parser/xwindowsx/z.go	ebpf-platform
 pkg/process/metadata/parser/z.go	ebpf-platform
@@ -825,6 +845,7 @@ pkg/procmgr/rust/src/platform/windows/z.go	agent-runtimes
 pkg/procmgr/rust/src/transport/named_pipe.rs	agent-runtimes
 pkg/procmgr/z.go	agent-runtimes
 pkg/proto/datadog/dogstatsdhttp/z.go	agent-metric-pipelines
+pkg/proto/datadog/genresources/z.go	accelerator-telemetry
 pkg/proto/datadog/kubemetadata/z.go	container-platform
 pkg/proto/datadog/languagedetection/z.go	container-experiences
 pkg/proto/datadog/privateactionrunner/z.go	action-platform
@@ -919,6 +940,7 @@ pkg/util/kernel/z.go	ebpf-platform
 pkg/util/ktime/z.go	agent-security
 pkg/util/kubelet/z.go	container-integrations
 pkg/util/kubernetes/apiserver/apiserver.go	container-integrations
+pkg/util/kubernetes/autoscalers/z.go	container-integrations
 pkg/util/kubernetes/nodename/z.go	opentelemetry-agent
 pkg/util/kubernetes/z.go	container-integrations
 pkg/util/log/log.go	agent-runtimes
@@ -927,13 +949,14 @@ pkg/util/log/z.go	agent-runtimes
 pkg/util/pdhutil/z.go	windows-products
 pkg/util/podman/z.go	container-integrations
 pkg/util/port/portlist/xwindowsx.go	windows-products
-pkg/util/port/z.go	agent-runtimes
+pkg/util/port/z.go	cloud-network-monitoring
 pkg/util/prometheus/z.go	container-integrations
 pkg/util/quantile/z.go	opentelemetry-agent
 pkg/util/retry/z.go	container-platform
 pkg/util/safeelf/z.go	ebpf-platform
 pkg/util/slices/z.go	ebpf-platform
 pkg/util/tags/z.go	container-platform
+pkg/util/telemetry/z.go	fleet-remediation
 pkg/util/testutil/docker/z.go	ebpf-platform
 pkg/util/testutil/flake/z.go	agent-devx
 pkg/util/testutil/patternscanner.go	ebpf-platform
@@ -1001,6 +1024,7 @@ tasks/libs/logs_tokenizer/z.go	agent-log-pipelines
 tasks/libs/package/binaries.py	agent-build
 tasks/libs/package/metadata.py	agent-build
 tasks/libs/releasing/z.go	agent-delivery
+tasks/libs/serverless_init/z.go	serverless-azure-and-gcp
 tasks/libs/testing/benchmarkeks.py	container-integrations
 tasks/libs/trace_dupcheck.py	agent-apm
 tasks/loader.py	agent-runtimes
@@ -1022,6 +1046,7 @@ tasks/sbomgen.py	agent-security
 tasks/schema/z.go	fleet-automation
 tasks/secret_generic_connector.py	fleet-automation
 tasks/security_agent.py	agent-security
+tasks/serverless_init.py	serverless-azure-and-gcp
 tasks/skaffold.py	agent-devx
 tasks/static_quality_gates/z.go	agent-build
 tasks/system_probe.py	ebpf-platform
@@ -1050,6 +1075,7 @@ tasks/unit_tests/par_legacy_startup_template_tests.py	action-platform
 tasks/unit_tests/procmgr_init_templates_tests.py	agent-runtimes
 tasks/unit_tests/python_version_tests.py	agent-integrations
 tasks/unit_tests/schema_x/z.go	fleet-automation
+tasks/unit_tests/serverless_init_tests.py	serverless-azure-and-gcp
 tasks/unit_tests/static_quality_gates/z.go	agent-build
 tasks/unit_tests/system_probe_test_programs_tests.py	debugger-go
 tasks/unit_tests/testdata/collector/z.go	opentelemetry-agent
@@ -1142,7 +1168,7 @@ test/new-e2e/tests/installer/z.go	fleet
 test/new-e2e/tests/language-detection/z.go	container-experiences
 test/new-e2e/tests/ndm/netflow/z.go	ndm-integrations
 test/new-e2e/tests/ndm/z.go	network-device-monitoring-core
-test/new-e2e/tests/netpath/z.go	windows-products
+test/new-e2e/tests/netpath/z.go	network-path
 test/new-e2e/tests/npm/ec2_1host_wkit_test.go	cloud-network-monitoring
 test/new-e2e/tests/npm/ecs_1host_test.go	ecs-experiences
 test/new-e2e/tests/npm/z.go	cloud-network-monitoring
@@ -1163,6 +1189,7 @@ test/new-e2e/tests/usm/z.go	ebpf-platform
 test/new-e2e/tests/windows/z.go	windows-products
 test/new-e2e/z.go	agent-devx
 test/otel/z.go	opentelemetry-agent
+test/regression/container/agent-metric-pipelines/z.go	agent-metric-pipelines
 test/regression/container/logs/z.go	agent-log-pipelines
 test/regression/container/quality_gates/quality_gate_private_action_runnerx/z.go	single-machine-performance
 test/regression/container/quality_gates/quality_gate_security_x/z.go	single-machine-performance
