@@ -28,8 +28,8 @@ type Context struct {
 	mtype      metrics.MetricType
 	taggerTags *tags.Entry
 	metricTags *tags.Entry
-	noIndex bool
-	source  metrics.MetricSource
+	noIndex    bool
+	source     metrics.MetricSource
 
 	filteredIdentityRef uint32
 }
