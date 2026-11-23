@@ -186,8 +186,8 @@ profile:
 
 | Metric | Meaning |
 |---|---|
-| `data_plane.preflight_mode_result{result}` | One value per run: `clean`, or the first finding. |
-| `data_plane.preflight_mode_finding{finding,source_file,source_line}` | One increment per distinct finding, and for the two findings that come from ADP's log, one per distinct log site it was reported from. |
+| `data_plane.preflight_mode_result{result}` | One value per run: `clean`, or the first finding that is not `config_advisory`. |
+| `data_plane.preflight_mode_finding{finding,source_file,source_line}` | One increment per distinct finding, and for the findings that come from ADP's log, one per distinct log site it was reported from. |
 | `data_plane.preflight_mode_duration_seconds` | Wall-clock length of the run. |
 
 The profile's schedule is **recurring**, not one-shot, so that changing the run window cannot
@@ -196,9 +196,9 @@ be no later collection. Safe because counters are delta-converted — the increm
 whichever flush first observes it, and later flushes send zero, which `zero_metric` drops.
 
 Findings: `spawn_failed`, `probe_failed`, `exited_early`, `stop_timeout`, `errors_in_log`,
-`warnings_in_log`, `output_dropped`, `interrupted`.
+`warnings_in_log`, `output_dropped`, `interrupted`, `config_advisory`.
 
-`errors_in_log` and `warnings_in_log` are additionally tagged with the ADP source location
+`errors_in_log`, `warnings_in_log`, and `config_advisory` are additionally tagged with the ADP source location
 that logged the record — `source_file:lib/saluki-components/src/common/datadog/validation.rs`,
 `source_line:286` — so the same failure can be counted across the fleet by the log site that
 produced it. Those values come from ADP's own `file!()`/`line!()`, making them compile-time
@@ -281,6 +281,15 @@ run and drown the ones that matter. Today that is just the `standalone mode` war
 by `data_plane.standalone_mode`; the list is `expectedWarnings` in `capture.go`, matched on
 target plus a message substring so that an unrelated component cannot suppress a real
 warning by wording.
+
+Some warnings report an operator configuration problem that the Core Agent has too, so they say
+nothing about whether ADP can replace it. These are reported as `config_advisory`, with their log
+site, instead of `warnings_in_log`, and an advisory never becomes the run's result: a run whose
+only finding is an advisory reports `clean`. The list is `expectedAdvisories` in `capture.go`,
+matched like `expectedWarnings`. Today it holds the warning ADP logs when Multi-Region Failover is
+enabled without `multi_region_failover.api_key`, or without a failover site or `dd_url`. The Core
+Agent does not start without a failover site or `dd_url`, and with an empty failover API key it
+sends failover traffic with an empty key, so failover is broken on both.
 
 > When choosing a fake API key for testing, avoid one character repeated 32 times
 > (`00000000...`). ADP treats those as placeholders and skips validation entirely, so no

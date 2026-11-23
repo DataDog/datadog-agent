@@ -56,6 +56,7 @@ const (
 	modeNormal           = "normal"
 	modeErrors           = "errors"
 	modeInvalidAPIKey    = "invalid_api_key"
+	modeMRFAdvisory      = "mrf_advisory"
 	modeExitEarly        = "exit_early"
 	modeCrash            = "crash"
 	modePanic            = "panic"
@@ -89,6 +90,7 @@ var (
 	siteDefault       = fakeSite{file: "bin/agent-data-plane/src/main.rs", line: 1}
 	siteNetError      = fakeSite{file: "lib/saluki-io/src/net/mod.rs", line: 412}
 	siteInvalidAPIKey = fakeSite{file: "lib/saluki-components/src/common/datadog/validation.rs", line: 286}
+	siteMRFAdvisory   = fakeSite{file: "bin/agent-data-plane/src/cli/run.rs", line: 341}
 )
 
 // adpLog writes one log record in ADP's JSON format, from siteDefault.
@@ -230,6 +232,15 @@ func runFakeDataPlane() int {
 		// The real binary reports a rejected key at WARN, from this target.
 		adpLogAt(os.Stderr, "WARN", "saluki_components::common::datadog::validation",
 			"Datadog API key is invalid.", siteInvalidAPIKey)
+	}
+
+	if mode == modeMRFAdvisory {
+		// The real binary logs this at WARN when Multi-Region Failover is enabled without a
+		// failover API key or site.
+		adpLogAt(os.Stderr, "WARN", "agent_data_plane::cli::run",
+			"Multi-Region Failover is enabled, but multi_region_failover.api_key and one of "+
+				"multi_region_failover.dd_url or multi_region_failover.site are required for metrics forwarding.",
+			siteMRFAdvisory)
 	}
 
 	// The real binary only handles SIGINT; see the stopSignal comment in terminate_nix.go.
@@ -519,6 +530,19 @@ func TestPreflightModeInvalidAPIKey(t *testing.T) {
 	// is not a finding, so it contributes no location either.
 	assert.Equal(t, []sourceLocation{siteInvalidAPIKey.location()},
 		h.findingLocations(t, findingWarningsInLog))
+}
+
+// TestPreflightModeMRFAdvisory covers a configuration problem the Core Agent has too: it is
+// reported as an advisory with its log site, and it does not make the run fail.
+func TestPreflightModeMRFAdvisory(t *testing.T) {
+	h := newHarness(t, modeMRFAdvisory, nil)
+	h.runToCompletion(t)
+
+	assert.Equal(t, resultClean, h.result(t), "an advisory must not become the run's result")
+	assert.Zero(t, h.findingCount(t, findingWarningsInLog), "an advisory must not count as a warning")
+	assert.Equal(t, 1.0, h.findingCount(t, findingConfigAdvisory))
+	assert.Equal(t, []sourceLocation{siteMRFAdvisory.location()},
+		h.findingLocations(t, findingConfigAdvisory))
 }
 
 func TestPreflightModeExitsEarly(t *testing.T) {

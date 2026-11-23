@@ -28,6 +28,11 @@ const (
 	findingWarningsInLog finding = "warnings_in_log" // ADP logged a warning we did not cause
 	findingOutputDropped finding = "output_dropped"  // the capture buffer overflowed
 	findingInterrupted   finding = "interrupted"     // the Agent shut down mid-run
+
+	// findingConfigAdvisory is an operator configuration problem that ADP logged and that the Core
+	// Agent has too. It is reported on the finding metric but never becomes the run's result,
+	// because it does not show that ADP would behave worse than the Agent. See expectedAdvisories.
+	findingConfigAdvisory finding = "config_advisory"
 )
 
 // resultClean is the result label used when a run produced no findings at all.
@@ -44,6 +49,7 @@ var allFindings = []finding{
 	findingWarningsInLog,
 	findingOutputDropped,
 	findingInterrupted,
+	findingConfigAdvisory,
 }
 
 // Metric and label names. These are duplicated in the agent telemetry profile in
@@ -112,7 +118,7 @@ func (o *outcome) add(f finding) {
 
 // reportedLocations returns the log sites the finding is reported with, one point each.
 //
-// Only the two log findings have a location at all: every other finding is something the
+// Only the log findings have a location at all: every other finding is something the
 // pre-flight itself observed about the process, not something ADP logged from a known place in
 // its source.
 func (o *outcome) reportedLocations(f finding) []sourceLocation {
@@ -122,6 +128,8 @@ func (o *outcome) reportedLocations(f finding) []sourceLocation {
 		locations = locationsOf(o.records, isError)
 	case findingWarningsInLog:
 		locations = locationsOf(o.records, isUnexpectedWarning)
+	case findingConfigAdvisory:
+		locations = locationsOf(o.records, isAdvisory)
 	default:
 		return []sourceLocation{locationNone}
 	}
@@ -145,12 +153,15 @@ func (o *outcome) reportedLocations(f finding) []sourceLocation {
 }
 
 // result is the single value reported for the run. The first finding wins, since findings are
-// recorded in the order they occur and the earliest is the most explanatory.
+// recorded in the order they occur and the earliest is the most explanatory. An advisory is
+// skipped, so a run whose only finding is an advisory is clean.
 func (o *outcome) result() string {
-	if len(o.findings) == 0 {
-		return resultClean
+	for _, f := range o.findings {
+		if f != findingConfigAdvisory {
+			return string(f)
+		}
 	}
-	return string(o.findings[0])
+	return resultClean
 }
 
 // reporter ships the outcome of a preflight mode run.

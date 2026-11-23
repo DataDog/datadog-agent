@@ -804,9 +804,10 @@ profiles:
       # of values that we expect to have for the `finding` tag.
       #
       # `source_file` and `source_line` are the Agent Data Plane source location that logged the problem, and are
-      # only populated for the `errors_in_log` and `warnings_in_log` findings; every other finding carries them
-      # empty. They are bounded on the producing side: the values come from ADP's `file!()`/`line!()` rather than
-      # from any log message, and the number of distinct locations reported per finding is capped.
+      # only populated for the `errors_in_log`, `warnings_in_log`, and `config_advisory` findings; every other
+      # finding carries them empty. They are bounded on the producing side: the values come from ADP's
+      # `file!()`/`line!()` rather than from any log message, and the number of distinct locations reported per
+      # finding is capped.
       - name: data_plane.preflight_mode_finding
         preserve_tags:
           - finding
