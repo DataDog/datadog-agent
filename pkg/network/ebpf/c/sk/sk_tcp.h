@@ -123,6 +123,7 @@ static __always_inline void reset_sk_tcp_stats(struct sock *sk, sk_tcp_stats_t *
     sk_stats->failure_reason = 0;
     sk_stats->tcp_event_stats = (tcp_event_stats_t){};
     sk_stats->close_sent = 0;
+    sk_stats->app_closed = 0;
 }
 
 static __always_inline void sockops_tcp_close(struct bpf_sock_ops *ctx, struct sock *sk, sk_tcp_stats_t *sk_stats) {
@@ -326,6 +327,7 @@ int BPF_PROG(tcp_close_entry, struct sock *sk) {
     // The close event is sent later, when the socket is destroyed, see send_tcp_close_event.
     // The connection only reaches TCP_CLOSE then, so until that point it's listed as active,
     // and not closed, by bpf_iter__sk_storage_map_tcp_orphans.
+    sk_stats->app_closed = 1;
     handle_sk_tcp_failure(sk, sk_stats);
     return 0;
 }

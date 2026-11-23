@@ -139,6 +139,14 @@ static __always_inline bool is_sock_dead(struct sock *sk) {
 // the kernel is still tearing down (FIN_WAIT, CLOSING, LAST_ACK). They have no file anymore,
 // so bpf_iter__task_file_socket doesn't find them, and their close event is only sent once
 // they are destroyed, see send_tcp_close_event. It is attached to the sk_tcp_stats map.
+//
+// That includes a socket whose tcp_close is still running: with SO_LINGER, tcp_close waits (up
+// to the linger time) for the queued data to be sent before orphaning the socket, and the file
+// is already gone from the fd table by then.
+//
+// The file is removed from the fd table before tcp_close runs, so a socket can't be listed by both
+// iterators for that reason. It can be if the application closes it between the two iterations of
+// a check, in which case userspace keeps a single entry for the socket's cookie (mergeByCookie).
 SEC("iter/bpf_sk_storage_map")
 int bpf_iter__sk_storage_map_tcp_orphans(struct bpf_iter__bpf_sk_storage_map *ctx) {
     struct sock *sk = ctx->sk;
@@ -149,8 +157,11 @@ int bpf_iter__sk_storage_map_tcp_orphans(struct bpf_iter__bpf_sk_storage_map *ct
     if (sk_stats->close_sent) {
         return 0;
     }
-    // SOCK_DEAD is set by sock_orphan, when the socket is detached from its file in tcp_close
-    if (!is_sock_dead(sk)) {
+    // app_closed is set at the start of tcp_close, and SOCK_DEAD by sock_orphan, when tcp_close
+    // detaches the socket from its file. SOCK_DEAD is still needed for the sockets that are
+    // orphaned without going through tcp_close: those a listener had not accepted yet when it was
+    // closed (inet_child_forget).
+    if (!sk_stats->app_closed && !is_sock_dead(sk)) {
         return 0;
     }
     if (!is_protocol_family_enabled(sk)) {

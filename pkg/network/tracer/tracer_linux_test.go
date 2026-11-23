@@ -3483,6 +3483,169 @@ func (s *TracerSuite) TestTCPOrphanNotExpired() {
 	assert.Equal(t, uint64(len(payload)), totals.sentBytes, "bytes sent by the client\n%s", strings.Join(totals.reports, "\n"))
 }
 
+// fillTCPSendQueue writes to c until the peer's receive buffer and c's send buffer are full, so
+// that what c wrote is still queued in its send buffer. The peer must not be reading. It shrinks
+// c's send buffer first, and writes until the write blocks rather than a fixed amount, so that it
+// works whatever the tcp_wmem/tcp_rmem sysctls are. It returns the number of bytes written.
+func fillTCPSendQueue(t *testing.T, c net.Conn) int {
+	tcpConn, ok := c.(*net.TCPConn)
+	require.True(t, ok)
+	// a fixed send buffer also disables its autotuning
+	require.NoError(t, tcpConn.SetWriteBuffer(64<<10))
+	chunk := genPayload(16 << 10)
+	require.NoError(t, c.SetWriteDeadline(time.Now().Add(500*time.Millisecond)))
+	written := 0
+	for {
+		n, err := c.Write(chunk)
+		written += n
+		if err != nil {
+			require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+			break
+		}
+		require.Less(t, written, 256<<20, "the peer's receive buffer never filled up")
+	}
+	require.NoError(t, c.SetWriteDeadline(time.Time{}))
+	require.Positive(t, written)
+	queued := tcpSendQueueBytes(t, c)
+	t.Logf("%d of %d bytes still queued (SO_SNDBUF %d)", queued, written, tcpSockoptInt(t, c, unix.SO_SNDBUF))
+	require.Positive(t, queued, "data should still be queued in the send buffer")
+	return written
+}
+
+// setTCPReadBuffer sets the receive buffer of c, which also disables its autotuning, so that it
+// fills up quickly once the application stops reading.
+func setTCPReadBuffer(c net.Conn, size int) {
+	if tcpConn, ok := c.(*net.TCPConn); ok {
+		_ = tcpConn.SetReadBuffer(size)
+	}
+}
+
+// tcpSendQueueBytes returns the number of bytes of c's send buffer not yet acknowledged by the peer
+func tcpSendQueueBytes(t *testing.T, c net.Conn) int {
+	tcpConn, ok := c.(*net.TCPConn)
+	require.True(t, ok)
+	rc, err := tcpConn.SyscallConn()
+	require.NoError(t, err)
+	var queued int
+	var ioctlErr error
+	require.NoError(t, rc.Control(func(fd uintptr) {
+		queued, ioctlErr = unix.IoctlGetInt(int(fd), unix.SIOCOUTQ)
+	}))
+	require.NoError(t, ioctlErr)
+	return queued
+}
+
+// tcpSockoptInt returns the value of the SOL_SOCKET option opt of c
+func tcpSockoptInt(t *testing.T, c net.Conn, opt int) int {
+	tcpConn, ok := c.(*net.TCPConn)
+	require.True(t, ok)
+	rc, err := tcpConn.SyscallConn()
+	require.NoError(t, err)
+	var val int
+	var sockErr error
+	require.NoError(t, rc.Control(func(fd uintptr) {
+		val, sockErr = unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, opt)
+	}))
+	require.NoError(t, sockErr)
+	return val
+}
+
+// TestTCPLingerCloseStaysListed checks that a TCP connection is still listed while the application's
+// close() waits for SO_LINGER, and that it's counted once. During that wait, the socket has no file
+// anymore, but isn't orphaned yet either. A check missing the connection makes userspace drop its
+// stats, so that the next check would count the whole connection again.
+func (s *TracerSuite) TestTCPLingerCloseStaysListed() {
+	t := s.T()
+	if ebpftest.GetBuildMode() != ebpftest.SK {
+		t.Skip("only the SK tracer lists closed sockets as active until they are destroyed")
+	}
+	tr := setupTracer(t, testConfig())
+
+	startReading := make(chan struct{})
+	var startReadingOnce sync.Once
+	releaseServer := func() { startReadingOnce.Do(func() { close(startReading) }) }
+	t.Cleanup(releaseServer)
+	serverDone := make(chan int64, 1)
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		setTCPReadBuffer(c, 64<<10)
+		// don't read until the client's close() has returned, so that it waits for SO_LINGER
+		<-startReading
+		n, _ := io.Copy(io.Discard, c)
+		c.Close()
+		serverDone <- n
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	const lingerSeconds = 3
+	tcpConn, ok := c.(*net.TCPConn)
+	require.True(t, ok)
+	require.NoError(t, tcpConn.SetLinger(lingerSeconds))
+	written := fillTCPSendQueue(t, c)
+	clientAddr, serverAddr := c.LocalAddr(), c.RemoteAddr()
+
+	var totals tcpConnTotals
+	require.True(t, pollConnections(t, tr, 3*time.Second, func(conns *network.Connections) bool {
+		totals.add(conns, clientAddr, serverAddr)
+		return totals.sentBytes > 0
+	}), "connection not found")
+
+	// close() blocks until the queued data is sent, which it can't be, or the linger time is over
+	closeStart := time.Now()
+	closeDone := make(chan time.Duration, 1)
+	go func() {
+		c.Close()
+		closeDone <- time.Since(closeStart)
+	}()
+	// The connections a check reports are only those whose stats changed, while the connection is
+	// idle here, so look at what the tracer lists, then run a check as usual.
+	isListed := func() bool {
+		_, active, err := tr.getConnections(network.NewConnectionBuffer(512, 512))
+		require.NoError(t, err)
+		for _, conn := range active {
+			if conn.Type == network.TCP && network.ByTuple(clientAddr, serverAddr)(conn) {
+				return true
+			}
+		}
+		return false
+	}
+	var closeTook time.Duration
+	for fetch := 1; closeTook == 0; fetch++ {
+		listed := isListed()
+		connections, cleanup := getConnections(t, tr)
+		totals.add(connections, clientAddr, serverAddr)
+		cleanup()
+		// after close() returns the socket is orphaned, so it must be listed in every fetch
+		require.True(t, listed, "connection not listed in fetch %d, %s after close() started\n%s", fetch, time.Since(closeStart), strings.Join(totals.reports, "\n"))
+		select {
+		case closeTook = <-closeDone:
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	t.Logf("close() took %s", closeTook)
+	require.Greater(t, closeTook, time.Second, "close() should have waited for SO_LINGER")
+	require.Zero(t, totals.closed, "connection reported closed while its data is still queued\n%s", strings.Join(totals.reports, "\n"))
+
+	releaseServer()
+	select {
+	case n := <-serverDone:
+		require.Equal(t, int64(written), n, "server didn't receive the whole payload")
+	case <-time.After(10 * time.Second):
+		require.Fail(t, "server didn't receive the whole payload in time")
+	}
+	waitForTCPTeardown(t, tr, clientAddr, serverAddr, func(conns *network.Connections) {
+		totals.add(conns, clientAddr, serverAddr)
+	})
+
+	t.Logf("reports:\n%s", strings.Join(totals.reports, "\n"))
+	assert.Equal(t, uint16(1), totals.closed, "connection should be reported closed exactly once\n%s", strings.Join(totals.reports, "\n"))
+	// the kernel's count of bytes put on the wire includes retransmissions, see TestTCPCloseReportsDataSentAfterClose
+	assert.GreaterOrEqual(t, totals.sentBytes, uint64(written), "bytes sent by the client\n%s", strings.Join(totals.reports, "\n"))
+	assert.Less(t, totals.sentBytes, uint64(2*written), "bytes sent by the client, counted twice?\n%s", strings.Join(totals.reports, "\n"))
+}
+
 // TestTCPCloseReportsDataSentAfterClose checks that the bytes an application wrote before closing
 // a TCP connection are all reported, including those the kernel only sends after the close.
 func (s *TracerSuite) TestTCPCloseReportsDataSentAfterClose() {

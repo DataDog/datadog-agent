@@ -39,6 +39,9 @@ typedef struct {
     // set once the close event for the current connection on this socket has been sent (or
     // dropped, if the ring buffer was full), see send_tcp_close_event. Cleared when the socket is connected again.
     __u8 close_sent;
+    // set when the application closes the socket (tcp_close). From then on the socket has no file
+    // anymore, even while tcp_close itself still waits for SO_LINGER, before the socket is orphaned.
+    __u8 app_closed;
 } sk_tcp_stats_t;
 
 typedef struct {
