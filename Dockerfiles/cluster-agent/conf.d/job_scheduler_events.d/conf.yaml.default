@@ -1,0 +1,7 @@
+## The job_scheduler_events check sends the events of Kueue Workloads and KAI
+## PodGroups. It does nothing unless cluster_agent.kueue.events.enabled or
+## cluster_agent.kai_scheduler.events.enabled is set.
+init_config:
+
+instances:
+  - {}

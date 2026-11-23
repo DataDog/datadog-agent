@@ -23,6 +23,7 @@ go_library(
         "//pkg/languagedetection/languagemodels",
         "//pkg/util/gpu",
         "//pkg/util/kubernetes",
+        "//pkg/util/log",
         "@io_k8s_api//apps/v1:apps",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apiextensions_apiserver//pkg/apis/apiextensions/v1:apiextensions",
