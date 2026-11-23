@@ -452,9 +452,11 @@ func (s *sender) sendOnce(p *payload) bool {
 		}
 
 		if r := p.retries.Inc(); (r&(r-1)) == 0 && r > 3 && r < s.maxRetries {
-			// Only log a warning if the retry attempt is a power of 2
-			// and larger than 3, to avoid alerting the user unnecessarily.
-			// e.g. attempts 4, 8, 16, etc.
+			// Only log a warning if the retry attempt is a power of 2,
+			// larger than 3 and below the retry limit, to avoid alerting
+			// the user unnecessarily (e.g. attempts 4, 8, 16, etc. when the
+			// limit is higher). The attempt that reaches the limit logs
+			// only the drop warning below.
 			log.Warnf("Retried payload %d times: %s", r, err.Error())
 		}
 		if p.retries.Load() >= s.maxRetries {
