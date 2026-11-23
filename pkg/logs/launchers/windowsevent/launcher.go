@@ -46,7 +46,8 @@ type Launcher struct {
 	tailers                map[string]tailer
 	activeSources          map[string]*sources.LogSource
 	pendingSources         map[string][]*sources.LogSource
-	removedSet             map[*sources.LogSource]struct{}
+	stoppingIDs            map[string]bool
+	stoppedIDChan          chan string
 	sourceGenerations      map[string]uint64
 	nextGeneration         atomic.Uint64
 	stoppingWg             sync.WaitGroup
@@ -62,7 +63,8 @@ func NewLauncher() *Launcher {
 		tailers:                make(map[string]tailer),
 		activeSources:          make(map[string]*sources.LogSource),
 		pendingSources:         make(map[string][]*sources.LogSource),
-		removedSet:             make(map[*sources.LogSource]struct{}),
+		stoppingIDs:            make(map[string]bool),
+		stoppedIDChan:          make(chan string, 16),
 		sourceGenerations:      make(map[string]uint64),
 		sourcesDone:            make(chan struct{}),
 		removedSourcesDone:     make(chan struct{}),
@@ -98,7 +100,6 @@ func (l *Launcher) run() {
 		l.pendingSources[identifier] = append(l.pendingSources[identifier], src)
 	}
 	removeSource := func(removed *sources.LogSource) {
-		l.removedSet[removed] = struct{}{}
 		for identifier, queue := range l.pendingSources {
 			kept := queue[:0]
 			for _, pending := range queue {
@@ -120,32 +121,63 @@ func (l *Launcher) run() {
 				gen, hasGen := l.sourceGenerations[identifier]
 				delete(l.sourceGenerations, identifier)
 				if hasTailer {
-					// Stop and retire off the notification loop so a blocked
-					// tailer cannot stall other source adds, removals, or retries.
+					// Keep the identifier reserved until the old tailer finishes
+					// stopping so a replacement cannot overlap it or race SetTailed.
+					l.stoppingIDs[identifier] = true
 					efp, isEFP := l.pipelineProvider.(*pipeline.EndpointFilteredProvider)
 					l.stoppingWg.Add(1)
 					go func(id string, stopTailer tailer, retireGen uint64, retire bool) {
 						defer l.stoppingWg.Done()
 						stopTailer.Stop()
 						if retire && isEFP {
-							ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+							ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 							_ = efp.RetireSource(ctx, id, retireGen)
 							cancel()
+						}
+						select {
+						case l.stoppedIDChan <- id:
+						case <-l.stop:
 						}
 					}(identifier, t, gen, hasGen)
 				}
 			}
 		}
 	}
+	tryStartPending := func(identifier string) {
+		if l.stoppingIDs[identifier] {
+			return
+		}
+		if _, exists := l.tailers[identifier]; exists {
+			return
+		}
+		queue := l.pendingSources[identifier]
+		if len(queue) == 0 {
+			return
+		}
+		source := queue[0]
+		sanitized := l.sanitizedConfig(source.Config)
+		tailer, err := l.setupTailer(source, sanitized, identifier)
+		if err != nil {
+			log.Debug("Retrying windows event log tailer setup failed: ", err)
+			return
+		}
+		if len(queue) == 1 {
+			delete(l.pendingSources, identifier)
+		} else {
+			l.pendingSources[identifier] = queue[1:]
+		}
+		l.tailers[identifier] = tailer
+		l.activeSources[identifier] = source
+	}
 	for {
 		select {
 		case source := <-l.sources:
-			if _, wasRemoved := l.removedSet[source]; wasRemoved {
-				delete(l.removedSet, source)
-				continue
-			}
 			sanitized := l.sanitizedConfig(source.Config)
 			identifier := windowsevent.Identifier(sanitized.ChannelPath, sanitized.Query)
+			if l.stoppingIDs[identifier] {
+				enqueuePending(identifier, source)
+				continue
+			}
 			if _, exists := l.tailers[identifier]; exists {
 				// Retain additional configured source for this identifier so it
 				// can take over if the current owner is removed.
@@ -164,6 +196,9 @@ func (l *Launcher) run() {
 			}
 		case removed := <-l.removedSources:
 			removeSource(removed)
+		case id := <-l.stoppedIDChan:
+			delete(l.stoppingIDs, id)
+			tryStartPending(id)
 		case <-retryTicker.C:
 			// Drain any pending removals before retrying failed registrations.
 		drainRemovals:
@@ -175,24 +210,8 @@ func (l *Launcher) run() {
 					break drainRemovals
 				}
 			}
-			for identifier, queue := range l.pendingSources {
-				if _, exists := l.tailers[identifier]; exists || len(queue) == 0 {
-					continue
-				}
-				source := queue[0]
-				sanitized := l.sanitizedConfig(source.Config)
-				tailer, err := l.setupTailer(source, sanitized, identifier)
-				if err != nil {
-					log.Debug("Retrying windows event log tailer setup failed: ", err)
-					continue
-				}
-				if len(queue) == 1 {
-					delete(l.pendingSources, identifier)
-				} else {
-					l.pendingSources[identifier] = queue[1:]
-				}
-				l.tailers[identifier] = tailer
-				l.activeSources[identifier] = source
+			for identifier := range l.pendingSources {
+				tryStartPending(identifier)
 			}
 		case <-l.stop:
 			return

@@ -781,9 +781,9 @@ func (p *EndpointFilteredProvider) admit(input <-chan *message.Message, bound *s
 				var tok uint64
 				tok, err = p.progress.Reserve(p.ctx, msg, generation)
 				if err == nil && identifier == "" && tok != 0 {
-					// Preserve bound producer isolation for uncheckpointed
+					// Preserve bound producer + generation isolation for uncheckpointed
 					// rotated-file drain records without mutating Origin.Identifier.
-					p.setBoundDispatchKey(tok, "\x02"+bound.identifier)
+					p.setBoundDispatchKey(tok, fmt.Sprintf("\x02%s\x00%d", bound.identifier, bound.generation))
 				}
 			} else {
 				_, err = p.progress.ReserveShared(p.ctx, msg, generation)
@@ -1059,6 +1059,7 @@ func (p *EndpointFilteredProvider) selectProcessed(msg *message.Message) process
 	token := msg.RoutingToken()
 	if reliableMask == 0 && optionalMask == 0 {
 		tlmEndpointFilterExcluded.Inc()
+		p.deleteSelection(token)
 		if err := p.progress.Attach(token, routing.Selection{Excluded: true}, nil); err != nil {
 			p.progress.CompleteLocal(token)
 		}
@@ -1081,6 +1082,7 @@ func (p *EndpointFilteredProvider) selectProcessed(msg *message.Message) process
 		ids = append(ids, p.streams[idx].id)
 	}
 	if err := p.progress.Attach(token, routing.Selection{}, ids); err != nil {
+		p.deleteSelection(token)
 		p.progress.Invalidate(token)
 		p.report(err)
 		return processor.RoutingUnresolved

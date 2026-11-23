@@ -99,6 +99,7 @@ type oldTailerInfo struct {
 	InfoRegistry *status.InfoRegistry
 	Source       *sources.LogSource
 	Path         string
+	RecordedAt   time.Time
 }
 
 // NewLauncher returns a new launcher.
@@ -454,7 +455,11 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		}
 		if oldInfo.Path != "" && (oldInfo.Source.Config == nil || oldInfo.Source.Config.Path != oldInfo.Path) {
 			if _, err := os.Stat(oldInfo.Path); errors.Is(err, os.ErrNotExist) {
-				continue
+				// Keep wildcard-discovered rotation retries briefly across
+				// rename/create gaps, then expire permanently vanished paths.
+				if !oldInfo.RecordedAt.IsZero() && time.Since(oldInfo.RecordedAt) > time.Minute {
+					continue
+				}
 			}
 		}
 		s.oldInfoMap[scanKey] = oldInfo
@@ -536,6 +541,8 @@ func (s *Launcher) cleanUpRotatedTailers() {
 		if !tailer.IsFinished() {
 			pendingTailers = append(pendingTailers, tailer)
 		} else {
+			// Retire with a short timeout; RetireSource hands off async cleanup
+			// to the provider so scan loops never stall behind backpressure.
 			s.retireTailer(tailer)
 		}
 	}
@@ -674,10 +681,10 @@ func (s *Launcher) retireGeneration(identifier string, gen uint64) {
 	if !ok {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	if err := efp.RetireSource(ctx, identifier, gen); err != nil {
-		log.Debugf("endpoint-filtered source retirement for %s gen %d deferred: %v", identifier, gen, err)
+		log.Debugf("endpoint-filtered source retirement for %s gen %d handed off to provider cleanup: %v", identifier, gen, err)
 	}
 }
 
@@ -857,6 +864,7 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 			Pattern:      oldRegexPattern,
 			Source:       oldTailer.Source(),
 			Path:         file.Path,
+			RecordedAt:   time.Now(),
 		}
 		s.oldInfoMap[file.GetScanKey()] = regexAndRegistry
 	}
@@ -884,6 +892,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 		InfoRegistry: oldTailer.GetInfo(),
 		Source:       oldTailer.Source(),
 		Path:         file.Path,
+		RecordedAt:   time.Now(),
 	}
 
 	newTailer, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
