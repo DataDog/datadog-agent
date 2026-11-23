@@ -54,7 +54,7 @@ func SubmitExecutionEvent(eventBody datadogV1.EventCreateRequest) error {
 	configuration := datadog.NewConfiguration()
 	apiClient := datadog.NewAPIClient(configuration)
 	api := datadogV1.NewEventsApi(apiClient)
-	resp, r, err := api.CreateEvent(ctx, eventBody)
+	resp, r, err := api.CreateEvent(ctx, eventBody) //nolint:staticcheck // SA1019: v1 events API kept until these e2e helpers move to v2
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", r)

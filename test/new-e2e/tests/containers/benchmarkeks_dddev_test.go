@@ -110,7 +110,7 @@ func (c *dddevClient) querySeries(ctx context.Context, query string, from, to ti
 // postEvent posts event. An event retried after a network error may be posted twice.
 func (c *dddevClient) postEvent(ctx context.Context, event datadogV1.EventCreateRequest) error {
 	if _, err := callDDDev(ctx, c, func(ctx context.Context) (datadogV1.EventCreateResponse, *http.Response, error) {
-		return c.events.CreateEvent(ctx, event)
+		return c.events.CreateEvent(ctx, event) //nolint:staticcheck // SA1019: v1 events API kept until these e2e helpers move to v2
 	}); err != nil {
 		return fmt.Errorf("posting the event %q failed: %w", event.Title, err)
 	}
