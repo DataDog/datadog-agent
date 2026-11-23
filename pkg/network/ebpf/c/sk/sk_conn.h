@@ -170,8 +170,10 @@ int bpf_iter__sk_storage_map_tcp_orphans(struct bpf_iter__bpf_sk_storage_map *ct
     }
     // app_closed is set at the start of tcp_close, and SOCK_DEAD by sock_orphan, when tcp_close
     // detaches the socket from its file. SOCK_DEAD is still needed for the sockets that are
-    // orphaned without going through tcp_close: those a listener had not accepted yet when it was
-    // closed (inet_child_forget).
+    // orphaned by __tcp_close without going through tcp_close, such as the MPTCP subflows that
+    // __mptcp_close_ssk disposes of. The children a listener had not accepted yet when it was
+    // closed (inet_child_forget) are not among them: they go through tcp_disconnect first, which
+    // sends their close event and sets close_sent.
     if (!sk_stats->app_closed && !is_sock_dead(sk)) {
         return 0;
     }
