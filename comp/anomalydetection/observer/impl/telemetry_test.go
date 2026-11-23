@@ -42,6 +42,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordFreshSeries(3)
 	tel.recordDetectorEmission("bocpd", "unset", "medium", 1)
 	tel.scorerSeverity.Set(2, "anomaly_scorer")
+	tel.scorerEwmaFinalized.Set(1, "anomaly_scorer")
 }
 
 func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
@@ -62,6 +63,7 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	tel.setLogPatternCount(3)
 	tel.recordFreshSeries(2)
 	tel.scorerSeverity.Set(2, "anomaly_scorer")
+	tel.scorerEwmaFinalized.Set(3, "anomaly_scorer")
 
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "logs", "source": "kubelet"}).GetCounter().GetValue())
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
@@ -79,6 +81,7 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetrySeriesFresh, nil).GetCounter().GetValue())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
+	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryScorerEWMAFinalized, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
 }
 
 func observerMetric(t *testing.T, telemetryComp telemetry.Component, metricName string, wantLabels map[string]string) *dto.Metric {

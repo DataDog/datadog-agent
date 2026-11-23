@@ -13,6 +13,7 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/stretchr/testify/assert"
@@ -1637,7 +1638,27 @@ func newScorerWithTelemetry(cfg AnomalyScorerConfig) *anomalyScorer {
 	tel := noopsimpl.NewComponent()
 	severityGauge := tel.NewGauge("test", "scorer_severity", nil, "")
 	ewmaGauge := tel.NewGauge("test", "scorer_ewma", nil, "")
-	return newAnomalyScorerWithTelemetry(cfg, severityGauge, ewmaGauge)
+	return newAnomalyScorerWithTelemetry(cfg, severityGauge, ewmaGauge, nil)
+}
+
+type finalizedGaugeRecorder struct {
+	telemetry.Gauge
+
+	sets    []float64
+	deleted bool
+}
+
+func newFinalizedGaugeRecorder() *finalizedGaugeRecorder {
+	tel := noopsimpl.NewComponent()
+	return &finalizedGaugeRecorder{Gauge: tel.NewGauge("test", "scorer_ewma_finalized", nil, "")}
+}
+
+func (g *finalizedGaugeRecorder) Set(value float64, _ ...string) {
+	g.sets = append(g.sets, value)
+}
+
+func (g *finalizedGaugeRecorder) Delete(_ ...string) {
+	g.deleted = true
 }
 
 // episodeTestCfg returns a scorer config tuned for fast episode tests:
@@ -1876,7 +1897,7 @@ func TestScorerWithTelemetry_GaugesAndLogs(t *testing.T) {
 	cfg := episodeTestCfg()
 	cfg.Logs = true
 	cfg.CorrelationEvents = false
-	s := newAnomalyScorerWithTelemetry(cfg, tel.scorerSeverity, tel.scorerEwma)
+	s := newAnomalyScorerWithTelemetry(cfg, tel.scorerSeverity, tel.scorerEwma, nil)
 
 	// Drive EWMA past High threshold — must not panic even with Logs=true,
 	// and must expose the current level instead of a transition direction.
@@ -1885,6 +1906,62 @@ func TestScorerWithTelemetry_GaugesAndLogs(t *testing.T) {
 	// De-escalate — must not panic.
 	triggerDeescalation(s, spikeSec)
 	assert.Equal(t, 0.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
+}
+
+func TestScorerWithTelemetry_FinalizedEWMA(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.ReorderingWindowSecs = 2
+	gauge := newFinalizedGaugeRecorder()
+	s := newAnomalyScorerWithTelemetry(cfg, nil, nil, gauge)
+
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.Advance(1000)
+	s.Advance(1001)
+	require.Empty(t, gauge.sets, "startup must not publish an unset or uninitialized checkpoint")
+
+	s.Advance(1002)
+	require.Len(t, gauge.sets, 1)
+	require.InDelta(t, 0.6257993532402721, gauge.sets[0], 1e-12)
+
+	s.Reset()
+	require.True(t, gauge.deleted)
+	s.Advance(1003)
+	require.Len(t, gauge.sets, 1, "warm-up must restart after reset")
+}
+
+func TestScorerWithTelemetry_FinalizedEWMAMatchesChronological(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.ReorderingWindowSecs = 3
+	chronologicalGauge := newFinalizedGaugeRecorder()
+	lateGauge := newFinalizedGaugeRecorder()
+	chronological := newAnomalyScorerWithTelemetry(cfg, nil, nil, chronologicalGauge)
+	late := newAnomalyScorerWithTelemetry(cfg, nil, nil, lateGauge)
+
+	for _, scorer := range []*anomalyScorer{chronological, late} {
+		scorer.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+		scorer.Advance(1000)
+		scorer.Advance(1001)
+	}
+	chronological.ProcessAnomaly(makeAnomaly("bocpd", 1002, nil))
+	late.Advance(1002)
+	late.ProcessAnomaly(makeAnomaly("bocpd", 1002, nil))
+	for second := int64(1002); second <= 1005; second++ {
+		chronological.Advance(second)
+		late.Advance(second)
+	}
+
+	require.Equal(t, chronologicalGauge.sets, lateGauge.sets)
+	require.Len(t, lateGauge.sets, 3, "ring wraparound and catch-up advances must preserve the delay")
+}
+
+func TestScorerWithTelemetry_FinalizedEWMADisabledWithoutReordering(t *testing.T) {
+	cfg := episodeTestCfg()
+	gauge := newFinalizedGaugeRecorder()
+	s := newAnomalyScorerWithTelemetry(cfg, nil, nil, gauge)
+
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.Advance(1001)
+	require.Empty(t, gauge.sets)
 }
 
 // TestActiveCorrelationsEngineAccumulationOrdering verifies the engine's

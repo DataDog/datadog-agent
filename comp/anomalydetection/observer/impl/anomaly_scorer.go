@@ -633,8 +633,9 @@ type anomalyScorer struct {
 	dispatchers []*severityeventsimpl.Dispatcher
 
 	// Internal watcher fields (gauges may be nil when replay only needs episodes).
-	ewmaGauge     telemetry.Gauge // may be nil; set on every Advance tick
-	severityGauge telemetry.Gauge // may be nil; set to the current severity on every Advance tick
+	ewmaGauge          telemetry.Gauge // may be nil; set on every Advance tick
+	ewmaFinalizedGauge telemetry.Gauge // may be nil; set on every Advance tick after warm-up
+	severityGauge      telemetry.Gauge // may be nil; set to the current severity on every Advance tick
 
 	// Episode tracking (guarded by mu; only active when correlationEvents is true).
 	// openEpisode is the currently open configured-threshold severity period.
@@ -713,7 +714,7 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 // Invalid EWMA parameter values are clamped to safe defaults.
 func NewAnomalyScorer(cfg AnomalyScorerConfig) StandaloneAnomalyScorer {
 	if cfg.CorrelationEvents {
-		return newAnomalyScorerWithTelemetry(cfg, nil, nil)
+		return newAnomalyScorerWithTelemetry(cfg, nil, nil, nil)
 	}
 	return newAnomalyScorerBase(cfg)
 }
@@ -722,9 +723,10 @@ func NewAnomalyScorer(cfg AnomalyScorerConfig) StandaloneAnomalyScorer {
 // Non-nil severityGauge and ewmaGauge values are written with the current
 // severity and EWMA on every advance tick. The watcher self-subscribes using
 // cfg.CooldownSecs.
-func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, severityGauge, ewmaGauge telemetry.Gauge) *anomalyScorer {
+func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, severityGauge, ewmaGauge, ewmaFinalizedGauge telemetry.Gauge) *anomalyScorer {
 	s := newAnomalyScorerBase(cfg)
 	s.ewmaGauge = ewmaGauge
+	s.ewmaFinalizedGauge = ewmaFinalizedGauge
 	s.severityGauge = severityGauge
 
 	// Self-subscribe as the internal watcher.
@@ -938,6 +940,14 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 		last := states[len(states)-1]
 		s.ewmaGauge.Set(last.ewma, s.Name())
 	}
+	if s.ewmaFinalizedGauge != nil && s.config.ReorderingWindowSecs > 0 && s.replay != nil && len(states) > 0 {
+		last := states[len(states)-1]
+		finalizedSec := last.sec - s.config.ReorderingWindowSecs
+		checkpoint := s.replay.checkpoints[replaySlot(finalizedSec, len(s.replay.checkpoints))]
+		if checkpoint.present && checkpoint.second == finalizedSec && checkpoint.state.initialized {
+			s.ewmaFinalizedGauge.Set(checkpoint.state.ewma, s.Name())
+		}
+	}
 	if s.severityGauge != nil && len(states) > 0 {
 		last := states[len(states)-1]
 		s.severityGauge.Set(float64(last.level), s.Name())
@@ -1018,6 +1028,9 @@ func (s *anomalyScorer) Reset() {
 	s.pendingEvents = nil
 	if s.history != nil {
 		s.history = &scorerHistory{}
+	}
+	if s.ewmaFinalizedGauge != nil && s.config.ReorderingWindowSecs > 0 {
+		s.ewmaFinalizedGauge.Delete(s.Name())
 	}
 	s.mu.Unlock()
 
