@@ -12,5 +12,13 @@ dd_agent_go_test(
     name = "pci_test",
     srcs = ["pci_test.go"],
     embed = [":pci"],
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build linux
+
 // Package pci reads static PCI device facts (NUMA locality, upstream bridges)
 // from sysfs, and normalizes PCI bus IDs across their NVML and sysfs spellings.
 package pci
