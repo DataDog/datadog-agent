@@ -40,12 +40,10 @@ config_setting(
     ],
 )
 
-selects.config_setting_group(
+config_setting(
     name = "linux_iot",
-    match_all = [
-        ":iot_flavor",
-        "@platforms//os:linux",
-    ],
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {"//packages/agent:flavor": "iot"},
 )
 
 selects.config_setting_group(
