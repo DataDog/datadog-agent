@@ -100,8 +100,8 @@ github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d h1:W6b
 github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d/go.mod h1:PaK5t+qpa/zU7wdM4SDjRhSlBNb6crYrXsEz2aHRqIY=
 github.com/DataDog/dd-trace-go/v2 v2.12.0 h1:YOxX+szin45JumOECU6kUNdCPHJFtNvl9CYUgAJf53k=
 github.com/DataDog/dd-trace-go/v2 v2.12.0/go.mod h1:rOLOFJ8rlhVsJv7f53jlotY/56xvb0OBLahN+dAOdjA=
-github.com/DataDog/ddtrivy v0.0.0-20261120183352-cc94c76ededc h1:+X74yUTIdvAt9otDogXTsV+PMWCRnamFQglpAN8Hnwo=
-github.com/DataDog/ddtrivy v0.0.0-20261120183352-cc94c76ededc/go.mod h1:1oBl7r8NFfaFkEkpwA9htBPTuUidtNml23WLiGMYVcE=
+github.com/DataDog/ddtrivy v0.0.0-20261123103834-4e22de87b9e7 h1:9hSHbQl8lSmHTzjzL4EwrQHTtpgCrvBLQfk+OivdUPc=
+github.com/DataDog/ddtrivy v0.0.0-20261123103834-4e22de87b9e7/go.mod h1:1oBl7r8NFfaFkEkpwA9htBPTuUidtNml23WLiGMYVcE=
 github.com/DataDog/ebpf-manager v0.8.7 h1:qCORDJ3Q+zXudUDPnd8mHDzYaBAIHlKxD7loyBFs/g4=
 github.com/DataDog/ebpf-manager v0.8.7/go.mod h1:cvd2jNW3M29BSZGk25t8e3ffuaazbMj1fHsANObRkVw=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
