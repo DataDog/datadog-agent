@@ -24,18 +24,15 @@ import (
 const sampleBufferSize = 2
 
 type gpmCollector struct {
-	lib                  ddnvml.SafeNVML
-	device               ddnvml.Device
-	parentPhysicalDevice *ddnvml.PhysicalDevice
-	migInstanceID        int // only for collectors for MIG devices, contains the instance ID of the MIG device
-	samples              [sampleBufferSize]nvml.GpmSample
-	metricsToCollect     map[nvml.GpmMetricId]gpmMetric
-	nextSampleToCollect  int
-	emitLegacySMActive   bool
-	emitGrEngineSMActive bool
-	// migMode is true for MIG devices and GPUs in MIG mode, where sm_active comes from SM_UTIL, or from
-	// GRAPHICS_UTIL when SM_UTIL is not available
-	migMode                  bool
+	lib                      ddnvml.SafeNVML
+	device                   ddnvml.Device
+	parentPhysicalDevice     *ddnvml.PhysicalDevice
+	migInstanceID            int // only for collectors for MIG devices, contains the instance ID of the MIG device
+	samples                  [sampleBufferSize]nvml.GpmSample
+	metricsToCollect         map[nvml.GpmMetricId]gpmMetric
+	nextSampleToCollect      int
+	emitLegacySMActive       bool
+	emitGrEngineSMActive     bool
 	grEngineSMActivePriority MetricPriority
 	// suspendedGraphicsUtil holds GRAPHICS_UTIL while it is not collected because NVML reported an impossible value
 	// for it, until graphicsUtilResumeAt (see isImpossibleMIGGraphicsUtil)
@@ -120,17 +117,6 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 		collector.grEngineSMActivePriority = Low
 		if deps.Config.PreferGrEngineSMActive {
 			collector.grEngineSMActivePriority = High
-		}
-		// On MIG devices and GPUs in MIG mode, report sm_active from SM_UTIL as gpu.legacy_sm_active does:
-		// GRAPHICS_UTIL reads 0 there without the MIG config capability (which the Agent should not need) and
-		// about half on some profiles (1g.35gb on an H200), while SM_UTIL is correct without privileges and
-		// matches the DCGM SM_ACTIVE of these devices.
-		if _, _, inMIGMode := migGpuInstanceAccessTarget(device); inMIGMode {
-			collector.migMode = true
-			collector.emitLegacySMActive = true
-			collector.emitGrEngineSMActive = false
-			// The GRAPHICS_UTIL fallback stays below the other sources, whatever PreferGrEngineSMActive says
-			collector.grEngineSMActivePriority = Low
 		}
 	}
 
@@ -217,7 +203,7 @@ func (c *gpmCollector) removeFalseMIGGraphicsUtil() {
 
 	delete(c.metricsToCollect, nvml.GPM_METRIC_GRAPHICS_UTIL)
 	if _, logged := loggedFalseMIGGraphicsUtil.LoadOrStore(parent.GetDeviceInfo().UUID, struct{}{}); !logged {
-		log.Infof("not reporting gr_engine_active from GPM for the MIG devices of GPU %s and for the GPU itself: NVML reports them as 0 on MIG without the MIG config capability (CAP_SYS_ADMIN or /dev/nvidia-caps/nvidia-cap1): %v", parent.GetDeviceInfo().UUID, err)
+		log.Infof("not reporting gr_engine_active and sm_active from GPM for the MIG devices of GPU %s and for the GPU itself: NVML reports them as 0 on MIG without the MIG config capability (CAP_SYS_ADMIN or /dev/nvidia-caps/nvidia-cap1): %v", parent.GetDeviceInfo().UUID, err)
 	}
 }
 
@@ -374,19 +360,6 @@ func (c *gpmCollector) isImpossibleMIGGraphicsUtil(gpmMetrics *nvml.GpmMetricsGe
 	return hasGraphicsUtil && hasSMUtil && graphicsUtil == 0 && smUtil >= minImpossibleSMUtil
 }
 
-// hasSuccessfulGpmMetric returns true if the GPM sample has a successful value for the metric, which is collected.
-func hasSuccessfulGpmMetric(gpmMetrics *nvml.GpmMetricsGetType, id nvml.GpmMetricId, collected map[nvml.GpmMetricId]gpmMetric) bool {
-	if _, ok := collected[id]; !ok {
-		return false
-	}
-	for i := uint32(0); i < gpmMetrics.NumMetrics; i++ {
-		if nvml.GpmMetricId(gpmMetrics.Metrics[i].MetricId) == id {
-			return gpmMetrics.Metrics[i].NvmlReturn == uint32(nvml.SUCCESS)
-		}
-	}
-	return false
-}
-
 // minImpossibleSMUtil is the SM_UTIL from which a GRAPHICS_UTIL of 0 is considered impossible
 const minImpossibleSMUtil = 1
 
@@ -427,7 +400,7 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 	if c.emitLegacySMActive {
 		metricCapacity++
 	}
-	if c.emitGrEngineSMActive || c.migMode {
+	if c.emitGrEngineSMActive {
 		metricCapacity++
 	}
 	samples := make([]Sample, 0, metricCapacity)
@@ -442,13 +415,10 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 		delete(c.metricsToCollect, nvml.GPM_METRIC_GRAPHICS_UTIL)
 		if parent, _, ok := migGpuInstanceAccessTarget(c.device); ok {
 			if _, logged := loggedFalseMIGGraphicsUtil.LoadOrStore(parent.GetDeviceInfo().UUID+"/impossible", struct{}{}); !logged {
-				log.Infof("not reporting gr_engine_active from GPM for device %s and the other MIG devices of GPU %s where NVML reports the graphics engine idle while SMs are in use, which happens when the Agent cannot open all the MIG devices of the GPU", c.device.GetDeviceInfo().UUID, parent.GetDeviceInfo().UUID)
+				log.Infof("not reporting gr_engine_active and sm_active from GPM for device %s and the other MIG devices of GPU %s where NVML reports the graphics engine idle while SMs are in use, which happens when the Agent cannot open all the MIG devices of the GPU", c.device.GetDeviceInfo().UUID, parent.GetDeviceInfo().UUID)
 			}
 		}
 	}
-	// On MIG, sm_active comes from SM_UTIL; fall back to GRAPHICS_UTIL (when collected and not dropped above) when
-	// SM_UTIL is not available for this sample
-	emitGrEngineSMActive := c.emitGrEngineSMActive || (c.migMode && !hasSuccessfulGpmMetric(gpmMetrics, nvml.GPM_METRIC_SM_UTIL, c.metricsToCollect))
 	var errs []error
 	for i := uint32(0); i < gpmMetrics.NumMetrics; i++ {
 		metric := gpmMetrics.Metrics[i]
@@ -480,7 +450,7 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 				Type:       metricData.metricType,
 			})
 		}
-		if emitGrEngineSMActive && nvml.GpmMetricId(metric.MetricId) == nvml.GPM_METRIC_GRAPHICS_UTIL {
+		if c.emitGrEngineSMActive && nvml.GpmMetricId(metric.MetricId) == nvml.GPM_METRIC_GRAPHICS_UTIL {
 			samples = append(samples, &Metric{
 				baseSample: baseSample{priority: c.grEngineSMActivePriority},
 				Name:       "sm_active",

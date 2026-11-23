@@ -399,7 +399,7 @@ func TestGPMCollectorDropsFalseMIGGraphicsUtil(t *testing.T) {
 					names[metric.Name] = true
 				}
 				assert.Equal(t, tc.expectGR, names["gr_engine_active"], device.GetDeviceInfo().UUID)
-				assert.True(t, names["sm_active"], "reported from SM_UTIL on MIG: %s", device.GetDeviceInfo().UUID)
+				assert.Equal(t, tc.expectGR, names["sm_active"], "reported from GRAPHICS_UTIL: %s", device.GetDeviceInfo().UUID)
 				assert.True(t, names["sm_utilization"], device.GetDeviceInfo().UUID)
 			}
 			require.Equal(t, []int{migDevice.MIGInstanceID, parent.MIGChildren[0].MIGInstanceID}, checked)
@@ -467,7 +467,7 @@ func TestGPMCollectorChecksMIGAccessWithoutMIGDevices(t *testing.T) {
 		names[metric.Name] = true
 	}
 	require.False(t, names["gr_engine_active"])
-	require.True(t, names["sm_active"], "reported from SM_UTIL in MIG mode")
+	require.False(t, names["sm_active"], "reported from GRAPHICS_UTIL")
 	require.True(t, names["sm_utilization"])
 	require.Len(t, checked, 1, "not checked again on collection")
 }
@@ -543,10 +543,11 @@ func TestGPMCollectorDropsImpossibleMIGGraphicsUtil(t *testing.T) {
 			_, collected := collector.(*gpmCollector).metricsToCollect[nvml.GPM_METRIC_GRAPHICS_UTIL]
 			require.Equal(t, tc.expectGR, collected)
 			require.Equal(t, !tc.smUtilUnsupported, names["sm_utilization"])
-			if tc.mig {
-				// reported from SM_UTIL on MIG whatever happens to GRAPHICS_UTIL, or from GRAPHICS_UTIL without SM_UTIL
-				require.Equal(t, !tc.smUtilUnsupported || tc.expectGR, names["sm_active"])
-			} else {
+			switch {
+			case tc.legacySMActive:
+				// reported from SM_UTIL, not affected
+				require.True(t, names["sm_active"])
+			default:
 				require.Equal(t, tc.expectGR, names["sm_active"])
 			}
 		})
@@ -618,18 +619,14 @@ func TestGPMCollectorResumesGraphicsUtilAfterSuspension(t *testing.T) {
 	require.False(t, reported)
 }
 
-func TestGPMCollectorMIGSMActiveSource(t *testing.T) {
+func TestGPMCollectorMIGSMActiveFollowsGraphicsUtil(t *testing.T) {
 	for _, tc := range []struct {
-		name             string
-		config           gpuconfig.Config
-		smUtilReturn     nvml.Return
-		expectedValue    float64
-		expectedPriority MetricPriority
+		name      string
+		accessErr error
+		expected  bool
 	}{
-		{name: "from SM_UTIL", expectedValue: 89, expectedPriority: High},
-		{name: "from SM_UTIL, prefer GR engine has no effect", config: gpuconfig.Config{PreferGrEngineSMActive: true}, expectedValue: 89, expectedPriority: High},
-		{name: "from GRAPHICS_UTIL without SM_UTIL", smUtilReturn: nvml.ERROR_NOT_SUPPORTED, expectedValue: 50, expectedPriority: Low},
-		{name: "from GRAPHICS_UTIL without SM_UTIL, prefer GR engine has no effect", config: gpuconfig.Config{PreferGrEngineSMActive: true}, smUtilReturn: nvml.ERROR_NOT_SUPPORTED, expectedValue: 50, expectedPriority: Low},
+		{name: "with the MIG config capability", expected: true},
+		{name: "without it, not reported rather than a false 0", accessErr: ddnvml.NewNvmlAPIErrorOrNil("GetGpuInstanceById", nvml.ERROR_NO_PERMISSION), expected: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			nvmltestutil.SetupMockNVML(t,
@@ -637,48 +634,34 @@ func TestGPMCollectorMIGSMActiveSource(t *testing.T) {
 				testutil.WithGpmSupport(true),
 				testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
 					nvml.GPM_METRIC_GRAPHICS_UTIL: {Value: 50, Return: nvml.SUCCESS},
-					nvml.GPM_METRIC_SM_UTIL:       {Value: 89, Return: tc.smUtilReturn},
+					nvml.GPM_METRIC_SM_UTIL:       {Value: 89, Return: nvml.SUCCESS},
 				}),
 			)
 			migDevice, _ := migTestDevices(t)
 			original := migGpuInstanceAccessCheck
 			t.Cleanup(func() { migGpuInstanceAccessCheck = original })
-			migGpuInstanceAccessCheck = func(*ddnvml.PhysicalDevice, int) error { return nil } // MIG config capability
+			migGpuInstanceAccessCheck = func(*ddnvml.PhysicalDevice, int) error { return tc.accessErr }
 
 			collector, err := newGPMCollectorWithMetrics(migDevice, map[nvml.GpmMetricId]gpmMetric{
 				nvml.GPM_METRIC_GRAPHICS_UTIL: {name: "gr_engine_active", metricType: metrics.GaugeType},
 				nvml.GPM_METRIC_SM_UTIL:       {name: "sm_utilization", metricType: metrics.GaugeType},
-			}, &CollectorDependencies{Config: tc.config})
+			}, &CollectorDependencies{})
 			require.NoError(t, err)
 			samples, err := collector.Collect()
-			if tc.smUtilReturn == nvml.SUCCESS {
-				require.NoError(t, err)
-			}
-
-			// An eBPF sm_active (MediumLow) loses against SM_UTIL (High) and wins against GRAPHICS_UTIL (Low)
-			ebpfSample := &Metric{baseSample: baseSample{priority: MediumLow}, Name: "sm_active", Value: 10, Type: metrics.GaugeType}
+			require.NoError(t, err)
 			var smActive []*Metric
-			for _, metric := range requireMetrics(t, RemoveDuplicateSamples(map[CollectorName][]Sample{gpm: samples, ebpf: {ebpfSample}})) {
+			for _, metric := range requireMetrics(t, samples) {
 				if metric.Name == "sm_active" {
 					smActive = append(smActive, metric)
 				}
 			}
+			if !tc.expected {
+				require.Empty(t, smActive, "SM_UTIL, the share of SMs in use, is not reported as sm_active")
+				return
+			}
 			require.Len(t, smActive, 1)
-			if tc.expectedPriority == High {
-				require.Equal(t, tc.expectedValue, smActive[0].Value)
-			} else {
-				require.Equal(t, 10.0, smActive[0].Value, "eBPF wins against the GRAPHICS_UTIL fallback")
-			}
-
-			var gpmSMActive []*Metric
-			for _, metric := range requireMetrics(t, samples) {
-				if metric.Name == "sm_active" {
-					gpmSMActive = append(gpmSMActive, metric)
-				}
-			}
-			require.Len(t, gpmSMActive, 1, "a single GPM sm_active")
-			require.Equal(t, tc.expectedValue, gpmSMActive[0].Value)
-			require.Equal(t, tc.expectedPriority, gpmSMActive[0].Priority())
+			require.Equal(t, 50.0, smActive[0].Value, "the time fraction, as on other GPUs")
+			require.Equal(t, Low, smActive[0].Priority(), "below the eBPF source")
 		})
 	}
 }

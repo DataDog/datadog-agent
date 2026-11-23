@@ -1,21 +1,13 @@
 ---
-upgrade:
-  - |
-    GPU Monitoring: on NVIDIA MIG devices and GPUs in MIG mode with GPM (Hopper and later),
-    ``gpu.sm_active`` is now reported from the GPM SM utilization (the share of streaming
-    multiprocessors in use, as with ``gpu.legacy_sm_active``), which matches DCGM ``SM_ACTIVE`` and
-    needs no privileges. It was reported from the graphics engine activity, which is unreliable on MIG.
-    Values can differ: for example a saturated ``1g`` MIG device can read about 89 instead of 100. On
-    these devices this source takes precedence over the eBPF one, and ``gpu.prefer_gr_engine_sm_active``
-    has no effect.
 fixes:
   - |
-    GPU Monitoring: ``gpu.gr_engine_active`` is no longer reported from GPM for MIG devices and GPUs in
-    MIG mode when the Agent lacks the MIG config capability (``CAP_SYS_ADMIN`` or
-    ``/dev/nvidia-caps/nvidia-cap1``), which is the case of default, non-privileged Agents: NVML then
-    reports it as 0 even under load. It is also not reported for a MIG device or a GPU in MIG mode for
-    10 minutes after NVML reports its graphics engine idle while at least 1% of its streaming multiprocessors are in use,
-    which happens when other MIG devices of the GPU are not accessible to the Agent.
+    GPU Monitoring: ``gpu.gr_engine_active``, and ``gpu.sm_active`` when derived from it (the default), are
+    no longer reported from GPM for MIG devices and GPUs in MIG mode when the Agent lacks the MIG config
+    capability (``CAP_SYS_ADMIN`` or ``/dev/nvidia-caps/nvidia-cap1``): NVML then reports them as 0 even
+    under load. They are also not reported for a MIG device or a GPU in MIG mode for 10 minutes after NVML
+    reports its graphics engine idle while at least 1% of its streaming multiprocessors are in use, which
+    happens when other MIG devices of the GPU are not accessible to the Agent. ``gpu.sm_active`` can still
+    come from the eBPF probes, and ``gpu.sm_utilization`` is reported in all cases.
   - |
     GPU Monitoring: the Agent logs a warning when processes run on a MIG device it cannot access, for
     example a MIG device created after the Agent container started, if it can list the processes of

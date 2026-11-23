@@ -2835,7 +2835,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: >-
-        Percentage of time the streaming multiprocessor was active. On AMD GPUs, equal to gr_engine_active (the interval average from gpu_metrics 1.9 and later when it passes its checks, otherwise the instantaneous gpu_busy_percent), as no compute-unit activity is available. On Cloud TPUs, the TensorCore utilization. On NVIDIA MIG devices and GPUs in MIG mode with GPM (Hopper and later), reported from the GPM SM utilization (as with gpu.legacy_sm_active), the share of SMs in use, because the graphics engine activity is unreliable there; it matches DCGM SM_ACTIVE. Without GPM (e.g. A100), from the eBPF probes when enabled.
+        Percentage of time the streaming multiprocessor was active. On AMD GPUs, equal to gr_engine_active (the interval average from gpu_metrics 1.9 and later when it passes its checks, otherwise the instantaneous gpu_busy_percent), as no compute-unit activity is available. On Cloud TPUs, the TensorCore utilization. On NVIDIA MIG devices and GPUs in MIG mode, reported from the same GPM source as gr_engine_active, so not reported when gr_engine_active is not, unless gpu.legacy_sm_active is set or the eBPF probes are enabled.
       used_in_dd_ui: true
       aggregation: relative_activity
     tagsets:
