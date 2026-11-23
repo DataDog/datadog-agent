@@ -34,7 +34,6 @@ func runRawRequest(t *testing.T, servers []*httptest.Server, inputs map[string]i
 	return runRawRequestWithStore(t, servers, inputs, credential, encryptioncontext.NewStore())
 }
 
-// runRawRequestWithStore runs request in raw mode; inputs use raw-mode names.
 func runRawRequestWithStore(t *testing.T, servers []*httptest.Server, inputs map[string]interface{}, credential *privateconnection.PrivateCredentials, store *encryptioncontext.Store) (*RequestOutputs, error) {
 	t.Helper()
 	var hosts []string
@@ -57,7 +56,6 @@ func runRawRequestWithStore(t *testing.T, servers []*httptest.Server, inputs map
 	return output.(*RequestOutputs), nil
 }
 
-// withRawMode sets responseMode and maps a headers map to requestHeaders.
 func withRawMode(inputs map[string]interface{}) map[string]interface{} {
 	out := map[string]interface{}{"responseMode": ResponseModeRaw}
 	for key, value := range inputs {
@@ -92,8 +90,6 @@ func tokenConnection(baseURL string, headers ...privateconnection.PrivateCredent
 	}
 }
 
-// An MCP server answers an unauthenticated request with 401 and the challenge
-// that starts OAuth discovery (RFC 9728), so it must come back as an output.
 func TestRawRequestReturnsUnauthorizedChallenge(t *testing.T) {
 	challenge := `Bearer resource_metadata="https://mcp.internal/.well-known/oauth-protected-resource", scope="tools"`
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -112,8 +108,6 @@ func TestRawRequestReturnsUnauthorizedChallenge(t *testing.T) {
 	assert.JSONEq(t, `{"error":"invalid_token"}`, decodeRawBody(t, output))
 }
 
-// Token exchange and refresh need an application/x-www-form-urlencoded body
-// sent byte for byte, which the default mode re-encodes as JSON.
 func TestRawRequestSendsBodyVerbatim(t *testing.T) {
 	form := "grant_type=authorization_code&code=abc&code_verifier=xyz&redirect_uri=https%3A%2F%2Fapp.datadoghq.com%2Fcb"
 	var gotBody, gotContentType, gotSecHeader, gotCookie string
@@ -145,8 +139,6 @@ func TestRawRequestSendsBodyVerbatim(t *testing.T) {
 	assert.JSONEq(t, `{"access_token":"at","token_type":"Bearer"}`, decodeRawBody(t, output))
 }
 
-// OAuth discovery must not follow redirects, and a followed redirect would
-// also skip the runner's URL allowlist, so a 3xx comes back as is.
 func TestRawRequestDoesNotFollowRedirects(t *testing.T) {
 	var followed bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -165,8 +157,6 @@ func TestRawRequestDoesNotFollowRedirects(t *testing.T) {
 	assert.False(t, followed)
 }
 
-// http.Client fails on a Location it can't parse before it asks whether to
-// follow, so raw mode must still hand back the redirect as the server sent it.
 func TestRawRequestReturnsRedirectWithInvalidLocation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Location", ":")
@@ -180,8 +170,6 @@ func TestRawRequestReturnsRedirectWithInvalidLocation(t *testing.T) {
 	assert.Equal(t, ":", output.Headers.Get("Location"))
 }
 
-// Without an Accept-Encoding from the caller, the runner must not ask for gzip
-// itself, and a compressed response comes back still compressed.
 func TestRawRequestKeepsResponseEncoding(t *testing.T) {
 	var compressed bytes.Buffer
 	gz := gzip.NewWriter(&compressed)
@@ -202,9 +190,6 @@ func TestRawRequestKeepsResponseEncoding(t *testing.T) {
 	assert.Equal(t, compressed.String(), decodeRawBody(t, output))
 }
 
-// A connection header (a runner-held static token) reaches the connection's host
-// only. Calls to another allowed host, such as the identity provider, go out
-// without it. Templates in the caller's headers are never rendered.
 func TestRawRequestScopesConnectionHeadersToTheirHost(t *testing.T) {
 	var mcpAuthorization, mcpProbe, idpAuthorization string
 	mcp := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
@@ -259,8 +244,6 @@ func TestRawRequestRequiresBaseURLForConnectionHeaders(t *testing.T) {
 	require.ErrorContains(t, err, "require a base URL")
 }
 
-// OAuth token and client registration responses carry refresh tokens and client
-// secrets, so the caller can ask for the body sealed to a Datadog-held key.
 func TestRawRequestEncryptsResponseBody(t *testing.T) {
 	tokenResponse := `{"access_token":"at","refresh_token":"rt"}`
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -288,9 +271,6 @@ func TestRawRequestEncryptsResponseBody(t *testing.T) {
 	assert.Equal(t, tokenResponse, string(opened))
 }
 
-// An OAuth code exchange carries the code and client secret. They come through
-// ExecuteOboWithSecretInputs, sealed to the one-time key that prepareEncryption
-// left in the store, so they never appear in the task inputs.
 func TestRawRequestDecryptsSecretInputs(t *testing.T) {
 	form := "grant_type=authorization_code&code=secret-code&code_verifier=v"
 	var gotBody, gotAuthorization, gotAccept string
@@ -372,7 +352,6 @@ func requestTask(inputs map[string]interface{}) *types.Task {
 	return task
 }
 
-// Raw-mode inputs must not change the default mode silently.
 func TestRequestRejectsRawInputsInDefaultMode(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("no request expected") }))
 	defer server.Close()

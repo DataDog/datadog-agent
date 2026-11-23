@@ -86,7 +86,7 @@ type RequestInputs struct {
 	ResponseParsing         *string         `json:"responseParsing,omitempty"`
 	ResponseEncoding        *string         `json:"responseEncoding,omitempty"`
 
-	// Raw mode only (ResponseModeRaw).
+	// Raw mode only.
 	ResponseMode         *string                             `json:"responseMode,omitempty"`
 	BodyBase64           string                              `json:"bodyBase64,omitempty"`
 	EncryptResponseTo    *ResponseKey                        `json:"encryptResponseTo,omitempty"`

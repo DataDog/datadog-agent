@@ -26,18 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
-// ResponseModeRaw makes request act as a plain HTTP client through the runner,
-// for callers such as OAuth discovery, client registration, token exchange and
-// refresh, and MCP JSON-RPC. In raw mode, request sends the body bytes verbatim,
-// never renders templates, never follows redirects, and returns the status,
-// headers and body of every response, including 3xx and 4xx.
-//
-// The runner's URL allowlist bounds where it may send. The connection's headers
-// and credentials apply only to the connection's base URL host, so a secret meant
-// for the MCP server never reaches another host such as an identity provider.
-//
-// Secrets that must not sit in plaintext in the task arrive sealed in
-// encryptedCredentials.
+// ResponseModeRaw makes request a plain HTTP client through the runner: the body
+// is sent verbatim, redirects are not followed, and every response is returned.
 const ResponseModeRaw = "raw"
 
 // MaxRawResponseBodyBytes caps the raw response body. Base64 makes it about
@@ -75,14 +65,12 @@ var rawStrippedResponseHeaders = map[string]bool{
 }
 
 // RawSecretInputs is the decrypted encryptedCredentials payload.
-// Its headers are added to the caller's, and its body replaces the caller's.
 type RawSecretInputs struct {
 	Headers    map[string][]string `json:"headers,omitempty"`
 	BodyBase64 string              `json:"bodyBase64,omitempty"`
 }
 
-// ResponseKey is a Datadog-held public key the response body is sealed to, so
-// OAuth token and client registration responses are never stored in plaintext.
+// ResponseKey is a Datadog-held public key the response body is sealed to.
 type ResponseKey struct {
 	KeyType   string `json:"keyType"`
 	PublicKey string `json:"publicKey"`
@@ -92,8 +80,8 @@ func isRawMode(inputs RequestInputs) bool {
 	return inputs.ResponseMode != nil && *inputs.ResponseMode == ResponseModeRaw
 }
 
-// validateResponseMode keeps the default mode exactly as it was: raw-only inputs
-// are refused there, and inputs whose meaning raw mode drops are refused in raw mode.
+// validateResponseMode refuses raw-only inputs in the default mode, and the
+// inputs raw mode ignores in raw mode.
 func validateResponseMode(inputs RequestInputs) error {
 	if inputs.ResponseMode != nil && *inputs.ResponseMode != "" && *inputs.ResponseMode != ResponseModeRaw {
 		return fmt.Errorf("unsupported responseMode %q", *inputs.ResponseMode)
@@ -260,10 +248,8 @@ func parseResponseKey(key ResponseKey) (hpke.PublicKey, error) {
 	return publicKey, nil
 }
 
-// connectionHeadersFor returns the connection's rendered headers, including its
-// credential, when the target is the connection's base URL
-// host, and none for any other host. A connection that carries headers must name
-// its host.
+// connectionHeadersFor returns the connection's headers only when the target is
+// the connection's base URL host.
 func connectionHeadersFor(target *url.URL, credential *privateconnection.PrivateCredentials) (http.Header, error) {
 	headers := http.Header{}
 	if credential == nil {
@@ -324,11 +310,8 @@ func effectivePort(u *url.URL) string {
 	return "443"
 }
 
-// setRawRequestHeaders copies the caller's headers verbatim, without rendering
-// templates in them, so a caller cannot read connection secrets through a
-// header. Connection headers override the caller's, except that a caller
-// Authorization meeting a connection Authorization fails the request: silently
-// swapping one credential for another hides misconfiguration.
+// setRawRequestHeaders copies the caller's headers without rendering templates,
+// so a caller cannot read connection secrets through them.
 func setRawRequestHeaders(
 	req *http.Request,
 	inputHeaders map[string][]string,

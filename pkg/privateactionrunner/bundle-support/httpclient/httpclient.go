@@ -41,8 +41,7 @@ type RunnerHttpClientConfig struct {
 
 type RunnerHttpTransportConfig struct {
 	AllowExpiredCertificate bool
-	// DisableCompression stops the transport from asking for gzip and decompressing
-	// the response, so the caller gets the bytes and headers the server sent.
+	// DisableCompression returns the response body as the server encoded it.
 	DisableCompression bool
 }
 

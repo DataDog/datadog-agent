@@ -116,9 +116,7 @@ func (d defaultHTTPClientProvider) NewClient(clientConfig *RunnerHttpClientConfi
 
 type hiddenLocationKey struct{}
 
-// noRedirectClient returns every 3xx response, whatever its Location holds.
-// http.Client parses Location before CheckRedirect runs and fails on an invalid
-// one, so hideLocationTransport takes it out of the response and Do puts it back.
+// noRedirectClient hides Location from http.Client, which fails on one it can't parse.
 type noRedirectClient struct {
 	inner HTTPClient
 }
