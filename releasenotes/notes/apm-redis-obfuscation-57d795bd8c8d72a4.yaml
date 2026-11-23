@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    APM: Fix gaps in Redis and Valkey command obfuscation that could expose
+    sensitive argument values in span tags.

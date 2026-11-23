@@ -16,6 +16,7 @@ import tempfile
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 
 import yaml
@@ -25,6 +26,7 @@ from invoke.tasks import task
 
 from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import get_pipeline_commit_sha
+from tasks.e2e_framework.image_pull import agent_qa_ecr_credential, agent_sandbox_ecr_credential
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
@@ -485,24 +487,15 @@ def run(
         usernames = env_username.split(",") if env_username else []
         passwords = env_password.split(",")
 
-    if not running_in_ci() and not passwords:
-        ecr_password = _get_agent_qa_ecr_password(ctx)
-        if ecr_password:
-            registries.append("669783387624.dkr.ecr.us-east-1.amazonaws.com")
-            usernames.append("AWS")
-            passwords.append(ecr_password)
-
     if not running_in_ci():
         # TODO(agent-devx): Add GCP authentication (follow-up to #47298)
-        # If we use an agent image from sandbox registry we need to authenticate against it
-        if "376334461865" in (agent_image or "") or "376334461865" in (cluster_agent_image or ""):
-            sandbox_pwd = ctx.run(
-                "aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password",
-                hide=True,
-            ).stdout.strip()
-            registries.append("376334461865.dkr.ecr.us-east-1.amazonaws.com")
-            usernames.append("AWS")
-            passwords.append(sandbox_pwd)
+        local_creds = [agent_sandbox_ecr_credential(ctx, agent_image, cluster_agent_image)]
+        if not passwords:
+            local_creds.insert(0, agent_qa_ecr_credential(ctx))
+        for registry, username, password in filter(None, local_creds):
+            registries.append(registry)
+            usernames.append(username)
+            passwords.append(password)
 
     if passwords:
         env_vars["E2E_IMAGE_PULL_REGISTRY"] = ",".join(registries)
@@ -903,10 +896,12 @@ def list_stacks(ctx: Context, project: str = "e2eci") -> list[dict]:
 
 
 @task
-def cleanup_remote_stacks(ctx, stack_regex):
+def cleanup_remote_stacks(ctx, stack_regex, pipeline_id=None):
     """
-    Clean up remote stacks created by the pipeline
+    Clean up remote stacks, attributing requests to pipeline_id (current by default).
     """
+    if pipeline_id is not None and not str(pipeline_id).isdecimal():
+        raise Exit("Provide a numeric --pipeline-id", code=1)
     remote_stack_cleaning = os.getenv("REMOTE_STACK_CLEANING") == "true"
     if remote_stack_cleaning:
         print("Using remote stack cleaning")
@@ -932,7 +927,11 @@ def cleanup_remote_stacks(ctx, stack_regex):
     print("About to delete the following stacks:", to_delete_stacks)
 
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
-        destroy_func = destroy_remote_stack_api if remote_stack_cleaning else destroy_remote_stack_local
+        destroy_func = (
+            partial(destroy_remote_stack_api, pipeline_id=pipeline_id)
+            if remote_stack_cleaning
+            else destroy_remote_stack_local
+        )
         res = pool.map(destroy_func, to_delete_stacks)
         destroyed_stack = set()
         failed_stack = set()
@@ -1027,32 +1026,82 @@ def benchmarkeks_baseline(ctx: Context, output_file: str = "benchmarkeks_baselin
     print(f"Written to {output_file}")
 
 
-@task(help={"output_file": "Markdown file to write the pull request comment to"})
-def benchmarkeks_instructions(_, output_file: str = "benchmarkeks_instructions.md"):
+@task(
+    help={
+        "state": "State of the benchmark the comment shows: pending (to start), running or done",
+        "report_dir": "Directory of the reports of the benchmark, required for the done state",
+    }
+)
+def benchmarkeks_comment(ctx: Context, state: str, report_dir: str = ""):
     """
-    Write the pull request comment explaining how to start the benchmarkeks suite (TestBenchmarkEKSSuite), which only
-    runs manually: a button linking to its manual job in the current pipeline, or a link to the pipeline if the job
-    can't be found.
+    Update the pull request comment of the benchmarkeks suite (TestBenchmarkEKSSuite) to the state of the benchmark in
+    the current pipeline: pending, with a button linking to its manual job, running, or done, with its results. A
+    pipeline whose commit is no longer the head of the pull request leaves the comment to the pipeline of the head.
     """
-    from tasks.libs.testing.benchmarkeks import BASELINE_JOB_NAME, instructions_comment
+    from tasks.github_tasks import pr_commenter
+    from tasks.libs.ciproviders.github_api import GithubAPI
+    from tasks.libs.testing.benchmarkeks import (
+        BASELINE_JOB_NAME,
+        BENCHMARK_JOB_NAME,
+        COMMENT_STATES,
+        COMMENT_TITLE,
+        SHORT_SHA_LENGTH,
+        done_comment,
+        pending_comment,
+        read_reports,
+        running_comment,
+    )
 
-    try:
-        # At the start of the pipeline, the job is still manual
-        jobs = (
-            get_gitlab_repo()
-            .pipelines.get(os.environ["CI_PIPELINE_ID"], lazy=True)
-            .jobs.list(scope="manual", iterator=True, per_page=100)
+    if state not in COMMENT_STATES:
+        message = f"Invalid state {state}: expected one of {', '.join(COMMENT_STATES)}"
+        raise Exit(color_message(message, Color.RED), code=1)
+    if state == "done" and not report_dir:
+        raise Exit(color_message("--report-dir is required for the done state", Color.RED), code=1)
+
+    # Before looking up the jobs, which a superseded pipeline doesn't need
+    sha = os.environ["CI_COMMIT_SHA"]
+    branch = os.environ["CI_COMMIT_BRANCH"]
+    prs = list(GithubAPI().get_pr_for_branch(branch))
+    if len(prs) != 1:
+        print(color_message(f"Found {len(prs)} pull requests for branch {branch}, not commenting", Color.ORANGE))
+        return
+    pr = prs[0]
+    if pr.head.sha != sha:
+        head = pr.head.sha[:SHORT_SHA_LENGTH]
+        print(
+            color_message(
+                f"The head of the pull request is now {head}, leaving the comment to its pipeline", Color.ORANGE
+            )
         )
-        job_url = next((job.web_url for job in jobs if job.name == BASELINE_JOB_NAME), None)
-        if job_url is None:
-            print(color_message(f"Job {BASELINE_JOB_NAME} not found, linking to the pipeline", Color.ORANGE))
-    except Exception as e:
-        print(color_message(f"Could not look up job {BASELINE_JOB_NAME}, linking to the pipeline: {e}", Color.ORANGE))
-        job_url = None
+        return
 
-    with open(output_file, "w") as f:
-        f.write(instructions_comment(job_url, os.environ["CI_PIPELINE_URL"]))
-    print(f"Written to {output_file}")
+    pipeline_url = os.environ["CI_PIPELINE_URL"]
+    commit = sha[:SHORT_SHA_LENGTH]
+    if state == "pending":
+        body = pending_comment(_pipeline_job_url(BASELINE_JOB_NAME), pipeline_url)
+    else:
+        benchmark_job_url = _pipeline_job_url(BENCHMARK_JOB_NAME) or pipeline_url
+        if state == "running":
+            body = running_comment(benchmark_job_url, pipeline_url, commit, datetime.datetime.now(datetime.UTC))
+        else:
+            body = done_comment(benchmark_job_url, pipeline_url, commit, *read_reports(report_dir))
+    pr_commenter(ctx, title=COMMENT_TITLE, body=body, pr=pr)
+
+
+def _pipeline_job_url(name: str) -> str | None:
+    """
+    Returns the URL of the job name of the current pipeline, whatever its status, or None if it can't be found.
+    """
+    try:
+        pipeline = get_gitlab_repo().pipelines.get(os.environ["CI_PIPELINE_ID"], lazy=True)
+        jobs = pipeline.jobs.list(iterator=True, per_page=100)
+        job_url = next((job.web_url for job in jobs if job.name == name), None)
+    except Exception as e:
+        print(color_message(f"Could not look up job {name}, linking to the pipeline: {e}", Color.ORANGE))
+        return None
+    if job_url is None:
+        print(color_message(f"Job {name} not found, linking to the pipeline", Color.ORANGE))
+    return job_url
 
 
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:
@@ -1436,23 +1485,6 @@ def _docker_host_env(ctx: Context) -> dict[str, str]:
     if not host.startswith("unix://") or host == DEFAULT_DOCKER_HOST:
         return {}
     return {"DOCKER_HOST": host}
-
-
-def _get_agent_qa_ecr_password(ctx: Context) -> str:
-    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION, ECR_CACHE_PROFILE
-
-    ecr_password_res = ctx.run(
-        f"aws-vault exec {ECR_CACHE_PROFILE} -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}",
-        hide=True,
-        warn=True,
-    )
-    if ecr_password_res.exited != 0:
-        print(
-            f"WARNING: Could not get ECR password for agent-qa account from the '{ECR_CACHE_PROFILE}' profile. "
-            "Run `dda inv -- e2e.setup` to configure it. Tests pulling images from agent-qa ECR are likely to fail."
-        )
-        return ""
-    return ecr_password_res.stdout.strip()
 
 
 def _find_recent_successful_pipeline(ctx: Context, branch: str | None = None) -> str | None:

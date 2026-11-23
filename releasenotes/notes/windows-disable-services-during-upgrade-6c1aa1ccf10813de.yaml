@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Disable Windows Agent services during MSI removal while configuration and
+    permissions change. Installation and removal rollback enable the package's
+    active services using default startup settings. Upgrade removal protection
+    applies when the installed version already contains this fix.

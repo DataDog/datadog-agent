@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix the remote workloadmeta stream when the name, executable path, working
+    directory or command line of a process contains bytes that are not valid
+    UTF-8. Before this fix, one such process made the core Agent end the stream
+    on each connection attempt, so remote clients such as ``system-probe`` got
+    no container, pod or process updates. The Agent now replaces the invalid
+    bytes with the Unicode replacement character (U+FFFD).

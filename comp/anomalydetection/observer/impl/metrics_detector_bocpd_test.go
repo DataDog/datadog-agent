@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -105,6 +106,121 @@ func TestBOCPDDetector_DetectsStepChange(t *testing.T) {
 	assert.Equal(t, "BOCPD changepoint detected: test.metric:avg", title)
 	assert.Contains(t, description, "exceeded threshold")
 	assert.GreaterOrEqual(t, result.Anomalies[0].Timestamp, int64(21))
+}
+
+func TestBOCPDDetector_LevelChangeEvidence_DefaultDisabled(t *testing.T) {
+	d := testBOCPDDetector()
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "test.metric", 140, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 40, observer.DetectionFilter{})
+	require.NotEmpty(t, result.Anomalies)
+	assert.Nil(t, result.Anomalies[0].LevelChange)
+}
+
+func TestBOCPDDetector_LevelChangeEvidence_ProbabilityTrigger(t *testing.T) {
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	config.CPThreshold = 0.04
+	config.CPMassThreshold = 0.99
+	d := newBOCPDDetector(config, true)
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "test.metric", 140, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 40, observer.DetectionFilter{})
+	require.NotEmpty(t, result.Anomalies)
+	require.Equal(t, observer.BOCPDTriggerChangePointProbability, result.Anomalies[0].DebugInfo.BOCPDTrigger)
+	require.NotNil(t, result.Anomalies[0].LevelChange)
+	assert.InDelta(t, 100, result.Anomalies[0].LevelChange.BeforeMedian, 1)
+	assert.InDelta(t, 140, result.Anomalies[0].LevelChange.AfterMedian, 1)
+}
+
+func TestBOCPDDetector_LevelChangeEvidence_ShortRunTrigger(t *testing.T) {
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	config.CPThreshold = 0.99
+	config.CPMassThreshold = 0.55
+	config.ShortRunLength = 6
+	d := newBOCPDDetector(config, true)
+
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 30; i++ {
+		storage.Add("ns", "test.metric", 100+float64(i%3-1)*5, int64(i+1), nil)
+	}
+	for i := 30; i < 60; i++ {
+		storage.Add("ns", "test.metric", 115, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 60, observer.DetectionFilter{})
+	require.NotEmpty(t, result.Anomalies)
+	require.Equal(t, observer.BOCPDTriggerShortRunMass, result.Anomalies[0].DebugInfo.BOCPDTrigger)
+	require.NotNil(t, result.Anomalies[0].LevelChange)
+	assert.InDelta(t, 100, result.Anomalies[0].LevelChange.BeforeMedian, 10)
+	assert.InDelta(t, 115, result.Anomalies[0].LevelChange.AfterMedian, 10)
+}
+
+func TestBOCPDDetector_LevelChangeEvidence_MultipleAlerts(t *testing.T) {
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	d := newBOCPDDetector(config, true)
+	storage := newTimeSeriesStorage()
+
+	addPoints := func(namespace string, count int, value float64) {
+		for i := 0; i < count; i++ {
+			storage.Add(namespace, "m", value, int64(i+1), nil)
+		}
+	}
+	addPoints("series-one", 25, 100)
+	addPoints("series-two", 25, 100)
+	for _, namespace := range []string{"series-one", "series-two"} {
+		for i := 0; i < 10; i++ {
+			storage.Add(namespace, "m", 300, int64(26+i), nil)
+		}
+	}
+	result := d.Detect(storage, 35, observer.DetectionFilter{})
+	require.Len(t, result.Anomalies, 2)
+	for _, anomaly := range result.Anomalies {
+		require.NotNil(t, anomaly.LevelChange)
+		assert.InDelta(t, 100, anomaly.LevelChange.BeforeMedian, 1)
+		assert.InDelta(t, 300, anomaly.LevelChange.AfterMedian, 1)
+	}
+}
+
+func BenchmarkBOCPDDetectorAlertWithMedianEvidence(b *testing.B) {
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "test.metric", 140, int64(i+1), nil)
+	}
+
+	for _, evidence := range []bool{false, true} {
+		b.Run(fmt.Sprintf("evidence=%t", evidence), func(b *testing.B) {
+			config := DefaultBOCPDConfig()
+			config.WarmupPoints = 20
+			d := newBOCPDDetector(config, evidence)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				d.Reset()
+				result := d.Detect(storage, 40, observer.DetectionFilter{})
+				if len(result.Anomalies) == 0 {
+					b.Fatal("expected an alert")
+				}
+			}
+		})
+	}
 }
 
 func TestBOCPDDetector_DetectsDownwardStepChange(t *testing.T) {

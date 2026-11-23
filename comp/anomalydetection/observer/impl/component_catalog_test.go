@@ -104,7 +104,8 @@ anomaly_detection:
       min_points: 42
       max_points: 84
 `)
-	settings := settingsFromAgentConfig(defaultCatalog(), cfg)
+	settings, err := settingsFromAgentConfig(defaultCatalog(), cfg)
+	require.NoError(t, err)
 	require.False(t, settings.UseMetricPipeline)
 
 	cfg = configmock.NewFromYAML(t, `
@@ -116,7 +117,8 @@ anomaly_detection:
   metric_pipeline:
     enabled: true
 `)
-	settings = settingsFromAgentConfig(defaultCatalog(), cfg)
+	settings, err = settingsFromAgentConfig(defaultCatalog(), cfg)
+	require.NoError(t, err)
 	require.True(t, settings.UseMetricPipeline)
 	require.Nil(t, settings.StablePipeline, "absent setting must select defaults")
 	require.Nil(t, settings.MetricPipelineAnomalyCutoff)
@@ -137,7 +139,8 @@ anomaly_detection:
     stable:
       min_relative_change: 0
 `)
-	settings := settingsFromAgentConfig(defaultCatalog(), cfg)
+	settings, err := settingsFromAgentConfig(defaultCatalog(), cfg)
+	require.NoError(t, err)
 	require.NotNil(t, settings.StablePipeline)
 	require.Zero(t, settings.StablePipeline.MinRelativeChange)
 	detectors, _, _, _, _ := instantiateForTest(t, defaultCatalog(), settings)
@@ -153,7 +156,8 @@ anomaly_detection:
     stable:
       min_relative_change: 0.2
 `)
-	settings = settingsFromAgentConfig(defaultCatalog(), cfg)
+	settings, err = settingsFromAgentConfig(defaultCatalog(), cfg)
+	require.NoError(t, err)
 	require.NotNil(t, settings.StablePipeline)
 	require.InDelta(t, 0.2, settings.StablePipeline.MinRelativeChange, 1e-12)
 	detectors, _, _, _, _ = instantiateForTest(t, defaultCatalog(), settings)
@@ -169,6 +173,7 @@ func TestScanDetectors_CatalogConfiguration(t *testing.T) {
 			for _, enabled := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%s/%s/enabled=%t", name, source, enabled), func(t *testing.T) {
 					var settings ComponentSettings
+					var err error
 					if source == "agent" {
 						cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
 anomaly_detection:
@@ -178,16 +183,15 @@ anomaly_detection:
       min_points: 42
       max_points: 84
 `, name, enabled))
-						settings = settingsFromAgentConfig(defaultCatalog(), cfg)
+						settings, err = settingsFromAgentConfig(defaultCatalog(), cfg)
 					} else {
-						var err error
 						settings, err = ParseSettingsFromJSON(map[string]json.RawMessage{
 							name: json.RawMessage(fmt.Sprintf(
 								`{"enabled":%t,"min_points":42,"max_points":84}`,
 								enabled)),
 						})
-						require.NoError(t, err)
 					}
+					require.NoError(t, err)
 					detectors, _, _, _, components := instantiateForTest(t, defaultCatalog(), settings)
 					var want, got any
 					switch d := components[name].instance.(type) {
@@ -213,6 +217,98 @@ anomaly_detection:
 				})
 			}
 		}
+	}
+}
+
+func TestSettingsFromAgentConfigStableDetectorSelection(t *testing.T) {
+	tests := []struct {
+		name          string
+		block         string
+		wantDetector  string
+		wantMinPoints int
+		wantMaxPoints int
+		wantWarmup    int
+		wantMaxRun    int
+	}{
+		{name: "scanmw", block: "scanmw:\n        min_points: 42\n        max_points: 84", wantDetector: "scanmw", wantMinPoints: 42, wantMaxPoints: 84},
+		{name: "scanwelch", block: "scanwelch:\n        min_points: 43\n        max_points: 85", wantDetector: "scanwelch", wantMinPoints: 43, wantMaxPoints: 85},
+		{name: "bocpd", block: "bocpd:\n        warmup_points: 44\n        max_run_length: 86", wantDetector: "bocpd", wantWarmup: 44, wantMaxRun: 86},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+anomaly_detection:
+  metric_pipeline:
+    enabled: true
+    stable:
+      %s
+`, test.block))
+			settings, err := settingsFromAgentConfig(defaultCatalog(), cfg)
+			require.NoError(t, err)
+			require.NotNil(t, settings.StablePipeline)
+			detectors, _, _, _, _ := instantiateForTest(t, defaultCatalog(), settings)
+			require.Len(t, detectors, 1)
+			pipeline := detectors[0].detector.(*MetricPipeline)
+			stable := pipeline.registrations[0].detector.(*StablePipeline)
+			require.Equal(t, "stable_pipeline:"+test.wantDetector, stable.Name())
+			switch detector := stable.detector.(type) {
+			case *ScanMWDetector:
+				require.Equal(t, test.wantMinPoints, detector.config.MinPoints)
+				require.Equal(t, test.wantMaxPoints, detector.config.MaxPoints)
+			case *ScanWelchDetector:
+				require.Equal(t, test.wantMinPoints, detector.config.MinPoints)
+				require.Equal(t, test.wantMaxPoints, detector.config.MaxPoints)
+			case *BOCPDDetector:
+				require.Equal(t, test.wantWarmup, detector.config.WarmupPoints)
+				require.Equal(t, test.wantMaxRun, detector.config.MaxRunLength)
+				require.True(t, detector.stablePipelineEnabled)
+			default:
+				t.Fatalf("unexpected detector type %T", detector)
+			}
+		})
+	}
+}
+
+func TestSettingsFromAgentConfigStableDetectorErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		want string
+	}{
+		{
+			name: "multiple blocks",
+			yaml: `
+      scanmw:
+        min_points: 42
+      bocpd:
+        warmup_points: 42
+`,
+			want: "stable pipeline accepts at most one detector block",
+		},
+		{
+			name: "unknown detector",
+			yaml: `
+      holt_residual:
+        warmup_points: 42
+`,
+			want: "unknown stable pipeline detector \"holt_residual\"",
+		},
+		{
+			name: "unknown field",
+			yaml: `
+      scanmw:
+        min_points: 42
+        enabled: true
+`,
+			want: "unknown stable detector setting \"enabled\"",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  metric_pipeline:\n    enabled: true\n    stable:\n"+test.yaml)
+			_, err := settingsFromAgentConfig(defaultCatalog(), cfg)
+			require.EqualError(t, err, test.want)
+		})
 	}
 }
 
@@ -285,13 +381,13 @@ func TestValidateDetectorTeardownContract_FlagsBareDetector(t *testing.T) {
 func TestApplyTestbenchDefaults(t *testing.T) {
 	settings := ApplyTestbenchDefaults(ComponentSettings{})
 
-	require.Equal(t, 40, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
+	require.Equal(t, 20, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
 	holt := settings.configs["holt_residual"].(HoltResidualConfig)
 	require.Equal(t, 15, holt.WarmupPoints)
 	require.Equal(t, 25, holt.ResidualWindow)
 	tukey := settings.configs["tukey_biweight"].(TukeyBiweightConfig)
 	require.Equal(t, 40, tukey.WindowSize)
-	require.Equal(t, 40, tukey.MinPoints)
+	require.Equal(t, 20, tukey.MinPoints)
 	require.True(t, settings.Enabled["anomaly_scorer"])
 	require.NotContains(t, settings.Enabled, "time_cluster")
 	scorer := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
@@ -349,14 +445,14 @@ func TestParseTestbenchSettingsFromJSON(t *testing.T) {
 	settings, err := ParseTestbenchSettingsFromJSON(overrides)
 	require.NoError(t, err)
 	bocpd := settings.configs["bocpd"].(BOCPDConfig)
-	require.Equal(t, 40, bocpd.WarmupPoints)
+	require.Equal(t, 20, bocpd.WarmupPoints)
 	require.Equal(t, 0.08, bocpd.Hazard)
 	holt := settings.configs["holt_residual"].(HoltResidualConfig)
 	require.Equal(t, 15, holt.WarmupPoints)
 	require.Equal(t, 25, holt.ResidualWindow)
 	require.Equal(t, 0.4, holt.Alpha)
 	tukey := settings.configs["tukey_biweight"].(TukeyBiweightConfig)
-	require.Equal(t, 40, tukey.MinPoints)
+	require.Equal(t, 20, tukey.MinPoints)
 	require.Equal(t, 40, tukey.WindowSize)
 	require.Equal(t, 6.0, tukey.ZThreshold)
 	require.Equal(t, 30, settings.configs["scanmw"].(ScanMWConfig).MinPoints)
@@ -405,4 +501,14 @@ func instantiateForTest(t testing.TB, catalog *componentCatalog, settings Compon
 	detectors, correlators, scorer, extractors, components, err := catalog.Instantiate(settings)
 	require.NoError(t, err)
 	return detectors, correlators, scorer, extractors, components
+}
+
+func TestDefaultCatalogPreservesBothLogExtractors(t *testing.T) {
+	_, _, _, extractors, components := instantiateForTest(t, defaultCatalog(), ComponentSettings{})
+	require.Len(t, extractors, 2)
+	require.Equal(t, LogMetricsExtractorName, extractors[0].Name())
+	require.Equal(t, LogPatternExtractorName, extractors[1].Name())
+	require.Contains(t, components, LogPatternExtractorName)
+	require.Equal(t, 0.6, extractors[0].(*LogMetricsExtractor).config.MinTokenMatchRatio)
+	require.Equal(t, DefaultLogPatternExtractorConfig(), extractors[1].(*LogPatternExtractor).config)
 }

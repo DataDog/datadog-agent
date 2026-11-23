@@ -53,7 +53,6 @@ cc_library(
     hdrs = ["include/yaml.h"],
     copts = [
         "-O2",
-        "-w",
     ],
     includes = ["include"],
     local_defines = [
