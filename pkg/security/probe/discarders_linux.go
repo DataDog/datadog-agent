@@ -223,9 +223,6 @@ func getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field e
 
 	var canMatch []func(dir string) bool
 	for _, rule := range bucket.GetRules() {
-		if rs.IsExcludedFromDiscarders(rule) {
-			continue
-		}
 		below, err := canMatchBelow(rule.GetResolvedAst().Root, field, true)
 		if below == nil || err != nil {
 			return nil, err

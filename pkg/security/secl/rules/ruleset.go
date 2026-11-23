@@ -999,12 +999,6 @@ func (rs *RuleSet) IsDiscarder(ctx *eval.Context, fields []eval.Field, rules []*
 	return isDiscarder, nil, nil
 }
 
-// IsExcludedFromDiscarders returns whether the rule can't generate discarders.
-func (rs *RuleSet) IsExcludedFromDiscarders(rule *Rule) bool {
-	_, exists := rs.opts.ExcludedRuleFromDiscarders[rule.ID]
-	return exists
-}
-
 func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.PolicyRule.Actions {
 		// set context scope field evaluator
