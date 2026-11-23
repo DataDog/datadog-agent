@@ -237,6 +237,8 @@ type tcTestRun struct {
 	ran          []string
 	exits        []tcTestExit
 	errs         []error
+	// index of the tail call into a program allowed to drop, -1 for none
+	dropAt int
 }
 
 func newTCTestRun(t *testing.T, spec *ebpf.CollectionSpec, env tcTestEnv, failTailCall int) *tcTestRun {
@@ -245,6 +247,7 @@ func newTCTestRun(t *testing.T, spec *ebpf.CollectionSpec, env tcTestEnv, failTa
 		env:          env,
 		progs:        make(map[uint32]string),
 		failTailCall: failTailCall,
+		dropAt:       -1,
 	}
 	r.vm = baloum.NewVM(spec, baloum.Opts{
 		Fncs: baloum.Fncs{
@@ -415,6 +418,9 @@ func (r *tcTestRun) tailCall(vm *baloum.VM, regs baloum.Regs) bool {
 	if ok {
 		r.current = prog
 		r.ran = append(r.ran, prog)
+		if r.dropAt < 0 && probes.IsProgAllowedToTCActShot(prog) {
+			r.dropAt = index
+		}
 	}
 	return ok
 }
@@ -484,20 +490,22 @@ func TestTCReturnCodes(t *testing.T) {
 
 			for _, packet := range packets {
 				t.Run(fmt.Sprintf("%s/%s/%s", env.name, prog, packet.name), func(t *testing.T) {
+					drops := packet.dropped && prog == "classifier_raw_packet_egress" && (env.cookiePid || env.features)
 					// every tail call succeeds first, then each of them fails in turn
-					for fail, tailCalls := -1, 0; fail < tailCalls; fail++ {
+					for fail, tailCalls, dropAt := -1, 0, -1; fail < tailCalls; fail++ {
 						r := newTCTestRun(t, tcSpec, env, fail)
 						code := r.run(prog, packet.data, ingress)
 						r.check(code)
 
 						if fail == -1 {
-							tailCalls = r.tailCalls
-							want := int32(probes.TCActUnspec)
-							if packet.dropped && prog == "classifier_raw_packet_egress" && (env.cookiePid || env.features) {
-								want = probes.TCActShot
-							}
-							assert.Equal(t, want, code, "programs: %v", r.ran)
+							tailCalls, dropAt = r.tailCalls, r.dropAt
 						}
+						// failing the tail call into the drop action, or one on the way to it, lets the packet go on
+						want := int32(probes.TCActUnspec)
+						if drops && (fail == -1 || fail > dropAt) {
+							want = probes.TCActShot
+						}
+						assert.Equal(t, want, code, "failed tail call: %d, programs: %v", fail, r.ran)
 
 						for _, name := range r.progs {
 							progs[name] = true
