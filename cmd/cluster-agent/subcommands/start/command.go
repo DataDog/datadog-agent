@@ -118,6 +118,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
+	parDeployment "github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -925,6 +926,9 @@ func startPrivateActionRunner(
 	ha helmactions.Component,
 	ka kubeactionscomp.Component,
 ) (func(), error) {
+	if err := parDeployment.EnsureSupported(config); err != nil {
+		return nil, err
+	}
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
 	}

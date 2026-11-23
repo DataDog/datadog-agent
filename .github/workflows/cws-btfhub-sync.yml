@@ -16,6 +16,7 @@ permissions: {}
 jobs:
   generate:
     runs-on: ubuntu-26.04
+    timeout-minutes: 70
     permissions:
       contents: read
     strategy:
@@ -97,6 +98,7 @@ jobs:
   combine:
     needs: generate
     runs-on: ubuntu-26.04
+    timeout-minutes: 70
     permissions:
       contents: read
       id-token: write # This is required for getting the required OIDC token from GitHub

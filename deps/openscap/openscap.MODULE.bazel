@@ -5,14 +5,14 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 # Releases of the datadog branch of github.com/0intro/openscap: an upstream
 # OpenSCAP release plus the changes the Agent needs, each on a branch of its
 # own (.datadog/README.md there).
-VERSION = "1.4.6-dd.20261022.3"
+VERSION = "1.4.6-dd.20261022.4"
 
 http_archive(
     name = "openscap",
     files = {
         "BUILD.bazel": "//deps:openscap/openscap.BUILD.bazel",
     },
-    sha256 = "da00f3d28b9191e8b8c47a44cbdcb1a01688c719f2992136eac5e5e11219c7c3",
+    sha256 = "235d783cecc815db9f3493d895ba4ef0eac57ef3305a023dbaafb61fac977c5f",
     strip_prefix = "openscap-{}".format(VERSION),
     url = "https://github.com/0intro/openscap/releases/download/v{0}/openscap-{0}.tar.gz".format(VERSION),
 )

@@ -6,11 +6,103 @@
 package backend
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestGetReleasedImageTags(t *testing.T) {
+	registry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v2/" {
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"name":"agent-package","tags":["7.85.2-2","7","7.85","7.85.2-1","7.54.0-crash-1","7.86.0-rc.1-1"]}`))
+	}))
+	t.Cleanup(registry.Close)
+	tags, err := getReleasedImageTags(strings.TrimPrefix(registry.URL, "http://") + "/agent-package")
+	require.NoError(t, err)
+	require.Equal(t, []string{"7.85.2-2", "7.85.2-1"}, tags)
+}
+
+func TestCatalogPreviousMinorVersions(t *testing.T) {
+	var catalog Catalog
+	for _, version := range []string{
+		"7.86.2-2", "7.84.0-1", "7.86.0-1", "v7.86.2-1", "7.86.2-1",
+		"7.83.0-1", "v7.85.0-1", "7.90.0-1", "8.86.0-1",
+		"7.86.3-rc.1-1", "7.86.3-devel.git.123-1",
+	} {
+		catalog.packages = append(catalog.packages, catalogEntry{
+			Package: "datadog-agent", branch: BranchStable, Version: version,
+		})
+	}
+	catalog.packages = append(catalog.packages,
+		catalogEntry{Package: "other-package", branch: BranchStable, Version: "7.86.4-1"},
+		catalogEntry{Package: "datadog-agent", branch: BranchTesting, Version: "7.86.5-1"},
+	)
+	for _, tc := range []struct {
+		name     string
+		offset   int
+		versions []string
+	}{
+		{"N-1", 1, []string{"7.86.2-2", "7.86.2-1", "7.86.0-1"}},
+		{"N-2", 2, []string{"v7.85.0-1"}},
+		{"N-3", 3, []string{"7.84.0-1"}},
+		{"N-4", 4, []string{"7.83.0-1"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			versions, err := catalog.PreviousMinorVersions(BranchStable, "datadog-agent", "v7.87.0-devel.git.123-1", tc.offset)
+			require.NoError(t, err)
+			require.Equal(t, tc.versions, versions)
+		})
+	}
+}
+
+func TestCatalogPreviousMinorVersionsUnavailable(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		packages    []catalogEntry
+		unavailable bool
+	}{
+		{
+			name: "missing minor does not substitute an older release",
+			packages: []catalogEntry{
+				{Package: "datadog-agent", branch: BranchStable, Version: "7.86.0-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: "7.84.0-1"},
+			},
+			unavailable: true,
+		},
+		{name: "empty catalog"},
+		{
+			name: "malformed catalog",
+			packages: []catalogEntry{
+				{Package: "datadog-agent", branch: BranchStable, Version: "7.84.0-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: "unknown"},
+			},
+		},
+		{
+			name: "no stable releases",
+			packages: []catalogEntry{
+				{Package: "datadog-agent", branch: BranchStable, Version: "7.85.0-rc.1-1"},
+				{Package: "datadog-agent", branch: BranchTesting, Version: "7.85.0-1"},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			catalog := Catalog{packages: tc.packages}
+			_, err := catalog.PreviousMinorVersions(BranchStable, "datadog-agent", "7.87.0-1", 2)
+			require.Error(t, err)
+			if tc.unavailable {
+				require.ErrorIs(t, err, ErrNoReleasedVersions)
+			} else {
+				require.NotErrorIs(t, err, ErrNoReleasedVersions)
+			}
+		})
+	}
+}
 
 // crtDecode reimplements the Microsoft C runtime command-line parser
 // (the rules CommandLineToArgvW implements) and splits a command line into its
