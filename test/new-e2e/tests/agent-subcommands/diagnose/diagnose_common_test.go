@@ -80,6 +80,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseList() {
 func (v *baseDiagnoseSuite) AssertDiagnoseInclude() {
 	// Retry only one transiently failing invocation across both formats. This
 	// keeps failure handling bounded without giving every case a polling window.
+	// Running a case alone therefore gives it the full shared retry budget.
 	retryAvailable := true
 	for _, format := range []string{"text", "json"} {
 		v.Run(format, func() {

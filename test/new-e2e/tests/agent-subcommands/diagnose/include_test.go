@@ -7,6 +7,7 @@ package diagnose
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +22,7 @@ func TestParseIncludeOutput(t *testing.T) {
 	}{
 		{"json", "json", `{"runs":[{"suite_name":"connectivity-datadog-event-platform","diagnoses":[{"result":1,"rawerror":"context deadline exceeded"}]}],"summary":{"total":1,"fail":1}}`},
 		{"text", "text", "=== Starting diagnose ===\n==============\nSuite: connectivity-datadog-event-platform\n\n1. --------------\n  FAIL Connectivity\n  Diagnosis: Connection failed\n  Error: context deadline exceeded\n\n-------------------------\n  Total:1, Fail:1\n"},
-		{"windows text", "text", "Suite: connectivity-datadog-event-platform\r\n  FAIL Connectivity\r\n  Error: context deadline exceeded\r\n  Total:1, Fail:1\r\n"},
+		{"windows text", "text", "Suite: connectivity-datadog-event-platform\r\n  FAIL Connectivity\r\n  Error: context deadline exceeded\r\n-------------------------\r\n  Total:1, Fail:1\r\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := parseIncludeOutput(tc.output, tc.format)
@@ -36,6 +37,50 @@ func TestParseIncludeOutput(t *testing.T) {
 		_, err := parseIncludeOutput(tc.output, tc.format)
 		assert.Error(t, err)
 	}
+}
+
+func TestParseIncludeTextSummary(t *testing.T) {
+	const diagnosis = "Suite: connectivity-datadog-event-platform\n  FAIL Connectivity\n  Diagnosis: remote response\n  Error: context deadline exceeded\n"
+	const embedded = "Total:999\n-------------------------\n  Total:42, Success:42\n"
+	const summary = "-------------------------\n  Total:1, Fail:1\n"
+	for _, tc := range []struct {
+		name, output string
+		wantError    bool
+	}{
+		{"embedded counters", diagnosis + embedded + summary, false},
+		{"windows embedded counters", strings.ReplaceAll(diagnosis+embedded+summary, "\n", "\r\n"), false},
+		{"no final newline", diagnosis + strings.TrimSuffix(summary, "\n"), false},
+		{"missing final summary", diagnosis + "Total:1, Fail:1\n", true},
+		{"malformed final summary", diagnosis + embedded + "-------------------------\n  Total:invalid\n", true},
+		{"trailing text", diagnosis + embedded + summary + "unexpected trailer\n", true},
+		{"trailing summary fields", diagnosis + "-------------------------\n  Total:1, Fail:1, ignored:9\n", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseIncludeOutput(tc.output, "text")
+			if tc.wantError {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, counters{Total: 1, Fail: 1}, result.Summary)
+			require.NoError(t, result.validate([]string{includeTestSuite}))
+		})
+	}
+
+	// Embedded response counters must not cause validation to reject a real
+	// transient failure before the shared retry decision.
+	retryAvailable, calls := true, 0
+	result, err := runIncludeSelection(func() (includeOutput, error) {
+		calls++
+		if calls == 1 {
+			return parseIncludeOutput(diagnosis+embedded+summary, "text")
+		}
+		return includeFixture(0, ""), nil
+	}, []string{includeTestSuite}, &retryAvailable)
+	require.NoError(t, err)
+	assert.Equal(t, 2, calls)
+	assert.False(t, retryAvailable)
+	assert.Zero(t, result.Summary.Fail)
 }
 
 func TestIncludeOutputValidation(t *testing.T) {

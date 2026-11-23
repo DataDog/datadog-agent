@@ -194,7 +194,9 @@ func createSummaryRegex() *regexp.Regexp {
 	failRegex := `(?:, Fail:(?P<fail>\d+))?`
 	warningRegex := `(?:, Warning:(?P<warning>\d+))?`
 	errorRegex := `(?:, Error:(?P<error>\d+))?`
-	regexTemplate := `Total:(?P<total>\d+)` + successRegex + failRegex + warningRegex + errorRegex
+	// Diagnostic details may contain arbitrary multiline endpoint responses,
+	// including counters and separators. Only the final summary block counts.
+	regexTemplate := `(?m)^-------------------------\r?\n  Total:(?P<total>\d+)` + successRegex + failRegex + warningRegex + errorRegex + `(?:\r?\n)?\z`
 	return regexp.MustCompile(regexTemplate)
 }
 
