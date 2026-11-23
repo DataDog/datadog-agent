@@ -63,7 +63,7 @@ spec:
 # and the container, containerd and cri checks go through each container. The
 # containers go in these pods rather than in more pods, each of which would add
 # a sandbox, a pod IP and a containerd shim. "Real pods, for the node Agents" in
-# doc/how-to/test/e2e/benchmarkeks/how-it-works.md explains how many it takes
+# doc/dev/test/e2e/benchmarkeks/how-it-works.md explains how many it takes
 # for these checks to take a large share of the CPU usage of the node Agent.
 apiVersion: apps/v1
 kind: DaemonSet

@@ -21,5 +21,5 @@ repository right away. This snapshot exists only for external consumers of
 tag and have no codegen step.
 
 To change a setting, edit the schema (see
-`doc/how-to/agent-schema/settings.md`). The snapshot picks up the change after
+`doc/impl/framework/config/setting.md`). The snapshot picks up the change after
 the next release.

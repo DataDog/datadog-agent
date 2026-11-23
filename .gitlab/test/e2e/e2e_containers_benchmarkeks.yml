@@ -10,7 +10,7 @@
 # SMP does (see `dda inv new-e2e-tests.benchmarkeks-baseline`).
 #
 # The benchmark keeps an EKS cluster for its whole run, so it only runs on dev branches: automatically for the changes of
-# the benchmark itself, on demand otherwise (see doc/how-to/test/e2e/benchmarkeks/index.md). To run it, play
+# the benchmark itself, on demand otherwise (see doc/dev/test/e2e/benchmarkeks/index.md). To run it, play
 # new-e2e-containers-benchmarkeks-baseline only: the other jobs need it, so GitLab skips them until it is played, and
 # then runs them after it. Its jobs update a single pull request comment (see
 # `dda inv new-e2e-tests.benchmarkeks-comment`).

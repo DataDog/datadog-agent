@@ -66,7 +66,7 @@ const (
 
 	// With the defaults, the test lasts about 110 minutes once the Agents are ready: four
 	// phases of warm-up and measurement, and the swaps of the images in between. Why four:
-	// see doc/how-to/test/e2e/benchmarkeks/how-it-works.md.
+	// see doc/dev/test/e2e/benchmarkeks/how-it-works.md.
 	defaultBenchmarkPhases   = 4
 	defaultBenchmarkWarmup   = 10 * time.Minute
 	defaultBenchmarkDuration = 15 * time.Minute

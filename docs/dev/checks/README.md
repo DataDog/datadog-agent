@@ -190,7 +190,7 @@ correctly.
 
 #### Example for virtualenv
 
-(see also the notes in [manual setup](https://datadoghq.dev/datadog-agent/setup/manual/#python-dependencies)):
+(see also the notes in [manual setup](https://datadoghq.dev/datadog-agent/dev/env/setup/manual/#python-dependencies)):
 
 1. `python3 -m pip install virtualenv`
 1. `virtualenv $GOPATH/src/github.com/DataDog/datadog-agent/venv`

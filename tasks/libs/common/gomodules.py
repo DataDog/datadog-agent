@@ -97,7 +97,7 @@ class GoModule:
     """A Go module abstraction.
 
     See:
-        Documentation can be found at https://datadoghq.dev/datadog-agent/how-to/go/modules/.
+        Documentation can be found at https://datadoghq.dev/datadog-agent/impl/platform/go-module/add/.
 
     Args:
         test_targets: Directories to unit test.
