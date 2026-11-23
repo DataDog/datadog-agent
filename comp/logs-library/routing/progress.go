@@ -77,6 +77,7 @@ type sourceProgress struct {
 	queue              []*record
 	hasAdmittedRecords bool // Remains true after the queue drains.
 	invalidSelection   bool // Checkpoints cannot advance past an invalid barrier.
+	ephemeral          bool // Reclaim when queue drains (shared-ingress auto-registered sources).
 }
 
 // NewProgress creates bounded in-memory progress state and a bounded queue to
@@ -150,6 +151,7 @@ func (p *Progress) RegisterSource(identifier string, generation uint64) error {
 		source = &sourceProgress{seenGenerations: make(map[uint64]bool)}
 		p.sources[identifier] = source
 	}
+	source.ephemeral = false
 	source.currentGeneration = generation
 	source.seenGenerations[generation] = false
 	p.histories++
@@ -162,10 +164,10 @@ func (p *Progress) RegisterSource(identifier string, generation uint64) error {
 // producers may drain without reclaiming current checkpoint ownership; retired
 // producers return ErrObsoleteGeneration.
 func (p *Progress) Register(ctx context.Context, msg *message.Message, selection Selection, groups []string) (uint64, error) {
-	return p.register(ctx, msg, selection, groups, true, false)
+	return p.register(ctx, msg, selection, groups, true, false, false)
 }
 
-func (p *Progress) register(ctx context.Context, msg *message.Message, selection Selection, groups []string, requireCompleteSource, pendingSelection bool) (uint64, error) {
+func (p *Progress) register(ctx context.Context, msg *message.Message, selection Selection, groups []string, requireCompleteSource, pendingSelection, ephemeralSource bool) (uint64, error) {
 	if msg == nil || msg.Origin == nil {
 		return 0, fmt.Errorf("%w: missing source metadata", ErrInvalidSelection)
 	}
@@ -230,7 +232,7 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 	if identifier != "" {
 		source := p.sources[identifier]
 		if source == nil {
-			source = &sourceProgress{seenGenerations: make(map[uint64]bool)}
+			source = &sourceProgress{seenGenerations: make(map[uint64]bool), ephemeral: ephemeralSource}
 			p.sources[identifier] = source
 		}
 		if requireCompleteSource {
@@ -261,14 +263,22 @@ func (p *Progress) HoldInvalid(ctx context.Context, msg *message.Message) error 
 	if msg == nil || msg.Origin == nil || msg.Origin.Identifier == "" {
 		return nil
 	}
-	_, err := p.register(ctx, msg, Selection{}, []string{""}, false, false)
+	_, err := p.register(ctx, msg, Selection{}, []string{""}, false, false, false)
 	return err
 }
 
 // Reserve claims capacity and source order before processing or selection. No
 // delivery or local completion is inferred while selection is pending.
 func (p *Progress) Reserve(ctx context.Context, msg *message.Message, generation uint64) (uint64, error) {
-	return p.register(ctx, msg, Selection{Generation: generation}, nil, true, true)
+	return p.register(ctx, msg, Selection{Generation: generation}, nil, true, true, false)
+}
+
+// ReserveShared claims capacity and source order for shared-ingress records
+// whose producer has no explicit RetireSource lifecycle. Once all records for
+// that source drain (and no invalid barrier exists), its ownership entry is
+// reclaimed automatically so long-lived churn cannot exhaust source capacity.
+func (p *Progress) ReserveShared(ctx context.Context, msg *message.Message, generation uint64) (uint64, error) {
+	return p.register(ctx, msg, Selection{Generation: generation}, nil, true, true, true)
 }
 
 // AtCapacity reports pressure on the source window and aggregate record budget.
@@ -479,6 +489,12 @@ func (p *Progress) advance(r *record) {
 		}
 		p.notifySpace()
 	}
+	if source.ephemeral && len(source.queue) == 0 && !source.invalidSelection {
+		p.histories -= len(source.seenGenerations)
+		delete(p.sources, r.identifier)
+		p.notifySpace()
+		return
+	}
 	if !source.invalidSelection {
 		return
 	}
@@ -613,6 +629,24 @@ func (p *Progress) Close() {
 	}
 	p.mu.Unlock()
 	<-p.finished
+}
+
+// DrainAndClose closes the progress coordinator while allowing already-queued
+// completed checkpoints in ready to flush to the sink. Call it only after every
+// group sink has stopped producing outcomes. A concurrent StopForwarding call
+// still interrupts a blocked sink.
+func (p *Progress) DrainAndClose() {
+	p.mu.Lock()
+	if !p.stopped {
+		p.stopped = true
+		p.notifySpace()
+		close(p.ready)
+		p.records = nil
+		p.sources = nil
+	}
+	p.mu.Unlock()
+	<-p.finished
+	p.StopForwarding()
 }
 
 // GroupSink intercepts terminal output from one group's reliable destinations.

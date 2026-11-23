@@ -769,8 +769,7 @@ func TestEndpointFilteringSelectionSeesMRFAndUnfilteredLocalTags(t *testing.T) {
 			return RoutingContinue
 		},
 	)
-	// Drain initial failover config notification into processor state.
-	p.failoverConfig = <-p.configChan
+	// Effective failover config must be initialized synchronously without draining configChan.
 
 	webSrc := sources.NewLogSource("web", &config.LogsConfig{Service: "web", Tags: []string{"internal_only:yes", "env:prod"}})
 	paySrc := sources.NewLogSource("payments", &config.LogsConfig{Service: "payments", Tags: []string{"internal_only:yes", "env:prod"}})

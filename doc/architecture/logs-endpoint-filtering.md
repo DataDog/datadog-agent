@@ -43,11 +43,11 @@ OTTL expression compilation and YAML selector syntax are intentionally stubbed u
 - `routing.EndpointSelector` (`Match(routing.LogView) (bool, error)`)
 - `routing.SelectorCompiler` (`Compile(expr string) (routing.EndpointSelector, error)`)
 - `routing.StubSelectorCompiler` (returns `nil` for empty expressions and `routing.ErrSelectorCompilerNotConfigured` for non-empty expressions)
-- `comp/logs/agent/impl` keeps `pipeline.NewProvider` when no endpoint selectors are configured (zero overhead on the default path) and switches to `pipeline.NewEndpointFilteredProvider` when selectors are present.
+- `comp/logs/agent/impl` keeps `pipeline.NewProvider` when no endpoint selectors are configured (zero overhead on the default path). When endpoint selectors are configured, `buildPipelineProvider` requires HTTP JSON endpoints and valid `EndpointFilteredProvider` settings, returning an error instead of silently falling back to unfiltered delivery. Launchers receive the provider's guarded registry (`GuardRegistry`) and file tailers use isolated per-tailer `SourceInput` channels with generation retirement.
 
 ## Verified Limits
 
-- `routing.MaxFilterEndpoints = 64`: inline `uint64` bitmask per message (zero heap allocations on error-free evaluation).
+- `routing.MaxFilterEndpoints = 64`: inline `uint64` bitmask per message (mask computation and non-allocating selectors such as status-only checks perform 0 heap allocations on error-free evaluation; `LogView.Tags()` allocates via `Origin.Tags()` and structured attribute path lookup splits dotted paths).
 - `routing.SourcePendingLimit = 64`: max pending records retained per checkpointed source.
 - `routedProgressCapacity = 4096`: aggregate pending record budget across all sources.
 - `optionalStreamCapacity = 128`: bounded per-optional-endpoint non-blocking message queue.

@@ -499,7 +499,8 @@ func (suite *RestartTestSuite) TestRebuildTransientComponents_PreservesPersisten
 	suite.NoError(err)
 
 	// Execute rebuild - use the agent's existing wmeta and integrationsLogs
-	agent.rebuildTransientComponents(processingRules, nil, agent.wmeta, agent.integrationsLogs, *fingerprintConfig)
+	err = agent.rebuildTransientComponents(processingRules, nil, agent.wmeta, agent.integrationsLogs, *fingerprintConfig)
+	suite.NoError(err)
 
 	// Persistent components preserved
 	suite.Same(originalSources, agent.sources)

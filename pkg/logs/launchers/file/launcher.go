@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -77,6 +78,9 @@ type Launcher struct {
 	fingerprinter    tailer.Fingerprinter
 	// Keep the exact message recipients: a tailer's ReplaceableSource can change before cleanup.
 	fingerprintRotationErrors map[string]*config.Messages
+	sourceGenMu               sync.Mutex
+	nextGeneration            atomic.Uint64
+	sourceGenerations         map[*tailer.Tailer]uint64
 	stopOnce                  sync.Once
 }
 
@@ -214,15 +218,21 @@ func (s *Launcher) cleanup() {
 	s.clearFingerprintRotationErrors()
 	stopper := startstop.NewParallelStopper()
 	s.cleanUpRotatedTailers()
+	var stoppedTailers []*tailer.Tailer
 	for _, tailer := range s.rotatedTailers {
+		stoppedTailers = append(stoppedTailers, tailer)
 		stopper.Add(tailer)
 	}
 	s.rotatedTailers = []*tailer.Tailer{}
 	for _, tailer := range s.tailers.All() {
+		stoppedTailers = append(stoppedTailers, tailer)
 		stopper.Add(tailer)
 		s.tailers.Remove(tailer)
 	}
 	stopper.Stop()
+	for _, t := range stoppedTailers {
+		s.retireTailer(t)
+	}
 
 	// Clean up old info map to prevent memory leaks
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
@@ -478,6 +488,8 @@ func (s *Launcher) cleanUpRotatedTailers() {
 	for _, tailer := range s.rotatedTailers {
 		if !tailer.IsFinished() {
 			pendingTailers = append(pendingTailers, tailer)
+		} else {
+			s.retireTailer(tailer)
 		}
 	}
 	s.rotatedTailers = pendingTailers
@@ -582,6 +594,56 @@ func (s *Launcher) tailerPosition(file *tailer.File, t *tailer.Tailer, m config.
 	return offset, whence
 }
 
+func (s *Launcher) pipelineChanForFile(file *tailer.File) (chan *message.Message, *metrics.CapacityMonitor, uint64, error) {
+	if efp, ok := s.pipelineProvider.(*pipeline.EndpointFilteredProvider); ok {
+		gen := s.nextGeneration.Add(1)
+		ch, err := efp.SourceInput(file.Identifier(), gen)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+		return ch, efp.GetPipelineMonitor().GetCapacityMonitor(metrics.ProcessorTlmName, "endpoint-filter-0"), gen, nil
+	}
+	ch, mon := s.pipelineProvider.NextPipelineChanWithMonitor()
+	return ch, mon, 0, nil
+}
+
+func (s *Launcher) recordSourceGen(t *tailer.Tailer, gen uint64) {
+	if gen == 0 {
+		return
+	}
+	s.sourceGenMu.Lock()
+	if s.sourceGenerations == nil {
+		s.sourceGenerations = make(map[*tailer.Tailer]uint64)
+	}
+	s.sourceGenerations[t] = gen
+	s.sourceGenMu.Unlock()
+}
+
+func (s *Launcher) retireGeneration(identifier string, gen uint64) {
+	if gen == 0 {
+		return
+	}
+	efp, ok := s.pipelineProvider.(*pipeline.EndpointFilteredProvider)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := efp.RetireSource(ctx, identifier, gen); err != nil {
+		log.Debugf("endpoint-filtered source retirement for %s gen %d deferred: %v", identifier, gen, err)
+	}
+}
+
+func (s *Launcher) retireTailer(t *tailer.Tailer) {
+	s.sourceGenMu.Lock()
+	gen := s.sourceGenerations[t]
+	delete(s.sourceGenerations, t)
+	s.sourceGenMu.Unlock()
+	if gen != 0 {
+		s.retireGeneration(t.Identifier(), gen)
+	}
+}
+
 // startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
 // returns true if the operation succeeded, false otherwise.
 func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, fingerprint *types.Fingerprint) bool {
@@ -590,17 +652,23 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 		return false
 	}
 
-	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	channel, monitor, gen, err := s.pipelineChanForFile(file)
+	if err != nil {
+		log.Warnf("Could not allocate source input for %s: %v", file.Path, err)
+		return false
+	}
 	tailer := s.createTailer(file, channel, monitor, fingerprint)
 
 	offset, whence := s.tailerPosition(file, tailer, m, fingerprint)
 
 	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, file.GetScanKey())
 	if err := tailer.Start(offset, whence); err != nil {
+		s.retireGeneration(file.Identifier(), gen)
 		log.Warnf("Could not start the tailer for %s, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
 	}
 
+	s.recordSourceGen(tailer, gen)
 	s.tailers.Add(tailer)
 	return true
 }
@@ -612,7 +680,11 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		return false
 	}
 
-	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	channel, monitor, gen, err := s.pipelineChanForFile(file)
+	if err != nil {
+		log.Warnf("Could not allocate source input for %s: %v", file.Path, err)
+		return false
+	}
 
 	// Use stored InfoRegistry if available, otherwise create new one
 	var tailerInfo *status.InfoRegistry
@@ -659,10 +731,12 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	log.Infof("Starting new tailer with stored info (pattern: %v) for: %s (offset: %d, whence: %d)",
 		oldInfo.Pattern != nil, file.Path, offset, whence)
 	if err := tailer.Start(offset, whence); err != nil {
+		s.retireGeneration(file.Identifier(), gen)
 		log.Warnf("Could not start the tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
 	}
 
+	s.recordSourceGen(tailer, gen)
 	s.tailers.Add(tailer)
 	return true
 }
@@ -692,7 +766,10 @@ func (s *Launcher) handleTailingModeChange(tailerID string, currentTailingMode c
 // stopTailer stops the tailer
 func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 	s.clearFingerprintRotationError(tailer.GetID())
-	go tailer.Stop()
+	go func() {
+		tailer.Stop()
+		s.retireTailer(tailer)
+	}()
 	s.tailers.Remove(tailer)
 }
 
@@ -783,7 +860,12 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp, fingerprint *types.Fingerprint) *tailer.Tailer {
 	tailerInfo := t.GetInfo()
-	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	channel, monitor, gen, err := s.pipelineChanForFile(file)
+	if err != nil {
+		log.Warnf("Could not allocate rotated source input for %s, falling back to shared ingress: %v", file.Path, err)
+		channel, monitor = s.pipelineProvider.NextPipelineChanWithMonitor()
+		gen = 0
+	}
 	if fingerprint != nil {
 		log.Debugf("Creating new tailer for %s with fingerprint 0x%x (configuration: %v)", file.Path, fingerprint.Value, fingerprint.Config)
 	} else {
@@ -791,6 +873,7 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 	}
 	newTailer := t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.fingerprinter, s.registry)
 	addFingerprintConfigToTailerInfo(newTailer)
+	s.recordSourceGen(newTailer, gen)
 
 	return newTailer
 }

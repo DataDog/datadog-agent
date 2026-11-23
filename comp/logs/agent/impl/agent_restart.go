@@ -167,8 +167,7 @@ func (a *logAgent) setupAgentForRestart() error {
 		return err
 	}
 
-	a.rebuildTransientComponents(processingRules, tagFilters, a.wmeta, a.integrationsLogs, *fingerprintConfig)
-	return nil
+	return a.rebuildTransientComponents(processingRules, tagFilters, a.wmeta, a.integrationsLogs, *fingerprintConfig)
 }
 
 // restartPipeline restarts the logs pipeline after a transport switch.

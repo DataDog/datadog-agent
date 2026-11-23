@@ -265,8 +265,7 @@ func (a *logAgent) setupAgent() error {
 		return err
 	}
 
-	a.SetupPipeline(processingRules, tagFilters, a.wmeta, a.integrationsLogs, *fingerprintConfig)
-	return nil
+	return a.SetupPipeline(processingRules, tagFilters, a.wmeta, a.integrationsLogs, *fingerprintConfig)
 }
 
 func (a *logAgent) reportTagFilterWarnings() {

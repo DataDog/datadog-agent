@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/routing"
 	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -61,16 +62,26 @@ func (a *logAgent) startTagFiltering() {
 	startTagFilterSubscriber(a.sources, a.tagFilters, a.tagFilterSubscriberDone)
 }
 
-// NewAgent returns a new Logs Agent
-func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, tagFilters *tagfilter.Filters, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {
+func launcherRegistry(provider pipeline.Provider, reg auditor.Registry) auditor.Registry {
+	if efp, ok := provider.(*pipeline.EndpointFilteredProvider); ok && reg != nil {
+		return efp.GuardRegistry(reg)
+	}
+	return reg
+}
+
+// SetupPipeline sets up the logs processing pipeline and launchers.
+func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, tagFilters *tagfilter.Filters, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) error {
 	destinationsCtx := client.NewDestinationsContext()
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname, a.config)
 
 	// setup the pipeline provider that Provides pairs of processor and sender
-	pipelineProvider := buildPipelineProvider(a, processingRules, tagFilters, diagnosticMessageReceiver, destinationsCtx)
+	pipelineProvider, err := buildPipelineProvider(a, processingRules, tagFilters, diagnosticMessageReceiver, destinationsCtx)
+	if err != nil {
+		return err
+	}
 
 	// setup the launchers
-	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
+	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, launcherRegistry(pipelineProvider, a.auditor), a.tracker)
 
 	a.addLauncherInstances(lnchrs, wmeta, integrationsLogs, fingerprintConfig)
 
@@ -79,6 +90,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, tagFi
 	a.pipelineProvider = pipelineProvider
 	a.launchers = lnchrs
 	a.diagnosticMessageReceiver = diagnosticMessageReceiver
+	return nil
 }
 
 // buildEndpoints builds endpoints for the logs agent, either HTTP or TCP,
@@ -136,8 +148,11 @@ func hasEndpointSelectors(selectors []routing.EndpointSelector) bool {
 }
 
 // buildPipelineProvider builds a new pipeline provider with the given configuration
-func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule, tagFilters *tagfilter.Filters, diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver, destinationsCtx *client.DestinationsContext) pipeline.Provider {
-	if a.endpoints != nil && a.endpoints.UseHTTP && !a.endpoints.UseProto && hasEndpointSelectors(a.endpointSelectors) {
+func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule, tagFilters *tagfilter.Filters, diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver, destinationsCtx *client.DestinationsContext) (pipeline.Provider, error) {
+	if hasEndpointSelectors(a.endpointSelectors) {
+		if a.endpoints == nil || !a.endpoints.UseHTTP || a.endpoints.UseProto {
+			return nil, fmt.Errorf("%w: endpoint filtering requires HTTP JSON endpoints", routing.ErrInvalidEndpointFilterPolicy)
+		}
 		numPipelines := a.config.GetInt("logs_config.pipelines")
 		if numPipelines < 1 {
 			numPipelines = 1
@@ -156,12 +171,10 @@ func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule
 			Compression:               a.compression,
 			Secrets:                   a.secrets,
 		})
-		if err == nil {
-			return provider
+		if err != nil {
+			return nil, fmt.Errorf("invalid endpoint filtering configuration: %w", err)
 		}
-		if a.log != nil {
-			a.log.Warnf("Failed to initialize endpoint-filtered pipeline provider, falling back to default provider: %v", err)
-		}
+		return provider, nil
 	}
 	pipelineProvider := pipeline.NewProvider(
 		a.config.GetInt("logs_config.pipelines"),
@@ -179,7 +192,7 @@ func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule
 		false, // serverless
 		a.secrets,
 	)
-	return pipelineProvider
+	return pipelineProvider, nil
 }
 
 // rebuildTransientComponents recreates only the components that need to change during a restart.
@@ -188,13 +201,16 @@ func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule
 //   - destinationsCtx: New context for new transport connections
 //   - pipelineProvider: New pipeline with updated endpoints and configuration
 //   - launchers: New launchers connected to the new pipeline
-func (a *logAgent) rebuildTransientComponents(processingRules []*config.ProcessingRule, tagFilters *tagfilter.Filters, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {
+func (a *logAgent) rebuildTransientComponents(processingRules []*config.ProcessingRule, tagFilters *tagfilter.Filters, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) error {
 	destinationsCtx := client.NewDestinationsContext()
-	pipelineProvider := buildPipelineProvider(a, processingRules, tagFilters, a.diagnosticMessageReceiver, destinationsCtx)
+	pipelineProvider, err := buildPipelineProvider(a, processingRules, tagFilters, a.diagnosticMessageReceiver, destinationsCtx)
+	if err != nil {
+		return err
+	}
 
 	// recreate launchers with new pipelineProvider
 	// use OLD: sources, auditor, tracker
-	lnchers := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
+	lnchers := launchers.NewLaunchers(a.sources, pipelineProvider, launcherRegistry(pipelineProvider, a.auditor), a.tracker)
 	a.addLauncherInstances(lnchers, wmeta, integrationsLogs, fingerprintConfig)
 
 	// update agent with new components
@@ -202,6 +218,7 @@ func (a *logAgent) rebuildTransientComponents(processingRules []*config.Processi
 	a.destinationsCtx = destinationsCtx
 	a.pipelineProvider = pipelineProvider
 	a.launchers = lnchers
+	return nil
 }
 
 func (a *logAgent) addLauncherInstances(lnchrs *launchers.Launchers, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {

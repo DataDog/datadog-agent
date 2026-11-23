@@ -9,6 +9,7 @@ import (
 	"context"
 	"slices"
 	"sync"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
@@ -37,6 +38,61 @@ type failoverConfig struct {
 	failoverServiceAllowlist map[string]struct{}
 }
 
+// failoverNotifier decouples the config.OnUpdate callback from Processor and
+// any closures (such as routing callbacks) it holds so stopped processors and
+// providers can be garbage collected.
+type failoverNotifier struct {
+	config       pkgconfigmodel.Reader
+	configChan   chan failoverConfig
+	configChanMu sync.Mutex
+	stopped      atomic.Bool
+}
+
+func (n *failoverNotifier) readFailoverConfig() failoverConfig {
+	if n.config == nil {
+		return failoverConfig{}
+	}
+	conf := failoverConfig{
+		isFailoverActive: n.config.GetBool(configMRFFailoverLogs),
+	}
+	if conf.isFailoverActive && n.config.IsConfigured(configMRFServiceAllowlist) {
+		rawList := n.config.GetStringSlice(configMRFServiceAllowlist)
+		serviceAllowlist := make(map[string]struct{}, len(rawList))
+		for _, allowed := range rawList {
+			serviceAllowlist[allowed] = struct{}{}
+		}
+		conf.failoverServiceAllowlist = serviceAllowlist
+	}
+	return conf
+}
+
+func (n *failoverNotifier) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64, _ pkgconfigmodel.Source) {
+	if n.stopped.Load() {
+		return
+	}
+	var MRFConfigFields = []string{configMRFFailoverLogs, configMRFServiceAllowlist}
+	if slices.Contains(MRFConfigFields, setting) {
+		n.updateFailoverConfig()
+	}
+}
+
+func (n *failoverNotifier) updateFailoverConfig() {
+	if n.config == nil || n.stopped.Load() {
+		return
+	}
+	n.configChanMu.Lock()
+	defer n.configChanMu.Unlock()
+	if n.stopped.Load() {
+		return
+	}
+	conf := n.readFailoverConfig()
+	select {
+	case <-n.configChan:
+	default:
+	}
+	n.configChan <- conf
+}
+
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
@@ -51,7 +107,7 @@ type Processor struct {
 	hostname                  hostnameinterface.Component
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
-	configChanMu              sync.Mutex // serializes the failover config updates sent on configChan
+	failoverNotifier          *failoverNotifier
 	failoverConfig            failoverConfig
 
 	// Telemetry
@@ -82,6 +138,7 @@ func newProcessor(config pkgconfigmodel.Reader, inputChan, outputChan chan *mess
 	tagFilters *tagfilter.Filters, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string, terminalLoss func(*message.Message), enableMRF bool) *Processor {
 
+	configChan := make(chan failoverConfig, 1)
 	p := &Processor{
 		config:                    config,
 		inputChan:                 inputChan,
@@ -89,7 +146,7 @@ func newProcessor(config pkgconfigmodel.Reader, inputChan, outputChan chan *mess
 		processingRules:           processingRules,
 		tagFilters:                tagFilters,
 		encoder:                   encoder,
-		configChan:                make(chan failoverConfig, 1),
+		configChan:                configChan,
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
@@ -101,11 +158,16 @@ func newProcessor(config pkgconfigmodel.Reader, inputChan, outputChan chan *mess
 	}
 
 	if enableMRF {
-		// Initialize cached failover config and register for updates only for
-		// the existing default path. Routed group selection is injected.
-		p.updateFailoverConfig()
+		notifier := &failoverNotifier{
+			config:     config,
+			configChan: configChan,
+		}
+		p.failoverNotifier = notifier
+		// Initialize effective failover config synchronously so the first
+		// admitted records see initially active MRF without racing configChan.
+		p.failoverConfig = notifier.readFailoverConfig()
 		if config != nil {
-			config.OnUpdate(p.onLogsFailoverSettingChanged)
+			config.OnUpdate(notifier.onLogsFailoverSettingChanged)
 		}
 	}
 
@@ -147,53 +209,6 @@ func NewForEndpointFiltering(config pkgconfigmodel.Reader, inputChan, outputChan
 	return p
 }
 
-// onLogsFailoverSettingChanged is called when any config value changes
-func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64, _ pkgconfigmodel.Source) {
-	// Only update if the changed setting affects failover configuration
-	var MRFConfigFields = []string{configMRFFailoverLogs, configMRFServiceAllowlist}
-	if slices.Contains(MRFConfigFields, setting) {
-		p.updateFailoverConfig()
-	}
-}
-
-// updateFailoverConfig sends the updated config to the processor to update.
-//
-// Config notifications run synchronously in the goroutine that changed the setting (such as the
-// remote config client), and keep reaching processors stopped by a pipeline restart, so this must
-// never block: an update the run loop has not consumed yet is replaced by the latest one.
-func (p *Processor) updateFailoverConfig() {
-	if p.config == nil {
-		return
-	}
-
-	// Read the config under the lock so that the last update sent is built from the latest config.
-	p.configChanMu.Lock()
-	defer p.configChanMu.Unlock()
-
-	conf := failoverConfig{
-		isFailoverActive: p.config.GetBool(configMRFFailoverLogs),
-	}
-
-	var serviceAllowlist map[string]struct{}
-	if conf.isFailoverActive && p.config.IsConfigured(configMRFServiceAllowlist) {
-		rawList := p.config.GetStringSlice(configMRFServiceAllowlist)
-		serviceAllowlist = make(map[string]struct{}, len(rawList))
-		for _, allowed := range rawList {
-			serviceAllowlist[allowed] = struct{}{}
-		}
-
-		conf.failoverServiceAllowlist = serviceAllowlist
-	}
-
-	// Only this function sends on configChan, under the lock: once a pending update is dropped,
-	// the send cannot block.
-	select {
-	case <-p.configChan:
-	default:
-	}
-	p.configChan <- conf
-}
-
 // Start starts the Processor.
 func (p *Processor) Start() {
 	go p.run()
@@ -205,8 +220,13 @@ func (p *Processor) InputChan() chan *message.Message { return p.inputChan }
 // Stop stops the Processor,
 // this call blocks until inputChan is flushed
 func (p *Processor) Stop() {
+	if p.failoverNotifier != nil {
+		p.failoverNotifier.stopped.Store(true)
+	}
 	close(p.inputChan)
 	<-p.done
+	p.selectForRouting = nil
+	p.terminalLoss = nil
 }
 
 // Flush processes synchronously the messages that this processor has to process.

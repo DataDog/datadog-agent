@@ -151,6 +151,8 @@ type EndpointFilteredProvider struct {
 	sourceDispatchMu sync.Mutex
 	sourceDispatch   map[string]*routedSourceDispatch
 	sourceDone       sync.WaitGroup
+	opsWg            sync.WaitGroup
+	flushWg          sync.WaitGroup
 	lifecycle        sync.RWMutex
 	stopOnce         sync.Once
 	stopRequested    chan struct{}
@@ -238,7 +240,7 @@ func NewEndpointFilteredProvider(opts EndpointFilteredOptions) (*EndpointFiltere
 			pressureFlush: ep.IsReliable() && opts.Endpoints.BatchMaxSize > 1,
 			input:         make(chan *message.Message, streamCap),
 			output:        make(chan *message.Payload, routedPayloadCapacity),
-			flush:         make(chan struct{}),
+			flush:         make(chan struct{}, 1),
 		}
 		p.pressureFlush = p.pressureFlush || stream.pressureFlush
 
@@ -251,8 +253,14 @@ func NewEndpointFilteredProvider(opts EndpointFilteredOptions) (*EndpointFiltere
 			groupSink := progress.NewGroupSink(epID, routedOutcomeCapacity)
 			stream.groupSink = groupSink
 
+			// MRF eligibility is gated before selection by EndpointFilterPolicy.
+			// Clear IsMRF on the dedicated sender copy so records already
+			// selected while failover was enabled cannot be silently dropped
+			// without a terminal outcome if failover toggles off mid-flight.
+			senderEP := ep
+			senderEP.IsMRF = false
 			singleEP := config.NewEndpointsWithBatchSettings(
-				ep, nil, false, true,
+				senderEP, nil, false, true,
 				opts.Endpoints.BatchWait,
 				opts.Endpoints.BatchMaxConcurrentSend,
 				opts.Endpoints.BatchMaxSize,
@@ -483,7 +491,11 @@ func (p *EndpointFilteredProvider) admit(input <-chan *message.Message, bound *s
 			}
 		}
 		if err == nil {
-			_, err = p.progress.Reserve(p.ctx, msg, generation)
+			if bound != nil {
+				_, err = p.progress.Reserve(p.ctx, msg, generation)
+			} else {
+				_, err = p.progress.ReserveShared(p.ctx, msg, generation)
+			}
 		}
 		if err != nil {
 			p.report(err)
@@ -569,19 +581,17 @@ func (p *EndpointFilteredProvider) requestSourceFlush(identifier string) {
 
 func (p *EndpointFilteredProvider) flushSource(identifier string) {
 	groups := p.progress.PendingGroups(identifier)
-	offers := make([]channelOffer[*message.Message], 0, len(groups))
 	for _, id := range groups {
 		for _, stream := range p.streams {
 			if stream.id == id && stream.pressureFlush {
-				marker := &message.Message{}
-				marker.SetRoutingBarrier(make(chan struct{}))
-				offers = append(offers, channelOffer[*message.Message]{input: stream.input, value: marker})
+				// Out-of-band coalesced flush: never blocks on a full stalled stream.
+				select {
+				case stream.flush <- struct{}{}:
+				default:
+				}
 				break
 			}
 		}
-	}
-	if len(offers) > 0 {
-		offerToChannels(p.ctx, offers)
 	}
 }
 
@@ -872,6 +882,10 @@ func (p *EndpointFilteredProvider) dispatchPayloads(stream *endpointStream) {
 			select {
 			case in <- payload:
 			case <-p.ctx.Done():
+				// Drain remaining batcher output without acknowledging so
+				// strategy.Stop() never blocks on a full output channel.
+				for range stream.output {
+				}
 				return
 			}
 		}
@@ -922,12 +936,17 @@ func (p *EndpointFilteredProvider) RetireSource(ctx context.Context, identifier 
 		ctx = context.Background()
 	}
 	p.lifecycle.RLock()
-	ch := p.sourceInputs[sourceInputKey{identifier: identifier, generation: generation}]
-	started, stopped := p.started, p.stopped
-	p.lifecycle.RUnlock()
-	if stopped {
+	if p.stopped {
+		p.lifecycle.RUnlock()
 		return routing.ErrStopped
 	}
+	key := sourceInputKey{identifier: identifier, generation: generation}
+	ch := p.sourceInputs[key]
+	started := p.started
+	p.opsWg.Add(1)
+	p.lifecycle.RUnlock()
+	defer p.opsWg.Done()
+
 	if ch != nil && started {
 		done := make(chan struct{})
 		marker := &message.Message{}
@@ -936,6 +955,8 @@ func (p *EndpointFilteredProvider) RetireSource(ctx context.Context, identifier 
 		case ch <- marker:
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-p.stopRequested:
+			return routing.ErrStopped
 		case <-p.ctx.Done():
 			return routing.ErrStopped
 		}
@@ -943,11 +964,38 @@ func (p *EndpointFilteredProvider) RetireSource(ctx context.Context, identifier 
 		case <-done:
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-p.stopRequested:
+			return routing.ErrStopped
 		case <-p.ctx.Done():
 			return routing.ErrStopped
 		}
 	}
-	return p.progress.RetireSource(identifier, generation)
+	if err := p.progress.RetireSource(identifier, generation); err != nil {
+		return err
+	}
+	// Remove the retired bound input channel before waiting for any in-flight
+	// Flush to finish with its snapshot, then close it so admit exits cleanly.
+	var toClose chan *message.Message
+	p.lifecycle.Lock()
+	if !p.stopped {
+		if retiredCh, ok := p.sourceInputs[key]; ok {
+			delete(p.sourceInputs, key)
+			delete(p.inputKeys, retiredCh)
+			for i, existing := range p.inputs {
+				if existing == retiredCh {
+					p.inputs = append(p.inputs[:i], p.inputs[i+1:]...)
+					break
+				}
+			}
+			toClose = retiredCh
+		}
+	}
+	p.lifecycle.Unlock()
+	if toClose != nil {
+		p.flushWg.Wait()
+		close(toClose)
+	}
+	return nil
 }
 
 // NextPipelineChan returns the shared ingress channel.
@@ -981,7 +1029,11 @@ func (p *EndpointFilteredProvider) Flush(ctx context.Context) {
 		return
 	}
 	inputs := append([]chan *message.Message(nil), p.inputs...)
+	p.opsWg.Add(1)
+	p.flushWg.Add(1)
 	p.lifecycle.RUnlock()
+	defer p.opsWg.Done()
+	defer p.flushWg.Done()
 
 	var acks []chan struct{}
 	for _, ch := range inputs {
@@ -1073,12 +1125,16 @@ func (p *EndpointFilteredProvider) Flush(ctx context.Context) {
 // Stop gracefully drains and shuts down all processors, batchers, senders, and progress state.
 func (p *EndpointFilteredProvider) Stop() {
 	p.stopOnce.Do(func() {
-		close(p.stopRequested)
 		p.lifecycle.Lock()
 		started := p.started
 		p.stopped = true
+		close(p.stopRequested)
 		inputs := append([]chan *message.Message(nil), p.inputs...)
 		p.lifecycle.Unlock()
+
+		// Wait for any in-flight Flush or RetireSource calls to observe
+		// stopRequested and exit before closing any channels they send on.
+		p.opsWg.Wait()
 
 		if !started {
 			p.cancel()
@@ -1092,6 +1148,9 @@ func (p *EndpointFilteredProvider) Stop() {
 				}
 			}
 			p.progress.Close()
+			p.selectionsMu.Lock()
+			clear(p.selections)
+			p.selectionsMu.Unlock()
 			return
 		}
 
@@ -1126,8 +1185,13 @@ func (p *EndpointFilteredProvider) Stop() {
 			}
 		}
 
+		// Drain already-completed checkpoints to the auditor before cancelling
+		// the context; the grace timer still interrupts forwarding if wedged.
+		p.progress.DrainAndClose()
 		p.cancel()
 		p.destinationsCtx.Stop()
-		p.progress.Close()
+		p.selectionsMu.Lock()
+		clear(p.selections)
+		p.selectionsMu.Unlock()
 	})
 }

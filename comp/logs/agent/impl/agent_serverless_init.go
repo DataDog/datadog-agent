@@ -46,7 +46,7 @@ func (a *logAgent) SetupPipeline(
 	wmeta option.Option[workloadmeta.Component],
 	_ integrations.Component,
 	fingerprintConfig types.FingerprintConfig,
-) {
+) error {
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, a.hostname, a.config)
 	destinationsCtx := client.NewDestinationsContext()
 
@@ -95,6 +95,7 @@ func (a *logAgent) SetupPipeline(
 	a.pipelineProvider = pipelineProvider
 	a.launchers = lnchrs
 	a.diagnosticMessageReceiver = diagnosticMessageReceiver
+	return nil
 }
 
 // buildEndpoints builds endpoints for the logs agent
