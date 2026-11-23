@@ -6,6 +6,8 @@
 package com_datadoghq_http
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/ecdh"
 	"crypto/hpke"
@@ -161,6 +163,43 @@ func TestRawRequestDoesNotFollowRedirects(t *testing.T) {
 	assert.Equal(t, http.StatusFound, output.Status)
 	assert.Equal(t, "/elsewhere", output.Headers.Get("Location"))
 	assert.False(t, followed)
+}
+
+// http.Client fails on a Location it can't parse before it asks whether to
+// follow, so raw mode must still hand back the redirect as the server sent it.
+func TestRawRequestReturnsRedirectWithInvalidLocation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Location", ":")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer server.Close()
+
+	output, err := runRawRequest(t, []*httptest.Server{server}, map[string]interface{}{"method": "GET", "url": server.URL}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusFound, output.Status)
+	assert.Equal(t, ":", output.Headers.Get("Location"))
+}
+
+// Without an Accept-Encoding from the caller, the runner must not ask for gzip
+// itself, and a compressed response comes back still compressed.
+func TestRawRequestKeepsResponseEncoding(t *testing.T) {
+	var compressed bytes.Buffer
+	gz := gzip.NewWriter(&compressed)
+	_, _ = gz.Write([]byte("hello"))
+	require.NoError(t, gz.Close())
+	var acceptEncoding []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		acceptEncoding = r.Header.Values("Accept-Encoding")
+		w.Header().Set("Content-Encoding", "gzip")
+		_, _ = w.Write(compressed.Bytes())
+	}))
+	defer server.Close()
+
+	output, err := runRawRequest(t, []*httptest.Server{server}, map[string]interface{}{"method": "GET", "url": server.URL}, nil)
+	require.NoError(t, err)
+	assert.Empty(t, acceptEncoding)
+	assert.Equal(t, "gzip", output.Headers.Get("Content-Encoding"))
+	assert.Equal(t, compressed.String(), decodeRawBody(t, output))
 }
 
 // A connection header (a runner-held static token) reaches the connection's host

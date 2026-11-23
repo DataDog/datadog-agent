@@ -171,6 +171,7 @@ func (h *Handler) runRaw(
 		DisableRedirects:   true,
 		Transport: &httpclient.RunnerHttpTransportConfig{
 			AllowExpiredCertificate: boolValueOrDefault(inputs.AllowExpiredCertificate, false),
+			DisableCompression:      true,
 		},
 	})
 	if err != nil {

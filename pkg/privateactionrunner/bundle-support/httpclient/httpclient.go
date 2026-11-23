@@ -41,6 +41,9 @@ type RunnerHttpClientConfig struct {
 
 type RunnerHttpTransportConfig struct {
 	AllowExpiredCertificate bool
+	// DisableCompression stops the transport from asking for gzip and decompressing
+	// the response, so the caller gets the bytes and headers the server sent.
+	DisableCompression bool
 }
 
 func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, error) {
@@ -51,6 +54,7 @@ func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, er
 	}
 
 	if clientConfig.Transport != nil {
+		transport.DisableCompression = clientConfig.Transport.DisableCompression
 		if clientConfig.Transport.AllowExpiredCertificate {
 			// crypto/tls cannot relax only the validity-period check, so verification moves to VerifyConnection.
 			transport.TLSClientConfig.InsecureSkipVerify = true

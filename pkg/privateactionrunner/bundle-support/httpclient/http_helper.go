@@ -6,6 +6,7 @@
 package httpclient
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -106,7 +107,45 @@ func (d defaultHTTPClientProvider) NewClient(clientConfig *RunnerHttpClientConfi
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(fmt.Errorf("error creating HTTP client: %w", err), "Failed to create HTTP client")
 	}
+	if clientConfig.DisableRedirects {
+		client.Transport = hideLocationTransport{inner: client.Transport}
+		return noRedirectClient{inner: d.wrapClient(client)}, nil
+	}
 	return d.wrapClient(client), nil
+}
+
+type hiddenLocationKey struct{}
+
+// noRedirectClient returns every 3xx response, whatever its Location holds.
+// http.Client parses Location before CheckRedirect runs and fails on an invalid
+// one, so hideLocationTransport takes it out of the response and Do puts it back.
+type noRedirectClient struct {
+	inner HTTPClient
+}
+
+func (c noRedirectClient) Do(req *http.Request) (*http.Response, error) {
+	var location []string
+	resp, err := c.inner.Do(req.WithContext(context.WithValue(req.Context(), hiddenLocationKey{}, &location)))
+	if resp != nil && location != nil {
+		resp.Header["Location"] = location
+	}
+	return resp, err
+}
+
+type hideLocationTransport struct {
+	inner http.RoundTripper
+}
+
+func (t hideLocationTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.inner.RoundTrip(req)
+	location, ok := req.Context().Value(hiddenLocationKey{}).(*[]string)
+	if ok && resp != nil {
+		if values, found := resp.Header["Location"]; found {
+			*location = values
+			delete(resp.Header, "Location")
+		}
+	}
+	return resp, err
 }
 
 // urlAllowlistClient wraps an HTTPClient to enforce the URL allowlist before making requests.
