@@ -32,7 +32,12 @@ blackhole:
           - ebpf.programs.run_count
           - ebpf.programs.runtime_ns
           - ebpf.programs.verified_instruction_count
+          - ebpf.programs.verified_instruction_count_permodule_total
           - ebpf.programs.xlated_instruction_len
+          - ebpf.programs.xlated_instruction_len_permodule_total
+          - ebpf.kprobes.kprobe_hits
+          - ebpf.kprobes.kprobe_nesting_misses
+          - ebpf.kprobes.kretprobe_maxactive_misses
 
 target_metrics:
   - prometheus: # system-probe telemetry
