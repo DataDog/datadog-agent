@@ -4282,7 +4282,7 @@
 
 <h1 id="build-image-reference">Build image reference<a class="headerlink" href="#build-image-reference" title="Permanent link">&para;</a></h1>
 <hr />
-<p>All non-macOS release artifacts are produced within <a href="https://github.com/DataDog/datadog-agent-buildimages">container images</a> that are hosted on the <a href="https://hub.docker.com/u/datadog">Datadog Docker Hub</a>.</p>
+<p>All release artifacts except for macOS and AIX are produced within <a href="https://github.com/DataDog/datadog-agent-buildimages">container images</a> that are hosted on the <a href="https://hub.docker.com/u/datadog">Datadog Docker Hub</a>. The AIX package is instead built on a real AIX host, see <a href="../../../how-to/build/distributions/#building-for-aix">Building for AIX</a>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>These images are not meant to be used directly outside of CI scenarios. Instead, use the <a href="../dev/">developer environments</a> to build and test the Agent.</p>

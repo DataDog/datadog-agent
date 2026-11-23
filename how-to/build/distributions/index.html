@@ -1070,6 +1070,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#building-for-aix" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Building for AIX
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4443,6 +4454,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#building-for-aix" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Building for AIX
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4495,15 +4517,16 @@
 <td>macOS</td>
 <td><code>.dmg</code></td>
 </tr>
+<tr>
+<td>AIX</td>
+<td><code>.bff</code></td>
+</tr>
 </tbody>
 </table>
 <p>These distribution packages contain <a href="../standalone/">a binary of the Agent</a>, along with any supporting libraries needed for the agent to function properly.</p>
 <h3 id="omnibus">Omnibus<a class="headerlink" href="#omnibus" title="Permanent link">&para;</a></h3>
-<p>Agent packages for all the supported platforms are built using <a href="https://github.com/chef/omnibus">Omnibus</a>.</p>
-<div class="admonition info">
-<p class="admonition-title">Info</p>
-<p>There is an ongoing effort to migrate our build system to <a href="https://bazel.build/">Bazel</a>, so this may change in the near-to-mid future.</p>
-</div>
+<p>Distribution packages for Linux, Windows, and macOS are built using <a href="https://github.com/chef/omnibus">Omnibus</a>, with an ongoing effort to migrate those builds to <a href="https://bazel.build/">Bazel</a> — both systems are currently used side by side.</p>
+<p>The AIX package is not built with Omnibus or Bazel: it uses the dedicated staging pipeline in <a href="https://github.com/DataDog/datadog-agent/tree/main/packaging/aix"><code>packaging/aix</code></a>, see <a href="#building-for-aix">Building for AIX</a>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>Omnibus creates a package <strong>for the operating system it runs on</strong>, so you'll get a <code>.deb</code> package on Debian-based distros, an <code>msi</code> installer on Windows etc.</p>
@@ -4702,6 +4725,17 @@ Please see <a href="https://github.com/DataDog/datadog-agent-buildimages/tree/ma
 </span></code></pre></div>
 </div>
 <p>If the build succeeds, the build artifacts can be found under <code>omnibus\pkg</code> in the repo.</p>
+<h2 id="building-for-aix">Building for AIX<a class="headerlink" href="#building-for-aix" title="Permanent link">&para;</a></h2>
+<p>The AIX <code>.bff</code> package is built by the staging pipeline in <a href="https://github.com/DataDog/datadog-agent/tree/main/packaging/aix"><code>packaging/aix</code></a>. Unlike the other platforms, there is no build container image: the build runs on a real AIX 7.3 host (PowerPC).</p>
+<p>Both commands below must be run as root, from a checkout of this repository:</p>
+<ol>
+<li>Prepare the host by running <a href="https://github.com/DataDog/datadog-agent/blob/main/packaging/aix/setup-host.sh"><code>packaging/aix/setup-host.sh</code></a>. The script is idempotent and installs the required toolchain (Go, GCC, Python, dnf packages). It grows <code>/opt</code> to about 40 GiB, and requires the IBM MQ Client archive at <code>/opt/dd-build/mqclient.tar.Z</code> (an installp fileset downloaded from IBM Fix Central) unless the MQ client is already installed on the host.</li>
+<li>Run the build orchestrator, which executes every stage up to the final <code>package.sh</code>:
+    <div class="language-sh highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nv">AGENT_BUILD</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>sh<span class="w"> </span>./packaging/aix/build.sh
+</span></code></pre></div>
+    <code>AGENT_BUILD</code> is the installp build counter; it should increase with each build of the same Agent version so upgrades are ordered correctly. <code>AGENT_VERSION</code> is auto-detected when not set.</li>
+</ol>
+<p>The resulting artifact is written to <code>/opt/dd-build/datadog-agent-&lt;AGENT_VERSION&gt;-&lt;AGENT_BUILD&gt;.aix.ppc64.bff</code>.</p>
 
 
 

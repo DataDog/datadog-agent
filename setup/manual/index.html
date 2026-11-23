@@ -4612,6 +4612,10 @@
 <p class="admonition-title">Warning</p>
 <p>Building the Agent for Windows requires using the <a href="https://github.com/DataDog/datadog-agent-buildimages/tree/main/windows">build image</a>. Setting up a local Windows environment is not officially supported.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Building the Agent <strong>for AIX</strong> requires an actual AIX 7.3 (PowerPC) host: there is no build container image or developer environment for it. Prepare such a host by running <a href="https://github.com/DataDog/datadog-agent/blob/main/packaging/aix/setup-host.sh"><code>packaging/aix/setup-host.sh</code></a>, and see <a href="../../how-to/build/distributions/#building-for-aix">How to build agent distribution packages</a> for the full build instructions.</p>
+</div>
 <h2 id="build-tools">Build tools<a class="headerlink" href="#build-tools" title="Permanent link">&para;</a></h2>
 <p>CMake version 3.15 or later and a C++ compiler are required for building the Agent.</p>
 <h2 id="python">Python<a class="headerlink" href="#python" title="Permanent link">&para;</a></h2>
