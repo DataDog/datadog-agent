@@ -18,6 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// OpenFileInfo always reports false: the Windows tailer opens its file for each read rather than
+// keeping it open, so the file it reads is the one its path resolves to.
+func (t *Tailer) OpenFileInfo() (os.FileInfo, bool) {
+	return nil, false
+}
+
 // setup sets up the file tailer
 func (t *Tailer) setup(offset int64, whence int) error {
 	fullpath, err := t.fileOpener.Abs(t.file.Path)

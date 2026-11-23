@@ -53,15 +53,21 @@ func (s *linuxPARInventoryMetadataSuite) TestFeaturePrivateActionRunnerEnabledRe
 		payloads, err := client.GetMetadata()
 		require.NoError(c, err)
 
-		found := false
-		for _, payload := range payloads {
-			value, ok := payload.Metadata["feature_private_action_runner_enabled"]
-			if !ok {
+		// Fakeintake retains earlier payloads. Assert the current inventory state
+		// so a payload from before the configured Agent restart cannot fail every poll.
+		latest := -1
+		for i, payload := range payloads {
+			if payload.Metadata == nil {
 				continue
 			}
-			found = true
-			assert.Equal(c, true, value, "feature_private_action_runner_enabled should be true when private_action_runner.enabled and split_enabled are set")
+			if latest == -1 || payload.Timestamp > payloads[latest].Timestamp {
+				latest = i
+			}
 		}
-		require.True(c, found, "no inventory-agent metadata payload reported feature_private_action_runner_enabled yet")
+		require.NotEqual(c, -1, latest, "no inventory-agent metadata payload received yet")
+
+		value, ok := payloads[latest].Metadata["feature_private_action_runner_enabled"]
+		require.True(c, ok, "feature_private_action_runner_enabled missing from the latest inventory-agent payload")
+		assert.Equal(c, true, value, "feature_private_action_runner_enabled should be true when private_action_runner.enabled and split_enabled are set")
 	}, 5*time.Minute, 10*time.Second)
 }

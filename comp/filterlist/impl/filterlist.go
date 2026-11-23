@@ -47,8 +47,8 @@ type FilterList struct {
 	histoFilterList        metricname.Matcher
 
 	updateTagMtx        sync.RWMutex
-	tagFilterListUpdate []func(filterlistdef.TagMatcher)
-	tagFilterList       tagMatcher
+	tagFilterListUpdate []func(metricname.TagMatcher)
+	tagFilterList       metricname.TagMatcher
 
 	tlmMetricFilterListUpdates telemetry.SimpleCounter
 	tlmMetricFilterListSize    telemetry.SimpleGauge
@@ -124,7 +124,7 @@ func loadMetricTagFilterListConfig(config config.Component, log log.Component) [
 // - metric_name: the name of the metric
 // - action: either "include" or "exclude"
 // - tags: array of tags to include/exclude
-func loadTagFilterList(entries []MetricTagListEntry, log log.Component) tagMatcher {
+func loadTagFilterList(entries []MetricTagListEntry, log log.Component) metricname.TagMatcher {
 	// Build map with merging logic:
 	// - If multiple entries have same metric_name and same action: merge tags
 	// - If different action: keep only exclude tags (overwrite with exclude)
@@ -164,11 +164,11 @@ func loadTagFilterList(entries []MetricTagListEntry, log log.Component) tagMatch
 		}
 	}
 
-	return newTagMatcher(tagFilterList, log)
+	return NewTagMatcher(tagFilterList, log)
 }
 
 // GetTagFilterList returns the current tag filterlistdef.
-func (fl *FilterList) GetTagFilterList() filterlistdef.TagMatcher {
+func (fl *FilterList) GetTagFilterList() metricname.TagMatcher {
 	fl.updateTagMtx.RLock()
 	defer fl.updateTagMtx.RUnlock()
 	return fl.tagFilterList
@@ -217,14 +217,14 @@ func (fl *FilterList) isHistogramAggregateSuffix(metricName string) bool {
 // SetTagFilterList takes a map of metric names to tag configuration, hashes the
 // tags and stores the hashed configuration.
 func (fl *FilterList) SetTagFilterList(metricTags map[string]MetricTagList) {
-	fl.setTagFilterList(newTagMatcher(metricTags, fl.log))
+	fl.setTagFilterList(NewTagMatcher(metricTags, fl.log))
 }
 
-func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
-	fl.log.Debugf("SetTagFilterList with %d metrics", len(metricTags.MetricTags))
+func (fl *FilterList) setTagFilterList(metricTags metricname.TagMatcher) {
+	fl.log.Debugf("SetTagFilterList with %d metrics", metricTags.Len())
 
 	fl.tlmTagFilterListUpdates.Inc()
-	fl.tlmTagFilterListSize.Set(float64(len(metricTags.MetricTags)))
+	fl.tlmTagFilterListSize.Set(float64(metricTags.Len()))
 
 	fl.updateTagMtx.Lock()
 	fl.tagFilterList = metricTags
@@ -306,7 +306,7 @@ func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(metricname.Matcher,
 
 // OnUpdateTagFilterList is called to register a callback to be called when the
 // metric tag list is updated.
-func (fl *FilterList) OnUpdateTagFilterList(onUpdate func(filterlistdef.TagMatcher)) {
+func (fl *FilterList) OnUpdateTagFilterList(onUpdate func(metricname.TagMatcher)) {
 	fl.updateTagMtx.Lock()
 	fl.tagFilterListUpdate = append(fl.tagFilterListUpdate, onUpdate)
 	fl.updateTagMtx.Unlock()

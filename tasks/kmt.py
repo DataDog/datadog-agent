@@ -39,8 +39,8 @@ from tasks.kernel_matrix_testing.infra import (
     build_alien_infrastructure,
     build_infrastructure,
     ensure_key_in_ec2,
+    find_ssh_key_files,
     get_ssh_agent_key_names,
-    get_ssh_key_name,
     try_get_ssh_key,
 )
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
@@ -544,12 +544,7 @@ def config_ssh_key(ctx: Context):
             agent_keys = get_ssh_agent_key_names(ctx)
             ssh_keys = [{'path': None, 'name': key, 'aws_key_name': key} for key in agent_keys]
         else:
-            ssh_key_files = [Path(f[: -len(".pub")]) for f in glob(os.path.expanduser("~/.ssh/*.pub"))]
-            ssh_keys = []
-
-            for f in ssh_key_files:
-                key_name = get_ssh_key_name(f.with_suffix(".pub")) or f.name
-                ssh_keys.append({'path': os.fspath(f), 'name': key_name, 'aws_key_name': ''})
+            ssh_keys = find_ssh_key_files()
 
         keys_str = "\n".join([f" - [{i + 1}] {key['name']} (path: {key['path']})" for i, key in enumerate(ssh_keys)])
         result = ask(f"[?] Found these valid key files:\n{keys_str}\nChoose one of these files (1-{len(ssh_keys)}): ")

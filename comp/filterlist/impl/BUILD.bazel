@@ -23,7 +23,6 @@ go_library(
         "//pkg/metrics",
         "//pkg/metrics/metricname",
         "//pkg/remoteconfig/state",
-        "@com_github_twmb_murmur3//:murmur3",
     ],
 )
 
@@ -42,10 +41,10 @@ dd_agent_go_test(
         "//comp/core/telemetry/fx-noop",
         "//pkg/config/model",
         "//pkg/config/structure",
+        "//pkg/metrics/metricname",
         "//pkg/remoteconfig/state",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@com_github_twmb_murmur3//:murmur3",
     ],
 )

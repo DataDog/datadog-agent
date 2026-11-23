@@ -47,6 +47,8 @@ func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) 
 	if tp.Strings == nil {
 		tp.Strings = NewStringTable()
 	}
+	// Native v1 payloads may override env/app version per chunk through chunk attributes.
+	tp.chunkEnvVersionOverrides = true
 	var numFields uint32
 	numFields, o, err = limitedReadMapHeaderBytes(bts)
 	if err != nil {
