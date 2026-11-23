@@ -247,7 +247,11 @@ func (p *ProcessKillerLinux) getProcesses(scope string, ev *model.Event, entry *
 				}
 			}
 
-			for _, pid := range cacheEntry.GetPIDs() {
+			pids := cacheEntry.GetPIDs()
+			if scope == "container" && !entry.ContainerContext.IsNull() {
+				pids = p.cgroupResolver.GetContainerPIDs(entry.ContainerContext.ContainerID)
+			}
+			for _, pid := range pids {
 				if pid < 1 {
 					continue
 				}

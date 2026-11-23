@@ -436,3 +436,114 @@ func TestEvictionSyncsInodeIndex(t *testing.T) {
 	assert.Same(t, recreated, resolver.GetCacheEntryByCgroupID(firstHost.CGroupID))
 	assert.Same(t, recreated, resolver.GetCacheEntryByInode(firstHost.CGroupPathKey.Inode))
 }
+
+func TestMultiCGroupContainer_EmptyRootBeforeTwoPopulatedChildren(t *testing.T) {
+	const cid = containerutils.ContainerID("c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad")
+	rootCGroup := model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/kubepods.slice/cri-containerd-" + string(cid) + ".scope"),
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: 100},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+	child1CGroup := model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/kubepods.slice/cri-containerd-" + string(cid) + ".scope/init.scope"),
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: 200},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+	child2CGroup := model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/kubepods.slice/cri-containerd-" + string(cid) + ".scope/app.scope"),
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: 300},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+
+	t.Run("removing non-representative child keeps current representative", func(t *testing.T) {
+		resolver, mockFS := createTestResolver(t)
+
+		rootEntry := resolver.Add(rootCGroup)
+		require.NotNil(t, rootEntry)
+		assert.False(t, rootEntry.HasPIDs())
+
+		child1Entry := resolver.AddPID(10, child1CGroup)
+		require.NotNil(t, child1Entry)
+		child2Entry := resolver.AddPID(20, child2CGroup)
+		require.NotNil(t, child2Entry)
+
+		assert.Same(t, child2Entry, resolver.GetCacheEntryContainerID(cid))
+		assert.Equal(t, []uint32{20, 10}, resolver.GetContainerPIDs(cid))
+
+		mockFS.On("GetCGroupPids", string(child1CGroup.CGroupID)).Return([]uint32{}, nil).Once()
+		resolver.DelPID(10)
+
+		assert.True(t, child1Entry.IsDeleted())
+		assert.False(t, child2Entry.IsDeleted())
+		assert.False(t, rootEntry.IsDeleted())
+		assert.Same(t, child2Entry, resolver.GetCacheEntryContainerID(cid))
+		assert.Equal(t, []uint32{20}, resolver.GetContainerPIDs(cid))
+
+		mockFS.AssertExpectations(t)
+	})
+
+	t.Run("removing representative child selects populated sibling over empty root", func(t *testing.T) {
+		resolver, mockFS := createTestResolver(t)
+
+		rootEntry := resolver.Add(rootCGroup)
+		require.NotNil(t, rootEntry)
+		child1Entry := resolver.AddPID(10, child1CGroup)
+		require.NotNil(t, child1Entry)
+		child2Entry := resolver.AddPID(20, child2CGroup)
+		require.NotNil(t, child2Entry)
+
+		assert.Same(t, child2Entry, resolver.GetCacheEntryContainerID(cid))
+
+		mockFS.On("GetCGroupPids", string(child2CGroup.CGroupID)).Return([]uint32{}, nil).Once()
+		resolver.DelPID(20)
+
+		assert.True(t, child2Entry.IsDeleted())
+		assert.False(t, child1Entry.IsDeleted())
+		assert.False(t, rootEntry.IsDeleted())
+		assert.Same(t, child1Entry, resolver.GetCacheEntryContainerID(cid))
+		assert.Equal(t, []uint32{10}, resolver.GetContainerPIDs(cid))
+
+		mockFS.AssertExpectations(t)
+	})
+}
+
+func BenchmarkAddDelPIDNearCapacity(b *testing.B) {
+	mockFS := &MockCGroupFS{}
+	resolver, err := NewResolver(nil, mockFS, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	const prefill = maxCacheEntries - 2
+	for i := 1; i <= prefill; i++ {
+		cg := model.CGroupContext{
+			CGroupID:      containerutils.CGroupID("/system.slice/bench-" + strconv.Itoa(i) + ".service"),
+			CGroupPathKey: model.PathKey{MountID: 42, Inode: uint64(i)},
+			CGroupSource:  model.CGroupSourceEvent,
+		}
+		resolver.AddPID(uint32(i), cg)
+	}
+
+	activeA := model.CGroupContext{
+		CGroupID:      "/system.slice/active-a.service",
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: uint64(prefill + 1)},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+	activeB := model.CGroupContext{
+		CGroupID:      "/system.slice/active-b.service",
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: uint64(prefill + 2)},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+	resolver.AddPID(100000, activeA)
+	resolver.AddPID(100001, activeB)
+
+	const churnPID = uint32(200000)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		resolver.AddPID(churnPID, activeA)
+		resolver.AddPID(churnPID, activeB)
+		resolver.DelPID(churnPID)
+	}
+}

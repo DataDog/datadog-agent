@@ -122,6 +122,14 @@ func (cgce *CacheEntry) GetPIDs() []uint32 {
 	return pids
 }
 
+// HasPIDs returns whether the cache entry contains at least one pid
+func (cgce *CacheEntry) HasPIDs() bool {
+	cgce.lock.RLock()
+	defer cgce.lock.RUnlock()
+
+	return len(cgce.pids) > 0
+}
+
 // RemovePID removes the provided pid from the list of pids and return the new size
 func (cgce *CacheEntry) RemovePID(pid uint32) int {
 	cgce.lock.Lock()
