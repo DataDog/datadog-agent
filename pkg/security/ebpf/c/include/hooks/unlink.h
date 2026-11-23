@@ -94,6 +94,10 @@ int hook_vfs_unlink(ctx_t *ctx) {
         syscall->state = INTERNAL;
     }
 
+    if (syscall->state == DISCARDED) {
+        return 0;
+    }
+
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = dentry;
     syscall->resolver.key = syscall->unlink.file.path_key;
