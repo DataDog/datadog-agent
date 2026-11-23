@@ -489,10 +489,12 @@ func (d *PhysicalDevice) warnIfMIGDevicesInvisible() {
 		if now.Sub(firstSeen.(time.Time)) < invisibleMIGWarnDelay {
 			continue
 		}
-		if warnedAt, warned := invisibleMIGWarned.Load(key); warned && now.Sub(warnedAt.(time.Time)) < invisibleMIGRewarnDelay {
-			continue
+		// Claim the warning atomically: the GPU check and the workloadmeta collector refresh their devices concurrently
+		if warnedAt, warned := invisibleMIGWarned.LoadOrStore(key, now); warned {
+			if now.Sub(warnedAt.(time.Time)) < invisibleMIGRewarnDelay || !invisibleMIGWarned.CompareAndSwap(key, warnedAt, now) {
+				continue
+			}
 		}
-		invisibleMIGWarned.Store(key, now)
 		log.Warnf("GPU %s is in MIG mode and has processes on its GPU instance %d%s, whose MIG device is not visible to the Agent, so it is not monitored. "+
 			"The Agent probably has no access to its /dev/nvidia-caps device nodes: if the container devices come from a CDI specification "+
 			"or the container toolkit, MIG devices created after the Agent container started are not visible to it; "+
