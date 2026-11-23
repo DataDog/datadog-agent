@@ -52,10 +52,15 @@ dd_agent_go_test(
     srcs = [
         "config_test.go",
         "params_test.go",
+        "setup_test.go",
         "status_test.go",
     ],
     embed = [":config"],
     deps = [
+        "//comp/core/delegatedauth/noop-impl/types",
+        "//comp/core/schema/noop-impl",
+        "//comp/core/secrets/noop-impl/types",
+        "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/util/defaultpaths",
         "@com_github_stretchr_testify//assert",

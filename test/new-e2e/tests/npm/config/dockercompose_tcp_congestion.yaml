@@ -8,7 +8,7 @@ services:
       - net.ipv4.tcp_ecn=1
     networks:
       tcp-congestion-net:
-        ipv4_address: 172.28.0.10
+        ipv4_address: 192.168.48.10
     command: >
       bash -c "iperf3 -s -p 5201 -D && sleep infinity"
   tcp-congestion-client:
@@ -20,13 +20,19 @@ services:
       - net.ipv4.tcp_ecn=1
     networks:
       tcp-congestion-net:
-        ipv4_address: 172.28.0.20
+        ipv4_address: 192.168.48.20
     depends_on: [tcp-congestion-server]
     command: >
       bash -c "sleep infinity"
 networks:
   tcp-congestion-net:
     driver: bridge
+    # Keep this subnet out of 172.16.0.0/12. The GitLab runner pods that SSH
+    # into this host have VPC IPs there (172.18/172.19/172.27/172.28.x.x), and
+    # a bridge whose subnet contains the runner's IP makes the host route its
+    # SSH replies into the bridge, cutting the test off from the host. It must
+    # also avoid the docker daemon's bip (192.168.16.0/24) and default address
+    # pool (192.168.32.0/24), set in test/e2e-framework/components/docker.
     ipam:
       config:
-        - subnet: 172.28.0.0/24
+        - subnet: 192.168.48.0/24

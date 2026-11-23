@@ -532,8 +532,9 @@ func (suite *ecsSuite) TestCPU() {
 				`^task_version:[[:digit:]]+$`,
 			},
 			Value: &testMetricExpectValueArgs{
-				Max: 160000000,
-				Min: 140000000,
+				Max:          160000000,
+				Min:          140000000,
+				RecentWindow: time.Minute,
 			},
 		},
 		Timeout: 6 * time.Minute,

@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "tc",
-    srcs = ["resolver.go"],
+    srcs = [
+        "resolver.go",
+        "resolver_test_helpers.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/tc",
     visibility = ["//visibility:public"],
     deps = select({

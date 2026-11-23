@@ -181,9 +181,12 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data.Set("config_proxy_http", scrub(ia.conf.GetString("proxy.http")))
 	ia.data.Set("config_proxy_https", scrub(ia.conf.GetString("proxy.https")))
 	ia.data.Set("feature_logs_enabled", ia.conf.GetBool("logs_enabled"))
+	ia.data.Set("feature_private_action_runner_enabled", ia.conf.GetBool("private_action_runner.enabled") && ia.conf.GetBool("private_action_runner.split_enabled"))
 	ia.data.Set("feature_imdsv2_enabled", ia.conf.GetBool("ec2_prefer_imdsv2"))
 	ia.data.Set("feature_remote_configuration_enabled", ia.conf.GetBool("remote_configuration.enabled"))
 	ia.data.Set("feature_remote_updates_enabled", ia.conf.GetBool("remote_updates"))
+	ia.data.Set("feature_infra_enabled", ia.conf.GetBool("enable_payloads.series"))
+	ia.data.Set("feature_autoscaling_cluster_enabled", ia.conf.GetBool("autoscaling.cluster.enabled"))
 	ia.data.Set("feature_container_images_enabled", ia.conf.GetBool("container_image.enabled"))
 	ia.data.Set("feature_network_path_remote_config_enabled", ia.conf.GetBool("network_path.remote_config.enabled"))
 	ia.data.Set("feature_network_path_connections_monitoring_enabled", ia.conf.GetBool("network_path.connections_monitoring.enabled"))
@@ -501,35 +504,39 @@ func (ia *inventoryagent) getRawFiles() map[string]agentmetadata.RawFile {
 
 	rawConfigFiles := make(map[string]agentmetadata.RawFile)
 	for _, file := range possibleFiles {
-		if scrubbedConfig, ok := ia.readAndScrubConfig(file); ok {
+		if scrubbedConfig, secrets, ok := ia.readAndScrubConfig(file); ok {
 			hash := sha256.Sum256(scrubbedConfig)
 			rawConfigFiles[file] = agentmetadata.RawFile{
 				RawConfig: string(scrubbedConfig),
 				Hash:      hex.EncodeToString(hash[:]),
+				Secrets:   secrets,
 			}
 		}
 	}
 	return rawConfigFiles
 }
 
-func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, bool) {
+func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, []scrubber.ConfigSecret, bool) {
 	if path == "" {
-		return nil, false
+		return nil, nil, false
 	}
 	rawContent, err := os.ReadFile(path)
 	if err != nil {
 		ia.log.Debugf("could not read configuration file metadata for %q", path)
-		return nil, false
+		return nil, nil, false
 	}
 	// Preserve yaml structure, except fields like `additional_endpoints` may
 	// lose order. This is acceptable behavior, since this setting isn't really used
 	// too often, and already has some strange edge-cases we handle specially.
-	scrubbedConfig, err := scrubber.ScrubYamlPreserveStructure(rawContent)
+	scrubbedConfig, secrets, err := scrubber.ScrubYamlPreserveStructure(rawContent)
 	if err != nil {
 		ia.log.Warnf("could not safely scrub configuration file metadata for %q", path)
-		return nil, false
+		return nil, nil, false
 	}
-	return scrubbedConfig, true
+	if ia.conf.GetBool("metadata_skip_secrets") {
+		secrets = nil
+	}
+	return scrubbedConfig, secrets, true
 }
 
 func (ia *inventoryagent) getPayload() marshaler.TypedJSONMarshaler {

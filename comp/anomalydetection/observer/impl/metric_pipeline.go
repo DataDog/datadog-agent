@@ -36,6 +36,7 @@ type metricPipelineSeriesState struct {
 	lastMatchedTime int64
 	reactivated     bool
 	outputAfter     int64
+	kindMatchFrom   int64 // Zero means no pending request.
 }
 
 // MetricPipeline routes gauges to detectors by their committed kind.
@@ -91,14 +92,18 @@ func newMetricPipeline(
 	return p, nil
 }
 
-// newScanMWMetricPipeline builds the initial kind-routed composition.
+// newStableMetricPipeline builds the initial kind-routed composition.
 // stableCfg may be nil to select the default stable pipeline configuration.
-func newScanMWMetricPipeline(cfg ScanMWConfig, anomalyCutoff bool, stableCfg *StablePipelineConfig) (*MetricPipeline, error) {
+func newStableMetricPipeline(stableCfg *StablePipelineConfig, anomalyCutoff bool) (*MetricPipeline, error) {
 	stableConfig := DefaultStablePipelineConfig()
 	if stableCfg != nil {
 		stableConfig = *stableCfg
 	}
-	stable, err := newStablePipeline(NewScanMWDetector(cfg), stableConfig)
+	detector, err := newStableDetector(stableConfig)
+	if err != nil {
+		return nil, fmt.Errorf("select stable detector: %w", err)
+	}
+	stable, err := newStablePipeline(detector, stableConfig)
 	if err != nil {
 		return nil, fmt.Errorf("build stable pipeline: %w", err)
 	}
@@ -114,12 +119,6 @@ func newScanMWMetricPipeline(cfg ScanMWConfig, anomalyCutoff bool, stableCfg *St
 	}
 	p.anomalyCutoff = anomalyCutoff
 	return p, nil
-}
-
-// newDefaultMetricPipeline builds the default metric workflow. stableCfg may
-// be nil to select the default stable pipeline configuration.
-func newDefaultMetricPipeline(stableCfg *StablePipelineConfig, anomalyCutoff bool) (*MetricPipeline, error) {
-	return newScanMWMetricPipeline(DefaultScanMWConfig(), anomalyCutoff, stableCfg)
 }
 
 func pipelineExpandWindow(window *observer.DetectorPointWindow, detector observer.Detector) {
@@ -182,6 +181,11 @@ func (p *MetricPipeline) Detect(
 			if p.anomalyCutoff && state != nil && state.reactivated && anomaly.Timestamp <= state.outputAfter {
 				continue
 			}
+			if state == nil {
+				state = &metricPipelineSeriesState{}
+				p.series[anomaly.SourceRef.Ref] = state
+			}
+			state.kindMatchFrom = max(state.kindMatchFrom, anomaly.Timestamp)
 			result.Anomalies = append(result.Anomalies, anomaly)
 		}
 	}
@@ -203,31 +207,58 @@ func (p *MetricPipeline) advanceKinds(storage *timeSeriesStorage, dataTime int64
 	statuses := bulkSeriesStatus(storage, p.cachedRefs, dataTime)
 	matcherWindow := p.matcher.Window()
 	for i, ref := range p.cachedRefs {
-		if statuses[i].pointCount < matcherWindow.MinPoints {
-			continue
-		}
-		_, p.scratch = collectLastPoints(
-			storage, ref, dataTime, matcherWindow.MaxPoints,
-			observer.AggregateAverage, p.scratch,
-		)
-		if len(p.scratch) < matcherWindow.MinPoints {
-			continue
-		}
-		lastPointTime := p.scratch[len(p.scratch)-1].Timestamp
-		state := p.series[ref]
-		if state != nil && lastPointTime <= state.lastMatchedTime {
-			continue
-		}
-		if state == nil {
-			state = &metricPipelineSeriesState{}
-			p.series[ref] = state
-		}
-		state.lastMatchedTime = lastPointTime
-
 		current, _ := storage.SeriesKind(ref)
-		transition, changed := p.matcher.Observe(ref, current, p.scratch, dataTime)
-		if !changed {
-			continue
+		_, hasDetector := p.byKind[current]
+		state := p.series[ref]
+		var transition observer.KindTransition
+		if current != observer.UNSET && hasDetector {
+			if state == nil || state.kindMatchFrom == 0 {
+				continue
+			}
+			var expired bool
+			p.scratch, expired = storage.snapshotFirstPointsFrom(
+				ref, state.kindMatchFrom, dataTime, matcherWindow.MinPoints,
+				observer.AggregateAverage, p.scratch,
+			)
+			if expired {
+				state.kindMatchFrom = 0
+				continue
+			}
+			if len(p.scratch) < matcherWindow.MinPoints {
+				continue
+			}
+			next := p.matcher.Classify(p.scratch)
+			state.kindMatchFrom = 0
+			if next == current {
+				continue
+			}
+			transition = observer.KindTransition{Ref: ref, From: current, To: next}
+		} else {
+			if statuses[i].pointCount < matcherWindow.MinPoints {
+				continue
+			}
+			_, p.scratch = collectLastPoints(
+				storage, ref, dataTime, matcherWindow.MaxPoints,
+				observer.AggregateAverage, p.scratch,
+			)
+			if len(p.scratch) < matcherWindow.MinPoints {
+				continue
+			}
+			lastPointTime := p.scratch[len(p.scratch)-1].Timestamp
+			if state != nil && lastPointTime <= state.lastMatchedTime {
+				continue
+			}
+			if state == nil {
+				state = &metricPipelineSeriesState{}
+				p.series[ref] = state
+			}
+			state.lastMatchedTime = lastPointTime
+			state.kindMatchFrom = 0
+			var changed bool
+			transition, changed = p.matcher.Observe(ref, current, p.scratch, dataTime)
+			if !changed {
+				continue
+			}
 		}
 		if previous, exists := p.byKind[transition.From]; exists {
 			p.registrations[previous].detector.RemoveSeries([]observer.SeriesRef{ref})

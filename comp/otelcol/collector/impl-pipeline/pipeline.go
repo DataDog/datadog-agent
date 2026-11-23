@@ -97,6 +97,10 @@ func (c *collectorImpl) start(context.Context) error {
 	if !on {
 		return nil
 	}
+	if !configcheck.IsAgentPipelineEnabled(c.config) {
+		c.log.Info("Not starting the OTLP ingest pipeline because the data plane handles OTLP ingest")
+		return nil
+	}
 	var logch chan *message.Message
 	if v, ok := c.logsAgent.Get(); ok {
 		if provider := v.GetPipelineProvider(); provider != nil {

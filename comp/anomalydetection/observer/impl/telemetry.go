@@ -20,6 +20,7 @@ const (
 	telemetryObservationsAccepted            = "observer.observations.accepted"               // Observations accepted by the observer admission boundary.
 	telemetryObservationsDropped             = "observer.observations.dropped"                // Observations dropped when a bounded observer admission queue is full.
 	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count" // Current number of active log patterns.
+	telemetryLogMetricsExtractorPatternCount = "observer.log_metrics_extractor.pattern_count" // Current number of active log metrics patterns.
 	telemetryLogsAcceptedBytes               = "observer.logs.accepted_bytes"                 // Total bytes accepted into observer log ingestion.
 	telemetryFilteredLogs                    = "observer.logs.filtered"                       // Number of logs filtered out by processing rules before/during admission.
 	telemetryFilteredMetrics                 = "observer.metrics.filtered"                    // Number of metrics filtered out before enqueue/ingest.
@@ -47,15 +48,16 @@ const (
 )
 
 type observerTelemetry struct {
-	metricKindTransitions telemetry.Counter
-	metricKindSeriesCount telemetry.Gauge
-	kindEmissions         telemetry.Counter
-	gatedDetections       telemetry.Counter
-	kindProcessingTime    telemetry.Gauge
-	kindProcessingCalls   telemetry.Counter
-	observationsAccepted  telemetry.Counter
-	observationsDropped   telemetry.Counter
-	logPatternCount       telemetry.Gauge
+	metricKindTransitions  telemetry.Counter
+	metricKindSeriesCount  telemetry.Gauge
+	kindEmissions          telemetry.Counter
+	gatedDetections        telemetry.Counter
+	kindProcessingTime     telemetry.Gauge
+	kindProcessingCalls    telemetry.Counter
+	observationsAccepted   telemetry.Counter
+	observationsDropped    telemetry.Counter
+	logPatternCount        telemetry.Gauge
+	logMetricsPatternCount telemetry.Gauge
 
 	logsAcceptedBytes    telemetry.Counter
 	filteredLogs         telemetry.Counter
@@ -103,6 +105,12 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			telemetryLogPatternExtractorPatternCount,
 			nil,
 			"Current number of patterns held by the log pattern extractor",
+		),
+		logMetricsPatternCount: telemetryComp.NewGauge(
+			"observer",
+			telemetryLogMetricsExtractorPatternCount,
+			nil,
+			"Current number of patterns held by the log metrics extractor",
 		),
 		logsAcceptedBytes: telemetryComp.NewCounter(
 			"observer",
@@ -214,6 +222,10 @@ func (t *observerTelemetry) recordObservationsDropped(kind, source string, count
 
 func (t *observerTelemetry) setLogPatternCount(count int) {
 	t.logPatternCount.Set(float64(count))
+}
+
+func (t *observerTelemetry) setLogMetricsPatternCount(count int) {
+	t.logMetricsPatternCount.Set(float64(count))
 }
 
 func (t *observerTelemetry) recordLogAccepted(source string, sizeBytes int) {

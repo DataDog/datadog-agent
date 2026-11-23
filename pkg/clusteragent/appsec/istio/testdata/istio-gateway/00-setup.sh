@@ -8,7 +8,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "=== Step 1: Install Istio ingress gateway via Helm ==="
-helm repo add istio https://istio-release.storage.googleapis.com/charts 2>/dev/null || true
+helm repo add istio https://blob.istio.io/istio-release/charts --force-update
 helm repo update istio
 if helm status istio-ingressgateway -n istio-system &>/dev/null; then
   echo "Istio ingress gateway already installed, skipping"
