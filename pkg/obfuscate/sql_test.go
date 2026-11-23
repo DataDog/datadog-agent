@@ -3054,3 +3054,138 @@ func TestPostgresArraySliceObfuscation(t *testing.T) {
 		})
 	}
 }
+
+func TestSQLLiteralLeaks(t *testing.T) {
+	for _, tt := range []struct {
+		in       string
+		out      string // expected output with the default config
+		outDigit string // expected output with TableNames and ReplaceDigits, when it differs from out
+		tables   string // expected tables with TableNames and ReplaceDigits
+	}{
+		// Oracle alternative quoting
+		{
+			in:     "UPDATE notes SET body = q'[Don't share Alice's password]' WHERE id = 1",
+			out:    "UPDATE notes SET body = ? WHERE id = ?",
+			tables: "notes",
+		},
+		{
+			in:     "UPDATE users SET note = q'!don't tell: hunter2!' WHERE id = 1",
+			out:    "UPDATE users SET note = ? WHERE id = ?",
+			tables: "users",
+		},
+		{
+			in:     "SELECT q'{a}', Q'(b)', q'<c>', nq'[d's]', NQ'[e]', Nq'#f#' FROM dual",
+			out:    "SELECT ? FROM dual",
+			tables: "dual",
+		},
+		{
+			in:     "SELECT * FROM users WHERE note = q'[it's a secret]' OR name = nq'{O'Brien}'",
+			out:    "SELECT * FROM users WHERE note = ? OR name = ?",
+			tables: "users",
+		},
+		// must not regress: q as an identifier, other prefixes, whitespace after q'
+		{
+			in:     "SELECT q.a FROM t q WHERE q.b = 'x' AND q='y'",
+			out:    "SELECT q.a FROM t q WHERE q.b = ? AND q = ?",
+			tables: "t",
+		},
+		{
+			in:     "SELECT N'foo', E'bar', X'0F', B'101', faq'x' FROM t",
+			out:    "SELECT N ? E ? X ? B ? faq ? FROM t",
+			tables: "t",
+		},
+		{
+			in:     "SELECT q' x' FROM t",
+			out:    "SELECT q ? FROM t",
+			tables: "t",
+		},
+		// binary and octal literals
+		{
+			in:     "UPDATE users SET flags = flags | 0b0100 WHERE id = 7",
+			out:    "UPDATE users SET flags = flags | ? WHERE id = ?",
+			tables: "users",
+		},
+		{
+			in:     "SELECT * FROM files WHERE mode = 0o755 OR mode = 0O7 OR flags = 0B1",
+			out:    "SELECT * FROM files WHERE mode = ? OR mode = ? OR flags = ?",
+			tables: "files",
+		},
+		{
+			in:     "SELECT * FROM t WHERE a = -0b1010 OR a = +0o17 OR a = -0x1F",
+			out:    "SELECT * FROM t WHERE a = ? OR a = + ? OR a = ?",
+			tables: "t",
+		},
+		// must not regress: an identifier after 0, or a prefix with no valid digit
+		{
+			in:       "SELECT ab0b1, 0 b FROM t WHERE a = 0b AND c = 0o8",
+			out:      "SELECT ab0b1, ? b FROM t WHERE a = ? b AND c = ? o8",
+			outDigit: "SELECT ab?b?, ? b FROM t WHERE a = ? b AND c = ? o?",
+			tables:   "t",
+		},
+		// digit separators
+		{
+			in:     "UPDATE accounts SET balance = 1_500_000 WHERE id = 7",
+			out:    "UPDATE accounts SET balance = ? WHERE id = ?",
+			tables: "accounts",
+		},
+		{
+			in:     "SELECT * FROM t WHERE a = 0xFF_FF OR a = 0b1010_1010 OR a = 0o7_55 OR a = 1_000.50 OR a = -1_000 OR a = 1_0e1_0",
+			out:    "SELECT * FROM t WHERE a = ? OR a = ? OR a = ? OR a = ? OR a = ? OR a = ?",
+			tables: "t",
+		},
+		{
+			in:     "SELECT * FROM t WHERE a = 0x_FF OR a = 0b_10 OR a = 0o_7",
+			out:    "SELECT * FROM t WHERE a = ? OR a = ? OR a = ?",
+			tables: "t",
+		},
+		// must not regress: identifiers containing digits and underscores
+		{
+			in:       "SELECT a_1 FROM t1_2 WHERE b_2 = 1",
+			out:      "SELECT a_1 FROM t1_2 WHERE b_2 = ?",
+			outDigit: "SELECT a_? FROM t?_? WHERE b_? = ?",
+			tables:   "t?_?",
+		},
+		{
+			// MySQL identifiers may start with a digit. They are already
+			// split into a number and an identifier; separators don't change that.
+			in:     "SELECT * FROM 1_users",
+			out:    "SELECT * FROM ? _users",
+			tables: "",
+		},
+	} {
+		t.Run(tt.in, func(t *testing.T) {
+			oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.in)
+			require.NoError(t, err)
+			assert.Equal(t, tt.out, oq.Query)
+
+			oq, err = NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.in, &SQLConfig{
+				TableNames:    true,
+				ReplaceDigits: true,
+			}, "")
+			require.NoError(t, err)
+			outDigit := tt.outDigit
+			if outDigit == "" {
+				outDigit = tt.out
+			}
+			assert.Equal(t, outDigit, oq.Query)
+			assert.Equal(t, tt.tables, oq.Metadata.TablesCSV)
+		})
+	}
+}
+
+func TestSQLLiteralLeaksUnterminated(t *testing.T) {
+	// An unterminated Oracle alternative quoted string must fail closed rather
+	// than leak its contents.
+	for _, in := range []string{
+		"SELECT q'[unterminated it's",
+		"SELECT q'[unterminated",
+		"SELECT nq'{it's ]'",
+		"SELECT q'!it's",
+	} {
+		t.Run(in, func(t *testing.T) {
+			_, err := NewObfuscator(Config{}).ObfuscateSQLString(in)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "unexpected EOF in string")
+		})
+	}
+}
