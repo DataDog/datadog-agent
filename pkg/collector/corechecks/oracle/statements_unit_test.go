@@ -265,3 +265,51 @@ func TestStatementMetricsEnforcesMaxRunTimeForPlans(t *testing.T) {
 		require.Len(t, c.lastOracleRows, 1)
 	})
 }
+
+func TestStatementMetricsBaselinesCacheOnFirstRun(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	c, _ := statementMetricsTestCheck(t, sqlx.NewDb(db, "sqlmock"))
+	require.Nil(t, c.statementMetricsMonotonicCountsPrevious)
+
+	// Run 1 (cold cache): should baseline previous counts from the first query instead of discarding them.
+	dbMock.ExpectQuery("DD_QM_FMS").WillReturnRows(
+		sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(1, "PDB1", "sql_fms", "1001", uint64(0), "SELECT * FROM orders WHERE id = 1", 33, 2.0, 10.0, 500.0, 1.0, 4096.0, 0.0),
+	)
+	dbMock.ExpectQuery("DD_QM_SQLID").WillReturnRows(
+		sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(1, "PDB1", "sql_only", "", uint64(0), "SELECT * FROM dual", 18, 1.0, 3.0, 150.0, 1.0, 2048.0, 0.0),
+	)
+
+	sqlCount, err := c.StatementMetrics()
+	require.NoError(t, err)
+	assert.Equal(t, 2, sqlCount)
+	assert.Empty(t, c.lastOracleRows, "first run must only establish a baseline, not emit cumulative totals")
+	assert.Len(t, c.statementMetricsMonotonicCountsPrevious, 2)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+
+	// Run 2: should immediately emit deltas against Run 1 (rather than requiring a 3rd run).
+	dbMock.ExpectQuery("DD_QM_FMS").WillReturnRows(
+		sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(1, "PDB1", "sql_fms", "1001", uint64(0), "SELECT * FROM orders WHERE id = 1", 33, 3.0, 14.0, 900.0, 1.0, 4096.0, 0.0),
+	)
+	dbMock.ExpectQuery("DD_QM_SQLID").WillReturnRows(
+		sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(1, "PDB1", "sql_only", "", uint64(0), "SELECT * FROM dual", 18, 1.0, 3.0, 150.0, 1.0, 2048.0, 0.0),
+	)
+
+	c.statementsLastRun = time.Now().Add(-2 * time.Hour)
+	sqlCount, err = c.StatementMetrics()
+	require.NoError(t, err)
+	assert.Equal(t, 2, sqlCount)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+
+	require.Len(t, c.lastOracleRows, 1)
+	assert.Equal(t, "1001", c.lastOracleRows[0].QueryHash)
+	assert.Equal(t, float64(1), c.lastOracleRows[0].ParseCalls)
+	assert.Equal(t, float64(4), c.lastOracleRows[0].Executions)
+	assert.Equal(t, float64(400), c.lastOracleRows[0].ElapsedTime)
+}

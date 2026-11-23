@@ -420,10 +420,6 @@ func (c *Check) StatementMetrics() (int, error) {
 
 		// query metrics cache
 		newCache := make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)
-		if c.statementMetricsMonotonicCountsPrevious == nil {
-			c.copyToPreviousMap(newCache)
-			return 0, nil
-		}
 
 		o := c.LazyInitObfuscator()
 		var diff OracleRowMonotonicCount
