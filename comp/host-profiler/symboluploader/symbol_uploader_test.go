@@ -827,6 +827,21 @@ func TestNewDatadogSymbolUploaderPropagatesReportConfig(t *testing.T) {
 	}
 }
 
+func TestNewDatadogSymbolUploaderUsesUploadTimeouts(t *testing.T) {
+	cfg := &SymbolUploaderConfig{
+		SymbolUploaderOptions: SymbolUploaderOptions{
+			Enabled:             true,
+			SymbolEndpoints:     []SymbolEndpoint{{Site: "test.com", APIKey: "key"}},
+			UploadTimeout:       30 * time.Second,
+			UploadTimeoutPerMiB: 2 * time.Second,
+			MaxUploadTimeout:    time.Minute,
+		},
+	}
+	uploader, err := NewDatadogSymbolUploader(t.Context(), cfg)
+	require.NoError(t, err)
+	assert.Equal(t, uploadTimeouts{base: 30 * time.Second, perMiB: 2 * time.Second, max: time.Minute}, uploader.uploadTimeouts)
+}
+
 func TestUploadDeadline(t *testing.T) {
 	defaults := newUploadTimeouts(DefaultSymbolUploaderConfig("test").SymbolUploaderOptions)
 	unset := newUploadTimeouts(SymbolUploaderOptions{})

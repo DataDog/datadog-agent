@@ -148,6 +148,7 @@ The component is configured via an OpenTelemetry Collector YAML file. See [`dist
 - **`symbol_uploader.upload_timeout`**: Time allowed to upload a symbol file smaller than 1 MiB. Default `15s`. Must be positive.
 - **`symbol_uploader.upload_timeout_per_mib`**: Extra time allowed for each MiB of symbol file. Default `1s` (a minimum throughput of 1 MiB/s). `0s` gives every file the same `upload_timeout`.
 - **`symbol_uploader.max_upload_timeout`**: Maximum time allowed to upload one symbol file, whatever its size. Default `5m`. Must be at least `upload_timeout`.
+- The upload timeout values need a unit, for example `30s`. An invalid value stops the host profiler from starting.
 
 ### Configuration Inference
 

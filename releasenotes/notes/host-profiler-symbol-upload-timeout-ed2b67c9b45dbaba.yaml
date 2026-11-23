@@ -8,10 +8,16 @@
 ---
 fixes:
   - |
-    The host profiler no longer fails to upload large debug symbol files
-    because of a fixed 15-second limit. The time allowed for an upload now
-    grows with the file size, up to a maximum of 5 minutes, so profiles of
-    large programs show function names. You can change the limits with the
-    ``upload_timeout``, ``upload_timeout_per_mib`` and ``max_upload_timeout``
-    symbol uploader settings (``hostprofiler.symbol_uploader.options`` in
-    ``datadog.yaml``).
+    The host profiler no longer stops uploading large debug symbol files
+    after 15 seconds. The time allowed for an upload now grows with the
+    file size, up to a maximum of 5 minutes.
+enhancements:
+  - |
+    You can now set the time limits for host profiler symbol uploads. In
+    ``datadog.yaml``, set ``upload_timeout``, ``upload_timeout_per_mib`` and
+    ``max_upload_timeout`` under ``hostprofiler.symbol_uploader.options``, for
+    example ``hostprofiler.symbol_uploader.options.max_upload_timeout: 10m``.
+    The ``DD_HOSTPROFILER_SYMBOL_UPLOADER_OPTIONS`` environment variable takes
+    the same keys as a JSON object. In standalone mode, set the same keys under
+    ``symbol_uploader`` in the profiling receiver configuration. Each value
+    needs a unit, for example ``30s`` or ``10m``.
