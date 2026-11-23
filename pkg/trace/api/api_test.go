@@ -263,7 +263,7 @@ func TestStopWithBlockedHandler(t *testing.T) {
 			// Unbuffered and never read, so the handler blocks on its send.
 			out := make(chan *Payload)
 			outV1 := make(chan *PayloadV1)
-			r := NewHTTPReceiver(conf, sampler.NewDynamicConfig(), out, outV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			r := NewHTTPReceiver(conf, sampler.NewDynamicConfig(), out, outV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstdimpl.NewComponent())
 			r.shutdownTimeout = 100 * time.Millisecond
 			r.SetTCPListener(ln)
 			r.Start()

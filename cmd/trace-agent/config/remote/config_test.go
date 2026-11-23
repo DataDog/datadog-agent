@@ -102,7 +102,7 @@ func TestConfigEndpointRejectsNonTracers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			grpc := &agentGRPCConfigFetcher{}
 			grpc.Test(t)
-			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstdimpl.NewComponent())
 			handler := ConfigHandler(rcv, grpc, &config.AgentConfig{}, &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 			req := httptest.NewRequest(http.MethodPost, "/v0.7/config", strings.NewReader(tc.reqBody))
