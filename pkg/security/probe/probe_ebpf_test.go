@@ -1039,6 +1039,49 @@ func TestResolveMountSourcePath(t *testing.T) {
 	}
 }
 
+func TestResolveMountPathsAfterFailedLookup(t *testing.T) {
+	mr, err := mount.NewResolver(&statsd.NoOpClient{}, nil, mount.ResolverOpts{})
+	require.NoError(t, err)
+	fh := &EBPFFieldHandlers{
+		resolvers: &resolvers.EBPFResolvers{
+			MountResolver: mr,
+			PathResolver:  path.NewResolver(nil, mr),
+		},
+	}
+
+	ev := model.NewFakeEvent()
+	ev.FieldHandlers = fh
+	ev.Mount = model.MountEvent{
+		Mount: model.Mount{
+			MountID:        11,
+			ParentPathKey:  model.PathKey{MountID: 1},
+			BindSrcMountID: 10,
+			MountPointStr:  "/dst",
+			RootStr:        "/src",
+		},
+	}
+
+	assert.Empty(t, fh.ResolveMountPointPath(ev, &ev.Mount))
+	assert.Empty(t, fh.ResolveMountSourcePath(ev, &ev.Mount))
+	assert.Empty(t, fh.ResolveMountRootPath(ev, &ev.Mount))
+	require.Error(t, ev.Mount.MountPointPathResolutionError)
+	require.Error(t, ev.Mount.MountSourcePathResolutionError)
+	require.Error(t, ev.Mount.MountRootPathResolutionError)
+
+	// as an event queued for tag resolution, resolved again once the mounts are known
+	cpy := ev.DeepCopy()
+	require.NoError(t, mr.Insert(model.Mount{MountID: 1, MountPointStr: "/", Path: "/", RootStr: "/"}))
+	require.NoError(t, mr.Insert(model.Mount{MountID: 10, ParentPathKey: model.PathKey{MountID: 1}, MountPointStr: "/mnt/base", RootStr: "/"}))
+	require.NoError(t, mr.Insert(cpy.Mount.Mount))
+
+	assert.Equal(t, "/dst", fh.ResolveMountPointPath(cpy, &cpy.Mount))
+	assert.Equal(t, "/mnt/base/src", fh.ResolveMountSourcePath(cpy, &cpy.Mount))
+	assert.Equal(t, "/src", fh.ResolveMountRootPath(cpy, &cpy.Mount))
+	assert.NoError(t, cpy.Mount.MountPointPathResolutionError)
+	assert.NoError(t, cpy.Mount.MountSourcePathResolutionError)
+	assert.NoError(t, cpy.Mount.MountRootPathResolutionError)
+}
+
 func TestUpdateEBPFCheckMappingKeepsTCPrograms(t *testing.T) {
 	ddebpf.ResetAllMappings()
 	t.Cleanup(ddebpf.ResetAllMappings)
