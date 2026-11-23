@@ -2634,6 +2634,14 @@ func TestDictIn(t *testing.T) {
 		{Expr: `"HOME" in process.array.env`, Expected: false},
 		{Expr: `"TERM" in process.array[A].env && process.array[A].key == 1002`, Expected: true},
 		{Expr: `"TERM" in process.array[A].env && process.array[A].key == 1000`, Expected: false},
+		{Expr: `["PATH", "EMPTY"] allin process.env`, Expected: true},
+		{Expr: `["PATH", "MISSING"] allin process.env`, Expected: false},
+		{Expr: `"PATH" allin process.env`, Expected: true},
+		{Expr: `["PATH", ~"LD_*"] allin process.env`, Expected: true},
+		{Expr: `["PATH", ~"XX_*"] allin process.env`, Expected: false},
+		{Expr: `process.array.value allin process.env`, Expected: false},
+		{Expr: `["LANG"] allin process.array.env`, Expected: true},
+		{Expr: `["LANG", "TERM"] allin process.array.env`, Expected: false},
 	}
 
 	for _, test := range tests {

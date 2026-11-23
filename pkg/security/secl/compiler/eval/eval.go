@@ -133,7 +133,7 @@ func wrapEvaluatorWithKey(evaluator interface{}, key *StringEvaluator, field Fie
 	}
 }
 
-func dictContains(keys interface{}, dict interface{}, keysPos ast.Position) (*BoolEvaluator, bool, error) {
+func dictContains(keys interface{}, dict interface{}, all bool, keysPos ast.Position) (*BoolEvaluator, bool, error) {
 	var (
 		dicts  func(ctx *Context) []map[string]string
 		weight int
@@ -176,20 +176,35 @@ func dictContains(keys interface{}, dict interface{}, keysPos ast.Position) (*Bo
 		keysOf, matchers = func(*Context) []string { return scalars }, values.GetStringMatchers()
 	}
 
+	matchesAKey := func(matcher StringMatcher, dict map[string]string) bool {
+		for key := range dict {
+			if matcher.Matches(key) {
+				return true
+			}
+		}
+		return false
+	}
+	// holds returns whether a dictionary holds any of the keys, or all of them:
+	// the first key found decides for any, the first one missing for all
+	holds := func(dict map[string]string, keys []string) bool {
+		for _, key := range keys {
+			if _, ok := dict[key]; ok != all {
+				return !all
+			}
+		}
+		for _, matcher := range matchers {
+			if matchesAKey(matcher, dict) != all {
+				return !all
+			}
+		}
+		return all
+	}
+
 	return &BoolEvaluator{Weight: weight, EvalFnc: func(ctx *Context) bool {
 		keys := keysOf(ctx)
 		for _, dict := range dicts(ctx) {
-			for _, key := range keys {
-				if _, ok := dict[key]; ok {
-					return true
-				}
-			}
-			for _, matcher := range matchers {
-				for key := range dict {
-					if matcher.Matches(key) {
-						return true
-					}
-				}
+			if holds(dict, keys) {
+				return true
 			}
 		}
 		return false

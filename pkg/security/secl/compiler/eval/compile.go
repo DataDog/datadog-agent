@@ -569,7 +569,7 @@ func compileArrayCompare(node *ast.ArrayCompareExpr, opts *Opts, state *State) (
 		return nil, pos, err
 	}
 
-	if boolEvaluator, ok, err := dictContains(left, right, node.Left.Position()); ok {
+	if boolEvaluator, ok, err := dictContains(left, right, node.Op == ast.ArrayAllIn, node.Left.Position()); ok {
 		if err != nil {
 			return nil, node.Left.Position(), err
 		}
