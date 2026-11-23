@@ -774,8 +774,17 @@ func TestIsAdvisory(t *testing.T) {
 		assert.True(t, isUnexpectedWarning(rec))
 	})
 
+	t.Run("a different MRF warning from the same target is not an advisory", func(t *testing.T) {
+		// Guards against the fragment matching only the shared prefix, which would hide an
+		// MRF problem that is specific to ADP.
+		rec, ok := parseRecord(`{"level":"WARN","message":"Multi-Region Failover is enabled, but the MRF forwarder failed to start.","target":"agent_data_plane::cli::run"}`)
+		require.True(t, ok)
+		assert.False(t, isAdvisory(rec))
+		assert.True(t, isUnexpectedWarning(rec))
+	})
+
 	t.Run("an error with the same message is not an advisory", func(t *testing.T) {
-		rec, ok := parseRecord(`{"level":"ERROR","message":"Multi-Region Failover is enabled, but something else.","target":"agent_data_plane::cli::run"}`)
+		rec, ok := parseRecord(`{"level":"ERROR","message":"Multi-Region Failover is enabled, but multi_region_failover.api_key and one of multi_region_failover.dd_url or multi_region_failover.site are required for metrics forwarding.","target":"agent_data_plane::cli::run"}`)
 		require.True(t, ok)
 		assert.False(t, isAdvisory(rec))
 		assert.True(t, isError(rec))
