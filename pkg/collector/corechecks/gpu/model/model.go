@@ -121,7 +121,7 @@ type NvidiaXidNVLinkFault struct {
 	Fatality         string   `json:"fatality,omitempty" event_tag:"nvlink_fatality"`
 	CrossContainment string   `json:"cross_containment,omitempty" event_tag:"nvlink_cross_containment"`
 	Instance         string   `json:"instance,omitempty" event_tag:"nvlink_instance"`
-	LinkID           *uint64  `json:"link_id,omitempty" event_tag:"nvlink_link_id"`
+	LinkID           *uint64  `json:"link_id,omitempty"`
 	StatusWords      []string `json:"status_words,omitempty"`
 }
 

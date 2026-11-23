@@ -292,6 +292,47 @@ func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
 	}, tags)
 }
 
+func TestCloudRunMissingIdentity(t *testing.T) {
+	saved := metadataHelperFunc
+	t.Cleanup(func() { metadataHelperFunc = saved })
+	for _, kind := range []CloudRunType{CloudRunService, CloudRunFunction, CloudRunJob} {
+		t.Run(string(kind), func(t *testing.T) {
+			env := map[string]string{
+				ServiceNameEnvVar: "unknown", revisionNameEnvVar: "revision",
+				cloudRunJobNameEnvVar: "job", cloudRunExecutionEnvVar: "execution",
+			}
+			for key, value := range env {
+				t.Setenv(key, value)
+			}
+			keys := []string{projectID, location, ServiceNameEnvVar, revisionNameEnvVar}
+			if kind == CloudRunJob {
+				keys = []string{projectID, location, cloudRunJobNameEnvVar, cloudRunExecutionEnvVar}
+			}
+			for _, missing := range append([]string{"none"}, keys...) {
+				t.Run(missing, func(t *testing.T) {
+					values := map[string]string{projectID: "unknown", location: "region", containerID: "instance"}
+					delete(values, missing)
+					if _, ok := env[missing]; ok {
+						t.Setenv(missing, "")
+					}
+					metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string { return values }
+					var service CloudService = &CloudRun{isFunction: kind == CloudRunFunction}
+					if kind == CloudRunJob {
+						service = &CloudRunJobs{}
+					}
+					service.GetTags()
+					id := service.GetMetadata().ResourceID
+					if missing == "none" {
+						assert.NotEmpty(t, id)
+					} else {
+						assert.Empty(t, id)
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestCloudRunTagsOmitFailedMetadataLookups(t *testing.T) {
 	saved := metadataHelperFunc
 	t.Cleanup(func() { metadataHelperFunc = saved })
@@ -323,6 +364,7 @@ func TestCloudRunTagsOmitFailedMetadataLookups(t *testing.T) {
 			assert.NotContains(t, tags, tt.prefix+resourceName)
 			assert.Equal(t, "region", tags[location])
 			assert.Equal(t, "region", tags[tt.prefix+location])
+			assert.Empty(t, tt.service.GetMetadata().ResourceID)
 		})
 	}
 }

@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Add ``private_action_runner.api_key`` and ``private_action_runner.site`` to
+    enroll and run Private Action Runner against a different Datadog site from
+    the main Agent.

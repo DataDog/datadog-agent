@@ -8,9 +8,7 @@
 package nvml
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"maps"
@@ -62,6 +60,12 @@ type collector struct {
 	kaiAssignmentFailed                telemetry.Counter
 	lastCollectionTimestamp            time.Time
 	deviceCache                        ddnvml.DeviceCache
+	// nodeGPULabels caches the labels of this node, as read for the GPU
+	// sharing strategy resolution, and nodeGPULabelsAt is when they were last
+	// read, successfully or not. fetchNodeLabels reads them.
+	nodeGPULabels   map[string]string
+	nodeGPULabelsAt time.Time
+	fetchNodeLabels func(context.Context) (map[string]string, error)
 	// lastPublishedGPUs keeps the last GPU entity published per UUID, so that
 	// lost GPUs keep the attributes that can no longer be queried from NVML.
 	lastPublishedGPUs map[string]*workloadmeta.GPU
@@ -105,6 +109,7 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 	switch d := device.(type) {
 	case *ddnvml.PhysicalDevice:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypePhysical
+		gpuDeviceInfo.MIGModeEnabled = d.HasMIGFeatureEnabled
 		for _, child := range d.MIGChildren {
 			gpuDeviceInfo.ChildrenGPUUUIDs = append(gpuDeviceInfo.ChildrenGPUUUIDs, child.GetDeviceInfo().UUID)
 		}
@@ -136,8 +141,9 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		physicalDevice = migDevice.Parent
 	}
 
-	gpuDeviceInfo.PCIBusID = physicalDevice.GetDeviceInfo().PCIBusID
-
+	info := physicalDevice.GetDeviceInfo()
+	gpuDeviceInfo.PCIBusID = info.PCIBusID
+	gpuDeviceInfo.DriverVersion = info.DriverVersion
 	virtMode, err := physicalDevice.GetVirtualizationMode()
 	if ddnvml.IsGPULost(err) {
 		gpuDeviceInfo.Lost = true
@@ -164,22 +170,19 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	} else {
 		gpuDeviceInfo.VirtualizationMode = gpuutil.VirtualizationModeToString(virtMode)
 	}
-
-	memBusWidth, err := device.GetMemoryBusWidth()
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
-		}
-	} else {
-		gpuDeviceInfo.MemoryBusWidth = memBusWidth
-	}
-
-	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
-	if err == nil {
-		if clusterUUID, cliqueID, ok := fabricInfoToTags(fabricInfo); ok {
-			gpuDeviceInfo.FabricClusterUUID = clusterUUID
-			gpuDeviceInfo.FabricCliqueID = cliqueID
-		}
+	gpuDeviceInfo.MemoryBusWidth = device.GetDeviceInfo().MemoryBusWidth
+	gpuDeviceInfo.FabricClusterUUID = info.FabricClusterUUID
+	gpuDeviceInfo.FabricCliqueID = info.FabricCliqueID
+	gpuDeviceInfo.FabricGUID = info.FabricGUID
+	// Only expose rack-scale placement and board identity when a chassis is
+	// identified. Without a chassis serial, zero-filled NVML placement fields
+	// do not establish a location.
+	if info.ChassisSerial != "" {
+		gpuDeviceInfo.ChassisSerial = info.ChassisSerial
+		gpuDeviceInfo.SlotNumber = info.SlotNumber
+		gpuDeviceInfo.TrayIndex = info.TrayIndex
+		gpuDeviceInfo.ModuleID = info.ModuleID
+		gpuDeviceInfo.BoardSerial = info.BoardSerial
 	}
 
 	numaNode, err := physicalDevice.GetNumaNodeId()
@@ -189,20 +192,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	}
 	if err == nil && numaNode >= 0 {
 		gpuDeviceInfo.NUMANode = &numaNode
-	}
-
-	// Platform info is only populated on rack-scale systems; other GPUs report an empty chassis serial.
-	if platformInfo, err := physicalDevice.GetPlatformInfo(); err == nil {
-		gpuDeviceInfo.FabricGUID = platformFabricGUID(platformInfo)
-		if chassisSerial := platformChassisSerial(platformInfo); chassisSerial != "" {
-			gpuDeviceInfo.ChassisSerial = chassisSerial
-			gpuDeviceInfo.SlotNumber = platformInfo.SlotNumber
-			gpuDeviceInfo.TrayIndex = platformInfo.TrayIndex
-			gpuDeviceInfo.ModuleID = platformInfo.ModuleId
-			if boardSerial, err := physicalDevice.GetSerial(); err == nil {
-				gpuDeviceInfo.BoardSerial = strings.TrimSpace(boardSerial)
-			}
-		}
 	}
 
 	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
@@ -232,20 +221,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	}
 }
 
-func fabricClusterUUIDFromNVMLInfo(clusterUUID [16]uint8) string {
-	return fmt.Sprintf("%x-%x-%x-%x-%x", clusterUUID[0:4], clusterUUID[4:6], clusterUUID[6:8], clusterUUID[8:10], clusterUUID[10:16])
-}
-
-func fabricInfoToTags(fabricInfo nvml.GpuFabricInfo_v2) (string, uint32, bool) {
-	if fabricInfo.State != nvml.GPU_FABRIC_STATE_COMPLETED ||
-		nvml.Return(fabricInfo.Status) != nvml.SUCCESS ||
-		fabricInfo.ClusterUuid == [16]uint8{} {
-		return "", 0, false
-	}
-
-	return fabricClusterUUIDFromNVMLInfo(fabricInfo.ClusterUuid), fabricInfo.CliqueId, true
-}
-
 // pciNUMANode reads the NUMA node of a PCI device from sysfs. It returns -1
 // when the kernel doesn't know it.
 func pciNUMANode(roots []string, pciBusID string) (int, error) {
@@ -268,25 +243,6 @@ func pciNUMANode(roots []string, pciBusID string) (int, error) {
 		return strconv.Atoi(strings.TrimSpace(string(content)))
 	}
 	return -1, lastErr
-}
-
-// platformFabricGUID formats the NVLink fabric GUID like nvidia-smi
-// ("0x" + the first 8 bytes, little endian), or "" when not reported.
-func platformFabricGUID(info nvml.PlatformInfo) string {
-	guid := binary.LittleEndian.Uint64(info.IbGuid[:8])
-	if guid == 0 {
-		return ""
-	}
-	return fmt.Sprintf("0x%016x", guid)
-}
-
-// platformChassisSerial returns the NUL-padded chassis serial as a string.
-func platformChassisSerial(info nvml.PlatformInfo) string {
-	serial := info.ChassisSerialNumber[:]
-	if end := bytes.IndexByte(serial, 0); end >= 0 {
-		serial = serial[:end]
-	}
-	return strings.TrimSpace(string(serial))
 }
 
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
@@ -341,6 +297,7 @@ func newCollector(store workloadmeta.Component, config config.Component, tm tele
 		lastCollectionTimestamp: time.Now(),
 		gpuMonitoringEnabled:    true,
 		kaiAssignmentFailed:     newKAIAssignmentFailedCounter(tm),
+		fetchNodeLabels:         fetchNodeLabels,
 		// The host sysfs is often only partly mounted in containers, but the PCI
 		// devices tree isn't namespaced, so the container's own /sys works too.
 		pciDevicesRoots: []string{kernel.HostSys("bus", "pci", "devices"), "/sys/bus/pci/devices"},
@@ -391,23 +348,12 @@ func (c *collector) Pull(ctx context.Context) error {
 	// Hold the NVML gate for the whole pull: a deliberate release waits for
 	// the in-flight pull to finish instead of racing it. The gated helper
 	// keeps the library wrapper from escaping.
-	err := ddnvml.WithNVML(func(lib ddnvml.SafeNVML) error {
+	err := ddnvml.WithNVML(func(_ ddnvml.SafeNVML) error {
 		if c.deviceCache == nil {
 			c.deviceCache = ddnvml.NewDeviceCache()
 		}
 		if err := c.deviceCache.Refresh(); err != nil {
 			return fmt.Errorf("failed to initialize device cache: %w", err)
-		}
-
-		// driver version is equal to all devices of the same vendor
-		// currently we handle only nvidia.
-		// in the future this function should be refactored to support more vendors
-		driverVersion, err := lib.SystemGetDriverVersion()
-		// we try to get the driver version as best effort, just log warning if it fails
-		if err != nil {
-			if logLimiter.ShouldLog() {
-				log.Warnf("%v", err)
-			}
 		}
 
 		// attempt getting list of unhealthy devices (if available)
@@ -427,6 +373,10 @@ func (c *collector) Pull(ctx context.Context) error {
 		// them KAI shares.
 		kai := c.resolveKAIFractions(c.deviceCache)
 
+		// Resolved before the devices are published too: it says which of
+		// them are shared by replication (time-slicing, MPS).
+		timeSlices := c.resolveTimeSlices(ctx)
+
 		// add/update current devices
 		currentUUIDs := map[string]struct{}{}
 		pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
@@ -438,14 +388,18 @@ func (c *collector) Pull(ctx context.Context) error {
 				return err
 			}
 
-			gpu.DriverVersion = driverVersion
-
 			_, unhealthy := unhealthyDevices[gpu.ID]
 			gpu.Healthy = !unhealthy
 
 			uuid := dev.GetDeviceInfo().UUID
 			if _, shared := kai.sharedGPUs[uuid]; shared {
 				gpu.SharingMode = workloadmeta.GPUSharingModeKAIFraction
+			} else if sharing, shared := timeSlices.shared[uuid]; shared {
+				// KAI does not support the device plugin's replicas setting,
+				// so a GPU is never both:
+				// https://github.com/kai-scheduler/KAI-Scheduler/blob/main/docs/gpu-sharing/README.md#device-plugin-replicas-setting
+				gpu.SharingMode = sharing.mode
+				gpu.SharingReplicas = sharing.replicas
 			}
 			currentUUIDs[uuid] = struct{}{}
 			c.lastPublishedGPUs[uuid] = gpu
@@ -487,7 +441,7 @@ func (c *collector) Pull(ctx context.Context) error {
 			events = append(events, c.createProcessEvents(pidToGPUs)...)
 		}
 
-		events = append(events, c.createContainerGPUEvents(c.deviceCache, kai)...)
+		events = append(events, c.createContainerGPUEvents(c.deviceCache, kai, timeSlices)...)
 
 		c.store.Notify(events)
 		c.lastCollectionTimestamp = timestamp
@@ -583,15 +537,18 @@ var migMinorsPath = "/proc/driver/nvidia-caps/mig-minors"
 
 // createContainerGPUEvents publishes the Container<->GPU edge for the
 // allocations the kubelet PodResources API does not describe: DRA-allocated
-// devices, resolved from each container's CDI device nodes to NVML UUIDs, and
-// KAI Scheduler fractional GPUs, resolved through KAI's reservation pods. It
-// repairs the container->device edge that the regex guess in
+// devices, resolved from each container's CDI device nodes to NVML UUIDs,
+// KAI Scheduler fractional GPUs, resolved through KAI's reservation pods,
+// and shared device replicas (time-slicing, MPS), whose base device UUID is
+// the allocation ID stripped of its replica suffix. It repairs the
+// container->device edge that the regex guess in
 // pkg/gpu/containers cannot make on a DRA node, where the allocated device name
 // is pool-scoped ("gpu-0-mig-1g18gb-19-0") rather than an NVML index or UUID,
 // and that it cannot make at all for a KAI fraction, which never appears as an
 // allocation. kai holds the KAI fractions resolved for this pull, see
-// resolveKAIFractions.
-func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai kaiFractions) []workloadmeta.CollectorEvent {
+// resolveKAIFractions; timeSlices holds the shared replicas, see
+// resolveTimeSlices.
+func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai kaiFractions, timeSlices timeSlices) []workloadmeta.CollectorEvent {
 	var events []workloadmeta.CollectorEvent
 	// Containers that still claim a device, whether or not this pull could
 	// resolve it. Retraction keys off this rather than off resolution success:
@@ -605,6 +562,11 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai
 	// and merged into each container's UUIDs below, rather than inside the
 	// loop.
 	maps.Copy(claiming, kai.claiming)
+	// Every container holding a shared-replica allocation claims too, for
+	// the same retraction as the DRA and KAI claims.
+	for id := range timeSlices.byContainer {
+		claiming[id] = struct{}{}
+	}
 
 	for _, container := range c.store.ListContainers() {
 		// One event per container, not per device: workloadmeta replaces the
@@ -664,7 +626,12 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai
 			allResolved = false
 		}
 
-		if len(uuids) == 0 {
+		// Shared replicas are not merged into the UUIDs: GPU attribution
+		// resolves them from the kubelet allocation, and counts the UUIDs as
+		// resolved DRA devices, so a replica would hide an unresolved DRA
+		// allocation of the same container.
+		replicas := timeSlices.byContainer[container.ID]
+		if len(uuids) == 0 && len(replicas) == 0 {
 			continue
 		}
 		if !allResolved {
@@ -703,8 +670,10 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai
 				},
 				GPUDeviceIDs: uuids,
 				// Only KAI fractions carry a share; DRA devices are allocated
-				// to the container whole.
-				GPUShares: kai.sharesByContainer[container.ID],
+				// to the container whole. Shared replicas carry their own
+				// allocation info, from the kubelet-allocated IDs.
+				GPUShares:         kai.sharesByContainer[container.ID],
+				GPUDeviceReplicas: replicas,
 			},
 		})
 		published[container.ID] = uuids

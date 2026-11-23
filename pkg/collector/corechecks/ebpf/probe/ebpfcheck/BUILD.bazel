@@ -74,6 +74,7 @@ dd_agent_go_test(
     name = "ebpfcheck_test",
     srcs = [
         "c_types_linux_test.go",
+        "dedup_test.go",
         "probe_test.go",
     ],
     data = glob(["testdata/**"]),

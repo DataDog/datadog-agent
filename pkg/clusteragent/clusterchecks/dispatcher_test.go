@@ -216,6 +216,47 @@ func TestDescheduleRescheduleSameNode(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
+func TestNodesRunningCheck(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	dispatcher.store.getOrCreateNodeStore("runner", "").nodetype = types.NodeTypeCLCRunner
+	dispatcher.store.getOrCreateNodeStore("agent-hostname", "").nodetype = types.NodeTypeNodeAgent
+	dispatcher.addConfig(generateIntegration("kueue"), "runner")
+	dispatcher.addConfig(generateIntegration("other"), "agent-hostname")
+	dispatcher.addEndpointConfig(generateEndpointsIntegration("kueue", "node1", false), "node1")
+	dispatcher.addEndpointConfig(generateEndpointsIntegration("other", "node2", false), "node2")
+
+	_, ok := dispatcher.nodesRunningCheck("kueue")
+	assert.False(t, ok, "the dispatcher is not running")
+
+	dispatcher.store.active = true
+	_, ok = dispatcher.nodesRunningCheck("absent")
+	assert.False(t, ok, "a check that is not dispatched may run as a node Agent check")
+	dispatcher.addConfig(generateIntegration("dangling"), "")
+	_, ok = dispatcher.nodesRunningCheck("dangling")
+	assert.False(t, ok, "a check waiting for a node is not dispatched yet")
+	nodes, ok := dispatcher.nodesRunningCheck("kueue")
+	assert.True(t, ok)
+	assert.Equal(t, map[string]struct{}{"node1": {}}, nodes, "cluster check runners are not returned")
+
+	// A check dispatched only to cluster check runners runs on no node Agent.
+	onRunnerOnly := newDispatcher(fakeTagger)
+	onRunnerOnly.store.getOrCreateNodeStore("runner", "").nodetype = types.NodeTypeCLCRunner
+	onRunnerOnly.addConfig(generateIntegration("kueue"), "runner")
+	onRunnerOnly.store.active = true
+	nodes, ok = onRunnerOnly.nodesRunningCheck("kueue")
+	assert.True(t, ok)
+	assert.Empty(t, nodes)
+
+	// A cluster check on a node Agent is dispatched by hostname, which may not
+	// be the node name.
+	kueueOnAgent := generateIntegration("kueue")
+	kueueOnAgent.InitConfig = []byte("on-agent")
+	dispatcher.addConfig(kueueOnAgent, "agent-hostname")
+	_, ok = dispatcher.nodesRunningCheck("kueue")
+	assert.False(t, ok)
+}
+
 func TestGetNodeTypeCounts(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
@@ -227,7 +268,7 @@ func TestGetNodeTypeCounts(t *testing.T) {
 	dispatcher.processNodeStatus("agent2", "10.0.0.21", types.NodeStatus{LastChange: 4, NodeType: types.NodeTypeNodeAgent})
 	dispatcher.processNodeStatus("agent3", "10.0.0.22", types.NodeStatus{LastChange: 5, NodeType: types.NodeTypeNodeAgent})
 
-	clcRunnerCount, nodeAgentCount := dispatcher.store.CountNodeTypes()
+	clcRunnerCount, nodeAgentCount := dispatcher.store.countNodeTypes()
 	assert.Equal(t, 2, clcRunnerCount)
 	assert.Equal(t, 3, nodeAgentCount)
 }
@@ -510,11 +551,10 @@ func TestDanglingConfig(t *testing.T) {
 	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
 	assert.True(t, dispatcher.shouldDispatchDangling())
 
-	// get the danglings and make sure they are removed from the store
-	configs := dispatcher.retrieveDangling()
-	dispatcher.deleteDangling([]string{config.Digest()})
-	assert.Len(t, configs, 1)
+	// dispatch the danglings and make sure they are removed from the store
+	dispatcher.dispatchDangling()
 	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
+	assert.Len(t, dispatcher.store.nodes["nodeA"].digestToConfig, 1)
 }
 
 func TestUnscheduleDanglingConfig(t *testing.T) {
@@ -870,6 +910,86 @@ func TestUpdateRunnersStats(t *testing.T) {
 	assert.True(t, found)
 	assert.EqualValues(t, "10.0.0.1", node2.clientIP)
 	assert.EqualValues(t, stats1, node2.clcRunnerStats)
+
+	requireNotLocked(t, dispatcher.store)
+}
+
+// blockingClcRunnerClient answers GetRunnerStats only once release is closed,
+// like a runner that stopped answering and is waiting for the client timeout.
+type blockingClcRunnerClient struct {
+	called  chan struct{}
+	release chan struct{}
+}
+
+func (c *blockingClcRunnerClient) GetVersion(string) (version.Version, error) {
+	return version.Version{}, nil
+}
+
+func (c *blockingClcRunnerClient) GetRunnerWorkers(string) (types.Workers, error) {
+	return types.Workers{Count: 4}, nil
+}
+
+func (c *blockingClcRunnerClient) GetRunnerStats(string) (types.CLCRunnersStats, error) {
+	c.called <- struct{}{}
+	<-c.release
+	return types.CLCRunnersStats{"check:1": {MetricSamples: 5}}, nil
+}
+
+func TestUpdateRunnersStatsDoesNotBlockStore(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	client := &blockingClcRunnerClient{called: make(chan struct{}, 3), release: make(chan struct{})}
+	dispatcher.clcRunnersClient = client
+
+	dispatcher.processNodeStatus("stats-node-a", "10.0.0.1", types.NodeStatus{})
+	dispatcher.processNodeStatus("stats-node-b", "10.0.0.2", types.NodeStatus{})
+	dispatcher.processNodeStatus("stats-node-c", "10.0.0.3", types.NodeStatus{})
+
+	collected := make(chan struct{})
+	go func() {
+		dispatcher.updateRunnersStats()
+		close(collected)
+	}()
+	<-client.called
+
+	// While a runner query is in flight, heartbeats (including one from a new
+	// IP), config polls and node expiry go through.
+	unblocked := make(chan struct{})
+	go func() {
+		dispatcher.processNodeStatus("stats-node-a", "10.0.0.1", types.NodeStatus{})
+		dispatcher.processNodeStatus("stats-node-c", "10.0.0.9", types.NodeStatus{})
+		_, _, _ = dispatcher.getClusterCheckConfigs("stats-node-a")
+		dispatcher.store.Lock()
+		dispatcher.store.nodes["stats-node-b"].heartbeat = 0
+		dispatcher.store.Unlock()
+		dispatcher.expireNodes()
+		close(unblocked)
+	}()
+	select {
+	case <-unblocked:
+	case <-time.After(5 * time.Second):
+		close(client.release)
+		t.Fatal("store stayed locked while querying a runner")
+	}
+
+	close(client.release)
+	<-collected
+
+	nodeA, found := dispatcher.store.getNodeStore("stats-node-a")
+	require.True(t, found)
+	assert.Equal(t, 4, nodeA.workers)
+	assert.Contains(t, nodeA.clcRunnerStats, "check:1")
+
+	// The runner that expired mid-query is neither recreated nor reported.
+	assert.NotContains(t, dispatcher.store.nodes, "stats-node-b")
+	assert.Zero(t, busyness.WithValues("stats-node-b", le.JoinLeaderValue).Get())
+
+	// The runner that moved to a new IP doesn't get the results of its old one.
+	nodeC, found := dispatcher.store.getNodeStore("stats-node-c")
+	require.True(t, found)
+	assert.Equal(t, "10.0.0.9", nodeC.clientIP)
+	assert.Zero(t, nodeC.workers)
+	assert.Empty(t, nodeC.clcRunnerStats)
 
 	requireNotLocked(t, dispatcher.store)
 }

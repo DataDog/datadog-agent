@@ -249,7 +249,7 @@ func Command() []*cobra.Command {
 	traceCmd.Flags().BoolVar(&params.ProcScanDisabled, disableProcScanOpt, envToBool(envProcScanDisabled), "disable proc scan")
 	traceCmd.Flags().StringVar(&params.ScanProcEvery, scanProcEveryOpt, os.Getenv(envProcScanRate), "proc scan rate")
 	traceCmd.Flags().BoolVar(&params.SeccompDisabled, disableSeccompOpt, envToBool(envSeccompDisabled), "disable seccomp")
-	traceCmd.Flags().BoolVar(&params.SpanContextDisabled, disableSpanContextOpt, envToBool(envSpanContextDisabled), "disable the OTel span context reader")
+	traceCmd.Flags().BoolVar(&params.SpanContextDisabled, disableSpanContextOpt, envToBool(envSpanContextDisabled), "disable the span context readers (OTel thread context and Go pprof labels)")
 	traceCmd.Flags().IntSliceVar(&params.PIDs, pidOpt, nil, "attach tracer to pid")
 	traceCmd.Flags().IntVar(&params.PIDPerTracer, pidPerTracer, math.MaxInt, "maximum number of pid per tracer")
 

@@ -16,6 +16,8 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.runners import Result
 
+from tasks.libs.build.bazel import bazel
+
 try:
     from termcolor import colored
 except ImportError:
@@ -485,6 +487,12 @@ def _get_root_path() -> str:
 
 def get_pulumi_run_folder() -> str:
     return os.path.join(_get_root_path(), "test", "e2e-framework", "run")
+
+
+def install_pulumi_plugins() -> None:
+    """Install the Pulumi plugins where Pulumi looks for them."""
+    pulumi_home = os.environ.get("PULUMI_HOME") or os.path.expanduser("~/.pulumi")
+    bazel("run", "@pulumi_plugins//:install", "--", f"--destdir={os.path.join(pulumi_home, 'plugins')}")
 
 
 class RemoteHost:

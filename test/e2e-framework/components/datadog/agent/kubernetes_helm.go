@@ -1084,15 +1084,15 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_IMAGE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_LIFECYCLE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_SBOM_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
 			},
 		}
 	} else {
@@ -1107,6 +1107,10 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_APM_DD_URL"),
+				"value": pulumi.Sprintf("%s", fi.URL),
+			},
+			pulumi.StringMap{
+				"name":  pulumi.String("DD_HEALTH_PLATFORM_FORWARDER_DD_URL"),
 				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{

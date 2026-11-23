@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
@@ -132,8 +133,8 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 			f.Filesystem = model.TmpFS
 		} else {
 			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
-			if err != nil {
-				ev.SetPathResolutionError(f, err)
+			if err != nil && f.PathResolutionError == nil {
+				ev.SetPathResolutionError(f, fmt.Errorf("filesystem resolution failed (mount_id=%d, pid=%d): %w", f.FileFields.MountID, ev.PIDContext.Pid, err))
 			}
 			f.Filesystem = fs
 		}
@@ -199,11 +200,17 @@ func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.Mo
 			e.MountSourcePathResolutionError = err
 			return ""
 		}
+		bindSourceMountRoot, _, _, err := fh.resolvers.MountResolver.ResolveMountRoot(e.BindSrcMountID, ev.PIDContext.Pid)
+		if err != nil {
+			e.MountSourcePathResolutionError = err
+			return ""
+		}
 		rootStr, err := fh.resolvers.PathResolver.ResolveMountRoot(ev, &e.Mount)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""
 		}
+		rootStr = mount.TrimMountRoot(rootStr, bindSourceMountRoot)
 		e.MountSourcePath = path.Join(bindSourceMountPath, rootStr)
 	}
 	return e.MountSourcePath

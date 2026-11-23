@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -35,6 +36,8 @@ type Result struct {
 	RunnerName    string
 	OrchClusterID string
 	APIKeyHash    string
+	WIFOrgUUID    string
+	WIFSite       string
 }
 
 type AgentIdentifier struct {
@@ -49,6 +52,9 @@ type PersistedIdentity struct {
 	OrchClusterID string `json:"orch_cluster_id,omitempty"`
 	// Hashed rather than stored raw, to avoid persisting a second live credential.
 	APIKeyHash string `json:"api_key_hash,omitempty"`
+	// The configured WIF organization and site used for successful enrollment.
+	WIFOrgUUID string `json:"wif_org_uuid,omitempty"`
+	WIFSite    string `json:"wif_site,omitempty"`
 }
 
 func HashAPIKey(apiKey string) string {
@@ -74,10 +80,9 @@ func GetAgentIdentifier(ctx context.Context, hostnameGetter hostnameinterface.Co
 	return agentIdentifier, nil
 }
 
-// Re-enrollment is only supported for the node agent: the cluster agent's identity is
-// shared across replicas via a K8s secret, so re-enrolling from one replica could race with others.
+// ShouldReenroll reports whether the saved identity no longer matches the current hostname or api_key.
 func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentity, currentAPIKey string) bool {
-	if identity == nil || flavor.GetFlavor() == flavor.ClusterAgent {
+	if identity == nil {
 		return false
 	}
 	if identity.Hostname != "" && identity.Hostname != agentIdentifier.Hostname {
@@ -89,6 +94,19 @@ func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentit
 		return true
 	}
 	return false
+}
+
+// MatchesPAROverrides reports whether an identity can be reused with explicit PAR overrides.
+// Legacy identities retain their existing reuse behavior when no overrides are configured.
+func (identity *PersistedIdentity) MatchesPAROverrides(cfg configModel.Reader) bool {
+	if strings.TrimSpace(cfg.GetString(par.APIKey)) != "" && identity.WIFOrgUUID != "" {
+		return false
+	}
+	if strings.TrimSpace(cfg.GetString(par.RunnerSite)) != "" {
+		parts, err := util.ParseRunnerURN(identity.URN)
+		return err == nil && parts.Region == regions.GetRegionFromDDSite(par.Site(cfg))
+	}
+	return true
 }
 
 // SelfEnroll performs self-registration using API key + application key.
@@ -158,9 +176,18 @@ func SelfEnroll(
 // Enroll performs self-enrollment using config and an agent identifier.
 func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
 	ddSite := par.Site(cfg)
-	apiKey := cfg.GetString("api_key")
+	apiKey := par.EnrollmentAPIKey(cfg)
 	extraHeaders := cfg.GetStringMapString(par.OPMSExtraHeaders)
 
+	runnerNamePrefix := getRunnerNamePrefix(ctx, agentIdentifier)
+	if cfg.GetBool(par.APIKeyOnlyEnrollment) {
+		return SelfEnrollApiKeyOnly(ctx, cfg, ddSite, runnerNamePrefix, apiKey, agentIdentifier, extraHeaders)
+	}
+	appKey := cfg.GetString("app_key")
+	return SelfEnroll(ctx, cfg, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, extraHeaders)
+}
+
+func getRunnerNamePrefix(ctx context.Context, agentIdentifier *AgentIdentifier) string {
 	runnerNamePrefix := agentIdentifier.Hostname
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		if clusterName := clustername.GetClusterName(ctx, agentIdentifier.Hostname); clusterName != "" {
@@ -170,11 +197,7 @@ func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentI
 		}
 	}
 
-	if cfg.GetBool(par.APIKeyOnlyEnrollment) {
-		return SelfEnrollApiKeyOnly(ctx, cfg, ddSite, runnerNamePrefix, apiKey, agentIdentifier, extraHeaders)
-	}
-	appKey := cfg.GetString("app_key")
-	return SelfEnroll(ctx, cfg, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, extraHeaders)
+	return runnerNamePrefix
 }
 
 // SelfEnrollApiKeyOnly performs self-registration using only an API key (no application key).

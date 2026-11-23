@@ -8,6 +8,7 @@ package localkubernetes
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 )
 
@@ -174,6 +176,17 @@ func WithKindLoadImage(image string) ProvisionerOption {
 		params.imagesToLoad = append(params.imagesToLoad, image)
 		return nil
 	}
+}
+
+// IsKindLocal returns true when the tests should run on a local kind cluster instead of a kind
+// cluster on an EC2 VM. That's the case when E2E_DEV_LOCAL=true or E2E_PROVISIONER=kind-local.
+func IsKindLocal() bool {
+	devLocal, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.DevLocal, false)
+	if err == nil && devLocal {
+		return true
+	}
+	provisioner, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.Provisioner, "")
+	return err == nil && strings.EqualFold(provisioner, "kind-local")
 }
 
 // Provisioner creates a new provisioner

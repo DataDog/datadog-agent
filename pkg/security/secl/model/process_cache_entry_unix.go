@@ -46,6 +46,10 @@ func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
 		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerContext.ContainerID
 
 		if pc.Pid == 1 {
+			// pid 1 can re-execute itself, as systemd does on daemon-reexec
+			for pc.IsExec && pc.Ancestor != nil && pc.Ancestor.Pid == 1 {
+				pc = pc.Ancestor
+			}
 			if pc.Ancestor == nil {
 				return true, nil
 			}
@@ -187,6 +191,7 @@ func (pc *ProcessCacheEntry) Fork(child *ProcessCacheEntry) {
 	child.TTYName = pc.TTYName
 	child.Comm = pc.Comm
 	child.FileEvent = pc.FileEvent
+	child.FileCapabilities = pc.FileCapabilities
 	child.ExecTime = pc.ExecTime
 	child.Credentials = pc.Credentials
 	child.LinuxBinprm = pc.LinuxBinprm
@@ -205,8 +210,16 @@ func (pc *ProcessCacheEntry) Reparent(newParent *ProcessCacheEntry) {
 	pc.setAncestor(newParent)
 }
 
-// Equals returns whether process cache entries share the same values for file and args/envs
+// Equals returns whether process cache entries share the same executable metadata,
+// file capabilities, credentials and args/envs.
 func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
+	return pc.FileCapabilities == entry.FileCapabilities && pc.EqualsForProcfs(entry)
+}
+
+// EqualsForProcfs compares the fields used to infer fork/exec from procfs.
+// It ignores file capabilities because they are optional and procfs reads current
+// xattrs, which may differ from the metadata collected at exec time.
+func (pc *ProcessCacheEntry) EqualsForProcfs(entry *ProcessCacheEntry) bool {
 	return (pc.FileEvent.Equals(&entry.FileEvent) &&
 		pc.Credentials.Equals(&entry.Credentials) &&
 		pc.ArgsEntry.Equals(entry.ArgsEntry) &&

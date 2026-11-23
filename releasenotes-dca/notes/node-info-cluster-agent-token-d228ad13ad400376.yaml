@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix the Cluster Agent answering 403 to Node Agents reading their node's
+    system info, which kept the ``kube_distribution`` tag from being detected
+    from the kubelet version and logged a ``superfluous response.WriteHeader``
+    warning on every request.

@@ -43,21 +43,6 @@ func (a *Action) CompileFilter(parsingContext *parser.ParsingContext, model eval
 	return nil
 }
 
-// CompileScopeField compiles the scope field
-func (a *Action) CompileScopeField(model eval.Model) error {
-	if a.Def.Set == nil || len(a.Def.Set.ScopeField) == 0 {
-		return nil
-	}
-
-	evaluator, err := model.GetEvaluator(a.Def.Set.ScopeField, "", 0)
-	if err != nil {
-		return &ErrScopeField{Expression: a.Def.Set.ScopeField, Err: err}
-	}
-
-	a.ScopeFieldEvaluator = evaluator
-	return nil
-}
-
 // CompileCaptureMatcher compiles the capture pattern
 func (a *Action) CompileCaptureMatcher() error {
 	if a.Def.Set == nil || len(a.Def.Set.Capture) == 0 {

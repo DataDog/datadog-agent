@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -26,13 +27,14 @@ const (
 	Namespace = "system_probe_config"
 )
 
-// New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
-func New(configPath string, fleetPoliciesDirPath string) (*types.Config, error) {
-	return newSysprobeConfig(configPath, fleetPoliciesDirPath)
+// New creates a config object for system-probe. It assumes no configuration has been loaded as this point. The
+// configuration is validated against its schema with schemaValidator.
+func New(configPath string, fleetPoliciesDirPath string, schemaValidator pkgconfigmodel.SchemaValidator) (*types.Config, error) {
+	return newSysprobeConfig(configPath, fleetPoliciesDirPath, schemaValidator)
 }
 
-func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.Config, error) {
-	if err := loadFiles(pkgconfigsetup.GlobalSystemProbeConfigBuilder(), configPath, fleetPoliciesDirPath); err != nil {
+func newSysprobeConfig(configPath string, fleetPoliciesDirPath string, schemaValidator pkgconfigmodel.SchemaValidator) (*types.Config, error) {
+	if err := loadFiles(pkgconfigsetup.GlobalSystemProbeConfigBuilder(), configPath, fleetPoliciesDirPath, schemaValidator); err != nil {
 		return nil, err
 	}
 
@@ -48,14 +50,14 @@ func NewStandalone(configPath string, fleetPoliciesDirPath string) (pkgconfigmod
 	pkgconfigsetup.InitSystemProbeConfig(cfg)
 	cfg.BuildSchema()
 
-	if err := loadFiles(cfg, configPath, fleetPoliciesDirPath); err != nil {
+	if err := loadFiles(cfg, configPath, fleetPoliciesDirPath, &schemanoopimpl.SchemaNoop{}); err != nil {
 		return nil, err
 	}
 	return cfg, nil
 }
 
 // loadFiles reads system-probe.yaml and the fleet policy into cfg.
-func loadFiles(cfg pkgconfigmodel.BuildableConfig, configPath string, fleetPoliciesDirPath string) error {
+func loadFiles(cfg pkgconfigmodel.BuildableConfig, configPath string, fleetPoliciesDirPath string, schemaValidator pkgconfigmodel.SchemaValidator) error {
 	cfg.SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
@@ -71,7 +73,7 @@ func loadFiles(cfg pkgconfigmodel.BuildableConfig, configPath string, fleetPolic
 		cfg.AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	err := pkgconfigsetup.LoadSystemProbe(cfg)
+	err := pkgconfigsetup.LoadSystemProbe(cfg, schemaValidator)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message

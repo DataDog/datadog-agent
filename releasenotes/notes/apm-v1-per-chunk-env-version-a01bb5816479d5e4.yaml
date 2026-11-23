@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    APM : native v1 trace chunks can now override the payload-level ``env`` and
+    ``app_version`` through the string chunk attributes ``env`` and ``version``.
+    When set, the Agent uses the chunk-level values for that chunk in sampling and
+    stats. Before forwarding, it normalizes the chunk ``env`` and drops empty or
+    non-string ``env`` and ``version`` attributes. Chunks without these
+    attributes, and payloads converted from older formats, keep using the
+    payload-level values.

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -50,88 +51,55 @@ func TestEnrollmentUsesPAROverride(t *testing.T) {
 	}
 }
 
-func TestShouldReenroll_NodeAgent(t *testing.T) {
-	flavor.SetFlavor(flavor.DefaultAgent)
-
+func TestShouldReenroll(t *testing.T) {
 	tests := []struct {
-		name              string
-		agentHostname     string
-		persistedHostname string
-		want              bool
+		name          string
+		flavor        string
+		agentHostname string
+		identity      *PersistedIdentity
+		currentKey    string
+		want          bool
 	}{
-		{
-			name:              "same hostname - no reenroll",
-			agentHostname:     "my-host",
-			persistedHostname: "my-host",
-			want:              false,
-		},
-		{
-			name:              "different hostname - reenroll",
-			agentHostname:     "new-host",
-			persistedHostname: "old-host",
-			want:              true,
-		},
-		{
-			name:              "empty persisted hostname - no reenroll (backward compat)",
-			agentHostname:     "my-host",
-			persistedHostname: "",
-			want:              false,
-		},
+		{"no identity", flavor.DefaultAgent, "my-host", nil, "key-a", false},
+		{"node agent, same hostname", flavor.DefaultAgent, "my-host", &PersistedIdentity{Hostname: "my-host"}, "key-a", false},
+		{"node agent, different hostname", flavor.DefaultAgent, "new-host", &PersistedIdentity{Hostname: "old-host"}, "key-a", true},
+		{"node agent, no persisted hostname", flavor.DefaultAgent, "my-host", &PersistedIdentity{}, "key-a", false},
+		{"node agent, same api_key", flavor.DefaultAgent, "my-host", &PersistedIdentity{Hostname: "my-host", APIKeyHash: HashAPIKey("key-a")}, "key-a", false},
+		{"node agent, different api_key", flavor.DefaultAgent, "my-host", &PersistedIdentity{Hostname: "my-host", APIKeyHash: HashAPIKey("key-a")}, "key-b", true},
+		{"node agent, no persisted api_key hash", flavor.DefaultAgent, "my-host", &PersistedIdentity{Hostname: "my-host"}, "key-b", false},
+		{"cluster agent, same api_key", flavor.ClusterAgent, "pod-1", &PersistedIdentity{APIKeyHash: HashAPIKey("key-a")}, "key-a", false},
+		{"cluster agent, different api_key", flavor.ClusterAgent, "pod-1", &PersistedIdentity{APIKeyHash: HashAPIKey("key-a")}, "key-b", true},
+		{"cluster agent, no persisted api_key hash", flavor.ClusterAgent, "pod-1", &PersistedIdentity{}, "key-b", false},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			agentID := &AgentIdentifier{Hostname: tc.agentHostname}
-			identity := &PersistedIdentity{Hostname: tc.persistedHostname}
-			assert.Equal(t, tc.want, ShouldReenroll(agentID, identity, "some-api-key"))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flavor.SetTestFlavor(t, tt.flavor)
+
+			assert.Equal(t, tt.want, ShouldReenroll(&AgentIdentifier{Hostname: tt.agentHostname}, tt.identity, tt.currentKey))
 		})
 	}
 }
 
-func TestShouldReenroll_ClusterAgent_NeverReenrolls(t *testing.T) {
-	flavor.SetFlavor(flavor.ClusterAgent)
-	defer flavor.SetFlavor(flavor.DefaultAgent)
-
-	// Cluster agent re-enrollment is disabled; even a hostname or api_key mismatch should return false.
-	agentID := &AgentIdentifier{OrchClusterID: "cluster-new"}
-	identity := &PersistedIdentity{OrchClusterID: "cluster-old", APIKeyHash: HashAPIKey("old-key")}
-	assert.False(t, ShouldReenroll(agentID, identity, "new-key"))
-}
-
-func TestShouldReenroll_APIKeyChanged(t *testing.T) {
-	flavor.SetFlavor(flavor.DefaultAgent)
-
-	tests := []struct {
-		name            string
-		currentAPIKey   string
-		persistedAPIKey string
-		want            bool
+func TestIdentityMatchesPAROverrides(t *testing.T) {
+	for _, tc := range []struct {
+		name, key, site, region, wifOrg string
+		want                            bool
 	}{
-		{
-			name:            "same api key - no reenroll",
-			currentAPIKey:   "key-a",
-			persistedAPIKey: "key-a",
-			want:            false,
-		},
-		{
-			name:            "different api key - reenroll",
-			currentAPIKey:   "key-b",
-			persistedAPIKey: "key-a",
-			want:            true,
-		},
-	}
-
-	for _, tc := range tests {
+		{name: "legacy behavior", region: "eu1", want: true},
+		{name: "own key", key: "par-key", region: "eu1", want: true},
+		{name: "own key replaces WIF identity", key: "par-key", region: "eu1", wifOrg: "old-org"},
+		{name: "own site matches", site: "datadoghq.com", region: "us1", want: true},
+		{name: "own site replaces other region", site: "datadoghq.com", region: "eu1"},
+		{name: "normalized site", site: " US3.DATADOGHQ.COM. ", region: "us3", want: true},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
-			agentID := &AgentIdentifier{Hostname: "my-host"}
-			identity := &PersistedIdentity{Hostname: "my-host", APIKeyHash: HashAPIKey(tc.persistedAPIKey)}
-			assert.Equal(t, tc.want, ShouldReenroll(agentID, identity, tc.currentAPIKey))
+			cfg := configmock.New(t)
+			cfg.SetInTest("site", "datadoghq.eu")
+			cfg.SetInTest(par.APIKey, tc.key)
+			cfg.SetInTest(par.RunnerSite, tc.site)
+			identity := &PersistedIdentity{URN: "urn:dd:apps:on-prem-runner:" + tc.region + ":42:runner", WIFOrgUUID: tc.wifOrg}
+			require.Equal(t, tc.want, identity.MatchesPAROverrides(cfg))
 		})
 	}
-
-	t.Run("empty persisted api key hash - no reenroll (backward compat)", func(t *testing.T) {
-		agentID := &AgentIdentifier{Hostname: "my-host"}
-		identity := &PersistedIdentity{Hostname: "my-host"}
-		assert.False(t, ShouldReenroll(agentID, identity, "any-key"))
-	})
 }

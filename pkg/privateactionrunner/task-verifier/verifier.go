@@ -45,6 +45,11 @@ func (t *signedEnvelopeTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, 
 		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, errors.New("signatures are missing"))
 	}
 
+	// The envelope expiration is unsigned, so it can only shorten the signed task expiration checked below.
+	if envelope.ExpirationTime != nil && envelope.ExpirationTime.AsTime().Before(time.Now()) {
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_EXPIRED_TASK, errors.New("task envelope is expired"))
+	}
+
 	if envelope.HashType != privateactionspb.HashType_SHA256 {
 		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, fmt.Errorf("unsupported hash type %s", envelope.HashType))
 	}
@@ -87,7 +92,12 @@ func (t *signedEnvelopeTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, 
 		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_MISMATCHED_ORG_ID, errors.New("task orgId doesn't match the orgId of the runner"))
 	}
 
-	if pbTask.GetConnectionInfo().RunnerId != t.config.RunnerId {
+	connectionInfo := pbTask.GetConnectionInfo()
+	if connectionInfo == nil {
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_MISMATCHED_RUNNER_ID, errors.New("connection info is missing"))
+	}
+
+	if connectionInfo.GetRunnerId() != t.config.RunnerId {
 		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_MISMATCHED_RUNNER_ID, errors.New("connection runnerId doesn't match the id of the runner"))
 	}
 
@@ -128,6 +138,7 @@ func mapPbTaskToStruct(task *privateactionspb.PrivateActionTask) *types.Task {
 				OrgId:                 task.OrgId,
 				ConnectionInfo:        task.ConnectionInfo,
 				SystemInputs:          task.GetSystemInputs(),
+				ExpirationTime:        task.GetExpirationTime().AsTime(),
 			},
 		},
 	}

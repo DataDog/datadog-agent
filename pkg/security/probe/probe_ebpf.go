@@ -457,7 +457,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
-		seclog.Warnf("The capabilities monitoring feature of CWS requires a kernel version between 5.17 and 6.13, setting event_monitoring_config.capabilities_monitoring.enabled to false")
+		seclog.Warnf("The capabilities monitoring feature of CWS requires kernel 5.19 or later (or 5.17.13+ / 5.18.2+), setting event_monitoring_config.capabilities_monitoring.enabled to false")
 		p.config.Probe.CapabilitiesMonitoringEnabled = false
 	}
 
@@ -668,7 +668,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.probe.startTime, p.opts.FilterStore)
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.triggerNopEvent, p.hostname, p.probe.startTime, p.opts.FilterStore)
 		if err != nil {
 			return err
 		}
@@ -1774,8 +1774,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
-				netNSPath := utils.NewNSPathFromPath(mountPath, utils.NetNsType)
-				_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, netNSPath)
+				p.Resolvers.NamespaceResolver.PushNetworkNamespaceMountRequest(nsid, event.PIDContext.Pid, mountPath)
 			}
 		}
 
@@ -1788,8 +1787,11 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
-			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
-				p.FlushNetworkNamespace(namespace)
+			// a dropped release would leave our handle keeping the namespace alive, so flush it here instead
+			if !p.Resolvers.NamespaceResolver.PushNetworkNamespaceUnmountRequest(nsid) {
+				if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
+					p.FlushNetworkNamespace(namespace)
+				}
 			}
 		}
 
@@ -2325,6 +2327,9 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		}
 		return false
 	case model.NopEventType:
+		if p.profileManager != nil {
+			p.profileManager.DrainPendingEvents()
+		}
 		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
 		seclog.Debugf("nop event received, skipping further event handling")
 		return false
@@ -2501,8 +2506,8 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 
 	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
 
-	if handler, ok := allDiscarderHandlers[field]; ok {
-		discarderPushed, _ := handler(rs, ev, p, Discarder{Field: field})
+	if d, ok := allDiscarders[field]; ok {
+		discarderPushed, _ := d.handler(rs, ev, p, Discarder{Field: field})
 
 		if discarderPushed {
 			p.discarderPushedCallbacksLock.RLock()
@@ -2817,6 +2822,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 func (p *EBPFProbe) updateEBPFCheckMapping() {
 	ddebpf.ClearProgramIDMappings("cws")
 	p.Manager.AddNameMappings("cws")
+	p.Resolvers.TCResolver.AddProgramNameMappings()
 	ddebpf.AddProbeFDMappings(p.Manager.Get())
 
 }
@@ -3314,6 +3320,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "do_truncate_has_idmap_arg",
 			Value: getDoTruncateHasIdmapArg(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "get_vfs_caps_from_disk_argc",
+			Value: getVFSCapsFromDiskArgCount(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "ovl_path_in_ovl_inode",
@@ -3992,6 +4002,31 @@ func getDoTruncateHasIdmapArg(kernelVersion *kernel.Version) uint64 {
 	return 0
 }
 
+func getVFSCapsFromDiskArgCount(kernelVersion *kernel.Version) uint64 {
+	count, _ := constantfetch.GetBTFFunctionArgCount("get_vfs_caps_from_disk")
+	return vfsCapsFromDiskArgCount(kernelVersion, count)
+}
+
+func vfsCapsFromDiskArgCount(kernelVersion *kernel.Version, btfArgCount int) uint64 {
+	// Keep the minimum supported release gate separate from prototype and
+	// structure-layout detection. The latter uses the constant fetchers' field offsets.
+	if kernelVersion.Code < kernel.Kernel4_14 {
+		return 0
+	}
+
+	// Prefer the real prototype to account for idmapped-mount backports.
+	if btfArgCount != 0 {
+		if btfArgCount == 2 || btfArgCount == 3 {
+			return uint64(btfArgCount)
+		}
+		return 0
+	}
+	if kernelVersion.Code >= kernel.Kernel5_12 {
+		return 3
+	}
+	return 2
+}
+
 func getExitItimersTakesTaskStruct(kernelVersion *kernel.Version) uint64 {
 	// prefer the actual BTF prototype, as the exit_itimers(struct task_struct *) signature was
 	// backported to stable kernels (e.g. 5.10.y, 5.15.y) below the 5.19 mainline cut-off
@@ -4119,6 +4154,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperBlockStructSFlags, "struct super_block", "s_flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperBlockStructSMagic, "struct super_block", "s_magic")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryStructDSB, "struct dentry", "d_sb")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructLive, "struct signal_struct", "live")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructGroupExitCode, "struct signal_struct", "group_exit_code")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructFlags, "struct signal_struct", "flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name")
 	// since kernel 5.19, exit_itimers takes a struct task_struct* so we need the offset of its signal field
@@ -4129,6 +4167,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealCred, "struct task_struct", "real_cred")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructUID, "struct cred", "uid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructCapInheritable, "struct cred", "cap_inheritable")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCPUVFSCapDataStructPermitted, "struct cpu_vfs_cap_data", "permitted")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCPUVFSCapDataStructInheritable, "struct cpu_vfs_cap_data", "inheritable")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc")
@@ -4362,6 +4402,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDInode, "struct dentry", "d_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDName, "struct dentry", "d_name")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameQstrName, "struct qstr", "name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameQstrLen, "struct qstr", "len")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDParent, "struct dentry", "d_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathDentry, "struct path", "dentry")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathMnt, "struct path", "mnt")

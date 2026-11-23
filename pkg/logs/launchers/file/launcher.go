@@ -81,6 +81,9 @@ type Launcher struct {
 	// See resolveDuplicateSources.
 	duplicateSources map[string]map[*sources.LogSource]string
 	stopOnce         sync.Once
+
+	// Status messages about files several tailers read, keyed by tailer. See reportSharedFiles.
+	sharedFileMessages map[*tailer.Tailer]*config.Messages
 }
 
 const (
@@ -210,12 +213,14 @@ func (s *Launcher) resolveScan(files []*tailer.File) {
 	s.cleanUpRotatedTailers()
 	s.clearFingerprintRotationErrors()
 	s.resolveActiveTailers(files)
+	s.reportSharedFiles()
 }
 
 // cleanup all tailers
 func (s *Launcher) cleanup() {
 	s.clearFingerprintRotationErrors()
 	s.clearDuplicateSources()
+	s.clearSharedFiles()
 	stopper := startstop.NewParallelStopper()
 	s.cleanUpRotatedTailers()
 	for _, tailer := range s.rotatedTailers {

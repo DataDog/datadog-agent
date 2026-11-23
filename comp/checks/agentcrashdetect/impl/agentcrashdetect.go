@@ -35,7 +35,8 @@ const (
 	// CheckName is the name of the check
 	CheckName          = "agentcrashdetect"
 	maxStartupWarnings = 20
-	reportedKey        = `lastReported`
+	checkpointKey      = "agent_crash_reporting:lastReported"
+	legacyKey          = `SOFTWARE\Datadog\Datadog Agent\agent_crash_reporting`
 )
 
 var (
@@ -53,10 +54,6 @@ var (
 		"service_monitoring_config.enabled",
 		"runtime_security_config.enabled",
 	}
-	// these are vars and not consts so that they can be overridden in
-	// the unit tests.
-	hive    = registry.LOCAL_MACHINE
-	baseKey = `SOFTWARE\Datadog\Datadog Agent\agent_crash_reporting`
 )
 
 // AgentBSODStackFrame encapsulates a single frame in a crash stack.
@@ -123,7 +120,7 @@ func (wcd *AgentCrashDetect) Configure(senderManager sender.SenderManager, _ uin
 	if err != nil {
 		return err
 	}
-	wcd.reporter, err = crashreport.NewWinCrashReporter(hive, baseKey)
+	wcd.reporter, err = crashreport.NewWinCrashReporter(checkpointKey, registry.LOCAL_MACHINE, legacyKey)
 	if err != nil {
 		return err
 	}

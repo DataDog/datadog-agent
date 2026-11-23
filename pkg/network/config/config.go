@@ -170,6 +170,10 @@ type Config struct {
 	// EnableCiliumLBConntracker enables the cilium load balancer conntracker
 	EnableCiliumLBConntracker bool
 
+	// ShareConntrackNATMap lets the connection tracer read NAT'd packet tuples from the eBPF conntracker's map,
+	// instead of recording them with the net_dev_queue probe (default true)
+	ShareConntrackNATMap bool
+
 	// ClosedChannelSize specifies the size for closed channel for the tracer
 	ClosedChannelSize int
 
@@ -257,6 +261,11 @@ type Config struct {
 	// EnableFentry enables the experimental fentry tracer (disabled by default)
 	EnableFentry bool
 
+	// AllowKprobeFallback indicates whether we are allowed to fall back to the kprobe tracer
+	// if the fentry tracer is enabled but fails to load (default true). It has no effect when
+	// EnableFentry is false, since the kprobe tracer is then loaded directly.
+	AllowKprobeFallback bool
+
 	// EnableCORETracer enables the CO-RE version of the tracer
 	EnableCORETracer bool
 
@@ -335,6 +344,7 @@ func New() *Config {
 		ConntrackInitTimeout:         cfg.GetDuration(sysconfig.FullKeyPath(netNS, "conntrack_init_timeout")),
 		EnableEbpfConntracker:        cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpf_conntracker")),
 		EnableCiliumLBConntracker:    cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_cilium_lb_conntracker")),
+		ShareConntrackNATMap:         cfg.GetBool(sysconfig.FullKeyPath(netNS, "share_conntrack_nat_map")),
 
 		EnableGatewayLookup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_gateway_lookup")),
 
@@ -356,10 +366,11 @@ func New() *Config {
 
 		EnableNPMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_connection_rollup")),
 
-		EnableCORETracer: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_co_re")),
-		EnableEbpfless:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
-		EnableFentry:     cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
-		EnableSKTracer:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_sk_tracer")),
+		EnableCORETracer:    cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_co_re")),
+		EnableEbpfless:      cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
+		EnableFentry:        cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
+		AllowKprobeFallback: cfg.GetBool(sysconfig.FullKeyPath(netNS, "allow_kprobe_fallback")),
+		EnableSKTracer:      cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_sk_tracer")),
 
 		DarwinConnectionTracerBackend:          cfg.GetString(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_backend")),
 		DarwinConnectionTracerPacketEnabled:    cfg.GetBool(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_packet_enabled")),

@@ -487,3 +487,53 @@ func TestCheckHelpOfRemediationOnlyBuiltinMatchesRun(t *testing.T) {
 		}
 	}
 }
+
+// Input redirects are authorized as an implicit cat at run time, so Check
+// must deny them under the same policy and agree with Run.
+func TestCheckInputRedirectRequiresCatMatchesRun(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "data.txt"), []byte("x\n"), 0o600))
+	for _, allowed := range [][]string{{"rshell:echo", "rshell:tr", "rshell:read"}, {"rshell:echo", "rshell:tr", "rshell:read", "rshell:cat"}} {
+		catAllowed := len(allowed) == 4
+		for _, script := range []string{
+			"echo hi < data.txt",
+			"tr a-z A-Z < data.txt",
+			"tr a-z A-Z 0< data.txt",
+			"{ tr a-z A-Z; } < data.txt",
+			"while read -r l; do echo \"$l\"; done < data.txt",
+			"echo \"$(tr a-z A-Z < data.txt)\"",
+			"< data.txt",
+		} {
+			t.Run(fmt.Sprintf("%s/cat=%v", script, catAllowed), func(t *testing.T) {
+				var stderr strings.Builder
+				runner := checkRunner(t, StdIO(nil, io.Discard, &stderr), AllowedCommands(allowed), AllowedPaths([]string{root}))
+				runner.Dir = root
+				result := checkScript(t, runner, script)
+				program, err := ParseScript(script, "")
+				require.NoError(t, err)
+				_ = runner.Run(context.Background(), program)
+				gated := strings.Contains(stderr.String(), "cat not in allowed commands")
+				assert.Equal(t, !catAllowed, gated, "run stderr: %s", stderr.String())
+				assert.Equal(t, !catAllowed, checkHasIssue(result, CheckCommandNotAllowed), "%+v", result)
+				if !catAllowed {
+					assert.Equal(t, CheckDenied, result.Status, "%+v", result)
+				}
+			})
+		}
+	}
+	// `cat < file` and `$(<file)` report the cat denial once, via command policy.
+	runner := checkRunner(t, AllowedCommands([]string{"rshell:echo"}), AllowedPaths([]string{root}))
+	runner.Dir = root
+	for _, script := range []string{"cat < data.txt", "echo \"$(<data.txt)\""} {
+		result := checkScript(t, runner, script)
+		count := 0
+		for _, command := range result.Commands {
+			for _, issue := range command.Issues {
+				if issue.Code == CheckCommandNotAllowed {
+					count++
+				}
+			}
+		}
+		assert.Equal(t, 1, count, "%s: %+v", script, result)
+	}
+}

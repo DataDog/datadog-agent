@@ -90,9 +90,6 @@ type BOCPDConfig struct {
 	// RecoveryPoints is how many consecutive non-triggering points are needed
 	// to exit alert state. Default: 10
 	RecoveryPoints int `json:"recovery_points"`
-
-	// Aggregations to run detection on. Default: [Average, Count]
-	Aggregations []observer.Aggregate `json:"-"`
 }
 
 // DefaultBOCPDConfig returns a BOCPDConfig with default values.
@@ -107,10 +104,6 @@ func DefaultBOCPDConfig() BOCPDConfig {
 		PriorVarianceScale: 10.0,
 		MinVariance:        1.0,
 		RecoveryPoints:     10,
-		Aggregations: []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
-		},
 	}
 }
 
@@ -120,11 +113,15 @@ func DefaultBOCPDConfig() BOCPDConfig {
 type BOCPDDetector struct {
 	config BOCPDConfig
 	ready  bool
+	// stablePipelineEnabled opt-in level-change evidence using detector-local scratch.
+	stablePipelineEnabled bool
+	stableScratch         []observer.Point
+	stableWorkspace       stableDetectorWorkspace
 
 	// per-(series, aggregation) state.
 	series map[bocpdStateKey]*bocpdSeriesState
 
-	// Cache discovered series refs across Detect calls. Refresh when seriesGen changes.
+	// Refresh refs on series generation changes.
 	// Holding []SeriesRef instead of []SeriesMeta avoids retaining the Tags []string
 	// backing array for every series (~5.8 MiB at 50k series).
 	cachedRefs []observer.SeriesRef
@@ -134,6 +131,11 @@ type BOCPDDetector struct {
 // NewBOCPDDetector creates a streaming BOCPD detector with the given config.
 // Zero-valued fields are filled from DefaultBOCPDConfig().
 func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
+	return newBOCPDDetector(config, false)
+}
+
+// newBOCPDDetector creates a detector, optionally with median evidence.
+func newBOCPDDetector(config BOCPDConfig, stablePipelineEnabled bool) *BOCPDDetector {
 	defaults := DefaultBOCPDConfig()
 	// Warmup needs at least 2 points for Bessel's correction (n-1 denominator).
 	if config.WarmupPoints < 2 {
@@ -167,12 +169,10 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 	if config.RecoveryPoints <= 0 {
 		config.RecoveryPoints = defaults.RecoveryPoints
 	}
-	if len(config.Aggregations) == 0 {
-		config.Aggregations = defaults.Aggregations
-	}
 	return &BOCPDDetector{
-		config: config,
-		series: make(map[bocpdStateKey]*bocpdSeriesState),
+		config:                config,
+		stablePipelineEnabled: stablePipelineEnabled,
+		series:                make(map[bocpdStateKey]*bocpdSeriesState),
 	}
 }
 
@@ -194,10 +194,11 @@ func (b *BOCPDDetector) DetectorPointWindow() observer.DetectorPointWindow {
 // Correctness takes priority over positional cursoring: storage may insert
 // points into existing history, so this detector gates incremental work on
 // visible point counts rather than raw slice positions.
-func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
+	aggregations, numAggregations := detectorAggregations(filter.Aggregations)
 	gen := storage.SeriesGeneration()
 	if b.cachedRefs == nil || gen != b.cachedGen {
-		b.cachedRefs = workloadSeriesRefs(storage, b.cachedRefs)
+		b.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), b.cachedRefs)
 		b.cachedGen = gen
 	}
 
@@ -205,7 +206,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 
 	for _, ref := range b.cachedRefs {
 		visibleCount := storage.PointCountUpTo(ref, dataTime)
-		for _, agg := range b.config.Aggregations {
+		for _, agg := range aggregations[:numAggregations] {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
@@ -235,6 +236,9 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			storage.ForEachPoint(ref, state.lastProcessedTime, dataTime, agg, func(series *observer.Series, p observer.Point) {
 				anomaly := b.processPoint(state, p, series, agg, visibleCount >= b.config.WarmupPoints)
 				if anomaly != nil {
+					if b.stablePipelineEnabled {
+						b.attachMedianEvidence(storage, state, anomaly, ref, agg)
+					}
 					allAnomalies = append(allAnomalies, *anomaly)
 				}
 				state.lastProcessedTime = p.Timestamp
@@ -250,6 +254,64 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 	}
 
 	return observer.DetectionResult{Anomalies: allAnomalies}
+}
+
+// attachMedianEvidence adds pre/post medians from retained history at alert onset.
+func (b *BOCPDDetector) attachMedianEvidence(
+	storage observer.StorageReader,
+	state *bocpdSeriesState,
+	anomaly *observer.Anomaly,
+	ref observer.SeriesRef,
+	agg observer.Aggregate,
+) {
+	debug := anomaly.DebugInfo
+	if debug == nil || state == nil {
+		return
+	}
+	postCount := 1
+	if debug.BOCPDTrigger == observer.BOCPDTriggerShortRunMass {
+		postCount = b.shortRunPostCount(state)
+	}
+	if postCount <= 0 {
+		return
+	}
+
+	_, points := collectLastPoints(
+		storage,
+		ref,
+		anomaly.Timestamp,
+		b.config.MaxRunLength,
+		agg,
+		b.stableScratch,
+	)
+	b.stableScratch = points
+	if len(b.stableScratch) <= postCount {
+		return
+	}
+
+	values := b.stableWorkspace.valuesFromPoints(b.stableScratch)
+	postStart := len(values) - postCount
+	before := b.stableWorkspace.median(values[:postStart])
+	after := b.stableWorkspace.median(values[postStart:])
+	if math.IsNaN(before) || math.IsInf(before, 0) ||
+		math.IsNaN(after) || math.IsInf(after, 0) {
+		return
+	}
+	anomaly.LevelChange = &observer.LevelChangeEvidence{
+		BeforeMedian: before,
+		AfterMedian:  after,
+	}
+}
+
+// shortRunPostCount converts the most probable short-run index to sample count.
+func (b *BOCPDDetector) shortRunPostCount(state *bocpdSeriesState) int {
+	bestIdx := 0
+	for idx := 1; idx <= min(b.config.ShortRunLength, len(state.runProbs)-1); idx++ {
+		if state.runProbs[idx] > state.runProbs[bestIdx] {
+			bestIdx = idx
+		}
+	}
+	return bestIdx + 1
 }
 
 // Reset clears all per-series state for replay/reanalysis.
@@ -271,7 +333,7 @@ func (b *BOCPDDetector) RemoveSeries(refs []observer.SeriesRef) {
 		return
 	}
 	for _, ref := range refs {
-		for _, agg := range b.config.Aggregations {
+		for _, agg := range [...]observer.Aggregate{observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount} {
 			delete(b.series, bocpdStateKey{ref: ref, agg: agg})
 		}
 	}

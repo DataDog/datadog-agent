@@ -56,6 +56,7 @@ from tasks import (
     kmt,
     linter,
     loader,
+    logs_tokenizer,
     macos,
     modules,
     msi,
@@ -83,6 +84,7 @@ from tasks import (
     secret_generic_connector,
     security_agent,
     selinux,
+    serverless_init,
     setup,
     skaffold,
     system_probe,
@@ -244,6 +246,7 @@ ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
 ns.add_collection(loader)
+ns.add_collection(logs_tokenizer)
 ns.add_collection(gpu)
 ns.add_collection(package)
 ns.add_collection(pipeline)
@@ -256,6 +259,7 @@ ns.add_collection(oracle)
 ns.add_collection(otel_agent)
 ns.add_collection(host_profiler)
 ns.add_collection(selinux)
+ns.add_collection(serverless_init)
 ns.add_collection(setup)
 ns.add_collection(systray)
 ns.add_collection(release)

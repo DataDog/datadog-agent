@@ -8,12 +8,14 @@ package util
 import (
 	"context"
 	"errors"
+	"math/rand/v2"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -25,6 +27,10 @@ import (
 // Payload handles the JSON unmarshalling of the metadata payload
 type testPayload struct{}
 
+func (p *testPayload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgent
+}
+
 func (p *testPayload) MarshalJSON() ([]byte, error) {
 	return []byte("{\"test\": true}"), nil
 }
@@ -34,7 +40,7 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *Invent
 		config.NewMockWithOverrides(t, confOverrides),
 		logmock.New(t),
 		serializermock.NewMetricSerializer(t),
-		func() marshaler.JSONMarshaler { return &testPayload{} },
+		func() marshaler.TypedJSONMarshaler { return &testPayload{} },
 		"test.json",
 	)
 	return &i
@@ -61,6 +67,25 @@ func TestDefaultInterval(t *testing.T) {
 
 	assert.Equal(t, defaultMinInterval, i.MinInterval)
 	assert.Equal(t, defaultMaxInterval, i.MaxInterval)
+}
+
+func TestProviderSpecificFirstRunDelay(t *testing.T) {
+	conf := config.NewMockWithOverrides(t, map[string]any{"inventories_first_run_delay": 3600})
+	l := logmock.New(t)
+	s := serializermock.NewMetricSerializer(t)
+	getPayload := func() marshaler.TypedJSONMarshaler { return &testPayload{} }
+	regular := CreateInventoryPayload(conf, l, s, getPayload, "regular.json")
+	immediate := CreateInventoryPayload(conf, l, s, getPayload, "immediate.json")
+	immediate.SetFirstRunDelay(0)
+
+	assert.Equal(t, time.Hour, regular.firstRunDelay)
+	assert.Zero(t, immediate.firstRunDelay)
+	assert.Equal(t, time.Duration(3600), conf.GetDuration("inventories_first_run_delay"))
+	s.On("SendMetadata", &testPayload{}).Return(nil).Once()
+	regular.Collect(t.Context())
+	s.AssertNotCalled(t, "SendMetadata", mock.Anything)
+	immediate.Collect(t.Context())
+	s.AssertNumberOfCalls(t, "SendMetadata", 1)
 }
 
 func TestInterval(t *testing.T) {
@@ -264,7 +289,7 @@ func TestSubmitSkippedWithoutCollectionOrSerializer(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			i := getTestInventoryPayload(t, map[string]any{"inventories_enabled": tt.enabled})
-			i.getPayload = func() marshaler.JSONMarshaler {
+			i.getPayload = func() marshaler.TypedJSONMarshaler {
 				t.Fatal("skipped submission must not build a payload")
 				return nil
 			}
@@ -310,14 +335,14 @@ func TestSubmitPreservesRefreshTriggeredWhileBuildingPayload(t *testing.T) {
 	i := getTestInventoryPayload(t, map[string]any{"inventories_first_run_delay": 0})
 	serializerMock := i.serializer.(*serializermock.MetricSerializer)
 	serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Twice()
-	i.getPayload = func() marshaler.JSONMarshaler {
+	i.getPayload = func() marshaler.TypedJSONMarshaler {
 		i.Refresh()
 		return &testPayload{}
 	}
 	assert.NoError(t, i.Submit())
 	assert.True(t, i.RefreshTriggered())
 
-	i.getPayload = func() marshaler.JSONMarshaler { return &testPayload{} }
+	i.getPayload = func() marshaler.TypedJSONMarshaler { return &testPayload{} }
 	i.Collect(context.Background())
 	assert.False(t, i.RefreshTriggered())
 	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
@@ -337,7 +362,7 @@ func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
 			i := getTestInventoryPayload(t, map[string]any{"inventories_first_run_delay": 0})
 			serializerMock := i.serializer.(*serializermock.MetricSerializer)
 			if tt.emptyPayload {
-				i.getPayload = func() marshaler.JSONMarshaler { return nil }
+				i.getPayload = func() marshaler.TypedJSONMarshaler { return nil }
 			} else {
 				serializerMock.On("SendMetadata", &testPayload{}).Return(tt.sendError).Once()
 			}
@@ -359,7 +384,7 @@ func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
 				serializerMock.AssertNumberOfCalls(t, "SendMetadata", 1)
 			}
 
-			i.getPayload = func() marshaler.JSONMarshaler { return &testPayload{} }
+			i.getPayload = func() marshaler.TypedJSONMarshaler { return &testPayload{} }
 			serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Once()
 			i.Refresh()
 			i.Collect(context.Background())
@@ -370,6 +395,8 @@ func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
 }
 
 func TestCollectRetainsFullAgentTiming(t *testing.T) {
+	// The largest jitter draw keeps the next payload MaxInterval after an unscheduled one.
+	stubRandFloat(t, 1)
 	synctest.Test(t, func(t *testing.T) {
 		i := getTestInventoryPayload(t, map[string]any{
 			"inventories_first_run_delay": 60,
@@ -396,4 +423,97 @@ func TestCollectRetainsFullAgentTiming(t *testing.T) {
 		i.Collect(t.Context())
 		s.AssertNumberOfCalls(t, "SendMetadata", 3)
 	})
+}
+
+// stubRandFloat makes randFloat return r for the rest of the test.
+func stubRandFloat(t *testing.T, r float64) {
+	t.Helper()
+	previous := randFloat
+	randFloat = func() float64 { return r }
+	t.Cleanup(func() { randFloat = previous })
+}
+
+func expectSendMetadata(i *InventoryPayload) {
+	i.serializer.(*serializermock.MetricSerializer).On("SendMetadata", mock.Anything).Return(nil)
+}
+
+func TestScheduleNext(t *testing.T) {
+	i := getTestInventoryPayload(t, nil)
+	assert.Equal(t, i.MaxInterval, i.dueInterval(), "MaxInterval until a payload is scheduled")
+
+	for _, r := range []float64{0, 0.5, 0.999} {
+		stubRandFloat(t, r)
+
+		i.scheduleNext(false)
+		assert.Equal(t, i.MinInterval+time.Duration(r*float64(i.MaxInterval-i.MinInterval)), i.dueInterval(),
+			"after an unscheduled payload, anywhere between MinInterval and MaxInterval")
+
+		i.scheduleNext(true)
+		assert.Equal(t, i.MaxInterval-time.Duration(r*scheduledJitter*float64(i.MaxInterval)), i.dueInterval(),
+			"after a scheduled payload, MaxInterval minus up to scheduledJitter")
+	}
+}
+
+func TestCollectJittersTheNextPayload(t *testing.T) {
+	stubRandFloat(t, 0.5)
+	i := getTestInventoryPayload(t, nil)
+	i.createdAt = time.Now().Add(-2 * time.Minute)
+	expectSendMetadata(i)
+	sent := func() int { return len(i.serializer.(*serializermock.MetricSerializer).Calls) }
+
+	// The first payload is unscheduled: the next one is due halfway between MinInterval and MaxInterval.
+	i.Collect(context.Background())
+	require.Equal(t, 1, sent())
+	unscheduled := i.MinInterval + (i.MaxInterval-i.MinInterval)/2
+	assert.Equal(t, unscheduled, i.dueInterval())
+
+	i.LastCollect = time.Now().Add(-unscheduled + time.Second)
+	i.Collect(context.Background())
+	assert.Equal(t, 1, sent(), "not due yet")
+
+	// A scheduled payload: the next one is due after MaxInterval minus half of scheduledJitter.
+	i.LastCollect = time.Now().Add(-unscheduled - time.Second)
+	i.Collect(context.Background())
+	require.Equal(t, 2, sent())
+	assert.Equal(t, i.MaxInterval-time.Duration(0.5*scheduledJitter*float64(i.MaxInterval)), i.dueInterval())
+
+	// A refresh is unscheduled again, like the first payload.
+	i.Refresh()
+	i.Collect(context.Background())
+	require.Equal(t, 3, sent())
+	assert.Equal(t, unscheduled, i.dueInterval())
+}
+
+func TestSubmitJittersTheNextPayload(t *testing.T) {
+	stubRandFloat(t, 0.25)
+	i := getTestInventoryPayload(t, nil)
+	expectSendMetadata(i)
+	i.nextInterval = i.MaxInterval
+
+	require.NoError(t, i.Submit())
+	assert.Equal(t, i.MinInterval+(i.MaxInterval-i.MinInterval)/4, i.dueInterval())
+}
+
+// TestScheduleNextSpreadsAFleet checks that agents sending their first payload at the same time send their next one
+// spread over the whole interval rather than in lockstep.
+func TestScheduleNextSpreadsAFleet(t *testing.T) {
+	rng := rand.New(rand.NewPCG(1, 2))
+	previous := randFloat
+	randFloat = rng.Float64
+	t.Cleanup(func() { randFloat = previous })
+
+	const agents = 1000
+	i := getTestInventoryPayload(t, nil)
+	perMinute := make(map[time.Duration]int)
+	for range agents {
+		i.scheduleNext(false)
+		require.GreaterOrEqual(t, i.dueInterval(), i.MinInterval)
+		require.LessOrEqual(t, i.dueInterval(), i.MaxInterval)
+		perMinute[i.dueInterval().Truncate(time.Minute)]++
+	}
+	minutes := int((i.MaxInterval - i.MinInterval) / time.Minute)
+	assert.Len(t, perMinute, minutes, "every minute of the interval gets payloads")
+	for minute, n := range perMinute {
+		assert.Less(t, n, 2*agents/minutes, "minute %v gets about its share, not the whole fleet", minute)
+	}
 }

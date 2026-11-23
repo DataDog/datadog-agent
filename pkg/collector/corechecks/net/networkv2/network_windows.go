@@ -79,9 +79,13 @@ type networkStats interface {
 	IOCounters(pernic bool) ([]net.IOCountersStat, error)
 	Connections(kind string) ([]net.ConnectionStat, error)
 	TCPStats(kind string) (*mibTCPStats, error)
+	InterfaceDetails() ([]interfaceDetails, error)
+	NetAdapters() map[uint32]msftNetAdapter
 }
 
-type defaultNetworkStats struct{}
+type defaultNetworkStats struct {
+	netAdapters *netAdapterCache
+}
 
 func (n defaultNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
 	return net.IOCounters(pernic)
@@ -93,6 +97,14 @@ func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, err
 
 func (n defaultNetworkStats) TCPStats(kind string) (*mibTCPStats, error) {
 	return getTCPStats(kind)
+}
+
+func (n defaultNetworkStats) InterfaceDetails() ([]interfaceDetails, error) {
+	return getInterfaceDetails()
+}
+
+func (n defaultNetworkStats) NetAdapters() map[uint32]msftNetAdapter {
+	return n.netAdapters.get()
 }
 
 // Run executes the check
@@ -119,10 +131,34 @@ func (c *NetworkCheck) Run() error {
 		return err
 	}
 
+	// gopsutil names interfaces by their friendly name, which is the MIB_IF_ROW2 alias
+	detailsByAlias := map[string]interfaceDetails{}
+	details, detailsErr := c.net.InterfaceDetails()
+	if detailsErr != nil {
+		log.Warnf("Unable to get interface details from GetIfTable2Ex: %s", detailsErr)
+	}
+	for _, d := range details {
+		detailsByAlias[d.alias] = d
+	}
+	var adapters map[uint32]msftNetAdapter
+	if len(details) > 0 {
+		adapters = c.net.NetAdapters()
+	}
+
+	ifaces := []ifaceInfo{}
 	for _, interfaceIO := range ioByInterface {
-		if !c.isDeviceExcluded(interfaceIO.Name) {
-			submitInterfaceMetrics(sender, interfaceIO)
+		if c.isDeviceExcluded(interfaceIO.Name) {
+			continue
 		}
+		submitInterfaceMetrics(sender, interfaceIO)
+		if d, ok := detailsByAlias[interfaceIO.Name]; ok {
+			iface := newIfaceInfo(d, adapters[d.index])
+			submitIfaceMetrics(sender, iface)
+			ifaces = append(ifaces, iface)
+		}
+	}
+	if detailsErr == nil {
+		c.setInterfacesMetadata(ifaces)
 	}
 
 	// _tcp_stats
@@ -330,7 +366,7 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 func newCheck(_ config.Component) check.Check {
 	return &NetworkCheck{
 		CheckBase: core.NewCheckBase(CheckName),
-		net:       defaultNetworkStats{},
+		net:       defaultNetworkStats{netAdapters: newNetAdapterCache(queryNetAdapters)},
 		config: networkConfig{
 			instance: networkInstanceConfig{
 				CollectRateMetrics:      true,

@@ -16,7 +16,6 @@ from tasks import release
 from tasks.libs.common.gomodules import GoModule
 from tasks.libs.releasing.json import (
     COMPATIBLE_MAJOR_VERSIONS,
-    _get_jmxfetch_release_json_info,
     _get_windows_release_json_info,
     _update_release_json_entry,
     find_previous_tags,
@@ -173,29 +172,14 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
 
 
-MOCK_JMXFETCH_CONTENT = b"jmxfetch content"
-
-
-def mocked_jmxfetch_requests_get(*_args, **_kwargs):
-    class MockResponse:
-        def __init__(self, content, status_code):
-            self.content = content
-            self.status_code = status_code
-
-    return MockResponse(MOCK_JMXFETCH_CONTENT, 200)
-
-
 class TestUpdateReleaseJsonEntry(unittest.TestCase):
-    @patch('requests.get', side_effect=mocked_jmxfetch_requests_get)
-    def test_update_release_json_entry(self, _):
+    def test_update_release_json_entry(self):
         self.maxDiff = None
         initial_release_json = OrderedDict(
             {
                 "dependencies": {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-                    "JMXFETCH_VERSION": "0.44.1",
-                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
                     "WINDOWS_DDNPM_DRIVER": "release-signed",
                     "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
@@ -209,8 +193,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
         integrations_version = Version(major=7, minor=30, patch=1, rc=2)
         omnibus_ruby_version = Version(major=7, minor=30, patch=1, rc=1)
-        jmxfetch_version = Version(major=0, minor=45, patch=0)
-        jmxfetch_shasum = "jmxfetchhashsum"
         security_agent_policies_version = Version(prefix="v", major="0", minor="15")
         windows_ddnpm_driver = "release-signed"
         windows_ddnpm_version = "1.2.1"
@@ -223,8 +205,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
             release_json=initial_release_json,
             integrations_version=integrations_version,
             omnibus_ruby_version=omnibus_ruby_version,
-            jmxfetch_version=jmxfetch_version,
-            jmxfetch_shasum=jmxfetch_shasum,
             security_agent_policies_version=security_agent_policies_version,
             windows_ddnpm_driver=windows_ddnpm_driver,
             windows_ddnpm_version=windows_ddnpm_version,
@@ -239,8 +219,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                 "dependencies": {
                     "INTEGRATIONS_CORE_VERSION": str(integrations_version),
                     "OMNIBUS_RUBY_VERSION": str(omnibus_ruby_version),
-                    "JMXFETCH_VERSION": str(jmxfetch_version),
-                    "JMXFETCH_HASH": str(jmxfetch_shasum),
                     "WINDOWS_DDNPM_DRIVER": str(windows_ddnpm_driver),
                     "WINDOWS_DDNPM_VERSION": str(windows_ddnpm_version),
                     "WINDOWS_DDNPM_SHASUM": str(windows_ddnpm_shasum),
@@ -258,17 +236,10 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
     test_release_json = {
         "dependencies": {
-            "JMXFETCH_VERSION": "0.44.1",
             "SECURITY_AGENT_POLICIES_VERSION": "v0.10",
             "TEST_COMPONENT_VERSION": "invalid_version",
         },
     }
-
-    def test_release_jmxfetch_version(self):
-        version = _get_release_version_from_release_json(
-            self.test_release_json, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
-        )
-        self.assertEqual(version, Version(major=0, minor=44, patch=1))
 
     def test_release_security_version(self):
         version = _get_release_version_from_release_json(
@@ -288,8 +259,6 @@ class TestReleaseJsonInfo(unittest.TestCase):
         "dependencies": {
             "VERSION": "ver7_nightly",
             "HASH": "hash7_nightly",
-            "JMXFETCH_VERSION": "ver7_nightly",
-            "JMXFETCH_HASH": "hash7_nightly",
             "WINDOWS_DDNPM_DRIVER": "attestation-signed",
             "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "nightly-ddnpm-sha",
@@ -298,12 +267,6 @@ class TestReleaseJsonInfo(unittest.TestCase):
             "WINDOWS_DDPROCMON_SHASUM": "nightly-ddprocmon-sha",
         },
     }
-
-    def test_jmxfetch_info_extraction(self):
-        """Test extraction of JMXFetch specific fields"""
-        jmxfetch_version, jmxfetch_hash = _get_jmxfetch_release_json_info(self.test_release_json)
-        self.assertEqual(jmxfetch_version, "ver7_nightly")
-        self.assertEqual(jmxfetch_hash, "hash7_nightly")
 
     def test_windows_info_extraction(self):
         """Test extraction of Windows driver specific fields"""
@@ -907,10 +870,89 @@ class TestCheckForChanges(unittest.TestCase):
         self.assertEqual(print_mock.call_count, 1)
 
 
+class TestGetModulePseudoVersion(unittest.TestCase):
+    SUFFIX = "20261029172903-795d6adf0d67"
+
+    def refs(self, merged_tags, commit_tags=()):
+        return {"merged_tags": list(merged_tags), "commit_tags": list(commit_tags), "suffix": self.SUFFIX}
+
+    def test_prerelease_base(self):
+        refs = self.refs(["pkg/gohai/v0.53.2-rc.9", "pkg/gohai/v0.53.2-rc.19", "pkg/gohai/v0.53.2-rc.18"])
+        self.assertEqual(
+            release._get_module_pseudo_version(GoModule("pkg/gohai"), refs), f"v0.53.2-rc.19.0.{self.SUFFIX}"
+        )
+
+    def test_release_base_bumps_patch(self):
+        # A release sorts above its release candidates
+        refs = self.refs(["pkg/gohai/v0.59.1-rc.1", "pkg/gohai/v0.59.1", "pkg/gohai/v0.59.0"])
+        self.assertEqual(release._get_module_pseudo_version(GoModule("pkg/gohai"), refs), f"v0.59.2-0.{self.SUFFIX}")
+
+    def test_tag_on_commit(self):
+        refs = self.refs(["pkg/gohai/v0.53.2-rc.18", "pkg/gohai/v0.53.2-rc.19"], ["pkg/gohai/v0.53.2-rc.19"])
+        self.assertEqual(release._get_module_pseudo_version(GoModule("pkg/gohai"), refs), "v0.53.2-rc.19")
+
+    def test_ignores_other_modules_and_invalid_tags(self):
+        refs = self.refs(
+            [
+                "pkg/gohai/v.0.47.0-devel",
+                "pkg/gohai/v0.53",
+                "pkg/gohai/v2.0.0",
+                "pkg/gohai/v0.0.0-20240101000000-abcdefabcdef",
+                "pkg/gohai/sub/v0.60.0",
+                "pkg/trace/v0.60.0",
+                "7.60.0",
+                "pkg/gohai/v0.52.0",
+            ]
+        )
+        self.assertEqual(release._get_module_pseudo_version(GoModule("pkg/gohai"), refs), f"v0.52.1-0.{self.SUFFIX}")
+
+    def test_no_tag(self):
+        self.assertEqual(
+            release._get_module_pseudo_version(GoModule("pkg/gohai"), self.refs(["7.60.0"])), f"v0.0.0-{self.SUFFIX}"
+        )
+
+    def test_get_commit_refs(self):
+        commit = "795d6adf0d67cf2a84fa2b1ab5e080358c4803dd"
+        c = MockContext(
+            run={
+                "git rev-parse --is-shallow-repository": Result("false\n"),
+                "git fetch --tags --force origin": Result(""),
+                f"git log -1 --format=%ct {commit}": Result("1793294943\n"),
+                f"git tag --merged {commit}": Result("pkg/gohai/v0.53.2-rc.18\npkg/gohai/v0.53.2-rc.19\n"),
+                f"git tag --points-at {commit}": Result(""),
+            }
+        )
+        self.assertEqual(
+            release._get_commit_refs(c, commit),
+            {
+                "merged_tags": ["pkg/gohai/v0.53.2-rc.18", "pkg/gohai/v0.53.2-rc.19"],
+                "commit_tags": [],
+                "suffix": self.SUFFIX,
+            },
+        )
+
+    def test_get_commit_refs_unshallows(self):
+        commit = "795d6adf0d67cf2a84fa2b1ab5e080358c4803dd"
+        c = MockContext(
+            run={
+                "git rev-parse --is-shallow-repository": Result("true\n"),
+                "git fetch --tags --force --unshallow origin": Result(""),
+                f"git log -1 --format=%ct {commit}": Result("1793294943\n"),
+                f"git tag --merged {commit}": Result(""),
+                f"git tag --points-at {commit}": Result(""),
+            }
+        )
+        release._get_commit_refs(c, commit)
+        c.run.assert_any_call("git fetch --tags --force --unshallow origin", hide=True)
+
+
 class TestUpdateModules(unittest.TestCase):
+    @patch('tasks.release._get_commit_refs', return_value={"suffix": "refs"})
     @patch('tasks.release._get_module_pseudo_version', return_value="v0.53.5-0.20260817123456-abcdef123456")
     @patch('tasks.release.agent_context', new=MagicMock())
-    def test_uses_pseudo_versions_for_agent6_rc_dependencies(self, get_module_pseudo_version_mock):
+    def test_uses_pseudo_versions_for_agent6_rc_dependencies(
+        self, get_module_pseudo_version_mock, get_commit_refs_mock
+    ):
         c = MockContext(run=Result("rccommit\n"))
         consumer = GoModule('pkg/consumer')
         consumer._dependencies = ['pkg/dependency']
@@ -924,7 +966,8 @@ class TestUpdateModules(unittest.TestCase):
 
             release.update_modules(c, version="6.53.5-rc.2")
 
-        get_module_pseudo_version_mock.assert_called_once_with(c, dependency, "rccommit")
+        get_commit_refs_mock.assert_called_once_with(c, "rccommit")
+        get_module_pseudo_version_mock.assert_called_once_with(dependency, {"suffix": "refs"})
         c.run.assert_has_calls(
             [
                 call("git rev-parse HEAD", hide=True),

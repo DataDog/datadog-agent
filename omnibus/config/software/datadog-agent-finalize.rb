@@ -77,6 +77,11 @@ build do
             Dir.glob(File.join(emb3, "**", "*.chm")).each do |chm|
                 delete chm
             end
+
+            # Build-time-only files: C headers, Cython declarations, static libraries (~1.1 MiB)
+            delete File.join(emb3, "Lib", "site-packages", "lxml", "includes")
+            delete File.join(emb3, "Lib", "site-packages", "win32", "libs")
+            delete File.join(emb3, "Lib", "site-packages", "win32com", "libs")
         end
 
         # TODO: Rather than move these, let's install them to the right place to start
@@ -182,7 +187,9 @@ build do
             # Remove test-only eBPF object files
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/error_telemetry.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/skb-parse-test.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/sleepable.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/runtime/skb-parse-test.c"
 
             # Do not strip eBPF programs
             strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/*.o")

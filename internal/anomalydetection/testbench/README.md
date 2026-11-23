@@ -19,6 +19,34 @@ Then open `http://localhost:5173` in your browser.
 
 The `--build` flag rebuilds the binary before launching. Omit it after the first run to skip the build step.
 
+### Metric workflow
+
+Legacy detectors remain the default. Add `--use-metric-pipeline` to select the
+kind-routed workflow at startup, in either the binary or Python wrapper:
+
+```bash
+# Interactive: legacy / pipeline
+dda inv anomalydetection.launch-testbench
+dda inv anomalydetection.launch-testbench --use-metric-pipeline
+
+# Headless: same scenario and parameter file, different workflows
+dda inv anomalydetection.launch-testbench --headless-scenario <scenario> --config params.json --headless-output /tmp/legacy.json
+dda inv anomalydetection.launch-testbench --headless-scenario <scenario> --config params.json --headless-output /tmp/pipeline.json --use-metric-pipeline
+```
+
+The workflows are mutually exclusive. The pipeline owns its detector defaults;
+legacy detector toggles and parameters do not configure it. Baseline and scorer
+settings apply in both modes. Pipeline replays include the stable
+relative-change gate (5% default). Select the stable detector with a top-level
+`stable` object: `scanmw` (default), `scanwelch`, or `bocpd`. At most one
+detector block is allowed, and omitted fields use the production stable
+defaults. The UI does not switch workflows.
+
+Local `eval-scenarios`, `eval-tp`, `eval-combinations`, `eval-bayesian`,
+`eval-pipeline` and `eval-component` also accept `--use-metric-pipeline`.
+Local reports identify the workflow, and resume never reuses another workflow's
+results. Remote DDEval does not support pipeline selection.
+
 ### Manual launch
 
 ```bash
@@ -72,6 +100,29 @@ stops with Ctrl-C; `--api-port` and `--ui-port` allow additional instances.
 Headless replay streams by default and fails if input cannot be replayed in order.
 `--retain-parquet` explicitly enables retained sorting for diagnosis. Interactive
 replay retains all data, so detections can differ.
+
+## No-fault evaluations
+
+```bash
+# Count false positives across the healthy dataset.
+dda inv anomalydetection.eval-scenarios --dataset observer-nofaults-2026-10-26
+
+# Open the same dataset for visual investigation.
+dda inv anomalydetection.launch-testbench --dataset observer-nofaults-2026-10-26
+```
+
+Scoring follows each recording's metadata. Healthy recordings require
+`mode: healthy-control`, `expectation: healthy`, an `evaluation_window`, and no
+disruptions. Each distinct High-severity episode starting in that window counts
+as one false positive. Warmup episodes are excluded, including those continuing
+into the window. No F1 is computed; fault scenarios keep their existing F1 score.
+A mixed dataset reports both metrics separately. Failed or incomplete evaluations
+have no aggregate score. Combination search and Bayesian optimization still
+require fault scenarios because they maximize F1.
+
+The testbench shows the healthy evaluation window and false-positive count.
+**Inspect High episodes** opens the counted reports; **View metrics** zooms to an
+episode's time range. Healthy recordings have no disruption or recovery markers.
 
 ## Evals
 
@@ -138,8 +189,9 @@ retention limits (120 points and 1,816 seconds for the default BOCPD window).
 Slowly sampled metrics can therefore retain fewer points, just as in production.
 Retained replay remains unbounded and serves as a diagnostic reference; identical
 detections between the two modes are not guaranteed.
-For JSON eval configs, set `bocpd.warmup_points` explicitly to `40` to match the
-replay profile; an explicit component config otherwise uses production defaults.
+JSON eval configs inherit the same replay profile as CLI toggles, including
+BOCPD's 20-point warmup. Only fields explicitly supplied in JSON override that
+profile; an enabled-only entry preserves the replay defaults.
 
 ### Correlators
 
@@ -149,9 +201,16 @@ replay profile; an explicit component config otherwise uses production defaults.
 | `time_cluster` | disabled | Groups anomalies that occur close together in time |
 | `passthrough` | disabled | Testbench-only adapter that serializes every raw anomaly as its own evaluation period |
 
+The Scorer tab defaults to **Detection time**, which shows the original replay
+with the scorer's effective input seconds and cooldown-filtered transitions.
+**Change-point time** recomputes the same anomaly set at detector change-point
+timestamps, including scan-detector lookback, so the two views intentionally
+differ when detection is delayed.
+
 ### Extractors
 
-Extractors are always enabled and convert raw observations into timeseries:
+Extractors convert raw observations into timeseries. The log metrics and log
+pattern extractors are enabled by default; the connection error extractor is opt-in:
 
 | Name | Description |
 |------|-------------|
@@ -282,12 +341,18 @@ dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name>
 
 The `--config` flag accepts a JSON file that controls both enabled/disabled state and hyperparameters for any component. This is the recommended interface for **Bayesian hyperparameter optimization** — the optimizer writes a params file and runs the testbench in headless mode.
 
-When `--config` is provided it takes full precedence over `--enable`/`--disable`/`--only`. Components not mentioned in the file use their catalog defaults.
+When `--config` is provided it takes full precedence over `--enable`/`--disable`/`--only`. Components not mentioned in the file use the testbench replay defaults. Within each component entry, omitted fields also retain those defaults.
 
 ### Schema
 
 ```json
 {
+  "stable": {
+    "bocpd": {
+      "warmup_points": 60,
+      "max_run_length": 120
+    }
+  },
   "components": {
     "<component-name>": {
       "enabled": true,
@@ -300,6 +365,19 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 - `"enabled"` is optional — omit to use the catalog default.
 - Hyperparameter fields are optional — omitted fields keep their default values.
+
+An optional top-level `log_time_buckets` object enables regular log-count inputs
+for replay. For example, add `"log_time_buckets": {"enabled": true}` beside
+`components` to use five-second buckets, a 300-second idle TTL, and 600-second
+retention. Override those values with `bucket_seconds`, `idle_ttl_seconds`, and
+`retention_seconds`; an explicit zero idle TTL is supported. When omitted, replay
+preserves the current bucket setting, initially configured by the Agent and
+disabled by default.
+This setting changes detector inputs; keep it identical across binary comparisons.
+
+An optional top-level `stable` object configures the metric pipeline detector.
+Use `scanmw`, `scanwelch`, or `bocpd` as the only detector block. Legacy
+`components.*` settings do not configure this pipeline.
 
 ### Example
 
@@ -329,7 +407,7 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 | Param | Default | Description |
 |-------|---------|-------------|
-| `warmup_points` | 120 | Points used to build the initial baseline |
+| `warmup_points` | 20 | Points used to build the initial baseline (testbench replay profile) |
 | `hazard` | 0.05 | Prior P(changepoint) per time step — primary sensitivity knob |
 | `cp_threshold` | 0.6 | Posterior P(changepoint) threshold to fire — primary FP/FN knob |
 | `short_run_length` | 5 | Secondary trigger: run-length horizon k |
@@ -346,6 +424,23 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 | `proximity_seconds` | 10 | Max time gap between anomalies to consider them in the same cluster |
 | `window_seconds` | 120 | How long to keep anomalies before eviction |
 | `min_cluster_size` | 0 | Minimum cluster size to report (0 = report all) |
+
+#### `log_metrics_extractor`
+
+Uses the shared Logs tokenizer and frequency-ordered first matching within each
+source/service/env/host group. Count metrics emit from the first matching log;
+JSON numeric extraction is preserved. Representatives remain fixed until eviction.
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `min_token_match_ratio` | 0.6 | Shared tokenizer structural matching threshold |
+| `max_eval_bytes` | 4096 | Tokenized prefix length; testbench JSON config only |
+
+The cache has internal limits of 3,000 representatives globally, 1,024 per group
+and 256 groups. Idle representatives expire on the next ingested log after four
+hours of data-time inactivity. These bounds are not exposed in Agent YAML or
+testbench JSON. Invalid thresholds use the 0.6 default. Eviction removes the
+associated storage and detector state through the engine cleanup path.
 
 #### `log_pattern_extractor`
 

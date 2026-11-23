@@ -231,6 +231,12 @@ status and emit flare data
 
 Package remoteflags provides the Remote Flags component for dynamic feature flag management.
 
+### [comp/core/schema](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/schema)
+
+*Datadog Team*: fleet-automation
+
+Package schema provides a component validating the Agent configurations against their schemas
+
 ### [comp/core/secrets](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/secrets)
 
 *Datadog Team*: fleet-automation
@@ -548,6 +554,12 @@ Package runner implements a component to generate metadata payload at the right 
 ### [comp/metadata/securityagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/securityagent)
 
 Package securityagent is the metadata provider for security-agent process
+
+### [comp/metadata/serverlessaas](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessaas)
+
+*Datadog Team*: serverless-azure-and-gcp fleet-automation
+
+Package serverlessaas defines the Azure App Service extension metadata component.
 
 ### [comp/metadata/serverlessinit](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessinit)
 
@@ -958,6 +970,13 @@ Package metriclookback defines the metric lookback component.
 *Datadog Team*: network-device-monitoring-core
 
 Package ndmconnectivitycheck provides the interactive NDM connectivity check.
+
+### [comp/ndmdiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmdiscovery)
+
+*Datadog Team*: network-device-monitoring-core
+
+Package ndmdiscovery sweeps the IP ranges it is asked to scan and reports the
+devices it finds to Network Device Monitoring. It never schedules a check.
 
 ### [comp/networkconfigmanagement](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkconfigmanagement)
 

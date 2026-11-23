@@ -5,7 +5,16 @@
 
 package cloudservice
 
+import (
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+)
+
 const (
 	workloadTypeAzureAppService = "azure_app_service"
 	workloadTypeAzureFunction   = "azure_function"
 )
+
+func (l *LocalService) CanCollectMetadata() bool { return false }
+func (l *LocalService) GetMetadata() serverlessdef.CloudServiceMetadata {
+	return serverlessdef.CloudServiceMetadata{}
+}

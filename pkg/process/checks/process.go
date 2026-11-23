@@ -264,8 +264,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return CombinedRunResult{}, nil
 	}
 
-	// Store PIDs for RTProcess. When zombie collection is enabled, retain
-	// zombie PIDs so realtime payloads continue to emit their individual stats.
+	// Store PIDs for RTProcess, retaining collected zombies for payload-time GPU filtering.
 	p.lastPIDs = p.lastPIDs[:0]
 	for pid, proc := range procs {
 		if proc == nil || proc.Stats == nil || (p.ignoreZombieProcesses && proc.Stats.IsZombie()) {
@@ -348,7 +347,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
+			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, pidToGPUTags, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -602,6 +601,11 @@ func fmtProcesses(
 		if skipProcess(disallowList, fp, lastProcs, zombiesIgnored) {
 			continue
 		}
+		// Submit zombie processes individually only if they use a GPU.
+		gpuTags, usesGPU := pidToGPUTags[fp.Pid]
+		if fp.Stats.IsZombie() && !usesGPU {
+			continue
+		}
 
 		// Hide disallow-listed args if the Scrubber is enabled
 		fp.Cmdline = scrubber.ScrubProcessCommand(fp)
@@ -635,9 +639,9 @@ func fmtProcesses(
 			HasZombieAggregation: !zombiesIgnored,
 		}
 
-		if tags, ok := pidToGPUTags[fp.Pid]; ok {
-			log.Debugf("Detected GPU, and process is in activePids, adding GPU tags to pid: %d, tags: %v", fp.Pid, tags)
-			proc.Tags = append(proc.Tags, tags...)
+		if usesGPU {
+			log.Debugf("Detected GPU, and process is in activePids, adding GPU tags to pid: %d, tags: %v", fp.Pid, gpuTags)
+			proc.Tags = append(proc.Tags, gpuTags...)
 		}
 
 		if tagger != nil {
