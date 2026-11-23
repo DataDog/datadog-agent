@@ -173,6 +173,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	var closeProtocolClassifierSocketFilterFn func()
 	classificationSupported := ClassificationSupported(config)
 	util.AddBoolConst(&mgrOpts, "protocol_classification_enabled", classificationSupported)
+	util.AddBoolConst(&mgrOpts, "cert_collection_enabled", config.EnableCertCollection)
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if classificationSupported {
@@ -214,7 +215,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	}
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := enabledProbes(config, runtimeTracer, coreTracer)
+	enabledProbes, err := enabledProbes(config, runtimeTracer, coreTracer, mgrOpts.MapEditors[probes.ConntrackMap] != nil)
 	if err != nil {
 		if closeProtocolClassifierSocketFilterFn != nil {
 			closeProtocolClassifierSocketFilterFn()
@@ -273,6 +274,7 @@ func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEve
 	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
+		o.MapEditors = mgrOpts.MapEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
 		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive

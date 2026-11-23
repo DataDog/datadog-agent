@@ -19,12 +19,34 @@ properties:
     visibility: public
     description: Set to true to enable the Private Action Runner.
     example: 'true'
+  api_key:
+    node_type: setting
+    type: string
+    default: ''
+    sensitive: true
+    visibility: public
+    description: |-
+      API key used to enroll the Private Action Runner and check its enrollment permission.
+      When empty, uses the Agent's api_key. A non-empty value selects API-key enrollment
+      even when the Agent uses workload identity federation. Does not change the API key
+      used for Agent telemetry or Remote Configuration.
+  site:
+    node_type: setting
+    type: string
+    default: ''
+    visibility: public
+    description: |-
+      Datadog site used for the Private Action Runner API and runner URN region.
+      When empty, uses the Agent's site. Set to datadoghq.com for US1.
+      Does not change the site used for Agent telemetry or Remote Configuration.
   par_dd_url:
     node_type: setting
     type: string
     default: ''
     visibility: public
-    description: Override the Private Action Runner API base URL.
+    description: |-
+      Override the Private Action Runner API base URL. Takes precedence over
+      private_action_runner.site for routing, without changing the runner URN region.
   self_enroll:
     node_type: setting
     type: boolean
@@ -32,7 +54,8 @@ properties:
     visibility: public
     description: |-
       Automatically enroll the Private Action Runner on startup.
-      When primary intake WIF is configured through delegated_auth.org_uuid,
+      When primary intake WIF is configured through delegated_auth.org_uuid and
+      private_action_runner.api_key is empty,
       use its mapping's PAR enrollment permission. A saved identity is replaced
       when its WIF organization or site differs or is missing. The replacement
       gets a new runner ID and private key. Cluster Agent replicas share the

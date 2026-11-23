@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    When Workload Protection is disabled, for example on hosts that only run
+    Cloud Network Monitoring, system-probe's event monitor now keeps in-flight
+    syscall context in an LRU hash map instead of task storage by default,
+    which lowers the per-syscall cost of its hooks. An explicit
+    ``event_monitoring_config.event_stream.use_syscall_task_storage`` setting is kept.

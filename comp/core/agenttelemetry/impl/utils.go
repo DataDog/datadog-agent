@@ -19,7 +19,10 @@ func isSupportedMetricType(mt dto.MetricType) bool {
 	return mt == dto.MetricType_COUNTER || mt == dto.MetricType_GAUGE || mt == dto.MetricType_HISTOGRAM
 }
 
-// isZeroValueMetric checks if a metric is a zero value metric
+// isZeroValueMetric checks if a metric is a zero value metric. It expects counters and histograms
+// already converted by convertPromMetricToDatadogMetricsValues: counters hold their per-period
+// delta, and histogram buckets hold their own (non-cumulative) per-period count, with SampleCount
+// holding the implicit "+Inf" bucket.
 func isZeroValueMetric(mt dto.MetricType, m *dto.Metric) bool {
 	switch mt {
 	case dto.MetricType_COUNTER:
@@ -31,12 +34,17 @@ func isZeroValueMetric(mt dto.MetricType, m *dto.Metric) bool {
 			return true
 		}
 	case dto.MetricType_HISTOGRAM:
-		// makes sure that all buckets are not zero (sufficient to check the last one)
+		// Buckets are de-cumulated, so every explicit bucket and the "+Inf" bucket must be checked
 		h := m.GetHistogram()
-		c := len(h.GetBucket())
-		if c == 0 || h.GetBucket()[c-1].GetCumulativeCount() == 0 {
-			return true
+		if h.GetSampleCount() != 0 {
+			return false
 		}
+		for _, b := range h.GetBucket() {
+			if b.GetCumulativeCount() != 0 {
+				return false
+			}
+		}
+		return true
 	}
 
 	return false
