@@ -1415,14 +1415,15 @@ func (p *EndpointFilteredProvider) RetireSource(ctx context.Context, identifier 
 	key := sourceInputKey{identifier: identifier, generation: generation}
 	var mi *managedInput
 	var started bool
+	var retirePendingCh chan struct{}
 	for {
-		p.lifecycle.RLock()
+		p.lifecycle.Lock()
 		if p.stopped {
-			p.lifecycle.RUnlock()
+			p.lifecycle.Unlock()
 			return routing.ErrStopped
 		}
 		if waitCh, pending := p.pendingInputs[key]; pending {
-			p.lifecycle.RUnlock()
+			p.lifecycle.Unlock()
 			select {
 			case <-waitCh:
 				continue
@@ -1436,11 +1437,28 @@ func (p *EndpointFilteredProvider) RetireSource(ctx context.Context, identifier 
 		}
 		mi = p.sourceInputs[key]
 		started = p.started
+		if mi == nil {
+			// Reserve key in pendingInputs so a concurrent SourceInput cannot
+			// race this retirement while Progress.RetireSourceWhenDrained runs.
+			retirePendingCh = make(chan struct{})
+			p.pendingInputs[key] = retirePendingCh
+		}
 		p.opsWg.Add(1)
-		p.lifecycle.RUnlock()
+		p.lifecycle.Unlock()
 		break
 	}
 	defer p.opsWg.Done()
+	releaseRetirePending := func() {
+		if retirePendingCh != nil {
+			p.lifecycle.Lock()
+			if p.pendingInputs[key] == retirePendingCh {
+				delete(p.pendingInputs, key)
+				close(retirePendingCh)
+			}
+			p.lifecycle.Unlock()
+			retirePendingCh = nil
+		}
+	}
 
 	finalize := func(markerSent bool, done chan struct{}) {
 		if markerSent {
@@ -1523,6 +1541,7 @@ func (p *EndpointFilteredProvider) RetireSource(ctx context.Context, identifier 
 	p.retireCleanupWg.Add(1)
 	go func() {
 		defer p.retireCleanupWg.Done()
+		defer releaseRetirePending()
 		err := p.progress.RetireSourceWhenDrained(identifier, generation)
 		if claimed {
 			p.reclaimBoundInput(key, mi)
@@ -1695,9 +1714,17 @@ func (p *EndpointFilteredProvider) Flush(ctx context.Context) {
 // Stop gracefully drains and shuts down all processors, batchers, senders, and progress state.
 func (p *EndpointFilteredProvider) Stop() {
 	p.stopOnce.Do(func() {
+		// Honor the Agent's configured stop_grace_period when set; fall back
+		// to routedStopGrace for standalone callers without that setting.
+		grace := routedStopGrace
+		if p.opts.Config != nil {
+			if configured := p.opts.Config.GetInt("logs_config.stop_grace_period"); configured > 0 {
+				grace = time.Duration(configured) * time.Second
+			}
+		}
 		// Arm the grace timer before acquiring lifecycle.Lock so even a
 		// concurrent SourceInput waiting on Progress.mu cannot block shutdown.
-		timer := time.AfterFunc(routedStopGrace, p.cancel)
+		timer := time.AfterFunc(grace, p.cancel)
 		defer timer.Stop()
 
 		p.lifecycle.Lock()

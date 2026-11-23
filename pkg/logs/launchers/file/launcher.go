@@ -377,6 +377,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 
 	lastIterationOldInfo := s.oldInfoMap
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
+	consumedOldInfo := make(map[string]bool)
 	// Pass 2 - Create new tailers for files that need to be tailed
 	for _, file := range files {
 		scanKey := file.GetScanKey()
@@ -390,6 +391,9 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
 		if hasOldInfo && oldInfo.Source != nil && oldInfo.Source != file.Source.UnderlyingSource() {
 			hasOldInfo = false
+		}
+		if hasOldInfo {
+			consumedOldInfo[scanKey] = true
 		}
 
 		fingerprint, ok := s.resolveFingerprint(file)
@@ -422,9 +426,12 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
 
 	// Preserve rotation retry state for still-active sources omitted solely
-	// because the scan hit the tailing limit.
+	// because the scan hit the tailing limit, without reinserting consumed entries.
 	if hitFileLimit {
 		for scanKey, oldInfo := range lastIterationOldInfo {
+			if consumedOldInfo[scanKey] || filesTailed[scanKey] {
+				continue
+			}
 			if _, seen := filesExpected[scanKey]; seen {
 				continue
 			}
@@ -818,6 +825,7 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 		regexAndRegistry := &oldTailerInfo{
 			InfoRegistry: oldInfoRegistry,
 			Pattern:      oldRegexPattern,
+			Source:       oldTailer.Source(),
 		}
 		s.oldInfoMap[file.GetScanKey()] = regexAndRegistry
 	}
@@ -843,7 +851,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	oldInfo := &oldTailerInfo{
 		Pattern:      oldRegexPattern,
 		InfoRegistry: oldTailer.GetInfo(),
-		Source:       file.Source.UnderlyingSource(),
+		Source:       oldTailer.Source(),
 	}
 
 	newTailer, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)

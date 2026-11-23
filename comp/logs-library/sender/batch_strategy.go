@@ -193,9 +193,12 @@ func (s *batchStrategy) processMessage(m *message.Message) {
 	}
 }
 
-// drainInput processes the messages already queued on inputChan without waiting for more.
+// drainInput processes messages already queued on inputChan at the time of the
+// call (bounded to the current queue length so sustained load cannot starve
+// flush or periodic timers).
 func (s *batchStrategy) drainInput() {
-	for {
+	n := len(s.inputChan)
+	for i := 0; i < n; i++ {
 		select {
 		case m, isOpen := <-s.inputChan:
 			if !isOpen {

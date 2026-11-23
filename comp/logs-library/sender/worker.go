@@ -113,18 +113,21 @@ func (s *worker) run() {
 		case payload := <-s.inputChan:
 			s.sendPayload(payload, reliableDestinations, unreliableDestinations)
 		case <-s.done:
-			// Drain payloads already queued on inputChan in FIFO order before stopping destinations.
-			// If forced cancellation abandons a payload, stop draining immediately so later
-			// payloads cannot be acknowledged past the abandoned record.
-		drain:
-			for {
-				select {
-				case payload := <-s.inputChan:
-					if !s.sendPayload(payload, reliableDestinations, unreliableDestinations) {
+			// Only drain queued inputChan payloads on shutdown when the caller
+			// supplied an external cancellation channel (SetStopCancel), so
+			// default/routed senders retain their original shutdown behavior and
+			// cannot hang on an idle permanently-retrying destination.
+			if s.cancel != nil {
+			drain:
+				for {
+					select {
+					case payload := <-s.inputChan:
+						if !s.sendPayload(payload, reliableDestinations, unreliableDestinations) {
+							break drain
+						}
+					default:
 						break drain
 					}
-				default:
-					break drain
 				}
 			}
 			continueLoop = false

@@ -186,6 +186,7 @@ func efTestConfig(t *testing.T) pkgconfigmodel.BuildableConfig {
 	cfg := configmock.New(t)
 	cfg.Set("logs_config.payload_channel_size", 4, pkgconfigmodel.SourceAgentRuntime)
 	cfg.Set("logs_config.http_timeout", 2, pkgconfigmodel.SourceAgentRuntime)
+	cfg.Set("logs_config.stop_grace_period", 2, pkgconfigmodel.SourceAgentRuntime)
 	return cfg
 }
 
