@@ -345,6 +345,63 @@ func TestDataPlaneOnlyOverridesStaySmall(t *testing.T) {
 	}
 }
 
+// adpCompatibilityWarningKeys lists Core Agent keys that ADP's compatibility check warns about whenever an input sets
+// them, whatever the value: `support: partial` with `warn: true`, or `support: none` with a medium or high severity,
+// in ADP's schema_overlay.yaml.
+//
+// It is not the full set. It holds the keys the pre-flight has a reason to want to override, so that a future override
+// reaches for a fully supported equivalent instead.
+var adpCompatibilityWarningKeys = []string{
+	// Partially supported, with a warning, in agent-data-plane 1.7.0 through 1.8.1 and on main.
+	"dogstatsd_metrics_stats_enable",
+	// Unsupported at medium severity in the same versions.
+	"dogstatsd_stats_enable",
+}
+
+// TestOverridesAvoidADPCompatibilityWarnings guards the primary signal. The log scan reports any unexpected ADP warning
+// as a finding, and ADP's compatibility check skips a key only when no input sets it. It does not check the value, so
+// setting such a key to its default still warns. An override that sets one of these keys puts a false positive on
+// every run. dogstatsd_metrics_stats_enable did exactly that from agent-data-plane 1.7.0 on.
+func TestOverridesAvoidADPCompatibilityWarnings(t *testing.T) {
+	overrides := []map[string]any{
+		preflightModeGlobalOverrides,
+		preflightModeDataPlaneOnlyOverrides,
+		newListener(t.TempDir()).configOverrides(),
+	}
+	for _, k := range adpCompatibilityWarningKeys {
+		for _, m := range overrides {
+			assert.NotContainsf(t, m, k, "ADP warns about %q whenever it is set, so the pre-flight must not override it", k)
+		}
+	}
+
+	// An operator who never touched these keys gets a config without them.
+	got := buildPreflightConfig(configmock.New(t), newListener(t.TempDir()), "test-host")
+	for _, k := range adpCompatibilityWarningKeys {
+		_, present := get(t, got, k)
+		assert.Falsef(t, present, "%q reached ADP although the operator never set it", k)
+	}
+}
+
+// TestBuildPreflightConfigDisablesDogStatsDDebugLog guards the Core Agent's DogStatsD debug log. With
+// dogstatsd_logging_enabled and dogstatsd_metrics_stats_enable both on, ADP writes one line per metric to
+// dogstatsd_log_file, which is the Core Agent's own file outside the working directory the run secures.
+//
+// The operator's dogstatsd_metrics_stats_enable reaches ADP unchanged. ADP warns about it, but a normally-supervised
+// ADP warns about it too, so that warning is a real finding.
+func TestBuildPreflightConfigDisablesDogStatsDDebugLog(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("dogstatsd_logging_enabled", true, pkgconfigmodel.SourceFile)
+	cfg.Set("dogstatsd_metrics_stats_enable", true, pkgconfigmodel.SourceFile)
+
+	// Set on an unknown key is a silent no-op, so prove the Given clause took.
+	require.True(t, cfg.GetBool("dogstatsd_metrics_stats_enable"))
+
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "test-host")
+
+	requireEq(t, got, "dogstatsd_logging_enabled", false)
+	requireEq(t, got, "dogstatsd_metrics_stats_enable", true)
+}
+
 // TestBuildPreflightConfigClearsMetricNamespace guards the n_o_i_n_d_e_x. prefix: DogStatsD
 // prepends statsd_metric_namespace to every metric name (comp/dogstatsd/server/impl/enrich.go),
 // which would turn the probe into an indexed metric in the customer's account.

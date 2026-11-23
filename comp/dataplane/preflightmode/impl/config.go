@@ -68,6 +68,9 @@ var preflightModeGlobalOverrides = map[string]any{
 
 	// Adjust our logging so that we don't log to file, but only console, and via JSON to make it possible to collect
 	// all the logs from ADP in a simple way without spilling out to disk.
+	//
+	// ADP classifies log_level as only partially supported, but does not flag it for a compatibility warning, so
+	// overriding it does not put a warning in the log.
 	"disable_file_logging": true,
 	"log_to_console":       true,
 	"log_format_json":      true,
@@ -88,7 +91,15 @@ var preflightModeGlobalOverrides = map[string]any{
 	"dogstatsd_port":                    0,
 	"dogstatsd_stream_socket":           "",
 	"dogstatsd_non_local_traffic":       false,
-	"dogstatsd_metrics_stats_enable":    false,
+
+	// Keep the DogStatsD metric debug log out of ADP's topology, so ADP never opens dogstatsd_log_file -- the Core
+	// Agent's own debug log -- even when the operator has dogstatsd_metrics_stats_enable turned on.
+	//
+	// Deliberately this key and not dogstatsd_metrics_stats_enable: false. That also keeps the file closed, but ADP
+	// classifies it as only partially supported, and ADP's compatibility check warns about such a key whenever an input
+	// sets it, whatever the value. The log scan reports unexpected warnings as a finding, so that override put a false
+	// positive on every run. ADP fully supports dogstatsd_logging_enabled, so setting it logs nothing.
+	"dogstatsd_logging_enabled": false,
 
 	// Shrink the DogStatsD receive buffer and the context string interner down to the one metric the pre-flight
 	// actually sends.

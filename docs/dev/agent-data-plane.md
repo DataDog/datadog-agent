@@ -73,6 +73,11 @@ with, plus these overrides:
   deletes. Zeroing the size is the only thing that stops it: clearing the path instead makes
   ADP fall back to `run_path` + `transactions_to_retry` and land on the same tree, and a path
   that really is empty makes ADP log at `ERROR`, which the log scan would report as a finding.
+- **DogStatsD debug log**: `dogstatsd_logging_enabled: false`, so ADP never writes the Core
+  Agent's `dogstatsd_log_file`, even when the operator turned on
+  `dogstatsd_metrics_stats_enable`. Overriding `dogstatsd_metrics_stats_enable` itself would
+  also do this, but ADP warns about that key whenever an input sets it, whatever the value, and
+  the log scan would report that warning on every run.
 - **Footprint**: the buffers and caches ADP allocates up front are sized for the one metric the
   pre-flight sends rather than for production traffic, so the second process the Agent starts on
   every boot is not paying for capacity it will never use. `dogstatsd_buffer_size: 512` and
