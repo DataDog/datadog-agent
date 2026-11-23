@@ -124,6 +124,10 @@ func tagFilterEnabled(cfg model.Reader) bool {
 // contexts and filter only their output.
 func newContextResolver(tagger tagger.Component, cache *tags.Store, id string, filteredIdentities *filteredIdentityTable) *contextResolver {
 	cfg := pkgconfigsetup.Datadog()
+	var filterCache *tagFilterCache
+	if filteredIdentities == nil {
+		filterCache = newTagFilterCache(cfg.GetInt("aggregator_tag_filter_cache_capacity"))
+	}
 	return &contextResolver{
 		id:                 id,
 		contextsByKey:      make(map[ckey.ContextKey]resolverEntry),
@@ -136,7 +140,7 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string, f
 		keyGenerator:       ckey.NewKeyGenerator(),
 		taggerBuffer:       tagset.NewHashingTagsAccumulator(),
 		metricBuffer:       tagset.NewHashingTagsAccumulator(),
-		tagFilterCache:     newTagFilterCache(cfg.GetInt("aggregator_tag_filter_cache_capacity")),
+		tagFilterCache:     filterCache,
 		tagFilterEnabled:   tagFilterEnabled(cfg),
 		filteredIdentities: filteredIdentities,
 	}
@@ -254,7 +258,9 @@ func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
 	context := cr.contextsByKey[expiredContextKey].context
 	delete(cr.contextsByKey, expiredContextKey)
 
-	cr.tagFilterCache.delete(expiredContextKey)
+	if cr.tagFilterCache != nil {
+		cr.tagFilterCache.delete(expiredContextKey)
+	}
 
 	if context != nil {
 		cr.countsByMtype[context.mtype]--
@@ -291,7 +297,9 @@ func (cr *contextResolver) release() {
 }
 
 func (cr *contextResolver) clearTagFilterCache() {
-	cr.tagFilterCache.clear()
+	if cr.tagFilterCache != nil {
+		cr.tagFilterCache.clear()
+	}
 }
 
 func (cr *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
