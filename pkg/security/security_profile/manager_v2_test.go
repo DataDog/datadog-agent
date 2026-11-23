@@ -1316,7 +1316,7 @@ func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
 			config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
 		})
 
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.True(t, inserted)
 		require.NotNil(t, p)
 
@@ -1338,7 +1338,7 @@ func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
 		insertDone := make(chan struct{})
 		go func() {
 			defer close(insertDone)
-			resumedProfile, resumedInserted = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
+			resumedProfile, resumedInserted, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
 		}()
 
 		select {
