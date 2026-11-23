@@ -32,7 +32,6 @@ type CloudFoundryListener struct {
 	delService    chan<- Service
 	services      map[string]Service // maps ADIdentifiers to services
 	stop          chan bool
-	done          chan struct{}
 	refreshCount  int64
 	refreshTicker *time.Ticker
 	bbsCache      cloudfoundry.BBSCacheI
@@ -68,10 +67,8 @@ func (l *CloudFoundryListener) Listen(newSvc chan<- Service, delSvc chan<- Servi
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
-	l.done = make(chan struct{})
 
 	go func() {
-		defer close(l.done)
 		l.refreshServices()
 		for {
 			select {
@@ -203,9 +200,6 @@ func (l *CloudFoundryListener) getAllADIdentifiers(desiredLRPs map[string]*cloud
 // Stop queues a shutdown of CloudFoundryListener
 func (l *CloudFoundryListener) Stop() {
 	close(l.stop)
-	if l.done != nil {
-		<-l.done
-	}
 }
 
 // Equal returns whether the two CloudFoundlyService are equal

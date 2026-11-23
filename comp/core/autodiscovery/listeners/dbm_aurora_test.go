@@ -463,7 +463,13 @@ func TestDBMAuroraListener(t *testing.T) {
 			if tc.initialServices != nil {
 				l.(*DBMAuroraListener).services = tc.initialServices
 			}
-			l.Listen(newSvc, delSvc)
+			listener := l.(*DBMAuroraListener)
+			listener.newService, listener.delService = newSvc, delSvc
+			stopped := make(chan struct{})
+			go func() {
+				defer close(stopped)
+				listener.run()
+			}()
 			// execute loop
 			for i := 0; i < tc.numDiscoveryIntervals; i++ {
 				ticks <- time.Now()
@@ -475,6 +481,7 @@ func TestDBMAuroraListener(t *testing.T) {
 
 			// shutdown service, and get output from channels
 			l.Stop()
+			<-stopped // Stop requests shutdown; wait before closing the output channels.
 			close(newSvc)
 			close(delSvc)
 

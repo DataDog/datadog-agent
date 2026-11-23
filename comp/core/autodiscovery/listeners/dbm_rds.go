@@ -28,7 +28,6 @@ type DBMRdsListener struct {
 	newService   chan<- Service
 	delService   chan<- Service
 	stop         chan bool
-	done         chan struct{}
 	services     map[string]Service
 	config       aws.Config
 	awsRdsClient aws.RdsClient
@@ -82,16 +81,12 @@ func newDBMRdsListener(config aws.Config, awsClient aws.RdsClient, ticks <-chan 
 func (l *DBMRdsListener) Listen(newSvc, delSvc chan<- Service) {
 	l.newService = newSvc
 	l.delService = delSvc
-	l.done = make(chan struct{})
 	go l.run()
 }
 
 // Stop stops the listener
 func (l *DBMRdsListener) Stop() {
 	close(l.stop)
-	if l.done != nil {
-		<-l.done
-	}
 	if l.ticker != nil {
 		l.ticker.Stop()
 	}
@@ -99,7 +94,6 @@ func (l *DBMRdsListener) Stop() {
 
 // run is the main loop for the rds listener discovery
 func (l *DBMRdsListener) run() {
-	defer close(l.done)
 	for {
 		l.discoverRdsInstances()
 		select {
