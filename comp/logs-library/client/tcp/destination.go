@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/droppedlogs"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -33,6 +34,8 @@ type Destination struct {
 	retryLock           sync.Mutex
 	lastRetryError      error
 	isMRF               bool
+	// dropTarget names this destination in the dropped-logs health issue.
+	dropTarget metrics.DropTarget
 }
 
 // NewDestination returns a new destination.
@@ -47,7 +50,14 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 		shouldRetry:         shouldRetry,
 		lastRetryError:      nil,
 		isMRF:               endpoint.IsMRF,
+		dropTarget:          droppedlogs.Target(endpoint.Host, shouldRetry, 0, endpoint.IsMRF),
 	}
+}
+
+// SetDropTarget sets how this destination is named in the dropped-logs health
+// issue. TCP destinations carry no position, so their sender sets it.
+func (d *Destination) SetDropTarget(target metrics.DropTarget) {
+	d.dropTarget = target
 }
 
 // IsMRF indicates that this destination is a Multi-Region Failover destination.
@@ -99,6 +109,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		if err != nil {
 			// the delimiter can fail when the payload can not be framed correctly.
 			d.incrementErrors(true)
+			droppedlogs.RecordPayload(payload, metrics.DropReasonMalformed, d.dropTarget)
 			return
 		}
 
@@ -114,6 +125,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 				continue
 			}
 			d.incrementErrors(true)
+			droppedlogs.RecordPayload(payload, metrics.DropReasonSendFailed, d.dropTarget)
 			d.updateRetryState(nil, isRetrying)
 			log.Debugf("Resetting TCP connection following write error: %s", err)
 			return
