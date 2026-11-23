@@ -74,20 +74,18 @@ func macosProcmgrListNames(t *testing.T, client *common.MacOSTestClient, command
 	return names, true
 }
 
-// TestZXProcmgrRootOnlyMutations proves the root-only rule for mutating RPCs. ZX sorts
-// before the ZY tests, which must find the shipped catalog.
+// ZX sorts before the ZY tests, which must find the shipped catalog.
 func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	t := m.T()
 	client := common.NewMacOSTestClient(m.Env().RemoteHost)
 	// Unique per run, so cleanup can match this child after a daemon crash drops the runtime entry.
 	sleepArg := strconv.Itoa(100000 + int(time.Now().UnixNano()%900000))
-	// Cleanup runs only after the preconditions pass. Before that the test has changed nothing,
-	// and the restart would stop every managed process, including one this test did not start.
+	// Before this is set, a restart would stop every managed process, including one this test
+	// did not start.
 	preconditionsPassed := false
 
-	// Registered first so it runs after diagnostics. On failure, stop and kill before the
-	// restart: each child has its own process group and would outlive the restart, which
-	// drops the runtime entry.
+	// On failure, stop and kill before the restart: each child has its own process group and
+	// would outlive the restart, which drops the runtime entry.
 	t.Cleanup(func() {
 		if !preconditionsPassed {
 			return
@@ -99,8 +97,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthStartEntry); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthStartEntry, err)
 			}
-			// pkill returns before the process exits. Poll, then SIGKILL a survivor and poll
-			// again, so a retry does not inherit it after the daemon drops the entry.
+			// pkill returns before the process exits.
 			check := "sudo sh -c 'pgrep -f \"^/bin/sleep " + sleepArg + "$\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
 			if _, err := client.Execute("sudo pkill -f '^/bin/sleep " + sleepArg + "$'"); err != nil {
 				t.Logf("cleanup: pkill /bin/sleep %s: %v", sleepArg, err)
@@ -181,8 +178,8 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		assert.NoError(t, err, "dd-procmgr %s as _dd-agent", args)
 	}
 
-	// A skipped sleep, not the shipped system-probe. A regression must not launch a second
-	// system-probe next to the legacy LaunchDaemon, which cleanup cannot tell apart.
+	// A regression must not launch a second system-probe next to the legacy LaunchDaemon, which
+	// cleanup cannot tell apart.
 	_, err = client.Execute("sudo " + macosProcmgrCLI + " create --name " + macosCallerAuthStartEntry + " --command /bin/sleep --args " + sleepArg + " --no-auto-start --restart-policy never")
 	require.NoError(t, err)
 	deniedTarget := macosProcmgrDescribe(t, client, macosCallerAuthStartEntry)
