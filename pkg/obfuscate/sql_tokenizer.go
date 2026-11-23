@@ -628,8 +628,13 @@ func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 // isOracleQuotedStringStart reports whether the identifier scanned so far is the q or nq prefix
 // of an Oracle alternative quoted string such as q'[it's]'. tkn.lastChar is the opening quote.
 // Oracle accepts any delimiter except space, tab and return; with those, or at the end of the
-// input, the quote is scanned as an ordinary string.
+// input, the quote is scanned as an ordinary string. The DBMS is often unknown (e.g. in the
+// trace-agent), so this applies unless another dialect is configured explicitly.
 func (tkn *SQLTokenizer) isOracleQuotedStringStart() bool {
+	switch tkn.cfg.DBMS {
+	case DBMSSQLServer, DBMSPostgres, DBMSMySQL:
+		return false
+	}
 	word := tkn.buf[:tkn.off-1] // the identifier, excluding the quote in tkn.lastChar
 	if !bytes.EqualFold(word, []byte("q")) && !bytes.EqualFold(word, []byte("nq")) {
 		return false

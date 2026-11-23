@@ -3173,6 +3173,36 @@ func TestSQLLiteralLeaks(t *testing.T) {
 	}
 }
 
+func TestSQLOracleQuotingDBMS(t *testing.T) {
+	const in = "SELECT q'x' FROM t WHERE a = 'b'"
+	for _, tt := range []struct {
+		dbms string
+		out  string
+		err  bool
+	}{
+		// unknown DBMS (the trace-agent default) and Oracle read q'...' literals
+		{dbms: "", err: true},
+		{dbms: DBMSOracle, err: true},
+		// other dialects keep the ordinary tokenization
+		{dbms: DBMSMySQL, out: "SELECT q ? FROM t WHERE a = ?"},
+		{dbms: DBMSSQLServer, out: "SELECT q ? FROM t WHERE a = ?"},
+		{dbms: DBMSPostgres, out: "SELECT q ? FROM t WHERE a = ?"},
+	} {
+		t.Run(tt.dbms, func(t *testing.T) {
+			oq, err := NewObfuscator(Config{SQL: SQLConfig{DBMS: tt.dbms}}).ObfuscateSQLString(in)
+			if tt.err {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.out, oq.Query)
+		})
+	}
+	oq, err := NewObfuscator(Config{SQL: SQLConfig{DBMS: DBMSOracle}}).ObfuscateSQLString("SELECT q'[it's]' FROM dual")
+	require.NoError(t, err)
+	assert.Equal(t, "SELECT ? FROM dual", oq.Query)
+}
+
 func TestSQLLiteralLeaksUnterminated(t *testing.T) {
 	// An unterminated Oracle alternative quoted string must fail closed rather
 	// than leak its contents.
@@ -3181,8 +3211,9 @@ func TestSQLLiteralLeaksUnterminated(t *testing.T) {
 		"SELECT q'[unterminated",
 		"SELECT nq'{it's ]'",
 		"SELECT q'!it's",
-		// Trade-off: a column named q directly followed by a quoted alias
-		// (MySQL, SQL Server) is read as an unterminated q'...' literal.
+		// Trade-off: when the DBMS isn't configured, a column named q directly
+		// followed by a quoted alias (MySQL, SQL Server) is read as an
+		// unterminated q'...' literal.
 		"SELECT q'x' FROM t",
 	} {
 		t.Run(in, func(t *testing.T) {
