@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -148,6 +149,108 @@ func InitConfigFilesReader(paths []string) {
 		// speed up the initial scan, they are built when first requested by ReadConfigFormats.
 		reader.readAndCacheAll(false)
 	})
+}
+
+const (
+	configFileInventoryMaxRoots   = 32
+	configFileInventoryMaxEntries = 4096
+	configFileInventoryMaxBytes   = 64 << 10
+)
+
+// ConfigFileInventory describes a fresh filesystem observation, independently of
+// the parsed configuration cache. Version 1 covers .yaml/.yml files directly in
+// each root and one level below in *.d directories; named Agent files are outside
+// this coverage. Only a complete root can establish absence within that scope.
+type ConfigFileInventory struct {
+	Version     int                       `json:"version"`
+	CollectedAt int64                     `json:"collected_at"`
+	Complete    bool                      `json:"complete"`
+	Roots       []ConfigFileInventoryRoot `json:"roots"`
+}
+
+// ConfigFileInventoryRoot retains positive file paths even when a directory read
+// fails or a bound is reached. Files are relative to Path, using '/' separators.
+// Symlinks and nonregular candidate files make the root incomplete.
+type ConfigFileInventoryRoot struct {
+	Path     string   `json:"path"`
+	Complete bool     `json:"complete"`
+	Files    []string `json:"files"`
+}
+
+// ReadConfigFileInventory observes the real reader's configured roots. An
+// uninitialized reader or empty root list is unavailable, never a complete empty
+// inventory. No configuration contents or cached parsed-file omissions are used.
+func ReadConfigFileInventory() ConfigFileInventory {
+	readerMu.RLock()
+	defer readerMu.RUnlock()
+
+	snapshot := ConfigFileInventory{Version: 1, CollectedAt: time.Now().UnixNano(), Roots: []ConfigFileInventoryRoot{}}
+	if reader == nil || len(reader.paths) == 0 {
+		return snapshot
+	}
+	snapshot.Complete = true
+	entriesLeft, bytesLeft := configFileInventoryMaxEntries, configFileInventoryMaxBytes
+	for i, root := range reader.paths {
+		if i == configFileInventoryMaxRoots || len(root) > bytesLeft {
+			snapshot.Complete = false
+			break
+		}
+		bytesLeft -= len(root)
+		report := ConfigFileInventoryRoot{Path: root, Complete: true, Files: []string{}}
+		readConfigFileInventoryDirectory(root, "", &report, &entriesLeft, &bytesLeft)
+		slices.Sort(report.Files)
+		snapshot.Complete = snapshot.Complete && report.Complete
+		snapshot.Roots = append(snapshot.Roots, report)
+	}
+	return snapshot
+}
+
+func readConfigFileInventoryDirectory(root, relative string, report *ConfigFileInventoryRoot, entriesLeft, bytesLeft *int) {
+	if *entriesLeft == 0 || *bytesLeft == 0 {
+		report.Complete = false
+		return
+	}
+	dir, err := os.Open(filepath.Join(root, relative))
+	if err != nil {
+		report.Complete = false
+		return
+	}
+	entries, err := dir.ReadDir(*entriesLeft + 1)
+	_ = dir.Close()
+	if err != nil && !errors.Is(err, io.EOF) {
+		report.Complete = false
+	}
+	if len(entries) > *entriesLeft {
+		report.Complete = false
+		entries = entries[:*entriesLeft]
+	}
+	*entriesLeft -= len(entries)
+	for _, entry := range entries {
+		name := entry.Name()
+		path := filepath.Join(relative, name)
+		if relative == "" && strings.HasSuffix(name, ".d") {
+			if !entry.IsDir() {
+				report.Complete = false
+				continue
+			}
+			readConfigFileInventoryDirectory(root, path, report, entriesLeft, bytesLeft)
+			continue
+		}
+		if filepath.Ext(name) != ".yaml" && filepath.Ext(name) != ".yml" {
+			continue
+		}
+		if !entry.Type().IsRegular() {
+			report.Complete = false
+			continue
+		}
+		path = filepath.ToSlash(path)
+		if len(path) > *bytesLeft {
+			report.Complete = false
+			continue
+		}
+		*bytesLeft -= len(path)
+		report.Files = append(report.Files, path)
+	}
 }
 
 // FilterFunc is used by ReadConfigFiles to filter integration configs.

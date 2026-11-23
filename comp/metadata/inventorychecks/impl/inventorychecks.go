@@ -44,13 +44,14 @@ type checksMetadata map[string][]metadata
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname      string                `json:"hostname"`
-	Timestamp     int64                 `json:"timestamp"`
-	Metadata      map[string][]metadata `json:"check_metadata"`
-	LogsMetadata  map[string][]metadata `json:"logs_metadata"`
-	FilesMetadata metadata              `json:"files_metadata"`
-	EncInfo       metadata              `json:"enc_info,omitempty"`
-	UUID          string                `json:"uuid"`
+	Hostname       string                         `json:"hostname"`
+	Timestamp      int64                          `json:"timestamp"`
+	Metadata       map[string][]metadata          `json:"check_metadata"`
+	LogsMetadata   map[string][]metadata          `json:"logs_metadata"`
+	FilesMetadata  metadata                       `json:"files_metadata"`
+	FilesInventory *providers.ConfigFileInventory `json:"files_inventory,omitempty"`
+	EncInfo        metadata                       `json:"enc_info,omitempty"`
+	UUID           string                         `json:"uuid"`
 }
 
 // PayloadType implements marshaler.TypedJSONMarshaler
@@ -271,18 +272,22 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.TypedJSONM
 	// Never expose config file contents on the unauthenticated expvar payload.
 	filesMetadata := metadata{}
 	var encInfo metadata
+	var filesInventory *providers.ConfigFileInventory
 	if withConfigs {
+		snapshot := providers.ReadConfigFileInventory()
+		filesInventory = &snapshot
 		filesMetadata, encInfo = ic.getFilesMetadata()
 	}
 
 	return &Payload{
-		Hostname:      ic.hostname,
-		Timestamp:     time.Now().UnixNano(),
-		Metadata:      payloadData,
-		LogsMetadata:  logsMetadata,
-		FilesMetadata: filesMetadata,
-		EncInfo:       encInfo,
-		UUID:          uuid.GetUUID(),
+		Hostname:       ic.hostname,
+		Timestamp:      time.Now().UnixNano(),
+		Metadata:       payloadData,
+		LogsMetadata:   logsMetadata,
+		FilesMetadata:  filesMetadata,
+		FilesInventory: filesInventory,
+		EncInfo:        encInfo,
+		UUID:           uuid.GetUUID(),
 	}
 }
 

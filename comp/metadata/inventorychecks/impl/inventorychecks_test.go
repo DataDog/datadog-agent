@@ -317,6 +317,9 @@ jmx_metrics: [{password: 'ENC[shared]'}]
 	providers.ResetReader([]string{confdPath})
 	t.Cleanup(func() { providers.ResetReader(nil) })
 	payload := ic.getPayload(true).(*Payload)
+	require.NotNil(t, payload.FilesInventory)
+	require.True(t, payload.FilesInventory.Complete)
+	require.Equal(t, []string{"http_check.d/one.yaml", "http_check.d/two.yaml"}, payload.FilesInventory.Roots[0].Files)
 	require.Len(t, payload.FilesMetadata, 2)
 	for _, file := range files {
 		require.Contains(t, payload.FilesMetadata, file)
@@ -348,6 +351,7 @@ jmx_metrics: [{password: 'ENC[shared]'}]
 
 	expvarPayload := ic.getPayload(false).(*Payload)
 	assert.Empty(t, expvarPayload.FilesMetadata)
+	assert.Nil(t, expvarPayload.FilesInventory)
 	assert.Nil(t, expvarPayload.EncInfo)
 	ic.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
 	payload = ic.getPayload(true).(*Payload)
@@ -370,4 +374,30 @@ func TestExpvarExist(t *testing.T) {
 		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 	assert.NotNil(t, expvar.Get("inventories"))
+}
+
+func TestGetPayloadEmptyFilesInventory(t *testing.T) {
+	root := t.TempDir()
+	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil)
+	providers.ResetReader([]string{root})
+	t.Cleanup(func() { providers.ResetReader(nil) })
+
+	payload := ic.getPayload(true).(*Payload)
+	require.Empty(t, payload.FilesMetadata)
+	require.NotNil(t, payload.FilesInventory)
+	require.True(t, payload.FilesInventory.Complete)
+	encoded, err := json.Marshal(payload)
+	require.NoError(t, err)
+	require.Contains(t, string(encoded), `"files_inventory":{"version":1,`)
+	require.Contains(t, string(encoded), `"complete":true,"files":[]`)
+
+	providers.ResetReader([]string{filepath.Join(root, "missing")})
+	payload = ic.getPayload(true).(*Payload)
+	require.Empty(t, payload.FilesMetadata)
+	require.NotNil(t, payload.FilesInventory)
+	require.False(t, payload.FilesInventory.Complete)
+
+	encoded, err = json.Marshal(ic.getPayload(false))
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "files_inventory")
 }

@@ -595,3 +595,139 @@ instances:
 	require.Equal(t, 0, len(configs))
 	require.Equal(t, 0, len(errors))
 }
+
+func TestConfigFileInventoryCompleteEmpty(t *testing.T) {
+	configmock.New(t)
+	root := t.TempDir()
+	ResetReader([]string{root})
+	t.Cleanup(func() { ResetReader(nil) })
+
+	snapshot := ReadConfigFileInventory()
+	require.Equal(t, 1, snapshot.Version)
+	require.Positive(t, snapshot.CollectedAt)
+	require.True(t, snapshot.Complete)
+	require.Equal(t, []ConfigFileInventoryRoot{{Path: root, Complete: true, Files: []string{}}}, snapshot.Roots)
+}
+
+func TestConfigFileInventoryUnavailable(t *testing.T) {
+	configmock.New(t)
+	readerMu.Lock()
+	previous := reader
+	reader = nil
+	readerMu.Unlock()
+	t.Cleanup(func() {
+		readerMu.Lock()
+		reader = previous
+		readerMu.Unlock()
+	})
+	snapshot := ReadConfigFileInventory()
+	require.False(t, snapshot.Complete)
+	require.Empty(t, snapshot.Roots)
+
+	ResetReader(nil)
+	require.False(t, ReadConfigFileInventory().Complete)
+}
+
+func TestConfigFileInventoryObservesDisk(t *testing.T) {
+	configmock.New(t)
+	root := t.TempDir()
+	integration := filepath.Join(root, "redisdb.d")
+	require.NoError(t, os.Mkdir(integration, 0700))
+	file := filepath.Join(integration, "named.yaml")
+	require.NoError(t, os.WriteFile(file, []byte("not valid YAML: ["), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "flat.yaml"), nil, 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(integration, "ignored.yaml.example"), nil, 0600))
+	ResetReader([]string{root})
+	t.Cleanup(func() { ResetReader(nil) })
+
+	snapshot := ReadConfigFileInventory()
+	require.True(t, snapshot.Complete)
+	require.Equal(t, []string{"flat.yaml", "redisdb.d/named.yaml"}, snapshot.Roots[0].Files,
+		"empty and invalid files are present independently of parsed inventory")
+
+	require.NoError(t, os.Remove(file))
+	snapshot = ReadConfigFileInventory()
+	require.True(t, snapshot.Complete)
+	require.Equal(t, []string{"flat.yaml"}, snapshot.Roots[0].Files,
+		"deletion must be observed without refreshing the parsed-file cache")
+
+	require.NoError(t, os.WriteFile(file, nil, 0600))
+	snapshot = ReadConfigFileInventory()
+	require.True(t, snapshot.Complete)
+	require.Contains(t, snapshot.Roots[0].Files, "redisdb.d/named.yaml", "recreation invalidates absence")
+}
+
+func TestConfigFileInventoryPartialCoverage(t *testing.T) {
+	configmock.New(t)
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "present.yaml"), nil, 0600))
+	missing := filepath.Join(root, "missing")
+	ResetReader([]string{root, missing})
+	t.Cleanup(func() { ResetReader(nil) })
+
+	snapshot := ReadConfigFileInventory()
+	require.False(t, snapshot.Complete)
+	require.Equal(t, []ConfigFileInventoryRoot{
+		{Path: root, Complete: true, Files: []string{"present.yaml"}},
+		{Path: missing, Complete: false, Files: []string{}},
+	}, snapshot.Roots)
+
+	// An unreadable integration subtree cannot turn omissions into absence.
+	require.NoError(t, os.WriteFile(filepath.Join(root, "redisdb.d"), nil, 0600))
+	snapshot = ReadConfigFileInventory()
+	require.False(t, snapshot.Roots[0].Complete)
+	require.Equal(t, []string{"present.yaml"}, snapshot.Roots[0].Files)
+}
+
+func TestConfigFileInventoryBounds(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"one.yaml", "two.yaml"} {
+		require.NoError(t, os.WriteFile(filepath.Join(root, name), nil, 0600))
+	}
+	for _, limits := range [][2]int{{1, 1024}, {10, 1}} {
+		report := ConfigFileInventoryRoot{Path: root, Complete: true, Files: []string{}}
+		entriesLeft, bytesLeft := limits[0], limits[1]
+		readConfigFileInventoryDirectory(root, "", &report, &entriesLeft, &bytesLeft)
+		require.False(t, report.Complete)
+		require.GreaterOrEqual(t, entriesLeft, 0)
+		require.GreaterOrEqual(t, bytesLeft, 0)
+		require.LessOrEqual(t, len(report.Files), limits[0])
+		for _, file := range report.Files {
+			require.LessOrEqual(t, len(file), limits[1])
+		}
+	}
+
+	configmock.New(t)
+	roots := make([]string, configFileInventoryMaxRoots+1)
+	for i := range roots {
+		roots[i] = root
+	}
+	ResetReader(roots)
+	t.Cleanup(func() { ResetReader(nil) })
+	snapshot := ReadConfigFileInventory()
+	require.False(t, snapshot.Complete)
+	require.Len(t, snapshot.Roots, configFileInventoryMaxRoots)
+}
+
+func TestConfigFileInventorySymlinks(t *testing.T) {
+	configmock.New(t)
+	root := t.TempDir()
+	file := filepath.Join(root, "present.yaml")
+	require.NoError(t, os.WriteFile(file, nil, 0600))
+	link := filepath.Join(root, "linked.yaml")
+	if err := os.Symlink(file, link); err != nil {
+		t.Skipf("symlink creation unavailable: %v", err)
+	}
+	ResetReader([]string{root})
+	t.Cleanup(func() { ResetReader(nil) })
+	snapshot := ReadConfigFileInventory()
+	require.False(t, snapshot.Complete)
+	require.False(t, snapshot.Roots[0].Complete)
+	require.Equal(t, []string{"present.yaml"}, snapshot.Roots[0].Files)
+
+	require.NoError(t, os.Remove(link))
+	require.NoError(t, os.Symlink(t.TempDir(), filepath.Join(root, "linked.d")))
+	snapshot = ReadConfigFileInventory()
+	require.False(t, snapshot.Complete, "a linked integration directory is outside complete traversal coverage")
+	require.Equal(t, []string{"present.yaml"}, snapshot.Roots[0].Files)
+}
