@@ -156,6 +156,15 @@ func (d *safeDeviceImpl) GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanc
 	return info, NewNvmlAPIErrorOrNil("GetGpuInstanceProfileInfo", ret)
 }
 
+func (d *safeDeviceImpl) CheckGpuInstanceAccess(gpuInstanceID int) error {
+	if err := d.lib.lookup(toNativeName("GetGpuInstanceById")); err != nil {
+		return err
+	}
+	// The returned handle needs no release; destroying it would destroy the GPU instance.
+	_, ret := d.nvmlDevice.GetGpuInstanceById(gpuInstanceID)
+	return NewNvmlAPIErrorOrNil("GetGpuInstanceById", ret)
+}
+
 // GetMIGInstanceProfileName resolves the canonical MIG profile name (e.g.
 // "1g.35gb") of the GPU instance with the given ID, by walking the
 // device -> GPU instance -> profile id -> versioned profile info chain. The

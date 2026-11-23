@@ -1000,7 +1000,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: >-
-        Percentage of time that the graphics engine was active. On AMD GPUs, the socket's graphics activity, the mean over its XCDs: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous gpu_busy_percent. On Cloud TPUs, the TensorCore duty cycle.
+        Percentage of time that the graphics engine was active. On AMD GPUs, the socket's graphics activity, the mean over its XCDs: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous gpu_busy_percent. On Cloud TPUs, the TensorCore duty cycle. On NVIDIA MIG devices and GPUs in MIG mode, not reported from GPM without the MIG config capability (CAP_SYS_ADMIN or /dev/nvidia-caps/nvidia-cap1), as NVML then reports 0 for it, nor for 10 minutes after it reads 0 while streaming multiprocessors are in use (which happens when other MIG devices of the GPU are not accessible to the Agent).
       used_in_dd_ui: true
       aggregation: relative_activity
     tagsets:
@@ -1221,7 +1221,7 @@ metrics:
     support:
       unsupported_architectures: []
       device_modes:
-        mig: true
+        mig: false
         mig_parent: true
         physical: true
         vgpu: true
@@ -2835,7 +2835,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: >-
-        Percentage of time the streaming multiprocessor was active. On AMD GPUs, equal to gr_engine_active (the interval average from gpu_metrics 1.9 and later when it passes its checks, otherwise the instantaneous gpu_busy_percent), as no compute-unit activity is available. On Cloud TPUs, the TensorCore utilization.
+        Percentage of time the streaming multiprocessor was active. On AMD GPUs, equal to gr_engine_active (the interval average from gpu_metrics 1.9 and later when it passes its checks, otherwise the instantaneous gpu_busy_percent), as no compute-unit activity is available. On Cloud TPUs, the TensorCore utilization. On NVIDIA MIG devices and GPUs in MIG mode with GPM (Hopper and later), reported from the GPM SM utilization (as with gpu.legacy_sm_active), the share of SMs in use, because the graphics engine activity is unreliable there; it matches DCGM SM_ACTIVE. Without GPM (e.g. A100), from the eBPF probes when enabled.
       used_in_dd_ui: true
       aggregation: relative_activity
     tagsets:

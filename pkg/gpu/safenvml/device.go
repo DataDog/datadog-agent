@@ -11,8 +11,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -97,6 +100,12 @@ type SafeDevice interface {
 	// core-agent deployments. Returns an error if the driver does not support
 	// the versioned GPU instance profile info API.
 	GetMIGInstanceProfileName(gpuInstanceID int) (string, error)
+	// CheckGpuInstanceAccess returns nil if NVML can read the GPU instance with the given ID
+	// (nvmlDeviceGetGpuInstanceById). Only meaningful when called on the parent physical device of a
+	// MIG device. NVML needs the MIG config capability (CAP_SYS_ADMIN or /dev/nvidia-caps/nvidia-cap1)
+	// to read the GPU instances, so this fails with NVML_ERROR_NO_PERMISSION on default
+	// non-privileged deployments.
+	CheckGpuInstanceAccess(gpuInstanceID int) error
 	// GetGpuFabricInfo returns the NVLink fabric information for the device.
 	GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error)
 	// GetGpuFabricInfoV3 returns the NVLink fabric information with the health summary. On drivers
@@ -359,6 +368,7 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 			// something failed then the device data is not usable.
 			return nil, err
 		}
+		device.warnIfMIGDevicesInvisible()
 
 		// If the device is MIG enabled, we cannot know the memory and core
 		// count of the device directly. However, we can query one of the MIG
@@ -402,6 +412,138 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 	}
 
 	return device, nil
+}
+
+// migInstance identifies a MIG device of a GPU by its GPU and compute instances. The compute instance is
+// math.MaxUint32 when unknown.
+type migInstance struct {
+	gpuInstance     uint32
+	computeInstance uint32
+}
+
+// invisibleMIGFirstSeen holds when processes were first seen on a MIG device the Agent cannot open, and
+// invisibleMIGWarned the MIG devices already warned about, by GPU UUID and MIG instance.
+var invisibleMIGFirstSeen, invisibleMIGWarned sync.Map
+
+// invisibleMIGWarnDelay is how long processes must be seen on a MIG device the Agent cannot open before warning,
+// so that a MIG device created while its GPU is listed is not reported.
+const invisibleMIGWarnDelay = time.Minute
+
+// invisibleMIGRewarnDelay is how long a warning about a MIG device the Agent cannot open is not repeated.
+const invisibleMIGRewarnDelay = 24 * time.Hour
+
+// invisibleMIGNow returns the current time. It is a variable so that tests can replace it.
+var invisibleMIGNow = time.Now
+
+// warnIfMIGDevicesInvisible warns, once per MIG device, when a GPU in MIG mode has processes running on a MIG
+// device that the Agent cannot open: that MIG device exists but is not monitored, as the Agent has no access to its
+// /dev/nvidia-caps device nodes. This happens when the container's devices are set when it is created (CDI
+// specification, container toolkit) and the MIG device is created later, e.g. by the DRA driver with dynamic MIG,
+// or when the CDI specification predates it. Listing the processes of a GPU in MIG mode needs the MIG monitor
+// capability, so this is only detected when the Agent has it.
+func (d *PhysicalDevice) warnIfMIGDevicesInvisible() {
+	processes, err := d.SafeDevice.GetComputeRunningProcesses()
+	if err != nil {
+		return
+	}
+	visible := make(map[migInstance]struct{}, len(d.MIGChildren))
+	for _, child := range d.MIGChildren {
+		if child == nil || child.MIGInstanceID < 0 {
+			continue
+		}
+		computeInstance := uint32(math.MaxUint32)
+		if child.ComputeInstanceID >= 0 {
+			computeInstance = uint32(child.ComputeInstanceID)
+		}
+		visible[migInstance{gpuInstance: uint32(child.MIGInstanceID), computeInstance: computeInstance}] = struct{}{}
+	}
+
+	now := invisibleMIGNow()
+	invisible, seenVisible := invisibleMIGInstances(processes, visible)
+	// The delay starts again when no process runs on an invisible MIG device anymore, so that a later MIG device
+	// with the same IDs, possibly being created, waits for it too. A warning is not repeated for 24 hours, or until
+	// the MIG device becomes visible.
+	current := make(map[string]struct{}, len(invisible))
+	for _, instance := range invisible {
+		current[migInstanceKey(d.UUID, instance)] = struct{}{}
+	}
+	prefix := d.UUID + "/"
+	invisibleMIGFirstSeen.Range(func(key, _ any) bool {
+		if k := key.(string); strings.HasPrefix(k, prefix) {
+			if _, ok := current[k]; !ok {
+				invisibleMIGFirstSeen.Delete(k)
+			}
+		}
+		return true
+	})
+	for _, instance := range seenVisible {
+		invisibleMIGWarned.Delete(migInstanceKey(d.UUID, instance))
+	}
+	for _, instance := range invisible {
+		key := migInstanceKey(d.UUID, instance)
+		firstSeen, _ := invisibleMIGFirstSeen.LoadOrStore(key, now)
+		if now.Sub(firstSeen.(time.Time)) < invisibleMIGWarnDelay {
+			continue
+		}
+		if warnedAt, warned := invisibleMIGWarned.Load(key); warned && now.Sub(warnedAt.(time.Time)) < invisibleMIGRewarnDelay {
+			continue
+		}
+		invisibleMIGWarned.Store(key, now)
+		log.Warnf("GPU %s is in MIG mode and has processes on its GPU instance %d%s, whose MIG device is not visible to the Agent, so it is not monitored. "+
+			"The Agent probably has no access to its /dev/nvidia-caps device nodes: if the container devices come from a CDI specification "+
+			"or the container toolkit, MIG devices created after the Agent container started are not visible to it; "+
+			"regenerate the CDI specification after creating MIG devices (nvidia-ctk cdi generate) and restart the Agent", d.UUID, instance.gpuInstance, computeInstanceSuffix(instance))
+	}
+}
+
+func computeInstanceSuffix(instance migInstance) string {
+	if instance.computeInstance == math.MaxUint32 {
+		return ""
+	}
+	return fmt.Sprintf(" (compute instance %d)", instance.computeInstance)
+}
+
+func migInstanceKey(uuid string, instance migInstance) string {
+	return fmt.Sprintf("%s/%d/%d", uuid, instance.gpuInstance, instance.computeInstance)
+}
+
+// invisibleMIGInstances returns the MIG instances, in order of appearance, that processes run on but that are not
+// visible, and the visible ones that processes run on. A process matches a visible MIG device by GPU and compute
+// instance, or by GPU instance alone when either compute instance is unknown.
+func invisibleMIGInstances(processes []nvml.ProcessInfo, visible map[migInstance]struct{}) (invisible, seenVisible []migInstance) {
+	visibleGpuInstances := make(map[uint32]struct{}, len(visible))
+	for instance := range visible {
+		visibleGpuInstances[instance.gpuInstance] = struct{}{}
+	}
+	isVisible := func(instance migInstance) bool {
+		if _, ok := visible[instance]; ok {
+			return true
+		}
+		if _, ok := visible[migInstance{gpuInstance: instance.gpuInstance, computeInstance: math.MaxUint32}]; ok {
+			return true
+		}
+		_, gpuInstanceVisible := visibleGpuInstances[instance.gpuInstance]
+		return gpuInstanceVisible && instance.computeInstance == math.MaxUint32
+	}
+
+	seen := make(map[migInstance]struct{})
+	for _, process := range processes {
+		// NVML reports 0xFFFFFFFF for processes that do not run on a MIG device
+		if process.GpuInstanceId == math.MaxUint32 {
+			continue
+		}
+		instance := migInstance{gpuInstance: process.GpuInstanceId, computeInstance: process.ComputeInstanceId}
+		if _, ok := seen[instance]; ok {
+			continue
+		}
+		seen[instance] = struct{}{}
+		if isVisible(instance) {
+			seenVisible = append(seenVisible, instance)
+		} else {
+			invisible = append(invisible, instance)
+		}
+	}
+	return invisible, seenVisible
 }
 
 func (d *PhysicalDevice) fillMigChildren() error {

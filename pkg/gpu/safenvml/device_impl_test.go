@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"errors"
 	"maps"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -615,4 +616,150 @@ func TestDeviceFailedVirtualizationQueryStaysUnknown(t *testing.T) {
 	device, err := NewPhysicalDevice(mockNvml.Device(0))
 	require.NoError(t, err)
 	require.Empty(t, device.VirtualizationModeName)
+}
+
+func TestCheckGpuInstanceAccess(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		ret          nvml.Return
+		noPermission bool
+	}{
+		{name: "readable", ret: nvml.SUCCESS},
+		// Without the MIG config capability (CAP_SYS_ADMIN or nvidia-cap1)
+		{name: "no permission", ret: nvml.ERROR_NO_PERMISSION, noPermission: true},
+		{name: "other error", ret: nvml.ERROR_INVALID_ARGUMENT},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDevice := &nvmlmock.Device{
+				GetGpuInstanceByIdFunc: func(id int) (nvml.GpuInstance, nvml.Return) {
+					require.Equal(t, 7, id)
+					if tt.ret != nvml.SUCCESS {
+						return nil, tt.ret
+					}
+					return &nvmlmock.GpuInstance{}, nvml.SUCCESS
+				},
+			}
+			device := &safeDeviceImpl{
+				nvmlDevice: mockDevice,
+				lib:        &safeNvml{capabilities: maps.Clone(allSymbols)},
+			}
+
+			err := device.CheckGpuInstanceAccess(7)
+			if tt.ret == nvml.SUCCESS {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+			require.Equal(t, tt.noPermission, IsNoPermission(err))
+			require.Len(t, mockDevice.GetGpuInstanceByIdCalls(), 1)
+		})
+	}
+}
+
+func TestCheckGpuInstanceAccessRequiresSymbol(t *testing.T) {
+	symbols := maps.Clone(allSymbols)
+	delete(symbols, toNativeName("GetGpuInstanceById"))
+	device := &safeDeviceImpl{lib: &safeNvml{capabilities: symbols}}
+
+	err := device.CheckGpuInstanceAccess(7)
+	require.True(t, IsUnsupported(err))
+	require.False(t, IsNoPermission(err))
+}
+
+func TestInvisibleMIGInstances(t *testing.T) {
+	const unknown = math.MaxUint32
+	visible := map[migInstance]struct{}{
+		{gpuInstance: 3, computeInstance: 0}:       {},
+		{gpuInstance: 6, computeInstance: unknown}: {}, // compute instance unknown
+	}
+	for _, tc := range []struct {
+		name            string
+		processes       []nvml.ProcessInfo
+		wantInvisible   []migInstance
+		wantSeenVisible []migInstance
+	}{
+		{name: "no processes"},
+		{name: "processes not on MIG devices", processes: []nvml.ProcessInfo{{Pid: 1, GpuInstanceId: unknown, ComputeInstanceId: unknown}}},
+		{
+			name:            "processes on visible MIG devices",
+			processes:       []nvml.ProcessInfo{{Pid: 1, GpuInstanceId: 3, ComputeInstanceId: 0}, {Pid: 2, GpuInstanceId: 6, ComputeInstanceId: 1}, {Pid: 3, GpuInstanceId: 3, ComputeInstanceId: unknown}},
+			wantSeenVisible: []migInstance{{3, 0}, {6, 1}, {3, unknown}},
+		},
+		{
+			name:          "processes on a hidden compute instance of a visible GPU instance",
+			processes:     []nvml.ProcessInfo{{Pid: 1, GpuInstanceId: 3, ComputeInstanceId: 1}},
+			wantInvisible: []migInstance{{3, 1}},
+		},
+		{
+			name:            "processes on MIG devices created after the Agent started",
+			processes:       []nvml.ProcessInfo{{Pid: 1, GpuInstanceId: 3, ComputeInstanceId: 0}, {Pid: 2, GpuInstanceId: 13, ComputeInstanceId: 0}, {Pid: 3, GpuInstanceId: 13, ComputeInstanceId: 0}, {Pid: 4, GpuInstanceId: 0, ComputeInstanceId: 0}},
+			wantInvisible:   []migInstance{{13, 0}, {0, 0}},
+			wantSeenVisible: []migInstance{{3, 0}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			invisible, seenVisible := invisibleMIGInstances(tc.processes, visible)
+			require.Equal(t, tc.wantInvisible, invisible)
+			require.Equal(t, tc.wantSeenVisible, seenVisible)
+		})
+	}
+}
+
+func TestWarnIfMIGDevicesInvisible(t *testing.T) {
+	processes := []nvml.ProcessInfo{{Pid: 1, GpuInstanceId: 11, ComputeInstanceId: 0}, {Pid: 2, GpuInstanceId: 13, ComputeInstanceId: 0}}
+	mockDevice := &nvmlmock.Device{
+		GetComputeRunningProcessesFunc: func() ([]nvml.ProcessInfo, nvml.Return) { return processes, nvml.SUCCESS },
+	}
+	safeDev := &safeDeviceImpl{nvmlDevice: mockDevice, lib: &safeNvml{capabilities: maps.Clone(allSymbols)}}
+	now := time.Now()
+	originalNow := invisibleMIGNow
+	invisibleMIGNow = func() time.Time { return now }
+	const uuid = "GPU-late-mig"
+	invisibleKey, visibleKey := migInstanceKey(uuid, migInstance{13, 0}), migInstanceKey(uuid, migInstance{11, 0})
+	t.Cleanup(func() {
+		invisibleMIGNow = originalNow
+		for _, key := range []string{invisibleKey, visibleKey} {
+			invisibleMIGFirstSeen.Delete(key)
+			invisibleMIGWarned.Delete(key)
+		}
+	})
+
+	parent := &PhysicalDevice{SafeDevice: safeDev, DeviceInfo: DeviceInfo{UUID: uuid}, MIGChildren: []*MIGDevice{{MIGInstanceID: 11, ComputeInstanceID: 0}}}
+	parent.warnIfMIGDevicesInvisible()
+	_, warned := invisibleMIGWarned.Load(invisibleKey)
+	require.False(t, warned, "not warned before the delay, as the MIG device may have been created while listing them")
+
+	now = now.Add(invisibleMIGWarnDelay)
+	parent.warnIfMIGDevicesInvisible()
+	_, warned = invisibleMIGWarned.Load(invisibleKey)
+	require.True(t, warned, "processes on GPU instance 13 run on a MIG device that is not visible")
+	_, warned = invisibleMIGWarned.Load(visibleKey)
+	require.False(t, warned, "GPU instance 11 is visible")
+
+	// once visible, the first time a process was seen on it is forgotten
+	parent.MIGChildren = append(parent.MIGChildren, &MIGDevice{MIGInstanceID: 13, ComputeInstanceID: 0})
+	parent.warnIfMIGDevicesInvisible()
+	_, tracked := invisibleMIGFirstSeen.Load(invisibleKey)
+	require.False(t, tracked)
+	_, warned = invisibleMIGWarned.Load(invisibleKey)
+	require.False(t, warned, "warned again if it becomes invisible again")
+
+	// Invisible again: warned once, not again for each job that runs on it
+	parent.MIGChildren = parent.MIGChildren[:1]
+	parent.warnIfMIGDevicesInvisible()
+	now = now.Add(invisibleMIGWarnDelay)
+	parent.warnIfMIGDevicesInvisible()
+	warnedAt, warned := invisibleMIGWarned.Load(invisibleKey)
+	require.True(t, warned)
+	processes = processes[:1] // the job ends
+	now = now.Add(time.Second)
+	parent.warnIfMIGDevicesInvisible()
+	_, tracked = invisibleMIGFirstSeen.Load(invisibleKey)
+	require.False(t, tracked, "the delay starts again once no process runs on it")
+	processes = append(processes, nvml.ProcessInfo{Pid: 3, GpuInstanceId: 13, ComputeInstanceId: 0}) // next job
+	parent.warnIfMIGDevicesInvisible()
+	now = now.Add(2 * invisibleMIGWarnDelay)
+	parent.warnIfMIGDevicesInvisible()
+	again, _ := invisibleMIGWarned.Load(invisibleKey)
+	require.Equal(t, warnedAt, again, "not warned again within 24 hours")
 }
