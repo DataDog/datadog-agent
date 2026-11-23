@@ -297,6 +297,93 @@ func TestDentryInvalidation(t *testing.T) {
 	}, "test_erpc_path_rule")
 }
 
+var _ = declare(TestDentryERPCParentLowID, testOpts{disableMapDentryResolution: true})
+
+func TestDentryERPCParentLowID(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_erpc_parent_low_id_rule",
+		Expression: `open.file.path in ["{{.Root}}/parent-low-id/renamed-file", "{{.Root}}/parent-low-id"] && process.file.name == "testsuite"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
+	origFile, _, err := test.Path("parent-low-id/orig-file")
+	if err != nil {
+		t.Fatal(err)
+	}
+	renamedFile, _, err := test.Path("parent-low-id/renamed-file")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dir := path.Dir(origFile)
+	if err := os.MkdirAll(dir, 0777); err != nil {
+		t.Fatalf("failed to create directory: %s", err)
+	}
+	defer os.RemoveAll(dir)
+
+	f, err := os.Create(origFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+
+	if err := os.Rename(origFile, renamedFile); err != nil {
+		t.Fatal(err)
+	}
+
+	var dirInode uint64
+	var stat syscall.Stat_t
+	if err := syscall.Stat(dir, &stat); err != nil {
+		t.Fatal(err)
+	}
+	dirInode = stat.Ino
+
+	var highIDMask uint32
+	test.WaitSignalFromRule(t, func() error {
+		file, err := os.OpenFile(renamedFile, os.O_RDONLY, 0)
+		if err != nil {
+			return err
+		}
+		return file.Close()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.NotZero(t, event.Open.File.PathKey.PathID&0xFFFF)
+		highIDMask = event.Open.File.PathKey.PathID &^ 0xFFFF
+
+		parentKey := model.PathKey{
+			Inode:   dirInode,
+			MountID: event.Open.File.PathKey.MountID,
+			PathID:  highIDMask,
+		}
+		res, err := p.Resolvers.DentryResolver.ResolveFromCache(parentKey, dentry.CallerFile)
+		assert.NoError(t, err)
+		assert.Equal(t, dir, res)
+	}, "test_erpc_parent_low_id_rule")
+
+	test.WaitSignalFromRule(t, func() error {
+		df, err := os.Open(dir)
+		if err != nil {
+			return err
+		}
+		return df.Close()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Zero(t, event.Open.File.PathKey.PathID&0xFFFF)
+		assert.Equal(t, highIDMask, event.Open.File.PathKey.PathID)
+		assert.Equal(t, dir, event.Open.File.PathnameStr)
+	}, "test_erpc_parent_low_id_rule")
+}
+
 var _ = declare(BenchmarkERPCDentryResolutionPath, testOpts{disableMapDentryResolution: true})
 
 func BenchmarkERPCDentryResolutionPath(b *testing.B) {

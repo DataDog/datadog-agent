@@ -94,8 +94,12 @@ int hook_vfs_rename(ctx_t *ctx) {
     fill_file_inode(src_dentry, &syscall->rename.target_file);
 
     // the target file is the src file once renamed, so it has to carry the path id after the invalidation
-    struct path_id_pair_t path_ids = get_path_id_pair(syscall->rename.target_file.path_key.ino, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.metadata.nlink, invalidate_type);
+    int nlink = S_ISDIR(syscall->rename.target_file.metadata.mode) ? 1 : syscall->rename.target_file.metadata.nlink;
+    struct path_id_pair_t path_ids = get_path_id_pair(syscall->rename.target_file.path_key.ino, syscall->rename.target_file.path_key.mount_id, nlink, invalidate_type);
     syscall->rename.target_file.path_key.path_id = path_ids.after;
+    if (S_ISDIR(syscall->rename.target_file.metadata.mode)) {
+        syscall->rename.target_file.path_key.path_id &= ~PATH_ID_LOW_MASK;
+    }
 
     // we generate a fake source key as the inode is (can be ?) reused
     syscall->rename.src_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();
@@ -172,15 +176,22 @@ static __always_inline int sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_
             syscall->resolver.dentry = syscall->rename.src_dentry;
         } else {
             syscall->resolver.dentry = syscall->rename.target_dentry;
+            if (syscall->rename.target_file.path_key.ino) {
+                // Assign a distinct non-zero low_id so the failed destination's path
+                // does not collide with the unmoved source's cached path_key.
+                syscall->rename.target_file.path_key.path_id = get_path_id(syscall->rename.target_file.path_key.ino, syscall->rename.target_file.path_key.mount_id, 2, PATH_ID_INVALIDATE_TYPE_LOCAL);
+            }
         }
-        syscall->resolver.key = syscall->rename.target_file.path_key;
-        syscall->resolver.event_type = syscall->type;
-        syscall->resolver.flags = get_resolver_flags(syscall, 1);
-        syscall->resolver.callback = select_dr_key(prog_type, DR_RENAME_CALLBACK_KPROBE_KEY, DR_RENAME_CALLBACK_TRACEPOINT_KEY);
-        syscall->resolver.iteration = 0;
-        syscall->resolver.ret = 0;
+        if (syscall->rename.target_file.path_key.ino) {
+            syscall->resolver.key = syscall->rename.target_file.path_key;
+            syscall->resolver.event_type = syscall->type;
+            syscall->resolver.flags = get_resolver_flags(syscall, 1);
+            syscall->resolver.callback = select_dr_key(prog_type, DR_RENAME_CALLBACK_KPROBE_KEY, DR_RENAME_CALLBACK_TRACEPOINT_KEY);
+            syscall->resolver.iteration = 0;
+            syscall->resolver.ret = 0;
 
-        resolve_dentry(ctx, prog_type);
+            resolve_dentry(ctx, prog_type);
+        }
     }
 
 pop_and_exit:

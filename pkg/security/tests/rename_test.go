@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"syscall"
 	"testing"
@@ -355,6 +356,85 @@ func TestRenameReuseInode(t *testing.T) {
 	}, "test_rule")
 }
 
+func TestRenameReuseInodeForDir(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, ">= 5.15 kernels or EL9", func(kv *kernel.Version) bool {
+		return kv.Code >= kernel.Kernel5_15 || kv.IsRH9Kernel()
+	})
+
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_rule_file",
+		Expression: `open.file.path == "{{.Root}}/test-reuse-old-file"`,
+	}, {
+		ID:         "test_rule_dir_mkdir",
+		Expression: `mkdir.file.path == "{{.Root}}/test-reuse-new-dir"`,
+	}, {
+		ID:         "test_rule_dir_open",
+		Expression: `open.file.path == "{{.Root}}/test-reuse-new-dir"`,
+	}}
+
+	testDrive, err := newTestDrive(t, "xfs", nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDrive.Close()
+
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	oldFile, _, err := test.Path("test-reuse-old-file")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(oldFile)
+
+	test.WaitSignalFromRule(t, func() error {
+		f, err := os.Create(oldFile)
+		if err != nil {
+			return err
+		}
+		return f.Close()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Equal(t, "open", event.GetType(), "wrong event type")
+	}, "test_rule_file")
+
+	oldFileInode := getInode(t, oldFile)
+
+	if err := os.Remove(oldFile); err != nil {
+		t.Fatal(err)
+	}
+
+	newDir, _, err := test.Path("test-reuse-new-dir")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(newDir)
+
+	test.WaitSignalFromRule(t, func() error {
+		return os.Mkdir(newDir, 0755)
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Equal(t, "mkdir", event.GetType(), "wrong event type")
+		assertFieldEqual(t, event, "mkdir.file.inode", int(oldFileInode))
+		assertFieldEqual(t, event, "mkdir.file.path", newDir)
+	}, "test_rule_dir_mkdir")
+
+	test.WaitSignalFromRule(t, func() error {
+		df, err := os.Open(newDir)
+		if err != nil {
+			return err
+		}
+		return df.Close()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Equal(t, "open", event.GetType(), "wrong event type")
+		assertFieldEqual(t, event, "open.file.inode", int(oldFileInode))
+		assertFieldEqual(t, event, "open.file.path", newDir)
+	}, "test_rule_dir_open")
+}
+
 func TestRenameFolder(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -465,3 +545,125 @@ func TestRenameDestinationAfterOpen(t *testing.T) {
 		assertFieldEqual(t, event, "rename.file.destination.path", testNewFile)
 	}, "test_rule_rename")
 }
+
+func TestRenameFolderFailed(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_open_src_dir",
+			Expression: `open.file.path == "{{.Root}}/failed-rename-work/src-dir"`,
+		},
+		{
+			ID:         "test_rule_failed_rename_dir",
+			Expression: `rename.file.path == "{{.Root}}/failed-rename-work/src-dir" && rename.file.destination.path == "{{.Root}}/failed-rename-ro/dst-dir" && rename.retval == EACCES`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	if err := os.Chmod(test.Root(), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	workDir, _, err := test.Path("failed-rename-work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(workDir, 0777); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(workDir, 0777); err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(workDir)
+
+	srcDir := path.Join(workDir, "src-dir")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chown(srcDir, 98, 99); err != nil {
+		t.Fatal(err)
+	}
+
+	noExecDir, _, err := test.Path("failed-rename-noexec")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(path.Join(noExecDir, "sub"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(noExecDir, 0666); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.Chmod(noExecDir, 0755)
+		_ = os.RemoveAll(noExecDir)
+	}()
+
+	roDir, _, err := test.Path("failed-rename-ro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(roDir, 0555); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(roDir, 0555); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.Chmod(roDir, 0755)
+		_ = os.RemoveAll(roDir)
+	}()
+
+	// 1. Cache srcDir with low_id == 0.
+	test.WaitSignalFromRule(t, func() error {
+		df, err := os.Open(srcDir)
+		if err != nil {
+			return err
+		}
+		return df.Close()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Equal(t, "open", event.GetType(), "wrong event type")
+		assertFieldEqual(t, event, "open.file.path", srcDir)
+	}, "test_rule_open_src_dir")
+
+	// 2. Rename failing with EACCES during path lookup before vfs_rename.
+	cmdBefore := exec.Command("mv", srcDir, path.Join(noExecDir, "sub", "dst-dir"))
+	cmdBefore.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &syscall.Credential{Uid: 98, Gid: 99},
+	}
+	_ = cmdBefore.Run()
+
+	// 3. Rename failing with EACCES inside vfs_rename.
+	dstDir := path.Join(roDir, "dst-dir")
+	test.WaitSignalFromRule(t, func() error {
+		cmdInside := exec.Command("mv", srcDir, dstDir)
+		cmdInside.SysProcAttr = &syscall.SysProcAttr{
+			Credential: &syscall.Credential{Uid: 98, Gid: 99},
+		}
+		_ = cmdInside.Run()
+		return nil
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Equal(t, "rename", event.GetType(), "wrong event type")
+		assertFieldEqual(t, event, "rename.file.path", srcDir)
+		assertFieldEqual(t, event, "rename.file.destination.path", dstDir)
+	}, "test_rule_failed_rename_dir")
+
+	// 4. Subsequent open of srcDir still resolves to srcDir.
+	test.WaitSignalFromRule(t, func() error {
+		df, err := os.Open(srcDir)
+		if err != nil {
+			return err
+		}
+		return df.Close()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Equal(t, "open", event.GetType(), "wrong event type")
+		assertFieldEqual(t, event, "open.file.path", srcDir)
+	}, "test_rule_open_src_dir")
+}
+

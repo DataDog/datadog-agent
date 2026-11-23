@@ -237,6 +237,9 @@ static __always_inline void handle_new_mount_impl(void *ctx, struct syscall_cach
     syscall->mount.mount_id_unique = get_mount_mount_id_unique(syscall->mount.newmnt);
     syscall->mount.root_key.ino = get_dentry_ino(root_dentry);
     update_path_id(&syscall->mount.root_key, 0, PATH_ID_INVALIDATE_TYPE_NONE);
+    if (S_ISDIR(get_dentry_mode(root_dentry))) {
+        syscall->mount.root_key.path_id &= ~PATH_ID_LOW_MASK;
+    }
 
     if(!detached) {
         // populate the mountpoint dentry key
@@ -244,6 +247,9 @@ static __always_inline void handle_new_mount_impl(void *ctx, struct syscall_cach
         syscall->mount.parent_mount_id_unique = get_mount_mount_id_unique(syscall->mount.parent);
         syscall->mount.mountpoint_key.ino = get_dentry_ino(syscall->mount.mountpoint_dentry);
         update_path_id(&syscall->mount.mountpoint_key, 0, PATH_ID_INVALIDATE_TYPE_NONE);
+        if (S_ISDIR(get_dentry_mode(syscall->mount.mountpoint_dentry))) {
+            syscall->mount.mountpoint_key.path_id &= ~PATH_ID_LOW_MASK;
+        }
     }
 
     // populate the device of the new mount
