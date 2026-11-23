@@ -317,6 +317,39 @@ func TestForkExec(t *testing.T) {
 	assertChildrenConsistency(t, resolver)
 }
 
+func TestPid1Reexec(t *testing.T) {
+	resolver, err := newResolver()
+	if err != nil {
+		t.Fatal()
+	}
+
+	pid1 := newFakeForkEvent(0, 1, 123, resolver)
+	before := newFakeForkEvent(1, 3, 123, resolver)
+	reexec := newFakeExecEvent(0, 1, 456, resolver)
+	after := newFakeForkEvent(1, 4, 456, resolver)
+
+	// X(pid:1)
+	//    |
+	// X(pid:3)
+	resolver.AddForkEntry(pid1, model.CGroupContext{}, nil)
+	resolver.AddForkEntry(before, model.CGroupContext{}, nil)
+
+	// X(pid:1) -- Y(pid:1)
+	//    |           |
+	// X(pid:3)    Y(pid:4)
+	resolver.AddExecEntry(reexec, model.CGroupContext{})
+	resolver.AddForkEntry(after, model.CGroupContext{}, nil)
+	assert.Equal(t, pid1.ProcessCacheEntry, before.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, reexec.ProcessCacheEntry, after.ProcessCacheEntry.Ancestor)
+	assertChildrenConsistency(t, resolver)
+
+	for _, entry := range []*model.ProcessCacheEntry{before.ProcessCacheEntry, after.ProcessCacheEntry} {
+		isValid, err := entry.HasValidLineage()
+		assert.True(t, isValid, "pid %d", entry.Pid)
+		assert.NoError(t, err, "pid %d", entry.Pid)
+	}
+}
+
 func TestResolveFromProcfs(t *testing.T) {
 	resolver, err := newResolver()
 	if err != nil {

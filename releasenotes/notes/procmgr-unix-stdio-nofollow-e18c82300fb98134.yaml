@@ -1,0 +1,8 @@
+---
+security:
+  - |
+    On Linux and macOS, dd-procmgrd no longer writes a managed process's stdout or
+    stderr to a path whose last component is a symbolic link, a FIFO or a block
+    device, or to a regular file observed after opening to have a link count other
+    than one. Such a path, including /dev/stdout and /dev/stderr, falls back to
+    inherit, with a warning in the dd-procmgrd log.

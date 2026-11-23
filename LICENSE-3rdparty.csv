@@ -1727,6 +1727,7 @@ core,github.com/moby/moby/api/types/system,Apache-2.0,"Copyright 2012-2017 Docke
 core,github.com/moby/moby/api/types/volume,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client/internal,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/client/internal/httperror,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client/internal/mod,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client/internal/timestamp,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client/pkg/versions,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
