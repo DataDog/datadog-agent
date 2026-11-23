@@ -7,7 +7,8 @@ load("@bazel_lib//lib:expand_template.bzl", "expand_template")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
-load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_core_objects")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_core_objects", "ebpf_minimized_btfs")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
@@ -140,6 +141,75 @@ ebpf_core_objects(
     ],
     exclude_from_btf = ["//pkg/ebpf/c:lock_contention.stripped"],
     visibility = ["//visibility:public"],
+)
+
+ebpf_minimized_btfs(
+    name = "minimized_btfs",
+    arm64_manifests = ["@btfhub_archive//:arm64"],
+    objects = ":co_re_objects",
+    remote = "@btfhub_archive//:remote.txt",
+    # Minimizes every BTFHub kernel of the arch, so wildcard builds skip it.
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    x86_64_manifests = ["@btfhub_archive//:x86_64"],
+)
+
+filegroup(
+    name = "co_re_relocations",
+    srcs = [":co_re_objects"],
+    output_group = "core_relocations",
+)
+
+filegroup(
+    name = "co_re_btf_objects",
+    srcs = [":co_re_objects"],
+    output_group = "btf_objects",
+)
+
+# The stub is exact for any kernel, so x86_64 kernels also check arm64 objects.
+sh_test(
+    name = "minimized_btfs_test",
+    srcs = ["//bazel/rules/ebpf:minimized_btfs_test.sh"],
+    args = [
+        "$(rootpath //bazel/rules/ebpf:minimize_btfs.sh)",
+        "$(rootpath //deps/btfhub:bpftool)",
+        "$(rootpath @btfhub_archive//:remote.txt)",
+        ",".join([
+            # Kernels with many duplicate types, where candidate pruning matters.
+            "centos/3.10.0-1160.25.1.el7.x86_64.btf",
+            "ol/3.10.0-1160.102.1.0.1.el7.x86_64.btf",
+            "ol/4.1.12-124.14.1.el7uek.x86_64.btf",
+            "rhel/3.10.0-1062.1.1.el7.x86_64.btf",
+            "amzn/4.14.101-75.76.amzn1.x86_64.btf",
+            "amzn/4.14.101-91.76.amzn2.x86_64.btf",
+            "centos/4.18.0-147.0.3.el8_1.x86_64.btf",
+            "debian/4.19.0-24-amd64.btf",
+            "fedora/4.11.12-100.fc24.x86_64.btf",
+            "opensuse-leap/4.12.14-lp150.11-default.btf",
+            "sles/5.3.18-24.37-default.btf",
+            "ubuntu/20.04/5.4.0-26-generic.btf",
+        ]),
+        "$(rootpath :co_re_relocations)",
+        "$(rootpaths @btfhub_archive//:x86_64)",
+        "--",
+        "$(rootpaths :co_re_btf_objects)",
+    ],
+    data = [
+        ":co_re_btf_objects",
+        ":co_re_relocations",
+        "//bazel/rules/ebpf:minimize_btfs.sh",
+        "//deps/btfhub:bpftool",
+        "@btfhub_archive//:remote.txt",
+        "@btfhub_archive//:x86_64",
+    ],
+    # Fetches the BTFHub tree and kernel blobs from GitHub.
+    tags = [
+        "manual",
+        "no-remote-exec",
+        "requires-network",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 # DEBUG=1 variants of the ebpf_program_suite programs, staged only by

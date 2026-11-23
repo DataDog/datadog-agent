@@ -18,6 +18,14 @@ py_test(
     main = "clang_with_unused_inputs_test.py",
 )
 
+exports_files(
+    [
+        "minimize_btfs.sh",
+        "minimized_btfs_test.sh",
+    ],
+    visibility = ["//pkg/ebpf:__pkg__"],
+)
+
 string_flag(
     name = "target_arch",
     build_setting_default = "",

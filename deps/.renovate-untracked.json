@@ -51,6 +51,8 @@
     "s6_overlay_aarch64": "Intentionally untracked. s6-overlay v3 changed the tarball layout, so bumps beyond v2 need Dockerfiles/agent changes. Released at github.com/just-containers/s6-overlay.",
     "s6_overlay_amd64": "Intentionally untracked. Shares VERSION with s6_overlay_aarch64; bumped together.",
     "snmp_traps": "Intentionally untracked. Datadog-internal SNMP traps DB published to dd-agent-omnibus S3; no public upstream to watch. Bumped manually when the traps DB is regenerated.",
+    "bpftool_amd64": "Intentionally untracked. bpftool decides which kernel types the minimized BTFs keep, so a bump changes every minimized BTF and must be checked against the CO-RE objects by hand (see deps/btfhub/btfhub.MODULE.bazel).",
+    "bpftool_arm64": "Shares BPFTOOL_VERSION with bpftool_amd64; bumped together.",
     "cacert_pem": "Intentionally untracked. Bumped via a separate Datadog Synthetics-driven workflow (see deps/cacerts/cacerts.MODULE.bazel) that alerts team-agent-build on header changes; auto-PRs from Renovate would race that flow.",
     "cacert_license": "Intentionally untracked. Mozilla MPL-2.0 license text accompanying cacert_pem; updated together with cacert_pem via the same out-of-band flow.",
     "sqlite3_license": "Intentionally untracked here — version is pinned via the shared sqlite_ver tuple in deps/repos.MODULE.bazel and will be tracked together with sqlite3 once that refactor lands (see sqlite3 entry).",
