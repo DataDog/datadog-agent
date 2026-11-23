@@ -11,6 +11,7 @@ package symbol
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"runtime"
@@ -160,6 +161,17 @@ func (e *Elf) GoPCLnTab() (*pclntab.GoPCLnTabInfo, error) {
 		e.goPCLnTabInfo, e.goPCLnTabInfoErr = e.goPCLnTab()
 	}
 	return e.goPCLnTabInfo, e.goPCLnTabInfoErr
+}
+
+// SymbolReader borrows the selected symbol source, including an in-memory VDSO.
+// The caller must finish reading before Close. It does not reopen executable paths.
+func (e *Elf) SymbolReader() (io.ReaderAt, int64, error) {
+	wrapper := e.symbolWrapper()
+	size, err := wrapper.GetSize()
+	if err != nil {
+		return nil, 0, err
+	}
+	return wrapper.elfFile.Underlying(), size, nil
 }
 
 // symbolWrapper returns the wrapper of the ELF file providing the best symbols.

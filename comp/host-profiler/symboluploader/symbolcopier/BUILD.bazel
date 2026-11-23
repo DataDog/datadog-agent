@@ -2,19 +2,24 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "symbolcopier",
-    srcs = ["symbolcopier.go"],
+    srcs = [
+        "stream.go",
+        "symbolcopier.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbolcopier",
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/host-profiler/symboluploader/pclntab",
             "//comp/host-profiler/symboluploader/symbol",
+            "//pkg/util/elfstream",
             "//pkg/util/safeelf",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/host-profiler/symboluploader/pclntab",
             "//comp/host-profiler/symboluploader/symbol",
+            "//pkg/util/elfstream",
             "//pkg/util/safeelf",
             "@org_golang_x_sys//unix",
         ],
