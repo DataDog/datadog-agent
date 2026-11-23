@@ -39,7 +39,6 @@ import (
 
 const (
 	optionalStreamCapacity = 128
-	sharedIngressPoolSize  = 16
 	maxSharedParks         = 256
 	maxTotalParked         = 1024
 )
@@ -332,10 +331,10 @@ type EndpointFilteredProvider struct {
 	policy           *routing.EndpointFilterPolicy
 	progress         *routing.Progress
 	monitor          metrics.PipelineMonitor
-	sharedInputs     []*managedInput
-	sharedInputIdx   atomic.Uint64
+	ingress          *managedInput
 	inputs           []*managedInput
 	sourceInputs     map[sourceInputKey]*managedInput
+	pendingInputs    map[sourceInputKey]chan struct{}
 	inputKeys        map[*managedInput]sourceInputKey
 	processed        chan *message.Message
 	processors       []*processor.Processor
@@ -389,6 +388,7 @@ func NewEndpointFilteredProvider(opts EndpointFilteredOptions) (*EndpointFiltere
 		destinationsCtx: client.NewDestinationsContext(),
 		policy:          policy,
 		progress:        progress,
+		ingress:         newManagedInput(make(chan *message.Message, routedIngressCapacity)),
 		processed:       make(chan *message.Message, routedProcessedCapacity),
 		streams:         make([]*endpointStream, policy.EndpointCount()),
 		selections:      make(map[uint64]endpointSelection),
@@ -397,17 +397,13 @@ func NewEndpointFilteredProvider(opts EndpointFilteredOptions) (*EndpointFiltere
 		cancel:          cancel,
 		sourceDispatch:  make(map[string]*efSourceDispatch),
 		sourceInputs:    make(map[sourceInputKey]*managedInput),
+		pendingInputs:   make(map[sourceInputKey]chan struct{}),
 		inputKeys:       make(map[*managedInput]sourceInputKey),
 		processedDone:   make(chan struct{}),
 		stopRequested:   make(chan struct{}),
 	}
 	p.evalWarnBudget.Store(20)
-	p.sharedInputs = make([]*managedInput, sharedIngressPoolSize)
-	for i := 0; i < sharedIngressPoolSize; i++ {
-		mi := newManagedInput(make(chan *message.Message, routedIngressCapacity))
-		p.sharedInputs[i] = mi
-		p.inputs = append(p.inputs, mi)
-	}
+	p.inputs = append(p.inputs, p.ingress)
 
 	endpointCount := policy.EndpointCount()
 	perEndpointCap := routedHTTPRequests / endpointCount
@@ -493,6 +489,7 @@ func NewEndpointFilteredProvider(opts EndpointFilteredOptions) (*EndpointFiltere
 				opts.Secrets,
 				p.monitor,
 			)
+			stream.reliableSender.SetStopCancel(p.ctx.Done())
 			id := epID
 			stream.strategy = sender.NewBatchStrategyWithTerminalLoss(
 				stream.input,
@@ -1351,41 +1348,58 @@ func (p *EndpointFilteredProvider) SourceInput(identifier string, generation uin
 		return nil, routing.ErrInvalidSelection
 	}
 	key := sourceInputKey{identifier: identifier, generation: generation}
-	p.lifecycle.RLock()
-	if p.stopped {
-		p.lifecycle.RUnlock()
-		return nil, routing.ErrStopped
-	}
-	if mi, ok := p.sourceInputs[key]; ok {
-		p.lifecycle.RUnlock()
+	for {
+		p.lifecycle.Lock()
+		if p.stopped {
+			p.lifecycle.Unlock()
+			return nil, routing.ErrStopped
+		}
+		if mi, ok := p.sourceInputs[key]; ok {
+			p.lifecycle.Unlock()
+			return mi.ch, nil
+		}
+		if waitCh, pending := p.pendingInputs[key]; pending {
+			p.lifecycle.Unlock()
+			select {
+			case <-waitCh:
+				continue
+			case <-p.stopRequested:
+				return nil, routing.ErrStopped
+			case <-p.ctx.Done():
+				return nil, routing.ErrStopped
+			}
+		}
+		pendingCh := make(chan struct{})
+		p.pendingInputs[key] = pendingCh
+		p.lifecycle.Unlock()
+
+		// Register with Progress outside lifecycle.Lock so a contended
+		// Progress.mu cannot block concurrent Flush or RetireSource calls.
+		regErr := p.progress.RegisterSource(identifier, generation)
+
+		p.lifecycle.Lock()
+		delete(p.pendingInputs, key)
+		close(pendingCh)
+		if regErr != nil {
+			p.lifecycle.Unlock()
+			return nil, regErr
+		}
+		if p.stopped {
+			p.lifecycle.Unlock()
+			_ = p.progress.RetireSourceWhenDrained(identifier, generation)
+			return nil, routing.ErrStopped
+		}
+		mi := newManagedInput(make(chan *message.Message, routedIngressCapacity))
+		p.sourceInputs[key] = mi
+		p.inputKeys[mi] = key
+		p.inputs = append(p.inputs, mi)
+		if p.started {
+			p.ingressDone.Add(1)
+			go p.admit(mi.ch, &key)
+		}
+		p.lifecycle.Unlock()
 		return mi.ch, nil
 	}
-	p.lifecycle.RUnlock()
-
-	// Register with Progress outside lifecycle.Lock so a contended Progress.mu
-	// cannot block concurrent Flush or RetireSource lifecycle.RLock acquisitions.
-	if err := p.progress.RegisterSource(identifier, generation); err != nil {
-		return nil, err
-	}
-
-	p.lifecycle.Lock()
-	defer p.lifecycle.Unlock()
-	if p.stopped {
-		_ = p.progress.RetireSourceWhenDrained(identifier, generation)
-		return nil, routing.ErrStopped
-	}
-	if mi, ok := p.sourceInputs[key]; ok {
-		return mi.ch, nil
-	}
-	mi := newManagedInput(make(chan *message.Message, routedIngressCapacity))
-	p.sourceInputs[key] = mi
-	p.inputKeys[mi] = key
-	p.inputs = append(p.inputs, mi)
-	if p.started {
-		p.ingressDone.Add(1)
-		go p.admit(mi.ch, &key)
-	}
-	return mi.ch, nil
 }
 
 // RetireSource retires a bound producer generation after flushing its input
@@ -1398,16 +1412,34 @@ func (p *EndpointFilteredProvider) RetireSource(ctx context.Context, identifier 
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	p.lifecycle.RLock()
-	if p.stopped {
-		p.lifecycle.RUnlock()
-		return routing.ErrStopped
-	}
 	key := sourceInputKey{identifier: identifier, generation: generation}
-	mi := p.sourceInputs[key]
-	started := p.started
-	p.opsWg.Add(1)
-	p.lifecycle.RUnlock()
+	var mi *managedInput
+	var started bool
+	for {
+		p.lifecycle.RLock()
+		if p.stopped {
+			p.lifecycle.RUnlock()
+			return routing.ErrStopped
+		}
+		if waitCh, pending := p.pendingInputs[key]; pending {
+			p.lifecycle.RUnlock()
+			select {
+			case <-waitCh:
+				continue
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-p.stopRequested:
+				return routing.ErrStopped
+			case <-p.ctx.Done():
+				return routing.ErrStopped
+			}
+		}
+		mi = p.sourceInputs[key]
+		started = p.started
+		p.opsWg.Add(1)
+		p.lifecycle.RUnlock()
+		break
+	}
 	defer p.opsWg.Done()
 
 	finalize := func(markerSent bool, done chan struct{}) {
@@ -1527,10 +1559,9 @@ func (p *EndpointFilteredProvider) reclaimBoundInput(key sourceInputKey, mi *man
 	mi.waitSendersAndClose()
 }
 
-// NextPipelineChan returns a shared ingress channel from the isolated pool.
+// NextPipelineChan returns the shared ingress channel.
 func (p *EndpointFilteredProvider) NextPipelineChan() chan *message.Message {
-	idx := (p.sharedInputIdx.Add(1) - 1) % uint64(len(p.sharedInputs))
-	return p.sharedInputs[idx].ch
+	return p.ingress.ch
 }
 
 // GetOutputChan returns nil (matching the default provider).
@@ -1538,9 +1569,9 @@ func (p *EndpointFilteredProvider) GetOutputChan() chan *message.Message {
 	return nil
 }
 
-// NextPipelineChanWithMonitor returns a shared ingress channel and capacity monitor.
+// NextPipelineChanWithMonitor returns the shared ingress channel and capacity monitor.
 func (p *EndpointFilteredProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
-	return p.NextPipelineChan(), p.monitor.GetCapacityMonitor(metrics.ProcessorTlmName, "endpoint-filter-0")
+	return p.ingress.ch, p.monitor.GetCapacityMonitor(metrics.ProcessorTlmName, "endpoint-filter-0")
 }
 
 // GetPipelineMonitor returns the pipeline monitor for this provider.

@@ -95,6 +95,7 @@ const (
 type oldTailerInfo struct {
 	Pattern      *regexp.Regexp
 	InfoRegistry *status.InfoRegistry
+	Source       *sources.LogSource
 }
 
 // NewLauncher returns a new launcher.
@@ -387,6 +388,9 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 
 		// Check if we have stored info for this file from a previous rotation
 		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
+		if hasOldInfo && oldInfo.Source != nil && oldInfo.Source != file.Source.UnderlyingSource() {
+			hasOldInfo = false
+		}
 
 		fingerprint, ok := s.resolveFingerprint(file)
 		if !ok {
@@ -416,6 +420,22 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		}
 	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
+
+	// Preserve rotation retry state for still-active sources omitted solely
+	// because the scan hit the tailing limit.
+	if hitFileLimit {
+		for scanKey, oldInfo := range lastIterationOldInfo {
+			if _, seen := filesExpected[scanKey]; seen {
+				continue
+			}
+			if _, alreadyPersisted := s.oldInfoMap[scanKey]; alreadyPersisted {
+				continue
+			}
+			if oldInfo.Source != nil && slices.Contains(s.activeSources, oldInfo.Source) {
+				s.oldInfoMap[scanKey] = oldInfo
+			}
+		}
+	}
 
 	// Files that are no longer expected to be tailed can't recover, so drop their skip state.
 	if expireSkips {
@@ -823,6 +843,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	oldInfo := &oldTailerInfo{
 		Pattern:      oldRegexPattern,
 		InfoRegistry: oldTailer.GetInfo(),
+		Source:       file.Source.UnderlyingSource(),
 	}
 
 	newTailer, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)

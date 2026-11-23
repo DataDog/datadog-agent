@@ -37,6 +37,7 @@ type worker struct {
 	outputChan     chan *message.Payload
 	destinations   *client.Destinations
 	done           chan struct{}
+	cancel         <-chan struct{} // Optional external cancellation (e.g. provider grace timer).
 	finished       chan struct{}
 	bufferSize     int
 	senderDoneChan chan *sync.WaitGroup
@@ -106,22 +107,22 @@ func (s *worker) run() {
 
 	reliableDestinations := buildDestinationSenders(s.config, s.destinations.Reliable, reliableOutputChan, s.bufferSize)
 	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, noopSink, s.bufferSize)
-	const workerShutdownDrainGrace = 2 * time.Second
 	continueLoop := true
 	for continueLoop {
 		select {
 		case payload := <-s.inputChan:
-			s.sendPayload(payload, reliableDestinations, unreliableDestinations, time.Time{})
+			s.sendPayload(payload, reliableDestinations, unreliableDestinations)
 		case <-s.done:
-			// Drain payloads already queued on inputChan before stopping destinations.
-			// Bound retries to workerShutdownDrainGrace so transiently retrying
-			// endpoints can recover while permanently disabled destinations cannot hang Stop.
-			drainDeadline := time.Now().Add(workerShutdownDrainGrace)
+			// Drain payloads already queued on inputChan in FIFO order before stopping destinations.
+			// If forced cancellation abandons a payload, stop draining immediately so later
+			// payloads cannot be acknowledged past the abandoned record.
 		drain:
 			for {
 				select {
 				case payload := <-s.inputChan:
-					s.sendPayload(payload, reliableDestinations, unreliableDestinations, drainDeadline)
+					if !s.sendPayload(payload, reliableDestinations, unreliableDestinations) {
+						break drain
+					}
 				default:
 					break drain
 				}
@@ -141,7 +142,7 @@ func (s *worker) run() {
 	s.finished <- struct{}{}
 }
 
-func (s *worker) sendPayload(payload *message.Payload, reliableDestinations, unreliableDestinations []*DestinationSender, drainDeadline time.Time) {
+func (s *worker) sendPayload(payload *message.Payload, reliableDestinations, unreliableDestinations []*DestinationSender) bool {
 	s.pipelineMonitor.ReportComponentEgress(payload, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
 	s.pipelineMonitor.ReportComponentIngress(payload, metrics.WorkerTlmName, s.workerID)
 	s.utilization.Start()
@@ -150,6 +151,14 @@ func (s *worker) sendPayload(payload *message.Payload, reliableDestinations, unr
 
 	sent := false
 	for !sent {
+		if s.cancel != nil {
+			select {
+			case <-s.cancel:
+				s.utilization.Stop()
+				return false
+			default:
+			}
+		}
 		for _, destSender := range reliableDestinations {
 			// Drop non-MRF payloads to MRF destinations
 			if destSender.destination.IsMRF() && !payload.IsMRF() {
@@ -171,22 +180,13 @@ func (s *worker) sendPayload(payload *message.Payload, reliableDestinations, unr
 		}
 
 		if !sent {
-			if !drainDeadline.IsZero() {
-				if time.Now().After(drainDeadline) {
-					s.utilization.Stop()
-					return
-				}
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
 			// Throttle the poll loop while waiting for a send to succeed
 			// This will only happen when all reliable destinations
 			// are blocked so logs have no where to go.
 			select {
-			case <-s.done:
-				// Shutdown requested while retrying: allow bounded grace for
-				// transient recovery before abandoning the unsent payload.
-				drainDeadline = time.Now().Add(2 * time.Second)
+			case <-s.cancel:
+				s.utilization.Stop()
+				return false
 			case <-time.After(100 * time.Millisecond):
 			}
 		}
@@ -236,6 +236,7 @@ func (s *worker) sendPayload(payload *message.Payload, reliableDestinations, unr
 		s.serverlessMeta.PendingSendDone()
 	}
 	s.pipelineMonitor.ReportComponentEgress(payload, metrics.WorkerTlmName, s.workerID)
+	return true
 }
 
 // Drains the output channel from destinations that don't update the auditor.

@@ -63,6 +63,15 @@ type Sender struct {
 	idx             *atomic.Uint32
 }
 
+// SetStopCancel wires an external cancellation channel (such as a provider's
+// grace-period context) into this sender's workers so shutdown drains can
+// abandon unsent payloads if a reliable destination is permanently disabled.
+func (s *Sender) SetStopCancel(cancel <-chan struct{}) {
+	for _, w := range s.workers {
+		w.cancel = cancel
+	}
+}
+
 // ServerlessMeta is a struct that contains essential control structures for serverless mode.
 // Do not access any methods on this interface without checking IsEnabled first.
 type ServerlessMeta interface {
