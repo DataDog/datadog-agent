@@ -9,11 +9,14 @@
 package securityprofile
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -96,7 +100,7 @@ func TestManagerV2_persistProfile_persistsDisabledState(t *testing.T) {
 		require.False(t, p.IsEnabled())
 		require.True(t, p.ActivityTree.IsEmpty())
 
-		m.persistProfile(p)
+		require.NoError(t, m.persistProfile(p))
 
 		assert.False(t, p.HasAlreadyBeenSent(), "persisting a disabled profile must not open the send-gated learning window")
 		filePath := filepath.Join(dir, "disabled."+config.Profile.String())
@@ -116,7 +120,7 @@ func TestManagerV2_persistProfile_persistsDisabledState(t *testing.T) {
 		p := newTestProfileWithNodes("enabled", 8)
 		require.True(t, p.IsEnabled())
 
-		m.persistProfile(p)
+		require.NoError(t, m.persistProfile(p))
 
 		reloaded := profile.New(profile.WithWorkloadSelector(selector))
 		ok, err := m.localStorage.Load(&selector, reloaded)
@@ -1785,4 +1789,223 @@ func TestManagerV2_ProcessEventDrainsWhenTagsResolveDuringInitialQueue(t *testin
 	p := m.profiles[testSelector]
 	require.NotNil(t, p)
 	assert.NotNil(t, findTestEventNode(p, model.ExecEventType, "known"))
+}
+
+type fakeActivityDumpHandler struct {
+	err       error
+	persisted int
+}
+
+func (f *fakeActivityDumpHandler) HandleActivityDump(_ string, _ string, _ []byte, _ []byte) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.persisted++
+	return nil
+}
+
+func TestManagerV2_ActivityDumpCLI(t *testing.T) {
+	t.Run("list and stop by container ID, cgroup ID, and name", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		dir := t.TempDir()
+		localStorage, err := storage.NewDirectory(dir, 100)
+		require.NoError(t, err)
+		m.localStorage = localStorage
+		m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout = 30 * time.Minute
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+			config.NewStorageRequest(config.LocalStorage, config.JSON, false, dir),
+		})
+
+		secondContainerID := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+		secondCGroupID := "/docker/" + secondContainerID
+		secondEntry := m.resolvers.CGroupResolver.Add(model.CGroupContext{
+			CGroupID:      containerutils.CGroupID(secondCGroupID),
+			CGroupPathKey: model.PathKey{Inode: 4243, MountID: 1},
+		})
+		require.NotNil(t, secondEntry)
+
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		secondEvent := newTestEventV2(model.ExecEventType, "v1", "new")
+		secondEvent.ProcessCacheEntry.ContainerContext.ContainerID = containerutils.ContainerID(secondContainerID)
+		_, inserted = m.insertEventIntoProfile(secondEvent)
+		require.True(t, inserted)
+
+		listMsg, err := m.ListActivityDumps(&api.ActivityDumpListParams{})
+		require.NoError(t, err)
+		require.Len(t, listMsg.GetDumps(), 1)
+		assert.Equal(t, p.Metadata.Name, listMsg.GetDumps()[0].GetMetadata().GetName())
+		assert.Equal(t, secondContainerID, listMsg.GetDumps()[0].GetMetadata().GetContainerID())
+
+		for _, stopParams := range []*api.ActivityDumpStopParams{
+			{ContainerID: testContainerID},
+			{ContainerID: secondContainerID},
+			{CGroupID: "/docker/" + testContainerID},
+			{CGroupID: secondCGroupID},
+			{Name: p.Metadata.Name},
+		} {
+			stopMsg, err := m.StopActivityDump(stopParams)
+			require.NoError(t, err)
+			assert.Empty(t, stopMsg.GetError())
+		}
+		assert.False(t, p.HasAlreadyBeenSent(), "on-demand stop flush must not open the anomaly reporting window")
+
+		m.onCGroupDeleted(secondEntry)
+		listMsg, err = m.ListActivityDumps(&api.ActivityDumpListParams{})
+		require.NoError(t, err)
+		require.Len(t, listMsg.GetDumps(), 1)
+		assert.Equal(t, testContainerID, listMsg.GetDumps()[0].GetMetadata().GetContainerID())
+
+		_, err = m.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: secondContainerID})
+		require.Error(t, err, "exited container must not match while another container of the image is active")
+
+		firstEntry := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+		require.NotNil(t, firstEntry)
+		m.onCGroupDeleted(firstEntry)
+		stopMsg, err := m.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: testContainerID})
+		require.NoError(t, err, "last exited container must still match during the cleanup grace window")
+		assert.Empty(t, stopMsg.GetError())
+
+		profilePath := filepath.Join(dir, p.Metadata.Name+"."+config.Profile.String())
+		jsonPath := filepath.Join(dir, p.Metadata.Name+"."+config.JSON.String())
+		_, err = os.Stat(profilePath)
+		require.NoError(t, err)
+		_, err = os.Stat(jsonPath)
+		require.NoError(t, err)
+	})
+
+	t.Run("validation, disabled manager, and partial storage errors", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		stopMsg, err := m.StopActivityDump(&api.ActivityDumpStopParams{})
+		require.Error(t, err)
+		assert.Contains(t, stopMsg.GetError(), "you must specify one selector")
+
+		stopMsg, err = m.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: "missing"})
+		require.Error(t, err)
+		assert.Contains(t, stopMsg.GetError(), "missing")
+
+		brokenDir := filepath.Join(t.TempDir(), "profiles")
+		localStorage, err := storage.NewDirectory(brokenDir, 100)
+		require.NoError(t, err)
+		require.NoError(t, os.Remove(brokenDir))
+		require.NoError(t, os.WriteFile(brokenDir, []byte("not-a-dir"), 0600))
+
+		remoteHandler := &fakeActivityDumpHandler{err: errors.New("remote down")}
+		remoteStorage, err := storage.NewActivityDumpRemoteStorageForwarder(remoteHandler)
+		require.NoError(t, err)
+
+		m.localStorage = localStorage
+		m.remoteStorage = remoteStorage
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.JSON, false, brokenDir),
+			config.NewStorageRequest(config.RemoteStorage, config.Profile, true, ""),
+		})
+
+		require.Error(t, m.persistProfile(p))
+		assert.False(t, p.HasAlreadyBeenSent(), "profile must not be marked sent when all storage backends fail")
+
+		remoteHandler.err = nil
+		stopMsg, err = m.StopActivityDump(&api.ActivityDumpStopParams{Name: p.Metadata.Name})
+		require.Error(t, err)
+		assert.NotEmpty(t, stopMsg.GetError())
+		assert.Equal(t, 1, remoteHandler.persisted, "remote storage must still be attempted when local storage fails")
+		assert.False(t, p.HasAlreadyBeenSent(), "on-demand stop must not mark profile as sent")
+
+		require.Error(t, m.persistProfile(p))
+		assert.Equal(t, 2, remoteHandler.persisted)
+		assert.True(t, p.HasAlreadyBeenSent(), "periodic persist marks profile sent when at least one backend succeeds")
+
+		m.config.RuntimeSecurity.SecurityProfileV2Enabled = false
+		_, err = m.ListActivityDumps(&api.ActivityDumpListParams{})
+		assert.ErrorIs(t, err, ErrSecurityProfileManagerDisabled)
+		_, err = m.StopActivityDump(&api.ActivityDumpStopParams{Name: p.Metadata.Name})
+		assert.ErrorIs(t, err, ErrSecurityProfileManagerDisabled)
+	})
+
+	t.Run("shutdown flushes local storage without remote upload", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout = 30 * time.Minute
+		dir := t.TempDir()
+		localStorage, err := storage.NewDirectory(dir, 100)
+		require.NoError(t, err)
+		remoteHandler := &fakeActivityDumpHandler{}
+		remoteStorage, err := storage.NewActivityDumpRemoteStorageForwarder(remoteHandler)
+		require.NoError(t, err)
+
+		m.localStorage = localStorage
+		m.remoteStorage = remoteStorage
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+			config.NewStorageRequest(config.RemoteStorage, config.Profile, true, ""),
+		})
+
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		m.Start(ctx)
+
+		_, err = os.Stat(filepath.Join(dir, p.Metadata.Name+"."+config.Profile.String()))
+		require.NoError(t, err)
+		assert.Equal(t, 0, remoteHandler.persisted)
+		assert.False(t, p.HasAlreadyBeenSent())
+	})
+
+	t.Run("concurrent insert, list, and stop", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		dir := t.TempDir()
+		localStorage, err := storage.NewDirectory(dir, 100)
+		require.NoError(t, err)
+		m.localStorage = localStorage
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+		})
+
+		secondContainerID := "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+		require.NotNil(t, m.resolvers.CGroupResolver.Add(model.CGroupContext{
+			CGroupID:      containerutils.CGroupID("/docker/" + secondContainerID),
+			CGroupPathKey: model.PathKey{Inode: 4244, MountID: 1},
+		}))
+
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		var wg sync.WaitGroup
+		wg.Add(3)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 20; i++ {
+				ev := newTestEventV2(model.ExecEventType, "v1", "known")
+				if i%2 == 1 {
+					ev.ProcessCacheEntry.ContainerContext.ContainerID = containerutils.ContainerID(secondContainerID)
+				}
+				m.insertEventIntoProfile(ev)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 20; i++ {
+				_, err := m.ListActivityDumps(&api.ActivityDumpListParams{})
+				assert.NoError(t, err)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 10; i++ {
+				_, err := m.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: testContainerID})
+				assert.NoError(t, err)
+			}
+		}()
+		wg.Wait()
+	})
 }
