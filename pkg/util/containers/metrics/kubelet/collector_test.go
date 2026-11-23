@@ -9,6 +9,7 @@ package kubelet
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -17,12 +18,17 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	kutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 )
 
@@ -64,8 +70,8 @@ func TestKubeletCollectorLinux(t *testing.T) {
 	})
 
 	kubeletCollector := &kubeletCollector{
-		kubeletClient: kubeletMock,
-		metadataStore: metadataStore,
+		kubeletClient:          kubeletMock,
+		podContainerIDResolver: podContainerIDResolver{metadataStore: metadataStore},
 	}
 
 	// On first `GetCoreContainerStats`, the full data is read and cache is filled
@@ -188,8 +194,8 @@ func TestKubeletCollectorWindows(t *testing.T) {
 	})
 
 	kubeletCollector := &kubeletCollector{
-		kubeletClient: kubeletMock,
-		metadataStore: metadataStore,
+		kubeletClient:          kubeletMock,
+		podContainerIDResolver: podContainerIDResolver{metadataStore: metadataStore},
 	}
 
 	// On first `GetCoreContainerStats`, the full data is read and cache is filled
@@ -402,13 +408,142 @@ func TestContainerIDForPodUIDAndContName(t *testing.T) {
 			}
 
 			kubeletCollector := &kubeletCollector{
-				kubeletClient: kubeletMock,
-				metadataStore: metadataStore,
+				kubeletClient:          kubeletMock,
+				podContainerIDResolver: podContainerIDResolver{metadataStore: metadataStore},
 			}
 
 			cid, err := kubeletCollector.ContainerIDForPodUIDAndContName(tt.podUID, tt.contName, tt.initCont, time.Minute)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedCid, cid)
+		})
+	}
+}
+
+func TestNewKubeletCollector(t *testing.T) {
+	errKubeletUnreachable := errors.New("kubelet unreachable")
+
+	for _, tt := range []struct {
+		name                string
+		notOnKubernetes     bool
+		flavor              string
+		clcRunner           bool
+		otelStandalone      bool
+		useKubeletCollector bool
+		kubeUtilErr         error
+		// wantClient tells whether the collector creates a kubelet client and
+		// serves container stats from it.
+		wantClient bool
+		wantErr    error
+	}{
+		{
+			name:            "not on Kubernetes",
+			notOnKubernetes: true,
+			flavor:          flavor.DefaultAgent,
+			wantErr:         provider.ErrPermaFail,
+		},
+		{
+			name:      "cluster checks runner",
+			flavor:    flavor.DefaultAgent,
+			clcRunner: true,
+			wantErr:   provider.ErrPermaFail,
+		},
+		{
+			name:           "otel-agent standalone with the nodefilter collector",
+			flavor:         flavor.OTelAgent,
+			otelStandalone: true,
+		},
+		{
+			name:                "otel-agent standalone with the kubelet collector",
+			flavor:              flavor.OTelAgent,
+			otelStandalone:      true,
+			useKubeletCollector: true,
+			wantClient:          true,
+		},
+		{
+			name:       "otel-agent connected",
+			flavor:     flavor.OTelAgent,
+			wantClient: true,
+		},
+		{
+			name:           "core agent ignores otel_standalone",
+			flavor:         flavor.DefaultAgent,
+			otelStandalone: true,
+			wantClient:     true,
+		},
+		{
+			name:        "core agent with an unreachable kubelet is retried",
+			flavor:      flavor.DefaultAgent,
+			kubeUtilErr: errKubeletUnreachable,
+			wantClient:  true,
+			wantErr:     errKubeletUnreachable,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.notOnKubernetes {
+				env.SetFeatures(t)
+			} else {
+				env.SetFeatures(t, env.Kubernetes)
+			}
+			flavor.SetTestFlavor(t, tt.flavor)
+			cfg := configmock.New(t)
+			if tt.clcRunner {
+				cfg.SetInTest("clc_runner_enabled", true)
+				cfg.SetInTest("config_providers", []map[string]interface{}{{"name": "clusterchecks"}})
+			}
+			cfg.SetInTest("otel_standalone", tt.otelStandalone)
+			cfg.SetInTest("otelcollector.standalone.use_kubelet_collector", tt.useKubeletCollector)
+
+			kubeUtilCalled := false
+			originalGetKubeUtil := getKubeUtil
+			t.Cleanup(func() { getKubeUtil = originalGetKubeUtil })
+			getKubeUtil = func() (kutil.KubeUtilInterface, error) {
+				kubeUtilCalled = true
+				if tt.kubeUtilErr != nil {
+					return nil, tt.kubeUtilErr
+				}
+				return mock.NewKubeletMock(), nil
+			}
+
+			metadataStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				core.MockBundle(),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			metadataStore.Set(&workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-uid",
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{ID: "container-id", Name: "app"},
+				},
+			})
+
+			collectorMetadata, err := newKubeletCollector(nil, metadataStore)
+			assert.Equal(t, tt.wantClient, kubeUtilCalled, "whether a kubelet client is created")
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+				assert.Empty(t, collectorMetadata.Collectors)
+				return
+			}
+			require.NoError(t, err)
+
+			assert.Equal(t, collectorID, collectorMetadata.ID)
+			require.NotEmpty(t, collectorMetadata.Collectors)
+			for runtime, collectors := range collectorMetadata.Collectors {
+				if tt.wantClient {
+					assert.NotNil(t, collectors.Stats.Collector, runtime)
+					assert.NotNil(t, collectors.Network.Collector, runtime)
+				} else {
+					assert.Nil(t, collectors.Stats.Collector, runtime)
+					assert.Nil(t, collectors.Network.Collector, runtime)
+				}
+
+				require.NotNil(t, collectors.ContainerIDForPodUIDAndContName.Collector, runtime)
+				cid, err := collectors.ContainerIDForPodUIDAndContName.Collector.ContainerIDForPodUIDAndContName("pod-uid", "app", false, time.Minute)
+				assert.NoError(t, err, runtime)
+				assert.Equal(t, "container-id", cid, runtime)
+			}
 		})
 	}
 }

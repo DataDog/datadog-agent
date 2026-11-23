@@ -161,7 +161,8 @@ Full up-to-date details in `doc/reference/agent-schema/keywords.md`.
 | `sensitive` | setting | Scrubs the value from logs, flare and Fleet Automation. |
 | `items` | setting | Mandatory for `array`. |
 | `properties` | section / object setting | Child settings on a section; value sub-schema on an object setting. |
-| `title` | section | Banner heading in the generated example. |
+| `title` | section | Section label shown by IDEs, also rendered as its banner in the generated example. Never on a setting (lint error). |
+| `banner` | all | Banner heading rendered before the node in the generated example. Use it on a setting to start a new group. |
 | `comment` | all | Developer-only note; never rendered to users. |
 | `example` | setting | Overrides the value shown on the rendered example line. |
 | `tags` | all | See below. |

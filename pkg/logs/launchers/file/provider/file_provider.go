@@ -134,7 +134,10 @@ func (w *wildcardFileCounter) setTotal(src *sources.LogSource, total int) {
 	w.counts[src] = matchCnt
 }
 
-func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, symlinkResolver *ContainerLogSymlinkResolver, inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter, registry auditor.Registry) []*tailer.File {
+// addFilesToTailList adds inputFiles to filesToTail until the limit is reached. The limit applies to
+// the distinct files, recorded by scan key in scanKeys: a file matched by several sources only gets
+// one tailer, so every source matching it is listed and the launcher picks the one to apply.
+func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, symlinkResolver *ContainerLogSymlinkResolver, inputFiles, filesToTail []*tailer.File, scanKeys map[string]struct{}, w *wildcardFileCounter, registry auditor.Registry) []*tailer.File {
 	// Add each file one by one up to the limit
 	for _, file := range inputFiles {
 		// Unlike other tailers, there is a hard cap on the number of file tailers that can be concurrently active.
@@ -142,10 +145,12 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, symlinkRe
 		// manually keep each valid file alive here.
 		registry.KeepAlive(file.Identifier())
 
-		if len(filesToTail) < p.filesLimit {
+		_, listed := scanKeys[file.GetScanKey()]
+		if listed || len(scanKeys) < p.filesLimit {
 			if ShouldIgnore(validatePodContainerID, file, symlinkResolver) {
 				continue
 			}
+			scanKeys[file.GetScanKey()] = struct{}{}
 			filesToTail = append(filesToTail, file)
 			src := file.Source.UnderlyingSource()
 			if config.ContainsWildcard(src.Config.Path) {
@@ -154,7 +159,7 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, symlinkRe
 		}
 	}
 
-	if len(filesToTail) >= p.filesLimit {
+	if len(scanKeys) >= p.filesLimit {
 		status.AddGlobalWarning(
 			openFilesLimitWarningType,
 			fmt.Sprintf(
@@ -170,12 +175,13 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, symlinkRe
 }
 
 // FilesToTail returns all the Files matching paths in sources,
-// it cannot return more than filesLimit Files.
+// it cannot return more than filesLimit distinct Files, each one listed once per source matching it.
 // Files are collected according to the fileProvider's wildcardOrder and selectionMode
 func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID bool, inputSources []*sources.LogSource, registry auditor.Registry) []*tailer.File {
 	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
+	scanKeys := make(map[string]struct{})
 	wildcardFileCounter := newWildcardFileCounter()
 	// Build the /var/log/containers symlink map at most once for the whole scan
 	// rather than once per file. The map is resolved lazily, so no directory
@@ -206,7 +212,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 					}
 					continue
 				}
-				filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, files, filesToTail, &wildcardFileCounter, registry)
+				filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, files, filesToTail, scanKeys, &wildcardFileCounter, registry)
 			}
 		}
 
@@ -235,7 +241,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 		}
 
 		p.applyOrdering(wildcardFiles)
-		filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, wildcardFiles, filesToTail, &wildcardFileCounter, registry)
+		filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, wildcardFiles, filesToTail, scanKeys, &wildcardFileCounter, registry)
 	} else if p.selectionMode == greedySelection {
 		// Consume all sources one-by-one, fitting as many as possible into 'filesToTail'
 		for _, source := range inputSources {
@@ -256,7 +262,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 					}
 					continue
 				}
-				filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, files, filesToTail, &wildcardFileCounter, registry)
+				filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, files, filesToTail, scanKeys, &wildcardFileCounter, registry)
 			}
 		}
 	} else {
@@ -268,10 +274,10 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 		source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("%d files tailed out of %d files matching", matchCnt.tracked, matchCnt.total))
 	}
 
-	if !p.reachedNumFileLimit && len(filesToTail) == p.filesLimit {
+	if !p.reachedNumFileLimit && len(scanKeys) == p.filesLimit {
 		log.Warn("Reached the limit on the maximum number of files in use: ", p.filesLimit)
 		p.reachedNumFileLimit = true
-	} else if len(filesToTail) < p.filesLimit {
+	} else if len(scanKeys) < p.filesLimit {
 		p.reachedNumFileLimit = false
 	}
 
