@@ -147,8 +147,9 @@ Gotchas:
 - The NRI plugin never injects into `kube-system` or the Mokka namespace, and only into containers
   created after it runs: the Agent must be deployed after Mokka (`kindvm.WithMokka` handles it).
 - The Mokka and device plugin images come from `ghcr.io` and `nvcr.io`, so the suite uses
-  `kindvm.WithInternetAccess()`. The GPU test pods use busybox through the DockerHub ECR
-  pull-through cache (`busyboxImage()`), falling back to DockerHub when no image pull registry is set.
+  `kindvm.WithInternetAccess()`. The GPU test pods have no imagePullSecrets and use the plain
+  `busybox` image (`busyboxImage`): the kind nodes pull docker.io through mirror.gcr.io. Never reference the
+  private ECR pull-through cache from them, containerd cannot authenticate to it.
 - The Mokka chart is pulled by Pulumi on the CI runner, through the egress gateway. `ghcr.io` is
   allowed; `registry.k8s.io` (Kueue chart) needs ddoghq/dd-source#197311. Until the suites have been
   validated in CI they run in the manual `new-e2e-gpu-mokka` job instead of `new-e2e-gpu`. Locally they

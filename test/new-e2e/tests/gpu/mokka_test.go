@@ -7,6 +7,7 @@ package gpu
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -90,7 +92,7 @@ func (s *gpuMokkaK8sSuite) TestMockGPUAllocationTags() {
 				Name: "main",
 				// busybox has a shell to read the allocated GPU, and is statically linked, so the
 				// LD_PRELOAD that Mokka injects into GPU containers does not affect it.
-				Image:   busyboxImage(),
+				Image:   busyboxImage,
 				Command: []string{"sleep", "3600"},
 				Resources: corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{"nvidia.com/gpu": resource.MustParse("1")},
@@ -112,7 +114,7 @@ func (s *gpuMokkaK8sSuite) TestMockGPUAllocationTags() {
 		if !assert.NoError(c, err) {
 			return
 		}
-		if !assert.Equal(c, corev1.PodRunning, p.Status.Phase, "GPU pod is not running: %s %s", p.Status.Reason, p.Status.Message) {
+		if !assert.Equal(c, corev1.PodRunning, p.Status.Phase, "GPU pod is not running: %s", podStartDiagnostics(ctx, kubeClient, p)) {
 			return
 		}
 		if assert.NotEmpty(c, p.Status.ContainerStatuses, "no container status yet") &&
@@ -187,4 +189,25 @@ func hasPointSince(metric *aggregator.MetricSeries, since int64) bool {
 		}
 	}
 	return false
+}
+
+// podStartDiagnostics describes why a pod is not running: its phase, the waiting reason and message
+// of its containers (for example ErrImagePull), and its events. A Pending pod has no reason of its own.
+func podStartDiagnostics(ctx context.Context, kubeClient kubernetes.Interface, pod *corev1.Pod) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "phase=%s reason=%q message=%q", pod.Status.Phase, pod.Status.Reason, pod.Status.Message)
+	for _, cs := range pod.Status.ContainerStatuses {
+		if w := cs.State.Waiting; w != nil {
+			fmt.Fprintf(&sb, "; container %s waiting: %s: %s", cs.Name, w.Reason, w.Message)
+		}
+	}
+	events, err := kubeClient.CoreV1().Events(pod.Namespace).List(ctx, metav1.ListOptions{FieldSelector: "involvedObject.name=" + pod.Name})
+	if err != nil {
+		fmt.Fprintf(&sb, "; could not list the pod events: %v", err)
+		return sb.String()
+	}
+	for _, e := range events.Items {
+		fmt.Fprintf(&sb, "; event %s %s: %s", e.Type, e.Reason, e.Message)
+	}
+	return sb.String()
 }

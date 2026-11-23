@@ -41,8 +41,6 @@ go_library(
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners",
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
-        "//test/e2e-framework/testing/runner",
-        "//test/e2e-framework/testing/runner/parameters",
         "//test/e2e-framework/testing/utils/common",
         "//test/e2e-framework/testing/utils/e2e/client",
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
@@ -84,5 +82,6 @@ dd_agent_go_test(
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes",
     ],
 )
