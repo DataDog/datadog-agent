@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The Cluster Agent now reports an agent health issue when it has cluster
+    checks to dispatch but no Cluster Check Runners (and no node agents) are
+    reporting. In that situation the cluster checks are left undispatched and
+    their metrics may be lost; the health issue makes the condition visible and
+    is resolved automatically once a runner is available again.

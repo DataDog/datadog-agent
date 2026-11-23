@@ -148,6 +148,7 @@ COAT excludes zero-valued metrics, so resolved types with an active count of zer
 | `docker` | `docker-socket-permissions:<digest>` | `Docker Socket Permission` | `docker_socket_permission` | `"Docker socket permission denied at '<socketPaths>'"` | per host + affected-socket set |
 | `docker` | `docker-socket-unavailable:<digest>` | `Docker Socket Unavailable` | `docker_socket_unavailable` | `"Docker socket unavailable at '<socketPaths>'"` | per host + affected-socket set |
 | `missedbytes` | `log-data-lost-after-rotation:<digest>` | `Log Data Lost After Rotation` | `log_data_lost_after_rotation` | `"Lost <bytes> of logs from <N> sources in the last 24 hours"`, or `"from source <name>"` when one source and service account for all of it | per-host (host-local failure) |
+| `missingclcrunners` | `missing-cluster-check-runners` | `Missing Cluster Check Runners` | `missing_cluster_check_runners` | `"Missing Cluster Check Runners"` | singleton (reported by the Cluster Agent leader) |
 
 ## Adding a new issue module
 

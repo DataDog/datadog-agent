@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -73,6 +74,10 @@ type dispatcher struct {
 	// that group; runnerGroups is the set of declared groups.
 	checkGroup   map[string]string
 	runnerGroups map[string]struct{}
+	// healthPlatform reports/resolves the "missing cluster check runners"
+	// health issue. It is nil when health platform reporting is unavailable
+	// (e.g. the cloudfoundry cluster agent or unit tests).
+	healthPlatform healthplatformdef.Component
 }
 
 // runnerGroup is an entry of cluster_checks.runner_groups.
@@ -123,10 +128,11 @@ func parseRunnerGroups(groups []runnerGroup) (checkGroup map[string]string, runn
 	return checkGroup, runnerGroups
 }
 
-func newDispatcher(tagger tagger.Component) *dispatcher {
+func newDispatcher(tagger tagger.Component, healthPlatform healthplatformdef.Component) *dispatcher {
 	d := &dispatcher{
-		store:  newClusterStore(),
-		shards: newShardTracker(),
+		store:          newClusterStore(),
+		shards:         newShardTracker(),
+		healthPlatform: healthPlatform,
 	}
 	d.nodeExpirationSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.node_expiration_timeout")
 	d.unscheduledCheckThresholdSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.unscheduled_check_threshold")
@@ -464,6 +470,11 @@ func (d *dispatcher) run(ctx context.Context) {
 	healthProbe := health.RegisterLiveness("clusterchecks-dispatch")
 	defer health.Deregister(healthProbe) //nolint:errcheck
 
+	// Resolve the missing-runners issue when this goroutine stops (leadership
+	// lost or shutdown): a demoted leader no longer dispatches, and a new
+	// leader will re-report if the condition still holds.
+	defer d.resolveMissingCLCRunnersIssue()
+
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
 
@@ -472,6 +483,11 @@ func (d *dispatcher) run(ctx context.Context) {
 
 	unscheduledCheckTicker := time.NewTicker(time.Duration(d.unscheduledCheckThresholdSeconds) * time.Second)
 	defer unscheduledCheckTicker.Stop()
+
+	// Give nodes a chance to (re-)report before evaluating runner health: the
+	// first tick fires one node-expiration window after warmup completes.
+	runnersHealthTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds) * time.Second)
+	defer runnersHealthTicker.Stop()
 
 	for {
 		select {
@@ -496,6 +512,9 @@ func (d *dispatcher) run(ctx context.Context) {
 					log.Infof("Skipping periodic rebalance: %v", err)
 				}
 			}
+		case <-runnersHealthTicker.C:
+			// Report/resolve the missing cluster check runners health issue
+			d.checkCLCRunnersHealth()
 		}
 	}
 }

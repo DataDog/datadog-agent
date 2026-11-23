@@ -586,7 +586,7 @@ func start(log log.Component,
 
 	if config.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
-		clusterCheckHandler, err := setupClusterCheck(mainCtx, ac, taggerComp)
+		clusterCheckHandler, err := setupClusterCheck(mainCtx, ac, taggerComp, healthPlatform)
 		if err == nil {
 			api.ModifyAPIRouter(func(r *http.ServeMux) {
 				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
@@ -898,8 +898,8 @@ func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodisc
 	return instrHandlers
 }
 
-func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*pkgclusterchecks.Handler, error) {
-	handler, err := pkgclusterchecks.NewHandler(ac, tagger)
+func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component, healthPlatform healthplatformdef.Component) (*pkgclusterchecks.Handler, error) {
+	handler, err := pkgclusterchecks.NewHandler(ac, tagger, healthPlatform)
 	if err != nil {
 		return nil, err
 	}

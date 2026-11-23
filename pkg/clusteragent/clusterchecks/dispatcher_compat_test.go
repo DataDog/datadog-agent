@@ -37,7 +37,7 @@ func newGroupDispatcher(t *testing.T, groups string) *dispatcher {
 		require.NoError(t, json.Unmarshal([]byte(groups), &declared))
 	}
 	configmock.New(t).SetInTest("cluster_checks.runner_groups", declared)
-	return newDispatcher(taggerfxmock.SetupFakeTagger(t))
+	return newDispatcher(taggerfxmock.SetupFakeTagger(t), nil)
 }
 
 // registerWorker registers a worker in the given runner group ("" for a

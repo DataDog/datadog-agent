@@ -14,6 +14,7 @@ import (
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
@@ -37,7 +38,7 @@ func (h *Handler) NodesRunningCheck(_ string) (map[string]struct{}, bool) {
 }
 
 // NewHandler not implemented
-func NewHandler(_ autodiscovery.Component, _ tagger.Component) (*Handler, error) {
+func NewHandler(_ autodiscovery.Component, _ tagger.Component, _ healthplatformdef.Component) (*Handler, error) {
 	return nil, ErrNotCompiled
 }
 
