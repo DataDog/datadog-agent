@@ -828,11 +828,10 @@ func (tkn *SQLTokenizer) scanNumber(seenDecimalPoint bool) (TokenKind, []byte) {
 			tkn.advance()
 			tkn.scanMantissa(8)
 		default:
-			// octal int or float
-			tkn.scanMantissa(8)
-			if tkn.lastChar == '8' || tkn.lastChar == '9' {
-				tkn.scanMantissa(10)
-			}
+			// int or float with a leading zero. Scan in base 10: SQL has no implicit
+			// octal, and a base-8 scan would stop at a separator before an 8 or 9,
+			// splitting a literal like 0_987 and leaking its tail.
+			tkn.scanMantissa(10)
 			if tkn.lastChar == '.' || tkn.lastChar == 'e' || tkn.lastChar == 'E' {
 				goto fraction
 			}

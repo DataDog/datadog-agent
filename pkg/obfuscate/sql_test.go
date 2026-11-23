@@ -3134,6 +3134,12 @@ func TestSQLLiteralLeaks(t *testing.T) {
 			tables: "t",
 		},
 		{
+			// a leading zero with a separator before an 8 or 9
+			in:     "SELECT * FROM t WHERE a = 0_987 OR a = 07_9 OR a = 0_9.5",
+			out:    "SELECT * FROM t WHERE a = ? OR a = ? OR a = ?",
+			tables: "t",
+		},
+		{
 			in:     "SELECT * FROM t WHERE a = 0x_FF OR a = 0b_10 OR a = 0o_7",
 			out:    "SELECT * FROM t WHERE a = ? OR a = ? OR a = ?",
 			tables: "t",
