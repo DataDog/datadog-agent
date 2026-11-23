@@ -43,6 +43,15 @@ const (
 	logsServiceAllowlistSetting = "multi_region_failover.logs_service_allowlist"
 )
 
+// mrfSettings are the runtime settings that AGENT_FAILOVER configs are applied through.
+var mrfSettings = []string{
+	failoverMetricsSetting,
+	failoverLogsSetting,
+	failoverAPMSetting,
+	metricsAllowlistSetting,
+	logsServiceAllowlistSetting,
+}
+
 type rcClient struct {
 	client        *client.Client
 	clientMRF     *client.Client
@@ -145,6 +154,14 @@ func (rc *rcClient) createGRPCClient() error {
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
+		// Every process running this component reads the shared configuration, but only the ones that
+		// register all the Multi-Region Failover runtime settings can apply AGENT_FAILOVER configs. The
+		// others would fail to apply any setting an update carries, so they do not subscribe.
+		if missing := rc.missingMRFSettings(); len(missing) > 0 {
+			pkglog.Infof("Multi-Region Failover is enabled, but %s does not register the runtime settings %v: not subscribing to AGENT_FAILOVER remote config", rc.agentName, missing)
+			return nil
+		}
+
 		rc.clientMRF, err = client.NewUnverifiedMRFGRPCClient(
 			ipcAddress,
 			pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
@@ -158,6 +175,18 @@ func (rc *rcClient) createGRPCClient() error {
 	}
 
 	return nil
+}
+
+// missingMRFSettings returns the Multi-Region Failover runtime settings the settings component does not register.
+func (rc *rcClient) missingMRFSettings() []string {
+	registered := rc.settingsComponent.RuntimeSettings()
+	var missing []string
+	for _, setting := range mrfSettings {
+		if _, ok := registered[setting]; !ok {
+			missing = append(missing, setting)
+		}
+	}
+	return missing
 }
 
 // start subscribes to AGENT_CONFIG configurations and starts the remote config client

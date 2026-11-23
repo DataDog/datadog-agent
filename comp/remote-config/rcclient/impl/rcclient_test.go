@@ -616,3 +616,66 @@ func TestAgentMRFConfigStatusStaysErrorAcrossSettings(t *testing.T) {
 		assert.True(t, cfg.GetBool(failoverAPMSetting), "the APM flag is still applied")
 	})
 }
+
+// registeredSettings registers the given runtime settings, as the process running the component does.
+type registeredSettings struct {
+	settings.Component
+	names []string
+}
+
+func (s *registeredSettings) RuntimeSettings() map[string]settings.RuntimeSetting {
+	registered := make(map[string]settings.RuntimeSetting, len(s.names))
+	for _, name := range s.names {
+		registered[name] = &mockLogLevelRuntimeSettings{}
+	}
+	return registered
+}
+
+// coreAgentMRFSettings are the Multi-Region Failover runtime settings the core Agent registers, spelled
+// out rather than taken from mrfSettings, so that the tests catch the two lists drifting apart.
+var coreAgentMRFSettings = []string{
+	"multi_region_failover.failover_metrics",
+	"multi_region_failover.failover_logs",
+	"multi_region_failover.failover_apm",
+	"multi_region_failover.metric_allowlist",
+	"multi_region_failover.logs_service_allowlist",
+}
+
+// AGENT_FAILOVER configs can only be applied by a process that registers every Multi-Region Failover
+// runtime setting.
+func TestAgentMRFMissingRuntimeSettings(t *testing.T) {
+	tests := []struct {
+		name       string
+		registered []string
+		want       []string
+	}{
+		{name: "core agent", registered: append([]string{"log_level"}, coreAgentMRFSettings...)},
+		{name: "system-probe", registered: []string{"log_level"}, want: coreAgentMRFSettings},
+		{name: "some settings", registered: coreAgentMRFSettings[:4], want: coreAgentMRFSettings[4:]},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rc := &rcClient{settingsComponent: &registeredSettings{names: tt.registered}}
+			assert.Equal(t, tt.want, rc.missingMRFSettings())
+		})
+	}
+}
+
+// A process missing Multi-Region Failover runtime settings, such as system-probe, does not subscribe to
+// AGENT_FAILOVER, but still gets its remote config client.
+func TestAgentMRFNotSubscribedWithoutRuntimeSettings(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("multi_region_failover.enabled", true)
+	rc := &rcClient{
+		settingsComponent: &registeredSettings{names: []string{"log_level"}},
+		agentName:         "system-probe",
+		agentVersion:      "7.0.0",
+		IPC:               ipcmock.New(t),
+	}
+
+	require.NoError(t, rc.createGRPCClient())
+	t.Cleanup(rc.client.Close)
+
+	assert.NotNil(t, rc.client)
+	assert.Nil(t, rc.clientMRF)
+}

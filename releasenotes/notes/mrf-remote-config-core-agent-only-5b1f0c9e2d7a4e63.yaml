@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Agent processes that cannot apply Multi-Region Failover settings, such as
+    ``system-probe`` and ``private-action-runner``, no longer subscribe to the
+    Multi-Region Failover Remote Configuration. This removes the
+    ``setting multi_region_failover.* not found`` error logs they reported when
+    ``multi_region_failover.enabled`` was set and they received updates they
+    could not apply.
