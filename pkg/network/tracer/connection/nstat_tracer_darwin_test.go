@@ -2016,6 +2016,18 @@ func TestNStatTracerRecordsDomainOfPublishedConnection(t *testing.T) {
 	require.Equal(t, foundBefore+2, found.Get())
 }
 
+func TestNStatTracerRecordsDomainWithDestinationPort(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	var ports []uint16
+	tracer.recordDomain = func(_ processutil.Address, port uint16, _ string) {
+		ports = append(ports, port)
+	}
+
+	tracer.processEvent(testNStatDomainUpdate(7, nstat.ProviderTCPKernel, testNStatTCPFlow(1234, tcpStateEstablished), "example.com"))
+
+	require.Equal(t, []uint16{443}, ports)
+}
+
 func TestNStatTracerRecordsDomainAgainWhileConnectionLives(t *testing.T) {
 	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
 	now := time.Unix(500, 0)
@@ -2155,7 +2167,7 @@ func TestNStatTracerRecordsNoDomainOfDNSServerOnceUnlisted(t *testing.T) {
 func TestNStatTracerRecordsDomainWithoutLock(t *testing.T) {
 	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
 	var lockHeld []bool
-	tracer.recordDomain = func(processutil.Address, string) {
+	tracer.recordDomain = func(processutil.Address, uint16, string) {
 		acquired := tracer.mu.TryLock()
 		if acquired {
 			tracer.mu.Unlock()
@@ -2173,7 +2185,7 @@ func TestNStatTracerCollectsConnectionAfterRecordingItsDomain(t *testing.T) {
 	recording := make(chan struct{})
 	release := make(chan struct{})
 	var recorded atomic.Bool
-	tracer.recordDomain = func(processutil.Address, string) {
+	tracer.recordDomain = func(processutil.Address, uint16, string) {
 		close(recording)
 		<-release
 		recorded.Store(true)
@@ -2200,7 +2212,7 @@ func TestNStatTracerCollectsConnectionAfterRecordingItsDomain(t *testing.T) {
 
 func TestNStatTracerCollectsConnectionsAfterRecorderPanics(t *testing.T) {
 	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
-	tracer.recordDomain = func(processutil.Address, string) {
+	tracer.recordDomain = func(processutil.Address, uint16, string) {
 		panic("recorder failed")
 	}
 	require.Panics(t, func() {
@@ -2224,7 +2236,7 @@ func TestNStatTracerCollectsConnectionsAfterRecorderPanics(t *testing.T) {
 func TestNStatTracerSurvivesRecorderCollectingConnections(t *testing.T) {
 	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
 	collected := -1
-	tracer.recordDomain = func(processutil.Address, string) {
+	tracer.recordDomain = func(processutil.Address, uint16, string) {
 		var buffer network.ConnectionBuffer
 		if tracer.GetConnections(&buffer, nil) == nil {
 			collected = len(buffer.Connections())
@@ -2262,7 +2274,7 @@ func TestNStatTracerRecordsDomainBeforeClosing(t *testing.T) {
 
 type nopDomainRecorder struct{}
 
-func (nopDomainRecorder) AddDomain(processutil.Address, string) {}
+func (nopDomainRecorder) AddDomain(processutil.Address, uint16, string) {}
 
 func (nopDomainRecorder) IsDNSServer(processutil.Address, uint16) bool { return false }
 
@@ -2378,7 +2390,7 @@ type nstatRecordedDomain struct {
 // recordNStatDomains makes tracer record domains and returns what it records.
 func recordNStatDomains(tracer *nstatTracer) *[]nstatRecordedDomain {
 	recorded := &[]nstatRecordedDomain{}
-	tracer.recordDomain = func(addr processutil.Address, domain string) {
+	tracer.recordDomain = func(addr processutil.Address, _ uint16, domain string) {
 		*recorded = append(*recorded, nstatRecordedDomain{addr: addr, domain: domain})
 	}
 	return recorded

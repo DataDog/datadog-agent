@@ -115,13 +115,16 @@ func newDarwinDNSMonitorWithSource(cfg *config.Config, src filter.PacketSource) 
 	return m, nil
 }
 
-// AddDomain caches domain as a name of addr. The macOS connection tracer
-// reports the domain each connection was opened for, which also covers
-// connections whose DNS traffic is encrypted or proxied.
-func (m *darwinDNSMonitor) AddDomain(addr util.Address, domain string) {
-	m.cache.Add(&translation{
+// AddDomain caches domain as a name of addr, unless addr serves plain DNS on
+// port. The macOS connection tracer reports the domain each connection was
+// opened for, which also covers connections whose DNS traffic is encrypted
+// or proxied.
+func (m *darwinDNSMonitor) AddDomain(addr util.Address, port uint16, domain string) {
+	m.cache.addUnless(&translation{
 		dns: ToHostname(domain),
 		ips: map[util.Address]time.Time{addr: time.Now().Add(connectionDomainTTL)},
+	}, func() bool {
+		return m.IsDNSServer(addr, port)
 	})
 }
 
@@ -167,6 +170,9 @@ func (m *darwinDNSMonitor) refreshDNSServers(list func() ([]netip.AddrPort, erro
 	if slices.Equal(servers, previous) {
 		return nil
 	}
+	// The list is stored before the names are removed: AddDomain checks it
+	// under the cache lock, so a name recorded meanwhile is either removed
+	// here or never added.
 	m.servers.Store(&servers)
 	// Until a server is listed, the connection tracer takes the names its
 	// queries look up for names of its address, unless its port already
@@ -234,6 +240,17 @@ func dnsCaptureFilterExpr(ports []int, servers []netip.AddrPort) string {
 func dnsCaptureFilterFits(expr string) bool {
 	instructions, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, dnsSnapLen, expr)
 	return err == nil && len(instructions) <= dnsCaptureFilterMaxInstructions
+}
+
+// addUnless adds translation unless skip, called with the cache locked,
+// reports true. skip must not block or use the cache.
+func (c *reverseDNSCache) addUnless(translation *translation, skip func() bool) bool {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	if skip() {
+		return false
+	}
+	return c.addLocked(translation)
 }
 
 // remove deletes the names of addrs, cached under the address or its

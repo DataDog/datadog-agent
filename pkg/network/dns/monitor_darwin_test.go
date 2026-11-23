@@ -275,11 +275,53 @@ func TestDarwinDNSMonitor_AddDomain(t *testing.T) {
 		ips: map[util.Address]time.Time{addr: time.Now().Add(time.Minute)},
 	})
 
-	m.AddDomain(addr, "api.example.com")
-	m.AddDomain(addr, "example.com")
+	m.AddDomain(addr, 443, "api.example.com")
+	m.AddDomain(addr, 443, "example.com")
 
 	names := m.Resolve(map[util.Address]struct{}{addr: {}})
 	assert.ElementsMatch(t, []Hostname{ToHostname("example.com"), ToHostname("api.example.com")}, names[addr])
+}
+
+func TestDarwinDNSMonitor_AddDomainSkipsDNSServers(t *testing.T) {
+	m := newTestMonitor(t, newMockSubSource(nil))
+	defer m.Close()
+	server := util.AddressFromString("192.0.2.53")
+	other := util.AddressFromString("203.0.113.1")
+	m.servers.Store(&[]netip.AddrPort{netip.AddrPortFrom(server.Addr, 5300)})
+
+	m.AddDomain(server, 5300, "looked-up.example")
+	m.AddDomain(other, 53, "looked-up.example")
+	m.AddDomain(server, 443, "dns.example")
+
+	names := m.Resolve(map[util.Address]struct{}{server: {}, other: {}})
+	assert.Equal(t, map[util.Address][]Hostname{server: {ToHostname("dns.example")}}, names)
+}
+
+func TestReverseDNSCache_AddUnlessDecidesUnderLock(t *testing.T) {
+	cache := newReverseDNSCache(100, time.Minute)
+	defer cache.Close()
+	addr := util.AddressFromString("192.0.2.53")
+	add := func(name string, skip bool) bool {
+		return cache.addUnless(&translation{
+			dns: ToHostname(name),
+			ips: map[util.Address]time.Time{addr: time.Now().Add(time.Minute)},
+		}, func() bool {
+			// A refresh removes names under the cache lock, so skip must
+			// decide with it held for a recording not to put one back.
+			locked := !cache.mux.TryLock()
+			if !locked {
+				cache.mux.Unlock()
+			}
+			assert.True(t, locked, "skip runs with the cache locked")
+			return skip
+		})
+	}
+
+	assert.False(t, add("skipped.example", true))
+	assert.True(t, add("added.example", false))
+
+	names := cache.Get(map[util.Address]struct{}{addr: {}})
+	assert.Equal(t, map[util.Address][]Hostname{addr: {ToHostname("added.example")}}, names)
 }
 
 func TestDarwinDNSMonitor_IsDNSServer(t *testing.T) {
@@ -344,9 +386,11 @@ func TestDarwinDNSMonitor_RefreshForgetsNamesOfNewDNSServers(t *testing.T) {
 	require.NoError(t, m.refreshDNSServers(list(netip.AddrPortFrom(listed.Addr, 5300)), func(string) {}))
 	// The connection tracer records no names for a server it knows, so its
 	// names came from elsewhere, such as a DNS answer, and stay.
+	ips := make(map[util.Address]time.Time)
 	for _, addr := range []util.Address{listed, added, addedMapped, addedOnMonitoredPort, other} {
-		m.AddDomain(addr, "looked-up.example")
+		ips[addr] = time.Now().Add(time.Minute)
 	}
+	m.cache.Add(&translation{dns: ToHostname("looked-up.example"), ips: ips})
 
 	require.NoError(t, m.refreshDNSServers(list(
 		netip.AddrPortFrom(listed.Addr, 5300),

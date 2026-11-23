@@ -124,7 +124,7 @@ func TestNStatTracerFunctionalRecordingDomains(t *testing.T) {
 	tracer.includeLoopback = true
 	// Sources are then described with update requests, after which the
 	// kernel reports each close as a single update.
-	tracer.recordDomain = func(processutil.Address, string) {}
+	tracer.recordDomain = func(processutil.Address, uint16, string) {}
 	domainItems := func() float64 {
 		return nstatTracerTelemetry.domains.WithValues("domain").Get() +
 			nstatTracerTelemetry.domains.WithValues("empty").Get()

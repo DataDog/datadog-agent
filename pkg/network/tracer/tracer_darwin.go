@@ -94,6 +94,7 @@ func NewTracer(cfg *config.Config, telemetryComp telemetry.Component, _ statsd.C
 	})
 	if err != nil {
 		tr.interfaceTagger.Close()
+		reverseDNS.Close()
 		return nil, fmt.Errorf("error starting connection tracer: %w", err)
 	}
 

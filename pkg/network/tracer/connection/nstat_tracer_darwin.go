@@ -250,7 +250,7 @@ type nstatTracer struct {
 	// for, again every nstatDomainRefresh, and is called without mu held. It
 	// is set before Start, and sources are described with update requests
 	// while it is set.
-	recordDomain func(addr processutil.Address, domain string)
+	recordDomain func(addr processutil.Address, port uint16, domain string)
 	// domainRecording is closed once the domain processEvent last recorded
 	// is in. GetConnections waits for it after its snapshot, at most
 	// nstatDomainRecordWait, so a client that collects a connection also
@@ -334,8 +334,11 @@ func newNStatTracerWithControl(cfg *config.Config, control nstatControl) *nstatT
 
 // DarwinDomainRecorder records the domains the NStat backend reports.
 type DarwinDomainRecorder interface {
-	// AddDomain records domain as a name of addr.
-	AddDomain(addr processutil.Address, domain string)
+	// AddDomain records domain as a name of addr, the destination of a
+	// connection on port. It records nothing if addr serves plain DNS on
+	// port by then, since the tracer's IsDNSServer check can predate a
+	// server being listed.
+	AddDomain(addr processutil.Address, port uint16, domain string)
 	// IsDNSServer reports whether addr serves plain DNS on port. The system
 	// resolver tags each plain DNS query socket with the name it looks up,
 	// which is not a name of the server, so connections to a DNS server
@@ -710,7 +713,7 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 		func() {
 			// Deferred, so that a recovered panic can't leave collections waiting.
 			defer close(recorded)
-			record(domain.addr, domain.name)
+			record(domain.addr, domain.port, domain.name)
 		}()
 	}
 	if closed != nil && callback != nil {
@@ -939,6 +942,7 @@ func (t *nstatTracer) observeDomainLocked(source *nstatSource, event nstat.Event
 // records nothing.
 type nstatDomain struct {
 	addr processutil.Address
+	port uint16
 	name string
 }
 
@@ -958,7 +962,7 @@ func (t *nstatTracer) domainToRecordLocked(source *nstatSource) nstatDomain {
 		source.dnsServer = true
 		return nstatDomain{}
 	}
-	return nstatDomain{addr: source.conn.Dest, name: source.domain}
+	return nstatDomain{addr: source.conn.Dest, port: source.conn.DPort, name: source.domain}
 }
 
 func nstatDomainResult(state nstat.DomainState) string {
