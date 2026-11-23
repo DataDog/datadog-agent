@@ -431,18 +431,14 @@ Enhancement Notes
   future release. If you run into any issues with the new format, please let
   us know by opening a support ticket.
 
-- APM : On Windows, when ``process_manager.enabled`` is true and the fleet installer writes
+- APM: On Windows, when ``process_manager.enabled`` is true and the fleet installer writes
   ``processes.d/datadog-agent-trace.yaml``, the Trace Agent is supervised by dd-procmgr
   instead of the legacy ``datadog-trace-agent`` Windows service. When the processes.d
   definition is absent or process manager is disabled, the Agent continues to start
   the Trace Agent via SCM when APM is enabled. If ``dd-procmgr-service`` does not start,
   the Agent falls back to the legacy Windows service rather than leaving tracing unsupervised.
 
-- Agents are now built with Go ``1.26.10``.
-
 - Agents are now built with Go ``1.26.11``.
-
-- Agents are now built with Go ``1.26.9``.
 
 - The Agent now reports, through cross-org Agent telemetry, how often check error and warning messages
   exceed the size cap of the ``agent_checks`` metadata payload (``checks.metadata_message_oversized``) and
@@ -641,7 +637,7 @@ Enhancement Notes
   resources maps overrides the same key in the pod maps.
 
 - The Agent now accepts ``disabled`` log level as a synonym of ``off``,
-  for compatbility with OpenTelemetry.
+  for compatibility with OpenTelemetry.
 
 - Logs that do not use a container-provided timestamp are sent with the time
   the Agent read them, rather than the time they left the Agent's processing
@@ -825,28 +821,20 @@ Enhancement Notes
   platforms the default of 100ms now applies, and the setting can be changed
   with ``DD_DOGSTATSD_PACKET_BUFFER_FLUSH_TIMEOUT``.
 
-- Upgrade OpenTelemetry Collector dependencies from v0.159.0 to v0.162.0
-  (core v1.65.0 to v1.68.0, k8sattributesprocessor v0.159.0 to v1.1.0).
+- Upgrade OpenTelemetry Collector dependencies from v0.159.0 to v0.163.0
+  (core v1.65.0 to v1.69.0, k8sattributesprocessor v0.159.0 to v1.2.0).
   
   See the full upstream changelogs:
   
   - collector-contrib
     `v0.160.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.160.0>`__,
     `v0.161.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.161.0>`__,
-    `v0.162.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.162.0>`__
+    `v0.162.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.162.0>`__,
+    `v0.163.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.163.0>`__
   - collector core
     `v0.160.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.160.0>`__,
     `v0.161.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.161.0>`__,
-    `v0.162.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.162.0>`__
-
-- Upgrade OpenTelemetry Collector dependencies from v0.162.0 to v0.163.0
-  (core v1.68.0 to v1.69.0, k8sattributesprocessor v1.1.0 to v1.2.0).
-  
-  See the full upstream changelogs:
-  
-  - collector-contrib
-    `v0.163.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.163.0>`__
-  - collector core
+    `v0.162.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.162.0>`__,
     `v0.163.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.163.0>`__
 
 - The Versa check adds a ``client_timeout`` option (seconds, default 10) for
@@ -878,7 +866,7 @@ Enhancement Notes
 Deprecation Notes
 -----------------
 
-- APM : The ``datadog.trace_agent.panic`` metric is deprecated and will be
+- APM: The ``datadog.trace_agent.panic`` metric is deprecated and will be
   permanently removed in a future release of the Datadog Agent.
 
 - The SBOM settings ``sbom.cache_directory``, ``sbom.clear_cache_on_exit``,
@@ -1911,13 +1899,9 @@ Other Notes
 
 - Minimizes the ``gstatus`` binary used for the GlusterFS integration to remove unused dependencies.
 
-- Update ``security-agent-policies`` to v0.85.1.
-
-- Update ``security-agent-policies`` to v0.86.0, whose CIS frameworks
+- Update ``security-agent-policies`` to v0.86.1, whose CIS frameworks
   follow the latest CIS Benchmark versions for Ubuntu, Red Hat
   Enterprise Linux, AlmaLinux, Amazon Linux and Docker.
-
-- Update ``security-agent-policies`` to v0.86.1.
 
 - Update ``attr`` to 2.6.0.
 
@@ -1932,8 +1916,6 @@ Other Notes
 - Update ``lua`` to 5.5.1.
 
 - Update ``nghttp2`` to 1.70.0.
-
-- Update ``OpenSCAP`` to 1.4.5.
 
 - Update ``OpenSCAP`` to 1.4.6.
 
