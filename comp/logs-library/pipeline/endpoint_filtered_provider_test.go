@@ -1099,6 +1099,134 @@ func TestEndpointFilteredRetireWhilePendingAutoRetiresOnDrain(t *testing.T) {
 	}, "retired source automatically released ownership once drained")
 }
 
+func TestEndpointFilteredTimedOutRetireCompletesCleanupAfterRecovery(t *testing.T) {
+	us1 := newEFIntake(t)
+	us1.setStatus(http.StatusServiceUnavailable)
+	eps := config.NewEndpointsWithBatchSettings(
+		us1.endpoint("us1-key", true),
+		nil, false, true, 20*time.Millisecond, 1, 8, 1024*1024, 16,
+	)
+	sink := &efSink{ch: make(chan *message.Payload, 128)}
+	p, err := NewEndpointFilteredProvider(EndpointFilteredOptions{
+		NumberOfPipelines:         1,
+		Sink:                      sink,
+		DiagnosticMessageReceiver: &diagnostic.NoopMessageReceiver{},
+		Endpoints:                 eps,
+		Selectors:                 []routing.EndpointSelector{routing.SelectorFunc(func(routing.LogView) (bool, error) { return true, nil })},
+		DestinationsContext:       client.NewDestinationsContext(),
+		Config:                    efTestConfig(t),
+		Compression:               logscompression.NewMockCompressor(),
+		Secrets:                   secretsnoop.NewComponent().Comp,
+	})
+	require.NoError(t, err)
+	p.Start()
+	defer p.Stop()
+
+	src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: "/tmp/retire-timeout.log"})
+	ch, err := p.SourceInput("file:/tmp/retire-timeout.log", 1)
+	require.NoError(t, err)
+	// Saturate SourcePendingLimit (64) + 1 so admission blocks waiting for space.
+	for i := 1; i <= 65; i++ {
+		ch <- makeCheckpointedMessage(src, "file:/tmp/retire-timeout.log", strconv.Itoa(i), "m-"+strconv.Itoa(i), message.StatusInfo)
+	}
+
+	// Expire caller context immediately -> provider takes over async cleanup.
+	expiredCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_ = p.RetireSource(expiredCtx, "file:/tmp/retire-timeout.log", 1)
+
+	// Recover US1 -> all 65 records drain and provider-owned cleanup reclaims the source.
+	us1.setStatus(http.StatusAccepted)
+	waitForCondition(t, 5*time.Second, func() bool {
+		return len(us1.messages()) == 65
+	}, "all 65 records delivered after recovery")
+	waitForCondition(t, 5*time.Second, func() bool {
+		return !p.progress.OwnsSource("file:/tmp/retire-timeout.log")
+	}, "provider-owned cleanup released source ownership after timed-out retire")
+}
+
+func TestEndpointFilteredConcurrentFlushesBothWakeUp(t *testing.T) {
+	us1 := newEFIntake(t)
+	eps := config.NewEndpointsWithBatchSettings(
+		us1.endpoint("us1-key", true),
+		nil, false, true, 5*time.Second, 1, 16, 1024*1024, 16,
+	)
+	sink := &efSink{ch: make(chan *message.Payload, 16)}
+	p, err := NewEndpointFilteredProvider(EndpointFilteredOptions{
+		NumberOfPipelines:         1,
+		Sink:                      sink,
+		DiagnosticMessageReceiver: &diagnostic.NoopMessageReceiver{},
+		Endpoints:                 eps,
+		Selectors:                 []routing.EndpointSelector{routing.SelectorFunc(func(routing.LogView) (bool, error) { return true, nil })},
+		DestinationsContext:       client.NewDestinationsContext(),
+		Config:                    efTestConfig(t),
+		Compression:               logscompression.NewMockCompressor(),
+		Secrets:                   secretsnoop.NewComponent().Comp,
+	})
+	require.NoError(t, err)
+	p.Start()
+	defer p.Stop()
+
+	src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: "/tmp/two-flush.log"})
+	in, err := p.SourceInput("file:/tmp/two-flush.log", 1)
+	require.NoError(t, err)
+	in <- makeCheckpointedMessage(src, "file:/tmp/two-flush.log", "10", "only-record", message.StatusInfo)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			p.Flush(ctx)
+		}()
+	}
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("concurrent Flush callers did not both wake up")
+	}
+}
+
+func TestEndpointFilteredGracefulStopDeliversQueuedReliablePayload(t *testing.T) {
+	us1 := newEFIntake(t)
+	eps := config.NewEndpointsWithBatchSettings(
+		us1.endpoint("us1-key", true),
+		nil, false, true, 5*time.Second, 1, 16, 1024*1024, 16,
+	)
+	sink := &efSink{ch: make(chan *message.Payload, 16)}
+	p, err := NewEndpointFilteredProvider(EndpointFilteredOptions{
+		NumberOfPipelines:         1,
+		Sink:                      sink,
+		DiagnosticMessageReceiver: &diagnostic.NoopMessageReceiver{},
+		Endpoints:                 eps,
+		Selectors:                 []routing.EndpointSelector{routing.SelectorFunc(func(routing.LogView) (bool, error) { return true, nil })},
+		DestinationsContext:       client.NewDestinationsContext(),
+		Config:                    efTestConfig(t),
+		Compression:               logscompression.NewMockCompressor(),
+		Secrets:                   secretsnoop.NewComponent().Comp,
+	})
+	require.NoError(t, err)
+	p.Start()
+
+	src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: "/tmp/graceful-send.log"})
+	in := p.NextPipelineChan()
+	in <- makeCheckpointedMessage(src, "file:/tmp/graceful-send.log", "10", "must-deliver-on-stop", message.StatusInfo)
+	// Stop immediately without explicit Flush: batcher + worker + DrainAndClose must deliver and checkpoint.
+	p.Stop()
+
+	assert.Equal(t, []string{"must-deliver-on-stop"}, us1.messages())
+	require.Len(t, sink.ch, 1)
+	cp := <-sink.ch
+	assert.Equal(t, "10", cp.MessageMetas[0].Origin.Offset)
+}
+
 func TestEndpointFilteredGracefulStopDrainsCompletedCheckpoints(t *testing.T) {
 	us1 := newEFIntake(t)
 	eps := config.NewEndpointsWithBatchSettings(

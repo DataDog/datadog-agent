@@ -27,7 +27,7 @@ Filtering and reliability are independent: selectors can be attached to any reli
 | 0 endpoints match | Skip render/encode; no delivery | Completed locally (`Excluded: true`) |
 | Optional-only (0 reliable, >=1 optional match) | Render/encode once; non-blocking handoff to matched optional queues | Completed locally immediately after non-blocking handoff |
 | >=1 reliable endpoints match | Try all matching reliable endpoints; block only if all matching reliable queues are full. Optional matches get non-blocking best-effort copies. | Satisfied when any one matching reliable endpoint completes (`CompletionRequireAny`); optional acknowledgments never advance pending reliable records. |
-| Selector evaluation error (reliable endpoint) | Fail-open (include endpoint) + error metric & rate-limited warning | Follows normal reliable completion (does not install an invalid-selection barrier; still holds checkpoint if that reliable endpoint is unavailable) |
+| Selector evaluation error (reliable endpoint) | Fail-open (include endpoint) + error metric & rate-limited warning | Follows normal reliable completion (does not install an invalid-selection barrier; holds checkpoint only if no matching reliable endpoint supplies a terminal completion) |
 | Selector evaluation error (optional endpoint) | Fail-closed (exclude endpoint) + error metric & rate-limited warning | Unaffected |
 
 ## Isolation, Backpressure, and MRF
@@ -43,7 +43,7 @@ OTTL expression compilation and YAML selector syntax are intentionally stubbed u
 - `routing.EndpointSelector` (`Match(routing.LogView) (bool, error)`)
 - `routing.SelectorCompiler` (`Compile(expr string) (routing.EndpointSelector, error)`)
 - `routing.StubSelectorCompiler` (returns `nil` for empty expressions and `routing.ErrSelectorCompilerNotConfigured` for non-empty expressions)
-- `comp/logs/agent/impl` keeps `pipeline.NewProvider` when no endpoint selectors are configured (zero overhead on the default path). When endpoint selectors are configured, `buildPipelineProvider` requires HTTP JSON endpoints and valid `EndpointFilteredProvider` settings, returning an error instead of silently falling back to unfiltered delivery. Launchers receive the provider's guarded registry (`GuardRegistry`) and file tailers use isolated per-tailer `SourceInput` channels with generation retirement.
+- `comp/logs/agent/impl` keeps `pipeline.NewProvider` when no endpoint selectors are configured (bypassing selector evaluation on the default path; shared processor MRF initialization and sender worker/batch drain improvements also apply). When endpoint selectors are configured, `buildPipelineProvider` requires HTTP JSON endpoints and valid `EndpointFilteredProvider` settings, returning an error instead of silently falling back to unfiltered delivery. Launchers receive the provider's guarded registry (`GuardRegistry`) and file/WindowsEvent tailers use isolated per-tailer `SourceInput` channels with generation retirement.
 
 ## Verified Limits
 

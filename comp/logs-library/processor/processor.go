@@ -46,6 +46,7 @@ type failoverNotifier struct {
 	config               pkgconfigmodel.Reader
 	configChan           chan failoverConfig
 	configChanMu         sync.Mutex
+	latest               atomic.Pointer[failoverConfig]
 	requireGlobalEnabled bool
 	stopped              atomic.Bool
 }
@@ -92,6 +93,7 @@ func (n *failoverNotifier) updateFailoverConfig() {
 		return
 	}
 	conf := n.readFailoverConfig()
+	n.latest.Store(&conf)
 	select {
 	case <-n.configChan:
 	default:
@@ -176,6 +178,8 @@ func newProcessor(config pkgconfigmodel.Reader, inputChan, outputChan chan *mess
 			config.OnUpdate(notifier.onLogsFailoverSettingChanged)
 		}
 		p.failoverConfig = notifier.readFailoverConfig()
+		initial := p.failoverConfig
+		notifier.latest.Store(&initial)
 	}
 
 	return p
@@ -309,9 +313,18 @@ func (p *Processor) processMessage(msg *message.Message) {
 		if p.selectForRouting != nil {
 			// Prepare existing metadata while structured attributes are still available.
 			p.resolveTagFilter(msg)
-			if p.failoverConfig.isFailoverActive && !p.disableMRF {
-				p.filterMRFMessages(msg)
-			} else if p.disableMRF {
+			if !p.disableMRF {
+				if p.failoverNotifier != nil {
+					if latest := p.failoverNotifier.latest.Load(); latest != nil {
+						p.failoverConfig = *latest
+					}
+				}
+				if p.failoverConfig.isFailoverActive {
+					p.filterMRFMessages(msg)
+				} else {
+					msg.IsMRFAllow = false
+				}
+			} else {
 				msg.IsMRFAllow = false
 			}
 			if p.selectForRouting(msg) != RoutingContinue {

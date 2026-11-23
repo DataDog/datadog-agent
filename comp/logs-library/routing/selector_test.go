@@ -270,3 +270,27 @@ func TestProgressRequireAnyAndFailGroupLocal(t *testing.T) {
 		t.Fatalf("expected m3 offset 30, got %s", got3.MessageMetas[0].Origin.Offset)
 	}
 }
+
+func TestProgressRequireAnyOverlappingRotationsReclaimHistoryBudget(t *testing.T) {
+	sink := &selectorTestSink{ch: make(chan *message.Payload, 16)}
+	// Small budget (limit=4) must survive >20 overlapping rotations of the same identifier.
+	progress, err := NewProgressWithMode(4, sink, CompletionRequireAny)
+	if err != nil {
+		t.Fatalf("NewProgressWithMode: %v", err)
+	}
+	defer progress.Close()
+
+	const id = "file:/tmp/rotated.log"
+	if err := progress.RegisterSource(id, 1); err != nil {
+		t.Fatalf("RegisterSource gen 1: %v", err)
+	}
+	for gen := uint64(2); gen <= 25; gen++ {
+		// Overlap: register replacement generation before retiring old generation.
+		if err := progress.RegisterSource(id, gen); err != nil {
+			t.Fatalf("RegisterSource gen %d failed (history budget leaked): %v", gen, err)
+		}
+		if err := progress.RetireSource(id, gen-1); err != nil {
+			t.Fatalf("RetireSource gen %d: %v", gen-1, err)
+		}
+	}
+}

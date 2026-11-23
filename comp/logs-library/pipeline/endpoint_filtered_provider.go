@@ -39,6 +39,8 @@ import (
 
 const (
 	optionalStreamCapacity = 128
+	maxSharedParks         = 256
+	maxTotalParked         = 1024
 )
 
 var (
@@ -171,9 +173,72 @@ func (m *managedInput) closeOnce() {
 	m.mu.Unlock()
 }
 
+type parkedRecord struct {
+	msg        *message.Message
+	generation uint64
+}
+
 type sharedSourcePark struct {
-	queue  chan *message.Message
+	queue  chan parkedRecord
 	queued int // Guarded by sharedParkMu.
+}
+
+// efSourceDispatch tracks per-source batching-stage dispatch with broadcast
+// completion notifications so multiple concurrent Flush callers all wake up.
+type efSourceDispatch struct {
+	input          chan *message.Message
+	submitted      uint64 // Accessed only by dispatchProcessed under sourceDispatchMu.
+	completed      atomic.Uint64
+	notifyMu       sync.Mutex
+	notify         chan struct{}
+	exited         bool
+	flushAfter     atomic.Uint64
+	flushRequested chan struct{}
+}
+
+func newEFSourceDispatch(capacity int) *efSourceDispatch {
+	return &efSourceDispatch{
+		input:          make(chan *message.Message, capacity),
+		notify:         make(chan struct{}),
+		flushRequested: make(chan struct{}, 1),
+	}
+}
+
+func (s *efSourceDispatch) broadcast() {
+	s.notifyMu.Lock()
+	close(s.notify)
+	s.notify = make(chan struct{})
+	s.notifyMu.Unlock()
+}
+
+func (s *efSourceDispatch) markExited() {
+	s.notifyMu.Lock()
+	s.exited = true
+	close(s.notify)
+	s.notify = make(chan struct{})
+	s.notifyMu.Unlock()
+}
+
+func (s *efSourceDispatch) wait(ctx, providerCtx context.Context, target uint64) {
+	for {
+		if s.completed.Load() >= target {
+			return
+		}
+		s.notifyMu.Lock()
+		if s.completed.Load() >= target || s.exited {
+			s.notifyMu.Unlock()
+			return
+		}
+		ch := s.notify
+		s.notifyMu.Unlock()
+		select {
+		case <-ch:
+		case <-ctx.Done():
+			return
+		case <-providerCtx.Done():
+			return
+		}
+	}
 }
 
 type endpointStream struct {
@@ -224,6 +289,7 @@ type EndpointFilteredProvider struct {
 	selections       map[uint64]endpointSelection
 	sharedParkMu     sync.Mutex
 	sharedParks      map[string]*sharedSourcePark
+	totalParked      int
 	sharedParkWg     sync.WaitGroup
 	ctx              context.Context
 	cancel           context.CancelFunc
@@ -231,9 +297,10 @@ type EndpointFilteredProvider struct {
 	processedDone    chan struct{}
 	dispatchDone     sync.WaitGroup
 	sourceDispatchMu sync.Mutex
-	sourceDispatch   map[string]*routedSourceDispatch
+	sourceDispatch   map[string]*efSourceDispatch
 	sourceDone       sync.WaitGroup
 	opsWg            sync.WaitGroup
+	retireCleanupWg  sync.WaitGroup
 	lifecycle        sync.RWMutex
 	stopOnce         sync.Once
 	stopRequested    chan struct{}
@@ -273,7 +340,7 @@ func NewEndpointFilteredProvider(opts EndpointFilteredOptions) (*EndpointFiltere
 		sharedParks:     make(map[string]*sharedSourcePark),
 		ctx:             ctx,
 		cancel:          cancel,
-		sourceDispatch:  make(map[string]*routedSourceDispatch),
+		sourceDispatch:  make(map[string]*efSourceDispatch),
 		sourceInputs:    make(map[sourceInputKey]*managedInput),
 		inputKeys:       make(map[*managedInput]sourceInputKey),
 		processedDone:   make(chan struct{}),
@@ -577,6 +644,9 @@ func (p *EndpointFilteredProvider) admit(input <-chan *message.Message, bound *s
 
 	for msg := range input {
 		if done := msg.RoutingBarrier(); done != nil {
+			if bound == nil {
+				p.waitSharedParks(msg.RoutingBarrierContext())
+			}
 			close(done)
 			continue
 		}
@@ -609,24 +679,26 @@ func (p *EndpointFilteredProvider) admit(input <-chan *message.Message, bound *s
 			identifier = msg.Origin.Identifier
 		}
 
-		// On shared ingress, avoid stalling unrelated sources if one source
-		// has reached SourcePendingLimit by parking that source's backlog in a
-		// bounded per-source waiter goroutine.
+		// On shared ingress, avoid stalling unrelated sources when a single
+		// source hits SourcePendingLimit while aggregate capacity still has
+		// room, subject to bounded total park capacity.
 		if err == nil && bound == nil && identifier != "" {
-			if p.parkIfStalled(identifier, msg, generation, dispatchToProc, handleReserveErr) {
+			if p.parkIfStalled(identifier, msg, generation) {
 				continue
 			}
-			_, reserved, tryErr := p.progress.TryReserveShared(msg, generation)
+			_, sourceFull, aggregateFull, tryErr := p.progress.TryReserveShared(msg, generation)
 			if tryErr != nil {
 				handleReserveErr(msg, tryErr)
 				continue
 			}
-			if !reserved {
-				p.enqueueSharedPark(identifier, msg, generation, dispatchToProc, handleReserveErr)
+			if sourceFull && !aggregateFull && p.tryEnqueueSharedPark(identifier, msg, generation, dispatchToProc, handleReserveErr) {
 				continue
 			}
-			dispatchToProc(msg, identifier)
-			continue
+			if !sourceFull && !aggregateFull {
+				dispatchToProc(msg, identifier)
+				continue
+			}
+			// Aggregate capacity full or park budget full: apply normal backpressure.
 		}
 
 		if err == nil {
@@ -645,7 +717,63 @@ func (p *EndpointFilteredProvider) admit(input <-chan *message.Message, bound *s
 	}
 }
 
-func (p *EndpointFilteredProvider) parkIfStalled(
+func (p *EndpointFilteredProvider) waitSharedParks(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	p.sharedParkMu.Lock()
+	var acks []chan struct{}
+	for _, park := range p.sharedParks {
+		ack := make(chan struct{})
+		marker := &message.Message{}
+		marker.SetRoutingBarrier(ack)
+		park.queued++
+		p.totalParked++
+		select {
+		case park.queue <- parkedRecord{msg: marker}:
+			acks = append(acks, ack)
+		default:
+			// Park queue is full (source is stalled); do not block Flush on a full park.
+			park.queued--
+			p.totalParked--
+		}
+	}
+	p.sharedParkMu.Unlock()
+	for _, ack := range acks {
+		select {
+		case <-ack:
+		case <-ctx.Done():
+			return
+		case <-p.stopRequested:
+			return
+		case <-p.ctx.Done():
+			return
+		}
+	}
+}
+
+func (p *EndpointFilteredProvider) parkIfStalled(identifier string, msg *message.Message, generation uint64) bool {
+	p.sharedParkMu.Lock()
+	park := p.sharedParks[identifier]
+	if park == nil {
+		p.sharedParkMu.Unlock()
+		return false
+	}
+	park.queued++
+	p.totalParked++
+	p.sharedParkMu.Unlock()
+	select {
+	case park.queue <- parkedRecord{msg: msg, generation: generation}:
+	case <-p.ctx.Done():
+		p.sharedParkMu.Lock()
+		park.queued--
+		p.totalParked--
+		p.sharedParkMu.Unlock()
+	}
+	return true
+}
+
+func (p *EndpointFilteredProvider) tryEnqueueSharedPark(
 	identifier string,
 	msg *message.Message,
 	generation uint64,
@@ -654,57 +782,40 @@ func (p *EndpointFilteredProvider) parkIfStalled(
 ) bool {
 	p.sharedParkMu.Lock()
 	park := p.sharedParks[identifier]
+	created := false
 	if park == nil {
+		if len(p.sharedParks) >= maxSharedParks || p.totalParked >= maxTotalParked {
+			p.sharedParkMu.Unlock()
+			return false
+		}
+		park = &sharedSourcePark{queue: make(chan parkedRecord, routing.SourcePendingLimit)}
+		p.sharedParks[identifier] = park
+		created = true
+		p.sharedParkWg.Add(1)
+	} else if p.totalParked >= maxTotalParked {
 		p.sharedParkMu.Unlock()
 		return false
 	}
 	park.queued++
-	p.sharedParkMu.Unlock()
-	select {
-	case park.queue <- msg:
-	case <-p.ctx.Done():
-		p.sharedParkMu.Lock()
-		park.queued--
-		p.sharedParkMu.Unlock()
-	}
-	_ = generation
-	_ = dispatch
-	_ = onErr
-	return true
-}
-
-func (p *EndpointFilteredProvider) enqueueSharedPark(
-	identifier string,
-	msg *message.Message,
-	generation uint64,
-	dispatch func(*message.Message, string),
-	onErr func(*message.Message, error),
-) {
-	p.sharedParkMu.Lock()
-	park := p.sharedParks[identifier]
-	created := false
-	if park == nil {
-		park = &sharedSourcePark{queue: make(chan *message.Message, routing.SourcePendingLimit)}
-		p.sharedParks[identifier] = park
-		created = true
-		p.sharedParkWg.Add(1)
-	}
-	park.queued++
+	p.totalParked++
 	p.sharedParkMu.Unlock()
 
 	if created {
-		go func(id string, pk *sharedSourcePark, gen uint64) {
+		go func(id string, pk *sharedSourcePark) {
 			defer p.sharedParkWg.Done()
 			for {
 				select {
-				case m := <-pk.queue:
-					if _, err := p.progress.ReserveShared(p.ctx, m, gen); err != nil {
-						onErr(m, err)
+				case rec := <-pk.queue:
+					if done := rec.msg.RoutingBarrier(); done != nil {
+						close(done)
+					} else if _, err := p.progress.ReserveShared(p.ctx, rec.msg, rec.generation); err != nil {
+						onErr(rec.msg, err)
 					} else {
-						dispatch(m, id)
+						dispatch(rec.msg, id)
 					}
 					p.sharedParkMu.Lock()
 					pk.queued--
+					p.totalParked--
 					if pk.queued == 0 && p.sharedParks[id] == pk {
 						delete(p.sharedParks, id)
 						p.sharedParkMu.Unlock()
@@ -713,6 +824,8 @@ func (p *EndpointFilteredProvider) enqueueSharedPark(
 					p.sharedParkMu.Unlock()
 				case <-p.ctx.Done():
 					p.sharedParkMu.Lock()
+					p.totalParked -= pk.queued
+					pk.queued = 0
 					if p.sharedParks[id] == pk {
 						delete(p.sharedParks, id)
 					}
@@ -720,16 +833,18 @@ func (p *EndpointFilteredProvider) enqueueSharedPark(
 					return
 				}
 			}
-		}(identifier, park, generation)
+		}(identifier, park)
 	}
 
 	select {
-	case park.queue <- msg:
+	case park.queue <- parkedRecord{msg: msg, generation: generation}:
 	case <-p.ctx.Done():
 		p.sharedParkMu.Lock()
 		park.queued--
+		p.totalParked--
 		p.sharedParkMu.Unlock()
 	}
+	return true
 }
 
 func (p *EndpointFilteredProvider) flushAtCapacity(identifier string, proc *processor.Processor) {
@@ -762,8 +877,7 @@ func (p *EndpointFilteredProvider) flushAtCapacity(identifier string, proc *proc
 
 func (p *EndpointFilteredProvider) requestSourceFlush(identifier string) {
 	p.sourceDispatchMu.Lock()
-	defer p.sourceDispatchMu.Unlock()
-	request := func(lane *routedSourceDispatch) {
+	request := func(lane *efSourceDispatch) {
 		if lane.flushAfter.Load() >= lane.submitted {
 			return
 		}
@@ -774,13 +888,36 @@ func (p *EndpointFilteredProvider) requestSourceFlush(identifier string) {
 		}
 	}
 	if identifier != "" {
-		if lane := p.sourceDispatch["\x01"+identifier]; lane != nil {
+		lane := p.sourceDispatch["\x01"+identifier]
+		if lane != nil {
 			request(lane)
+			p.sourceDispatchMu.Unlock()
+			return
 		}
+		p.sourceDispatchMu.Unlock()
+		// The source's dispatch lane already finished and reclaimed itself;
+		// flush its pending reliable streams directly so partial batches don't wait for BatchWait.
+		p.flushSource(identifier)
 		return
 	}
+	hasLanes := len(p.sourceDispatch) > 0
 	for _, lane := range p.sourceDispatch {
 		request(lane)
+	}
+	p.sourceDispatchMu.Unlock()
+	if !hasLanes {
+		p.flushAllReliableStreams()
+	}
+}
+
+func (p *EndpointFilteredProvider) flushAllReliableStreams() {
+	for _, stream := range p.streams {
+		if stream.pressureFlush {
+			select {
+			case stream.flush <- struct{}{}:
+			default:
+			}
+		}
 	}
 }
 
@@ -860,7 +997,7 @@ func (p *EndpointFilteredProvider) dispatchProcessed() {
 				ctx = context.Background()
 			}
 			type sourceTarget struct {
-				lane     *routedSourceDispatch
+				lane     *efSourceDispatch
 				sequence uint64
 			}
 			p.sourceDispatchMu.Lock()
@@ -897,11 +1034,7 @@ func (p *EndpointFilteredProvider) dispatchProcessed() {
 			if sourceIdentifier == "" {
 				capacity = routedProgressCapacity
 			}
-			lane = &routedSourceDispatch{
-				input:          make(chan *message.Message, capacity),
-				advanced:       make(chan struct{}, 1),
-				flushRequested: make(chan struct{}, 1),
-			}
+			lane = newEFSourceDispatch(capacity)
 			p.sourceDispatch[identifier] = lane
 			p.sourceDone.Add(1)
 			go p.dispatchSource(identifier, sourceIdentifier, lane)
@@ -922,8 +1055,9 @@ func (p *EndpointFilteredProvider) dispatchProcessed() {
 	p.sourceDone.Wait()
 }
 
-func (p *EndpointFilteredProvider) dispatchSource(mapKey, identifier string, lane *routedSourceDispatch) {
+func (p *EndpointFilteredProvider) dispatchSource(mapKey, identifier string, lane *efSourceDispatch) {
 	defer p.sourceDone.Done()
+	defer lane.markExited()
 	var flushed, stalled uint64
 	flushWhileStalled := func() {
 		if target := lane.flushAfter.Load(); target > flushed && target > stalled {
@@ -942,10 +1076,7 @@ func (p *EndpointFilteredProvider) dispatchSource(mapKey, identifier string, lan
 			sel, ok := p.popSelection(token)
 			if !ok {
 				lane.completed.Add(1)
-				select {
-				case lane.advanced <- struct{}{}:
-				default:
-				}
+				lane.broadcast()
 				continue
 			}
 
@@ -973,10 +1104,7 @@ func (p *EndpointFilteredProvider) dispatchSource(mapKey, identifier string, lan
 			}
 
 			lane.completed.Add(1)
-			select {
-			case lane.advanced <- struct{}{}:
-			default:
-			}
+			lane.broadcast()
 		case <-lane.flushRequested:
 		}
 		if target := lane.flushAfter.Load(); target > flushed && lane.completed.Load() >= target {
@@ -1172,6 +1300,33 @@ func (p *EndpointFilteredProvider) RetireSource(ctx context.Context, identifier 
 	p.lifecycle.RUnlock()
 	defer p.opsWg.Done()
 
+	finalize := func(markerSent bool, done chan struct{}) {
+		if markerSent {
+			select {
+			case <-done:
+			case <-p.stopRequested:
+			case <-p.ctx.Done():
+			}
+		} else if started && mi != nil {
+			marker := &message.Message{}
+			marker.SetRoutingBarrier(done)
+			select {
+			case mi.ch <- marker:
+				select {
+				case <-done:
+				case <-p.stopRequested:
+				case <-p.ctx.Done():
+				}
+			case <-p.stopRequested:
+			case <-p.ctx.Done():
+			}
+		}
+		_ = p.progress.RetireSourceWhenDrained(identifier, generation)
+		if mi != nil {
+			p.reclaimBoundInput(key, mi)
+		}
+	}
+
 	var claimed bool
 	if mi != nil {
 		claimed = mi.claimRetire()
@@ -1186,45 +1341,63 @@ func (p *EndpointFilteredProvider) RetireSource(ctx context.Context, identifier 
 			select {
 			case mi.ch <- marker:
 			case <-ctx.Done():
+				// Hand off cleanup to provider-owned goroutine so caller timeout
+				// never leaks the claimed input or generation slot.
+				p.retireCleanupWg.Add(1)
+				go func() {
+					defer p.retireCleanupWg.Done()
+					finalize(false, done)
+				}()
 				return ctx.Err()
 			case <-p.stopRequested:
+				p.reclaimBoundInput(key, mi)
 				return routing.ErrStopped
 			case <-p.ctx.Done():
+				p.reclaimBoundInput(key, mi)
 				return routing.ErrStopped
 			}
 			select {
 			case <-done:
 			case <-ctx.Done():
+				p.retireCleanupWg.Add(1)
+				go func() {
+					defer p.retireCleanupWg.Done()
+					finalize(true, done)
+				}()
 				return ctx.Err()
 			case <-p.stopRequested:
+				p.reclaimBoundInput(key, mi)
 				return routing.ErrStopped
 			case <-p.ctx.Done():
+				p.reclaimBoundInput(key, mi)
 				return routing.ErrStopped
 			}
 		}
 	}
 
 	err := p.progress.RetireSourceWhenDrained(identifier, generation)
-
-	// Reclaim the retired bound input channel once existing Flush senders exit.
 	if claimed {
-		p.lifecycle.Lock()
-		if !p.stopped {
-			if existing, ok := p.sourceInputs[key]; ok && existing == mi {
-				delete(p.sourceInputs, key)
-				delete(p.inputKeys, mi)
-				for i, entry := range p.inputs {
-					if entry == mi {
-						p.inputs = append(p.inputs[:i], p.inputs[i+1:]...)
-						break
-					}
+		p.reclaimBoundInput(key, mi)
+	}
+	return err
+}
+
+func (p *EndpointFilteredProvider) reclaimBoundInput(key sourceInputKey, mi *managedInput) {
+	p.lifecycle.Lock()
+	if !p.stopped {
+		if existing, ok := p.sourceInputs[key]; ok && existing == mi {
+			delete(p.sourceInputs, key)
+			delete(p.inputKeys, mi)
+			for i, entry := range p.inputs {
+				if entry == mi {
+					p.inputs = append(p.inputs[:i], p.inputs[i+1:]...)
+					break
 				}
 			}
 		}
-		p.lifecycle.Unlock()
-		mi.waitSendersAndClose()
 	}
-	return err
+	p.lifecycle.Unlock()
+	mi.waitSendersAndClose()
 }
 
 // NextPipelineChan returns the shared ingress channel.
@@ -1270,6 +1443,7 @@ func (p *EndpointFilteredProvider) Flush(ctx context.Context) {
 		ack := make(chan struct{})
 		marker := &message.Message{}
 		marker.SetRoutingBarrier(ack)
+		marker.SetRoutingBarrierContext(ctx)
 		select {
 		case mi.ch <- marker:
 			mi.release()
@@ -1371,9 +1545,11 @@ func (p *EndpointFilteredProvider) Stop() {
 		timer := time.AfterFunc(routedStopGrace, p.cancel)
 		defer timer.Stop()
 
-		// Wait for any in-flight Flush or RetireSource calls to observe
-		// stopRequested and exit before closing any channels they send on.
+		// Wait for any in-flight Flush or RetireSource calls (including
+		// provider-owned async retirement cleanups) to observe stopRequested
+		// and exit before closing any channels they send on.
 		p.opsWg.Wait()
+		p.retireCleanupWg.Wait()
 
 		if !started {
 			p.cancel()

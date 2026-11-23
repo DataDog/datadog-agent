@@ -72,13 +72,14 @@ type record struct {
 }
 
 type sourceProgress struct {
-	currentGeneration   uint64
-	seenGenerations     map[uint64]bool // true after that producer retires
-	retiringGenerations map[uint64]bool // generations scheduled for auto-retirement once drained
-	queue               []*record
-	hasAdmittedRecords  bool // Remains true after the queue drains.
-	invalidSelection    bool // Checkpoints cannot advance past an invalid barrier.
-	ephemeral           bool // Reclaim when queue drains (shared-ingress auto-registered sources).
+	currentGeneration    uint64
+	maxRetiredGeneration uint64
+	seenGenerations      map[uint64]bool // true after that producer retires
+	retiringGenerations  map[uint64]bool // generations scheduled for auto-retirement once drained
+	queue                []*record
+	hasAdmittedRecords   bool // Remains true after the queue drains.
+	invalidSelection     bool // Checkpoints cannot advance past an invalid barrier.
+	ephemeral            bool // Reclaim when queue drains (shared-ingress auto-registered sources).
 }
 
 // NewProgress creates bounded in-memory progress state and a bounded queue to
@@ -144,6 +145,9 @@ func (p *Progress) RegisterSource(identifier string, generation uint64) error {
 			}
 			return nil
 		}
+		if p.mode == CompletionRequireAny && generation <= source.maxRetiredGeneration {
+			return ErrObsoleteGeneration
+		}
 	}
 	if (source == nil && len(p.sources) >= p.limit) || p.histories >= p.limit {
 		return ErrSourceCapacity
@@ -198,6 +202,10 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 		source := p.sources[identifier]
 		if identifier != "" && requireCompleteSource && source != nil {
 			if retired, seen := source.seenGenerations[selection.Generation]; seen && retired {
+				p.mu.Unlock()
+				return 0, fmt.Errorf("%w: %d", ErrObsoleteGeneration, selection.Generation)
+			}
+			if p.mode == CompletionRequireAny && selection.Generation <= source.maxRetiredGeneration {
 				p.mu.Unlock()
 				return 0, fmt.Errorf("%w: %d", ErrObsoleteGeneration, selection.Generation)
 			}
@@ -283,26 +291,30 @@ func (p *Progress) ReserveShared(ctx context.Context, msg *message.Message, gene
 }
 
 // TryReserveShared attempts to reserve capacity for a shared-ingress record
-// without blocking. It returns (token, true, nil) on success, (0, false, nil)
-// if capacity for this source or the aggregate budget is currently full, or an
-// error on invalid input/stopped state.
-func (p *Progress) TryReserveShared(msg *message.Message, generation uint64) (uint64, bool, error) {
+// without blocking. It returns (token, sourceFull, aggregateFull, err):
+//   - token != 0, err == nil: reservation succeeded.
+//   - sourceFull == true: this source reached SourcePendingLimit while aggregate capacity has room.
+//   - aggregateFull == true: aggregate record/source/history budget is full.
+func (p *Progress) TryReserveShared(msg *message.Message, generation uint64) (token uint64, sourceFull, aggregateFull bool, err error) {
 	if msg == nil || msg.Origin == nil {
-		return 0, false, fmt.Errorf("%w: missing source metadata", ErrInvalidSelection)
+		return 0, false, false, fmt.Errorf("%w: missing source metadata", ErrInvalidSelection)
 	}
 	identifier := msg.Origin.Identifier
 	if identifier != "" && (generation == 0 || msg.Origin.LogSource == nil) {
-		return 0, false, fmt.Errorf("%w: checkpointed source needs a generation and source", ErrInvalidSelection)
+		return 0, false, false, fmt.Errorf("%w: checkpointed source needs a generation and source", ErrInvalidSelection)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.stopped {
-		return 0, false, ErrStopped
+		return 0, false, false, ErrStopped
 	}
 	source := p.sources[identifier]
 	if identifier != "" && source != nil {
 		if retired, seen := source.seenGenerations[generation]; seen && retired {
-			return 0, false, fmt.Errorf("%w: %d", ErrObsoleteGeneration, generation)
+			return 0, false, false, fmt.Errorf("%w: %d", ErrObsoleteGeneration, generation)
+		}
+		if p.mode == CompletionRequireAny && generation <= source.maxRetiredGeneration {
+			return 0, false, false, fmt.Errorf("%w: %d", ErrObsoleteGeneration, generation)
 		}
 	}
 	needsOwner := identifier != "" && source == nil
@@ -311,12 +323,14 @@ func (p *Progress) TryReserveShared(msg *message.Message, generation uint64) (ui
 		_, seen := source.seenGenerations[generation]
 		needsHistory = !seen
 	}
-	sourceHasRoom := identifier == "" || source == nil || len(source.queue) < p.sourceLimit
-	if len(p.records) >= p.limit || !sourceHasRoom || (needsOwner && len(p.sources) >= p.limit) || (needsHistory && p.histories >= p.limit) {
-		return 0, false, nil
+	if len(p.records) >= p.limit || (needsOwner && len(p.sources) >= p.limit) || (needsHistory && p.histories >= p.limit) {
+		return 0, false, true, nil
+	}
+	if identifier != "" && source != nil && len(source.queue) >= p.sourceLimit {
+		return 0, true, false, nil
 	}
 	p.next++
-	token := p.next
+	token = p.next
 	meta := msg.MessageMetadata
 	meta.SetRoutingToken(token)
 	msg.SetRoutingToken(token)
@@ -335,7 +349,7 @@ func (p *Progress) TryReserveShared(msg *message.Message, generation uint64) (ui
 		source.hasAdmittedRecords = true
 		source.queue = append(source.queue, r)
 	}
-	return token, true, nil
+	return token, false, false, nil
 }
 
 // AtCapacity reports pressure on the source window and aggregate record budget.
@@ -567,12 +581,16 @@ func (p *Progress) advance(r *record) {
 	// but completed records after it can no longer contribute a checkpoint.
 	blocked := false
 	retained := source.queue[:0]
+	var compactedGens []uint64
 	for _, queued := range source.queue {
 		if queued.generation == 0 {
 			blocked = true
 		}
 		if blocked && queued.done {
 			delete(p.records, queued.meta.RoutingToken())
+			if source.retiringGenerations[queued.generation] {
+				compactedGens = append(compactedGens, queued.generation)
+			}
 			continue
 		}
 		retained = append(retained, queued)
@@ -581,6 +599,16 @@ func (p *Progress) advance(r *record) {
 		clear(source.queue[len(retained):])
 		source.queue = retained
 		p.notifySpace()
+	}
+	for _, gen := range compactedGens {
+		if source.retiringGenerations[gen] {
+			if err := p.retireSource(r.identifier, gen); err == nil {
+				delete(source.retiringGenerations, gen)
+				if p.sources[r.identifier] == nil {
+					return
+				}
+			}
+		}
 	}
 }
 
@@ -659,6 +687,17 @@ func (p *Progress) retireSource(identifier string, generation uint64) error {
 		}
 	}
 	source.seenGenerations[generation] = true
+	// In CompletionRequireAny mode (normal-mode endpoint filtering), reclaim
+	// drained retired older generations immediately via maxRetiredGeneration so
+	// continuously rotated files cannot exhaust the global history budget.
+	if p.mode == CompletionRequireAny && generation < source.currentGeneration {
+		if generation > source.maxRetiredGeneration {
+			source.maxRetiredGeneration = generation
+		}
+		delete(source.seenGenerations, generation)
+		p.histories--
+		p.notifySpace()
+	}
 	for _, retired := range source.seenGenerations {
 		if !retired {
 			return nil
