@@ -44,7 +44,7 @@ Resolve the owning team and its `<area>` directory from `.github/CODEOWNERS`, th
 
 ## Step 1 — Gate the scope
 
-Invoke `e2e-audit` with the behavior. Continue to Step 2 only if the verdict is that E2E is justified; on any other verdict, report it, name the package where the test belongs instead, and stop. Gating before Step 2 is deliberate — reading implementations for the literals a test would assert on is wasted if the behavior belongs in a unit test.
+Invoke `e2e-audit` with the behavior. Continue to Step 2 only if the verdict is that E2E is justified; on any other verdict, report it, name the package where the test belongs instead, and stop. When the audit gives no verdict and names the check that owns the question, such as a size or static check, report that check and stop. Gating before Step 2 is deliberate — reading implementations for the literals a test would assert on is wasted if the behavior belongs in a unit test.
 
 Some areas own their own template and lifecycle rules through a directory-scoped skill: `ls test/new-e2e/tests/<area>/.claude/skills/*/SKILL.md`. If one exists, invoke it by its `name` and stop; directory-scoped skills are only offered when the working directory matches, so read the file directly when it is not in the skill list. Sibling skills named elsewhere in this file live under `.agents/skills/<name>/SKILL.md`.
 
@@ -225,6 +225,7 @@ Show these commands and get agreement before running any of them. Compilation al
 
 ```
 Scope        behaviors covered, behaviors dropped and why, e2e-audit verdict
+             (keep any binary-test candidate mark and its binaries)
 Files        created and modified
 Environment  env struct, cloud, OS, and one line on why that combination
 Assertions   observable -> how it is checked -> timeout, one row each

@@ -7,65 +7,23 @@ model: sonnet
 ---
 
 Decide whether assertions about proposed or existing Agent behavior belong in
-a full `new-e2e` test, an integration test, or a unit test. Produce only a
-verdict and rationale. Never edit, move, or delete tests.
+a full `new-e2e` test, an integration test, or a unit test. Produce only
+verdicts, or the check that owns a question, with their rationale. Never edit,
+move, or delete tests.
 
-## Principle
+## Criteria
 
-Analyze observable claims and failure modes, not entire test files or individual
-`assert` or `require` calls. Group checks that validate the same contract as one
-assertion, including implicit claims such as successful installation, startup,
-or command execution.
+Read `doc/guidelines/testing/test-categories.md` before classifying anything.
+It defines what each test category owns, the questions that decide between
+them, and when E2E coverage duplicated at a lower level is still worth keeping.
+Put each assertion in the cheapest category that still catches its failure.
 
-Choose the cheapest test that preserves the boundary and failure mode that
-matter. Do not ask only whether an assertion *can* be made with mocks; ask what
-the assertion would stop validating if its dependencies were replaced.
-
-### E2E justified
-
-Use `new-e2e` when the deployed Agent or its real environment is part of the
-behavior being validated. This includes boundaries such as:
-
-- installation, packaging, permissions, or merged deployed configuration;
-- process or service lifecycle, cross-process communication, or CLI behavior
-  that depends on the running Agent;
-- kernel, operating-system, cloud, container-orchestrator, or network behavior
-  that cannot be represented faithfully by a local dependency;
-- user-visible data reaching fakeintake when the Agent's real assembly,
-  configuration, encoding, or forwarding path is material to the test.
-
-A behavior is not E2E-worthy merely because the current test reaches it through
-SSH, a CLI, or remote infrastructure. If those layers add no relevant coverage,
-use a lower-level test.
-
-### Should be an integration test
-
-Use an integration test when the important boundary can be preserved locally,
-for example by wiring components with `fx.Test`, using a local fakeintake, or
-using a real local daemon, driver, or hardware dependency. A real local
-dependency does not by itself require `new-e2e`.
-
-### Should be a unit test
-
-Use a unit test when the behavior is isolated logic and does not require a real
-component graph, process, or external dependency.
-
-### Layered coverage and residual E2E value
-
-Duplicating an E2E assertion in a unit or integration test is useful when the
-lower-level test preserves its failure mode: it provides faster PR feedback,
-more deterministic failures, and easier debugging. Do not treat this useful
-duplication as waste by itself.
-
-After identifying lower-level coverage, reevaluate what the E2E test uniquely
-validates. Repeating the same assertion through the deployed Agent can still be
-valuable when it catches assembly, configuration, packaging, lifecycle, or
-forwarding failures that the lower-level test cannot. If nearly all material
-assertions have equivalent lower-level coverage and the E2E test preserves no
-meaningful additional boundary, its feedback no longer justifies its
-provisioning, runtime, and maintenance cost; recommend removing it. Base this
-decision on residual failure coverage, not only the number of duplicated
-assertions.
+The doc has four categories and this skill three verdicts: an assertion in the
+doc's **Binary test** category is classified **E2E justified** and marked as a
+binary-test candidate (see Output): there is no agreed way to run binary tests
+yet, even for a binary that has a harness. A question the doc assigns to its
+other checks, such as package size, gets no verdict: name the check that owns
+it.
 
 ## Procedure
 
@@ -73,11 +31,13 @@ assertions.
 
 1. List the observable claims that the proposed test would assert.
 2. For each assertion, state the failure it is intended to catch.
-3. Identify the smallest environment that preserves each failure mode.
+3. Identify the smallest environment that preserves each failure mode: the
+   components it must keep real, and whether they depend on the deployed
+   platform.
 4. Classify each assertion. If E2E is justified, name the real boundary that
    would be lost in a lower-level test.
 5. Give an overall verdict based on the assertion requiring the broadest real
-   boundary.
+   boundary, counting binary-test candidates as E2E justified.
 
 If the description does not establish the relevant assertions or boundaries,
 ask for the missing information or return an explicitly uncertain verdict.
@@ -94,21 +54,24 @@ ask for the missing information or return an explicitly uncertain verdict.
    setup and lifecycle operations, and group checks that cover the same
    contract.
 4. For each assertion, state the failure it catches, identify the smallest
-   environment that preserves that failure, note equivalent lower-level
-   coverage, and classify it using the principle above.
+   environment that preserves that failure (the components it must keep real,
+   and whether they depend on the deployed platform), note equivalent
+   lower-level coverage, and classify it using the criteria doc.
 5. Give the suite-level verdict:
-   - If any assertion needs the deployed Agent boundary, the suite remains E2E;
-     name the assertion and boundary that determine this verdict.
-   - If none does, recommend an integration or unit test as appropriate.
+   - If any assertion is E2E justified, binary-test candidates included, the
+     suite remains E2E; name the assertion and boundary that determine this
+     verdict.
+   - If none is, recommend an integration or unit test as appropriate.
 6. Recommend duplicating suitable assertions at a lower level when that would
    provide faster PR feedback, more deterministic failures, or easier
    debugging, even if the suite initially remains E2E.
 7. After accounting for that lower-level coverage, identify the failure modes
-   and real boundaries that only the E2E test preserves. If nearly all material
-   assertions are duplicated and no meaningful E2E-only boundary remains,
-   recommend removing the E2E test. Weigh its residual value against runtime,
-   provisioning, flakiness, and maintenance cost; do not assume all cost is
-   paid only once at suite setup.
+   and real boundaries that only the E2E test preserves; a binary-test
+   candidate's boundary counts as one. If nearly all material assertions are
+   duplicated and no meaningful E2E-only boundary remains, recommend removing
+   the E2E test. Weigh its residual value against runtime, provisioning,
+   flakiness, and maintenance cost; do not assume all cost is paid only once at
+   suite setup.
 8. When reviewing several suites, briefly note redundant provisioners or
    equivalent coverage that could be consolidated.
 
@@ -123,6 +86,8 @@ Use one of these verdicts:
 - **Should be an integration test**
 - **Should be a unit test**
 
+or no verdict, naming the check that owns the question.
+
 For proposed behavior, classify each expected assertion and return an overall
 verdict with a short reason. For existing tests, classify each material
 assertion and return one verdict per concrete suite, naming the assertion and
@@ -132,6 +97,13 @@ remains. When several assertions differ, use a concise table with these
 columns: assertion, failure caught, smallest environment, and classification.
 Add only material uncertainty, lower-level candidates, or consolidation
 opportunities.
+
+Mark an **E2E justified** assertion as a **binary-test candidate** when the
+only boundary it needs is the built binaries running on one machine: no
+installed package, service manager, specific kernel, cloud, or orchestrator.
+Write it as `E2E justified (binary-test candidate)` in the classification and
+name the binaries involved. When the criteria doc lists a binary test harness
+for those binaries, name it as a lower-level candidate.
 
 ### Examples
 
@@ -148,6 +120,15 @@ send it to a local fakeintake.
 **Output:** **Should be an integration test** — A locally assembled component
 graph and fakeintake preserve the component wiring and payload boundary without
 provisioning remote infrastructure.
+
+**Input:** Verify that `agent config` prints the configuration the running
+Agent merged from `datadog.yaml` and `DD_*` environment variables.
+
+**Output:** **E2E justified (binary-test candidate)** — The CLI and the running
+`agent` binary must both be real, talking over the Agent's IPC, but nothing
+needs the installed package, service manager, or a cloud host: the built
+`agent` binary started with a local configuration on one machine preserves the
+failure.
 
 **Input:** Verify that the configuration parser rejects a negative timeout and
 applies the default when the field is absent.

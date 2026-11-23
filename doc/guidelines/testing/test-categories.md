@@ -21,7 +21,7 @@ Analyze observable claims and failure modes, not test files or individual `asser
 Do not ask only whether an assertion *can* be made with mocks. Ask what the assertion would stop validating if its dependencies were replaced. Two questions usually settle it:
 
 1. **Which components must the test keep real?** List the hops the behavior flows through, from where its input enters to where its output is observed. When they are all our own code and can run in one process, the assertion is an integration test at most.
-1. **Do those components depend on the platform?** Platform-specific code that builds and runs on a CI runner, such as a `_windows.go` file or a registry read, is still testable in a unit or integration test on that platform's unit test job. Only a dependency on the deployed system, such as the service manager, the installed package, its permissions, or the kernel, pushes the assertion higher.
+1. **Do those components depend on the platform?** Platform-specific code that builds and runs on a CI runner, such as a `_windows.go` file or a registry read, is still testable in a unit or integration test on that platform's unit test job. Only a dependency on the deployed system, such as the service manager, the installed package, or its permissions, pushes the assertion higher. A dependency on the kernel puts it on the [kernel axis](#environment-axes) instead.
 
 When reviewing, ask three questions of each test:
 
@@ -61,9 +61,9 @@ The `write-test` skill's <<<repo(".agents/skills/write-test/references/integrati
 
 **Owns:** the binary we built misbehaving as a program, on one machine: its CLI parsing and output, startup and configuration merging, a subcommand talking to a running Agent, or two of our binaries talking to each other over local sockets and files.
 
-**Use when** the assertion needs the built binaries running, but not the installed package, the service manager, a specific kernel, or a cloud API. These tests start the built binaries in a temporary directory with a local configuration and fakeintake, and take minutes.
+**Use when** the assertion needs the built binaries running, but not the installed package, the service manager, a specific kernel, a cloud API, or an orchestrator. These tests start the built binaries in a temporary directory with a local configuration and fakeintake, and take minutes.
 
-**Status:** only the trace-agent has a binary test harness: <<<repo("cmd/trace-agent/test")>>> builds the `trace-agent` binary, runs it with a test configuration against a fake backend, and runs in CI as `trace_agent_integration_tests`. The other Agent binaries have no shared harness or CI job yet. Until they do, an assertion that belongs here stays in E2E, unless an integration test preserves the same failure.
+**Status:** there is no agreed way to run binary tests yet. Only the trace-agent has a harness: <<<repo("cmd/trace-agent/test")>>> builds the `trace-agent` binary, runs it with a test configuration against a fake backend, and runs in CI as `trace_agent_integration_tests`. The other Agent binaries have none. Until that is decided, an assertion that belongs here stays in E2E, unless an integration test preserves the same failure. The `e2e-audit` skill marks such assertions as binary-test candidates, which records what binary tests would need to cover.
 
 **Does not catch:** the installed package, permissions it creates, service-manager behavior, other kernels, or cloud APIs.
 
@@ -75,10 +75,10 @@ The `write-test` skill's <<<repo(".agents/skills/write-test/references/integrati
 
 **Use when** the deployed Agent or its real environment is part of the behavior being validated. This includes boundaries such as:
 
-- installation, packaging, permissions, or merged deployed configuration;
-- process or service lifecycle, cross-process communication, or CLI behavior that depends on the running Agent;
-- kernel, operating-system, cloud, container-orchestrator, or network behavior that cannot be represented faithfully by a local dependency;
-- user-visible data reaching fakeintake when the Agent's real assembly, configuration, encoding, or forwarding path is material to the test.
+- installation, packaging, permissions, or configuration merged from the installed package's files;
+- service lifecycle under the real service manager, or cross-process communication and CLI behavior that need the installed Agent rather than the built binaries alone (see [Binary test](#binary-test));
+- operating-system, cloud, container-orchestrator, or network behavior that cannot be represented faithfully by a local dependency, and kernel behavior that kernel matrix testing cannot reproduce;
+- user-visible data reaching fakeintake when the installed Agent's assembly, configuration, encoding, or forwarding path is material to the test; a built binary sending to a local fakeintake is a [binary test](#binary-test).
 
 A behavior is not E2E-worthy merely because the current test reaches it through SSH, a CLI, or remote infrastructure. If those layers add no relevant coverage, use a cheaper category.
 
