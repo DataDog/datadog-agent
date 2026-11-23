@@ -3904,6 +3904,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#schemaproduce-jsonschema" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>schema.produce-jsonschema</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -4287,6 +4298,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#schemaproduce-jsonschema" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>schema.produce-jsonschema</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -4463,6 +4485,52 @@
 </span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># Pattern (regex): every path under apm_config ending in "enabled", as JSON</span>
 </span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span><span class="s1">'apm_config\..*enabled'</span><span class="w"> </span>--json
 </span></code></pre></div>
+<hr />
+<h2 id="schemaproduce-jsonschema"><code>schema.produce-jsonschema</code><a class="headerlink" href="#schemaproduce-jsonschema" title="Permanent link">&para;</a></h2>
+<p>Build the pure JSON Schemas published for external tools (IDEs, SchemaStore, CI validators): <code>datadog.schema.json</code> for <code>datadog.yaml</code> and <code>system-probe.schema.json</code> for <code>system-probe.yaml</code>.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.produce-jsonschema<span class="w"> </span>/tmp/agent-schemas<span class="w"> </span>--version<span class="w"> </span><span class="m">7</span>.85.1
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>output_dir</code></td>
+<td>yes</td>
+<td>Directory to write <code>datadog.schema.json</code> and <code>system-probe.schema.json</code> into. Created if missing.</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>no</td>
+<td>Stable Agent version the schemas are published for (<code>7.85.1</code> or <code>v7.85.1</code>). Omit it to build the copy published as the latest version. Pre-releases such as <code>7.85.0-rc.1</code> are rejected.</td>
+</tr>
+</tbody>
+</table>
+<p>The output keeps only standard JSON Schema keywords, so any conforming library can use it. It also replaces the Agent formats (<a href="../keywords/#format-duration"><code>format: duration</code></a>, <a href="../keywords/#format-url"><code>format: url</code></a>) with the <code>pattern</code> they stand for.</p>
+<p>Each file's <code>$id</code> is the URL it is published at in the <a href="https://github.com/DataDog/schema">DataDog/schema</a> repository, under the same file name, so the output can be copied there as-is:</p>
+<table>
+<thead>
+<tr>
+<th><code>--version</code></th>
+<th><code>$id</code> of <code>datadog.schema.json</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>7.85.1</code></td>
+<td><code>https://raw.githubusercontent.com/DataDog/schema/main/agent/v7.85.1/datadog.schema.json</code></td>
+</tr>
+<tr>
+<td>omitted</td>
+<td><code>https://raw.githubusercontent.com/DataDog/schema/main/agent/datadog.schema.json</code></td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
