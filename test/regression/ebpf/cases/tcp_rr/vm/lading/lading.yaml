@@ -18,7 +18,6 @@ blackhole:
       record:
         series_to_keep:
           - ebpf.maps.entry_count
-          - ebpf.maps.updates
           - ebpf.maps.max_entries
           - ebpf.maps.memory_max
           - ebpf.maps.memory_max_permodule_total
