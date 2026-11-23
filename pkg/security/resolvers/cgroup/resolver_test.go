@@ -507,6 +507,163 @@ func TestMultiCGroupContainer_EmptyRootBeforeTwoPopulatedChildren(t *testing.T) 
 	})
 }
 
+func TestMultiControllerSameCGroupID(t *testing.T) {
+	resolver, mockFS := createTestResolver(t)
+
+	const cid = containerutils.ContainerID("7d5e7f76afe76de29364437c6d2670e523c20de3c0f6526f695a1c5b46bafd23")
+	cgroupID := containerutils.CGroupID("/docker/" + string(cid))
+
+	systemdController := model.CGroupContext{
+		CGroupID:      cgroupID,
+		CGroupPathKey: model.PathKey{MountID: 0, Inode: 101},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+	memoryController := model.CGroupContext{
+		CGroupID:      cgroupID,
+		CGroupPathKey: model.PathKey{MountID: 0, Inode: 102},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+	pidsController := model.CGroupContext{
+		CGroupID:      cgroupID,
+		CGroupPathKey: model.PathKey{MountID: 0, Inode: 103},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+
+	e1 := resolver.AddPID(10, systemdController)
+	require.NotNil(t, e1)
+	e2 := resolver.AddPID(10, memoryController)
+	require.Same(t, e1, e2)
+
+	e3 := resolver.AddPID(20, pidsController)
+	require.Same(t, e1, e3)
+	e4 := resolver.AddPID(20, systemdController)
+	require.Same(t, e1, e4)
+
+	assert.Same(t, e1, resolver.GetCacheEntryByInode(101))
+	assert.Same(t, e1, resolver.GetCacheEntryByInode(102))
+	assert.Same(t, e1, resolver.GetCacheEntryByInode(103))
+	assert.ElementsMatch(t, []uint32{10, 20}, resolver.GetContainerPIDs(cid))
+
+	var iterated []*cgroupModel.CacheEntry
+	resolver.IterateCacheEntries(func(ce *cgroupModel.CacheEntry) bool {
+		iterated = append(iterated, ce)
+		return false
+	})
+	assert.Equal(t, []*cgroupModel.CacheEntry{e1}, iterated)
+
+	cgroupReleased := false
+	containerReleased := false
+	e1.GetCGroupContext().Releasable.AppendReleaseCallback(func() {
+		cgroupReleased = true
+	})
+	e1.GetContainerContext().Releasable.AppendReleaseCallback(func() {
+		containerReleased = true
+	})
+
+	resolver.DelPID(20)
+	assert.False(t, e1.IsDeleted())
+	assert.False(t, cgroupReleased)
+	assert.False(t, containerReleased)
+	assert.Equal(t, []uint32{10}, resolver.GetContainerPIDs(cid))
+
+	mockFS.On("GetCGroupPids", string(cgroupID)).Return([]uint32{}, nil).Once()
+	resolver.DelPID(10)
+
+	assert.True(t, e1.IsDeleted())
+	assert.True(t, cgroupReleased)
+	assert.True(t, containerReleased)
+	assert.Nil(t, resolver.GetCacheEntryByInode(101))
+	assert.Nil(t, resolver.GetCacheEntryByInode(102))
+	assert.Nil(t, resolver.GetCacheEntryByInode(103))
+	assert.Nil(t, resolver.GetCacheEntryContainerID(cid))
+
+	mockFS.AssertExpectations(t)
+}
+
+func TestMultiCGroupContainerSharedContainerReleasable(t *testing.T) {
+	resolver, mockFS := createTestResolver(t)
+
+	const cid = containerutils.ContainerID("c89472a24e3dea9519a0829595d2e3c4b6a65f31f17a60c7bad32c63f02b378e")
+	rootCGroup := model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/kubepods.slice/cri-containerd-" + string(cid) + ".scope"),
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: 100},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+	childCGroup := model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/kubepods.slice/cri-containerd-" + string(cid) + ".scope/sub"),
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: 200},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+
+	rootEntry := resolver.AddPID(10, rootCGroup)
+	require.NotNil(t, rootEntry)
+	childEntry := resolver.AddPID(20, childCGroup)
+	require.NotNil(t, childEntry)
+
+	assert.Same(t, rootEntry.GetContainerContext().Releasable, childEntry.GetContainerContext().Releasable)
+
+	rootCGroupReleased := false
+	childCGroupReleased := false
+	containerReleased := 0
+	rootEntry.GetCGroupContext().Releasable.AppendReleaseCallback(func() {
+		rootCGroupReleased = true
+	})
+	childEntry.GetCGroupContext().Releasable.AppendReleaseCallback(func() {
+		childCGroupReleased = true
+	})
+	childEntry.GetContainerContext().Releasable.AppendReleaseCallback(func() {
+		containerReleased++
+	})
+
+	mockFS.On("GetCGroupPids", string(childCGroup.CGroupID)).Return([]uint32{}, nil).Once()
+	resolver.DelPID(20)
+
+	assert.True(t, childCGroupReleased)
+	assert.False(t, rootCGroupReleased)
+	assert.Equal(t, 0, containerReleased)
+
+	mockFS.On("GetCGroupPids", string(rootCGroup.CGroupID)).Return([]uint32{}, nil).Once()
+	resolver.DelPID(10)
+
+	assert.True(t, rootCGroupReleased)
+	assert.Equal(t, 1, containerReleased)
+
+	mockFS.AssertExpectations(t)
+}
+
+func TestSyncOrDeleteCacheEntrySkipsPIDTrackedInOtherEntry(t *testing.T) {
+	resolver, mockFS := createTestResolver(t)
+
+	cgA := model.CGroupContext{
+		CGroupID:      "/system.slice/service-a.service",
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: 100},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+	cgB := model.CGroupContext{
+		CGroupID:      "/system.slice/service-b.service",
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: 200},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+
+	entryA := resolver.AddPID(10, cgA)
+	require.NotNil(t, entryA)
+	entryB := resolver.AddPID(20, cgB)
+	require.NotNil(t, entryB)
+
+	mockFS.On("GetCGroupPids", string(cgB.CGroupID)).Return([]uint32{10}, nil).Once()
+	resolver.DelPID(20)
+
+	assert.True(t, entryB.IsDeleted())
+	assert.False(t, entryA.IsDeleted())
+	assert.Equal(t, []uint32{10}, entryA.GetPIDs())
+
+	mockFS.On("GetCGroupPids", string(cgA.CGroupID)).Return([]uint32{}, nil).Once()
+	resolver.DelPID(10)
+	assert.True(t, entryA.IsDeleted())
+
+	mockFS.AssertExpectations(t)
+}
+
 func BenchmarkAddDelPIDNearCapacity(b *testing.B) {
 	mockFS := &MockCGroupFS{}
 	resolver, err := NewResolver(nil, mockFS, nil)
