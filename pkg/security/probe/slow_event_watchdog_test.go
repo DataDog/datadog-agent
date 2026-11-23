@@ -8,7 +8,6 @@
 package probe
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"sync"
@@ -25,11 +24,8 @@ func TestSlowEventWatchdogFastEventSkipped(t *testing.T) {
 	w := newSlowEventWatchdog(20*time.Millisecond, 100*time.Millisecond)
 	w.targetFrame = "TestSlowEventWatchdogFastEventSkipped"
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go w.start(ctx)
-
 	start := w.begin()
+	w.sampleOnce(start.Add(5 * time.Millisecond))
 	_, trace, ok := w.end(start)
 	assert.False(t, ok)
 	assert.Empty(t, trace)
@@ -39,12 +35,10 @@ func TestSlowEventWatchdogBelowReportThresholdResetsSamples(t *testing.T) {
 	w := newSlowEventWatchdog(10*time.Millisecond, 500*time.Millisecond)
 	w.targetFrame = "TestSlowEventWatchdogBelowReportThresholdResetsSamples"
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go w.start(ctx)
-
 	start := w.begin()
-	time.Sleep(45 * time.Millisecond)
+	w.sampleOnce(start.Add(25 * time.Millisecond))
+	assert.True(t, w.hasSamples.Load())
+
 	_, trace, ok := w.end(start)
 	assert.False(t, ok)
 	assert.Empty(t, trace)
@@ -52,51 +46,67 @@ func TestSlowEventWatchdogBelowReportThresholdResetsSamples(t *testing.T) {
 }
 
 //go:noinline
-func simulatedSlowStageA(d time.Duration) {
-	time.Sleep(d)
+func simulatedSlowStageA(entered chan<- struct{}, release <-chan struct{}) {
+	close(entered)
+	<-release
 }
 
 //go:noinline
-func simulatedSlowStageB(d time.Duration) {
-	time.Sleep(d)
+func simulatedSlowStageB(entered chan<- struct{}, release <-chan struct{}) {
+	close(entered)
+	<-release
+}
+
+//go:noinline
+func runSimulatedSlowEvent(w *slowEventWatchdog, enterA, releaseA, enterB, releaseB chan struct{}, done chan<- []ProcessingCheckpoint) {
+	start := w.begin()
+	simulatedSlowStageA(enterA, releaseA)
+	simulatedSlowStageB(enterB, releaseB)
+	_, trace, ok := w.end(start)
+	if !ok {
+		done <- nil
+		return
+	}
+	done <- trace
 }
 
 func TestSlowEventWatchdogCapturesAndCollapsesStacks(t *testing.T) {
-	w := newSlowEventWatchdog(10*time.Millisecond, 60*time.Millisecond)
-	w.targetFrame = "TestSlowEventWatchdogCapturesAndCollapsesStacks"
+	w := newSlowEventWatchdog(10*time.Millisecond, 0)
+	w.targetFrame = "runSimulatedSlowEvent"
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go w.start(ctx)
+	enterA := make(chan struct{})
+	releaseA := make(chan struct{})
+	enterB := make(chan struct{})
+	releaseB := make(chan struct{})
+	done := make(chan []ProcessingCheckpoint, 1)
 
-	start := w.begin()
-	simulatedSlowStageA(45 * time.Millisecond)
-	simulatedSlowStageB(45 * time.Millisecond)
-	duration, trace, ok := w.end(start)
+	go runSimulatedSlowEvent(w, enterA, releaseA, enterB, releaseB, done)
 
-	require.True(t, ok)
-	require.NotEmpty(t, trace)
+	<-enterA
+	start := time.Unix(0, w.startNano.Load())
+	w.sampleOnce(start.Add(50 * time.Millisecond))
+	w.sampleOnce(start.Add(100 * time.Millisecond))
+	close(releaseA)
 
-	var sawStageA, sawStageB bool
-	for _, cp := range trace {
-		if assert.NotEmpty(t, cp.Name) && assert.NotEmpty(t, cp.Stack) {
-			if strings.Contains(cp.Name, "simulatedSlowStageA") {
-				sawStageA = true
-			}
-			if strings.Contains(cp.Name, "simulatedSlowStageB") {
-				sawStageB = true
-			}
-		}
-	}
-	assert.True(t, sawStageA, "expected stage A in trace: %+v", trace)
-	assert.True(t, sawStageB, "expected stage B in trace: %+v", trace)
+	<-enterB
+	w.sampleOnce(start.Add(150 * time.Millisecond))
+	close(releaseB)
 
-	evt := newSlowProcessingEvent(nil, model.FileOpenEventType, duration, trace)
+	trace := <-done
+	require.Len(t, trace, 2)
+	assert.Contains(t, trace[0].Name, "simulatedSlowStageA")
+	assert.Equal(t, 2, trace[0].Samples)
+	assert.Equal(t, int64(50000), trace[0].ElapsedUs)
+	assert.Equal(t, int64(100000), trace[0].LastElapsedUs)
+	assert.Contains(t, trace[1].Name, "simulatedSlowStageB")
+	assert.Equal(t, 1, trace[1].Samples)
+
+	evt := newSlowProcessingEvent(nil, model.FileOpenEventType, 200*time.Millisecond, trace)
 	assert.Equal(t, "open", evt.EventType)
-	assert.Greater(t, evt.DurationUs, int64(0))
-	assert.Greater(t, evt.MaxProcessingGapUs, int64(0))
-	assert.NotEmpty(t, evt.MaxProcessingGapFrom)
-	assert.NotEmpty(t, evt.MaxProcessingGapTo)
+	assert.Equal(t, int64(200000), evt.DurationUs)
+	assert.Equal(t, int64(100000), evt.MaxProcessingGapUs)
+	assert.Contains(t, evt.MaxProcessingGapFrom, "simulatedSlowStageA")
+	assert.Contains(t, evt.MaxProcessingGapTo, "simulatedSlowStageB")
 
 	raw, err := evt.ToJSON()
 	require.NoError(t, err)
@@ -106,7 +116,7 @@ func TestSlowEventWatchdogCapturesAndCollapsesStacks(t *testing.T) {
 	assert.NotEmpty(t, decoded["processing_trace"])
 }
 
-func TestExtractTargetStackIncludesActiveSecurityGoroutinesWhenBlocked(t *testing.T) {
+func TestExtractTargetStackIncludesActiveSecurityGoroutinesAndStripsArgs(t *testing.T) {
 	fakeStacks := strings.Join([]string{
 		"goroutine 17 [semacquire]:\n" +
 			"sync.runtime_SemacquireMutex(0xc000123456?, 0x0?, 0x0?)\n" +
@@ -133,43 +143,43 @@ func TestExtractTargetStackIncludesActiveSecurityGoroutinesWhenBlocked(t *testin
 	assert.Contains(t, stack, "goroutine 17 [semacquire]:")
 	assert.Contains(t, stack, "goroutine 42 [running]:")
 	assert.Contains(t, stack, "evictUnusedNodes")
+	assert.NotContains(t, stack, "0xc000")
 	assert.NotContains(t, stack, "goroutine 99 [select]:")
 }
 
+func TestSlowEventWatchdogSampleCapPerEvent(t *testing.T) {
+	w := newSlowEventWatchdog(10*time.Millisecond, 0)
+	w.targetFrame = "TestSlowEventWatchdogSampleCapPerEvent"
+
+	start := w.begin()
+	for i := 1; i <= maxSlowEventTotalSamples+10; i++ {
+		w.sampleOnce(start.Add(time.Duration(i*10) * time.Millisecond))
+	}
+	_, trace, ok := w.end(start)
+	require.True(t, ok)
+	require.Len(t, trace, 1)
+	assert.Equal(t, maxSlowEventTotalSamples, trace[0].Samples)
+}
+
 func TestSlowEventWatchdogConcurrentMutexContention(t *testing.T) {
-	w := newSlowEventWatchdog(10*time.Millisecond, 40*time.Millisecond)
+	w := newSlowEventWatchdog(10*time.Millisecond, 0)
 	w.targetFrame = "TestSlowEventWatchdogConcurrentMutexContention"
 
 	var mu sync.Mutex
 	mu.Lock()
-	var holderReady sync.WaitGroup
-	holderReady.Add(1)
-	go func() {
-		holderReady.Done()
-		time.Sleep(55 * time.Millisecond)
-		mu.Unlock()
-	}()
-	holderReady.Wait()
+	sampled := make(chan struct{})
 
 	start := w.begin()
-	done := make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(10 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-done:
-				return
-			case now := <-ticker.C:
-				w.sampleOnce(now)
-			}
-		}
+		w.sampleOnce(start.Add(20 * time.Millisecond))
+		mu.Unlock()
+		close(sampled)
 	}()
 
 	mu.Lock()
 	//nolint:staticcheck // intentional critical section to wait for lock release
 	mu.Unlock()
-	close(done)
+	<-sampled
 
 	_, trace, ok := w.end(start)
 	require.True(t, ok)

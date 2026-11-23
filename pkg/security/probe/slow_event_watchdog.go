@@ -27,7 +27,8 @@ const (
 	defaultSlowEventSampleInterval = 50 * time.Millisecond
 	defaultSlowEventThreshold      = 1 * time.Second
 	maxSlowEventCheckpoints        = 64
-	initialWatchdogStackBufSize    = 64 * 1024
+	maxSlowEventTotalSamples       = 40
+	initialWatchdogStackBufSize    = 256 * 1024
 	maxWatchdogStackBufSize        = 1024 * 1024
 	maxRelatedSecurityGoroutines   = 5
 	defaultWatchdogTargetFrame     = "(*EBPFProbe).handleEvent("
@@ -98,9 +99,10 @@ type slowEventWatchdog struct {
 	reportThreshold time.Duration
 	targetFrame     string
 
-	startNano  atomic.Int64
-	activeSeq  atomic.Uint64
-	hasSamples atomic.Bool
+	startNano    atomic.Int64
+	activeSeq    atomic.Uint64
+	hasSamples   atomic.Bool
+	samplesTaken atomic.Int32
 
 	mu          sync.Mutex
 	sampleSeq   uint64
@@ -139,6 +141,7 @@ func (w *slowEventWatchdog) begin() time.Time {
 	if w == nil {
 		return now
 	}
+	w.samplesTaken.Store(0)
 	w.activeSeq.Add(1)
 	w.startNano.Store(now.UnixNano())
 	return now
@@ -179,6 +182,9 @@ func (w *slowEventWatchdog) sampleOnce(now time.Time) {
 	if elapsedNano < int64(w.sampleInterval) {
 		return
 	}
+	if w.samplesTaken.Load() >= maxSlowEventTotalSamples {
+		return
+	}
 	seq := w.activeSeq.Load()
 
 	allStacks := w.captureAllStacks()
@@ -202,6 +208,7 @@ func (w *slowEventWatchdog) sampleOnce(now time.Time) {
 		w.checkpoints = w.checkpoints[:0]
 		w.sampleSeq = seq
 	}
+	w.samplesTaken.Add(1)
 
 	if n := len(w.checkpoints); n > 0 && (w.checkpoints[n-1].Name == name || n >= maxSlowEventCheckpoints) {
 		last := &w.checkpoints[n-1]
@@ -222,13 +229,12 @@ func (w *slowEventWatchdog) sampleOnce(now time.Time) {
 }
 
 func (w *slowEventWatchdog) captureAllStacks() string {
-	for {
-		n := runtime.Stack(w.stackBuf, true)
-		if n < len(w.stackBuf) || len(w.stackBuf) >= maxWatchdogStackBufSize {
-			return string(w.stackBuf[:n])
-		}
+	n := runtime.Stack(w.stackBuf, true)
+	out := string(w.stackBuf[:n])
+	if n == len(w.stackBuf) && len(w.stackBuf) < maxWatchdogStackBufSize {
 		w.stackBuf = make([]byte, min(len(w.stackBuf)*2, maxWatchdogStackBufSize))
 	}
+	return out
 }
 
 func extractTargetStack(allStacks, targetFrame string) (string, string) {
@@ -253,12 +259,13 @@ func extractTargetStack(allStacks, targetFrame string) (string, string) {
 		name = "[" + state + "] " + callChain
 	}
 
+	sanitizedTarget := sanitizeGoroutineSection(targetSection)
 	if !isBlockedGoroutineState(state) {
-		return name, targetSection
+		return name, sanitizedTarget
 	}
 
 	var b strings.Builder
-	b.WriteString(targetSection)
+	b.WriteString(sanitizedTarget)
 	added := 0
 	for _, section := range sections {
 		trimmed := strings.TrimSpace(section)
@@ -269,13 +276,25 @@ func extractTargetStack(allStacks, targetFrame string) (string, string) {
 			continue
 		}
 		b.WriteString("\n\n")
-		b.WriteString(trimmed)
+		b.WriteString(sanitizeGoroutineSection(trimmed))
 		added++
 		if added >= maxRelatedSecurityGoroutines {
 			break
 		}
 	}
 	return name, b.String()
+}
+
+func sanitizeGoroutineSection(section string) string {
+	lines := strings.Split(section, "\n")
+	for i := 1; i < len(lines); i++ {
+		line := lines[i]
+		if strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "created by ") || line == "" {
+			continue
+		}
+		lines[i] = stripTrailingCallArgs(strings.TrimSpace(line))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func isGoroutineWithFrame(section, targetFrame string) bool {
