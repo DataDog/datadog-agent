@@ -8,6 +8,7 @@
 package modules
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -108,4 +109,29 @@ func TestGetAgentPIDs(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []uint32{1, 3}, pids)
+}
+
+func TestAgentPIDsNextToSystemProbe(t *testing.T) {
+	cgroups := map[uint32]string{
+		10: "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podA.slice/cri-containerd-agent.scope",
+		11: "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podB.slice/cri-containerd-other-agent.scope",
+		12: "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podA.slice/cri-containerd-trace.scope",
+	}
+	cgroupOf := func(pid uint32) (string, error) {
+		if cgroup, ok := cgroups[pid]; ok {
+			return cgroup, nil
+		}
+		return "", errors.New("gone")
+	}
+	sysprobe := "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podA.slice/cri-containerd-sysprobe.scope"
+
+	// Only the agents of the system-probe pod, and those whose cgroup cannot be read (kept as before)
+	require.Equal(t, []uint32{10, 12, 13}, agentPIDsNextToSystemProbe(sysprobe, []uint32{10, 11, 12, 13}, cgroupOf))
+	// Host services
+	require.Equal(t, []uint32{20}, agentPIDsNextToSystemProbe("/system.slice/datadog-agent-sysprobe.service", []uint32{20},
+		func(uint32) (string, error) { return "/system.slice/datadog-agent.service", nil }))
+	// Unknown system-probe cgroup: all the agents, as before
+	require.Equal(t, []uint32{10, 11}, agentPIDsNextToSystemProbe("", []uint32{10, 11}, cgroupOf))
+	// The agent of the system-probe pod is restarting: the other agents are not touched
+	require.Empty(t, agentPIDsNextToSystemProbe(sysprobe, []uint32{11}, cgroupOf))
 }

@@ -212,7 +212,7 @@ func insertDeviceAllowLine(lines []string, sectionHeader, newLine string) ([]str
 		if line == sectionHeader {
 			foundSectionHeader = true
 			candidateLineIndex = i + 1
-		} else if foundSectionHeader && strings.HasPrefix(line, "DeviceAllow=") {
+		} else if foundSectionHeader && strings.HasPrefix(normalizeSystemdAssignment(line), "DeviceAllow=") {
 			candidateLineIndex = i + 1
 		} else if foundSectionHeader && strings.HasPrefix(line, "[") {
 			// Another section header, stop searching
@@ -231,6 +231,51 @@ func insertDeviceAllowLine(lines []string, sectionHeader, newLine string) ([]str
 	copy(newLines[candidateLineIndex+1:], lines[candidateLineIndex:])
 
 	return newLines, nil
+}
+
+// missingDeviceAllowLines returns the lines of wanted, newline-terminated, that are not in effect in the given
+// section of a systemd unit, or "" if they all are. An empty "DeviceAllow=" assignment resets the list in systemd,
+// so only the assignments after the last reset count. Whitespace around "=" and between values is ignored.
+func missingDeviceAllowLines(lines []string, sectionHeader, wanted string) string {
+	present := make(map[string]struct{})
+	inSection := false
+	for _, line := range lines {
+		line = normalizeSystemdAssignment(line)
+		switch {
+		case line == sectionHeader:
+			inSection = true
+		case strings.HasPrefix(line, "["):
+			inSection = false
+		case !inSection:
+		case line == "DeviceAllow=":
+			present = make(map[string]struct{})
+		default:
+			present[line] = struct{}{}
+		}
+	}
+	var missing strings.Builder
+	for _, line := range strings.Split(strings.TrimSpace(wanted), "\n") {
+		if _, ok := present[normalizeSystemdAssignment(line)]; !ok {
+			missing.WriteString(strings.TrimSpace(line) + "\n")
+		}
+	}
+	return missing.String()
+}
+
+// normalizeSystemdAssignment trims a systemd unit line and removes the whitespace around its "=" and between
+// its values, e.g. "DeviceAllow = char-nvidia  rwm" becomes "DeviceAllow=char-nvidia rwm".
+func normalizeSystemdAssignment(line string) string {
+	line = strings.TrimSpace(line)
+	key, value, found := strings.Cut(line, "=")
+	if !found || strings.HasPrefix(line, "[") {
+		return line
+	}
+	return strings.TrimSpace(key) + "=" + strings.Join(strings.Fields(value), " ")
+}
+
+// CgroupPathForProcess returns the cgroup of a process, as seen from the host.
+func CgroupPathForProcess(pid uint32, hostRoot string) (string, error) {
+	return getAbsoluteCgroupForProcess("/", hostRoot, uint32(os.Getpid()), pid, cgroups.Mode())
 }
 
 func configureSystemDAllow(rootfs, containerID string) error {
@@ -268,8 +313,13 @@ func configureSystemDAllow(rootfs, containerID string) error {
 
 	lines := strings.Split(string(content), "\n")
 
-	// Insert the nvidiaSystemdDeviceAllow line after [Scope]
-	newLines, err := insertDeviceAllowLine(lines, "[Scope]", nvidiaSystemdDeviceAllow)
+	// Insert the nvidiaSystemdDeviceAllow lines after [Scope], unless an earlier run already did: the
+	// permissions can be re-applied every few seconds, and the file would grow on each run.
+	missing := missingDeviceAllowLines(lines, "[Scope]", nvidiaSystemdDeviceAllow)
+	if missing == "" {
+		return nil
+	}
+	newLines, err := insertDeviceAllowLine(lines, "[Scope]", missing)
 	if err != nil {
 		return fmt.Errorf("failed to insert device allow line in %s: %w", configFilePath, err)
 	}

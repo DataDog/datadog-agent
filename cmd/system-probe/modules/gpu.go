@@ -521,6 +521,46 @@ func configureCgroupPermissions(ctx context.Context, reapplyInterval time.Durati
 	}
 }
 
+// cgroupPermissionWarnings holds the cgroup permission failures already logged as warnings, so that a
+// persistent failure is not logged on every re-application
+var cgroupPermissionWarnings sync.Map
+
+// warnCgroupPermissionsOnce logs the failure as a warning the first time it happens for the key, and at debug
+// level afterwards.
+func warnCgroupPermissionsOnce(key string, format string, args ...interface{}) {
+	if _, warned := cgroupPermissionWarnings.LoadOrStore(key, struct{}{}); warned {
+		log.Debugf(format, args...)
+		return
+	}
+	log.Warnf(format, args...)
+}
+
+// agentPIDsNextToSystemProbe keeps the agent processes whose cgroup is a sibling of the system-probe one: the
+// agent container of the same pod in Kubernetes, the agent service next to the system-probe service on a host.
+// Other agents on the node (e.g. another agent DaemonSet or cluster check runners) are left alone. When the
+// system-probe cgroup cannot be read, all the agent processes are kept, as before; an agent process whose cgroup
+// cannot be read is kept too.
+func agentPIDsNextToSystemProbe(sysprobeCgroup string, agentPIDs []uint32, cgroupOf func(uint32) (string, error)) []uint32 {
+	if sysprobeCgroup == "" {
+		return agentPIDs
+	}
+	parent := filepath.Dir(sysprobeCgroup)
+	var kept []uint32
+	for _, pid := range agentPIDs {
+		cgroup, err := cgroupOf(pid)
+		if err != nil || filepath.Dir(cgroup) == parent {
+			kept = append(kept, pid)
+		} else {
+			log.Debugf("Not configuring cgroup permissions for agent process with PID %d: its cgroup %s is not next to the system-probe one %s", pid, cgroup, sysprobeCgroup)
+		}
+	}
+	if len(kept) == 0 {
+		// Usually the agent of this pod is restarting: skip this round rather than touching the other agents
+		log.Debugf("No agent process found next to the system-probe cgroup %s, not configuring any cgroup permissions this time", sysprobeCgroup)
+	}
+	return kept
+}
+
 // doConfigureCgroupPermissions configures the cgroup permissions to access NVIDIA
 // devices for the system-probe and agent processes.
 func doConfigureCgroupPermissions(root string) {
@@ -528,20 +568,33 @@ func doConfigureCgroupPermissions(root string) {
 
 	log.Debugf("Configuring cgroup permissions for system-probe process with PID %d", sysprobePID)
 	if err := gpu.ConfigureDeviceCgroups(sysprobePID, root); err != nil {
-		log.Warnf("Failed to configure cgroup permissions for system-probe process: %v. gpu-monitoring module might not work properly", err)
+		warnCgroupPermissionsOnce("system-probe", "Failed to configure cgroup permissions for system-probe process: %v. gpu-monitoring module might not work properly", err)
+	} else {
+		cgroupPermissionWarnings.Delete("system-probe")
 	}
 
 	procRoot := filepath.Join(root, "proc")
 	agentPIDs, err := getAgentPIDs(procRoot)
 	if err != nil {
-		log.Warnf("Failed to get agent PIDs: %v. Cannot patch cgroup permissions, gpu-monitoring module might not work properly", err)
+		warnCgroupPermissionsOnce("agent-pids", "Failed to get agent PIDs: %v. Cannot patch cgroup permissions, gpu-monitoring module might not work properly", err)
 		return
 	}
 
+	sysprobeCgroup, err := gpu.CgroupPathForProcess(sysprobePID, root)
+	if err != nil {
+		log.Debugf("Cannot get the system-probe cgroup, configuring the cgroup permissions of all the agent processes: %v", err)
+	}
+	agentPIDs = agentPIDsNextToSystemProbe(sysprobeCgroup, agentPIDs, func(pid uint32) (string, error) {
+		return gpu.CgroupPathForProcess(pid, root)
+	})
+
 	for _, agentPID := range agentPIDs {
 		log.Debugf("Configuring cgroup permissions for agent process with PID %d", agentPID)
+		key := fmt.Sprintf("agent-%d", agentPID)
 		if err := gpu.ConfigureDeviceCgroups(agentPID, root); err != nil {
-			log.Warnf("Failed to configure cgroup permissions for agent process with PID %d: %v. gpu-monitoring module might not work properly", agentPID, err)
+			warnCgroupPermissionsOnce(key, "Failed to configure cgroup permissions for agent process with PID %d: %v. gpu-monitoring module might not work properly", agentPID, err)
+		} else {
+			cgroupPermissionWarnings.Delete(key)
 		}
 	}
 }
