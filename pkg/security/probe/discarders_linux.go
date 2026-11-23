@@ -134,7 +134,7 @@ type inodeDiscarders struct {
 	rs             *rules.RuleSet
 
 	// parentDiscarderFncs holds the parent discarder functions of rs
-	parentDiscarderFncs map[eval.Field]func(dir string) bool
+	parentDiscarderFncs map[eval.Field]func(dir, overlayDir string) bool
 
 	recentlyAddedEntries [maxRecentlyAddedCacheSize]InodeDiscarderEntry
 }
@@ -214,14 +214,14 @@ func getParent(filename string, depth int) string {
 
 // getParentDiscarderFnc returns whether a directory is a discarder of the files
 // below it, no rule of the event type matching them, the field being their path.
-// It is nil when no directory is.
-func getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field eval.Field) (func(dir string) bool, error) {
+// It is nil when no directory is. See literalBelow for overlayDir.
+func getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field eval.Field) (func(dir, overlayDir string) bool, error) {
 	bucket := rs.GetBucket(eventType.String())
 	if bucket == nil {
 		return nil, nil
 	}
 
-	var canMatch []func(dir string) bool
+	var canMatch []func(dir, overlayDir string) bool
 	for _, rule := range bucket.GetRules() {
 		below, err := canMatchBelow(rule.GetResolvedAst().Root, field, true)
 		if below == nil || err != nil {
@@ -229,15 +229,15 @@ func getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field e
 		}
 		canMatch = append(canMatch, below)
 	}
-	return func(dir string) bool {
-		return !slices.ContainsFunc(canMatch, func(below func(dir string) bool) bool { return below(dir) })
+	return func(dir, overlayDir string) bool {
+		return !slices.ContainsFunc(canMatch, func(below func(dir, overlayDir string) bool) bool { return below(dir, overlayDir) })
 	}, nil
 }
 
 // canMatchBelow returns whether the expression can be true below a directory,
 // or false when it is under an odd number of negations. Only the comparisons of
 // the field in a positive position are decided.
-func canMatchBelow(node ast.Node, field eval.Field, positive bool) (func(dir string) bool, error) {
+func canMatchBelow(node ast.Node, field eval.Field, positive bool) (func(dir, overlayDir string) bool, error) {
 	switch n := node.(type) {
 	case *ast.LogicalExpr:
 		left, err := canMatchBelow(n.Left, field, positive)
@@ -255,12 +255,12 @@ func canMatchBelow(node ast.Node, field eval.Field, positive bool) (func(dir str
 			if right == nil {
 				return left, nil
 			}
-			return func(dir string) bool { return left(dir) && right(dir) }, nil
+			return func(dir, overlayDir string) bool { return left(dir, overlayDir) && right(dir, overlayDir) }, nil
 		}
 		if left == nil || right == nil {
 			return nil, nil
 		}
-		return func(dir string) bool { return left(dir) || right(dir) }, nil
+		return func(dir, overlayDir string) bool { return left(dir, overlayDir) || right(dir, overlayDir) }, nil
 	case *ast.UnaryExpr:
 		if n.Op == ast.UnaryNot {
 			return canMatchBelow(n.Operand, field, !positive)
@@ -279,7 +279,7 @@ func canMatchBelow(node ast.Node, field eval.Field, positive bool) (func(dir str
 		if !ok || !positive || !isFieldRef(n.Left, field) || n.Op != ast.ArrayIn {
 			return nil, nil
 		}
-		members := make([]func(dir string) bool, 0, len(array.Members))
+		members := make([]func(dir, overlayDir string) bool, 0, len(array.Members))
 		for _, member := range array.Members {
 			below, err := literalBelow(member, false)
 			if below == nil || err != nil {
@@ -287,8 +287,8 @@ func canMatchBelow(node ast.Node, field eval.Field, positive bool) (func(dir str
 			}
 			members = append(members, below)
 		}
-		return func(dir string) bool {
-			return slices.ContainsFunc(members, func(below func(dir string) bool) bool { return below(dir) })
+		return func(dir, overlayDir string) bool {
+			return slices.ContainsFunc(members, func(below func(dir, overlayDir string) bool) bool { return below(dir, overlayDir) })
 		}, nil
 	}
 	return nil, nil
@@ -300,13 +300,16 @@ func isFieldRef(node ast.Node, field eval.Field) bool {
 }
 
 // literalBelow returns whether a path equal to the literal, or matching it, can
-// be below a directory.
-func literalBelow(literal *ast.Literal, match bool) (func(dir string) bool, error) {
+// be below a directory. As OverlayFSPathname also compares the path relative to
+// its overlay mount point, so is the directory as overlayDir.
+func literalBelow(literal *ast.Literal, match bool) (func(dir, overlayDir string) bool, error) {
 	switch literal.Value.Kind() {
 	case ast.String:
 		if !match {
 			path := ast.StringVal(literal.Value)
-			return func(dir string) bool { return strings.HasPrefix(path, dir) }, nil
+			return func(dir, overlayDir string) bool {
+				return strings.HasPrefix(path, dir) || strings.HasPrefix(path, overlayDir)
+			}, nil
 		}
 		fallthrough
 	case ast.Pattern:
@@ -314,14 +317,14 @@ func literalBelow(literal *ast.Literal, match bool) (func(dir string) bool, erro
 		if err != nil {
 			return nil, err
 		}
-		return glob.IsPrefix, nil
+		return func(dir, overlayDir string) bool { return glob.IsPrefix(dir) || glob.IsPrefix(overlayDir) }, nil
 	}
 	return nil, nil
 }
 
-func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, depth int) (bool, error) {
+func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, depth int, overlayMountPoint string) (bool, error) {
 	if id.rs != rs {
-		id.parentDiscarderFncs = make(map[eval.Field]func(dir string) bool)
+		id.parentDiscarderFncs = make(map[eval.Field]func(dir, overlayDir string) bool)
 		id.rs = rs
 	}
 
@@ -338,7 +341,13 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 	}
 
 	dirname := getParent(filename, depth)
-	if dirname == "/" || !fnc(dirname) {
+	overlayDir := dirname
+	if overlayMountPoint != "" {
+		if overlayDir = strings.TrimPrefix(dirname, overlayMountPoint); overlayDir == "" {
+			overlayDir = "/"
+		}
+	}
+	if dirname == "/" || !fnc(dirname, overlayDir) {
 		// never discard /
 		return false, nil
 	}
@@ -348,13 +357,13 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 	return true, nil
 }
 
-func (id *inodeDiscarders) discardParentInode(req *erpc.Request, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, pathKey model.PathKey, timestamp uint64) (bool, uint32, uint64, error) {
+func (id *inodeDiscarders) discardParentInode(req *erpc.Request, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, overlayMountPoint string, pathKey model.PathKey, timestamp uint64) (bool, uint32, uint64, error) {
 	var discarderDepth int
 	var isDiscarder bool
 	var err error
 
 	for depth := maxParentDiscarderDepth; depth > 0; depth-- {
-		if isDiscarder, err = id.isParentPathDiscarder(rs, eventType, field, filename, depth); isDiscarder {
+		if isDiscarder, err = id.isParentPathDiscarder(rs, eventType, field, filename, depth, overlayMountPoint); isDiscarder {
 			discarderDepth = depth
 			break
 		}
@@ -416,7 +425,12 @@ func filenameDiscarderWrapper(eventType model.EventType, field eval.Field, gette
 			return false, nil
 		}
 
-		isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, fileEvent.PathKey, event.TimestampRaw)
+		var overlayMountPoint string
+		if event.FieldHandlers.ResolveFileFilesystem(event, fileEvent) == model.OverlayFS {
+			overlayMountPoint = strings.TrimRight(fileEvent.MountPath, "/")
+		}
+
+		isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, overlayMountPoint, fileEvent.PathKey, event.TimestampRaw)
 		if !isDiscarded && !isDeleted && err == nil {
 			if !model.IsFakeInode(fileEvent.PathKey.Inode) {
 				seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, fileEvent.PathKey.Inode, filename)
