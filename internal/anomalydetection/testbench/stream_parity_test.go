@@ -60,6 +60,34 @@ func TestHeadlessStreamParquetMatchesRetainedOutput(t *testing.T) {
 	require.Equal(t, retained, stream)
 }
 
+func TestHeadlessSharedBaselineMatchesRetainedOutput(t *testing.T) {
+	scenariosDir := t.TempDir()
+	scenarioDir := filepath.Join(scenariosDir, "scenario")
+	parquetDir := filepath.Join(scenarioDir, "parquet")
+	require.NoError(t, os.MkdirAll(parquetDir, 0o755))
+	writeParityLogParquet(t, filepath.Join(parquetDir, "observer-logs-000000.parquet"))
+	writeParityMetricParquet(t, filepath.Join(parquetDir, "observer-metrics-000000.parquet"))
+	// Input spans [1000,1299]. Earlier observations must not train models;
+	// the labeled baseline [1060,1240) gives a shared deadline of1120.
+	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "episode.json"), []byte(`{
+	 "baseline":{"start":"1970-01-01T00:17:40Z","end":"1970-01-01T00:20:40Z"},
+	 "disruption":{"start":"1970-01-01T00:20:40Z"}}`), 0600))
+	settings := observerimpl.ComponentSettings{Baseline: observerimpl.BaselineConfig{Enabled: true, DurationSec: 120, MuteNoisyMetrics: true}}
+	var outputs []bench.ObserverOutput
+	for _, retained := range []bool{false, true} {
+		path := filepath.Join(t.TempDir(), "output.json")
+		runFxApp(t, CLIParams{ScenariosDir: scenariosDir, Headless: "scenario", Output: path, RetainParquet: retained,
+			IncludeDetectorAnomalies: true, ComponentSettings: settings, BaselineFromEpisode: true})
+		output := readObserverOutput(t, path)
+		require.Equal(t, int64(1120), output.Metadata.EvaluationStart)
+		require.EqualValues(t, 240, output.Metadata.Stats.InputLogsCount)
+		require.EqualValues(t, 240, output.Metadata.Stats.InputMetricsCount)
+		output.Metadata.Stats.DetectorStats = nil
+		outputs = append(outputs, output)
+	}
+	require.Equal(t, outputs[0], outputs[1])
+}
+
 func TestHeadlessStreamParquetMatchesRetainedDetectorOutput(t *testing.T) {
 	scenariosDir := t.TempDir()
 	parquetDir := filepath.Join(scenariosDir, "scenario", "parquet")

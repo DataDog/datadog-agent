@@ -39,10 +39,11 @@ import (
 )
 
 type CLIParams struct {
-	ScenariosDir      string
-	HTTPAddr          string
-	ComponentSettings observerimpl.ComponentSettings
-	AllowedTypes      []string
+	ScenariosDir        string
+	HTTPAddr            string
+	ComponentSettings   observerimpl.ComponentSettings
+	BaselineFromEpisode bool
+	AllowedTypes        []string
 
 	// Headless mode: run a scenario and exit (no HTTP server)
 	Headless                 string // scenario name to run (empty = interactive mode)
@@ -86,7 +87,7 @@ func main() {
 	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
 	parquetFormat := flag.String("parquet-format", "", "Parquet layout: v1 (observer-metrics-*/observer-logs-*), v2 (contexts.parquet + metrics-*/logs-*), or empty to auto-detect")
 	retainParquet := flag.Bool("retain-parquet", false, "Retain and sort all parquet rows instead of streaming them (headless mode only)")
-	baselineDuration := flag.String("baseline-duration", "", "Baseline analysis window duration (e.g. \"7m\", \"0\" to disable). Default: enabled with 2m window.")
+	baselineDuration := flag.String("baseline-duration", "", "Baseline analysis duration override (e.g. \"7m\", \"0\" to disable). Default: first third of episode baseline; 2m after readiness when baseline metadata is absent.")
 	muteNoisyMetrics := flag.Bool("mute-noisy-metrics", true, "Mute metrics that fire anomalies during the baseline window")
 	allowedTypes := flag.String("allowed_types", "", "Comma-separated allowed metric types (e.g. \"Gauge,Count,Unknown\"); empty allows all types")
 	flag.Parse()
@@ -142,7 +143,11 @@ func main() {
 			if !b.MuteNoisyMetrics {
 				mode = "observe"
 			}
-			fmt.Printf("  Baseline:      %dm window, mode=%s\n", b.DurationSec/60, mode)
+			if *baselineDuration == "" {
+				fmt.Printf("  Baseline:      first third of episode baseline (fallback: %dm after readiness), mode=%s\n", b.DurationSec/60, mode)
+			} else {
+				fmt.Printf("  Baseline:      %dm after readiness, mode=%s\n", b.DurationSec/60, mode)
+			}
 		} else {
 			fmt.Printf("  Baseline:      disabled\n")
 		}
@@ -182,6 +187,7 @@ func main() {
 			ScenariosDir:             *scenariosDir,
 			HTTPAddr:                 *httpAddr,
 			ComponentSettings:        componentSettings,
+			BaselineFromEpisode:      *baselineDuration == "",
 			AllowedTypes:             parsedAllowedTypes,
 			Headless:                 *headless,
 			Output:                   *output,
@@ -224,6 +230,7 @@ func run(
 		Cfg:                      cfg,
 		Logger:                   logger,
 		ComponentSettings:        params.ComponentSettings,
+		BaselineFromEpisode:      params.BaselineFromEpisode,
 		SkipDroppedMetrics:       params.SkipDroppedMetrics,
 		LogsOnly:                 params.LogsOnly,
 		ParquetFormat:            params.ParquetFormat,

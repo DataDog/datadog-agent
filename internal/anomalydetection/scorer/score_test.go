@@ -271,6 +271,50 @@ func TestScoreOutputFileHighSeverityPhaseContract(t *testing.T) {
 	}
 }
 
+func TestScoreOutputFileSharedLearningCutoff(t *testing.T) {
+	path, dir := writeScoringFixture(t, []ObserverCorrelation{
+		{Pattern: "anomaly_scorer_high:200", PeriodStart: 200},
+		{Pattern: "anomaly_scorer_high:400", PeriodStart: 400},
+		{Pattern: "anomaly_scorer_high:1000", PeriodStart: 1000},
+	}, "1970-01-01T00:33:20Z", "1970-01-01T00:43:20Z")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output ObserverOutput
+	if err := json.Unmarshal(data, &output); err != nil {
+		t.Fatal(err)
+	}
+	output.Metadata.EvaluationStart = 400 // first third of [100,1000)
+	data, err = json.Marshal(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := ScoreOutputFile(path, nil, dir, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.NumFilteredWarmup != 1 || r.NumBaselineFPs != 1 || r.BaselineDurationSeconds != 600 || r.EvaluationStart != 400 || math.Abs(r.Alpha-1.0/600) > 1e-10 {
+		t.Fatalf("learning data entered the evaluation window: %+v", r)
+	}
+	for _, cutoff := range []int64{99, 1000, 1100} {
+		output.Metadata.EvaluationStart = cutoff
+		data, err = json.Marshal(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ScoreOutputFile(path, nil, dir, 30); err == nil {
+			t.Fatalf("accepted invalid cutoff %d", cutoff)
+		}
+	}
+}
+
 func TestScoreOutputFileValidatesRecoveryMetadata(t *testing.T) {
 	for _, tc := range []struct{ name, start, end, want string }{
 		{"missing", "", "", "requires cooldown.start"},
