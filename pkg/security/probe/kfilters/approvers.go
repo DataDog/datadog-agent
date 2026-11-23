@@ -190,8 +190,8 @@ func isSuffixPattern(pattern string) bool {
 
 // Basename approves the paths of the files, or their names, on their basename.
 // A pattern is approved on the prefix of its basename, else on its suffix, else,
-// for a path, on the basename of its parent directory.
-func Basename(isPath bool) rules.ApproverModel {
+// with parent, on the basename of its parent directory.
+func Basename(parent bool) rules.ApproverModel {
 	return rules.ApproverModel(func(c rules.Comparison) ([]rules.Approver, bool) {
 		if value, ok := c.Equal(); ok {
 			return approvers(basename{key: basenameApprover{kind: leafBasename, value: path.Base(value)}})
@@ -212,11 +212,11 @@ func Basename(isPath bool) rules.ApproverModel {
 		}
 
 		// `**` matches the files of the subdirectories too
-		parent := path.Base(path.Dir(pattern))
-		if !isPath || base == "**" || len(parent) < minParentBasenameSize || strings.Contains(parent, "*") {
+		dir := path.Base(path.Dir(pattern))
+		if !parent || base == "**" || len(dir) < minParentBasenameSize || strings.Contains(dir, "*") {
 			return nil, false
 		}
-		return approvers(basename{key: basenameApprover{kind: parentBasename, value: parent}})
+		return approvers(basename{key: basenameApprover{kind: parentBasename, value: dir}})
 	})
 }
 

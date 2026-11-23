@@ -13,13 +13,14 @@ import (
 )
 
 // fileApprovers approves the paths and the names of the files of an event type
-// on their basename.
-func fileApprovers(event model.EventType, files ...string) rules.ApproverModel {
+// on their basename, and the paths on the basename of their parent directory
+// with parent.
+func fileApprovers(event model.EventType, parent bool, files ...string) rules.ApproverModel {
 	var models []rules.ApproverModel
 	for _, file := range files {
 		prefix := event.String() + "." + file
 		models = append(models,
-			rules.On(Basename(true), prefix+".path"),
+			rules.On(Basename(parent), prefix+".path"),
 			rules.On(Basename(false), prefix+".name"))
 	}
 	return rules.Any(models...)
@@ -30,24 +31,25 @@ func init() {
 	auid := rules.On(AUID, "process.auid")
 	for _, event := range []model.EventType{model.FileChmodEventType, model.FileChownEventType, model.FileMkdirEventType,
 		model.FileRmdirEventType, model.FileUnlinkEventType, model.FileUtimesEventType, model.FileChdirEventType} {
-		models[event.String()] = rules.Any(fileApprovers(event, "file"), auid)
+		models[event.String()] = rules.Any(fileApprovers(event, true, "file"), auid)
 	}
-	models["rename"] = rules.Any(fileApprovers(model.FileRenameEventType, "file", "file.destination"), auid)
-	models["link"] = fileApprovers(model.FileLinkEventType, "file", "file.destination")
+	models["rename"] = rules.Any(fileApprovers(model.FileRenameEventType, true, "file", "file.destination"), auid)
+	// the kernel approves the links on the basenames of their files only
+	models["link"] = fileApprovers(model.FileLinkEventType, false, "file", "file.destination")
 
 	models["open"] = rules.Any(
-		fileApprovers(model.FileOpenEventType, "file"),
+		fileApprovers(model.FileOpenEventType, true, "file"),
 		auid,
 		rules.On(rules.Any(Bits("open_flags_approvers", 100, false), RdOnly), "open.flags"),
 		rules.On(UpperLayer, "open.file.in_upper_layer"),
 	)
 	models["mmap"] = rules.Any(
-		fileApprovers(model.MMapEventType, "file"),
+		fileApprovers(model.MMapEventType, true, "file"),
 		rules.On(Bits("mmap_flags_approvers", 0, false), "mmap.flags"),
 		rules.On(Bits("mmap_protection_approvers", 0, true), "mmap.protection"),
 	)
 	models["splice"] = rules.Any(
-		fileApprovers(model.SpliceEventType, "file"),
+		fileApprovers(model.SpliceEventType, true, "file"),
 		rules.On(Bits("splice_entry_flags_approvers", 0, false), "splice.pipe_entry_flag"),
 		rules.On(Bits("splice_exit_flags_approvers", 0, false), "splice.pipe_exit_flag"),
 	)

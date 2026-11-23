@@ -354,6 +354,62 @@ func TestFilterOpenParentBasenameApprover(t *testing.T) {
 	}
 }
 
+// TestFilterLinkParentBasename checks that the links into the directory of a link rule are
+// reported, from either side of the link, when its glob has no usable basename.
+func TestFilterLinkParentBasename(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{ID: "test_rule_source", Expression: `link.file.path =~ "{{.Root}}/link-source/*"`},
+		{ID: "test_rule_destination", Expression: `link.file.destination.path =~ "{{.Root}}/link-target/*"`},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	for _, dir := range []string{"link-source", "link-target"} {
+		dirPath, _, err := test.Path(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(dirPath, 0777); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	link := func(t *testing.T, source, destination, ruleID string) {
+		sourcePath, _, err := test.Create(source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(sourcePath)
+
+		destinationPath, _, err := test.Path(destination)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(destinationPath)
+
+		test.WaitSignalFromRule(t, func() error {
+			return os.Link(sourcePath, destinationPath)
+		}, func(event *model.Event, _ *rules.Rule) {
+			assertFieldEqual(t, event, "link.file.path", sourcePath)
+			assertFieldEqual(t, event, "link.file.destination.path", destinationPath)
+		}, ruleID)
+	}
+
+	t.Run("source", func(t *testing.T) {
+		link(t, "link-source/source-file", "destination-file", "test_rule_source")
+	})
+
+	t.Run("destination", func(t *testing.T) {
+		link(t, "source-file", "link-target/destination-file", "test_rule_destination")
+	})
+}
+
 func TestFilterOpenLeafDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
 
