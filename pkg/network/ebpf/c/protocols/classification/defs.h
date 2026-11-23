@@ -36,6 +36,8 @@
 #define FLAG_SOCKET_FILTER_DELETION 1 << 4
 #define FLAG_SERVER_SIDE            1 << 5
 #define FLAG_CLIENT_SIDE            1 << 6
+// Set on a closing NAT'd connection's conn_stats when the other end of a same-host pair still holds the entry
+#define FLAG_LOCAL_NAT_PEER_OPEN    1 << 7
 
 // The enum below represents all different protocols we're able to
 // classify. Entries are segmented such that it is possible to infer the

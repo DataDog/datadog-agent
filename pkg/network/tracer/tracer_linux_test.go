@@ -3860,7 +3860,8 @@ func (s *TracerSuite) TestNATClassificationCleanup() {
 	tlsMap, err := tr.GetMap(probes.EnhancedTLSTagsMap)
 	require.NoError(t, err)
 
-	// waitClosed waits for userspace to store c's close, which is when it deletes the conntrack entry
+	// waitClosed waits for userspace to store c's close, which is when it deletes the conntrack entry. Both ends are
+	// on this host and the other is still open, so the first end to close must be marked as having an open peer.
 	waitClosed := func(t *testing.T, c net.Conn) {
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			conns, cleanup := getConnections(collect, tr)
@@ -3868,6 +3869,7 @@ func (s *TracerSuite) TestNATClassificationCleanup() {
 			conn, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 			if assert.NotNil(collect, conn, "closed connection not found") {
 				assert.True(collect, conn.IsClosed)
+				assert.True(collect, conn.LocalNATPeerOpen, "closed connection not marked as having an open local peer")
 			}
 		}, 5*time.Second, 100*time.Millisecond)
 	}
@@ -3962,6 +3964,58 @@ func (s *TracerSuite) TestNATClassificationCleanup() {
 			}, 3*time.Second, 100*time.Millisecond)
 		})
 	}
+}
+
+// TestNATUnmarkedCloseDeletedAtClose checks that a closed NAT'd connection without an open local peer, here one with
+// no classification entry, isn't marked and has its conntrack entry deleted as soon as userspace stores the close.
+func (s *TracerSuite) TestNATUnmarkedCloseDeletedAtClose() {
+	t := s.T()
+	if !kprobe.ClassificationSupported(testConfig()) {
+		t.Skip("protocol classification not supported")
+	}
+	cfg := testConfig()
+	cfg.EnableEbpfConntracker = true
+	tr := setupTracer(t, cfg)
+	if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+		t.Skip("the sk tracer doesn't classify with the conntrack map")
+	}
+	requireConntrackNATMapShared(t, cfg, tr)
+	netlinktestutil.SetupSNAT(t)
+
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		c, err := ln.Accept()
+		if err == nil {
+			accepted <- c
+		}
+		close(accepted)
+	}()
+	d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6")}, Timeout: 5 * time.Second}
+	client, err := d.Dial("tcp", ln.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	server := <-accepted
+	require.NotNil(t, server)
+	t.Cleanup(func() { _ = server.Close() })
+	require.Equal(t, "7.7.7.7", server.RemoteAddr().(*net.TCPAddr).IP.String(), "connection wasn't SNAT'd")
+
+	require.NoError(t, client.Close())
+	var closed *network.ConnectionStats
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		if conn, _ := findConnection(client.LocalAddr(), client.RemoteAddr(), conns); conn != nil && conn.IsClosed {
+			cp := *conn
+			closed = &cp
+		}
+		assert.NotNil(collect, closed, "closed connection not found")
+	}, 5*time.Second, 100*time.Millisecond)
+	assert.NotNil(t, closed.IPTranslation, "closed connection reported without NAT translation")
+	assert.False(t, closed.LocalNATPeerOpen, "connection without a classification entry marked as having an open local peer")
+	assert.Nil(t, tr.conntracker.GetTranslationForConn(&closed.ConnectionTuple), "conntrack entry not deleted at close")
 }
 
 const (
