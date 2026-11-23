@@ -128,14 +128,6 @@ Upgrade Notes
   ``sbom.cache_hits_total`` and ``sbom.cache_misses_total`` are removed. They
   measured the on-disk cache.
 
-- The serverless-init metadata settings are renamed.
-  ``DD_SERVERLESS_INIT_INVENTORY_ENABLED`` is now
-  ``DD_SERVERLESS_INIT_METADATA_ENABLED`` (``serverless.metadata_enabled``),
-  and ``DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED`` is now
-  ``DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED``
-  (``serverless.metadata_wrapped_command_enabled``). The previous names had
-  no effect and are no longer recognized.
-
 - The Windows Agent container images no longer include ``curl.exe`` or
   MinGit (``git``). The Agent does not use them, and they were reported by
   vulnerability scanners. If you relied on them inside the container, for
@@ -362,10 +354,11 @@ New Features
   same ``SupportReport`` path as the flare ``procmgr/state.json`` file, and is
   still shown when the daemon cannot be reached, recording why.
 
-- Adds ``DD_SERVERLESS_INIT_INVENTORY_ENABLED`` (default ``false``) to opt
-  serverless-init into reporting cloud resource inventory metadata to Datadog.
-
-- Adds ``DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED`` (default
+- Adds ``DD_SERVERLESS_INIT_METADATA_ENABLED``
+  (``serverless.metadata_enabled``, default ``false``) to opt
+  serverless-init into reporting cloud resource inventory metadata to Datadog,
+  and ``DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED``
+  (``serverless.metadata_wrapped_command_enabled``, default
   ``false``) to include the wrapped workload command in serverless-init
   inventory metadata. The command is omitted by default, and redaction of
   sensitive command-line arguments is best effort and incomplete. Enable this
