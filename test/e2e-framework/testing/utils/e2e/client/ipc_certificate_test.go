@@ -89,10 +89,12 @@ func newIPCCertServer(t *testing.T, certPEM, keyPEM, clientCA []byte, handler ht
 }
 
 // newCertClient returns an HTTP client presenting certificates through the
-// provider, like the host HTTP transport does.
+// provider, like the host HTTP transport does. Keep-alives are disabled so
+// each request opens a fresh TLS handshake.
 func newCertClient(provider *ipcCertProvider) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
+			DisableKeepAlives: true,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify:   true, //nolint:gosec // test server certificate is self-signed
 				GetClientCertificate: provider.getCertificate,
