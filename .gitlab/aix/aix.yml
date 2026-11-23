@@ -135,16 +135,14 @@ cleanup_aix-ppc64:
     - |
       aix_run_cmd <<EOF
       set -eux
-      # Everything the AIX jobs fill lives under /opt/dd-build
       rm -rf /opt/dd-build
       mkdir -p /opt/dd-build
-      # Mark done before the failure-prone steps below
-      date +%s > /opt/.aix-ci-last-cleanup
-      # Re-downloaded by setup-host.sh on demand
       rm -f /tmp/go*.aix-ppc64.tar.gz
       /opt/freeware/bin/dnf-3 clean all || true
       df -g /opt /tmp
       EOF
+    # Marker lives outside /opt/dd-build so it survives the wipe
+    - aix_run_cmd 'date +%s > /opt/.aix-ci-last-cleanup'
     # Redo the before_script's clone, wiped above
     - 'echo "=== AIX: re-cloning agent source ==="'
     - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_git_setup.sh
