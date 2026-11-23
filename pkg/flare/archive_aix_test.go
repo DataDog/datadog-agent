@@ -8,9 +8,9 @@
 package flare
 
 import (
-	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,65 +36,87 @@ func TestErrptSince(t *testing.T) {
 	assert.Equal(t, "0102000027", errptSince(time.Date(2027, 1, 2, 0, 0, 0, 0, time.UTC)))
 }
 
-func TestFilterErrptRecords(t *testing.T) {
+func TestErrptWriter(t *testing.T) {
 	sep := "---------------------------------------------------------------------------\n"
-	in := sep +
-		"LABEL:          CORE_DUMP\nPROGRAM NAME\nagent-bin\n" + sep +
-		"LABEL:          CORE_DUMP\nPROGRAM NAME\nsomeapp\n" + sep +
-		"LABEL:          CORE_DUMP\nPROGRAM NAME\ntrace-agent-bin\n"
+	matching := func(name string) string {
+		return sep + "LABEL:          CORE_DUMP\nPROGRAM NAME\n" + name + "\n" + sep
+	}
 
-	out, hadRecords := filterErrptRecords([]byte(in), errptBinaries)
-	require.True(t, hadRecords)
-	assert.Contains(t, string(out), "agent-bin")
-	assert.Contains(t, string(out), "trace-agent-bin")
-	assert.NotContains(t, string(out), "someapp")
-
-	_, hadRecords = filterErrptRecords(nil, errptBinaries)
-	assert.False(t, hadRecords)
-}
-
-func TestErrptOutput(t *testing.T) {
-	sep := "---------------------------------------------------------------------------\n"
-	records := sep +
-		"LABEL:          CORE_DUMP\nPROGRAM NAME\nagent-bin\n" + sep +
-		"LABEL:          CORE_DUMP\nPROGRAM NAME\nsomeapp\n"
-
-	t.Run("truncated output keeps matches and the truncation marker", func(t *testing.T) {
-		// Cap large enough to keep the agent-bin record whole but truncate
-		// the rest.
-		w := &boundedWriter{max: 250}
-		_, err := w.Write([]byte(records))
+	t.Run("keeps only matching records", func(t *testing.T) {
+		w := newErrptWriter(errptMaxCollect, errptBinaries)
+		_, err := w.Write([]byte(matching("agent-bin") + matching("someapp") + matching("trace-agent-bin")))
 		require.NoError(t, err)
 
-		out, hadRecords := errptOutput(w, errptBinaries)
+		out, hadRecords := w.result()
+		assert.True(t, hadRecords)
+		assert.Contains(t, string(out), "agent-bin")
+		assert.Contains(t, string(out), "trace-agent-bin")
+		assert.NotContains(t, string(out), "someapp")
+		assert.NotContains(t, string(out), "[output truncated]")
+	})
+
+	t.Run("no filter keeps everything", func(t *testing.T) {
+		w := newErrptWriter(errptMaxCollect, nil)
+		_, err := w.Write([]byte(matching("someapp")))
+		require.NoError(t, err)
+
+		out, hadRecords := w.result()
+		assert.True(t, hadRecords)
+		assert.Contains(t, string(out), "someapp")
+	})
+
+	t.Run("records split across writes are reassembled", func(t *testing.T) {
+		// errpt output arrives in arbitrary chunks: the match string and the
+		// record separator can span two writes.
+		w := newErrptWriter(errptMaxCollect, errptBinaries)
+		for _, chunk := range []string{"LABEL:          CORE_DUMP\nPRO", "GRAM NAME\nagen", "t-bin\n" + sep} {
+			_, err := w.Write([]byte(chunk))
+			require.NoError(t, err)
+		}
+
+		out, hadRecords := w.result()
+		assert.True(t, hadRecords)
+		assert.Contains(t, string(out), "agent-bin")
+	})
+
+	t.Run("record after a full cap of noise is kept", func(t *testing.T) {
+		// The cap bounds the retained output, not the raw one: an Agent
+		// record sitting past 4 MiB of unrelated records must survive
+		// filtering.
+		noise := strings.Repeat(matching("someapp"), 25000) // > errptMaxCollect
+		require.Greater(t, len(noise), errptMaxCollect)
+		w := newErrptWriter(errptMaxCollect, errptBinaries)
+		_, err := w.Write([]byte(noise))
+		require.NoError(t, err)
+		_, err = w.Write([]byte(matching("agent-bin")))
+		require.NoError(t, err)
+
+		out, hadRecords := w.result()
 		assert.True(t, hadRecords)
 		assert.Contains(t, string(out), "agent-bin")
 		assert.NotContains(t, string(out), "someapp")
-		assert.Contains(t, string(out), "[output truncated]")
-	})
-
-	t.Run("marker survives even when no kept record could match", func(t *testing.T) {
-		// Cap so small that everything past the separator dashes is dropped:
-		// the marker must not be lost just because the retained blocks have
-		// no match.
-		w := &boundedWriter{max: 20}
-		_, err := w.Write([]byte(records))
-		require.NoError(t, err)
-
-		out, hadRecords := errptOutput(w, errptBinaries)
-		assert.False(t, hadRecords)
-		assert.Empty(t, string(bytes.TrimSuffix(string(out), truncatedMarker)))
-		assert.Contains(t, string(out), "[output truncated]")
-	})
-
-	t.Run("untruncated filtered output has no marker", func(t *testing.T) {
-		w := &boundedWriter{max: len(records)}
-		_, err := w.Write([]byte(records))
-		require.NoError(t, err)
-
-		out, hadRecords := errptOutput(w, errptBinaries)
-		assert.True(t, hadRecords)
 		assert.NotContains(t, string(out), "[output truncated]")
+		assert.Less(t, len(out), len(matching("agent-bin"))+len(sep))
+	})
+
+	t.Run("retained output past the cap is marked truncated", func(t *testing.T) {
+		// Cap large enough for the first record, small enough that the
+		// second matching record overflows it.
+		w := newErrptWriter(len(matching("agent-bin"))+8, errptBinaries)
+		_, err := w.Write([]byte(matching("agent-bin") + matching("trace-agent-bin")))
+		require.NoError(t, err)
+
+		out, hadRecords := w.result()
+		assert.True(t, hadRecords)
+		assert.Contains(t, string(out), "agent-bin")
+		assert.Contains(t, string(out), "[output truncated]")
+	})
+
+	t.Run("empty output has no records", func(t *testing.T) {
+		w := newErrptWriter(errptMaxCollect, errptBinaries)
+		out, hadRecords := w.result()
+		assert.False(t, hadRecords)
+		assert.Empty(t, out)
 	})
 }
 

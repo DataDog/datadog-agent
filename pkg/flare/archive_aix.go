@@ -23,7 +23,8 @@ import (
 const (
 	// errptWindow is how far back the collected entries go.
 	errptWindow = 7 * 24 * time.Hour
-	// errptMaxCollect bounds the raw output collected from one errpt call.
+	// errptMaxCollect bounds the output retained from one errpt call, after
+	// any record filtering.
 	errptMaxCollect = 4 * 1024 * 1024
 	// errptMaxErrOutput caps the stderr kept in error messages.
 	errptMaxErrOutput = 4 * 1024
@@ -88,16 +89,20 @@ func errptSince(t time.Time) string {
 
 type errptResult struct {
 	out []byte
-	// hadRecords reports whether the unfiltered output had any record.
+	// hadRecords reports whether the raw output had any record, matching or
+	// not.
 	hadRecords bool
 	err        error
 }
 
 // runErrpt runs errpt; when match is not nil, only records containing one of
-// the strings are kept. stderr is folded into err so query errors are never
-// mistaken for error-log content.
+// the strings are kept. The filtering happens while the output is being
+// read, so the collection cap bounds the retained output rather than the
+// raw one: an Agent record cannot be crowded out by unrelated noise before
+// it. stderr is folded into err so query errors are never mistaken for
+// error-log content.
 func runErrpt(ctx context.Context, match []string, args ...string) errptResult {
-	stdout := &boundedWriter{max: errptMaxCollect}
+	stdout := newErrptWriter(errptMaxCollect, match)
 	stderr := &boundedWriter{max: errptMaxErrOutput}
 	cmd := exec.CommandContext(ctx, "errpt", args...)
 	cmd.Stdout, cmd.Stderr = stdout, stderr
@@ -109,60 +114,104 @@ func runErrpt(ctx context.Context, match []string, args ...string) errptResult {
 		}
 		res.err = err
 	}
-	res.out, res.hadRecords = errptOutput(stdout, match)
+	res.out, res.hadRecords = stdout.result()
 	return res
 }
 
-// errptOutput post-processes an errpt stdout capture: when match is not nil,
-// only the records containing one of the match strings are kept. The
-// truncation marker is appended last, after filtering, so it cannot be
-// dropped by the filter and incomplete collections stay visible.
-func errptOutput(w *boundedWriter, match []string) ([]byte, bool) {
-	out := w.buf.Bytes()
-	var hadRecords bool
-	if match == nil {
-		hadRecords = len(bytes.TrimSpace(out)) > 0
-	} else {
-		out, hadRecords = filterErrptRecords(out, match)
-	}
-	if w.truncated {
-		out = appendTruncationMarker(out)
-	}
-	return out, hadRecords
+// errptWriter is errpt's stdout sink. A record is a block of lines closed by
+// a separator line of dashes; blocks are filtered as they are read and only
+// matching ones are retained (everything when match is nil), bounded by
+// max bytes of kept output.
+type errptWriter struct {
+	match []string
+	max   int
+
+	line  bytes.Buffer // pending partial line
+	block bytes.Buffer // current record block
+	kept  boundedWriter
+	// hadRecords reports whether the raw output contained any record,
+	// matching or not.
+	hadRecords bool
 }
 
-// filterErrptRecords keeps the records that contain one of the match strings, e.g. the
-// Agent's binary or subsystem names. Returns the kept records and whether the input
-// had any record at all.
-func filterErrptRecords(out []byte, match []string) ([]byte, bool) {
-	var kept, block bytes.Buffer
-	hadRecords := false
+func newErrptWriter(max int, match []string) *errptWriter {
+	return &errptWriter{match: match, max: max, kept: boundedWriter{max: max}}
+}
 
-	flush := func() {
-		if len(bytes.Trim(block.Bytes(), "-\n")) == 0 {
-			block.Reset()
-			return
-		}
-		hadRecords = true
-		for _, m := range match {
-			if bytes.Contains(block.Bytes(), []byte(m)) {
-				kept.Write(block.Bytes())
-				break
+// Write drains p entirely; non-matching blocks are discarded.
+func (w *errptWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	for len(p) > 0 {
+		i := bytes.IndexByte(p, '\n')
+		if i < 0 {
+			w.line.Write(p)
+			if w.line.Len() > w.max {
+				// Safety valve: flush a line that grows past the cap so a
+				// stream without newlines cannot grow the buffer forever.
+				w.flushLine(w.line.Bytes())
+				w.line.Reset()
 			}
+			break
 		}
-		block.Reset()
+		w.line.Write(p[:i+1])
+		p = p[i+1:]
+		w.flushLine(w.line.Bytes())
+		w.line.Reset()
 	}
+	return n, nil
+}
 
-	for _, line := range bytes.Split(out, []byte("\n")) {
-		block.Write(line)
-		block.WriteByte('\n')
-		if len(line) > 0 && len(bytes.Trim(line, "-")) == 0 {
-			flush()
+// flushLine adds line to the current block, closing the block when the line
+// is a separator (dashes only). Blocks larger than the cap are cut short so
+// memory stays bounded.
+func (w *errptWriter) flushLine(line []byte) {
+	w.block.Write(line)
+	if w.block.Len() > w.max {
+		w.flushBlock()
+		return
+	}
+	content := bytes.TrimSuffix(line, []byte("\n"))
+	if len(content) == 0 || len(bytes.Trim(content, "-")) != 0 {
+		return
+	}
+	w.flushBlock()
+}
+
+// flushBlock closes the current record block: it counts as a record when it
+// holds more than separator dashes, and is kept when it matches the filter
+// (always when there is none).
+func (w *errptWriter) flushBlock() {
+	defer w.block.Reset()
+	if len(bytes.Trim(w.block.Bytes(), "-\n")) == 0 {
+		return // separators only
+	}
+	w.hadRecords = true
+	if w.match != nil && !containsAny(w.block.Bytes(), w.match) {
+		return
+	}
+	w.kept.Write(w.block.Bytes())
+}
+
+// containsAny reports whether b contains one of the strings.
+func containsAny(b []byte, subs []string) bool {
+	for _, s := range subs {
+		if bytes.Contains(b, []byte(s)) {
+			return true
 		}
 	}
-	flush()
+	return false
+}
 
-	return kept.Bytes(), hadRecords
+// result flushes any pending partial line and block and returns the retained
+// output, with a truncation marker if the cap was hit, and whether the raw
+// output contained any record at all.
+func (w *errptWriter) result() ([]byte, bool) {
+	if w.line.Len() > 0 {
+		w.block.Write(w.line.Bytes())
+		w.block.WriteByte('\n')
+	}
+	w.flushBlock()
+	return w.kept.Bytes(), w.hadRecords
 }
 
 // buildErrptLog assembles errpt.log; query errors are reported inline, and the
@@ -214,9 +263,7 @@ func (w *boundedWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// appendTruncationMarker copies out with the truncation marker appended. It
-// runs after any record filtering so the marker line itself is never dropped
-// from the output.
+// appendTruncationMarker copies out with the truncation marker appended.
 func appendTruncationMarker(out []byte) []byte {
 	marked := make([]byte, 0, len(out)+len(truncatedMarker))
 	marked = append(marked, out...)
