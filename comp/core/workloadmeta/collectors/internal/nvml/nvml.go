@@ -181,7 +181,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		gpuDeviceInfo.BoardSerial = info.BoardSerial
 	}
 
-	// Cached at device construction and never modified afterwards.
 	gpuDeviceInfo.NUMANode = info.NUMANode
 
 	// Do not generate errors for vGPU devices, we already know that they don't support max clock info

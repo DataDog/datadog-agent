@@ -72,7 +72,7 @@ func fillPlacement(d *Device, info *safenvml.DeviceInfo) {
 		path := append([]string{}, info.PCIePath...)
 		d.PCIePath = &path
 	}
-	d.NUMANode = info.NUMANode // cached, never modified
+	d.NUMANode = info.NUMANode
 	// Like the matching metric tags, placement is only known with an
 	// identified chassis: without one, NVML reports zero or 255 placeholders.
 	if d.ChassisSerial != "" {
