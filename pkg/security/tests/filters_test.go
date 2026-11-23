@@ -359,38 +359,33 @@ func TestFilterOpenParentBasenameApprover(t *testing.T) {
 func TestFilterLinkParentBasename(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	ruleDefs := []*rules.RuleDefinition{
-		{ID: "test_rule_source", Expression: `link.file.path =~ "{{.Root}}/link-source/*"`},
-		{ID: "test_rule_destination", Expression: `link.file.destination.path =~ "{{.Root}}/link-target/*"`},
-	}
-
-	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.CloseTest()
-
-	for _, dir := range []string{"link-source", "link-target"} {
-		dirPath, _, err := test.Path(dir)
+	// one rule per test module: a rule without approvers would put the links in accept mode for the others
+	link := func(t *testing.T, expression, source, destination string) {
+		rule := &rules.RuleDefinition{ID: "test_rule", Expression: expression}
+		test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.MkdirAll(dirPath, 0777); err != nil {
-			t.Fatal(err)
-		}
-	}
+		defer test.CloseTest()
 
-	link := func(t *testing.T, source, destination, ruleID string) {
-		sourcePath, _, err := test.Create(source)
+		sourcePath, _, err := test.Path(source)
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.Remove(sourcePath)
-
 		destinationPath, _, err := test.Path(destination)
 		if err != nil {
 			t.Fatal(err)
 		}
+		for _, file := range []string{sourcePath, destinationPath} {
+			if err := os.MkdirAll(filepath.Dir(file), 0777); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		if _, _, err := test.Create(source); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(sourcePath)
 		defer os.Remove(destinationPath)
 
 		test.WaitSignalFromRule(t, func() error {
@@ -398,15 +393,15 @@ func TestFilterLinkParentBasename(t *testing.T) {
 		}, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqual(t, event, "link.file.path", sourcePath)
 			assertFieldEqual(t, event, "link.file.destination.path", destinationPath)
-		}, ruleID)
+		}, "test_rule")
 	}
 
 	t.Run("source", func(t *testing.T) {
-		link(t, "link-source/source-file", "destination-file", "test_rule_source")
+		link(t, `link.file.path =~ "{{.Root}}/link-source/*"`, "link-source/source-file", "destination-file")
 	})
 
 	t.Run("destination", func(t *testing.T) {
-		link(t, "source-file", "link-target/destination-file", "test_rule_destination")
+		link(t, `link.file.name == "watched" || link.file.destination.path =~ "{{.Root}}/link-target/*"`, "source-file", "link-target/destination-file")
 	})
 }
 
