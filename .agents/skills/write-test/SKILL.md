@@ -37,7 +37,7 @@ The script maps every Go file changed between the merge base with `origin/main` 
 List the components the behavior flows through, from where its input enters to where its output is observed. These are the candidates to wire for real in a test.
 
 1. **Find the entry points.**
-   - From the diff: take the changed Go files.
+   - From the diff: run the script below without arguments, as in Step 0. Given paths, it skips deleted files.
    - From a feature: find the code that implements it. Search for what a user would name: the config key (use the `locate-config-setting` skill for its schema node), the metric, tag, issue, or log message, the CLI subcommand, the intake endpoint. `git grep -n` the literal and keep the non-test hits.
 2. **Map them to components:**
    ```bash
