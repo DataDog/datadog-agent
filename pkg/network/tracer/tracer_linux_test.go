@@ -3745,7 +3745,7 @@ func (s *TracerSuite) TestTCPOrphanReportsClosingProcess() {
 	require.NoError(t, err)
 	require.NoError(t, skTCPStats.Delete(uint32(f.Fd())))
 	require.NoError(t, c.Close())
-	child := exec.Command("sh", "-c", "read _")
+	child := exec.Command("sh", "-c", "read _ || true")
 	child.ExtraFiles = []*os.File{f}
 	childStdin, err := child.StdinPipe()
 	require.NoError(t, err)
