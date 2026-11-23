@@ -25,6 +25,14 @@ type Writer interface {
 	Flush() error
 }
 
+// Compressor is a reusable bulk compression context. Each CompressLevel call emits
+// one complete, independent zstd frame. A Compressor is not safe for concurrent use.
+type Compressor interface {
+	// CompressLevel compresses src into dst, reusing dst when its capacity is
+	// at least CompressBound(len(src)), and allocating otherwise.
+	CompressLevel(dst, src []byte, level Level) ([]byte, error)
+}
+
 // CompressBound returns the worst-case size needed to compress srcSize bytes.
 // It mirrors ZSTD_COMPRESSBOUND from the zstd specification and is a valid
 // upper bound for the output of either backend.
@@ -45,4 +53,24 @@ func CompressBound(srcSize int) int {
 // alias of the active backend's native level type.
 func Compress(dst, src []byte) ([]byte, error) {
 	return CompressLevel(dst, src, DefaultCompression)
+}
+
+// WriterOption tunes the pure-Go encoder. The CGO backend logs a warning and ignores options.
+type WriterOption func(*writerOptions)
+
+type writerOptions struct {
+	windowLogSize   *int
+	lowerEncoderMem bool
+}
+
+// WithWindowLogSize sets the pure-Go history window to 1 << logSize bytes,
+// overriding ZSTD_NOCGO_WINDOW. The encoder validates the resulting window size.
+func WithWindowLogSize(logSize int) WriterOption {
+	return func(o *writerOptions) { o.windowLogSize = &logSize }
+}
+
+// WithDisableLowerEncoderMem disables the pure-Go encoder's memory-saving mode.
+// It can improve throughput at the cost of memory.
+func WithDisableLowerEncoderMem() WriterOption {
+	return func(o *writerOptions) { o.lowerEncoderMem = false }
 }

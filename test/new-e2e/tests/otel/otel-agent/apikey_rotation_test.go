@@ -226,7 +226,7 @@ func apiKeyRotationProvisioner() provisioners.TypedProvisioner[environments.Kube
 		kubernetesagentparams.WithOTelConfig(apiKeyRotationConfig),
 	}
 
-	if isKindLocal() {
+	if provlocal.IsKindLocal() {
 		return provlocal.Provisioner(
 			provlocal.WithPreAgentHook(apiKeyRotationSecretsHook),
 			provlocal.WithAgentOptions(agentOpts...),

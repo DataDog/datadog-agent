@@ -205,6 +205,23 @@ metrics:
         mig_parent: true
         physical: true
         vgpu: false
+  clock.throttle_reasons.hbm_thermal_slowdown:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Fraction of the collection interval, from 0 to 1, during which the clocks of AMD Instinct MI300 and MI350 Series GPUs were throttled to keep the HBM within its temperature limit, from the amdgpu gpu_metrics table.
+      aggregation: sensor_data
+    tagsets:
+      - device
+    validator:
+      range: {min: 0, max: 1}
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   clock.throttle_reasons.hw_power_brake_slowdown:
     metadata:
       metric_type: gauge
@@ -329,6 +346,23 @@ metrics:
         mig_parent: true
         physical: true
         vgpu: false
+  clock.throttle_reasons.vr_thermal_slowdown:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Fraction of the collection interval, from 0 to 1, during which the clocks of AMD Instinct MI300 and MI350 Series GPUs were throttled to keep a voltage regulator within its temperature limit, from the amdgpu gpu_metrics table.
+      aggregation: sensor_data
+    tagsets:
+      - device
+    validator:
+      range: {min: 0, max: 1}
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   clock.throttled_while_active:
     metadata:
       metric_type: gauge
@@ -390,6 +424,62 @@ metrics:
         mig_parent: false
         physical: true
         vgpu: false
+  # device.sharing_replicas is only reported for devices shared by replication
+  # (time-slicing, MPS), so it is optional: other devices never produce it.
+  device.sharing_replicas:
+    metadata:
+      metric_type: gauge
+      unit: device
+      description: >-
+        Number of replicas of the GPU, when it is shared by replication
+        (time-slicing or MPS), as described by the gpu_sharing_mode tag: how
+        many workloads can share the GPU. Read from the GPU Feature Discovery
+        replicas node label of the GPU's resource (e.g. nvidia.com/gpu.replicas,
+        or nvidia.com/mig-1g.10gb.replicas for a MIG profile), so not reported
+        without it.
+      aggregation: absolute_usage
+    optional: true
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 1
+        max: 1000000000000
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
+  # device.sharing_replicas_used is only reported for containers holding
+  # replicas of a device shared by replication (time-slicing, MPS), so it is
+  # optional: other workloads never produce it.
+  device.sharing_replicas_used:
+    metadata:
+      metric_type: gauge
+      unit: device
+      description: >-
+        Number of replicas of the GPU that the container holds, when the GPU
+        is shared by replication (time-slicing or MPS), as described by the
+        gpu_sharing_mode tag. A container can hold several of them, e.g.
+        requesting two shared GPUs that are both replicas of one. Not
+        reported for containers without an allocated replica.
+      aggregation: absolute_usage
+    workload_only: true
+    optional: true
+    tagsets:
+      - device
+      - container
+    validator:
+      range:
+        min: 1
+        max: 1000000000000
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   # device.sharing_fraction is only reported for containers assigned a share of
   # a GPU, so it is optional: other workloads never produce it.
   device.sharing_fraction:
@@ -399,7 +489,7 @@ metrics:
       description: >-
         Fraction of the GPU assigned to the container, when the GPU is shared
         between containers that are each assigned a fraction of it, as described
-        by the gpu_sharing_mode tag (for example, kai_fraction for KAI Scheduler
+        by the gpu_sharing_mode tag (for example, kai-fraction for KAI Scheduler
         GPU fractions). Not reported for containers without an assigned fraction.
       aggregation: absolute_usage
     workload_only: true
@@ -427,7 +517,7 @@ metrics:
       description: >-
         GPU memory the container is allowed to use, when the GPU is shared
         between containers that are each assigned a fraction of it, as described
-        by the gpu_sharing_mode tag (for example, kai_fraction for KAI Scheduler
+        by the gpu_sharing_mode tag (for example, kai-fraction for KAI Scheduler
         GPU fractions). The GPU memory not assigned to any container can be
         computed with `max:gpu.memory.limit{*} by {gpu_uuid} -
         sum:gpu.device.sharing_memory{*} by {gpu_uuid}`. Not reported for
@@ -467,28 +557,12 @@ metrics:
         mig_parent: true
         physical: true
         vgpu: true
-  device.unhealthy:
-    metadata:
-      metric_type: gauge
-      description: Whether the GPU device is unhealthy
-      aggregation: absolute_usage
-    tagsets:
-      - device
-    validator:
-      values: [0, 1]
-    support:
-      unsupported_architectures: []
-      device_modes:
-        mig: true
-        mig_parent: true
-        physical: true
-        vgpu: true
   dram_active:
     metadata:
       metric_type: gauge
       unit: percent
       description: >-
-        Percentage of time the DRAM was active. On AMD GPUs, the HBM bandwidth utilization in percent of the peak, not the time busy: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous mem_busy_percent.
+        Percentage of time the DRAM was active. On AMD GPUs, the HBM bandwidth utilization in percent of the peak, not the time busy: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous mem_busy_percent. On Cloud TPUs, the HBM bandwidth utilization in percent of the maximum supported bandwidth.
       aggregation: relative_activity
     tagsets:
       - device
@@ -526,10 +600,10 @@ metrics:
       description: >-
         Corrected ECC (Error Correcting Code) errors indicate GPU memory
         corruption that was detected and successfully corrected by the hardware.
-        While these errors do not immediately impact application correctness,
-        recurring corrected errors can be an early sign of degrading memory or
-        underlying hardware issues. The counter reports errors seen for the entire
-        lifetime of the device.
+        Recurring corrected errors can be an early sign of degrading memory or
+        hardware issues. The counter reports errors seen for the entire lifetime
+        of the device. On AMD GPUs, amdgpu RAS counts since the driver loaded,
+        summed like amd-smi, without memory_location.
       aggregation: lifetime_error
     tagsets:
       - device
@@ -568,7 +642,9 @@ metrics:
         Uncorrectable ECC (Error Correcting Code) errors indicate GPU memory
         corruption that could not be automatically fixed. These errors can lead
         to data corruption, application crashes, or incorrect computation
-        results. The counter reports errors seen for the entire lifetime of the device.
+        results. The counter reports errors seen for the entire lifetime of the
+        device. On AMD GPUs, amdgpu RAS counts since the driver loaded, summed
+        like amd-smi, without memory_location.
       aggregation: lifetime_error
     tagsets:
       - device
@@ -599,6 +675,26 @@ metrics:
         mig_parent: true
         physical: true
         vgpu: true
+  errors.ecc.deferred.total:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Deferred ECC (Error Correcting Code) errors of AMD GPUs: uncorrectable
+        errors the hardware deferred, poisoning the affected data. The amdgpu
+        RAS counts summed as amd-smi does, since the driver loaded (on a virtual
+        function, as the host reports). In practice only the UMC (HBM) block
+        counts them; 0 where the driver does not (such as MI200). Not
+        reported without a deferred count.
+      aggregation: lifetime_error
+    tagsets:
+      - device
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   errors.ecc.sram.threshold_exceeded:
     metadata:
       metric_type: gauge
@@ -710,6 +806,7 @@ metrics:
     custom_tags:
       - origin
       - type
+      - xid_code
     support:
       unsupported_architectures: []
       device_modes:
@@ -734,6 +831,7 @@ metrics:
     custom_tags:
       - origin
       - type
+      - xid_code
     support:
       unsupported_architectures: []
       device_modes:
@@ -902,7 +1000,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: >-
-        Percentage of time that the graphics engine was active. On AMD GPUs, the socket's graphics activity, the mean over its XCDs: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous gpu_busy_percent.
+        Percentage of time that the graphics engine was active. On AMD GPUs, the socket's graphics activity, the mean over its XCDs: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous gpu_busy_percent. On Cloud TPUs, the TensorCore duty cycle.
       used_in_dd_ui: true
       aggregation: relative_activity
     tagsets:
@@ -2188,6 +2286,60 @@ metrics:
         mig_parent: true
         physical: true
         vgpu: false
+  pci.nak_received_counter:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Number of PCIe NAKs received of AMD Instinct MI300 and MI350 Series GPUs, from a 32-bit firmware counter of the amdgpu gpu_metrics table: the value read when the check starts, plus the increases since, including wraps at 2^32. On a virtual function the firmware counter can persist across guest driver loads.
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  pci.nak_sent_counter:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Number of PCIe NAKs sent of AMD Instinct MI300 and MI350 Series GPUs, from a 32-bit firmware counter of the amdgpu gpu_metrics table: the value read when the check starts, plus the increases since, including wraps at 2^32. On a virtual function the firmware counter can persist across guest driver loads.
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  pci.recovery_counter:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Number of times the PCIe link entered recovery from L0 of AMD Instinct MI300 and MI350 Series GPUs, from a 32-bit firmware counter of the amdgpu gpu_metrics table: the value read when the check starts, plus the increases since, including wraps at 2^32. On a virtual function the firmware counter can persist across guest driver loads.
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   pci.throughput.rx:
     metadata:
       metric_type: gauge
@@ -2661,7 +2813,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: >-
-        Percentage of time the streaming multiprocessor was active. On AMD GPUs, equal to gr_engine_active (the interval average from gpu_metrics 1.9 and later when it passes its checks, otherwise the instantaneous gpu_busy_percent), as no compute-unit activity is available.
+        Percentage of time the streaming multiprocessor was active. On AMD GPUs, equal to gr_engine_active (the interval average from gpu_metrics 1.9 and later when it passes its checks, otherwise the instantaneous gpu_busy_percent), as no compute-unit activity is available. On Cloud TPUs, the TensorCore utilization.
       used_in_dd_ui: true
       aggregation: relative_activity
     tagsets:

@@ -45,12 +45,12 @@ and the testbench use the same engine.
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
 | `impl/agent_logs.go` | Agent internal log tap (source: `agent_logs`) |
 | `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
-| `impl/log_metrics_extractor.go` | Log → virtual metrics: a count per log signature (`log.pattern.<hash>.count`), plus JSON numeric fields |
+| `impl/log_metrics_extractor.go` | Log → virtual metrics: bounded fuzzy pattern counts (`log.pattern.<id>.count`) at 0.6, plus JSON numeric fields |
 | `impl/anomaly_correlator_time_cluster.go` | Time-proximity correlator |
 | `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay); derives severity, delegates push subscriptions to `severityevents/impl.Dispatcher` |
 | `impl/correlation_emitter.go` | Shared first-seen/recurrence helper used by all non-scorer correlators |
 | `impl/patterns/` | Tokenizer + clusterer used by log pattern extractor |
-| `impl/logsignature/` | Log signatures (via `pkg/logs/tokenizer`) used by log metrics extractor |
+| `impl/logsignature/` | Bounded group/pattern cache using the shared Logs tokenizer and matcher |
 
 ### Component catalog (defaults)
 
@@ -89,6 +89,15 @@ eviction removes the least recently seen existing pattern and sends its metric
 name through engine cleanup. The internal per-group and tag-group safeguards
 still apply. This setting does not limit `log_metrics_extractor` outputs; the
 shared storage series budget remains separate.
+
+`anomaly_detection.detectors.log_metrics_extractor` separately configures the
+shared-tokenizer cache. Structural matching uses `min_token_match_ratio`
+(default 0.6) within each source/service/env/host group. Internal limits are 3,000
+patterns globally, 1,024 per group and 256 groups. Patterns expire on the next
+ingested log after four hours of data-time inactivity. Evictions clear the
+associated storage, detector and bucketizer state.
+The log metrics extractor's pattern-count gauge is separate from the log pattern
+extractor's gauge. Both extractors remain enabled by default.
 
 
 The `anomaly_scorer` correlator has a **dedicated config namespace** under `anomaly_detection.anomaly_scorer.*` (not `detectors.*`) with an `output` sub-section controlling logs and correlation events:
@@ -229,10 +238,13 @@ After reactivation to a supported kind, only anomalies after the cutoff are
 emitted; suppressed candidates are not retained. Direct `UNSET` assignments are
 not gated. Engine resets clear kinds, and series eviction clears pipeline state.
 
-The stable registration runs a `StablePipeline`: ScanMW plus a relative-change
+The stable registration runs a `StablePipeline` plus a relative-change
 gate (`anomaly_detection.metric_pipeline.stable.min_relative_change`, default
-5%, `0` disables it). The gate mutes candidates whose medians differ by less
-than the threshold without touching ScanMW state. `detections.gated` counts
+5%, `0` disables it). Select the detector with `stable.scanmw` (default),
+`stable.scanwelch`, or `stable.bocpd`; at most one block is allowed, and empty
+blocks use that detector's defaults. Stable BOCPD derives pre/post medians from
+retained history at alert onset. The gate mutes candidates whose medians differ
+by less than the threshold without touching detector state. `detections.gated` counts
 these mutes; kind emission counters stay downstream of dedup.
 Accepted anomalies are scored from relative change (≤6%, ≤10%, ≤20%, ≤50%
 bands) and gain one level when detector confidence is High or XHigh.

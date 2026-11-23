@@ -87,13 +87,14 @@ func (r *recordingDogStatsDLookback) AppendDogStatsDNoAggSerie(*metrics.Serie) {
 
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
-	sampler := testTimeSampler(tags.NewStore(true, "test"))
+	sampler := testTimeSampler(tags.NewStore("test"))
 
 	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456.5))
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
 }
 
-func testBucketSampling(t *testing.T, store *tags.Store) {
+func TestBucketSampling(t *testing.T) {
+	store := tags.NewStore("test")
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewNoopTagMatcher()
 
@@ -124,12 +125,9 @@ func testBucketSampling(t *testing.T, store *tags.Store) {
 		metrics.AssertSerieEqual(t, expectedSerie, series[0])
 	}
 }
-func TestBucketSampling(t *testing.T) {
-	testWithTagsStore(t, testBucketSampling)
-}
 
 func TestTimeSamplerDogStatsDLookbackReceivesSelectedResolvedContext(t *testing.T) {
-	samper := testTimeSampler(tags.NewStore(true, "test"))
+	samper := testTimeSampler(tags.NewStore("test"))
 	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
 	samper.dogStatsDLookback = lookback
 	matcher := filterlist.NewNoopTagMatcher()
@@ -165,7 +163,7 @@ func TestTimeSamplerDogStatsDLookbackReceivesSelectedResolvedContext(t *testing.
 }
 
 func TestTimeSamplerDogStatsDLookbackFlushesBuckets(t *testing.T) {
-	samper := testTimeSampler(tags.NewStore(true, "test"))
+	samper := testTimeSampler(tags.NewStore("test"))
 	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
 	samper.dogStatsDLookback = lookback
 
@@ -176,7 +174,7 @@ func TestTimeSamplerDogStatsDLookbackFlushesBuckets(t *testing.T) {
 }
 
 func TestTimeSamplerDogStatsDLookbackForceFlushesAllBuckets(t *testing.T) {
-	samper := testTimeSampler(tags.NewStore(true, "test"))
+	samper := testTimeSampler(tags.NewStore("test"))
 	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
 	samper.dogStatsDLookback = lookback
 
@@ -188,7 +186,7 @@ func TestTimeSamplerDogStatsDLookbackForceFlushesAllBuckets(t *testing.T) {
 
 func TestTimeSamplerDogStatsDLookbackUsesFilteredCounterContext(t *testing.T) {
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
-	samper := testTimeSampler(tags.NewStore(true, "test"))
+	samper := testTimeSampler(tags.NewStore("test"))
 	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"counter.metric": {}}}
 	samper.dogStatsDLookback = lookback
 	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
@@ -221,7 +219,7 @@ func TestTimeSamplerDogStatsDLookbackUsesFilteredCounterContext(t *testing.T) {
 }
 
 func TestTimeSamplerFinalDogStatsDSerieObserversReceiveOnlyUnfilteredFinalSeries(t *testing.T) {
-	sampler := testTimeSampler(tags.NewStore(true, "test"))
+	sampler := testTimeSampler(tags.NewStore("test"))
 	observer := &recordingFinalDogStatsDSerieObserver{}
 	sampler.finalDogStatsDSerieObservers = []FinalDogStatsDSerieObserver{observer}
 
@@ -252,7 +250,7 @@ func TestTimeSamplerFinalDogStatsDSerieObserversReceiveOnlyUnfilteredFinalSeries
 }
 
 func TestTimeSamplerDogStatsDLookbackIgnoresRejectedSamples(t *testing.T) {
-	samper := testTimeSampler(tags.NewStore(true, "test"))
+	samper := testTimeSampler(tags.NewStore("test"))
 	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
 	samper.dogStatsDLookback = lookback
 	matcher := filterlist.NewNoopTagMatcher()
@@ -268,7 +266,7 @@ func TestTimeSamplerDogStatsDLookbackIgnoresRejectedSamples(t *testing.T) {
 }
 
 func TestTimeSamplerDogStatsDLookbackIgnoresRejectedDistributionSamples(t *testing.T) {
-	samper := testTimeSampler(tags.NewStore(true, "test"))
+	samper := testTimeSampler(tags.NewStore("test"))
 	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
 	samper.dogStatsDLookback = lookback
 	matcher := filterlist.NewNoopTagMatcher()
@@ -283,7 +281,8 @@ func TestTimeSamplerDogStatsDLookbackIgnoresRejectedDistributionSamples(t *testi
 	require.Empty(t, lookback.observations)
 }
 
-func testContextSampling(t *testing.T, store *tags.Store) {
+func TestContextSampling(t *testing.T) {
+	store := tags.NewStore("test")
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewNoopTagMatcher()
 
@@ -347,11 +346,9 @@ func testContextSampling(t *testing.T, store *tags.Store) {
 	expectedSeries := metrics.Series{expectedSerie1, expectedSerie2, expectedSerie3}
 	metrics.AssertSeriesEqual(t, expectedSeries, series)
 }
-func TestContextSampling(t *testing.T) {
-	testWithTagsStore(t, testContextSampling)
-}
 
-func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
+func TestCounterExpirySeconds(t *testing.T) {
+	store := tags.NewStore("test")
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewNoopTagMatcher()
 
@@ -475,11 +472,9 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	assert.Equal(t, 0, len(series))
 	assert.Equal(t, 0, len(sampler.contextResolver.resolver.contextsByKey))
 }
-func TestCounterExpirySeconds(t *testing.T) {
-	testWithTagsStore(t, testCounterExpirySeconds)
-}
 
-func testSketch(t *testing.T, store *tags.Store) {
+func TestSketch(t *testing.T) {
+	store := tags.NewStore("test")
 	const (
 		defaultBucketSize = 10
 	)
@@ -549,11 +544,9 @@ func testSketch(t *testing.T, store *tags.Store) {
 	})
 
 }
-func TestSketch(t *testing.T) {
-	testWithTagsStore(t, testSketch)
-}
 
-func testSketchBucketSampling(t *testing.T, store *tags.Store) {
+func TestSketchBucketSampling(t *testing.T) {
+	store := tags.NewStore("test")
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewNoopTagMatcher()
 
@@ -597,11 +590,9 @@ func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 	// The samples added after the flush time remains in the dist sampler
 	assert.Equal(t, 1, sampler.sketchMap.Len())
 }
-func TestSketchBucketSampling(t *testing.T) {
-	testWithTagsStore(t, testSketchBucketSampling)
-}
 
-func testSketchContextSampling(t *testing.T, store *tags.Store) {
+func TestSketchContextSampling(t *testing.T) {
+	store := tags.NewStore("test")
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewNoopTagMatcher()
 
@@ -653,11 +644,9 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 		},
 	}, flushed[1])
 }
-func TestSketchContextSampling(t *testing.T) {
-	testWithTagsStore(t, testSketchContextSampling)
-}
 
-func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
+func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
+	store := tags.NewStore("test")
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewNoopTagMatcher()
 
@@ -714,11 +703,9 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 		},
 	}, sketches[0])
 }
-func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
-	testWithTagsStore(t, testBucketSamplingWithSketchAndSeries)
-}
 
-func testFlushMissingContext(t *testing.T, store *tags.Store) {
+func TestFlushMissingContext(t *testing.T) {
+	store := tags.NewStore("test")
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewNoopTagMatcher()
 
@@ -745,10 +732,8 @@ func testFlushMissingContext(t *testing.T, store *tags.Store) {
 	assert.Len(t, metrics, 0)
 	assert.Len(t, sketches, 0)
 }
-func TestFlushMissingContext(t *testing.T) {
-	testWithTagsStore(t, testFlushMissingContext)
-}
-func testFlushFilterList(t *testing.T, store *tags.Store) {
+func TestFlushFilterList(t *testing.T) {
+	store := tags.NewStore("test")
 	sampler := testTimeSampler(store)
 	matcher := metricname.NewMatcher([]string{
 		"test.histogram.avg",
@@ -797,12 +782,8 @@ func testFlushFilterList(t *testing.T, store *tags.Store) {
 	})
 }
 
-func TestFlushFilterList(t *testing.T) {
-	testWithTagsStore(t, testFlushFilterList)
-}
-
 func TestForcedFlush(t *testing.T) {
-	sampler := testTimeSampler(tags.NewStore(false, "test"))
+	sampler := testTimeSampler(tags.NewStore("test"))
 	matcher := filterlist.NewNoopTagMatcher()
 
 	testMetric1 := &metrics.MetricSample{
@@ -880,11 +861,12 @@ func TestForcedFlush(t *testing.T) {
 	}, sSerie[0])
 }
 
-// testTimeSamplerStripCountAggregates verifies the numeric aggregation:
+// TestTimeSamplerStripCountAggregates verifies the numeric aggregation:
 // two CountType samples whose only differing tag is stripped by the
 // filterlist must collapse to a single context AND their values must
 // sum in the resulting Serie's Point.
-func testTimeSamplerStripCountAggregates(t *testing.T, store *tags.Store) {
+func TestTimeSamplerStripCountAggregates(t *testing.T) {
+	store := tags.NewStore("test")
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
@@ -924,11 +906,7 @@ func testTimeSamplerStripCountAggregates(t *testing.T, store *tags.Store) {
 	metrics.AssertSerieEqual(t, expected, series[0])
 }
 
-func TestTimeSamplerStripCountAggregates(t *testing.T) {
-	testWithTagsStore(t, testTimeSamplerStripCountAggregates)
-}
-
-// testTimeSamplerStripCounterAggregates verifies the numeric aggregation for
+// TestTimeSamplerStripCounterAggregates verifies the numeric aggregation for
 // CounterType (DogStatsD `|c`): two samples whose only differing tag is
 // stripped must collapse to a single context, with each sample's value
 // inflated by 1/SampleRate before accumulation, and the bucket total then
@@ -942,7 +920,8 @@ func TestTimeSamplerStripCountAggregates(t *testing.T) {
 //	sample1: 4 * (1/0.5)  =  8
 //	sample2: 3 * (1/0.25) = 12
 //	total = 20  →  rate = 20/10 = 2.0
-func testTimeSamplerStripCounterAggregates(t *testing.T, store *tags.Store) {
+func TestTimeSamplerStripCounterAggregates(t *testing.T) {
+	store := tags.NewStore("test")
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
@@ -982,11 +961,8 @@ func testTimeSamplerStripCounterAggregates(t *testing.T, store *tags.Store) {
 	metrics.AssertSerieEqual(t, expected, series[0])
 }
 
-func TestTimeSamplerStripCounterAggregates(t *testing.T) {
-	testWithTagsStore(t, testTimeSamplerStripCounterAggregates)
-}
-
-func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
+func BenchmarkTimeSampler(b *testing.B) {
+	store := tags.NewStore("test")
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	matcher := filterlist.NewNoopTagMatcher()
 
@@ -1001,10 +977,6 @@ func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
 	for n := 0; n < b.N; n++ {
 		sampler.sample(&sample, 12345.0, matcher)
 	}
-}
-
-func BenchmarkTimeSampler(b *testing.B) {
-	benchWithTagsStore(b, benchmarkTimeSampler)
 }
 
 func flushSerie(sampler *TimeSampler, timestamp float64, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {

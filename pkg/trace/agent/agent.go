@@ -732,6 +732,11 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 
 		tracen := int64(len(chunk.Spans))
 		ts.SpansReceived.Add(tracen)
+		if p.TracerPayload.ChunkEnvVersionOverridesEnabled() {
+			// Keep a single, normalized "env"/"version" attribute per chunk so the forwarded
+			// chunk carries exactly the values used for sampling and stats.
+			chunk.CanonicalizeEnvVersion(normalize.NormalizeTagValue)
+		}
 		err := a.normalizeTraceChunkV1(ts, chunk)
 		if err != nil {
 			log.Debugf("Dropping invalid trace: %s", err)
@@ -931,6 +936,16 @@ func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx
 		Lang:                   p.TracerPayload.LanguageName(),
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
 		GitCommitSha:           gitCommitSha,
+	}
+	// A chunk-level env/app version overrides the payload-level value for this chunk only.
+	// Only native v1 payloads opt in; converted legacy payloads keep their chunk tags as plain attributes.
+	if p.TracerPayload.ChunkEnvVersionOverridesEnabled() {
+		if env := chunk.Env(); env != "" {
+			pt.TracerEnv = env
+		}
+		if version := chunk.AppVersion(); version != "" {
+			pt.AppVersion = version
+		}
 	}
 	pt.ImageTag = imageTag
 	if payloadGitCommitSha, ok := p.TracerPayload.GetAttributeAsString("_dd.git.commit.sha"); ok {
