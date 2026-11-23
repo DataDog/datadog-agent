@@ -1526,6 +1526,25 @@ func setupUDPSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPCon
 	return ln, c
 }
 
+// recvRaw does one recvfrom with flags on rc, letting the runtime poller wait
+// for data so that the connection's read deadline applies.
+func recvRaw(rc syscall.RawConn, buf []byte, flags int) (int, error) {
+	var n int
+	var rerr error
+	err := rc.Read(func(fd uintptr) bool {
+		for {
+			n, _, rerr = syscall.Recvfrom(int(fd), buf, flags)
+			if rerr != syscall.EINTR {
+				return rerr != syscall.EAGAIN
+			}
+		}
+	})
+	if err != nil {
+		return 0, err
+	}
+	return n, rerr
+}
+
 func (s *TracerSuite) TestUDPPeekCount() {
 	t := s.T()
 	t.Run("v4", func(t *testing.T) {
@@ -1548,41 +1567,16 @@ func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	_, err := c.Write(msg)
 	require.NoError(t, err)
 
+	require.NoError(t, tracertestutil.SetTestDeadline(ln))
 	rawConn, err := ln.SyscallConn()
 	require.NoError(t, err)
-	err = rawConn.Control(func(fd uintptr) {
-		buf := make([]byte, 1024)
-		var n int
-		var err error
-		done := make(chan struct{})
-
-		recv := func(flags int) {
-			for {
-				n, _, err = syscall.Recvfrom(int(fd), buf, flags)
-				if err == syscall.EINTR || err == syscall.EAGAIN {
-					continue
-				}
-				break
-			}
-		}
-		go func() {
-			defer close(done)
-			recv(syscall.MSG_PEEK)
-			if n == 0 || err != nil {
-				return
-			}
-			recv(0)
-		}()
-
-		select {
-		case <-done:
-			require.NoError(t, err)
-			require.NotZero(t, n)
-		case <-time.After(5 * time.Second):
-			require.Fail(t, "receive timed out")
-		}
-	})
+	buf := make([]byte, 1024)
+	n, err := recvRaw(rawConn, buf, syscall.MSG_PEEK)
 	require.NoError(t, err)
+	require.Equal(t, len(msg), n, "peek")
+	n, err = recvRaw(rawConn, buf, 0)
+	require.NoError(t, err)
+	require.Equal(t, len(msg), n, "receive")
 
 	requireUDPCounters(t, tr, c, len(msg), 1)
 }
@@ -1611,38 +1605,12 @@ func (s *TracerSuite) TestTCPPeekCount() {
 
 	rawConn, err := c.(*net.TCPConn).SyscallConn()
 	require.NoError(t, err)
-	err = rawConn.Control(func(fd uintptr) {
-		buf := make([]byte, 1024)
-		var n int
-		var err error
-		done := make(chan struct{})
-
-		recv := func(flags int) {
-			for {
-				n, _, err = syscall.Recvfrom(int(fd), buf, flags)
-				if err == syscall.EINTR || err == syscall.EAGAIN {
-					continue
-				}
-				break
-			}
-		}
-		go func() {
-			defer close(done)
-			recv(syscall.MSG_PEEK)
-			if n != len(msg) || err != nil {
-				return
-			}
-			recv(0)
-		}()
-
-		select {
-		case <-done:
-			require.NoError(t, err)
-			require.Equal(t, len(msg), n)
-		case <-time.After(5 * time.Second):
-			require.Fail(t, "receive timed out")
-		}
-	})
+	// TCP may return fewer bytes than were sent, so the peek only needs to see
+	// part of the message; the read below then consumes all of it
+	n, err := recvRaw(rawConn, make([]byte, len(msg)), syscall.MSG_PEEK)
+	require.NoError(t, err)
+	require.NotZero(t, n, "peek")
+	_, err = io.ReadFull(c, make([]byte, len(msg)))
 	require.NoError(t, err)
 
 	// keep the last stats seen across polls, since a poll doesn't necessarily
