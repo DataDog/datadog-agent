@@ -692,6 +692,7 @@
 /comp/core/autodiscovery/listeners/                                   @DataDog/container-platform
 /comp/core/autodiscovery/listeners/cloudfoundry*.go                   @DataDog/agent-integrations
 /comp/core/autodiscovery/listeners/snmp*.go                           @DataDog/network-device-monitoring-core
+/comp/core/autodiscovery/listeners/dbm_*.go                           @DataDog/database-monitoring
 /comp/core/autodiscovery/providers/                                   @DataDog/container-platform
 /comp/core/autodiscovery/providers/file*.go                           @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/config_reader*.go                  @DataDog/container-platform @DataDog/agent-log-pipelines
