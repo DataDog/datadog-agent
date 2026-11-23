@@ -33,26 +33,6 @@ type HttpDetails struct {
 	UrlParameters []PrivateCredentialsToken
 	Body          HttpDetailsBody
 	Testing       *HttpDetailsTesting
-	// OAuth2 is set when the connection gets its bearer token with OAuth2.
-	OAuth2 *OAuth2Details
-}
-
-const (
-	OAuth2ClientCredentialsGrant = "client_credentials"
-
-	OAuth2ClientSecretBasic = "client_secret_basic"
-	OAuth2ClientSecretPost  = "client_secret_post"
-)
-
-// OAuth2Details configures how the runner gets a bearer token for the
-// connection's base URL host. ClientSecret is resolved on the runner.
-type OAuth2Details struct {
-	GrantType        string
-	TokenURL         string
-	ClientID         string
-	ClientSecret     string
-	Scopes           []string
-	ClientAuthMethod string
 }
 
 type HttpDetailsTesting struct {

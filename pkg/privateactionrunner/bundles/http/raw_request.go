@@ -149,7 +149,7 @@ func (h *Handler) runRaw(
 		e := errors.New("bodyBase64 is not valid base64")
 		return nil, util.DefaultActionErrorWithDisplayError(e, e.Error())
 	}
-	connectionHeaders, err := h.connectionHeadersFor(ctx, target, credential)
+	connectionHeaders, err := connectionHeadersFor(target, credential)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, err.Error())
 	}
@@ -181,9 +181,6 @@ func (h *Handler) runRaw(
 		return nil, util.DefaultActionErrorWithDisplayError(err, "failed to make request")
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode == http.StatusUnauthorized && credential != nil && connectionHeaders.Get("Authorization") != "" {
-		h.oauth2.invalidate(credential.HttpDetails.OAuth2)
-	}
 
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, MaxRawResponseBodyBytes+1))
 	if err != nil {
@@ -263,16 +260,16 @@ func parseResponseKey(key ResponseKey) (hpke.PublicKey, error) {
 }
 
 // connectionHeadersFor returns the connection's rendered headers, including its
-// credential or OAuth2 bearer token, when the target is the connection's base URL
+// credential, when the target is the connection's base URL
 // host, and none for any other host. A connection that carries headers must name
 // its host.
-func (h *Handler) connectionHeadersFor(ctx context.Context, target *url.URL, credential *privateconnection.PrivateCredentials) (http.Header, error) {
+func connectionHeadersFor(target *url.URL, credential *privateconnection.PrivateCredentials) (http.Header, error) {
 	headers := http.Header{}
 	if credential == nil {
 		return headers, nil
 	}
 	details := credential.HttpDetails
-	hasHeaders := len(details.Headers) > 0 || credential.Type == privateconnection.BasicAuthType || details.OAuth2 != nil
+	hasHeaders := len(details.Headers) > 0 || credential.Type == privateconnection.BasicAuthType
 	if details.BaseURL == "" {
 		if hasHeaders {
 			return nil, errors.New("connection headers require a base URL to scope them to a host")
@@ -300,16 +297,6 @@ func (h *Handler) connectionHeadersFor(ctx context.Context, target *url.URL, cre
 			return nil, err
 		}
 		headers.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(username+":"+password)))
-	}
-	if details.OAuth2 != nil {
-		if headers.Get("Authorization") != "" {
-			return nil, errors.New("an OAuth2 connection must not also set Authorization")
-		}
-		authorization, err := h.oauth2Authorization(ctx, details.OAuth2)
-		if err != nil {
-			return nil, err
-		}
-		headers.Set("Authorization", authorization)
 	}
 	return headers, nil
 }

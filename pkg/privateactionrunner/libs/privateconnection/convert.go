@@ -6,8 +6,6 @@
 package privateconnection
 
 import (
-	"strings"
-
 	http "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	connlib "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/connection"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
@@ -49,7 +47,6 @@ func ExtractConnectionDetails(connInfo *privateactionspb.ConnectionInfo) ([]*pri
 		BaseURL:       getBaseURL(group[http.BaseUrlTokenName]),
 		UrlParameters: getHttpUrlParams(group[http.UrlParametersGroupName]),
 		Testing:       getHttpDetailsTesting(group[http.TestingName]),
-		OAuth2:        getOAuth2Details(group[http.OAuth2GroupName]),
 	}
 	return tokens, details
 }
@@ -113,29 +110,4 @@ func getBaseURL(tokens []*privateactionspb.ConnectionToken) string {
 		return ""
 	}
 	return tokens[0].GetPlainText().GetValue()
-}
-
-func getOAuth2Details(tokens []*privateactionspb.ConnectionToken) *OAuth2Details {
-	if len(tokens) == 0 {
-		return nil
-	}
-	details := &OAuth2Details{}
-	for _, token := range tokens {
-		value := token.GetPlainText().GetValue()
-		switch connlib.GetName(token) {
-		case http.OAuth2GrantTypeTokenName:
-			details.GrantType = value
-		case http.OAuth2TokenURLTokenName:
-			details.TokenURL = value
-		case http.OAuth2ClientIDTokenName:
-			details.ClientID = value
-		case http.OAuth2ClientSecretTokenName:
-			details.ClientSecret = value
-		case http.OAuth2ScopesTokenName:
-			details.Scopes = strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == ' ' })
-		case http.OAuth2ClientAuthMethodTokenName:
-			details.ClientAuthMethod = value
-		}
-	}
-	return details
 }
