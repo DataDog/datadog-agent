@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -419,19 +420,71 @@ func TestResolveFromKernelMapsUsesEventPPid(t *testing.T) {
 	assert.False(t, entry.IsParentMissing)
 }
 
+type testMountResolver struct {
+	mount.NoOpResolver
+	pidMntNs map[uint32]uint32
+}
+
+func (m *testMountResolver) SetPidMntNs(pid uint32, ns uint32) {
+	if m.pidMntNs != nil {
+		m.pidMntNs[pid] = ns
+	}
+}
+
+type testPathResolver struct {
+	path.NoOpResolver
+	resolveFullFilePath func(e *model.FileFields, pidCtx *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error)
+	resolveBasename     func(e *model.FileFields) string
+}
+
+func (r *testPathResolver) ResolveFullFilePath(e *model.FileFields, pidCtx *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error) {
+	if r.resolveFullFilePath != nil {
+		return r.resolveFullFilePath(e, pidCtx)
+	}
+	return r.NoOpResolver.ResolveFullFilePath(e, pidCtx)
+}
+
+func (r *testPathResolver) ResolveBasename(e *model.FileFields) string {
+	if r.resolveBasename != nil {
+		return r.resolveBasename(e)
+	}
+	return r.NoOpResolver.ResolveBasename(e)
+}
+
 func TestOrphanExec(t *testing.T) {
 	resolver, err := newResolver()
 	if err != nil {
 		t.Fatal()
 	}
+	mountRes := &testMountResolver{pidMntNs: make(map[uint32]uint32)}
+	resolver.mountResolver = mountRes
+	var mntNsObservedDuringResolve uint32
+	resolver.pathResolver = &testPathResolver{
+		resolveFullFilePath: func(e *model.FileFields, pidCtx *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error) {
+			mntNsObservedDuringResolve = mountRes.pidMntNs[pidCtx.Pid]
+			if e.Inode == 456 {
+				return "/usr/bin/execed", "", model.MountSourceMountID, model.MountOriginEvent, nil
+			}
+			return "/usr/bin/orphan", "", model.MountSourceMountID, model.MountOriginEvent, nil
+		},
+	}
 
 	parent := newFakeForkEvent(0, 3, 123, resolver)
+	parent.ProcessCacheEntry.FileEvent.MountID = 1
+	parent.ProcessCacheEntry.MntNS = 4026531840
 	child := newFakeForkEvent(3, 4, 123, resolver)
+	child.ProcessCacheEntry.FileEvent.MountID = 1
 	exec := newFakeExecEvent(3, 4, 456, resolver)
+	exec.ProcessCacheEntry.FileEvent.MountID = 1
 
 	// X(pid:3)
 	resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
+	assert.Equal(t, uint32(4026531840), mntNsObservedDuringResolve)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
+	assert.True(t, parent.ProcessCacheEntry.FileEvent.IsPathnameStrResolved)
+	assert.True(t, parent.ProcessCacheEntry.FileEvent.IsBasenameStrResolved)
+	assert.Equal(t, "/usr/bin/orphan", parent.ProcessCacheEntry.FileEvent.PathnameStr)
+	assert.Equal(t, "orphan", parent.ProcessCacheEntry.FileEvent.BasenameStr)
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assertChildrenConsistency(t, resolver)
 
@@ -440,6 +493,8 @@ func TestOrphanExec(t *testing.T) {
 	// X(pid:4)
 	resolver.AddForkEntry(child, model.CGroupContext{}, nil)
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
+	assert.Equal(t, "/usr/bin/orphan", child.ProcessCacheEntry.FileEvent.PathnameStr)
+	assert.Equal(t, "orphan", child.ProcessCacheEntry.FileEvent.BasenameStr)
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 	assertChildrenConsistency(t, resolver)
@@ -459,6 +514,8 @@ func TestOrphanExec(t *testing.T) {
 	//  X(pid:4) --> Y(pid:4)
 	resolver.AddExecEntry(exec, model.CGroupContext{})
 	assert.Equal(t, exec.ProcessCacheEntry, resolver.entryCache[exec.ProcessCacheEntry.Pid])
+	assert.Equal(t, "/usr/bin/execed", exec.ProcessCacheEntry.FileEvent.PathnameStr)
+	assert.Equal(t, "execed", exec.ProcessCacheEntry.FileEvent.BasenameStr)
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor)
 	assert.Equal(t, parent.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor.Ancestor)
@@ -470,6 +527,50 @@ func TestOrphanExec(t *testing.T) {
 	resolver.DeleteEntry(exec.ProcessCacheEntry.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 	assertChildrenConsistency(t, resolver)
+
+	t.Run("failure-preserves-retry-and-basename", func(t *testing.T) {
+		failFullPath := true
+		resolver.pathResolver = &testPathResolver{
+			resolveFullFilePath: func(_ *model.FileFields, _ *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error) {
+				if failFullPath {
+					return "", "", model.MountSourceUnknown, model.MountOriginUnknown, errors.New("parent dentry missing")
+				}
+				return "/usr/bin/orphan-leaf", "", model.MountSourceMountID, model.MountOriginEvent, nil
+			},
+			resolveBasename: func(_ *model.FileFields) string {
+				return "orphan-leaf"
+			},
+		}
+
+		orphan := newFakeForkEvent(99, 10, 789, resolver)
+		orphan.ProcessCacheEntry.FileEvent.MountID = 1
+		resolver.AddForkEntry(orphan, model.CGroupContext{}, nil)
+		fe := &orphan.ProcessCacheEntry.FileEvent
+		assert.False(t, fe.IsPathnameStrResolved)
+		assert.False(t, fe.IsBasenameStrResolved)
+		assert.Empty(t, fe.PathnameStr)
+		assert.Empty(t, fe.BasenameStr)
+		assert.Nil(t, fe.PathResolutionError)
+
+		// Exercise the same !IsBasenameStrResolved && len(BasenameStr) == 0 guard used by EBPFFieldHandlers.ResolveFileBasename
+		if !fe.IsBasenameStrResolved && len(fe.BasenameStr) == 0 {
+			fe.SetBasenameStr(resolver.pathResolver.ResolveBasename(&fe.FileFields))
+		}
+		assert.True(t, fe.IsBasenameStrResolved)
+		assert.Equal(t, "orphan-leaf", fe.BasenameStr)
+		assert.False(t, fe.IsPathnameStrResolved)
+
+		// Exercise the same !IsPathnameStrResolved && len(PathnameStr) == 0 guard used by EBPFFieldHandlers.ResolveFilePath
+		failFullPath = false
+		if !fe.IsPathnameStrResolved && len(fe.PathnameStr) == 0 {
+			resolvedPath, err := resolver.setProcessPath(fe, orphan.ProcessCacheEntry)
+			require.NoError(t, err)
+			assert.Equal(t, "/usr/bin/orphan-leaf", resolvedPath)
+		}
+		assert.True(t, fe.IsPathnameStrResolved)
+		assert.Equal(t, "/usr/bin/orphan-leaf", fe.PathnameStr)
+		assert.Equal(t, "orphan-leaf", fe.BasenameStr)
+	})
 }
 
 func TestForkExecExec(t *testing.T) {
