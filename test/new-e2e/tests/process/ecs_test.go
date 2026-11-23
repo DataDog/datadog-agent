@@ -72,8 +72,11 @@ func (s *ECSEC2Suite) TestProcessCheck() {
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
-		assert.NoError(c, err, "failed to get process payloads from fakeintake")
-		require.NotEmpty(c, payloads, "no process payloads returned")
+		require.NoError(c, err, "failed to get process payloads from fakeintake")
+
+		// Fakeintake can receive payloads from other CI runs, including ones running the same workload.
+		payloads = filterProcessPayloadsByECSCluster(payloads, s.Env().ECSCluster.ClusterName)
+		require.NotEmpty(c, payloads, "no process payloads for ECS cluster %q", s.Env().ECSCluster.ClusterName)
 
 		// Process checks run in the core agent, so process-agent should not be collected
 		payloads = payloads[len(payloads)-1:]
@@ -85,7 +88,10 @@ func (s *ECSEC2Suite) TestProcessCheck() {
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
-		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+		require.NoError(c, err, "failed to get process payloads from fakeintake")
+
+		payloads = filterProcessPayloadsByECSCluster(payloads, s.Env().ECSCluster.ClusterName)
+		require.NotEmpty(c, payloads, "no process payloads for ECS cluster %q", s.Env().ECSCluster.ClusterName)
 
 		assertProcessCollected(c, payloads, false, "stress-ng-cpu [run]")
 		assertContainersCollected(c, payloads, []string{"stress-ng"})

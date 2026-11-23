@@ -52,7 +52,7 @@ func MakeCommand(globalParamsGetter func() configcmd.GlobalParams) *cobra.Comman
 
 		// Pre-validate YAML syntax BEFORE fxutil.OneShot loads the config via
 		// Viper. Without this, a tab-indented or malformed YAML produces a cryptic
-		// Viper loader error ("unable to load Datadog config file: ...") before our
+		// Viper loader error ("unable to load Datadog config: ...") before our
 		// friendly checkYAMLSyntax ever runs.
 		if globalParams.ConfFilePath != "" {
 			// configName is always non-empty here; the thin adapter enforces

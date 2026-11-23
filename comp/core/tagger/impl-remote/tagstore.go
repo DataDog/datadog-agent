@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	genericstore "github.com/DataDog/datadog-agent/comp/core/tagger/generic_store"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/subscriber"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
@@ -20,14 +21,16 @@ type tagStore struct {
 	store     *genericstore.ObjectStore[*types.Entity]
 	telemetry map[string]float64
 
-	telemetryStore *telemetry.Store
+	subscriptionManager subscriber.SubscriptionManager
+	telemetryStore      *telemetry.Store
 }
 
 func newTagStore(telemetryStore *telemetry.Store) *tagStore {
 	return &tagStore{
-		store:          genericstore.NewObjectStore[*types.Entity](),
-		telemetry:      make(map[string]float64),
-		telemetryStore: telemetryStore,
+		store:               genericstore.NewObjectStore[*types.Entity](),
+		telemetry:           make(map[string]float64),
+		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
+		telemetryStore:      telemetryStore,
 	}
 }
 
@@ -56,7 +59,31 @@ func (s *tagStore) processEvents(events []types.EntityEvent, replace bool) error
 		}
 	}
 
+	if len(events) > 0 {
+		s.subscriptionManager.Notify(events)
+	}
+
 	return nil
+}
+
+func (s *tagStore) subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
+	if filter == nil {
+		filter = types.NewFilterBuilder().Build(types.HighCardinality)
+	}
+
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	events := make([]types.EntityEvent, 0, s.store.Size())
+
+	s.store.ForEach(filter, func(_ types.EntityID, e *types.Entity) {
+		events = append(events, types.EntityEvent{
+			EventType: types.EventTypeAdded,
+			Entity:    *e,
+		})
+	})
+
+	return s.subscriptionManager.Subscribe(subscriptionID, filter, events)
 }
 
 func (s *tagStore) getEntity(entityID types.EntityID) *types.Entity {
@@ -112,4 +139,5 @@ func (s *tagStore) reset() {
 	})
 
 	s.store = genericstore.NewObjectStore[*types.Entity]()
+	s.subscriptionManager.Notify(events)
 }

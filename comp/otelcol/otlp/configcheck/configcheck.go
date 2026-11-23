@@ -19,7 +19,8 @@ func ReadConfigSection(cfg configmodel.Reader, section string) *confmap.Conf {
 	return confmap.NewFromStringMap(readConfigSection(cfg, section))
 }
 
-// IsEnabled checks if OTLP pipeline is enabled in a given config, and the binary has OTLP support.
+// IsEnabled checks if OTLP ingest is configured in a given config, and the binary has OTLP support. The Agent may still
+// leave OTLP ingest to the data plane: see IsAgentPipelineEnabled.
 func IsEnabled(cfg configmodel.Reader) bool {
 	return IsConfigEnabled(cfg)
 }

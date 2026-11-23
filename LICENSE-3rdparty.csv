@@ -1727,6 +1727,7 @@ core,github.com/moby/moby/api/types/system,Apache-2.0,"Copyright 2012-2017 Docke
 core,github.com/moby/moby/api/types/volume,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client/internal,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/client/internal/httperror,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client/internal/mod,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client/internal/timestamp,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/client/pkg/versions,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -2407,6 +2408,8 @@ core,github.com/prometheus/client_golang/prometheus/testutil/promlint/validation
 core,github.com/prometheus/client_model/go,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/assets,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/config,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/common/config/internal/secretvalue,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/common/config/secret,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/expfmt,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/helpers/templates,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/model,Apache-2.0,Copyright 2012-2015 The Prometheus Authors

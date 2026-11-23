@@ -185,6 +185,8 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data.Set("feature_imdsv2_enabled", ia.conf.GetBool("ec2_prefer_imdsv2"))
 	ia.data.Set("feature_remote_configuration_enabled", ia.conf.GetBool("remote_configuration.enabled"))
 	ia.data.Set("feature_remote_updates_enabled", ia.conf.GetBool("remote_updates"))
+	ia.data.Set("feature_infra_enabled", ia.conf.GetBool("enable_payloads.series"))
+	ia.data.Set("feature_autoscaling_cluster_enabled", ia.conf.GetBool("autoscaling.cluster.enabled"))
 	ia.data.Set("feature_container_images_enabled", ia.conf.GetBool("container_image.enabled"))
 	ia.data.Set("feature_network_path_remote_config_enabled", ia.conf.GetBool("network_path.remote_config.enabled"))
 	ia.data.Set("feature_network_path_connections_monitoring_enabled", ia.conf.GetBool("network_path.connections_monitoring.enabled"))

@@ -17,6 +17,8 @@ The Host Profiler is supported in Kubernetes environments that meet these requir
 | CPU architecture         | amd64 or arm64                            |
 | Kubernetes workload type | Host-level DaemonSet with `hostPID: true` |
 
+The standalone Helm and Operator examples require Kubernetes **1.30** or later for `securityContext.appArmorProfile`.
+
 Common supported setups include self-managed Kubernetes clusters, Amazon EKS with EC2 nodes, GKE Standard, and AKS VM node pools.
 
 This preview does not support direct host or VM installation, Docker without Kubernetes, serverless runtimes, or Kubernetes modes that cannot run host-level DaemonSets, such as Amazon EKS on Fargate, GKE Autopilot, and AKS virtual nodes.

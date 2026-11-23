@@ -122,7 +122,8 @@ func (c *deviceEventsCollector) Collect() ([]Sample, error) {
 		}
 
 		tags := []string{
-			"type:" + strconv.Itoa(int(xidCode)),
+			"type:" + strconv.Itoa(int(xidCode)), // kept for backward compatibility; same value as xid_code
+			"xid_code:" + strconv.FormatUint(xidCode, 10),
 			"origin:" + xidOrigin,
 		}
 

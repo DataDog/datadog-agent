@@ -89,6 +89,7 @@ dd_collect_dependencies(
         "@curl//:curl_bin_pkg",
         "@freetds//:tdsodbc_pkg",
         "@jemalloc//:jemalloc_pkg",
+        "@openssl//:openssl_bin_pkg",
     ],
     target_compatible_with = select({
         "@platforms//os:linux": [],
