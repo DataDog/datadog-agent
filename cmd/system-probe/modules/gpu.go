@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -535,6 +536,23 @@ func warnCgroupPermissionsOnce(key string, format string, args ...interface{}) {
 	log.Warnf(format, args...)
 }
 
+// forgetDepartedAgentWarnings drops the warning state of the agent processes that are gone, so that it does not
+// grow with each restart of a failing agent
+func forgetDepartedAgentWarnings(agentPIDs []uint32) {
+	current := make(map[string]struct{}, len(agentPIDs))
+	for _, pid := range agentPIDs {
+		current[fmt.Sprintf("agent-%d", pid)] = struct{}{}
+	}
+	cgroupPermissionWarnings.Range(func(key, _ any) bool {
+		if k := key.(string); strings.HasPrefix(k, "agent-") {
+			if _, ok := current[k]; !ok {
+				cgroupPermissionWarnings.Delete(k)
+			}
+		}
+		return true
+	})
+}
+
 // agentPIDsNextToSystemProbe keeps the agent processes whose cgroup is a sibling of the system-probe one: the
 // agent container of the same pod in Kubernetes, the agent service next to the system-probe service on a host.
 // Other agents on the node (e.g. another agent DaemonSet or cluster check runners) are left alone. When the
@@ -588,6 +606,7 @@ func doConfigureCgroupPermissions(root string) {
 		return gpu.CgroupPathForProcess(pid, root)
 	})
 
+	forgetDepartedAgentWarnings(agentPIDs)
 	for _, agentPID := range agentPIDs {
 		log.Debugf("Configuring cgroup permissions for agent process with PID %d", agentPID)
 		key := fmt.Sprintf("agent-%d", agentPID)

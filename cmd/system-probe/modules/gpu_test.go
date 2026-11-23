@@ -135,3 +135,21 @@ func TestAgentPIDsNextToSystemProbe(t *testing.T) {
 	// The agent of the system-probe pod is restarting: the other agents are not touched
 	require.Empty(t, agentPIDsNextToSystemProbe(sysprobe, []uint32{11}, cgroupOf))
 }
+
+func TestForgetDepartedAgentWarnings(t *testing.T) {
+	t.Cleanup(func() {
+		cgroupPermissionWarnings.Range(func(key, _ any) bool { cgroupPermissionWarnings.Delete(key); return true })
+	})
+	warnCgroupPermissionsOnce("agent-1", "failed")
+	warnCgroupPermissionsOnce("agent-2", "failed")
+	warnCgroupPermissionsOnce("system-probe", "failed")
+
+	forgetDepartedAgentWarnings([]uint32{2, 3})
+
+	_, kept := cgroupPermissionWarnings.Load("agent-2")
+	require.True(t, kept)
+	_, kept = cgroupPermissionWarnings.Load("agent-1")
+	require.False(t, kept, "PID 1 is gone")
+	_, kept = cgroupPermissionWarnings.Load("system-probe")
+	require.True(t, kept)
+}
