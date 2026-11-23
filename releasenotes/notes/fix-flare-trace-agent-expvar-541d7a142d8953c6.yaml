@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix fetching the trace-agent expvar files in flares.
