@@ -8,7 +8,11 @@
 package oracle
 
 import (
+	"context"
+	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -53,12 +57,64 @@ var statementMetricsTestColumns = []string{
 	"VERSION_COUNT", "SHARABLE_MEM", "TYPECHECK_MEM",
 }
 
-func TestStatementMetricsSkipsZeroDeltaRows(t *testing.T) {
-	db, dbMock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
+type recordingConnector struct {
+	drv     driver.Driver
+	dsn     string
+	queries *[]string
+}
 
-	c, sender := statementMetricsTestCheck(t, sqlx.NewDb(db, "sqlmock"))
+func (rc recordingConnector) Connect(context.Context) (driver.Conn, error) {
+	conn, err := rc.drv.Open(rc.dsn)
+	if err != nil {
+		return nil, err
+	}
+	return &recordingConn{Conn: conn, queries: rc.queries}, nil
+}
+
+func (rc recordingConnector) Driver() driver.Driver { return rc.drv }
+
+type recordingConn struct {
+	driver.Conn
+	queries *[]string
+}
+
+func (rc *recordingConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	*rc.queries = append(*rc.queries, query)
+	if qc, ok := rc.Conn.(driver.QueryerContext); ok {
+		return qc.QueryContext(ctx, query, args)
+	}
+	return nil, driver.ErrSkip
+}
+
+func (rc *recordingConn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
+	*rc.queries = append(*rc.queries, query)
+	if pc, ok := rc.Conn.(driver.ConnPrepareContext); ok {
+		return pc.PrepareContext(ctx, query)
+	}
+	return rc.Conn.Prepare(query)
+}
+
+func newRecordingSQLMock(t *testing.T) (*sqlx.DB, sqlmock.Sqlmock, *[]string) {
+	t.Helper()
+	dsn := fmt.Sprintf("recording_%s_%d", t.Name(), time.Now().UnixNano())
+	rawDB, dbMock, err := sqlmock.NewWithDSN(dsn)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rawDB.Close() })
+
+	var queries []string
+	wrapped := sql.OpenDB(recordingConnector{
+		drv:     rawDB.Driver(),
+		dsn:     dsn,
+		queries: &queries,
+	})
+	t.Cleanup(func() { _ = wrapped.Close() })
+	return sqlx.NewDb(wrapped, "sqlmock"), dbMock, &queries
+}
+
+func TestStatementMetricsSkipsZeroDeltaRows(t *testing.T) {
+	db, dbMock, executedQueries := newRecordingSQLMock(t)
+
+	c, sender := statementMetricsTestCheck(t, db)
 
 	// Seed previous cache as if a prior collection interval already observed these rows.
 	idleKey := StatementMetricsKeyDB{
@@ -110,13 +166,16 @@ func TestStatementMetricsSkipsZeroDeltaRows(t *testing.T) {
 
 	dbMock.ExpectQuery("DD_QM_FMS").WillReturnRows(fmsRows)
 	dbMock.ExpectQuery("DD_QM_SQLID").WillReturnRows(sqlIDRows)
-	// No getFullSQLText or plan query expectations: any query for the idle row fails dbMock.ExpectationsWereMet().
 
 	c.statementsLastRun = time.Now().Add(-2 * time.Hour)
 	sqlCount, err := c.StatementMetrics()
 	require.NoError(t, err)
 	assert.Equal(t, 4, sqlCount)
 	require.NoError(t, dbMock.ExpectationsWereMet())
+	// Explicitly verify only the 2 statement-metrics queries ran (no swallowed getFullSQLText or plan queries).
+	require.Len(t, *executedQueries, 2)
+	assert.Contains(t, (*executedQueries)[0], "DD_QM_FMS")
+	assert.Contains(t, (*executedQueries)[1], "DD_QM_SQLID")
 
 	require.Len(t, c.lastOracleRows, 2)
 	rowsByHash := make(map[string]OracleRow, len(c.lastOracleRows))
@@ -186,6 +245,36 @@ func TestStatementMetricsSkipsZeroDeltaRows(t *testing.T) {
 	assert.Equal(t, float64(1), c.lastOracleRows[0].ParseCalls)
 	assert.Equal(t, float64(2), c.lastOracleRows[0].Executions)
 	assert.Equal(t, float64(200), c.lastOracleRows[0].ElapsedTime)
+
+	// Interval 3 (all-idle): zero rows survive, no full-text/plan queries run, and an empty dbm-metrics
+	// payload carrying oracle_version is still emitted to preserve DBM host presence/billing.
+	queriesBeforeIdle := len(*executedQueries)
+	callsBeforeIdle := len(sender.Calls)
+	dbMock.ExpectQuery("DD_QM_FMS").WillReturnRows(
+		sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(1, "PDB1", "sql_idle", "1001", uint64(11111), "SELECT * FROM idle_table WHERE id = 1", MaxSQLFullTextVSQLStats, 11.0, 22.0, 5200.0, 5.0, 1048576.0, 4096.0),
+	)
+	dbMock.ExpectQuery("DD_QM_SQLID").WillReturnRows(sqlmock.NewRows(statementMetricsTestColumns))
+
+	c.statementsLastRun = time.Now().Add(-2 * time.Hour)
+	sqlCount, err = c.StatementMetrics()
+	require.NoError(t, err)
+	assert.Equal(t, 1, sqlCount)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+	assert.Len(t, (*executedQueries)[queriesBeforeIdle:], 2, "all-idle interval must not attempt full-text or plan queries")
+	assert.Empty(t, c.lastOracleRows)
+
+	var idleMetricsPayloads []MetricsPayload
+	for _, call := range sender.Calls[callsBeforeIdle:] {
+		if call.Method == "EventPlatformEvent" && call.Arguments.String(1) == "dbm-metrics" {
+			var mp MetricsPayload
+			require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &mp))
+			idleMetricsPayloads = append(idleMetricsPayloads, mp)
+		}
+	}
+	require.Len(t, idleMetricsPayloads, 1)
+	assert.Empty(t, idleMetricsPayloads[0].OracleRows)
+	assert.Equal(t, "19.0", idleMetricsPayloads[0].OracleVersion)
 }
 
 func TestStatementMetricsEnforcesMaxRunTimeForPlans(t *testing.T) {
