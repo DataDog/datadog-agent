@@ -91,7 +91,14 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		if !preconditionsPassed {
 			return
 		}
-		if t.Failed() {
+		// The diagnostics cleanup below runs first, so it misses a failure in this restore.
+		bodyFailed := t.Failed()
+		defer func() {
+			if !bodyFailed && t.Failed() {
+				macosLogLaunchDaemonDiagnostics(t, client)
+			}
+		}()
+		if bodyFailed {
 			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthEntry); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthEntry, err)
 			}
@@ -227,15 +234,14 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		assert.Equal(t, 0, stopped.Pid)
 	}
 	reloadOut, err := client.Execute("sudo " + macosProcmgrCLI + " reload --json")
-	if assert.NoError(t, err, "dd-procmgr reload") {
-		var reload struct {
-			Added     []string `json:"added"`
-			Unchanged []string `json:"unchanged"`
-		}
-		if assert.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(reloadOut)), &reload), "dd-procmgr reload output:\n%s", reloadOut) {
-			assert.Contains(t, reload.Added, macosCallerAuthReloadEntry, "dd-procmgr reload output:\n%s", reloadOut)
-			assert.Contains(t, reload.Unchanged, macosSysprobeProcess, "dd-procmgr reload output:\n%s", reloadOut)
-		}
+	require.NoError(t, err, "dd-procmgr reload")
+	var reload struct {
+		Added     []string `json:"added"`
+		Unchanged []string `json:"unchanged"`
+	}
+	if assert.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(reloadOut)), &reload), "dd-procmgr reload output:\n%s", reloadOut) {
+		assert.Contains(t, reload.Added, macosCallerAuthReloadEntry, "dd-procmgr reload output:\n%s", reloadOut)
+		assert.Contains(t, reload.Unchanged, macosSysprobeProcess, "dd-procmgr reload output:\n%s", reloadOut)
 	}
 	reloaded := macosProcmgrDescribe(t, client, macosCallerAuthReloadEntry)
 	assert.Equal(t, "Skipped", reloaded.State)
