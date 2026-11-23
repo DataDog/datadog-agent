@@ -69,6 +69,7 @@ const (
 	MetricSourceWlan
 	MetricSourceWindowsCertificateStore
 	MetricSourceThermal
+	MetricSourcePowerShell
 
 	// Python Checks
 	MetricSourceZenohRouter
@@ -349,6 +350,15 @@ const (
 	MetricSourceKueue
 	MetricSourceExternalSecrets
 	MetricSourceCiscoCatalystCenter
+	MetricSourceAmazonVpcCni
+	MetricSourceRavendb
+	MetricSourceSglang
+	MetricSourcePanFirewall
+	MetricSourceKaiScheduler
+	MetricSourceKurrentdb
+	MetricSourceCrossplane
+	MetricSourceLlmD
+	MetricSourceDynamo
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -1154,6 +1164,8 @@ func (ms MetricSource) String() string {
 		return "windows_certificate"
 	case MetricSourceThermal:
 		return "thermal"
+	case MetricSourcePowerShell:
+		return "powershell"
 	case MetricSourceBattery:
 		return "battery"
 	case MetricSourcePinot:
@@ -1170,6 +1182,24 @@ func (ms MetricSource) String() string {
 		return "external_secrets"
 	case MetricSourceCiscoCatalystCenter:
 		return "cisco_catalyst_center"
+	case MetricSourceAmazonVpcCni:
+		return "amazon_vpc_cni"
+	case MetricSourceRavendb:
+		return "ravendb"
+	case MetricSourceSglang:
+		return "sglang"
+	case MetricSourcePanFirewall:
+		return "pan_firewall"
+	case MetricSourceKaiScheduler:
+		return "kai_scheduler"
+	case MetricSourceKurrentdb:
+		return "kurrentdb"
+	case MetricSourceCrossplane:
+		return "crossplane"
+	case MetricSourceLlmD:
+		return "llm_d"
+	case MetricSourceDynamo:
+		return "dynamo"
 	default:
 		return "<unknown>"
 	}
@@ -1332,7 +1362,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceGlusterfs
 	case "go_expvar":
 		return MetricSourceGoExpvar
-	case "gpu":
+	case "gpu", "amd_gpu", "tpu":
 		return MetricSourceGPU
 	case "gunicorn":
 		return MetricSourceGunicorn
@@ -1858,6 +1888,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceWindowsCertificateStore
 	case "thermal":
 		return MetricSourceThermal
+	case "powershell":
+		return MetricSourcePowerShell
 	case "battery":
 		return MetricSourceBattery
 	case "pinot":
@@ -1878,6 +1910,24 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceExternalSecrets
 	case "cisco_catalyst_center":
 		return MetricSourceCiscoCatalystCenter
+	case "amazon_vpc_cni":
+		return MetricSourceAmazonVpcCni
+	case "ravendb":
+		return MetricSourceRavendb
+	case "sglang":
+		return MetricSourceSglang
+	case "pan_firewall":
+		return MetricSourcePanFirewall
+	case "kai_scheduler":
+		return MetricSourceKaiScheduler
+	case "kurrentdb":
+		return MetricSourceKurrentdb
+	case "crossplane":
+		return MetricSourceCrossplane
+	case "llm_d":
+		return MetricSourceLlmD
+	case "dynamo":
+		return MetricSourceDynamo
 	default:
 		return MetricSourceUnknown
 	}

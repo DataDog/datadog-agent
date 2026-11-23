@@ -11,6 +11,7 @@
 package probe
 
 import (
+	"bytes"
 	"encoding/base64"
 
 	coretags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -70,13 +71,17 @@ func NewAbnormalEvent(acc *events.AgentContainerContext, id string, description 
 
 // NewFailedDNSEvent returns the rule and a populated custom event for a failed dns packet decoding
 func NewFailedDNSEvent(acc *events.AgentContainerContext, id string, description string, event *model.Event, opts *eval.Opts) (*rules.Rule, *events.CustomEvent) {
+	// Copy now: a lazy marshaler may run after the probe reuses the event and its record buffer.
+	payload := bytes.Clone(event.FailedDNS.Payload)
+	timestamp := event.ResolveEventTime()
+
 	marshalerCtor := func() events.EventMarshaler {
 		evt := FailedDNSEvent{
-			Payload: base64.StdEncoding.EncodeToString(event.FailedDNS.Payload),
+			Payload: base64.StdEncoding.EncodeToString(payload),
 		}
 		evt.FillCustomEventCommonFields(acc)
 		// Overwrite common timestamp with event timestamp
-		evt.Timestamp = event.ResolveEventTime()
+		evt.Timestamp = timestamp
 
 		return evt
 	}

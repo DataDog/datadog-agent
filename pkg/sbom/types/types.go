@@ -11,7 +11,7 @@ import "time"
 // ScanRequest defines the scan request interface
 type ScanRequest interface {
 	Collector() string
-	Type(ScanOptions) string
+	Type() string
 	ID() string
 }
 
@@ -23,9 +23,14 @@ type ScanOptions struct {
 	Timeout          time.Duration
 	WaitAfter        time.Duration
 	Fast             bool
-	UseMount         bool
 	OverlayFsScan    bool
-	AdditionalDirs   []string
+}
+
+// OSOnly reports whether the scan runs the OS package analyzers alone, that is
+// whether Analyzers is exactly ["os"]. Any other list, empty included, selects
+// the application analyzers too.
+func (o ScanOptions) OSOnly() bool {
+	return len(o.Analyzers) == 1 && o.Analyzers[0] == "os"
 }
 
 const (

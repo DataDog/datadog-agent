@@ -1,0 +1,9 @@
+load(":variables.bzl", "variables")
+load(":variables_test.bzl", "variables_test_suite")
+
+variables(
+    name = "variables",
+    visibility = ["//visibility:public"],
+)
+
+variables_test_suite(name = "_variables_tests")

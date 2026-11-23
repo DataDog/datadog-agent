@@ -1,0 +1,11 @@
+# vuln-hunt: --help should short-circuit cleanly even with trailing garbage args,
+# matching referenced uptime behaviour.
+description: uptime --help short-circuits cleanly with trailing junk
+skip_assert_against_bash: true
+input:
+  script: |+
+    uptime --help foo --bar
+expect:
+  stdout_contains: ["Usage: uptime"]
+  stderr: ""
+  exit_code: 0

@@ -39,8 +39,8 @@ from tasks.kernel_matrix_testing.infra import (
     build_alien_infrastructure,
     build_infrastructure,
     ensure_key_in_ec2,
+    find_ssh_key_files,
     get_ssh_agent_key_names,
-    get_ssh_key_name,
     try_get_ssh_key,
 )
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
@@ -80,7 +80,6 @@ from tasks.system_probe import (
     build_rust_binaries,
     check_for_ninja,
     compute_go_parallelism,
-    ebpf_bazel_flags,
     get_ebpf_build_dir,
     get_ebpf_runtime_dir,
     get_sysprobe_test_buildtags,
@@ -110,7 +109,6 @@ DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
 
 CLANG_PATH_CI = Path("/opt/datadog-agent/embedded/bin/clang-bpf")
-LLC_PATH_CI = Path("/opt/datadog-agent/embedded/bin/llc-bpf")
 
 
 @task(
@@ -546,12 +544,7 @@ def config_ssh_key(ctx: Context):
             agent_keys = get_ssh_agent_key_names(ctx)
             ssh_keys = [{'path': None, 'name': key, 'aws_key_name': key} for key in agent_keys]
         else:
-            ssh_key_files = [Path(f[: -len(".pub")]) for f in glob(os.path.expanduser("~/.ssh/*.pub"))]
-            ssh_keys = []
-
-            for f in ssh_key_files:
-                key_name = get_ssh_key_name(f.with_suffix(".pub")) or f.name
-                ssh_keys.append({'path': os.fspath(f), 'name': key_name, 'aws_key_name': ''})
+            ssh_keys = find_ssh_key_files()
 
         keys_str = "\n".join([f" - [{i + 1}] {key['name']} (path: {key['path']})" for i, key in enumerate(ssh_keys)])
         result = ask(f"[?] Found these valid key files:\n{keys_str}\nChoose one of these files (1-{len(ssh_keys)}): ")
@@ -908,6 +901,7 @@ def _prepare(
             cc.exec(
                 f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
+                buildbarn_token=True,
             )
     elif component == "system-probe":
         if ci:
@@ -916,6 +910,7 @@ def _prepare(
             cc.exec(
                 f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
+                buildbarn_token=True,
             )
     else:
         raise Exit(f"Component can only be 'system-probe' or 'security-agent'. {component} not supported.")
@@ -926,14 +921,12 @@ def _prepare(
 
     if ci:
         # In CI, these binaries are always present
-        llc_path = LLC_PATH_CI
         clang_path = CLANG_PATH_CI
 
         # Copy the binaries to the target directory, CI will take them from those
         # paths as artifacts
         copy_static_files = {
             clang_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/clang-bpf",
-            llc_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/llc-bpf",
             "flakes.yaml": paths.dependencies / "flakes.yaml",
             ".github/CODEOWNERS": paths.dependencies / "CODEOWNERS",
         }
@@ -948,9 +941,8 @@ def _prepare(
             f"--destdir={paths.dependencies / "go/bin"}",
         )
 
-        # We cannot use the pre-built local clang and llc-bpf binaries, as they
+        # We cannot use the pre-built local clang binary, as it
         # might not be built for the target architecture.
-        llc_path = paths.tools / "llc-bpf"
         clang_path = paths.tools / "clang-bpf"
         setup_runtime_clang(ctx, arch_obj, paths.tools)
 
@@ -975,7 +967,6 @@ def _prepare(
 
         # Copy embedded tools, make them
         embedded_remote_path = Path("/opt/datadog-agent/embedded/bin")
-        d.copy(ctx, llc_path, embedded_remote_path / llc_path.name, verbose=verbose)
         d.copy(ctx, clang_path, embedded_remote_path / clang_path.name, verbose=verbose)
 
         # Copy all test files
@@ -1027,10 +1018,7 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
 
 def build_object_files(ctx, arch: Arch):
     info("[+] Building eBPF object files via Bazel...")
-    build_dir = get_ebpf_build_dir(arch)
-    runtime_dir = get_ebpf_runtime_dir()
-    bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir), strip=False)
-    bazel("test", *ebpf_bazel_flags(arch), "//pkg/ebpf:verify_generated_files")
+    bazel_build_ebpf(ctx, arch, verify=True)
 
 
 def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: list[str]) -> dict[str, set[str]]:
@@ -1491,6 +1479,7 @@ def build(
     inv_echo = "-e" if ctx.config.run["echo"] else ""
     cc.exec(
         f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} {component}.build --arch={arch_obj.name}",
+        buildbarn_token=True,
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
@@ -1508,7 +1497,6 @@ def build(
 
     assert len(domains) > 0, err_msg
 
-    llc_path = paths.tools / "llc-bpf"
     clang_path = paths.tools / "clang-bpf"
     setup_runtime_clang(ctx, arch_obj, paths.tools)
 
@@ -1516,7 +1504,6 @@ def build(
     for d in domains:
         # Copy embedded tools, make them
         embedded_remote_path = Path("/opt/datadog-agent/embedded/bin")
-        d.copy(ctx, llc_path, embedded_remote_path / llc_path.name, verbose=verbose)
         d.copy(ctx, clang_path, embedded_remote_path / clang_path.name, verbose=verbose)
 
         if override_agent:
@@ -2561,7 +2548,7 @@ def retry_failed_pipeline(ctx: Context, pipeline_id: int, component: str | None 
         return
 
     info(
-        f"[+] Found {len(jobs_to_retry)} candidates to retry in pipeline {pipeline_id}(https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}):"
+        f"[+] Found {len(jobs_to_retry)} candidates to retry in pipeline {pipeline_id}({kmt_pipeline.gitlab.web_url}/-/pipelines/{pipeline_id}):"
     )
     for job in jobs_to_retry:
         info(f"[+] {job.name} (status: {job.status})")
@@ -2619,33 +2606,30 @@ def start_microvms(
     run_agent=False,
     agent_version=None,
 ):
-    stacks.build_start_microvms_binary(ctx)
     print(
         color_message(
             "[+] Creating and provisioning microVMs.\n[+] If you want to see the pulumi progress, set configParams.pulumi.verboseProgressStreams: true in ~/.test_infra_config.yaml",
             "green",
         )
     )
-    ctx.run(
-        stacks.start_microvms_cmd(
-            infra_env=infra_env,
-            instance_type_x86=instance_type_x86,
-            instance_type_arm=instance_type_arm,
-            x86_ami_id=x86_ami_id,
-            arm_ami_id=arm_ami_id,
-            destroy=destroy,
-            ssh_key_name=ssh_key_name,
-            ssh_key_path=ssh_key_path,
-            dependencies_dir=dependencies_dir,
-            shutdown_period=shutdown_period,
-            stack_name=stack_name,
-            vmconfig=vmconfig,
-            local=local,
-            provision_instance=provision_instance,
-            provision_microvms=provision_microvms,
-            run_agent=run_agent,
-            agent_version=agent_version,
-        )
+    stacks.start_microvms(
+        infra_env=infra_env,
+        instance_type_x86=instance_type_x86,
+        instance_type_arm=instance_type_arm,
+        x86_ami_id=x86_ami_id,
+        arm_ami_id=arm_ami_id,
+        destroy=destroy,
+        ssh_key_name=ssh_key_name,
+        ssh_key_path=ssh_key_path,
+        dependencies_dir=dependencies_dir,
+        shutdown_period=shutdown_period,
+        stack_name=stack_name,
+        vmconfig=vmconfig,
+        local=local,
+        provision_instance=provision_instance,
+        provision_microvms=provision_microvms,
+        run_agent=run_agent,
+        agent_version=agent_version,
     )
 
 

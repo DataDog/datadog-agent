@@ -1,8 +1,10 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "e2e",
     srcs = [
+        "civisibility.go",
         "suite.go",
         "suite_params.go",
         "suite_utils.go",
@@ -10,7 +12,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/util/pointer",
         "//test/e2e-framework/common/utils",
         "//test/e2e-framework/resources/aws/ec2/pool",
         "//test/e2e-framework/testing/components",
@@ -21,6 +22,7 @@ go_library(
         "//test/e2e-framework/testing/utils/common",
         "//test/e2e-framework/testing/utils/infra",
         "@com_github_cenkalti_backoff_v7//:backoff",
+        "@com_github_datadog_dd_trace_go_v2//civisibility",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//suite",
@@ -28,12 +30,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "e2e_test",
     srcs = ["suite_test.go"],
     embed = [":e2e"],
-    gotags = ["test"],
-    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components",
         "//test/e2e-framework/testing/environments",

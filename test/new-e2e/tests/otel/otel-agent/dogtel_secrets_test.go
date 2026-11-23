@@ -100,13 +100,15 @@ func dogtelSecretsStandaloneProvisioner() provisioners.TypedProvisioner[environm
 		)
 	}
 
-	if isKindLocal() {
+	if provlocal.IsKindLocal() {
 		return provlocal.Provisioner(
 			provlocal.WithStandaloneOTelAgent(deployFn),
 		)
 	}
 	return provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 		),
 	)

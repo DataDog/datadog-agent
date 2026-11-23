@@ -6,13 +6,14 @@
 package aws
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	awsECR "github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecr/types"
@@ -20,6 +21,10 @@ import (
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	sdkconfig "github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 )
 
 const (
@@ -28,24 +33,26 @@ const (
 	awsProfileParamName = "profile"
 
 	// AWS Infra
-	DDInfraDefaultVPCIDParamName               = "aws/defaultVPCID"
-	DDInfraDefaultSubnetsParamName             = "aws/defaultSubnets"
-	DDInfraDefaultSecurityGroupsParamName      = "aws/defaultSecurityGroups"
+	DDInfraDefaultVPCIDParamName                 = "aws/defaultVPCID"
+	DDInfraDefaultSubnetsParamName               = "aws/defaultSubnets"
+	DDInfraDefaultSecurityGroupsParamName        = "aws/defaultSecurityGroups"
 	DDInfraNoInternetSecurityGroupNamesParamName = "aws/noInternetSecurityGroupNames"
-	DDInfraDefaultInstanceTypeParamName        = "aws/defaultInstanceType"
-	DDInfraDefaultInstanceProfileParamName     = "aws/defaultInstanceProfile"
-	DDInfraDefaultARMInstanceTypeParamName     = "aws/defaultARMInstanceType"
-	DDInfraDefaultWindowsInstanceTypeParamName = "aws/defaultWindowsInstanceType"
-	DDInfraDefaultKeyPairParamName             = "aws/defaultKeyPairName"
-	DDinfraDefaultPublicKeyPath                = "aws/defaultPublicKeyPath"
-	DDInfraDefaultPrivateKeyPath               = "aws/defaultPrivateKeyPath"
-	DDInfraDefaultPrivateKeyPassword           = "aws/defaultPrivateKeyPassword"
-	DDInfraDefaultInstanceStorageSize          = "aws/defaultInstanceStorageSize"
-	DDInfraDefaultShutdownBehavior             = "aws/defaultShutdownBehavior"
-	DDInfraDefaultInternalRegistry             = "aws/defaultInternalRegistry"
-	DDInfraDefaultInternalDockerhubMirror      = "aws/defaultInternalDockerhubMirror"
-	DDInfraUseMacosCompatibleSubnets           = "aws/useMacosCompatibleSubnets"
-	DDInfraDefaultLeaseBucket                  = "aws/defaultLeaseBucket"
+	DDInfraDefaultInstanceTypeParamName          = "aws/defaultInstanceType"
+	DDInfraDefaultInstanceProfileParamName       = "aws/defaultInstanceProfile"
+	DDInfraDefaultARMInstanceTypeParamName       = "aws/defaultARMInstanceType"
+	DDInfraDefaultWindowsInstanceTypeParamName   = "aws/defaultWindowsInstanceType"
+	DDInfraDefaultKeyPairParamName               = "aws/defaultKeyPairName"
+	DDinfraDefaultPublicKeyPath                  = "aws/defaultPublicKeyPath"
+	DDInfraDefaultPrivateKeyPath                 = "aws/defaultPrivateKeyPath"
+	DDInfraDefaultPrivateKeyPassword             = "aws/defaultPrivateKeyPassword"
+	DDInfraDefaultInstanceStorageSize            = "aws/defaultInstanceStorageSize"
+	DDInfraDefaultShutdownBehavior               = "aws/defaultShutdownBehavior"
+	DDInfraDefaultInternalRegistry               = "aws/defaultInternalRegistry"
+	DDInfraDefaultInternalDockerhubMirror        = "aws/defaultInternalDockerhubMirror"
+	DDInfraDefaultDatadogPublicRegistry          = "aws/defaultDatadogPublicRegistry"
+	DDInfraUseMacosCompatibleSubnets             = "aws/useMacosCompatibleSubnets"
+	DDInfraDefaultLeaseBucket                    = "aws/defaultLeaseBucket"
+	DDInfraTrackSSHActivity                      = "aws/trackSSHActivity"
 
 	// AWS ECS
 	DDInfraEcsExecKMSKeyID                  = "aws/ecs/execKMSKeyID"
@@ -73,6 +80,7 @@ const (
 	DDInfraEksWindowsNodeGroup                     = "aws/eks/windowsNodeGroup"
 	DDInfraEksGPUNodeGroup                         = "aws/eks/gpuNodeGroup"
 	DDInfraEksGPUInstanceType                      = "aws/eks/gpuInstanceType"
+	DDInfraEksAutoMode                             = "aws/eks/autoMode"
 	DDInfraEksAccountAdminSSORole                  = "aws/eks/accountAdminSSORole"
 	DDInfraEksReadOnlySSORole                      = "aws/eks/readOnlySSORole"
 )
@@ -173,8 +181,71 @@ func (e *Environment) InternalRegistry() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultInternalRegistry, e.envDefault.ddInfra.defaultInternalRegistry)
 }
 
+// InternalDockerhubMirror returns the pull-through cache of Docker Hub, or Docker Hub itself on the accounts that have no cache.
 func (e *Environment) InternalDockerhubMirror() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultInternalDockerhubMirror, e.envDefault.ddInfra.defaultInternalDockerhubMirror)
+}
+
+// DatadogPublicRegistry returns the pull-through cache of public.ecr.aws/datadog, the
+// registry an AWS customer pulls the Agent from. Going through the cache keeps the pull
+// inside the account.
+func (e *Environment) DatadogPublicRegistry() string {
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultDatadogPublicRegistry, e.envDefault.ddInfra.defaultDatadogPublicRegistry)
+}
+
+// IsAWS reports that this environment provisions resources on AWS.
+func (e *Environment) IsAWS() bool {
+	return true
+}
+
+// ecrRepositoryName returns the ECR repository name of an image, that is everything
+// after the registry host. Repository names can contain slashes, as pull-through cache
+// repositories do ("ecr-public/datadog/agent"), so only the host is stripped.
+func ecrRepositoryName(image string) string {
+	_, repositoryName, found := strings.Cut(image, "/")
+	if !found {
+		return image
+	}
+	return repositoryName
+}
+
+// ecrImageGetter is the subset of the ECR client used to look up an image.
+type ecrImageGetter interface {
+	BatchGetImage(ctx context.Context, params *awsECR.BatchGetImageInput, optFns ...func(*awsECR.Options)) (*awsECR.BatchGetImageOutput, error)
+}
+
+// ecrImageTagExists reports whether the tag exists in the repository of the image.
+func ecrImageTagExists(ctx context.Context, client ecrImageGetter, image, tag string) (bool, error) {
+	registryID, _, _ := strings.Cut(image, ".")
+	repositoryName := ecrRepositoryName(image)
+
+	out, err := client.BatchGetImage(ctx, &awsECR.BatchGetImageInput{
+		RegistryId:     &registryID,
+		RepositoryName: &repositoryName,
+		ImageIds:       []types.ImageIdentifier{{ImageTag: &tag}},
+	})
+	if err != nil {
+		return false, err
+	}
+
+	if len(out.Failures) == 0 {
+		if len(out.Images) != 1 {
+			return false, fmt.Errorf("unable to get image %s/%s:%s: got %d images, expected 1",
+				registryID, repositoryName, tag, len(out.Images))
+		}
+		return true, nil
+	}
+
+	if len(out.Failures) == 1 && out.Failures[0].FailureCode == types.ImageFailureCodeImageNotFound {
+		return false, nil
+	}
+
+	errs := make([]error, 0, len(out.Failures))
+	for _, failure := range out.Failures {
+		errs = append(errs, fmt.Errorf("unable to get image %s/%s:%s: %s: %s",
+			registryID, repositoryName, tag, failure.FailureCode, aws.ToString(failure.FailureReason)))
+	}
+	return false, errors.Join(errs...)
 }
 
 // Check if the image exists in the internal registry
@@ -193,18 +264,7 @@ func (e *Environment) InternalRegistryImageTagExists(image, tag string) (bool, e
 		return false, err
 	}
 
-	ecrClient := awsECR.NewFromConfig(cfg)
-	_, err = ecrClient.BatchGetImage(e.Ctx().Context(), &awsECR.BatchGetImageInput{
-		RegistryId:     &strings.Split(image, ".")[0],
-		RepositoryName: &strings.Split(image, "/")[len(strings.Split(image, "/"))-1],
-		ImageIds:       []types.ImageIdentifier{{ImageTag: &tag}},
-	})
-
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
+	return ecrImageTagExists(e.Ctx().Context(), awsECR.NewFromConfig(cfg), image, tag)
 }
 
 func (e *Environment) InternalRegistryFullImagePathExists(fullImagePath string) (bool, error) {
@@ -312,6 +372,14 @@ func (e *Environment) DefaultShutdownBehavior() string {
 
 func (e *Environment) DefaultLeaseBucket() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultLeaseBucket, e.envDefault.ddInfra.leaseBucket)
+}
+
+// TrackSSHActivity returns whether Linux and Windows VMs should keep their "last-activity" tag up to
+// date while used over SSH, so that test-infra-cleaner does not delete them while they are in use.
+// Enabled by `dda inv aws.create-vm` and the agent-health demo lab, as test VMs do not outlive the
+// cleaner's threshold.
+func (e *Environment) TrackSSHActivity() bool {
+	return e.GetBoolWithDefault(e.InfraConfig, DDInfraTrackSSHActivity, e.envDefault.ddInfra.trackSSHActivity)
 }
 
 func (e *Environment) UseMacosCompatibleSubnets() bool {
@@ -431,6 +499,32 @@ func (e *Environment) EKSGPUNodeGroup() bool {
 
 func (e *Environment) EKSGPUInstanceType() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraEksGPUInstanceType, e.envDefault.ddInfra.eks.gpuInstanceType)
+}
+
+func (e *Environment) EKSAutoMode() bool {
+	return e.GetBoolWithDefault(e.InfraConfig, DDInfraEksAutoMode, e.envDefault.ddInfra.eks.autoMode)
+}
+
+// EKSExplicitlyEnabledNodeGroups returns the configuration keys of the managed node
+// groups that are explicitly enabled in the Pulumi config, ignoring the ones that are
+// merely defaulted on. It lets callers reject a configuration that asks for both Auto
+// Mode and managed node groups, instead of silently dropping one of the two.
+func (e *Environment) EKSExplicitlyEnabledNodeGroups() []string {
+	var enabled []string
+	for _, key := range []string{
+		DDInfraEksLinuxNodeGroup,
+		DDInfraEksLinuxARMNodeGroup,
+		DDInfraEksLinuxBottlerocketNodeGroup,
+		DDInfraEksWindowsNodeGroup,
+		DDInfraEksGPUNodeGroup,
+	} {
+		// A missing key returns ErrMissingVar, which is how a default is told apart
+		// from a value someone actually set.
+		if val, err := e.InfraConfig.TryBool(key); err == nil && val {
+			enabled = append(enabled, key)
+		}
+	}
+	return enabled
 }
 
 func (e *Environment) EKSAccountAdminSSORole() string {

@@ -1,0 +1,167 @@
+generator:
+  # High-volume sent-byte telemetry. The large value keeps the aggregate drop
+  # ratio safely below the default detector threshold.
+  - id: client-bytes-sent
+    unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
+      path: "/tmp/dsd.socket"
+      variant:
+        dogstatsd:
+          contexts:
+            constant: 2500
+          tags_per_msg:
+            constant: 1
+          unique_tag_ratio: 1.0
+          metric_names:
+            - datadog.dogstatsd.client.bytes_sent
+          tag_names:
+            - context_id
+          tag_values:
+            - "context-{{0-9999}}"
+          multivalue_pack_probability: 0.0
+          sampling_probability: 0.0
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          metric_weights:
+            count: 100
+            gauge: 0
+            timer: 0
+            distribution: 0
+            set: 0
+            histogram: 0
+          value:
+            float_probability: 0.0
+            range:
+              constant: 1000
+      bytes_per_second: "4 MiB"
+      maximum_prebuild_cache_size_bytes: "100 MiB"
+
+  # Total dropped bytes drive the detector ratio. A value of two at half the
+  # sent generator's byte rate remains far below the default 1% threshold.
+  - id: client-bytes-dropped
+    unix_datagram:
+      seed: [3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59,
+             61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137]
+      path: "/tmp/dsd.socket"
+      variant:
+        dogstatsd:
+          contexts:
+            constant: 2500
+          tags_per_msg:
+            constant: 1
+          unique_tag_ratio: 1.0
+          metric_names:
+            - datadog.dogstatsd.client.bytes_dropped
+          tag_names:
+            - context_id
+          tag_values:
+            - "context-{{0-9999}}"
+          multivalue_pack_probability: 0.0
+          sampling_probability: 0.0
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          metric_weights:
+            count: 100
+            gauge: 0
+            timer: 0
+            distribution: 0
+            set: 0
+            histogram: 0
+          value:
+            float_probability: 0.0
+            range:
+              constant: 2
+      bytes_per_second: "2 MiB"
+      maximum_prebuild_cache_size_bytes: "100 MiB"
+
+  # Queue and writer metrics exercise both supported drop-reason branches.
+  - id: client-bytes-dropped-queue
+    unix_datagram:
+      seed: [5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61,
+             67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139]
+      path: "/tmp/dsd.socket"
+      variant:
+        dogstatsd:
+          contexts:
+            constant: 2500
+          tags_per_msg:
+            constant: 1
+          unique_tag_ratio: 1.0
+          metric_names:
+            - datadog.dogstatsd.client.bytes_dropped_queue
+          tag_names:
+            - context_id
+          tag_values:
+            - "context-{{0-9999}}"
+          multivalue_pack_probability: 0.0
+          sampling_probability: 0.0
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          metric_weights:
+            count: 100
+            gauge: 0
+            timer: 0
+            distribution: 0
+            set: 0
+            histogram: 0
+          value:
+            float_probability: 0.0
+            range:
+              constant: 1
+      bytes_per_second: "2 MiB"
+      maximum_prebuild_cache_size_bytes: "100 MiB"
+
+  - id: client-bytes-dropped-writer
+    unix_datagram:
+      seed: [7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67,
+             71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149]
+      path: "/tmp/dsd.socket"
+      variant:
+        dogstatsd:
+          contexts:
+            constant: 2500
+          tags_per_msg:
+            constant: 1
+          unique_tag_ratio: 1.0
+          metric_names:
+            - datadog.dogstatsd.client.bytes_dropped_writer
+          tag_names:
+            - context_id
+          tag_values:
+            - "context-{{0-9999}}"
+          multivalue_pack_probability: 0.0
+          sampling_probability: 0.0
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          metric_weights:
+            count: 100
+            gauge: 0
+            timer: 0
+            distribution: 0
+            set: 0
+            histogram: 0
+          value:
+            float_probability: 0.0
+            range:
+              constant: 1
+      bytes_per_second: "2 MiB"
+      maximum_prebuild_cache_size_bytes: "100 MiB"
+
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9091"
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry"
+      tags:
+        sub_agent: "core"

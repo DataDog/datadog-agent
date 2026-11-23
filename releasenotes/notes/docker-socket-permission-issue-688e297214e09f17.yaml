@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Health Platform: the Docker socket permission health issue now correctly
+    describes a permission-denied error connecting to the Docker socket, and
+    its remediation instructs adding ``dd-agent`` to the ``docker`` group.
+    Previously the issue's title, description, and remediation script
+    described an unrelated Docker log-tailing ACL problem.

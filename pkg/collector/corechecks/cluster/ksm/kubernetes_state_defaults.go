@@ -55,6 +55,7 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_pod_spec_volumes_persistentvolumeclaims_readonly":                                    "pod.volumes.persistentvolumeclaims_readonly",
 		"kube_pod_status_unschedulable":                                                            "pod.unschedulable",
 		"kube_pod_tolerations":                                                                     "pod.tolerations",
+		"kube_node_spec_taint":                                                                     "node.taint",
 		"kube_poddisruptionbudget_status_current_healthy":                                          "pdb.pods_healthy",
 		"kube_poddisruptionbudget_status_desired_healthy":                                          "pdb.pods_desired",
 		"kube_poddisruptionbudget_status_pod_disruptions_allowed":                                  "pdb.disruptions_allowed",
@@ -90,6 +91,19 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_maxallowed":             "vpa.spec_container_maxallowed",
 		"kube_cronjob_spec_suspend":                                                                "cronjob.spec_suspend",
 		"kube_ingress_path":                                                                        "ingress.path",
+		// DRA accelerator allocation/pooling observability. `resourceclaim.count`
+		// carries a `state` tag (pending/allocated/in_use), so the pending
+		// count is a filter on it rather than its own metric. There is no entry
+		// for kube_resourceclaim_created: it is a creation timestamp turned
+		// into `resourceclaim.pending.age` by a transformer, the same way
+		// kube_pod_created becomes pod.age.
+		"kube_resourceclaim_status":             "resourceclaim.count",
+		"kube_resourceclaim_devices_allocated":  "resourceclaim.devices.allocated",
+		"kube_resourceslice_devices_total":      "resourceslice.devices",
+		"kube_resourceslice_capacity":           "resourceslice.capacity",
+		"kube_devicetaintrule_info":             "dra.device_taint_rule",
+		"kube_networkpolicy_spec_egress_rules":  "networkpolicy.spec_egress_rules",
+		"kube_networkpolicy_spec_ingress_rules": "networkpolicy.spec_ingress_rules",
 	}
 }
 
@@ -115,7 +129,8 @@ func defaultLabelsMapper() map[string]string {
 		"label_topology_kubernetes_io_zone":   "kube_zone",
 		"label_failure_domain_beta_kubernetes_io_region": "kube_region",
 		"label_failure_domain_beta_kubernetes_io_zone":   "kube_zone",
-		"ingress": "kube_ingress",
+		"ingress":       "kube_ingress",
+		"networkpolicy": "kube_networkpolicy",
 
 		// Standard Datadog labels
 		"label_tags_datadoghq_com_env":     tags.Env,
@@ -156,6 +171,8 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 	}
 	defaultPodLabels := append([]string{}, defaultStandardLabels...)
 	defaultPodLabels = append(defaultPodLabels, argoRolloutLabelName)
+	defaultReplicaSetLabels := append([]string{}, defaultStandardLabels...)
+	defaultReplicaSetLabels = append(defaultReplicaSetLabels, argoRolloutLabelName)
 
 	return map[string]*JoinsConfigWithoutLabelsMapping{
 		"kube_pod_status_phase": {
@@ -169,6 +186,10 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 		"kube_persistentvolume_info": {
 			LabelsToMatch: getLabelToMatchForKind("persistentvolume"),
 			LabelsToGet:   []string{"storageclass"},
+		},
+		"kube_horizontalpodautoscaler_ownerref": {
+			LabelsToMatch: getLabelToMatchForKind("horizontalpodautoscaler"),
+			LabelsToGet:   []string{"ownerref_kind", "ownerref_name"},
 		},
 		"kube_persistentvolumeclaim_info": {
 			LabelsToMatch: getLabelToMatchForKind("persistentvolumeclaim"),
@@ -188,7 +209,7 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 		},
 		"kube_replicaset_labels": {
 			LabelsToMatch: getLabelToMatchForKind("replicaset"),
-			LabelsToGet:   defaultStandardLabels,
+			LabelsToGet:   defaultReplicaSetLabels,
 		},
 		"kube_daemonset_labels": {
 			LabelsToMatch: getLabelToMatchForKind("daemonset"),
@@ -204,6 +225,10 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 		},
 		"kube_cronjob_labels": {
 			LabelsToMatch: getLabelToMatchForKind("cronjob"),
+			LabelsToGet:   defaultStandardLabels,
+		},
+		"kube_networkpolicy_labels": {
+			LabelsToMatch: getLabelToMatchForKind("networkpolicy"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_node_labels": {

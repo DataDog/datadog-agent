@@ -149,11 +149,29 @@ def ssh_agent_supported():
     return not is_windows()
 
 
+def _warn_ssh_agent_add_failed(private_key_path: str) -> None:
+    """
+    Report a failed ssh-add as a single-line, non-blocking warning.
+
+    This is expected on workspaces, where the agent socket is forwarded from the host
+    and ssh-add cannot write to it. The keypair and its passphrase are safely stored
+    on disk/in the config, so the key can be loaded by hand at any later time.
+    """
+    warn(
+        f"⚠️  Could not add the SSH key to ssh-agent — this is expected on workspaces (agent is forwarded) "
+        f"and is just a warning; load it manually later with `ssh-add \"{private_key_path}\"` if needed."
+    )
+
+
 def add_key_to_ssh_agent(ctx: Context, private_key_path: str, passphrase: str) -> None:
     """
     Add a passphrase-protected private key to the running ssh-agent non-interactively.
     On macOS, also stores the passphrase in the Keychain so the key survives reboots.
     No-op on Windows where Pulumi does not use ssh-agent.
+
+    A failure to reach the agent is reported as a warning and never blocks the caller:
+    the key material and its passphrase are already persisted at this point, so the
+    only thing lost is convenience until the user loads the key by hand.
     """
     import platform
     import stat
@@ -177,11 +195,11 @@ def add_key_to_ssh_agent(ctx: Context, private_key_path: str, passphrase: str) -
             hide=True,
         )
         info(f"✓ SSH key added to ssh-agent: {private_key_path}")
-    except Exception as e:
-        # Loading the agent is a convenience, and the caller has a freshly generated key
-        # whose passphrase is not yet persisted. Aborting setup here would leave that key
-        # on disk with no record of its passphrase.
-        warn(f"Could not add key to ssh-agent (is it running?): {e}")
+    except Exception:
+        # Loading the agent is a convenience — the caller has a freshly generated key whose
+        # passphrase is persisted in the config, and on workspaces the forwarded agent is
+        # read-only anyway. Never block setup on this; a one-line warning is enough.
+        _warn_ssh_agent_add_failed(private_key_path)
     finally:
         try:
             os.unlink(askpass_path)

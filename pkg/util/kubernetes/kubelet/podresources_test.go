@@ -63,7 +63,11 @@ func TestGetContainerResourcesMap(t *testing.T) {
 								ClaimResources: []*podresourcesv1.ClaimResource{
 									{
 										DriverName: "gpu.nvidia.com",
-										DeviceName: "gpu-0",
+										DeviceName: "gpu-0-mig-1g35gb-15-0",
+										PoolName:   "node-a-gpu-pool",
+										CdiDevices: []*podresourcesv1.CDIDevice{
+											{Name: "k8s.gpu.nvidia.com/claim=uid1-gpu-0-mig-1g35gb-15-0"},
+										},
 									},
 								},
 							},
@@ -107,7 +111,7 @@ func TestGetContainerResourcesMap(t *testing.T) {
 
 	dra := resources[ContainerKey{Namespace: "namespace", PodName: "pod", ContainerName: "dra"}]
 	require.Equal(t, []ContainerAllocatedResource{
-		{Name: "gpu.nvidia.com", ID: "gpu-0"},
+		{Name: "gpu.nvidia.com", ID: "gpu-0-mig-1g35gb-15-0", PoolName: "node-a-gpu-pool", CdiDevices: []string{"k8s.gpu.nvidia.com/claim=uid1-gpu-0-mig-1g35gb-15-0"}},
 	}, dra)
 
 	mixed := resources[ContainerKey{Namespace: "namespace", PodName: "pod", ContainerName: "mixed"}]

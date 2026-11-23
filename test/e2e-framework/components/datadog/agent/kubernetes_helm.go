@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	HelmVersion = "3.225.1"
+	HelmVersion = "3.264.0"
 
 	// legacyBaseName is the base name every single-Agent installation used before
 	// per-installation resource names existed. Child resources keep their historical
@@ -956,8 +956,8 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 		"clusterChecksRunner": pulumi.Map{
 			"enabled": pulumi.Bool(false),
 		},
-		// CRDs are owned by the Linux release. Disable the four CRDs that
-		// datadog/datadog enables by default in its datadog-crds dependency
+		// CRDs are owned by the Linux release. Disable the CRDs that
+		// datadog/datadog enables by default in its datadog-crds dependencies
 		// (see charts/datadog/values.yaml in DataDog/helm-charts). The
 		// datadog-crds subchart renders CRDs via templates/ with Helm
 		// ownership annotations, so if the Windows release tries to create
@@ -967,7 +967,14 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 				"datadogMetrics":                      pulumi.Bool(false),
 				"datadogPodAutoscalers":               pulumi.Bool(false),
 				"datadogPodAutoscalerClusterProfiles": pulumi.Bool(false),
-				"datadogInstrumentations":             pulumi.Bool(false),
+			},
+		},
+		// DatadogInstrumentation is installed through a separate aliased
+		// datadog-crds dependency. The Linux release owns this cluster-scoped
+		// CRD, so the Windows release must not render it.
+		"datadog-instrumentation-crd": pulumi.Map{
+			"crds": pulumi.Map{
+				"datadogInstrumentations": pulumi.Bool(false),
 			},
 		},
 	}
@@ -1077,15 +1084,15 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_IMAGE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_LIFECYCLE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_SBOM_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
 			},
 		}
 	} else {
@@ -1100,6 +1107,10 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_APM_DD_URL"),
+				"value": pulumi.Sprintf("%s", fi.URL),
+			},
+			pulumi.StringMap{
+				"name":  pulumi.String("DD_HEALTH_PLATFORM_FORWARDER_DD_URL"),
 				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{

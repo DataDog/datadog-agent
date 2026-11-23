@@ -33,6 +33,8 @@
 
 #undef HAVE_CLOSE_RANGE
 
+#undef HAVE_COPY_FILE_RANGE
+
 #define HAVE_CPU_SET_T 1
 
 #undef HAVE_CRYPTSETUP
@@ -84,6 +86,8 @@
 #undef HAVE_EXPLICIT_BZERO
 
 #undef HAVE_FALLOCATE
+
+#undef HAVE_FCHMODAT2
 
 #define HAVE_FCNTL_H 1
 
@@ -236,6 +240,8 @@
 #define HAVE_LINUX_NET_NAMESPACE_H 1
 
 #define HAVE_LINUX_NSFS_H 1
+
+#define HAVE_LINUX_OPENAT2_H 1
 
 #define HAVE_LINUX_PR_H 1
 
@@ -533,17 +539,13 @@
 
 #undef HAVE___SECURE_GETENV
 
-#define LIBBLKID_DATE "REDACTED"
-
-#define LIBBLKID_VERSION "2.39.2"
-
 #define ONLY_LISTED_SHELLS 1
 
 #define PACKAGE "util-linux"
 
-#define PACKAGE_STRING "util-linux 2.42-start-815-7f0f8"
+#define PACKAGE_STRING "util-linux 2.42.4"
 
-#define PACKAGE_VERSION "2.42-start-815-7f0f8"
+#define PACKAGE_VERSION "2.42.4"
 
 #define PG_BELL 1
 

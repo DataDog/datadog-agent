@@ -16,13 +16,13 @@ import (
 // SharedConnection holds a shared http.Client that is used by each worker.
 // Access to the client is protected by an RWMutex.
 type SharedConnection struct {
-	client          *http.Client
-	lock            *sync.RWMutex
-	log             log.Component
-	isLocal         bool
-	numberOfWorkers int
-	config          config.Component
-	transport       http.RoundTripper
+	client      *http.Client
+	lock        *sync.RWMutex
+	log         log.Component
+	isLocal     bool
+	concurrency concurrencyDomain
+	config      config.Component
+	transport   http.RoundTripper
 }
 
 // NewSharedConnection creates a new shared connection with the given
@@ -30,17 +30,17 @@ type SharedConnection struct {
 func NewSharedConnection(
 	log log.Component,
 	isLocal bool,
-	numberOfWorkers int,
+	concurrency concurrencyDomain,
 	config config.Component,
 	transport http.RoundTripper,
 ) *SharedConnection {
 	sc := &SharedConnection{
-		lock:            &sync.RWMutex{},
-		log:             log,
-		isLocal:         isLocal,
-		numberOfWorkers: numberOfWorkers,
-		config:          config,
-		transport:       transport,
+		lock:        &sync.RWMutex{},
+		log:         log,
+		isLocal:     isLocal,
+		concurrency: concurrency,
+		config:      config,
+		transport:   transport,
 	}
 
 	sc.client = sc.newClient()
@@ -68,12 +68,13 @@ func (sc *SharedConnection) ResetClient() {
 func (sc *SharedConnection) newClient() *http.Client {
 	var c *http.Client
 	if sc.isLocal {
-		c = newBearerAuthHTTPClient(sc.numberOfWorkers)
+		c = newBearerAuthHTTPClient(sc.concurrency.maxConns())
 	} else {
-		c = NewHTTPClient(sc.config, sc.numberOfWorkers, sc.log)
+		c = NewHTTPClient(sc.config, sc.concurrency.maxConns(), sc.log)
 	}
 	if sc.transport != nil {
 		c.Transport = sc.transport
 	}
+	c.Transport = sc.concurrency.wrapTransport(c.Transport)
 	return c
 }

@@ -1,0 +1,10 @@
+description: |
+  vuln-hunt 2026-05-18-initial-audit: continue with a non-numeric / overflow
+  argument is rejected at the loopctl helper.
+input:
+  script: |+
+    while true; do continue 99999999999999999999; done
+expect:
+  stdout: ""
+  stderr_contains: ["numeric argument required"]
+  exit_code: 128

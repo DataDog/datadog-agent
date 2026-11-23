@@ -40,7 +40,6 @@ dd_agent_go_test(
             "clusterchecks",
             "kubeapiserver",
             "kubelet",
-            "orchestrator",
         ],
         [
             "cel",
@@ -51,6 +50,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",
+        "//pkg/config/model",
         "@com_github_stretchr_testify//require",
     ],
 )

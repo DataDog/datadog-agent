@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -45,7 +46,7 @@ func TestBOCPDDetector_NotEnoughPoints(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "test.metric", 100, 1, nil)
 
-	result := d.Detect(storage, 1)
+	result := d.Detect(storage, 1, observer.DetectionFilter{})
 	assert.Empty(t, result.Anomalies)
 	assert.Empty(t, d.series, "cold series must not allocate state")
 }
@@ -58,11 +59,11 @@ func TestBOCPDDetector_ActivationSurvivesRetention(t *testing.T) {
 
 	storage.Add("ns", "test.metric", 1, 1, nil)
 	storage.Add("ns", "test.metric", 2, 2, nil)
-	d.Detect(storage, 2)
+	d.Detect(storage, 2, observer.DetectionFilter{})
 	require.Empty(t, d.series)
 
 	storage.Add("ns", "test.metric", 3, 3, nil)
-	d.Detect(storage, 3)
+	d.Detect(storage, 3, observer.DetectionFilter{})
 	key := bocpdStateKey{ref: 0, agg: observer.AggregateAverage}
 	state := d.series[key]
 	require.NotNil(t, state, "series must activate at the warmup threshold")
@@ -70,7 +71,7 @@ func TestBOCPDDetector_ActivationSurvivesRetention(t *testing.T) {
 
 	storage.cfg.PointRetentionSecs = 1
 	storage.Add("ns", "test.metric", 4, 4, nil)
-	d.Detect(storage, 4)
+	d.Detect(storage, 4, observer.DetectionFilter{})
 	require.Same(t, state, d.series[key], "retention below warmup must not reset active state")
 	require.Equal(t, int64(4), state.lastProcessedTime, "active state must continue processing after retention")
 }
@@ -83,7 +84,7 @@ func TestBOCPDDetector_StableData(t *testing.T) {
 		storage.Add("ns", "test.metric", 100+float64(i%3-1), int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, 40)
+	result := d.Detect(storage, 40, observer.DetectionFilter{})
 	assert.Empty(t, result.Anomalies, "stable data should not trigger BOCPD")
 }
 
@@ -98,11 +99,128 @@ func TestBOCPDDetector_DetectsStepChange(t *testing.T) {
 		storage.Add("ns", "test.metric", 140, int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, 40)
+	result := d.Detect(storage, 40, observer.DetectionFilter{})
 
 	require.NotEmpty(t, result.Anomalies, "should detect step change")
-	assert.Contains(t, result.Anomalies[0].Title, "BOCPD")
+	title, description := observer.FormatAnomaly(result.Anomalies[0])
+	assert.Equal(t, "BOCPD changepoint detected: test.metric:avg", title)
+	assert.Contains(t, description, "exceeded threshold")
 	assert.GreaterOrEqual(t, result.Anomalies[0].Timestamp, int64(21))
+}
+
+func TestBOCPDDetector_LevelChangeEvidence_DefaultDisabled(t *testing.T) {
+	d := testBOCPDDetector()
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "test.metric", 140, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 40, observer.DetectionFilter{})
+	require.NotEmpty(t, result.Anomalies)
+	assert.Nil(t, result.Anomalies[0].LevelChange)
+}
+
+func TestBOCPDDetector_LevelChangeEvidence_ProbabilityTrigger(t *testing.T) {
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	config.CPThreshold = 0.04
+	config.CPMassThreshold = 0.99
+	d := newBOCPDDetector(config, true)
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "test.metric", 140, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 40, observer.DetectionFilter{})
+	require.NotEmpty(t, result.Anomalies)
+	require.Equal(t, observer.BOCPDTriggerChangePointProbability, result.Anomalies[0].DebugInfo.BOCPDTrigger)
+	require.NotNil(t, result.Anomalies[0].LevelChange)
+	assert.InDelta(t, 100, result.Anomalies[0].LevelChange.BeforeMedian, 1)
+	assert.InDelta(t, 140, result.Anomalies[0].LevelChange.AfterMedian, 1)
+}
+
+func TestBOCPDDetector_LevelChangeEvidence_ShortRunTrigger(t *testing.T) {
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	config.CPThreshold = 0.99
+	config.CPMassThreshold = 0.55
+	config.ShortRunLength = 6
+	d := newBOCPDDetector(config, true)
+
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 30; i++ {
+		storage.Add("ns", "test.metric", 100+float64(i%3-1)*5, int64(i+1), nil)
+	}
+	for i := 30; i < 60; i++ {
+		storage.Add("ns", "test.metric", 115, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 60, observer.DetectionFilter{})
+	require.NotEmpty(t, result.Anomalies)
+	require.Equal(t, observer.BOCPDTriggerShortRunMass, result.Anomalies[0].DebugInfo.BOCPDTrigger)
+	require.NotNil(t, result.Anomalies[0].LevelChange)
+	assert.InDelta(t, 100, result.Anomalies[0].LevelChange.BeforeMedian, 10)
+	assert.InDelta(t, 115, result.Anomalies[0].LevelChange.AfterMedian, 10)
+}
+
+func TestBOCPDDetector_LevelChangeEvidence_MultipleAlerts(t *testing.T) {
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	d := newBOCPDDetector(config, true)
+	storage := newTimeSeriesStorage()
+
+	addPoints := func(namespace string, count int, value float64) {
+		for i := 0; i < count; i++ {
+			storage.Add(namespace, "m", value, int64(i+1), nil)
+		}
+	}
+	addPoints("series-one", 25, 100)
+	addPoints("series-two", 25, 100)
+	for _, namespace := range []string{"series-one", "series-two"} {
+		for i := 0; i < 10; i++ {
+			storage.Add(namespace, "m", 300, int64(26+i), nil)
+		}
+	}
+	result := d.Detect(storage, 35, observer.DetectionFilter{})
+	require.Len(t, result.Anomalies, 2)
+	for _, anomaly := range result.Anomalies {
+		require.NotNil(t, anomaly.LevelChange)
+		assert.InDelta(t, 100, anomaly.LevelChange.BeforeMedian, 1)
+		assert.InDelta(t, 300, anomaly.LevelChange.AfterMedian, 1)
+	}
+}
+
+func BenchmarkBOCPDDetectorAlertWithMedianEvidence(b *testing.B) {
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "test.metric", 140, int64(i+1), nil)
+	}
+
+	for _, evidence := range []bool{false, true} {
+		b.Run(fmt.Sprintf("evidence=%t", evidence), func(b *testing.B) {
+			config := DefaultBOCPDConfig()
+			config.WarmupPoints = 20
+			d := newBOCPDDetector(config, evidence)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				d.Reset()
+				result := d.Detect(storage, 40, observer.DetectionFilter{})
+				if len(result.Anomalies) == 0 {
+					b.Fatal("expected an alert")
+				}
+			}
+		})
+	}
 }
 
 func TestBOCPDDetector_DetectsDownwardStepChange(t *testing.T) {
@@ -116,11 +234,12 @@ func TestBOCPDDetector_DetectsDownwardStepChange(t *testing.T) {
 		storage.Add("ns", "test.metric", 70, int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, 50)
+	result := d.Detect(storage, 50, observer.DetectionFilter{})
 
 	require.NotEmpty(t, result.Anomalies, "should detect downward step change")
-	assert.Contains(t, result.Anomalies[0].Title, "BOCPD")
-	assert.Contains(t, result.Anomalies[0].Description, "exceeded threshold")
+	title, description := observer.FormatAnomaly(result.Anomalies[0])
+	assert.Equal(t, "BOCPD changepoint detected: test.metric:avg", title)
+	assert.Contains(t, description, "exceeded threshold")
 }
 
 func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
@@ -143,10 +262,11 @@ func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
 		storage.Add("ns", "test.metric", 115, int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, 60)
+	result := d.Detect(storage, 60, observer.DetectionFilter{})
 
 	require.NotEmpty(t, result.Anomalies, "should detect sustained shift")
-	assert.Contains(t, result.Anomalies[0].Description, "short-run posterior mass")
+	_, description := observer.FormatAnomaly(result.Anomalies[0])
+	assert.Contains(t, description, "short-run posterior mass")
 }
 
 func TestBOCPDDetector_SustainedIncidentEmitsOnce(t *testing.T) {
@@ -161,7 +281,7 @@ func TestBOCPDDetector_SustainedIncidentEmitsOnce(t *testing.T) {
 		storage.Add("ns", "test.metric", 200, int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, 60)
+	result := d.Detect(storage, 60, observer.DetectionFilter{})
 
 	// Should emit at most one anomaly per series/agg despite sustained shift.
 	anomalyCount := 0
@@ -181,18 +301,18 @@ func TestBOCPDDetector_IncrementalAdvance(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
 	}
-	result1 := d.Detect(storage, 20)
+	result1 := d.Detect(storage, 20, observer.DetectionFilter{})
 	assert.Empty(t, result1.Anomalies, "no anomaly in stable data")
 
 	// Second advance: add a big jump.
 	for i := 20; i < 30; i++ {
 		storage.Add("ns", "test.metric", 200, int64(i+1), nil)
 	}
-	result2 := d.Detect(storage, 30)
+	result2 := d.Detect(storage, 30, observer.DetectionFilter{})
 	assert.NotEmpty(t, result2.Anomalies, "should detect step change on second advance")
 
 	// Third advance: no new data — should emit nothing.
-	result3 := d.Detect(storage, 30)
+	result3 := d.Detect(storage, 30, observer.DetectionFilter{})
 	assert.Empty(t, result3.Anomalies, "no new data should produce no anomalies")
 }
 
@@ -213,21 +333,21 @@ func TestBOCPDDetector_RecoveryAndReAlert(t *testing.T) {
 
 	// Warmup + stable baseline.
 	addN(25, 100)
-	r1 := d.Detect(storage, ts)
+	r1 := d.Detect(storage, ts, observer.DetectionFilter{})
 	assert.Empty(t, r1.Anomalies)
 
 	// First incident.
 	addN(10, 300)
-	r2 := d.Detect(storage, ts)
+	r2 := d.Detect(storage, ts, observer.DetectionFilter{})
 	assert.NotEmpty(t, r2.Anomalies, "should detect first incident")
 
 	// Recovery: stable for enough points.
 	addN(20, 100)
-	r3 := d.Detect(storage, ts)
+	r3 := d.Detect(storage, ts, observer.DetectionFilter{})
 
 	// Second incident.
 	addN(10, 300)
-	r4 := d.Detect(storage, ts)
+	r4 := d.Detect(storage, ts, observer.DetectionFilter{})
 
 	// Count total anomalies for m:avg across r3 and r4.
 	avgAnomalies := 0
@@ -246,7 +366,7 @@ func TestBOCPDDetector_Reset(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
 	}
-	d.Detect(storage, 30)
+	d.Detect(storage, 30, observer.DetectionFilter{})
 	assert.NotEmpty(t, d.series, "should have state after detection")
 
 	d.Reset()
@@ -265,21 +385,16 @@ func TestBOCPDDetector_DeterministicReplay(t *testing.T) {
 	}
 
 	d1 := makeDetector()
-	r1 := d1.Detect(storage, 40)
+	r1 := d1.Detect(storage, 40, observer.DetectionFilter{})
 
 	d2 := makeDetector()
-	r2 := d2.Detect(storage, 40)
+	r2 := d2.Detect(storage, 40, observer.DetectionFilter{})
 
 	require.Equal(t, len(r1.Anomalies), len(r2.Anomalies), "replay should produce same anomaly count")
 	for i := range r1.Anomalies {
 		assert.Equal(t, r1.Anomalies[i].Timestamp, r2.Anomalies[i].Timestamp, "anomaly timestamps should match")
 		assert.Equal(t, r1.Anomalies[i].Source, r2.Anomalies[i].Source, "anomaly sources should match")
 	}
-}
-
-func TestBOCPDDetector_DefaultAggregations(t *testing.T) {
-	cfg := DefaultBOCPDConfig()
-	assert.Equal(t, []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, cfg.Aggregations)
 }
 
 func TestBOCPDDetector_DefaultWarmup60(t *testing.T) {
@@ -305,7 +420,7 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	config := DefaultBOCPDConfig()
 	config.WarmupPoints = warmup
 	config.PriorVarianceScale = 100.0
-	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+
 	d := NewBOCPDDetector(config)
 
 	storage := newTimeSeriesStorage()
@@ -315,7 +430,7 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	for i := warmup; i < warmup+150; i++ {
 		storage.Add("ns", "metric", 12.0, int64(i+1), nil)
 	}
-	d.Detect(storage, int64(warmup+150))
+	d.Detect(storage, int64(warmup+150), observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	var state *bocpdSeriesState
 	for _, s := range d.series {
@@ -388,7 +503,7 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 
 	config := DefaultBOCPDConfig()
 	config.WarmupPoints = 5
-	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+
 	d := NewBOCPDDetector(config)
 
 	storage := newTimeSeriesStorage()
@@ -400,7 +515,7 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 
 	// Add first value at timestamp 5 (this completes warmup)
 	storage.Add("ns", "metric", 100.0, 5, nil)
-	d.Detect(storage, 5)
+	d.Detect(storage, 5, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	// Add a second value at timestamp 5 -- storage merges into the same bucket.
 	// Average of {100, 200} = 150.
@@ -431,7 +546,7 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 	require.NotNil(t, stateBefore)
 	genBefore := stateBefore.lastWriteGen
 
-	d.Detect(storage, 5)
+	d.Detect(storage, 5, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	var stateAfter *bocpdSeriesState
 	for _, s := range d.series {
@@ -454,7 +569,7 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
 	config := DefaultBOCPDConfig()
 	config.WarmupPoints = 1
-	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+
 	d := NewBOCPDDetector(config)
 
 	storage := newTimeSeriesStorage()
@@ -466,7 +581,7 @@ func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
 		storage.Add("ns", "metric", 100.0+float64(i), int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, 10)
+	result := d.Detect(storage, 10, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	// Check that no anomaly has NaN in its debug info.
 	for _, a := range result.Anomalies {
@@ -503,6 +618,30 @@ func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
 	}
 }
 
+func TestBOCPDDebugInfoRetainsTriggerEvidence(t *testing.T) {
+	b := NewBOCPDDetector(DefaultBOCPDConfig())
+	state := &bocpdSeriesState{baselineMean: 10, baselineStddev: 2}
+	point := observer.Point{Timestamp: 42, Value: 16}
+	series := &observer.Series{Namespace: "ns", Name: "metric"}
+
+	shortRun := b.makeAnomaly(state, point, series, observer.AggregateAverage, 0.2, 0.7)
+	require.NotNil(t, shortRun)
+	require.NotNil(t, shortRun.DebugInfo)
+	assert.Equal(t, observer.BOCPDTriggerShortRunMass, shortRun.DebugInfo.BOCPDTrigger)
+	assert.Equal(t, 0.2, shortRun.DebugInfo.BOCPDChangePointProb)
+	assert.Equal(t, 0.7, shortRun.DebugInfo.BOCPDShortRunMass)
+	assert.Equal(t, b.config.ShortRunLength, shortRun.DebugInfo.BOCPDShortRunLength)
+	_, shortRunDescription := observer.FormatAnomaly(*shortRun)
+	assert.Contains(t, shortRunDescription, "short-run posterior mass")
+
+	changePoint := b.makeAnomaly(state, point, series, observer.AggregateAverage, b.config.CPThreshold, 0.7)
+	require.NotNil(t, changePoint)
+	require.NotNil(t, changePoint.DebugInfo)
+	assert.Equal(t, observer.BOCPDTriggerChangePointProbability, changePoint.DebugInfo.BOCPDTrigger)
+	_, changePointDescription := observer.FormatAnomaly(*changePoint)
+	assert.Contains(t, changePointDescription, "changepoint probability")
+}
+
 func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
 	// shortRunLengthMass should sum runProbs[1] through runProbs[ShortRunLength],
 	// excluding runProbs[0] (cpProb). The two trigger conditions (peak cpProb
@@ -536,4 +675,14 @@ func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
 	// trigger would NOT fire on its own without cpProb inflating it.
 	assert.Less(t, mass, 0.7,
 		"short-run mass (%.4f) without cpProb should be below CPMassThreshold (0.7)", mass)
+}
+
+func TestBOCPDConfigOwnership(t *testing.T) {
+	cfg := DefaultBOCPDConfig()
+	d := NewBOCPDDetector(cfg)
+
+	cfg.WarmupPoints = 100
+	require.Equal(t, DefaultBOCPDConfig(), d.config)
+	d.Reset()
+	require.Equal(t, DefaultBOCPDConfig(), d.config)
 }

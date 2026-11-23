@@ -126,6 +126,13 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 	if runtime.GOOS != "windows" {
 		installerBin = filepath.Join(filepath.Dir(installerBin), "..", "..", "embedded", "bin", "installer")
 	}
+	if runtime.GOOS == "darwin" {
+		// The daemon runs as root on macOS: make sure the packages root it reads the Agent's package
+		// entry from is root-owned before reading anything in it.
+		if err := paths.EnsureInstallerDataDir(); err != nil {
+			return nil, fmt.Errorf("could not secure the packages directory: %w", err)
+		}
+	}
 	dbPath := filepath.Join(paths.RunPath, "installer_tasks.db")
 	taskDB, err := newTaskDB(dbPath)
 	if err != nil {
@@ -254,7 +261,7 @@ func (d *daemonImpl) getPackage(pkg string, version string) (Package, error) {
 	if len(d.catalogOverride.Packages) > 0 {
 		catalog = d.catalogOverride
 	}
-	catalogPackage, ok := catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
+	catalogPackage, ok := catalog.GetPackage(pkg, version, runtime.GOOS, runtime.GOARCH)
 	if !ok {
 		return Package{}, fmt.Errorf("could not get package %s, %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
@@ -657,7 +664,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
-		experimentPackage, ok := d.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+		experimentPackage, ok := d.catalog.GetPackage(request.Package, params.Version, runtime.GOOS, runtime.GOARCH)
 		if !ok {
 			return installerErrors.Wrap(
 				installerErrors.ErrPackageNotFound,

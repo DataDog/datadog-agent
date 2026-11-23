@@ -1,0 +1,9 @@
+description: Printf zero-pads a number to a specified width.
+input:
+  script: |+
+    printf "%05d\n" 42
+expect:
+  stdout: |+
+    00042
+  stderr: ""
+  exit_code: 0

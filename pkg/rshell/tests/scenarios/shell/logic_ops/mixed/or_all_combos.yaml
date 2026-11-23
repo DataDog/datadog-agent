@@ -1,0 +1,15 @@
+description: Or-list with two commands - all four combinations.
+input:
+  script: |+
+    echo 1 || echo unreached
+    false || echo 2
+    echo 3 || false
+    false || false; echo end
+expect:
+  stdout: |+
+    1
+    2
+    3
+    end
+  stderr: ""
+  exit_code: 0

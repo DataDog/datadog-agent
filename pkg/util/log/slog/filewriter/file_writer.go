@@ -26,11 +26,12 @@
 package filewriter
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -335,24 +336,13 @@ func (rws *RollingFileWriterSize) isFileRollNameValid(rname string) bool {
 	return err == nil
 }
 
-type rollSizeFileTailsSlice []string
-
-func (p rollSizeFileTailsSlice) Len() int {
-	return len(p)
-}
-func (p rollSizeFileTailsSlice) Less(i, j int) bool {
-	v1, _ := strconv.Atoi(p[i])
-	v2, _ := strconv.Atoi(p[j])
-	return v1 < v2
-}
-func (p rollSizeFileTailsSlice) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
-}
-
 func (rws *RollingFileWriterSize) sortFileRollNamesAsc(fs []string) ([]string, error) {
-	ss := rollSizeFileTailsSlice(fs)
-	sort.Sort(ss)
-	return ss, nil
+	slices.SortFunc(fs, func(a, b string) int {
+		v1, _ := strconv.Atoi(a)
+		v2, _ := strconv.Atoi(b)
+		return cmp.Compare(v1, v2)
+	})
+	return fs, nil
 }
 
 func (rws *RollingFileWriterSize) getNewHistoryRollFileName(otherLogFiles []string) string {

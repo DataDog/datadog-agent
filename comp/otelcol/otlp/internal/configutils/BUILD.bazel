@@ -7,7 +7,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils",
     visibility = ["//comp/otelcol/otlp:__subpackages__"],
     deps = [
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_opentelemetry_go_collector_confmap//:confmap",
     ],
 )

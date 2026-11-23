@@ -133,11 +133,11 @@ func TestUserGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	for _, distroTest := range distroTests {
 		t.Run(distroTest.name, func(t *testing.T) {
-			dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), distroTest.name, "")
+			dockerWrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), distroTest.name, "")
 			if err != nil {
 				t.Fatal(err)
 			}

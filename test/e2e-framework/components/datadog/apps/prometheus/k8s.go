@@ -78,7 +78,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("prometheus"),
-							Image: pulumi.String("ghcr.io/datadog/apps-prometheus:" + apps.Version),
+							Image: pulumi.String(apps.Image(e, "apps-prometheus")),
 							Resources: &corev1.ResourceRequirementsArgs{
 								Limits: pulumi.StringMap{
 									"cpu":    pulumi.String("100m"),

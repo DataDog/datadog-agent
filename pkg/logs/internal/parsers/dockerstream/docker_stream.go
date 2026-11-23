@@ -119,7 +119,8 @@ func parseDockerStream(msg *message.Message, containerID string) (*message.Messa
 	idx := bytes.Index(content, []byte{' '})
 	if idx == -1 || isEmptyMessage(content[idx+1:]) {
 		// Nothing after the timestamp: empty message
-		return &message.Message{}, nil
+		msg.SetContent(nil)
+		return msg, nil
 	}
 
 	msg.ParsingExtra.Timestamp = string(content[:idx])

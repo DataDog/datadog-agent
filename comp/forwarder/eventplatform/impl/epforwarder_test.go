@@ -86,7 +86,7 @@ func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesInclude
 	suite.Equal("Agent Discovery", agentDiscoveryDesc.category)
 	suite.Equal(logshttp.ProtobufContentType, agentDiscoveryDesc.contentType)
 	suite.Equal("config_files_discovery.forwarder.", agentDiscoveryDesc.endpointsConfigPrefix)
-	suite.Equal("agentdiscovery-intake.", agentDiscoveryDesc.hostnameEndpointPrefix)
+	suite.Equal("instrumentation-telemetry-intake.", agentDiscoveryDesc.hostnameEndpointPrefix)
 	suite.Equal(laconfig.IntakeTrackType("agentdiscovery"), agentDiscoveryDesc.intakeTrackType)
 	suite.Equal(0, agentDiscoveryDesc.defaultBatchMaxConcurrentSend)
 	suite.Equal(5000000, agentDiscoveryDesc.defaultBatchMaxContentSize)

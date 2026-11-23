@@ -1,26 +1,22 @@
 """compile_selinux_policy - compile a SELinux .te policy source into a packaged .pp module.
 
-Based on: `dda inv selinux.compile-system-probe-policy-file` (tasks/selinux.py).
+`dda inv selinux.compile-system-probe-policy-file` writes this rule's output to the source tree.
 """
 
+_SELINUX_TOOLS = "@@//bazel/toolchains/selinux_tools:selinux_tools_toolchain_type"
+
 def _compile_selinux_policy_impl(ctx):
-    tools = ctx.toolchains["@selinux_tools//:selinux_tools_toolchain_type"]
+    tools = ctx.toolchains[_SELINUX_TOOLS]
     checkmodule = tools.checkmodule
     semodule_package = tools.semodule_package
-    if not checkmodule.valid or not semodule_package.valid:
-        fail("No SELinux policy tools (checkmodule/semodule_package) available on this machine.")
 
     mod_file = ctx.actions.declare_file(ctx.label.name + ".mod")
     output = ctx.outputs.out
 
-    # checkmodule.path/semodule_package.path are plain strings pointing at
-    # system binaries found via `which` (see
-    # bazel/toolchains/selinux_tools/configure.bzl) -- they aren't
-    # Bazel-tracked Files, so they must not be added to `inputs`.
     ctx.actions.run(
         mnemonic = "SelinuxCheckModule",
         progress_message = "Compiling SELinux policy module %s" % ctx.label,
-        executable = checkmodule.path,
+        executable = checkmodule,
         arguments = ["-M", "-m", "-c", str(ctx.attr.policy_version), "-o", mod_file.path, ctx.file.src.path],
         inputs = [ctx.file.src],
         outputs = [mod_file],
@@ -28,7 +24,7 @@ def _compile_selinux_policy_impl(ctx):
     ctx.actions.run(
         mnemonic = "SelinuxPackageModule",
         progress_message = "Packaging SELinux policy module %s" % ctx.label,
-        executable = semodule_package.path,
+        executable = semodule_package,
         arguments = ["-o", output.path, "-m", mod_file.path],
         inputs = [mod_file],
         outputs = [output],
@@ -46,5 +42,5 @@ compile_selinux_policy = rule(
         ),
         "out": attr.output(mandatory = True, doc = "Output packaged .pp module filename."),
     },
-    toolchains = ["@selinux_tools//:selinux_tools_toolchain_type"],
+    toolchains = [_SELINUX_TOOLS],
 )

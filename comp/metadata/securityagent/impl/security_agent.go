@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -42,6 +42,11 @@ type Payload struct {
 	Hostname  string                 `json:"hostname"`
 	Timestamp int64                  `json:"timestamp"`
 	Metadata  map[string]interface{} `json:"security_agent_metadata"`
+}
+
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeSecurityAgent
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -157,7 +162,7 @@ func (sa *secagent) getConfigLayers() map[string]interface{} {
 	return metadata
 }
 
-func (sa *secagent) getPayload() marshaler.JSONMarshaler {
+func (sa *secagent) getPayload() marshaler.TypedJSONMarshaler {
 	return &Payload{
 		Hostname:  sa.hostname,
 		Timestamp: time.Now().UnixNano(),

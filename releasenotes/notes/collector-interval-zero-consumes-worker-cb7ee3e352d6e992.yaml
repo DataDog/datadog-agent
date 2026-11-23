@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix accumulating check runner goroutines and utilization metrics after
+    zero-interval checks finish, including long-running checks and checks
+    configured with ``run_once: true``.

@@ -7,11 +7,13 @@
 package mock
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"testing"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
@@ -25,6 +27,8 @@ type Mock struct {
 	refreshNowHook        func() (string, error)
 	isValueFromSecretHook func(string) bool
 	isValueFromSecretSet  map[string]struct{}
+	paths                 []string
+	handles               []string
 }
 
 var _ secrets.Component = (*Mock)(nil)
@@ -142,5 +146,31 @@ func (m *Mock) IsValueFromSecret(value string) bool {
 	return false
 }
 
-// RemoveOrigin
+// RemoveOrigin is a no-op
 func (m *Mock) RemoveOrigin(_ string) {}
+
+// SetOriginName is a no-op
+func (m *Mock) SetOriginName(_ string, _ string) {}
+
+// SetPathsAndHandles sets the values returned by GetPathsAndHandles
+func (m *Mock) SetPathsAndHandles(paths []string, handles []string) {
+	m.paths = paths
+	m.handles = handles
+}
+
+// GetPathsAndHandles returns the values set by SetPathsAndHandles
+func (m *Mock) GetPathsAndHandles() ([]string, []string) {
+	return m.paths, m.handles
+}
+
+// GetHashValues returns the SHA-256 hash of the values set by SetSecrets for the given handles
+func (m *Mock) GetHashValues(handles []string) map[string]string {
+	hashes := make(map[string]string, len(handles))
+	for _, handle := range handles {
+		if value, ok := m.secretsCache[handle]; ok {
+			sum := sha256.Sum256([]byte(value))
+			hashes[handle] = hex.EncodeToString(sum[:])
+		}
+	}
+	return hashes
+}

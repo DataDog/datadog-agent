@@ -95,35 +95,57 @@ namespace Datadog.CustomActions
         /// <summary>
         /// Add ddagentuser to groups
         /// </summary>
-        private void ConfigureUserGroups()
+        internal void ConfigureUserGroups()
         {
+            var isDomainController = false;
             try
             {
-                if (_nativeMethods.IsReadOnlyDomainController())
-                {
-                    _session.Log("Host is a Read-Only Domain controller, user cannot be added to groups by the installer." +
-                                 " Install will continue, agent may not function properly if user has not been added to these groups.");
-                    return;
-                }
+                isDomainController = _nativeMethods.IsDomainController();
             }
             catch (Exception e)
             {
-                // On error assume the host is not a read-only domain controller
-                // If the host is actually a read-only domain controller then the following operations will fail
-                _session.Log($"Error determining if host is a read-only domain controller, continuing assuming it is not: {e}");
-                _session.Log("If the host is actually a read-only domain controller, ensure the LanmanServer/Server service is running.");
+                // The underlying NetGetServerInfo call can fail if the Server service is not running or not available.
+                // Since the Server service must be running on a DC, assume this host is not a DC.
+                _session.Log($"Error determining if host is a domain controller, continuing assuming it is not: {e}");
             }
 
-            _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
-            // Required for using ETW - we would not need this right if the Agent was running as virtual service account (as they have
-            // the same rights as LocalService, which can use ETW by default.
-            // See https://www.geoffchappell.com/studies/windows/km/ntoskrnl/api/etw/secure/index.htm
-            //   "By default, only the administrator of the computer, users in the Performance Log Users group, and services running as LocalSystem,
-            //    *LocalService*, NetworkService can control trace sessions and provide and consume event data.
-            //    Only users with administrative privileges and services running as LocalSystem can start and control an NT Kernel Logger session."
-            _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceLoggingUsersSid);
-            // Builtin\Event Log Readers
-            _nativeMethods.AddToGroup(_ddAgentUserSID, new SecurityIdentifier("S-1-5-32-573"));
+            var roleMetadataUnavailable = false;
+            if (isDomainController)
+            {
+                try
+                {
+                    if (_nativeMethods.IsReadOnlyDomainController())
+                    {
+                        _session.Log("Host is a Read-Only Domain controller, user cannot be added to groups by the installer." +
+                                     " Install will continue, agent may not function properly if user has not been added to these groups.");
+                        return;
+                    }
+                }
+                catch (Exception e)
+                {
+                    roleMetadataUnavailable = true;
+                    _session.Log($"Error determining if host is a read-only domain controller, attempting group configuration: {e}");
+                }
+            }
+
+            try
+            {
+                _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
+                // Required for using ETW - we would not need this right if the Agent was running as virtual service account (as they have
+                // the same rights as LocalService, which can use ETW by default.
+                // See https://www.geoffchappell.com/studies/windows/km/ntoskrnl/api/etw/secure/index.htm
+                //   "By default, only the administrator of the computer, users in the Performance Log Users group, and services running as LocalSystem,
+                //    *LocalService*, NetworkService can control trace sessions and provide and consume event data.
+                //    Only users with administrative privileges and services running as LocalSystem can start and control an NT Kernel Logger session."
+                _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceLoggingUsersSid);
+                // Builtin\Event Log Readers
+                _nativeMethods.AddToGroup(_ddAgentUserSID, new SecurityIdentifier("S-1-5-32-573"));
+            }
+            catch (Win32Exception e) when (roleMetadataUnavailable && e.NativeErrorCode == 50)
+            {
+                _session.Log("The confirmed domain controller does not support local group writes and its read-only metadata was unavailable; " +
+                             "skipping remaining group configuration.");
+            }
         }
 
         /// <summary>
@@ -169,7 +191,11 @@ namespace Datadog.CustomActions
 
         private void ConfigureRegistryPermissions()
         {
-            // Necessary to allow the ddagentuser to read the registry
+            // Replace explicit rules on the installation key, including old Agent-account
+            // grants (current or previous account), while leaving inheritance enabled.
+            // Inherited rules from the parent remain; this does not revoke access granted
+            // through the parent or a group. Crash-report checkpoints are written to
+            // the Agent's persistent file cache instead of this registry subtree.
             var key = _registryServices.CreateRegistryKey(Registries.LocalMachine,
                 Constants.DatadogAgentRegistryKey);
             if (key != null)
@@ -184,12 +210,8 @@ namespace Datadog.CustomActions
                     new SecurityIdentifier("BA"),
                     RegistryRights.FullControl,
                     AccessControlType.Allow));
-                // Give ddagentuser full access, important so it can read settings
-                // TODO: Switch to readonly
-                registrySecurity.AddAccessRule(new RegistryAccessRule(
-                    _ddAgentUserSID,
-                    RegistryRights.FullControl,
-                    AccessControlType.Allow));
+                // false leaves inheritance enabled; preserveInheritance (true) is ignored
+                // in this case by ObjectSecurity.SetAccessRuleProtection.
                 registrySecurity.SetAccessRuleProtection(false, true);
                 key.SetAccessControl(registrySecurity);
             }

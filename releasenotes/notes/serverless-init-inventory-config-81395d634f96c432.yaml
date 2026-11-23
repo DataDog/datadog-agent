@@ -1,0 +1,18 @@
+---
+features:
+  - |
+    Adds ``DD_SERVERLESS_INIT_INVENTORY_ENABLED`` (default ``false``) to opt
+    serverless-init into reporting cloud resource inventory metadata to Datadog.
+  - |
+    Adds ``DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED`` (default
+    ``false``) to include the wrapped workload command in serverless-init
+    inventory metadata. The command is omitted by default, and redaction of
+    sensitive command-line arguments is best effort and incomplete. Enable this
+    option only after verifying that your workload command contains no sensitive
+    information.
+enhancements:
+  - |
+    serverless-init now honors ``inventories_enabled``,
+    ``inventories_first_run_delay``, ``inventories_min_interval``, and
+    ``inventories_max_interval``, which previously applied only to the full
+    Agent.

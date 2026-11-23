@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/http2"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
@@ -43,8 +42,6 @@ func StartH2CServer(t *testing.T, address string, isTLS bool) func() {
 	if isTLS {
 		srv.Protocols.SetHTTP2(true)
 	}
-
-	require.NoError(t, http2.ConfigureServer(srv, nil), "could not configure server")
 
 	l, err := net.Listen("tcp", address)
 	require.NoError(t, err, "could not listen")

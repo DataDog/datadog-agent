@@ -9,10 +9,13 @@ package exec
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,4 +83,99 @@ func TestInstallConfigExperiment_Success(t *testing.T) {
 	err := i.InstallConfigExperiment(context.Background(), "datadog-agent", config.Operations{}, nil)
 
 	assert.NoError(t, err)
+}
+
+// writeRecordingInstaller writes a stand-in for the installer binary that
+// records its arguments (one per line) and its stdin.
+func writeRecordingInstaller(t *testing.T) (binPath, argsPath, stdinPath string) {
+	t.Helper()
+	dir := t.TempDir()
+	argsPath = filepath.Join(dir, "args.txt")
+	stdinPath = filepath.Join(dir, "stdin.txt")
+	binPath = filepath.Join(dir, "recording-installer.sh")
+	script := "#!/bin/sh\n" +
+		"printf '%s\\n' \"$@\" > " + argsPath + "\n" +
+		"cat > " + stdinPath + "\n"
+	require.NoError(t, os.WriteFile(binPath, []byte(script), 0o755))
+	return binPath, argsPath, stdinPath
+}
+
+func operationsOfSize(t *testing.T, size int) config.Operations {
+	t.Helper()
+	patch, err := json.Marshal(map[string]string{"tags": strings.Repeat("a", size)})
+	require.NoError(t, err)
+	return config.Operations{
+		DeploymentID: "deployment-1",
+		FileOperations: []config.FileOperation{{
+			FileOperationType: config.FileOperationMergePatch,
+			FilePath:          "/datadog.yaml",
+			Patch:             patch,
+		}},
+	}
+}
+
+func TestInstallConfigExperiment_PassesOperationsThenSecretsThroughStdin(t *testing.T) {
+	binPath, argsPath, stdinPath := writeRecordingInstaller(t)
+	operations := operationsOfSize(t, 64*1024)
+	secrets := map[string]string{"ENC[secret]": "value"}
+
+	i := NewInstallerExec(&env.Env{}, binPath)
+	require.NoError(t, i.InstallConfigExperiment(context.Background(), "datadog-agent", operations, secrets))
+
+	args, err := os.ReadFile(argsPath)
+	require.NoError(t, err)
+	assert.Equal(t, "install-config-experiment\ndatadog-agent\n", string(args))
+
+	stdin, err := os.Open(stdinPath)
+	require.NoError(t, err)
+	defer stdin.Close()
+	decoder := json.NewDecoder(stdin)
+	var gotOperations config.Operations
+	require.NoError(t, decoder.Decode(&gotOperations))
+	assert.Equal(t, operations, gotOperations)
+	var gotSecrets map[string]string
+	require.NoError(t, decoder.Decode(&gotSecrets))
+	assert.Equal(t, secrets, gotSecrets)
+}
+
+func TestInstallConfigExperiment_ChildExitingBeforeReadingStdinReportsItsError(t *testing.T) {
+	dir := t.TempDir()
+	binPath := filepath.Join(dir, "early-exit-installer.sh")
+	script := "#!/bin/sh\nexec 0<&-\necho '{\"error\":\"could not load config\",\"code\":0}' 1>&2\nexit 1\n"
+	require.NoError(t, os.WriteFile(binPath, []byte(script), 0o755))
+
+	i := NewInstallerExec(&env.Env{}, binPath)
+	err := i.InstallConfigExperiment(context.Background(), "datadog-agent", operationsOfSize(t, 1024*1024), nil)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "could not load config")
+}
+
+func TestGetStatesSuccess(t *testing.T) {
+	binPath := writeFakeInstaller(t, "", 0)
+	require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\nprintf '%s\\n' '{\"states\":{},\"config_states\":{}}'\n"), 0o755))
+
+	i := NewInstallerExec(&env.Env{}, binPath)
+	states, err := i.getStates(context.Background())
+
+	require.NoError(t, err)
+	require.NotNil(t, states)
+	assert.Empty(t, states.States)
+	assert.Empty(t, states.ConfigStates)
+}
+
+func TestGetStatesTimesOutAndKillsUnresponsiveChild(t *testing.T) {
+	dir := t.TempDir()
+	binPath := filepath.Join(dir, "unresponsive-installer.sh")
+	require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\ntrap '' INT\nwhile :; do :; done\n"), 0o755))
+
+	i := NewInstallerExec(&env.Env{}, binPath)
+
+	started := time.Now()
+	_, err := i.getStatesWithTimeout(context.Background(), 100*time.Millisecond, 100*time.Millisecond)
+	elapsed := time.Since(started)
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, elapsed, 5*time.Second, "get-states did not terminate promptly")
 }

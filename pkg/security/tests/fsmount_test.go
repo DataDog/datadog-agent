@@ -39,6 +39,10 @@ func fsconfigStr(fd int, cmd uint, key string, value string, aux int) (err error
 func TestFsmount(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if ebpfLessEnabled {
+		t.Skip("not supported in ebpfless mode")
+	}
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
@@ -54,7 +58,7 @@ func TestFsmount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("fsmount-tmpfs", func(t *testing.T) {
 
@@ -78,6 +82,10 @@ func TestFsmount(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event) bool {
+			if event.ProcessContext.Pid != testSuitePid {
+				return false
+			}
+
 			assert.NotEqual(t, uint32(0), event.Mount.MountID, "Mount id should not be zero")
 			assert.Equal(t, model.MountOriginFsmount, event.Mount.Origin, "Incorrect mount source")
 			assert.Equal(t, true, event.Mount.Detached, "Mount should be detached")
@@ -107,6 +115,7 @@ func TestFsmount(t *testing.T) {
 			if err != nil {
 				return err
 			}
+			defer unix.Close(mountfd)
 
 			file := fmt.Sprintf("/proc/%d/fd/%d/test-open", os.Getpid(), mountfd)
 			cmd := exec.Command("touch", file)
@@ -115,7 +124,6 @@ func TestFsmount(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			defer unix.Close(mountfd)
 
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -140,6 +148,7 @@ func TestFsmount(t *testing.T) {
 			if err != nil {
 				return err
 			}
+			defer unix.Close(mountfd)
 
 			file := fmt.Sprintf("/proc/%d/fd/%d/test-mkdir", os.Getpid(), mountfd)
 			cmd := exec.Command("mkdir", file)
@@ -148,7 +157,6 @@ func TestFsmount(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			defer unix.Close(mountfd)
 
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {

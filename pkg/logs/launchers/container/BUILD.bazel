@@ -34,7 +34,6 @@ dd_agent_go_test(
         "docker",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     include_default = False,
     deps = [
@@ -45,6 +44,7 @@ dd_agent_go_test(
         "//comp/logs/auditor/mock",
         "//pkg/logs/launchers",
         "//pkg/logs/launchers/container/tailerfactory",
+        "//pkg/logs/launchers/container/tailerfactory/tailers",
         "//pkg/logs/sources",
         "//pkg/logs/tailers",
         "//pkg/util/option",

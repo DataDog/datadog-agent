@@ -1,0 +1,10 @@
+description: If condition using a variable with test builtin.
+input:
+  script: |+
+    X=hello
+    if [ "$X" = "hello" ]; then echo match; else echo nomatch; fi
+expect:
+  stdout: |+
+    match
+  stderr: ""
+  exit_code: 0

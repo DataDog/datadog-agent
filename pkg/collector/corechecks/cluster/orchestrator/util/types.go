@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build orchestrator
+//go:build kubeapiserver
 
 package util
 
@@ -20,6 +20,13 @@ const (
 	ConfigMapGroup = ""
 	// ConfigMapVersion is the API version for ConfigMap resources
 	ConfigMapVersion = "v1"
+
+	// SecretName is the resource name for Kubernetes Secrets
+	SecretName = "secrets"
+	// SecretGroup is the API group for Secret resources (core API)
+	SecretGroup = ""
+	// SecretVersion is the API version for Secret resources
+	SecretVersion = "v1"
 
 	// ClusterRoleName is the resource name for Kubernetes ClusterRoles
 	ClusterRoleName = "clusterroles"
@@ -193,6 +200,9 @@ const (
 
 	// TerminatedPodName is the resource name for Kubernetes Pods that have been terminated
 	TerminatedPodName = "terminated-pods"
+
+	// HelmReleaseConfigMapName is the collector name for Helm releases stored in Kubernetes ConfigMaps
+	HelmReleaseConfigMapName = "helm-releases-configmaps"
 
 	// VpaName is the resource name for Kubernetes VerticalPodAutoscalers
 	VpaName = "verticalpodautoscalers"

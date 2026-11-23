@@ -1,5 +1,6 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 
 # The tools-tagged dependency anchor is product metadata, not a Bazel source.
@@ -7,17 +8,24 @@ load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 
 dd_agent_go_binary(
     name = "rshell",
-    cgo = False,
-    embed = ["@com_github_datadog_rshell//cmd/rshell:rshell_lib"],
+    embed = ["//pkg/rshell/cmd/rshell:rshell_lib"],
+    # The privileged helper uses AllThreadsSyscall, which requires a cgo-free binary.
+    pure = "on",
+    static = "on",
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
 
-pkg_files(
-    name = "all_files_linux",
-    srcs = [":rshell"],
-    attributes = pkg_attributes(mode = "0755"),
+agent_binary_for_package(
+    name = "rshell_binary",
     prefix = "embedded/bin",
+    target = ":rshell",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_filegroup(
+    name = "all_files_linux",
+    srcs = [":rshell_binary"],
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//packages:__subpackages__"],
 )

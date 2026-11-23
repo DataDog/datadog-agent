@@ -11,3 +11,10 @@ array_no_items:
   - metric_tag_filterlist
   - logs_config.processing_rules
   - dogstatsd_mapper_profiles
+
+# Setting and section names that are not snake_case.
+non_snake_case:
+  - GUI_host
+  - GUI_port
+  - GUI_session_expiration
+  - gpu.tracing.ddTraceVersions

@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    On macOS, network connections collected by Cloud Network Monitoring
+    are now tagged with ``interface_name`` and ``interface_type`` when
+    the connection is associated with an interface. ``interface_name``
+    is the interface name, such as ``en0`` or ``utun3``. ``interface_type``
+    is a type name such as ``ethernet_csmacd`` for ``en`` interfaces,
+    including Wi-Fi, ``tunnel`` for interfaces such as ``utun3``, or
+    ``software_loopback`` for ``lo0``.

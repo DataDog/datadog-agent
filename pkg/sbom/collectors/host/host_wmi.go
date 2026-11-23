@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !trivy && windows && wmi
+//go:build !trivy && windows
 
 package host
 
@@ -109,11 +109,6 @@ type Collector struct {
 
 	closed bool
 	arch   string
-}
-
-// CleanCache cleans the cache
-func (c *Collector) CleanCache() error {
-	return nil
 }
 
 // Init initialize the host collector

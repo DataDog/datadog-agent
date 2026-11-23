@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix incorrect warning logs about unknown configuration settings when using system-probe.

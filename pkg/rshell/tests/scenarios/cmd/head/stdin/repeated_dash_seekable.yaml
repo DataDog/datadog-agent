@@ -1,0 +1,13 @@
+description: When stdin is redirected from a file (seekable), repeated - operands each read independently from the current stream position.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\ngamma\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -q -n 1 - - < file.txt
+expect:
+  stdout: "alpha\nbeta\n"
+  stderr: ""
+  exit_code: 0

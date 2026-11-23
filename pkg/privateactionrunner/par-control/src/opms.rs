@@ -29,6 +29,14 @@ pub struct TlsConfig {
     pub min_tls_version: String,
 }
 
+/// The proxy decision for OPMS requests, resolved by Go bootstrap in PAR's environment.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum ProxyDecision {
+    #[default]
+    None,
+    ViaProxy(String),
+}
+
 /// A dequeued task.
 #[derive(Debug, Clone)]
 pub struct Task {
@@ -283,7 +291,7 @@ pub struct HttpOpmsConfig {
     pub runner_version: String,
     pub modes: Vec<String>,
     pub timeout: Duration,
-    pub proxy_url: Option<String>,
+    pub proxy: ProxyDecision,
     pub tls: TlsConfig,
     pub extra_headers: HashMap<String, String>,
 }
@@ -313,7 +321,6 @@ impl HttpOpms {
         builder: reqwest::ClientBuilder,
         root_cert_store: Option<rustls::RootCertStore>,
     ) -> Result<Self> {
-        crate::tls::initialize_crypto_provider()?;
         let base_url = parse_base_url(&base_url)?;
         let mut tls_builder = ClientTLSConfigBuilder::new()
             .with_min_tls_version(min_tls_version(&options.tls.min_tls_version));
@@ -335,14 +342,13 @@ impl HttpOpms {
             .pool_max_idle_per_host(MAX_IDLE_CONNECTIONS_PER_HOST)
             .http1_only()
             .use_preconfigured_tls(tls_config)
-            // We already merged the Agent's YAML and environment proxy settings;
+            // Go bootstrap already resolved PAR's proxy settings;
             // do not let reqwest independently re-read process environment.
             .no_proxy();
-        if let Some(proxy_url) = options.proxy_url {
-            builder = builder.proxy(
-                reqwest::Proxy::all(proxy_url)
-                    .map_err(|_| anyhow::anyhow!("invalid Agent proxy URL"))?,
-            );
+        if let ProxyDecision::ViaProxy(proxy_url) = options.proxy {
+            let proxy = reqwest::Proxy::all(proxy_url)
+                .map_err(|_| anyhow::anyhow!("invalid Agent proxy URL"))?;
+            builder = builder.proxy(proxy);
         }
         let client = builder.build().context("building the OPMS HTTP client")?;
         Ok(Self {
@@ -412,7 +418,7 @@ impl HttpOpms {
             .context("failed to sign OPMS request JWT")?;
         let url = self
             .base_url
-            .join(path)
+            .join(path.trim_start_matches('/'))
             .with_context(|| format!("building OPMS request URL for {path}"))?;
         let mut request = self.client.request(method, url).headers(self.headers(jwt)?);
         if let Some(body) = body {
@@ -459,7 +465,7 @@ fn min_tls_version(raw: &str) -> TlsMinimumVersion {
 }
 
 fn parse_base_url(raw: &str) -> Result<reqwest::Url> {
-    let url = reqwest::Url::parse(raw).context("invalid OPMS URL")?;
+    let mut url = reqwest::Url::parse(raw).context("invalid OPMS URL")?;
     if !matches!(url.scheme(), "http" | "https") {
         bail!("unsupported OPMS URL scheme {:?}", url.scheme());
     }
@@ -469,8 +475,12 @@ fn parse_base_url(raw: &str) -> Result<reqwest::Url> {
     if url.host_str().is_none() {
         bail!("OPMS URL has no host");
     }
-    if url.path() != "/" || url.query().is_some() || url.fragment().is_some() {
-        bail!("OPMS URL must be an origin without a path, query, or fragment");
+    if url.query().is_some() || url.fragment().is_some() {
+        bail!("OPMS URL must not contain a query or fragment");
+    }
+    // Treat an override's path as a prefix, not a file replaced by URL joining.
+    if !url.path().ends_with('/') {
+        url.set_path(&format!("{}/", url.path()));
     }
     Ok(url)
 }
@@ -592,6 +602,8 @@ mod tests {
             "http://127.0.0.1:8080",
             "http://fake-opms",
             "https://opms.internal:8443",
+            "https://opms.internal:8443/proxy",
+            "https://opms.internal:8443/proxy/",
         ] {
             parse_base_url(url).unwrap_or_else(|error| panic!("{url}: {error}"));
         }
@@ -601,7 +613,9 @@ mod tests {
             "ftp://host",
             "https://",
             "http://h:notaport",
-            "https://api.datadoghq.com/path",
+            "https://api.datadoghq.com/?key=value",
+            "https://api.datadoghq.com/#fragment",
+            "https://user:password@api.datadoghq.com",
         ] {
             assert!(parse_base_url(bad).is_err(), "{bad} should not parse");
         }
@@ -609,6 +623,7 @@ mod tests {
 
     #[test]
     fn extra_headers_override_standard_headers() {
+        crate::tls::initialize_crypto_provider().unwrap();
         let opms = HttpOpms::new(
             "http://localhost:8080".to_string(),
             Arc::new(crate::jwt::test_support::StaticSigner("jwt".into())),
@@ -616,7 +631,7 @@ mod tests {
                 runner_version: "7.83.0".into(),
                 modes: vec!["pull".into()],
                 timeout: Duration::from_secs(10),
-                proxy_url: None,
+                proxy: ProxyDecision::None,
                 tls: TlsConfig::default(),
                 extra_headers: HashMap::from([
                     (
@@ -702,8 +717,12 @@ mod tests {
     /// Health checks must preserve retry-after and server-time headers on non-200 responses.
     #[tokio::test]
     async fn health_check_is_a_signed_get_that_surfaces_server_pacing() {
-        for (status_line, expected_status) in [("200 OK", 200_u16), ("429 Too Many Requests", 429)]
-        {
+        crate::tls::initialize_crypto_provider().unwrap();
+        for (status_line, expected_status, prefix) in [
+            ("200 OK", 200_u16, ""),
+            ("429 Too Many Requests", 429, "/proxy"),
+            ("200 OK", 200, "/proxy/"),
+        ] {
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let port = listener.local_addr().unwrap().port();
             let server = tokio::spawn(async move {
@@ -729,13 +748,13 @@ mod tests {
             });
 
             let opms = HttpOpms::new(
-                format!("http://127.0.0.1:{port}"),
+                format!("http://127.0.0.1:{port}{prefix}"),
                 Arc::new(crate::jwt::test_support::StaticSigner("jwt-health".into())),
                 HttpOpmsConfig {
                     runner_version: "7.83.0".into(),
                     modes: vec!["pull".into()],
                     timeout: Duration::from_secs(10),
-                    proxy_url: None,
+                    proxy: ProxyDecision::None,
                     tls: TlsConfig::default(),
                     extra_headers: HashMap::new(),
                 },
@@ -755,7 +774,10 @@ mod tests {
 
             let request = server.await.unwrap();
             assert!(
-                request.starts_with(&format!("GET {HEALTH_CHECK_PATH} HTTP/1.1")),
+                request.starts_with(&format!(
+                    "GET {}{HEALTH_CHECK_PATH} HTTP/1.1",
+                    prefix.trim_end_matches('/')
+                )),
                 "unexpected request line in: {request}"
             );
             assert!(
@@ -781,6 +803,7 @@ mod tests {
 
     #[tokio::test]
     async fn uses_configured_https_proxy() {
+        crate::tls::initialize_crypto_provider().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let proxy_port = listener.local_addr().unwrap().port();
         let server = tokio::spawn(async move {
@@ -807,7 +830,7 @@ mod tests {
                 runner_version: "7.83.0".into(),
                 modes: vec!["pull".into()],
                 timeout: Duration::from_secs(10),
-                proxy_url: Some(format!(
+                proxy: ProxyDecision::ViaProxy(format!(
                     "http://proxy-user:proxy-pass@127.0.0.1:{proxy_port}"
                 )),
                 tls: TlsConfig::default(),

@@ -1,0 +1,13 @@
+description: du with no operand defaults to the current directory.
+setup:
+  files:
+    - path: a.txt
+      content: "abc"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du
+expect:
+  stdout_contains: ["\t.\n"]
+  stderr: |+
+  exit_code: 0

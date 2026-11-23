@@ -23,4 +23,4 @@ dotagents writes to every tool listed in the `agents` key of `agents.toml`, repa
 ### Maintained by hand
 
 - **Zed** (`/.zed/settings.json`) - not yet a dotagents target.
-- **`dd-slack`** - Slack has no dynamic client registration, so each client needs its own pre-registered Slack app bound to a fixed redirect URI. We configure this for Claude and Cursor because that's all Slack publishes at the time of writing. Registering our own Slack app with dynamic client registration will likely be required for broader support.
+- **`slack`** - Slack has no dynamic client registration, so each client needs its own pre-registered Slack app bound to a fixed redirect URI. We configure this for Claude and Cursor because that's all Slack publishes at the time of writing. Registering our own Slack app with dynamic client registration will likely be required for broader support.

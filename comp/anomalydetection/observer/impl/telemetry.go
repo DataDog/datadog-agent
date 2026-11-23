@@ -18,13 +18,14 @@ const (
 	// correct if the emitted name changes.
 	observerTelemetryMetricPrefix            = "datadog.agent.observer."
 	telemetryObservationsAccepted            = "observer.observations.accepted"               // Observations accepted by the observer admission boundary.
-	telemetryObservationsDropped             = "observer.observations.dropped"                // Observations dropped when the observer channel is full.
-	telemetryRRCFScore                       = "observer.rrcf.score"                          // Latest RRCF score per detector.
-	telemetryRRCFThreshold                   = "observer.rrcf.threshold"                      // Current RRCF anomaly threshold per detector.
+	telemetryObservationsDropped             = "observer.observations.dropped"                // Observations dropped when a bounded observer admission queue is full.
 	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count" // Current number of active log patterns.
+	telemetryLogMetricsExtractorPatternCount = "observer.log_metrics_extractor.pattern_count" // Current number of active log metrics patterns.
 	telemetryLogsAcceptedBytes               = "observer.logs.accepted_bytes"                 // Total bytes accepted into observer log ingestion.
+	telemetryFilteredLogs                    = "observer.logs.filtered"                       // Number of logs filtered out by processing rules before/during admission.
 	telemetryFilteredMetrics                 = "observer.metrics.filtered"                    // Number of metrics filtered out before enqueue/ingest.
 	telemetrySeriesCount                     = "observer.series.count"                        // Number of active non-telemetry observer series.
+	telemetrySeriesFresh                     = "observer.series.fresh"                        // Number of non-telemetry observer series with a bucket newly visible since the previous sampled advance.
 	telemetryLogsInFlightCount               = "observer.logs.in_flight"                      // Number of logs currently queued/in flight.
 	telemetryStorageSeriesEvicted            = "observer.storage.series_evicted"              // Number of storage series evicted to enforce bounds.
 	telemetryStorageCapacityHit              = "observer.storage.capacity_hit"                // Number of times storage capacity eviction was triggered.
@@ -37,16 +38,32 @@ const (
 	telemetryScorerSeverity                  = "observer.scorer.severity"                     // Current anomaly scorer severity level (0=Low,1=Medium,2=High).
 )
 
+const (
+	telemetryMetricKindTransitions = "observer.metric_kind.transitions"
+	telemetryMetricKindSeriesCount = "observer.metric_kind.series_count"
+	telemetryKindEmissions         = "observer.detections.kind_emissions"
+	telemetryGatedDetections       = "observer.detections.gated"
+	telemetryKindProcessingTimeNs  = "observer.detector.kind_processing_time_ns"
+	telemetryKindProcessingCalls   = "observer.detector.kind_processing_calls"
+)
+
 type observerTelemetry struct {
-	observationsAccepted telemetry.Counter
-	observationsDropped  telemetry.Counter
-	rrcfScore            telemetry.Gauge
-	rrcfThreshold        telemetry.Gauge
-	logPatternCount      telemetry.Gauge
+	metricKindTransitions  telemetry.Counter
+	metricKindSeriesCount  telemetry.Gauge
+	kindEmissions          telemetry.Counter
+	gatedDetections        telemetry.Counter
+	kindProcessingTime     telemetry.Gauge
+	kindProcessingCalls    telemetry.Counter
+	observationsAccepted   telemetry.Counter
+	observationsDropped    telemetry.Counter
+	logPatternCount        telemetry.Gauge
+	logMetricsPatternCount telemetry.Gauge
 
 	logsAcceptedBytes    telemetry.Counter
+	filteredLogs         telemetry.Counter
 	filteredMetrics      telemetry.Counter
 	seriesCount          telemetry.Gauge
+	seriesFresh          telemetry.Counter
 	logsInFlight         telemetry.Gauge
 	storageEvicted       telemetry.Counter
 	storageCapHit        telemetry.Counter
@@ -65,6 +82,12 @@ type observerTelemetry struct {
 
 func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry {
 	return &observerTelemetry{
+		metricKindTransitions: telemetryComp.NewCounter("observer", telemetryMetricKindTransitions, []string{"from", "to"}, "Confirmed metric kind transitions"),
+		metricKindSeriesCount: telemetryComp.NewGauge("observer", telemetryMetricKindSeriesCount, []string{"kind"}, "Non-telemetry gauge series by committed kind"),
+		kindEmissions:         telemetryComp.NewCounter("observer", telemetryKindEmissions, []string{"detector", "kind", "severity"}, "Accepted detector emissions by registration kind and severity"),
+		gatedDetections:       telemetryComp.NewCounter("observer", telemetryGatedDetections, []string{"detector", "kind", "gate"}, "Detector candidates muted by output gates"),
+		kindProcessingTime:    telemetryComp.NewGauge("observer", telemetryKindProcessingTimeNs, []string{"detector", "kind"}, "Mean detector call duration in nanoseconds over the publication interval"),
+		kindProcessingCalls:   telemetryComp.NewCounter("observer", telemetryKindProcessingCalls, []string{"detector", "kind"}, "Detector calls by registration kind"),
 		observationsAccepted: telemetryComp.NewCounter(
 			"observer",
 			telemetryObservationsAccepted,
@@ -75,19 +98,7 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			"observer",
 			telemetryObservationsDropped,
 			[]string{"kind", "source"},
-			"Observations dropped because the internal channel was full, tagged by kind and source",
-		),
-		rrcfScore: telemetryComp.NewGauge(
-			"observer",
-			telemetryRRCFScore,
-			[]string{"detector"},
-			"RRCF CoDisp score per scored shingle",
-		),
-		rrcfThreshold: telemetryComp.NewGauge(
-			"observer",
-			telemetryRRCFThreshold,
-			[]string{"detector"},
-			"RRCF dynamic anomaly detection threshold (post-warmup)",
+			"Observations dropped because a bounded observer admission queue was full, tagged by kind and source",
 		),
 		logPatternCount: telemetryComp.NewGauge(
 			"observer",
@@ -95,11 +106,23 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			nil,
 			"Current number of patterns held by the log pattern extractor",
 		),
+		logMetricsPatternCount: telemetryComp.NewGauge(
+			"observer",
+			telemetryLogMetricsExtractorPatternCount,
+			nil,
+			"Current number of patterns held by the log metrics extractor",
+		),
 		logsAcceptedBytes: telemetryComp.NewCounter(
 			"observer",
 			telemetryLogsAcceptedBytes,
 			[]string{"source"},
 			"Log content bytes accepted into the observer admission boundary",
+		),
+		filteredLogs: telemetryComp.NewCounter(
+			"observer",
+			telemetryFilteredLogs,
+			nil,
+			"Logs filtered out by processing rules before or during observer admission",
 		),
 		filteredMetrics: telemetryComp.NewCounter(
 			"observer",
@@ -112,6 +135,12 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			telemetrySeriesCount,
 			nil,
 			"Number of non-telemetry series currently stored in observer storage",
+		),
+		seriesFresh: telemetryComp.NewCounter(
+			"observer",
+			telemetrySeriesFresh,
+			nil,
+			"Number of non-telemetry series whose latest bucket visible at the sampled cutoff is newer than the previous cutoff",
 		),
 		logsInFlight: telemetryComp.NewGauge(
 			"observer",
@@ -181,19 +210,22 @@ func (t *observerTelemetry) recordObservationAccepted(kind, source string) {
 }
 
 func (t *observerTelemetry) recordObservationDropped(kind, source string) {
-	t.observationsDropped.Add(1, kind, source)
+	t.recordObservationsDropped(kind, source, 1)
 }
 
-func (t *observerTelemetry) recordRRCFScore(detectorName string, score float64) {
-	t.rrcfScore.Set(score, detectorName)
-}
-
-func (t *observerTelemetry) recordRRCFThreshold(detectorName string, threshold float64) {
-	t.rrcfThreshold.Set(threshold, detectorName)
+func (t *observerTelemetry) recordObservationsDropped(kind, source string, count uint64) {
+	if count == 0 {
+		return
+	}
+	t.observationsDropped.Add(float64(count), kind, source)
 }
 
 func (t *observerTelemetry) setLogPatternCount(count int) {
 	t.logPatternCount.Set(float64(count))
+}
+
+func (t *observerTelemetry) setLogMetricsPatternCount(count int) {
+	t.logMetricsPatternCount.Set(float64(count))
 }
 
 func (t *observerTelemetry) recordLogAccepted(source string, sizeBytes int) {
@@ -203,6 +235,10 @@ func (t *observerTelemetry) recordLogAccepted(source string, sizeBytes int) {
 
 func (t *observerTelemetry) recordMetricAccepted(source string) {
 	t.recordObservationAccepted("metrics", source)
+}
+
+func (t *observerTelemetry) recordFilteredLog() {
+	t.filteredLogs.Add(1)
 }
 
 func (t *observerTelemetry) recordFilteredMetric(source string) {
@@ -234,6 +270,13 @@ func (t *observerTelemetry) setSeriesCount(count int) {
 	t.seriesCount.Set(float64(count))
 }
 
+func (t *observerTelemetry) recordFreshSeries(count int) {
+	if count <= 0 {
+		return
+	}
+	t.seriesFresh.Add(float64(count))
+}
+
 func (t *observerTelemetry) recordStorageSeriesEvicted(reason string, count int) {
 	if count <= 0 {
 		return
@@ -260,8 +303,16 @@ func (t *observerTelemetry) recordInputRateLimiterDropped(source, priority strin
 	t.inputRateLimiterDrop.Add(1, source, priority)
 }
 
-func (t *observerTelemetry) recordDetectorEmission(detector, severity string) {
-	t.detectorEmissions.Add(1, detector, severity)
+func (t *observerTelemetry) recordDetectorEmission(detector, kind, severity string, count uint64) {
+	t.detectorEmissions.Add(float64(count), detector, severity)
+	t.kindEmissions.Add(float64(count), detector, kind, severity)
+}
+
+func (t *observerTelemetry) recordGatedDetections(detector, kind, gate string, count uint64) {
+	if count == 0 {
+		return
+	}
+	t.gatedDetections.Add(float64(count), detector, kind, gate)
 }
 
 func (t *observerTelemetry) inFlightCounter(logSource string) *atomic.Int64 {
@@ -287,6 +338,27 @@ func classifyLogSource(source string, tags []string) string {
 	return "containers"
 }
 
-func (t *observerTelemetry) recordProcessingTime(detectorTag string, durationNs float64) {
-	t.processingTime.Set(durationNs, detectorTag)
+// classifyLogSourceByOrigin resolves the log source category without inspecting
+// tags when either the handle source or the log's origin source is known.
+func classifyLogSourceByOrigin(handleSource, rawSource string) string {
+	if handleSource == "agent_logs" || rawSource == agentLogSource {
+		return "internal"
+	}
+	if rawSource == "kubelet" {
+		return "kubelet"
+	}
+	if rawSource != "" {
+		return "containers"
+	}
+	return ""
+}
+
+func (t *observerTelemetry) recordDetectorTiming(detector, kind string, meanNs float64, calls uint64) {
+	t.processingTime.Set(meanNs, detector)
+	t.kindProcessingTime.Set(meanNs, detector, kind)
+	t.kindProcessingCalls.Add(float64(calls), detector, kind)
+}
+
+func (t *observerTelemetry) recordMetricKindTransitions(from, to string, count uint64) {
+	t.metricKindTransitions.Add(float64(count), from, to)
 }

@@ -1,0 +1,16 @@
+# vuln-hunt 2026-05-19-codex / field_splitting.
+description: IFS changes in a pipeline stage do not leak into parent field splitting.
+input:
+  script: |+
+    IFS=:
+    { IFS=' '; A='a b'; for w in $A; do echo "pipe[$w]"; done; } | cat
+    A='a:b'
+    for w in $A; do echo "parent[$w]"; done
+expect:
+  stdout: |+
+    pipe[a]
+    pipe[b]
+    parent[a]
+    parent[b]
+  stderr: ""
+  exit_code: 0

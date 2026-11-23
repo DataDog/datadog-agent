@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from difflib import Differ
 from functools import lru_cache
 from itertools import product
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 import gitlab
@@ -48,6 +48,15 @@ CONFIG_SPECIAL_OBJECTS = {
     "workflow",
 }
 
+# These values simulate the child entry point for lint only. Never emit them
+# as runtime defaults in the generated configuration.
+GITLAB_CI_LINT_CONTEXTS = {
+    ".gitlab/childs/post-validation.yml": {
+        "CI_PIPELINE_SOURCE": "parent_pipeline",
+        "POST_VALIDATION_PARENT_ID": "1",
+    },
+}
+
 
 def get_gitlab_oauth_token(ctx) -> str:
     res = ctx.run("ddtool auth gitlab token", hide=True)
@@ -62,24 +71,21 @@ def get_gitlab_oauth_token(ctx) -> str:
     return token
 
 
-def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
-    if not is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens"):
-        if running_in_ci():
-            # Get the token from fetch_secrets
-            token_cmd = ctx.run(
-                f"{os.environ['CI_PROJECT_DIR']}/tools/ci/fetch_secret.sh gitlab-token write_api", hide=True
-            )
-            if not token_cmd.ok:
-                raise RuntimeError(
-                    f'Failed to retrieve Gitlab token, request failed with code {token_cmd.return_code}:\n{token_cmd.stderr}'
-                )
+def get_gitlab_token(ctx, repo='DataDog/datadog-agent', verbose=False) -> str:
+    # CI must not depend on feature-flag credentials to avoid using an expired legacy token.
+    if (
+        not running_in_ci()
+        and not is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens")
+        and 'GITLAB_TOKEN' in os.environ
+    ):
+        return os.environ['GITLAB_TOKEN']
 
-            return token_cmd.stdout.strip()
-        elif 'GITLAB_TOKEN' in os.environ:
-            return os.environ['GITLAB_TOKEN']
+    owner, _, name = repo.rpartition('/')
+    if not owner:
+        raise Exit(f"Expected a full GitLab project path like 'DataDog/datadog-agent', got '{repo}'", code=1)
 
     infra_token = datadog_infra_token(ctx, audience="sdm")
-    url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
+    url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner={owner}&repository={name}"
 
     session = requests.Session()
     session.mount('https://', HTTPAdapter(max_retries=2))
@@ -98,7 +104,7 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
     return token
 
 
-def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:
+def get_gitlab_api(token=None, repo='DataDog/datadog-agent') -> gitlab.Gitlab:
     """Returns the gitlab api object with the api token.
 
     Args:
@@ -115,7 +121,7 @@ def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:
 
 
 def get_gitlab_repo(repo='DataDog/datadog-agent', token=None) -> Project:
-    api = get_gitlab_api(token, repo.split('/')[1])
+    api = get_gitlab_api(token, repo)
     repo = api.projects.get(repo)
 
     return repo
@@ -787,11 +793,20 @@ def test_gitlab_configuration(entry_point: str, config_object: dict, context=Non
     # Apply the new variables from context
     # Important to DISABLE CLEAN AND FILTERING - the config at this point is minimally resolved (only includes)
     # Thus, removing anything like `extends` and dotted jobs will render the config invalid
-    config_object = post_process_gitlab_ci_configuration(
-        config_object, variable_overrides=context, do_filtering=False, clean=False
+    config_object = post_process_gitlab_ci_configuration(config_object, do_filtering=False, clean=False)
+    lint_context = GITLAB_CI_LINT_CONTEXTS.get(PurePosixPath(entry_point.replace("\\", "/")).as_posix(), {}) | (
+        context or {}
     )
+    if lint_context:
+        config_object.setdefault('variables', {}).update(lint_context)
     config_dump = yaml.safe_dump(config_object)
-    res = agent.ci_lint.create({"content": config_dump, "dry_run": True, "include_jobs": True})
+    lint_request = {"content": config_dump, "dry_run": True, "include_jobs": True}
+    # Lint the configuration in the context of its baseline branch ($COMPARE_TO_BRANCH), since the `rules` of
+    # the configuration are written against it, rather than in the context of the default branch
+    lint_ref = (config_object.get('variables') or {}).get('COMPARE_TO_BRANCH')
+    if lint_ref:
+        lint_request["ref"] = lint_ref
+    res = agent.ci_lint.create(lint_request)
     if len(res.warnings) > 0:
         raise SingleGitlabLintFailure(
             entry_point=entry_point,
@@ -977,6 +992,12 @@ def resolve_gitlab_ci_configuration(
             Whether to skip the gitlab `/lint` endpoint when resolving configs.
             In this case, only `include`s will be resolved, not `extend`s or `!reference`s
         git_ref: From which git ref to read the input config file. No effect if input config is passed as a dict.
+
+    The pipeline context of the lint dry run (which drives `rules` evaluation) is the configuration's baseline
+    branch, as defined by its $COMPARE_TO_BRANCH variable, so that the simulated pipeline is self-consistent
+    (e.g. a release branch configuration, where $COMPARE_TO_BRANCH is the release branch, is validated as a
+    pipeline running on that release branch rather than on the default branch). Configurations without a
+    $COMPARE_TO_BRANCH are linted in the project's default branch context.
     """
 
     # Read includes
@@ -987,13 +1008,37 @@ def resolve_gitlab_ci_configuration(
         return input_config
 
     agent = get_gitlab_repo()
-    res = agent.ci_lint.create({"content": yaml.safe_dump(input_config), "dry_run": True, "include_jobs": True})
+    lint_context = (
+        GITLAB_CI_LINT_CONTEXTS.get(PurePosixPath(input_config_or_file.replace("\\", "/")).as_posix(), {})
+        if isinstance(input_config_or_file, str)
+        else {}
+    )
+    lint_config = deepcopy(input_config)
+    if lint_context:
+        lint_config.setdefault('variables', {}).update(lint_context)
+    lint_request = {"content": yaml.safe_dump(lint_config), "dry_run": True, "include_jobs": True}
+    # Lint the configuration in the context of its baseline branch ($COMPARE_TO_BRANCH), since the `rules` of
+    # the configuration are written against it, rather than in the context of the default branch
+    lint_ref = (input_config.get('variables') or {}).get('COMPARE_TO_BRANCH')
+    if lint_ref:
+        lint_request["ref"] = lint_ref
+    res = agent.ci_lint.create(lint_request)
 
     if not res.valid:
         errors = '; '.join(res.errors)
         raise RuntimeError(f"{color_message('Invalid configuration', Color.RED)}: {errors}")
 
-    return yaml.safe_load(res.merged_yaml)
+    merged_config = yaml.safe_load(res.merged_yaml)
+    if lint_context:
+        original_variables = input_config.get('variables', {})
+        for name in lint_context:
+            if name in original_variables:
+                merged_config['variables'][name] = original_variables[name]
+            else:
+                merged_config.get('variables', {}).pop(name, None)
+        if not merged_config.get('variables'):
+            merged_config.pop('variables', None)
+    return merged_config
 
 
 def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_path=False, git_ref: str | None = None):
@@ -1032,8 +1077,11 @@ def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_
     # Merge all files
     if return_config:
         full_configuration = {}
-        for yaml_file in includes:
-            full_configuration.update(yaml_file)
+        for config in includes:
+            # Later variable definitions override earlier defaults without dropping other keys.
+            if isinstance(full_configuration.get('variables'), dict) and isinstance(config.get('variables'), dict):
+                config = config | {'variables': full_configuration['variables'] | config['variables']}
+            full_configuration.update(config)
 
         return full_configuration
 
@@ -1093,6 +1141,7 @@ def get_preset_contexts(required_tests):
     main_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
+        ("COMPARE_TO_BRANCH", ["main"]),
         ("CI_PIPELINE_SOURCE", ["push", "api"]),  # ["trigger", "pipeline", "schedule"]
         ("DEPLOY_AGENT", ["true"]),
         ("RUN_ALL_BUILDS", ["true"]),
@@ -1103,6 +1152,7 @@ def get_preset_contexts(required_tests):
     release_contexts = [
         ("BUCKET_BRANCH", ["stable"]),
         ("CI_COMMIT_BRANCH", ["7.42.x"]),
+        ("COMPARE_TO_BRANCH", ["7.42.x"]),
         ("CI_COMMIT_TAG", ["3.2.1", "1.2.3-rc.4"]),
         ("CI_PIPELINE_SOURCE", ["schedule"]),
         ("DEPLOY_AGENT", ["true"]),
@@ -1114,6 +1164,7 @@ def get_preset_contexts(required_tests):
     mq_contexts = [
         ("BUCKET_BRANCH", ["dev"]),
         ("CI_COMMIT_BRANCH", ["mq-working-branch-main"]),
+        ("COMPARE_TO_BRANCH", ["main"]),  # the merge queue rebases PRs onto their target branch
         ("CI_PIPELINE_SOURCE", ["api"]),
         ("DEPLOY_AGENT", ["false"]),
         ("RUN_ALL_BUILDS", ["false"]),
@@ -1124,12 +1175,14 @@ def get_preset_contexts(required_tests):
     conductor_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
+        ("COMPARE_TO_BRANCH", ["main"]),
         ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("DDR_WORKFLOW_ID", ["true"]),
     ]
     installer_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),
         ("CI_COMMIT_BRANCH", ["main"]),
+        ("COMPARE_TO_BRANCH", ["main"]),
         ("CI_PIPELINE_SOURCE", ["push", "api"]),
         ("DEPLOY_AGENT", ["false"]),
         ("DEPLOY_INSTALLER", ["true"]),

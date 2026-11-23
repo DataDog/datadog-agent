@@ -10,24 +10,55 @@ use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, HANDLE};
 use windows_sys::Win32::System::Threading::{
     DeleteProcThreadAttributeList, InitializeProcThreadAttributeList,
-    PROC_THREAD_ATTRIBUTE_HANDLE_LIST, STARTF_USESTDHANDLES, STARTUPINFOEXW, STARTUPINFOW,
-    UpdateProcThreadAttribute,
+    PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROC_THREAD_ATTRIBUTE_JOB_LIST, STARTF_USESTDHANDLES,
+    STARTUPINFOEXW, STARTUPINFOW, UpdateProcThreadAttribute,
 };
 
+/// Extended `STARTUPINFO` used by `CreateProcessW` / `CreateProcessAsUserW`.
+///
+/// `STARTUPINFOEX` carries extra create-time attributes (which HANDLEs to inherit,
+/// which job object to join). Attribute pointers must remain
+/// valid until `CreateProcess*` returns, so this type owns those arrays.
 pub(crate) struct StartupInfoEx {
     siex: STARTUPINFOEXW,
     attribute_list_storage: Vec<u8>,
+    /// Explicit inheritable handles for `PROC_THREAD_ATTRIBUTE_HANDLE_LIST`.
+    /// The workload stdio constructor deduplicates its three standard handles.
+    stdio_handles: Vec<HANDLE>,
+    // Attribute values must remain at a stable address when Self is moved.
+    job_handles: Box<[HANDLE; 1]>,
 }
 
 impl StartupInfoEx {
-    /// Builds startup info with a restricted stdio handle inheritance list.
-    ///
-    /// `handles` must stay alive until `CreateProcessW` returns: the handle list attribute
-    /// stores a pointer to that array, not a copy.
-    pub(crate) fn with_stdio_handles(handles: &[HANDLE; 3]) -> Result<Self> {
+    /// Builds startup info with stdio inheritance and job membership at create time.
+    pub(crate) fn with_stdio_and_job(
+        stdin: HANDLE,
+        stdout: HANDLE,
+        stderr: HANDLE,
+        job: HANDLE,
+    ) -> Result<Self> {
+        let mut startup =
+            Self::with_handles_and_job(dedup_stdio_handles(stdin, stdout, stderr), job)?;
+        startup.siex.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+        startup.siex.StartupInfo.hStdInput = stdin;
+        startup.siex.StartupInfo.hStdOutput = stdout;
+        startup.siex.StartupInfo.hStdError = stderr;
+        Ok(startup)
+    }
+
+    /// Explicit inheritance without standard-slot assignment, used by the
+    /// detached helper. The job itself is deliberately non-inheritable.
+    pub(crate) fn with_handles_and_job(handles: Vec<HANDLE>, job: HANDLE) -> Result<Self> {
+        const ATTRIBUTE_COUNT: u32 = 2;
         let mut attribute_list_size = 0usize;
+        // Call with a null attribute list to retrieve its size and allocate once.
         unsafe {
-            InitializeProcThreadAttributeList(ptr::null_mut(), 1, 0, &mut attribute_list_size);
+            InitializeProcThreadAttributeList(
+                ptr::null_mut(),
+                ATTRIBUTE_COUNT,
+                0,
+                &mut attribute_list_size,
+            );
         }
         if std::io::Error::last_os_error().raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32)
         {
@@ -40,7 +71,12 @@ impl StartupInfoEx {
         let mut attribute_list_storage = vec![0u8; attribute_list_size];
         let attribute_list = attribute_list_storage.as_mut_ptr() as *mut std::ffi::c_void;
         let ok = unsafe {
-            InitializeProcThreadAttributeList(attribute_list, 1, 0, &mut attribute_list_size)
+            InitializeProcThreadAttributeList(
+                attribute_list,
+                ATTRIBUTE_COUNT,
+                0,
+                &mut attribute_list_size,
+            )
         };
         if ok == 0 {
             bail!(
@@ -50,32 +86,35 @@ impl StartupInfoEx {
         }
 
         let mut startup = Self {
-            siex: new_siex(handles[0], handles[1], handles[2], attribute_list),
+            siex: new_siex(attribute_list),
             attribute_list_storage,
+            stdio_handles: handles,
+            job_handles: Box::new([job]),
         };
-        startup.attach_stdio_handle_list(handles)?;
+        // JOB_LIST before HANDLE_LIST: assign supervision job before restricting inheritance.
+        startup.attach_job_list()?;
+        startup.attach_stdio_handle_list()?;
         Ok(startup)
     }
 
-    fn attach_stdio_handle_list(&mut self, handles: &[HANDLE; 3]) -> Result<()> {
-        let ok = unsafe {
-            UpdateProcThreadAttribute(
-                self.siex.lpAttributeList,
-                0,
-                PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
-                handles.as_ptr().cast(),
-                handles.len() * mem::size_of::<HANDLE>(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
-        };
-        if ok == 0 {
-            bail!(
-                "UpdateProcThreadAttribute(HANDLE_LIST) failed: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-        Ok(())
+    fn attach_stdio_handle_list(&mut self) -> Result<()> {
+        update_attribute(
+            self.siex.lpAttributeList,
+            PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
+            self.stdio_handles.as_ptr().cast(),
+            self.stdio_handles.len() * mem::size_of::<HANDLE>(),
+            "HANDLE_LIST",
+        )
+    }
+
+    fn attach_job_list(&mut self) -> Result<()> {
+        update_attribute(
+            self.siex.lpAttributeList,
+            PROC_THREAD_ATTRIBUTE_JOB_LIST as usize,
+            self.job_handles.as_ptr().cast(),
+            self.job_handles.len() * mem::size_of::<HANDLE>(),
+            "JOB_LIST",
+        )
     }
 
     pub(crate) fn startup_info(&mut self) -> &mut STARTUPINFOW {
@@ -83,20 +122,49 @@ impl StartupInfoEx {
     }
 }
 
-fn new_siex(
-    stdin: HANDLE,
-    stdout: HANDLE,
-    stderr: HANDLE,
-    attribute_list: *mut std::ffi::c_void,
-) -> STARTUPINFOEXW {
+/// Deduplicate stdio handles; `PROC_THREAD_ATTRIBUTE_HANDLE_LIST` rejects duplicates.
+fn dedup_stdio_handles(stdin: HANDLE, stdout: HANDLE, stderr: HANDLE) -> Vec<HANDLE> {
+    let mut handles = Vec::with_capacity(3);
+    for handle in [stdin, stdout, stderr] {
+        if !handles.contains(&handle) {
+            handles.push(handle);
+        }
+    }
+    handles
+}
+
+fn new_siex(attribute_list: *mut std::ffi::c_void) -> STARTUPINFOEXW {
     let mut siex: STARTUPINFOEXW = unsafe { mem::zeroed() };
     siex.StartupInfo.cb = mem::size_of::<STARTUPINFOEXW>() as u32;
-    siex.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
-    siex.StartupInfo.hStdInput = stdin;
-    siex.StartupInfo.hStdOutput = stdout;
-    siex.StartupInfo.hStdError = stderr;
     siex.lpAttributeList = attribute_list;
     siex
+}
+
+fn update_attribute(
+    attribute_list: *mut std::ffi::c_void,
+    attribute: usize,
+    value: *const std::ffi::c_void,
+    size: usize,
+    label: &str,
+) -> Result<()> {
+    let ok = unsafe {
+        UpdateProcThreadAttribute(
+            attribute_list,
+            0,
+            attribute,
+            value,
+            size,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "UpdateProcThreadAttribute({label}) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(())
 }
 
 impl Drop for StartupInfoEx {

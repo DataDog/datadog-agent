@@ -1,14 +1,7 @@
-"""Functions for creating PURLs.
+"""Convenience wrappers around @package_metadata//purl:purl.bzl's purl.builder()."""
 
-If these work well for us, we'll propose them for inclusion in bazel-contrib/supply_chain
-"""
+load("@package_metadata//purl:purl.bzl", "purl")
 
 def purl_for_generic(package, version, download_url):
-    # TODO: This must be http-encoded. Do that once the function is available from
-    # supply_chain
     url = download_url.format(version = version)
-    return "pkg:generic/{package}@{version}?download_url={url}".format(
-        package = package,
-        version = version,
-        url = url,
-    )
+    return purl.builder().type("generic").name(package).version(version).add_qualifier("download_url", url).build()

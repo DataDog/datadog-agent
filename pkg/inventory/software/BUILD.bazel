@@ -63,6 +63,9 @@ dd_agent_go_test(
         "main_windows_test.go",
         "wire_test.go",
     ],
+    args = [
+        "-test.short",  # Skip integration tests
+    ],
     data = select({
         "@rules_go//go/platform:windows": [
             "//tools/windows/DatadogInterop:libdatadog_interop",
@@ -76,10 +79,6 @@ dd_agent_go_test(
         },
         "//conditions:default": {},
     }),
-    # Windows MS Store / Appx collection needs an elevated token. Opt in:
-    #   bazel test //pkg/inventory/software:software_test
-    # from an elevated prompt.
-    tags = ["manual"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

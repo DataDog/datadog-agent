@@ -14,16 +14,19 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/istio"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
@@ -68,12 +71,35 @@ func Start(ctx context.Context, logger logComp.Component, datadogConfig config.C
 			if _, enabled := config.Proxies[typ]; enabled {
 				go injector.run(ctx, typ, pattern)
 			} else {
-				go cleanupPattern(ctx, logger, injector.k8sClient, pattern)
+				go func() {
+					if cleanupAllowed(ctx, logger, injector.k8sClient, typ, config.Proxies) {
+						cleanupPattern(ctx, logger, injector.k8sClient, pattern)
+					}
+				}()
 			}
 		}
 	})
 
 	return nil
+}
+
+// cleanupAllowed reports whether a disabled proxy type can be cleaned up at startup. istio and
+// istio-gateway share one EnvoyFilter, so neither removes it while the other is enabled and has
+// resources that still need it.
+func cleanupAllowed(ctx context.Context, logger logComp.Component, client dynamic.Interface, typ appsecconfig.ProxyType, proxies map[appsecconfig.ProxyType]struct{}) bool {
+	sibling := map[appsecconfig.ProxyType]appsecconfig.ProxyType{
+		appsecconfig.ProxyTypeIstio:        appsecconfig.ProxyTypeIstioGateway,
+		appsecconfig.ProxyTypeIstioGateway: appsecconfig.ProxyTypeIstio,
+	}[typ]
+	if _, siblingEnabled := proxies[sibling]; !siblingEnabled {
+		return true
+	}
+	needed, err := istio.FilterNeeded(ctx, client, sibling)
+	if err != nil {
+		logger.Warnf("Skipping cleanup of proxy type %q: could not check whether %q still needs its resources: %v", typ, sibling, err)
+		return false
+	}
+	return !needed
 }
 
 func detectProxiesInCluster(ctx context.Context, cl *apiserver.APIClient, logger logComp.Component) (map[appsecconfig.ProxyType]struct{}, error) {
@@ -288,13 +314,19 @@ func (si *securityInjector) createEventHandler(queue workqueue.TypedRateLimiting
 			unstructured, ok := obj.(*unstructured.Unstructured)
 			if !ok {
 				si.logger.Warnf("event handler for unexpected type: %T", obj)
+				return
 			}
 			queue.Add(workItem{obj: unstructured, typ: workItemAdded})
 		},
 		DeleteFunc: func(obj any) {
+			// Deletes missed while the watch was down are delivered as a tombstone after a relist
+			if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+				obj = tombstone.Obj
+			}
 			unstructured, ok := obj.(*unstructured.Unstructured)
 			if !ok {
 				si.logger.Warnf("event handler for unexpected type: %T", obj)
+				return
 			}
 			queue.Add(workItem{obj: unstructured, typ: workItemDeleted})
 		},
@@ -326,9 +358,12 @@ func (si *securityInjector) processWorkItem(ctx context.Context, proxyType appse
 		err = pattern.Deleted(ctx, item.obj)
 	}
 
-	watchedChangesCounter.Inc(string(proxyType), item.typ.String(), strconv.FormatBool(err == nil))
+	watchedChangesCounter.Inc(string(proxyType), item.typ.String(), strconv.FormatBool(err == nil), failureReason(err))
 
 	if err == nil {
+		queue.Forget(item)
+	} else if isPermanentError(err) {
+		si.logger.Warnf("unable to process item, not retrying: %v", err)
 		queue.Forget(item)
 	} else if queue.NumRequeues(item) < 5 {
 		si.logger.Debugf("requeuing item after error: %v", err)
@@ -338,6 +373,66 @@ func (si *securityInjector) processWorkItem(ctx context.Context, proxyType appse
 		queue.Forget(item)
 	}
 
+	return false
+}
+
+// knownFailureReasons are the Kubernetes API status reasons reported as is in telemetry. An
+// admission webhook can return any reason, so the others are reported as "unknown".
+var knownFailureReasons = []metav1.StatusReason{
+	metav1.StatusReasonUnauthorized,
+	metav1.StatusReasonForbidden,
+	metav1.StatusReasonNotFound,
+	metav1.StatusReasonAlreadyExists,
+	metav1.StatusReasonConflict,
+	metav1.StatusReasonGone,
+	metav1.StatusReasonInvalid,
+	metav1.StatusReasonServerTimeout,
+	metav1.StatusReasonStoreReadError,
+	metav1.StatusReasonTimeout,
+	metav1.StatusReasonTooManyRequests,
+	metav1.StatusReasonBadRequest,
+	metav1.StatusReasonMethodNotAllowed,
+	metav1.StatusReasonNotAcceptable,
+	metav1.StatusReasonRequestEntityTooLarge,
+	metav1.StatusReasonUnsupportedMediaType,
+	metav1.StatusReasonInternalError,
+	metav1.StatusReasonExpired,
+	metav1.StatusReasonServiceUnavailable,
+}
+
+// retryableForbidden are messages of Forbidden errors that can clear without a change on the cluster
+// side: an exhausted ResourceQuota, a ResourceQuota whose usage is not computed yet, and admission
+// plugins whose caches are still syncing at API server startup.
+var retryableForbidden = []string{"exceeded quota", "status unknown for quota", "not yet ready to handle request"}
+
+// failureReason returns the Kubernetes API status reason (Forbidden, Invalid, ...) of err, keeping
+// the telemetry tag cardinality bounded.
+func failureReason(err error) string {
+	if err == nil {
+		return "none"
+	}
+	if reason := apierrors.ReasonForError(err); slices.Contains(knownFailureReasons, reason) {
+		return string(reason)
+	}
+	return "unknown"
+}
+
+// isPermanentError reports whether retrying err cannot succeed without a change on the cluster side
+// (RBAC, admission policies, schema validation), in which case the backoff only adds API calls.
+// An exhausted ResourceQuota or admission still starting up is also reported as Forbidden but can
+// clear on its own, so it is retried.
+// A joined error is permanent only if all of its errors are.
+func isPermanentError(err error) bool {
+	switch e := err.(type) {
+	case interface{ Unwrap() []error }:
+		errs := e.Unwrap()
+		return len(errs) > 0 && !slices.ContainsFunc(errs, func(err error) bool { return !isPermanentError(err) })
+	case apierrors.APIStatus:
+		message := e.Status().Message
+		return apierrors.IsInvalid(err) || apierrors.IsForbidden(err) && !slices.ContainsFunc(retryableForbidden, func(s string) bool { return strings.Contains(message, s) })
+	case interface{ Unwrap() error }:
+		return isPermanentError(e.Unwrap())
+	}
 	return false
 }
 

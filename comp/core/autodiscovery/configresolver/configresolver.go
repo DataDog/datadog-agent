@@ -167,7 +167,7 @@ func tagsAdder(tags []string) func(interface{}) error {
 			return nil
 		}
 
-		if typedTree, ok := tree.(map[interface{}]interface{}); ok {
+		if typedTree, ok := tree.(map[string]interface{}); ok {
 			// Use a set to remove duplicates
 			tagSet := make(map[string]struct{})
 			if typedTreeTags, ok := typedTree["tags"]; ok {

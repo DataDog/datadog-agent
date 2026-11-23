@@ -9,13 +9,14 @@ package systeminfo
 
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc
-#cgo LDFLAGS: -framework Foundation -framework IOKit
+#cgo LDFLAGS: -framework Foundation -framework IOKit -framework SystemConfiguration
 
 #include <stdlib.h>
 #include "systeminfo_darwin.h"
 */
 import "C"
 import (
+	"errors"
 	"strings"
 	"unsafe"
 )
@@ -26,6 +27,7 @@ func collect() (*SystemInfo, error) {
 	defer C.free(unsafe.Pointer(cInfo.modelNumber))
 	defer C.free(unsafe.Pointer(cInfo.productName))
 	defer C.free(unsafe.Pointer(cInfo.serialNumber))
+	defer C.free(unsafe.Pointer(cInfo.computerName))
 
 	return &SystemInfo{
 		Manufacturer: "Apple Inc.",
@@ -34,6 +36,7 @@ func collect() (*SystemInfo, error) {
 		ModelName:    C.GoString(cInfo.productName),
 		ChassisType:  getChassisType(C.GoString(cInfo.productName), C.GoString(cInfo.modelIdentifier)),
 		Identifier:   C.GoString(cInfo.modelIdentifier),
+		ComputerName: C.GoString(cInfo.computerName),
 	}, nil
 }
 
@@ -70,4 +73,15 @@ func getChassisType(productName string, modelIdentifier string) string {
 	}
 
 	return "Other"
+}
+
+// LocalHostName returns macOS's current Bonjour hostname without the .local suffix.
+// It is independent of Collect and does not normalize the name.
+func LocalHostName() (string, error) {
+	name := C.copyLocalHostName()
+	if name == nil {
+		return "", errors.New("macOS LocalHostName is unavailable")
+	}
+	defer C.free(unsafe.Pointer(name))
+	return C.GoString(name), nil
 }

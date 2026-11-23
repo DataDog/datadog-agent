@@ -183,3 +183,69 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 		return verifyHTTPStats(t, monitor, accumulated, expectedEndpoints, serverPort, 1, makeIISTagValidator(expectedTags))
 	}, 5*time.Second, 100*time.Millisecond, "HTTP connection to IIS not found for %s", serverAddr)
 }
+
+// eventLoopTimeout bounds the waits below so a regression fails the test
+// instead of hanging it. It is not a measurement: a correct loop reacts
+// immediately.
+const eventLoopTimeout = 30 * time.Second
+
+// TestEventLoopDrainsUntilBothProducersAreDone covers Stop, which closes the
+// two producers one at a time. A loop that gave up at the first close would
+// leave the second producer blocked on a send nobody receives, and Stop
+// waiting on it for good.
+func TestEventLoopDrainsUntilBothProducersAreDone(t *testing.T) {
+	t.Run("driver channel closes first", func(t *testing.T) {
+		m, driverChannel, etwChannel := startTestEventLoop()
+		assertDrainsSecondProducer(t, m, driverChannel, etwChannel)
+	})
+
+	t.Run("etw channel closes first", func(t *testing.T) {
+		m, driverChannel, etwChannel := startTestEventLoop()
+		assertDrainsSecondProducer(t, m, etwChannel, driverChannel)
+	})
+}
+
+// startTestEventLoop runs the event loop over channels the test owns, so it
+// needs neither the driver nor an ETW session.
+func startTestEventLoop() (*WindowsMonitor, chan []http.WinHttpTransaction, chan []http.WinHttpTransaction) {
+	driverChannel := make(chan []http.WinHttpTransaction)
+	etwChannel := make(chan []http.WinHttpTransaction)
+	m := &WindowsMonitor{
+		di:  &http.HttpDriverInterface{DataChannel: driverChannel},
+		hei: &http.EtwInterface{DataChannel: etwChannel},
+	}
+
+	m.eventLoopWG.Add(1)
+	go m.eventLoop()
+
+	return m, driverChannel, etwChannel
+}
+
+func assertDrainsSecondProducer(t *testing.T, m *WindowsMonitor, closedFirst, stillOpen chan []http.WinHttpTransaction) {
+	t.Helper()
+
+	close(closedFirst)
+
+	// An unbuffered send completes only if the loop is still receiving, which
+	// is the behaviour under test. The batch is empty so that the monitor's
+	// telemetry and statkeeper stay out of it.
+	select {
+	case stillOpen <- []http.WinHttpTransaction{}:
+	case <-time.After(eventLoopTimeout):
+		t.Fatal("event loop stopped receiving from the second producer once the first closed")
+	}
+
+	close(stillOpen)
+
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		m.eventLoopWG.Wait()
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(eventLoopTimeout):
+		t.Fatal("event loop did not return once both producers closed")
+	}
+}

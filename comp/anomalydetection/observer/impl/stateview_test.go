@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
@@ -19,7 +21,7 @@ func TestStateView_StorageAccess(t *testing.T) {
 	storage.Add("ns", "cpu", 2.0, 101, nil)
 	storage.Add("ns", "mem", 512.0, 100, []string{"host:a"})
 
-	e := newEngine(engineConfig{storage: storage})
+	e := mustNewEngine(engineConfig{storage: storage})
 	sv := e.StateView()
 
 	// ListSeries
@@ -54,7 +56,7 @@ func TestStateView_StorageAccess(t *testing.T) {
 }
 
 func TestStateView_Anomalies(t *testing.T) {
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:             newTimeSeriesStorage(),
 		trackAnomalyHistory: true,
 	})
@@ -71,11 +73,13 @@ func TestStateView_Anomalies(t *testing.T) {
 	// Add some anomalies via the engine
 	e.acceptAnomaly(observerdef.Anomaly{
 		Source:       observerdef.SeriesDescriptor{Name: "cpu"},
+		SourceRef:    &observerdef.QueryHandle{Ref: 1, Aggregate: observerdef.AggregateAverage},
 		DetectorName: "detector_a",
 		Timestamp:    100,
 	})
 	e.acceptAnomaly(observerdef.Anomaly{
 		Source:       observerdef.SeriesDescriptor{Name: "mem"},
+		SourceRef:    &observerdef.QueryHandle{Ref: 2, Aggregate: observerdef.AggregateAverage},
 		DetectorName: "bocpd",
 		Timestamp:    101,
 	})
@@ -115,6 +119,7 @@ func TestStateView_Anomalies(t *testing.T) {
 	diskDesc := observerdef.SeriesDescriptor{Name: "disk", Aggregate: observerdef.AggregateAverage}
 	e.acceptAnomaly(observerdef.Anomaly{
 		Source:       diskDesc,
+		SourceRef:    &observerdef.QueryHandle{Ref: 3, Aggregate: observerdef.AggregateAverage},
 		DetectorName: "detector_a",
 		Timestamp:    102,
 	})
@@ -135,9 +140,49 @@ func TestStateView_Anomalies(t *testing.T) {
 	}
 }
 
+func TestStateView_DetectorOutputAnomaliesRetainsPrePipelineResults(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	ref := storage.Add("ns", "cpu", 1, 100, nil).Ref
+	anomaly := observerdef.Anomaly{
+		Source:    observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: observerdef.AggregateAverage},
+		SourceRef: &observerdef.QueryHandle{Ref: ref, Aggregate: observerdef.AggregateAverage},
+		Timestamp: 100,
+	}
+	detector := &outputDetector{name: "detector_a", anomalies: []observerdef.Anomaly{anomaly}}
+	e := mustNewEngine(engineConfig{
+		storage:                    storage,
+		detectors:                  []detectorRegistration{{detector: detector}},
+		trackAnomalyHistory:        true,
+		trackDetectorOutputHistory: true,
+	})
+
+	e.runDetectorsAndCorrelatorsSnapshot(100, e.detectors, nil)
+	e.runDetectorsAndCorrelatorsSnapshot(100, e.detectors, nil)
+
+	outputs := e.StateView().DetectorOutputAnomalies()
+	if len(outputs) != 2 {
+		t.Fatalf("expected both detector outputs to be retained, got %d", len(outputs))
+	}
+	for _, output := range outputs {
+		if output.DetectorName != detector.Name() {
+			t.Fatalf("expected normalized detector name %q, got %q", detector.Name(), output.DetectorName)
+		}
+	}
+	if got := len(e.StateView().Anomalies()); got != 1 {
+		t.Fatalf("expected duplicate detector output to be deduplicated downstream, got %d accepted anomalies", got)
+	}
+
+	require.NoError(t, e.resetAnalysisState())
+	if got := len(e.StateView().DetectorOutputAnomalies()); got != 0 {
+		t.Fatalf("expected reset to clear detector outputs, got %d", got)
+	}
+}
+
 func TestLiveAnomalyTrackingIsBoundedAndDoesNotRetainHistory(t *testing.T) {
-	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
-	e.anomalyDeduper = newAnomalyDeduper(2)
+	e := mustNewEngine(engineConfig{storage: newTimeSeriesStorage()})
+	deduper, err := newAnomalyDeduper(2)
+	require.NoError(t, err)
+	e.anomalyDeduper = deduper
 	evicted := make(map[string]int)
 	e.onAnomalyDedupEvicted = func(reason string, count int) {
 		evicted[reason] += count
@@ -147,7 +192,6 @@ func TestLiveAnomalyTrackingIsBoundedAndDoesNotRetainHistory(t *testing.T) {
 			Source:       observerdef.SeriesDescriptor{Name: "cpu"},
 			SourceRef:    &observerdef.QueryHandle{Ref: ref, Aggregate: observerdef.AggregateAverage},
 			DetectorName: "detector",
-			Title:        "spike",
 			Timestamp:    timestamp,
 		}
 	}
@@ -196,7 +240,7 @@ func TestLiveAnomalyDedupExpiresByEffectiveSeriesRetention(t *testing.T) {
 	series := storage.Add("logs", "pattern.count", 1, 100, nil)
 	storage.SetSeriesRetention(series.Ref, 10)
 
-	e := newEngine(engineConfig{storage: storage})
+	e := mustNewEngine(engineConfig{storage: storage})
 	evicted := make(map[string]int)
 	e.onAnomalyDedupEvicted = func(reason string, count int) {
 		evicted[reason] += count
@@ -205,7 +249,6 @@ func TestLiveAnomalyDedupExpiresByEffectiveSeriesRetention(t *testing.T) {
 		Source:       observerdef.SeriesDescriptor{Namespace: "logs", Name: "pattern.count"},
 		SourceRef:    &observerdef.QueryHandle{Ref: series.Ref, Aggregate: observerdef.AggregateAverage},
 		DetectorName: "detector",
-		Title:        "spike",
 		Timestamp:    100,
 	}
 	if !e.acceptAnomaly(anomaly) {
@@ -220,18 +263,19 @@ func TestLiveAnomalyDedupExpiresByEffectiveSeriesRetention(t *testing.T) {
 		t.Fatalf("live dedup cache has %d entries after series retention elapsed, expected 0", got)
 	}
 
-	withoutSourceRef := observerdef.Anomaly{
-		Source:       observerdef.SeriesDescriptor{Name: "rrcf.score"},
-		DetectorName: "rrcf",
-		Title:        "spike",
+	defaultSeries := storage.Add("logs", "connection.errors", 1, 200, nil)
+	withDefaultRetention := observerdef.Anomaly{
+		Source:       observerdef.SeriesDescriptor{Namespace: "logs", Name: "connection.errors"},
+		SourceRef:    &observerdef.QueryHandle{Ref: defaultSeries.Ref, Aggregate: observerdef.AggregateAverage},
+		DetectorName: "detector",
 		Timestamp:    200,
 	}
-	if !e.acceptAnomaly(withoutSourceRef) {
-		t.Fatal("expected anomaly without a source ref to be accepted")
+	if !e.acceptAnomaly(withDefaultRetention) {
+		t.Fatal("expected anomaly with default series retention to be accepted")
 	}
 	e.removeExpiredAnomalyDedup(300)
-	if e.acceptAnomaly(withoutSourceRef) {
-		t.Fatal("expected anomaly without a source ref to use global retention")
+	if e.acceptAnomaly(withDefaultRetention) {
+		t.Fatal("expected anomaly with default series retention to use global retention")
 	}
 	e.removeExpiredAnomalyDedup(301)
 	if got := e.anomalyDeduper.live.Len(); got != 0 {
@@ -243,12 +287,13 @@ func TestLiveAnomalyDedupExpiresByEffectiveSeriesRetention(t *testing.T) {
 }
 
 func TestReplayAnomalyDedupDoesNotExpire(t *testing.T) {
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:             newTimeSeriesStorage(),
 		trackAnomalyHistory: true,
 	})
 	anomaly := observerdef.Anomaly{
 		Source:       observerdef.SeriesDescriptor{Name: "cpu"},
+		SourceRef:    &observerdef.QueryHandle{Ref: 1, Aggregate: observerdef.AggregateAverage},
 		DetectorName: "detector",
 		Timestamp:    100,
 	}
@@ -262,13 +307,14 @@ func TestReplayAnomalyDedupDoesNotExpire(t *testing.T) {
 }
 
 func TestResetForReplayConfiguresAnomalyHistory(t *testing.T) {
-	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	e := mustNewEngine(engineConfig{storage: newTimeSeriesStorage()})
 	storageCfg := DefaultStorageConfig()
 	storageCfg.TrackAnomalyHistory = true
-	e.ResetForReplay(nil, nil, nil, nil, storageCfg, BaselineConfig{})
+	require.NoError(t, e.ResetForReplay(nil, nil, nil, nil, storageCfg, BaselineConfig{}))
 
 	anomaly := observerdef.Anomaly{
 		Source:       observerdef.SeriesDescriptor{Name: "cpu"},
+		SourceRef:    &observerdef.QueryHandle{Ref: 1, Aggregate: observerdef.AggregateAverage},
 		DetectorName: "detector_a",
 		Timestamp:    100,
 	}
@@ -280,7 +326,7 @@ func TestResetForReplayConfiguresAnomalyHistory(t *testing.T) {
 	}
 
 	storageCfg.TrackAnomalyHistory = false
-	e.ResetForReplay(nil, nil, nil, nil, storageCfg, BaselineConfig{})
+	require.NoError(t, e.ResetForReplay(nil, nil, nil, nil, storageCfg, BaselineConfig{}))
 	if !e.acceptAnomaly(anomaly) {
 		t.Fatal("expected live-mode anomaly after reset to be accepted")
 	}
@@ -296,9 +342,9 @@ func TestStateView_DetectorsAndCorrelators(t *testing.T) {
 	detector := &mockDetector{name: "mock_det"}
 	correlator := &mockCorrelator{name: "mock_corr"}
 
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:     newTimeSeriesStorage(),
-		detectors:   []observerdef.Detector{detector},
+		detectors:   []detectorRegistration{{detector: detector}},
 		correlators: []observerdef.Correlator{correlator},
 	})
 	sv := e.StateView()
@@ -319,7 +365,7 @@ func TestStateView_SchedulingState(t *testing.T) {
 	storage.Add("ns", "cpu", 1.0, 100, nil)
 	storage.Add("ns", "cpu", 2.0, 200, nil)
 
-	e := newEngine(engineConfig{storage: storage})
+	e := mustNewEngine(engineConfig{storage: storage})
 	sv := e.StateView()
 
 	if sv.LastAnalyzedTime() != 0 {
@@ -337,9 +383,20 @@ type mockDetector struct {
 	name string
 }
 
+type outputDetector struct {
+	name      string
+	anomalies []observerdef.Anomaly
+}
+
+func (d *outputDetector) Name() string { return d.name }
+func (*outputDetector) Ready() bool    { return true }
+func (d *outputDetector) Detect(_ observerdef.StorageReader, _ int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
+	return observerdef.DetectionResult{Anomalies: d.anomalies}
+}
+
 func (d *mockDetector) Name() string { return d.name }
 func (*mockDetector) Ready() bool    { return true }
-func (d *mockDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
+func (d *mockDetector) Detect(_ observerdef.StorageReader, _ int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }
 
@@ -359,9 +416,9 @@ func TestFindingM11_StateViewListDetectorsRace(_ *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:   storage,
-		detectors: []observerdef.Detector{&mockDetector{name: "det1"}},
+		detectors: []detectorRegistration{{detector: &mockDetector{name: "det1"}}},
 	})
 	sv := e.StateView()
 
@@ -371,9 +428,7 @@ func TestFindingM11_StateViewListDetectorsRace(_ *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 500; i++ {
-			e.SetDetectors([]observerdef.Detector{
-				&mockDetector{name: fmt.Sprintf("det_%d", i)},
-			})
+			e.SetDetectors([]detectorRegistration{{detector: &mockDetector{name: fmt.Sprintf("det_%d", i)}}})
 		}
 	}()
 
@@ -391,7 +446,7 @@ func TestFindingM11_StateViewListCorrelatorsRace(_ *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:     storage,
 		correlators: []observerdef.Correlator{&mockCorrelator{name: "corr1"}},
 	})
@@ -423,7 +478,7 @@ func TestFindingM11_StateViewActiveCorrelationsRace(_ *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:     storage,
 		correlators: []observerdef.Correlator{&mockCorrelator{name: "corr1"}},
 	})

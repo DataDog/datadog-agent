@@ -1,5 +1,6 @@
 using Datadog.CustomActions.Interfaces;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.DirectoryServices.ActiveDirectory;
@@ -452,51 +453,48 @@ namespace Datadog.CustomActions.Native
         static extern bool SetServiceObjectSecurity(SafeHandle serviceHandle,
             SecurityInfos secInfos, byte[] lpSecDescBuf);
 
-        [StructLayout(LayoutKind.Sequential)]
-        public class GuidClass
-        {
-            public Guid TheGuid;
-        }
-
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        struct DOMAIN_CONTROLLER_INFO
+        internal struct DS_DOMAIN_CONTROLLER_INFO_3
         {
-            [MarshalAs(UnmanagedType.LPTStr)]
-            public string DomainControllerName;
-            [MarshalAs(UnmanagedType.LPTStr)]
-            public string DomainControllerAddress;
-            public uint DomainControllerAddressType;
-            public Guid DomainGuid;
-            [MarshalAs(UnmanagedType.LPTStr)]
-            public string DomainName;
-            [MarshalAs(UnmanagedType.LPTStr)]
-            public string DnsForestName;
-            public DS_FLAG Flags;
-            [MarshalAs(UnmanagedType.LPTStr)]
-            public string DcSiteName;
-            [MarshalAs(UnmanagedType.LPTStr)]
-            public string ClientSiteName;
+            [MarshalAs(UnmanagedType.LPWStr)] public string NetbiosName;
+            [MarshalAs(UnmanagedType.LPWStr)] public string DnsHostName;
+            [MarshalAs(UnmanagedType.LPWStr)] public string SiteName;
+            [MarshalAs(UnmanagedType.LPWStr)] public string SiteObjectName;
+            [MarshalAs(UnmanagedType.LPWStr)] public string ComputerObjectName;
+            [MarshalAs(UnmanagedType.LPWStr)] public string ServerObjectName;
+            [MarshalAs(UnmanagedType.LPWStr)] public string NtdsDsaObjectName;
+            [MarshalAs(UnmanagedType.Bool)] public bool fIsPdc;
+            [MarshalAs(UnmanagedType.Bool)] public bool fDsEnabled;
+            [MarshalAs(UnmanagedType.Bool)] public bool fIsGc;
+            [MarshalAs(UnmanagedType.Bool)] public bool fIsRodc;
+            public Guid SiteObjectGuid;
+            public Guid ComputerObjectGuid;
+            public Guid ServerObjectGuid;
+            public Guid NtdsDsaObjectGuid;
         }
 
-        [Flags]
-        public enum DS_FLAG : uint
-        {
-            DS_WRITABLE_FLAG = 0x00000100,
-        }
+        [DllImport("ntdsapi.dll", CharSet = CharSet.Unicode)]
+        private static extern uint DsBind(
+            [MarshalAs(UnmanagedType.LPWStr)] string domainControllerName,
+            [MarshalAs(UnmanagedType.LPWStr)] string dnsDomainName,
+            out IntPtr phDS);
 
-        [DllImport("Netapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        static extern int DsGetDcName
-        (
-            [MarshalAs(UnmanagedType.LPTStr)]
-            string ComputerName,
-            [MarshalAs(UnmanagedType.LPTStr)]
-            string DomainName,
-            [In] GuidClass DomainGuid,
-            [MarshalAs(UnmanagedType.LPTStr)]
-            string SiteName,
-            int Flags,
-            out IntPtr pDOMAIN_CONTROLLER_INFO
-        );
+        [DllImport("ntdsapi.dll", CharSet = CharSet.Unicode)]
+        private static extern uint DsGetDomainControllerInfo(
+            IntPtr hDs,
+            [MarshalAs(UnmanagedType.LPWStr)] string domainName,
+            uint infoLevel,
+            out uint infoCount,
+            out IntPtr info);
+
+        [DllImport("ntdsapi.dll", CharSet = CharSet.Unicode)]
+        private static extern void DsFreeDomainControllerInfo(
+            uint infoLevel,
+            uint infoCount,
+            IntPtr info);
+
+        [DllImport("ntdsapi.dll", CharSet = CharSet.Unicode)]
+        private static extern uint DsUnBind(ref IntPtr phDS);
 
         [DllImport("msi.dll", CharSet = CharSet.Unicode)]
         static extern Int32 MsiGetProductInfo
@@ -587,7 +585,7 @@ namespace Datadog.CustomActions.Native
                 Marshal.FreeHGlobal(info.pSID);
             }
 
-            throw new Exception($"Could not add user to group {groupName}: {err}");
+            throw new Win32Exception((int)err, $"Could not add user to group {groupName}: {err}");
         }
 
         public void AddPrivilege(SecurityIdentifier securityIdentifier, AccountRightsConstants accountRights)
@@ -829,27 +827,112 @@ namespace Datadog.CustomActions.Native
                 return false;
             }
 
-            IntPtr pDCI = IntPtr.Zero;
+            var localDnsName = GetRequiredComputerName(COMPUTER_NAME_FORMAT.ComputerNamePhysicalDnsFullyQualified);
+            var localNetbiosName = GetRequiredComputerName(COMPUTER_NAME_FORMAT.ComputerNamePhysicalNetBIOS);
+            var domainName = GetRequiredComputerName(COMPUTER_NAME_FORMAT.ComputerNamePhysicalDnsDomain);
+
+            const uint infoLevel = 3;
+            var directoryHandle = IntPtr.Zero;
             try
             {
-                var result = DsGetDcName(null, null, null, null, 0, out pDCI);
+                var result = DsBind(localDnsName, domainName, out directoryHandle);
                 if (result != 0)
                 {
-                    throw new Exception("unexpected error getting domain controller information",
+                    throw new Exception("Unexpected error binding to the local domain controller.",
                         new Win32Exception((int)result));
                 }
 
-                var domainInfo = (DOMAIN_CONTROLLER_INFO)Marshal.PtrToStructure(pDCI, typeof(DOMAIN_CONTROLLER_INFO));
-                var isWritable = domainInfo.Flags.HasFlag(DS_FLAG.DS_WRITABLE_FLAG);
-                return !isWritable;
+                var controllerInfo = IntPtr.Zero;
+                uint controllerCount = 0;
+                try
+                {
+                    result = DsGetDomainControllerInfo(
+                        directoryHandle,
+                        domainName,
+                        infoLevel,
+                        out controllerCount,
+                        out controllerInfo);
+                    if (result != 0)
+                    {
+                        throw new Exception("Unexpected error getting domain controller information.",
+                            new Win32Exception((int)result));
+                    }
+
+                    if (controllerInfo == IntPtr.Zero || controllerCount == 0)
+                    {
+                        throw new InvalidOperationException("Domain controller metadata did not contain any entries.");
+                    }
+
+                    var entrySize = Marshal.SizeOf(typeof(DS_DOMAIN_CONTROLLER_INFO_3));
+                    var entries = new List<DS_DOMAIN_CONTROLLER_INFO_3>((int)controllerCount);
+                    for (var i = 0; i < controllerCount; i++)
+                    {
+                        var entryPointer = IntPtr.Add(controllerInfo, checked((int)i * entrySize));
+                        entries.Add((DS_DOMAIN_CONTROLLER_INFO_3)Marshal.PtrToStructure(
+                            entryPointer,
+                            typeof(DS_DOMAIN_CONTROLLER_INFO_3)));
+                    }
+
+                    return IsLocalDomainControllerReadOnly(entries, localDnsName, localNetbiosName);
+                }
+                finally
+                {
+                    if (controllerInfo != IntPtr.Zero)
+                    {
+                        DsFreeDomainControllerInfo(infoLevel, controllerCount, controllerInfo);
+                    }
+                }
             }
             finally
             {
-                if (pDCI != IntPtr.Zero)
+                if (directoryHandle != IntPtr.Zero)
                 {
-                    NetApiBufferFree(pDCI);
+                    DsUnBind(ref directoryHandle);
                 }
             }
+        }
+
+        internal static bool IsLocalDomainControllerReadOnly(
+            IEnumerable<DS_DOMAIN_CONTROLLER_INFO_3> entries,
+            string localDnsName,
+            string localNetbiosName)
+        {
+            if (entries == null)
+            {
+                throw new ArgumentNullException(nameof(entries));
+            }
+
+            foreach (var entry in entries)
+            {
+                if ((!string.IsNullOrEmpty(localDnsName) &&
+                     string.Equals(entry.DnsHostName, localDnsName, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(localNetbiosName) &&
+                     string.Equals(entry.NetbiosName, localNetbiosName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return entry.fIsRodc;
+                }
+            }
+
+            throw new InvalidOperationException(
+                $"Domain controller metadata did not contain the local controller ({localDnsName} / {localNetbiosName}).");
+        }
+
+        private static string GetRequiredComputerName(COMPUTER_NAME_FORMAT format)
+        {
+            uint size = 256;
+            var name = new StringBuilder((int)size);
+            if (!GetComputerNameEx(format, name, ref size))
+            {
+                throw new Exception($"Unexpected error getting the local computer name ({format}).",
+                    new Win32Exception(Marshal.GetLastWin32Error()));
+            }
+
+            if (name.Length == 0)
+            {
+                throw new InvalidOperationException($"The local computer name ({format}) was empty.");
+            }
+
+            return name.ToString();
         }
 
         public string GetComputerDomain()

@@ -1,0 +1,13 @@
+description: tail --verbose=false is rejected because boolean flags do not take values.
+setup:
+  files:
+    - path: a.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail --verbose=false a.txt
+expect:
+  stdout: ""
+  stderr_contains: ["tail:"]
+  exit_code: 1

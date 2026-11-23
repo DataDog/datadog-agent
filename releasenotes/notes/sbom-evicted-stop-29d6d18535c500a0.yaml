@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix a race in the SBOM resolver of system-probe when its cache of SBOMs is
+    full, which could leave a goroutine running for an evicted container or
+    crash system-probe.

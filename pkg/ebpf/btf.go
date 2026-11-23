@@ -302,6 +302,9 @@ func (b *orderedBTFLoader) checkForUnminimizedBTF(extractDir string) (*returnBTF
 }
 
 func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
+	if err := SecureCacheDir(filepath.Join(b.btfOutputDir, extractDir)); err != nil {
+		return nil, fmt.Errorf("BTF cache directory: %w", err)
+	}
 	ret, err := b.checkForMinimizedBTF(extractDir)
 	if err != nil || ret != nil {
 		return ret, err
@@ -383,7 +386,7 @@ var kernelVersionPatterns = []struct {
 	{regexp.MustCompile(`\.deb10\.`), []btfPlatform{platformDebian}},
 	{regexp.MustCompile(`\.fc\d{2}\.`), []btfPlatform{platformFedora}},
 	{regexp.MustCompile(`-lp15\d\.`), []btfPlatform{platformOpenSUSELeap}},
-	{regexp.MustCompile(`-150300\.`), []btfPlatform{platformOpenSUSELeap}},
+	{regexp.MustCompile(`-150300\.`), []btfPlatform{platformOpenSUSELeap, platformSUSE}},
 }
 
 var errIncorrectOSReleaseMount = errors.New("please mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this")

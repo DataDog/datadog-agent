@@ -1,0 +1,9 @@
+description: A script consisting only of empty lines produces no output and exits 0.
+input:
+  script: |+
+
+
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

@@ -19,7 +19,6 @@ import (
 	dimod "github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -29,7 +28,7 @@ func init() { registerModule(DynamicInstrumentation) }
 // DynamicInstrumentation is a system probe module which allows you to add instrumentation into
 // running Go services without restarts.
 var DynamicInstrumentation = &module.Factory{
-	Name: config.DynamicInstrumentationModule,
+	Name: sysconfigtypes.DynamicInstrumentationModule,
 	Fn: func(agentConfiguration *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		config, err := dimod.NewConfig(agentConfiguration)
 		if err != nil {

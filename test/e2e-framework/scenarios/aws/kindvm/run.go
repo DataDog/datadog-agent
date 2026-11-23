@@ -7,6 +7,7 @@ package kindvm
 
 import (
 	_ "embed"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -71,6 +72,9 @@ func Run(ctx *pulumi.Context) error {
 // RunWithEnv deploys a KIND-on-EC2 environment using a provided env and params.
 // It accepts KubernetesOutputs interface, enabling reuse between provisioners and direct Pulumi runs.
 func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.KubernetesOutputs, params *RunParams) error {
+	if len(params.preAgentWorkloadAppFuncs) > 0 && params.standaloneDdotFunc != nil {
+		return errors.New("pre-agent workloads are not supported with a standalone OTel Agent")
+	}
 
 	var err error
 	var fakeIntake *fakeintakeComp.Fakeintake
@@ -177,12 +181,38 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		dependsOnArgoRollout = utils.PulumiDependsOn(argoHelm)
 	}
 
+	preAgentWorkloads := make([]pulumi.Resource, 0, len(params.preAgentWorkloadAppFuncs))
+	for _, appFunc := range params.preAgentWorkloadAppFuncs {
+		workload, err := appFunc(&awsEnv, kubeProvider)
+		if err != nil {
+			return err
+		}
+		preAgentWorkloads = append(preAgentWorkloads, workload)
+	}
+	if len(preAgentWorkloads) > 0 {
+		dependsOnPreAgentWorkloads := utils.PulumiDependsOn(preAgentWorkloads...)
+		if len(params.agentOptions) > 0 {
+			params.agentOptions = append(params.agentOptions,
+				kubernetesagentparams.WithPulumiResourceOptions(dependsOnPreAgentWorkloads))
+		}
+		if params.deployOperator {
+			params.operatorOptions = append(params.operatorOptions,
+				operatorparams.WithPulumiResourceOptions(dependsOnPreAgentWorkloads))
+			if params.operatorDDAOptions != nil {
+				params.operatorDDAOptions = append(params.operatorDDAOptions,
+					agentwithoperatorparams.WithPulumiResourceOptions(dependsOnPreAgentWorkloads))
+			}
+		}
+	}
+
 	var dependsOnDDAgent pulumi.ResourceOption
 	if len(params.agentOptions) > 0 && !params.deployOperator {
 		newOpts := []kubernetesagentparams.Option{
 			kubernetesagentparams.WithHelmValues(agentHelmValues),
 			kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
-			kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
+			// Use the cluster name for the stackid tag instead of ctx.Stack(): the cluster name is
+			// truncated when the stack name is long, and the tests match the tag against it.
+			kubernetesagentparams.WithStackIDTag(kindCluster.ClusterName),
 		}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)

@@ -85,7 +85,22 @@ func (m *GenericPackageManager) EnsureUninstalled(packageRef string, transform c
 
 	return cmd, nil
 }
-func (m *GenericPackageManager) Ensure(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
+func (m *GenericPackageManager) RuntimeInstallDocker(opts ...PackageManagerOption) (command.Command, error) {
+	if err := failIfAWS(m.runner.Environment()); err != nil {
+		return nil, err
+	}
+	dockerInstall, err := m.install("docker", nil, "docker", opts...)
+	if err != nil {
+		return nil, err
+	}
+	return runtimeInstallCompose(m.runner, dockerInstall, opts...)
+}
+
+func (m *GenericPackageManager) InstallLocalPackage(packagePath string, opts ...PackageManagerOption) (command.Command, error) {
+	return m.install(packagePath, nil, "", append([]PackageManagerOption{AllowUnsignedPackages(true)}, opts...)...)
+}
+
+func (m *GenericPackageManager) install(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
 	params, err := common.ApplyOption(&PackageManagerParams{}, opts)
 	if err != nil {
 		return nil, err
@@ -139,6 +154,23 @@ func (m *GenericPackageManager) ensureCommand(packageRef, checkBinary string) (s
 		install = fmt.Sprintf("(%s && %s)", m.updateCmd, install)
 	}
 	return fmt.Sprintf("bash -c 'command -v %s || %s'", checkBinary, install), false
+}
+
+func (m *GenericPackageManager) AssertInstalled(checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
+	params, err := common.ApplyOption(&PackageManagerParams{}, opts)
+	if err != nil {
+		return nil, err
+	}
+	pulumiOpts := append(params.PulumiResourceOptions, m.opts...)
+
+	cmd, err := assertInstalledCommand(m.runner, m.namer, checkBinary, pulumiOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Make sure the package manager isn't running in parallel
+	m.opts = append(m.opts, utils.PulumiDependsOn(cmd))
+	return cmd, nil
 }
 
 func (m *GenericPackageManager) updateDB(opts []pulumi.ResourceOption) (command.Command, error) {

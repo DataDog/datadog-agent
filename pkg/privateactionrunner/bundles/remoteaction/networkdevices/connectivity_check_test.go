@@ -7,11 +7,17 @@ package com_datadoghq_remoteaction_networkdevices
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -56,4 +62,93 @@ func makeConnectivityTask(taskInputs map[string]any) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{Inputs: taskInputs}
 	return task
+}
+
+type checkingIPCClient struct {
+	ipc.HTTPClient
+	check func(context.Context)
+}
+
+func (c checkingIPCClient) Do(req *http.Request, _ ...ipc.RequestOption) ([]byte, error) {
+	c.check(req.Context())
+	return []byte(`{"devices":[]}`), nil
+}
+
+func TestConnectivityCheckHandlerTimeout(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		timeout any
+		want    time.Duration
+	}{
+		{name: "missing timeout inherits parent", want: time.Minute},
+		{name: "zero timeout inherits parent", timeout: 0, want: time.Minute},
+		{name: "negative timeout inherits parent", timeout: -1, want: time.Minute},
+		{name: "shorter timeout applies in seconds", timeout: 5, want: 5 * time.Second},
+		{name: "longer timeout cannot extend parent", timeout: 120, want: time.Minute},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := ipcmock.New(t).GetClient()
+			parentDeadline := time.Now().Add(time.Minute)
+			ctx, cancel := context.WithDeadline(context.Background(), parentDeadline)
+			defer cancel()
+			before := time.Now()
+			handler := NewConnectivityCheckHandler(encryptioncontext.NewStore(), checkingIPCClient{
+				HTTPClient: client,
+				check: func(ctx context.Context) {
+					deadline, ok := ctx.Deadline()
+					require.True(t, ok)
+					if tc.want == time.Minute {
+						require.Equal(t, parentDeadline, deadline)
+					} else {
+						require.False(t, deadline.Before(before.Add(tc.want)))
+						require.False(t, deadline.After(time.Now().Add(tc.want)))
+					}
+				},
+			})
+			inputs := map[string]any{"targetIPs": []string{"127.0.0.1"}, "checks": []string{"ping"}}
+			if tc.timeout != nil {
+				inputs["timeout"] = tc.timeout
+			}
+			_, err := handler.Run(ctx, makeConnectivityTask(inputs), nil)
+			require.NoError(t, err)
+		})
+	}
+}
+
+type recordingIPCClient struct {
+	ipc.HTTPClient
+	body     []byte
+	response []byte
+}
+
+func (c *recordingIPCClient) Do(req *http.Request, _ ...ipc.RequestOption) ([]byte, error) {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	c.body = body
+	return c.response, nil
+}
+
+func TestConnectivityCheckHandlerForwardsTargetGroups(t *testing.T) {
+	client := &recordingIPCClient{
+		HTTPClient: ipcmock.New(t).GetClient(),
+		response:   []byte(`{"devices":[{"ipAddress":"10.0.0.1"}]}`),
+	}
+	handler := NewConnectivityCheckHandler(encryptioncontext.NewStore(), client)
+
+	res, err := handler.Run(context.Background(), makeConnectivityTask(map[string]any{
+		"checks": []string{"snmp"},
+		"targetGroups": []map[string]any{
+			{"credentialIDs": []string{"cred-1"}, "targetIPs": []string{"10.0.0.1"}},
+		},
+	}), nil)
+	require.NoError(t, err)
+
+	var sent connectivity.Request
+	require.NoError(t, json.Unmarshal(client.body, &sent))
+	require.Equal(t, []connectivity.TargetGroup{
+		{CredentialIDs: []string{"cred-1"}, TargetIPs: []string{"10.0.0.1"}},
+	}, sent.TargetGroups)
+	require.Equal(t, &connectivity.Result{Devices: []connectivity.DeviceResult{{IPAddress: "10.0.0.1"}}}, res)
 }

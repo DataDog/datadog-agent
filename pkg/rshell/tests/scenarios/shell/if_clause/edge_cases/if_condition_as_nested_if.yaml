@@ -1,0 +1,9 @@
+description: Nested if as condition of outer if.
+input:
+  script: |+
+    if if true; then true; fi; then echo yes; else echo no; fi
+expect:
+  stdout: |+
+    yes
+  stderr: ""
+  exit_code: 0

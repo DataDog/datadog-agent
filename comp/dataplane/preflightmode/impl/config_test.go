@@ -16,7 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -151,6 +151,38 @@ func TestBuildPreflightConfigKeepsConfiguredDDURL(t *testing.T) {
 	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "test-host")
 
 	requireEq(t, got, "dd_url", "https://app.datad0g.com")
+}
+
+func TestBuildPreflightConfigDisablesOTLPProxy(t *testing.T) {
+	cfg := configmock.New(t)
+	flags := []string{
+		"data_plane.otlp.enabled",
+		"data_plane.experimental.otlp.proxy.logs",
+		"data_plane.experimental.otlp.proxy.metrics",
+		"data_plane.experimental.otlp.proxy.traces",
+	}
+	for _, key := range flags {
+		cfg.Set(key, true, pkgconfigmodel.SourceFile)
+		require.True(t, cfg.GetBool(key), key)
+	}
+	endpoints := map[string]string{
+		"data_plane.experimental.otlp.proxy.agent_receiver_grpc_endpoint": "127.0.0.1:14319",
+		"data_plane.experimental.otlp.proxy.agent_receiver_http_endpoint": "127.0.0.1:14320",
+	}
+	for key, endpoint := range endpoints {
+		cfg.Set(key, endpoint, pkgconfigmodel.SourceFile)
+		require.Equal(t, endpoint, cfg.GetString(key))
+	}
+
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "test-host")
+
+	for _, key := range flags {
+		requireEq(t, got, key, false)
+		assert.True(t, cfg.GetBool(key), "preflight must not mutate the shared config")
+	}
+	for key, endpoint := range endpoints {
+		requireEq(t, got, key, endpoint)
+	}
 }
 
 func TestBuildPreflightConfigOverrides(t *testing.T) {

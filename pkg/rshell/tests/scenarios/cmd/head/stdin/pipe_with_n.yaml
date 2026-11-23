@@ -1,0 +1,8 @@
+description: head -n reads from piped stdin when no file is given.
+input:
+  script: |+
+    printf "line1\nline2\nline3\nline4\n" | head -n 2
+expect:
+  stdout: "line1\nline2\n"
+  stderr: ""
+  exit_code: 0

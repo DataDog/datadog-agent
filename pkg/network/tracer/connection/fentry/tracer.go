@@ -36,8 +36,9 @@ var ErrorDisabled = errors.New("fentry tracer is disabled")
 
 // ErrorUnsupported is the error that occurs when the fentry tracer is enabled but
 // cannot run on this system because of a known kernel limitation (as opposed to an
-// unexpected load failure). It is currently treated as a hard failure by callers;
-// a future changeset will validate falling back to another tracer in this case.
+// unexpected load failure). Callers fall back to the kprobe tracer for this error,
+// same as any other load failure (including verifier errors), unless
+// network_config.allow_kprobe_fallback disables that.
 var ErrorUnsupported = errors.New("fentry tracer is not supported on this system")
 
 // LoadTracer loads a new tracer
@@ -50,18 +51,23 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		return nil, nil, fmt.Errorf("%w: %s", ErrorUnsupported, err)
 	}
 
-	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
+	var m *ddebpf.Manager
 	var closeFn func()
 	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
+		o.MapEditors = mgrOpts.MapEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
 		o.BypassEnabled = mgrOpts.BypassEnabled
-		var initErr error
-		closeFn, initErr = initFentryTracer(ar, o, config, m)
-		return initErr
+		// The tp_btf trial load can pass while the verifier rejects the full program.
+		return util.RetryWithoutTPBTF(netDevQueueTPBTF, func() error {
+			m = ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
+			var initErr error
+			closeFn, initErr = fentryTracerInit(ar, o, config, m)
+			return initErr
+		})
 	})
 
 	if err != nil {
@@ -70,6 +76,9 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 
 	return m, closeFn, nil
 }
+
+// fentryTracerInit exists for mocking out in tests
+var fentryTracerInit = initFentryTracer
 
 // protocolClassificationTailCalls returns the tail call routes for protocol classification
 func protocolClassificationTailCalls() []manager.TailCallRoute {
@@ -124,12 +133,12 @@ func protocolClassificationTailCalls() []manager.TailCallRoute {
 
 // initFentryTracer sets up and initializes the fentry tracer
 func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config.Config, m *ddebpf.Manager) (func(), error) {
-	isClassificationSupported := classificationSupported(config)
+	isClassificationSupported := ClassificationSupported(config)
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := enabledPrograms(config, isClassificationSupported)
+	enabledProbes, err := enabledPrograms(config, isClassificationSupported, o.MapEditors[probes.ConntrackMap] != nil)
 	if err != nil {
-		return nil, fmt.Errorf("invalid probe configuration: %v", err)
+		return nil, fmt.Errorf("error selecting fentry programs: %w", err)
 	}
 
 	initManager(m)
@@ -163,6 +172,7 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 	// Protocol classification setup
 	var closeProtocolClassifierSocketFilterFn func()
 	util.AddBoolConst(&o, "protocol_classification_enabled", isClassificationSupported)
+	util.AddBoolConst(&o, "cert_collection_enabled", config.EnableCertCollection)
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if isClassificationSupported {
@@ -203,6 +213,7 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 			o.ExcludedFunctions = append(o.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
+	o.ExcludedMaps = append(o.ExcludedMaps, "pending_tcp_retransmit_skb")
 
 	for funcName := range enabledProbes {
 		pid := manager.ProbeIdentificationPair{
@@ -231,6 +242,13 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 		if closeProtocolClassifierSocketFilterFn != nil {
 			closeProtocolClassifierSocketFilterFn()
 		}
+		// The caller may fall back to the kprobe tracer, which uses the same module name and
+		// event handler, so release what this failed attempt loaded and registered. Stop is a
+		// no-op if the load itself failed, and releases the maps and programs if init failed
+		// later (e.g. in an AfterInit modifier).
+		_ = m.Manager.Stop(manager.CleanAll)
+		ebpftelemetry.ClearHelperErrorKeys(m.Name)
+		ebpftelemetry.UnregisterTelemetry(m.Manager)
 		return nil, fmt.Errorf("failed to init ebpf manager: %w", err)
 	}
 

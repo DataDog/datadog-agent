@@ -46,39 +46,8 @@ RUN if [ "$CI" = "true" ]; then \
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-FROM baseimage AS nosys-seccomp
-RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
-COPY nosys-seccomp/nosys.c   /tmp/nosys.c
-COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
-RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
-
 FROM baseimage AS extract-base
-RUN apt update && apt install --no-install-recommends -y curl ca-certificates maven xz-utils
-
-############################################################
-#  Preparation stage: retrieval of 3rd party dependencies  #
-############################################################
-
-FROM extract-base AS external-deps
-ARG WITH_JMX_FIPS
-ARG TARGETARCH
-ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
-
-WORKDIR /output
-
-# Get s6-overlay
-ENV S6_VERSION="v2.2.0.3"
-ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
-ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
-RUN S6ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "aarch64") && curl -L ${JUST_CONTAINERS_DOWNLOAD_LOCATION}/${S6_VERSION}/s6-overlay-${S6ARCH}.tar.gz -o /output/s6.tgz
-COPY s6.$TARGETARCH.sha256 /output/s6.$TARGETARCH.sha256
-# To calculate S6_SHA256SUM for a specific version, run:
-# curl -L https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-<arch>.tar.gz | sha256sum
-RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - && rm -f /output/s6.$TARGETARCH.sha256
-
-# Download BouncyCastle FIPS provider jar files.
-COPY bouncycastle-fips/pom.xml /opt/bouncycastle-fips/
-RUN if [ -n "$WITH_JMX_FIPS" ]; then cd /opt/bouncycastle-fips && mvn dependency:copy-dependencies; else mkdir -p /opt/bouncycastle-fips/target/dependency; fi
+RUN apt update && apt install --no-install-recommends -y curl ca-certificates xz-utils
 
 ########################################################################
 #  Construct the base image for the release, everything but the Agent  #
@@ -124,24 +93,24 @@ RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
 # - The debian image is now built with merged-usr explicitly disabled,
 #   see https://github.com/debuerreotype/debuerreotype/pull/50
 # - Ubuntu 20.10 uses the symlink /bin -> /usr/bin
-COPY --from=external-deps /output/s6.tgz /
-RUN tar xzf s6.tgz -C / --exclude="./bin" \
-  && tar xzf s6.tgz -C /usr ./bin \
-  && rm s6.tgz
+RUN --mount=type=bind,source=s6.tgz,target=/tmp/s6.tgz \
+  tar xzf /tmp/s6.tgz -C / --exclude=./usr/bin/execlineb \
+    --transform='s,^\./bin\(/\|$\),./usr/bin\1,' \
+    --transform='s,^\./etc/s6/init/init-stage3$,&-original,'
 
 # Override the exit script by ours to fix --pid=host operations
-RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
 # Copy BouncyCastle Java FIPS provider binaries and configuration
-COPY --from=external-deps /opt/bouncycastle-fips/target/dependency/*.jar /opt/bouncycastle-fips/
-COPY --chmod=644 bouncycastle-fips/java.security /opt/bouncycastle-fips/
-COPY --chmod=644 bouncycastle-fips/bc-fips.policy /opt/bouncycastle-fips/
+RUN mkdir /opt/bouncycastle-fips
+COPY --chmod=644 bouncycastle-fips/ /opt/bouncycastle-fips/
 RUN if [ -z "$WITH_JMX_FIPS" ]; then rm -rf /opt/bouncycastle-fips; fi
 # Configure Java to use BouncyCastle FIPS provider on JMX FIPS images.
 # Double equals sign for java.security.properties istructs java to replace system defaults with the contents of the new file.
 ENV JAVA_TOOL_OPTIONS="${WITH_JMX_FIPS:+--module-path=/opt/bouncycastle-fips -Djava.security.properties==/opt/bouncycastle-fips/java.security -Dpolicy.url.2=file:/opt/bouncycastle-fips/bc-fips.policy}"
+# Run the BouncyCastle self check on JMX FIPS images.
+RUN if [ -n "$WITH_JMX_FIPS" ]; then java org.bouncycastle.util.DumpInfo; fi
 
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
@@ -220,6 +189,9 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   && addgroup --system secret-manager \
   && usermod -a -G secret-manager dd-agent \
   && rm /var/run && mkdir -p /var/run/s6 /var/run/datadog /var/run/datadog-procmgrd /opt/datadog-agent/run \
+  && if [ -f /etc/datadog-agent/private-action-runner/script-config.yaml.example ]; then \
+       cp -n /etc/datadog-agent/private-action-runner/script-config.yaml.example /etc/datadog-agent/private-action-runner/script-config.yaml; \
+     fi \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /var/run/datadog-procmgrd/ /opt/datadog-agent/run \
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /var/run/datadog-procmgrd/ /opt/datadog-agent/run \
   && chmod 755 /probe.sh /par-probe.sh /initlog.sh \
@@ -248,8 +220,13 @@ RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 # cleaning up
 # We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
 # which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
-RUN apt-get purge -y adduser \
-  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
+RUN apt-get purge -y adduser passwd \
+  # Keep license/copyright attribution (/usr/share/doc/*/copyright, /usr/share/common-licenses),
+  # drop the rest of the package documentation (changelogs, READMEs, etc.)
+  && find /usr/share/doc -mindepth 1 -type f ! -name 'copyright*' -delete \
+  && find /usr/share/doc -mindepth 1 -type d -empty -delete \
+  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl \
+    /usr/share/man /usr/share/info /usr/share/lintian /usr/share/bash-completion
 RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
 
 # Enable FIPS if needed
@@ -280,11 +257,13 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
 
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag
-VOLUME ["/var/run/s6", "/var/log/datadog"]
+VOLUME ["/var/run/s6", "/opt/datadog-agent/run", "/var/log/datadog"]
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
-COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
-ENV LD_PRELOAD=/opt/lib/nosys.so
+COPY --from=artifacts nosys.so /opt/lib/nosys.so
+# Use jemalloc for native allocations while preserving the syscall compatibility wrapper.
+# Set LD_PRELOAD=/opt/lib/nosys.so at runtime to disable jemalloc.
+ENV LD_PRELOAD=/opt/lib/nosys.so:/opt/datadog-agent/embedded/lib/libjemalloc.so.2
 
 # Single entrypoint
 COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh

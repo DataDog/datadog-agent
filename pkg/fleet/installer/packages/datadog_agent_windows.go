@@ -52,6 +52,7 @@ var datadogAgentPackage = hooks{
 
 	preStartExperiment:    preStartExperimentDatadogAgent,
 	postStartExperiment:   postStartExperimentDatadogAgent,
+	preStopExperiment:     preStopExperimentDatadogAgent,
 	postStopExperiment:    postStopExperimentDatadogAgent,
 	postPromoteExperiment: postPromoteExperimentDatadogAgent,
 
@@ -182,7 +183,7 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 
 	// OCI path: Run MSI to uninstall
 	if !ctx.Upgrade {
-		return removeAgentIfInstalledAndRestartOnFailure(ctx)
+		return removeAgentIfInstalledAndRestartOnFailure(ctx, ctx.WindowsArgs...)
 	}
 	return nil
 }
@@ -211,6 +212,10 @@ var procmgrConfigs = []procmgrConfig{
 	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig},
 	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig},
 	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
+	{"process-agent", processmanager.WriteProcessProcmgrConfig, processmanager.RemoveProcessProcmgrConfig},
+	{"system-probe", processmanager.WriteSysprobeProcmgrConfig, processmanager.RemoveSysprobeProcmgrConfig},
+	{"trace-agent", processmanager.WriteTraceProcmgrConfig, processmanager.RemoveTraceProcmgrConfig},
+	{"security-agent", processmanager.WriteSecurityProcmgrConfig, processmanager.RemoveSecurityProcmgrConfig},
 }
 
 func ensureProcmgrConfig(cfg procmgrConfig) error {
@@ -339,6 +344,15 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 	return nil
 }
 
+// preStopExperimentDatadogAgent checks the rollback MSI before state changes.
+func preStopExperimentDatadogAgent(_ HookContext) error {
+	_, err := msi.FindAgentMSI(filepath.Join(paths.PackagesPath, agentPackage, "stable"), env.FromEnv().FIPSMode)
+	if err != nil {
+		return fmt.Errorf("invalid rollback MSI: %w", err)
+	}
+	return nil
+}
+
 // postStopExperimentDatadogAgent stops the watchdog and launches a new process to stop the experiment.
 func postStopExperimentDatadogAgent(ctx HookContext) (err error) {
 	// set watchdog stop to make sure the watchdog stops
@@ -356,6 +370,10 @@ func postStopExperimentDatadogAgent(ctx HookContext) (err error) {
 //   - be run from a copy of the installer, not from the install path,
 //     to avoid locking the executable
 func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
+	// Recheck before uninstalling the running Agent.
+	if err := preStopExperimentDatadogAgent(HookContext{Context: ctx}); err != nil {
+		return err
+	}
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
 	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
@@ -521,7 +539,7 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 
 	opts := []msi.MsiexecOption{
 		msi.Install(),
-		msi.WithMsiFromPackagePath(target, agentPackage),
+		msi.WithMsiFromPackagePath(target, agentPackage, env.FIPSMode),
 		msi.WithLogFile(logFile),
 	}
 	// msi.Cmd() places typed properties after raw args on the command line regardless of
@@ -569,7 +587,7 @@ func argsHaveProperty(args []string, property string) bool {
 	return false
 }
 
-func removeProductIfInstalled(ctx context.Context, product string) (err error) {
+func removeProductIfInstalled(ctx context.Context, product string, windowsArgs ...string) (err error) {
 	if msi.IsProductInstalled(product) {
 		span, ctx := telemetry.StartSpanFromContext(ctx, "remove_agent")
 		defer func() {
@@ -582,6 +600,7 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 		}()
 		err := msi.RemoveProduct(ctx, product,
 			msi.WithProperties(map[string]string{"FLEET_INSTALL": "1"}),
+			msi.WithAdditionalArgs(windowsArgs),
 		)
 		if err != nil {
 			return err
@@ -592,7 +611,7 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 	return nil
 }
 
-func removeAgentIfInstalled(ctx context.Context) (err error) {
+func removeAgentIfInstalled(ctx context.Context, windowsArgs ...string) (err error) {
 	// Stop all Datadog Agent services before trying to remove the Agent
 	// This helps reduce the chance that we run into the InstallValidate
 	// delay issue from msi.dll.
@@ -600,11 +619,11 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to stop all Agent services: %w", err)
 	}
-	return removeProductIfInstalled(ctx, "Datadog Agent")
+	return removeProductIfInstalled(ctx, msi.AgentProductName(getenv().FIPSMode), windowsArgs...)
 }
 
-func removeAgentIfInstalledAndRestartOnFailure(ctx context.Context) (err error) {
-	err = removeAgentIfInstalled(ctx)
+func removeAgentIfInstalledAndRestartOnFailure(ctx context.Context, windowsArgs ...string) (err error) {
+	err = removeAgentIfInstalled(ctx, windowsArgs...)
 	if err != nil {
 		// failed to remove existing Agent, try to restart it if we can.
 		// If MSI failed it should rollback to a working state.
@@ -976,10 +995,11 @@ func postPromoteConfigExperimentDatadogAgentBackground(ctx context.Context) erro
 // This helps ensure the MSI is available even when the original path is a temp dir, which is common
 // with remote deployment scripts, or the Windows installer cache was removed for some reason.
 func updateRegistryInstallSource() error {
-	msiName := fmt.Sprintf("datadog-agent-%s-x86_64.msi", version.AgentPackageVersion)
+	fipsMode := getenv().FIPSMode
+	msiName := msi.AgentMSIName(version.AgentPackageVersion, fipsMode)
 
 	stablePath := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
-	err := msi.SetSourceList("Datadog Agent", stablePath, msiName)
+	err := msi.SetSourceList(msi.AgentProductName(fipsMode), stablePath, msiName)
 	if err != nil {
 		return fmt.Errorf("failed to update MSI source list: %w", err)
 	}

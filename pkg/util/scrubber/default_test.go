@@ -550,6 +550,38 @@ func TestAddStrippedKeysNewReplacer(t *testing.T) {
 	dynamicReplacers = []Replacer{}
 }
 
+func TestAddStrippedKeysMatchesKeysLiterally(t *testing.T) {
+	t.Cleanup(func() { dynamicReplacers = []Replacer{} })
+
+	t.Run("unbalanced brackets", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			AddStrippedKeys([]string{"dsn(", "tok[0", "bad\xffkey"})
+		})
+
+		assertClean(t, `dsn(: s3cret`, `dsn(: "********"`)
+		assertClean(t, `tok[0: s3cret`, `tok[0: "********"`)
+
+		scrubbed, err := ScrubJSONString(`{"dsn(": "s3cret", "tok[0": "s3cret"}`)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"dsn(": "********", "tok[0": "********"}`, scrubbed)
+	})
+
+	t.Run("metacharacters and case", func(t *testing.T) {
+		AddStrippedKeys([]string{"conn.str", "user+id", "Mixed_Case_Dsn", "İdent"})
+
+		assertClean(t, `conn.str: s3cret`, `conn.str: "********"`)
+		assertClean(t, `user+id: s3cret`, `user+id: "********"`)
+
+		// Metacharacters are not interpreted as regexp syntax.
+		assertClean(t, `connXstr: visible`, `connXstr: visible`)
+		assertClean(t, `userrid: visible`, `userrid: visible`)
+
+		scrubbed, err := ScrubJSONString(`{"conn.str": "s3cret", "user+id": "s3cret", "Mixed_Case_Dsn": "s3cret", "İdent": "s3cret", "connXstr": "visible", "userrid": "visible"}`)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"conn.str": "********", "user+id": "********", "Mixed_Case_Dsn": "********", "İdent": "********", "connXstr": "visible", "userrid": "visible"}`, scrubbed)
+	})
+}
+
 func TestCertConfig(t *testing.T) {
 	assertClean(t,
 		`cert_key: >
@@ -620,6 +652,52 @@ network_devices:
   snmp_traps:
     community_strings: "********"
 log_level: info`)
+}
+
+func TestDataSecurityScanningRulePatterns(t *testing.T) {
+	t.Run("YAML object: only id and license under scanning_rules are kept", func(t *testing.T) {
+		input := `scanning_rules:
+  - id: rule-1
+    license: proprietary
+    pattern: '(\d+)'
+    pattern_capture_groups: ['1']
+    proximity_keywords:
+      look_ahead_character_count: 30
+      included_keywords: ['card']
+    validator:
+      type: LuhnChecksum
+log_processing_rules:
+  - pattern: 'keep\s+me'
+    validator: keep-me
+task_id: task-1
+`
+		expected := `scanning_rules:
+  - id: rule-1
+    license: proprietary
+    pattern: "********"
+    pattern_capture_groups: "********"
+    proximity_keywords: "********"
+    validator: "********"
+log_processing_rules:
+  - pattern: 'keep\s+me'
+    validator: keep-me
+task_id: task-1
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		require.YAMLEq(t, expected, scrubbed)
+	})
+
+	t.Run("single-line YAML text: pattern is scrubbed to end of line", func(t *testing.T) {
+		input := `Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("scan_data:\n    - connection:\n        host: h\nscanning_rules:\n    - id: rule-1\n      pattern: '\\d{6}'\ntask_id: task-1\n"), } }`
+		expected := `Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("scan_data:\n    - connection:\n        host: h\nscanning_rules:\n    - id: rule-1\n      pattern: "********"`
+		assertClean(t, input, expected)
+	})
+
+	t.Run("YAML text: pattern outside of scanning_rules is preserved", func(t *testing.T) {
+		input := "log_processing_rules:\n  - pattern: 'keep\\s+me'"
+		assertClean(t, input, input)
+	})
 }
 
 func TestBearerToken(t *testing.T) {

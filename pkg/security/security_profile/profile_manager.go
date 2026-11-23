@@ -64,5 +64,8 @@ type ProfileManager interface {
 
 	// HandleSampleRefresh updates the LastSeen timestamp for the activity tree node
 	// associated with the given kernel dedup cookie
-	HandleSampleRefresh(cookie uint32)
+	HandleSampleRefresh(cookie uint64)
+
+	// DrainPendingEvents resolves and drains any pending profile events whose workload tags have become available
+	DrainPendingEvents()
 }

@@ -12,6 +12,7 @@ import (
 
 type Params struct {
 	LoadBalancerEnabled bool
+	TaskFamilyName      string
 	ImageURL            string
 	CPU                 int
 	Memory              int
@@ -23,8 +24,11 @@ type Option = func(*Params) error
 
 // NewParams returns a new instance of Fakeintake Params
 func NewParams(options ...Option) (*Params, error) {
+	// The fakeintake runs on Fargate, where the ECS control plane pulls the image as part
+	// of the service definition, so the pull-through cache is unreachable.
 	params := &Params{
 		LoadBalancerEnabled: false,
+		TaskFamilyName:      "fakeintake-ecs",
 		ImageURL:            fakeintake.ImageURL("public.ecr.aws/datadog/fakeintake"),
 		CPU:                 512,
 		Memory:              1024,
@@ -39,6 +43,15 @@ func NewParams(options ...Option) (*Params, error) {
 func WithLoadBalancer() Option {
 	return func(p *Params) error {
 		p.LoadBalancerEnabled = true
+		return nil
+	}
+}
+
+// WithTaskFamilyName sets the ECS task definition family name, which is prefixed by the stack name.
+// Default is fakeintake-ecs. Use distinct names when provisioning multiple fakeintakes in the same stack.
+func WithTaskFamilyName(name string) Option {
+	return func(p *Params) error {
+		p.TaskFamilyName = name
 		return nil
 	}
 }

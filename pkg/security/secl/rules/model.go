@@ -166,6 +166,11 @@ func (a *ActionDefinition) getCandidateActions() map[string]ActionDefinitionInte
 
 // PreCheck returns an error if the action is invalid
 func (a *ActionDefinition) PreCheck(opts PolicyLoaderOpts) error {
+	// a `null` entry in the YAML actions list yields a nil definition
+	if a == nil {
+		return errors.New("action definition can't be null")
+	}
+
 	candidateActions := a.getCandidateActions()
 	actions := 0
 
@@ -191,6 +196,10 @@ func (a *ActionDefinition) PreCheck(opts PolicyLoaderOpts) error {
 
 // IsActionSupported returns true if the action is supported given a list of enabled event type
 func (a *ActionDefinition) IsActionSupported(eventTypeEnabled map[eval.EventType]bool) error {
+	if a == nil {
+		return nil
+	}
+
 	candidateActions := a.getCandidateActions()
 
 	for _, action := range candidateActions {
@@ -235,6 +244,15 @@ type SetDefinition struct {
 	TTL                     *HumanReadableDuration `yaml:"ttl,omitempty" json:"ttl,omitempty"`
 	Private                 bool                   `yaml:"private,omitempty" json:"private,omitempty"`
 	Inherited               bool                   `yaml:"inherited,omitempty" json:"inherited,omitempty"`
+}
+
+// source returns the field or the expression the value of the variable is read
+// from, empty for a constant value.
+func (s *SetDefinition) source() string {
+	if s.Field != "" {
+		return s.Field
+	}
+	return s.Expression
 }
 
 // PreCheck returns an error if the set action is invalid

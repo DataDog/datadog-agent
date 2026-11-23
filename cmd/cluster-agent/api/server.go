@@ -88,7 +88,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	if err != nil {
 		// we use the listener to handle commands for the agent, there's
 		// no way we can recover from this error
-		return fmt.Errorf("unable to create the api server: %v", err)
+		return fmt.Errorf("unable to create the api server: %w", err)
 	}
 
 	// DCA client token
@@ -195,6 +195,20 @@ func validateToken(ipc ipc.Component) func(http.Handler) http.Handler {
 	}
 }
 
+// isNodeStatusPath returns whether path is exactly /api/v1/info/node/<node>/status, without a query string.
+func isNodeStatusPath(path string) bool {
+	segments := strings.Split(path, "/")
+	return strings.HasPrefix(path, "/api/v1/info/node/") && !strings.Contains(path, "?") &&
+		len(segments) == 7 && segments[5] != "" && segments[6] == "status"
+}
+
+// isNodeInfoPath returns whether path is /api/v1/info/node/<node>, with an optional query string.
+func isNodeInfoPath(path string) bool {
+	path, _, _ = strings.Cut(path, "?")
+	segments := strings.Split(path, "/")
+	return strings.HasPrefix(path, "/api/v1/info/node/") && len(segments) == 6 && segments[5] != ""
+}
+
 // isExternal returns whether the path is an endpoint used by Node Agents.
 func isExternalPath(path string) bool {
 	return strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || // support for agents < 6.5.0
@@ -209,6 +223,8 @@ func isExternalPath(path string) bool {
 		strings.HasPrefix(path, "/api/v1/cluster/id") && len(strings.Split(path, "/")) == 5 ||
 		strings.HasPrefix(path, "/api/v1/clusterchecks/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/endpointschecks/") && len(strings.Split(path, "/")) == 6 ||
+		isNodeStatusPath(path) ||
+		isNodeInfoPath(path) ||
 		strings.HasPrefix(path, "/api/v1/instrumentation/") && len(strings.Split(path, "/")) == 5 ||
 		strings.HasPrefix(path, "/api/v1/metadata/namespace/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/tags/cf/apps/") && len(strings.Split(path, "/")) == 7 ||

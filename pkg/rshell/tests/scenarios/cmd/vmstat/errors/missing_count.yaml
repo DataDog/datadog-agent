@@ -1,0 +1,12 @@
+description: vmstat requires a positive count whenever sampling delay is specified, preventing unbounded monitoring.
+# skip: procps permits unbounded sampling, while rshell intentionally requires
+# bounded agent-friendly sampling.
+skip_assert_against_bash: true
+input:
+  script: |+
+    vmstat 1
+expect:
+  stdout: |+
+  stderr: |+
+    vmstat: count is required when delay is specified
+  exit_code: 1

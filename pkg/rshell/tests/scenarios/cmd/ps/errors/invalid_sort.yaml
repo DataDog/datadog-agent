@@ -1,0 +1,9 @@
+description: ps rejects malformed sort specifications.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps --sort=pid,,rss
+expect:
+  stderr: |+
+    ps: invalid sort specification "pid,,rss"
+  exit_code: 1

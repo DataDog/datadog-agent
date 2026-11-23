@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    The ``oom_kill`` check now submits ``oom_kill.oom_process.count``
+    metrics and events with high-cardinality container tags (for example
+    ``container_name``) instead of checks-config-cardinality tags. This makes
+    the tag set consistent with other eBPF core checks such as
+    ``tcp_queue_length`` and ``noisyneighbor``.

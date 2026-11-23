@@ -9,6 +9,6 @@ package run
 
 import "github.com/DataDog/datadog-agent/pkg/config/model"
 
-func startDependentServices(_ model.Reader, _ model.Reader) {}
+func startDependentServicesAsync(_ model.Reader, _ model.Reader) {}
 
 func stopDependentServices(_ model.Reader, _ model.Reader) {}

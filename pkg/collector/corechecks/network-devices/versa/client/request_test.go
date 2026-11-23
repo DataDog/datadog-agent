@@ -88,7 +88,7 @@ func TestGetPaginatedAnalytics(t *testing.T) {
 				return httptest.NewServer(mux)
 			},
 			setupClient: func(client *Client) {
-				client.maxCount = "2"
+				client.maxCount = 2
 				client.maxPages = 5
 			},
 			expectedResult: func(t *testing.T, result []TestMetric, err error) {
@@ -115,7 +115,7 @@ func TestGetPaginatedAnalytics(t *testing.T) {
 				return httptest.NewServer(mux)
 			},
 			setupClient: func(client *Client) {
-				client.maxCount = "2"
+				client.maxCount = 2
 				client.maxPages = 5
 			},
 			expectedResult: func(t *testing.T, result []TestMetric, err error) {
@@ -137,7 +137,7 @@ func TestGetPaginatedAnalytics(t *testing.T) {
 				return httptest.NewServer(mux)
 			},
 			setupClient: func(client *Client) {
-				client.maxCount = "10" // Large page size
+				client.maxCount = 10 // Large page size
 				client.maxPages = 5
 			},
 			expectedResult: func(t *testing.T, result []TestMetric, err error) {
@@ -179,7 +179,7 @@ func TestGetPaginatedAnalytics(t *testing.T) {
 				return httptest.NewServer(mux)
 			},
 			setupClient: func(client *Client) {
-				client.maxCount = "2"
+				client.maxCount = 2
 				client.maxPages = 2 // Limit to 2 pages
 			},
 			expectedResult: func(t *testing.T, result []TestMetric, err error) {
@@ -203,7 +203,7 @@ func TestGetPaginatedAnalytics(t *testing.T) {
 				return httptest.NewServer(mux)
 			},
 			setupClient: func(client *Client) {
-				client.maxCount = "2"
+				client.maxCount = 2
 				client.maxPages = 5
 			},
 			expectedResult: func(t *testing.T, result []TestMetric, err error) {
@@ -226,7 +226,7 @@ func TestGetPaginatedAnalytics(t *testing.T) {
 				return httptest.NewServer(mux)
 			},
 			setupClient: func(client *Client) {
-				client.maxCount = "2"
+				client.maxCount = 2
 				client.maxPages = 5
 			},
 			expectedResult: func(t *testing.T, result []TestMetric, err error) {
@@ -251,6 +251,7 @@ func TestGetPaginatedAnalytics(t *testing.T) {
 
 			result, err := getPaginatedAnalytics(
 				client,
+				client.endpointConfig(EndpointSLAMetrics),
 				"test",
 				"TEST",
 				"30minutesAgo",

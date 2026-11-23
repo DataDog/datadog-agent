@@ -13,13 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func absDiff(a uint64, b uint64) uint64 {
-	if a < b {
-		return b - a
-	}
-	return a - b
-}
-
 // nanosToMicros converts nanoseconds to microseconds, rounding and converting to
 // the uint32 type that ConnectionStats uses
 func nanosToMicros(nanos uint64) uint32 {
@@ -96,7 +89,7 @@ func (rt *rttTracker) processIncoming(timestampNs uint64, ack uint32) bool {
 
 	// RTTVAR <- (1 - beta) * RTTVAR + beta * |SRTT - R'|
 	oneMinusBeta := fixedBasis - fixedBasis/4
-	rt.rttVarNs = (oneMinusBeta*rt.rttVarNs)/fixedBasis + absDiff(rt.rttSmoothNs, elapsedNs)/4
+	rt.rttVarNs = (oneMinusBeta*rt.rttVarNs)/fixedBasis + (max(rt.rttSmoothNs, elapsedNs)-min(rt.rttSmoothNs, elapsedNs))/4
 
 	return true
 }

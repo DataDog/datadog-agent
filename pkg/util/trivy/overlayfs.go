@@ -13,23 +13,37 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
+	"os"
 	"slices"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ddtrivy"
 
+	trivycache "github.com/aquasecurity/trivy/pkg/cache"
+	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	"github.com/aquasecurity/trivy/pkg/types"
 )
 
 // errLayerCountMismatch means the overlayfs mount (or the docker / crio
 // equivalent) exposed a different number of layer paths than the image
-// config has diff_ids. They are 1:1 by the OCI spec, so a divergence
-// means an upstream invariant broke and we refuse to scan rather than
-// guess a pairing.
-var errLayerCountMismatch = errors.New("overlayfs mount layer count does not match image config")
+// config has diff_ids, as the view of a nydus image does with the layers
+// nydusd merges into one directory. We refuse to scan rather than guess a
+// pairing. A retry finds the same layout, so the error wraps
+// sbom.ErrScanNotSupported and the scanner drops the request.
+var errLayerCountMismatch = fmt.Errorf("%w: overlayfs mount layer count does not match image config", sbom.ErrScanNotSupported)
+
+// ErrLayerUnreadable reports that the Agent cannot list the directory of an
+// image layer, as when the container runtime's storage is missing from the
+// Agent container or closed to the Agent's user. The walk of a layer skips
+// what it cannot read, so the layer would scan as an empty one. A retry finds
+// the same mounts, so the error wraps sbom.ErrScanNotSupported. Test for it
+// with errors.Is.
+var ErrLayerUnreadable = fmt.Errorf("%w: cannot read image layer", sbom.ErrScanNotSupported)
 
 // fakeContainer adapts a pre-paired set of LayerPaths into the
 // ftypes.Container surface Trivy expects. It carries imgMeta separately
@@ -77,29 +91,40 @@ func (c *fakeContainer) Layers() []ftypes.LayerPath {
 	return slices.Clone(c.layers)
 }
 
-func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftypes.Container, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (*Report, error) {
-	var cache CacheWithCleaner
-	if pkgconfigsetup.Datadog().GetBool("sbom.container_image.overlayfs_disable_cache") {
-		cache = newMemoryCache()
-	} else {
-		globalCache, err := c.GetCache()
-		if err != nil {
-			return nil, err
+// checkLayers returns an error for the first of layers whose directory cannot
+// be opened and listed. The error wraps ErrLayerUnreadable when the directory
+// is missing or closed to the Agent.
+func checkLayers(layers []string) error {
+	for _, layer := range layers {
+		f, err := os.Open(layer)
+		if err == nil {
+			_, err = f.ReadDir(1)
+			f.Close()
 		}
-		cache = globalCache
+		if err == nil || err == io.EOF {
+			continue
+		}
+		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrPermission) {
+			return fmt.Errorf("%w: %w", ErrLayerUnreadable, err)
+		}
+		return fmt.Errorf("unable to read image layer: %w", err)
 	}
+	return nil
+}
 
-	if cache == nil {
-		return nil, errors.New("failed to get cache for scan")
-	}
-
+func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftypes.Container, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (*Report, error) {
 	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
 
-	artifactOptions := getDefaultArtifactOption(scanOptions)
-	trivyReport, err := ddtrivy.ScanOverlays(ctx, artifactOptions, cache, ctr)
+	if err := checkLayers(layers); err != nil {
+		return nil, err
+	}
+
+	trivyReport, osFallback, err := scanWithOSFallback(ctx, imgMeta.ID, scanOptions, func(ctx context.Context, artifactOption artifact.Option) (*types.Report, error) {
+		return ddtrivy.ScanOverlays(ctx, artifactOption, trivycache.NewMemoryCache(), ctr)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to scan overlayfs image, err: %w", err)
 	}
 
-	return c.buildReport(trivyReport, imgMeta.ID)
+	return c.buildReport(trivyReport, imgMeta.ID, osFallback)
 }

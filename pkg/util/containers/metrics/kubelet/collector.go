@@ -105,7 +105,11 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 
 // ContainerIDForPodUIDAndContName returns a container ID for the given pod uid
 // and container name. Returns ("", nil) if the containerd ID was not found.
-func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, _ time.Duration) (string, error) {
+// All of the pod's containers are searched: container names are unique within
+// a pod, so the init container flag isn't needed and is ignored. This resolves
+// native sidecars (init containers with restartPolicy Always) when the caller
+// doesn't know the container is an init container.
+func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName string, _ bool, _ time.Duration) (string, error) {
 	pod, err := kc.metadataStore.GetKubernetesPod(podUID)
 	if err != nil {
 		if pkgerrors.IsNotFound(err) {
@@ -114,16 +118,11 @@ func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName str
 		return "", err
 	}
 
-	var containers []workloadmeta.OrchestratorContainer
-	if initCont {
-		containers = pod.InitContainers
-	} else {
-		containers = append(pod.Containers, pod.EphemeralContainers...)
-	}
-
-	for _, container := range containers {
-		if container.Name == contName {
-			return container.ID, nil
+	for _, containers := range [][]workloadmeta.OrchestratorContainer{pod.Containers, pod.EphemeralContainers, pod.InitContainers} {
+		for _, container := range containers {
+			if container.Name == contName {
+				return container.ID, nil
+			}
 		}
 	}
 

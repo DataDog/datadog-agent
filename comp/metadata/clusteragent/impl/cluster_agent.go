@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -48,6 +48,11 @@ type Payload struct {
 	Timestamp   int64                  `json:"timestamp"`
 	Metadata    map[string]interface{} `json:"datadog_cluster_agent_metadata"`
 	UUID        string                 `json:"uuid"`
+}
+
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeClusterAgent
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -111,7 +116,7 @@ func NewComponent(deps Requires) Provides {
 	}
 }
 
-func (dca *datadogclusteragent) getPayload() marshaler.JSONMarshaler {
+func (dca *datadogclusteragent) getPayload() marshaler.TypedJSONMarshaler {
 
 	return &Payload{
 		Clustername: dca.clustername,

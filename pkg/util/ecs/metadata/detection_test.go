@@ -9,6 +9,9 @@ package metadata
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"testing"
 	"time"
@@ -72,6 +75,50 @@ func TestLocateECSHTTPFail(t *testing.T) {
 		assert.Equal("/", r.URL.Path)
 	case <-time.After(2 * time.Second):
 		require.FailNow(t, "Timeout on receive channel")
+	}
+}
+
+func TestTestURLs(t *testing.T) {
+	newServer := func(status int, body string) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(status)
+			_, _ = io.WriteString(w, body)
+		}))
+	}
+
+	valid := newServer(http.StatusOK, `{"AvailableCommands": ["/v1/metadata", "/v1/tasks"]}`)
+	defer valid.Close()
+	valid2 := newServer(http.StatusOK, `{"AvailableCommands": ["/license"]}`)
+	defer valid2.Close()
+	emptyCmds := newServer(http.StatusOK, `{"AvailableCommands": []}`)
+	defer emptyCmds.Close()
+	malformed := newServer(http.StatusOK, "not json")
+	defer malformed.Close()
+	serverErr := newServer(http.StatusInternalServerError, "")
+	defer serverErr.Close()
+
+	// A started-then-closed server yields a deterministic transport (connection refused) error.
+	closed := newServer(http.StatusOK, "")
+	transportErr := closed.URL
+	closed.Close()
+
+	tests := []struct {
+		name string
+		urls []string
+		want string
+	}{
+		{"empty list", nil, ""},
+		{"transport error skipped", []string{transportErr, valid.URL}, valid.URL},
+		{"non-200 skipped", []string{serverErr.URL, valid.URL}, valid.URL},
+		{"malformed JSON skipped", []string{malformed.URL, valid.URL}, valid.URL},
+		{"empty AvailableCommands skipped", []string{emptyCmds.URL, valid.URL}, valid.URL},
+		{"all skip conditions yield empty", []string{transportErr, serverErr.URL, malformed.URL, emptyCmds.URL}, ""},
+		{"first valid URL wins", []string{valid.URL, valid2.URL}, valid.URL},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, testURLs(tt.urls, 1*time.Second))
+		})
 	}
 }
 

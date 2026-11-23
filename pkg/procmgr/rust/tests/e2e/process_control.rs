@@ -10,20 +10,21 @@ use dd_procmgrd::test_helpers;
 use std::time::Duration;
 
 #[test]
-fn start_process_transitions_created_to_running() {
+fn start_process_transitions_skipped_to_running() {
     let env = TestEnv::new().with_process("sleeper_idle");
     let procmgr = env.start();
     let status = procmgr.require_status();
     status.assert_ready();
     status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
-        created: Some(1),
+        created: Some(0),
+        skipped: Some(1),
         running: Some(0),
         ..Default::default()
     });
     let list = procmgr.require_list();
     list.assert_len(1);
-    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Skipped);
 
     procmgr.assert_start_process("sleeper_idle");
 

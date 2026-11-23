@@ -37,10 +37,18 @@ Every metric carries the following base tags.
 
 #### `datadog.cluster_agent.autoscaling.workload.local.fallback_enabled`
 - **Type:** Gauge
-- **Tags:** base tags
+- **Tags:** base tags + `fallback_trigger`
 - **Description:** Indicates whether the local (in-cluster) fallback recommender is currently
   active for horizontal scaling. Value is `1` when the active horizontal source is `Local`,
   `0` otherwise. Always emitted.
+  The `fallback_trigger` tag says *why* the fallback would be used: `stale` for the default
+  behaviour, where the fallback engages once recommendations from the remote recommender go
+  stale, and `forced` when an operator set the
+  `autoscaling.datadoghq.com/force-fallback` annotation on the DPA, which is handled like
+  recommendations going stale. The tag reflects the annotation, so it is
+  present whatever the value of the metric — a DPA tagged
+  `fallback_trigger:forced` with value `0` is one where the fallback was forced but no usable
+  local recommendation exists yet.
 
 ---
 
@@ -49,12 +57,52 @@ Every metric carries the following base tags.
 #### `datadog.cluster_agent.autoscaling.workload.apply_mode`
 - **Type:** Gauge
 - **Tags:** base tags + `dpa_mode` + `dpa_dimension`
-- **Description:** Info-style metric that exposes the DPA apply mode for each enabled
-  autoscaling dimension. Value is always `1`. The `dpa_mode` tag is `apply` when
+- **Description:** Info-style metric that exposes the DPA apply mode and the enabled autoscaling
+  dimensions. Value is always `1`. The `dpa_mode` tag is `apply` when
   `spec.applyPolicy.mode` is unset, empty, or `Apply`; it is `preview` when the mode is
-  `Preview`. The `dpa_dimension` tag is emitted for each enabled dimension (`horizontal`,
-  `vertical`, or both); disabled dimensions are not emitted. Use this metric when you need to count
-  or filter DPAs by preview/apply mode.
+  `Preview`. A single point (one timeseries) is emitted per DPA, carrying one `dpa_dimension`
+  tag value per enabled dimension: a multi-dimensional DPA is tagged with both
+  `dpa_dimension:horizontal` and `dpa_dimension:vertical`, while disabled dimensions are not
+  tagged. Nothing is emitted when both dimensions are disabled. Because each DPA maps to exactly
+  one timeseries, a `count` over this metric yields the number of DPAs, and filtering on
+  `dpa_dimension:horizontal` still matches multi-dimensional DPAs. Use this metric when you need
+  to count or filter DPAs by preview/apply mode.
+
+#### `datadog.cluster_agent.autoscaling.workload.paused`
+- **Type:** Gauge
+- **Tags:** base tags
+- **Description:** Indicates whether the DPA is paused by the
+  `autoscaling.datadoghq.com/pause` annotation. Value is `1` when paused, `0` otherwise.
+  Always emitted, so that "not paused" is an alertable `0` rather than an absent series.
+  While paused the autoscaler keeps computing and reporting recommendations but applies
+  nothing: no horizontal scaling, no vertical rollout or in-place resize, and no POD patching
+  by the admission controller. Nothing expires a pause on its own, so
+  alerting on this metric staying `1` for an extended period is the intended way to catch a
+  pause that was set during an incident and never reverted.
+
+#### `datadog.cluster_agent.autoscaling.workload.force_replicas`
+- **Type:** Gauge
+- **Tags:** base tags
+- **Description:** The replica count pinned by the
+  `autoscaling.datadoghq.com/force-replicas` annotation. Only emitted while a valid count is
+  pinned: autoscalers without the annotation, or with an invalid value, send no series. A
+  pinned count overrides recommendations from every source and is deliberately **not**
+  clamped by `spec.constraints`, nor subject to the scale-up/scale-down rate rules or
+  stabilization, so this gauge can legitimately report a value outside the configured min/max.
+  While it is applied, the `HorizontalScalingLimited` status condition reports it. Nothing expires
+  it, so alerting on this series persisting is the intended way to catch an override that was
+  set during an incident and never reverted.
+
+#### `datadog.cluster_agent.autoscaling.workload.force_resources`
+- **Type:** Gauge
+- **Tags:** base tags
+- **Description:** Indicates whether container resources are overridden by the
+  `autoscaling.datadoghq.com/force-resources` annotation and the override is applied. Value is `1`
+  when the autoscaler is allowed to apply it, `0` when it is paused or its apply mode is not `Apply`.
+  Only emitted while a valid override is set: autoscalers without it, or with an invalid value, send
+  no series. Forced values are bounded by `spec.constraints` like any recommendation.
+  Nothing expires the override, so alerting on this metric staying `1` is the intended way to
+  catch an override that was set during an incident and never reverted.
 
 ---
 
@@ -196,8 +244,10 @@ memory values are in **bytes**.
 - **Type:** Gauge
 - **Tags:** base tags + `kube_container_name` + `resource_name`
 - **Description:** Info-style metric that exposes which container resources are controlled by
-  vertical autoscaling. Value is always `1`. One point is emitted per controlled resource, so the
-  same DPA/container can emit multiple `resource_name` tag values, such as `cpu` and `memory`.
+  vertical autoscaling. Value is always `1`. A single point (one timeseries) is emitted per
+  container constraint, carrying one `resource_name` tag value per controlled resource, such as
+  both `resource_name:cpu` and `resource_name:memory`. Because each container maps to exactly one
+  timeseries, filtering on `resource_name:cpu` still matches containers that also control memory.
   Emitted only when vertical autoscaling is enabled for the DPA.
   If `spec.constraints` is omitted, or `spec.constraints.containers` is empty, the metric emits
   `kube_container_name:all` with both `resource_name:cpu` and `resource_name:memory`, matching the

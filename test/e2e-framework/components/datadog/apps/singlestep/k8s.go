@@ -134,7 +134,7 @@ func Scenario(e config.Env, kubeProvider *kubernetes.Provider, scenarioName stri
 						},
 						Spec: &corev1.PodSpecArgs{
 							ImagePullSecrets: imagePullSecrets,
-							SecurityContext: app.PodSecurityContext,
+							SecurityContext:  app.PodSecurityContext,
 							Containers: corev1.ContainerArray{
 								corev1.ContainerArgs{
 									Name:            pulumi.String(app.Name),

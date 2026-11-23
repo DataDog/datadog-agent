@@ -12,11 +12,13 @@ run_codeql_scan:
   stage: source_test
   rules:
   - !reference [.on_scheduled_main]
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["setup_agent_version", "go_deps", "go_tools_deps"]
   allow_failure: true # This job should not impact the overall status of the pipeline
   variables:
     ARCH: arm64
     BASE_REF: main
+    # Fixed resources: GOMAXPROCS is tied to the CPU settings below
+    DD_DISABLE_VPA: true
     GOMAXPROCS: 10
     KUBERNETES_CPU_REQUEST: 10
     KUBERNETES_CPU_LIMIT: 10
@@ -30,7 +32,7 @@ run_codeql_scan:
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - token="$(dda inv -- auth.gitlab --repo codescanning)"
+    - token="$(dda inv -- auth.gitlab --repo DataDog/codescanning)"
     - git config --global url."https://gitlab-ci-token:${token}@gitlab.ddbuild.io/DataDog/codescanning".insteadOf "https://github.com/DataDog/codescanning"
     - git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
     - $CODEQL database create datadog-agent.codeql $DB_CONFIGS --command="inv -e agent.build --build-exclude=systemd"
@@ -38,7 +40,7 @@ run_codeql_scan:
     - $CODEQL database analyze datadog-agent.codeql/go codeql/go-queries $SCAN_CONFIGS --sarif-category="go" --output="/tmp/go.sarif" --verbosity=progress+++
     - $CODEQL database analyze datadog-agent.codeql/python codeql/python-queries $SCAN_CONFIGS --sarif-category="python" --output="/tmp/python.sarif" --verbosity=progress+++
     - $CODEQL database analyze datadog-agent.codeql/cpp codeql/cpp-queries $SCAN_CONFIGS --sarif-category="cpp" --output="/tmp/cpp.sarif" --verbosity=progress+++
-    - export GITHUB_TOKEN="$(DD_TRACE_ENABLED=false dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.security-events-write)"
+    - export GITHUB_TOKEN="$(DD_TRACE_ENABLED=false dd-octo-sts token --scope "${CI_PROJECT_PATH}" --policy self.gitlab.security-events-write)"
     - GOPRIVATE=github.com/DataDog GOBIN=/usr/local/go/bin go install github.com/DataDog/codescanning@cd95491d100cc08a1baa4bbc35172df444ef12da
     - CODEQL_SARIF="/tmp/go.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
     - CODEQL_SARIF="/tmp/javascript.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"

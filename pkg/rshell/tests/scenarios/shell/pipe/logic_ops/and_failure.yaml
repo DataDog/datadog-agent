@@ -1,0 +1,8 @@
+description: Failed pipe followed by && skips the next command.
+input:
+  script: |+
+    echo abc | false && echo done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

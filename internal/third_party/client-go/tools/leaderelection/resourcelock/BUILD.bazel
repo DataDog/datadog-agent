@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+package(default_package_metadata = ["//internal/third_party/client-go:package_metadata"])
+
 go_library(
     name = "resourcelock",
     srcs = ["configmaplock.go"],

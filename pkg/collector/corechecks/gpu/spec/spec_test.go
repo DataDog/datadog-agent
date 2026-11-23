@@ -15,7 +15,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
@@ -37,7 +37,7 @@ func TestLoadSpecNotEmpty(t *testing.T) {
 	}
 	for metricName, metricSpec := range specs.Metrics.Metrics {
 		for deviceMode := range metricSpec.Support.DeviceModes {
-			require.Containsf(t, []string{"physical", "mig", "vgpu"}, string(deviceMode), "metric %s has invalid device mode key %q", metricName, deviceMode)
+			require.Containsf(t, []string{"physical", "mig", "mig_parent", "vgpu"}, string(deviceMode), "metric %s has invalid device mode key %q", metricName, deviceMode)
 		}
 	}
 
@@ -98,10 +98,10 @@ func TestMetricValidatorValidate(t *testing.T) {
 		}
 
 		require.NoError(t, validator.validateDefinition())
-		require.NoError(t, validator.Validate(0))
-		require.NoError(t, validator.Validate(100))
-		require.Error(t, validator.Validate(-1))
-		require.Error(t, validator.Validate(101))
+		require.NoError(t, validator.Validate(0, nil))
+		require.NoError(t, validator.Validate(100, nil))
+		require.Error(t, validator.Validate(-1, nil))
+		require.Error(t, validator.Validate(101, nil))
 	})
 
 	t.Run("values", func(t *testing.T) {
@@ -110,10 +110,18 @@ func TestMetricValidatorValidate(t *testing.T) {
 		}
 
 		require.NoError(t, validator.validateDefinition())
-		require.NoError(t, validator.Validate(0))
-		require.NoError(t, validator.Validate(1))
-		require.Error(t, validator.Validate(2))
+		require.NoError(t, validator.Validate(0, nil))
+		require.NoError(t, validator.Validate(1, nil))
+		require.Error(t, validator.Validate(2, nil))
 	})
+}
+
+func TestValidateConfigRequirements(t *testing.T) {
+	require.NoError(t, validateConfigRequirements("metric", []ConfigFeature{
+		ConfigFeatureSystemProbeEBPF,
+		ConfigFeatureSystemProbePRM,
+	}))
+	require.ErrorContains(t, validateConfigRequirements("metric", []ConfigFeature{"unknown"}), `metric "metric" references unknown config feature "unknown"`)
 }
 
 func TestMetricValidatorValidateDefinition(t *testing.T) {
@@ -150,6 +158,26 @@ func TestMetricValidatorValidateDefinition(t *testing.T) {
 				Values: []float64{nonFinite},
 			},
 		},
+		{
+			name:      "external source missing tolerance",
+			validator: &MetricValidator{NvidiaSMI: true},
+		},
+		{
+			name:      "tolerance without external source",
+			validator: &MetricValidator{ValueTolerance: &MetricValueTolerance{Absolute: ptrTo(1.0)}},
+		},
+		{
+			name:      "empty tolerance",
+			validator: &MetricValidator{NvidiaSMI: true, ValueTolerance: &MetricValueTolerance{}},
+		},
+		{
+			name:      "negative absolute tolerance",
+			validator: &MetricValidator{NvidiaSMI: true, ValueTolerance: &MetricValueTolerance{Absolute: ptrTo(-1.0)}},
+		},
+		{
+			name:      "relative tolerance greater than 100",
+			validator: &MetricValidator{NvidiaSMI: true, ValueTolerance: &MetricValueTolerance{Relative: ptrTo(101.0)}},
+		},
 	}
 
 	for _, tt := range tests {
@@ -157,6 +185,32 @@ func TestMetricValidatorValidateDefinition(t *testing.T) {
 			require.Error(t, tt.validator.validateDefinition())
 		})
 	}
+}
+
+func TestMetricValidatorValidateKnownGood(t *testing.T) {
+	knownGood := 100.0
+	validator := &MetricValidator{
+		NvidiaSMI: true,
+		ValueTolerance: &MetricValueTolerance{
+			Absolute: ptrTo(10.0),
+			Relative: ptrTo(5.0),
+		},
+	}
+	require.NoError(t, validator.validateDefinition())
+	require.NoError(t, validator.Validate(104, &knownGood))
+	require.ErrorContains(t, validator.Validate(106, &knownGood), "relative tolerance")
+	require.ErrorContains(t, validator.Validate(100, nil), "known-good value is required")
+
+	t.Run("zero known-good uses zero relative allowance", func(t *testing.T) {
+		zero := 0.0
+		relativeOnly := &MetricValidator{
+			NvidiaSMI:      true,
+			ValueTolerance: &MetricValueTolerance{Relative: ptrTo(5.0)},
+		}
+		require.NoError(t, relativeOnly.validateDefinition())
+		require.NoError(t, relativeOnly.Validate(0, &zero))
+		require.Error(t, relativeOnly.Validate(0.1, &zero))
+	})
 }
 
 func TestMetricValidatorUnmarshalRejectsInvalidRange(t *testing.T) {
@@ -173,6 +227,89 @@ func TestMetricValidatorUnmarshalRejectsNonFiniteValues(t *testing.T) {
 	err := yaml.Unmarshal([]byte("values: [.nan]\n"), &validator)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "metric validator values must be finite")
+}
+
+func TestGPUConfigCanRunWorkloads(t *testing.T) {
+	for _, mode := range AllDeviceModes {
+		config := GPUConfig{DeviceMode: mode}
+		require.Equalf(t, mode != DeviceModeMIGParent, config.CanRunWorkloads(), "mode %s", mode)
+	}
+}
+
+// TestLoadedArchitecturesDoNotConfigureUnsupportedModes checks that the architectures spec has no support entry
+// for a device mode that the architecture does not support, since nothing reads such an entry.
+func TestLoadedArchitecturesDoNotConfigureUnsupportedModes(t *testing.T) {
+	archSpecs, err := LoadArchitecturesSpec()
+	require.NoError(t, err)
+
+	for name, archSpec := range archSpecs.Architectures {
+		for _, support := range archSpec.Support {
+			for _, mode := range support.DeviceModes {
+				require.Truef(t, IsModeSupportedByArchitecture(archSpec, mode), "architecture %s has a support entry for the unsupported device mode %s", name, mode)
+			}
+		}
+	}
+}
+
+func TestArchitecturesSpecValidate(t *testing.T) {
+	supportEntry := func(modes ...DeviceMode) ArchitectureSupportSpec {
+		return ArchitectureSupportSpec{DeviceModes: modes}
+	}
+
+	tests := []struct {
+		name          string
+		archs         map[string]ArchitectureSpec
+		expectedError []string
+	}{
+		{
+			name: "support entries only for supported modes",
+			archs: map[string]ArchitectureSpec{
+				"pascal": {
+					Support:                []ArchitectureSupportSpec{supportEntry(DeviceModePhysical), supportEntry(DeviceModeVGPU)},
+					UnsupportedDeviceModes: []DeviceMode{DeviceModeMIG, DeviceModeMIGParent},
+				},
+				"ampere": {Support: []ArchitectureSupportSpec{supportEntry(DeviceModeMIG, DeviceModeMIGParent, DeviceModeVGPU)}},
+			},
+		},
+		{
+			name: "support entry for an unsupported mode",
+			archs: map[string]ArchitectureSpec{
+				"pascal": {
+					Support:                []ArchitectureSupportSpec{supportEntry(DeviceModeMIG, DeviceModeVGPU)},
+					UnsupportedDeviceModes: []DeviceMode{DeviceModeMIG},
+				},
+			},
+			expectedError: []string{`architecture pascal: device mode "mig"`},
+		},
+		{
+			name: "every inconsistency is reported",
+			archs: map[string]ArchitectureSpec{
+				"pascal": {
+					Support:                []ArchitectureSupportSpec{supportEntry(DeviceModeMIG, DeviceModeMIGParent)},
+					UnsupportedDeviceModes: []DeviceMode{DeviceModeMIG, DeviceModeMIGParent},
+				},
+				"ada": {
+					Support:                []ArchitectureSupportSpec{supportEntry(DeviceModeMIGParent)},
+					UnsupportedDeviceModes: []DeviceMode{DeviceModeMIGParent},
+				},
+			},
+			expectedError: []string{`architecture ada: device mode "mig_parent"`, `architecture pascal: device mode "mig"`, `architecture pascal: device mode "mig_parent"`},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := (&ArchitecturesSpec{Architectures: tt.archs}).validate()
+			if len(tt.expectedError) == 0 {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			for _, expected := range tt.expectedError {
+				require.ErrorContains(t, err, expected)
+			}
+		})
+	}
 }
 
 func TestMetricMetadataSpecUnmarshalYAML(t *testing.T) {
@@ -242,7 +379,6 @@ func TestUnsupportedFieldsForModeIncludesHigherNVLinkGenerations(t *testing.T) {
 		NVLinkGenerations: map[int]FieldSupportSpec{
 			1: {SupportedFields: []string{"FI_DEV_NVLINK_LINK_COUNT"}},
 			2: {SupportedFields: []string{"FI_DEV_NVLINK_THROUGHPUT_DATA_RX"}},
-			3: {SupportedFields: []string{"FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT"}},
 		},
 		C2C: FieldSupportSpec{SupportedFields: []string{"FI_DEV_C2C_LINK_ERROR_INTR"}},
 	}
@@ -264,8 +400,27 @@ func TestUnsupportedFieldsForModeIncludesHigherNVLinkGenerations(t *testing.T) {
 	assert.Contains(t, unsupported, "FI_DEV_MEMORY_TEMP")
 	assert.NotContains(t, unsupported, "FI_DEV_NVLINK_LINK_COUNT")
 	assert.Contains(t, unsupported, "FI_DEV_NVLINK_THROUGHPUT_DATA_RX")
-	assert.Contains(t, unsupported, "FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT")
+	assert.NotContains(t, unsupported, "FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT")
 	assert.Contains(t, unsupported, "FI_DEV_C2C_LINK_ERROR_INTR")
+}
+
+func TestSupportsCapabilitiesNVLinkRange(t *testing.T) {
+	metricSpec := MetricSpec{Support: MetricSupportSpec{CapabilitiesRequired: MetricCapabilitiesRequired{
+		NVLink:    ptrTo(1),
+		MaxNVLink: ptrTo(6),
+	}}}
+
+	assert.False(t, metricSpec.SupportsCapabilities(ArchitectureCapabilities{NVLink: 0}))
+	assert.True(t, metricSpec.SupportsCapabilities(ArchitectureCapabilities{NVLink: 1}))
+	assert.True(t, metricSpec.SupportsCapabilities(ArchitectureCapabilities{NVLink: 6}))
+	assert.False(t, metricSpec.SupportsCapabilities(ArchitectureCapabilities{NVLink: 7}))
+}
+
+func TestValidateCapabilitiesRequired(t *testing.T) {
+	require.NoError(t, validateCapabilitiesRequired("m", MetricCapabilitiesRequired{}))
+	require.NoError(t, validateCapabilitiesRequired("m", MetricCapabilitiesRequired{NVLink: ptrTo(1), MaxNVLink: ptrTo(1)}))
+	require.ErrorContains(t, validateCapabilitiesRequired("m", MetricCapabilitiesRequired{MaxNVLink: ptrTo(6)}), "without capabilities_required.nvlink")
+	require.ErrorContains(t, validateCapabilitiesRequired("m", MetricCapabilitiesRequired{NVLink: ptrTo(7), MaxNVLink: ptrTo(6)}), "lower than")
 }
 
 // TestMockCapabilitiesMatchArchitectureSpec ensures that for each architecture and supported device mode,
@@ -315,7 +470,7 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 			}
 
 			nvlinkState, err := dev.GetNvLinkState(0)
-			if effectiveCapabilities.NVLink > 0 {
+			if config.Capabilities.NVLink > 0 {
 				require.NoError(t, err, "GetNvLinkState should not return an error")
 				if config.NVLinkLinkCount > 0 {
 					assert.Equal(t, nvml.FEATURE_ENABLED, nvlinkState, "GetNvLinkState should report enabled when NVLink links are active")
@@ -349,7 +504,7 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 }
 
 func TestBuildMockOptionsCreatesCorrectDevices(t *testing.T) {
-	modes := []DeviceMode{DeviceModePhysical, DeviceModeMIG, DeviceModeVGPU}
+	modes := []DeviceMode{DeviceModePhysical, DeviceModeMIG, DeviceModeMIGParent, DeviceModeVGPU}
 	archSpec, err := LoadArchitecturesSpec()
 	require.NoError(t, err)
 	archName := "blackwell"
@@ -386,7 +541,7 @@ func TestBuildMockOptionsCreatesCorrectDevices(t *testing.T) {
 				migEnabled, _, err := dev.GetMigMode()
 				require.NoError(t, err, "should be able to get MIG mode")
 
-				if mode != DeviceModeMIG {
+				if mode != DeviceModeMIG && mode != DeviceModeMIGParent {
 					assert.False(t, isMig, "device %d should not be a MIG device", i)
 					if mode == DeviceModeVGPU {
 						assert.Equal(t, nvml.GPU_VIRTUALIZATION_MODE_VGPU, virtMode, "virtualization mode should be vGPU for vgpu mode")

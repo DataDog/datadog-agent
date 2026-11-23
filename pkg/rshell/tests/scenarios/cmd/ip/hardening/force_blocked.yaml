@@ -1,0 +1,11 @@
+# GTFOBins: ip --force / ip -force is used with -batch for error suppression.
+# Must be rejected as unknown flag.
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip --force is rejected as unknown flag (GTFOBins companion to -batch)"
+input:
+  script: |+
+    ip --force addr show
+expect:
+  stderr: "ip: unrecognized option '--force'\nTry 'ip --help' for more information.\n"
+  exit_code: 1
+skip_assert_against_bash: true

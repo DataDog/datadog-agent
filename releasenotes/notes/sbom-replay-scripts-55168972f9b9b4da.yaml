@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment credits the package of a script that a process
+    runs through an interpreter when the process was running before
+    system-probe started, such as ``firewalld``, ``networkd-dispatcher`` or
+    ``waagent``. The package read unused until its daemon restarted. A script
+    counts when the process runs it by an absolute path, through its shebang
+    or as the first operand of a Python, Perl, Ruby, Node.js or shell
+    interpreter.

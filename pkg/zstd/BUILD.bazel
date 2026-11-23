@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "zstd",
+    srcs = [
+        "zstd.go",
+        "zstd_cgo.go",
+        "zstd_nocgo.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/zstd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_zstd//:zstd",
+        "@com_github_klauspost_compress//zstd",
+    ],
+)
+
+dd_agent_go_test(
+    name = "zstd_test",
+    srcs = [
+        "writer_options_nocgo_test.go",
+        "zstd_compressor_test.go",
+        "zstd_cross_test.go",
+    ],
+    embed = [":zstd"],
+    deps = [
+        "@com_github_klauspost_compress//zstd",
+    ],
+)
+
+# Exercise the public API without CGO even in race-enabled CI jobs.
+dd_agent_go_test(
+    name = "zstd_nocgo_test",
+    srcs = ["writer_options_nocgo_test.go"],
+    embed = [":zstd"],
+    pure = "on",
+    race = "off",
+    deps = ["@com_github_klauspost_compress//zstd"],
+)

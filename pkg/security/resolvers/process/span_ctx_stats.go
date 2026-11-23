@@ -11,12 +11,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"syscall"
+	"time"
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/security/golabels"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
+	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/golabelsctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/otelattrs"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -27,12 +31,12 @@ import (
 var (
 	// errSpanCtxNotApplicable marks a process that is instrumented, but not
 	// through the reader that returned this error.
-	errSpanCtxNotApplicable = errors.New("not applicable")
+	errSpanCtxNotApplicable = otelthreadctx.ErrNotApplicable
 	// errSpanCtxUnsupported marks a shape this code recognizes but cannot handle
-	errSpanCtxUnsupported = errors.New("unsupported")
+	errSpanCtxUnsupported = otelthreadctx.ErrUnsupported
 	// errSpanCtxMalformed marks a process that violated the contract it published
 	// under
-	errSpanCtxMalformed = errors.New("malformed")
+	errSpanCtxMalformed = otelthreadctx.ErrMalformed
 	// errSpanCtxGone marks a target that stopped existing mid-resolution
 	errSpanCtxGone = errors.New("gone")
 	// errSpanCtxMapError marks a failure to push resolved offsets into a BPF map.
@@ -123,19 +127,27 @@ func (s spanCtxStatus) warn() bool {
 	}
 }
 
+// isVanishedTargetError reports whether err is how a target that stopped
+// existing mid-resolution surfaces: a /proc entry or a mapped file that is gone
+// by the time we open it, or a memory read against a dead process.
+func isVanishedTargetError(err error) bool {
+	return errors.Is(err, syscall.ESRCH) || errors.Is(err, syscall.ENOENT) ||
+		errors.Is(err, syscall.EIO) || errors.Is(err, io.EOF)
+}
+
 // classifySpanCtxError maps an error to a status
 func classifySpanCtxError(err error) spanCtxStatus {
 	switch {
 	case err == nil:
 		return spanCtxOK
+	case errors.Is(err, errSpanCtxGone), isVanishedTargetError(err):
+		return spanCtxGone
 	case errors.Is(err, errSpanCtxNotApplicable), errors.Is(err, otelprocessctx.ErrLegacyVersion):
 		return spanCtxNotApplicable
-	case errors.Is(err, errSpanCtxUnsupported):
+	case errors.Is(err, errSpanCtxUnsupported), errors.Is(err, golabels.ErrUnsupported):
 		return spanCtxUnsupported
-	case errors.Is(err, errSpanCtxMalformed):
+	case errors.Is(err, errSpanCtxMalformed), errors.Is(err, golabels.ErrMalformed):
 		return spanCtxMalformed
-	case errors.Is(err, errSpanCtxGone):
-		return spanCtxGone
 	case errors.Is(err, errSpanCtxMapError):
 		return spanCtxMapError
 	case errors.Is(err, otelprocessctx.ErrUnpublished):
@@ -152,8 +164,6 @@ func classifySpanCtxError(err error) spanCtxStatus {
 		return spanCtxStaleID
 	case errors.Is(err, otelattrs.ErrMalformed):
 		return spanCtxMalformed
-	case errors.Is(err, syscall.ESRCH), errors.Is(err, syscall.ENOENT), errors.Is(err, syscall.EIO), errors.Is(err, io.EOF):
-		return spanCtxGone
 	case errors.Is(err, syscall.EACCES), errors.Is(err, syscall.EPERM):
 		return spanCtxUnreadable
 	default:
@@ -274,6 +284,20 @@ func (p *EBPFResolver) sendSpanCtxStats() error {
 		}
 	}
 	return nil
+}
+
+func (p *EBPFResolver) reportOTelProcCtxQueueLatency(queuedAt time.Time) {
+	p.reportLatency(metrics.MetricSpanContextProcessCtxQueueLatency, queuedAt, nil)
+}
+
+func (p *EBPFResolver) reportOTelTLSLatency(start time.Time, readELF bool) {
+	p.reportLatency(metrics.MetricSpanContextResolutionLatency, start, []string{"elf:" + strconv.FormatBool(readELF)})
+}
+
+func (p *EBPFResolver) reportLatency(metric string, since time.Time, tags []string) {
+	if err := p.statsdClient.Distribution(metric, time.Since(since).Seconds(), tags, 1.0); err != nil {
+		seclog.Warnf("couldn't send %s metric: %v", metric, err)
+	}
 }
 
 // reportSpanCtx classifies and counts the outcome of step for pid, logging a

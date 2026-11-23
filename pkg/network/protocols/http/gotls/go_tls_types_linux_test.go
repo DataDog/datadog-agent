@@ -9,37 +9,37 @@ import (
 )
 
 func TestCgoAlignment_Location(t *testing.T) {
-	ebpftest.TestCgoAlignment[Location](t)
+	ebpftest.AssertCgoAlignment[Location](t)
 }
 
 func TestCgoAlignment_SliceLocation(t *testing.T) {
-	ebpftest.TestCgoAlignment[SliceLocation](t)
+	ebpftest.AssertCgoAlignment[SliceLocation](t)
 }
 
 func TestCgoAlignment_GoroutineIDMetadata(t *testing.T) {
-	ebpftest.TestCgoAlignment[GoroutineIDMetadata](t)
+	ebpftest.AssertCgoAlignment[GoroutineIDMetadata](t)
 }
 
 func TestCgoAlignment_TlsBinaryId(t *testing.T) {
-	ebpftest.TestCgoAlignment[TlsBinaryId](t)
+	ebpftest.AssertCgoAlignment[TlsBinaryId](t)
 }
 
 func TestCgoAlignment_TlsConnLayout(t *testing.T) {
-	ebpftest.TestCgoAlignment[TlsConnLayout](t)
+	ebpftest.AssertCgoAlignment[TlsConnLayout](t)
 }
 
 func TestCgoAlignment_TlsOffsetsData(t *testing.T) {
-	ebpftest.TestCgoAlignment[TlsOffsetsData](t)
+	ebpftest.AssertCgoAlignment[TlsOffsetsData](t)
 }
 
 func TestCgoAlignment_TlsFunctionsArgsKey(t *testing.T) {
-	ebpftest.TestCgoAlignment[TlsFunctionsArgsKey](t)
+	ebpftest.AssertCgoAlignment[TlsFunctionsArgsKey](t)
 }
 
 func TestCgoAlignment_TlsReadArgsData(t *testing.T) {
-	ebpftest.TestCgoAlignment[TlsReadArgsData](t)
+	ebpftest.AssertCgoAlignment[TlsReadArgsData](t)
 }
 
 func TestCgoAlignment_TlsWriteArgsData(t *testing.T) {
-	ebpftest.TestCgoAlignment[TlsWriteArgsData](t)
+	ebpftest.AssertCgoAlignment[TlsWriteArgsData](t)
 }

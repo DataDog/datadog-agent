@@ -60,6 +60,8 @@ func TestErrorTrackingClusterAgentSuite(t *testing.T) {
 	e2e.Run(t, &errorTrackingClusterAgentSuite{},
 		e2e.WithProvisioner(provkind.Provisioner(
 			provkind.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenkind.WithInternetAccess(),
 				scenkind.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(clusterAgentErrorTrackingEnabledHelmValues),
 				),
@@ -123,6 +125,8 @@ func (s *errorTrackingClusterAgentSuite) TestPayloadShape() {
 func (s *errorTrackingClusterAgentSuite) TestDisabledByDefault() {
 	s.UpdateEnv(provkind.Provisioner(
 		provkind.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkind.WithInternetAccess(),
 			scenkind.WithAgentOptions(
 				kubernetesagentparams.WithHelmValues(clusterAgentErrorTrackingDisabledHelmValues),
 			),

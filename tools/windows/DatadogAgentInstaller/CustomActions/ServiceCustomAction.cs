@@ -217,54 +217,15 @@ namespace Datadog.CustomActions
             {
                 _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
             }
-            _serviceController.SetCredentials(Constants.ProcmgrServiceName, ddAgentUserName, ddAgentUserPassword);
-            // When procmgr moves back to LocalSystem, replace this with an unconditional enable rather
-            // than deleting it. passwordNotProvided describes the Agent user, and a disabled start type
-            // survives an upgrade, so hosts disabled here would otherwise stay disabled forever.
-            ConfigureProcmgrStartType(passwordNotProvided);
-
             // SYSTEM
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
             _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
+            _serviceController.SetCredentials(Constants.ProcmgrServiceName, "LocalSystem", "");
+            // Start types are restored only after all service and file configuration is complete.
             _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
 
             _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
-        }
-
-        /// <summary>
-        /// dd-procmgr-service runs as ddagentuser and is a new service. If we do not have the password
-        /// and it is not in the LSA store, the service cannot log on, and the SCM retries the failing
-        /// logon until the account is locked out. Disable the service in that case so that it is never
-        /// started, and set it back to demand start once a password is available again.
-        /// </summary>
-        private void ConfigureProcmgrStartType(bool passwordNotProvided)
-        {
-            ServiceStartMode startType;
-            if (passwordNotProvided)
-            {
-                startType = ServiceStartMode.Disabled;
-                _session.Log(
-                    $"The Agent user password is not available, setting {Constants.ProcmgrServiceName} start type to " +
-                    "disabled so that it does not repeatedly fail to log on, which can lock out the account. " +
-                    "Reinstall the Agent with the DDAGENTUSER_NAME and DDAGENTUSER_PASSWORD options provided " +
-                    "to enable the Datadog Process Manager service.");
-            }
-            else
-            {
-                startType = ServiceStartMode.Manual;
-                _session.Log($"Setting {Constants.ProcmgrServiceName} start type to {startType}");
-            }
-
-            try
-            {
-                _serviceController.SetStartType(Constants.ProcmgrServiceName, startType);
-            }
-            catch (Exception e) when (IsServiceDoesNotExistError(e))
-            {
-                // If the service does not exist there is nothing that can fail to log on.
-                _session.Log($"Service {Constants.ProcmgrServiceName} not found, not changing its start type");
-            }
         }
 
         private void UpdateAndLogAccessControl(string serviceName, CommonSecurityDescriptor securityDescriptor)
@@ -410,14 +371,19 @@ namespace Datadog.CustomActions
                 // ** some services are optionally included in the package at build time.  Including
                 // them here will simply cause a spurious "Service X not found" in the log if the
                 // installer is built without that component.
+                // The driver services must come after every process that opens their devices,
+                // otherwise the driver cannot unload and its stop waits out the timeout below.
+                // system-probe is one of those processes and dd-procmgr-service may be the one
+                // running it, in which case stopping the Windows service by name is a no-op and
+                // only stopping the supervisor takes the process down.
                 var ddservices = new[]
                 {
+                    Constants.ProcmgrServiceName,
                     Constants.SystemProbeServiceName,
                     Constants.NpmServiceName,
                     Constants.ProcmonServiceName,       // might not exist depending on compile time options**
                     Constants.SecurityAgentServiceName, // might not exist depending on compile time options**
                     Constants.PrivateActionRunnerServiceName,
-                    Constants.ProcmgrServiceName,
                     Constants.ProcessAgentServiceName,
                     Constants.TraceAgentServiceName,
                     Constants.InstallerServiceName,
@@ -479,13 +445,117 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        public static ActionResult StopDDServices(Session session)
+        // Keep retired services here until full uninstall, even after removing them
+        // from ActiveServices. Retain their uninstall ServiceControl entries too, so
+        // full uninstall can delete them after their binaries leave the package.
+        internal static readonly string[] ServicesToDisable =
         {
-            return new ServiceCustomAction(new SessionWrapper(session)).StopDDServices(false);
+            Constants.AgentServiceName,
+            Constants.ProcmgrServiceName,
+            Constants.InstallerServiceName,
+            Constants.TraceAgentServiceName,
+            Constants.ProcessAgentServiceName,
+            Constants.SystemProbeServiceName,
+            Constants.SecurityAgentServiceName,
+            Constants.PrivateActionRunnerServiceName
+        };
+
+        // Package-owned defaults, shared by successful installation and removal
+        // rollback. Remove a service from this list when it is retired by procmgr.
+        // Core Agent last: an SCM start must not race enabling its dependencies.
+        internal static readonly string[] ActiveServices =
+        {
+            Constants.InstallerServiceName,
+            Constants.ProcmgrServiceName,
+            Constants.TraceAgentServiceName,
+            Constants.ProcessAgentServiceName,
+            Constants.SystemProbeServiceName,
+            Constants.SecurityAgentServiceName,
+            Constants.PrivateActionRunnerServiceName,
+            Constants.AgentServiceName
+        };
+
+        internal static ActionResult EnableDDServices(ISession session, IServiceController controller, bool continueOnError = false)
+        {
+            var result = ActionResult.Success;
+            foreach (var name in ActiveServices)
+            {
+                try
+                {
+                    if (!controller.ServiceExists(name))
+                    {
+                        continue;
+                    }
+                    var startType = name == Constants.AgentServiceName ? ServiceStartMode.Automatic : ServiceStartMode.Manual;
+                    // Windows requires automatic startup before enabling delayed start.
+                    controller.SetStartType(name, startType);
+                    controller.SetDelayedAutoStart(name, startType == ServiceStartMode.Automatic);
+                }
+                catch (Exception e)
+                {
+                    session.Log($"Failed to enable service {name}: {e}");
+                    result = ActionResult.Failure;
+                    if (!continueOnError)
+                    {
+                        return result;
+                    }
+                }
+            }
+            return result;
         }
 
-        private ActionResult StartDDServices()
+        internal ActionResult StopDDServicesForInstall()
         {
+            // Only the outgoing MSI disables existing services. The incoming MSI
+            // still stops them, but must not disable services owned by an older MSI
+            // whose rollback has no corresponding enable action.
+            if (string.Equals(_session.Property("REMOVE"), "ALL", StringComparison.OrdinalIgnoreCase))
+            {
+                if (_session.Property("RollbackDisabled") == "1")
+                {
+                    _session.Log("Service protection requires Windows Installer rollback to be enabled");
+                    return ActionResult.Failure;
+                }
+                try
+                {
+                    foreach (var name in ServicesToDisable)
+                    {
+                        if (_serviceController.ServiceExists(name))
+                        {
+                            _serviceController.SetStartType(name, ServiceStartMode.Disabled);
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Failed to disable services: {e}");
+                    return ActionResult.Failure;
+                }
+            }
+            return StopDDServices(false);
+        }
+
+        public static ActionResult StopDDServices(Session session)
+        {
+            return new ServiceCustomAction(new SessionWrapper(session)).StopDDServicesForInstall();
+        }
+
+        public static ActionResult StopDDServicesRollback(Session session)
+        {
+            // Runs only for removal, after service/file/user rollback. Apply this
+            // outgoing package's defaults, without starting any services.
+            return EnableDDServices(new SessionWrapper(session), new ServiceController(), continueOnError: true);
+        }
+
+        internal ActionResult StartDDServices()
+        {
+            // Apply package defaults even when DD_INSTALL_ONLY skips starting services.
+            // Unlike a start failure, an enable failure must fail the install and roll back.
+            if (EnableDDServices(_session, _serviceController) != ActionResult.Success)
+            {
+                return ActionResult.Failure;
+            }
+
             // Check if DD_INSTALL_ONLY flag is set
             var installOnly = _session.Property("DD_INSTALL_ONLY");
             if (!string.IsNullOrEmpty(installOnly) && (installOnly == "1" || installOnly.ToLower() == "true"))
@@ -534,10 +604,11 @@ namespace Datadog.CustomActions
             return new ServiceCustomAction(new SessionWrapper(session)).StartDDServices();
         }
 
-        private ActionResult StartDDServicesRollback()
+        internal ActionResult StartDDServicesRollback()
         {
-            // rollback StartDDServices by stopping all of the services
-            // continue on error so we can send a stop to all services.
+            // Stop before undoing configuration. Do not disable retained services:
+            // a released outgoing MSI cannot re-enable them during its rollback.
+            // Patched outgoing MSIs restore their own defaults in StopDDServicesRollback.
             return StopDDServices(true);
         }
 

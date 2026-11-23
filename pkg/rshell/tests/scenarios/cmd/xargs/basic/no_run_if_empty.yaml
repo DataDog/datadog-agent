@@ -1,0 +1,8 @@
+description: xargs -r skips invocation when input is empty.
+input:
+  script: |+
+    printf '' | xargs -r echo done
+expect:
+  stdout: |+
+  stderr: |+
+  exit_code: 0

@@ -1,9 +1,11 @@
 import unittest
 from collections import OrderedDict
 from unittest.mock import MagicMock, patch
+from urllib.parse import parse_qs, urlparse
 
 import yaml
 from invoke import MockContext, Result
+from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.gitlab_api import (
     GitlabCIDiff,
@@ -13,15 +15,118 @@ from tasks.libs.ciproviders.gitlab_api import (
     expand_matrix_jobs,
     filter_gitlab_ci_configuration,
     find_buildimages,
+    get_all_gitlab_ci_configurations,
+    get_gitlab_token,
     gitlab_configuration_is_modified,
     read_includes,
+    resolve_gitlab_ci_configuration,
     retrieve_all_paths,
+    test_gitlab_configuration,
     update_gitlab_config,
     update_image_tag,
 )
+from tasks.libs.linter.gitlab_exceptions import SingleGitlabLintFailure
+
+
+@patch("tasks.libs.ciproviders.gitlab_api.get_gitlab_repo")
+class TestChildLintContext(unittest.TestCase):
+    child = ".gitlab/childs/post-validation.yml"
+    child_paths = (child, f"./{child}", child.replace("/", "\\"), ".gitlab//childs/./post-validation.yml")
+
+    def configure_lint(self, get_repo):
+        def lint(request):
+            config = yaml.safe_load(request['content'])
+            variables = config.get('variables', {})
+            valid = variables.get('CI_PIPELINE_SOURCE') == 'parent_pipeline'
+            return MagicMock(
+                valid=valid,
+                errors=[] if valid else ['The pipeline did not run'],
+                warnings=[],
+                merged_yaml=yaml.safe_dump(config),
+            )
+
+        create = get_repo.return_value.ci_lint.create
+        create.side_effect = lint
+        return create
+
+    @patch("tasks.libs.ciproviders.gitlab_api.read_includes")
+    def test_generation_simulates_child_without_leaking_identity(self, read, get_repo):
+        config = {'job': {'script': ['exit 0']}}
+        read.return_value = config
+        create = self.configure_lint(get_repo)
+        for child in self.child_paths:
+            with self.subTest(entry_point=child):
+                result = get_all_gitlab_ci_configurations(MockContext(), child, postprocess_options=False)
+                variables = yaml.safe_load(create.call_args.args[0]['content'])['variables']
+                self.assertEqual(variables['CI_PIPELINE_SOURCE'], 'parent_pipeline')
+                self.assertEqual(variables['POST_VALIDATION_PARENT_ID'], '1')
+                self.assertEqual(result[child], config)
+                self.assertNotIn('variables', config)
+
+    @patch("tasks.libs.ciproviders.gitlab_api.read_includes")
+    def test_resolution_restores_runtime_variable_definitions(self, read, get_repo):
+        config = {
+            'job': {'script': ['exit 0']},
+            'variables': {
+                'POST_VALIDATION_PARENT_ID': '$PARENT_ID',
+                'CI_PIPELINE_SOURCE': '$SOURCE',
+                'OTHER': 'value',
+            },
+        }
+        read.return_value = config
+        self.configure_lint(get_repo)
+        self.assertEqual(resolve_gitlab_ci_configuration(MockContext(), self.child), config)
+
+    def test_config_check_applies_context_and_honors_explicit_override(self, get_repo):
+        config = {'job': {'script': ['exit 0']}}
+        create = self.configure_lint(get_repo)
+        for child in self.child_paths:
+            with self.subTest(entry_point=child):
+                test_gitlab_configuration(child, config, context={'POST_VALIDATION_PARENT_ID': '42'})
+                variables = yaml.safe_load(create.call_args.args[0]['content'])['variables']
+                self.assertEqual(variables['CI_PIPELINE_SOURCE'], 'parent_pipeline')
+                self.assertEqual(variables['POST_VALIDATION_PARENT_ID'], '42')
+                self.assertNotIn('variables', config)
+                with self.assertRaises(SingleGitlabLintFailure):
+                    test_gitlab_configuration(child, config, context={'CI_PIPELINE_SOURCE': 'push'})
+
+    @patch("tasks.libs.ciproviders.gitlab_api.read_includes")
+    def test_other_entrypoints_and_invalid_configs_still_fail(self, read, get_repo):
+        read.return_value = {'job': {'script': ['exit 0']}}
+        create = self.configure_lint(get_repo)
+        with self.assertRaisesRegex(RuntimeError, 'pipeline did not run'):
+            resolve_gitlab_ci_configuration(MockContext(), '.gitlab/other.yml')
+        self.assertNotIn('variables', yaml.safe_load(create.call_args.args[0]['content']))
+        create.side_effect = None
+        create.return_value = MagicMock(valid=False, errors=['invalid child'], warnings=[])
+        with self.assertRaisesRegex(RuntimeError, 'invalid child'):
+            resolve_gitlab_ci_configuration(MockContext(), self.child)
+        with self.assertRaises(SingleGitlabLintFailure) as raised:
+            test_gitlab_configuration(self.child, read.return_value)
+        self.assertIn('invalid child', raised.exception.details)
 
 
 class TestReadIncludes(unittest.TestCase):
+    @patch("tasks.libs.ciproviders.gitlab_api.read_content")
+    def test_merged_variables_preserve_defaults_and_later_overrides(self, read):
+        configs = {
+            "defaults.yml": {"variables": {"GIT_DEPTH": 1, "GIT_STRATEGY": "fetch"}},
+            "overrides.yml": {"variables": {"GIT_DEPTH": 2}},
+            "pipeline.yml": {"variables": {"GIT_DEPTH": 3, "OTHER": "value"}},
+        }
+        read.side_effect = lambda _, path, **kwargs: configs[path]
+        includes = []
+        config = read_includes(
+            MockContext(),
+            ["defaults.yml", "overrides.yml", "pipeline.yml"],
+            includes,
+            return_config=True,
+        )
+        self.assertEqual(config["variables"], {"GIT_DEPTH": 3, "GIT_STRATEGY": "fetch", "OTHER": "value"})
+        self.assertEqual(includes, list(configs.values()))
+        self.assertEqual(configs["defaults.yml"]["variables"], {"GIT_DEPTH": 1, "GIT_STRATEGY": "fetch"})
+        self.assertEqual(configs["overrides.yml"]["variables"], {"GIT_DEPTH": 2})
+
     def test_with_includes(self):
         includes = []
         read_includes(MockContext(), "tasks/unit_tests/testdata/in.yml", includes)
@@ -685,3 +790,98 @@ class TestUpdateGitlabConfig(unittest.TestCase):
             ),
             6,
         )
+
+
+class TestGetGitlabToken(unittest.TestCase):
+    def _mock_bti_call(self, mock_session_cls):
+        """Wires a fake `requests.Session` and returns the mock `.get` call for inspection."""
+        mock_response = MagicMock(ok=True)
+        mock_response.json.return_value = {'token': 'fake-token'}
+        mock_session = mock_session_cls.return_value
+        mock_session.get.return_value = mock_response
+        return mock_session.get
+
+    @patch.dict('os.environ', {'GITLAB_TOKEN': 'legacy-token'})
+    @patch('tasks.libs.ciproviders.gitlab_api.running_in_ci', return_value=True)
+    @patch('tasks.libs.ciproviders.gitlab_api.requests.Session')
+    @patch('tasks.libs.ciproviders.gitlab_api.datadog_infra_token', return_value='Bearer faketoken')
+    @patch('tasks.libs.ciproviders.gitlab_api.is_enabled', return_value=False)
+    def test_ci_does_not_depend_on_feature_flag(
+        self, mock_is_enabled, mock_infra_token, mock_session_cls, _mock_running_in_ci
+    ):
+        mock_get = self._mock_bti_call(mock_session_cls)
+        ctx = MagicMock()
+
+        self.assertEqual(get_gitlab_token(ctx), 'fake-token')
+
+        mock_is_enabled.assert_not_called()
+        ctx.run.assert_not_called()
+        mock_infra_token.assert_called_once_with(ctx, audience='sdm')
+        mock_get.assert_called_once()
+
+    @patch('tasks.libs.ciproviders.gitlab_api.running_in_ci', return_value=True)
+    @patch('tasks.libs.ciproviders.gitlab_api.requests.Session')
+    @patch('tasks.libs.ciproviders.gitlab_api.datadog_infra_token', return_value='Bearer faketoken')
+    def test_ci_token_request_failure_does_not_fall_back(
+        self, _mock_infra_token, mock_session_cls, _mock_running_in_ci
+    ):
+        self._mock_bti_call(mock_session_cls)
+        response = mock_session_cls.return_value.get.return_value
+        response.ok = False
+        response.status_code = 403
+        response.text = 'Forbidden'
+        ctx = MagicMock()
+
+        with self.assertRaisesRegex(RuntimeError, 'Failed to retrieve Gitlab token, request failed with code 403'):
+            get_gitlab_token(ctx)
+
+        ctx.run.assert_not_called()
+
+    @patch.dict('os.environ', {'GITLAB_TOKEN': 'local-token'})
+    @patch('tasks.libs.ciproviders.gitlab_api.running_in_ci', return_value=False)
+    @patch('tasks.libs.ciproviders.gitlab_api.is_enabled', return_value=False)
+    @patch('tasks.libs.ciproviders.gitlab_api.requests.Session')
+    def test_local_token_override_is_preserved(self, mock_session_cls, _mock_is_enabled, _mock_running_in_ci):
+        self.assertEqual(get_gitlab_token(MockContext()), 'local-token')
+        mock_session_cls.assert_not_called()
+
+    @patch('tasks.libs.ciproviders.gitlab_api.requests.Session')
+    @patch('tasks.libs.ciproviders.gitlab_api.datadog_infra_token', return_value='Bearer faketoken')
+    @patch('tasks.libs.ciproviders.gitlab_api.is_enabled', return_value=True)
+    def test_default_repo(self, _mock_is_enabled, _mock_infra_token, mock_session_cls):
+        mock_get = self._mock_bti_call(mock_session_cls)
+
+        get_gitlab_token(MockContext())
+
+        query = parse_qs(urlparse(mock_get.call_args.args[0]).query)
+        self.assertEqual(query['owner'], ['DataDog'])
+        self.assertEqual(query['repository'], ['datadog-agent'])
+
+    @patch('tasks.libs.ciproviders.gitlab_api.requests.Session')
+    @patch('tasks.libs.ciproviders.gitlab_api.datadog_infra_token', return_value='Bearer faketoken')
+    @patch('tasks.libs.ciproviders.gitlab_api.is_enabled', return_value=True)
+    def test_cross_org_repo(self, _mock_is_enabled, _mock_infra_token, mock_session_cls):
+        mock_get = self._mock_bti_call(mock_session_cls)
+
+        get_gitlab_token(MockContext(), repo='ddoghq/images')
+
+        query = parse_qs(urlparse(mock_get.call_args.args[0]).query)
+        self.assertEqual(query['owner'], ['ddoghq'])
+        self.assertEqual(query['repository'], ['images'])
+
+    @patch('tasks.libs.ciproviders.gitlab_api.requests.Session')
+    @patch('tasks.libs.ciproviders.gitlab_api.datadog_infra_token', return_value='Bearer faketoken')
+    @patch('tasks.libs.ciproviders.gitlab_api.is_enabled', return_value=True)
+    def test_datadog_org_repo(self, _mock_is_enabled, _mock_infra_token, mock_session_cls):
+        mock_get = self._mock_bti_call(mock_session_cls)
+
+        get_gitlab_token(MockContext(), repo='DataDog/codescanning')
+
+        query = parse_qs(urlparse(mock_get.call_args.args[0]).query)
+        self.assertEqual(query['owner'], ['DataDog'])
+        self.assertEqual(query['repository'], ['codescanning'])
+
+    @patch('tasks.libs.ciproviders.gitlab_api.is_enabled', return_value=True)
+    def test_bare_repo_name_raises(self, _mock_is_enabled):
+        with self.assertRaises(Exit):
+            get_gitlab_token(MockContext(), repo='images')

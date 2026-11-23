@@ -31,19 +31,24 @@ def build(
         # flavor is explicitly not supported. The product builds only builds in base flavor.
         if sys.platform == 'win32':
             raise NotImplementedError("--enable-bazel does not support Windows.")
-        build_binary_with_bazel("//cmd/privateactionrunner:privateactionrunner", bin_path=BIN_PATH)
+        build_binary_with_bazel(
+            "//cmd/privateactionrunner:privateactionrunner",
+            bin_path=BIN_PATH,
+            fips_backend=AgentFlavor[flavor].fips_backend(),
+        )
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path)
 
     if sys.platform == 'win32':
-        build_messagetable(ctx)
+        build_messagetable(ctx, fips_backend=AgentFlavor[flavor].fips_backend())
         vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/privateactionrunner/windows_resources/privateactionrunner.rc",
             vars=vars,
             out="cmd/privateactionrunner/rsrc.syso",
+            fips_backend=AgentFlavor[flavor].fips_backend(),
         )
 
     build_tags = get_default_build_tags(build="privateactionrunner", flavor=AgentFlavor[flavor])
@@ -58,4 +63,5 @@ def build(
         bin_path=BIN_PATH,
         mod=go_mod,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        fips_backend=AgentFlavor[flavor].fips_backend(),
     )

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build orchestrator && test
+//go:build kubeapiserver && test
 
 package k8s
 
@@ -13,6 +13,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -336,6 +337,59 @@ func TestCRProcessor_Process(t *testing.T) {
 	assert.True(t, ok, "metadata should exist")
 	assert.Equal(t, "cr-2", metadata2["name"])
 	assert.Equal(t, "namespace-2", metadata2["namespace"])
+}
+
+func TestCRProcessor_KongPluginCredentials(t *testing.T) {
+	for _, kind := range []string{"KongPlugin", "KongClusterPlugin"} {
+		for _, scrubbingEnabled := range []bool{true, false} {
+			t.Run(kind+"/scrubbing="+map[bool]string{true: "enabled", false: "disabled"}[scrubbingEnabled], func(t *testing.T) {
+				uid := types.UID(t.Name())
+				orchestrator.KubernetesResourceCache.Delete(string(uid))
+				t.Cleanup(func() { orchestrator.KubernetesResourceCache.Delete(string(uid)) })
+				resource := &unstructured.Unstructured{Object: map[string]interface{}{
+					"apiVersion": "configuration.konghq.com/v1",
+					"kind":       kind,
+					"metadata": map[string]interface{}{
+						"name": "secret-plugin", "uid": string(uid), "resourceVersion": "1",
+					},
+					"plugin": "openid-connect",
+					"config": map[string]interface{}{
+						"client_secret": []interface{}{"inline-plugin-secret"},
+						"issuer":        "https://example.com",
+					},
+				}}
+				original := resource.DeepCopy()
+				cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+				cfg.IsScrubbingEnabled = scrubbingEnabled
+				cfg.IsManifestCollectionEnabled = true
+				ctx := &processors.K8sProcessorContext{
+					BaseProcessorContext: processors.BaseProcessorContext{
+						Cfg: cfg, Clock: clock.New(), ClusterID: "test-cluster-id", MsgGroupID: 1,
+						ManifestProducer: true, NodeType: orchestrator.K8sCR,
+						Kind: kind, APIVersion: "configuration.konghq.com/v1",
+					},
+					APIClient: &apiserver.APIClient{},
+				}
+				processor := processors.NewProcessor(&CRHandlers{})
+				result, listed, processed := processor.Process(ctx, []runtime.Object{resource})
+				require.Equal(t, 1, listed)
+				require.Equal(t, 1, processed)
+				require.Len(t, result.ManifestMessages, 1)
+				message, ok := result.ManifestMessages[0].(*model.CollectorManifestCR)
+				require.True(t, ok)
+				require.Len(t, message.Manifest.Manifests, 1)
+				var manifest map[string]interface{}
+				require.NoError(t, yaml.Unmarshal(message.Manifest.Manifests[0].Content, &manifest))
+				expected := original.DeepCopy()
+				if scrubbingEnabled {
+					expected.Object["config"].(map[string]interface{})["client_secret"] = []interface{}{"********"}
+					assert.NotContains(t, string(message.Manifest.Manifests[0].Content), "inline-plugin-secret")
+				}
+				assert.Equal(t, expected.Object, manifest)
+				assert.Equal(t, original, resource, "The informer resource must not change")
+			})
+		}
+	}
 }
 
 func createTestCustomResource(name, namespace string) *unstructured.Unstructured {

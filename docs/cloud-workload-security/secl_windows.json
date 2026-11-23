@@ -53,9 +53,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.ancestors.container.tags",
@@ -138,9 +148,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.container.tags",
@@ -198,9 +218,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.parent.container.tags",
@@ -532,9 +562,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "exec.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "exec.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exec.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "exec.container.tags",
@@ -631,9 +671,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "exit.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "exit.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exit.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "exit.container.tags",
@@ -1034,6 +1084,22 @@
       ]
     },
     {
+      "name": "*.ecs_task_id",
+      "link": "common-containercontext-ecs_task_id-doc",
+      "type": "string",
+      "definition": "ECS task ID",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.envp",
       "link": "common-process-envp-doc",
       "type": "string",
@@ -1301,6 +1367,22 @@
         "process",
         "process.ancestors",
         "process.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.pod_uid",
+      "link": "common-containercontext-pod_uid-doc",
+      "type": "string",
+      "definition": "Kubernetes pod UID",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container"
       ],
       "constants": "",
       "constants_link": "",
@@ -1670,6 +1752,25 @@
         },
         {
           "name": "XZ",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Credential sources",
+      "link": "credential-sources",
+      "description": "Credential sources are the endpoints that can serve cloud credentials.",
+      "all": [
+        {
+          "name": "IMDS",
+          "architecture": "all"
+        },
+        {
+          "name": "EKS_POD_IDENTITY",
+          "architecture": "all"
+        },
+        {
+          "name": "ECS",
           "architecture": "all"
         }
       ]

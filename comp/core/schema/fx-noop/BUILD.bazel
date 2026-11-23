@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-noop",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/schema/noop-impl",
+        "//pkg/util/fxutil",
+    ],
+)

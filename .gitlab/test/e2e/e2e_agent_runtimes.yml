@@ -12,18 +12,6 @@
         - test/new-e2e/tests/agent-runtimes/**/*
       compare_to: $COMPARE_TO_BRANCH
 
-.on_agenttelemetry_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/agent/subcommands/run/**/*
-        - comp/core/agenttelemetry/**/*
-        - pkg/util/log/setup/**/*
-        - pkg/util/log/errortracking/**/*
-        - test/new-e2e/tests/agent-telemetry/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
 new-e2e-agent-runtimes:
   extends: .new_e2e_template_needs_deb_x64
   rules:
@@ -32,24 +20,39 @@ new-e2e-agent-runtimes:
   variables:
     TARGETS: ./tests/agent-runtimes
     TEAM: agent-runtimes
-    EXTRA_PARAMS: --skip "Windows"
+    EXTRA_PARAMS: --skip "Windows|TestProcmgrAIODockerSuite"
     ON_NIGHTLY_FIPS: "true"
 
-new-e2e-agent-telemetry:
+.on_procmgr_aio_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - Dockerfiles/agent/Dockerfile
+        - Dockerfiles/agent/entrypoint.sh
+        - Dockerfiles/agent/cont-init.d/**/*
+        - Dockerfiles/agent/entrypoint.d/_default
+        - Dockerfiles/agent/entrypoint.d/procmgr-all-in-one
+        - Dockerfiles/agent/probe.sh
+        - Dockerfiles/agent/entrypoint.d/s6-all-in-one
+        - Dockerfiles/agent/processes.d/aio/**/*
+        - pkg/procmgr/**/*
+        - test/new-e2e/tests/agent-runtimes/procmgr/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+new-e2e-agent-runtimes-procmgr-aio-docker:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - agent_deb-x64-a7
-    - agent_deb-x64-a7-fips
     - qa_agent_linux
-    - qa_agent_full
-    - qa_dca
   rules:
-    - !reference [.on_agenttelemetry_or_e2e_changes]
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.except_light_pipeline]
+    - !reference [.on_procmgr_aio_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/agent-telemetry
-    TEAM: fleet-remediation
+    TARGETS: ./tests/agent-runtimes/procmgr
+    TEAM: agent-runtimes
+    EXTRA_PARAMS: --run "TestProcmgrAIODockerSuite"
 
 new-e2e-fips-compliance-test:
   extends: .new_e2e_template

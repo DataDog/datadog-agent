@@ -7,101 +7,136 @@ use anyhow::{Context, Result};
 use log::info;
 use std::ffi::OsString;
 use std::path::PathBuf;
-use tokio::process::Command;
 
 use crate::config::ProcessConfig;
-use crate::env::{expand_env_vars, parse_environment_file, try_expand_env_vars};
+use crate::env::{
+    expand_env_vars, expand_env_vars_checked, parse_environment_file, try_expand_env_vars,
+};
 
-use super::stdio::{StdioSetting, parse_stdio_setting, to_command_stdio};
+use super::stdio::{StdioSetting, parse_stdio_setting};
 
 pub(crate) struct SpawnRequest {
-    #[cfg(windows)]
-    process_name: String,
     command: String,
     args: Vec<String>,
     env: Vec<(String, String)>,
+    /// Index in `env` where `environment_file` and `env:` entries begin. Entries
+    /// before it are the copied supervisor environment, or the allowlist.
+    /// Read on Windows when the environment block is assembled.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    config_env_start: usize,
+    /// When set, `env` already contains the supervisor process environment (minus
+    /// supervisor-only `DD_PM_*` names). Windows uses this to skip the account
+    /// environment block, which would otherwise append a second copy of `PATH`.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    inherit_supervisor_env: bool,
     working_dir: Option<PathBuf>,
     stdout_setting: StdioSetting,
     stderr_setting: StdioSetting,
 }
 
 impl SpawnRequest {
-    #[cfg(windows)]
     pub(crate) fn command(&self) -> &str {
         &self.command
     }
 
-    #[cfg(windows)]
     pub(crate) fn args(&self) -> &[String] {
         &self.args
     }
 
-    #[cfg(windows)]
     pub(crate) fn env(&self) -> &[(String, String)] {
         &self.env
     }
 
     #[cfg(windows)]
+    pub(crate) fn inherit_supervisor_env(&self) -> bool {
+        self.inherit_supervisor_env
+    }
+
+    /// The copied supervisor environment, or the allowlisted vars, in front of
+    /// `environment_file`/`env:` entries.
+    #[cfg(windows)]
+    pub(crate) fn inherited_env(&self) -> &[(String, String)] {
+        &self.env[..self.config_env_boundary()]
+    }
+
+    #[cfg(windows)]
+    fn config_env_boundary(&self) -> usize {
+        self.config_env_start.min(self.env.len())
+    }
+
+    /// Only the `environment_file`/`env:` entries, excluding the copied supervisor
+    /// environment or the allowlist.
+    #[cfg(windows)]
+    pub(crate) fn config_env(&self) -> &[(String, String)] {
+        &self.env[self.config_env_boundary()..]
+    }
+
     pub(crate) fn working_dir(&self) -> Option<&PathBuf> {
         self.working_dir.as_ref()
     }
 
-    #[cfg(windows)]
     pub(crate) fn stdout_setting(&self) -> &StdioSetting {
         &self.stdout_setting
     }
 
-    #[cfg(windows)]
     pub(crate) fn stderr_setting(&self) -> &StdioSetting {
         &self.stderr_setting
     }
 
-    pub(crate) fn from_config(process_name: &str, config: &ProcessConfig) -> Result<Self> {
+    /// `inherit_supervisor_env` is set when the child runs as the same user as
+    /// `dd-procmgrd`. The child then receives the supervisor environment, except
+    /// supervisor-only `DD_PM_*` names, which belong to the process manager. A child
+    /// that runs as another account does not receive that environment. It receives
+    /// only the names selected by `DD_PM_INHERIT_ENV_PREFIXES` and
+    /// `DD_PM_INHERIT_ENV_NAMES`.
+    pub(crate) fn from_config(
+        process_name: &str,
+        config: &ProcessConfig,
+        inherit_supervisor_env: bool,
+    ) -> Result<Self> {
+        let (env, config_env_start) = collect_env(process_name, config, inherit_supervisor_env)?;
+        let expand = |input: &str| {
+            expand_env_vars_checked(input)
+                .with_context(|| format!("[{process_name}] cannot expand the process command line"))
+        };
         Ok(Self {
-            #[cfg(windows)]
-            process_name: process_name.to_string(),
-            command: expand_env_vars(&config.command),
-            args: config.args.iter().map(|a| expand_env_vars(a)).collect(),
-            env: collect_env(process_name, config)?,
+            command: expand(&config.command)?,
+            args: config
+                .args
+                .iter()
+                .map(|a| expand(a))
+                .collect::<Result<_>>()?,
+            env,
+            config_env_start,
+            inherit_supervisor_env,
             working_dir: config
                 .working_dir
                 .as_ref()
-                .map(|dir| PathBuf::from(expand_env_vars(dir))),
+                .map(|dir| expand(dir).map(PathBuf::from))
+                .transpose()?,
             stdout_setting: parse_stdio_setting(&config.stdout),
             stderr_setting: parse_stdio_setting(&config.stderr),
         })
     }
-
-    pub(crate) fn to_command(&self, stdout_inheritable: bool, stderr_inheritable: bool) -> Command {
-        let mut cmd = Command::new(&self.command);
-        cmd.args(&self.args);
-        cmd.env_clear();
-        #[cfg(windows)]
-        {
-            crate::platform::apply_child_baseline_env(&mut cmd);
-            crate::platform::apply_legacy_scm_env(&mut cmd, &self.process_name);
-        }
-        for (k, v) in &self.env {
-            cmd.env(k, v);
-        }
-        if let Some(dir) = &self.working_dir {
-            cmd.current_dir(dir);
-        }
-        cmd.stdout(to_command_stdio(&self.stdout_setting, stdout_inheritable));
-        cmd.stderr(to_command_stdio(&self.stderr_setting, stderr_inheritable));
-        cmd
-    }
 }
 
-fn collect_env(process_name: &str, config: &ProcessConfig) -> Result<Vec<(String, String)>> {
-    // Parent environment inheritance is opt-in so host-managed children stay isolated.
-    let prefixes = env_list("DD_PM_INHERIT_ENV_PREFIXES");
-    let exact_names = env_list("DD_PM_INHERIT_ENV_NAMES");
-    let mut env = if prefixes.is_empty() && exact_names.is_empty() {
-        Vec::new()
+fn collect_env(
+    process_name: &str,
+    config: &ProcessConfig,
+    inherit_supervisor_env: bool,
+) -> Result<(Vec<(String, String)>, usize)> {
+    let mut env = if inherit_supervisor_env {
+        collect_same_user_env(std::env::vars_os())
     } else {
-        collect_inherited_env(std::env::vars_os(), &prefixes, &exact_names)
+        let prefixes = env_list("DD_PM_INHERIT_ENV_PREFIXES");
+        let exact_names = env_list("DD_PM_INHERIT_ENV_NAMES");
+        if prefixes.is_empty() && exact_names.is_empty() {
+            Vec::new()
+        } else {
+            collect_inherited_env(std::env::vars_os(), &prefixes, &exact_names)
+        }
     };
+    let config_env_start = env.len();
 
     if let Some(ref raw_path) = config.environment_file {
         let raw_path = expand_env_vars(raw_path);
@@ -133,7 +168,37 @@ fn collect_env(process_name: &str, config: &ProcessConfig) -> Result<Vec<(String
         }
     }
 
-    Ok(env)
+    Ok((env, config_env_start))
+}
+
+/// `DD_PM_*` names a same-user child still receives.
+const CHILD_VISIBLE_CONTROL_VARS: &[&str] = &["DD_PM_SOCKET_PATH"];
+
+/// Supervisor control variables. A same-user child receives the rest of the
+/// supervisor environment. The prefix match is case-insensitive so a Windows
+/// environment block cannot keep `dd_pm_*` under a different spelling.
+fn is_supervisor_control_var(name: &str) -> bool {
+    const PREFIX: &str = "DD_PM_";
+    let has_prefix = name.len() >= PREFIX.len()
+        && name.as_bytes()[..PREFIX.len()].eq_ignore_ascii_case(PREFIX.as_bytes());
+    has_prefix
+        && !CHILD_VISIBLE_CONTROL_VARS
+            .iter()
+            .any(|allowed| name.eq_ignore_ascii_case(allowed))
+}
+
+fn collect_same_user_env(
+    vars: impl IntoIterator<Item = (OsString, OsString)>,
+) -> Vec<(String, String)> {
+    vars.into_iter()
+        .filter_map(|(name, value)| {
+            let name = name.into_string().ok()?;
+            if is_supervisor_control_var(&name) {
+                return None;
+            }
+            Some((name, value.into_string().ok()?))
+        })
+        .collect()
 }
 
 fn collect_inherited_env(
@@ -165,7 +230,7 @@ fn env_list(name: &str) -> Vec<String> {
 }
 
 #[cfg(all(test, unix))]
-mod tests {
+mod inherited_env_tests {
     use super::collect_inherited_env;
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStringExt;
@@ -181,6 +246,167 @@ mod tests {
         assert_eq!(
             collect_inherited_env(vars, &["DD_".to_string()], &[]),
             vec![("DD_GOOD".to_string(), "value".to_string())]
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ProcessConfig;
+    use std::ffi::OsString;
+
+    #[test]
+    fn same_user_env_drops_supervisor_control_vars() {
+        let vars = [
+            (OsString::from("AWS_ROLE_ARN"), OsString::from("role")),
+            (OsString::from("DD_PM_CONFIG_DIR"), OsString::from("/etc")),
+            (
+                OsString::from("dd_pm_socket_path"),
+                OsString::from("/tmp/sock"),
+            ),
+            (OsString::from("SSL_CERT_DIR"), OsString::from("/certs")),
+        ];
+
+        assert_eq!(
+            collect_same_user_env(vars),
+            vec![
+                ("AWS_ROLE_ARN".to_string(), "role".to_string()),
+                ("dd_pm_socket_path".to_string(), "/tmp/sock".to_string()),
+                ("SSL_CERT_DIR".to_string(), "/certs".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn from_config_collects_environment_file_vars() {
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = dir.path().join("env");
+        std::fs::write(&env_file, "EXIT_CODE=42\n").unwrap();
+
+        let config = ProcessConfig {
+            environment_file: Some(env_file.to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+
+        let request = SpawnRequest::from_config("envfile", &config, false).unwrap();
+        assert!(
+            request
+                .env
+                .iter()
+                .any(|(k, v)| k == "EXIT_CODE" && v == "42"),
+            "environment_file vars must be included in spawn env: {:?}",
+            request.env
+        );
+    }
+
+    fn par_config() -> ProcessConfig {
+        ProcessConfig {
+            command: "/bin/true".to_string(),
+            args: vec![
+                "--ipc-cert-file".to_string(),
+                "${DD_PM_IPC_CERT_FILE_PATH}".to_string(),
+            ],
+            ..Default::default()
+        }
+    }
+
+    /// Sets the two IPC cert path variables for one test and restores the originals on
+    /// drop, even when the test panics. Holds `test_env_guard`'s lock for the duration.
+    struct IpcCertEnv {
+        saved: [(&'static str, Option<OsString>); 2],
+        _guard: crate::config_gate::TestEnvGuard,
+    }
+
+    impl IpcCertEnv {
+        const SUPERVISOR: &'static str = "DD_PM_IPC_CERT_FILE_PATH";
+        const AGENT: &'static str = "DD_IPC_CERT_FILE_PATH";
+
+        fn set(supervisor: Option<&str>, agent: Option<&str>) -> Self {
+            let guard = crate::config_gate::test_env_guard();
+            let saved = [Self::SUPERVISOR, Self::AGENT].map(|name| (name, std::env::var_os(name)));
+            for (name, value) in [(Self::SUPERVISOR, supervisor), (Self::AGENT, agent)] {
+                // SAFETY: test_env_guard holds the lock that serializes env changes.
+                unsafe {
+                    match value {
+                        Some(value) => std::env::set_var(name, value),
+                        None => std::env::remove_var(name),
+                    }
+                }
+            }
+            Self {
+                saved,
+                _guard: guard,
+            }
+        }
+    }
+
+    impl Drop for IpcCertEnv {
+        fn drop(&mut self) {
+            for (name, value) in &self.saved {
+                // SAFETY: `_guard` is dropped after this, so its lock is still held.
+                unsafe {
+                    match value {
+                        Some(value) => std::env::set_var(name, value),
+                        None => std::env::remove_var(name),
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn from_config_expands_the_ipc_cert_path() {
+        let _env = IpcCertEnv::set(Some("/etc/datadog-agent/cert.pem"), None);
+        let request = SpawnRequest::from_config("par", &par_config(), false).unwrap();
+        assert_eq!(
+            request.args(),
+            ["--ipc-cert-file", "/etc/datadog-agent/cert.pem"]
+        );
+    }
+
+    #[test]
+    fn from_config_fails_when_the_ipc_cert_path_is_a_secret_handle() {
+        // An ENC[...] handle makes the resolver refuse to guess. This relies on no test in
+        // the crate filling the process-wide cache through the real resolver.
+        let _env = IpcCertEnv::set(None, Some("ENC[cert_path]"));
+        let Err(err) = SpawnRequest::from_config("par", &par_config(), false) else {
+            panic!("an unresolved cert path must fail the spawn");
+        };
+        let message = format!("{err:#}");
+        assert!(
+            message.contains("[par] cannot expand the process command line"),
+            "the error must name the process: {message}"
+        );
+        assert!(
+            message.contains("secret handle"),
+            "unexpected error: {message}"
+        );
+    }
+
+    #[test]
+    fn from_config_env_overrides_environment_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = dir.path().join("env");
+        std::fs::write(&env_file, "MY_VAR=from_file\n").unwrap();
+
+        let config = ProcessConfig {
+            environment_file: Some(env_file.to_str().unwrap().to_string()),
+            env: [("MY_VAR".to_string(), "overridden".to_string())]
+                .into_iter()
+                .collect(),
+            ..Default::default()
+        };
+
+        let request = SpawnRequest::from_config("override", &config, false).unwrap();
+        assert_eq!(
+            request
+                .env
+                .iter()
+                .rev()
+                .find(|(k, _)| k == "MY_VAR")
+                .map(|(_, v)| v.as_str()),
+            Some("overridden")
         );
     }
 }

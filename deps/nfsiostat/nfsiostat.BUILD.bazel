@@ -14,9 +14,9 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
+        download_url = "https://mirrors.edge.kernel.org/pub/linux/utils/nfs-utils/{version}/nfs-utils-{version}.tar.gz",
         package = "nfsiostat",
         version = VERSION,
-        download_url = "https://mirrors.edge.kernel.org/pub/linux/utils/nfs-utils/{version}/nfs-utils-{version}.tar.gz",
     ),
 )
 

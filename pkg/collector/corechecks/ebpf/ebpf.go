@@ -10,9 +10,11 @@ package ebpf
 
 import (
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -21,7 +23,7 @@ import (
 	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -75,7 +77,7 @@ func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 
 // Run executes the check
 func (m *EBPFCheck) Run() error {
-	stats, err := sysprobeclient.GetCheck[ebpfcheck.EBPFStats](m.sysProbeClient, sysconfig.EBPFModule)
+	stats, err := sysprobeclient.GetCheck[ebpfcheck.EBPFStats](m.sysProbeClient, sysconfigtypes.EBPFModule)
 	if err != nil {
 		if sysprobeclient.IgnoreStartupError(err) == nil {
 			return nil
@@ -108,7 +110,12 @@ func (m *EBPFCheck) Run() error {
 		}
 
 		maxEntries := float64(mapStats.MaxEntries)
-		sender.Gauge("ebpf.maps.max_entries", maxEntries, "", tags)
+		maxEntriesTags := tags
+		switch mapStats.Type {
+		case "Hash", "PerCPUHash":
+			maxEntriesTags = append(slices.Clone(tags), "no_prealloc:"+strconv.FormatBool(mapStats.NoPrealloc))
+		}
+		sender.Gauge("ebpf.maps.max_entries", maxEntries, "", maxEntriesTags)
 		if mapStats.Entries >= 0 {
 			entries := float64(mapStats.Entries)
 			sender.Gauge("ebpf.maps.entry_count", entries, "", tags)

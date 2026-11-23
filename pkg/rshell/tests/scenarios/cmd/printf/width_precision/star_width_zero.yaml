@@ -1,0 +1,7 @@
+description: Star width of 0 produces no padding.
+input:
+  script: |+
+    printf "%*s|" 0 hello
+expect:
+  stdout: "hello|"
+  exit_code: 0

@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -82,7 +82,6 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		}),
 		flaretypes.NewFiller(getRegistryJSON),
 		flaretypes.NewFiller(getVersionHistory),
-		flaretypes.NewFiller(getWindowsData),
 		flaretypes.NewFiller(common.GetExpVar),
 		flaretypes.NewFiller(provideInstallInfo),
 		flaretypes.NewFiller(provideAuthTokenPerm),
@@ -90,6 +89,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideRuntimeDebugInfo),
 		flaretypes.NewFiller(getUlimitData),
 		flaretypes.NewFiller(getSvmonData),
+		flaretypes.NewFiller(provideCertificateSources),
 	}
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
@@ -104,6 +104,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		))
 	}
 
+	providers = append(providers, windowsFlareProviders()...)
 	return providers
 }
 
@@ -425,8 +426,8 @@ func getECSMeta() ([]byte, error) {
 	return json.MarshalIndent(ecsMeta, "", "\t")
 }
 
-func (r *RemoteFlareProvider) GetGoRoutineDump() ([]byte, error) {
-	pprofURL := "http://127.0.0.1:" + pkgconfigsetup.Datadog().GetString("expvar_port") + "/debug/pprof/goroutine?debug=2"
+func (r *RemoteFlareProvider) GetGoRoutineDump(port int) ([]byte, error) {
+	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof/goroutine?debug=2", port)
 	return r.getHTTPCallContent(pprofURL)
 }
 

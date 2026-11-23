@@ -1,0 +1,11 @@
+datadog:
+  logs:
+    enabled: true
+    containerCollectAll: false
+  instrumentationCrd:
+    enabled: true
+clusterAgent:
+  admissionController:
+    enabled: true
+    validation:
+      enabled: true

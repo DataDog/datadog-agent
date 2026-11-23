@@ -17,6 +17,7 @@ go_library(
     ],
 )
 
+# gazelle:exclude registry_test.go
 dd_agent_go_test(
     name = "fips-compliance_test",
     srcs = [
@@ -44,6 +45,7 @@ dd_agent_go_test(
         "fixtures/security-agent.yaml",
         "fixtures/system-probe.yaml",
     ],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/apps",
@@ -70,4 +72,11 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
+)
+
+dd_agent_go_test(
+    name = "registry_test",
+    srcs = ["registry_test.go"],
+    embed = [":fips-compliance"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -1,0 +1,19 @@
+description: awk removes physical line continuations before tokenization.
+setup:
+  files:
+    - path: crlf.awk
+      content: "BEGIN { print 1 + \\\r\n2 }\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk 'BEGIN { x = 1 + \
+    2; print x; print ("ab" ~ /a\
+    b/) }'
+    awk -f crlf.awk
+expect:
+  stdout: |+
+    3
+    1
+    3
+  stderr: |+
+  exit_code: 0

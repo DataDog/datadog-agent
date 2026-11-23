@@ -1,0 +1,11 @@
+description: Double-quoted segments adjacent to unquoted text form a single word.
+input:
+  script: |+
+    echo abc"def"ghi
+    echo "abc"def"ghi"
+expect:
+  stdout: |+
+    abcdefghi
+    abcdefghi
+  stderr: ""
+  exit_code: 0

@@ -8,11 +8,13 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/httpdomain"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/gobwas/glob"
@@ -20,23 +22,27 @@ import (
 )
 
 type Config struct {
-	ActionsAllowlist               map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
-	Allowlist                      []string
-	AllowIMDSEndpoint              bool
-	RShellAllowedPaths             []string
-	RShellAllowedCommands          []string
-	RShellAllowedSystemServices    map[string][]string
-	RShellDisableDetailedTelemetry bool
-	RShellPrivilegedEnabled        bool
-	RShellPrivilegedSocket         string
-	DDHost                         string
-	DDApiHost                      string
-	Modes                          []modes.Mode
-	OrgId                          int64
-	PrivateKey                     *ecdsa.PrivateKey
-	RunnerId                       string
-	Urn                            string
-	Tags                           []observability.Tag
+	ActionsAllowlist                   ActionsAllowlist
+	Allowlist                          []string
+	DomainAllowlist                    []string
+	AllowIMDSEndpoint                  bool
+	KubernetesAllowedCustomResources   []string
+	RShellAllowedPaths                 []string
+	RShellAllowedCommands              []string
+	RShellAllowedSystemServices        map[string][]string
+	RShellDisableDetailedTelemetry     bool
+	RShellPrivilegedEnabled            bool
+	RShellPrivilegedSocket             string
+	RShellPrivilegedElevatableCommands []string
+	RShellAllowedCommandsConfigured    bool
+	RShellAllowedPathsConfigured       bool
+	APIBaseURL                         string
+	Modes                              []modes.Mode
+	OrgId                              int64
+	PrivateKey                         *ecdsa.PrivateKey
+	RunnerId                           string
+	Urn                                string
+	Tags                               []observability.Tag
 
 	// RemoteConfig related fields
 	DatadogSite string
@@ -67,12 +73,39 @@ type Config struct {
 
 	OpmsExtraHeaders map[string]string
 
-	MetricsClient statsd.ClientInterface
+	MetricsClient   statsd.ClientInterface
+	AgentHTTPClient *http.Client
 }
 
 func (c *Config) IsActionAllowed(bundleId, actionName string) bool {
-	if _, ok := c.ActionsAllowlist[bundleId]; ok {
-		return c.ActionsAllowlist[bundleId].HasAny(actionName, "*")
+	return c.ActionsAllowlist.IsActionAllowed(bundleId, actionName)
+}
+
+// ActionsAllowlist maps bundle IDs to allowed action names, including wildcards.
+type ActionsAllowlist map[string]sets.Set[string]
+
+// IsActionAllowed matches exact actions and integration/sub-bundle wildcards.
+func (a ActionsAllowlist) IsActionAllowed(bundleId, actionName string) bool {
+	if a[bundleId].Has(actionName) {
+		return true
+	}
+
+	// Wildcards may cover an integration and its sub-bundles, but must never
+	// enable the entire com.datadoghq namespace.
+	if !strings.HasPrefix(bundleId, "com.datadoghq.") {
+		return false
+	}
+	parts := strings.Split(bundleId, ".")
+	for _, part := range parts {
+		if part == "" || strings.Contains(part, "*") {
+			return false
+		}
+	}
+	for len(parts) >= 3 {
+		if a[strings.Join(parts, ".")].Has("*") {
+			return true
+		}
+		parts = parts[:len(parts)-1]
 	}
 	return false
 }
@@ -109,6 +142,16 @@ func (c *Config) IsURLInAllowlist(urlStr string) bool {
 	}
 
 	return false
+}
+
+// IsDomainAllowed reports whether hostname equals an entry of DomainAllowlist or
+// is a subdomain of a *.domain entry, comparing the ASCII form net/http dials.
+// A nil DomainAllowlist allows every domain.
+func (c *Config) IsDomainAllowed(hostname string) bool {
+	if c.DomainAllowlist == nil {
+		return true
+	}
+	return httpdomain.AllowsHost(c.DomainAllowlist, hostname)
 }
 
 func (c *Config) IdentityIsIncomplete() bool {

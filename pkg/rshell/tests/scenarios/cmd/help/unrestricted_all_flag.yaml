@@ -1,0 +1,20 @@
+description: Help --all with no restrictions shows features, the commands table, and a confirmation that all commands are allowed. Uses stdout_contains so the test does not need editing each time a new builtin is added — exact registry coverage lives in builtins/tests/help/help_test.go.
+skip_assert_against_bash: true
+input:
+  mode: "remediation"
+  script: |+
+    help --all
+expect:
+  stdout_contains:
+    - "rshell"
+    - "Features:"
+    - "Not supported:"
+    - "Commands available now ("
+    - "echo"
+    - "write arguments to stdout"
+    - "help"
+    - "display help for features and commands"
+    - "All commands are allowed in this session."
+    - "Run 'help <feature|command>' for more information on a specific topic."
+  stderr: ""
+  exit_code: 0

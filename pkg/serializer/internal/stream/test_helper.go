@@ -17,3 +17,13 @@ func BuildJSONPayload(b *JSONPayloadBuilder, m marshaler.StreamJSONMarshaler) (t
 	adapter := marshaler.NewIterableStreamJSONMarshalerAdapter(m)
 	return b.BuildWithOnErrItemTooBigPolicy(adapter, DropItemOnErrItemTooBig)
 }
+
+// MaxCompressedSize returns the compressed size limit
+func (cc *ColumnCompressor) MaxCompressedSize() int {
+	return cc.maxCompressedSize
+}
+
+// MaxUncompressedSize returns the uncompressed size limit
+func (cc *ColumnCompressor) MaxUncompressedSize() int {
+	return cc.maxUncompressedSize
+}

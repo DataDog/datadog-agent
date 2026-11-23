@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v2" // not v3 due to the conversion of an integer to a time.Duration
 )
 
 func TestDeviceInstance_Validation(t *testing.T) {
@@ -86,7 +86,7 @@ func TestDeviceInstance_Validation(t *testing.T) {
 				},
 			},
 			expectValid: false,
-			errorMsg:    "auth is required: missing username",
+			errorMsg:    "invalid auth: missing username",
 		},
 		{
 			name: "missing auth method (no password/private key)",
@@ -102,7 +102,7 @@ func TestDeviceInstance_Validation(t *testing.T) {
 				},
 			},
 			expectValid: false,
-			errorMsg:    "auth is required: missing auth method (either password or private key) for device 100.1.1.1",
+			errorMsg:    "invalid auth: missing auth method (either password or private key)",
 		},
 		{
 			name: "invalid port",
@@ -119,7 +119,7 @@ func TestDeviceInstance_Validation(t *testing.T) {
 				},
 			},
 			expectValid: false,
-			errorMsg:    "invalid port, not valid integer",
+			errorMsg:    "invalid port: not an integer",
 		},
 		{
 			name: "port out of range",
@@ -136,7 +136,7 @@ func TestDeviceInstance_Validation(t *testing.T) {
 				},
 			},
 			expectValid: false,
-			errorMsg:    "invalid port, out of range",
+			errorMsg:    "invalid port: out of range",
 		},
 		{
 			name: "missing SSH config",
@@ -150,7 +150,7 @@ func TestDeviceInstance_Validation(t *testing.T) {
 				},
 			},
 			expectValid: false,
-			errorMsg:    "auth is required: missing SSH configuration for device 100.1.1.1",
+			errorMsg:    "invalid auth: missing SSH configuration",
 		},
 	}
 

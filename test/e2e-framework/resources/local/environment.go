@@ -61,6 +61,11 @@ func (e *Environment) InternalDockerhubMirror() string {
 	return "registry-1.docker.io"
 }
 
+// DatadogPublicRegistry returns registry.datadoghq.com: no cache is available locally, so pull straight from the public registry.
+func (e *Environment) DatadogPublicRegistry() string {
+	return "registry.datadoghq.com"
+}
+
 // InternalRegistryImageTagExists returns true if the image tag exists in the internal registry.
 func (e *Environment) InternalRegistryImageTagExists(_, _ string) (bool, error) {
 	return true, nil

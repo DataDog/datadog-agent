@@ -14,10 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 var (
@@ -40,7 +40,8 @@ type enrichConfig struct {
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
-	infraTagger               *infratags.Tagger
+	infraTagger               *infratags.MetricTagger
+	enableTimingUnit          bool
 }
 
 // extractTagsMetadata returns tags (client tags + host tag), information needed to query the tagger
@@ -64,17 +65,17 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 
 	n := 0
 	for _, tag := range tags {
-		if strings.HasPrefix(tag, hostTagPrefix) {
-			host = tag[len(hostTagPrefix):]
+		if after, ok := strings.CutPrefix(tag, hostTagPrefix); ok {
+			host = after
 			continue
-		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
-			origin.LocalData.PodUID = tag[len(entityIDTagPrefix):]
+		} else if after, ok := strings.CutPrefix(tag, entityIDTagPrefix); ok {
+			origin.LocalData.PodUID = after
 			continue
-		} else if strings.HasPrefix(tag, CardinalityTagPrefix) && origin.Cardinality == "" {
-			origin.Cardinality = tag[len(CardinalityTagPrefix):]
+		} else if after, ok := strings.CutPrefix(tag, CardinalityTagPrefix); ok && origin.Cardinality == "" {
+			origin.Cardinality = after
 			continue
-		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
-			jmxCheckName = tag[len(jmxCheckNamePrefix):]
+		} else if after, ok := strings.CutPrefix(tag, jmxCheckNamePrefix); ok {
+			jmxCheckName = after
 			metricSource = metrics.JMXCheckNameToMetricSource(jmxCheckName)
 			continue
 		}
@@ -121,9 +122,10 @@ func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
 }
 
 // unitFromMetricType returns the Datadog unit string for a dogstatsd metric type.
-// Only timingType carries an implicit unit ("millisecond"); all other types return an empty string.
-func unitFromMetricType(mt metricType) string {
-	if mt == timingType {
+// Only timingType carries an implicit unit ("millisecond"), when enabled by
+// dogstatsd_set_timing_unit; all other types return an empty string.
+func unitFromMetricType(mt metricType, enableTimingUnit bool) string {
+	if mt == timingType && enableTimingUnit {
 		return metrics.UnitMilliseconds
 	}
 	return ""
@@ -174,7 +176,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 	// if 'ddSample.values' contains values we're enriching a multi-value
 	// dogstatsd message and will create a MetricSample per value. If not
 	// we will use 'ddSample.value'and return a single MetricSample
-	unit := unitFromMetricType(ddSample.metricType)
+	unit := unitFromMetricType(ddSample.metricType, conf.enableTimingUnit)
 
 	if len(ddSample.values) > 0 {
 		for idx := range ddSample.values {

@@ -1,0 +1,16 @@
+description: "test integer comparison with negative numbers"
+input:
+  script: |+
+    test -1 -gt -2
+    echo "neg-gt: $?"
+    test -1 -lt -2
+    echo "neg-lt: $?"
+    test 0 -eq 00
+    echo "leading-zero: $?"
+expect:
+  stdout: |
+    neg-gt: 0
+    neg-lt: 1
+    leading-zero: 0
+  stderr: ""
+  exit_code: 0

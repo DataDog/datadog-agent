@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    On Windows, the Agent now reports the operating system's major version, minor
+    version, and build number from the ``CurrentVersion`` registry key rather than
+    from the file version resource of ``kernel32.dll``. This avoids reporting an
+    incorrect operating-system build on newer Windows releases. For example, a host
+    running ``Windows 11 Pro 10.0 Build 26200`` was previously reported as
+    ``Windows 11 Pro 10.0 Build 26100``.

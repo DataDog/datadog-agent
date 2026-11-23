@@ -11,6 +11,7 @@ jobs:
   update-and-generate:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
       - name: Cleanup runner
@@ -26,7 +27,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: .go-version
 
@@ -41,7 +42,7 @@ jobs:
       - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
-          scope: DataDog/datadog-agent
+          scope: ${{ github.repository }}
           policy: self.collector-generate-and-update.create-pr
 
       - name: Check biweekly schedule
@@ -63,7 +64,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: |
-          dda inv -- -e install-tools
           dda inv -- -e collector.update
           OCB_VERSION=$(grep -m1 'OCB_VERSION = ' tasks/collector.py | grep -oP '"\K[^"]+')
           echo "OCB_VERSION=$OCB_VERSION" >> $GITHUB_OUTPUT
@@ -74,7 +74,7 @@ jobs:
           bazel run //:go_mod_tidy_all
           dda inv -- -e generate-licenses
 
-      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+      - uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
         name: Create pull request
         if: steps.check-schedule.outputs.skip != 'true'
         with:
@@ -89,7 +89,7 @@ jobs:
 
       - name: Notify Slack on failure
         if: failure()
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
         with:
           method: chat.postMessage
           token: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}

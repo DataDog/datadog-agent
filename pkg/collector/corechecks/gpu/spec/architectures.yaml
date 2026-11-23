@@ -9,10 +9,10 @@
 #   - capabilities.nvlink: int (highest NVML NVLink version supported by this architecture/mode, or 0)
 #   - capabilities.c2c: bool (whether this architecture/mode supports NVLink-C2C)
 #   - capabilities.unsupported_fields_by_device_mode (list of conditional exclusions for the GetFields API)
-#       - device_modes: [physical|mig|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode. If not included, the fields are unsupported in all modes.)
+#       - device_modes: [physical|mig|mig_parent|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode; a MIG parent supports the fields a physical GPU does. If not included, the fields are unsupported in all modes.)
 #       - fields: [<field_id>, ...] (the list of field IDs that are unsupported in the given modes. Check nvmlFieldNameToFieldID in spec_test.go for the mapping.)
-#   - support (optional): mode-specific capabilities and additional unsupported_fields entries
-#   - unsupported_device_modes: [mig|physical|vgpu, ...] (the list of device modes that are unsupported on the architecture. For example, MIG is not supported on the Pascal architecture.)
+#   - support (optional): mode-specific capabilities and additional unsupported_fields entries, for the modes the architecture supports (a mode in unsupported_device_modes cannot have a support entry)
+#   - unsupported_device_modes: [mig|mig_parent|physical|vgpu, ...] (the list of device modes that are unsupported on the architecture. For example, MIG is not supported on the Pascal architecture.)
 nvlink_generations:
   1: # NVLink 1.0
     supported_fields:
@@ -30,10 +30,12 @@ nvlink_generations:
   2: # NVLink 2.0
     supported_fields: []
   4: # NVLink 3.0
-    supported_fields:
-      - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
-  6: # NVLink 4.0
     supported_fields: []
+  6: # NVLink 4.0
+    supported_fields:
+      - FI_DEV_NVLINK_ERROR_DL_REPLAY
+      - FI_DEV_NVLINK_ERROR_DL_RECOVERY
+      - FI_DEV_NVLINK_ERROR_DL_CRC
   7: # NVLink 5.0
     supported_fields:
       - FI_DEV_NVLINK_GET_SPEED
@@ -83,20 +85,23 @@ architectures:
         - device_modes: [physical, mig, vgpu]
           fields:
             - FI_DEV_MEMORY_TEMP
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
         - device_modes: [mig, vgpu]
           fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, vgpu]
+      - device_modes: [vgpu]
         capabilities:
           nvlink: 0
         unsupported_fields: []
     unsupported_device_modes:
       - mig
+      - mig_parent
   volta:
     capabilities:
       gpm: false
@@ -111,15 +116,17 @@ architectures:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, vgpu]
+      - device_modes: [vgpu]
         capabilities:
           nvlink: 0
         unsupported_fields: []
     unsupported_device_modes:
       - mig
+      - mig_parent
   turing:
     capabilities:
       gpm: false
@@ -134,15 +141,17 @@ architectures:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, vgpu]
+      - device_modes: [vgpu]
         capabilities:
           nvlink: 0
         unsupported_fields: []
     unsupported_device_modes:
       - mig
+      - mig_parent
   ampere:
     capabilities:
       gpm: false
@@ -155,10 +164,11 @@ architectures:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, vgpu]
+      - device_modes: [mig, mig_parent, vgpu]
         capabilities:
           nvlink: 0
         unsupported_fields: []
@@ -175,10 +185,12 @@ architectures:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
-        unsupported_fields: []
-      - device_modes: [mig]
+        unsupported_fields:
+          - FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL
+      - device_modes: [mig, mig_parent]
         capabilities:
           nvlink: 0
           c2c: false
@@ -204,13 +216,15 @@ architectures:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, vgpu]
+      - device_modes: [vgpu]
         unsupported_fields: []
     unsupported_device_modes:
       - mig
+      - mig_parent
   blackwell:
     capabilities:
       gpm: true
@@ -223,10 +237,19 @@ architectures:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
-        unsupported_fields: []
-      - device_modes: [mig]
+        unsupported_fields:
+          - FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL
+          - FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL
+          - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
+          - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
+          - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
+          - FI_DEV_NVLINK_ERROR_DL_REPLAY
+          - FI_DEV_NVLINK_ERROR_DL_RECOVERY
+          - FI_DEV_NVLINK_ERROR_DL_CRC
+      - device_modes: [mig, mig_parent]
         capabilities:
           nvlink: 0
           c2c: false

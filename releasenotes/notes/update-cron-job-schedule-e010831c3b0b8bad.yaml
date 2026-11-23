@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add the Kubernetes ``updateCronJobSchedule`` private action for updating a CronJob's schedule, time zone, and suspension state.

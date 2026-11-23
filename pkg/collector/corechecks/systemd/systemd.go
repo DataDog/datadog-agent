@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-systemd/v22/dbus"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -448,16 +448,12 @@ func sendServicePropertyAsGauge(sender sender.Sender, properties map[string]inte
 	return nil
 }
 
-// computeUptime returns uptime in microseconds
+// computeUptime returns uptime in seconds
 func computeUptime(activeState string, activeEnterTimestampMicroSec uint64, unitNow int64) int64 {
 	if activeState != unitActiveState {
 		return 0
 	}
-	uptime := unitNow - int64(activeEnterTimestampMicroSec)/1000000
-	if uptime < 0 {
-		return 0
-	}
-	return uptime
+	return max(unitNow-int64(activeEnterTimestampMicroSec)/1000000, 0)
 }
 
 func getPropertyUint64(properties map[string]interface{}, propertyName string) (uint64, error) {

@@ -5,6 +5,9 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
 _RPATH_REWRITER_TOOLCHAIN = "//bazel/toolchains/rpath_rewriter"
 
+# Where packages install shared libraries, OpenSSL included.
+EMBEDDED_LIB_DIR = "{install_dir}/embedded/lib"
+
 def _path_segments(path):
     """Returns normalized path segments, ignoring the leading slash."""
     return [segment for segment in paths.normalize(path).split("/") if segment]
@@ -75,7 +78,9 @@ def rewrite_rpaths(ctx, inputs, rpath, relative = False):
         if target.is_directory:
             output = ctx.actions.declare_directory("patched_dirs/" + target.basename)
         else:
-            output = ctx.actions.declare_file("patched/" + target.basename)
+            # Namespace the output by the rule's name so multiple rewrite_rpath
+            # instances sharing the same input basename don't collide.
+            output = ctx.actions.declare_file("patched/" + ctx.label.name + "/" + target.basename)
 
         resolved_rpath = relative_rpath(input, rpath) if relative else rpath
 
@@ -125,12 +130,12 @@ rewrite_rpath = rule(
         "rpath": attr.string(
             doc = """The new rpath. Defaults to <@@//:install_dir>/embedded/lib.
             Supports '{install_dir}' variable.""",
-            default = "{install_dir}/embedded/lib",
+            default = EMBEDDED_LIB_DIR,
         ),
         "destination": attr.string(
             doc = """Directory where the inputs will be installed.
             Supports '{install_dir}' variable and is used only when relative rpaths are enabled.""",
-            default = "{install_dir}/embedded/lib",
+            default = EMBEDDED_LIB_DIR,
         ),
         "use_relative_rpaths": attr.bool(
             doc = "Whether rpaths should be relative.",

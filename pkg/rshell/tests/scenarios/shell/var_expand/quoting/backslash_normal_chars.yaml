@@ -1,0 +1,9 @@
+description: Backslash-quoting non-special characters outside quotes removes the backslash and the character is literal.
+input:
+  script: |+
+    echo \a\b\c \x\y\z \0\1\2
+expect:
+  stdout: |+
+    abc xyz 012
+  stderr: ""
+  exit_code: 0

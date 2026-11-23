@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    A systemd service tags its CWS workload with the version of the host
+    package that owns its unit file, when system-probe indexes the host
+    packages. Every service carried ``version:latest``.

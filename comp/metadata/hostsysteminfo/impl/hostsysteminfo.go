@@ -37,6 +37,7 @@ type hostSystemInfoMetadata struct {
 	ModelName    string `json:"model_name"`
 	ChassisType  string `json:"chassis_type"`
 	Identifier   string `json:"identifier"`
+	ComputerName string `json:"computer_name"`
 }
 
 type hostSystemInfo struct {
@@ -53,6 +54,11 @@ type Payload struct {
 	Timestamp int64                   `json:"timestamp"`
 	Metadata  *hostSystemInfoMetadata `json:"host_system_info_metadata"`
 	UUID      string                  `json:"uuid"`
+}
+
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeHostSystemInfo
 }
 
 func (p *Payload) MarshalJSON() ([]byte, error) {
@@ -143,6 +149,7 @@ func (hh *hostSystemInfo) fillData() error {
 	hh.data.ModelName = sysInfo.ModelName
 	hh.data.ChassisType = sysInfo.ChassisType
 	hh.data.Identifier = sysInfo.Identifier
+	hh.data.ComputerName = sysInfo.ComputerName
 
 	return nil
 }
@@ -157,7 +164,7 @@ func (hh *hostSystemInfo) writePayloadAsJSON(w http.ResponseWriter, _ *http.Requ
 	w.Write(scrubbed)
 }
 
-func (hh *hostSystemInfo) getPayload() marshaler.JSONMarshaler {
+func (hh *hostSystemInfo) getPayload() marshaler.TypedJSONMarshaler {
 	// Try to collect system info data
 	if err := hh.fillData(); err != nil {
 		hh.log.Debugf("Skipping system info metadata payload due to collection failure: %v", err)

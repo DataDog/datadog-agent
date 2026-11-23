@@ -20,21 +20,3 @@ var ErrNotEnabled = errors.New("private action runner is not enabled")
 // ErrSplitDeployment is returned when the private action runner runs in split
 // deployment mode, where par-control owns OPMS polling.
 var ErrSplitDeployment = errors.New("private action runner is running in split deployment mode")
-
-// Configuration keys for the private action runner.
-// Duplicated from pkg/config/setup/privateactionrunner.go because comp/
-// packages cannot import pkg/config/setup (depguard rule).
-const (
-	PAREnabled                = "private_action_runner.enabled"
-	PARSelfEnroll             = "private_action_runner.self_enroll"
-	PARApiKeyOnlyEnrollment   = "private_action_runner.api_key_only_enrollment"
-	PARSkipConnectionCreation = "private_action_runner.skip_connection_creation"
-	PARPrivateKey             = "private_action_runner.private_key"
-	PARUrn                    = "private_action_runner.urn"
-	PARActionsAllowlist       = "private_action_runner.actions_allowlist"
-	PARDefaultActionsEnabled  = "private_action_runner.default_actions_enabled"
-	PARIdleTimeoutSeconds     = "private_action_runner.idle_timeout_seconds"
-
-	PARExecutorSocketPath = "private_action_runner.executor.socket_path"
-	PARSplitEnabled       = "private_action_runner.split_enabled"
-)

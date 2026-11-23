@@ -1,7 +1,11 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
+load("//bazel/rules/variables:variables.bzl", "compute_version_variables")
+
+_BUILD_VARIABLES = compute_version_variables()
 
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
@@ -39,6 +43,7 @@ rust_library(
     crate_name = "par_control",
     edition = "2024",
     link_deps = [":cpp_stdlib"],
+    rustc_env = {"DD_AGENT_VERSION": _BUILD_VARIABLES["agent_version"].split("+")[0]},
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
@@ -81,6 +86,7 @@ rust_binary(
     deps = [
         ":par-control-lib",
         "//comp/core/log/rust:dd-agent-log",
+        "//pkg/procmgr/rust/client:dd-procmgr-client",
         "@crates//:anyhow",
         "@crates//:clap",
         "@crates//:log",
@@ -101,30 +107,26 @@ rust_test(
     ],
 )
 
-pkg_files(
-    name = "all_files_linux",
-    srcs = [":par-control"],
-    attributes = pkg_attributes(mode = "0755"),
-    prefix = "embedded/bin",
-    target_compatible_with = ["@platforms//os:linux"],
-    visibility = ["//packages:__subpackages__"],
+rust_test(
+    name = "par-control-cli_test",
+    crate = ":par-control",
+    edition = "2024",
+    target_compatible_with = _LINUX_OR_WINDOWS,
 )
 
-pkg_files(
-    name = "all_files_windows",
-    srcs = [":par-control"],
-    prefix = "bin/agent",
-    target_compatible_with = ["@platforms//os:windows"],
-    visibility = ["//packages:__subpackages__"],
+agent_binary_for_package(
+    name = "par_control_binary",
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+    target = ":par-control",
+    target_compatible_with = _LINUX_OR_WINDOWS,
 )
 
 pkg_filegroup(
     name = "all_files",
-    srcs = select({
-        "@platforms//os:linux": [":all_files_linux"],
-        "@platforms//os:windows": [":all_files_windows"],
-        "//conditions:default": [],
-    }),
+    srcs = [":par_control_binary"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//packages:__subpackages__"],
 )

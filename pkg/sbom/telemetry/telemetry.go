@@ -36,6 +36,15 @@ var (
 		"Number of sbom failures by (source, type, reason)",
 		commonOpts,
 	)
+	// SBOMOSFallbacks tracks sbom scans with application analyzers that ran
+	// out of time and reported the OS packages alone.
+	SBOMOSFallbacks = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		Subsystem,
+		"os_fallbacks",
+		[]string{"source", "type"},
+		"Number of sbom scans that reported the OS packages alone by (source, type)",
+		commonOpts,
+	)
 
 	// SBOMGenerationDuration measures the time that it takes to generate SBOMs
 	// in seconds.
@@ -58,30 +67,15 @@ var (
 		commonOpts,
 	)
 
-	// SBOMCacheDiskSize size in disk of the custom cache used for SBOM collection
-	SBOMCacheDiskSize = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
+	// SBOMEntitiesSent tracks the SBOM entities handed over to the event
+	// platform forwarder. It counts what the agent emits, not what the intake
+	// acknowledges: entities dropped further down the logs pipeline are still
+	// counted here.
+	SBOMEntitiesSent = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		Subsystem,
-		"cache_disk_size",
-		[]string{},
-		"SBOM size in disk of the custom cache (in bytes)",
-		commonOpts,
-	)
-
-	// SBOMCacheHits number of cache hits during SBOM collection
-	SBOMCacheHits = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
-		Subsystem,
-		"cache_hits_total",
-		[]string{},
-		"SBOM total number of cache hits during SBOM collection",
-		commonOpts,
-	)
-
-	// SBOMCacheMisses number of cache misses during SBOM collection
-	SBOMCacheMisses = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
-		Subsystem,
-		"cache_misses_total",
-		[]string{},
-		"SBOM total number of cache misses during SBOM collection",
+		"entities_sent",
+		[]string{"type", "status", "heartbeat", "enriched"},
+		"Number of SBOM entities sent by (type, status, heartbeat, enriched)",
 		commonOpts,
 	)
 

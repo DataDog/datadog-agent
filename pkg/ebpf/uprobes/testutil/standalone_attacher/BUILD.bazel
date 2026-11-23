@@ -4,7 +4,7 @@ go_library(
     name = "standalone_attacher_lib",
     srcs = ["standalone_attacher.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/uprobes/testutil/standalone_attacher",
-    tags = ["manual"],  # keep
+    tags = ["manual"],
     visibility = ["//visibility:private"],
     deps = select({
         "@rules_go//go/platform:android": [
@@ -23,7 +23,7 @@ go_binary(
     gotags = [
         "bpf",
         "test",
-    ],  # keep
+    ],
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

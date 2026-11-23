@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !e2eunit
-
 package installer
 
 // Package ddottests implements E2E tests for the DDOT agent extension on Windows.
@@ -70,7 +68,7 @@ func (s *testDDOTExtensionSubcommand) TestInstallDDOTSubcommand() {
 	// Extension DDOT runs under dd-procmgr-service (OCI processes.d); legacy SCM datadog-otel-agent must stay stopped.
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-	AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
+	s.assertManagedByProcmgr(ddotProcmgrProcess)
 
 	// Remove the ddot extension and verify the service stops and files are cleaned up.
 	cmd = fmt.Sprintf(`& "%s" otel remove`, agentExe)
@@ -128,8 +126,8 @@ func (s *testDDOTExtensionProcmgrDisabledEnv) TestInstallSkipsFleetProcmgrConfig
 		"otel-agent.exe should be present in the ddot extension",
 	)
 
-	AssertNoFleetDDOTProcmgrConfigFileWindows(s.T(), s.Env().RemoteHost)
-	AssertWindowsDDOTRunningLegacySCM(s.T(), s.Env().RemoteHost)
+	s.assertNoProcmgrConfig(ddotProcmgrProcess)
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 
 	cmd = fmt.Sprintf(`powershell -NoProfile -Command "& '%s' otel remove"`, strings.ReplaceAll(agentExe, `'`, `''`))
 	output, err = s.Env().RemoteHost.Execute(cmd)
@@ -182,7 +180,7 @@ func (s *testDDOTExtensionInstallScript) TestInstallAndPurgeDDOTExtension() {
 	// Extension DDOT runs under dd-procmgr-service (OCI processes.d); legacy SCM datadog-otel-agent must stay stopped.
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-	AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
+	s.assertManagedByProcmgr(ddotProcmgrProcess)
 
 	// Act: purge all packages
 	_, err = s.Installer().Purge()

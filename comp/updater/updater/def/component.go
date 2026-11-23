@@ -7,10 +7,17 @@
 package updater
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 )
 
-// team: fleet windows-products
+var (
+	ErrRemoteConfigRequired = errors.New("remote config is required to create the updater")
+	ErrRemoteUpdateDisabled = errors.New("remote updates are disabled")
+)
+
+// team: fleet
 
 // Component is the interface for the updater component.
 type Component interface {

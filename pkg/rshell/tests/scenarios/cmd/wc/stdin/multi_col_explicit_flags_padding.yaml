@@ -1,0 +1,15 @@
+# Verify that GNU wc minimum width-7 padding applies to non-regular
+# (stdin) input when two or more columns are printed with explicit flags.
+description: wc pads non-regular input to width 7 with explicit multi-column flags.
+setup:
+  files:
+    - path: file.txt
+      content: "a\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat file.txt | wc -lw
+expect:
+  stdout: "      1       1\n"
+  stderr: ""
+  exit_code: 0

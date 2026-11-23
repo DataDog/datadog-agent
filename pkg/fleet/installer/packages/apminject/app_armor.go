@@ -24,6 +24,7 @@ import (
 const (
 	appArmorAbstractionDir       = "/etc/apparmor.d/abstractions/"
 	appArmorBaseProfile          = "/etc/apparmor.d/abstractions/base"
+	appArmorBaseDInjectorPath    = appArmorAbstractionDir + "base.d/datadog"
 	appArmorDatadogDir           = appArmorAbstractionDir + "datadog.d/"
 	appArmorInjectorProfilePath  = appArmorDatadogDir + "injector"
 	appArmorBaseDIncludeIfExists = "include if exists <abstractions/datadog.d>"
@@ -55,6 +56,21 @@ func unpatchBaseProfileWithDatadogInclude(filename string) error {
 	}
 
 	return findAndReplaceAllInFile(filename, "\n"+appArmorBaseDIncludeIfExists, "")
+}
+
+func baseProfileIncludesBaseD(filename string) (bool, error) {
+	profile, err := os.ReadFile(filename)
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(string(profile), "\n") {
+		switch strings.TrimSpace(line) {
+		case "#include <abstractions/base.d>", "include <abstractions/base.d>",
+			"include if exists <abstractions/base.d>":
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func patchBaseProfileWithDatadogInclude(filename string) error {
@@ -116,33 +132,56 @@ func setupAppArmor(ctx context.Context) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "setup_app_armor")
 	defer func() { span.Finish(err) }()
 
-	// first make sure base.d exists before we add it to the base profile
-	// minimize the chance for a race
-	if err = os.MkdirAll(appArmorDatadogDir, 0755); err != nil {
-		return fmt.Errorf("failed to create %s: %w", appArmorDatadogDir, err)
+	baseIncludesBaseD, err := baseProfileIncludesBaseD(appArmorBaseProfile)
+	if err != nil {
+		return fmt.Errorf("failed to inspect %s: %w", appArmorBaseProfile, err)
+	}
+
+	profileDir := appArmorDatadogDir
+	profilePath := appArmorInjectorProfilePath
+	if baseIncludesBaseD {
+		// Keep the package-owned base profile unchanged when the distro provides a drop-in hook.
+		profileDir = appArmorAbstractionDir + "base.d/"
+		profilePath = appArmorBaseDInjectorPath
+	}
+
+	if err = os.MkdirAll(profileDir, 0755); err != nil {
+		return fmt.Errorf("failed to create %s: %w", profileDir, err)
 	}
 	// unfortunately this isn't an atomic change. All files in that directory can be interpreted
 	// and I did not implement finding a safe directory to write to in the same partition, to run an atomic move.
 	// This shouldn't be a problem as we reload app armor right after writing the file.
-	if err = os.WriteFile(appArmorInjectorProfilePath, []byte(appArmorProfile), 0644); err != nil {
+	if err = os.WriteFile(profilePath, []byte(appArmorProfile), 0644); err != nil {
 		return err
 	}
 
-	if err = patchBaseProfileWithDatadogInclude(appArmorBaseProfile); err != nil {
-		return fmt.Errorf("failed validate %s contains an include to base.d: %w", appArmorBaseProfile, err)
+	if !baseIncludesBaseD {
+		if err = patchBaseProfileWithDatadogInclude(appArmorBaseProfile); err != nil {
+			return fmt.Errorf("failed to add Datadog include to %s: %w", appArmorBaseProfile, err)
+		}
 	}
 
 	if err = reloadAppArmor(ctx); err != nil {
-		if rollbackErr := os.Remove(appArmorInjectorProfilePath); rollbackErr != nil {
+		if rollbackErr := os.Remove(profilePath); rollbackErr != nil {
 			log.Warnf("failed to remove apparmor profile: %v", rollbackErr)
 		}
 		return err
+	}
+
+	if baseIncludesBaseD {
+		// The new fragment is loaded, so the legacy include is no longer needed.
+		if err = unpatchBaseProfileWithDatadogInclude(appArmorBaseProfile); err != nil {
+			return fmt.Errorf("failed to remove Datadog include from %s: %w", appArmorBaseProfile, err)
+		}
 	}
 	return nil
 }
 
 func removeAppArmor(ctx context.Context) (err error) {
 	_, err = os.Stat(appArmorInjectorProfilePath)
+	if errors.Is(err, os.ErrNotExist) {
+		_, err = os.Stat(appArmorBaseDInjectorPath)
+	}
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -157,8 +196,10 @@ func removeAppArmor(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err = os.Remove(appArmorInjectorProfilePath); err != nil {
-		return err
+	for _, profilePath := range []string{appArmorInjectorProfilePath, appArmorBaseDInjectorPath} {
+		if err = os.Remove(profilePath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
 	_ = reloadAppArmor(ctx)
 	return nil

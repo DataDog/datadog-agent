@@ -257,7 +257,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("dogstatsd-standalone"),
-							Image: pulumi.String(dockerDogstatsdFullImagePath(e, "registry.datadoghq.com/dogstatsd")),
+							Image: pulumi.String(dockerDogstatsdFullImagePath(e, "")),
 							Ports: corev1.ContainerPortArray{
 								&corev1.ContainerPortArgs{
 									ContainerPort: pulumi.Int(8125),
@@ -327,6 +327,28 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 				},
 				Verbs: pulumi.StringArray{
 					pulumi.String("get"),
+				},
+			},
+			v1.PolicyRuleArgs{ // Node metadata mapping lists endpoints or endpointslices
+				ApiGroups: pulumi.StringArray{
+					pulumi.String(""),
+				},
+				Resources: pulumi.StringArray{
+					pulumi.String("endpoints"),
+				},
+				Verbs: pulumi.StringArray{
+					pulumi.String("list"),
+				},
+			},
+			v1.PolicyRuleArgs{
+				ApiGroups: pulumi.StringArray{
+					pulumi.String("discovery.k8s.io"),
+				},
+				Resources: pulumi.StringArray{
+					pulumi.String("endpointslices"),
+				},
+				Verbs: pulumi.StringArray{
+					pulumi.String("list"),
 				},
 			},
 		},

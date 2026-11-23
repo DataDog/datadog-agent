@@ -1,0 +1,9 @@
+description: ps -p with a non-existent PID exits with code 1.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps -p 2147483647
+expect:
+  stdout_contains:
+    - "PID"
+  exit_code: 1

@@ -56,6 +56,13 @@ The state machine in the store (`store/impl/store.go`):
 
 On-disk state uses human-readable strings (`"active"`, `"resolved"`). The store accepts `"new"` and `"ongoing"` as legacy aliases for `"active"` when reading persistence files written by older agent versions (schema v2).
 
+Persistence depends on the process and environment:
+
+- Non-Kubernetes Agents use the local `issues.json` file. Kubernetes Agents can opt in with `health_platform.persist_on_kubernetes: true` and a durable `run_path` volume.
+- With `health_platform.persist_remotely_on_kubernetes: true`, Kubernetes node Agents and Cluster Agents restore active issues from `https://api.<site>` using `api_key`. Requests use the DaemonSet UID (`agent_type=node`) or cluster UUID (`agent_type=cluster`); returned issue IDs match Agent issue IDs directly. Standard proxy settings apply; `dd_url` does not. Existing Health Platform egress continues to send updates.
+- Remote restoration takes precedence over local persistence. It is disabled for Cluster Check Runners, one-shot commands, missing API keys, the local FIPS proxy, and disabled TLS certificate verification.
+- Kubernetes persistence is disabled by default.
+
 ## Cluster-wide issue collapse (`deployment_id`)
 
 The backend dedups issues by `id` alone, ignoring hostname. By default this means every issue module
@@ -110,6 +117,24 @@ correct when the fix is genuinely shared, but it can flap if only some agents re
 affected-count is a backend follow-up, not handled by the agent today. Document this caveat at every
 `ResolveIssue` call site for a collapsed issue.
 
+## Telemetry
+
+The `checks` COAT profile sends these `health_platform` metrics every 900 seconds:
+
+| Metric | Tags | Meaning |
+|---|---|---|
+| `active_issues` | `issue_type` | Gauge of active issue instances, including restored issues |
+| `reports_sent` | `status`, `error_type` | Counter of send attempts; skipped ticks are excluded |
+| `issues_resolved` | `issue_type` | Counter of transitions to resolved |
+
+These metrics use the caller-defined proto `IssueType` identifier, not the legacy display-name key in `issuesByName` / `PersistedIssue.IssueType`. Issues reported without an `IssueType` are tagged `issue_type:unknown`. Because `issues_detected` keeps the legacy key, its `issue_type` values do not match these metrics; do not join them on that tag. `reports_sent` uses `status:success,error_type:none` or `status:error` with `error_type:timeout|http_4xx|http_5xx|other`.
+
+The gauge counts active persisted instances by proto type, including an empty type for older restored records or unregistered issues. Re-reporting a restored instance with its proto type populated moves its count to that label.
+
+Resolve metrics count each issue instance once per transition, including `ResolveAllIssues`; shutdown does not resolve issues. Shared cluster issue IDs can undercount per-Agent recoveries when the first recovering Agent resolves the shared issue.
+
+COAT excludes zero-valued metrics, so resolved types with an active count of zero are omitted. The existing `issues_detected{issue_type,severity}` counter continues counting every report with its existing tags. The remote COAT profiles list needs the same entries when it becomes the source of truth.
+
 ## Current issues
 
 | Package | `id` | `issue_name` | `issue_type` | `title` | `id` scoping |
@@ -117,10 +142,11 @@ affected-count is a backend follow-up, not handled by the agent today. Document 
 | `admisconfig` (annotation) | set by caller | `Autodiscovery Annotation Misconfiguration` | `autodiscovery_annotation_misconfiguration` | `"<subtype> Misconfiguration on '<entityName>'"` | hostname-free (already collapses) |
 | `admisconfig` (template) | set by caller | `Autodiscovery Template Resolution Error` | `autodiscovery_template_resolution_error` | `"Autodiscovery Template Resolution Error on '<entityName>'"` | hostname-free (already collapses) |
 | `invalidconfig` | `invalid-config:<digest>` | `Invalid Config` | `invalid_config` | `"Datadog Agent Configuration Has <N> Schema Violation(s) in <filename>"` | `IssueDiscriminator` (cluster-collapsible) |
-| `invalidsysprobeconfig` | `invalid-system-probe-config:<digest>` | `Invalid System-Probe Config` | `invalid_system-probe_config` | `"Datadog System-Probe Configuration Has <N> Schema Violation(s) in <filename>"` | `IssueDiscriminator` (cluster-collapsible) |
+| `invalidsysprobeconfig` | `invalid-system-probe-config:<digest>` | `Invalid System-Probe Config` | `invalid_system-probe_config` | `"Found <N> configuration error(s) in <filename>"` (or `"Found <N> error(s) in the system-probe configuration"` when no filename is known) | `IssueDiscriminator` (cluster-collapsible) |
 | `rofspermissions` | `rofs-permissions` | `Read-Only Filesystem Error` | `read-only_filesystem_error` | `"Agent cannot write to: <directories>"` | per-host (host-local failure) |
 | `admissionprobe` | `admission-controller-connectivity-failure` | `Admission Controller Unreachable` | `admission_controller_unreachable` | `"Admission Controller Unreachable"` | singleton |
-| `dockerpermissions` | `docker-socket-permissions` | `Docker File Tailing Disabled` | `docker_file_tailing_disabled` | `"Docker log tailing disabled for '<dockerDir>'"` | per-host (host-local failure) |
+| `docker` | `docker-socket-permissions:<digest>` | `Docker Socket Permission` | `docker_socket_permission` | `"Docker socket permission denied at '<socketPaths>'"` | per host + affected-socket set |
+| `docker` | `docker-socket-unavailable:<digest>` | `Docker Socket Unavailable` | `docker_socket_unavailable` | `"Docker socket unavailable at '<socketPaths>'"` | per host + affected-socket set |
 | `missedbytes` | `log-data-lost-after-rotation:<digest>` | `Log Data Lost After Rotation` | `log_data_lost_after_rotation` | `"Lost <bytes> of logs from <N> sources in the last 24 hours"`, or `"from source <name>"` when one source and service account for all of it | per-host (host-local failure) |
 
 ## Adding a new issue module

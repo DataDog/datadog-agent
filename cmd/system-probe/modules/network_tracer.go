@@ -55,6 +55,10 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	if err := enableNetNSContainerAttribution(ctx, t, deps); err != nil {
+		log.Warnf("network namespace container attribution disabled: %s", err)
+	}
+
 	var connsSender sender.Sender
 	if ncfg.DirectSend {
 		connsSender, err = sender.New(ctx, t, sender.Dependencies{
@@ -232,6 +236,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 // Close will stop all system probe activities
 func (nt *networkTracer) Close() {
+	// Stopping the sender waits for a collection that is already running, and
+	// a collection can spend an unbounded amount of time in the tracer. Tell
+	// the tracer to wind down first so that wait stays within the budget we
+	// are given to stop.
+	nt.tracer.PrepareStop()
 	if nt.connsSender != nil {
 		nt.connsSender.Stop()
 	}

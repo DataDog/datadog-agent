@@ -1,0 +1,11 @@
+description: find <path> --help prints usage to stdout and exits 0.
+skip_assert_against_bash: true
+input:
+  script: |+
+    find . --help
+expect:
+  stdout_contains:
+    - "Usage:"
+    - "find"
+  stderr: ""
+  exit_code: 0
