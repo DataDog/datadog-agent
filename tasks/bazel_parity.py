@@ -27,6 +27,7 @@ from tasks.static_quality_gates.experimental_gates import FileInfo, FileUtilitie
 class Product:
     package: str
     bazel_package: str
+    omnibus_jobs: tuple[str, ...]
     formats: tuple[str, ...] = ('deb', 'rpm')
     debug_package: bool = False
 
@@ -41,7 +42,12 @@ class Product:
 
 
 PRODUCTS = {
-    'agent': Product('datadog-agent', '//packages/agent/linux', debug_package=True),
+    'agent': Product(
+        'datadog-agent',
+        '//packages/agent/linux',
+        omnibus_jobs=('agent_deb-x64-a7', 'agent_rpm-x64-a7'),
+        debug_package=True,
+    ),
 }
 ARCHITECTURES = {'amd64': {'deb': 'amd64', 'rpm': 'x86_64'}}
 FORMATS = {'deb': read_deb_metadata, 'rpm': read_rpm_metadata}
