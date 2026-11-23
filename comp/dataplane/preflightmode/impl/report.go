@@ -140,9 +140,50 @@ func (o *outcome) reportedLocations(f finding) []sourceLocation {
 		return locations
 	}
 
+	return capLocations(locations, maxReportedLocations)
+}
+
+// capLocations keeps at most limit of locations and replaces each of the others with
+// locationOverflow, so the result still has one point per location observed.
+//
+// A log site comes before a subject: one compatibility check that rejects many keys logs them
+// all from one site, and it must not push a different site out of the budget. So the first
+// location seen at each distinct file and line is kept first, in first-seen order, and the budget
+// left over goes to the other subjects at those sites, again in first-seen order. The kept
+// locations stay in the order they were observed.
+func capLocations(locations []sourceLocation, limit int) []sourceLocation {
+	keep := make([]bool, len(locations))
+	kept := 0
+	sites := make(map[sourceLocation]struct{})
+	for i, loc := range locations {
+		site := sourceLocation{file: loc.file, line: loc.line}
+		if _, seen := sites[site]; seen || kept == limit {
+			continue
+		}
+		sites[site] = struct{}{}
+		keep[i] = true
+		kept++
+	}
+	for i := range locations {
+		if kept == limit {
+			break
+		}
+		if !keep[i] {
+			keep[i] = true
+			kept++
+		}
+	}
+
 	capped := make([]sourceLocation, 0, len(locations))
-	capped = append(capped, locations[:maxReportedLocations]...)
-	for range locations[maxReportedLocations:] {
+	var overflow int
+	for i, loc := range locations {
+		if keep[i] {
+			capped = append(capped, loc)
+		} else {
+			overflow++
+		}
+	}
+	for range overflow {
 		capped = append(capped, locationOverflow)
 	}
 	return capped

@@ -3261,6 +3261,47 @@ func TestDataPlanePreflightModeProfile(t *testing.T) {
 		"zero_metric exclusion is what keeps the recurring schedule from re-shipping the same run")
 }
 
+// TestDataPlanePreflightModeFindingExport runs the preflight finding metric through the real
+// default profile and the exporter, rather than only reading the allowlist. Two config keys
+// logged from the same site, and a supervisor finding, must reach the payload as separate
+// timeseries with their tags intact.
+func TestDataPlanePreflightModeFindingExport(t *testing.T) {
+	tel := makeTelMock(t)
+	finding := tel.NewCounter("data_plane", "preflight_mode_finding",
+		[]string{"finding", "source_file", "source_line", "config_key", "worker_name"}, "")
+
+	const compat = "lib/agent-data-plane-config-system/src/compatibility.rs"
+	const supervisor = "lib/saluki-core/src/runtime/supervisor.rs"
+	finding.Inc("errors_in_log", compat, "59", "heroku_dyno", "")
+	finding.Inc("errors_in_log", compat, "59", "otlp_config.receiver.protocols.http.tls.cert_pem", "")
+	finding.Inc("errors_in_log", supervisor, "1421", "", "ctrl-pln/privileged-api")
+
+	// No profiles are configured, so the default profiles apply.
+	s := &senderMock{}
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, "agent_telemetry:\n  enabled: true\n", s, nil, r)
+	require.True(t, a.enabled)
+	a.start()
+	r.(*runnerMock).run()
+
+	var sent []*dto.Metric
+	for _, m := range s.sentMetrics {
+		if m.name == "data_plane.preflight_mode_finding" {
+			sent = append(sent, m.metrics...)
+		}
+	}
+	metrics := makeStableMetricMap(sent)
+	require.Len(t, metrics, 3, "each config key and worker must be its own timeseries")
+
+	key := func(file, line, configKey, workerName string) string {
+		return "config_key:" + configKey + ":finding:errors_in_log:source_file:" + file +
+			":source_line:" + line + ":worker_name:" + workerName + ":"
+	}
+	assert.Contains(t, metrics, key(compat, "59", "heroku_dyno", ""))
+	assert.Contains(t, metrics, key(compat, "59", "otlp_config.receiver.protocols.http.tls.cert_pem", ""))
+	assert.Contains(t, metrics, key(supervisor, "1421", "", "ctrl-pln/privileged-api"))
+}
+
 func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {
 	c := defaultProfiles
 	cfg := configmock.NewFromYAML(t, c)

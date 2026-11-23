@@ -130,6 +130,42 @@ func TestReportedLocations(t *testing.T) {
 		assert.Equal(t, []sourceLocation{locationNone}, o.reportedLocations(findingErrorsInLog))
 	})
 
+	t.Run("many subjects at one site cannot push another site out of the cap", func(t *testing.T) {
+		// One compatibility check rejecting more keys than the cap, followed by an error from a
+		// different site. The other site is a separate failure and must keep its location.
+		compatAt := func(key string) logRecord {
+			return logRecord{
+				Level:      levelError,
+				Target:     "agent_data_plane_config_system::compatibility",
+				Signature:  "Unsupported configuration key",
+				SourceFile: "lib/agent-data-plane-config-system/src/compatibility.rs",
+				SourceLine: "59",
+				ConfigKey:  subjectField(key),
+			}
+		}
+		var records []logRecord
+		const keys = maxReportedLocations + 2
+		for i := 0; i < keys; i++ {
+			records = append(records, compatAt("key_"+strconv.Itoa(i)))
+		}
+		records = append(records, errAt("201", "Incompatible configuration detected."))
+
+		locations := (&outcome{records: records}).reportedLocations(findingErrorsInLog)
+		require.Len(t, locations, keys+1, "the points must still add up to the locations observed")
+		assert.Contains(t, locations, sourceLocation{file: "bin/agent-data-plane/src/main.rs", line: "201"})
+		assert.Equal(t, compatAt("key_0").location(), locations[0], "kept locations stay in first-seen order")
+		var kept, overflow int
+		for _, loc := range locations {
+			if loc == locationOverflow {
+				overflow++
+			} else {
+				kept++
+			}
+		}
+		assert.Equal(t, maxReportedLocations, kept)
+		assert.Equal(t, keys+1-maxReportedLocations, overflow)
+	})
+
 	t.Run("the surplus past the cap collapses onto one location", func(t *testing.T) {
 		var records []logRecord
 		const sites = maxReportedLocations + 3
