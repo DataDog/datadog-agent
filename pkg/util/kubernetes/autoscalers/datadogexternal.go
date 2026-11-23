@@ -8,6 +8,7 @@
 package autoscalers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -126,6 +127,9 @@ func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []stri
 		case apiErr.Code == OtherHTTPStatusCodeAPIError:
 			ddRequests.Inc("other_http_error", le.JoinLeaderValue)
 			log.Debugf("Error while executing queries %v, err: %v", ddQueries, err)
+		case errors.Is(err, context.DeadlineExceeded):
+			ddRequests.Inc("timeout", le.JoinLeaderValue)
+			log.Debugf("Timeout while executing a batch of %d queries: %v", ddQueriesLen, err)
 		default:
 			ddRequests.Inc("unknown_error", le.JoinLeaderValue)
 			log.Debugf("Error while executing queries %v, err: %v", ddQueries, err)
