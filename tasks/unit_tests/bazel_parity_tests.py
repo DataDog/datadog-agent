@@ -56,9 +56,11 @@ class TestBazelParity(unittest.TestCase):
         with (
             patch.object(parity, 'find_packages', return_value=Path('agent.deb')),
             patch.object(parity, 'measure_inventory', return_value=([FileInfo('opt/agent', 1)], {})),
-            patch.dict(parity.FORMATS, {'deb': lambda _: next(metadata)}, clear=True),
+            patch.dict(parity.FORMATS, {'deb': lambda _: next(metadata)}),
+            patch.dict(parity.PRODUCTS, {'deb-only': parity.Product('deb-only', '//deb_only', ('deb',))}, clear=True),
         ):
             report = parity.build_report(None, 'omnibus', 'bazel', 'readelf')
+        self.assertEqual([p['format'] for p in report['packages']], ['deb'])
         self.assertEqual(report['summary'], {'done': 5, 'remaining': 2})
         items = {item['item']: item for item in report['tasks']}
         self.assertEqual(items['field_vendor']['differences'], [{'omnibus': 'Datadog', 'bazel': ''}])
@@ -67,6 +69,23 @@ class TestBazelParity(unittest.TestCase):
         self.assertEqual(items['field_version']['status'], 'done')
         self.assertEqual(items['field_signature']['status'], 'done')
         self.assertEqual(items['field_postinst']['status'], 'done')
+
+    def test_bazel_targets(self):
+        products = {
+            'with-debug': parity.Product('with-debug', '//with_debug', debug_package=True),
+            'rpm-only': parity.Product('rpm-only', '//rpm_only', ('rpm',)),
+        }
+        with patch.dict(parity.PRODUCTS, products, clear=True):
+            self.assertEqual(
+                parity.all_bazel_targets(),
+                [
+                    '//with_debug:debian',
+                    '//with_debug:debian_dbg',
+                    '//with_debug:rpm',
+                    '//with_debug:rpm_dbg',
+                    '//rpm_only:rpm',
+                ],
+            )
 
     def test_metric_tags_and_submission_gating(self):
         tags = parity.metric_tags(path='Opt/My path', item='a' * 250)
