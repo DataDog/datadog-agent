@@ -15,7 +15,7 @@ import (
 	lib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -127,9 +127,9 @@ func (m *Monitor) SendStats() error {
 
 // NewEventSampleMonitor returns a new Monitor
 func NewEventSampleMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
-	numCPU, err := utils.NumCPU()
+	numCPU, err := kernel.PossibleCPUs()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
+		return nil, fmt.Errorf("couldn't fetch the possible CPU count: %w", err)
 	}
 
 	monitor := &Monitor{

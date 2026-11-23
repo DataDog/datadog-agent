@@ -34,8 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // Caller identifies the component that requested a dentry resolution
@@ -824,9 +824,9 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 		}
 	}
 
-	numCPU, err := utils.NumCPU()
+	numCPU, err := kernel.PossibleCPUs()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
+		return nil, fmt.Errorf("couldn't fetch the possible CPU count: %w", err)
 	}
 
 	cache, err := cache.NewTwoLayersLRU[uint32, model.PathKey, PathEntry](config.DentryCacheSize)

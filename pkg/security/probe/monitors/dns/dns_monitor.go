@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // Stats contains the stats of the DNS monitor
@@ -104,9 +104,9 @@ func (d *Monitor) SendStats() error {
 
 // NewDNSMonitor returns a new Monitor
 func NewDNSMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
-	numCPU, err := utils.NumCPU()
+	numCPU, err := kernel.PossibleCPUs()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
+		return nil, fmt.Errorf("couldn't fetch the possible CPU count: %w", err)
 	}
 
 	d := &Monitor{

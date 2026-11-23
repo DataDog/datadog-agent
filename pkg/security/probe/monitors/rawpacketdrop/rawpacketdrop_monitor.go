@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // RuleIDsProvider returns the current filter index to rule_id mapping.
@@ -42,9 +42,9 @@ func NewMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface, r
 	if err != nil {
 		return nil, err
 	}
-	numCPU, err := utils.NumCPU()
+	numCPU, err := kernel.PossibleCPUs()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
+		return nil, fmt.Errorf("couldn't fetch the possible CPU count: %w", err)
 	}
 
 	return &Monitor{
