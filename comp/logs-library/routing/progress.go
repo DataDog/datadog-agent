@@ -149,7 +149,15 @@ func (p *Progress) RegisterSource(identifier string, generation uint64) error {
 			return ErrObsoleteGeneration
 		}
 	}
-	if (source == nil && len(p.sources) >= p.limit) || p.histories >= p.limit {
+	reclaimable := 0
+	if p.mode == CompletionRequireAny && source != nil {
+		for oldGen, retired := range source.seenGenerations {
+			if retired && oldGen < generation {
+				reclaimable++
+			}
+		}
+	}
+	if (source == nil && len(p.sources) >= p.limit) || p.histories-reclaimable >= p.limit {
 		return ErrSourceCapacity
 	}
 	if source == nil {
@@ -162,7 +170,7 @@ func (p *Progress) RegisterSource(identifier string, generation uint64) error {
 	p.histories++
 	// In CompletionRequireAny mode, reclaim any previously retired generation
 	// now superseded by this newer generation.
-	if p.mode == CompletionRequireAny {
+	if reclaimable > 0 {
 		for oldGen, retired := range source.seenGenerations {
 			if retired && oldGen < generation {
 				if oldGen > source.maxRetiredGeneration {

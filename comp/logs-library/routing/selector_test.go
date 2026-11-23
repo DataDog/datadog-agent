@@ -329,3 +329,28 @@ func TestProgressRequireAnyOutOfOrderRetirementKeepsLiveProducerActive(t *testin
 		t.Fatalf("RetireSource gen 3: %v", err)
 	}
 }
+
+func TestProgressRequireAnyReplacementAtHardLimitReclaimsRetiredSlot(t *testing.T) {
+	sink := &selectorTestSink{ch: make(chan *message.Payload, 8)}
+	progress, err := NewProgressWithMode(2, sink, CompletionRequireAny)
+	if err != nil {
+		t.Fatalf("NewProgressWithMode: %v", err)
+	}
+	defer progress.Close()
+
+	const id = "file:/tmp/hardlimit.log"
+	if err := progress.RegisterSource(id, 1); err != nil {
+		t.Fatalf("RegisterSource gen 1: %v", err)
+	}
+	if err := progress.RegisterSource(id, 2); err != nil {
+		t.Fatalf("RegisterSource gen 2: %v", err)
+	}
+	// Retire gen 2 while gen 1 is still active: histories is at limit (2).
+	if err := progress.RetireSource(id, 2); err != nil {
+		t.Fatalf("RetireSource gen 2: %v", err)
+	}
+	// Registering gen 3 must reclaim gen 2's retired slot under the same lock.
+	if err := progress.RegisterSource(id, 3); err != nil {
+		t.Fatalf("RegisterSource gen 3 failed at hard limit: %v", err)
+	}
+}

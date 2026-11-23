@@ -39,6 +39,7 @@ import (
 
 const (
 	optionalStreamCapacity = 128
+	sharedIngressPoolSize  = 16
 	maxSharedParks         = 256
 	maxTotalParked         = 1024
 )
@@ -331,7 +332,8 @@ type EndpointFilteredProvider struct {
 	policy           *routing.EndpointFilterPolicy
 	progress         *routing.Progress
 	monitor          metrics.PipelineMonitor
-	ingress          *managedInput
+	sharedInputs     []*managedInput
+	sharedInputIdx   atomic.Uint64
 	inputs           []*managedInput
 	sourceInputs     map[sourceInputKey]*managedInput
 	inputKeys        map[*managedInput]sourceInputKey
@@ -343,6 +345,7 @@ type EndpointFilteredProvider struct {
 	sharedParkMu     sync.Mutex
 	sharedParks      map[string]*sharedSourcePark
 	totalParked      int
+	parkSpace        chan struct{} // Broadcast when totalParked decreases; guarded by sharedParkMu.
 	sharedParkWg     sync.WaitGroup
 	ctx              context.Context
 	cancel           context.CancelFunc
@@ -386,7 +389,6 @@ func NewEndpointFilteredProvider(opts EndpointFilteredOptions) (*EndpointFiltere
 		destinationsCtx: client.NewDestinationsContext(),
 		policy:          policy,
 		progress:        progress,
-		ingress:         newManagedInput(make(chan *message.Message, routedIngressCapacity)),
 		processed:       make(chan *message.Message, routedProcessedCapacity),
 		streams:         make([]*endpointStream, policy.EndpointCount()),
 		selections:      make(map[uint64]endpointSelection),
@@ -400,7 +402,12 @@ func NewEndpointFilteredProvider(opts EndpointFilteredOptions) (*EndpointFiltere
 		stopRequested:   make(chan struct{}),
 	}
 	p.evalWarnBudget.Store(20)
-	p.inputs = append(p.inputs, p.ingress)
+	p.sharedInputs = make([]*managedInput, sharedIngressPoolSize)
+	for i := 0; i < sharedIngressPoolSize; i++ {
+		mi := newManagedInput(make(chan *message.Message, routedIngressCapacity))
+		p.sharedInputs[i] = mi
+		p.inputs = append(p.inputs, mi)
+	}
 
 	endpointCount := policy.EndpointCount()
 	perEndpointCap := routedHTTPRequests / endpointCount
@@ -801,28 +808,53 @@ func (p *EndpointFilteredProvider) waitSharedParksAsync(ctx context.Context, don
 	}()
 }
 
+func (p *EndpointFilteredProvider) notifyParkSpaceLocked() {
+	if p.parkSpace != nil {
+		close(p.parkSpace)
+		p.parkSpace = nil
+	}
+}
+
 func (p *EndpointFilteredProvider) parkIfStalled(identifier string, msg *message.Message, generation uint64) bool {
-	p.sharedParkMu.Lock()
-	park := p.sharedParks[identifier]
-	if park == nil || p.totalParked >= maxTotalParked {
-		p.sharedParkMu.Unlock()
-		return false
-	}
-	park.queued++
-	park.submitted++
-	p.totalParked++
-	p.sharedParkMu.Unlock()
-	select {
-	case park.queue <- parkedRecord{msg: msg, generation: generation}:
-	case <-p.ctx.Done():
+	for {
 		p.sharedParkMu.Lock()
-		park.queued--
-		p.totalParked--
+		park := p.sharedParks[identifier]
+		if park == nil {
+			p.sharedParkMu.Unlock()
+			return false
+		}
+		// Never let a newer record for an active park bypass it and reserve
+		// ahead of an older parked record. Wait for park space instead.
+		if p.totalParked >= maxTotalParked {
+			if p.parkSpace == nil {
+				p.parkSpace = make(chan struct{})
+			}
+			waitCh := p.parkSpace
+			p.sharedParkMu.Unlock()
+			select {
+			case <-waitCh:
+				continue
+			case <-p.ctx.Done():
+				return true
+			}
+		}
+		park.queued++
+		park.submitted++
+		p.totalParked++
 		p.sharedParkMu.Unlock()
-		park.completed.Add(1)
-		park.broadcast()
+		select {
+		case park.queue <- parkedRecord{msg: msg, generation: generation}:
+		case <-p.ctx.Done():
+			p.sharedParkMu.Lock()
+			park.queued--
+			p.totalParked--
+			p.notifyParkSpaceLocked()
+			p.sharedParkMu.Unlock()
+			park.completed.Add(1)
+			park.broadcast()
+		}
+		return true
 	}
-	return true
 }
 
 func (p *EndpointFilteredProvider) tryEnqueueSharedPark(
@@ -870,6 +902,7 @@ func (p *EndpointFilteredProvider) tryEnqueueSharedPark(
 					p.sharedParkMu.Lock()
 					pk.queued--
 					p.totalParked--
+					p.notifyParkSpaceLocked()
 					if pk.queued == 0 && p.sharedParks[id] == pk {
 						delete(p.sharedParks, id)
 						p.sharedParkMu.Unlock()
@@ -880,6 +913,7 @@ func (p *EndpointFilteredProvider) tryEnqueueSharedPark(
 					p.sharedParkMu.Lock()
 					p.totalParked -= pk.queued
 					pk.queued = 0
+					p.notifyParkSpaceLocked()
 					if p.sharedParks[id] == pk {
 						delete(p.sharedParks, id)
 					}
@@ -1316,17 +1350,32 @@ func (p *EndpointFilteredProvider) SourceInput(identifier string, generation uin
 	if identifier == "" || generation == 0 {
 		return nil, routing.ErrInvalidSelection
 	}
+	key := sourceInputKey{identifier: identifier, generation: generation}
+	p.lifecycle.RLock()
+	if p.stopped {
+		p.lifecycle.RUnlock()
+		return nil, routing.ErrStopped
+	}
+	if mi, ok := p.sourceInputs[key]; ok {
+		p.lifecycle.RUnlock()
+		return mi.ch, nil
+	}
+	p.lifecycle.RUnlock()
+
+	// Register with Progress outside lifecycle.Lock so a contended Progress.mu
+	// cannot block concurrent Flush or RetireSource lifecycle.RLock acquisitions.
+	if err := p.progress.RegisterSource(identifier, generation); err != nil {
+		return nil, err
+	}
+
 	p.lifecycle.Lock()
 	defer p.lifecycle.Unlock()
 	if p.stopped {
+		_ = p.progress.RetireSourceWhenDrained(identifier, generation)
 		return nil, routing.ErrStopped
 	}
-	key := sourceInputKey{identifier: identifier, generation: generation}
 	if mi, ok := p.sourceInputs[key]; ok {
 		return mi.ch, nil
-	}
-	if err := p.progress.RegisterSource(identifier, generation); err != nil {
-		return nil, err
 	}
 	mi := newManagedInput(make(chan *message.Message, routedIngressCapacity))
 	p.sourceInputs[key] = mi
@@ -1478,9 +1527,10 @@ func (p *EndpointFilteredProvider) reclaimBoundInput(key sourceInputKey, mi *man
 	mi.waitSendersAndClose()
 }
 
-// NextPipelineChan returns the shared ingress channel.
+// NextPipelineChan returns a shared ingress channel from the isolated pool.
 func (p *EndpointFilteredProvider) NextPipelineChan() chan *message.Message {
-	return p.ingress.ch
+	idx := (p.sharedInputIdx.Add(1) - 1) % uint64(len(p.sharedInputs))
+	return p.sharedInputs[idx].ch
 }
 
 // GetOutputChan returns nil (matching the default provider).
@@ -1488,9 +1538,9 @@ func (p *EndpointFilteredProvider) GetOutputChan() chan *message.Message {
 	return nil
 }
 
-// NextPipelineChanWithMonitor returns the shared ingress channel and capacity monitor.
+// NextPipelineChanWithMonitor returns a shared ingress channel and capacity monitor.
 func (p *EndpointFilteredProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
-	return p.ingress.ch, p.monitor.GetCapacityMonitor(metrics.ProcessorTlmName, "endpoint-filter-0")
+	return p.NextPipelineChan(), p.monitor.GetCapacityMonitor(metrics.ProcessorTlmName, "endpoint-filter-0")
 }
 
 // GetPipelineMonitor returns the pipeline monitor for this provider.

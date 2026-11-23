@@ -106,20 +106,22 @@ func (s *worker) run() {
 
 	reliableDestinations := buildDestinationSenders(s.config, s.destinations.Reliable, reliableOutputChan, s.bufferSize)
 	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, noopSink, s.bufferSize)
+	const workerShutdownDrainGrace = 2 * time.Second
 	continueLoop := true
 	for continueLoop {
 		select {
 		case payload := <-s.inputChan:
-			s.sendPayload(payload, reliableDestinations, unreliableDestinations, false)
+			s.sendPayload(payload, reliableDestinations, unreliableDestinations, time.Time{})
 		case <-s.done:
 			// Drain payloads already queued on inputChan before stopping destinations.
-			// Use non-retrying drain mode so a permanently disabled or stalled
-			// destination cannot hang shutdown.
+			// Bound retries to workerShutdownDrainGrace so transiently retrying
+			// endpoints can recover while permanently disabled destinations cannot hang Stop.
+			drainDeadline := time.Now().Add(workerShutdownDrainGrace)
 		drain:
 			for {
 				select {
 				case payload := <-s.inputChan:
-					s.sendPayload(payload, reliableDestinations, unreliableDestinations, true)
+					s.sendPayload(payload, reliableDestinations, unreliableDestinations, drainDeadline)
 				default:
 					break drain
 				}
@@ -139,7 +141,7 @@ func (s *worker) run() {
 	s.finished <- struct{}{}
 }
 
-func (s *worker) sendPayload(payload *message.Payload, reliableDestinations, unreliableDestinations []*DestinationSender, draining bool) {
+func (s *worker) sendPayload(payload *message.Payload, reliableDestinations, unreliableDestinations []*DestinationSender, drainDeadline time.Time) {
 	s.pipelineMonitor.ReportComponentEgress(payload, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
 	s.pipelineMonitor.ReportComponentIngress(payload, metrics.WorkerTlmName, s.workerID)
 	s.utilization.Start()
@@ -169,19 +171,22 @@ func (s *worker) sendPayload(payload *message.Payload, reliableDestinations, unr
 		}
 
 		if !sent {
-			if draining {
-				// Shutdown drain: abandon unsent payload without acknowledging
-				// when no reliable destination can accept it immediately.
-				s.utilization.Stop()
-				return
+			if !drainDeadline.IsZero() {
+				if time.Now().After(drainDeadline) {
+					s.utilization.Stop()
+					return
+				}
+				time.Sleep(100 * time.Millisecond)
+				continue
 			}
 			// Throttle the poll loop while waiting for a send to succeed
 			// This will only happen when all reliable destinations
 			// are blocked so logs have no where to go.
 			select {
 			case <-s.done:
-				s.utilization.Stop()
-				return
+				// Shutdown requested while retrying: allow bounded grace for
+				// transient recovery before abandoning the unsent payload.
+				drainDeadline = time.Now().Add(2 * time.Second)
 			case <-time.After(100 * time.Millisecond):
 			}
 		}

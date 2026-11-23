@@ -82,7 +82,6 @@ type Launcher struct {
 	nextGeneration            atomic.Uint64
 	sourceGenerations         map[*tailer.Tailer]uint64
 	stoppingTailersWg         sync.WaitGroup
-	pendingRotationRetry      map[string]*oldTailerInfo
 	stopOnce                  sync.Once
 }
 
@@ -241,7 +240,6 @@ func (s *Launcher) cleanup() {
 
 	// Clean up old info map to prevent memory leaks
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
-	s.pendingRotationRetry = make(map[string]*oldTailerInfo)
 	if stillSkipped := len(s.fingerprintSkips); stillSkipped > 0 {
 		log.Warnf("Stopping with %d file(s) still not tailed because their fingerprint was unusable.", stillSkipped)
 		for _, skip := range s.fingerprintSkips {
@@ -665,13 +663,6 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 	}
 	tailer := s.createTailer(file, channel, monitor, fingerprint)
 
-	if retryInfo, ok := s.pendingRotationRetry[file.GetScanKey()]; ok {
-		if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, retryInfo, fingerprint) {
-			delete(s.pendingRotationRetry, file.GetScanKey())
-			return true
-		}
-		return false
-	}
 	offset, whence := s.tailerPosition(file, tailer, m, fingerprint)
 
 	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, file.GetScanKey())
@@ -836,10 +827,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 
 	newTailer, err := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
 	if err != nil {
-		if s.pendingRotationRetry == nil {
-			s.pendingRotationRetry = make(map[string]*oldTailerInfo)
-		}
-		s.pendingRotationRetry[file.GetScanKey()] = oldInfo
+		s.oldInfoMap[file.GetScanKey()] = oldInfo
 		log.Warnf("Could not allocate replacement tailer for %s after a log rotation, will retry on the next scan: %v", file.Path, err)
 		return false
 	}
@@ -847,10 +835,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	err = newTailer.StartFromBeginning()
 	if err != nil {
 		s.retireTailer(newTailer)
-		if s.pendingRotationRetry == nil {
-			s.pendingRotationRetry = make(map[string]*oldTailerInfo)
-		}
-		s.pendingRotationRetry[file.GetScanKey()] = oldInfo
+		s.oldInfoMap[file.GetScanKey()] = oldInfo
 		log.Warnf("Could not start the replacement tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
 	}

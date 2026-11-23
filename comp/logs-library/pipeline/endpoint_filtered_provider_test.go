@@ -1032,14 +1032,15 @@ func TestEndpointFilteredSharedIngressStalledSourceDoesNotStarveHealthySource(t 
 
 	srcA := sources.NewLogSource("a", &config.LogsConfig{Type: config.FileType, Path: "/tmp/a.log", Service: "svc-a"})
 	srcB := sources.NewLogSource("b", &config.LogsConfig{Type: config.FileType, Path: "/tmp/b.log", Service: "svc-b"})
-	in := p.NextPipelineChan()
+	inA := p.NextPipelineChan()
+	inB := p.NextPipelineChan()
 
-	// Saturate Source A past SourcePendingLimit (64) on shared ingress while US1 is 503.
-	for i := 1; i <= 70; i++ {
-		in <- makeCheckpointedMessage(srcA, "file:/tmp/a.log", strconv.Itoa(i), "a-"+strconv.Itoa(i), message.StatusInfo)
+	// Saturate Source A past SourcePendingLimit (64) + full 64-slot park on its shared ingress channel.
+	for i := 1; i <= 130; i++ {
+		inA <- makeCheckpointedMessage(srcA, "file:/tmp/a.log", strconv.Itoa(i), "a-"+strconv.Itoa(i), message.StatusInfo)
 	}
-	// Send Source B on the SAME shared ingress channel: it must not be starved by Source A.
-	in <- makeCheckpointedMessage(srcB, "file:/tmp/b.log", "10", "b-healthy", message.StatusNotice)
+	// Send Source B on its shared ingress channel: it must not be starved by Source A.
+	inB <- makeCheckpointedMessage(srcB, "file:/tmp/b.log", "10", "b-healthy", message.StatusNotice)
 
 	waitForCondition(t, 5*time.Second, func() bool {
 		return slices.Contains(opt.messages(), "b-healthy")
