@@ -132,8 +132,11 @@ func TestAgentsNextToSystemProbe(t *testing.T) {
 		return result
 	}
 
-	// Only the agents of the system-probe pod; an agent whose cgroup cannot be read (13) is skipped
+	// Only the agents of the system-probe pod; an agent whose cgroup cannot be read (13) is skipped, with a warning
+	t.Cleanup(func() { cgroupPermissionWarnings.Delete("agent-13") })
 	agents := agentsNextToSystemProbe(sysprobe, []uint32{10, 11, 12, 13}, cgroupOf)
+	_, warned := cgroupPermissionWarnings.Load("agent-13")
+	require.True(t, warned)
 	require.Equal(t, []uint32{10, 12}, pids(agents))
 	require.Equal(t, cgroups[10], agents[0].cgroup)
 	// Host services

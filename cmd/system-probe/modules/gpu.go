@@ -570,7 +570,7 @@ func agentsNextToSystemProbe(sysprobeCgroup string, agentPIDs []uint32, cgroupOf
 		cgroup, err := cgroupOf(pid)
 		switch {
 		case err != nil:
-			log.Debugf("Not configuring cgroup permissions for agent process with PID %d: cannot get its cgroup: %v", pid, err)
+			warnCgroupPermissionsOnce(fmt.Sprintf("agent-%d", pid), "Not configuring cgroup permissions for agent process with PID %d: cannot get its cgroup: %v. gpu-monitoring module might not work properly", pid, err)
 		case filepath.Dir(cgroup) != parent:
 			log.Debugf("Not configuring cgroup permissions for agent process with PID %d: its cgroup %s is not next to the system-probe one %s", pid, cgroup, sysprobeCgroup)
 		default:
