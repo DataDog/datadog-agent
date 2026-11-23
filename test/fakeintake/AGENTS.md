@@ -86,6 +86,15 @@ fakeintake.FlushServerAndResetAggregators()
 names, _ := fakeintake.GetMetricNames()
 ```
 
+## In-process use in a `testing/synctest` bubble
+
+A test can run fakeintake in-process with `server.NewServer`. In a `testing/synctest` bubble, network I/O
+keeps the bubble from becoming idle, so serve and query fakeintake over an in-memory listener instead:
+`server.WithListener(listener, url)` makes the server accept connections from `listener`, with `url` the HTTP
+origin its clients reach it at, and `client.WithHTTPTransport(transport)` sends every client request,
+control requests included, with a transport dialing that listener. See
+`client/in_memory_listener_test.go`.
+
 ## Private Action Runner
 
 Fakeintake simulates the OPMS endpoints used by the Private Action Runner and

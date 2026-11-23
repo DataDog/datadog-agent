@@ -59,7 +59,10 @@ go_source(
 
 dd_agent_go_test(
     name = "events_test",
-    srcs = ["rate_limiter_test.go"],
+    srcs = [
+        "ad_limiter_test.go",
+        "rate_limiter_test.go",
+    ],
     embed = [":events"],
     deps = [
         "//pkg/security/config",

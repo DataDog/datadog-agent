@@ -42,13 +42,15 @@ func (storage *ActivityDumpRemoteStorageForwarder) GetStorageType() config.Stora
 // Persist saves the provided buffer to the persistent storage
 func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.StorageRequest, p *profile.Profile, raw *bytes.Buffer) error {
 	selector := p.GetWorkloadSelector()
+	tags := strings.Join(p.GetDumpTags(), ",")
 
+	p.Lock()
 	// set activity dump size for current encoding
 	p.Metadata.Size = uint64(raw.Len())
-
-	p.Header.DDTags = strings.Join(p.GetTags(), ",")
+	p.Header.DDTags = tags
 	// marshal event metadata
 	headerData, err := json.Marshal(p.Header)
+	p.Unlock()
 	if err != nil {
 		return errors.New("couldn't marshall event metadata")
 	}

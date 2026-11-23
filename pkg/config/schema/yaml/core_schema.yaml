@@ -3,11 +3,12 @@ $id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/sch
 title: DataDog Agent configuration schema
 description: The schema to validate the datadog.yaml configuration for the DataDog
   Agent
+type: object
 properties:
   api_key:
     node_type: setting
     sensitive: true
-    title: Basic Configuration
+    banner: Basic Configuration
     type: string
     default: ''
     visibility: public
@@ -87,7 +88,7 @@ properties:
       If DD_DD_URL and DD_URL are both set, DD_DD_URL is used in priority.
     tags:
     - template_section:Common
-    pattern: ^(https?://)?([a-zA-Z0-9\.-]+)(:[0-9]{1,5})?([/\w \.-]*)*/?$
+    format: url
   proxy:
     node_type: section
     type: object
@@ -1391,7 +1392,7 @@ properties:
             example: '"http://127.0.0.1:8080"'
   confd_path:
     node_type: setting
-    title: Advanced Configuration
+    banner: Advanced Configuration
     type: string
     default: ${conf_path}/conf.d
     visibility: public
@@ -1864,7 +1865,7 @@ properties:
         example: '"c:\\programdata\\datadog\\logs\\ddtray.log"'
   logs_enabled:
     node_type: setting
-    title: Log collection Configuration
+    banner: Log collection Configuration
     type: boolean
     default: false
     visibility: public
@@ -2359,7 +2360,7 @@ properties:
             default: 1
   synthetics:
     node_type: section
-    title: 'Synthetics Configuration          '
+    title: Synthetics Configuration
     type: object
     visibility: public
     description: Enter specific configuration for Synthetics tests.
@@ -2495,7 +2496,7 @@ properties:
     $ref: sbom.yaml
   use_dogstatsd:
     node_type: setting
-    title: DogStatsD Configuration
+    banner: DogStatsD Configuration
     type: boolean
     default: true
     visibility: public
@@ -3073,7 +3074,7 @@ properties:
       Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
   jmx_custom_jars:
     node_type: setting
-    title: JMX Configuration
+    banner: JMX Configuration
     type: array
     default: []
     items:
@@ -3247,7 +3248,7 @@ properties:
     - full-agent-only:true
   log_level:
     node_type: setting
-    title: Logging Configuration
+    banner: Logging Configuration
     type: string
     default: info
     visibility: public
@@ -3368,7 +3369,7 @@ properties:
     - template_section:Logging
   autoconf_template_dir:
     node_type: setting
-    title: Autoconfig Configuration
+    banner: Autoconfig Configuration
     type: string
     default: /datadog/check_configs
     visibility: public
@@ -3522,7 +3523,7 @@ properties:
     - template_section:CoreAgent
   container_cgroup_root:
     node_type: setting
-    title: Container Autodiscovery Configuration
+    banner: Container Autodiscovery Configuration
     type: string
     default: /host/sys/fs/cgroup/
     visibility: public
@@ -3725,7 +3726,7 @@ properties:
     $ref: admission_controller.yaml
   docker_labels_as_tags:
     node_type: setting
-    title: Docker tag extraction
+    banner: Docker tag extraction
     type: object
     default: {}
     additionalProperties:
@@ -3761,7 +3762,7 @@ properties:
     - template_section:DockerTagging
   kubernetes_pod_labels_as_tags:
     node_type: setting
-    title: Kubernetes tag extraction
+    banner: Kubernetes tag extraction
     type: object
     default: {}
     additionalProperties:
@@ -3867,7 +3868,7 @@ properties:
     - template_section:KubernetesTagging
   ecs_agent_container_name:
     node_type: setting
-    title: ECS integration Configuration
+    banner: ECS integration Configuration
     type: string
     default: ecs-agent
     visibility: public
@@ -3953,7 +3954,7 @@ properties:
     - full-agent-only:true
   cri_socket_path:
     node_type: setting
-    title: CRI and Containerd integration Configuration
+    banner: CRI and Containerd integration Configuration
     type: string
     default: ''
     visibility: public
@@ -4045,7 +4046,7 @@ properties:
     - template_section:CoreAgent
   kubernetes_kubelet_host:
     node_type: setting
-    title: Kubernetes kubelet connectivity Configuration
+    banner: Kubernetes kubelet connectivity Configuration
     type: string
     default: ''
     visibility: public
@@ -4149,7 +4150,7 @@ properties:
     comment: in seconds, default 15 minutes
   kubernetes_kubeconfig_path:
     node_type: setting
-    title: Kubernetes apiserver integration Configuration
+    banner: Kubernetes apiserver integration Configuration
     type: string
     default: ''
     visibility: public
@@ -4747,7 +4748,7 @@ properties:
     - template_section:CoreAgent
   otlp_config:
     node_type: section
-    title: 'OpenTelemetry Configuration  '
+    title: OpenTelemetry Configuration
     type: object
     visibility: public
     description: This section configures OTLP ingest in the Datadog Agent.
@@ -5358,10 +5359,6 @@ properties:
     node_type: setting
     type: integer
     default: 1000
-  aggregator_use_tags_store:
-    node_type: setting
-    type: boolean
-    default: true
   allow_arbitrary_tags:
     node_type: setting
     type: boolean
@@ -5551,6 +5548,11 @@ properties:
                 type: boolean
                 default: true
                 comment: Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
+              min_token_match_ratio:
+                node_type: setting
+                type: number
+                default: 0.6
+                description: Fraction of structural tokens that must match an existing log pattern.
           log_pattern_extractor:
             node_type: section
             type: object
@@ -5896,6 +5898,42 @@ properties:
                 default: 0.05
                 comment: Minimum relative change between pre/post medians required for
                   stable-series ScanMW anomalies. 0 disables the gate.
+              scanmw:
+                node_type: section
+                type: object
+                properties:
+                  min_points:
+                    node_type: setting
+                    type: integer
+                    default: 30
+                  max_points:
+                    node_type: setting
+                    type: integer
+                    default: 120
+              scanwelch:
+                node_type: section
+                type: object
+                properties:
+                  min_points:
+                    node_type: setting
+                    type: integer
+                    default: 30
+                  max_points:
+                    node_type: setting
+                    type: integer
+                    default: 120
+              bocpd:
+                node_type: section
+                type: object
+                properties:
+                  warmup_points:
+                    node_type: setting
+                    type: integer
+                    default: 60
+                  max_run_length:
+                    node_type: setting
+                    type: integer
+                    default: 120
           enabled:
             node_type: setting
             type: boolean
@@ -6163,15 +6201,6 @@ properties:
     node_type: setting
     type: string
     default: ''
-  c_core_dump:
-    node_type: setting
-    type: boolean
-    default: false
-  c_stacktrace_collection:
-    node_type: setting
-    type: boolean
-    default: false
-    comment: Debugging + C-land crash feature flags
   cel_workload_exclude:
     node_type: setting
     type: array
@@ -6784,51 +6813,63 @@ properties:
               proxy:
                 node_type: section
                 type: object
-                description: Temporary, development-only OTLP proxy settings that will be removed in the future.
+                description: |-
+                  OTLP proxy settings for the data plane. Temporary; will be removed in the future.
+                  Apply when data_plane.enabled and data_plane.otlp.enabled are true. Setting any signal to true makes the data
+                  plane proxy that signal to the Agent, which relocates its OTLP listeners; otlp_config.receiver TLS is then a
+                  configuration error and the Agent's OTLP ingest does not start. When every signal is false, the data plane
+                  handles all OTLP ingest and the Agent does not listen for OTLP, including on otlp_config.traces.internal_port.
+
+                  WARNING: In development and NOT SAFE. Do not use.
                 properties:
                   agent_receiver_grpc_endpoint:
                     node_type: setting
                     type: string
                     default: 127.0.0.1:4319
                     description: |-
-                      Relocated Agent OTLP/gRPC listener endpoint when data_plane.enabled and data_plane.otlp.enabled are true.
-                      The relocated listener never uses TLS: the data plane terminates TLS on the endpoint configured in
-                      otlp_config.receiver. When receiver TLS is configured, this must be a loopback IP address or, for Unix transports,
-                      a socket path. Any local process that can reach this endpoint can send OTLP data without TLS client authentication.
+                      Relocated Agent OTLP/gRPC listener endpoint in proxy mode. If TLS is configured on either OTLP receiver
+                      protocol, proxy mode is rejected and this listener does not start. Configured TLS is never silently downgraded
+                      to plaintext. Without receiver TLS, this listener is plaintext: any local process that can reach it can send OTLP data.
                       When the gRPC receiver uses a Unix transport, this must be explicitly set to a socket path: leaving the TCP default
                       is a configuration error and the Agent's OTLP ingest does not start.
-                      Ignored if the gRPC receiver is not enabled. Temporary and development-only; will be removed in the future.
+                      Ignored if the gRPC receiver is not enabled. Temporary; will be removed in the future.
+
+                      WARNING: In development and NOT SAFE. Do not use.
                   agent_receiver_http_endpoint:
                     node_type: setting
                     type: string
                     default: 127.0.0.1:4320
                     description: |-
-                      Relocated Agent OTLP/HTTP listener endpoint when data_plane.enabled and data_plane.otlp.enabled are true.
-                      The relocated listener never uses TLS: the data plane terminates TLS on the endpoint configured in
-                      otlp_config.receiver. When receiver TLS is configured, this must be a loopback IP address. Any local process that
-                      can reach this endpoint can send OTLP data without TLS client authentication.
-                      Ignored if the HTTP receiver is not enabled. Temporary and development-only; will be removed in the future.
+                      Relocated Agent OTLP/HTTP listener endpoint in proxy mode. If TLS is configured on either OTLP receiver
+                      protocol, proxy mode is rejected and this listener does not start. Configured TLS is never silently downgraded
+                      to plaintext. Without receiver TLS, this listener is plaintext: any local process that can reach it can send OTLP data.
+                      Ignored if the HTTP receiver is not enabled. Temporary; will be removed in the future.
+
+                      WARNING: In development and NOT SAFE. Do not use.
                   logs:
                     node_type: setting
                     type: boolean
                     default: false
                     description: |-
-                      Proxy OTLP logs from the data plane to the Agent.
-                      Temporary and development-only; will be removed in the future.
+                      Proxy OTLP logs from the data plane to the Agent. Temporary; will be removed in the future.
+
+                      WARNING: In development and NOT SAFE. Do not use.
                   metrics:
                     node_type: setting
                     type: boolean
                     default: false
                     description: |-
-                      Proxy OTLP metrics from the data plane to the Agent.
-                      Temporary and development-only; will be removed in the future.
+                      Proxy OTLP metrics from the data plane to the Agent. Temporary; will be removed in the future.
+
+                      WARNING: In development and NOT SAFE. Do not use.
                   traces:
                     node_type: setting
                     type: boolean
                     default: false
                     description: |-
-                      Proxy OTLP traces from the data plane to the Agent.
-                      Temporary and development-only; will be removed in the future.
+                      Proxy OTLP traces from the data plane to the Agent. Temporary; will be removed in the future.
+
+                      WARNING: In development and NOT SAFE. Do not use.
       log_file:
         node_type: setting
         type: string
@@ -6841,6 +6882,12 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            description: |-
+              Enables Agent Data Plane handling of OTLP ingest when data_plane.enabled is true. If any
+              data_plane.experimental.otlp.proxy signal is true, the Agent relocates its OTLP listeners so the data plane can proxy
+              those signals to it. Otherwise, the Agent disables its OTLP listeners, including otlp_config.traces.internal_port.
+
+              WARNING: In development and NOT SAFE. Do not use.
       preflight_mode:
         node_type: setting
         type: boolean
@@ -6977,6 +7024,10 @@ properties:
             node_type: setting
             type: integer
             default: 100
+            description: |-
+              The size of the Data Streams forwarder input channel. When this value is 100 or lower,
+              the pipeline uses its own default of 500 slots. A value above 100 sets the channel
+              size directly, so values from 101 through 499 make the channel smaller than the default.
           logs_dd_url:
             node_type: setting
             type: string
@@ -8583,6 +8634,13 @@ properties:
         format: duration
         description: How often routing decisions are refreshed. Jittered by 10 percent, with a
           minimum of 1m.
+      preflight_path:
+        node_type: setting
+        type: string
+        default: /api/v1/validate
+        description: The path of the request sent to an override host, with the API key in the
+          DD-API-KEY header, before telemetry is switched to it. Must be an absolute path with no
+          query or fragment; any other value falls back to the default.
     tags:
     - full-agent-only:true
   integration:

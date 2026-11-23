@@ -319,7 +319,17 @@ def _insert(schema, path_parts, setting_node):
 
 # Canonical key order for a section node — keeps diffs clean when we add
 # visibility/description to an existing or freshly created section.
-_SECTION_KEY_ORDER = ["node_type", "title", "type", "visibility", "description", "tags", "env_vars", "properties"]
+_SECTION_KEY_ORDER = [
+    "node_type",
+    "title",
+    "banner",
+    "type",
+    "visibility",
+    "description",
+    "tags",
+    "env_vars",
+    "properties",
+]
 
 
 def _reorder_section(node):

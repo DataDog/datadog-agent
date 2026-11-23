@@ -27,7 +27,9 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -38,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -719,6 +722,90 @@ func (serializingWildcardHandler) HandleEvent(ev *model.Event) {
 	_ = serializers.NewEventSerializer(ev, nil, nil)
 }
 
+func TestNewContainerPlaceholder(t *testing.T) {
+	const containerID = containerutils.ContainerID("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
+	cgr, err := cgroup.NewResolver(&statsd.NoOpClient{}, nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cgr.Add(model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/docker/" + string(containerID)),
+		CGroupPathKey: model.PathKey{Inode: 4242, MountID: 1},
+	}))
+	require.NotNil(t, cgr.Add(model.CGroupContext{
+		CGroupID:      "/system.slice/foo.service",
+		CGroupPathKey: model.PathKey{Inode: 4343, MountID: 1},
+	}))
+
+	p := &EBPFProbe{Resolvers: &resolvers.EBPFResolvers{CGroupResolver: cgr}, kernelTracksCGroupID: true}
+	pidContext := model.PIDContext{Pid: 42, Tid: 43, MntNS: 7}
+	cgroupOf := func(inode uint64) model.CGroupContext {
+		return model.CGroupContext{CGroupPathKey: model.PathKey{Inode: inode, MountID: 1}}
+	}
+
+	entry := p.newContainerPlaceholder(pidContext, cgroupOf(4242))
+	require.NotNil(t, entry)
+	cgroupEntry := cgr.GetCacheEntryByInode(4242)
+	assert.Equal(t, containerID, entry.ContainerContext.ContainerID)
+	assert.Equal(t, cgroupEntry.GetContainerContext(), entry.ContainerContext)
+	assert.Equal(t, cgroupEntry.GetCGroupContext(), entry.CGroup)
+	assert.Equal(t, pidContext, entry.PIDContext)
+	assert.EqualValues(t, model.ProcessCacheEntryFromPlaceholder, entry.Source)
+	assert.Nil(t, entry.Ancestor)
+	assert.NotSame(t, entry, p.newContainerPlaceholder(pidContext, cgroupOf(4242)), "each event gets its own placeholder")
+	assert.NotSame(t, model.GetPlaceholderProcessCacheEntry(pidContext), entry, "the shared placeholder must not be reused")
+
+	assert.Nil(t, p.newContainerPlaceholder(pidContext, cgroupOf(4343)), "a host cgroup has no container")
+	assert.Nil(t, p.newContainerPlaceholder(pidContext, cgroupOf(4444)), "the cgroup is unknown")
+	assert.Nil(t, p.newContainerPlaceholder(pidContext, model.CGroupContext{}), "the kernel doesn't know the process")
+
+	p.kernelTracksCGroupID = false
+	assert.Nil(t, p.newContainerPlaceholder(pidContext, cgroupOf(4242)), "the cgroup reported by the kernel can be stale")
+}
+
+func TestSetProcessContextContainerPlaceholder(t *testing.T) {
+	const containerID = containerutils.ContainerID("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
+	cgr, err := cgroup.NewResolver(&statsd.NoOpClient{}, nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cgr.Add(model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/docker/" + string(containerID)),
+		CGroupPathKey: model.PathKey{Inode: 4242, MountID: 1},
+	}))
+	// the process resolver isn't snapshotted, so that no process can be resolved
+	ebpfResolvers := &resolvers.EBPFResolvers{CGroupResolver: cgr, ProcessResolver: newTestProcessResolver(t)}
+	p := &EBPFProbe{
+		Resolvers:            ebpfResolvers,
+		fieldHandlers:        &EBPFFieldHandlers{resolvers: ebpfResolvers},
+		kernelTracksCGroupID: true,
+	}
+	cgroupContext := model.CGroupContext{CGroupPathKey: model.PathKey{Inode: 4242, MountID: 1}}
+
+	tests := []struct {
+		name        string
+		eventType   model.EventType
+		isKworker   bool
+		containerID containerutils.ContainerID
+		err         error
+	}{
+		{"unresolved process", model.FileOpenEventType, false, containerID, model.ErrNoProcessContext},
+		{"DNS request of an unresolved process", model.DNSEventType, false, containerID, nil},
+		{"kworker", model.FileOpenEventType, true, "", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := model.NewFakeEvent()
+			event.PIDContext = model.PIDContext{Pid: 42, Tid: 42, IsKworker: tt.isKworker}
+
+			require.True(t, p.setProcessContext(tt.eventType, event, cgroupContext))
+
+			assert.Equal(t, tt.containerID, event.ProcessContext.ContainerContext.ContainerID)
+			assert.Equal(t, tt.err, event.Error)
+			assert.False(t, needsDNSRequestTracking(event))
+			assert.True(t, model.GetPlaceholderProcessCacheEntry(event.PIDContext).ContainerContext.IsNull(), "the shared placeholder must not get the container")
+		})
+	}
+}
+
 func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 	const containerID = containerutils.ContainerID("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 
@@ -767,6 +854,7 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 		func(event *model.Event) {
 			anomalies = append(anomalies, event)
 		},
+		nil,
 		"test-host",
 		time.Now(),
 		nil,
@@ -1033,4 +1121,76 @@ func TestResolveMountSourcePath(t *testing.T) {
 			assert.NoError(t, ev.Mount.MountRootPathResolutionError)
 		})
 	}
+}
+
+func TestResolveMountPathsAfterFailedLookup(t *testing.T) {
+	mr, err := mount.NewResolver(&statsd.NoOpClient{}, nil, mount.ResolverOpts{})
+	require.NoError(t, err)
+	fh := &EBPFFieldHandlers{
+		resolvers: &resolvers.EBPFResolvers{
+			MountResolver: mr,
+			PathResolver:  path.NewResolver(nil, mr),
+		},
+	}
+
+	ev := model.NewFakeEvent()
+	ev.FieldHandlers = fh
+	ev.Mount = model.MountEvent{
+		Mount: model.Mount{
+			MountID:        11,
+			ParentPathKey:  model.PathKey{MountID: 1},
+			BindSrcMountID: 10,
+			MountPointStr:  "/dst",
+			RootStr:        "/src",
+		},
+	}
+
+	assert.Empty(t, fh.ResolveMountPointPath(ev, &ev.Mount))
+	assert.Empty(t, fh.ResolveMountSourcePath(ev, &ev.Mount))
+	assert.Empty(t, fh.ResolveMountRootPath(ev, &ev.Mount))
+	require.Error(t, ev.Mount.MountPointPathResolutionError)
+	require.Error(t, ev.Mount.MountSourcePathResolutionError)
+	require.Error(t, ev.Mount.MountRootPathResolutionError)
+
+	// as an event queued for tag resolution, resolved again once the mounts are known
+	cpy := ev.DeepCopy()
+	require.NoError(t, mr.Insert(model.Mount{MountID: 1, MountPointStr: "/", Path: "/", RootStr: "/"}))
+	require.NoError(t, mr.Insert(model.Mount{MountID: 10, ParentPathKey: model.PathKey{MountID: 1}, MountPointStr: "/mnt/base", RootStr: "/"}))
+	require.NoError(t, mr.Insert(cpy.Mount.Mount))
+
+	assert.Equal(t, "/dst", fh.ResolveMountPointPath(cpy, &cpy.Mount))
+	assert.Equal(t, "/mnt/base/src", fh.ResolveMountSourcePath(cpy, &cpy.Mount))
+	assert.Equal(t, "/src", fh.ResolveMountRootPath(cpy, &cpy.Mount))
+	assert.NoError(t, cpy.Mount.MountPointPathResolutionError)
+	assert.NoError(t, cpy.Mount.MountSourcePathResolutionError)
+	assert.NoError(t, cpy.Mount.MountRootPathResolutionError)
+}
+
+func TestUpdateEBPFCheckMappingKeepsTCPrograms(t *testing.T) {
+	ddebpf.ResetAllMappings()
+	t.Cleanup(ddebpf.ResetAllMappings)
+
+	tcResolver := tc.NewResolver(&pconfig.Config{})
+	tcResolver.AddTestProgram(tc.ProgramKey{FuncName: "classifier_egress", IfIndex: 2, NetNS: 1}, 100)
+	tcResolver.AddTestProgram(tc.ProgramKey{FuncName: "classifier_egress", IfIndex: 3, NetNS: 2}, 101)
+	ddebpf.AddProgramNameMapping(200, "unloaded_program", "cws")
+
+	p := &EBPFProbe{
+		Manager:   ebpf.NewRuntimeSecurityManager(false, false),
+		Resolvers: &resolvers.EBPFResolvers{TCResolver: tcResolver},
+	}
+	tcResolver.FlushNetworkNamespaceID(2, p.Manager.Get())
+	p.updateEBPFCheckMapping()
+
+	name, err := ddebpf.GetProgNameFromProgID(100)
+	require.NoError(t, err)
+	assert.Equal(t, "classifier_egress", name)
+	module, err := ddebpf.GetModuleFromProgID(100)
+	require.NoError(t, err)
+	assert.Equal(t, "cws", module)
+
+	_, err = ddebpf.GetModuleFromProgID(101)
+	assert.Error(t, err, "program of a flushed network namespace")
+	_, err = ddebpf.GetModuleFromProgID(200)
+	assert.Error(t, err, "program that is no longer loaded")
 }

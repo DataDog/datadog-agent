@@ -161,7 +161,8 @@ Full up-to-date details in `doc/reference/agent-schema/keywords.md`.
 | `sensitive` | setting | Scrubs the value from logs, flare and Fleet Automation. |
 | `items` | setting | Mandatory for `array`. |
 | `properties` | section / object setting | Child settings on a section; value sub-schema on an object setting. |
-| `title` | section | Banner heading in the generated example. |
+| `title` | section | Section label shown by IDEs, also rendered as its banner in the generated example. Never on a setting (lint error). |
+| `banner` | all | Banner heading rendered before the node in the generated example. Use it on a setting to start a new group. |
 | `comment` | all | Developer-only note; never rendered to users. |
 | `example` | setting | Overrides the value shown on the rendered example line. |
 | `tags` | all | See below. |
@@ -179,9 +180,13 @@ Three are usable for new settings:
 - `platform_only:<os>[,<os>]` — restricts the setting to the listed OSes
   (`windows`, `linux`, `darwin`); it is dropped from the examples generated for
   any other `--os-target`.
-- `generate_const:<Name>` — emits a Go constant `<Name>` in `pkg/config/setup`
+- `generate_const:<Name>` — emits a Go constant `<Name>` in `pkg/config/setup/constants`
   holding this setting's default. Use it instead of hardcoding a default (port,
-  timeout, path) in Go code, so the two can never drift.
+  timeout, path) in Go code, so the two can never drift. Code under `comp/` must
+  not import it: the `pkgconfigusage` depguard rule forbids `pkg/config/setup/...`
+  there. A component that needs the default in Go keeps a local constant and a
+  test that compares it with the config component's value, e.g.
+  `config.NewMock(t).GetString("my_feature.path")`.
 
 `golang_type:*`, `no-env` and the legacy `env_parser` values
 (`comma_and_space_separated`, `traces_span`, `csv_comma_separated`,

@@ -801,6 +801,29 @@ func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
 		assert.Equal(t, devices[1], filteredDevices[0])
 	})
 
+	t.Run("KubernetesReplicaAndUnresolvedDRAKeepBothGPUs", func(t *testing.T) {
+		// What the NVML collector publishes for a container holding a replica
+		// and a DRA GPU whose CDI resolution failed: no mapping, as replicas
+		// are not part of it. The replica resolves from its allocation, and
+		// the DRA allocation falls back to the index guess instead of being
+		// counted as mapped and dropped.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-replica-and-dra-container",
+			},
+			Runtime: workloadmeta.ContainerRuntimeContainerd,
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{Name: string(gpuutil.GpuNvidiaGeneric), ID: testutil.GPUUUIDs[0] + "::1"},
+				{Name: string(gpuutil.GpuNvidiaDRA), ID: "gpu-1"},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []ddnvml.Device{devices[0], devices[1]}, filteredDevices)
+	})
+
 	t.Run("KubernetesReportsAnUnresolvableResourceEvenWhenTheMappingIsPresent", func(t *testing.T) {
 		// Error suppression must be scoped to the resources the mapping can
 		// account for. A DRA resource the mapping did not resolve has to keep

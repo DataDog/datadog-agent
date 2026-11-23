@@ -1067,7 +1067,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 				ts.TracesDropped.DecodingError.Add(tracen)
 			}
 		}
-		log.Errorf("Cannot decode %s traces payload: %v", v, err)
+		log.Errorf("Cannot decode %s traces payload (lang:%q, tracer_version:%q, content_length:%d): %v", v, ts.Lang, ts.TracerVersion, req.ContentLength, err)
 		return
 	}
 	if n, ok := r.replyOK(req, v, w); ok {
@@ -1197,7 +1197,7 @@ func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *htt
 				ts.TracesDropped.DecodingError.Add(tracen)
 			}
 		}
-		log.Errorf("Cannot decode %s traces payload: %v", v, err)
+		log.Errorf("Cannot decode %s traces payload (lang:%q, tracer_version:%q, content_length:%d): %v", v, ts.Lang, ts.TracerVersion, req.ContentLength, err)
 		return
 	}
 	if n, ok := r.replyOK(req, v, w); ok {

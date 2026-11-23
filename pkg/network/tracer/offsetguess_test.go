@@ -191,7 +191,7 @@ func testOffsetGuess(t *testing.T) {
 	// but doesn't anymore
 	cfg.ProtocolClassificationEnabled = false
 
-	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
+	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir)
 	require.NoError(t, err, "could not read offset bpf module")
 	t.Cleanup(func() { offsetBuf.Close() })
 
