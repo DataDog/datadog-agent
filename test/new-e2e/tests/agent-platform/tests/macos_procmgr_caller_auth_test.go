@@ -85,8 +85,8 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	// did not start.
 	preconditionsPassed := false
 
-	// On failure, stop and kill before the restart: each child has its own process group and
-	// would outlive the restart, which drops the runtime entry.
+	// Stop and kill before the restart: each child has its own process group and would outlive
+	// the restart, which drops the runtime entry.
 	t.Cleanup(func() {
 		if !preconditionsPassed {
 			return
@@ -105,34 +105,43 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthStartEntry); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthStartEntry, err)
 			}
-			// pkill returns before the process exits.
-			check := "sudo sh -c 'pgrep -f \"^/bin/sleep " + sleepArg + "$\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
-			if _, err := client.Execute("sudo pkill -f '^/bin/sleep " + sleepArg + "$'"); err != nil {
-				t.Logf("cleanup: pkill /bin/sleep %s: %v", sleepArg, err)
-			}
-			waitGone := func(timeout time.Duration) (string, error) {
-				deadline := time.Now().Add(timeout)
-				for {
-					left, err := client.Execute(check)
-					if err != nil || strings.TrimSpace(left) == "" || time.Now().After(deadline) {
-						return left, err
-					}
-					time.Sleep(250 * time.Millisecond)
+		}
+		// A stop can report Stopped while the child is still alive, so check the OS on every path.
+		check := "sudo sh -c 'pgrep -f \"^/bin/sleep " + sleepArg + "$\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
+		waitGone := func(timeout time.Duration) (string, error) {
+			deadline := time.Now().Add(timeout)
+			for {
+				left, err := client.Execute(check)
+				if err != nil || strings.TrimSpace(left) == "" || time.Now().After(deadline) {
+					return left, err
 				}
+				time.Sleep(250 * time.Millisecond)
 			}
-			left, err := waitGone(5 * time.Second)
-			confirmedGone := err == nil && strings.TrimSpace(left) == ""
-			if !confirmedGone {
+		}
+		left, err := client.Execute(check)
+		initialErr := err
+		survivedStop := !bodyFailed && err == nil && strings.TrimSpace(left) != ""
+		if err != nil || strings.TrimSpace(left) != "" {
+			// pkill returns before the process exits.
+			if _, killErr := client.Execute("sudo pkill -f '^/bin/sleep " + sleepArg + "$'"); killErr != nil {
+				t.Logf("cleanup: pkill /bin/sleep %s: %v", sleepArg, killErr)
+			}
+			left, err = waitGone(5 * time.Second)
+			if err != nil || strings.TrimSpace(left) != "" {
 				if _, killErr := client.Execute("sudo pkill -9 -f '^/bin/sleep " + sleepArg + "$'"); killErr != nil {
 					t.Logf("cleanup: pkill -9 /bin/sleep %s: %v", sleepArg, killErr)
 				}
 				left, err = waitGone(2 * time.Second)
 			}
-			if err != nil {
-				t.Errorf("cleanup: failed to check for /bin/sleep %s: %v", sleepArg, err)
-			} else if strings.TrimSpace(left) != "" {
-				t.Errorf("cleanup: /bin/sleep %s still running:\n%s", sleepArg, left)
-			}
+		}
+		if err != nil {
+			t.Errorf("cleanup: failed to check for /bin/sleep %s: %v", sleepArg, err)
+		} else if strings.TrimSpace(left) != "" {
+			t.Errorf("cleanup: /bin/sleep %s still running:\n%s", sleepArg, left)
+		} else if survivedStop {
+			t.Errorf("cleanup: /bin/sleep %s was still running after stop and had to be killed", sleepArg)
+		} else if !bodyFailed && initialErr != nil {
+			t.Errorf("cleanup: failed to check for /bin/sleep %s before killing it: %v", sleepArg, initialErr)
 		}
 		// The restart loads processes.d.
 		if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
