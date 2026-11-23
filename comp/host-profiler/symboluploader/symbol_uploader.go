@@ -406,7 +406,7 @@ func (d *DatadogSymbolUploader) shouldUpload(e *symbol.Elf, existingSymbolSource
 
 // Returns true if the upload was successful, false otherwise
 func (d *DatadogSymbolUploader) upload(ctx context.Context, e *symbol.Elf, endpointIndices []int) bool {
-	symbolFile, err := d.createSymbolFile(ctx, e)
+	symbolFilePath, err := d.createSymbolFile(ctx, e)
 	if err != nil {
 		d.reporter.Error(reasonExtractError, 1, e.Path())
 		slog.Error("Failed to create symbol file",
@@ -414,8 +414,7 @@ func (d *DatadogSymbolUploader) upload(ctx context.Context, e *symbol.Elf, endpo
 			slog.String("error", err.Error()))
 		return false
 	}
-	defer os.Remove(symbolFile.Name())
-	defer symbolFile.Close()
+	defer os.Remove(symbolFilePath)
 	symbolSource, _, _ := d.getSymbolSourceWithGoPCLnTab(e)
 	metadata := newSymbolUploadRequestMetadata(e, symbolSource, d.name, d.version)
 
@@ -427,7 +426,7 @@ func (d *DatadogSymbolUploader) upload(ctx context.Context, e *symbol.Elf, endpo
 	var g errgroup.Group
 	for _, ind := range endpointIndices {
 		g.Go(func() error {
-			return d.uploadSymbols(ctx, symbolFile.Name(), metadata, ind)
+			return d.uploadSymbols(ctx, symbolFilePath, metadata, ind)
 		})
 	}
 
@@ -482,10 +481,10 @@ func (d *DatadogSymbolUploader) updateBiggestBinarySize(size int64) {
 	}
 }
 
-func (d *DatadogSymbolUploader) createSymbolFile(ctx context.Context, e *symbol.Elf) (*os.File, error) {
+func (d *DatadogSymbolUploader) createSymbolFile(ctx context.Context, e *symbol.Elf) (string, error) {
 	symbolFile, err := os.CreateTemp("", "objcopy-debug")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file to extract symbols: %w", err)
+		return "", fmt.Errorf("failed to create temp file to extract symbols: %w", err)
 	}
 	defer func() {
 		symbolFile.Close()
@@ -502,7 +501,7 @@ func (d *DatadogSymbolUploader) createSymbolFile(ctx context.Context, e *symbol.
 		// No associated file -> probably vdso, dump the ELF data to a file
 		elfPath, err = e.DumpElfData()
 		if err != nil {
-			return nil, fmt.Errorf("failed to dump ELF data: %w", err)
+			return "", fmt.Errorf("failed to dump ELF data: %w", err)
 		}
 		// Temporary file will be cleaned by the symbol.Elf.Close()
 	}
@@ -519,31 +518,31 @@ func (d *DatadogSymbolUploader) createSymbolFile(ctx context.Context, e *symbol.
 	if err != nil {
 		var ExitError *exec.ExitError
 		if errors.As(err, &ExitError) && ExitError.ExitCode() == -1 { // killed by signal
-			return nil, fmt.Errorf("failed to copy symbols: got killed. Consider increasing memory limits to at least %v (biggest uncompressed elf file size found)", atomic.LoadInt64(&d.biggestBinarySize))
+			return "", fmt.Errorf("failed to copy symbols: got killed. Consider increasing memory limits to at least %v (biggest uncompressed elf file size found)", atomic.LoadInt64(&d.biggestBinarySize))
 		}
 
-		return nil, fmt.Errorf("failed to copy symbols: failed to extract debug symbols: %w", cleanCmdError(err))
+		return "", fmt.Errorf("failed to copy symbols: failed to extract debug symbols: %w", cleanCmdError(err))
 	}
 
 	extractedFile, err := os.Open(symbolFile.Name())
 	if err != nil {
-		return nil, fmt.Errorf("failed to open extracted symbol file: %w", err)
+		return "", fmt.Errorf("failed to open extracted symbol file: %w", err)
 	}
 	defer extractedFile.Close()
 
 	stat, err := extractedFile.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("failed to stat extracted symbol file: %w", err)
+		return "", fmt.Errorf("failed to stat extracted symbol file: %w", err)
 	}
 
 	// Compress once before uploading the same file to all endpoints.
 	compressedFile, err := os.CreateTemp("", "symbol-zstd")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create compressed symbol file: %w", err)
+		return "", fmt.Errorf("failed to create compressed symbol file: %w", err)
 	}
 	defer func() {
+		compressedFile.Close()
 		if err != nil {
-			compressedFile.Close()
 			os.Remove(compressedFile.Name())
 		}
 	}()
@@ -553,15 +552,15 @@ func (d *DatadogSymbolUploader) createSymbolFile(ctx context.Context, e *symbol.
 		zstd.WithDisableLowerEncoderMem(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create symbol encoder: %w", err)
+		return "", fmt.Errorf("failed to create symbol encoder: %w", err)
 	}
 	_, err = io.Copy(compressed, extractedFile)
 	err = errors.Join(err, compressed.Close())
 	if err != nil {
-		return nil, fmt.Errorf("failed to compress symbol file: %w", err)
+		return "", fmt.Errorf("failed to compress symbol file: %w", err)
 	}
 
-	return compressedFile, nil
+	return compressedFile.Name(), nil
 }
 
 func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePath string, e *symbolUploadRequestMetadata, endpointIdx int) error {
