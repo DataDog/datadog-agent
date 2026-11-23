@@ -37,7 +37,21 @@ if [ -n "${XDG_CACHE_HOME-}" ]; then
       >&2 echo "🔴 BUILDBARN_ID_TOKEN must be populated in CI!"
       exit 2
     fi
-    extra_args+=(--config=ci --config=cache:frontend)
+    cache_config=cache:frontend
+    # Opt in Linux CI clusters with a comma-separated allowlist. Keep b out of
+    # the initial a/c rollout until its local frontend capacity is confirmed.
+    if [ -n "${BUILDBARN_ZONE_LOCAL_CLUSTERS-}" ] && [ "$(uname -s)" = Linux ]; then
+      case "${K8S_CLUSTER_NAME-}" in
+        mudkip-a|mudkip-b|mudkip-c)
+          case ",${BUILDBARN_ZONE_LOCAL_CLUSTERS}," in
+            *,"${K8S_CLUSTER_NAME}",*) cache_config=cache:frontend-zone-local ;;
+          esac
+          ;;
+      esac
+      >&2 echo "Buildbarn: ${K8S_CLUSTER_NAME:-unknown} selects ${cache_config}"
+    fi
+    extra_args+=(--config=ci "--config=${cache_config}")
+    unset cache_config
   fi
 else
   # Without `XDG_CACHE_HOME`, fall back Go caches to official defaults so Go repo rules work under strict repo_env

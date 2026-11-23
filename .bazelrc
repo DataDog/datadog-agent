@@ -130,8 +130,12 @@ common:windows --test_env=__COMPAT_LAYER=RunAsInvoker # same, for bazel test
 common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
 
 # Remote cache config --------------------------------------------------------------------------------------------------
-# All platforms use the same TLS frontend endpoint.
+# Default TLS frontend endpoint for all platforms.
 common:cache:frontend --remote_cache=grpcs://buildbarn-frontend-datadog-agent.us1.ddbuild.io:443
+
+# Opt-in Linux CI routing to the existing frontend pod TLS listener in the runner's AZ.
+common:cache:frontend-zone-local --remote_cache=grpcs://buildbarn-frontend-datadog-agent.buildbarn.zone-local.local-dc.fabric.dog:8443
+common:cache:frontend-zone-local --credential_helper=buildbarn-frontend-datadog-agent.buildbarn.zone-local.local-dc.fabric.dog=%workspace%/bazel/tools/credential-helper
 
 # Compatibility alias for existing callers; this now bypasses edge-cache.
 common:cache:edge --config=cache:frontend
