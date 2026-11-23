@@ -119,15 +119,48 @@ func TestExecuteInteractive_NoPrompt(t *testing.T) {
 
 func TestExecuteInteractive_CommandTimesOut(t *testing.T) {
 	setTimeouts(t, time.Second, 200*time.Millisecond)
-	srv := StartFakeSSHServerWithFactory(t, fakePanOS(panOSBanner, map[string]*string{
-		"set cli pager off":   ptr(""),
-		"show config running": nil,
-	}))
+	// The device prints part of the config, including a secret, then stalls.
+	srv := StartFakeSSHServerWithFactory(t, func(sh *ShellContext) ShellFunc {
+		_, _ = io.WriteString(sh.stdout, fakePanOSPrompt)
+		return func(command string, sh *ShellContext) uint32 {
+			switch command {
+			case "set cli pager off":
+				_, _ = io.WriteString(sh.stdout, command+"\r\n"+fakePanOSPrompt)
+			case "show config running":
+				_, _ = io.WriteString(sh.stdout, command+"\r\nconfig {\r\n  phash $5$abc$secret;\r\n")
+			}
+			return 0
+		}
+	})
 	conn := connectTestConn(t, srv)
 
-	_, err := ExecuteInteractive(t.Context(), conn.StartShell, panOSCommand("show config running", `<config`))
+	res, err := ExecuteInteractive(t.Context(), conn.StartShell, panOSCommand("show config running", `<config`))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `waiting for the prompt after "show config running"`)
+	assert.Contains(t, err.Error(), "bytes received")
+	// The partial, unredacted config must not end up in the error.
+	assert.NotContains(t, err.Error(), "secret")
+	assert.Empty(t, res.Output)
+}
+
+func TestExecuteInteractive_ShellSetupStalls(t *testing.T) {
+	setTimeouts(t, 200*time.Millisecond, time.Second)
+	// The server accepts the connection but never answers the shell request.
+	release := make(chan struct{})
+	srv := StartFakeSSHServerWithFactory(t, fakePanOS(panOSBanner, nil), WithRequestHook(func(reqType string) {
+		if reqType == "shell" {
+			<-release
+		}
+	}))
+	// Registered after the server, so it runs first and unblocks the hook
+	// before the server shuts down.
+	t.Cleanup(func() { close(release) })
+	conn := connectTestConn(t, srv)
+
+	start := time.Now()
+	_, err := ExecuteInteractive(t.Context(), conn.StartShell, panOSCommand("show system info", `model`))
+	require.Error(t, err)
+	assert.Less(t, time.Since(start), 5*time.Second)
 }
 
 func TestExecuteInteractive_LongOutput(t *testing.T) {

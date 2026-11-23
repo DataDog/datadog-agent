@@ -30,9 +30,6 @@ var (
 	interactiveCommandTimeout = 5 * time.Minute
 )
 
-// maxErrorOutput caps how much of a failed command's output goes in its error.
-const maxErrorOutput = 512
-
 // ansiEscape matches terminal control sequences a device may print on a PTY.
 var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
 
@@ -45,7 +42,11 @@ func ExecuteInteractive(ctx context.Context, startShell func(context.Context) (S
 	if cmd.Prompt == nil {
 		return nil, fmt.Errorf("command %q has no prompt to run interactively", cmd.Command)
 	}
-	sh, terr := startShell(ctx)
+	// The login deadline covers opening the shell too: a peer can accept the
+	// connection and then never answer the session, PTY or shell request.
+	loginCtx, cancelLogin := context.WithTimeout(ctx, interactiveLoginTimeout)
+	defer cancelLogin()
+	sh, terr := startShell(loginCtx)
 	if terr != nil {
 		return nil, terr
 	}
@@ -57,7 +58,7 @@ func ExecuteInteractive(ctx context.Context, startShell func(context.Context) (S
 		return result, result.FormattedError()
 	}
 
-	if out, err := readPrompt(ctx, sh, cmd.Prompt, interactiveLoginTimeout); err != nil {
+	if out, err := readPrompt(loginCtx, sh, cmd.Prompt, interactiveLoginTimeout); err != nil {
 		result.Output = string(cleanOutput(out, "", nil))
 		return fail(fmt.Errorf("waiting for the device prompt: %w", err))
 	}
@@ -75,13 +76,9 @@ func ExecuteInteractive(ctx context.Context, startShell func(context.Context) (S
 	}
 	out, err := runLine(ctx, sh, cmd.Prompt, cmd.Command)
 	if err != nil {
-		// A partial config isn't useful and isn't redacted yet; keep only the
-		// end, which shows where the device stopped.
-		if len(out) > maxErrorOutput {
-			out = append([]byte("..."), out[len(out)-maxErrorOutput:]...)
-		}
-		result.Output = string(out)
-		return fail(err)
+		// Leave the output out of the error: it is a partial config that
+		// hasn't been redacted yet, and the error ends up in the check status.
+		return fail(fmt.Errorf("%w (%d bytes received)", err, len(out)))
 	}
 	result.Output = string(out)
 	// Best effort: we have the output, and Close ends the session anyway.
