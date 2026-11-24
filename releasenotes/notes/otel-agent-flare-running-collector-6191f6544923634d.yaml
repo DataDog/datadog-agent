@@ -20,4 +20,5 @@ fixes:
   - |
     ``otel-agent flare`` now uploads the flare with the API key and site of the
     Datadog exporter configuration when ``DD_API_KEY`` isn't set, and keeps the
-    customer configuration when it contains ``${env:...}`` references.
+    customer configuration when it contains ``${env:...}`` or ``${...}``
+    environment references.

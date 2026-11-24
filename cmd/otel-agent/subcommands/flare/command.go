@@ -386,8 +386,9 @@ func collectConfigData(params *subcommands.GlobalParams) (*extensiontypes.Respon
 
 // loadCustomerConfig loads the customer-provided configuration
 func loadCustomerConfig(ctx context.Context, uris []string) (string, error) {
-	// No remote providers. The env provider is required to resolve ${env:...} references,
-	// otherwise the whole customer config is dropped.
+	// No remote providers. The env provider is required to resolve ${env:...} references, and is the
+	// default scheme like in the collector so that ${...} works too, otherwise the whole customer
+	// config is dropped.
 	rs := confmap.ResolverSettings{
 		URIs: uris,
 		ProviderFactories: []confmap.ProviderFactory{
@@ -395,7 +396,7 @@ func loadCustomerConfig(ctx context.Context, uris []string) (string, error) {
 			envprovider.NewFactory(),
 			yamlprovider.NewFactory(),
 		},
-		DefaultScheme: "file",
+		DefaultScheme: "env",
 	}
 
 	resolver, err := confmap.NewResolver(rs)

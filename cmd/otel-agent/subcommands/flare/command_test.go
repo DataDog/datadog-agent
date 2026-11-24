@@ -308,6 +308,31 @@ func TestCollectOTelData(t *testing.T) {
 	}
 }
 
+// TestLoadCustomerConfigEnvReference checks that the references the collector expands from the
+// environment don't make the customer configuration disappear, with or without the env: scheme.
+func TestLoadCustomerConfigEnvReference(t *testing.T) {
+	t.Setenv("TEST_FLARE_API_KEY", testAPIKey)
+
+	tests := []struct {
+		name      string
+		reference string
+	}{
+		{name: "with the env scheme", reference: "${env:TEST_FLARE_API_KEY}"},
+		{name: "without the scheme", reference: "${TEST_FLARE_API_KEY}"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configPath := filepath.Join(t.TempDir(), "otel-config.yaml")
+			configContent := "exporters:\n  datadog:\n    api:\n      key: " + tt.reference + "\n"
+			require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+
+			customerConfig, err := loadCustomerConfig(context.Background(), []string{"file:" + configPath})
+			require.NoError(t, err)
+			assert.Contains(t, customerConfig, testAPIKey, "the reference should be resolved from the environment")
+		})
+	}
+}
+
 func TestDiscoverDebugSources(t *testing.T) {
 	tmpDir := t.TempDir()
 
