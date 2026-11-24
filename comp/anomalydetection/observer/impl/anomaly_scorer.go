@@ -1147,10 +1147,7 @@ func (s *anomalyScorer) advanceSecond(sec int64, recognizeHigh bool) secState {
 	bucket, next := scoreSecond(sec, inputs, cfg, s.windowMap, s.score)
 	var discovery severityDiscovery
 	if next.level > s.score.level {
-		discovery = severityDiscovery{level: next.level}
-		if next.level == severityeventsdef.SeverityHigh {
-			discovery.crossing = sec
-		}
+		discovery = severityDiscovery{level: next.level, crossing: sec}
 	}
 	if s.replay != nil {
 		s.replay.recordSecond(sec, inputs, next, recognizeHigh)

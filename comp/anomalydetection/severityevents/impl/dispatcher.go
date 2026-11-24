@@ -59,12 +59,6 @@ func (d *Dispatcher) Advance(sec int64, level severityeventsdef.SeverityLevel) {
 	d.AdvanceWithDiscovery(sec, level, severityeventsdef.SeverityLow, 0)
 }
 
-// DiscoverHigh starts or renews this subscriber's hold for a distinct raw High.
-// crossingSec describes the evidence; only triggerSec affects the cooldown.
-func (d *Dispatcher) DiscoverHigh(triggerSec, crossingSec int64) {
-	d.AdvanceWithDiscovery(triggerSec, severityeventsdef.SeverityHigh, severityeventsdef.SeverityHigh, crossingSec)
-}
-
 // AdvanceWithDiscovery combines raw severity with an optional discovered
 // period. The stronger level wins. A matching discovery renews the hold.
 // Medium cannot override High during its cooldown.
