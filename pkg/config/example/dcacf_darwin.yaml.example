@@ -122,6 +122,19 @@ api_key:
 #
 # hostname_file: /var/lib/cloud/data/instance-id
 
+## @param hostname_use_serial - boolean - optional - default: false
+## @env DD_HOSTNAME_USE_SERIAL - boolean - optional - default: false
+## Append the device serial number to the automatically detected hostname in
+## end_user_device infrastructure mode on macOS and Windows. macOS uses the
+## LocalHostName as its device-name source regardless of this setting. Explicit
+## hostname and hostname_file settings take precedence. Cloud provider hostnames,
+## hostname_fqdn, and EC2 instance-ID selection can still replace the device name,
+## including its serial-number suffix when enabled.
+## Restart the Agent after changing this setting;
+## changing the hostname changes the device identity in Datadog.
+#
+# hostname_use_serial: false
+
 ## @param hostname_fqdn - boolean - optional - default: false
 ## @env DD_HOSTNAME_FQDN - boolean - optional - default: false
 ## When the Agent relies on the OS to determine the hostname, make it use the
@@ -197,6 +210,7 @@ api_key:
 ## On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
 ## On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
 ## This setting is ignored on Linux and does not enable or disable the systemd unit.
+## On macOS, dd-procmgrd always runs as the LaunchDaemon `com.datadoghq.procmgr`. This setting is not yet supported there.
 #
 # process_manager:
 
@@ -204,6 +218,7 @@ api_key:
 #   # @env DD_PROCESS_MANAGER_ENABLED - boolean - optional - default: true
 #   # When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
 #   # On Linux, the process manager daemon is started by systemd; this option is ignored.
+#   # On macOS, dd-procmgrd always runs (LaunchDaemon com.datadoghq.procmgr). This option is not yet supported there.
 #
 #   enabled: true
 
@@ -329,6 +344,31 @@ api_key:
 #     # @param endpoints - object - optional - default: {}
 #     # @env DD_USE_V3_API_SERIES_ENDPOINTS - JSON object of string to string - optional - default: {}
 #     # Per-URL override map for non-distribution metrics intake version. The URL
+#     # must match exactly what was configured under `dd_url` or `additional_endpoints`.
+#     # Accepted values:
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
+#     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+#     #   - false: v2 everywhere.
+#
+#     endpoints: {}
+
+#   # @param distributions - custom object - optional
+#   # Controls the use of the v3 metrics intake for distribution metrics.
+#
+#   distributions:
+
+#     # @param enabled - string - optional - default: "datadog_only"
+#     # @env DD_USE_V3_API_DISTRIBUTIONS_ENABLED - string - optional - default: "datadog_only"
+#     # Global default for the distribution metrics intake version. Accepted values:
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
+#     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+#     #   - false: v2 everywhere.
+#
+#     enabled: "datadog_only"
+
+#     # @param endpoints - object - optional - default: {}
+#     # @env DD_USE_V3_API_DISTRIBUTIONS_ENDPOINTS - JSON object of string to string - optional - default: {}
+#     # Per-URL override map for distribution metrics intake version. The URL
 #     # must match exactly what was configured under `dd_url` or `additional_endpoints`.
 #     # Accepted values:
 #     #   - true: v3 for every destination except Observability Pipelines Worker.
@@ -596,7 +636,8 @@ api_key:
 
 ## @param gpu - custom object - optional
 ## Configuration for GPU Monitoring on non-containerized Linux hosts.
-## Both this section and the gpu_monitoring section in system-probe.yaml must be configured.
+## NVIDIA kernel-level monitoring also requires gpu_monitoring in system-probe.yaml.
+## AMD sysfs monitoring does not require system-probe.
 #
 # gpu:
 
@@ -604,9 +645,26 @@ api_key:
 #   # @env DD_GPU_ENABLED - boolean - optional - default: false
 #   # Set to true to enable the GPU check in the core Agent.
 #   # Required for GPU monitoring on non-containerized Linux hosts.
-#   # Must be used together with gpu_monitoring.enabled: true in system-probe.yaml.
+#   # Enable gpu_monitoring.enabled in system-probe.yaml for NVIDIA kernel-level metrics.
+#   # AMD sysfs metrics require only the core Agent.
+#   # On Linux Agents with NVML support, enabling GPU Monitoring delays readiness
+#   # until NVML initializes or gpu.readiness_timeout expires (one minute by default).
 #
 #   enabled: false
+
+#   # @param readiness_timeout - duration - optional - default: "1m"
+#   # @env DD_GPU_READINESS_TIMEOUT - duration - optional - default: "1m"
+#   # How long the core Agent waits for NVML initialization before reporting GPU
+#   # readiness when gpu.enabled is true. Applies to Linux Agents with NVML support.
+#   # The timeout starts during Agent startup, even if the GPU check is not scheduled.
+#   # It also expires during GPU reset windows, even while GPU collection is paused.
+#   # Hosts without working NVML, including AMD-only hosts, wait for the full timeout
+#   # on every Agent restart. The health probe can take up to 15 additional seconds
+#   # to report readiness. This does not affect liveness or ongoing GPU health checks.
+#   # Use a duration such as 30s or 2m. Set to 0s or a negative duration to disable
+#   # this readiness delay.
+#
+#   readiness_timeout: "1m"
 
 #   # @param legacy_sm_active - boolean - optional - default: false
 #   # @env DD_GPU_LEGACY_SM_ACTIVE - boolean - optional - default: false
@@ -615,6 +673,14 @@ api_key:
 #   # reported as both gpu.sm_active and gpu.sm_utilization.
 #
 #   legacy_sm_active: false
+
+#   # @param prefer_gr_engine_sm_active - boolean - optional - default: false
+#   # @env DD_GPU_PREFER_GR_ENGINE_SM_ACTIVE - boolean - optional - default: false
+#   # gpu.sm_active falls back to the GPM GR engine activity (the same value as gpu.gr_engine_active)
+#   # when no other source is available. Set to true to report it with priority over the sampling and
+#   # eBPF sources. This source is not used if gpu.legacy_sm_active is enabled.
+#
+#   prefer_gr_engine_sm_active: false
 
 #   # @param nccl - custom object - optional
 #   # NCCL collective communication metrics. When enabled, the Agent listens on a
@@ -654,6 +720,90 @@ api_key:
 #   # Set to 0 to report on every check run.
 #
 #   static_metrics_reporting_interval: "15s"
+
+#   # @param jobs - custom object - optional
+#   # Identify the training job a GPU workload belongs to. The Agent reads the
+#   # configured pod label, pod annotation, or environment variable and attaches
+#   # its value as a tag on GPU metrics.
+#
+#   jobs:
+
+#     # @param run - custom object - optional
+#     # Where to find the unique ID of a single training run.
+#
+#     run:
+
+#       # @param key - string - optional - default: ""
+#       # @env DD_GPU_JOBS_RUN_KEY - string - optional - default: ""
+#       # Name of the pod label, pod annotation, or environment variable holding
+#       # the run ID, for example _RAY_SUBMISSION_ID. Leave empty to disable run tagging.
+#
+#       key: ""
+
+#       # @param type - string - optional - default: "label"
+#       # @env DD_GPU_JOBS_RUN_TYPE - string - optional - default: "label"
+#       # Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+#       # (environment variable of the process using the GPU).
+#
+#       type: "label"
+
+#     # @param group - custom object - optional
+#     # Where to find the ID of the group of related training runs.
+#
+#     group:
+
+#       # @param key - string - optional - default: ""
+#       # @env DD_GPU_JOBS_GROUP_KEY - string - optional - default: ""
+#       # Name of the pod label, pod annotation, or environment variable holding
+#       # the group ID, for example example/job-group-annotation. Leave empty to
+#       # disable group tagging.
+#
+#       key: ""
+
+#       # @param type - string - optional - default: "label"
+#       # @env DD_GPU_JOBS_GROUP_TYPE - string - optional - default: "label"
+#       # Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+#       # (environment variable of the process using the GPU).
+#
+#       type: "label"
+
+#   # @param kai_scheduler - custom object - optional
+#   # Support for workloads scheduled by KAI Scheduler, which lets several pods
+#   # share one GPU. A pod asking for a fraction of a GPU does not request
+#   # `nvidia.com/gpu`, so the GPU it uses cannot be identified from the pod's
+#   # own resource requests; the assignment is read from the reservation pod KAI
+#   # creates for the shared GPU.
+#
+#   kai_scheduler:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_GPU_KAI_SCHEDULER_ENABLED - boolean - optional - default: false
+#     # Set to true to report which GPU each KAI Scheduler fractional workload
+#     # is using, the fraction of it assigned to the workload and the memory
+#     # of that fraction (`gpu.device.sharing_fraction`,
+#     # `gpu.device.sharing_memory`, `gpu_sharing_mode:kai_fraction`).
+#
+#     enabled: false
+
+#   # @param tracing - custom object - optional
+#   # Configure the tracers injected into GPU workloads. The fields match an
+#   # apm_config.instrumentation.targets entry of Single Step Instrumentation.
+#
+#   tracing:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_GPU_TRACING_ENABLED - boolean - optional - default: false
+#     # Set to true to inject tracers into GPU workloads.
+#
+#     enabled: false
+
+#     # @param tracer_versions - object - optional - default: {'c': '0'}
+#     # @env DD_GPU_TRACING_TRACER_VERSIONS - JSON object - optional - default: {'c': '0'}
+#     # Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+#     # Defaults to the latest major version 0 of the C tracer.
+#
+#     tracer_versions:
+#       c: "0.24.0"
 
 ## @param azure_metadata_timeout - integer - optional - default: 300
 ## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
@@ -1245,3 +1395,27 @@ api_key:
 #   # Number of apps per page to collect when calling the list apps endpoint of the CC API. Max 5000.
 #
 #   apps_batch_size: 5000
+
+## @param security_agent - custom object - optional
+## Settings specific to the security Agent process.
+#
+# security_agent:
+
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_SECURITY_AGENT_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for the security Agent only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""
+
+## @param system_probe - custom object - optional
+## system-probe settings the core Agent owns and streams to system-probe.
+#
+# system_probe:
+
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_SYSTEM_PROBE_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for system-probe only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""

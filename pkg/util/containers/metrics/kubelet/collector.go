@@ -20,6 +20,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/ddot"
 	kutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -53,11 +54,21 @@ func init() {
 	})
 }
 
+// getKubeUtil returns the kubelet client. It is a variable so that tests can
+// check whether, and with which outcome, the collector creates one.
+var getKubeUtil = kutil.GetKubeUtil
+
 type kubeletCollector struct {
+	podContainerIDResolver
 	kubeletClient kutil.KubeUtilInterface
-	metadataStore workloadmeta.Component
 	statsCache    provider.Cache
 	refreshLock   sync.Mutex
+}
+
+// podContainerIDResolver resolves container IDs from the pods stored in
+// workloadmeta, without calling the kubelet itself.
+type podContainerIDResolver struct {
+	metadataStore workloadmeta.Component
 }
 
 func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provider.CollectorMetadata, error) {
@@ -67,30 +78,49 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 		return collectorMetadata, provider.ErrPermaFail
 	}
 
+	cfg := pkgconfigsetup.Datadog()
+
 	// Cluster Checks Runners have no reachable local Kubelet: never let this
 	// collector be retried, otherwise the background collector discovery
 	// ticker will hammer the kubelet client forever and spam WARN logs.
-	if helper.IsCLCRunner(pkgconfigsetup.Datadog()) {
+	if helper.IsCLCRunner(cfg) {
 		return collectorMetadata, provider.ErrPermaFail
 	}
 
-	client, err := kutil.GetKubeUtil()
+	// otel-agent in DDOT standalone mode with the nodefilter workloadmeta
+	// collector has no kubelet access either: it watches the node's pods
+	// through the API server instead. Don't create a kubelet client, whose
+	// connection attempts would be retried forever, and only keep the pod UID
+	// and container name to container ID lookup, which workloadmeta answers
+	// from the pods the nodefilter collector stores.
+	if ddot.KubeletDisabled(cfg) {
+		resolver := &podContainerIDResolver{metadataStore: wmeta}
+		return newCollectorMetadata(&provider.Collectors{
+			ContainerIDForPodUIDAndContName: provider.MakeRef[provider.ContainerIDForPodUIDAndContNameRetriever](resolver, collectorPriority),
+		}), nil
+	}
+
+	client, err := getKubeUtil()
 	if err != nil {
 		return collectorMetadata, provider.ConvertRetrierErr(err)
 	}
 
 	collector := &kubeletCollector{
-		kubeletClient: client,
-		statsCache:    *provider.NewCache(kubeletCacheGCInterval),
-		metadataStore: wmeta,
+		podContainerIDResolver: podContainerIDResolver{metadataStore: wmeta},
+		kubeletClient:          client,
+		statsCache:             *provider.NewCache(kubeletCacheGCInterval),
 	}
 
-	collectors := &provider.Collectors{
+	return newCollectorMetadata(&provider.Collectors{
 		Stats:                           provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
 		Network:                         provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
 		ContainerIDForPodUIDAndContName: provider.MakeRef[provider.ContainerIDForPodUIDAndContNameRetriever](collector, collectorPriority),
-	}
+	}), nil
+}
 
+// newCollectorMetadata registers collectors for every container runtime the
+// kubelet can run containers with.
+func newCollectorMetadata(collectors *provider.Collectors) provider.CollectorMetadata {
 	return provider.CollectorMetadata{
 		ID: collectorID,
 		Collectors: provider.CollectorCatalog{
@@ -100,7 +130,7 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 			provider.NewRuntimeMetadata(string(provider.RuntimeNameDocker), ""):                                     collectors,
 			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRINonstandard), ""):                             collectors,
 		},
-	}, nil
+	}
 }
 
 // ContainerIDForPodUIDAndContName returns a container ID for the given pod uid
@@ -109,8 +139,8 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 // a pod, so the init container flag isn't needed and is ignored. This resolves
 // native sidecars (init containers with restartPolicy Always) when the caller
 // doesn't know the container is an init container.
-func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName string, _ bool, _ time.Duration) (string, error) {
-	pod, err := kc.metadataStore.GetKubernetesPod(podUID)
+func (r *podContainerIDResolver) ContainerIDForPodUIDAndContName(podUID, contName string, _ bool, _ time.Duration) (string, error) {
+	pod, err := r.metadataStore.GetKubernetesPod(podUID)
 	if err != nil {
 		if pkgerrors.IsNotFound(err) {
 			return "", nil
