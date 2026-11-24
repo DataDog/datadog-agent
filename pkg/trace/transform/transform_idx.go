@@ -316,13 +316,15 @@ func (s *idxSpanSink) convertedFields(fields *idx.SpanConvertedFields) {
 	metaRef(semantics.ConceptDDHostname, &fields.HostnameRef)
 	metaRef(semantics.ConceptDDVersion, &fields.AppVersionRef)
 	metaRef(semantics.ConceptDDGitCommitSHA, &fields.GitCommitShaRef)
+	// The first non-zero decision maker of the chunk wins. Mechanism 0 ("-0") is the tracer's
+	// startup fallback and is indistinguishable from unset, so a later real decision replaces it.
 	if dm, _ := s.meta(string(semantics.ConceptDDDecisionMaker)); dm != "" && fields.SamplingMechanism == 0 {
 		dm, _ = strings.CutPrefix(dm, "-")
-		samplingMechanism, err := strconv.ParseUint(dm, 10, 32)
-		if err != nil {
+		if samplingMechanism, err := strconv.ParseUint(dm, 10, 32); err != nil {
 			log.Debugf("Found invalid sampling mechanism %s: %v, Decision maker will be ignored", dm, err)
+		} else {
+			fields.SamplingMechanism = uint32(samplingMechanism)
 		}
-		fields.SamplingMechanism = uint32(samplingMechanism)
 	}
 	metaRef(semantics.ConceptDDAPMMode, &fields.APMModeRef)
 	metaRef(semantics.ConceptDDOrigin, &fields.OriginRef)

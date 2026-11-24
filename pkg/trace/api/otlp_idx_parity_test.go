@@ -943,6 +943,15 @@ func handWrittenParityCases() []parityCase {
 		addParitySpan(ss, parityTraceID(0, 550), 552, 551, map[string]any{"_dd.p.dm": "-7"}, withTraceState("dd=t.dm:-8"))
 		addParitySpan(ss, parityTraceID(0, 560), 561, 0, map[string]any{"_dd.p.dm": "-12"})
 		addParitySpan(ss, parityTraceID(0, 570), 571, 0, map[string]any{"_dd.p.dm": "-"}, withTraceState("dd=t.dm:-x"))
+		// "-0", the tracer's startup fallback, loses to any real decision maker of the chunk.
+		addParitySpan(ss, parityTraceID(0, 580), 581, 0, map[string]any{"_dd.p.dm": "-0", "sampling.priority": 1})
+		addParitySpan(ss, parityTraceID(0, 580), 582, 581, map[string]any{"_dd.p.dm": "-3"})
+		addParitySpan(ss, parityTraceID(0, 590), 591, 0, map[string]any{"_dd.p.dm": "-0", "sampling.priority": 1})
+		addParitySpan(ss, parityTraceID(0, 590), 592, 591, nil, withTraceState("dd=s:2;t.dm:-11"))
+		addParitySpan(ss, parityTraceID(0, 5810), 5811, 0, map[string]any{"sampling.priority": 1}, withTraceState("dd=s:1;t.dm:-0"))
+		addParitySpan(ss, parityTraceID(0, 5810), 5812, 5811, map[string]any{"_dd.p.dm": "-0"})
+		addParitySpan(ss, parityTraceID(0, 5820), 5821, 0, map[string]any{"_dd.p.dm": "-0", "sampling.priority": 1})
+		addParitySpan(ss, parityTraceID(0, 5820), 5822, 5821, map[string]any{"_dd.p.dm": "-99999999999"})
 		add("decision makers", rs)
 	}
 	{ // Sample rates, measured, analytics events.

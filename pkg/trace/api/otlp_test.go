@@ -1189,6 +1189,31 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 				require.Equal(uint32(12), out.Chunks[0].SamplingMechanism())
 			},
 		},
+		{
+			// "-0", the tracer's startup fallback, loses to a real decision maker on another span
+			in: []testutil.OTLPResourceSpan{
+				{
+					Spans: []*testutil.OTLPSpan{
+						{
+							TraceID:    [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+							Name:       "first",
+							Attributes: map[string]interface{}{"_sampling_priority_v1": 2, "_dd.p.dm": "-0"},
+						},
+						{
+							TraceID:    [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+							Name:       "second",
+							Attributes: map[string]interface{}{"_dd.p.dm": "-3"},
+						},
+					},
+				},
+			},
+			fn: func(out *idx.InternalTracerPayload) {
+				require.Len(out.Chunks, 1)
+				require.Equal(int32(2), out.Chunks[0].Priority)
+				require.Equal("-3", idxSpanMeta(out.Chunks[0].Spans[0], "_dd.p.dm"))
+				require.Equal(uint32(3), out.Chunks[0].SamplingMechanism())
+			},
+		},
 	} {
 		t.Run("", func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
