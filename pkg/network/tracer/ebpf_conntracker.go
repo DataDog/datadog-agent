@@ -63,12 +63,18 @@ var conntrackerTelemetry = struct {
 	getsTotal           telemetryComp.Counter
 	unregistersTotal    telemetryComp.Counter
 	registersTotal      *prometheus.Desc
+	peerHits            telemetryComp.Counter
+	peerEvictions       telemetryComp.Counter
+	peerEntries         telemetryComp.Gauge
 }{
 	telemetryimpl.GetCompatComponent().NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
 	telemetryimpl.GetCompatComponent().NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
 	telemetryimpl.GetCompatComponent().NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
 	telemetryimpl.GetCompatComponent().NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
 	prometheus.NewDesc(ebpfConntrackerModuleName+"__registers_total", "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map", nil, nil),
+	telemetryimpl.GetCompatComponent().NewCounter(ebpfConntrackerModuleName, "peer_translation_hits", []string{}, "Counter measuring translations found only in the kept peer translations"),
+	telemetryimpl.GetCompatComponent().NewCounter(ebpfConntrackerModuleName, "peer_translation_evictions", []string{}, "Counter measuring kept peer translations evicted at the cap"),
+	telemetryimpl.GetCompatComponent().NewGauge(ebpfConntrackerModuleName, "peer_translation_entries", []string{}, "Gauge measuring the number of kept peer translations"),
 }
 
 type ebpfConntracker struct {
@@ -82,6 +88,9 @@ type ebpfConntracker struct {
 	stop chan struct{}
 
 	isPrebuilt bool
+
+	// peers keeps what DeleteTranslationKeepPeer removed from the map, for the other end of the connection
+	peers *peerTranslations
 }
 
 var ebpfConntrackerCORECreator func(cfg *config.Config) (*manager.Manager, error) = getCOREConntracker
@@ -165,6 +174,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		rootNS:       rootNS,
 		stop:         make(chan struct{}),
 		isPrebuilt:   isPrebuilt,
+		peers:        newPeerTranslations(max(int(cfg.ConntrackMaxStateSize)/16, 1024)),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
@@ -267,6 +277,9 @@ func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionTuple) 
 		}
 		dst = e.get(src)
 	}
+	if dst == nil {
+		dst = e.getPeer(src, stats.NetNS)
+	}
 
 	if dst == nil {
 		return nil
@@ -299,6 +312,24 @@ func (e *ebpfConntracker) get(src *netebpf.ConntrackTuple) *netebpf.ConntrackTup
 	return dst
 }
 
+// getPeer looks src up in the kept peer translations, in the same namespace order as the map lookups.
+func (e *ebpfConntracker) getPeer(src *netebpf.ConntrackTuple, connNS uint32) *netebpf.ConntrackTuple {
+	now := time.Now()
+	for i, ns := range []uint32{e.rootNS, connNS} {
+		if i > 0 && ns == e.rootNS {
+			break
+		}
+		src.Netns = ns
+		if v, ok := e.peers.get(*src, now); ok {
+			conntrackerTelemetry.peerHits.Inc()
+			dst := tuplePool.Get()
+			*dst = v
+			return dst
+		}
+	}
+	return nil
+}
+
 func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 	start := time.Now()
 	defer func() {
@@ -321,30 +352,42 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 	conntrackerTelemetry.unregistersTotal.Inc()
 }
 
-func (e *ebpfConntracker) deleteTranslationNs(key *netebpf.ConntrackTuple, ns uint32) *netebpf.ConntrackTuple {
+// deleteTranslationNs deletes key's entry and its other direction from the map in ns. With keep > 0, the other
+// direction's entry is kept in userspace for that long, so the connection's other end can still look it up.
+func (e *ebpfConntracker) deleteTranslationNs(key *netebpf.ConntrackTuple, ns uint32, keep time.Duration) {
 	key.Netns = ns
+	e.peers.remove(*key)
 	dst := e.get(key)
 	e.delete(key)
-	if dst != nil {
-		e.delete(dst)
+	if dst == nil {
+		return
 	}
-
-	return dst
+	defer tuplePool.Put(dst)
+	e.delete(dst)
+	if keep > 0 {
+		evicted := e.peers.add(*dst, *key, keep, time.Now())
+		conntrackerTelemetry.peerEvictions.Add(float64(evicted))
+		conntrackerTelemetry.peerEntries.Set(float64(e.peers.len()))
+	}
 }
 
 func (e *ebpfConntracker) DeleteTranslation(stats *network.ConnectionTuple) {
+	e.DeleteTranslationKeepPeer(stats, 0)
+}
+
+// DeleteTranslationKeepPeer deletes the connection's entries from the map, like DeleteTranslation, and keeps the
+// other direction in userspace for keep, so the connection's other end still finds its translation if it's on this
+// host and closes later.
+func (e *ebpfConntracker) DeleteTranslationKeepPeer(stats *network.ConnectionTuple, keep time.Duration) {
 	key := tuplePool.Get()
 	defer tuplePool.Put(key)
 
 	toConntrackTupleFromTuple(key, stats)
 
 	// attempt a delete from both root and connection's network namespace
-	if dst := e.deleteTranslationNs(key, e.rootNS); dst != nil {
-		tuplePool.Put(dst)
-	}
-
-	if dst := e.deleteTranslationNs(key, stats.NetNS); dst != nil {
-		tuplePool.Put(dst)
+	e.deleteTranslationNs(key, e.rootNS, keep)
+	if stats.NetNS != e.rootNS {
+		e.deleteTranslationNs(key, stats.NetNS, keep)
 	}
 }
 

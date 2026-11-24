@@ -116,6 +116,8 @@ type Tracer struct {
 
 	// set while the connection tracer shares the eBPF conntracker's map
 	closedNATTranslations *deferredTranslationDeletes
+	// localAddrs holds the source addresses of the last two fetches' active connections
+	localAddrs localAddrSet
 }
 
 // NewTracer creates a Tracer
@@ -413,7 +415,7 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 			tracerTelemetry.natDeletes.Inc("deferred")
 		} else {
 			tracerTelemetry.natDeletes.Inc("immediate")
-			t.conntracker.DeleteTranslation(&cs.ConnectionTuple)
+			deleteTranslationKeepPeer(t.conntracker, &cs.ConnectionTuple, t.peerKeep(cs))
 		}
 	}
 
@@ -422,6 +424,30 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 	tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())
 
 	t.state.StoreClosedConnection(cs)
+}
+
+// peerKeepingConntracker can keep the other direction of a deleted entry, for the connection's other end.
+type peerKeepingConntracker interface {
+	DeleteTranslationKeepPeer(*network.ConnectionTuple, time.Duration)
+}
+
+func deleteTranslationKeepPeer(ctk netlink.Conntracker, c *network.ConnectionTuple, keep time.Duration) {
+	if pk, ok := ctk.(peerKeepingConntracker); ok {
+		pk.DeleteTranslationKeepPeer(c, keep)
+		return
+	}
+	ctk.DeleteTranslation(c)
+}
+
+// peerKeep returns how long to keep the other direction of a closed NAT'd connection's conntrack entry. A peer
+// address that looks local gets the long keep, since that end may notice the close much later. Any other peer gets
+// the short one, which still covers a request/response peer that opened since the last fetch and closes right away.
+func (t *Tracer) peerKeep(cs *network.ConnectionStats) time.Duration {
+	peer := cs.IPTranslation.ReplSrcIP
+	if peer.IsLoopback() || peer == cs.Source || t.localAddrs.contains(peer) {
+		return peerKeepLong
+	}
+	return peerKeepShort
 }
 
 func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
@@ -691,6 +717,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	}
 
 	activeConnections = activeBuffer.Connections()
+	t.localAddrs.update(activeConnections)
 	for i := range activeConnections {
 		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(&activeConnections[i].ConnectionTuple)
 		// do gateway resolution only on active connections outside

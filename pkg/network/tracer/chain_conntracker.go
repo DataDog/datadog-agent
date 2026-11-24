@@ -9,6 +9,7 @@ package tracer
 
 import (
 	"context"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -78,6 +79,13 @@ func (ct *chainConntracker) GetType() string {
 func (ct *chainConntracker) DeleteTranslation(c *network.ConnectionTuple) {
 	for _, ctk := range ct.ctks {
 		ctk.DeleteTranslation(c)
+	}
+}
+
+// DeleteTranslationKeepPeer passes keep to the conntrackers that can keep the other direction, and deletes from the rest.
+func (ct *chainConntracker) DeleteTranslationKeepPeer(c *network.ConnectionTuple, keep time.Duration) {
+	for _, ctk := range ct.ctks {
+		deleteTranslationKeepPeer(ctk, c, keep)
 	}
 }
 
