@@ -933,9 +933,8 @@ func unpublishErrortracking() {
 // producer submitted concurrently with the switch may be dropped. Errors
 // logged before the remote flag first arrives are not captured.
 //
-// The release of the queue runs in the background so that the Remote Flags
-// client, which calls this under its own lock, is never held up by a slow
-// intake; stop waits for it.
+// The release of the queue runs in the background so that the flag handlers
+// that call this are never held up by a slow intake; stop waits for it.
 func (a *atel) setErrortracking(on bool) bool {
 	a.errortrackingMu.Lock()
 	if !a.enabled || a.stopped || (a.errLogsCh.Load() != nil) == on {

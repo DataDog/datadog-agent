@@ -10,6 +10,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -461,4 +462,31 @@ func TestSetErrortracking_StaleFlushDoesNotCountAsFailure(t *testing.T) {
 
 	assert.True(t, a.isErrortrackingHealthy())
 	assert.Zero(t, a.errLogsFlushFailures.Load())
+}
+
+// The Remote Flags client runs each OnChange in its own goroutine, so a true
+// followed by an overlapping false must still end with the feature off.
+func TestErrortrackingFlagHandler_OverlappingChangesEndOff(t *testing.T) {
+	var on atomic.Bool
+	entered := make(chan struct{})
+	proceed := make(chan struct{})
+	set := func(v bool) bool {
+		if v {
+			close(entered)
+			<-proceed
+		}
+		return on.Swap(v) != v
+	}
+	h := newErrortrackingFlagHandler(set, func() bool { return false }, func() bool { return true })
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); _ = h.OnChange(true) }()
+	<-entered
+	go func() { defer wg.Done(); _ = h.OnChange(false) }()
+	time.Sleep(50 * time.Millisecond) // let the false change reach the handler
+	close(proceed)
+	wg.Wait()
+
+	assert.False(t, on.Load(), "the later false must win")
 }

@@ -6,6 +6,8 @@
 package agenttelemetryimpl
 
 import (
+	"sync"
+
 	"go.uber.org/atomic"
 
 	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
@@ -36,6 +38,10 @@ type errortrackingFlagHandler struct {
 	localOff func() bool
 	healthy  func() bool
 
+	// mu serializes the handler methods. The Remote Flags client calls OnChange
+	// from a new goroutine per change and SafeRecover from its health monitor,
+	// so without it a quick true then false could leave the feature on.
+	mu sync.Mutex
 	// byFlag is true while errortracking is on because of the flag.
 	byFlag atomic.Bool
 }
@@ -51,8 +57,10 @@ func (h *errortrackingFlagHandler) FlagName() pkgremoteflags.FlagName {
 
 // OnChange is called when the remote flag value changed.
 func (h *errortrackingFlagHandler) OnChange(value pkgremoteflags.FlagValue) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if !value {
-		h.release()
+		h.releaseLocked()
 		return nil
 	}
 	if h.localOff() {
@@ -84,6 +92,13 @@ func (h *errortrackingFlagHandler) IsHealthy() bool {
 
 // release switches errortracking off if the flag turned it on.
 func (h *errortrackingFlagHandler) release() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.releaseLocked()
+}
+
+// releaseLocked is release for callers that hold h.mu.
+func (h *errortrackingFlagHandler) releaseLocked() {
 	if h.byFlag.Swap(false) {
 		h.set(false)
 	}
