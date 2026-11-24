@@ -81,7 +81,7 @@ apm_config:
 ```
 
 1. **`node_type: section`** — this node groups child settings/section rather than holding a value itself.
-1. **`title`** — generates a section banner in `datadog.yaml.example`:
+1. **`title`** — labels the section in IDEs and generates its banner in `datadog.yaml.example` (settings use [`banner`](../../reference/agent-schema/keywords.md#banner) instead):
    ```
    ####################################
    ## Trace Collection Configuration ##

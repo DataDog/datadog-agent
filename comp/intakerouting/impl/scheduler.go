@@ -7,6 +7,9 @@ package intakeroutingimpl
 
 import (
 	"context"
+	"fmt"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -87,6 +90,8 @@ type decision struct {
 	target intakerouting.Endpoint
 	// probe is set while an override waits for its pre-flight check.
 	probe *probeKey
+	// note says why an answer leaves the route where it is, for the debug logs.
+	note string
 }
 
 // probeKey identifies a pre-flight check. A pass checks each host, port and key at most once.
@@ -227,12 +232,15 @@ func (r *router) checkPaths(jobs []*groupJob) {
 		// backoff, so the group is answered soon after DNS works again.
 		mayRoute := false
 		reported := make(map[[2]string]bool)
+		reasons := make(map[string]struct{})
 		for j := range job.routes {
 			s := &job.routes[j]
 			res := results[s.def]
 			s.indirect, s.indirectErr = res.reason, res.err
 			if s.indirect == "" || s.indirect == pathLookupFailed {
 				mayRoute = true
+			} else {
+				reasons[s.indirect] = struct{}{}
 			}
 			// Counted once per telemetry type and reason, like rejected answers.
 			if key := [2]string{string(s.typ), s.indirect}; s.indirect != "" && job.fresh && !reported[key] && r.ctx.Err() == nil {
@@ -243,6 +251,7 @@ func (r *router) checkPaths(jobs []*groupJob) {
 		if job.fresh && !mayRoute {
 			job.skipped = true
 			job.result = queryResult{status: statusSkipped}
+			r.log.Debugf("Intake routing: not querying site %s, the Agent does not reach any of its %d endpoint(s) directly (%s)", job.key.site, len(job.routes), strings.Join(sortedKeys(reasons), ", "))
 		}
 	}
 }
@@ -254,6 +263,7 @@ func (r *router) queryAll(jobs []*groupJob) {
 		if !job.fresh || job.skipped {
 			continue
 		}
+		r.log.Debugf("Intake routing: querying site %s for %d endpoint(s)", job.key.site, len(job.routes))
 		wg.Go(func() {
 			ctx, cancel := context.WithTimeout(r.ctx, queryTimeout)
 			defer cancel()
@@ -330,17 +340,17 @@ func decide(job *groupJob, s routeSnapshot) (decision, string, error) {
 		return decision{kind: keepCurrent}, rejectAbsent, nil
 	}
 	if !answer.override {
-		return decision{kind: useDefault}, "", nil
+		return decision{kind: useDefault, note: "the backend returned no override"}, "", nil
 	}
 	target := intakerouting.Endpoint{Host: answer.host, Port: normalizePort(answer.port)}
 	if sameEndpoint(target, s.def) {
-		return decision{kind: useDefault}, "", nil
+		return decision{kind: useDefault, note: "the override is the configured host"}, "", nil
 	}
 	if err := validateOverride(answer.host, answer.port); err != nil {
 		return decision{kind: keepCurrent}, rejectInvalidHost, err
 	}
 	if sameEndpoint(target, s.current) {
-		return decision{kind: keepCurrent}, "", nil
+		return decision{kind: keepCurrent, note: "the override is already in use"}, "", nil
 	}
 	return decision{
 		kind:   useOverride,
@@ -372,6 +382,7 @@ func (r *router) runPreflights(probes map[probeKey]bool) {
 				return
 			}
 			r.tlm.preflights.Inc(preflightSuccess)
+			r.log.Debugf("Intake routing: pre-flight check of %s passed", hostPort(ep))
 			passed[i] = true
 		})
 	}
@@ -392,6 +403,7 @@ func (r *router) apply(jobs []*groupJob, decisions [][]decision) time.Time {
 	}
 
 	changed := make(map[*registration]struct{})
+	answered := false
 	for i, job := range jobs {
 		g := job.group
 		if r.groups[job.key] != g {
@@ -400,6 +412,10 @@ func (r *router) apply(jobs []*groupJob, decisions [][]decision) time.Time {
 		}
 		if job.fresh {
 			r.scheduleLocked(g, job.result, now)
+			if job.result.status == statusSuccess {
+				answered = true
+				r.logUnusedTypesLocked(job)
+			}
 		}
 		applied := make(map[*route]struct{}, len(job.routes))
 		for j, s := range job.routes {
@@ -411,8 +427,11 @@ func (r *router) apply(jobs []*groupJob, decisions [][]decision) time.Time {
 			rt.pendingCached = false
 			rt.decided = true
 			r.logPathLocked(rt, s)
-			if r.applyLocked(rt, decisions[i][j]) {
+			d := decisions[i][j]
+			if r.applyLocked(rt, d) {
 				changed[rt.reg] = struct{}{}
+			} else if job.fresh && d.note != "" {
+				r.log.Debugf("Intake routing: keeping the %s endpoint %s on %s: %s", rt.req.Type, hostPort(rt.req.Default), hostPort(rt.current), d.note)
 			}
 		}
 		if !job.fresh {
@@ -438,13 +457,93 @@ func (r *router) apply(jobs []*groupJob, decisions [][]decision) time.Time {
 		reg.notifyLocked()
 	}
 	r.updateActiveOverridesLocked()
+	if answered {
+		r.log.Debugf("Intake routing: active overrides: %s", r.overridesSummaryLocked())
+	}
 	return r.nextDueLocked(now)
+}
+
+// logUnusedTypesLocked logs the entries of a fresh answer whose telemetry type no route uses.
+func (r *router) logUnusedTypesLocked(job *groupJob) {
+	var unused []string
+	for typ := range job.result.routes {
+		if _, ok := r.types[typ]; !ok {
+			unused = append(unused, string(typ))
+		}
+	}
+	if len(unused) > 0 {
+		sort.Strings(unused)
+		r.log.Debugf("Intake routing: ignoring the entries of the answer for site %s for telemetry types that no endpoint uses: %s", job.key.site, strings.Join(unused, ", "))
+	}
+}
+
+// overridesSummaryLocked describes, for each telemetry type, how many endpoints are sent to an
+// override, out of the registered ones.
+func (r *router) overridesSummaryLocked() string {
+	overridden := make(map[string]int, len(r.types))
+	total := make(map[string]int, len(r.types))
+	for reg := range r.regs {
+		for _, rt := range reg.routes {
+			total[string(rt.req.Type)]++
+			if rt.overridden {
+				overridden[string(rt.req.Type)]++
+			}
+		}
+	}
+	parts := make([]string, 0, len(total))
+	for _, typ := range sortedKeys(total) {
+		parts = append(parts, fmt.Sprintf("%s=%d/%d", typ, overridden[typ], total[typ]))
+	}
+	if len(parts) == 0 {
+		return "none registered"
+	}
+	return strings.Join(parts, ", ")
+}
+
+// describeResult describes a settled query result, for the debug logs.
+func describeResult(res queryResult) string {
+	switch res.status {
+	case statusNotOffered:
+		return "routing is not offered (HTTP 404)"
+	case statusSkipped:
+		return "the query was not sent"
+	}
+	if len(res.routes) == 0 {
+		return "the answer has no entry"
+	}
+	types := make([]string, 0, len(res.routes))
+	for typ := range res.routes {
+		types = append(types, string(typ))
+	}
+	sort.Strings(types)
+	parts := make([]string, len(types))
+	for i, typ := range types {
+		answer := res.routes[intakerouting.TelemetryType(typ)]
+		if answer.override {
+			parts[i] = fmt.Sprintf("%s: override %s", typ, hostPort(intakerouting.Endpoint{Host: answer.host, Port: normalizePort(answer.port)}))
+		} else {
+			parts[i] = typ + ": no override"
+		}
+	}
+	return "answer " + strings.Join(parts, "; ")
+}
+
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // logPathLocked logs when the Agent stops or starts reaching the default host of a route
 // directly.
 func (r *router) logPathLocked(rt *route, s routeSnapshot) {
 	if s.indirect == rt.indirect {
+		if s.indirect != "" {
+			r.log.Debugf("Intake routing: still not routing the %s endpoint %s (%s): %v", rt.req.Type, hostPort(rt.req.Default), s.indirect, s.indirectErr)
+		}
 		return
 	}
 	switch {
@@ -469,6 +568,7 @@ func (r *router) scheduleLocked(g *group, res queryResult, now time.Time) {
 		g.cached = &res
 		g.backoff.Reset()
 		g.nextAttempt = now.Add(r.jitter(r.refresh))
+		r.log.Debugf("Intake routing: site %s: %s, next query in %s", g.key.site, describeResult(res), g.nextAttempt.Sub(now).Round(time.Second))
 		return
 	}
 
@@ -486,6 +586,7 @@ func (r *router) scheduleLocked(g *group, res queryResult, now time.Time) {
 	} else {
 		g.nextAttempt = now.Add(g.backoff.NextBackOff())
 	}
+	r.log.Debugf("Intake routing: next query for site %s in %s", g.key.site, g.nextAttempt.Sub(now).Round(time.Second))
 }
 
 // applyLocked applies a decision to a route and reports whether its endpoint changed.
@@ -532,14 +633,25 @@ func (r *router) attachLocked(rt *route, now time.Time) {
 		apiKey, ready = rt.req.APIKey()
 	}
 	if !ready || apiKey == "" {
+		if !rt.keyWaiting {
+			rt.keyWaiting = true
+			r.log.Debugf("Intake routing: the API key of the %s endpoint %s is not ready, the endpoint is not routed until it is", rt.req.Type, hostPort(rt.req.Default))
+		}
 		r.detachLocked(rt)
 		rt.decided = true
 		return
+	}
+	if rt.keyWaiting {
+		rt.keyWaiting = false
+		r.log.Debugf("Intake routing: the API key of the %s endpoint %s is ready, routing it", rt.req.Type, hostPort(rt.req.Default))
 	}
 
 	key := groupKey{site: rt.site, apiKey: apiKey}
 	if rt.group != nil && rt.group.key == key {
 		return
+	}
+	if rt.group != nil {
+		r.log.Debugf("Intake routing: the API key of the %s endpoint %s changed, routing it with the new key", rt.req.Type, hostPort(rt.req.Default))
 	}
 	r.detachLocked(rt)
 	g, ok := r.groups[key]

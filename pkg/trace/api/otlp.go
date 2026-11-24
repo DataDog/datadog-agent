@@ -130,7 +130,9 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
 func (o *OTLPReceiver) Start() {
 	cfg := o.conf.OTLPReceiver
-	if cfg.GRPCPort != 0 {
+	if cfg.GRPCPort == 0 {
+		closeInheritedOTLPListener()
+	} else {
 		var ln net.Listener
 		var err error
 		// When using the trace-loader, the OTLP listener might be provided as an already opened file descriptor
@@ -171,6 +173,22 @@ func (o *OTLPReceiver) Start() {
 			log.Debugf("Listening to core Agent for OTLP traces on internal gRPC port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", cfg.BindHost, cfg.GRPCPort)
 		}
 	}
+}
+
+// closeInheritedOTLPListener closes a listener inherited from the trace-loader so clients are refused rather than
+// left waiting. The loader may read a different configuration and open the port when this receiver is disabled.
+func closeInheritedOTLPListener() {
+	grpcFDStr, ok := os.LookupEnv("DD_OTLP_CONFIG_GRPC_FD")
+	if !ok {
+		return
+	}
+	ln, err := loader.GetListenerFromFD(grpcFDStr, "otlp_conn")
+	if err != nil {
+		log.Errorf("Error closing unused OTLP listener from file descriptor %s: %v", grpcFDStr, err)
+		return
+	}
+	ln.Close()
+	log.Debugf("Closed unused OTLP listener from file descriptor %s", grpcFDStr)
 }
 
 // Stop stops any running server.
@@ -301,7 +319,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			hostname = src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			hostname = src.SourceIdentifier.Primary
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			hostname = ""
@@ -311,7 +329,6 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		hostname = o.conf.Hostname
 		src = source.Source{
 			Kind:             source.HostnameKind,
-			Identifier:       hostname, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			SourceIdentifier: source.SourceIdentifier{Primary: hostname},
 		}
 	}
@@ -423,7 +440,6 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 		if v, ok := m[key]; ok {
 			src = source.Source{
 				Kind:             source.HostnameKind,
-				Identifier:       v, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{Primary: v},
 			}
 			srcok = true
@@ -511,7 +527,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			hostname = src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			hostname = src.SourceIdentifier.Primary
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			hostname = ""
@@ -521,7 +537,6 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 		hostname = o.conf.Hostname
 		src = source.Source{
 			Kind:             source.HostnameKind,
-			Identifier:       hostname, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			SourceIdentifier: source.SourceIdentifier{Primary: hostname},
 		}
 	}
@@ -617,7 +632,7 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 		// `_dd.p.dm` must not be set even if a drop decision is applied to the trace here.
 		// Traces with a drop decision by the OTLPReceiver's probabilistic sampler are re-evaluated by ErrorsSampler later.
 		if samplingPriorty.IsKeep() {
-			traceutil.SetMeta(spans[0], "_dd.p.dm", decisionMaker)
+			traceutil.SetMeta(spans[0], string(semantics.ConceptDDDecisionMaker), decisionMaker)
 		}
 		chunk.Priority = int32(samplingPriorty)
 		traceChunks = append(traceChunks, chunk)
@@ -628,23 +643,38 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 // tracerDecisionMaker returns the sampling decision maker set upstream by the tracer on
 // any span of the chunk, either as a `_dd.p.dm` attribute or, failing that, as the `t.dm`
 // field of the `dd` member of the W3C tracestate. Only well-formed values are returned.
+// Any decision maker is preferred over "-0", the tracer's startup fallback, which is returned
+// only when no other decision maker is present.
 func tracerDecisionMaker(spans pb.Trace) (string, bool) {
+	fallback, hasFallback := "", false
+	// consider reports whether dm is a real decision, remembering the first mechanism 0 one as the fallback.
+	consider := func(dm string, mechanism uint64) bool {
+		if mechanism != 0 {
+			return true
+		}
+		if !hasFallback {
+			fallback, hasFallback = dm, true
+		}
+		return false
+	}
 	for _, s := range spans {
-		if dm, ok := s.Meta["_dd.p.dm"]; ok && isValidDecisionMaker(dm) {
-			return dm, true
+		if dm, ok := s.Meta[string(semantics.ConceptDDDecisionMaker)]; ok {
+			if mechanism, ok := decisionMakerMechanism(dm); ok && consider(dm, mechanism) {
+				return dm, true
+			}
 		}
 	}
 	for _, s := range spans {
-		if dm, ok := decisionMakerFromTracestate(s.Meta["w3c.tracestate"]); ok {
+		if dm, mechanism, ok := decisionMakerFromTracestate(s.Meta["w3c.tracestate"]); ok && consider(dm, mechanism) {
 			return dm, true
 		}
 	}
-	return "", false
+	return fallback, hasFallback
 }
 
-// decisionMakerFromTracestate extracts `t.dm` from the `dd` member of a W3C tracestate,
-// e.g. "dd=s:2;t.dm:-12,other=value" yields "-12".
-func decisionMakerFromTracestate(ts string) (string, bool) {
+// decisionMakerFromTracestate extracts `t.dm` and its sampling mechanism from the `dd` member of a
+// W3C tracestate, e.g. "dd=s:2;t.dm:-12,other=value" yields "-12" and 12.
+func decisionMakerFromTracestate(ts string) (string, uint64, bool) {
 	for ts != "" {
 		var member string
 		member, ts, _ = strings.Cut(ts, ",")
@@ -655,26 +685,27 @@ func decisionMakerFromTracestate(ts string) (string, bool) {
 		for value != "" {
 			var field string
 			field, value, _ = strings.Cut(value, ";")
-			if dm, ok := strings.CutPrefix(field, "t.dm:"); ok && isValidDecisionMaker(dm) {
-				return dm, true
+			if dm, ok := strings.CutPrefix(field, "t.dm:"); ok {
+				if mechanism, ok := decisionMakerMechanism(dm); ok {
+					return dm, mechanism, true
+				}
 			}
 		}
-		return "", false
+		return "", 0, false
 	}
-	return "", false
+	return "", 0, false
 }
 
-// isValidDecisionMaker reports whether dm looks like a sampling decision maker: "-" followed by digits.
-func isValidDecisionMaker(dm string) bool {
-	if len(dm) < 2 || dm[0] != '-' {
-		return false
+// decisionMakerMechanism parses a sampling decision maker, "-" followed by digits, into its sampling
+// mechanism. It reports false when dm isn't well-formed or its mechanism doesn't fit in a uint32, as
+// the V1 conversion paths require. Mechanism 0 ("-0") is the tracer's startup fallback.
+func decisionMakerMechanism(dm string) (uint64, bool) {
+	digits, ok := strings.CutPrefix(dm, "-")
+	if !ok {
+		return 0, false
 	}
-	for i := 1; i < len(dm); i++ {
-		if dm[i] < '0' || dm[i] > '9' {
-			return false
-		}
-	}
-	return true
+	mechanism, err := strconv.ParseUint(digits, 10, 32)
+	return mechanism, err == nil
 }
 
 // convertSpan converts the span in to a Datadog span, and uses the res resource and the lib instrumentation

@@ -113,7 +113,6 @@ def get_ebpf_runtime_dir() -> Path:
 
 def ninja_define_ebpf_compiler(
     nw: NinjaWriter,
-    strip_object_files=False,
     kernel_release=None,
     with_unit_test=False,
     arch: Arch | None = None,
@@ -131,15 +130,6 @@ def ninja_define_ebpf_compiler(
         name="ebpfclang",
         command="/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
         depfile="$out.d",
-    )
-
-    strip = "/opt/datadog-agent/embedded/bin/llvm-strip -g --remove-section=.rel.BTF.ext $out"
-    strip_lbb = "/opt/datadog-agent/embedded/bin/llvm-strip -w -N \"LBB*\" $out"
-    strip_part = f"&& {strip} && {strip_lbb}" if strip_object_files else ""
-
-    nw.rule(
-        name="llc",
-        command=f"/opt/datadog-agent/embedded/bin/llc-bpf -march=bpf -filetype=obj -o $out $in {strip_part}",
     )
 
 
@@ -688,7 +678,6 @@ def setup_runtime_clang(
 
     runtime_binaries = {
         "clang-bpf": {"url_prefix": "clang", "version_line": 0, "needs_download": False},
-        "llc-bpf": {"url_prefix": "llc", "version_line": 1, "needs_download": False},
         "llvm-strip": {"url_prefix": "llvm-strip", "version_line": 2, "needs_download": False},
     }
 
@@ -700,7 +689,7 @@ def setup_runtime_clang(
                 runtime_binaries[binary]["needs_download"] = True
                 continue
 
-            # We can check the version of clang and llc on the system, we have the same arch and can
+            # We can check the version of the LLVM tools on the system, we have the same arch and can
             # execute the binaries. This way we can omit the download if the binaries exist and the version
             # matches the desired one
             res = ctx.run(f"{sudo} {binary_path} --version", warn=True, hide=True)
@@ -710,7 +699,7 @@ def setup_runtime_clang(
                     print(f"'{binary}' version '{version_str}' is not required version '{clang_version}'")
                     runtime_binaries[binary]["needs_download"] = True
         else:
-            # If we're cross-compiling we cannot check the version of clang and llc on the system,
+            # If we're cross-compiling we cannot check the version of the LLVM tools on the system,
             # so we download them only if they don't exist
             runtime_binaries[binary]["needs_download"] = not binary_path.exists() or binary_path.stat().st_size == 0
 
@@ -768,6 +757,21 @@ _EBPF_INSTALL_TARGET = "//pkg/ebpf:install_object_files"
 # Same, with the CWS objects built for Baloum unit tests.
 _EBPF_BALOUM_INSTALL_TARGET = "//pkg/ebpf:install_object_files_baloum"
 
+# DEBUG=1 variants of the ebpf_program_suite programs, installed only on request.
+_EBPF_DEBUG_INSTALL_TARGET = "//pkg/ebpf:install_debug_object_files"
+# The filegroups it installs, with their directory under get_ebpf_build_dir().
+_EBPF_DEBUG_GROUPS = (("//pkg/ebpf:prebuilt_debug_objects", ""), ("//pkg/ebpf:co_re_debug_objects", "co-re"))
+
+
+def _staged_debug_objects() -> list[str]:
+    """Return the staging paths of the debug variants, relative to the build dir."""
+    paths = []
+    for group, subdir in _EBPF_DEBUG_GROUPS:
+        labels = bazel("query", f"labels(srcs, {group})", capture_output=True).split()
+        paths += [os.path.join(subdir, label.rsplit(":", 1)[1].removesuffix(".stripped") + ".o") for label in labels]
+    return paths
+
+
 # Targets installed into their own source directory, not build_dir/co-re/
 _BAZEL_EBPF_INPLACE_TARGETS = {
     "//pkg/ebpf/kernelbugs:uprobe-trigger": "pkg/ebpf/kernelbugs/c",
@@ -783,6 +787,7 @@ _BAZEL_RUNTIME_GEN_TARGETS = [
     "//pkg/ebpf/bytecode:conntrack_gen",
     "//pkg/ebpf/bytecode:tracer_gen",
     "//pkg/ebpf/bytecode:offsetguess-test_gen",
+    "//pkg/ebpf/bytecode:skb-parse-test_gen",
     "//pkg/ebpf/bytecode:runtime-security_gen",
     "//pkg/ebpf/bytecode:gpu_gen",
 ]
@@ -821,17 +826,23 @@ def bazel_build_ebpf(
     arch: Arch,
     *,
     verify: bool = False,
+    debug: bool = False,
     extra_targets: list[str] | tuple[str, ...] = (),
     install_target: str = _EBPF_INSTALL_TARGET,
     fips_backend: FipsBackend = FipsBackend.none,
 ) -> None:
-    """Build all eBPF artifacts in one Bazel invocation, then install them into the repository."""
-    targets = [install_target, *extra_targets]
+    """Build all eBPF artifacts in one Bazel invocation, then install them into the repository.
+
+    With debug, the <name>-debug.o variants are built and installed as well.
+    """
+    install_targets = [install_target, _EBPF_DEBUG_INSTALL_TARGET] if debug else [install_target]
+    targets = [*install_targets, *extra_targets]
     if verify:
         targets.append("//pkg/ebpf:verify_generated_files")
     extra_flags = ebpf_bazel_flags(arch)
     bazel("test" if verify else "build", *extra_flags, *targets, fips_backend=fips_backend)
-    _bazel_install(ctx, install_target, os.getcwd(), *extra_flags, fips_backend=fips_backend)
+    for target in install_targets:
+        _bazel_install(ctx, target, os.getcwd(), *extra_flags, fips_backend=fips_backend)
 
 
 # Paths under bazel-bin -> repo-relative destinations (also removed by clean_object_files).
@@ -891,10 +902,14 @@ def _rust_install_targets(output_dir: Path | None = None, packages: list[str] | 
     return targets
 
 
-@task(aliases=["object-files"])
+@task(
+    aliases=["object-files"],
+    help={"debug": "Also build and stage the DEBUG=1 <name>-debug.o variants"},
+)
 def build_object_files(
     ctx,
     arch: str = CURRENT_ARCH,
+    debug: bool = False,
     fips_backend: FipsBackend = FipsBackend.none,
 ) -> None:
     arch_obj = Arch.from_str(arch)
@@ -902,6 +917,7 @@ def build_object_files(
     runtime_dir = get_ebpf_runtime_dir()
 
     arch_flags = ebpf_bazel_flags(arch_obj)
+    stale_debug = [] if debug or is_windows else _staged_debug_objects()
 
     if not is_windows:
         check_for_inline(ctx)
@@ -912,7 +928,13 @@ def build_object_files(
         if not arch_obj.is_cross_compiling():
             extra_targets.extend(t for t, _ in _rust_install_targets())
 
-        bazel_build_ebpf(ctx, arch_obj, verify=True, extra_targets=extra_targets, fips_backend=fips_backend)
+        bazel_build_ebpf(
+            ctx, arch_obj, verify=True, debug=debug, extra_targets=extra_targets, fips_backend=fips_backend
+        )
+        for rel in stale_debug:
+            stale = os.path.join(build_dir, rel)
+            if os.path.exists(stale):
+                os.remove(stale)
 
         # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
         # Keep Bazel unprivileged: its sandbox needs access to the caller's repository cache.
@@ -933,6 +955,9 @@ def build_object_files(
     if not is_windows:
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
+        if stale_debug:
+            stale = " ".join(os.path.join(EMBEDDED_SHARE_DIR, rel) for rel in stale_debug)
+            ctx.run(f"{sudo} rm -f {stale}")
 
         if ctx.run("command -v rsync >/dev/null 2>&1", warn=True, hide=True).ok:
             rsync_filter = "--filter='+ */' --filter='+ *.o' --filter='+ *.c' --filter='- *'"
@@ -1462,7 +1487,6 @@ def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | N
     ctx.run(f"cp {runtime_dir}/*.c {target}")
     ctx.run(f"chmod 0444 {target}/*.o {target}/*.c {target}/co-re/*.o")
     ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {target}")
-    ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {target}")
 
 
 @task
@@ -1471,7 +1495,7 @@ def build_usm_debugger(
     arch: str = CURRENT_ARCH,
     strip_binary=False,
 ):
-    build_object_files(ctx)
+    build_object_files(ctx, debug=True)
 
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build", arch)
 

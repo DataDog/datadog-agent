@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import time
 from collections import Counter
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -22,9 +22,38 @@ from tasks.libs.package.metadata import read_deb_metadata, read_rpm_metadata
 from tasks.libs.package.size import CENTOS_OS, DEBIAN_OS, extract_package
 from tasks.static_quality_gates.experimental_gates import FileInfo, FileUtilities
 
-PRODUCTS = {'datadog-agent': 'agent'}
+
+@dataclass(frozen=True)
+class Product:
+    package: str
+    bazel_package: str
+    bazel_job: str
+    omnibus_jobs: tuple[str, ...]
+    formats: tuple[str, ...] = ('deb', 'rpm')
+    debug_package: bool = False
+
+    def bazel_targets(self) -> list[str]:
+        targets = []
+        for package_format in self.formats:
+            target = f'{self.bazel_package}:{BAZEL_TARGETS[package_format]}'
+            targets.append(target)
+            if self.debug_package:
+                targets.append(f'{target}_dbg')
+        return targets
+
+
+PRODUCTS = {
+    'agent': Product(
+        'datadog-agent',
+        '//packages/agent/linux',
+        bazel_job='bazel:package:linux-amd64',
+        omnibus_jobs=('agent_deb-x64-a7', 'agent_rpm-x64-a7'),
+        debug_package=True,
+    ),
+}
 ARCHITECTURES = {'amd64': {'deb': 'amd64', 'rpm': 'x86_64'}}
 FORMATS = {'deb': read_deb_metadata, 'rpm': read_rpm_metadata}
+BAZEL_TARGETS = {'deb': 'debian', 'rpm': 'rpm'}
 LOG_PREFIX = 'BAZEL_PARITY'
 # Derived from file sizes, which legitimately differ between builds: only require a value.
 PRESENCE_ONLY_FIELDS = {'installed-size'}
@@ -221,15 +250,16 @@ def metadata_differs(field: str, old_value: str, new_value: str) -> bool:
 
 def build_report(ctx, omnibus_dir: str, bazel_dir: str, readelf: str) -> dict:
     report: dict[str, Any] = {'packages': [], 'tasks': []}
-    for product in PRODUCTS:
-        for package_format, reader in FORMATS.items():
+    for product in PRODUCTS.values():
+        for package_format in product.formats:
+            reader = FORMATS[package_format]
             for arch in ARCHITECTURES:
-                scope = {'product': product, 'format': package_format, 'arch': arch}
+                scope = {'product': product.package, 'format': package_format, 'arch': arch}
                 package = {**scope}
                 report['packages'].append(package)
                 try:
-                    old = find_packages(omnibus_dir, product, package_format, arch)
-                    new = find_packages(bazel_dir, product, package_format, arch)
+                    old = find_packages(omnibus_dir, product.package, package_format, arch)
+                    new = find_packages(bazel_dir, product.package, package_format, arch)
                     package.update(omnibus=str(old) if old else None, bazel=str(new) if new else None)
                     if old is None or new is None:
                         raise ValueError(f'Missing {"omnibus" if old is None else "Bazel"} package')
@@ -298,16 +328,20 @@ def format_difference(item: dict, difference: dict) -> str:
     return f'metadata {field} omnibus_only={json.dumps(omnibus_only)} bazel_only={json.dumps(bazel_only)}'
 
 
+def scope_attributes(scope: dict) -> str:
+    return f'product={scope["product"]} format={scope["format"]} arch={scope["arch"]}'
+
+
 def print_report(report: dict) -> None:
     for item in report['tasks']:
         scope = f'{item["product"]}/{item["format"]}/{item["arch"]}'
         for difference in item['differences']:
-            print(f'{LOG_PREFIX} {scope} {format_difference(item, difference)}')
+            print(f'{LOG_PREFIX} {scope} {format_difference(item, difference)} {scope_attributes(item)}')
     for package in report['packages']:
         scope = f'{package["product"]}/{package["format"]}/{package["arch"]}'
         if 'files' in package:
             counts = ' '.join(f'{result}={count}' for result, count in package['files'].items())
-            print(f'{LOG_PREFIX} {scope} counts {counts}')
+            print(f'{LOG_PREFIX} {scope} counts {counts} {scope_attributes(package)}')
     summary = report['summary']
     total = summary['done'] + summary['remaining']
     print(f'{LOG_PREFIX} summary {summary["done"]}/{total} tasks complete; {summary["remaining"]} remaining')
@@ -328,3 +362,11 @@ def check(ctx, omnibus_dir, bazel_dir, readelf):
     failed = [package for package in report['packages'] if 'error' in package]
     if failed:
         raise Exit(f'{len(failed)} packages could not be compared', code=1)
+
+
+@task(help={'product': f'Registered product to print the targets of: {", ".join(PRODUCTS)}'})
+def targets(_, product):
+    """Print a product's Bazel package targets to build for the parity check, debug packages included."""
+    if product not in PRODUCTS:
+        raise Exit(f'Unknown product {product}, expected one of: {", ".join(PRODUCTS)}', code=1)
+    print(' '.join(PRODUCTS[product].bazel_targets()))

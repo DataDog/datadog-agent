@@ -17,6 +17,12 @@ branches:
     github_teams_restrictions:
       - agent-supply-chain
       - agent-delivery
+    # Lets PR Approver queue the release PRs it approves (rule
+    # datadog-agent-release-go-modules): its service identities have no DataDog
+    # GitHub account, so github_teams_restrictions alone rejects them.
+    emails_restrictions:
+      - devex-prapprover.prapprover-worker@kubernetes.us1.ddbuild.io
+      - devex-prapprover.prapprover-intake@kubernetes.us1.ddbuild.io
 ---
 schema-version: v1
 kind: buildimpactanalysis

@@ -15,9 +15,19 @@ import (
 // ErrConfigFileNotFound is an error for when the config file is not found
 var ErrConfigFileNotFound = errors.New("Config File Not Found")
 
+// ErrMissingConfigFile is an error for when the main config file does not exist.
+var ErrMissingConfigFile = errors.New("main config file does not exist")
+
 // NewConfigFileNotFoundError returns a well known error for the config file missing
 func NewConfigFileNotFoundError(err error) error {
 	return fmt.Errorf("%w: %w", ErrConfigFileNotFound, err)
+}
+
+// NewMissingConfigFileError returns an error for a main config file that does not exist. The error wraps
+// ErrMissingConfigFile and also ErrConfigFileNotFound, so that code that accepts ErrConfigFileNotFound also accepts a
+// missing main file.
+func NewMissingConfigFileError(err error) error {
+	return fmt.Errorf("%w: %w: %w", ErrMissingConfigFile, ErrConfigFileNotFound, err)
 }
 
 // SchemaID identifies the configuration schema a config follows. The schemas themselves and their validation
@@ -228,6 +238,10 @@ type Reader interface {
 
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
 	Warnings() []string
+
+	// ConfigFileErrors returns one entry per config file with a parse problem.
+	// A non-empty result means settings from those files may not be in effect.
+	ConfigFileErrors() []string
 
 	// StartTime returns the time at which the agent process started (completes config.Component interface)
 	StartTime() time.Time

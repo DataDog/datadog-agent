@@ -57,12 +57,18 @@ func TestFingerprintIsPrefixedWithTheProbeKind(t *testing.T) {
 	assert.True(t, strings.HasPrefix(testOptions().Fingerprint(), "ping:"))
 }
 
-func TestDetectReportsAReasonWhenItIsNotAvailable(t *testing.T) {
-	c := Detect()
+func TestDefaultRawSocketFollowsTheOS(t *testing.T) {
+	assert.True(t, DefaultRawSocket("windows"), "windows has no unprivileged pinger")
+	assert.False(t, DefaultRawSocket("darwin"), "macOS has no raw pinger")
+	assert.False(t, DefaultRawSocket("linux"))
+}
 
-	if c.Available {
-		assert.Empty(t, c.Reason)
-		return
-	}
-	assert.NotEmpty(t, c.Reason)
+func TestResolveRawSocketHonorsTheOverrideOnlyOnLinux(t *testing.T) {
+	raw, udp := true, false
+
+	assert.True(t, ResolveRawSocket("linux", &raw))
+	assert.False(t, ResolveRawSocket("linux", &udp))
+	assert.False(t, ResolveRawSocket("linux", nil))
+	assert.True(t, ResolveRawSocket("windows", &udp))
+	assert.False(t, ResolveRawSocket("darwin", &raw))
 }

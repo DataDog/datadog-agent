@@ -93,12 +93,23 @@ common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=
 
 # Linux config ---------------------------------------------------------------------------------------------------------
 common:linux --strategy=sandboxed
+# Third-party C/C++ code (external/): drop -Wall and default-on warnings we don't intend to fix, but keep the ones
+# that catch wrong hand-written config.h files. The host_ variants cover tools built in the exec configuration.
+common:linux --per_file_copt=external/.*@-Wno-all,-Wno-attribute-warning,-Wno-deprecated-declarations,-Wno-stringop-overflow,-Wno-attributes,-Wno-alloc-size-larger-than
+common:linux --per_file_copt=external/.*[.]c$@-Werror=implicit-function-declaration,-Werror=implicit-int,-Werror=int-conversion,-Werror=incompatible-pointer-types
+common:linux --host_per_file_copt=external/.*@-Wno-all,-Wno-attribute-warning,-Wno-deprecated-declarations,-Wno-stringop-overflow,-Wno-attributes,-Wno-alloc-size-larger-than
+common:linux --host_per_file_copt=external/.*[.]c$@-Werror=implicit-function-declaration,-Werror=implicit-int,-Werror=int-conversion,-Werror=incompatible-pointer-types
 common --@llvm//runtimes/glibc:glibc_additional_library_search_directory=//bazel/toolchains/glibc_static # -static links; hermetic-llvm ships glibc stubs only
 
 # macOS config ---------------------------------------------------------------------------------------------------------
 common:macos --experimental_use_llvm_covmap # gcov's runtime is missing in foreign_cc links (CPython's _ctypes)
 common:macos --macos_minimum_os=12.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed
+# Same as the Linux third-party warning flags above, restricted to options clang understands.
+common:macos --per_file_copt=external/.*@-Wno-all,-Wno-deprecated-declarations,-Wno-deprecated-non-prototype
+common:macos --per_file_copt=external/.*[.]c$@-Werror=implicit-function-declaration,-Werror=implicit-int,-Werror=int-conversion,-Werror=incompatible-pointer-types
+common:macos --host_per_file_copt=external/.*@-Wno-all,-Wno-deprecated-declarations,-Wno-deprecated-non-prototype
+common:macos --host_per_file_copt=external/.*[.]c$@-Werror=implicit-function-declaration,-Werror=implicit-int,-Werror=int-conversion,-Werror=incompatible-pointer-types
 
 # Windows config -------------------------------------------------------------------------------------------------------
 # Override the common credential helper with the Windows launcher.

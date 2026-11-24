@@ -685,11 +685,86 @@ func TestTagDecisionMaker(t *testing.T) {
 	chunk.Spans = []*pb.Span{newTestSpan(), newTestSpan(), newTestSpan()}
 	chunk.Spans[0].Metrics = nil
 	chunk.Spans[2].Metrics = nil
-	traceutil.SetMeta(chunk.Spans[1], tagDecisionMaker, "right")
-	traceutil.SetMeta(chunk.Spans[2], tagDecisionMaker, "wrong")
+	traceutil.SetMeta(chunk.Spans[1], tagDecisionMaker, "-3")
+	traceutil.SetMeta(chunk.Spans[2], tagDecisionMaker, "-8")
 	setChunkAttributes(chunk, root)
-	assert.Equal("right", chunk.Tags[tagDecisionMaker])
-	assert.Equal("right", chunk.Spans[1].Meta[tagDecisionMaker])
+	assert.Equal("-3", chunk.Tags[tagDecisionMaker])
+	assert.Equal("-3", chunk.Spans[1].Meta[tagDecisionMaker])
+}
+
+// TestTagDecisionMakerPrefersRealDecision checks that "-0", the tracer's startup fallback, is promoted
+// only when no other decision maker is present on the chunk, regardless of span order.
+func TestTagDecisionMakerPrefersRealDecision(t *testing.T) {
+	tests := []struct {
+		name     string
+		dms      []string
+		expected string
+	}{
+		{"default then rule", []string{"-0", "-3"}, "-3"},
+		{"rule then default", []string{"-3", "-0"}, "-3"},
+		{"first real decision wins", []string{"-0", "-3", "-8"}, "-3"},
+		{"only default", []string{"", "-0", "-0"}, "-0"},
+		{"zero-valued default", []string{"-00", "-3"}, "-3"},
+		{"invalid skipped", []string{"-0", "invalid", "-3"}, "-3"},
+		{"only invalid", []string{"invalid", "-"}, ""},
+		{"no decision maker", []string{"", ""}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := newTestSpan()
+			chunk := testutil.TraceChunkWithSpan(root)
+			chunk.Spans = nil
+			for _, dm := range tt.dms {
+				s := newTestSpan()
+				if dm != "" {
+					traceutil.SetMeta(s, tagDecisionMaker, dm)
+				}
+				chunk.Spans = append(chunk.Spans, s)
+			}
+			setChunkAttributes(chunk, root)
+			dm, ok := chunk.Tags[tagDecisionMaker]
+			assert.Equal(t, tt.expected != "", ok)
+			assert.Equal(t, tt.expected, dm)
+		})
+	}
+}
+
+// TestTagDecisionMakerChunkDefault checks that a chunk-level decision maker of mechanism 0 ("-0" or
+// "0") is treated as missing, so that a real decision on the spans replaces it, while any other
+// chunk-level value is kept.
+func TestTagDecisionMakerChunkDefault(t *testing.T) {
+	tests := []struct {
+		name     string
+		chunkDM  string
+		spanDMs  []string
+		expected string
+	}{
+		{"default replaced by span decision", "-0", []string{"-0", "-3"}, "-3"},
+		{"bare zero replaced by span decision", "0", []string{"-3"}, "-3"},
+		{"zero-valued default replaced", "-00", []string{"-8"}, "-8"},
+		{"default kept without span decision", "-0", []string{""}, "-0"},
+		{"default kept when spans only have invalid", "-0", []string{"invalid"}, "-0"},
+		{"default kept when spans only have default", "-0", []string{"-0"}, "-0"},
+		{"real chunk decision kept", "-3", []string{"-8"}, "-3"},
+		{"real chunk decision kept over span default", "-3", []string{"-0"}, "-3"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := newTestSpan()
+			chunk := testutil.TraceChunkWithSpan(root)
+			chunk.Tags = map[string]string{tagDecisionMaker: tt.chunkDM}
+			chunk.Spans = nil
+			for _, dm := range tt.spanDMs {
+				s := newTestSpan()
+				if dm != "" {
+					traceutil.SetMeta(s, tagDecisionMaker, dm)
+				}
+				chunk.Spans = append(chunk.Spans, s)
+			}
+			setChunkAttributes(chunk, root)
+			assert.Equal(t, tt.expected, chunk.Tags[tagDecisionMaker])
+		})
+	}
 }
 
 // TestTagDecisionMakerNilChunkTags covers a v0.7 payload that omits the chunk

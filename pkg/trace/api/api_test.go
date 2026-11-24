@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -2767,4 +2768,80 @@ func msgpTraces(t *testing.T, traces pb.Traces) []byte {
 		t.Fatal(err)
 	}
 	return bts
+}
+
+// headerContainerIDProvider returns the container ID that the request header
+// gives, like the real provider does for tracers that send it.
+type headerContainerIDProvider struct{}
+
+func (headerContainerIDProvider) GetContainerID(_ context.Context, h http.Header) string {
+	return h.Get(header.ContainerID)
+}
+
+func TestDecodeErrorLogNamesClient(t *testing.T) {
+	var output bytes.Buffer
+	oldLogger := log.SetLogger(log.NewBufferLogger(&output))
+	t.Cleanup(func() { log.SetLogger(oldLogger) })
+
+	// The request sets the lang and tracer version headers, and the container
+	// has more tags. The log line has neither: the lang and tracer version are
+	// already tags on the receiver metrics, and the other tags do not name the app.
+	for name, features := range map[string][]string{
+		"v1":     nil,
+		"legacy": {"disable-convert-traces"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			output.Reset()
+			conf := newTestReceiverConfigWithFeatures(features...)
+			conf.MaxRequestBytes = 2
+			conf.ContainerTags = func(cid string) ([]string, error) {
+				require.Equal(t, "abc123", cid)
+				return []string{"service:checkout", "kube_namespace:shop", "kube_deployment:checkout", "pod_name:checkout-7d9f-x2", "container_name:app", "short_image:checkout", "image_id:sha256:deadbeef", "kube_ownerref_kind:replicaset"}, nil
+			}
+			r := newTestReceiverFromConfig(conf)
+			r.containerIDProvider = headerContainerIDProvider{}
+
+			req := httptest.NewRequest(http.MethodPost, "/v0.4/traces", strings.NewReader(" []"))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set(header.ContainerID, "abc123")
+			req.Header.Set(header.Lang, "go")
+			req.Header.Set(header.TracerVersion, "v1.2.3")
+			req.RemoteAddr = "10.1.2.3:41234"
+			rec := httptest.NewRecorder()
+			r.handleWithVersion(v04, r.handleTraces).ServeHTTP(rec, req)
+			require.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
+
+			_, line, found := strings.Cut(output.String(), "[ERROR] ")
+			require.True(t, found, "no error logged: %s", output.String())
+			assert.Equal(t, `Cannot decode v0.4 traces payload (content_length:3, remote_addr:"10.1.2.3:41234", container_id:"abc123", service:"checkout", kube_namespace:"shop", kube_deployment:"checkout", pod_name:"checkout-7d9f-x2", container_name:"app", short_image:"checkout"): read limit reached`, line)
+		})
+	}
+}
+
+func TestDecodeErrorClientQuotesTagValues(t *testing.T) {
+	conf := newTestReceiverConfig()
+	conf.ContainerTags = func(string) ([]string, error) {
+		return []string{"service:fake\n2026-01-01 00:00:00 UTC | TRACE | ERROR | forged line"}, nil
+	}
+	r := newTestReceiverFromConfig(conf)
+	r.containerIDProvider = headerContainerIDProvider{}
+	req := httptest.NewRequest(http.MethodPost, "/v0.4/traces", nil)
+	req.Header.Set(header.ContainerID, "abc123")
+	got := r.decodeErrorClient(req)
+	assert.NotContains(t, got, "\n")
+	assert.Contains(t, got, `service:"fake\n2026-01-01 00:00:00 UTC | TRACE | ERROR | forged line"`)
+}
+
+func TestDecodeErrorLogWithoutContainer(t *testing.T) {
+	conf := newTestReceiverConfig()
+	conf.ContainerTags = func(string) ([]string, error) {
+		t.Fatal("container tags must not be looked up without a container ID")
+		return nil, nil
+	}
+	r := newTestReceiverFromConfig(conf)
+	r.containerIDProvider = headerContainerIDProvider{}
+	req := httptest.NewRequest(http.MethodPost, "/v0.4/traces", nil)
+	req.ContentLength = 42
+	req.RemoteAddr = "@"
+	assert.Equal(t, `content_length:42, remote_addr:"@", container_id:""`, r.decodeErrorClient(req))
 }
