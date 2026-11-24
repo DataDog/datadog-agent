@@ -6,6 +6,8 @@
 package agenttelemetryimpl
 
 import (
+	"compress/flate"
+	"io"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,10 +26,30 @@ type ownerRule struct {
 }
 
 // codeOwnersRules compiles the generated table on first use, so agents that
-// never log an error do not pay for it.
+// never log an error do not pay for it. The compiled rules keep the inflated
+// text alive (about 42 KB), which is accepted.
 var codeOwnersRules = sync.OnceValue(func() []ownerRule {
-	return parseOwnerRules(ownerTeams, ownerRules)
+	teams, rules, ok := inflateOwnerTables(ownerTablesDeflated)
+	if !ok {
+		// No rules, so no owner_team tag. Not logged: this runs on the error
+		// flush path, which must not log at Error.
+		return nil
+	}
+	return parseOwnerRules(teams, rules)
 })
+
+// maxOwnerTablesSize is a generous bound on the inflated tables.
+const maxOwnerTablesSize = 1 << 20
+
+// inflateOwnerTables decodes the generated table: the team slugs, a NUL byte,
+// then the rules. It reports false when the data does not decode.
+func inflateOwnerTables(deflated string) (teams, rules string, ok bool) {
+	data, err := io.ReadAll(io.LimitReader(flate.NewReader(strings.NewReader(deflated)), maxOwnerTablesSize))
+	if err != nil {
+		return "", "", false
+	}
+	return strings.Cut(string(data), "\x00")
+}
 
 // parseOwnerRules compiles the generated tables into rules in file order.
 // Rows that do not parse are dropped.

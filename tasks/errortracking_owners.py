@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import difflib
 import os
+import re
+import zlib
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -76,18 +78,53 @@ def _rules(owners_file: str) -> list[tuple[str, str]]:
     return rules
 
 
-def render_go(rules: list[tuple[str, str]]) -> str:
+def render_tables(rules: list[tuple[str, str]]) -> str:
+    """The team slugs, one per line, then a NUL, then the rules as "<team line number or -> <pattern>" lines."""
     teams = sorted({team for _, team in rules if team})
     team_index = {team: str(i) for i, team in enumerate(teams)}
     rule_lines = "\n".join(f"{team_index.get(team, _NO_OWNER)} {pattern}" for pattern, team in rules)
+    return "\n".join(teams) + "\x00" + rule_lines
+
+
+def deflate(tables: str) -> bytes:
+    """Raw deflate at the best level: the Go matcher inflates it with compress/flate."""
+    compressor = zlib.compressobj(9, zlib.DEFLATED, -15)
+    return compressor.compress(tables.encode()) + compressor.flush()
+
+
+_BYTES_PER_LINE = 32
+_CONST = "const ownerTablesDeflated ="
+# The whole constant: its literals and the "+" and line breaks between them, whatever size the blob is.
+_BLOB = re.compile(r'(?:"(?:\\x[0-9a-f]{2})*"\s*\+?\s*)+')
+
+
+def _go_literal(chunk: bytes) -> str:
+    return '"' + "".join(f"\\x{b:02x}" for b in chunk) + '"'
+
+
+def render_go(rules: list[tuple[str, str]]) -> str:
+    blob = deflate(render_tables(rules))
+    literals = [_go_literal(blob[i : i + _BYTES_PER_LINE]) for i in range(0, len(blob), _BYTES_PER_LINE)]
+    joined = " +\n\t".join(literals)
     return (
         f"{_HEADER}\n"
-        "// ownerTeams lists the team slugs, one per line; a rule refers to a team by its line number.\n"
-        f"const ownerTeams = `{chr(10).join(teams)}`\n\n"
-        "// ownerRules lists the CODEOWNERS rows in file order (the last match wins) as\n"
-        '// "<team line number or ->" followed by a space and the pattern.\n'
-        f"const ownerRules = `{rule_lines}`\n"
+        "// ownerTablesDeflated is the raw-deflate form of the CODEOWNERS owner tables: the team slugs,\n"
+        "// one per line, a NUL byte, then the rules in file order (the last match wins), one per line, as\n"
+        '// "<team line number or ->" followed by a space and the pattern. It is kept compressed because it\n'
+        "// ships in every agent binary; the matcher inflates it on first use.\n"
+        f"{_CONST} {joined}\n"
     )
+
+
+def go_tables(source: str) -> str | None:
+    """The tables a generated Go file carries, decoded, or None when it has none or they do not decode."""
+    _, found, tail = source.partition(_CONST)
+    if not found:
+        return None
+    try:
+        return zlib.decompress(bytes.fromhex("".join(re.findall(r"\\x([0-9a-f]{2})", tail))), -15).decode()
+    except (zlib.error, UnicodeDecodeError, ValueError):
+        return None
 
 
 def _synthesize(pattern: str) -> str:
@@ -111,18 +148,38 @@ def render_golden(owners_file: str, rules: list[tuple[str, str]]) -> str:
     return "".join(f"{path}\t{_primary_team(parsed.of(path))}\n" for path in paths)
 
 
-def _check(path: str, expected: str) -> None:
+def _stale(path: str, actual: str, expected: str) -> Exit:
+    diff = "".join(difflib.unified_diff(actual.splitlines(True), expected.splitlines(True), path, "expected", n=0))
+    return Exit(
+        f"{path} is not up to date, please run `dda inv errortracking-owners.generate`\n{diff[:2000]}",
+        code=1,
+    )
+
+
+def _read(path: str) -> str:
     try:
         with open(path) as f:
-            actual = f.read()
+            return f.read()
     except FileNotFoundError:
-        actual = ""
+        return ""
+
+
+def _check(path: str, expected: str) -> None:
+    actual = _read(path)
     if actual != expected:
-        diff = "".join(difflib.unified_diff(actual.splitlines(True), expected.splitlines(True), path, "expected", n=0))
-        raise Exit(
-            f"{path} is not up to date, please run `dda inv errortracking-owners.generate`\n{diff[:2000]}",
-            code=1,
-        )
+        raise _stale(path, actual, expected)
+
+
+def _check_go(path: str, rules: list[tuple[str, str]]) -> None:
+    """Compare the Go file by what it says: zlib may compress the same tables to different bytes elsewhere."""
+    actual = _read(path)
+    tables = go_tables(actual)
+    expected = render_tables(rules)
+    if tables != expected:
+        raise _stale(path, tables or "", expected)
+    expected_go = render_go(rules)
+    if _BLOB.sub("<blob>", actual) != _BLOB.sub("<blob>", expected_go):
+        raise _stale(path, actual, expected_go)
 
 
 @task
@@ -137,10 +194,11 @@ def generate(_, check=False, owners_file=OWNERS_FILE):
         GENERATED_GO: render_go(rules),
         PARITY_GOLDEN: render_golden(owners_file, rules),
     }
+    if check:
+        _check_go(GENERATED_GO, rules)
+        _check(PARITY_GOLDEN, outputs[PARITY_GOLDEN])
+        return
     for path, content in outputs.items():
-        if check:
-            _check(path, content)
-            continue
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
             f.write(content)

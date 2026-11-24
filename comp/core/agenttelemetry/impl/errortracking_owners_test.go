@@ -6,6 +6,8 @@
 package agenttelemetryimpl
 
 import (
+	"bytes"
+	"compress/flate"
 	"os"
 	"strings"
 	"testing"
@@ -144,4 +146,44 @@ func TestEndToEndFaultOwners(t *testing.T) {
 	for file, team := range want {
 		assert.Equal(t, team, ownerOfPath(codeOwnersRules(), file), file)
 	}
+}
+
+// TestInflateOwnerTables decodes the generated table and checks its shape.
+func TestInflateOwnerTables(t *testing.T) {
+	teams, rules, ok := inflateOwnerTables(ownerTablesDeflated)
+	require.True(t, ok)
+
+	assert.Greater(t, len(strings.Split(teams, "\n")), 40)
+	assert.Greater(t, strings.Count(rules, "\n"), 1000)
+	assert.Equal(t, len(strings.Split(rules, "\n")), len(codeOwnersRules()), "every row compiles")
+}
+
+func TestInflateOwnerTablesRejectsBadInput(t *testing.T) {
+	deflate := func(s string) string {
+		var buf bytes.Buffer
+		w, err := flate.NewWriter(&buf, flate.BestCompression)
+		require.NoError(t, err)
+		_, err = w.Write([]byte(s))
+		require.NoError(t, err)
+		require.NoError(t, w.Close())
+		return buf.String()
+	}
+
+	for name, input := range map[string]string{
+		"empty":         "",
+		"not deflate":   "\x07\x07\x07\x07",
+		"truncated":     deflate("a\nb\x000 /x/")[:3],
+		"no separator":  deflate("a\nb"),
+		"invalid block": strings.Repeat("\xff", 64),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, _, ok := inflateOwnerTables(input)
+			assert.False(t, ok)
+		})
+	}
+
+	teams, rules, ok := inflateOwnerTables(deflate("a\nb\x000 /x/\n- /y/"))
+	require.True(t, ok)
+	assert.Equal(t, "a\nb", teams)
+	assert.Equal(t, "0 /x/\n- /y/", rules)
 }

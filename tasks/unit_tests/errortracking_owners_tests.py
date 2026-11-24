@@ -36,10 +36,23 @@ class TestErrortrackingOwners(unittest.TestCase):
             ],
         )
 
-    def test_render_go_indexes_teams(self):
-        out = eo.render_go(eo._rules(self.path))
-        self.assertIn("const ownerTeams = `team-default\nteam-logs\nteam-sender\nteam-win`", out)
-        self.assertIn("0 *\n1 /pkg/logs/\n2 /pkg/logs/sender/\n- /docs/*.md\n3 /cmd/**/*_windows*.go`", out)
+    def test_render_tables_indexes_teams(self):
+        self.assertEqual(
+            eo.render_tables(eo._rules(self.path)),
+            "team-default\nteam-logs\nteam-sender\nteam-win\x00"
+            "0 *\n1 /pkg/logs/\n2 /pkg/logs/sender/\n- /docs/*.md\n3 /cmd/**/*_windows*.go",
+        )
+
+    def test_render_go_embeds_the_deflated_tables(self):
+        rules = eo._rules(self.path)
+        out = eo.render_go(rules)
+        self.assertIn("const ownerTablesDeflated = \"", out)
+        self.assertEqual(eo.go_tables(out), eo.render_tables(rules))
+        self.assertNotIn("team-default", out, "the tables are stored compressed")
+
+    def test_go_tables_rejects_missing_or_corrupt_data(self):
+        self.assertIsNone(eo.go_tables("package x\n"))
+        self.assertIsNone(eo.go_tables('const ownerTablesDeflated = "\\x00\\x01"\n'))
 
     def test_golden_matches_python_parser(self):
         golden = dict(line.split("\t") for line in eo.render_golden(self.path, eo._rules(self.path)).splitlines())
@@ -58,6 +71,31 @@ class TestErrortrackingOwners(unittest.TestCase):
         with self.assertRaises(Exit):
             eo._check(self.path, "something else\n")
         eo._check(self.path, CODEOWNERS)
+
+    def test_check_go_compares_what_the_file_says_not_its_bytes(self):
+        rules = eo._rules(self.path)
+        fd, go_path = tempfile.mkstemp()
+        os.close(fd)
+        self.addCleanup(os.remove, go_path)
+        out = eo.render_go(rules)
+
+        other = eo.zlib.compressobj(0, eo.zlib.DEFLATED, -15)  # stored blocks: always other bytes
+        blob = other.compress(eo.render_tables(rules).encode()) + other.flush()
+        self.assertNotEqual(blob, eo.deflate(eo.render_tables(rules)))
+        recompressed = out.split(eo._CONST)[0] + eo._CONST + " " + eo._go_literal(blob) + "\n"
+        with open(go_path, "w") as f:
+            f.write(recompressed)
+        eo._check_go(go_path, rules)
+
+        # Different tables, or a different surrounding file: stale.
+        with open(go_path, "w") as f:
+            f.write(eo.render_go(rules[:-1]))
+        with self.assertRaises(Exit):
+            eo._check_go(go_path, rules)
+        with open(go_path, "w") as f:
+            f.write(recompressed.replace("DO NOT EDIT", "edited by hand"))
+        with self.assertRaises(Exit):
+            eo._check_go(go_path, rules)
 
 
 if __name__ == "__main__":

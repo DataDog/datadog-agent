@@ -39,6 +39,7 @@
 .claude/rules/allium.md	single-machine-performance
 .claude/rules/bazel.md	agent-build
 .claude/rules/msi.md	windows-products
+.claude/rules/ndm-testing.md	network-device-monitoring-core
 .claude/rules/systemd.md	agent-runtimes
 .claude/settings.json	agent-devx
 .copyright-overrides.yml	agent-build
@@ -409,6 +410,7 @@ comp/connectivitychecker/z.go	fleet
 comp/core/agenttelemetry/impl/errortracking_sender.go	fleet-remediation
 comp/core/agenttelemetry/z.go	fleet-remediation
 comp/core/autodiscovery/listeners/cloudfoundryx.go	agent-integrations
+comp/core/autodiscovery/listeners/dbm_x.go	database-monitoring
 comp/core/autodiscovery/listeners/snmpx.go	network-device-monitoring-core
 comp/core/autodiscovery/listeners/z.go	container-platform
 comp/core/autodiscovery/providers/cloudfoundryx.go	agent-integrations
