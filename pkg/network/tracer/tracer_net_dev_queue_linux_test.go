@@ -277,8 +277,8 @@ func flipConnTuple(c netebpf.ConnTuple) netebpf.ConnTuple {
 	return c
 }
 
-// lookupSKBConnTuple finds the skb tuple for sockTup. Both key and value are normalized by port, and DNAT keeps
-// ports, so a flipped key always comes with a flipped value.
+// lookupSKBConnTuple finds the skb tuple for sockTup. The key is the socket tuple normalized, so it can be flipped,
+// but the value is the skb tuple as it left the socket, so it's returned as is either way.
 func lookupSKBConnTuple(t *testing.T, skbMap *ebpf.Map, sockTup netebpf.ConnTuple) (netebpf.ConnTuple, bool) {
 	var v netebpf.ConnTuple
 	if err := skbMap.Lookup(unsafe.Pointer(&sockTup), unsafe.Pointer(&v)); err == nil {
@@ -286,7 +286,7 @@ func lookupSKBConnTuple(t *testing.T, skbMap *ebpf.Map, sockTup netebpf.ConnTupl
 	}
 	flipped := flipConnTuple(sockTup)
 	if err := skbMap.Lookup(unsafe.Pointer(&flipped), unsafe.Pointer(&v)); err == nil {
-		return flipConnTuple(v), true
+		return v, true
 	}
 	t.Logf("no entry for %+v", sockTup)
 	return netebpf.ConnTuple{}, false
