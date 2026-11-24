@@ -714,7 +714,8 @@ func coresPerMultiprocessor(arch nvml.DeviceArchitecture) int {
 // HostLinkInfo holds the maximum capabilities of a GPU-to-host link. Zero and
 // nil values are unknown. Negotiated (current) values are metrics, not cached.
 type HostLinkInfo struct {
-	// C2CEnabled is true when the GPU reaches its host over NVLink-C2C, and
+	// C2CEnabled is true when the GPU reaches its host over NVLink-C2C (the mode
+	// query says so, or, without that query, the link count is above zero), and
 	// false when NVML reports that it does not or that the device has no C2C.
 	C2CEnabled *bool
 	// C2CLinkCount is the number of NVLink-C2C links, only set when C2C is enabled.
@@ -756,14 +757,25 @@ func (d *DeviceInfo) queryHostLink(dev SafeDevice) HostLinkInfo {
 		enabled := mode.IsC2cEnabled != 0
 		link.C2CEnabled = &enabled
 	case errors.As(err, &nvmlErr) && nvmlErr.NvmlErrorCode == nvml.ERROR_NOT_SUPPORTED:
-		// The device has no C2C. A missing symbol (old driver) stays unknown.
+		// The device has no C2C. A missing symbol (old driver) stays unknown
+		// unless the link count shows C2C.
 		disabled := false
 		link.C2CEnabled = &disabled
 	case !IsUnsupported(err):
 		singleton.logDeviceWarning(d.UUID, "cannot get C2C mode: %v", err)
 	}
+	count := 0
+	if link.C2CEnabled == nil {
+		// Drivers without the C2C mode query still report the link count.
+		if count = d.queryC2CLinkCount(dev); count > 0 {
+			enabled := true
+			link.C2CEnabled = &enabled
+		}
+	} else if *link.C2CEnabled {
+		count = d.queryC2CLinkCount(dev)
+	}
 	if link.C2CEnabled != nil && *link.C2CEnabled {
-		link.C2CLinkCount, link.C2CMaxBandwidthMBps = d.queryC2CLinks(dev)
+		link.C2CLinkCount, link.C2CMaxBandwidthMBps = count, d.queryC2CBandwidth(dev, count)
 	}
 	return link
 }
@@ -772,25 +784,37 @@ func (d *DeviceInfo) queryHostLink(dev SafeDevice) HostLinkInfo {
 // around ten links; a larger value is treated as garbage.
 const maxC2CLinks = 64
 
-// queryC2CLinks returns the C2C link count and the highest per-link maximum
-// bandwidth, zero when unknown.
-func (d *DeviceInfo) queryC2CLinks(dev SafeDevice) (int, uint64) {
+// queryC2CLinkCount returns the number of C2C links, zero when unknown or none.
+func (d *DeviceInfo) queryC2CLinkCount(dev SafeDevice) int {
 	countField := []nvml.FieldValue{{FieldId: nvml.FI_DEV_C2C_LINK_COUNT}}
 	if err := dev.GetFieldValues(countField); err != nil {
 		singleton.logDeviceWarning(d.UUID, "cannot get C2C link count: %v", err)
-		return 0, 0
+		return 0
 	}
-	if ret := nvml.Return(countField[0].NvmlReturn); ret != nvml.SUCCESS {
+	switch ret := nvml.Return(countField[0].NvmlReturn); ret {
+	case nvml.SUCCESS:
+	case nvml.ERROR_NOT_SUPPORTED:
+		return 0
+	default:
 		singleton.logDeviceWarning(d.UUID, "cannot get C2C link count: %v", ret)
-		return 0, 0
+		return 0
 	}
 	count, err := nvmlFieldValueToInt(countField[0])
 	if err != nil || count <= 0 {
-		return 0, 0
+		return 0
 	}
 	if count > maxC2CLinks {
 		singleton.logDeviceWarning(d.UUID, "ignoring implausible C2C link count %d", count)
-		return 0, 0
+		return 0
+	}
+	return count
+}
+
+// queryC2CBandwidth returns the highest per-link maximum bandwidth of the
+// given number of C2C links, zero when unknown.
+func (d *DeviceInfo) queryC2CBandwidth(dev SafeDevice, count int) uint64 {
+	if count <= 0 {
+		return 0
 	}
 	bandwidthFields := make([]nvml.FieldValue, count)
 	for link := range bandwidthFields {
@@ -798,7 +822,7 @@ func (d *DeviceInfo) queryC2CLinks(dev SafeDevice) (int, uint64) {
 	}
 	if err := dev.GetFieldValues(bandwidthFields); err != nil {
 		singleton.logDeviceWarning(d.UUID, "cannot get C2C link bandwidth: %v", err)
-		return count, 0
+		return 0
 	}
 	bandwidths := make([]uint64, 0, count)
 	for _, field := range bandwidthFields {
@@ -810,9 +834,9 @@ func (d *DeviceInfo) queryC2CLinks(dev SafeDevice) (int, uint64) {
 		}
 	}
 	if len(bandwidths) == 0 {
-		return count, 0
+		return 0
 	}
-	return count, slices.Max(bandwidths)
+	return slices.Max(bandwidths)
 }
 
 // newPCISysfs returns the sysfs reader for PCI facts, rooted where the GPU

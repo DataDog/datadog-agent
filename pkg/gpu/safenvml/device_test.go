@@ -180,6 +180,24 @@ func TestQueryHostLinkC2C(t *testing.T) {
 			want: HostLinkInfo{C2CEnabled: &disabled, PCIeMaxGeneration: 4, PCIeGPUMaxGeneration: 4, PCIeMaxWidth: 16},
 		},
 		{
+			name:    "no mode query, links present",
+			options: []testutil.NvmlDeviceOption{gb200, testutil.WithC2CLinkCount(3), testutil.WithScopedFieldValues(bandwidth)},
+			err:     NewNvmlAPIErrorOrNil("GetC2cModeInfoV", nvml.ERROR_FUNCTION_NOT_FOUND),
+			want:    HostLinkInfo{C2CEnabled: &enabled, C2CLinkCount: 3, C2CMaxBandwidthMBps: 44800, PCIeMaxGeneration: 6, PCIeGPUMaxGeneration: 6, PCIeMaxWidth: 16},
+		},
+		{
+			name:    "no mode query, no links",
+			options: []testutil.NvmlDeviceOption{testutil.WithC2CLinkCount(0)},
+			err:     NewNvmlAPIErrorOrNil("GetC2cModeInfoV", nvml.ERROR_FUNCTION_NOT_FOUND),
+			want:    HostLinkInfo{PCIeMaxGeneration: 4, PCIeGPUMaxGeneration: 4, PCIeMaxWidth: 16},
+		},
+		{
+			name:    "no mode query, no link count",
+			options: []testutil.NvmlDeviceOption{testutil.WithUnsupportedFields(nvml.FI_DEV_C2C_LINK_COUNT)},
+			err:     NewNvmlAPIErrorOrNil("GetC2cModeInfoV", nvml.ERROR_FUNCTION_NOT_FOUND),
+			want:    HostLinkInfo{PCIeMaxGeneration: 4, PCIeGPUMaxGeneration: 4, PCIeMaxWidth: 16},
+		},
+		{
 			name: "query failure is unknown",
 			err:  NewNvmlAPIErrorOrNil("GetC2cModeInfoV", nvml.ERROR_UNKNOWN),
 			want: HostLinkInfo{PCIeMaxGeneration: 4, PCIeGPUMaxGeneration: 4, PCIeMaxWidth: 16},
