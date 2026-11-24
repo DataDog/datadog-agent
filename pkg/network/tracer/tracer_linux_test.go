@@ -3759,24 +3759,52 @@ func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
 	netlinktestutil.SetupSNAT(t)
 	request := []byte("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
 	response := []byte("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
-	for _, serverSends := range []bool{false, true} {
-		t.Run(fmt.Sprintf("server sends %v", serverSends), func(t *testing.T) {
+	for _, tc := range []struct{ serverSends, equalPorts bool }{{false, false}, {true, false}, {false, true}, {true, true}} {
+		serverSends := tc.serverSends
+		name := fmt.Sprintf("server sends %v", serverSends)
+		if tc.equalPorts {
+			// the client's port is the server's: normalize_tuple must still give both directions one key
+			name += " equal ports"
+		}
+		t.Run(name, func(t *testing.T) {
 			done := make(chan struct{})
-			srv := tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(c net.Conn) {
-				defer c.Close()
-				if serverSends {
-					_, _ = c.Write(response)
-				} else {
-					_, _ = io.ReadFull(c, make([]byte, len(request)))
-				}
-				<-done
-			})
-			require.NoError(t, srv.Run())
-			t.Cleanup(srv.Shutdown)
+			var srv *tracertestutil.TCPServer
+			var c net.Conn
+			var err error
+			// With equal ports the client binds 6.6.6.6 to the server's port. The kernel only checked that
+			// port was free on 127.0.0.1, so it can already be in use on 6.6.6.6: then start over with a new
+			// server, and so a new port.
+			const maxAttempts = 10
+			for attempt := 1; ; attempt++ {
+				srv = tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(conn net.Conn) {
+					defer conn.Close()
+					if serverSends {
+						_, _ = conn.Write(response)
+					} else {
+						_, _ = io.ReadFull(conn, make([]byte, len(request)))
+					}
+					<-done
+				})
+				require.NoError(t, srv.Run())
+				t.Cleanup(srv.Shutdown)
 
-			d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6")}, Timeout: 5 * time.Second}
-			c, err := d.Dial("tcp", srv.Address())
-			require.NoError(t, err)
+				local := &net.TCPAddr{IP: net.ParseIP("6.6.6.6")}
+				if tc.equalPorts {
+					_, port, perr := net.SplitHostPort(srv.Address())
+					require.NoError(t, perr)
+					local.Port, perr = strconv.Atoi(port)
+					require.NoError(t, perr)
+				}
+				d := net.Dialer{LocalAddr: local, Timeout: 5 * time.Second}
+				c, err = d.Dial("tcp", srv.Address())
+				if err == nil {
+					break
+				}
+				require.True(t, tc.equalPorts && errors.Is(err, syscall.EADDRINUSE) && attempt < maxAttempts,
+					"dial failed after %d attempt(s): %v", attempt, err)
+				t.Logf("attempt %d: port %d is in use on 6.6.6.6, retrying with a new server", attempt, local.Port)
+				srv.Shutdown()
+			}
 			defer c.Close()
 			defer close(done)
 			if serverSends {
