@@ -367,12 +367,6 @@ func (s *streamShell) push(out string) {
 	}
 }
 
-func (s *streamShell) buffered() []byte {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.buf
-}
-
 func (s *streamShell) Send(_ context.Context, data string) error {
 	if s.onSend != nil {
 		s.onSend(strings.TrimSuffix(data, "\n"))
