@@ -13,6 +13,7 @@ go_library(
         "host_win.go",
         "kubernetes.go",
         "kubernetes_readiness.go",
+        "kubernetes_restarts.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments",
     visibility = ["//visibility:public"],
@@ -38,6 +39,7 @@ go_library(
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/fields",
+        "@io_k8s_apimachinery//pkg/labels",
     ],
 )
 
@@ -46,6 +48,7 @@ dd_agent_go_test(
     srcs = [
         "diagnose_test.go",
         "kubernetes_readiness_test.go",
+        "kubernetes_restarts_test.go",
     ],
     embed = [":environments"],
     tags = ["go_link:enormous"],

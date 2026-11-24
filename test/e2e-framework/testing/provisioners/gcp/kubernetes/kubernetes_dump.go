@@ -86,13 +86,14 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 	}
 	defer sshClient.Close()
 
+	// CRC writes the kubeconfig of the cluster under ~/.crc/machines/crc/, not ~/.kube/config.
 	sshOutput, err := sshutils.SshRunCommand(
 		sshClient,
-		"cat .kube/config",
+		"cat .crc/machines/crc/kubeconfig 2>/dev/null || cat .kube/config",
 		&out,
 	)
 	if err != nil {
-		err = fmt.Errorf("failed to read kubeconfig under '.kube/config': %w", err)
+		err = fmt.Errorf("failed to read kubeconfig under '.crc/machines/crc/kubeconfig' or '.kube/config': %w", err)
 		err = errors.Join(append(errs, err)...)
 		return
 	}
@@ -121,13 +122,10 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 		cluster.InsecureSkipTLSVerify = true
 	}
 
-	kubeconfigStr, err := clientcmd.Write(*kubeConfig)
-	if err != nil {
-		err = fmt.Errorf("failed to write kubeconfig to yaml format: %w", err)
-		errs = append(errs, err)
+	// The kubeconfig holds the credentials of the cluster: only its API servers are printed.
+	for name, cluster := range kubeConfig.Clusters {
+		fmt.Fprintf(&out, "Kubernetes API server of cluster %s: %s\n", name, cluster.Server)
 	}
-
-	fmt.Fprintf(&out, "---------- Kubeconfig ----------\n%s\n", string(kubeconfigStr))
 
 	// use the global k8s dump cluster function to dump the cluster state to help debug
 	err = k8sutils.DumpK8sClusterState(ctx, kubeConfig, &out)
