@@ -39,6 +39,10 @@ type SourceProvider interface {
 	// required shutdwon of running sources in their own Stop methods.
 	SubscribeForType(sourceType string, addedDone, removedDone chan struct{}) (added chan *sources.LogSource, removed chan *sources.LogSource)
 
+	// SubscribeForTypes is like SubscribeForType for several source types, with a single pair of
+	// channels for all of them.
+	SubscribeForTypes(sourceTypes []string, addedDone, removedDone chan struct{}) (added chan *sources.LogSource, removed chan *sources.LogSource)
+
 	// SubscribeAll returns channels containing all added and removed sources.
 	SubscribeAll(addedDone, removedDone chan struct{}) (added chan *sources.LogSource, removed chan *sources.LogSource)
 

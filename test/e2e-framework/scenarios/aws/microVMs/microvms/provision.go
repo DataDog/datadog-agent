@@ -133,8 +133,7 @@ func setDockerDataRoot(runner command.Runner, disks []resources.DomainDisk, name
 		}
 
 		args := command.Args{
-			Create: pulumi.Sprintf("mkdir -p /etc/docker && echo -e '{\n\t\"data-root\":\"%s\"\n}' > /etc/docker/daemon.json && sudo systemctl restart docker", d.Mountpoint),
-			Sudo:   true,
+			Create: pulumi.Sprintf("systemctl start multi-user.target && mkdir -p /etc/docker && echo -e '{\n\t\"data-root\":\"%s\"\n}' > /etc/docker/daemon.json && systemctl restart docker", d.Mountpoint),
 		}
 		done, err := runner.Command(namer.ResourceName("set-docker-data-root"), &args, pulumi.DependsOn(depends))
 		if err != nil {

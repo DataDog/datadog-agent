@@ -312,6 +312,16 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 	defer cm.m.Unlock()
 
 	var allChanges integration.ConfigChanges
+	// Services matching any removed template. They are reconciled once, after
+	// every template of the batch is removed: reconciling a service against a
+	// partially removed batch can schedule a config that a later removal of
+	// the same batch unschedules (e.g. container_collect_all replacing an
+	// annotation logs config that was just removed, until its own template is
+	// removed too). The scheduler controller lets a schedule in a batch
+	// override an unschedule of the same config, so that config would stay
+	// scheduled while the config manager no longer tracks it, and never
+	// unschedules it.
+	matchingServices := map[string]struct{}{}
 	for _, config := range configs {
 		digest := config.Digest()
 		if _, found := cm.activeConfigs[digest]; !found {
@@ -329,17 +339,11 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		var changes integration.ConfigChanges
 		if config.IsTemplate() {
 			//  2. update templatesByADID or servicesByADID to match
-			matchingServices := map[string]struct{}{}
 			for _, adID := range config.ADIdentifiers {
 				cm.templatesByADID.remove(adID, digest)
 				for _, svcID := range cm.servicesByADID.get(adID) {
 					matchingServices[svcID] = struct{}{}
 				}
-			}
-
-			//  3. update serviceResolutions, generating changes
-			for svcID := range matchingServices {
-				changes.Merge(cm.reconcileService(svcID))
 			}
 		} else if resolvedDigest, found := cm.nonTemplateResolutions[digest]; found {
 			// Prefer the exact resolved config that was scheduled earlier.  If
@@ -357,6 +361,14 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		//  4. update scheduledConfigs
 		allChanges.Merge(cm.applyChanges(changes))
 	}
+
+	//  3. update serviceResolutions, generating changes
+	var changes integration.ConfigChanges
+	for svcID := range matchingServices {
+		changes.Merge(cm.reconcileService(svcID))
+	}
+	//  4. update scheduledConfigs
+	allChanges.Merge(cm.applyChanges(changes))
 
 	cm.publish(allChanges, nil)
 }

@@ -1049,7 +1049,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 	})
 
 	// 1. Start a Docker container first
-	dockerInstance, err := newDockerCmdWrapper("/tmp", "/tmp", "alpine", "")
+	dockerInstance, err := newDockerCmdWrapper(t, "/tmp", "/tmp", "alpine", "")
 	if err != nil {
 		t.Fatalf("failed to create docker wrapper: %v", err)
 	}
@@ -1185,7 +1185,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 	}
 
 	// Now start a new container and run tail - it should NOT be killed because it has a different signature
-	dockerInstance2, err := newDockerCmdWrapper("/tmp", "/tmp", "alpine", "")
+	dockerInstance2, err := newDockerCmdWrapper(t, "/tmp", "/tmp", "alpine", "")
 	if err != nil {
 		t.Fatalf("failed to create second docker wrapper: %v", err)
 	}
@@ -1253,7 +1253,7 @@ func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 	})
 
 	// 1. Start a Docker container first
-	dockerInstance, err := newDockerCmdWrapper("/tmp", "/tmp", "alpine", "")
+	dockerInstance, err := newDockerCmdWrapper(t, "/tmp", "/tmp", "alpine", "")
 	if err != nil {
 		t.Fatalf("failed to create docker wrapper: %v", err)
 	}
@@ -1932,7 +1932,7 @@ func TestCustomEventContainer(t *testing.T) {
 	})
 
 	// 1. Start a Docker container first
-	dockerInstance, err := newDockerCmdWrapper("/tmp", "/tmp", "alpine", "")
+	dockerInstance, err := newDockerCmdWrapper(t, "/tmp", "/tmp", "alpine", "")
 	if err != nil {
 		t.Fatalf("failed to create docker wrapper: %v", err)
 	}

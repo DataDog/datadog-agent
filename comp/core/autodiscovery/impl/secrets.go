@@ -20,6 +20,11 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component, or
 		return conf, nil
 	}
 
+	// Pass check name to secret component
+	if conf.Name != "" {
+		secretResolver.SetOriginName(origin, conf.Name)
+	}
+
 	var err error
 
 	// init_config is shared by all instances — any failure drops the entire config.

@@ -8,6 +8,7 @@ package fipscompliance
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -29,47 +30,141 @@ type cipherTestCase struct {
 	want   bool
 }
 
-// fipsServer is a helper for interacting with a datadog/apps-fips-server container
+const (
+	// fipsComposeWaitTimeoutSec is compose --wait-timeout: how long the container may take to become ready.
+	// Compose --timeout is only the shutdown grace period, it does not bound startup.
+	fipsComposeWaitTimeoutSec = 60
+	// fipsComposeShutdownTimeoutSec is compose --timeout, applied when up replaces a running container.
+	fipsComposeShutdownTimeoutSec = 30
+	// fipsComposeUpTimeoutSec kills a compose up that never returns, for example a stalled image pull.
+	// It leaves headroom over the 60 s readiness wait for pulling and creating the container, so a slow
+	// readiness check fails inside compose with compose's own error.
+	// The deadline has to be enforced on the host: ssh Execute takes no context and a require.EventuallyWithT
+	// timeout abandons a running call instead of cancelling it.
+	fipsComposeUpTimeoutSec = 90
+	// fipsComposeDownTimeoutSec bounds compose down for the same reason.
+	fipsComposeDownTimeoutSec = 60
+	// fipsStartAttempts is the number of times Start tries compose up before failing.
+	fipsStartAttempts = 2
+
+	fipsAppsImageRepo = "/apps-fips-server"
+	// fipsServerComposeService is the service name in the shared fixtures. The cluster agent fixture names the
+	// service dd-fips-server instead. The container name is dd-fips-server in every fixture.
+	fipsServerComposeService = "fips-server"
+)
+
+// fipsServer is a helper for interacting with a datadog/apps-fips-server container.
 type fipsServer struct {
 	composeFiles string
 	dockerHost   *components.RemoteHost
+	// service is the compose service to start and stop. Defaults to fipsServerComposeService.
+	service string
+	// extraEnv is added to every compose call. The cluster agent fixture interpolates CLUSTER_AGENT_IMAGE with no default.
+	extraEnv map[string]string
+	// appsRegistry is the registry the provisioned fips server image came from. Compose calls made by the test
+	// do not inherit the environment Pulumi used, so without it the fixtures fall back to ghcr.io.
+	appsRegistry string
 }
 
-func newFIPSServer(dockerHost *components.RemoteHost, composeFiles string) fipsServer {
+func newFIPSServer(t testing.TB, dockerHost *components.RemoteHost, composeFiles string) fipsServer {
 	s := fipsServer{
 		dockerHost:   dockerHost,
 		composeFiles: composeFiles,
 	}
+	s.appsRegistry = s.provisionedAppsRegistry()
+	if s.appsRegistry == "" {
+		t.Logf("no provisioned apps registry found, docker-compose uses its default for apps-fips-server")
+	}
 	return s
 }
 
+// appsRegistryFromImage returns the registry prefix of an apps-fips-server image reference, or an empty string
+// when the reference is not that image.
+func appsRegistryFromImage(image string) string {
+	image = strings.Trim(strings.TrimSpace(image), `'"`)
+	i := strings.LastIndex(image, fipsAppsImageRepo)
+	if i <= 0 {
+		return ""
+	}
+	if rest := image[i+len(fipsAppsImageRepo):]; rest != "" && rest[0] != ':' && rest[0] != '@' {
+		return ""
+	}
+	return image[:i]
+}
+
+// provisionedAppsRegistry reads the registry from the fips server container created at provisioning time.
+// It returns an empty string when no such container exists, in which case compose keeps its default registry.
+func (s *fipsServer) provisionedAppsRegistry() string {
+	image, err := s.dockerHost.Execute("docker inspect --format '{{.Config.Image}}' dd-fips-server")
+	if err != nil {
+		return ""
+	}
+	return appsRegistryFromImage(image)
+}
+
+func (s *fipsServer) composeEnv(extra map[string]string) map[string]string {
+	env := make(map[string]string, len(s.extraEnv)+len(extra)+1)
+	for k, v := range s.extraEnv {
+		env[k] = v
+	}
+	if s.appsRegistry != "" {
+		env["DD_APPS_REGISTRY"] = s.appsRegistry
+	}
+	for k, v := range extra {
+		env[k] = v
+	}
+	return env
+}
+
+func (s *fipsServer) composeService() string {
+	if s.service != "" {
+		return s.service
+	}
+	return fipsServerComposeService
+}
+
+// startOnce stops any running server, then starts a fresh one with the test case's cert, cipher and TLS limits.
+func (s *fipsServer) startOnce(t testing.TB, tc cipherTestCase) error {
+	// stop currently running server, if any, so we can reset logs+env
+	if err := s.stop(t); err != nil {
+		return err
+	}
+
+	envVars := s.composeEnv(map[string]string{"CERT": tc.cert})
+	if tc.cipher != "" {
+		envVars["CIPHER"] = "-c " + tc.cipher
+	}
+	if tc.tlsMax != "" {
+		envVars["TLS_MAX"] = "--tls-max " + tc.tlsMax
+	}
+	if tc.tlsMin != "" {
+		envVars["TLS_MIN"] = "--tls-min " + tc.tlsMin
+	}
+
+	cmd := fmt.Sprintf(
+		"timeout -k 15 %d docker-compose -f %s up --detach --wait --wait-timeout %d --timeout %d %s",
+		fipsComposeUpTimeoutSec,
+		strings.TrimSpace(s.composeFiles),
+		fipsComposeWaitTimeoutSec,
+		fipsComposeShutdownTimeoutSec,
+		s.composeService(),
+	)
+	_, err := s.dockerHost.Execute(cmd, client.WithEnvVariables(envVars))
+	return err
+}
+
 func (s *fipsServer) Start(t *testing.T, tc cipherTestCase) {
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		// stop currently running server, if any, so we can reset logs+env
-		s.Stop()
-
-		// start datadog/apps-fips-server with env vars from the test case
-		envVars := map[string]string{
-			"CERT": tc.cert,
+	// A bounded loop instead of require.EventuallyWithT: every attempt is bounded on the host by timeout(1),
+	// so no compose call can still be running when the next attempt, or the next subtest, starts.
+	// Each attempt begins with stop(), so a retry needs no delay to start from a clean state.
+	var err error
+	for attempt := 1; attempt <= fipsStartAttempts; attempt++ {
+		if err = s.startOnce(t, tc); err == nil {
+			break
 		}
-		if tc.cipher != "" {
-			envVars["CIPHER"] = "-c " + tc.cipher
-		}
-		if tc.tlsMax != "" {
-			envVars["TLS_MAX"] = "--tls-max " + tc.tlsMax
-		}
-		if tc.tlsMin != "" {
-			envVars["TLS_MIN"] = "--tls-min " + tc.tlsMin
-		}
-
-		cmd := fmt.Sprintf("docker-compose -f %s up --detach --wait --timeout 120", strings.TrimSpace(s.composeFiles))
-		_, err := s.dockerHost.Execute(cmd, client.WithEnvVariables(envVars))
-		if err != nil {
-			t.Logf("Error starting fips-server: %v", err)
-			require.NoError(c, err)
-		}
-		assert.Nil(c, err)
-	}, 180*time.Second, 10*time.Second, "docker-compose timed out starting server")
+		t.Logf("Error starting fips-server (attempt %d of %d): %v", attempt, fipsStartAttempts, err)
+	}
+	require.NoError(t, err, "docker-compose failed to start the fips server")
 
 	// Wait for container to start and ensure it's a fresh instance
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -83,11 +178,37 @@ func (s *fipsServer) Logs() string {
 	return s.dockerHost.MustExecute("docker logs dd-fips-server")
 }
 
-func (s *fipsServer) Stop() {
-	fipsContainer := s.dockerHost.MustExecute("docker container ls -a --filter name=dd-fips-server --format '{{.Names}}'")
-	if fipsContainer != "" {
-		s.dockerHost.MustExecute(fmt.Sprintf("docker-compose -f %s down fips-server", strings.TrimSpace(s.composeFiles)))
+// stop removes the fips server container if there is one. Compose down is bounded on the host. When it fails, the
+// error is logged and the container is removed with plain docker. A container that is already gone counts as removed,
+// because a killed compose down may have removed it before failing.
+func (s *fipsServer) stop(t testing.TB) error {
+	name, err := s.dockerHost.Execute("docker container ls -a --filter name=dd-fips-server --format '{{.Names}}'")
+	if err != nil {
+		return err
 	}
+	if strings.TrimSpace(name) == "" {
+		return nil
+	}
+	cmd := fmt.Sprintf(
+		"timeout -k 15 %d docker-compose -f %s down %s",
+		fipsComposeDownTimeoutSec,
+		strings.TrimSpace(s.composeFiles),
+		s.composeService(),
+	)
+	_, downErr := s.dockerHost.Execute(cmd, client.WithEnvVariables(s.composeEnv(nil)))
+	if downErr == nil {
+		return nil
+	}
+	t.Logf("docker-compose down failed, removing the container with docker: %v", downErr)
+	if _, rmErr := s.dockerHost.Execute("docker rm -f dd-fips-server || ! docker container inspect dd-fips-server >/dev/null 2>&1"); rmErr != nil {
+		return errors.Join(fmt.Errorf("docker-compose down: %w", downErr), fmt.Errorf("docker rm: %w", rmErr))
+	}
+	return nil
+}
+
+// Stop removes the fips server container. It is meant for test cleanup, so a failure is reported without aborting.
+func (s *fipsServer) Stop(t *testing.T) {
+	assert.NoError(t, s.stop(t), "failed to remove the fips server container")
 }
 
 var (
@@ -127,9 +248,11 @@ func (s *fipsServerSuite[Env]) TestFIPSCiphers() {
 	for _, tc := range testcases {
 		s.Run(fmt.Sprintf("FIPS enabled testing '%v -c %v' (should connect %v)", tc.cert, tc.cipher, tc.want), func() {
 			// Start the fips-server and waits for it to be ready
-			s.fipsServer.Start(s.T(), tc)
-			s.T().Cleanup(func() {
-				s.fipsServer.Stop()
+			// capture the subtest's T: suite.Run restores the parent T before subtest cleanups run
+			t := s.T()
+			s.fipsServer.Start(t, tc)
+			t.Cleanup(func() {
+				s.fipsServer.Stop(t)
 			})
 
 			s.generateTestTraffic()
@@ -147,9 +270,10 @@ func (s *fipsServerSuite[Env]) TestFIPSCiphers() {
 // TestFIPSCiphersTLSVersion tests that generateTestTraffic rejects fipsServer when the TLS version is too low
 func (s *fipsServerSuite[Env]) TestFIPSCiphersTLSVersion() {
 	tc := cipherTestCase{cert: "rsa", tlsMax: "1.1"}
-	s.fipsServer.Start(s.T(), tc)
-	s.T().Cleanup(func() {
-		s.fipsServer.Stop()
+	t := s.T()
+	s.fipsServer.Start(t, tc)
+	t.Cleanup(func() {
+		s.fipsServer.Stop(t)
 	})
 
 	s.generateTestTraffic()

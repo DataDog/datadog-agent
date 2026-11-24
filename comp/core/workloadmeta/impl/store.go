@@ -78,7 +78,7 @@ func (w *workloadmeta) start(ctx context.Context) {
 	w.startWg.Add(1)
 	go func() {
 		defer w.startWg.Done()
-		if err := w.startCandidatesWithRetry(ctx); err != nil {
+		if err := w.startCandidatesWithRetry(ctx); err != nil && ctx.Err() == nil {
 			w.log.Errorf("error starting collectors: %s", err)
 		}
 	}()
@@ -750,7 +750,11 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	if err != nil {
 		// Close so the pull goroutine unblocks instead of waiting for firstPullWaitTimeout.
 		w.firstCollectorReadyOnce.Do(func() { close(w.firstCollectorReady) })
-		w.log.Warnf("workloadmeta failed to start collectors: %s", err)
+		if ctx.Err() != nil {
+			w.log.Debugf("workloadmeta stopped before all collectors started: %s", err)
+		} else {
+			w.log.Warnf("workloadmeta failed to start collectors: %s", err)
+		}
 	}
 	return err
 }
@@ -889,6 +893,13 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 
 		cachedEntity, ok := entitiesOfKind[entityID.ID]
 
+		// Keep the old merged claim until the update is applied, including
+		// partial source unsets. The index always follows the merged store.
+		var previousKueueWorkload *wmdef.KubernetesKueueWorkload
+		if ok && entityID.Kind == wmdef.KindKubernetesKueueWorkload {
+			previousKueueWorkload = cachedEntity.cached.(*wmdef.KubernetesKueueWorkload)
+		}
+
 		switch ev.Type {
 		case wmdef.EventTypeSet:
 			if !ok {
@@ -959,6 +970,14 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 			}
 		default:
 			w.log.Errorf("cannot handle event of type %d. event dump: %+v", ev.Type, ev)
+		}
+
+		if entityID.Kind == wmdef.KindKubernetesKueueWorkload {
+			var current *wmdef.KubernetesKueueWorkload
+			if stored := entitiesOfKind[entityID.ID]; stored != nil {
+				current = stored.cached.(*wmdef.KubernetesKueueWorkload)
+			}
+			w.updateKueueWorkloadIndex(previousKueueWorkload, current)
 		}
 
 		for _, sub := range w.subscribers {
@@ -1095,7 +1114,7 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 	case <-time.After(closeEventBundleChTimeout):
 		// Timeout sending to channel - subscriber not reading, events will be lost
 		log.Errorf("collector %q dropped %d event(s) after %v timeout, subscriber is not reading from channel. This may cause data inconsistency for this subscriber.", name, len(bundle.Events), closeEventBundleChTimeout)
-		telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
+		telemetry.NotificationsSent.Inc(name, telemetry.StatusError, "true")
 		// Close acknowledgment channel to prevent resource leak
 		close(bundle.Ch)
 		return
@@ -1104,10 +1123,10 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 	if wait {
 		select {
 		case <-bundle.Ch:
-			telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess)
+			telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess, "false")
 		case <-time.After(eventBundleChTimeout):
 			log.Warnf("collector %q did not close the event bundle channel in time, continuing with downstream collectors. bundle size: %d", name, len(bundle.Events))
-			telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
+			telemetry.NotificationsSent.Inc(name, telemetry.StatusError, "false")
 		}
 	}
 }

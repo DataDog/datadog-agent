@@ -117,6 +117,24 @@ correct when the fix is genuinely shared, but it can flap if only some agents re
 affected-count is a backend follow-up, not handled by the agent today. Document this caveat at every
 `ResolveIssue` call site for a collapsed issue.
 
+## Telemetry
+
+The `checks` COAT profile sends these `health_platform` metrics every 900 seconds:
+
+| Metric | Tags | Meaning |
+|---|---|---|
+| `active_issues` | `issue_type` | Gauge of active issue instances, including restored issues |
+| `reports_sent` | `status`, `error_type` | Counter of send attempts; skipped ticks are excluded |
+| `issues_resolved` | `issue_type` | Counter of transitions to resolved |
+
+These metrics use the caller-defined proto `IssueType` identifier, not the legacy display-name key in `issuesByName` / `PersistedIssue.IssueType`. Issues reported without an `IssueType` are tagged `issue_type:unknown`. Because `issues_detected` keeps the legacy key, its `issue_type` values do not match these metrics; do not join them on that tag. `reports_sent` uses `status:success,error_type:none` or `status:error` with `error_type:timeout|http_4xx|http_5xx|other`.
+
+The gauge counts active persisted instances by proto type, including an empty type for older restored records or unregistered issues. Re-reporting a restored instance with its proto type populated moves its count to that label.
+
+Resolve metrics count each issue instance once per transition, including `ResolveAllIssues`; shutdown does not resolve issues. Shared cluster issue IDs can undercount per-Agent recoveries when the first recovering Agent resolves the shared issue.
+
+COAT excludes zero-valued metrics, so resolved types with an active count of zero are omitted. The existing `issues_detected{issue_type,severity}` counter continues counting every report with its existing tags. The remote COAT profiles list needs the same entries when it becomes the source of truth.
+
 ## Current issues
 
 | Package | `id` | `issue_name` | `issue_type` | `title` | `id` scoping |

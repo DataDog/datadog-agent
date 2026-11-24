@@ -178,19 +178,19 @@ def _ebpf_prog_impl(ctx):
         unused_inputs_list = unused_inputs_file,
     )
 
-    # --- Step 2: .bc -> .o (llc) ---
+    # --- Step 2: .bc -> .o (reproduces `llc -march=bpf -filetype=obj` output verbatim) ---
     obj_file = ctx.actions.declare_file(ctx.label.name + ".o")
 
     llc_args = ctx.actions.args()
-    llc_args.add("-march=bpf")
-    llc_args.add("-filetype=obj")
+    llc_args.add_all(["-O2", "-Wno-override-module", "-Xclang", "-disable-llvm-optzns", "-c", "-fno-addrsig"])
     llc_args.add("-o", obj_file)
+    llc_args.add_all(["-target", "bpf", "-x", "ir"])
     llc_args.add(bc_file)
 
     ctx.actions.run(
         inputs = [bc_file],
         outputs = [obj_file],
-        executable = tc.llc_bpf,
+        executable = tc.clang_bpf,
         arguments = [llc_args],
         mnemonic = "EbpfLlc",
         resource_set = resource_set_for(cpu_cores = 1, mem_mb = 1024),
@@ -207,7 +207,9 @@ def _stripped_ebpf_impl(ctx):
         fail("LLVM BPF toolchain is not available")
 
     src = ctx.file.src
-    out = ctx.actions.declare_file(ctx.label.name + ".o")
+
+    # Original basename so the object can be shipped without renaming.
+    out = ctx.actions.declare_file("stripped/" + src.basename)
 
     ctx.actions.run(
         inputs = [src],

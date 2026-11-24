@@ -1,3 +1,4 @@
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 # gazelle can not maintain this file because of the interaction with
@@ -8,18 +9,16 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library")
 # filename (//go:embed), so the prebuilt eBPF program outputs from
 # //pkg/network/ebpf/c/prebuilt (a different package) must be copied into
 # this package under matching names before they can be embedded.
-genrule(
+copy_file(
     name = "copy_usm_debug_o",
-    srcs = ["//pkg/network/ebpf/c/runtime:usm-debug"],
-    outs = ["usm-debug.o"],
-    cmd = "cp $< $@",
+    src = "//pkg/network/ebpf/c/runtime:usm-debug",
+    out = "usm-debug.o",
 )
 
-genrule(
+copy_file(
     name = "copy_shared_libraries_debug_o",
-    srcs = ["//pkg/network/ebpf/c/runtime:shared-libraries-debug"],
-    outs = ["shared-libraries-debug.o"],
-    cmd = "cp $< $@",
+    src = "//pkg/network/ebpf/c/runtime:shared-libraries-debug",
+    out = "shared-libraries-debug.o",
 )
 
 go_binary(

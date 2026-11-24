@@ -76,6 +76,21 @@ class TestCodegenInitSettings(unittest.TestCase):
         self.assertIn('config.BindEnvAndSetDefault("my_section.child", "abc")', generated)
         self.assertNotIn('old_section', generated)
 
+    def test_sensitive_setting(self):
+        node = {'node_type': 'setting', 'type': 'string', 'default': '', 'sensitive': True}
+        self.assertEqual(
+            codegen.setting_sourcecode('logs_config.api_key', node),
+            [
+                '\tconfig.BindEnvAndSetDefault("logs_config.api_key", "")',
+                '\tconfig.SetSensitive("logs_config.api_key")',
+            ],
+        )
+        node['sensitive'] = False
+        self.assertEqual(
+            codegen.setting_sourcecode('logs_config.api_key', node),
+            ['\tconfig.BindEnvAndSetDefault("logs_config.api_key", "")'],
+        )
+
     def test_platform_default(self):
         # Settings with a 'platform_default' resolve it at runtime through pkg/config/env, which must be imported
         schema = {

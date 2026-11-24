@@ -25,7 +25,7 @@ type inventoryAgentSuite struct {
 
 func TestInventoryAgentSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &inventoryAgentSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
+	e2e.Run(t, &inventoryAgentSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 func (v *inventoryAgentSuite) TestInventoryDefaultConfig() {
@@ -41,6 +41,9 @@ func (v *inventoryAgentSuite) TestInventoryDefaultConfig() {
 	assert.Contains(v.T(), inventory, `"feature_cspm_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_cws_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_usm_enabled": false`)
+	assert.Contains(v.T(), inventory, `"feature_infra_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_autoscaling_cluster_enabled": false`)
+
 }
 
 func (v *inventoryAgentSuite) TestInventoryAllEnabled() {
@@ -58,6 +61,9 @@ network_path:
   remote_config:
     enabled: true
   connections_monitoring:
+    enabled: true
+autoscaling:
+  cluster:
     enabled: true`
 
 	systemProbeConfiguration := `runtime_security_config:
@@ -74,7 +80,7 @@ traceroute:
 		agentparams.WithSystemProbeConfig(string(systemProbeConfiguration)),
 	}
 
-	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentOptions...))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(agentOptions...))))
 
 	inventory := v.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "inventory-agent"}))
 	assert.Contains(v.T(), inventory, `"feature_apm_enabled": true`)
@@ -88,4 +94,7 @@ traceroute:
 	assert.Contains(v.T(), inventory, `"feature_cspm_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_cws_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_usm_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_infra_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_autoscaling_cluster_enabled": true`)
+
 }

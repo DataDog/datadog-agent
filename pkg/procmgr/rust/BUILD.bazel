@@ -1,6 +1,7 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
 
 # ============================================================================
 # Library
@@ -123,53 +124,35 @@ rust_binary(
     ],
 )
 
-pkg_files(
-    name = "all_files_linux",
-    srcs = [
-        ":dd-procmgr",
-        ":dd-procmgrd",
-    ],
-    attributes = pkg_attributes(
-        mode = "0755",
-    ),
-    prefix = "embedded/bin",
-    target_compatible_with = ["@platforms//os:linux"],
-    visibility = ["//packages:__subpackages__"],
+_BINARY_PREFIX = select({
+    "@platforms//os:windows": "bin/agent",
+    "//conditions:default": "embedded/bin",
+})
+
+agent_binary_for_package(
+    name = "dd_procmgr_binary",
+    prefix = _BINARY_PREFIX,
+    target = ":dd-procmgr",
 )
 
-pkg_files(
-    name = "all_files_windows",
-    srcs = [
-        ":dd-procmgr",
-        ":dd-procmgrd",
-    ],
-    prefix = "bin/agent",
-    target_compatible_with = ["@platforms//os:windows"],
-    visibility = ["//packages:__subpackages__"],
+agent_binary_for_package(
+    name = "dd_procmgrd_binary",
+    prefix = _BINARY_PREFIX,
+    target = ":dd-procmgrd",
 )
 
-pkg_files(
-    name = "all_files_macos",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
-        ":dd-procmgr",
-        ":dd-procmgrd",
+        ":dd_procmgr_binary",
+        ":dd_procmgrd_binary",
     ],
-    attributes = pkg_attributes(
-        mode = "0755",
-    ),
-    prefix = "embedded/bin",
-    target_compatible_with = ["@platforms//os:macos"],
     visibility = ["//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
-    srcs = select({
-        "@platforms//os:linux": [":all_files_linux"],
-        "@platforms//os:windows": [":all_files_windows"],
-        "@platforms//os:macos": [":all_files_macos"],
-        "//conditions:default": [],
-    }),
+    srcs = [":all_files"],
 )
 
 # ============================================================================
@@ -183,14 +166,27 @@ rust_test(
     timeout = "long",
     compile_data = [
         "//cmd/agent/subcommands/run:dependent_services_windows.go",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-action-executor.yaml.tmpl",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-action-executor-windows.yaml.tmpl",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-action-windows.yaml.tmpl",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-data-plane-windows.yaml.tmpl",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-par-control.yaml.tmpl",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-par-control-windows.yaml.tmpl",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-process-windows.yaml.tmpl",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-security-windows.yaml.tmpl",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-sysprobe-windows.yaml.tmpl",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-trace-windows.yaml.tmpl",
+        "//pkg/fleet/installer/packages/embedded:tmpl/gen/darwin-pm/processes.d/datadog-agent-sysprobe.yaml",
         "//pkg/fleet/installer/packages/user/windows:user.go",
+        "//Dockerfiles/agent:Dockerfile",
+        "//Dockerfiles/agent:entrypoint.sh",
+        "//Dockerfiles/agent:entrypoint.d/_default",
+        "//Dockerfiles/agent:entrypoint.d/privateactionrunner",
+        "//Dockerfiles/agent:entrypoint.d/procmgr-all-in-one",
+        "//Dockerfiles/agent:entrypoint.d/s6-all-in-one",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-data-plane.yaml",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-otel.yaml",
+        "//Dockerfiles/agent/processes.d:aio/datadog-agent-par.yaml",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-par-control.yaml",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-process.yaml",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-security.yaml",
@@ -205,6 +201,9 @@ rust_test(
         "//pkg/config/schema:core_schema_subfiles",
         "//pkg/config/schema:system_probe_schema_subfiles",
         "//pkg/config/schema:yaml/core_schema.yaml",
+        # Declared file-by-file. A runfiles directory is not a reliable input.
+        "//Dockerfiles/agent/processes.d:top_level_yaml",
+        "//Dockerfiles/agent/processes.d:aio_yaml",
         # reaper spawn-path lint walks these sources at test time.
     ] + _LIB_SRCS + select({
         "@platforms//os:windows": [":graceful-sleeper"],
@@ -213,6 +212,8 @@ rust_test(
     edition = "2024",
     env = select({
         "@platforms//os:windows": {
+            "DD_AIO_TOP_LEVEL_YAMLS": "$(rlocationpaths //Dockerfiles/agent/processes.d:top_level_yaml)",
+            "DD_AIO_YAMLS": "$(rlocationpaths //Dockerfiles/agent/processes.d:aio_yaml)",
             "DD_CONFIG_SCHEMA_CORE_YAML": "$(rlocationpath //pkg/config/schema:yaml/core_schema.yaml)",
             "DD_PROCMGRD_LIB_RS": "$(rlocationpath src/lib.rs)",
             "GRACEFUL_SLEEPER_BIN": "$(rlocationpath :graceful-sleeper)",
@@ -221,6 +222,8 @@ rust_test(
             "RUST_TEST_THREADS": "1",
         },
         "//conditions:default": {
+            "DD_AIO_TOP_LEVEL_YAMLS": "$(rlocationpaths //Dockerfiles/agent/processes.d:top_level_yaml)",
+            "DD_AIO_YAMLS": "$(rlocationpaths //Dockerfiles/agent/processes.d:aio_yaml)",
             "DD_CONFIG_SCHEMA_CORE_YAML": "$(rlocationpath //pkg/config/schema:yaml/core_schema.yaml)",
             "DD_PROCMGRD_LIB_RS": "$(rlocationpath src/lib.rs)",
         },
@@ -240,6 +243,7 @@ rust_test(
     crate = ":dd-procmgr",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
+    deps = ["@crates//:tempfile"],
 )
 
 rust_test(
@@ -257,9 +261,12 @@ rust_test(
         "//pkg/procmgr/rust/tests/fixtures:test_fixtures",
     ],
     edition = "2024",
-    rustc_env = {
+    # Read with std::env::var in tests/helpers, so set at run time.
+    env = {
         "CARGO_BIN_EXE_dd-procmgr": "$(rootpath :dd-procmgr)",
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
+    },
+    rustc_env = {
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
         "PROCMGR_TEST_FIXTURES_MARKER": "$(rootpath //pkg/procmgr/rust/tests/fixtures:.marker)",
     },

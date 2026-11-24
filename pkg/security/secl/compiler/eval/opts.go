@@ -144,7 +144,7 @@ func (o *Opts) WithTelemetry(telemetry *Telemetry) *Opts {
 // passes returns the compilation passes run over the trees of the rules and of
 // the macros.
 func (o *Opts) passes() []pass.Pass {
-	return []pass.Pass{o.resolveIdents()}
+	return []pass.Pass{o.resolveIdents(), pass.ResolveFields(o.LegacyFields)}
 }
 
 // resolveIdents returns the pass replacing the references to the macros and to

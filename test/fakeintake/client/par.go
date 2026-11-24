@@ -30,7 +30,7 @@ func (c *Client) EnqueuePARTask(taskID, actionFQN string, inputs map[string]inte
 	if err != nil {
 		return fmt.Errorf("marshal enqueue request: %w", err)
 	}
-	resp, err := http.Post(c.fakeIntakeURL+"/fakeintake/par/enqueue", "application/json", bytes.NewReader(body))
+	resp, err := c.controlHTTPClient().Post(c.fakeIntakeURL+"/fakeintake/par/enqueue", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("enqueue PAR task: %w", err)
 	}
@@ -68,7 +68,7 @@ func (c *Client) SetPARSigningKey(keyID string, privateKey ed25519.PrivateKey, o
 	if err != nil {
 		return fmt.Errorf("marshal signing key request: %w", err)
 	}
-	resp, err := http.Post(c.fakeIntakeURL+"/fakeintake/par/signing-key", "application/json", bytes.NewReader(body))
+	resp, err := c.controlHTTPClient().Post(c.fakeIntakeURL+"/fakeintake/par/signing-key", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("set PAR signing key: %w", err)
 	}
@@ -82,7 +82,7 @@ func (c *Client) SetPARSigningKey(keyID string, privateKey ed25519.PrivateKey, o
 
 // FlushPAR clears all queued PAR tasks and captured results from fakeintake.
 func (c *Client) FlushPAR() error {
-	resp, err := http.Post(c.fakeIntakeURL+"/fakeintake/par/flush", "", nil)
+	resp, err := c.controlHTTPClient().Post(c.fakeIntakeURL+"/fakeintake/par/flush", "", nil)
 	if err != nil {
 		return fmt.Errorf("flush PAR state: %w", err)
 	}
@@ -129,7 +129,7 @@ type parStats struct {
 
 func (c *Client) getPARStats() (parStats, error) {
 	var stats parStats
-	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/par/stats")
+	resp, err := c.controlHTTPClient().Get(c.fakeIntakeURL + "/fakeintake/par/stats")
 	if err != nil {
 		return stats, fmt.Errorf("get PAR stats: %w", err)
 	}
@@ -144,7 +144,7 @@ func (c *Client) getPARStats() (parStats, error) {
 }
 
 func (c *Client) getPARResult(taskID string) (*api.PARTaskResult, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/par/result?taskID=%s", c.fakeIntakeURL, taskID))
+	resp, err := c.controlHTTPClient().Get(fmt.Sprintf("%s/fakeintake/par/result?taskID=%s", c.fakeIntakeURL, taskID))
 	if err != nil {
 		return nil, err
 	}

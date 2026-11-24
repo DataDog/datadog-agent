@@ -15,7 +15,9 @@ jobs:
   backport:
     name: Update golang.org/x/... dependencies
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
+      contents: read
       id-token: write # This is required for getting the required OIDC token from GitHub
     environment:
       name: main
@@ -23,7 +25,7 @@ jobs:
       - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
-          scope: DataDog/datadog-agent
+          scope: ${{ github.repository }}
           policy: self.update-dependencies.create-pr
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -51,7 +53,7 @@ jobs:
           # depending on module order
           dda inv -- -e tidy
           dda inv -- -e tidy
-      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+      - uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
         name: Create pull request
         with:
           commit-message: "chore(deps): update all golang.org/x/... dependencies"
