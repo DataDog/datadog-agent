@@ -16,48 +16,6 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-// implicitCapabilities is the set every supported runtime (containerd, CRI-O,
-// Docker) grants a container that declares none; the intersection, so a
-// request can never add one a runtime would not have granted. It applies
-// unless every node is known to grant dockerCapabilities.
-var implicitCapabilities = []string{
-	"CHOWN", "DAC_OVERRIDE", "FSETID", "FOWNER", "SETGID", "SETUID", "SETPCAP",
-	"NET_BIND_SERVICE", "KILL",
-}
-
-// dockerCapabilities is the set containerd and Docker grant a container that
-// declares none.
-var dockerCapabilities = append(slices.Clone(implicitCapabilities),
-	"AUDIT_WRITE", "MKNOD", "NET_RAW", "SETFCAP", "SYS_CHROOT")
-
-// Defaults is what the cluster's runtimes grant a container that declares no
-// capabilities.
-type Defaults struct {
-	// Capabilities are granted on every node.
-	Capabilities []string
-	// Exact is set when every node's runtime is known, so no node grants more.
-	Exact bool
-}
-
-// fallbackDefaults applies until the nodes are listed.
-var fallbackDefaults = Defaults{Capabilities: implicitCapabilities}
-
-// RuntimeDefaults returns the Defaults of nodes whose
-// status.nodeInfo.containerRuntimeVersion are runtimes (such as
-// "containerd://1.7.2"). CRI-O, whose set is configurable, an unknown runtime,
-// or no node at all, keep the intersection, and it is not exact.
-// ponytail: assumes containerd's default base spec; one with fewer capabilities
-// (base_runtime_spec) would let a request add some back.
-func RuntimeDefaults(runtimes []string) Defaults {
-	grantsDocker := func(runtime string) bool {
-		return strings.HasPrefix(runtime, "containerd://") || strings.HasPrefix(runtime, "docker://")
-	}
-	if len(runtimes) == 0 || slices.ContainsFunc(runtimes, func(r string) bool { return !grantsDocker(r) }) {
-		return fallbackDefaults
-	}
-	return Defaults{Capabilities: dockerCapabilities, Exact: true}
-}
-
 // FindContainer returns the container named name in spec.Containers, or nil.
 // Init and ephemeral containers are never hardened.
 func FindContainer(spec *corev1.PodSpec, name string) *corev1.Container {
@@ -69,11 +27,11 @@ func FindContainer(spec *corev1.PodSpec, name string) *corev1.Container {
 	return nil
 }
 
-// Render returns the target container's securityContext with req's control
-// applied, or the reason it cannot be applied. It only ever narrows what the
-// container may do, given the cluster's runtime defaults, and never modifies spec.
-func Render(req *Request, spec *corev1.PodSpec, defaults Defaults) (*corev1.SecurityContext, string) {
-	c := FindContainer(spec, req.Workload.Container)
+// Render returns the container's securityContext with control applied, or
+// the reason it cannot be applied. It only ever narrows what the container
+// may do, and never modifies spec.
+func Render(control Control, container string, spec *corev1.PodSpec) (*corev1.SecurityContext, string) {
+	c := FindContainer(spec, container)
 	if c == nil {
 		return nil, "container not found"
 	}
@@ -84,10 +42,9 @@ func Render(req *Request, spec *corev1.PodSpec, defaults Defaults) (*corev1.Secu
 	if ptr.Deref(sc.Privileged, false) {
 		return nil, "container is privileged"
 	}
-
-	switch req.Control {
+	switch control {
 	case ControlCapabilities:
-		add, reason := keptCapabilities(req.Parameters.CapabilitiesAdd, sc.Capabilities, defaults)
+		add, reason := keptCapabilities(sc.Capabilities)
 		if reason != "" {
 			return nil, reason
 		}
@@ -98,33 +55,46 @@ func Render(req *Request, spec *corev1.PodSpec, defaults Defaults) (*corev1.Secu
 			return nil, "container runs as uid 0"
 		}
 		sc.RunAsNonRoot = ptr.To(true)
+	case ControlNoPrivilegeEscalation:
 		sc.AllowPrivilegeEscalation = ptr.To(false)
-	case ControlReadOnlyRootFS:
-		sc.ReadOnlyRootFilesystem = ptr.To(true)
 	default:
-		return nil, fmt.Sprintf("unknown control %q", req.Control)
+		return nil, fmt.Sprintf("unknown control %q", control)
 	}
 	return sc, ""
 }
 
-// setsControl reports whether the target container in spec already applies
-// req's control on its own, at least as strictly as req would.
-func setsControl(req *Request, spec *corev1.PodSpec) bool {
-	c := FindContainer(spec, req.Workload.Container)
+// keptCapabilities returns the manifest's add list without the capabilities
+// it also drops, which the container never held.
+func keptCapabilities(declared *corev1.Capabilities) ([]corev1.Capability, string) {
+	if declared == nil {
+		return nil, ""
+	}
+	if hasCapability(declared.Add, "ALL") {
+		return nil, "container adds ALL capabilities"
+	}
+	if hasCapability(declared.Drop, "ALL") {
+		return slices.Clone(declared.Add), ""
+	}
+	return slices.DeleteFunc(slices.Clone(declared.Add), func(c corev1.Capability) bool {
+		return hasCapability(declared.Drop, normalizeCapability(string(c)))
+	}), ""
+}
+
+// SetsControl reports whether the container in spec already applies control
+// on its own.
+func SetsControl(control Control, container string, spec *corev1.PodSpec) bool {
+	c := FindContainer(spec, container)
 	if c == nil {
 		return false
 	}
 	sc := ptr.Deref(c.SecurityContext, corev1.SecurityContext{})
-	switch req.Control {
+	switch control {
 	case ControlCapabilities:
-		caps := ptr.Deref(sc.Capabilities, corev1.Capabilities{})
-		return hasCapability(caps.Drop, "ALL") && !slices.ContainsFunc(caps.Add, func(a corev1.Capability) bool {
-			return !slices.Contains(req.Parameters.CapabilitiesAdd, normalizeCapability(string(a)))
-		})
+		return hasCapability(ptr.Deref(sc.Capabilities, corev1.Capabilities{}).Drop, "ALL")
 	case ControlNonRoot:
-		return ptr.Deref(runAsNonRoot(spec, &sc), false) && !ptr.Deref(sc.AllowPrivilegeEscalation, true)
-	case ControlReadOnlyRootFS:
-		return ptr.Deref(sc.ReadOnlyRootFilesystem, false)
+		return ptr.Deref(runAsNonRoot(spec, &sc), false)
+	case ControlNoPrivilegeEscalation:
+		return !ptr.Deref(sc.AllowPrivilegeEscalation, true)
 	}
 	return false
 }
@@ -145,60 +115,9 @@ func runAsNonRoot(spec *corev1.PodSpec, sc *corev1.SecurityContext) *bool {
 	return sc.RunAsNonRoot
 }
 
-// keptCapabilities returns the requested capabilities the container holds
-// today, sorted. One it provably lacks is left out: the container already runs
-// without it, so a check the workload makes for it keeps failing the same way.
-// One only some nodes' runtime may grant makes the request unsafe.
-func keptCapabilities(requested []string, declared *corev1.Capabilities, defaults Defaults) ([]corev1.Capability, string) {
-	var add []corev1.Capability
-	for _, name := range requested {
-		switch capabilityGrant(declared, name, defaults) {
-		case grantUnknown:
-			return nil, fmt.Sprintf("capability %s is granted by default on some runtimes only", name)
-		case granted:
-			add = append(add, corev1.Capability(name))
-		}
-	}
-	slices.Sort(add)
-	return slices.Compact(add), ""
-}
-
-type grant int
-
-const (
-	granted grant = iota
-	notGranted
-	grantUnknown
-)
-
-// capabilityGrant reports whether a container declaring caps runs with
-// capability name. The runtimes apply add:[ALL] (every capability), then
-// drop:[ALL] (nothing), then the individual adds, then the individual drops —
-// so a specific entry always wins over ALL, and drop always wins over add.
-// Checked in that order: a specific drop loses the capability; a specific add
-// (or ALL) grants it; drop:[ALL] with no matching specific add then denies it;
-// otherwise the runtime default decides, which is unknown for a capability
-// outside defaults.Capabilities unless defaults is exact.
-func capabilityGrant(caps *corev1.Capabilities, name string, defaults Defaults) grant {
-	var add, drop []corev1.Capability
-	if caps != nil {
-		add, drop = caps.Add, caps.Drop
-	}
-	switch {
-	case hasCapability(drop, name):
-		return notGranted
-	case hasCapability(add, name):
-		return granted
-	case hasCapability(drop, "ALL"):
-		return notGranted
-	case hasCapability(add, "ALL"):
-		return granted
-	case slices.Contains(defaults.Capabilities, name):
-		return granted
-	case defaults.Exact:
-		return notGranted
-	}
-	return grantUnknown
+// normalizeCapability returns the Kubernetes spelling of a capability name.
+func normalizeCapability(c string) string {
+	return strings.TrimPrefix(strings.ToUpper(strings.TrimSpace(c)), "CAP_")
 }
 
 func hasCapability(list []corev1.Capability, name string) bool {

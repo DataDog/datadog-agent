@@ -5,13 +5,12 @@
 
 //go:build kubeapiserver
 
-// Package hardening implements the webhook that applies workload hardening
-// requests to the pods of the Deployments the leader marked.
+// Package hardening implements the webhook that sets workload hardening
+// controls on the pods of the Deployments the leader marked.
 package hardening
 
 import (
 	"encoding/json"
-	"time"
 
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -24,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/hardening"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 const (
@@ -36,7 +34,6 @@ const (
 type Webhook struct {
 	isEnabled bool
 	store     *hardening.Store
-	now       func() time.Time
 }
 
 // NewWebhook returns a new Webhook. It is disabled when the feature is off or
@@ -45,7 +42,6 @@ func NewWebhook(datadogConfig config.Component, store *hardening.Store) *Webhook
 	return &Webhook{
 		isEnabled: datadogConfig.GetBool("admission_controller.hardening.enabled"),
 		store:     store,
-		now:       time.Now,
 	}
 }
 
@@ -100,18 +96,18 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	}
 }
 
-// mutate applies every active request listed on the pod that targets it, and
-// records the result of each listed id on the pod.
-func (w *Webhook) mutate(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
-	ids := hardening.ParseIDs(pod.Annotations[hardening.RequestsAnnotation])
-	if len(ids) == 0 {
-		return false, nil
+// mutate sets the control of every policy marked on the pod on its marked
+// containers, and records the result of each on the pod.
+func (w *Webhook) mutate(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+	marks := hardening.ParseMarks(pod.Annotations[hardening.PoliciesAnnotation])
+	results := map[string]string{}
+	for id, containers := range marks {
+		for _, container := range containers {
+			results[hardening.AppliedKey(id, container)] = w.apply(pod, id, container)
+		}
 	}
-	deployment := owningDeployment(pod)
-	now := w.now()
-	results := make(map[string]string, len(ids))
-	for _, id := range ids {
-		results[id] = w.apply(pod, ns, deployment, id, now)
+	if len(results) == 0 {
+		return false, nil
 	}
 	out, err := json.Marshal(results)
 	if err != nil {
@@ -121,45 +117,25 @@ func (w *Webhook) mutate(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool,
 	return true, nil
 }
 
-// apply applies one request to pod, and returns what it did. An unknown
-// request is recorded apart from an expired one, so the leader can tell a
-// replica that has not loaded it yet.
-func (w *Webhook) apply(pod *corev1.Pod, ns, deployment, id string, now time.Time) string {
-	req, ok := w.store.Get(id)
+// apply sets one policy's control on one container, and returns what it did.
+// A policy this replica has not loaded is recorded apart from an inactive
+// one, so the leader can tell a replica that lags.
+func (w *Webhook) apply(pod *corev1.Pod, id, name string) string {
+	p, ok := w.store.Policy(id)
 	switch {
 	case !ok:
 		return hardening.AppliedUnknown
-	case req.Action != hardening.ActionEnforce:
-		return "skipped: request action is " + string(req.Action)
-	case !req.Listed():
-		return "skipped: request does not list this cluster"
-	case !req.Active(now):
-		return "skipped: request expired"
-	case req.Workload.Namespace != ns || req.Workload.Name != deployment:
-		return "skipped: request targets another workload"
+	case !p.Active():
+		return "skipped: the policy is stopped or does not list this cluster"
 	}
-	container := hardening.FindContainer(&pod.Spec, req.Workload.Container)
+	container := hardening.FindContainer(&pod.Spec, name)
 	if container == nil {
 		return "skipped: container not found"
 	}
-	sc, reason := hardening.Render(req, &pod.Spec, w.store.Defaults())
+	sc, reason := hardening.Render(p.Control, name, &pod.Spec)
 	if reason != "" {
 		return "skipped: " + reason
 	}
 	container.SecurityContext = sc
-	return "applied"
-}
-
-// owningDeployment returns the name of the Deployment that owns pod through a
-// ReplicaSet, or "" if it has none. It makes no API call.
-func owningDeployment(pod *corev1.Pod) string {
-	ref := metav1.GetControllerOf(pod)
-	if ref == nil {
-		return ""
-	}
-	kind, name := kubernetes.ResolvePodRootOwner(ref.Kind, ref.Name, pod.Labels)
-	if kind != kubernetes.DeploymentKind {
-		return ""
-	}
-	return name
+	return hardening.AppliedOK
 }

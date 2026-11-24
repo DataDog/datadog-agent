@@ -194,8 +194,8 @@ func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta 
 	ncclWebhook := ncclprofiler.NewWebhook(datadogConfig)
 	webhooks = append(webhooks, ncclWebhook)
 
-	// Setup workload hardening webhook. It only changes the container a trial
-	// names, so it runs last and sees the final container list.
+	// Setup workload hardening webhook. It only changes the containers the
+	// leader marked, so it runs last and sees the final container list.
 	webhooks = append(webhooks, admhardening.NewWebhook(datadogConfig, hs))
 
 	return webhooks

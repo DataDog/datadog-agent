@@ -12,7 +12,6 @@ go_library(
         "//pkg/clusteragent/admission/common",
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/clusteragent/hardening",
-        "//pkg/util/kubernetes",
         "@io_k8s_api//admission/v1:admission",
         "@io_k8s_api//admissionregistration/v1:admissionregistration",
         "@io_k8s_api//core/v1:core",
@@ -33,7 +32,6 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
-        "//cmd/cluster-agent/admission",
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/clusteragent/hardening",
         "//pkg/config/mock",

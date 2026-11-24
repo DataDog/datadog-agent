@@ -743,7 +743,7 @@ func start(log log.Component,
 	// Workload hardening: the store feeds the hardening webhook, so start it before the admission controller.
 	var hardeningStore *hardening.Store
 	if config.GetBool("admission_controller.enabled") && config.GetBool("admission_controller.hardening.enabled") {
-		if hardeningStore, err = hardening.Start(mainCtx, config.GetString("admission_controller.hardening.requests_file"), clusterID, apiCl.Cl, le.IsLeader, rcClient); err != nil {
+		if hardeningStore, err = hardening.Start(mainCtx, config.GetString("admission_controller.hardening.configs_file"), clusterID, apiCl.Cl, apiCl.InformerCl, le.IsLeader, rcClient); err != nil {
 			log.Errorf("Cannot start workload hardening: %v", err)
 		}
 	}
