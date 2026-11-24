@@ -116,6 +116,14 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         for command in ("watchConfigExperiment", "startSupervisorRelay", "handBackInstaller"):
             self.assertIn(command, pkill)
 
+    def test_preinst_stops_the_unit_supervisor_first(self):
+        # The unit supervisor starts and stops a configuration experiment's jobs: it is booted out
+        # before the installer daemons and the jobs go, or it would read them going away as a failure.
+        preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
+        supervisor = preinst.index("launchctl bootout system/com.datadoghq.unit-supervisor")
+        daemons = preinst.index("launchctl bootout system/com.datadoghq.installer ")
+        self.assertLess(supervisor, daemons)
+
     def test_uninstall_without_installer_removes_the_experiment_jobs(self):
         # When the installer can't uninstall, the script still removes a configuration experiment's
         # jobs, before the stable ones, so none is left registered against binaries that are gone.

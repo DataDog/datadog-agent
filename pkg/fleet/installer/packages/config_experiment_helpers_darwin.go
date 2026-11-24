@@ -26,9 +26,11 @@ import (
 // before it is killed.
 const helperStopTimeout = 5 * time.Second
 
-// experimentHelperCommands are the package commands of every detached process an experiment
-// launches: the watchers, and the fallback hand-back.
-var experimentHelperCommands = []string{watchConfigExperimentCommand, handBackInstallerCommand}
+// legacyHelperCommands are the package commands of the detached processes earlier versions ran
+// for a configuration experiment: the watchers, the relay that launched the second one, and the
+// installer daemon hand-back. The unit supervisor replaces them all; a host upgraded mid-experiment
+// may still run one, which would swap jobs back in under the install.
+var legacyHelperCommands = []string{"watchConfigExperiment", "startSupervisorRelay", "handBackInstaller"}
 
 // listHelperPIDs returns the pids of the detached experiment processes running any of commands,
 // other than this one. They are found by listing processes, and only root-owned processes running
@@ -41,40 +43,11 @@ func listHelperPIDs(ctx context.Context, commands ...string) ([]int, error) {
 	return parseHelperPIDs(string(out), os.Getpid(), commands...), nil
 }
 
-// stopSurvivingWatchers terminates the watcher processes an earlier experiment left behind, other
-// than this one, and waits for them to exit. W1 calls it as it starts, so a watcher still around
-// from an earlier experiment never acts on this experiment. A var so tests can observe when it is
-// called.
-var stopSurvivingWatchers = func(ctx context.Context) error {
-	return stopHelpers(ctx, watchConfigExperimentCommand)
-}
-
-// watcherStopTimeout bounds how long W2 waits for the other watchers to exit after SIGTERM before it
-// kills them: longer than the grace a watcher keeps supervising for after SIGTERM, so that a watcher
-// in the middle of a revert or a hand-back finishes it. A var so tests can shorten it.
-var watcherStopTimeout = 15 * time.Second
-
-// stopOtherWatchers terminates every watcher process other than this one, and waits for them to
-// exit. W2 calls it once it is armed on every experiment job: W1, and any watcher an earlier
-// experiment left behind, stop supervising. A var so tests can observe when it is called.
-var stopOtherWatchers = func(ctx context.Context) error {
-	return stopHelpersWithin(ctx, watcherStopTimeout, watchConfigExperimentCommand)
-}
-
-// watcherRunning reports whether a watcher process other than this one runs. A watcher asks it to
-// tell whether the other one owns a failure; a stop or promote hook asks it to tell whether a
-// watcher will hand the installer daemon back. A var so tests can stub it.
-var watcherRunning = func(ctx context.Context) (bool, error) {
-	pids, err := listHelperPIDs(ctx, watchConfigExperimentCommand)
-	return len(pids) > 0, err
-}
-
-// stopSurvivingHelpers terminates every detached experiment process a previous run left behind: the
-// watchers, and any hand-back still pending. The post-install calls it before it discards an
-// experiment: a surviving watcher would read the jobs going away as a crash and revert on top of the
-// install, or swap the installer daemon under it. A var so tests can observe when it is called.
+// stopSurvivingHelpers terminates every detached experiment process an earlier version left
+// behind (legacyHelperCommands). The post-install calls it before it discards an experiment. A var
+// so tests can observe when it is called.
 var stopSurvivingHelpers = func(ctx context.Context) error {
-	return stopHelpers(ctx, experimentHelperCommands...)
+	return stopHelpers(ctx, legacyHelperCommands...)
 }
 
 // stopHelpers terminates the detached experiment processes running any of commands, and waits for
@@ -109,7 +82,7 @@ func stopHelpersWithin(ctx context.Context, timeout time.Duration, commands ...s
 //
 // The command line must be exactly the installer binary followed by the three arguments the
 // launchers pass it, so another process whose command line merely contains that text -- a shell
-// or pgrep looking for the watcher -- is never matched.
+// or pgrep looking for one -- is never matched.
 func parseHelperPIDs(ps string, self int, commands ...string) []int {
 	var pids []int
 	for _, line := range strings.Split(ps, "\n") {

@@ -13,9 +13,12 @@
         </dict>
         <key>ProgramArguments</key>
         <array>
-            <string>/bin/sh</string>
+            <string>/opt/datadog-agent/embedded/bin/installer</string>
+            <string>run</string>
             <string>-c</string>
-            <string>'/opt/datadog-agent/embedded/bin/installer' package-command datadog-agent startSupervisorRelay; exec '/opt/datadog-agent/embedded/bin/installer' run -c '/opt/datadog-agent/etc-exp' -p '/opt/datadog-packages/run/installer.pid'</string>
+            <string>/opt/datadog-agent/etc-exp</string>
+            <string>-p</string>
+            <string>/opt/datadog-packages/run/installer.pid</string>
         </array>
         <key>StandardOutPath</key>
         <string>/opt/datadog-agent/logs/launchd_installer-exp.log</string>

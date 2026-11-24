@@ -4,9 +4,10 @@
     <dict>
         <key>Label</key>
         <string>com.datadoghq.data-plane{{.LabelSuffix}}</string>
-{{- /* Only the stable set starts at load and is relaunched by launchd. An experiment job that
-       exits stays down, so the installer reverts to the stable set rather than launchd
-       respawning the experiment, and a reboot mid-experiment brings back only the stable set. */}}
+{{- /* Only the stable set starts at load and is relaunched by launchd: a reboot mid-experiment
+       brings back only the stable set. KeepAlive with SuccessfulExit would imply RunAtLoad, so the
+       experiment job has none; like its Linux unit (Restart=on-failure, BindsTo the experiment
+       Agent), the unit supervisor restarts it on a failed exit and stops it with the Agent. */}}
         <key>RunAtLoad</key>
         <{{if .Supervised}}true{{else}}false{{end}}/>
 {{- if .Supervised}}

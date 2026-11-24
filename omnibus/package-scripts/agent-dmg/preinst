@@ -91,7 +91,12 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     echo "# Existing installation detected"
     datadog-agent version || true
 
-    # The installer daemon goes first and is waited for: while it runs it can start installer
+    # The configuration experiment's unit supervisor goes first: it is the one process that starts
+    # and stops experiment jobs, and would read the jobs going away as an experiment failure.
+    launchctl bootout system/com.datadoghq.unit-supervisor 2>/dev/null || true
+    rm -f /Library/LaunchDaemons/com.datadoghq.unit-supervisor.plist
+
+    # The installer daemon goes next and is waited for: while it runs it can start installer
     # commands, and, in builds that ran configuration experiments, the detached processes killed
     # below.
     stop_installer_daemons() {
@@ -105,10 +110,11 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     }
     stop_installer_daemons
 
-    # The detached processes a configuration experiment runs outside of any launchd job: the
-    # watchers, the relay that starts the second one, and the installer daemon hand-back. Any of them could otherwise swap
-    # jobs back in while this upgrade replaces the binaries they run. Killed outright: whatever they
-    # leave half done is undone by the bootouts below and by the postinstall script.
+    # The detached processes earlier builds ran for a configuration experiment, outside of any
+    # launchd job: the watchers, the relay that started the second one, and the installer daemon
+    # hand-back. Any of them could otherwise swap jobs back in while this upgrade replaces the
+    # binaries they run. Killed outright: whatever they leave half done is undone by the bootouts
+    # below and by the postinstall script.
     pkill -9 -f "$INSTALL_DIR/embedded/bin/installer package-command datadog-agent (watchConfigExperiment|startSupervisorRelay|handBackInstaller)" 2>/dev/null || true
 
     # A detached process killed above may have loaded an installer daemon back while we waited for
