@@ -656,6 +656,9 @@ func TestShouldAggregateTags(t *testing.T) {
 			assert.Equal(t, want, shouldAggregateTags(ms))
 		})
 	}
+	t.Run(metrics.HistogramBucketType.String(), func(t *testing.T) {
+		assert.False(t, shouldAggregateTags(&metrics.HistogramBucket{}))
+	})
 }
 
 // tagFilterEnabledCases covers all combinations of data_plane.enabled and
