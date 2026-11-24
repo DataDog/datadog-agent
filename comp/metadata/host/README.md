@@ -4,14 +4,17 @@ This package populates the `host` metadata payload, also known as the "v5" paylo
 payload sent by Agent v5 (it was ported from Python to Go when Agent v6 started). The backend uses it to learn about
 the host, including its aliases and host tags, and to populate products such as the Infrastructure List.
 
-The payload is always enabled. It is sent to the v1 intake (`/intake/`) at startup, then at an increasing interval
+The payload is enabled by default and can only be turned off with `enable_metadata_collection: false`, which stops
+every metadata payload. It is sent to the v1 intake (`/intake/`) at startup, then at an increasing interval
 until it reaches the collection interval: about 5 minutes, then about 15 minutes, then every 30 minutes. Each interval
 is randomized by up to 20% and never exceeds the collection interval, so Agents that start together don't send their
 payloads in lockstep.
 
 You can change both intervals with `metadata_providers`. Values are in seconds and must be between 60 and 14400
-(4 hours), and `early_interval` must not be greater than `interval`. Out-of-range values are ignored, and the Agent
-logs an error.
+(4 hours). An out-of-range `interval` is ignored along with `early_interval`, and the Agent logs an error.
+`early_interval` is optional: when it is omitted, zero or negative, the default early interval is kept without any
+error. When it is set, it must be in the same range and not greater than `interval`, otherwise it is ignored (but
+`interval` is still applied) and the Agent logs an error.
 
 ```yaml
 metadata_providers:
@@ -29,7 +32,9 @@ The payload is built from scratch on every collection. Some values are collected
 UUID, network ID). The latest payload is also cached for other parts of the Agent, such as the status page.
 
 The `resources` and `gohai` fields depend on gohai. They are only included when the Agent is built for `linux`,
-`windows`, `darwin` or `aix`, and are omitted on `freebsd`, `netbsd`, `openbsd`, `solaris` and `dragonfly`.
+`windows`, `darwin` or `aix`. A fallback without these fields exists for `freebsd`, `netbsd`, `openbsd`, `solaris` and
+`dragonfly` (`impl/payload_no_gohai.go`), but it currently doesn't compile, so the Agent can't send this payload on
+those platforms.
 
 # Format
 
