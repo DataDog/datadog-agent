@@ -973,7 +973,7 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 	expectedProbe := &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect", UID: uid},
 		BinaryPath:              target.HostPath,
-		UprobeOffset:            symbolToAttach.EntryLocation,
+		UprobeOffsets:           []uint64{symbolToAttach.EntryLocation},
 		HookFuncName:            "SSL_connect",
 	}
 	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
@@ -1045,9 +1045,9 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "uprobe__SSL_connect__return",
 				UID:          fmt.Sprintf("%sr%d", uidBase, n)},
-			BinaryPath:   target.HostPath,
-			UprobeOffset: symbolToAttach.ReturnLocations[n],
-			HookFuncName: "SSL_connect",
+			BinaryPath:    target.HostPath,
+			UprobeOffsets: []uint64{symbolToAttach.ReturnLocations[n]},
+			HookFuncName:  "SSL_connect",
 		}
 		mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
 	}
@@ -1131,7 +1131,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 	expectedProbe := &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect", UID: uid},
 		BinaryPath:              target.HostPath,
-		UprobeOffset:            symbolToAttach.EntryLocation,
+		UprobeOffsets:           []uint64{symbolToAttach.EntryLocation},
 		HookFuncName:            "SSL_connect",
 	}
 	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
@@ -1222,7 +1222,7 @@ func TestMultipleRulesForBinaryOnlyOneMatchesFunctions(t *testing.T) {
 	expectedProbe := &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__func1", UID: uid},
 		BinaryPath:              target.HostPath,
-		UprobeOffset:            symbolAddress,
+		UprobeOffsets:           []uint64{symbolAddress},
 		HookFuncName:            "func1",
 	}
 	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)

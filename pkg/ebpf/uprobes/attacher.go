@@ -1043,11 +1043,8 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 			newProbe := &manager.Probe{
 				ProbeIdentificationPair: newProbeID,
 				BinaryPath:              fpath.HostPath,
-				UprobeOffset:            locations[0],
+				UprobeOffsets:           locations,
 				HookFuncName:            probeOpts.Symbol,
-			}
-			if ua.useUprobeMulti {
-				newProbe.UprobeOffsets = locations
 			}
 			err = ua.manager.AddHook("", newProbe)
 			if err != nil {

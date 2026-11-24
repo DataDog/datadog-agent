@@ -42,8 +42,8 @@ func TestUprobeBackendGrouping(t *testing.T) {
 				require.Equal(t, []uint64{10}, attached[2].UprobeOffsets)
 			} else {
 				require.Len(t, attached, 5)
-				for _, p := range attached {
-					require.Empty(t, p.UprobeOffsets)
+				for i, offset := range []uint64{10, 20, 30, 40, 10} {
+					require.Equal(t, []uint64{offset}, attached[i].UprobeOffsets)
 				}
 			}
 			// Every group remains a normal manager hook, preserving registry cleanup,
