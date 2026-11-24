@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    When a Kubernetes service, endpoint or endpoint slice changes without
+    changing the checks resolved for it, Autodiscovery no longer stops and
+    restarts those checks.

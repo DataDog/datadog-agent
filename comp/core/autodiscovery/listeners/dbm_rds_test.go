@@ -24,13 +24,14 @@ import (
 
 func TestDBMRdsListener(t *testing.T) {
 	testCases := []struct {
-		name                  string
-		config                map[string]interface{}
-		numDiscoveryIntervals int
-		initialServices       map[string]Service
-		rdsClientConfigurer   mockRdsClientConfigurer
-		expectedServices      []*DBMRdsService
-		expectedDelServices   []*DBMRdsService
+		name                     string
+		config                   map[string]interface{}
+		numDiscoveryIntervals    int
+		initialServices          map[string]Service
+		rdsClientConfigurer      mockRdsClientConfigurer
+		expectedServices         []*DBMRdsService
+		expectedDelServices      []*DBMRdsService
+		expectedReplacedServices []*DBMRdsService
 	}{
 		{
 			name: "GetRdsInstancesFromTags context deadline exceeded produces no services",
@@ -281,8 +282,8 @@ func TestDBMRdsListener(t *testing.T) {
 					},
 				},
 			},
-			// The original service should be deleted
-			expectedDelServices: []*DBMRdsService{
+			// The original service should be replaced
+			expectedReplacedServices: []*DBMRdsService{
 				{
 					adIdentifier: dbmPostgresADIdentifier, entityID: "36740c31448ee889",
 					checkName: "postgres", region: "us-east-1",
@@ -371,7 +372,12 @@ func TestDBMRdsListener(t *testing.T) {
 
 			// assert that the expected new services were created
 			createdServices := make([]*DBMRdsService, 0)
+			replacedServices := make([]*DBMRdsService, 0)
 			for newService := range newSvc {
+				if update, ok := newService.(*ServiceUpdate); ok {
+					replacedServices = append(replacedServices, update.Old.(*DBMRdsService))
+					newService = update.Service
+				}
 				dbmRdsService, ok := newService.(*DBMRdsService)
 				if !ok {
 					require.Fail(t, "received service of incorrect type on service chan")
@@ -380,6 +386,7 @@ func TestDBMRdsListener(t *testing.T) {
 			}
 			assert.Equal(t, len(tc.expectedServices), len(createdServices))
 			assert.ElementsMatch(t, tc.expectedServices, createdServices)
+			assert.ElementsMatch(t, tc.expectedReplacedServices, replacedServices)
 
 			// assert that the expected deleted services were created
 			deletedServices := make([]*DBMRdsService, 0)

@@ -792,3 +792,42 @@ func TestKubeServiceFiltering(t *testing.T) {
 		})
 	}
 }
+
+func TestKubeServiceUpdateSendsServiceUpdate(t *testing.T) {
+	newSvc := make(chan Service, 4)
+	delSvc := make(chan Service, 4)
+	l := &KubeServiceListener{
+		services:          map[types.UID]Service{},
+		newService:        newSvc,
+		delService:        delSvc,
+		promInclAnnot:     getPrometheusIncludeAnnotations(),
+		targetAllServices: true,
+		filterStore:       workloadfilterfxmock.SetupMockFilter(t),
+	}
+
+	ksvc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:             types.UID("svc-1"),
+			Name:            "mysvc",
+			Namespace:       "default",
+			ResourceVersion: "1",
+			Labels:          map[string]string{"tags.datadoghq.com/env": "prod"},
+		},
+	}
+	l.createService(ksvc)
+	created := <-newSvc
+
+	updated := ksvc.DeepCopy()
+	updated.ResourceVersion = "2"
+	updated.Labels["tags.datadoghq.com/env"] = "staging"
+	l.updated(ksvc, updated)
+
+	assert.Empty(t, delSvc)
+	update, ok := (<-newSvc).(*ServiceUpdate)
+	assert.True(t, ok)
+	assert.Same(t, created, update.Old)
+	assert.Same(t, l.services[ksvc.UID], update.Service)
+	tags, err := update.GetTags()
+	assert.NoError(t, err)
+	assert.Contains(t, tags, "env:staging")
+}

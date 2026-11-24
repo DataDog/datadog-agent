@@ -807,10 +807,14 @@ func TestReconcilesServiceOnUpdatedTags(t *testing.T) {
 
 	l.serviceUpdated(svcOld, svcNew)
 
-	// The stale endpoint is removed and re-emitted with the updated standard tags.
-	require.Len(t, delCh, 1, "stale endpoint should be removed")
+	// The endpoint is replaced by one with the updated standard tags.
+	require.Empty(t, delCh)
 	require.Len(t, newCh, 1, "endpoint should be re-emitted")
-	newTags, err := (<-newCh).(*KubeEndpointService).GetTags()
+	update := (<-newCh).(*ServiceUpdate)
+	oldTags, err := update.Old.GetTags()
+	require.NoError(t, err)
+	assert.Contains(t, oldTags, "env:prod")
+	newTags, err := update.GetTags()
 	require.NoError(t, err)
 	assert.Contains(t, newTags, "env:staging")
 	assert.NotContains(t, newTags, "env:prod")

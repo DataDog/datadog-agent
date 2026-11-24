@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	actelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -41,6 +42,10 @@ type configManager interface {
 	// processDelService handles removal of a service, unscheduling any configs
 	// that had been resolved for it.
 	processDelService(svc listeners.Service)
+
+	// processUpdatedService replaces old with svc and publishes the resulting
+	// changes as one batch.
+	processUpdatedService(old, svc listeners.Service)
 
 	// processNewConfig handles a new config
 	processNewConfig(config integration.Config)
@@ -170,11 +175,47 @@ func (cm *reconcilingConfigManager) processNewService(svc listeners.Service) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
+	cm.publish(cm.addService(svc), nil)
+}
+
+// processDelService implements configManager#processDelService.
+func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) {
+	cm.m.Lock()
+	defer cm.m.Unlock()
+
+	cm.publish(cm.removeService(svc), nil)
+}
+
+// processUpdatedService implements configManager#processUpdatedService.
+func (cm *reconcilingConfigManager) processUpdatedService(old, svc listeners.Service) {
+	cm.m.Lock()
+	defer cm.m.Unlock()
+
+	// The schedulers key configs by a digest that leaves out the exclusion
+	// flags, so one batch that only flips them would be dropped as a no-op.
+	if exclusionChanged(old, svc) {
+		cm.publish(cm.removeService(old), nil)
+		cm.publish(cm.addService(svc), nil)
+		return
+	}
+
+	changes := cm.removeService(old)
+	changes.Merge(cm.addService(svc))
+	cm.publish(changes, nil)
+}
+
+func exclusionChanged(old, svc listeners.Service) bool {
+	return old.HasFilter(workloadfilter.MetricsFilter) != svc.HasFilter(workloadfilter.MetricsFilter) ||
+		old.HasFilter(workloadfilter.LogsFilter) != svc.HasFilter(workloadfilter.LogsFilter)
+}
+
+// addService tracks a new service and returns the resulting changes. It must
+// be called with cm.m held.
+func (cm *reconcilingConfigManager) addService(svc listeners.Service) integration.ConfigChanges {
 	svcID := svc.GetServiceID()
 	if _, found := cm.activeServices[svcID]; found {
 		log.Debugf("Service %s is already tracked by autodiscovery", svcID)
-		cm.publish(integration.ConfigChanges{}, nil)
-		return
+		return integration.ConfigChanges{}
 	}
 
 	adIdentifiers := svc.GetADIdentifiers()
@@ -196,20 +237,17 @@ func (cm *reconcilingConfigManager) processNewService(svc listeners.Service) {
 	changes := cm.reconcileService(svcID)
 
 	//  4. update scheduledConfigs
-	cm.publish(cm.applyChanges(changes), nil)
+	return cm.applyChanges(changes)
 }
 
-// processDelService implements configManager#processDelService.
-func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) {
-	cm.m.Lock()
-	defer cm.m.Unlock()
-
+// removeService stops tracking a service and returns the resulting changes. It
+// must be called with cm.m held.
+func (cm *reconcilingConfigManager) removeService(svc listeners.Service) integration.ConfigChanges {
 	svcID := svc.GetServiceID()
 	svcAndADIDs, found := cm.activeServices[svcID]
 	if !found {
 		log.Debugf("Service %s is not tracked by autodiscovery", svcID)
-		cm.publish(integration.ConfigChanges{}, nil)
-		return
+		return integration.ConfigChanges{}
 	}
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
@@ -228,7 +266,7 @@ func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) {
 	changes := cm.reconcileService(svcID)
 
 	//  4. update scheduledConfigs
-	cm.publish(cm.applyChanges(changes), nil)
+	return cm.applyChanges(changes)
 }
 
 // processNewConfig implements configManager#processNewConfig.

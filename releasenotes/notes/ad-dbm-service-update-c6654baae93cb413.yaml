@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    When an autodiscovered DBM RDS or Aurora instance changes without changing
+    the checks resolved for it, Autodiscovery no longer stops and restarts
+    those checks.
