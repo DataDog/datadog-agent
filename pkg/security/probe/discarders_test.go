@@ -275,6 +275,23 @@ func TestIsParentDiscarder(t *testing.T) {
 	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", merged+"/var/other", 1, merged); !is {
 		t.Error("should be a parent discarder")
 	}
+
+	// not at or above the overlay mount point
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", merged+"/tmp/other.txt", 2, merged); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", merged+"/tmp/other.txt", 3, merged); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", merged+"2/var/other", 1, merged); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", merged+"/var/log/other", 2, merged); !is {
+		t.Error("should be a parent discarder")
+	}
 }
 
 func TestIsGrandParentDiscarder(t *testing.T) {

@@ -343,8 +343,9 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 	dirname := getParent(filename, depth)
 	overlayDir := dirname
 	if overlayMountPoint != "" {
-		if overlayDir = strings.TrimPrefix(dirname, overlayMountPoint); overlayDir == "" {
-			overlayDir = "/"
+		var below bool
+		if overlayDir, below = strings.CutPrefix(dirname, overlayMountPoint); !below || !strings.HasPrefix(overlayDir, "/") {
+			return false, nil
 		}
 	}
 	if dirname == "/" || !fnc(dirname, overlayDir) {
