@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"maps"
 	"net/http"
@@ -322,6 +323,8 @@ func TestInitData(t *testing.T) {
 		"process_config.container_collection.enabled": true,
 		"remote_configuration.enabled":                true,
 		"remote_updates":                              true,
+		"enable_payloads.series":                      false,
+		"autoscaling.cluster.enabled":                 true,
 		"process_config.process_collection.enabled":   true,
 		"container_image.enabled":                     true,
 		"network_path.remote_config.enabled":          true,
@@ -361,6 +364,8 @@ func TestInitData(t *testing.T) {
 		"feature_processes_container_enabled":                 true,
 		"feature_remote_configuration_enabled":                true,
 		"feature_remote_updates_enabled":                      true,
+		"feature_infra_enabled":                               false,
+		"feature_autoscaling_cluster_enabled":                 true,
 		"feature_process_enabled":                             true,
 		"feature_container_images_enabled":                    true,
 		"feature_network_path_remote_config_enabled":          true,
@@ -868,6 +873,33 @@ func TestFeatureGPUMonitoringEnabledFromCoreConfig(t *testing.T) {
 	ia := getTestInventoryPayload(t, map[string]any{"gpu.enabled": true}, nil)
 	ia.fetchSystemProbeMetadata()
 	assert.True(t, ia.Get()["feature_gpu_monitoring_enabled"].(bool))
+}
+
+func TestFeatureInfraAndAutoscalingDefaults(t *testing.T) {
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.fetchCoreAgentMetadata()
+	assert.Equal(t, true, ia.Get()["feature_infra_enabled"])
+	assert.Equal(t, false, ia.Get()["feature_autoscaling_cluster_enabled"])
+}
+
+// The backend derives these fields from full_configuration only when they are absent from the
+// payload, so they must be serialized even when false.
+func TestFeatureInfraAndAutoscalingSerializedWhenFalse(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{"enable_payloads.series": false}, nil)
+	ia.fetchCoreAgentMetadata()
+
+	raw, err := ia.data.GetPayload(nil, "test-uuid").MarshalJSON()
+	require.NoError(t, err)
+
+	var payload struct {
+		Metadata map[string]any `json:"agent_metadata"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &payload))
+	for _, key := range []string{"feature_infra_enabled", "feature_autoscaling_cluster_enabled"} {
+		value, ok := payload.Metadata[key]
+		require.True(t, ok, "%s missing from the serialized payload", key)
+		assert.Equal(t, false, value, key)
+	}
 }
 
 func TestFetchFleet(t *testing.T) {

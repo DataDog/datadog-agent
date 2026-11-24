@@ -134,7 +134,13 @@ class TestBazelParity(unittest.TestCase):
         lines = [call.args[0] for call in printed.call_args_list]
         self.assertTrue(all(line.startswith('BAZEL_PARITY ') and '\n' not in line for line in lines))
         self.assertIn(
-            'BAZEL_PARITY datadog-agent/deb/amd64 file mismatch opt/agent flags=binary binary=stripped,interpreter,needed',
+            'BAZEL_PARITY datadog-agent/deb/amd64 file mismatch opt/agent flags=binary binary=stripped,interpreter,needed'
+            ' product=datadog-agent format=deb arch=amd64',
+            lines,
+        )
+        self.assertIn(
+            'BAZEL_PARITY datadog-agent/deb/amd64 counts match=0 missing_in_bazel=0 extra_in_bazel=0 mismatch=1'
+            ' product=datadog-agent format=deb arch=amd64',
             lines,
         )
 

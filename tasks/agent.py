@@ -509,6 +509,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
         "signed_pull": doc.signed_pull,
         "arch": doc.arch,
         "development": doc.development,
+        "enable_bazel": doc.enable_bazel,
     }
 )
 def hacky_dev_image_build(
@@ -527,6 +528,7 @@ def hacky_dev_image_build(
     arch=None,
     development=True,
     build_exclude=None,
+    enable_bazel=False,
 ):
     """
     Builds the agent or cluster-agent Docker image.
@@ -575,6 +577,7 @@ def hacky_dev_image_build(
             # TODO: this is the last usage of this flag, we should remove it once this
             # task has been deprecated long enough
             legacy_rtloader_cmake=True,
+            enable_bazel=enable_bazel,
         )
 
     copy_checks_d = ""

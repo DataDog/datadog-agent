@@ -12,6 +12,7 @@ permissions: {}
 jobs:
   report_merged_pr:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       id-token: write # This is required for getting the required OIDC token from GitHub

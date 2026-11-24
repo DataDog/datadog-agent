@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -271,6 +272,82 @@ func (c *Catalog) LatestMinus(branch Branch, pkg string, minus int) string {
 	panic(fmt.Errorf("package %s %s %d not found", pkg, branch, minus))
 }
 
+// A numeric suffix is the package revision, not a prerelease (for example,
+// 7.86.1-2). RC and development builds must not become upgrade baselines.
+var releasedPackageVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$`)
+
+var fullPackageVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+([+-].+)?$`)
+
+func validPackageVersion(version string) bool {
+	return fullPackageVersion.MatchString(version) && semver.IsValid("v"+strings.TrimPrefix(version, "v"))
+}
+
+// ErrNoReleasedVersions means the requested minor has no stable packages in the
+// otherwise valid release catalog, for example while main is ahead of a minor
+// awaiting its first release. Invalid or empty catalogs return other errors.
+var ErrNoReleasedVersions = errors.New("no released package versions")
+
+// PreviousMinorVersions returns every released patch and package revision from
+// the exact minor release minus versions before currentVersion, within its major
+// release. It deduplicates catalog aliases and returns descending versions while
+// preserving their original spelling. A missing minor is an error, not a reason
+// to substitute another release or silently omit upgrade coverage.
+func (c *Catalog) PreviousMinorVersions(branch Branch, pkg, currentVersion string, minus int) ([]string, error) {
+	current := "v" + strings.TrimPrefix(currentVersion, "v")
+	if !validPackageVersion(currentVersion) {
+		return nil, fmt.Errorf("invalid current package version %q", currentVersion)
+	}
+	if minus <= 0 {
+		return nil, fmt.Errorf("minor release offset must be positive, got %d", minus)
+	}
+	major := semver.Major(current)
+	minor, err := strconv.Atoi(strings.TrimPrefix(semver.MajorMinor(current), major+"."))
+	if err != nil {
+		return nil, fmt.Errorf("invalid minor in current package version %q: %w", currentVersion, err)
+	}
+	if minus > minor {
+		return nil, fmt.Errorf("minor release offset %d precedes major release %s for %s", minus, major, currentVersion)
+	}
+	wantedMinor := fmt.Sprintf("%s.%d", major, minor-minus)
+	unique := make(map[string]string)
+	hasReleasedVersion := false
+	for _, entry := range c.packages {
+		if entry.Package != pkg || entry.branch != branch {
+			continue
+		}
+		if !validPackageVersion(entry.Version) {
+			return nil, fmt.Errorf("invalid catalog package version %q for package %s on branch %s", entry.Version, pkg, branch)
+		}
+		if !releasedPackageVersion.MatchString(entry.Version) {
+			continue
+		}
+		hasReleasedVersion = true
+		normalized := "v" + strings.TrimPrefix(entry.Version, "v")
+		if semver.MajorMinor(normalized) != wantedMinor {
+			continue
+		}
+		// Prefer the unprefixed spelling if aliases expose both forms, so the
+		// result is independent of registry listing order.
+		if previous, exists := unique[normalized]; !exists || entry.Version < previous {
+			unique[normalized] = entry.Version
+		}
+	}
+	if !hasReleasedVersion {
+		return nil, fmt.Errorf("catalog contains no released versions of package %s on branch %s", pkg, branch)
+	}
+	if len(unique) == 0 {
+		return nil, fmt.Errorf("%w: package %s on branch %s for minor %s (current %s, offset %d)", ErrNoReleasedVersions, pkg, branch, strings.TrimPrefix(wantedMinor, "v"), currentVersion, minus)
+	}
+	versions := make([]string, 0, len(unique))
+	for _, version := range unique {
+		versions = append(versions, version)
+	}
+	sort.Slice(versions, func(i, j int) bool {
+		return semver.Compare("v"+strings.TrimPrefix(versions[i], "v"), "v"+strings.TrimPrefix(versions[j], "v")) > 0
+	})
+	return versions, nil
+}
+
 func (b *Backend) setCatalog() error {
 	b.t().Logf("Setting catalog")
 	catalog := b.Catalog()
@@ -294,28 +371,50 @@ var cachedCatalogOnce sync.Once
 
 // Catalog returns the catalog.
 func (b *Backend) Catalog() *Catalog {
+	return LoadCatalog(b.t())
+}
+
+// LoadCatalog resolves the shared package catalog without requiring a provisioned
+// host, allowing upgrade tests to enumerate their source versions before setup.
+func LoadCatalog(t *testing.T) *Catalog {
+	t.Helper()
 	cachedCatalogOnce.Do(func() {
-		catalog, err := b.getCatalog()
+		b := &Backend{t: func() *testing.T { return t }}
+		catalog, err := b.getCatalog(false)
 		if err != nil {
-			b.t().Fatalf("error getting catalog: %v", err)
+			t.Fatalf("error getting catalog: %v", err)
 			return
 		}
 		cachedCatalog = catalog
 	})
 	if cachedCatalog == nil {
-		b.t().Fatalf("catalog is nil")
+		t.Fatalf("catalog is nil")
 	}
 	return cachedCatalog
 }
 
-func (b *Backend) getCatalog() (*Catalog, error) {
+// LoadUpgradeHistoryCatalog validates released source packages and the CI candidate.
+// Existing Fleet scenarios continue to use the unfiltered shared catalog.
+func LoadUpgradeHistoryCatalog(t *testing.T) *Catalog {
+	t.Helper()
+	b := &Backend{t: func() *testing.T { return t }}
+	catalog, err := b.getCatalog(true)
+	require.NoError(t, err, "loading upgrade history catalog")
+	return catalog
+}
+
+func (b *Backend) getCatalog(upgradeHistory bool) (*Catalog, error) {
 	var catalog Catalog
 
 	urls := []string{"installtesting.datad0g.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")}
 	var prodTags []string
 	err := b.retry(func() error {
 		var err error
-		prodTags, err = getImagesTags("install.datadoghq.com/agent-package")
+		if upgradeHistory {
+			prodTags, err = getReleasedImageTags("install.datadoghq.com/agent-package")
+		} else {
+			prodTags, err = crane.ListTags("install.datadoghq.com/agent-package")
+		}
 		return err
 	}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
 	if err != nil {
@@ -329,6 +428,9 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 		err := b.retry(func() error {
 			var err error
 			version, err = getImageVersion(url)
+			if err == nil && upgradeHistory && !validPackageVersion(version) {
+				return fmt.Errorf("image %s has missing or invalid package version annotation %q", url, version)
+			}
 			return err
 		}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
 		if err != nil {
@@ -340,7 +442,7 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 			url = strings.Replace(url, "installtesting.datad0g.com", "installtesting.datad0g.com.internal.dda-testing.com", 1)
 			branch = BranchTesting
 		case strings.HasPrefix(url, "install.datadoghq.com"):
-			url = strings.Replace(url, "install.datadoghq.com", "install.datadoghq.com.internal.dda-testing.com", 1)
+			// The dda-testing mirror only covers the datad0g registries, so stable images are pulled directly.
 			branch = BranchStable
 		default:
 			return nil, fmt.Errorf("unsupported URL: %s", url)
@@ -355,8 +457,7 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 	sort.Slice(catalog.packages, func(i, j int) bool {
 		return semver.Compare("v"+catalog.packages[i].Version, "v"+catalog.packages[j].Version) > 0
 	})
-	cachedCatalog = &catalog
-	return cachedCatalog, nil
+	return &catalog, nil
 }
 
 // retry retries fn until it succeeds or opts exhaust it.
@@ -551,10 +652,17 @@ func getImageVersion(ref string) (string, error) {
 	return version, nil
 }
 
-func getImagesTags(src string) ([]string, error) {
+func getReleasedImageTags(src string) ([]string, error) {
 	tags, err := crane.ListTags(src)
 	if err != nil {
 		return nil, err
 	}
-	return tags, nil
+	var releases []string
+	for _, tag := range tags {
+		// Production also contains aliases and non-release test images.
+		if releasedPackageVersion.MatchString(tag) {
+			releases = append(releases, tag)
+		}
+	}
+	return releases, nil
 }

@@ -92,6 +92,8 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 	if state.NextChunk == 0 {
 		s.log.Infof("ndmdiscovery: scanning range %s (%s): %d addresses in %d chunks, %d ignored, run %s",
 			id, r.Config.NetworkAddress, r.Plan.totalAddresses(), total, r.Plan.ignoredCount(), state.RunID)
+		// Saved before the first chunk, so the cursor never shows the previous run.
+		s.saveCursor(id, state)
 		s.reportRun(r, inProgressRun(id, state.RunID, state.Scanned, state.StartedAtMs))
 	} else {
 		s.log.Infof("ndmdiscovery: resuming the scan of range %s (%s) at chunk %d of %d, run %s",
