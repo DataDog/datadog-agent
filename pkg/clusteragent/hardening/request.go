@@ -34,6 +34,9 @@ const (
 	RequestsAnnotation = "hardening.datadoghq.com/requests"
 	// AppliedAnnotation on a pod records what the webhook did for each request id.
 	AppliedAnnotation = "hardening.datadoghq.com/applied"
+	// AppliedUnknown is the AppliedAnnotation value for a request the replica
+	// serving the webhook has not loaded, as opposed to an expired one.
+	AppliedUnknown = "skipped: unknown request"
 )
 
 // Action is what a request asks for.
@@ -44,6 +47,8 @@ const (
 	ActionTrial Action = "trial"
 	// ActionRevert removes a trial.
 	ActionRevert Action = "revert"
+	// ActionValidate runs the pre-flight checks and dry runs, and writes nothing.
+	ActionValidate Action = "validate"
 )
 
 // Control is the hardening control a request applies.
@@ -64,8 +69,11 @@ type Target struct {
 	Kind      string `json:"kind"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
-	UID       string `json:"uid"`
 	Container string `json:"container"`
+	// ImageID is the build the finding's evidence is about,
+	// <registry>/<repository>@sha256:<digest>. Only its digest is compared,
+	// because registry mirrors and image-rewriting webhooks change the rest.
+	ImageID string `json:"image_id"`
 }
 
 // Parameters holds control-specific parameters.
@@ -81,6 +89,7 @@ type Request struct {
 	Control    Control    `json:"control"`
 	Target     Target     `json:"k8s_target"`
 	Parameters Parameters `json:"parameters"`
+	CreatedAt  time.Time  `json:"created_at"`
 	ExpiresAt  time.Time  `json:"expires_at"`
 
 	// hash identifies the request's content, so the controller can tell a
@@ -93,7 +102,20 @@ func (r *Request) Active(now time.Time) bool {
 	return r.Action == ActionTrial && now.Before(r.ExpiresAt)
 }
 
-var idPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
+var (
+	idPattern     = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
+	digestPattern = regexp.MustCompile(`@sha256:([0-9a-f]{64})$`)
+)
+
+// Digest returns the sha256 digest an image reference or a container status
+// imageID pins, or "" when it pins none. A bare "sha256:..." imageID is the
+// image config id, not a registry digest, so it pins none.
+func Digest(image string) string {
+	if m := digestPattern.FindStringSubmatch(image); m != nil {
+		return m[1]
+	}
+	return ""
+}
 
 // knownCapabilities is the set of Linux capability names (without the CAP_
 // prefix) that parseRequest accepts. ALL is deliberately not a member.
@@ -123,7 +145,7 @@ func parseRequest(raw []byte, clusterID string) (*Request, error) {
 	if !idPattern.MatchString(r.ID) {
 		return nil, fmt.Errorf("invalid request id %q", r.ID)
 	}
-	if r.Action != ActionTrial && r.Action != ActionRevert {
+	if r.Action != ActionTrial && r.Action != ActionRevert && r.Action != ActionValidate {
 		return nil, fmt.Errorf("request %s: unknown action %q", r.ID, r.Action)
 	}
 	switch r.Control {
@@ -146,14 +168,17 @@ func parseRequest(raw []byte, clusterID string) (*Request, error) {
 	if t.Kind != "Deployment" {
 		return nil, fmt.Errorf("request %s: unsupported kind %q", r.ID, t.Kind)
 	}
-	if t.Cluster == "" || t.Namespace == "" || t.Name == "" || t.UID == "" || t.Container == "" {
+	if t.Cluster == "" || t.Namespace == "" || t.Name == "" || t.Container == "" {
 		return nil, fmt.Errorf("request %s: incomplete target", r.ID)
+	}
+	if Digest(t.ImageID) == "" {
+		return nil, fmt.Errorf("request %s: image_id %q pins no sha256 digest", r.ID, t.ImageID)
 	}
 	if t.Cluster != clusterID {
 		return nil, fmt.Errorf("request %s: targets cluster %q, not this cluster", r.ID, t.Cluster)
 	}
-	if r.ExpiresAt.IsZero() {
-		return nil, fmt.Errorf("request %s: missing expires_at", r.ID)
+	if r.CreatedAt.IsZero() || r.ExpiresAt.IsZero() {
+		return nil, fmt.Errorf("request %s: missing created_at or expires_at", r.ID)
 	}
 	sum := sha256.Sum256(raw)
 	r.hash = hex.EncodeToString(sum[:])
