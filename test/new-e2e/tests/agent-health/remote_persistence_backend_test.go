@@ -9,7 +9,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	_ "embed"
@@ -22,7 +21,6 @@ import (
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
-	batchv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/batch/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -46,9 +44,6 @@ const (
 
 //go:embed fixtures/remote_persistence_backend.py
 var remotePersistenceBackendScript string
-
-//go:embed fixtures/remote_persistence_ready.py
-var remotePersistenceReadyScript string
 
 var (
 	remotePersistenceCertsOnce sync.Once
@@ -143,10 +138,6 @@ func deployRemotePersistenceBackend(e config.Env, kubeProvider *kubernetes.Provi
 		return nil, err
 	}
 
-	// Include both public PEM certificates so CA or server certificate changes
-	// restart the backend and invalidate a previous successful readiness check.
-	tlsFingerprint := fmt.Sprintf("%x", sha256.Sum256([]byte(string(caCert)+string(serverCert))))
-
 	workload := &kubecomp.Workload{}
 	if err := e.Ctx().RegisterComponentResource("dd:apps", "remote-persistence-backend", workload); err != nil {
 		return nil, err
@@ -197,11 +188,7 @@ func deployRemotePersistenceBackend(e config.Env, kubeProvider *kubernetes.Provi
 			Name:      pulumi.String(remotePersistenceScriptConfigMap),
 			Namespace: pulumi.String(remotePersistenceNamespace),
 		},
-		Data: pulumi.StringMap{
-			"server.py": pulumi.String(remotePersistenceBackendScript),
-			"ready.py":  pulumi.String(remotePersistenceReadyScript),
-			"ca.crt":    pulumi.String(string(caCert)),
-		},
+		Data: pulumi.StringMap{"server.py": pulumi.String(remotePersistenceBackendScript)},
 	}, append(baseOpts, pulumi.DependsOn([]pulumi.Resource{backendNamespace}))...)
 	if err != nil {
 		return nil, fmt.Errorf("create remote persistence script ConfigMap: %w", err)
@@ -232,12 +219,7 @@ func deployRemotePersistenceBackend(e config.Env, kubeProvider *kubernetes.Provi
 			Replicas: pulumi.Int(1),
 			Selector: &metav1.LabelSelectorArgs{MatchLabels: labels},
 			Template: &corev1.PodTemplateSpecArgs{
-				Metadata: &metav1.ObjectMetaArgs{
-					Labels: labels,
-					Annotations: pulumi.StringMap{
-						"remote-persistence/tls-sha256": pulumi.String(tlsFingerprint),
-					},
-				},
+				Metadata: &metav1.ObjectMetaArgs{Labels: labels},
 				Spec: &corev1.PodSpecArgs{
 					ImagePullSecrets: imagePullSecrets,
 					Containers: corev1.ContainerArray{&corev1.ContainerArgs{
@@ -287,7 +269,7 @@ func deployRemotePersistenceBackend(e config.Env, kubeProvider *kubernetes.Provi
 		return nil, fmt.Errorf("create remote persistence backend Deployment: %w", err)
 	}
 
-	service, err := corev1.NewService(e.Ctx(), e.CommonNamer().ResourceName("remote-persistence-service"), &corev1.ServiceArgs{
+	_, err = corev1.NewService(e.Ctx(), e.CommonNamer().ResourceName("remote-persistence-service"), &corev1.ServiceArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String(remotePersistenceBackendName),
 			Namespace: pulumi.String(remotePersistenceNamespace),
@@ -302,57 +284,6 @@ func deployRemotePersistenceBackend(e config.Env, kubeProvider *kubernetes.Provi
 	}, append(baseOpts, pulumi.DependsOn([]pulumi.Resource{deployment}))...)
 	if err != nil {
 		return nil, fmt.Errorf("create remote persistence backend Service: %w", err)
-	}
-
-	// Pod readiness does not guarantee that the Service's routing is ready. The
-	// Agents restore their remote snapshot only once, so probe the HTTPS Service
-	// from the single-node kind cluster before their Helm installation can start.
-	_, err = batchv1.NewJob(e.Ctx(), e.CommonNamer().ResourceName("remote-persistence-ready"), &batchv1.JobArgs{
-		Metadata: &metav1.ObjectMetaArgs{
-			Name:        pulumi.String("remote-persistence-ready"),
-			Namespace:   pulumi.String(remotePersistenceNamespace),
-			Annotations: pulumi.StringMap{"pulumi.com/replaceUnready": pulumi.String("true")},
-		},
-		Spec: &batchv1.JobSpecArgs{
-			ActiveDeadlineSeconds: pulumi.Int(120),
-			BackoffLimit:          pulumi.Int(0),
-			Template: &corev1.PodTemplateSpecArgs{
-				// Job templates are immutable: changed routing identity or trust
-				// requires a fresh probe even when the previous Job succeeded.
-				Metadata: &metav1.ObjectMetaArgs{
-					Annotations: pulumi.StringMap{
-						"remote-persistence/service-uid": service.Metadata.Uid().Elem(),
-						"remote-persistence/tls-sha256":  pulumi.String(tlsFingerprint),
-					},
-				},
-				Spec: &corev1.PodSpecArgs{
-					AutomountServiceAccountToken: pulumi.Bool(false),
-					ImagePullSecrets:             imagePullSecrets,
-					RestartPolicy:                pulumi.String("Never"),
-					Containers: corev1.ContainerArray{&corev1.ContainerArgs{
-						Name:  pulumi.String("ready"),
-						Image: pulumi.String(remotePersistenceBackendImage(e)),
-						Command: pulumi.StringArray{
-							pulumi.String("python"), pulumi.String("/scripts/ready.py"),
-							pulumi.String("https://api.remote-persistence.svc.cluster.local/health"),
-							pulumi.String("/scripts/ca.crt"),
-						},
-						VolumeMounts: corev1.VolumeMountArray{
-							&corev1.VolumeMountArgs{Name: pulumi.String("script"), MountPath: pulumi.String("/scripts"), ReadOnly: pulumi.Bool(true)},
-						},
-					}},
-					Volumes: corev1.VolumeArray{&corev1.VolumeArgs{
-						Name: pulumi.String("script"),
-						ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
-							Name: scriptConfig.Metadata.Name(),
-						},
-					}},
-				},
-			},
-		},
-	}, append(baseOpts, pulumi.DependsOn([]pulumi.Resource{service}), pulumi.DeleteBeforeReplace(true))...)
-	if err != nil {
-		return nil, fmt.Errorf("create remote persistence readiness Job: %w", err)
 	}
 
 	return workload, nil

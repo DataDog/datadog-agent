@@ -60,6 +60,7 @@ Persistence depends on the process and environment:
 
 - Non-Kubernetes Agents use the local `issues.json` file. Kubernetes Agents can opt in with `health_platform.persist_on_kubernetes: true` and a durable `run_path` volume.
 - With `health_platform.persist_remotely_on_kubernetes: true`, Kubernetes node Agents and Cluster Agents restore active issues from `https://api.<site>` using `api_key`. Requests use the DaemonSet UID (`agent_type=node`) or cluster UUID (`agent_type=cluster`); returned issue IDs match Agent issue IDs directly. Standard proxy settings apply; `dd_url` does not. Existing Health Platform egress continues to send updates.
+- Transient remote restoration failures are retried with exponential backoff during startup, sharing a 10-second HTTP budget across requests and delays after identity resolution. Authentication, certificate validation, and invalid-response failures are not retried. If restoration still fails, the Agent logs a warning and continues startup; it does not restore again in the background.
 - Remote restoration takes precedence over local persistence. It is disabled for Cluster Check Runners, one-shot commands, missing API keys, the local FIPS proxy, and disabled TLS certificate verification.
 - Kubernetes persistence is disabled by default.
 

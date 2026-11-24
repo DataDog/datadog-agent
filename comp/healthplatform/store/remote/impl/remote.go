@@ -8,6 +8,7 @@ package remoteimpl
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -178,39 +181,75 @@ func (r *remoteIssueLoader) Load(ctx context.Context) ([]remotedef.Issue, error)
 	req.Header.Set("DD-Agent-Version", version.AgentVersion)
 	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
 
+	// Share the existing HTTP timeout across all attempts, including backoff
+	// and response reads. Restore before checks start so reconciliation sees
+	// the snapshot; do not merge a late snapshot into live issue state.
+	retryCtx, cancel := context.WithTimeout(ctx, remoteIssuesHTTPTimeout)
+	defer cancel()
+	bo := backoff.NewExponentialBackOff()
+	bo.InitialInterval = 500 * time.Millisecond
+	bo.MaxInterval = 2 * time.Second
+	return backoff.Retry(retryCtx, func() ([]remotedef.Issue, error) {
+		return r.fetchOnce(req.Clone(retryCtx), resourceID)
+	}, backoff.WithBackOff(bo), backoff.WithMaxElapsedTime(0))
+}
+
+func (r *remoteIssueLoader) fetchOnce(req *http.Request, resourceID string) ([]remotedef.Issue, error) {
+	if err := req.Context().Err(); err != nil {
+		return nil, backoff.Permanent(err)
+	}
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
+		var certErr *tls.CertificateVerificationError
+		if errors.As(err, &certErr) {
+			return nil, backoff.Permanent(fmt.Errorf("load remote issues: %w", err))
+		}
 		return nil, fmt.Errorf("load remote issues: %w", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		err := fmt.Errorf("remote issue request returned status %d", resp.StatusCode)
+		if resp.StatusCode == http.StatusRequestTimeout || resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			// Honor a server-requested delay; the request context still bounds
+			// the entire operation even when Retry-After exceeds the budget.
+			if value := resp.Header.Get("Retry-After"); value != "" {
+				if delay, parseErr := time.ParseDuration(value + "s"); parseErr == nil && delay >= 0 {
+					return nil, backoff.RetryAfter(delay, err)
+				}
+				if deadline, parseErr := http.ParseTime(value); parseErr == nil {
+					return nil, backoff.RetryAfter(time.Until(deadline), err)
+				}
+			}
+			return nil, err
+		}
+		return nil, backoff.Permanent(err)
+	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, remoteIssuesMaxResponse+1))
 	if err != nil {
 		return nil, fmt.Errorf("read remote issue response: %w", err)
 	}
 	if len(body) > remoteIssuesMaxResponse {
-		return nil, fmt.Errorf("remote issue response exceeds %d bytes", remoteIssuesMaxResponse)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("remote issue request returned status %d", resp.StatusCode)
+		return nil, backoff.Permanent(fmt.Errorf("remote issue response exceeds %d bytes", remoteIssuesMaxResponse))
 	}
 
 	var response remoteIssuesResponse
 	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("decode remote issue response: %w", err)
+		return nil, backoff.Permanent(fmt.Errorf("decode remote issue response: %w", err))
 	}
 	if response.Data == nil {
-		return nil, errors.New("remote issue response must contain data")
+		return nil, backoff.Permanent(errors.New("remote issue response must contain data"))
 	}
 	resource := response.Data
 	if resource.Type != remoteIssuesResourceType {
-		return nil, fmt.Errorf("remote issue response has unexpected type %q", resource.Type)
+		return nil, backoff.Permanent(fmt.Errorf("remote issue response has unexpected type %q", resource.Type))
 	}
 	if resource.ID != resourceID {
-		return nil, fmt.Errorf("remote issue response has resource ID %q, expected %q", resource.ID, resourceID)
+		return nil, backoff.Permanent(fmt.Errorf("remote issue response has resource ID %q, expected %q", resource.ID, resourceID))
 	}
 	if resource.Attributes.Issues == nil {
-		return nil, errors.New("remote issue response has no issues")
+		return nil, backoff.Permanent(errors.New("remote issue response has no issues"))
 	}
 
 	issues := make([]remotedef.Issue, 0, len(*resource.Attributes.Issues))

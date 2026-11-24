@@ -116,3 +116,13 @@ func TestRemotePersistencePropagatesLoadError(t *testing.T) {
 	h.persistence = newRemotePersistence(&fakeRemoteIssueLoader{err: assert.AnError})
 	assert.ErrorIs(t, h.loadPersistedState(context.Background()), assert.AnError)
 }
+
+func TestStartFailsOpenWhenRemoteLoadFails(t *testing.T) {
+	loader := &fakeRemoteIssueLoader{err: assert.AnError}
+	h := newTestStore(t)
+	h.persistence = newRemotePersistence(loader)
+
+	require.NoError(t, h.start(context.Background()))
+	assert.Equal(t, int32(1), loader.calls.Load())
+	assert.Empty(t, h.persistedIssues)
+}
