@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // Caller identifies the component that requested a dentry resolution
@@ -824,7 +823,7 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 		}
 	}
 
-	numCPU, err := kernel.PossibleCPUs()
+	numCPU, err := lib.PossibleCPU()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch the possible CPU count: %w", err)
 	}

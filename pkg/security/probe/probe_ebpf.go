@@ -3869,7 +3869,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
 	}
 
-	p.numPossibleCPUs, err = utilkernel.PossibleCPUs()
+	p.numPossibleCPUs, err = lib.PossibleCPU()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse possible CPU count: %w", err)
 	}

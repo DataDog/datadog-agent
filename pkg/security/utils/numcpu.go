@@ -14,7 +14,7 @@ import (
 
 // NumCPU returns the count of online CPUs, as listed in /proc/cpuinfo.
 // Per-CPU eBPF maps hold one value per possible CPU, so use
-// kernel.PossibleCPUs to size the slices passed to their Lookup and Put.
+// ebpf.PossibleCPU to size the slices passed to their Lookup and Put.
 func NumCPU() (int, error) {
 	cpuInfos, err := cpu.Info()
 	if err != nil {
