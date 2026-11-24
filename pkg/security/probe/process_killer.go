@@ -273,10 +273,8 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	report := newKillActionReport(scope, kill, ev, rule)
 
 	// if the rule is triggered for the first time and a disarmer is active, put the pids to kill on the wait list and don't kill them now
-	if isWarmupPeriod(disarmer) {
-		p.enqueueDuringWarmup(disarmer, sig, report, pcs)
+	if p.enqueueDuringWarmup(disarmer, sig, report, pcs) {
 		log.Warnf("rule %s triggered on first period, putting pids to kill on wait list", rule.ID)
-		report.Status = KillActionStatusQueued
 		p.registerReport(report, ev)
 		// update stats
 		p.perRuleStatsLock.Lock()
@@ -358,8 +356,7 @@ func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
 			case running:
 				select {
 				case <-pendingKillsTick.C:
-					alarm := p.getKillQueueAlarm()
-					if alarm != nil && time.Now().After(*alarm) {
+					if alarm, ok := p.getKillQueueAlarm(); ok && time.Now().After(alarm) {
 						p.processPendingKills()
 						p.updateNextAlarm()
 					}
@@ -404,6 +401,8 @@ func (p *ProcessKiller) updateNextAlarm() {
 	p.ruleDisarmersLock.Lock()
 	defer p.ruleDisarmersLock.Unlock()
 
+	p.disableKillQueueAlarm()
+
 	var nextAlarm *time.Time
 	for _, disarmer := range p.ruleDisarmers {
 		disarmer.m.Lock()
@@ -416,9 +415,7 @@ func (p *ProcessKiller) updateNextAlarm() {
 		disarmer.m.Unlock()
 	}
 	if nextAlarm != nil {
-		p.setKillQueueAlarm(nextAlarm)
-	} else {
-		p.disableKillQueueAlarm()
+		p.setKillQueueAlarm(*nextAlarm)
 	}
 }
 
@@ -623,11 +620,14 @@ func (p *ProcessKiller) isRuleAllowed(rule *rules.Rule) bool {
 	return slices.Contains(p.sourceAllowed, rule.Policy.Source)
 }
 
-func (p *ProcessKiller) getKillQueueAlarm() *time.Time {
+func (p *ProcessKiller) getKillQueueAlarm() (time.Time, bool) {
 	p.currentKillQueueAlarmLock.Lock()
 	defer p.currentKillQueueAlarmLock.Unlock()
 
-	return p.currentKillQueueAlarm
+	if p.currentKillQueueAlarm == nil {
+		return time.Time{}, false
+	}
+	return *p.currentKillQueueAlarm, true
 }
 
 func (p *ProcessKiller) disableKillQueueAlarm() {
@@ -637,30 +637,35 @@ func (p *ProcessKiller) disableKillQueueAlarm() {
 	p.currentKillQueueAlarm = nil
 }
 
-func (p *ProcessKiller) setKillQueueAlarm(alarm *time.Time) {
+func (p *ProcessKiller) setKillQueueAlarm(alarm time.Time) {
 	p.currentKillQueueAlarmLock.Lock()
 	defer p.currentKillQueueAlarmLock.Unlock()
 
 	if p.currentKillQueueAlarm == nil || alarm.Before(*p.currentKillQueueAlarm) {
-		p.currentKillQueueAlarm = alarm
+		p.currentKillQueueAlarm = &alarm
 		return
 	}
-}
-
-func isWarmupPeriod(rd *ruleDisarmer) bool {
-	return rd != nil && time.Now().Before(rd.warmupEnd)
 }
 
 // enqueueDuringWarmup enqueues the kill contexts into the report and adds it to the disarmer's
 // pending reports if the warmup period has not yet elapsed. Returns true if enqueued.
 func (p *ProcessKiller) enqueueDuringWarmup(rd *ruleDisarmer, signal int, report *KillActionReport, kcs []killContext) bool {
+	if rd == nil {
+		return false
+	}
 	rd.m.Lock()
 	defer rd.m.Unlock()
-	rd.killSignal = signal
+	if !time.Now().Before(rd.warmupEnd) {
+		return false
+	}
+	report.Lock()
+	report.Status = KillActionStatusQueued
 	report.pendingKills = kcs
+	report.Unlock()
+	rd.killSignal = signal
 	rd.pendingReports = append(rd.pendingReports, report)
 	rd.pendingKillsAlarm = rd.warmupEnd
-	p.setKillQueueAlarm(&rd.pendingKillsAlarm)
+	p.setKillQueueAlarm(rd.pendingKillsAlarm)
 	return true
 }
 
@@ -833,11 +838,11 @@ func (p *ProcessKiller) SendStats(statsd statsd.ClientInterface) {
 		}
 		if stats.killQueued > 0 {
 			_ = statsd.Count(metrics.MetricEnforcementKillQueued, stats.killQueued, []string{ruleIDTag}, 1)
-			stats.processesKilledAfterQueue = 0
+			stats.killQueued = 0
 		}
 		if stats.killQueuedDiscardedByDisarm > 0 {
 			_ = statsd.Count(metrics.MetricEnforcementKillQueuedDiscarded, stats.killQueuedDiscardedByDisarm, []string{ruleIDTag}, 1)
-			stats.processesKilledAfterQueue = 0
+			stats.killQueuedDiscardedByDisarm = 0
 		}
 	}
 	p.perRuleStatsLock.Unlock()
