@@ -26,6 +26,8 @@ code.cloudfoundry.org/garden v0.12.0 h1:+MZjEkCW0cs+wsbQxFzEhUt7pVEwAq+L4dhPyF6+
 code.cloudfoundry.org/garden v0.12.0/go.mod h1:cJvsE4vyfEDIEYyzqdoNUMgybhOutzVZbUukzLsvLH0=
 code.cloudfoundry.org/lager/v3 v3.95.0 h1:hUGmZCxNXYZZVnfDvKumrktyhO8DZ3KDmo7+0b3kVmM=
 code.cloudfoundry.org/lager/v3 v3.95.0/go.mod h1:9rHZrv1SyUoJ1/pjOb1Tkn8dZRvArwdNf/uogGA6QQw=
+code.cloudfoundry.org/lager/v3 v3.96.0 h1:DdtF0GmQGtQFo3MsQ4TVKzXek3lxExLIx6RLJVEhvDQ=
+code.cloudfoundry.org/lager/v3 v3.96.0/go.mod h1:9EbkTFyH//ebfoq9naFQ3mAWoICgsQMjpgMwjxVV3ik=
 code.cloudfoundry.org/tlsconfig v0.69.0 h1:bvlvdU2BKiSEcgeiv0Csomzmq7Gn8vGU4yeNXy5FN2M=
 code.cloudfoundry.org/tlsconfig v0.69.0/go.mod h1:gKv5uSKC6EUgBllA7qDmXPYRz8sJaV3BWpCMsg24R8I=
 cyphar.com/go-pathrs v0.2.5 h1:SnX9FBvnoyn3lUs1dkMgZ52bAETpirNu3FTRh5HlRik=
