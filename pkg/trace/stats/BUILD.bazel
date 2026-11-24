@@ -52,6 +52,7 @@ dd_agent_go_test(
         "//pkg/trace/config",
         "//pkg/trace/sampler",
         "//pkg/trace/semantics",
+        "//pkg/trace/teststatsd",
         "//pkg/trace/traceutil",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_datadog_sketches_go//ddsketch",

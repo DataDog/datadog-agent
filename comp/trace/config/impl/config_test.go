@@ -977,6 +977,26 @@ func TestFileLoggingDisabled(t *testing.T) {
 	assert.Equal(t, "", cfg.LogFilePath)
 }
 
+func TestClientStatsMaxFlushDelay(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		env  string
+		want time.Duration
+	}{
+		{name: "default", want: 60 * time.Second},
+		{name: "env override", env: "120", want: 120 * time.Second},
+		{name: "zero keeps the default", env: "0", want: 60 * time.Second},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != "" {
+				t.Setenv("DD_APM_CLIENT_STATS_MAX_FLUSH_DELAY", tt.env)
+			}
+			cfg := buildConfigComponent(t, true).Object()
+			assert.Equal(t, tt.want, cfg.ClientStatsMaxFlushDelay)
+		})
+	}
+}
+
 func TestUndocumentedYamlConfig(t *testing.T) {
 	config := buildConfigComponentFromYAML(t, true, "./testdata/undocumented.yaml")
 	cfg := config.Object()
@@ -994,6 +1014,7 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	assert.Equal(t, 1000.0, cfg.MaxEPS)
 	assert.Equal(t, 25, cfg.ReceiverPort)
 	assert.Equal(t, 120*time.Second, cfg.ConnectionResetInterval)
+	assert.Equal(t, 90*time.Second, cfg.ClientStatsMaxFlushDelay)
 	// watchdog
 	assert.Equal(t, 0.07, cfg.MaxCPU)
 	assert.Equal(t, 30e6, cfg.MaxMemory)

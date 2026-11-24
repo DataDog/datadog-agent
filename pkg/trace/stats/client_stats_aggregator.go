@@ -34,6 +34,10 @@ const (
 	clientBucketDuration = 10 * time.Second
 	oldestBucketStart    = 20 * time.Second
 
+	// defaultMaxFlushDelay is how long a bucket can stay in the aggregator past
+	// its flush time before add() drops it. See dropStaleBuckets.
+	defaultMaxFlushDelay = 60 * time.Second
+
 	maxRelativeAccuracy = 0.5 // a mapping above this bound is treated as malformed
 )
 
@@ -56,8 +60,13 @@ type ClientStatsAggregator struct {
 	buckets map[int64]*bucket // buckets used to aggregate client stats
 	conf    *config.AgentConfig
 
-	flushTicker   *time.Ticker
-	oldestTs      time.Time
+	flushTicker *time.Ticker
+	// oldestTs is the oldest bucket time that add() accepts. Older payloads
+	// are moved to it. It only moves forward.
+	oldestTs time.Time
+	// maxFlushDelay is how long a bucket can wait past its flush time
+	// before add() drops it.
+	maxFlushDelay time.Duration
 	agentEnv      string
 	agentHostname string
 	agentVersion  string
@@ -81,6 +90,10 @@ func NewClientStatsAggregator(conf *config.AgentConfig, writer Writer, statsd st
 	if flushInterval == 0 { // default to 2s if not set to ensure users of this outside the agent aren't broken by this change
 		flushInterval = 2 // bucketDuration
 	}
+	maxFlushDelay := conf.ClientStatsMaxFlushDelay
+	if maxFlushDelay <= 0 {
+		maxFlushDelay = defaultMaxFlushDelay
+	}
 	c := &ClientStatsAggregator{
 		flushTicker:   time.NewTicker(flushInterval),
 		In:            make(chan *pb.ClientStatsPayload, 10),
@@ -91,6 +104,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, writer Writer, statsd st
 		agentHostname: conf.Hostname,
 		agentVersion:  conf.AgentVersion,
 		oldestTs:      alignAggTs(time.Now().Add(bucketDuration - oldestBucketStart)),
+		maxFlushDelay: maxFlushDelay,
 		exit:          make(chan struct{}),
 		done:          make(chan struct{}),
 		statsd:        statsd,
@@ -174,7 +188,11 @@ func (a *ClientStatsAggregator) flush(now time.Time, force bool) {
 		toFlush = append(toFlush, b)
 		delete(a.buckets, ts)
 	}
-	a.oldestTs = flushTs
+	// A timed flush can run with an old tick after a slow write, and
+	// add() can have moved oldestTs past flushTs. Never move it backwards.
+	if flushTs.After(a.oldestTs) {
+		a.oldestTs = flushTs
+	}
 	a.mu.Unlock()
 
 	for _, b := range toFlush {
@@ -216,6 +234,8 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	a.dropStaleBuckets(now)
+
 	for _, clientBucket := range p.Stats {
 		clientBucketStart := time.Unix(0, int64(clientBucket.Start))
 		ts := a.getAggregationBucketTime(now, clientBucketStart)
@@ -231,6 +251,49 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 		b.processTags[p.ProcessTagsHash] = p.ProcessTags
 		b.aggregateStatsBucket(clientBucket, payloadAggKey)
 	}
+}
+
+// dropStaleBuckets drops the buckets that are more than maxFlushDelay past
+// their flush time, and moves oldestTs forward so that late payloads cannot
+// create them again. a.mu must be held.
+//
+// A timed flush detaches buckets and then writes them without a.mu. If the
+// writer is slow (for example, the intake is slow or down), the flush
+// goroutine is blocked and the buckets in the map are not flushed. add() is
+// then the only goroutine that runs, so it enforces this limit. The buckets
+// that a blocked flush already detached are not in the map and are not
+// counted here. After a long stall, a flush can detach up to maxFlushDelay of
+// buckets and block again while the map fills up, so in the worst case the
+// aggregator keeps about 2*maxFlushDelay of stats in memory.
+//
+// It runs on every add(), not only when a bucket is created, so that oldestTs
+// moves past the cutoff before the payload picks its bucket. When the flush
+// goroutine is not blocked, oldestTs is ahead of the cutoff and this function
+// only does one comparison.
+func (a *ClientStatsAggregator) dropStaleBuckets(now time.Time) {
+	// A timed flush sends the buckets older than
+	// alignAggTs(now + bucketDuration - oldestBucketStart).
+	cutoff := alignAggTs(now.Add(bucketDuration - oldestBucketStart - a.maxFlushDelay))
+	if !a.oldestTs.Before(cutoff) {
+		return
+	}
+	a.oldestTs = cutoff
+	var droppedBuckets, droppedEntries int64
+	for ts, b := range a.buckets {
+		if !b.ts.Before(cutoff) {
+			continue
+		}
+		entries := b.entries()
+		droppedBuckets++
+		droppedEntries += int64(entries)
+		delete(a.buckets, ts)
+		logger.Warn("Client stats aggregator: dropped the stats bucket at %s with %d entries: it was not flushed within %s", b.ts.UTC().Format(time.RFC3339), entries, a.maxFlushDelay)
+	}
+	if droppedBuckets == 0 {
+		return
+	}
+	_ = a.statsd.Count("datadog.trace_agent.stats_client.dropped_buckets", droppedBuckets, nil, 1)
+	_ = a.statsd.Count("datadog.trace_agent.stats_client.dropped_entries", droppedEntries, nil, 1)
 }
 
 func (a *ClientStatsAggregator) flushPayloads(p []*pb.ClientStatsPayload) {
@@ -287,6 +350,15 @@ type bucket struct {
 	// agg contains the aggregated Hits/Errors/Duration counts
 	agg         map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedStats
 	processTags map[uint64]string
+}
+
+// entries returns the number of aggregated stats entries in the bucket.
+func (b *bucket) entries() int {
+	n := 0
+	for _, payloadAgg := range b.agg {
+		n += len(payloadAgg)
+	}
+	return n
 }
 
 // aggregateStatsBucket takes a ClientStatsBucket and a PayloadAggregationKey, and aggregates all counts

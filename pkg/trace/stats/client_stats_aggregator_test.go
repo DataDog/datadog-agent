@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"sync"
@@ -20,6 +21,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
@@ -288,6 +290,13 @@ func TestAggregatorForceFlush(t *testing.T) {
 type blockingStatsWriter struct {
 	writes  atomic.Int32
 	release chan struct{}
+	unblock func()
+}
+
+func newBlockingStatsWriter() *blockingStatsWriter {
+	w := &blockingStatsWriter{release: make(chan struct{})}
+	w.unblock = sync.OnceFunc(func() { close(w.release) })
+	return w
 }
 
 func (w *blockingStatsWriter) Write(*pb.StatsPayload) {
@@ -299,13 +308,174 @@ func (w *blockingStatsWriter) Write(*pb.StatsPayload) {
 // the test ends. Cleanup releases the writer and stops the aggregator.
 func newBlockedWriterAggregator(t *testing.T) (*ClientStatsAggregator, *blockingStatsWriter) {
 	a := newTestAggregator()
-	w := &blockingStatsWriter{release: make(chan struct{})}
+	w := newBlockingStatsWriter()
 	a.writer = w
 	t.Cleanup(func() {
-		close(w.release)
+		w.unblock()
 		a.Stop()
 	})
 	return a, w
+}
+
+// newStalledAggregator returns an aggregator with a blocked writer and a
+// flush in progress, as when the intake is slow or down. The flush detached
+// one bucket and waits in Write. Cleanup releases the writer and stops the
+// aggregator.
+func newStalledAggregator(t *testing.T, now time.Time, maxFlushDelay time.Duration) (*ClientStatsAggregator, *blockingStatsWriter, *teststatsd.Client) {
+	conf := &config.AgentConfig{
+		DefaultEnv:               "agentEnv",
+		Hostname:                 "agentHostname",
+		ClientStatsMaxFlushDelay: maxFlushDelay,
+	}
+	w := newBlockingStatsWriter()
+	sd := &teststatsd.Client{}
+	a := NewClientStatsAggregator(conf, w, sd)
+	a.Start()
+	a.flushTicker.Stop()
+	t.Cleanup(func() {
+		w.unblock()
+		a.Stop()
+	})
+
+	a.add(now, newClientStatsPayload(now, 1))
+	go a.flushAll()
+	synctest.Wait()
+	require.EqualValues(t, 1, w.writes.Load(), "the flush must reach the writer")
+	return a, w, sd
+}
+
+// newClientStatsPayload returns a payload with one bucket that starts at
+// start and holds the given number of distinct stats entries.
+func newClientStatsPayload(start time.Time, entries int) *pb.ClientStatsPayload {
+	stats := make([]*pb.ClientGroupedStats, 0, entries)
+	for i := range entries {
+		stats = append(stats, &pb.ClientGroupedStats{
+			Service:  "svc",
+			Name:     "op",
+			Resource: fmt.Sprintf("resource-%d", i),
+			Hits:     1,
+		})
+	}
+	return &pb.ClientStatsPayload{
+		Hostname: "host",
+		Env:      "env",
+		Stats: []*pb.ClientStatsBucket{{
+			Start:    uint64(alignAggTs(start).UnixNano()),
+			Duration: uint64(clientBucketDuration.Nanoseconds()),
+			Stats:    stats,
+		}},
+	}
+}
+
+func droppedCounts(sd *teststatsd.Client) (buckets, entries int64) {
+	counts := sd.GetCountSummaries()
+	if c, ok := counts["datadog.trace_agent.stats_client.dropped_buckets"]; ok {
+		buckets = c.Sum
+	}
+	if c, ok := counts["datadog.trace_agent.stats_client.dropped_entries"]; ok {
+		entries = c.Sum
+	}
+	return buckets, entries
+}
+
+// flushDue is how long after its start a bucket is flushed by a timed flush.
+const flushDue = oldestBucketStart - bucketDuration
+
+func TestAggregatorDropsStaleBucketsWhileWriteBlocked(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		now := time.Now()
+		a, w, sd := newStalledAggregator(t, now, defaultMaxFlushDelay)
+
+		// This bucket arrives during the stall and stays in the map.
+		a.add(now, newClientStatsPayload(now, 3))
+		staleTs := alignAggTs(now)
+		a.mu.Lock()
+		require.Contains(t, a.buckets, staleTs.Unix())
+		oldestBefore := a.oldestTs
+		a.mu.Unlock()
+
+		// The flush is still blocked, past the max flush delay of the bucket.
+		later := now.Add(flushDue + defaultMaxFlushDelay + bucketDuration)
+		a.add(later, newClientStatsPayload(later, 1))
+
+		a.mu.Lock()
+		assert.NotContains(t, a.buckets, staleTs.Unix(), "the stale bucket must be dropped")
+		assert.Contains(t, a.buckets, alignAggTs(later).Unix(), "the new bucket must be kept")
+		cutoff := a.oldestTs
+		assert.True(t, cutoff.After(staleTs), "oldestTs must move past the dropped bucket")
+		assert.False(t, cutoff.Before(oldestBefore), "oldestTs must not move backwards")
+		a.mu.Unlock()
+
+		buckets, entries := droppedCounts(sd)
+		assert.EqualValues(t, 1, buckets)
+		assert.EqualValues(t, 3, entries)
+
+		// A late payload for the dropped time slot goes to the oldest bucket
+		// that is still accepted, not to the dropped slot.
+		a.add(later, newClientStatsPayload(now, 1))
+		a.mu.Lock()
+		assert.NotContains(t, a.buckets, staleTs.Unix(), "a late payload must not recreate a dropped bucket")
+		assert.Contains(t, a.buckets, cutoff.Unix())
+		a.mu.Unlock()
+
+		// The blocked flush finishes. A timed flush that runs with the tick
+		// from before the stall must not move oldestTs backwards.
+		w.unblock()
+		synctest.Wait()
+		a.flushOnTime(now)
+		a.mu.Lock()
+		assert.Equal(t, cutoff, a.oldestTs, "a flush with an old tick must not move oldestTs backwards")
+		a.mu.Unlock()
+	})
+}
+
+func TestAggregatorKeepsBucketsWithinMaxFlushDelay(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		now := time.Now()
+		a, _, sd := newStalledAggregator(t, now, defaultMaxFlushDelay)
+
+		a.add(now, newClientStatsPayload(now, 2))
+		ts := alignAggTs(now)
+
+		// The flush is still blocked, at the max flush delay of the bucket.
+		later := now.Add(flushDue + defaultMaxFlushDelay)
+		a.add(later, newClientStatsPayload(later, 1))
+
+		a.mu.Lock()
+		assert.Contains(t, a.buckets, ts.Unix(), "a bucket within the max flush delay must be kept")
+		a.mu.Unlock()
+		buckets, entries := droppedCounts(sd)
+		assert.Zero(t, buckets)
+		assert.Zero(t, entries)
+	})
+}
+
+func TestAggregatorMaxFlushDelayFromConfig(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		a := NewClientStatsAggregator(&config.AgentConfig{}, noopStatsWriter{}, &statsd.NoOpClient{})
+		a.flushTicker.Stop()
+		assert.Equal(t, defaultMaxFlushDelay, a.maxFlushDelay)
+	})
+	t.Run("override", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			const maxFlushDelay = 10 * time.Second
+			now := time.Now()
+			a, _, sd := newStalledAggregator(t, now, maxFlushDelay)
+			assert.Equal(t, maxFlushDelay, a.maxFlushDelay)
+
+			a.add(now, newClientStatsPayload(now, 1))
+
+			within := now.Add(flushDue + maxFlushDelay)
+			a.add(within, newClientStatsPayload(within, 1))
+			buckets, _ := droppedCounts(sd)
+			assert.Zero(t, buckets)
+
+			past := now.Add(flushDue + maxFlushDelay + bucketDuration)
+			a.add(past, newClientStatsPayload(past, 1))
+			buckets, _ = droppedCounts(sd)
+			assert.EqualValues(t, 1, buckets, "the configured delay must replace the default")
+		})
+	})
 }
 
 // These tests check lock state with TryLock instead of blocking on a lock:

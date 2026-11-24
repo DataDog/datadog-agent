@@ -8,6 +8,11 @@
 ---
 fixes:
   - |
-    APM: The Agent no longer drops APM stats that tracing libraries compute and
-    send to it when it is slow to send stats to Datadog. Before, it could reject
-    these stats and log ``Error processing pb.ClientStatsPayload: context deadline exceeded``.
+    APM: When sending stats to Datadog is slow for a short time, the Agent
+    keeps accepting the stats that tracing libraries compute and send to it.
+    Before, it could reject these stats and log
+    ``Error processing pb.ClientStatsPayload: context deadline exceeded``.
+    If sending stays blocked for longer, the Agent drops the oldest of these
+    stats after about one minute to limit its memory use, and counts them in
+    the ``datadog.trace_agent.stats_client.dropped_buckets`` and
+    ``datadog.trace_agent.stats_client.dropped_entries`` metrics.

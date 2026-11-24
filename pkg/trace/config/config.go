@@ -493,6 +493,10 @@ type AgentConfig struct {
 	HTTPTransportFunc func() *http.Transport `json:"-"`
 	// ClientStatsFlushInterval specifies the frequency at which the client stats aggregator will flush its buffer.
 	ClientStatsFlushInterval time.Duration
+	// ClientStatsMaxFlushDelay is how long a client stats bucket can wait past
+	// its flush time, for example while the intake is slow or down, before the
+	// client stats aggregator drops it.
+	ClientStatsMaxFlushDelay time.Duration
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -758,6 +762,7 @@ func New() *AgentConfig {
 		// opt in via secret_refresh_on_api_key_failure_interval (0 = disabled)
 		APIKeyRefreshThrottleInterval: 0,
 		ClientStatsFlushInterval:      2 * time.Second, // bucket duration (2s)
+		ClientStatsMaxFlushDelay:      60 * time.Second,
 
 		StatsdHost:       "localhost",
 		StatsdPort:       8125,

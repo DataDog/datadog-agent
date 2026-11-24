@@ -1107,6 +1107,16 @@ properties:
     default: 1
     env_vars:
     - DD_APM_CLIENT_STATS_FLUSH_INTERVAL
+  client_stats_max_flush_delay:
+    node_type: setting
+    type: integer
+    default: 60
+    env_vars:
+    - DD_APM_CLIENT_STATS_MAX_FLUSH_DELAY
+    minimum: 1
+    description: Time in seconds that a bucket of client-computed stats can wait
+      past its flush time, for example while the intake is slow or down, before
+      the trace agent drops it.
   connection_reset_interval:
     node_type: setting
     type: integer

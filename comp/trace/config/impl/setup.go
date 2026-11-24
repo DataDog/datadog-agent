@@ -651,6 +651,13 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsConfigured("apm_config.connection_reset_interval") {
 		c.ConnectionResetInterval = getDuration(core.GetInt("apm_config.connection_reset_interval"))
 	}
+	if k := "apm_config.client_stats_max_flush_delay"; core.IsConfigured(k) {
+		if d := getDuration(core.GetInt(k)); d > 0 {
+			c.ClientStatsMaxFlushDelay = d
+		} else {
+			log.Warnf("Invalid value for %s: %d. It must be greater than 0. Using the default: %s", k, core.GetInt(k), c.ClientStatsMaxFlushDelay)
+		}
+	}
 	// Default of 4 was chosen through experimentation, but may not be the optimal value.
 	c.MaxSenderRetries = core.GetInt("apm_config.max_sender_retries")
 	if core.IsConfigured("secret_refresh_on_api_key_failure_interval") {
