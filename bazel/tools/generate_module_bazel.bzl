@@ -1,6 +1,8 @@
 """Generates http_archive target from overlay directory structure."""
 
 def _patch_label(f):
+    if f.owner.repo_name:
+        fail("patches must come from the main repository: %s" % f.owner)
     return "//%s:%s" % (f.owner.package, f.owner.name)
 
 def _generate_module_bazel_impl(ctx):

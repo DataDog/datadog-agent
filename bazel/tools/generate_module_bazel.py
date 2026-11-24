@@ -1,6 +1,7 @@
 """Generate MODULE.bazel files from overlay directory structure."""
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -43,7 +44,7 @@ def generate_module_bazel(args, files):
         )
         for constant in sorted(args.constants):
             key, _, value = constant.partition("=")
-            lines.append(f'        "{key}": "{value}",')
+            lines.append(f"        {json.dumps(key)}: {json.dumps(value)},")
         lines.extend(["    },", ")", ""])
     lines.extend(
         [
