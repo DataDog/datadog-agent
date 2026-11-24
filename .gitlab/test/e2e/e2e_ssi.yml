@@ -110,6 +110,8 @@ new-e2e-ssi-gke:
 new-e2e-ssi-openshift-init:
   extends: .new-e2e_ssi_extra_distribution_init
   timeout: 1h 05m
+  rules:
+    - !reference [.manual]
   before_script:
     # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
     - !reference [.new_e2e_template, before_script]
@@ -124,6 +126,8 @@ new-e2e-ssi-openshift:
   needs:
     - !reference [.new-e2e_ssi_extra_distribution, needs]
     - new-e2e-ssi-openshift-init
+  rules:
+    - !reference [.manual]
   before_script:
     # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
     - !reference [.new_e2e_template, before_script]
@@ -133,7 +137,6 @@ new-e2e-ssi-openshift:
     E2E_STACK_NAME_SUFFIX: openshift
     E2E_PRE_INITIALIZED: "true"
     EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
-  allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-ssi-aks:
