@@ -85,6 +85,8 @@ event_monitoring_config:
       enabled: {{ .NetworkIngressEnabled }}
     raw_packet:
       enabled: {{ .NetworkRawPacketEnabled}}
+    tcx:
+      enabled: {{ .NetworkTCXEnabled }}
   flush_discarder_window: 0
   event_stream:
     use_fentry: true
