@@ -300,7 +300,18 @@ func (c *OTTLContext) replacedChild(parent *fastjson.Value, key ottlJSONKey, val
 	return value
 }
 
+// ottlJSONValue converts the value at an OTTL path. An integer that does not
+// fit int64 is an error, so IDs are never silently rounded.
 func (c *OTTLContext) ottlJSONValue(value *fastjson.Value) (any, error) {
+	return c.ottlJSONValueAt(value, false)
+}
+
+// ottlJSONValueAt converts a JSON value. Values nested inside a converted object
+// or list read integers beyond int64 as float64: a container is typically
+// read for its type or shape (IsMap, Len), and failing on an unrelated
+// descendant would make masking guards drop the whole record. Masking rewrites
+// only edited fields, so untouched integer tokens keep their original bytes.
+func (c *OTTLContext) ottlJSONValueAt(value *fastjson.Value, nested bool) (any, error) {
 	if value == nil {
 		return nil, nil
 	}
@@ -318,8 +329,9 @@ func (c *OTTLContext) ottlJSONValue(value *fastjson.Value) (any, error) {
 		if n, err := value.Int64(); err == nil {
 			return n, nil
 		}
-		// Never round an integer ID through float64 just because it exceeds int64.
-		if !strings.ContainsAny(value.String(), ".eE") {
+		// Never round a directly addressed integer ID through float64 just because
+		// it exceeds int64.
+		if !nested && !strings.ContainsAny(value.String(), ".eE") {
 			return nil, errors.New("JSON integer exceeds the OTTL int64 range")
 		}
 		return value.Float64()
@@ -328,7 +340,7 @@ func (c *OTTLContext) ottlJSONValue(value *fastjson.Value) (any, error) {
 		result := make([]any, len(array))
 		for i, v := range array {
 			var err error
-			result[i], err = c.ottlJSONValue(c.replacedChild(value, ottlJSONKey{index: int64(i), isIndex: true}, v))
+			result[i], err = c.ottlJSONValueAt(c.replacedChild(value, ottlJSONKey{index: int64(i), isIndex: true}, v), true)
 			if err != nil {
 				return nil, err
 			}
@@ -344,7 +356,7 @@ func (c *OTTLContext) ottlJSONValue(value *fastjson.Value) (any, error) {
 		})
 		result := make(map[string]any, len(members))
 		for key, v := range members {
-			converted, err := c.ottlJSONValue(c.replacedChild(value, ottlJSONKey{name: key}, v))
+			converted, err := c.ottlJSONValueAt(c.replacedChild(value, ottlJSONKey{name: key}, v), true)
 			if err != nil {
 				return nil, err
 			}
