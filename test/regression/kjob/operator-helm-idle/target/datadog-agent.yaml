@@ -14,10 +14,6 @@ spec:
         value: "false"
       - name: DD_PROCESS_CONFIG_PROCESS_DD_URL
         value: "{{blackhole.process}}"
-      - name: DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL
-        value: "{{blackhole.orchestrator}}"
-      - name: DD_APM_DD_URL
-        value: "{{blackhole.apm}}"
       - name: DD_CONTAINER_IMAGE_LOGS_DD_URL
         value: "{{blackhole.intake}}"
       - name: DD_CONTAINER_LIFECYCLE_LOGS_DD_URL

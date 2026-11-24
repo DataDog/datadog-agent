@@ -31,18 +31,6 @@ blackhole:
         content-type: application/octet-stream
       body_variant: raw_bytes
       raw_bytes: [3, 0, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 0]
-  - id: orchestrator
-    http:
-      binding_addr: "0.0.0.0:9093"
-      status: 200
-      response_delay_millis: 0
-  - id: apm
-    http:
-      binding_addr: "0.0.0.0:9094"
-      status: 200
-      response_delay_millis: 0
-      body_variant:
-        static: '{"rate_by_service":{}}'
 
 checks:
   - name: node_agent_memory_peak
