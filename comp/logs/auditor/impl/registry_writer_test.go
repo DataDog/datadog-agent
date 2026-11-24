@@ -51,6 +51,43 @@ func TestAtomicRegistryWriterCleansUpTemporaryFileWhenReplacementFails(t *testin
 	assert.Empty(t, temporaryFiles)
 }
 
+func newRecordingAtomicRegistryWriter() (*atomicRegistryWriter, *[]string) {
+	removed := []string{}
+	return &atomicRegistryWriter{removeFile: func(name string) error {
+		removed = append(removed, name)
+		return os.Remove(name)
+	}}, &removed
+}
+
+func TestAtomicRegistryWriterDoesNotRemoveTemporaryFileAfterSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	registryPath := filepath.Join(tmpDir, "registry.json")
+	testData := []byte(`{"test": "data"}`)
+
+	writer, removed := newRecordingAtomicRegistryWriter()
+	require.NoError(t, writer.WriteRegistry(registryPath, tmpDir, "registry.json.tmp", testData))
+
+	// After a successful rename the temporary name no longer exists. Removing it
+	// anyway makes the kernel cache a negative dentry on every registry write.
+	assert.Empty(t, *removed)
+
+	content, err := os.ReadFile(registryPath)
+	require.NoError(t, err)
+	assert.Equal(t, testData, content)
+}
+
+func TestAtomicRegistryWriterRemovesTemporaryFileWhenReplacementFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	registryPath := filepath.Join(tmpDir, "registry.json")
+	require.NoError(t, os.Mkdir(registryPath, 0755))
+
+	writer, removed := newRecordingAtomicRegistryWriter()
+	require.Error(t, writer.WriteRegistry(registryPath, tmpDir, "registry.json.tmp", []byte(`{"test": "data"}`)))
+
+	require.Len(t, *removed, 1)
+	assert.Contains(t, filepath.Base((*removed)[0]), "registry.json.tmp")
+}
+
 func TestAtomicRegistryWriterSupportsLongPaths(t *testing.T) {
 	registryDirPath := t.TempDir()
 	for len(registryDirPath) < 260 {
