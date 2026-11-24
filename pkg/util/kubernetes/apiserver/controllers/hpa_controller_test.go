@@ -614,8 +614,9 @@ func TestAutoscalerControllerLegacyHPAVersions(t *testing.T) {
 					Ref:        custommetrics.ObjectReference{Type: "horizontal", Name: "hpa_1", Namespace: "nsfoo", UID: "1"},
 				}
 				hctrl.toStore.m.Lock()
-				require.NoError(t, hctrl.store.SetExternalMetricValues(maps.Clone(hctrl.toStore.data)))
+				err = hctrl.store.SetExternalMetricValues(maps.Clone(hctrl.toStore.data))
 				hctrl.toStore.m.Unlock()
+				require.NoError(t, err)
 				require.NoError(t, hctrl.store.SetExternalMetricValues(map[string]custommetrics.ExternalMetricValue{custommetrics.ExternalMetricValueKeyFunc(stale): stale}))
 				hctrl.gc()
 				storedMetrics, err := hctrl.store.ListAllExternalMetricValues()

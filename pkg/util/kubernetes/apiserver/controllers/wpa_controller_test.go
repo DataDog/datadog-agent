@@ -316,8 +316,9 @@ func TestWPAController(t *testing.T) {
 		require.Equal(t, storedWPA, wpaDecoded)
 		synctest.Wait()
 		hctrl.toStore.m.Lock()
-		require.Len(t, hctrl.toStore.data, 1)
+		storeLen := len(hctrl.toStore.data)
 		hctrl.toStore.m.Unlock()
+		require.Equal(t, 1, storeLen)
 
 		hctrl.updateExternalMetrics()
 
