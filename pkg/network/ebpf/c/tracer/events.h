@@ -63,19 +63,23 @@ static __always_inline void clean_protocol_classification(tcp_close_args_t *args
     conn_tuple.pid = 0;
     conn_tuple.netns = 0;
     normalize_tuple(&conn_tuple);
-    if (args->has_skb_tup && !args->local_peer_open) {
-        // Userspace deletes an unmarked NAT'd close's conntrack entry when it sees the close event, before this hook
-        // runs. A peer that set its side flag after the mark was decided can't resolve the packets' tuple when it
-        // closes, so delete both entries now instead of leaving them to it.
+    // Userspace deletes an unmarked NAT'd close's conntrack entry when it sees the close event, before this hook runs.
+    // A peer that set its side flag after the mark was decided can't resolve the packets' tuple when it closes, so
+    // delete both entries now instead of leaving them to it.
+    bool delete_now = args->has_skb_tup && !args->local_peer_open;
+    if (delete_now) {
         clear_side_flags(&conn_tuple);
-        clear_side_flags(&args->skb_tup);
     }
     delete_protocol_stack(&conn_tuple, NULL, FLAG_TCP_CLOSE_DELETION);
     bpf_map_delete_elem(&tls_enhanced_tags, &conn_tuple);
 
     conn_tuple_t skb_tup;
     if (args->has_skb_tup) {
+        // copied to the stack: older kernels reject a map key that points into a map value
         skb_tup = args->skb_tup;
+        if (delete_now) {
+            clear_side_flags(&skb_tup);
+        }
     } else if (nat_lookup_mode() == NAT_LOOKUP_CONNTRACK || !get_skb_tuple(&args->tup, &conn_tuple, &skb_tup)) {
         // retried because net_dev_queue may first have recorded the packets' tuple for the FIN or RST that
         // tcp_close itself sent
