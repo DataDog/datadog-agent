@@ -8,6 +8,7 @@ go_library(
         "dump.go",
         "resolver.go",
         "resolver_test_helpers.go",
+        "stale.go",
         "tcx.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/tc",
@@ -27,6 +28,7 @@ go_library(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_vishvananda_netlink//:netlink",
             "@com_github_vishvananda_netns//:netns",
+            "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
@@ -42,6 +44,7 @@ go_library(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_vishvananda_netlink//:netlink",
             "@com_github_vishvananda_netns//:netns",
+            "@org_uber_go_atomic//:atomic",
         ],
         "//conditions:default": [],
     }),
