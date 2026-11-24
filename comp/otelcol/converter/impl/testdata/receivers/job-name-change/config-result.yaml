@@ -24,7 +24,7 @@ extensions:
   datadog/user-defined:
 
 processors:
-  cumulativetodelta/dd-autoconfigured:
+  cumulative_to_delta/dd-autoconfigured:
   infraattributes/user-defined:
 
 service:
@@ -43,7 +43,7 @@ service:
       exporters: [datadog]
     metrics:
       receivers: [nop, prometheus/user-defined]
-      processors: [infraattributes/user-defined, cumulativetodelta/dd-autoconfigured]
+      processors: [infraattributes/user-defined, cumulative_to_delta/dd-autoconfigured]
       exporters: [datadog]
     logs:
       receivers: [nop]
