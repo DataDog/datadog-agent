@@ -3,25 +3,19 @@
 The llvm_bpf_extension generates a set of repositories with different
 selection axes:
 
-- llvm_bpf (toolchain repo): downloads clang-bpf and llvm-strip for the machine
-  running Bazel and registers them as the LLVM BPF toolchain used to compile
-  eBPF programs at build time.
-
 - llvm_bpf_amd64 / llvm_bpf_arm64 (packaging repos): download clang-bpf for
   a single *target* arch each. clang-bpf embedded in agent packages runs on
   the target machine for runtime eBPF compilation, so it must match the target
   CPU, never the host's.
+
+- llvm_bpf (toolchain repo): downloads llvm-strip for the machine running
+  Bazel and takes clang-bpf from the matching arch-specific repo, registering
+  both as the LLVM BPF toolchain used to compile eBPF programs at build time.
 """
 
 load("@bazel_lib//lib:repo_utils.bzl", "repo_utils")
 
 NAME = "llvm_bpf"
-
-# Maps installed binary name -> S3 URL prefix.
-_BINARIES = {
-    "clang-bpf": "clang",
-    "llvm-strip": "llvm-strip",
-}
 
 # Mapping from standardized arch name to @platforms//cpu arch name
 _ARCH_TO_CPU = {
@@ -43,25 +37,19 @@ def _download_llvm_bpf_impl(rctx):
         if arch not in _ARCH_TO_CPU:
             fail("Unsupported architecture for LLVM BPF toolchain: " + arch)
 
-        downloaded = {}
-        sha256s = rctx.attr.sha256s
-        for binary, url_prefix in _BINARIES.items():
-            url = _get_url(rctx.attr.s3_base_url, url_prefix, clang_version, arch, rctx.attr.clang_build_version)
-            output = "bin/" + binary
-            sha256_key = "{}.{}".format(url_prefix, arch)
-            sha256 = sha256s.get(sha256_key, "")
+        url = _get_url(rctx.attr.s3_base_url, "llvm-strip", clang_version, arch, rctx.attr.clang_build_version)
+        sha256 = rctx.attr.sha256s.get("llvm-strip.{}".format(arch), "")
 
-            rctx.report_progress("Downloading {} from {}".format(binary, url))
+        rctx.report_progress("Downloading llvm-strip from {}".format(url))
 
-            result = rctx.download(
-                url = url,
-                output = output,
-                executable = True,
-                sha256 = sha256,
-            )
-            if not result.success:
-                fail("Failed to download {} from {}".format(binary, url))
-            downloaded[binary] = output
+        result = rctx.download(
+            url = url,
+            output = "bin/llvm-strip",
+            executable = True,
+            sha256 = sha256,
+        )
+        if not result.success:
+            fail("Failed to download llvm-strip from {}".format(url))
 
         # Stay in this block: buildifier treats arch as uninitialized if it
         # is read after the Linux-only assignment.
@@ -70,18 +58,15 @@ def _download_llvm_bpf_impl(rctx):
         "@platforms//cpu:{cpu}",
     ],
 """.format(cpu = _ARCH_TO_CPU[arch])
-        binary_attrs = """    clang_bpf = "{clang}",
-    llvm_strip = "{strip}",""".format(
-            clang = downloaded["clang-bpf"],
-            strip = downloaded["llvm-strip"],
-        )
+        binary_attrs = """    clang_bpf = "@llvm_bpf_{arch}//:bin/clang-bpf",
+    llvm_strip = "bin/llvm-strip",""".format(arch = arch)
         install_target = """
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
 pkg_files(
     name = "all_files",
-    srcs = glob(["bin/*"]),
+    srcs = glob(["bin/*"]) + ["@llvm_bpf_{arch}//:bin/clang-bpf"],
     prefix = "embedded/bin",
     attributes = pkg_attributes(mode = "0755"),
 )
@@ -91,7 +76,7 @@ pkg_install(
     srcs = [":all_files"],
     target_compatible_with = ["@platforms//os:linux"],
 )
-"""
+""".format(arch = arch)
 
     rctx.file("BUILD.bazel", content = """\
 load("@@//bazel/toolchains/llvm_bpf:llvm_bpf.bzl", "llvm_bpf_toolchain")
@@ -151,6 +136,11 @@ def _download_llvm_bpf_clang_impl(rctx):
         fail("Failed to download clang-bpf for {} from {}".format(rctx.attr.arch, url))
 
     rctx.file("BUILD.bazel", content = """\
+exports_files(
+    ["bin/clang-bpf"],
+    visibility = ["@{toolchain}//:__pkg__"],
+)
+
 filegroup(
     name = "clang-bpf",
     srcs = ["bin/clang-bpf"],
@@ -160,7 +150,7 @@ filegroup(
     ],
     visibility = ["//visibility:public"],
 )
-""".format(cpu = _ARCH_TO_CPU[rctx.attr.arch]))
+""".format(cpu = _ARCH_TO_CPU[rctx.attr.arch], toolchain = NAME))
 
 download_llvm_bpf_clang = repository_rule(
     implementation = _download_llvm_bpf_clang_impl,
