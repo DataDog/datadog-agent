@@ -14,13 +14,6 @@ import (
 
 // Processing rule types
 const (
-	// ExcludeAtMatchOTTL drops messages for which the OTTL condition is true.
-	ExcludeAtMatchOTTL = "exclude_at_match_ottl"
-	// IncludeAtMatchOTTL keeps messages for which the OTTL condition is true.
-	IncludeAtMatchOTTL = "include_at_match_ottl"
-	// MaskOTTLTransform edits log content using an OTTL masking statement.
-	MaskOTTLTransform = "mask_ottl"
-
 	ExcludeAtMatch   = "exclude_at_match"
 	IncludeAtMatch   = "include_at_match"
 	MaskSequences    = "mask_sequences"
@@ -44,7 +37,8 @@ type ProcessingRule struct {
 	Name               string
 	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder" yaml:"replace_placeholder"`
 	Pattern            string
-	OTTL               CompiledOTTLRule `mapstructure:"-" json:"-" yaml:"-"`
+	OTTL               string           `mapstructure:"ottl" json:"ottl,omitempty" yaml:"ottl,omitempty"`
+	OTTLProgram        CompiledOTTLRule `mapstructure:"-" json:"-" yaml:"-"`
 	Regex              *regexp.Regexp
 	Placeholder        []byte
 	Matching           []*SourceMatchEntry `mapstructure:"matching" json:"matching" yaml:"matching"`
@@ -54,12 +48,30 @@ type ProcessingRule struct {
 // Each processing rule must have:
 // - a valid name
 // - a valid type
-// - a valid regex pattern, or a nonempty OTTL expression
+// - a valid regex pattern, or an ottl expression instead (include_at_match, exclude_at_match, mask_sequences)
 // OTTL syntax is validated by the logs runtime before the configuration is used.
 func ValidateProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
 		if rule.Name == "" {
 			return errors.New("all processing rules must have a name")
+		}
+
+		if rule.OTTL != "" {
+			switch rule.Type {
+			case ExcludeAtMatch, IncludeAtMatch, MaskSequences:
+			case "":
+				return fmt.Errorf("type must be set for processing rule `%s`", rule.Name)
+			default:
+				return fmt.Errorf("ottl is not supported for processing rule type %s: %s", rule.Type, rule.Name)
+			}
+			if rule.Pattern != "" {
+				return fmt.Errorf("processing rule %s sets both pattern and ottl; use pattern for a regular expression or ottl for an OTTL expression", rule.Name)
+			}
+			if rule.ReplacePlaceholder != "" {
+				return fmt.Errorf("replace_placeholder cannot be used with ottl in processing rule: %s", rule.Name)
+			}
+			// The logs runtime validates OTTL syntax before accepting the source.
+			continue
 		}
 
 		switch rule.Type {
@@ -71,11 +83,6 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 			if err != nil {
 				return fmt.Errorf("invalid pattern %s for processing rule: %s", rule.Pattern, rule.Name)
 			}
-		case ExcludeAtMatchOTTL, IncludeAtMatchOTTL, MaskOTTLTransform:
-			if rule.Pattern == "" {
-				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
-			}
-			// The logs runtime validates OTTL syntax before accepting the source.
 		case ExcludeTruncated:
 			break
 		case RemapSource:
@@ -105,8 +112,11 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 // CompileProcessingRules compiles regular expressions. OTTL compilation belongs to the logs runtime.
 func CompileProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
+		if rule.OTTL != "" {
+			continue
+		}
 		switch rule.Type {
-		case ExcludeAtMatchOTTL, IncludeAtMatchOTTL, MaskOTTLTransform, ExcludeTruncated, RemapSource:
+		case ExcludeTruncated, RemapSource:
 			continue
 		}
 		re, err := regexp.Compile(rule.Pattern)

@@ -51,22 +51,24 @@ func CompileProcessingRules(rules []*config.ProcessingRule) error {
 
 func compileOTTLRules(rules []*config.ProcessingRule) error {
 	for _, rule := range rules {
-		if rule.OTTL != nil {
+		if rule.OTTL == "" || rule.OTTLProgram != nil {
 			continue
 		}
 		switch rule.Type {
-		case config.ExcludeAtMatchOTTL, config.IncludeAtMatchOTTL:
-			condition, err := compileOTTLCondition(rule.Pattern)
+		case config.ExcludeAtMatch, config.IncludeAtMatch:
+			condition, err := compileOTTLCondition(rule.OTTL)
 			if err != nil {
 				return fmt.Errorf("invalid OTTL condition for processing rule %q: %w", rule.Name, err)
 			}
-			rule.OTTL = &compiledRule{condition: condition}
-		case config.MaskOTTLTransform:
-			statement, err := compileOTTLMaskStatement(rule.Pattern)
+			rule.OTTLProgram = &compiledRule{condition: condition}
+		case config.MaskSequences:
+			statement, err := compileOTTLMaskStatement(rule.OTTL)
 			if err != nil {
 				return fmt.Errorf("invalid OTTL masking statement for processing rule %q: %w", rule.Name, err)
 			}
-			rule.OTTL = &compiledRule{statement: statement}
+			rule.OTTLProgram = &compiledRule{statement: statement}
+		default:
+			return fmt.Errorf("ottl is not supported for processing rule type %s: %s", rule.Type, rule.Name)
 		}
 	}
 	return nil
