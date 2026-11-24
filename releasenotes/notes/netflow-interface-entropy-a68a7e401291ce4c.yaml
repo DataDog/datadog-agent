@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    [netflow] Add per-interface traffic entropy for NetFlow. It is off by default and
+    still under development. When ``network_devices.netflow.entropy.enabled`` is true,
+    the Agent computes the Shannon entropy of each exporter interface's traffic across
+    peers (source IPs for ingress, destination IPs for egress) in fixed windows, and
+    sends it as ``datadog.netflow.entropy.*`` metrics weighted by bytes, packets and
+    records, each with a normalized version from 0 to 1.
