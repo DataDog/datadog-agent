@@ -20,7 +20,7 @@ Ignored from this criteria
 CI monitoring tags
 =========================
 - `job`: CI job pass/fail criteria (see above)
-- `regression`: fails if any experiment reports a significant regression
+- `regressions`: fails if any experiment reports a significant regression
 - `bounds_checks`: fails if any bound check fails
 
 Exit code
@@ -62,11 +62,45 @@ class ReportLinks(TypedDict):
     failed_replicates: tuple[str, ...]
 
 
+class CheckRowData(TypedDict):
+    """One rendered check row. Mirrors SMP's CheckRow so its filters accept it."""
+
+    experiment: str
+    check_name: str
+    is_quantile: bool
+    pass_count: int | None
+    total_count: int | None
+    min_observed: float | None
+    max_observed: float | None
+    lower_bound: float | None
+    upper_bound: float | None
+    unit: str
+    quantile: float | None
+    quantile_value: float | None
+
+
+class CheckCategories(TypedDict):
+    """Check rows grouped by category, ready for the template's tables."""
+
+    gates_failed: list[CheckRowData]
+    gates_passed: list[CheckRowData]
+    other_failed: list[CheckRowData]
+    other_passed: list[CheckRowData]
+    quantiles: list[CheckRowData]
+
+
 class Extra(TypedDict):
     """Context expected by report_template.md.j2."""
 
     links: ReportLinks
-    tail_section: str
+    verdict: ReportVerdict
+    check_categories: CheckCategories
+
+
+class ReportVerdict(TypedDict):
+    passed: bool
+    summary: str
+    missing_analysis: list[str]
 
 
 class Decision(TypedDict):
@@ -78,7 +112,7 @@ class Decision(TypedDict):
 @dataclass(frozen=True)
 class DecisionResult:
     decision: Decision
-    tail_section: str
+    verdict: ReportVerdict
 
 
 def get_links_for_xp(experiment: ReportData) -> ExperimentLinkTemplates:
@@ -94,14 +128,82 @@ def get_links_for_xp(experiment: ReportData) -> ExperimentLinkTemplates:
     }
 
 
-def build_extra(report: ReportData, tail: str) -> Extra:
+def bounds_row(experiment: str, check: dict) -> CheckRowData:
+    """One bounds check as a CheckRow dict."""
+    return {
+        "experiment": experiment,
+        "check_name": check["name"],
+        "is_quantile": False,
+        "pass_count": check["pass_count"],
+        "total_count": check["total_count"],
+        "min_observed": check["min_observed"],
+        "max_observed": check["max_observed"],
+        "lower_bound": check["lower_bound"],
+        "upper_bound": check["upper_bound"],
+        "unit": check["unit"],
+        "quantile": None,
+        "quantile_value": None,
+    }
+
+
+def quantile_row(experiment: str, check: dict) -> CheckRowData:
+    """One quantile measurement as a CheckRow dict."""
+    return {
+        "experiment": experiment,
+        "check_name": check["bounds_check_name"],
+        "is_quantile": True,
+        "pass_count": None,
+        "total_count": None,
+        "min_observed": None,
+        "max_observed": None,
+        "lower_bound": None,
+        "upper_bound": None,
+        "unit": check["unit"],
+        "quantile": check["quantile"],
+        "quantile_value": check["value"],
+    }
+
+
+def categorize_checks(report: ReportData) -> CheckCategories:
+    """Group every check into the category the template renders it in.
+
+    Rows are sorted by experiment, then check name, then bounds before quantile
+    """
+    rows = []
+    for experiment in report["experiments"]:
+        name = experiment["name"]
+        is_gate = name.startswith(GATE_PREFIX)
+        for check in experiment["bounds_checks"]:
+            failed = check["pass_count"] < check["total_count"]
+            if is_gate:
+                bucket = "gates_failed" if failed else "gates_passed"
+            else:
+                bucket = "other_failed" if failed else "other_passed"
+            rows.append((name, check["name"], bucket, bounds_row(name, check)))
+        for check in experiment["quantile_checks"]:
+            rows.append((name, check["bounds_check_name"], "quantiles", quantile_row(name, check)))
+    rows.sort(key=lambda row: (row[0], row[1]))
+    categories: CheckCategories = {
+        "gates_failed": [],
+        "gates_passed": [],
+        "other_failed": [],
+        "other_passed": [],
+        "quantiles": [],
+    }
+    for _, _, bucket, row in rows:
+        categories[bucket].append(row)
+    return categories
+
+
+def build_extra(report: ReportData, verdict: ReportVerdict) -> Extra:
     return {
         "links": {
             "header": ("metrics_dashboard", "profiles"),
             "experiments": {experiment["name"]: get_links_for_xp(experiment) for experiment in report["experiments"]},
             "failed_replicates": ("debug_dashboard",),
         },
-        "tail_section": tail,
+        "verdict": verdict,
+        "check_categories": categorize_checks(report),
     }
 
 
@@ -140,11 +242,13 @@ def render_comment_payload(commit: str, markdown_text: str, output: Path) -> Non
 
 
 def render_decision(report: ReportData) -> DecisionResult:
-    """Compute the three tag values and the baseline-compatible CI section."""
+    """Compute CI tags and the structured verdict displayed by the template."""
     regressions_failed = False
     bounds_failed = False
     job_failed = False
-    record_lines = []
+    gate_count = 0
+    failed_gate_count = 0
+    missing_analysis = []
 
     for experiment in report["experiments"]:
         is_quality_gate = experiment["name"].startswith(GATE_PREFIX)
@@ -154,6 +258,7 @@ def render_decision(report: ReportData) -> DecisionResult:
             result = goal.get("result")
             if result is None and is_quality_gate:
                 job_failed = True
+                missing_analysis.append(experiment["name"])
 
             regressions_failed |= result is None or (
                 not experiment["erratic"] and result["is_significant_change"] and not result["is_improvement"]
@@ -166,16 +271,8 @@ def render_decision(report: ReportData) -> DecisionResult:
             bounds_failed |= not experiment["erratic"] and check_failed
 
             if is_quality_gate:
-                failed_count = total_count - pass_count
-                record_base = (
-                    f"- **{experiment['name']}**, bounds check **{check['name']}**: "
-                    f"{pass_count}/{total_count} replicas passed. "
-                )
-                if check_failed:
-                    record_verdict = f"Failed {failed_count} which is > 0. Gate **FAILED**."
-                else:
-                    record_verdict = "Gate passed."
-                record_lines.append(record_base + record_verdict)
+                gate_count += 1
+                failed_gate_count += check_failed
                 job_failed |= check_failed
 
     decision: Decision = {
@@ -184,13 +281,22 @@ def render_decision(report: ReportData) -> DecisionResult:
         "job": "failed" if job_failed else "passed",
     }
     if job_failed:
-        summary = "\u274c **Failed.** Some Quality Gates were violated."
-    elif record_lines:
-        summary = "\u2705 **Passed.** All Quality Gates passed."
+        reasons = []
+        if failed_gate_count:
+            reasons.append(f"{failed_gate_count}/{gate_count} quality-gate bounds checks failed")
+        if missing_analysis:
+            reasons.append(f"{len(missing_analysis)} quality-gate experiments missing required analysis")
+        summary = "; ".join(reasons) + "."
+    elif gate_count:
+        summary = f"All {gate_count} quality-gate bounds checks passed."
     else:
-        summary = "\u2705 **Passed.** This suite configures no quality gates."
-    tail_section = "\n".join(["## CI Pass/Fail Decision\n", summary, "", *record_lines])
-    return DecisionResult(decision, tail_section)
+        summary = "This suite configures no quality-gate bounds checks."
+    verdict: ReportVerdict = {
+        "passed": not job_failed,
+        "summary": summary,
+        "missing_analysis": sorted(missing_analysis),
+    }
+    return DecisionResult(decision, verdict)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -215,7 +321,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         report_data: ReportData = json.loads(args.report.read_text(encoding="utf-8"))
         result = render_decision(report_data)
-        extra = build_extra(report_data, result.tail_section)
+        extra = build_extra(report_data, result.verdict)
         markdown_text = render_report(args.smp, args.template, args.report, args.output_report_md, extra)
         args.output_decision.write_text(json.dumps(result.decision), encoding="utf-8")
         if result.decision["job"] == "failed":
