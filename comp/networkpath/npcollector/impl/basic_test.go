@@ -13,7 +13,9 @@ import (
 	"math"
 	"net/netip"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 	"time"
@@ -371,6 +373,11 @@ func TestBasicFirstBatchAfterRestart(t *testing.T) {
 			require.NoError(t, persistentcache.Write(basicLastBatchKey, lastBatch))
 		}
 	}
+	batchTimePath := func(t *testing.T) string {
+		path, err := persistentcache.GetFileForKey(basicLastBatchKey)
+		require.NoError(t, err)
+		return path
+	}
 	tests := []struct {
 		name       string
 		setup      func(*testing.T)
@@ -383,9 +390,19 @@ func TestBasicFirstBatchAfterRestart(t *testing.T) {
 		{"batch in the future", save(now.Add(time.Minute).Format(time.RFC3339)), now.Add(basicBootstrapWindow)},
 		{"unparsable batch time", save("not a time"), now.Add(basicBootstrapWindow)},
 		{"unreadable batch time", func(t *testing.T) {
-			path, err := persistentcache.GetFileForKey(basicLastBatchKey)
-			require.NoError(t, err)
-			require.NoError(t, os.Mkdir(path, 0700))
+			require.NoError(t, os.Mkdir(batchTimePath(t), 0700))
+		}, now.Add(basicBootstrapWindow)},
+		// The Agent's user owns run_path: a special file must neither block nor exhaust memory.
+		{"FIFO at the batch time", func(t *testing.T) {
+			if err := exec.Command("mkfifo", batchTimePath(t)).Run(); err != nil {
+				t.Skipf("can't create a FIFO: %s", err)
+			}
+		}, now.Add(basicBootstrapWindow)},
+		{"symlink to /dev/zero", func(t *testing.T) {
+			if runtime.GOOS == "windows" {
+				t.Skip("no /dev/zero")
+			}
+			require.NoError(t, os.Symlink("/dev/zero", batchTimePath(t)))
 		}, now.Add(basicBootstrapWindow)},
 	}
 	for _, tt := range tests {

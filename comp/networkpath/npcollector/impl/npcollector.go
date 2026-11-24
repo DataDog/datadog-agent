@@ -11,9 +11,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"iter"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -46,6 +51,8 @@ const (
 	// basicLastBatchKey is the persistentcache key that holds when the last
 	// basic batch ran, so that a restart waits for the next hourly batch.
 	basicLastBatchKey = "network_path_basic_last_batch"
+	// basicLastBatchMaxSize bounds the read of the saved time, a 25-byte RFC 3339 time.
+	basicLastBatchMaxSize = 64
 )
 
 var getVPCSubnetsForHost = network.GetVPCSubnetsForHost
@@ -396,7 +403,7 @@ func (s *npCollectorImpl) flushBasicPaths(now time.Time) {
 // loadLastBasicBatch returns when the last basic batch ran before this start,
 // or the zero time when there is none or it can't be trusted.
 func (s *npCollectorImpl) loadLastBasicBatch(now time.Time) time.Time {
-	saved, err := persistentcache.Read(basicLastBatchKey)
+	saved, err := readLastBasicBatch()
 	if err != nil {
 		s.logger.Debugf("Ignoring the last Network Path basic batch time: %s", err)
 		return time.Time{}
@@ -406,8 +413,7 @@ func (s *npCollectorImpl) loadLastBasicBatch(now time.Time) time.Time {
 	}
 	lastBatch, err := time.Parse(time.RFC3339, saved)
 	if err != nil {
-		// Don't log the parse error, which quotes the file's content: system-probe
-		// reads it as root, and the Agent's user can replace it with a symlink.
+		// Don't log the parse error, which quotes the file's content.
 		s.logger.Debug("Ignoring the last Network Path basic batch time, which isn't an RFC 3339 time")
 		return time.Time{}
 	}
@@ -417,6 +423,42 @@ func (s *npCollectorImpl) loadLastBasicBatch(now time.Time) time.Time {
 		return time.Time{}
 	}
 	return lastBatch
+}
+
+// readLastBasicBatch returns the saved batch time, or "" when there is none.
+// system-probe reads it as root from run_path, which the Agent's user owns, so
+// it doesn't follow symlinks out of run_path, block on a FIFO, read a
+// non-regular file or read more than a timestamp.
+func readLastBasicBatch() (string, error) {
+	path, err := persistentcache.GetFileForKey(basicLastBatchKey)
+	if err != nil {
+		return "", err
+	}
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	defer root.Close()
+	file, err := root.OpenFile(filepath.Base(path), os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("%s isn't a regular file", path)
+	}
+	content, err := io.ReadAll(io.LimitReader(file, basicLastBatchMaxSize))
+	return string(content), err
 }
 
 // scheduleOne schedules pathtests.
