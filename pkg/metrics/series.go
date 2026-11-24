@@ -140,11 +140,66 @@ func (serie *Serie) PopulateDeviceField() {
 	serie.Tags = tagset.CompositeTagsFromSlice(filteredTags)
 }
 
+// PopulateDeviceAndResources extracts both `device:` and `dd.internal.resource:` tags in a single pass.
+func (serie *Serie) PopulateDeviceAndResources() {
+	t1, t2 := serie.Tags.UnsafeGet()
+	hasSpecial := false
+	for _, tag := range t1 {
+		if strings.HasPrefix(tag, "device:") || strings.HasPrefix(tag, internalResourceTagPrefix) {
+			hasSpecial = true
+			break
+		}
+	}
+	if !hasSpecial {
+		for _, tag := range t2 {
+			if strings.HasPrefix(tag, "device:") || strings.HasPrefix(tag, internalResourceTagPrefix) {
+				hasSpecial = true
+				break
+			}
+		}
+	}
+	if !hasSpecial {
+		return
+	}
+
+	filteredTags := make([]string, 0, len(t1)+len(t2))
+	process := func(tags []string) {
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, "device:") {
+				serie.Device = tag[7:]
+			} else if strings.HasPrefix(tag, internalResourceTagPrefix) {
+				tagVal := tag[len(internalResourceTagPrefix):]
+				commaIdx := strings.Index(tagVal, internalResourceTagSeparator)
+				if commaIdx > 0 && commaIdx < len(tagVal)-1 {
+					serie.Resources = append(serie.Resources, Resource{
+						Type: tagVal[:commaIdx],
+						Name: tagVal[commaIdx+1:],
+					})
+				}
+			} else {
+				filteredTags = append(filteredTags, tag)
+			}
+		}
+	}
+	process(t1)
+	process(t2)
+	serie.Tags = tagset.CompositeTagsFromSlice(filteredTags)
+}
+
 // hasDeviceTag checks whether a series contains a device tag
 func (serie *Serie) hasDeviceTag() bool {
-	return serie.Tags.Find(func(tag string) bool {
-		return strings.HasPrefix(tag, "device:")
-	})
+	t1, t2 := serie.Tags.UnsafeGet()
+	for _, tag := range t1 {
+		if strings.HasPrefix(tag, "device:") {
+			return true
+		}
+	}
+	for _, tag := range t2 {
+		if strings.HasPrefix(tag, "device:") {
+			return true
+		}
+	}
+	return false
 }
 
 // PopulateResources removes any dd.internal.resource tags in the series tags and uses the values to
@@ -181,9 +236,18 @@ func (serie *Serie) PopulateResources() {
 
 // hasResourceTag checks whether a series contains a resource tag
 func (serie *Serie) hasResourceTag() bool {
-	return serie.Tags.Find(func(tag string) bool {
-		return strings.HasPrefix(tag, internalResourceTagPrefix)
-	})
+	t1, t2 := serie.Tags.UnsafeGet()
+	for _, tag := range t1 {
+		if strings.HasPrefix(tag, internalResourceTagPrefix) {
+			return true
+		}
+	}
+	for _, tag := range t2 {
+		if strings.HasPrefix(tag, internalResourceTagPrefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // Series is a collection of `Serie`
