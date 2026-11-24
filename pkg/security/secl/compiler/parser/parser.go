@@ -86,6 +86,12 @@ func parse(source, expr string) (start ast.Position, root ast.Node, err error) {
 	start = p.tok.Pos
 	root = p.parseRoot()
 
+	// a chain of operators, `a || b || c`, is parsed iteratively but deepens the
+	// tree as much as nesting does
+	if node, ok := ast.TooDeep(root, ast.MaxDepth); ok {
+		p.errorTooDeep(node)
+	}
+
 	return
 }
 
@@ -98,6 +104,9 @@ type parser struct {
 
 	tok   Token // lookahead
 	depth int   // open parentheses
+	// nesting is the number of nested operands being parsed, the recursion of
+	// the parser
+	nesting int
 }
 
 func (p *parser) next() {
@@ -393,6 +402,8 @@ func (p *parser) parseUnaryOperand(opTok Token, op ast.UnaryOp) ast.Node {
 	if !p.expectOperand(opTok) {
 		return nil
 	}
+	p.enter()
+	defer p.leave()
 	operand := p.parseUnary()
 	return &ast.UnaryExpr{Meta: ast.At(opTok.Pos), Op: op, Operand: operand}
 }
@@ -401,6 +412,9 @@ func (p *parser) parseUnaryOperand(opTok Token, op ast.UnaryOp) ast.Node {
 //
 //	Primary → Name | Int | String | Pattern | Regexp | ... | Array | "(" Or ")"
 func (p *parser) parsePrimary() ast.Node {
+	p.enter()
+	defer p.leave()
+
 	tok := p.tok
 	meta := ast.At(tok.Pos)
 
@@ -694,6 +708,11 @@ func (p *parser) parseArray() ast.Node {
 				p.skipArray()
 				return nil
 			}
+			// printed recursively, before parse checks the depth of the tree
+			if node, ok := ast.TooDeep(name, ast.MaxDepth); ok {
+				p.errorTooDeep(node)
+				panic(bailout{})
+			}
 			idents = append(idents, ast.Sprint(name))
 		} else if member, ok := p.parseMember().(*ast.Literal); ok {
 			members = append(members, member)
@@ -752,6 +771,31 @@ func (p *parser) parseMember() ast.Node {
 		return nil
 	}
 	return p.parseInt(&sign)
+}
+
+// maxNesting is the number of nested operands past which parsing is abandoned.
+// A level of parentheses takes a dozen frames of the parser, more than a level
+// of the tree takes in the passes, hence a limit lower than ast.MaxDepth.
+const maxNesting = 1000
+
+// enter counts an operand nested in the one being parsed, abandoning parsing
+// past maxNesting nested operands. Every recursion of the parser goes through
+// parsePrimary or parseUnaryOperand, which call it.
+func (p *parser) enter() {
+	if p.nesting++; p.nesting > maxNesting {
+		p.errorAt(p.tok, fmt.Sprintf("expression too deep, more than %d nested operands", maxNesting), "")
+		panic(bailout{})
+	}
+}
+
+func (p *parser) leave() {
+	p.nesting--
+}
+
+// errorTooDeep reports a node deeper than ast.MaxDepth.
+func (p *parser) errorTooDeep(node ast.Node) {
+	pos := node.Position()
+	p.errs.add(&Error{Pos: pos, End: pos.Offset, Msg: fmt.Sprintf("expression too deep, its tree has more than %d levels", ast.MaxDepth)})
 }
 
 func (p *parser) startsOperand() bool {

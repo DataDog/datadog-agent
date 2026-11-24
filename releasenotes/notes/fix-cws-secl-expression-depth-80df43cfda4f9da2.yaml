@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    CWS: A rule or macro whose expression nests operands (parentheses,
+    unary operators or subscripts) about 1000 levels deep, or chains about
+    10000 operators, selectors or subscripts once its macros are expanded,
+    is now rejected with an error when the policy loads, like an expression
+    with a syntax error.

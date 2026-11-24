@@ -7,6 +7,7 @@
 package parser
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -650,6 +651,57 @@ func TestSyntaxErrors(t *testing.T) {
 			var errs ErrorList
 			require.ErrorAs(t, err, &errs)
 			require.Equal(t, test.expected, errs.Format(test.expr))
+		})
+	}
+}
+
+func TestDepthLimit(t *testing.T) {
+	nest := func(open, inner, close string, n int) string {
+		return strings.Repeat(open, n) + inner + strings.Repeat(close, n)
+	}
+	chain := func(op string, n int) string {
+		return `a == 1` + strings.Repeat(" "+op+" a == 1", n)
+	}
+
+	accepted := map[string]string{
+		"parentheses": nest("(", `a == 1`, ")", 500),
+		"negations":   nest("!", `a`, "", 500),
+		"subscripts":  nest("a[", `0`, "]", 500) + ` == 1`,
+		"or chain":    chain("||", 9000),
+		"and chain":   chain("&&", 9000),
+		"sum":         `a == 1` + strings.Repeat(" + 1", 9000),
+		"mixed":       nest("!(", chain("||", 300), ")", 300),
+		"selectors":   `a` + strings.Repeat(".b", 9000) + ` == 1`,
+	}
+	for name, expr := range accepted {
+		t.Run("accepted "+name, func(t *testing.T) {
+			_, err := parseRule(expr)
+			require.NoError(t, err)
+			_, err = parseMacro(expr)
+			require.NoError(t, err)
+		})
+	}
+
+	rejected := map[string]string{
+		"parentheses":   nest("(", `a == 1`, ")", 2000),
+		"negations":     nest("!", `a`, "", 2000),
+		"signs":         nest("- ", `a`, "", 2000) + ` == 1`,
+		"subscripts":    nest("a[", `0`, "]", 2000) + ` == 1`,
+		"or chain":      chain("||", 11000),
+		"and chain":     chain("&&", 11000),
+		"sum":           `a == 1` + strings.Repeat(" + 1", 11000),
+		"mixed":         nest("!(", chain("||", 600), ")", 600),
+		"selectors":     `a` + strings.Repeat(".b", 11000) + ` == 1`,
+		"name in array": `a in [b` + strings.Repeat(".c", 11000) + `]`,
+		"nested names in array": `a in [` + strings.Repeat("b[", 20) + `0` +
+			strings.Repeat("]"+strings.Repeat(".c", 600), 20) + `]`,
+	}
+	for name, expr := range rejected {
+		t.Run("rejected "+name, func(t *testing.T) {
+			_, err := parseRule(expr)
+			require.ErrorContains(t, err, "expression too deep")
+			_, err = parseMacro(expr)
+			require.ErrorContains(t, err, "expression too deep")
 		})
 	}
 }

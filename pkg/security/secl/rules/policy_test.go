@@ -2299,6 +2299,57 @@ func TestRuleErrorLoading(t *testing.T) {
 	assert.NotContains(t, rs.ListRuleIDs(), "testB")
 }
 
+func TestRuleExpressionDepthLimit(t *testing.T) {
+	chain := func(first string, n int) string {
+		return first + strings.Repeat(` || open.file.path == "/tmp/test"`, n)
+	}
+
+	testPolicy := &PolicyDef{
+		Macros: []*MacroDefinition{
+			{
+				ID:         "deep_macro",
+				Expression: chain(`open.file.path == "/tmp/test"`, 6000),
+			},
+		},
+		Rules: []*RuleDefinition{
+			{
+				ID:         "shallow_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+			},
+			{
+				ID:         "nested_rule",
+				Expression: strings.Repeat("(", 500) + `open.file.path == "/tmp/test"` + strings.Repeat(")", 500),
+			},
+			{
+				ID:         "chain_rule",
+				Expression: "!(" + chain(`open.file.path == "/tmp/test"`, 5000) + ")",
+			},
+			{
+				ID:         "macro_rule",
+				Expression: `deep_macro && open.file.name == "test"`,
+			},
+			{
+				ID:         "too_nested_rule",
+				Expression: strings.Repeat("(", 2000) + `open.file.path == "/tmp/test"` + strings.Repeat(")", 2000),
+			},
+			{
+				ID:         "too_deep_macro_rule",
+				Expression: chain(`deep_macro`, 6000),
+			},
+		},
+	}
+
+	rs, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+	require.NotNil(t, err)
+	require.Len(t, err.Errors, 2)
+	assert.ErrorContains(t, err.Errors[0], "rule `too_nested_rule` error")
+	assert.ErrorContains(t, err.Errors[0], "expression too deep")
+	assert.ErrorContains(t, err.Errors[1], "rule `too_deep_macro_rule` error")
+	assert.ErrorContains(t, err.Errors[1], "expression too deep")
+
+	assert.ElementsMatch(t, []string{"shallow_rule", "nested_rule", "chain_rule", "macro_rule"}, rs.ListRuleIDs())
+}
+
 func TestRuleAgentConstraint(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Macros: []*MacroDefinition{
