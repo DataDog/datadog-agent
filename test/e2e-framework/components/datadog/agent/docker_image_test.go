@@ -109,6 +109,19 @@ func TestDockerAgentFullImagePathDefaults(t *testing.T) {
 			expected: awsDockerhubMirror + "/datadog/agent-dev:nightly-full-main-jmx",
 		},
 		{
+			name:     "otel uses registry.datadoghq.com when there is no dockerhub mirror",
+			env:      imageTestEnv{publicRegistry: gcpPublicRegistry, dockerhubMirror: publicDockerhubMirror},
+			otel:     true,
+			expected: "registry.datadoghq.com/agent-dev:nightly-full-main-jmx",
+		},
+		{
+			// registry.datadoghq.com does not publish the main-fips dev tags.
+			name:     "fips keeps Docker Hub when there is no dockerhub mirror",
+			env:      imageTestEnv{publicRegistry: gcpPublicRegistry, dockerhubMirror: publicDockerhubMirror},
+			fips:     true,
+			expected: publicDockerhubMirror + "/datadog/agent-dev:main-fips",
+		},
+		{
 			name:     "an explicit full image path wins over the registry",
 			env:      imageTestEnv{publicRegistry: awsPublicRegistry, dockerhubMirror: awsDockerhubMirror, agentFullImage: "example.com/agent:pinned"},
 			expected: "example.com/agent:pinned",

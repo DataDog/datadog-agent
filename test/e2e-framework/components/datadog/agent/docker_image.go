@@ -37,12 +37,26 @@ func defaultOTelAgentGatewayImageRepo(e config.Env) string {
 	return e.DatadogPublicRegistry() + "/ddot-collector"
 }
 
+// dockerHubRegistry is the value InternalDockerhubMirror returns when the environment has no
+// pull-through cache, so pulls would go to Docker Hub directly.
+const dockerHubRegistry = "registry-1.docker.io"
+
 // This is the repo on dockerhub containing all public agent images built from main and release branches
 // (also proxied by an internal mirror)
 // It should only be used for local runs not specifying an agent image, NEVER IN CI:
 // CI should set `E2E_PIPELINE_ID` et al. so that an image built with the branch's code is used by the test.
 func defaultDevAgentImageRepo(e config.Env) string {
 	return e.InternalDockerhubMirror() + "/datadog/agent-dev"
+}
+
+// defaultOTelDevAgentImageRepo is the dev repository for the OTel image. When the environment has
+// no pull-through cache, it uses registry.datadoghq.com, which also publishes the nightly OTel tags,
+// instead of an anonymous Docker Hub pull, which Docker Hub rate-limits.
+func defaultOTelDevAgentImageRepo(e config.Env) string {
+	if e.InternalDockerhubMirror() == dockerHubRegistry {
+		return "registry.datadoghq.com/agent-dev"
+	}
+	return defaultDevAgentImageRepo(e)
 }
 
 // DockerAgentFullImagePath resolves the node-agent image using the standard
@@ -117,7 +131,7 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 
 	if useOtel {
 		if repositoryPath == "" {
-			repositoryPath = defaultDevAgentImageRepo(e)
+			repositoryPath = defaultOTelDevAgentImageRepo(e)
 		}
 		if imageTag == "" {
 			imageTag = defaultOTAgentImageTag
