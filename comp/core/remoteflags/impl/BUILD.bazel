@@ -1,5 +1,4 @@
 load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -7,25 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteflags/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
         "//comp/core/remoteflags/def",
         "//comp/def",
         "//pkg/remoteflags",
         "//pkg/util/log",
-    ],
-)
-
-dd_agent_go_test(
-    name = "impl_test",
-    srcs = ["remoteflags_test.go"],
-    embed = [":impl"],
-    deps = [
-        "//comp/core/config",
-        "//comp/def",
-        "//pkg/config/model",
-        "//pkg/remoteconfig/state",
-        "//pkg/remoteflags",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
     ],
 )

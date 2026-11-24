@@ -50,25 +50,3 @@ new-e2e-agent-telemetry:
   variables:
     TARGETS: ./tests/agent-telemetry
     TEAM: fleet-remediation
-
-.on_remote_flags_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/core/agenttelemetry/**/*
-        - comp/core/remoteflags/**/*
-        - pkg/remoteflags/**/*
-        - pkg/util/log/setup/**/*
-        - pkg/util/log/errortracking/**/*
-        - test/new-e2e/tests/remote-flags/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-new-e2e-remote-flags:
-  extends: .new_e2e_template_needs_deb_x64
-  rules:
-    - !reference [.on_remote_flags_or_e2e_changes]
-    - !reference [.manual]
-  variables:
-    TARGETS: ./tests/remote-flags
-    TEAM: fleet-remediation

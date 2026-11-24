@@ -50,7 +50,6 @@ func newComponent(deps Requires) Provides {
 	}
 	real := remoteflagsimpl.NewComponent(remoteflagsimpl.Requires{
 		Lc:          deps.Lc,
-		Config:      deps.Config,
 		Subscribers: deps.Subscribers,
 	})
 	return Provides{Comp: real.Comp}

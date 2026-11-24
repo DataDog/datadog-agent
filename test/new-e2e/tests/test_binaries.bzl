@@ -63,7 +63,6 @@ TEST_BINARIES = {
     "//test/new-e2e/tests/privateactionrunner:privateactionrunner_test": "tests-privateactionrunner.test",
     "//test/new-e2e/tests/process:process_test": "tests-process.test",
     "//test/new-e2e/tests/remote-config:remote-config_test": "tests-remote-config.test",
-    "//test/new-e2e/tests/remote-flags:remote-flags_test": "tests-remote-flags.test",
     "//test/new-e2e/tests/sbom:sbom_test": "tests-sbom.test",
     "//test/new-e2e/tests/security-agent-functional:security-agent-functional_test": "tests-security-agent-functional.test",
     "//test/new-e2e/tests/ssi-gradual-rollout:ssi-gradual-rollout_test": "tests-ssi-gradual-rollout.test",

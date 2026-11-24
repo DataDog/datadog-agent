@@ -9,7 +9,6 @@ package remoteflagsimpl
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	comp "github.com/DataDog/datadog-agent/comp/core/remoteflags/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteflags"
@@ -19,10 +18,6 @@ import (
 // Requires defines the dependencies for the Remote Flags component.
 type Requires struct {
 	Lc compdef.Lifecycle
-
-	// Config receives the flags bound to a configuration key, written under
-	// the Remote Config source.
-	Config config.Component
 
 	// Subscribers is the list of components that subscribe to remote flags.
 	// They are automatically collected via fx groups.
@@ -40,7 +35,7 @@ type remoteFlagsComponent struct {
 
 // NewComponent creates a new Remote Flags component.
 func NewComponent(deps Requires) Provides {
-	client := remoteflags.NewClient().WithConfigSetter(deps.Config)
+	client := remoteflags.NewClient()
 	component := &remoteFlagsComponent{
 		client: client,
 	}
