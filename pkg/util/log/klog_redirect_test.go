@@ -48,3 +48,54 @@ func TestKlogRedirectLoggerWrite(t *testing.T) {
 		"[INFO] tRunner: klog message",
 	})
 }
+
+func TestStackDepthFromFunctionNames(t *testing.T) {
+	tests := []struct {
+		name     string
+		fns      []string
+		fallback int
+		want     int
+	}{
+		{
+			name: "skips klog v2 ErrorSDepth frames",
+			fns: []string{
+				"github.com/DataDog/datadog-agent/pkg/util/log.KlogRedirectLogger.Write",
+				"k8s.io/klog/v2.(*loggingT).output",
+				"k8s.io/klog/v2.(*loggingT).printS",
+				"k8s.io/klog/v2.ErrorSDepth",
+				"k8s.io/klog/v2.ErrorS",
+				"k8s.io/client-go/tools/record.(*eventBroadcasterImpl).recordToSink",
+			},
+			fallback: 7,
+			want:     6,
+		},
+		{
+			name: "skips klog v2 and logr frames",
+			fns: []string{
+				"github.com/DataDog/datadog-agent/pkg/util/log.KlogRedirectLogger.Write",
+				"k8s.io/klog/v2.(*loggingT).output",
+				"k8s.io/klog/v2.(*klogger).Error",
+				"github.com/go-logr/logr.Logger.Error",
+				"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling.Sync",
+			},
+			fallback: 7,
+			want:     5,
+		},
+		{
+			name: "falls back when no klog frames are present",
+			fns: []string{
+				"github.com/DataDog/datadog-agent/pkg/util/log.KlogRedirectLogger.Write",
+				"github.com/DataDog/datadog-agent/pkg/util/log.TestKlogRedirectLoggerWrite",
+				"testing.tRunner",
+			},
+			fallback: 3,
+			want:     3,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, stackDepthFromFunctionNames(tc.fns, tc.fallback))
+		})
+	}
+}

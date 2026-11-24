@@ -5,7 +5,10 @@
 
 package log
 
-import "strings"
+import (
+	"runtime"
+	"strings"
+)
 
 // KlogRedirectLogger is used to redirect klog logs to datadog logs. klog is
 // client-go's logger, logging to STDERR by default, which makes all severities
@@ -26,6 +29,46 @@ func NewKlogRedirectLogger(stackDepth int) KlogRedirectLogger {
 	}
 }
 
+func isKlogFrame(fn string) bool {
+	return strings.HasPrefix(fn, "k8s.io/klog") ||
+		strings.HasPrefix(fn, "github.com/go-logr/logr.")
+}
+
+func stackDepthFromFunctionNames(fns []string, fallback int) int {
+	seenKlog := false
+	for depth, fn := range fns {
+		if depth == 0 {
+			continue
+		}
+		if isKlogFrame(fn) {
+			seenKlog = true
+		} else if seenKlog {
+			// depth 0 is Write (stackDepth 1); frame at index depth needs depth + 1.
+			return depth + 1
+		}
+	}
+	return fallback
+}
+
+func (l KlogRedirectLogger) resolveStackDepth() int {
+	const maxFrames = 32
+	var pcs [maxFrames]uintptr
+	n := runtime.Callers(2, pcs[:])
+	if n == 0 {
+		return l.stackDepth
+	}
+	frames := runtime.CallersFrames(pcs[:n])
+	fns := make([]string, 0, n)
+	for {
+		frame, more := frames.Next()
+		fns = append(fns, frame.Function)
+		if !more {
+			break
+		}
+	}
+	return stackDepthFromFunctionNames(fns, l.stackDepth)
+}
+
 func (l KlogRedirectLogger) Write(b []byte) (int, error) {
 	// klog log lines have the following format:
 	//     Lmmdd hh:mm:ss.uuuuuu threadid file:line] msg...
@@ -42,17 +85,19 @@ func (l KlogRedirectLogger) Write(b []byte) (int, error) {
 		msg = msg[i+2:]
 	}
 
+	depth := l.resolveStackDepth()
+
 	switch b[0] {
 	case 'I':
-		InfoStackDepth(l.stackDepth, msg)
+		InfoStackDepth(depth, msg)
 	case 'W':
-		_ = WarnStackDepth(l.stackDepth, msg)
+		_ = WarnStackDepth(depth, msg)
 	case 'E':
-		_ = ErrorStackDepth(l.stackDepth, msg)
+		_ = ErrorStackDepth(depth, msg)
 	case 'F':
-		_ = CriticalStackDepth(l.stackDepth, msg)
+		_ = CriticalStackDepth(depth, msg)
 	default:
-		InfoStackDepth(l.stackDepth, msg)
+		InfoStackDepth(depth, msg)
 	}
 
 	return 0, nil
