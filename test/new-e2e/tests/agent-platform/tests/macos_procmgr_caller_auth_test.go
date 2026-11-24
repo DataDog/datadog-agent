@@ -202,10 +202,11 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 			}
 		}()
 		if bodyFailed {
-			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthEntry); err != nil {
+			// Bounded because a graceful stop can take up to 90s, and an unanswered RPC would hang cleanup.
+			if _, err := client.Execute("sudo perl -e 'alarm shift; exec @ARGV or die \"exec: $!\\n\"' 120 " + macosProcmgrCLI + " stop " + macosCallerAuthEntry); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthEntry, err)
 			}
-			if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthStartEntry); err != nil {
+			if _, err := client.Execute("sudo perl -e 'alarm shift; exec @ARGV or die \"exec: $!\\n\"' 120 " + macosProcmgrCLI + " stop " + macosCallerAuthStartEntry); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthStartEntry, err)
 			}
 		}
