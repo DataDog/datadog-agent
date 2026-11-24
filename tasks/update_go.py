@@ -15,6 +15,7 @@ from tasks.libs.common.gomodules import get_default_modules
 GO_VERSION_FILE = "./.go-version"
 
 # list of references of Go versions
+# docs, READMEs, unit tests and comments should refer to .go-version instead of being added here
 # each tuple is (path, pre_pattern, post_pattern, minor), where
 # - path is the path of the file to update
 # - pre_pattern and post_pattern delimit the version to update
@@ -23,11 +24,6 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     (GO_VERSION_FILE, "", "", True),  # the version is the only content of the file
     ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-", True),
     ("./test/fakeintake/Dockerfile", "GO_VERSION=", "", True),
-    ("./tasks/unit_tests/modules_tests.py", 'Go": "', '",', False),
-    ("./tasks/go.py", '"go version go', ' linux/amd64"', True),
-    ("./test/fakeintake/docs/README.md", "[Golang ", "]", False),
-    ("./cmd/process-agent/README.md", "`go >= ", "`", False),
-    ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
     ("./tools/host-profiler/Dockerfile", "FROM golang:", "-trixie", True),
     ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
     ("./go.work", "go ", "", True),
