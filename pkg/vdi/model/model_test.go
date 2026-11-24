@@ -13,17 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSessionDoesNotRequireConnections(t *testing.T) {
+func TestSessionRoundTrip(t *testing.T) {
 	session := Session{ID: "3", Protocol: "rdp", User: `DOMAIN\user`, State: "active"}
 
 	payload, err := json.Marshal(session)
 	require.NoError(t, err)
-	require.NotContains(t, string(payload), "connections")
 
 	var decoded Session
 	require.NoError(t, json.Unmarshal(payload, &decoded))
 	require.Equal(t, session, decoded)
-	require.Empty(t, decoded.Connections)
 }
 
 func TestWindowsSessionRoundTrip(t *testing.T) {

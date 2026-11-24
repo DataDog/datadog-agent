@@ -31,10 +31,11 @@ var VDI = &module.Factory{
 
 type vdiModule struct {
 	windowsFn func() ([]vdimodel.WindowsSession, error)
+	now       func() time.Time
 }
 
 func newVDIModule(windowsFn func() ([]vdimodel.WindowsSession, error)) *vdiModule {
-	return &vdiModule{windowsFn: windowsFn}
+	return &vdiModule{windowsFn: windowsFn, now: time.Now}
 }
 
 func (m *vdiModule) Register(router *module.Router) error {
@@ -46,11 +47,12 @@ func (m *vdiModule) Register(router *module.Router) error {
 }
 
 func (m *vdiModule) inventory() vdimodel.InventoryResponse {
+	windowsInventory, err := m.windowsFn()
 	response := vdimodel.InventoryResponse{
-		CollectedAt: time.Now().UTC(),
+		// Session timestamps may advance while WTS enumerates the inventory.
+		CollectedAt: m.now().UTC(),
 		Providers:   make(map[string]vdimodel.ProviderInventory, 1),
 	}
-	windowsInventory, err := m.windowsFn()
 	if err != nil {
 		response.Windows.SourceStatus = vdimodel.SourceStatus{Status: vdimodel.StatusError, Error: err.Error()}
 	} else {

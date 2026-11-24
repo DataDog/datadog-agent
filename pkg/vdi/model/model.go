@@ -51,29 +51,14 @@ type WindowsInventory struct {
 	Sessions []WindowsSession `json:"sessions,omitempty"`
 }
 
-// Connection describes an optional authenticated connection to a VDI session.
-type Connection struct {
-	ID                string     `json:"id"`
-	AuthenticatedUser string     `json:"authenticated_user,omitempty"`
-	Transport         string     `json:"transport,omitempty"`
-	ClientMode        string     `json:"client_mode,omitempty"`
-	UserAgent         string     `json:"user_agent,omitempty"`
-	ConnectedAt       *time.Time `json:"connected_at,omitempty"`
-	LastInteractionAt *time.Time `json:"last_interaction_at,omitempty"`
-	FirstFrameAt      *time.Time `json:"first_frame_at,omitempty"`
-}
-
-// Session describes a provider-scoped VDI session. Connections are optional
-// because some providers expose sessions without distinct connection objects.
+// Session describes a provider-scoped VDI session.
 type Session struct {
-	ID          string       `json:"id"`
-	Protocol    string       `json:"protocol,omitempty"`
-	User        string       `json:"user,omitempty"`
-	Owner       string       `json:"owner,omitempty"`
-	State       string       `json:"state,omitempty"`
-	LogonAt     *time.Time   `json:"logon_at,omitempty"`
-	LastInputAt *time.Time   `json:"last_input_at,omitempty"`
-	Connections []Connection `json:"connections,omitempty"`
+	ID          string     `json:"id"`
+	Protocol    string     `json:"protocol,omitempty"`
+	User        string     `json:"user,omitempty"`
+	State       string     `json:"state,omitempty"`
+	LogonAt     *time.Time `json:"logon_at,omitempty"`
+	LastInputAt *time.Time `json:"last_input_at,omitempty"`
 }
 
 // ProviderInventory contains the sessions returned by one VDI provider.

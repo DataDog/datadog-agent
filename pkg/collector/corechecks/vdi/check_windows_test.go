@@ -11,11 +11,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/vdi/model"
 )
 
 func testCheck() *checkImpl {
 	return &checkImpl{config: instanceConfig{
-		Provider:      providerAWSWorkSpaces,
+		Provider:      model.ProviderAWSWorkSpaces,
 		AWSWorkSpaces: &awsWorkSpacesConfig{Product: "personal"},
 	}}
 }

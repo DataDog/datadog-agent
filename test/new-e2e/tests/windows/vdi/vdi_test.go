@@ -60,17 +60,11 @@ func (s *vdiWindowsSuite) BeforeTest(suiteName, testName string) {
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 }
 
-func (s *vdiWindowsSuite) latestHealth(c *assert.CollectT, status int) int64 {
+func (s *vdiWindowsSuite) healthAfter(c *assert.CollectT, status int, after int64) (first, latest int64) {
 	runs, err := s.Env().FakeIntake.Client().FilterCheckRuns(healthCheck,
 		fakeintakeclient.WithTags[*aggregator.CheckRun](inventoryTags))
 	require.NoError(c, err)
-	var latest int64
-	for _, run := range runs {
-		if run.Status == status && int64(run.Timestamp) > latest {
-			latest = int64(run.Timestamp)
-		}
-	}
-	return latest
+	return healthBounds(runs, status, after)
 }
 
 func (s *vdiWindowsSuite) assertMetricsAfter(c *assert.CollectT, after int64, expected bool) {
@@ -94,7 +88,7 @@ func (s *vdiWindowsSuite) assertMetricsAfter(c *assert.CollectT, after int64, ex
 func (s *vdiWindowsSuite) TestScheduledInventoryFailureAndRecovery() {
 	var healthyAt int64
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		healthyAt = s.latestHealth(c, 0)
+		_, healthyAt = s.healthAfter(c, statusOK, 0)
 		require.Positive(c, healthyAt, "scheduled VDI check must report healthy inventory")
 		s.assertMetricsAfter(c, 0, true)
 	}, 5*time.Minute, 5*time.Second)
@@ -102,15 +96,14 @@ func (s *vdiWindowsSuite) TestScheduledInventoryFailureAndRecovery() {
 	s.T().Cleanup(func() { require.NoError(s.T(), common.StartService(s.Env().RemoteHost, probeService)) })
 	require.NoError(s.T(), common.StopService(s.Env().RemoteHost, probeService))
 
-	var firstFailure, lastFailure int64
+	var lastFailure int64
 	s.EventuallyWithT(func(c *assert.CollectT) {
+		// Intake can deliver several check runs together or out of order.
+		// Recompute the earliest failure even after freezing the end boundary.
+		firstFailure, observed := s.healthAfter(c, statusCritical, healthyAt)
+		require.Positive(c, firstFailure, "unavailable inventory must report critical health after the healthy phase")
 		if lastFailure == 0 {
-			observed := s.latestHealth(c, 2)
-			require.Greater(c, observed, healthyAt, "unavailable inventory must report critical health")
-			if firstFailure == 0 {
-				firstFailure = observed
-			}
-			// Freeze the second unhealthy timestamp before waiting for the
+			// Freeze a later unhealthy timestamp before waiting for the
 			// independently scheduled control metric to cross this boundary.
 			require.GreaterOrEqual(c, observed-firstFailure, int64(15), "observe multiple unhealthy collection intervals")
 			lastFailure = observed
@@ -126,12 +119,15 @@ func (s *vdiWindowsSuite) TestScheduledInventoryFailureAndRecovery() {
 			}
 		}
 		require.True(c, metricsFlushed, "wait for the metric forwarding stream to cross the failure window")
-		s.assertMetricsAfter(c, firstFailure, false)
+		// Timestamps have second precision. Include samples from the first
+		// unhealthy poll, which may share its service-check timestamp.
+		s.assertMetricsAfter(c, firstFailure-1, false)
 	}, 2*time.Minute, 5*time.Second)
 
 	require.NoError(s.T(), common.StartService(s.Env().RemoteHost, probeService))
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		require.Greater(c, s.latestHealth(c, 0), lastFailure, "recovery must emit newly timestamped healthy inventory")
+		_, recoveredAt := s.healthAfter(c, statusOK, lastFailure)
+		require.Positive(c, recoveredAt, "recovery must emit newly timestamped healthy inventory")
 		s.assertMetricsAfter(c, lastFailure, true)
 	}, 2*time.Minute, 5*time.Second)
 }

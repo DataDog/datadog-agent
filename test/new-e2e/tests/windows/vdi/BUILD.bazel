@@ -1,8 +1,10 @@
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 dd_agent_go_test(
     name = "vdi_test",
     srcs = ["vdi_test.go"],
+    embed = [":vdi"],
     tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
@@ -17,4 +19,23 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
+)
+
+# gazelle:exclude health_test.go
+dd_agent_go_test(
+    name = "health_test",
+    srcs = ["health_test.go"],
+    embed = [":vdi"],
+    deps = [
+        "//test/fakeintake/aggregator",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_library(
+    name = "vdi",
+    srcs = ["health.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/vdi",
+    visibility = ["//visibility:public"],
+    deps = ["//test/fakeintake/aggregator"],
 )

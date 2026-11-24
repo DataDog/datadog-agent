@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/vdi/model"
 )
 
@@ -34,13 +35,15 @@ func (c *checkImpl) runAVD(s sender.Sender) error {
 		} else if provider.Error != "" {
 			message = provider.Error
 		}
-		s.ServiceCheck("vdi.session_enrichment.health", c.unavailableInventoryStatus(now), "", c.baseTags(), truncateMessage(message))
+		c.Warnf("%s", message)
+		s.ServiceCheck("vdi.session_enrichment.health", c.unavailableInventoryStatus(now), "", c.baseTags(), utilstrings.TruncateUTF8(message, 1024))
 		return nil
 	}
 
 	status := servicecheck.ServiceCheckOK
 	if provider.Status == model.StatusPartial {
 		status = servicecheck.ServiceCheckWarning
+		c.Warnf("AVD inventory is incomplete: %s", provider.Error)
 	} else {
 		c.lastFreshAt = now
 		active, disconnected := 0, 0
@@ -74,7 +77,7 @@ func (c *checkImpl) runAVD(s sender.Sender) error {
 			}
 		}
 	}
-	s.ServiceCheck("vdi.session_enrichment.health", status, "", c.baseTags(), truncateMessage(provider.Error))
+	s.ServiceCheck("vdi.session_enrichment.health", status, "", c.baseTags(), utilstrings.TruncateUTF8(provider.Error, 1024))
 	return nil
 }
 
@@ -117,12 +120,4 @@ func (c *checkImpl) unavailableInventoryStatus(now time.Time) servicecheck.Servi
 		return servicecheck.ServiceCheckCritical
 	}
 	return servicecheck.ServiceCheckWarning
-}
-
-func truncateMessage(message string) string {
-	const maxMessageLength = 1024
-	if len(message) <= maxMessageLength {
-		return message
-	}
-	return message[:maxMessageLength]
 }

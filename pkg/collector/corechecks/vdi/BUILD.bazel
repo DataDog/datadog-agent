@@ -84,6 +84,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "//pkg/util/pdhutil",
+            "//pkg/util/strings",
             "//pkg/vdi/model",
             "@in_yaml_go_yaml_v2//:yaml",
         ],

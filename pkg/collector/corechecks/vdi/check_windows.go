@@ -28,11 +28,6 @@ import (
 	vdimodel "github.com/DataDog/datadog-agent/pkg/vdi/model"
 )
 
-const (
-	providerAWSWorkSpaces = "aws_workspaces"
-	protocolDCV           = "dcv"
-)
-
 var (
 	connectionPattern = regexp.MustCompile(`^(.*):([0-9]+)$`)
 	channelPattern    = regexp.MustCompile(`^(.*):([0-9]+):(.+)$`)
@@ -100,7 +95,7 @@ func (c *checkImpl) Configure(senderManager sender.SenderManager, digest uint64,
 		c.startedAt = c.now()
 		return nil
 	}
-	if c.config.Provider != providerAWSWorkSpaces {
+	if c.config.Provider != vdimodel.ProviderAWSWorkSpaces {
 		return fmt.Errorf("unsupported VDI provider %q", c.config.Provider)
 	}
 	if c.config.AWSWorkSpaces == nil {
@@ -240,7 +235,7 @@ func (c *checkImpl) baseTags() []string {
 	if c.config.Provider == vdimodel.ProviderAzureVirtualDesktop {
 		return []string{"vdi_provider:" + vdimodel.ProviderAzureVirtualDesktop, "vdi_protocol:" + vdimodel.ProtocolRDP}
 	}
-	tags := []string{"vdi_provider:" + providerAWSWorkSpaces, "vdi_protocol:" + protocolDCV}
+	tags := []string{"vdi_provider:" + vdimodel.ProviderAWSWorkSpaces, "vdi_protocol:" + vdimodel.ProtocolDCV}
 	product := c.config.AWSWorkSpaces.Product
 	if product == "auto" {
 		if os.Getenv("AppStream_Resource_Type") != "" {

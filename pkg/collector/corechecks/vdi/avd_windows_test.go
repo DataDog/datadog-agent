@@ -9,8 +9,10 @@ package vdi
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -89,6 +91,7 @@ func TestAVDFailedAndStaleInventoryDoesNotEmitZeroCountsOrOldUsers(t *testing.T)
 		status string
 	}{
 		{name: "transport failure", err: errors.New("named pipe unavailable"), status: model.StatusOK},
+		{name: "long localized failure", err: errors.New(strings.Repeat("界", 400)), status: model.StatusOK},
 		{name: "WTS failure", status: model.StatusError},
 		{name: "stale snapshot", age: 2 * time.Minute, status: model.StatusOK},
 		{name: "future snapshot", age: -time.Minute, status: model.StatusOK},
@@ -105,8 +108,11 @@ func TestAVDFailedAndStaleInventoryDoesNotEmitZeroCountsOrOldUsers(t *testing.T)
 					Sessions:     []model.Session{{ID: "3", User: "stale-user", State: "active"}},
 				}},
 			}}
-			s.On("ServiceCheck", "vdi.session_enrichment.health", servicecheck.ServiceCheckCritical, "", c.baseTags(), mock.Anything).Return().Once()
+			s.On("ServiceCheck", "vdi.session_enrichment.health", servicecheck.ServiceCheckCritical, "", c.baseTags(), mock.MatchedBy(func(message string) bool {
+				return len(message) <= 1024 && utf8.ValidString(message)
+			})).Return().Once()
 			require.NoError(t, c.Run())
+			require.NotEmpty(t, c.GetWarnings(), "inventory failures must appear in agent status")
 			s.AssertNumberOfCalls(t, "Gauge", 0)
 			s.AssertExpectations(t)
 		})
@@ -201,5 +207,6 @@ func TestAVDPartialInventoryEmitsKnownSessionsWithoutAggregateCounts(t *testing.
 	s.On("ServiceCheck", "vdi.session_enrichment.health", servicecheck.ServiceCheckWarning, "", c.baseTags(), "one protocol query failed").Return().Once()
 	require.NoError(t, c.Run())
 	s.AssertNumberOfCalls(t, "Gauge", 1)
+	require.NotEmpty(t, c.GetWarnings(), "partial inventory must appear in agent status")
 	s.AssertExpectations(t)
 }

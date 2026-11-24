@@ -9,10 +9,28 @@ package modules
 
 import (
 	"errors"
-	"github.com/DataDog/datadog-agent/pkg/vdi/model"
-	"github.com/stretchr/testify/require"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/vdi/model"
 )
+
+func TestVDIInventoryTimestampFollowsEnumeration(t *testing.T) {
+	now := time.Date(2026, time.November, 24, 12, 0, 0, 0, time.UTC)
+	lastInput := now.Add(time.Second)
+	module := newVDIModule(func() ([]model.WindowsSession, error) {
+		now = lastInput
+		return []model.WindowsSession{{WindowsSessionID: 4, Protocol: model.ProtocolRDP, State: "active", LastInputAt: &lastInput}}, nil
+	})
+	module.now = func() time.Time { return now }
+	result := module.inventory()
+
+	require.Equal(t, lastInput, result.CollectedAt)
+	require.Len(t, result.Providers[model.ProviderAzureVirtualDesktop].Sessions, 1)
+	require.Equal(t, &lastInput, result.Providers[model.ProviderAzureVirtualDesktop].Sessions[0].LastInputAt)
+}
 
 func TestVDIInventoryIncludesRDPSessions(t *testing.T) {
 	module := newVDIModule(func() ([]model.WindowsSession, error) {

@@ -36,7 +36,6 @@ func TestRDPInventoryKeepsDisconnectedSessionsAndExcludesNonDesktopSessions(t *t
 	require.Equal(t, "bob@example.com", result.Sessions[1].User)
 	for _, session := range result.Sessions {
 		require.Equal(t, model.ProtocolRDP, session.Protocol)
-		require.Empty(t, session.Connections, "WTS session IDs are not connection IDs")
 	}
 }
 
@@ -67,7 +66,7 @@ func TestDisconnectedDesktopSurvivesMissingClientProtocol(t *testing.T) {
 			{WindowsSessionID: 1, Name: "Console", Protocol: "console", User: "local-admin", State: "disconnected"},
 			{WindowsSessionID: 2, Protocol: "console", User: "alice", Domain: "AzureAD", State: "disconnected"},
 			{WindowsSessionID: 3, Protocol: model.ProtocolRDP, User: "bob", State: "active"},
-			{WindowsSessionID: 4, Protocol: "console", State: "disconnected"},
+			{WindowsSessionID: 4, Name: "Services", Protocol: "console", State: "disconnected"},
 		},
 	})
 	require.Equal(t, model.StatusOK, result.Status)
@@ -75,19 +74,24 @@ func TestDisconnectedDesktopSurvivesMissingClientProtocol(t *testing.T) {
 	require.Equal(t, "2", result.Sessions[0].ID)
 	require.Equal(t, "disconnected", result.Sessions[0].State)
 	require.Equal(t, "AzureAD\\alice", result.Sessions[0].User)
-	require.Empty(t, result.Sessions[0].Connections)
 	require.Equal(t, "3", result.Sessions[1].ID)
 }
 
 func TestDisconnectedDesktopWithUnknownEligibilityMakesInventoryPartial(t *testing.T) {
-	result := FromWindowsInventory(model.WindowsInventory{
-		SourceStatus: model.SourceStatus{Status: model.StatusOK},
-		Sessions: []model.WindowsSession{
-			{WindowsSessionID: 3, State: "disconnected"},
-		},
-	})
+	for _, protocol := range []string{"", "console"} {
+		t.Run("protocol="+protocol, func(t *testing.T) {
+			result := FromWindowsInventory(model.WindowsInventory{
+				SourceStatus: model.SourceStatus{Status: model.StatusOK},
+				Sessions: []model.WindowsSession{
+					{WindowsSessionID: 3, Protocol: protocol, State: "disconnected"},
+					{WindowsSessionID: 4, Protocol: model.ProtocolRDP, User: "alice", State: "active"},
+				},
+			})
 
-	require.Equal(t, model.StatusPartial, result.Status)
-	require.Contains(t, result.Error, "eligibility could not be determined")
-	require.Empty(t, result.Sessions)
+			require.Equal(t, model.StatusPartial, result.Status)
+			require.Contains(t, result.Error, "eligibility could not be determined")
+			require.Len(t, result.Sessions, 1)
+			require.Equal(t, "4", result.Sessions[0].ID)
+		})
+	}
 }

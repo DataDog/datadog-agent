@@ -9,6 +9,7 @@ package windows
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 	"unsafe"
@@ -26,6 +27,7 @@ type fakeWTS struct {
 	strings      map[uint32]map[uint32]string
 	info         map[uint32]wtsInfo
 	protocols    map[uint32]uint16
+	queryErrors  map[uint32]error
 }
 
 func (f fakeWTS) enumerateSessions() ([]windows.WTS_SESSION_INFO, error) {
@@ -33,6 +35,9 @@ func (f fakeWTS) enumerateSessions() ([]windows.WTS_SESSION_INFO, error) {
 }
 
 func (f fakeWTS) queryString(sessionID uint32, infoClass uint32) (string, error) {
+	if err := f.queryErrors[infoClass]; err != nil {
+		return "", err
+	}
 	value, ok := f.strings[sessionID][infoClass]
 	if !ok {
 		return "", errors.New("information unavailable")
@@ -41,6 +46,9 @@ func (f fakeWTS) queryString(sessionID uint32, infoClass uint32) (string, error)
 }
 
 func (f fakeWTS) queryInfo(sessionID uint32) (wtsInfo, error) {
+	if err := f.queryErrors[wtsSessionInfoClass]; err != nil {
+		return wtsInfo{}, err
+	}
 	value, ok := f.info[sessionID]
 	if !ok {
 		return wtsInfo{}, errors.New("information unavailable")
@@ -86,6 +94,24 @@ func TestEnumerateSessionsReturnsEnumerationError(t *testing.T) {
 	require.EqualError(t, err, "enumeration failed")
 }
 
+func TestSessionsThatLogOffDuringEnrichmentAreSkipped(t *testing.T) {
+	for _, state := range []uint32{windows.WTSActive, windows.WTSDisconnected} {
+		for _, infoClass := range []uint32{wtsUserName, wtsDomainName, wtsWinStationName, wtsSessionInfoClass, wtsClientProtocolType} {
+			t.Run(fmt.Sprintf("state=%d/class=%d", state, infoClass), func(t *testing.T) {
+				sessions, err := enumerateSessions(fakeWTS{
+					sessions:    []windows.WTS_SESSION_INFO{{SessionID: 3, State: state}},
+					strings:     map[uint32]map[uint32]string{3: {wtsUserName: "alice", wtsDomainName: "EXAMPLE", wtsWinStationName: "rdp-tcp#3"}},
+					info:        map[uint32]wtsInfo{3: {}},
+					protocols:   map[uint32]uint16{3: 2},
+					queryErrors: map[uint32]error{infoClass: fmt.Errorf("session query: %w", windows.ERROR_CTX_WINSTATION_NOT_FOUND)},
+				})
+				require.NoError(t, err)
+				require.Empty(t, sessions)
+			})
+		}
+	}
+}
+
 func TestDisconnectedSessionQueryFailuresMakeInventoryPartial(t *testing.T) {
 	sessions, err := enumerateSessions(fakeWTS{
 		sessions: []windows.WTS_SESSION_INFO{{SessionID: 3, State: windows.WTSDisconnected}},
@@ -122,6 +148,9 @@ func TestWTSInfoLayout(t *testing.T) {
 }
 
 func (f fakeWTS) queryProtocol(sessionID uint32) (uint16, error) {
+	if err := f.queryErrors[wtsClientProtocolType]; err != nil {
+		return 0, err
+	}
 	protocol, ok := f.protocols[sessionID]
 	if !ok {
 		return 0, errors.New("protocol unavailable")

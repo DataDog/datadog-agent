@@ -76,9 +76,16 @@ func enumerateSessions(api wtsAPI) ([]vdimodel.WindowsSession, error) {
 	for _, item := range raw {
 		// Listener and system sessions do not always expose user details. Keep
 		// the session in the inventory when an optional query fails.
-		user, _ := api.queryString(item.SessionID, wtsUserName)
-		domain, _ := api.queryString(item.SessionID, wtsDomainName)
-		name, _ := api.queryString(item.SessionID, wtsWinStationName)
+		user, userErr := api.queryString(item.SessionID, wtsUserName)
+		domain, domainErr := api.queryString(item.SessionID, wtsDomainName)
+		name, nameErr := api.queryString(item.SessionID, wtsWinStationName)
+		info, infoErr := api.queryInfo(item.SessionID)
+		protocol, protocolErr := api.queryProtocol(item.SessionID)
+		// A logoff between enumeration and enrichment is normal. Other query
+		// failures must retain the session so eligibility can remain partial.
+		if errors.Is(errors.Join(userErr, domainErr, nameErr, infoErr, protocolErr), windows.ERROR_CTX_WINSTATION_NOT_FOUND) {
+			continue
+		}
 		session := vdimodel.WindowsSession{
 			Name:             name,
 			WindowsSessionID: item.SessionID,
@@ -86,11 +93,11 @@ func enumerateSessions(api wtsAPI) ([]vdimodel.WindowsSession, error) {
 			Domain:           domain,
 			State:            stateName(item.State),
 		}
-		if info, queryErr := api.queryInfo(item.SessionID); queryErr == nil {
+		if infoErr == nil {
 			session.LogonAt = windowsTimestamp(info.LogonTime)
 			session.LastInputAt = windowsTimestamp(info.LastInputTime)
 		}
-		if protocol, protocolErr := api.queryProtocol(item.SessionID); protocolErr == nil {
+		if protocolErr == nil {
 			switch protocol {
 			case 0:
 				session.Protocol = "console"
