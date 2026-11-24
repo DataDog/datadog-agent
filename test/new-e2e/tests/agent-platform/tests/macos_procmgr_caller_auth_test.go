@@ -54,8 +54,10 @@ func assertMacosProcmgrRequiresRoot(t *testing.T, client *common.MacOSTestClient
 	t.Helper()
 	_, err := client.Execute(command)
 	require.Error(t, err, command)
-	// grpc_err prints "{code}: {message}", and tonic displays a code as its description.
-	assert.Contains(t, err.Error(), "The caller does not have permission to execute the specified operation: operation requires root")
+	// The daemon returns this message only as PermissionDenied, which its Rust tests pin
+	// (assert_requires_root in grpc/mod.rs). Matching the message alone keeps this test independent
+	// of how tonic and the CLI format the status code.
+	assert.Contains(t, err.Error(), "operation requires root")
 	return err.Error()
 }
 
