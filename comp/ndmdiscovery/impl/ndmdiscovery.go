@@ -23,7 +23,6 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	ndmdiscovery "github.com/DataDog/datadog-agent/comp/ndmdiscovery/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 	discoverytypes "github.com/DataDog/datadog-agent/pkg/networkdevices/discovery"
 )
 
@@ -154,17 +153,6 @@ func (d *ndmDiscovery) Trigger(autodiscoveryID string) error {
 		return errDisabled
 	}
 	return d.sched.triggerNow(autodiscoveryID)
-}
-
-// pingCapability detects once whether this process can send ICMP echo requests.
-func (d *ndmDiscovery) pingCapability() pingprobe.Capability {
-	d.pingOnce.Do(func() {
-		d.ping = pingprobe.Detect()
-		if !d.ping.Available {
-			d.log.Warnf("ndmdiscovery: the ping probe is not available: %s", d.ping.Reason)
-		}
-	})
-	return d.ping
 }
 
 func (d *ndmDiscovery) start(_ context.Context) error {

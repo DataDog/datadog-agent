@@ -8,8 +8,6 @@
 ---
 features:
   - |
-    A network device discovery range can be swept on request rather than
-    waiting for its next scheduled run, through the ``triggerNdmDiscovery``
-    private action. The run starts from the beginning of the range under a new
-    run id, and a range that is already sweeping is refused so the caller can
-    retry once it finishes.
+    A network device discovery range can be swept on request through the
+    ``triggerNdmDiscovery`` private action, rather than waiting for its next
+    scheduled run.
