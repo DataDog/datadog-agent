@@ -34,6 +34,7 @@ go_library(
         "oo_case_insensitive.go",
         "oo_extension.go",
         "oo_glob_cmp.go",
+        "op_overrides.go",
         "operators.go",
         "opts.go",
         "pattern.go",

@@ -29,11 +29,11 @@ func TestLowerCaseEquals(t *testing.T) {
 		var ctx Context
 		state := NewState(&testModel{})
 
-		e, err := CaseInsensitiveCmp.StringEquals(a, b, state)
+		e, err := overridesCmp(CaseInsensitiveCmp).StringEquals(a, b, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 
-		e, err = CaseInsensitiveCmp.StringEquals(b, a, state)
+		e, err = overridesCmp(CaseInsensitiveCmp).StringEquals(b, a, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 	})
@@ -54,11 +54,11 @@ func TestLowerCaseEquals(t *testing.T) {
 		var ctx Context
 		state := NewState(&testModel{})
 
-		e, err := CaseInsensitiveCmp.StringEquals(a, b, state)
+		e, err := overridesCmp(CaseInsensitiveCmp).StringEquals(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 
-		e, err = CaseInsensitiveCmp.StringEquals(b, a, state)
+		e, err = overridesCmp(CaseInsensitiveCmp).StringEquals(b, a, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -79,11 +79,11 @@ func TestLowerCaseEquals(t *testing.T) {
 		var ctx Context
 		state := NewState(&testModel{})
 
-		e, err := CaseInsensitiveCmp.StringEquals(a, b, state)
+		e, err := overridesCmp(CaseInsensitiveCmp).StringEquals(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 
-		e, err = CaseInsensitiveCmp.StringEquals(b, a, state)
+		e, err = overridesCmp(CaseInsensitiveCmp).StringEquals(b, a, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -104,11 +104,11 @@ func TestLowerCaseEquals(t *testing.T) {
 		var ctx Context
 		state := NewState(&testModel{})
 
-		e, err := CaseInsensitiveCmp.StringEquals(a, b, state)
+		e, err := overridesCmp(CaseInsensitiveCmp).StringEquals(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 
-		e, err = CaseInsensitiveCmp.StringEquals(b, a, state)
+		e, err = overridesCmp(CaseInsensitiveCmp).StringEquals(b, a, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -134,7 +134,7 @@ func TestLowerCaseContains(t *testing.T) {
 		var ctx Context
 		state := NewState(&testModel{})
 
-		e, err := CaseInsensitiveCmp.StringValuesContains(a, b, state)
+		e, err := overridesCmp(CaseInsensitiveCmp).StringValuesContains(a, b, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 	})
@@ -158,7 +158,7 @@ func TestLowerCaseContains(t *testing.T) {
 		var ctx Context
 		state := NewState(&testModel{})
 
-		e, err := CaseInsensitiveCmp.StringValuesContains(a, b, state)
+		e, err := overridesCmp(CaseInsensitiveCmp).StringValuesContains(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -182,7 +182,7 @@ func TestLowerCaseContains(t *testing.T) {
 		var ctx Context
 		state := NewState(&testModel{})
 
-		e, err := CaseInsensitiveCmp.StringValuesContains(a, b, state)
+		e, err := overridesCmp(CaseInsensitiveCmp).StringValuesContains(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -206,7 +206,7 @@ func TestLowerCaseContains(t *testing.T) {
 		var ctx Context
 		state := NewState(&testModel{})
 
-		e, err := CaseInsensitiveCmp.StringValuesContains(a, b, state)
+		e, err := overridesCmp(CaseInsensitiveCmp).StringValuesContains(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 
@@ -216,7 +216,7 @@ func TestLowerCaseContains(t *testing.T) {
 			Values: values,
 		}
 
-		e, err = CaseInsensitiveCmp.StringValuesContains(a, b, state)
+		e, err = overridesCmp(CaseInsensitiveCmp).StringValuesContains(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -250,7 +250,7 @@ func TestLowerCaseContains(t *testing.T) {
 		var ctx Context
 		state := NewState(&testModel{})
 
-		e, err := CaseInsensitiveCmp.StringValuesContains(a, b, state)
+		e, err := overridesCmp(CaseInsensitiveCmp).StringValuesContains(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -272,7 +272,7 @@ func TestLowerCaseArrayContains(t *testing.T) {
 		var ctx Context
 		state := NewState(&testModel{})
 
-		e, err := CaseInsensitiveCmp.StringArrayContains(a, b, state)
+		e, err := overridesCmp(CaseInsensitiveCmp).StringArrayContains(a, b, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 	})
@@ -292,7 +292,7 @@ func TestLowerCaseArrayContains(t *testing.T) {
 		var ctx Context
 		state := NewState(&testModel{})
 
-		e, err := CaseInsensitiveCmp.StringArrayContains(a, b, state)
+		e, err := overridesCmp(CaseInsensitiveCmp).StringArrayContains(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -314,8 +314,35 @@ func TestLowerCaseArrayContains(t *testing.T) {
 		var ctx Context
 		state := NewState(&testModel{})
 
-		e, err := CaseInsensitiveCmp.StringArrayContains(a, b, state)
+		e, err := overridesCmp(CaseInsensitiveCmp).StringArrayContains(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
+}
+
+// The options of the overrides of a field merge: a case insensitive extension
+// is sanitized too.
+func TestCaseInsensitiveExtension(t *testing.T) {
+	for _, test := range []struct {
+		value    string
+		input    string
+		expected bool
+	}{
+		{value: "txt", input: ".TXT", expected: true},
+		{value: ".TXT", input: ".txt", expected: true},
+		{value: "TXT", input: ".txt", expected: true},
+		{value: "txt", input: ".exe", expected: false},
+		// the sanitized value has a leading dot, an input without one doesn't match
+		{value: "txt", input: "txt", expected: false},
+	} {
+		input := test.input
+		field := &StringEvaluator{
+			Field:       "field",
+			EvalFnc:     func(*Context) string { return input },
+			OpOverrides: []*OpOverrides{CaseInsensitiveCmp, ExtensionCmp},
+		}
+		e, err := StringEqualsWrapper(field, &StringEvaluator{Value: test.value, ValueType: ScalarValueType}, NewState(&testModel{}))
+		assert.NoError(t, err)
+		assert.Equal(t, test.expected, e.Eval(NewContext(nil)), "%s == %s", test.input, test.value)
+	}
 }

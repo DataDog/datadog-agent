@@ -44,21 +44,6 @@ func newPacketFilterEvaluator(field string, value string, state *eval.State) (*e
 
 // PacketFilterMatching is a set of overrides for packet filter fields, it only supports matching a single static value
 var PacketFilterMatching = &eval.OpOverrides{
-	StringEquals: func(a *eval.StringEvaluator, b *eval.StringEvaluator, state *eval.State) (*eval.BoolEvaluator, error) {
-		if a.IsStatic() {
-			return newPacketFilterEvaluator(b.GetField(), a.Value, state)
-		} else if b.IsStatic() {
-			return newPacketFilterEvaluator(a.GetField(), b.Value, state)
-		}
-		return nil, errorNonStaticPacketFilterField(a, b)
-	},
-	StringValuesContains: func(a *eval.StringEvaluator, b *eval.StringValuesEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
-		return nil, errorNonStaticPacketFilterField(a, b)
-	},
-	StringArrayContains: func(a *eval.StringEvaluator, b *eval.StringArrayEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
-		return nil, errorNonStaticPacketFilterField(a, b)
-	},
-	StringArrayMatches: func(a *eval.StringArrayEvaluator, b *eval.StringValuesEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
-		return nil, errorNonStaticPacketFilterField(a, b)
-	},
+	EqualsOnly:   true,
+	StaticEquals: newPacketFilterEvaluator,
 }

@@ -9,25 +9,10 @@
 package model
 
 import (
-	"errors"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-var errUnsupportedOnDemandOp = errors.New("on-demand operator is not supported")
-
-// OnDemandNameOverrides is a set of overrides for on demand name field
+// OnDemandNameOverrides is a set of overrides for on demand name field, which only supports `==`
 var OnDemandNameOverrides = &eval.OpOverrides{
-	StringEquals: func(a *eval.StringEvaluator, b *eval.StringEvaluator, state *eval.State) (*eval.BoolEvaluator, error) {
-		return eval.StringEquals(a, b, state)
-	},
-	StringValuesContains: func(_ *eval.StringEvaluator, _ *eval.StringValuesEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
-		return nil, errUnsupportedOnDemandOp
-	},
-	StringArrayContains: func(_ *eval.StringEvaluator, _ *eval.StringArrayEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
-		return nil, errUnsupportedOnDemandOp
-	},
-	StringArrayMatches: func(_ *eval.StringArrayEvaluator, _ *eval.StringValuesEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
-		return nil, errUnsupportedOnDemandOp
-	},
+	EqualsOnly: true,
 }

@@ -313,7 +313,6 @@ go_library(
         "mount_flags.go",
         "oo_ondemand.go",
         "oo_overlayfs_unix.go",
-        "oo_packet_filter_common.go",
         "oo_packet_filter_unix.go",
         "oo_packet_filter_unsupported.go",
         "oo_symlink_unix.go",
