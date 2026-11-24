@@ -262,10 +262,10 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 		}
 	}
 
-	now := time.Now()
 	r.cgroupsLock.Lock()
 	r.cgroups = newCgroups
 	r.cgroupByInode = newCgroupByInode
+	now := time.Now()
 	r.scrapeTimestamp.Store(&now)
 	r.cgroupsLock.Unlock()
 	return nil
