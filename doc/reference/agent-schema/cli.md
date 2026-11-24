@@ -53,7 +53,7 @@ dda inv schema.template \
 | --- | --- | --- |
 | `--schema` | yes | Path to the enriched schema YAML file. |
 | `--build-type` | yes | One of: `datadog-agent`, `iot-agent`, `system-probe`, `dogstatsd`, `dca`, `dcacf`. |
-| `--os-target` | yes | One of: `windows`, `linux`, `darwin`. |
+| `--os-target` | yes | One of: `windows`, `linux`, `darwin`, `aix`. |
 | `--output` | yes | Path to write the rendered template. |
 
 Only nodes with `visibility: public` are rendered. The build type selects which template sections are included; the OS target controls which platform-specific defaults and `platform_only` settings are emitted.

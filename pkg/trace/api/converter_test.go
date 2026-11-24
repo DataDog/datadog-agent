@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tinylib/msgp/msgp"
 )
 
 // Test that error field is converted from int32 to bool
@@ -976,6 +977,23 @@ func TestConvertToIdx_InvalidSamplingMechanismIgnored(t *testing.T) {
 	assert.Equal(t, uint32(0), result.Chunks[0].SamplingMechanism())
 }
 
+// Test that an out-of-range chunk-level decision maker is ignored rather than saturated to MaxUint32
+func TestConvertToIdx_OutOfRangeChunkDecisionMakerIgnored(t *testing.T) {
+	payload := &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{
+			{
+				Tags:  map[string]string{"_dd.p.dm": "-99999999999"},
+				Spans: []*pb.Span{{Service: "test-service", Name: "test-span", TraceID: 123, SpanID: 456}},
+			},
+		},
+	}
+
+	result := ConvertToIdx(payload, "")
+
+	require.Len(t, result.Chunks, 1)
+	assert.Equal(t, uint32(0), result.Chunks[0].SamplingMechanism())
+}
+
 // Test that payload-level fields override span-level fields
 func TestConvertToIdx_PayloadFieldsOverrideSpanFields(t *testing.T) {
 	payload := &pb.TracerPayload{
@@ -1923,4 +1941,114 @@ func TestConvertToIdx_NilSpanLinkDoesNotPanic(t *testing.T) {
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
+}
+
+// encodeV05 encodes traces in the v0.5 dictionary format: [strings, [[span, ...], ...]], with each
+// span a 12-element array whose strings are indexes into the dictionary.
+func encodeV05(t *testing.T, traces pb.Traces) []byte {
+	t.Helper()
+	var dict []string
+	refs := map[string]uint32{}
+	ref := func(s string) uint32 {
+		if r, ok := refs[s]; ok {
+			return r
+		}
+		refs[s] = uint32(len(dict))
+		dict = append(dict, s)
+		return refs[s]
+	}
+	var body []byte
+	body = msgp.AppendArrayHeader(body, uint32(len(traces)))
+	for _, trace := range traces {
+		body = msgp.AppendArrayHeader(body, uint32(len(trace)))
+		for _, s := range trace {
+			body = msgp.AppendArrayHeader(body, 12)
+			body = msgp.AppendUint32(body, ref(s.Service))
+			body = msgp.AppendUint32(body, ref(s.Name))
+			body = msgp.AppendUint32(body, ref(s.Resource))
+			body = msgp.AppendUint64(body, s.TraceID)
+			body = msgp.AppendUint64(body, s.SpanID)
+			body = msgp.AppendUint64(body, s.ParentID)
+			body = msgp.AppendInt64(body, s.Start)
+			body = msgp.AppendInt64(body, s.Duration)
+			body = msgp.AppendInt32(body, s.Error)
+			body = msgp.AppendMapHeader(body, uint32(len(s.Meta)))
+			for k, v := range s.Meta {
+				body = msgp.AppendUint32(body, ref(k))
+				body = msgp.AppendUint32(body, ref(v))
+			}
+			body = msgp.AppendMapHeader(body, uint32(len(s.Metrics)))
+			for k, v := range s.Metrics {
+				body = msgp.AppendUint32(body, ref(k))
+				body = msgp.AppendFloat64(body, v)
+			}
+			body = msgp.AppendUint32(body, ref(s.Type))
+		}
+	}
+	var b []byte
+	b = msgp.AppendArrayHeader(b, 2)
+	b = msgp.AppendArrayHeader(b, uint32(len(dict)))
+	for _, s := range dict {
+		b = msgp.AppendString(b, s)
+	}
+	return append(b, body...)
+}
+
+// TestChunkSamplingMechanismMixedDecisionMakers checks that every V1 conversion path promotes the same
+// sampling mechanism when the spans of a chunk carry different `_dd.p.dm` values: any decision maker
+// wins over "-0" (the tracer's startup fallback), regardless of span order.
+func TestChunkSamplingMechanismMixedDecisionMakers(t *testing.T) {
+	span := func(spanID uint64, dm string, priority float64) *pb.Span {
+		s := &pb.Span{Service: "svc", Name: "op", Resource: "res", TraceID: 42, SpanID: spanID, ParentID: 1, Start: 1, Duration: 1}
+		if dm != "" {
+			s.Meta = map[string]string{"_dd.p.dm": dm}
+		}
+		if priority != 0 {
+			s.Metrics = map[string]float64{"_sampling_priority_v1": priority}
+		}
+		return s
+	}
+	tests := []struct {
+		name     string
+		spans    func() []*pb.Span
+		expected uint32
+	}{
+		{"default then rule", func() []*pb.Span { return []*pb.Span{span(2, "-0", 1), span(3, "-3", 2)} }, 3},
+		{"rule then default", func() []*pb.Span { return []*pb.Span{span(3, "-3", 2), span(2, "-0", 1)} }, 3},
+		{"first real decision wins", func() []*pb.Span { return []*pb.Span{span(2, "-0", 1), span(3, "-3", 2), span(4, "-8", 2)} }, 3},
+		{"only default", func() []*pb.Span { return []*pb.Span{span(2, "-0", 1), span(3, "-0", 1)} }, 0},
+		{"zero-valued default", func() []*pb.Span { return []*pb.Span{span(2, "-00", 1), span(3, "-3", 2)} }, 3},
+		{"invalid skipped", func() []*pb.Span { return []*pb.Span{span(2, "-0", 1), span(3, "invalid", 2), span(4, "-3", 2)} }, 3},
+		{"out of range skipped", func() []*pb.Span { return []*pb.Span{span(2, "-99999999999", 2), span(3, "-3", 2)} }, 3},
+		{"no decision maker", func() []*pb.Span { return []*pb.Span{span(2, "", 1), span(3, "", 1)} }, 0},
+	}
+
+	paths := map[string]func(t *testing.T, traces pb.Traces) *idx.InternalTracerPayload{
+		"v04-msgpack": func(t *testing.T, traces pb.Traces) *idx.InternalTracerPayload {
+			b, err := traces.MarshalMsg(nil)
+			require.NoError(t, err)
+			tp := &idx.InternalTracerPayload{}
+			_, err = tp.UnmarshalMsgConverted(b)
+			require.NoError(t, err)
+			return tp
+		},
+		"v05-msgpack": func(t *testing.T, traces pb.Traces) *idx.InternalTracerPayload {
+			tp := &idx.InternalTracerPayload{}
+			require.NoError(t, tp.UnmarshalMsgDictionary(encodeV05(t, traces)))
+			return tp
+		},
+		"ConvertToIdx": func(_ *testing.T, traces pb.Traces) *idx.InternalTracerPayload {
+			return ConvertToIdx(&pb.TracerPayload{Chunks: traceChunksFromTraces(traces)}, "v04-json")
+		},
+	}
+
+	for _, tt := range tests {
+		for pathName, convert := range paths {
+			t.Run(tt.name+"/"+pathName, func(t *testing.T) {
+				tp := convert(t, pb.Traces{tt.spans()})
+				require.Len(t, tp.Chunks, 1)
+				assert.Equal(t, tt.expected, tp.Chunks[0].SamplingMechanism())
+			})
+		}
+	}
 }

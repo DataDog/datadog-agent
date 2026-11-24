@@ -768,10 +768,13 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 	results := make(chan defaultforwarderdef.Response, len(transactions))
 	internalResults := make(chan defaultforwarderdef.Response, len(transactions))
 	expectedResponses := len(transactions)
-	pendingDomains := make(map[string]int, len(transactions))
+	if expectedResponses == 0 {
+		// No transaction means no response to wait for.
+		close(results)
+		return results, f.sendHTTPTransactions(transactions)
+	}
 
 	for _, txn := range transactions {
-		pendingDomains[txn.Domain]++
 		txn.Retryable = retryable
 		txn.AttemptHandler = func(transaction *transaction.HTTPTransaction) {
 			if v := transaction.Headers.Get("X-DD-Agent-Attempts"); v == "" {
@@ -804,11 +807,8 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 					close(results)
 					return
 				}
-				if pendingDomains[r.Domain]--; pendingDomains[r.Domain] <= 0 {
-					delete(pendingDomains, r.Domain)
-				}
 			case <-time.After(defaultResponseTimeout):
-				f.log.Errorf("timed out waiting for %s responses, received %d/%d, still waiting for responses from: %s", ep.Name, receivedResponses, expectedResponses, strings.Join(slices.Sorted(maps.Keys(pendingDomains)), ", "))
+				f.log.Errorf("timed out waiting for responses, received %d/%d", receivedResponses, expectedResponses)
 				close(results)
 				return
 			}

@@ -12,7 +12,7 @@ condition_config_any:
   - path: /etc/datadog-agent/datadog.yaml
     keys:
       - private_action_runner.split_enabled
-# FIPS falls back to the monolith, so split stays down.
+# PAR is not supported in FIPS, so split stays down.
 condition_config_none:
   - path: /etc/datadog-agent/datadog.yaml
     keys:
