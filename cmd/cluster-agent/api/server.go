@@ -173,38 +173,30 @@ func StopServer() {
 // As we have 2 different tokens for the validation, we need to validate accordingly.
 func validateToken(ipc ipc.Component) func(http.Handler) http.Handler {
 	dcaTokenValidator := util.TokenValidator(util.GetDCAAuthToken)
-	localTokenGetter := util.TokenValidator(ipc.GetAuthToken)
+	localTokenValidator := util.TokenValidator(ipc.GetAuthToken)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			path := r.URL.String()
-			var isValid bool
-			// If communication is intra-pod
-			if !isExternalPath(path) {
-				if err := localTokenGetter(w, r); err == nil {
-					isValid = true
-				}
+			validator := localTokenValidator
+			if isExternalPath(r.URL.EscapedPath()) {
+				validator = dcaTokenValidator
 			}
-			if !isValid {
-				if err := dcaTokenValidator(w, r); err != nil {
-					return
-				}
+			if err := validator(w, r); err != nil {
+				return
 			}
 			next.ServeHTTP(w, r)
 		})
 	}
 }
 
-// isNodeStatusPath returns whether path is exactly /api/v1/info/node/<node>/status, without a query string.
+// isNodeStatusPath returns whether path is exactly /api/v1/info/node/<node>/status.
 func isNodeStatusPath(path string) bool {
 	segments := strings.Split(path, "/")
-	return strings.HasPrefix(path, "/api/v1/info/node/") && !strings.Contains(path, "?") &&
-		len(segments) == 7 && segments[5] != "" && segments[6] == "status"
+	return strings.HasPrefix(path, "/api/v1/info/node/") && len(segments) == 7 && segments[5] != "" && segments[6] == "status"
 }
 
-// isNodeInfoPath returns whether path is /api/v1/info/node/<node>, with an optional query string.
+// isNodeInfoPath returns whether path is exactly /api/v1/info/node/<node>.
 func isNodeInfoPath(path string) bool {
-	path, _, _ = strings.Cut(path, "?")
 	segments := strings.Split(path, "/")
 	return strings.HasPrefix(path, "/api/v1/info/node/") && len(segments) == 6 && segments[5] != ""
 }

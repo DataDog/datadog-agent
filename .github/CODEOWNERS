@@ -20,6 +20,7 @@
 /.claude/rules/allium.md                        @DataDog/single-machine-performance
 /.claude/rules/bazel.md                         @DataDog/agent-build
 /.claude/rules/msi.md                           @DataDog/windows-products
+/.claude/rules/ndm-testing.md                   @DataDog/network-device-monitoring-core @DataDog/ndm-integrations
 /.claude/rules/systemd.md                       @DataDog/agent-runtimes
 /.cursor/rules/bazel-buildifier.mdc             @DataDog/agent-build
 /.agents/*                                      @DataDog/agent-devx
@@ -453,6 +454,7 @@
 /doc/guidelines/components.md                                @DataDog/agent-runtimes
 /doc/reference/components/                                   @DataDog/agent-runtimes
 /doc/how-to/run-jmxfetch.md                                  @DataDog/agent-runtimes
+/doc/how-to/actions/                                        @DataDog/action-platform
 /docs/public/hostname/                                       @DataDog/agent-runtimes
 /doc/architecture/dogstatsd/                                 @DataDog/agent-metric-pipelines
 /doc/how-to/test/e2e/benchmarkeks/                           @DataDog/container-integrations
@@ -708,6 +710,7 @@
 /comp/core/autodiscovery/listeners/                                   @DataDog/container-platform
 /comp/core/autodiscovery/listeners/cloudfoundry*.go                   @DataDog/agent-integrations
 /comp/core/autodiscovery/listeners/snmp*.go                           @DataDog/network-device-monitoring-core
+/comp/core/autodiscovery/listeners/dbm_*.go                           @DataDog/database-monitoring
 /comp/core/autodiscovery/providers/                                   @DataDog/container-platform
 /comp/core/autodiscovery/providers/file*.go                           @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/config_reader*.go                  @DataDog/container-platform @DataDog/agent-log-pipelines
@@ -1246,6 +1249,7 @@
 /test/regression/container/agent-metric-pipelines/                @DataDog/agent-metric-pipelines
 
 /tools/                                                              @DataDog/agent-devx
+/tools/privateactionrunner/                                          @DataDog/action-platform
 /tools/host-profiler/                                                @DataDog/profiling-full-host
 /tools/bazel*                                                        @DataDog/agent-build
 /tools/ci                                                            @DataDog/agent-devx

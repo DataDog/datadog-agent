@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // reader identifies which span context reader attempted the fill.
@@ -121,9 +120,9 @@ func NewMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (
 		return nil, fmt.Errorf("span_ctx_stats holds %d entries, expected %d: the reader/status mirrors are out of sync with custom.h", statsMap.MaxEntries(), expected)
 	}
 
-	numCPUs, err := utils.NumCPU()
+	numCPUs, err := lib.PossibleCPU()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
+		return nil, fmt.Errorf("couldn't fetch the possible CPU count: %w", err)
 	}
 
 	return &Monitor{
