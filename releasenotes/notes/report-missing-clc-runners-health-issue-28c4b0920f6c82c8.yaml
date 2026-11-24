@@ -8,8 +8,11 @@
 ---
 enhancements:
   - |
-    The Cluster Agent now reports an agent health issue when it has cluster
-    checks to dispatch but no Cluster Check Runners (and no node agents) are
-    reporting. In that situation the cluster checks are left undispatched and
-    their metrics may be lost; the health issue makes the condition visible and
-    is resolved automatically once a runner is available again.
+    The Cluster Agent now reports an agent health issue when cluster checks
+    remain stranded — stuck undispatched past the unscheduled-check threshold
+    with no eligible Cluster Check Runner to run them. This covers both a total
+    loss of runners and a runner group losing all of its runners while other
+    workers keep reporting. In that situation the affected checks are not
+    executed and their metrics may be lost; the health issue makes the condition
+    visible and is resolved automatically once an eligible worker is available
+    for those checks again.

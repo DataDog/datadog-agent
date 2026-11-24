@@ -470,11 +470,6 @@ func (d *dispatcher) run(ctx context.Context) {
 	healthProbe := health.RegisterLiveness("clusterchecks-dispatch")
 	defer health.Deregister(healthProbe) //nolint:errcheck
 
-	// Resolve the missing-runners issue when this goroutine stops (leadership
-	// lost or shutdown): a demoted leader no longer dispatches, and a new
-	// leader will re-report if the condition still holds.
-	defer d.resolveMissingCLCRunnersIssue()
-
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
 

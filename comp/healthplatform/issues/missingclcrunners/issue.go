@@ -22,20 +22,22 @@ const (
 )
 
 // MissingCLCRunnersIssue builds a complete issue for the case where the Cluster
-// Agent is dispatching cluster checks but no Cluster Check Runners are reporting.
+// Agent has cluster checks it cannot dispatch because no eligible Cluster Check
+// Runner is available (either none are reporting, or none are reporting in a
+// runner group that claims some of the checks).
 type MissingCLCRunnersIssue struct{}
 
 // BuildIssue creates a complete issue with metadata and remediation.
 // Expected context keys:
 //   - "pending_checks": the number of cluster-check configs that cannot be dispatched
 func (t *MissingCLCRunnersIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
-	description := "The Cluster Agent has cluster checks to dispatch but no Cluster Check Runners are reporting. " +
-		"Cluster checks are not being dispatched and their metrics may be lost."
+	description := "The Cluster Agent has cluster checks that cannot be dispatched because no eligible Cluster Check Runner " +
+		"is available to run them. Those checks are not being executed and their metrics may be lost."
 
 	steps := []*healthplatform.RemediationStep{
 		{Order: 1, Text: "Verify the Cluster Check Runner pods are running and ready: kubectl get pods -l app=datadog-clusterchecks"},
 		{Order: 2, Text: "Inspect the Cluster Check Runner pod logs and events for crashes, OOMKills, or scheduling failures"},
-		{Order: 3, Text: "Ensure the Cluster Check Runner deployment has at least one ready replica and is not scaled to zero"},
+		{Order: 3, Text: "Ensure a ready Cluster Check Runner exists for each configured runner group (if you use cluster_checks.runner_groups); otherwise ensure the runner deployment has at least one ready replica and is not scaled to zero"},
 		{Order: 4, Text: "Confirm the runners can reach the Cluster Agent (DD_CLUSTER_AGENT_URL / service connectivity and shared auth token)"},
 		{Order: 5, Text: "See docs: https://docs.datadoghq.com/containers/cluster_agent/clusterchecksrunner/"},
 	}

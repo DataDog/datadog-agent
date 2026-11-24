@@ -24,7 +24,7 @@ func TestBuildIssue_BasicFields(t *testing.T) {
 	assert.Equal(t, issueName, issue.IssueName)
 	assert.Equal(t, issueType, issue.IssueType)
 	assert.Equal(t, "Missing Cluster Check Runners", issue.Title)
-	assert.Contains(t, issue.Description, "no Cluster Check Runners are reporting")
+	assert.Contains(t, issue.Description, "no eligible Cluster Check Runner")
 	assert.Equal(t, "availability", issue.Category)
 	assert.Equal(t, "cluster-checks", issue.Location)
 	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, issue.Severity)
