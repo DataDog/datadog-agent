@@ -174,8 +174,7 @@ func gcpServerlessSourceFromAttributes(attrs pcommon.Map) (source.Source, bool) 
 		dims["revision_name"] = revision.Str()
 	}
 	return source.Source{
-		Kind:       kind,
-		Identifier: instanceID, //nolint:staticcheck // Populate the legacy field during the SourceIdentifier migration.
+		Kind: kind,
 		SourceIdentifier: source.SourceIdentifier{
 			Primary:    instanceID,
 			Dimensions: dims,

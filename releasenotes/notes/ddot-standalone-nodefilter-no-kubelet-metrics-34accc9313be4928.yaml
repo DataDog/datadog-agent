@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    The DDOT Collector in standalone mode with
+    ``otelcollector.standalone.use_kubelet_collector`` set to ``false`` no
+    longer tries to reach the kubelet, to collect container metrics or host
+    metadata, which made it log ``Impossible to reach Kubelet`` warnings
+    indefinitely when the kubelet is unreachable or when its service account
+    has no kubelet API permissions. It now resolves container IDs from the
+    ``k8s.pod.uid`` and ``k8s.container.name`` resource attributes using the
+    pods it watches through the Kubernetes API server.

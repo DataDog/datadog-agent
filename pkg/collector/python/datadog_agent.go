@@ -407,6 +407,7 @@ var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
 		"CTE Name",
 		"Custom Plan Provider",
 		"Deforming",
+		"Disabled",
 		"Emission",
 		"Exact Heap Blocks",
 		"Execution Time",
@@ -492,8 +493,8 @@ var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
 	},
 }
 
-// defaultSQLPlanObfuscateSettings builds upon sqlPlanNormalizeSettings by including cost & row estimates in the keep
-// list
+// defaultSQLPlanObfuscateSettings builds upon defaultSQLPlanNormalizeSettings by including cost & row estimates and
+// display-only plan metadata in the keep list without changing normalized plan signatures
 var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 	Enabled: true,
 	KeepValues: append([]string{
@@ -504,6 +505,8 @@ var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 		"rows_examined_per_scan",
 		"rows_produced_per_join",
 		// postgres
+		"Inner Unique",
+		"Operation",
 		"Plan Rows",
 		"Plan Width",
 		"Startup Cost",

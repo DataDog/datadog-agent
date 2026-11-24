@@ -264,7 +264,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_service:service1",
 						"kube_service:service2",
 						"kueue_local_queue:batch",
-						"kube_scheduler:kueue",
+						"job_scheduler:kueue",
 						"kube_qos:guaranteed",
 						"kube_runtime_class:myclass",
 						"ns_team:containers",
@@ -2430,9 +2430,9 @@ func TestKueueSchedulerTags(t *testing.T) {
 			entities:    []workloadmeta.Entity{workload, localQueue},
 			annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "job-sample"},
 			expected: []string{
-				"kube_scheduler:kueue",
-				"kube_scheduler_queue:cluster-batch",
-				"kube_scheduler_workload:job-sample",
+				"job_scheduler:kueue",
+				"job_scheduler_queue:cluster-batch",
+				"job_scheduler_workload:job-sample",
 			},
 		},
 		{
@@ -2441,18 +2441,18 @@ func TestKueueSchedulerTags(t *testing.T) {
 			annotations: map[string]string{
 				kubernetes.KueueWorkloadAnnotationKey: "missing-workload",
 			},
-			expected: []string{"kube_scheduler:kueue", "kube_scheduler_queue:cluster-batch"},
+			expected: []string{"job_scheduler:kueue", "job_scheduler_queue:cluster-batch"},
 		},
 		{
 			name:     "with the ClusterQueue of the LocalQueue entity",
 			entities: []workloadmeta.Entity{localQueue},
 			labels:   map[string]string{kubernetes.KueueQueueNameLabelKey: "batch"},
-			expected: []string{"kube_scheduler:kueue", "kube_scheduler_queue:cluster-batch"},
+			expected: []string{"job_scheduler:kueue", "job_scheduler_queue:cluster-batch"},
 		},
 		{
 			name:     "with only a LocalQueue name",
 			labels:   map[string]string{kubernetes.KueueQueueNameLabelKey: "batch"},
-			expected: []string{"kube_scheduler:kueue"},
+			expected: []string{"job_scheduler:kueue"},
 		},
 		{
 			name:   "not for pods without Kueue information",
@@ -2490,7 +2490,7 @@ func TestKueueSchedulerTags(t *testing.T) {
 			for _, tagInfo := range tagInfos {
 				var schedulerTags []string
 				for _, tag := range append(tagInfo.LowCardTags, tagInfo.OrchestratorCardTags...) {
-					if strings.HasPrefix(tag, "kube_scheduler") {
+					if strings.HasPrefix(tag, "job_scheduler") {
 						schedulerTags = append(schedulerTags, tag)
 					}
 				}
@@ -2551,18 +2551,18 @@ func TestKAIPodGroupTagsPropagateToPodAndContainer(t *testing.T) {
 			require.Contains(t, tagInfos, entityID)
 			var kaiTags []string
 			for _, tag := range append(tagInfos[entityID].LowCardTags, tagInfos[entityID].OrchestratorCardTags...) {
-				if strings.HasPrefix(tag, "kube_scheduler") || strings.HasPrefix(tag, "kai_") {
+				if strings.HasPrefix(tag, "job_scheduler") || strings.HasPrefix(tag, "kai_") {
 					kaiTags = append(kaiTags, tag)
 				}
 			}
 			assert.ElementsMatch(t, expected, kaiTags, "tags of %s", entityID)
 		}
 	}
-	podLabelTags := []string{"kube_scheduler:kai", "kube_scheduler_queue:label-queue", "kai_queue:label-queue"}
+	podLabelTags := []string{"job_scheduler:kai", "job_scheduler_queue:label-queue", "kai_queue:label-queue"}
 	podGroupTags := func(queue string) []string {
 		return []string{
-			"kube_scheduler:kai", "kube_scheduler_queue:" + queue, "kai_queue:" + queue,
-			"kube_scheduler_workload:" + podGroupName, "kai_pod_group:" + podGroupName, "kai_team:ml",
+			"job_scheduler:kai", "job_scheduler_queue:" + queue, "kai_queue:" + queue,
+			"job_scheduler_workload:" + podGroupName, "kai_pod_group:" + podGroupName, "kai_team:ml",
 		}
 	}
 
@@ -5261,6 +5261,115 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
 						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "AMD device",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "ab0074a1-0000-1000-80cd-ef0123456789",
+				},
+				Vendor:     "amd",
+				Index:      8,
+				Device:     "AMD Instinct MI300X",
+				GPUType:    "mi300x",
+				PCIBusID:   "0000:26:00.0",
+				DeviceType: workloadmeta.GPUDeviceTypePhysical,
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "ab0074a1-0000-1000-80cd-ef0123456789"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_index:8",
+						"gpu_vendor:amd",
+						"gpu_device:amd_instinct_mi300x",
+						"gpu_type:mi300x",
+						"gpu_uuid:ab0074a1-0000-1000-80cd-ef0123456789",
+						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:none",
+						"gpu_mig_profile:none",
+						"gpu_parent_uuid:ab0074a1-0000-1000-80cd-ef0123456789",
+						"gpu_pci_bus_id:0000:26:00.0",
+						"gpu_nvlink_capable:false",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "AMD device of unknown index",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "ab0074a1-0000-1000-80cd-ef0123456789",
+				},
+				Vendor:     "amd",
+				Index:      -1,
+				Device:     "AMD Instinct MI300X",
+				GPUType:    "mi300x",
+				PCIBusID:   "0000:26:00.0",
+				DeviceType: workloadmeta.GPUDeviceTypePhysical,
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "ab0074a1-0000-1000-80cd-ef0123456789"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:amd",
+						"gpu_device:amd_instinct_mi300x",
+						"gpu_type:mi300x",
+						"gpu_uuid:ab0074a1-0000-1000-80cd-ef0123456789",
+						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:none",
+						"gpu_mig_profile:none",
+						"gpu_parent_uuid:ab0074a1-0000-1000-80cd-ef0123456789",
+						"gpu_pci_bus_id:0000:26:00.0",
+						"gpu_nvlink_capable:false",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "NVIDIA device: no index tag",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "ab0074a1-0000-1000-80cd-ef0123456789",
+				},
+				Vendor:     "nvidia",
+				Index:      3,
+				Device:     "AMD Instinct MI300X",
+				GPUType:    "mi300x",
+				PCIBusID:   "0000:26:00.0",
+				DeviceType: workloadmeta.GPUDeviceTypePhysical,
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "ab0074a1-0000-1000-80cd-ef0123456789"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:nvidia",
+						"gpu_device:amd_instinct_mi300x",
+						"gpu_type:mi300x",
+						"gpu_uuid:ab0074a1-0000-1000-80cd-ef0123456789",
+						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:none",
+						"gpu_mig_profile:none",
+						"gpu_parent_uuid:ab0074a1-0000-1000-80cd-ef0123456789",
+						"gpu_pci_bus_id:0000:26:00.0",
 						"gpu_nvlink_capable:false",
 					},
 					StandardTags: []string{},

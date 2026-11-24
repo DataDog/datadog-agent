@@ -9,7 +9,10 @@ package proto
 import (
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
@@ -697,11 +700,11 @@ func protoProcessFromWorkloadmetaProcess(process *workloadmeta.Process) (*pb.Pro
 		Pid:            process.Pid,
 		Nspid:          process.NsPid,
 		Ppid:           process.Ppid,
-		Name:           process.Name,
-		Cwd:            process.Cwd,
-		Exe:            process.Exe,
-		Comm:           process.Comm,
-		Cmdline:        process.Cmdline,
+		Name:           toValidUTF8(process.Name),
+		Cwd:            toValidUTF8(process.Cwd),
+		Exe:            toValidUTF8(process.Exe),
+		Comm:           toValidUTF8(process.Comm),
+		Cmdline:        toValidUTF8Slice(process.Cmdline),
 		Uids:           process.Uids,
 		Gids:           process.Gids,
 		ContainerId:    process.ContainerID,
@@ -711,6 +714,23 @@ func protoProcessFromWorkloadmetaProcess(process *workloadmeta.Process) (*pb.Pro
 		Service:        toProtoService(process.Service),
 		InjectionState: pb.InjectionState(process.InjectionState),
 	}, nil
+}
+
+func toValidUTF8(s string) string {
+	return strings.ToValidUTF8(s, string(utf8.RuneError))
+}
+
+func toValidUTF8Slice(ss []string) []string {
+	for i, s := range ss {
+		if !utf8.ValidString(s) {
+			out := slices.Clone(ss)
+			for j := i; j < len(out); j++ {
+				out[j] = toValidUTF8(out[j])
+			}
+			return out
+		}
+	}
+	return ss
 }
 
 func toProtoEntityMetaFromCrd(crd *workloadmeta.CRD) *pb.EntityMeta {

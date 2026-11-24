@@ -58,6 +58,22 @@ new-e2e-fleet-upgrade:
       - E2E_FLEET_PLATFORM_GROUP: windows
         EXTRA_PARAMS: --run "TestFleetUpgrade$" --skip "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth|TestPARScriptConfigPreservedOnUpgrade)$"
 
+# Upgrade every released patch in the historical window.
+new-e2e-fleet-upgrade-history:
+  extends: .new_e2e_fleet_template
+  timeout: 1h 25m
+  variables:
+    EXTRA_PARAMS: --run "^TestFleetUpgradeHistory$" --extra-flags=-test.parallel=4
+    # Run every baseline.
+    DYNAMIC_TESTS_FLAG: ""
+    DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED: "false"
+    # Destroy each VM before reusing its parallel test slot.
+    REMOTE_STACK_CLEANING: "false"
+  parallel:
+    matrix:
+      - E2E_FLEET_PLATFORM_GROUP: [linux, windows]
+        E2E_FLEET_UPGRADE_MINOR_OFFSET: ["1", "2", "3", "4"]
+
 new-e2e-fleet-extensions:
   extends: .new_e2e_fleet_template
   timeout: 55m

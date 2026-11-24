@@ -7,8 +7,10 @@ package remoteimpl
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -130,4 +132,80 @@ func TestProcessEvent_Replace(t *testing.T) {
 	entity = store.getEntity(anotherEntityID)
 
 	assert.NotNil(t, entity)
+}
+
+func TestSubscribe(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	store := newTagStore(telemetryStore)
+
+	err := store.processEvents([]types.EntityEvent{
+		{
+			EventType: types.EventTypeAdded,
+			Entity: types.Entity{
+				ID:                          entityID,
+				OrchestratorCardinalityTags: []string{"image_name:nginx"},
+			},
+		},
+	}, false)
+	require.NoError(t, err)
+
+	filter := types.NewFilterBuilder().Include(types.ContainerID).Build(types.OrchestratorCardinality)
+	sub, err := store.subscribe("test-sub", filter)
+	require.NoError(t, err)
+	defer sub.Unsubscribe()
+
+	nextBatch := func() []types.EntityEvent {
+		t.Helper()
+		select {
+		case batch := <-sub.EventsChan():
+			return batch
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for subscription batch")
+			return nil
+		}
+	}
+
+	initialBatch := nextBatch()
+	require.Len(t, initialBatch, 1)
+	assert.Equal(t, types.EventTypeAdded, initialBatch[0].EventType)
+	assert.Equal(t, entityID, initialBatch[0].Entity.ID)
+	assert.Equal(t, []string{"image_name:nginx"}, initialBatch[0].Entity.OrchestratorCardinalityTags)
+
+	err = store.processEvents([]types.EntityEvent{
+		{
+			EventType: types.EventTypeModified,
+			Entity: types.Entity{
+				ID:                          entityID,
+				OrchestratorCardinalityTags: []string{"image_name:nginx", "image_tag:1.27"},
+			},
+		},
+	}, false)
+	require.NoError(t, err)
+
+	updateBatch := nextBatch()
+	require.Len(t, updateBatch, 1)
+	assert.Equal(t, types.EventTypeModified, updateBatch[0].EventType)
+	assert.Equal(t, []string{"image_name:nginx", "image_tag:1.27"}, updateBatch[0].Entity.OrchestratorCardinalityTags)
+
+	err = store.processEvents([]types.EntityEvent{
+		{
+			EventType: types.EventTypeAdded,
+			Entity: types.Entity{
+				ID:                          anotherEntityID,
+				OrchestratorCardinalityTags: []string{"image_name:redis", "image_tag:7.2"},
+			},
+		},
+	}, true)
+	require.NoError(t, err)
+
+	deletedBatch := nextBatch()
+	require.Len(t, deletedBatch, 1)
+	assert.Equal(t, types.EventTypeDeleted, deletedBatch[0].EventType)
+	assert.Equal(t, entityID, deletedBatch[0].Entity.ID)
+
+	replacedBatch := nextBatch()
+	require.Len(t, replacedBatch, 1)
+	assert.Equal(t, types.EventTypeAdded, replacedBatch[0].EventType)
+	assert.Equal(t, anotherEntityID, replacedBatch[0].Entity.ID)
 }

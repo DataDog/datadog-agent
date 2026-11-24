@@ -53,7 +53,7 @@ dda inv schema.template \
 | --- | --- | --- |
 | `--schema` | yes | Path to the enriched schema YAML file. |
 | `--build-type` | yes | One of: `datadog-agent`, `iot-agent`, `system-probe`, `dogstatsd`, `dca`, `dcacf`. |
-| `--os-target` | yes | One of: `windows`, `linux`, `darwin`. |
+| `--os-target` | yes | One of: `windows`, `linux`, `darwin`, `aix`. |
 | `--output` | yes | Path to write the rendered template. |
 
 Only nodes with `visibility: public` are rendered. The build type selects which template sections are included; the OS target controls which platform-specific defaults and `platform_only` settings are emitted.
@@ -88,6 +88,30 @@ dda inv -- schema.locate '*enabled'
 # Pattern (regex): every path under apm_config ending in "enabled", as JSON
 dda inv -- schema.locate 'apm_config\..*enabled' --json
 ```
+
+---
+
+## `schema.produce-jsonschema`
+
+Build the pure JSON Schemas published for external tools (IDEs, SchemaStore, CI validators): `datadog.schema.json` for `datadog.yaml` and `system-probe.schema.json` for `system-probe.yaml`.
+
+```bash
+dda inv schema.produce-jsonschema /tmp/agent-schemas --version 7.85.1
+```
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `output_dir` | yes | Directory to write `datadog.schema.json` and `system-probe.schema.json` into. Created if missing. |
+| `--version` | no | Stable Agent version the schemas are published for (`7.85.1` or `v7.85.1`). Omit it to build the copy published as the latest version. Pre-releases such as `7.85.0-rc.1` are rejected. |
+
+The output keeps only standard JSON Schema keywords, so any conforming library can use it. It also replaces the Agent formats ([`format: duration`](keywords.md#format-duration), [`format: url`](keywords.md#format-url)) with the `pattern` they stand for.
+
+Each file's `$id` is the URL it is published at in the [DataDog/schema](https://github.com/DataDog/schema) repository, under the same file name, so the output can be copied there as-is:
+
+| `--version` | `$id` of `datadog.schema.json` |
+| --- | --- |
+| `7.85.1` | `https://raw.githubusercontent.com/DataDog/schema/main/agent/v7.85.1/datadog.schema.json` |
+| omitted | `https://raw.githubusercontent.com/DataDog/schema/main/agent/datadog.schema.json` |
 
 ---
 

@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -507,11 +508,19 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.WindowsPipeName = core.GetString("apm_config.windows_pipe_name")
 	c.PipeBufferSize = core.GetInt("apm_config.windows_pipe_buffer_size")
 	c.PipeSecurityDescriptor = core.GetString("apm_config.windows_pipe_security_descriptor")
-	c.GUIPort = core.GetString("GUI_port")
 
 	var grpcPort int
-	if configcheck.IsEnabled(pkgconfigsetup.Datadog()) {
+	if datadog := pkgconfigsetup.Datadog(); configcheck.IsEnabled(datadog) {
 		grpcPort = core.GetInt(pkgconfigsetup.OTLPTracePort)
+		// ADP does not own DDOT's embedded trace-agent listeners.
+		if flavor.GetFlavor() != flavor.OTelAgent && !configcheck.IsTraceInternalReceiverEnabled(datadog) {
+			grpcPort = 0
+			if err := configcheck.ValidateDataPlaneProxy(datadog); err != nil {
+				log.Errorf("Not listening on %s: %v", pkgconfigsetup.OTLPTracePort, err)
+			} else {
+				log.Infof("Not listening on %s because the data plane handles OTLP ingest", pkgconfigsetup.OTLPTracePort)
+			}
+		}
 	}
 
 	// We use a noop set of telemetry settings. This silences all warnings and metrics from the attributes translator.

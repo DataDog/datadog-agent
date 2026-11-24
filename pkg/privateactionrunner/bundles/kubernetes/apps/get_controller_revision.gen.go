@@ -7,6 +7,7 @@ package com_datadoghq_kubernetes_apps
 
 import (
 	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 
@@ -29,7 +30,7 @@ type GetControllerRevisionInputs struct {
 
 type GetControllerRevisionOutputs struct {
 	ObjectMeta metav1.ObjectMeta    `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
-	Data       runtime.RawExtension `json:"data,omitempty" protobuf:"bytes,2,opt,name=data"`
+	Data       runtime.RawExtension `json:"data" protobuf:"bytes,2,opt,name=data"`
 	Revision   int64                `json:"revision" protobuf:"varint,3,opt,name=revision"`
 }
 
@@ -41,6 +42,13 @@ func (h *GetControllerRevisionHandler) Run(
 	inputs, err := types.ExtractInputs[GetControllerRevisionInputs](task)
 	if err != nil {
 		return nil, err
+	}
+
+	if inputs.GetFields == nil || inputs.Name == "" {
+		return nil, errors.New("name is required")
+	}
+	if inputs.Namespace == "" {
+		return nil, errors.New("namespace is required")
 	}
 
 	client, err := support.KubeClient(credential)
