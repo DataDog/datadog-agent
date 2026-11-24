@@ -166,19 +166,34 @@ func TestRetryLogic_Error(t *testing.T) {
 				// Create a scanner and start it
 				scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
 				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel() // also stops the scanner if an assertion below fails early
 				scanner.Start(ctx)
 
 				// Enqueue a scan request for container images
 				err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
 				assert.NoError(t, err)
 
+				// receive fails the test, instead of deadlocking the bubble, when a
+				// result is missing: the fake clock moves past the whole backoff
+				// schedule while the scanner is idle.
+				receive := func(what string) sbom.ScanResult {
+					t.Helper()
+					select {
+					case res := <-resultCh:
+						return res
+					case <-time.After(10 * time.Second):
+						t.Fatalf("no %s result received", what)
+						return sbom.ScanResult{}
+					}
+				}
+
 				// Assert error results
-				res := <-resultCh
+				res := receive("first error")
 				assert.Equal(t, errorResult.Error, res.Error)
-				res = <-resultCh
+				res = receive("second error")
 				assert.Equal(t, errorResult.Error, res.Error)
 				// Assert expected result
-				res = <-resultCh
+				res = receive("expected")
 				assert.Equal(t, expectedResult.Report, res.Report)
 
 				// Make sure we don't receive anything afterward
