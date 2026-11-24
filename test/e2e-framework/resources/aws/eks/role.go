@@ -14,6 +14,14 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// permissionsBoundary returns the configured permissions boundary for EKS roles, or nil for none
+func permissionsBoundary(e aws.Environment) pulumi.StringPtrInput {
+	if boundary := e.EKSRolePermissionsBoundary(); boundary != "" {
+		return pulumi.StringPtr(boundary)
+	}
+	return nil
+}
+
 func GetNodeRole(e aws.Environment, name string) (*awsIam.Role, error) {
 	assumeRolePolicy, err := iam.GetAWSPrincipalAssumeRole(e, []string{iam.EC2ServicePrincipal})
 	if err != nil {
@@ -29,7 +37,8 @@ func GetNodeRole(e aws.Environment, name string) (*awsIam.Role, error) {
 			"arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
 			"arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
 		}),
-		AssumeRolePolicy: pulumi.String(assumeRolePolicy.Json),
+		AssumeRolePolicy:    pulumi.String(assumeRolePolicy.Json),
+		PermissionsBoundary: permissionsBoundary(e),
 	}, e.WithProviders(config.ProviderAWS))
 	if err != nil {
 		return nil, err
@@ -75,7 +84,8 @@ func GetClusterRole(e aws.Environment, name string) (*awsIam.Role, error) {
 			"arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
 			"arn:aws:iam::aws:policy/AmazonEKSVPCResourceController",
 		}),
-		AssumeRolePolicy: pulumi.String(assumeRolePolicy.Json),
+		AssumeRolePolicy:    pulumi.String(assumeRolePolicy.Json),
+		PermissionsBoundary: permissionsBoundary(e),
 	}, e.WithProviders(config.ProviderAWS))
 }
 
@@ -100,6 +110,26 @@ func GetAutoModeClusterRole(e aws.Environment, name string) (*awsIam.Role, error
 			"arn:aws:iam::aws:policy/AmazonEKSLoadBalancingPolicy",
 			"arn:aws:iam::aws:policy/AmazonEKSNetworkingPolicy",
 		}),
-		AssumeRolePolicy: pulumi.String(assumeRolePolicy.Json),
+		AssumeRolePolicy:    pulumi.String(assumeRolePolicy.Json),
+		PermissionsBoundary: permissionsBoundary(e),
+	}, e.WithProviders(config.ProviderAWS))
+}
+
+// GetFargatePodExecutionRole returns a Fargate pod execution role. pulumi-eks creates one itself otherwise, but
+// without a way to set its permissions boundary.
+func GetFargatePodExecutionRole(e aws.Environment, name string) (*awsIam.Role, error) {
+	assumeRolePolicy, err := iam.GetAWSPrincipalAssumeRole(e, []string{iam.EKSFargatePodsServicePrincipal})
+	if err != nil {
+		return nil, err
+	}
+
+	return awsIam.NewRole(e.Ctx(), e.Namer.ResourceName(name), &awsIam.RoleArgs{
+		Name:        e.CommonNamer().DisplayName(64, pulumi.String(name)),
+		Description: pulumi.StringPtr("Fargate pod execution role for EKS Cluster: " + e.Ctx().Stack()),
+		ManagedPolicyArns: pulumi.ToStringArray([]string{
+			"arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy",
+		}),
+		AssumeRolePolicy:    pulumi.String(assumeRolePolicy.Json),
+		PermissionsBoundary: permissionsBoundary(e),
 	}, e.WithProviders(config.ProviderAWS))
 }
