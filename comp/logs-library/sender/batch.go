@@ -33,10 +33,11 @@ type batch struct {
 	serverlessMeta ServerlessMeta
 
 	// Telemetry
-	pipelineMonitor metrics.PipelineMonitor
-	utilization     metrics.UtilizationMonitor
-	instanceID      string
-	terminalLoss    func([]*message.MessageMetadata)
+	pipelineMonitor   metrics.PipelineMonitor
+	utilization       metrics.UtilizationMonitor
+	instanceID        string
+	terminalLoss      func([]*message.MessageMetadata)
+	skipSourceLatency bool
 }
 
 func (b *batch) reportLoss(metas []*message.MessageMetadata) {
@@ -95,7 +96,7 @@ func (b *batch) resetBatch() {
 }
 
 func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payload) {
-	if m.Origin != nil {
+	if !b.skipSourceLatency && m.Origin != nil {
 		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
 	}
 	added, err := b.addMessage(m)

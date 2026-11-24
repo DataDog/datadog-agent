@@ -93,6 +93,19 @@ type routedSourceDispatch struct {
 	flushRequested chan struct{} // Coalesced pressure boundaries, outside the data queue.
 }
 
+// requestFlush records a batch boundary behind the records already submitted.
+// Only dispatchProcessed may call it.
+func (s *routedSourceDispatch) requestFlush() {
+	if s.flushAfter.Load() >= s.submitted {
+		return
+	}
+	s.flushAfter.Store(s.submitted)
+	select {
+	case s.flushRequested <- struct{}{}:
+	default:
+	}
+}
+
 func (s *routedSourceDispatch) wait(ctx, providerCtx context.Context, target uint64) {
 	for s.completed.Load() < target {
 		select {
@@ -244,13 +257,13 @@ func NewRoutedProvider(opts RoutedOptions) (*RoutedProvider, error) {
 					groups:        []string{target.ID},
 					input:         make(chan *message.Message, routedStreamCapacity),
 					output:        make(chan *message.Payload, routedPayloadCapacity),
-					flush:         make(chan struct{}),
+					flush:         make(chan struct{}, 1),
 				}
 				p.pressureFlush = p.pressureFlush || stream.pressureFlush
 				targetID := target.ID
 				stream.strategy = sender.NewBatchStrategyWithTerminalLoss(stream.input, stream.output, stream.flush, sender.NewServerlessMeta(false), target.Endpoints.BatchWait, target.Endpoints.BatchMaxSize, target.Endpoints.BatchMaxContentSize, "logs-routing", compressor, p.senders[target.ID].PipelineMonitor(), key, func(metas []*message.MessageMetadata) {
 					p.progress.CompleteReliableTerminalLoss(targetID, message.NewPayload(metas, nil, "", 0))
-				})
+				}, sender.DrainQueuedOnFlush, sender.SkipSourceLatency)
 				p.streams[key] = stream
 				if p.monitor == nil {
 					p.monitor = p.senders[target.ID].PipelineMonitor()
@@ -264,7 +277,7 @@ func NewRoutedProvider(opts RoutedOptions) (*RoutedProvider, error) {
 					output: make(chan *message.Payload, routedPayloadCapacity),
 					flush:  make(chan struct{}),
 				}
-				stream.strategy = sender.NewBatchStrategyWithTerminalLoss(stream.input, stream.output, stream.flush, sender.NewServerlessMeta(false), target.Endpoints.BatchWait, target.Endpoints.BatchMaxSize, target.Endpoints.BatchMaxContentSize, "logs-routing-opt", compressor, optSender.PipelineMonitor(), "optional:"+target.ID, func([]*message.MessageMetadata) {})
+				stream.strategy = sender.NewBatchStrategyWithTerminalLoss(stream.input, stream.output, stream.flush, sender.NewServerlessMeta(false), target.Endpoints.BatchWait, target.Endpoints.BatchMaxSize, target.Endpoints.BatchMaxContentSize, "logs-routing-opt", compressor, optSender.PipelineMonitor(), "optional:"+target.ID, func([]*message.MessageMetadata) {}, sender.SkipSourceLatency)
 				p.optionalStreams[target.ID] = stream
 			}
 		}
@@ -485,24 +498,14 @@ func (p *RoutedProvider) flushAtCapacity(identifier string, proc *processor.Proc
 func (p *RoutedProvider) requestSourceFlush(identifier string) {
 	p.sourceDispatchMu.Lock()
 	defer p.sourceDispatchMu.Unlock()
-	request := func(lane *routedSourceDispatch) {
-		if lane.flushAfter.Load() >= lane.submitted {
-			return
-		}
-		lane.flushAfter.Store(lane.submitted)
-		select {
-		case lane.flushRequested <- struct{}{}:
-		default:
-		}
-	}
 	if identifier != "" {
 		if lane := p.sourceDispatch["\x01"+identifier]; lane != nil {
-			request(lane)
+			lane.requestFlush()
 		}
 		return
 	}
 	for _, lane := range p.sourceDispatch {
-		request(lane)
+		lane.requestFlush()
 	}
 }
 
@@ -528,17 +531,16 @@ func (p *RoutedProvider) flushSource(identifier string) {
 			continue
 		}
 		seen[stream] = struct{}{}
-		marker := &message.Message{}
-		marker.SetRoutingBarrier(make(chan struct{}))
 		if p.endpointDefs != nil {
-			// A pressure marker must not block delivery on another stream.
-			// Full streams still flush on their normal batch timer.
+			// A pending signal covers the queued records without using a data slot.
 			select {
-			case stream.input <- marker:
+			case stream.flush <- struct{}{}:
 			default:
 			}
 			continue
 		}
+		marker := &message.Message{}
+		marker.SetRoutingBarrier(make(chan struct{}))
 		offers = append(offers, channelOffer[*message.Message]{input: stream.input, value: marker})
 	}
 	offerToChannels(p.ctx, offers)
@@ -619,11 +621,17 @@ func (p *RoutedProvider) flushPrior(ctx context.Context, done chan struct{}) {
 		}
 	}
 	acknowledgements = acknowledgements[:0]
+	var endpointOffers []channelOffer[*message.Message]
 	for _, stream := range p.streams {
 		ack := make(chan struct{})
 		marker := &message.Message{}
 		marker.SetRoutingBarrier(ack)
 		marker.SetRoutingBarrierContext(ctx)
+		if p.endpointDefs != nil {
+			endpointOffers = append(endpointOffers, channelOffer[*message.Message]{input: stream.input, value: marker})
+			acknowledgements = append(acknowledgements, ack)
+			continue
+		}
 		select {
 		case stream.input <- marker:
 			acknowledgements = append(acknowledgements, ack)
@@ -644,6 +652,9 @@ func (p *RoutedProvider) flushPrior(ctx context.Context, done chan struct{}) {
 		case stream.input <- marker:
 		default:
 		}
+	}
+	if len(endpointOffers) != 0 {
+		offerToChannelsWithFlush(ctx, endpointOffers, nil, nil, p.stopRequested)
 	}
 	for _, ack := range acknowledgements {
 		select {
@@ -678,6 +689,10 @@ func (p *RoutedProvider) dispatchProcessed() {
 			p.sourceDispatchMu.Lock()
 			targets := make([]sourceTarget, 0, len(p.sourceDispatch))
 			for _, lane := range p.sourceDispatch {
+				if p.endpointDefs != nil && ctx.Err() == nil && lane.completed.Load() < lane.submitted {
+					// A pending offer can need a batch to send before this barrier can drain.
+					lane.requestFlush()
+				}
 				targets = append(targets, sourceTarget{lane, lane.submitted})
 			}
 			p.sourceDispatchMu.Unlock()
@@ -734,7 +749,7 @@ func (p *RoutedProvider) dispatchSource(identifier string, lane *routedSourceDis
 	flushWhileStalled := func() {
 		// Only a blocked fanout needs an early partial flush. Healthy windows
 		// reach their sequence boundary and flush together.
-		if target := lane.flushAfter.Load(); target > flushed && target > stalled {
+		if target := lane.flushAfter.Load(); target > flushed && (p.endpointDefs != nil || target > stalled) {
 			p.flushSource(identifier)
 			stalled = target
 		}
@@ -747,12 +762,16 @@ func (p *RoutedProvider) dispatchSource(identifier string, lane *routedSourceDis
 			}
 			if p.endpointDefs != nil {
 				reliable, optional, delivered := p.progress.EndpointRecipients(msg.RoutingToken())
+				if (len(reliable) != 0 || len(optional) != 0) && msg.Origin != nil && msg.Origin.LogSource != nil {
+					msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
+				}
 				for _, id := range optional {
 					if stream := p.optionalStreams[id]; stream != nil {
 						select {
 						case stream.input <- msg:
 						default:
-							// Bounded optional admission: drop before compression, never block reliable delivery.
+							// Count the lost copy without waiting for queue space or compression.
+							p.optionalSenders[id].RecordInputDrop()
 						}
 					}
 				}
@@ -878,6 +897,10 @@ func offerToChannelsWithFlush[T any](ctx context.Context, offers []channelOffer[
 		index := chosen - 3
 		pending[index] = pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
+		if len(pending) != 0 && delivered != nil && flush != nil {
+			// This stream can now hold a partial batch while another offer waits.
+			flush()
+		}
 	}
 }
 

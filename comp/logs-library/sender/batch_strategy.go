@@ -39,11 +39,23 @@ type batchStrategy struct {
 	batches        map[string]*batch
 
 	// Telemetry
-	pipelineMonitor metrics.PipelineMonitor
-	utilization     metrics.UtilizationMonitor
-	instanceID      string
-	terminalLoss    func([]*message.MessageMetadata)
+	pipelineMonitor   metrics.PipelineMonitor
+	utilization       metrics.UtilizationMonitor
+	instanceID        string
+	terminalLoss      func([]*message.MessageMetadata)
+	drainOnFlush      bool
+	skipSourceLatency bool
 }
+
+// BatchOption configures a terminal-loss batch strategy.
+type BatchOption uint8
+
+const (
+	// DrainQueuedOnFlush includes records already queued when a flush signal is read.
+	DrainQueuedOnFlush BatchOption = iota + 1
+	// SkipSourceLatency leaves per-record latency sampling to the caller.
+	SkipSourceLatency
+)
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
 func NewBatchStrategy(
@@ -77,9 +89,19 @@ func NewBatchStrategyWithTerminalLoss(
 	pipelineMonitor metrics.PipelineMonitor,
 	instanceID string,
 	terminalLoss func([]*message.MessageMetadata),
+	options ...BatchOption,
 ) Strategy {
 	s := newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverlessMeta, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression, pipelineMonitor, instanceID)
-	s.(*batchStrategy).terminalLoss = terminalLoss
+	batch := s.(*batchStrategy)
+	batch.terminalLoss = terminalLoss
+	for _, option := range options {
+		switch option {
+		case DrainQueuedOnFlush:
+			batch.drainOnFlush = true
+		case SkipSourceLatency:
+			batch.skipSourceLatency = true
+		}
+	}
 	return s
 }
 
@@ -140,18 +162,17 @@ func (s *batchStrategy) Start() {
 					// inputChan has been closed, no more payloads are expected
 					return
 				}
-				if done := m.RoutingBarrier(); done != nil {
-					s.flushAllBatches("flush")
-					close(done)
-					continue
-				}
-
-				s.processMessage(m)
+				s.processInput(m)
 			case <-flushTicker.C:
 				// flush the payloads at a regular interval so pending messages don't wait here for too long.
 				s.flushAllBatches("timer")
 			case <-s.flushChan:
-				// flush payloads on demand, used for infrequently running serverless functions
+				if s.drainOnFlush {
+					// Drain a snapshot so concurrent producers cannot extend this flush.
+					for range len(s.inputChan) {
+						s.processInput(<-s.inputChan)
+					}
+				}
 				s.flushAllBatches("flush")
 			case done := <-s.flushRequests:
 				// Include messages already queued, since select may pick this case before them,
@@ -179,6 +200,15 @@ func (s *batchStrategy) Flush(ctx context.Context) {
 	case <-done:
 	case <-ctx.Done():
 	}
+}
+
+func (s *batchStrategy) processInput(m *message.Message) {
+	if done := m.RoutingBarrier(); done != nil {
+		s.flushAllBatches("flush")
+		close(done)
+		return
+	}
+	s.processMessage(m)
 }
 
 // processMessage adds the message to the multi-region failover batch if it may be sent to the failover
@@ -214,6 +244,7 @@ func (s *batchStrategy) getBatch(key string) *batch {
 	log.Debugf("Creating batch for key: %s", key)
 	s.batches[key] = makeBatch(s.compression, s.maxBatchSize, s.maxContentSize, s.pipelineName, s.serverlessMeta, s.pipelineMonitor, s.utilization, s.instanceID)
 	s.batches[key].terminalLoss = s.terminalLoss
+	s.batches[key].skipSourceLatency = s.skipSourceLatency
 	return s.batches[key]
 }
 
