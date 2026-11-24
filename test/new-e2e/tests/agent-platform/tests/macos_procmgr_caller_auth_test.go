@@ -83,12 +83,18 @@ func macosSleepPattern(sleepArg string) string {
 	return "^/bin/sleep " + sleepArg + "$"
 }
 
+// waitMacosSleepGone polls until a probe finds no child, so a transient probe error within the
+// timeout does not end the wait. Without a successful probe it returns the last result and error.
+// A timeout of 0 makes exactly one check.
 func waitMacosSleepGone(client *common.MacOSTestClient, sleepArg string, timeout time.Duration) (string, error) {
 	check := "sudo sh -c 'pgrep -f \"" + macosSleepPattern(sleepArg) + "\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
 	deadline := time.Now().Add(timeout)
 	for {
 		left, err := client.Execute(check)
-		if err != nil || strings.TrimSpace(left) == "" || time.Now().After(deadline) {
+		if err == nil && strings.TrimSpace(left) == "" {
+			return left, nil
+		}
+		if time.Now().After(deadline) {
 			return left, err
 		}
 		time.Sleep(250 * time.Millisecond)
@@ -115,14 +121,18 @@ func killMacosSleep(t *testing.T, client *common.MacOSTestClient, sleepArg strin
 // healMacosCallerAuthLeftovers undoes a failed restore from an earlier attempt, which would fail the
 // pristine-catalog precondition. A child outlives a daemon restart and its dropped runtime entry, so
 // the marker file is the only trace of it. Only a restart drops runtime entries, so it restarts only
-// when one of this test's own entries is listed. Listing and restart failures are logged, not
-// asserted, so the precondition decides whether the daemon is healthy.
+// when one of this test's own entries is listed. Failing to read the marker or to stop its child is
+// an error, because the marker would be lost. Listing and restart failures are logged, not asserted,
+// so the precondition decides whether the daemon is healthy.
 func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) {
 	t.Helper()
-	out, err := client.Execute("sudo sh -c 'cat " + macosCallerAuthSleepMarker + " 2>/dev/null || true'")
+	out, err := client.Execute("sudo sh -c 'if [ -e " + macosCallerAuthSleepMarker + " ]; then cat " + macosCallerAuthSleepMarker + "; fi'")
 	if err != nil {
-		t.Logf("heal: failed to read %s: %v", macosCallerAuthSleepMarker, err)
-	} else if previous := strings.TrimSpace(out); previous != "" {
+		// Going on would let the test overwrite a marker that was never read.
+		t.Errorf("heal: failed to read %s: %v", macosCallerAuthSleepMarker, err)
+		return
+	}
+	if previous := strings.TrimSpace(out); previous != "" {
 		if strings.Trim(previous, "0123456789") != "" {
 			t.Logf("heal: ignoring invalid %s content %q", macosCallerAuthSleepMarker, previous)
 		} else {
@@ -248,6 +258,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	macosLogDiagnosticsOnFailure(t, client)
 
 	healMacosCallerAuthLeftovers(t, client)
+	require.False(t, t.Failed(), "heal failed")
 	assertMacosProcmgrAnswers(t, client, 1)
 	require.False(t, t.Failed(), "preconditions failed")
 	statOut, statErr := client.Execute("sudo stat -f '%Su:%Sg %Lp' " + macosProcmgrSocket)
