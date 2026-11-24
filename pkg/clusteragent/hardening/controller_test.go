@@ -260,6 +260,20 @@ func TestCrashAfterSuccessPausesUntilTheClusterIsAddedAgain(t *testing.T) {
 	assert.Equal(t, []string{"app"}, h.marks("next")["hp-caps"])
 }
 
+func TestExemptingADegradedDeploymentResumes(t *testing.T) {
+	d := marked(testDeployment("web"))
+	d.Status.AvailableReplicas = 1
+	rs := replicaSet(d, d.Spec.Template, 2)
+	h := newHarness(t, d, testDeployment("next"), rs, hardenedPod(rs, restartedAt(testAddedAt.Add(time.Hour))))
+	setRC(t, h.store, testPolicy(StateEnforce, testAddedAt), testExceptions(`"workloads": [{"kind": "Deployment", "namespace": "shop", "name": "web", "reason": "user"}]`))
+	h.reconcile()
+	assert.Equal(t, Marks{"hp-caps": {}}, h.marks("web"))
+
+	h.reconcile()
+	assert.NotContains(t, h.c.status, statusKey{policy: "hp-caps"})
+	assert.Equal(t, []string{"app"}, h.marks("next")["hp-caps"])
+}
+
 func TestRevertsPauseTheCluster(t *testing.T) {
 	revert := fmt.Sprintf(`{"policy":"hp-caps","reason":"rolled_back","at":%q}`, testAddedAt.Add(time.Hour).Format(time.RFC3339))
 	a, b := testDeployment("a"), testDeployment("b")

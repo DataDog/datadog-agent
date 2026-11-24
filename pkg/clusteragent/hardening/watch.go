@@ -34,19 +34,17 @@ func (c *Controller) watch(ctx context.Context, p *Policy, pc *pacing, exc *Exce
 	}); len(stopped) > 0 {
 		return c.exempt(ctx, p, d, containers, stopped, touched, "an emergency stop")
 	}
-	if problem, at := c.failure(d, p, containers); problem != "" {
-		return c.onFailure(ctx, p, pc, d, containers, problem, at, touched, sum, now)
-	}
-	if rolloutInProgress(d) {
-		return nil
-	}
+	// Before failures: exempting a degraded Deployment is how a team clears its pause.
 	if exempt := covered(containers, d, func(ctr *corev1.Container) bool {
 		return exc != nil && exc.Exempts(d.Namespace, d.Name, ctr.Name, ctr.Image)
 	}); len(exempt) > 0 && pc.hourlyLeft(p, now) > 0 {
 		pc.changed = append(pc.changed, now)
 		return c.exempt(ctx, p, d, containers, exempt, touched, "an exception")
 	}
-	if c.unhardened(d, p, containers) == "" {
+	if problem, at := c.failure(d, p, containers); problem != "" {
+		return c.onFailure(ctx, p, pc, d, containers, problem, at, touched, sum, now)
+	}
+	if !rolloutInProgress(d) && c.unhardened(d, p, containers) == "" {
 		c.report(p.ID, d, "applied", "")
 	}
 	return nil
