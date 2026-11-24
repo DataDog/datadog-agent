@@ -1301,9 +1301,68 @@ func TestDeduplicationKeepsMonitoredIPWhileLowerIPFails(t *testing.T) {
 	assert.Equal(t, []string{"192.168.0.2"}, monitoredIPs(l))
 }
 
+func TestDeduplicationKeepsMonitoredIPWhenLowerIPFailsLaterInPass(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, map[string]interface{}{
+		"network_devices.autodiscovery.use_deduplication": true,
+	})
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.newService = newSvc
+	l.delService = delSvc
+
+	writeTestCache(t, l.config.Configs[0], "192.168.0.1", "192.168.0.2")
+	factory.sessions["192.168.0.1"] = makeReachableSessionWithDeviceInfo("router-1", "Cisco IOS", "1.3.6.1.4.1.9.1.1", 100000)
+	factory.sessions["192.168.0.2"] = makeReachableSessionWithDeviceInfo("router-1", "Cisco IOS", "1.3.6.1.4.1.9.1.1", 100000)
+	subnets := l.initializeSubnets()
+	assert.Equal(t, []string{"192.168.0.1", "192.168.0.2"}, drainIPs(newSvc))
+
+	factory.mu.Lock()
+	delete(factory.sessions, "192.168.0.1")
+	factory.mu.Unlock()
+
+	// 192.168.0.2 answers while the probe of 192.168.0.1 is still running on another worker
+	l.startDiscoveryPass()
+	for _, ip := range []string{"192.168.0.0", "192.168.0.2", "192.168.0.1", "192.168.0.3"} {
+		l.checkDevice(snmpJob{subnet: &subnets[0], currentIP: net.ParseIP(ip)})
+	}
+
+	assert.Empty(t, drainIPs(delSvc))
+	assert.Equal(t, []string{"192.168.0.1", "192.168.0.2"}, monitoredIPs(l))
+}
+
+func TestDeduplicationKeepsMonitoredIPWithOutdatedIdentity(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, map[string]interface{}{
+		"network_devices.autodiscovery.use_deduplication": true,
+	})
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.newService = newSvc
+	l.delService = delSvc
+
+	writeTestCache(t, l.config.Configs[0], "192.168.0.1", "192.168.0.2")
+	factory.sessions["192.168.0.1"] = makeReachableSessionWithDeviceInfo("router-1", "Cisco IOS", "1.3.6.1.4.1.9.1.1", 100000)
+	factory.sessions["192.168.0.2"] = makeReachableSessionWithDeviceInfo("router-1", "Cisco IOS", "1.3.6.1.4.1.9.1.1", 100000)
+	subnets := l.initializeSubnets()
+	assert.Equal(t, []string{"192.168.0.1", "192.168.0.2"}, drainIPs(newSvc))
+
+	// 192.168.0.2 now belongs to another device
+	factory.mu.Lock()
+	factory.sessions["192.168.0.2"] = makeReachableSessionWithDeviceInfo("switch-1", "Cisco NX-OS", "1.3.6.1.4.1.9.1.2", 200000)
+	factory.mu.Unlock()
+	scanSubnets(l, subnets)
+
+	assert.Empty(t, drainIPs(delSvc))
+	assert.Empty(t, drainIPs(newSvc))
+	assert.Equal(t, []string{"192.168.0.1", "192.168.0.2"}, monitoredIPs(l))
+}
+
 // scanSubnets runs one discovery interval sequentially, like checkDevices does with a single worker
 func scanSubnets(l *SNMPListener, subnets []snmpSubnet) {
-	l.deviceDeduper.ResetCounters()
+	l.startDiscoveryPass()
 	for i := range subnets {
 		subnet := &subnets[i]
 		for ip := slices.Clone(subnet.startingIP); subnet.network.Contains(ip); devicededuper.IncrementIP(ip) {

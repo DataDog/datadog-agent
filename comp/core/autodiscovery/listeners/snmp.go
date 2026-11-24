@@ -64,6 +64,7 @@ type SNMPListener struct {
 	deviceDeduper  devicededuper.DeviceDeduper
 	sessionFactory snmpSessionFactory
 	workerFunc     snmpWorkerFunc
+	discoveryPass  uint64
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -75,6 +76,8 @@ type SNMPService struct {
 	subnet       *snmpSubnet
 	pending      bool
 	deviceInfo   devicededuper.DeviceInfo
+	// discovery pass during which deviceInfo was read
+	deviceInfoPass uint64
 }
 
 // Make sure SNMPService implements the Service interface
@@ -438,10 +441,7 @@ func (l *SNMPListener) checkDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
-		// Reset the device deduper counters at the start of each discovery interval
-		if l.deviceDeduper != nil {
-			l.deviceDeduper.ResetCounters()
-		}
+		l.startDiscoveryPass()
 
 		for _, subnet := range subnets {
 			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.index), &expvar.String{})
@@ -484,6 +484,16 @@ func (l *SNMPListener) checkDevices() {
 	}
 }
 
+func (l *SNMPListener) startDiscoveryPass() {
+	l.Lock()
+	l.discoveryPass++
+	l.Unlock()
+
+	if l.deviceDeduper != nil {
+		l.deviceDeduper.ResetCounters()
+	}
+}
+
 func (l *SNMPListener) createService(
 	entityID string,
 	subnet *snmpSubnet,
@@ -499,6 +509,7 @@ func (l *SNMPListener) createService(
 	if svc, present := l.services[entityID]; present {
 		if deviceInfo != (devicededuper.DeviceInfo{}) {
 			svc.deviceInfo = deviceInfo
+			svc.deviceInfoPass = l.discoveryPass
 			l.addPendingDevice(svc, devicededuper.PendingDevice{
 				Config:    svc.config,
 				Info:      deviceInfo,
@@ -528,13 +539,14 @@ func (l *SNMPListener) createService(
 	config.ContextName = authentication.ContextName
 
 	svc := SNMPService{
-		adIdentifier: subnet.adIdentifier,
-		entityID:     entityID,
-		deviceIP:     deviceIP,
-		config:       config,
-		subnet:       subnet,
-		pending:      true,
-		deviceInfo:   deviceInfo,
+		adIdentifier:   subnet.adIdentifier,
+		entityID:       entityID,
+		deviceIP:       deviceIP,
+		config:         config,
+		subnet:         subnet,
+		pending:        true,
+		deviceInfo:     deviceInfo,
+		deviceInfoPass: l.discoveryPass,
 	}
 	l.services[entityID] = &svc
 
@@ -564,8 +576,9 @@ func (l *SNMPListener) addPendingDevice(svc *SNMPService, pendingDevice devicede
 		if other.pending || !other.deviceInfo.Equal(svc.deviceInfo) || !ipLess(other.deviceIP, svc.deviceIP) {
 			continue
 		}
-		// Keep monitoring through this IP while the lower one fails, it is removed once the lower IP answers again
-		if !svc.pending && other.subnet.devices[other.entityID].Failures > 0 {
+		// Keep monitoring through this IP until the lower one answers during this pass:
+		// what we know about it from an earlier pass may be outdated
+		if !svc.pending && other.deviceInfoPass != l.discoveryPass {
 			continue
 		}
 		l.removeDuplicate(svc)
@@ -585,7 +598,8 @@ func (l *SNMPListener) registerDedupedDevices() {
 			continue
 		}
 		for _, svc := range l.services {
-			if svc.deviceInfo.Equal(device.Info) && ipLess(device.IP, svc.deviceIP) {
+			// IPs whose identity is from an earlier pass are checked again when they answer
+			if svc.deviceInfoPass == l.discoveryPass && svc.deviceInfo.Equal(device.Info) && ipLess(device.IP, svc.deviceIP) {
 				l.removeDuplicate(svc)
 			}
 		}
