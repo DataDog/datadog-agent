@@ -94,7 +94,7 @@ type Reply struct {
 // of them is rejected.
 func Open(ctx context.Context, sh Shell, d *Dialect) (*Session, error) {
 	s := &Session{sh: sh, d: d}
-	raw, err := s.read(ctx)
+	raw, err := s.read(ctx, false)
 	if err != nil {
 		return nil, fmt.Errorf("waiting for %s prompt: %w", d.Name, err)
 	}
@@ -129,7 +129,7 @@ func (s *Session) Run(ctx context.Context, line string, alsoStopAt ...*regexp.Re
 	if err := s.sh.Send(ctx, line+"\n"); err != nil {
 		return Reply{}, fmt.Errorf("could not send %q: %w", line, err)
 	}
-	raw, err := s.read(ctx, alsoStopAt...)
+	raw, err := s.read(ctx, true, alsoStopAt...)
 	text := stripEcho(normalizeNewlines(string(raw)), line)
 	output, prompt := s.splitPrompt(text)
 	if prompt != "" {
@@ -143,22 +143,28 @@ func (s *Session) Run(ctx context.Context, line string, alsoStopAt ...*regexp.Re
 // the device to hang up. It is best effort and reports nothing; the caller
 // still closes the shell.
 func (s *Session) End(ctx context.Context, wait time.Duration) {
+	endCtx, cancel := context.WithTimeout(ctx, wait)
+	defer cancel()
 	if s.d.Exit != "" {
-		_ = s.sh.Send(ctx, s.d.Exit+"\n")
+		_ = s.sh.Send(endCtx, s.d.Exit+"\n")
 	}
 	if wc, ok := s.sh.(writeCloser); ok {
 		_ = wc.CloseWrite()
 	}
-	endCtx, cancel := context.WithTimeout(ctx, wait)
-	defer cancel()
 	_, _ = s.sh.ReadUntil(endCtx, func([]byte) int { return -1 })
 }
 
 // read waits until the last line of output is a prompt or matches one of
-// extra.
-func (s *Session) read(ctx context.Context, extra ...*regexp.Regexp) ([]byte, error) {
+// extra. With afterLine, only a last line that follows a complete line
+// counts: the reply to a line always starts with its echo, or with output
+// when the CLI doesn't echo, so a prompt on the first line is one the CLI
+// redrew before echoing the line, not the end of the reply.
+func (s *Session) read(ctx context.Context, afterLine bool, extra ...*regexp.Regexp) ([]byte, error) {
 	patterns := append([]*regexp.Regexp{s.d.Prompt}, extra...)
 	return s.sh.ReadUntil(ctx, func(buf []byte) int {
+		if afterLine && bytes.IndexByte(buf, '\n') < 0 {
+			return -1
+		}
 		last := lastLine(buf)
 		for _, re := range patterns {
 			if re.Match(last) {

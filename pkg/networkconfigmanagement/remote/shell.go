@@ -161,8 +161,9 @@ func (s *sshShell) Write(p []byte) (int, error) {
 }
 
 // writeLoop performs every write to stdin, in order, and closes stdin once
-// input is closed. A write already accepted finishes before the close, so the
-// device sees EOF after the data sent before it.
+// input is closed or the session has exited. A write already accepted
+// finishes before the close, so the device sees EOF after the data sent
+// before it.
 func (s *sshShell) writeLoop() {
 	defer func() { _ = s.stdin.Close() }()
 	for {
@@ -171,6 +172,8 @@ func (s *sshShell) writeLoop() {
 			_, err := io.WriteString(s.stdin, req.data)
 			req.done <- err
 		case <-s.inputDone:
+			return
+		case <-s.done:
 			return
 		}
 	}
@@ -184,16 +187,27 @@ func (s *sshShell) closeInput() {
 
 // Send writes data to the shell's stdin. If ctx ends before the write
 // completes, the session is closed to unblock it. It fails once input is
-// closed.
+// closed or the session has exited.
 func (s *sshShell) Send(ctx context.Context, data string) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	// Checked before the handoff below, where select would pick at random
+	// between a closed input and a writeLoop still ready to accept.
+	select {
+	case <-s.inputDone:
+		return errInputClosed
+	case <-s.done:
+		return s.closedErr
+	default:
 	}
 	req := writeReq{data: data, done: make(chan error, 1)}
 	select {
 	case s.writes <- req:
 	case <-s.inputDone:
 		return errInputClosed
+	case <-s.done:
+		return s.closedErr
 	case <-ctx.Done():
 		return ctx.Err()
 	}

@@ -172,6 +172,22 @@ func TestRun_EchoAfterRedrawnPrompt(t *testing.T) {
 	assert.Equal(t, "DevOS 1.2\n", reply.Output)
 }
 
+func TestRun_EchoAfterRedrawnPrompt_SplitChunks(t *testing.T) {
+	// The redrawn prompt can arrive alone, before the echo; it must not end
+	// the reply wherever the output is split.
+	const response = "dev# show version\r\nDevOS 1.2\r\ndev# "
+	for i := 1; i < len(response); i++ {
+		sh := &chunkedShell{chunks: []string{"dev# "}}
+		s, err := Open(context.Background(), sh, &Dialect{Name: "test", Prompt: testDialect.Prompt})
+		require.NoError(t, err)
+
+		sh.chunks = []string{response[:i], response[i:]}
+		reply, err := s.Run(context.Background(), "show version")
+		require.NoError(t, err, "split at %d", i)
+		assert.Equal(t, "DevOS 1.2\n", reply.Output, "split at %d", i)
+	}
+}
+
 func TestRun_StopsAtQuestion(t *testing.T) {
 	f := newFakeCLI("", "dev# ", map[string]string{"no paging": ""})
 	f.ask = "copy running-config startup-config"
@@ -238,6 +254,31 @@ func TestEnd_SendsExitAndClosesInput(t *testing.T) {
 	assert.True(t, f.closedWrite)
 }
 
+// stalledShell's Send blocks until ctx ends, like a write to a stalled
+// transport.
+type stalledShell struct{ *streamShell }
+
+func (s *stalledShell) Send(ctx context.Context, _ string) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func TestEnd_BoundsStalledExit(t *testing.T) {
+	sh := &stalledShell{streamShell: newStreamShell()}
+	s := &Session{sh: sh, d: testDialect}
+
+	done := make(chan struct{})
+	go func() {
+		s.End(context.Background(), 10*time.Millisecond)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("End did not return after its wait elapsed")
+	}
+}
+
 func TestCheckError(t *testing.T) {
 	assert.NoError(t, (&Dialect{}).CheckError("ERROR: anything"))
 	assert.NoError(t, testDialect.CheckError("all good\n"))
@@ -275,6 +316,32 @@ func (s *scriptedShell) ReadUntil(_ context.Context, match func([]byte) int) ([]
 		return out, errNoMatch
 	}
 	return out, nil
+}
+
+// chunkedShell delivers its chunks one at a time, checking for a match after
+// each, as a real shell does when output arrives in pieces.
+type chunkedShell struct {
+	chunks []string
+	buf    []byte
+}
+
+func (s *chunkedShell) Send(context.Context, string) error { return nil }
+
+func (s *chunkedShell) ReadUntil(_ context.Context, match func([]byte) int) ([]byte, error) {
+	for {
+		if i := match(s.buf); i >= 0 {
+			out := s.buf[:i:i]
+			s.buf = s.buf[i:]
+			return out, nil
+		}
+		if len(s.chunks) == 0 {
+			out := s.buf
+			s.buf = nil
+			return out, errNoMatch
+		}
+		s.buf = append(s.buf, s.chunks[0]...)
+		s.chunks = s.chunks[1:]
+	}
 }
 
 // streamShell is an asynchronous shell: ReadUntil blocks for more output

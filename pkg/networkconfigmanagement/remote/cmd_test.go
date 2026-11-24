@@ -267,7 +267,11 @@ func TestPagerCommand_SeparateSessionsTruncate(t *testing.T) {
 	assert.Contains(t, result.Output, "<--- More --->")
 }
 
-func TestPagerCommand_ClosedContextRetainsOutput(t *testing.T) {
+// TestPagerCommand_ClosedContext checks that a command whose prompt never
+// comes fails with the ctx error. Whether the partial output is kept depends
+// on how much of it the client has received when ctx ends, which only the
+// shell can observe; TestShell_ReadUntilCanceledRetainsOutput covers that.
+func TestPagerCommand_ClosedContext(t *testing.T) {
 	// The handler never prints the closing prompt while the test runs, so only
 	// ctx can end the read. The deferred close runs before the server's cleanup.
 	done := make(chan struct{})
@@ -278,8 +282,6 @@ func TestPagerCommand_ClosedContextRetainsOutput(t *testing.T) {
 			return 0
 		}
 		io.WriteString(sc.stdout, "some output")
-		// give the monitor a fraction of a second to reach the output
-		time.Sleep(time.Millisecond)
 		cancel()
 		<-done
 		return 0
@@ -291,7 +293,8 @@ func TestPagerCommand_ClosedContextRetainsOutput(t *testing.T) {
 		Interactive: true,
 	}
 	result, err := ExecuteCommand(ctx, conn, cmd)
-	assert.Equal(t, result.Output, "some output")
+	require.NotNil(t, result)
+	assert.Equal(t, cmd.Command, result.CommandStr)
 	assert.ErrorContains(t, err, "context canceled")
 }
 

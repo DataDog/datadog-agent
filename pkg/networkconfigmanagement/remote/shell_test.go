@@ -111,6 +111,32 @@ func TestShell_ReadUntilTimeout(t *testing.T) {
 	assert.Equal(t, "R1#", string(out))
 }
 
+func TestShell_ReadUntilCanceledRetainsOutput(t *testing.T) {
+	sh := startTestShell(t, func(sc *ShellContext) ShellFunc {
+		_, _ = io.WriteString(sc.stdout, "R1#")
+		return func(_ string, sc *ShellContext) uint32 {
+			_, _ = io.WriteString(sc.stdout, "some output")
+			return 0
+		}
+	})
+	_, err := sh.ReadUntil(t.Context(), through("#"))
+	require.NoError(t, err)
+	require.NoError(t, sh.Send(t.Context(), "show tech\n"))
+
+	// Cancel only once the partial output has been received, so the read
+	// can only end on ctx and must return that output with the error.
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	out, err := sh.ReadUntil(ctx, func(buf []byte) int {
+		if bytes.Contains(buf, []byte("some output")) {
+			cancel()
+		}
+		return -1
+	})
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, "some output", string(out))
+}
+
 func TestShell_ReadUntilAfterServerExits(t *testing.T) {
 	sh := startTestShell(t, func(sc *ShellContext) ShellFunc {
 		_, _ = io.WriteString(sc.stdout, "R1#")
@@ -205,6 +231,26 @@ func TestShell_SendAfterCloseWrite(t *testing.T) {
 	require.NoError(t, sh.CloseWrite())
 	require.NoError(t, sh.CloseWrite(), "closing input twice is harmless")
 	assert.ErrorIs(t, sh.Send(t.Context(), "show version\n"), errInputClosed)
+}
+
+func TestShell_SendAfterSessionExits(t *testing.T) {
+	srv := StartFakeSSHServerWithFactory(t, func(sc *ShellContext) ShellFunc {
+		_, _ = io.WriteString(sc.stdout, "R1#")
+		return func(string, *ShellContext) uint32 { return 0 }
+	})
+	sh := connectTestShell(t, srv)
+	_, err := sh.ReadUntil(t.Context(), through("#"))
+	require.NoError(t, err)
+
+	srv.Stop()
+	_, err = sh.ReadUntil(t.Context(), through("never"))
+	require.Error(t, err, "the session should have exited")
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	err = sh.Send(ctx, "show version\n")
+	assert.Error(t, err)
+	assert.NotErrorIs(t, err, context.DeadlineExceeded, "Send should fail at once, not wait for ctx")
 }
 
 func TestShell_SendWithEndedContextWritesNothing(t *testing.T) {
