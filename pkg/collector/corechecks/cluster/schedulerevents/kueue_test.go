@@ -186,34 +186,54 @@ func TestKueueFollowerDoesNotRepeatThePendingOfTheLeader(t *testing.T) {
 }
 
 // TestKueueRunningIsNotRepeatedWhenTheWorkloadFinishes uses what Kueue v0.20.7
-// does when a Job finishes: PodsReady stays True, with the reason Recovered and
-// a new transition time, in the same second as Finished.
+// does when a Job finishes (recorded with a watch on a real cluster): PodsReady
+// goes True/Started, False/WaitForRecovery and True/Recovered, then Finished.
 func TestKueueRunningIsNotRepeatedWhenTheWorkloadFinishes(t *testing.T) {
 	kueue, out := newTestKueue(t, nil)
 	admitted := []workloadCondition{
 		kueueCondition("QuotaReserved", "True", "QuotaReserved", after(6)),
 		kueueCondition("Admitted", "True", "Admitted", after(6)),
 	}
-	kueue.set(kueueWorkload(after(5), append(admitted, kueueCondition("PodsReady", "True", "PodsReady", after(10)))...), true)
-	require.Equal(t, []string{"kueue.workload.created", "kueue.workload.quota_reserved", "kueue.workload.admitted", "kueue.workload.running"}, out.types())
+	with := func(extra ...workloadCondition) *kueueView {
+		return kueueWorkload(after(5), append(append([]workloadCondition{}, admitted...), extra...)...)
+	}
+	kueue.set(with(kueueCondition("PodsReady", "False", "WaitForStart", after(6))), true)
+	kueue.set(with(kueueCondition("PodsReady", "True", "Started", after(7))), true)
+	require.Equal(t, []string{
+		"kueue.workload.created", "kueue.workload.quota_reserved", "kueue.workload.admitted", "kueue.workload.running",
+	}, out.types())
 	out.events = nil
 
-	kueue.set(kueueWorkload(after(5), append(admitted,
-		kueueCondition("PodsReady", "True", "Recovered", after(50)),
-		kueueCondition("Finished", "True", "Succeeded", after(50)),
-	)...), true)
+	kueue.set(with(kueueCondition("PodsReady", "False", "WaitForRecovery", after(23))), true)
+	kueue.set(with(kueueCondition("PodsReady", "True", "Recovered", after(24))), true)
+	assert.Empty(t, out.events)
+	kueue.set(with(kueueCondition("PodsReady", "True", "Recovered", after(24)), kueueCondition("Finished", "True", "Succeeded", after(24))), true)
 	assert.Equal(t, []string{"kueue.workload.finished"}, out.types())
 }
 
 func TestKueueRunningAgainAfterTheWorkloadIsEvictedAndRestarted(t *testing.T) {
 	kueue, out := newTestKueue(t, nil)
-	kueue.set(kueueWorkload(after(5), kueueCondition("PodsReady", "True", "PodsReady", after(10))), true)
+	kueue.set(kueueWorkload(after(5), kueueCondition("PodsReady", "True", "Started", after(10))), true)
+	kueue.set(kueueWorkload(after(5), kueueCondition("PodsReady", "False", "WaitForRecovery", after(15))), true)
+	kueue.set(kueueWorkload(after(5), kueueCondition("PodsReady", "True", "Recovered", after(16))), true)
+	require.Equal(t, 1, countType(out.types(), "kueue.workload.running"))
 	out.events = nil
 
+	// Evicted, requeued and admitted again: the pods start again.
 	kueue.set(kueueWorkload(after(5), kueueCondition("PodsReady", "False", "WaitForStart", after(20))), true)
 	assert.Empty(t, out.events)
-	kueue.set(kueueWorkload(after(5), kueueCondition("PodsReady", "True", "PodsReady", after(30))), true)
+	kueue.set(kueueWorkload(after(5), kueueCondition("PodsReady", "True", "Started", after(30))), true)
 	assert.Equal(t, []string{"kueue.workload.running"}, out.types())
+}
+
+func countType(types []string, want string) int {
+	n := 0
+	for _, t := range types {
+		if t == want {
+			n++
+		}
+	}
+	return n
 }
 
 func TestKueueEvictedByPreemption(t *testing.T) {

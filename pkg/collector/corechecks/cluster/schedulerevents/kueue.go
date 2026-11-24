@@ -28,6 +28,10 @@ const (
 
 	kueueTransitionCreated = "created"
 	kueueConditionPreempt  = "Preempted"
+
+	// kueuePodsReadyRecovered is the reason of PodsReady when the pods of a
+	// running Workload recover, for example when its Job finishes.
+	kueuePodsReadyRecovered = "Recovered"
 )
 
 // kueueTransition is a change of a Workload condition that is reported as an event.
@@ -162,9 +166,11 @@ func (k *kueueEvents) set(w *kueueView, emit bool) {
 				continue
 			}
 		case "running":
-			// Kueue changes the reason and time of PodsReady while it stays True
-			// ("Started" to "Recovered" when the Job finishes): not a new start.
-			if had && previousCondition.Status == condition.Status {
+			// Kueue v0.20.7 goes PodsReady True/Started, False/WaitForRecovery and
+			// True/Recovered when a Job finishes: the last step is not a new start.
+			// A Workload that is evicted and admitted again goes through
+			// False/WaitForStart and True/Started, and does run again.
+			if condition.Reason == kueuePodsReadyRecovered || (had && previousCondition.Status == condition.Status) {
 				continue
 			}
 		default:
