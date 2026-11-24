@@ -2116,7 +2116,6 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test": ["grpcnotrace", "test"],
     "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/service-test": ["grpcnotrace", "test"],
     "github.com/DataDog/datadog-agent/test/otel": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "otlp", "requirefips", "serverless", "test"],
-    "github.com/DataDog/datadog-agent/tools/host-profiler/extract_symbols": ["grpcnotrace", "test"],
     "github.com/DataDog/datadog-agent/tools/retry_file_dump": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-traceroute/icmp": ["functionaltests", "serverless", "test"],
     "github.com/DataDog/datadog-traceroute/packets": ["functionaltests", "serverless", "test"],
