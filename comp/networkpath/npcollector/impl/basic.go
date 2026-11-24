@@ -64,10 +64,16 @@ func newBasicSelector(candidateLimit, selectionLimit int) *basicSelector {
 	}
 }
 
-func (selector *basicSelector) start(now time.Time) {
+// start opens the first window. lastBatch, zero or not after now, is when the
+// last batch ran before this start: the first window also waits out that
+// batch's interval, so restarts don't run batches more often than hourly.
+func (selector *basicSelector) start(now, lastBatch time.Time) {
 	selector.mu.Lock()
 	defer selector.mu.Unlock()
 	selector.startLocked(now)
+	if next := lastBatch.Add(basicSelectionInterval); next.After(selector.deadline) {
+		selector.deadline = next
+	}
 }
 
 func (selector *basicSelector) startLocked(now time.Time) {

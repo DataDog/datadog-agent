@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -41,6 +42,10 @@ const (
 	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
 	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
 	netpathConnsSkippedMetricName       = common.NetworkPathCollectorMetricPrefix + "schedule.conns_skipped"
+
+	// basicLastBatchKey is the persistentcache key that holds when the last
+	// basic batch ran, so that a restart waits for the next hourly batch.
+	basicLastBatchKey = "network_path_basic_last_batch"
 )
 
 var getVPCSubnetsForHost = network.GetVPCSubnetsForHost
@@ -371,11 +376,42 @@ func (s *npCollectorImpl) flushBasicPaths(now time.Time) {
 	if s.basicSelector == nil {
 		return
 	}
-	for _, path := range s.basicSelector.flush(now) {
+	paths := s.basicSelector.flush(now)
+	if len(paths) > 0 {
+		// Save the batch time now, not at stop: a crash skips stop hooks.
+		if err := persistentcache.Write(basicLastBatchKey, now.Format(time.RFC3339)); err != nil {
+			s.logger.Debugf("Couldn't save the Network Path basic batch time: %s", err)
+		}
+	}
+	for _, path := range paths {
 		if err := s.scheduleOne(&path); err != nil {
 			s.logger.Errorf("Error scheduling basic pathtest: %s", err)
 		}
 	}
+}
+
+// loadLastBasicBatch returns when the last basic batch ran before this start,
+// or the zero time when there is none or it can't be trusted.
+func (s *npCollectorImpl) loadLastBasicBatch(now time.Time) time.Time {
+	saved, err := persistentcache.Read(basicLastBatchKey)
+	if err != nil {
+		s.logger.Debugf("Ignoring the last Network Path basic batch time: %s", err)
+		return time.Time{}
+	}
+	if saved == "" {
+		return time.Time{}
+	}
+	lastBatch, err := time.Parse(time.RFC3339, saved)
+	if err != nil {
+		s.logger.Debugf("Ignoring the last Network Path basic batch time: %s", err)
+		return time.Time{}
+	}
+	if lastBatch.After(now) {
+		// The clock went back: waiting for this batch could stop batches for longer than an hour.
+		s.logger.Debugf("Ignoring the last Network Path basic batch time %s, which is in the future", saved)
+		return time.Time{}
+	}
+	return lastBatch
 }
 
 // scheduleOne schedules pathtests.
@@ -406,7 +442,8 @@ func (s *npCollectorImpl) start() error {
 	}
 	s.running = true
 	if s.basicSelector != nil {
-		s.basicSelector.start(s.TimeNowFn())
+		now := s.TimeNowFn()
+		s.basicSelector.start(now, s.loadLastBasicBatch(now))
 	}
 
 	s.logger.Info("Start NpCollector")

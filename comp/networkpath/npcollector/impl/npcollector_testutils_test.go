@@ -9,6 +9,7 @@ package npcollectorimpl
 
 import (
 	"fmt"
+	"maps"
 	"math/rand"
 	"net"
 	"net/netip"
@@ -65,11 +66,14 @@ var testOptions = fx.Options(
 )
 
 func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient statsd.ClientInterface, tr traceroute.Component) (*fxtest.App, *npCollectorImpl) {
+	// Keep the basic batch time that persistentcache saves out of the system run_path.
+	overrides := map[string]any{"run_path": t.TempDir()}
+	maps.Copy(overrides, agentConfigs)
 	var component npcollector.Component
 	app := fxtest.New(t, fx.Options(
 		testOptions,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
-		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, agentConfigs) }),
+		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 		fx.Provide(func() sysprobeconfig.Component {
 			return sysprobeconfigmock.NewMockWithOverrides(t, map[string]any{
 				"network_config.enabled": true,

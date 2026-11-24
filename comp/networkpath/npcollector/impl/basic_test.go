@@ -10,6 +10,7 @@ package npcollectorimpl
 import (
 	"math"
 	"net/netip"
+	"os"
 	"slices"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/stretchr/testify/assert"
@@ -336,7 +338,7 @@ func TestStandardModeTakesPrecedenceOverBasic(t *testing.T) {
 func TestBasicEmptyBootstrapWindowRetriesSoon(t *testing.T) {
 	now := MockTimeNow()
 	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
-	selector.start(now)
+	selector.start(now, time.Time{})
 	assert.Empty(t, selector.flush(now.Add(basicBootstrapWindow)))
 
 	selector.add(basicPath("late"), 1, now.Add(8*time.Minute))
@@ -356,6 +358,76 @@ func TestBasicEmptyHourlyWindowRetriesSoon(t *testing.T) {
 	selector.add(basicPath("late"), 1, hourlyClose.Add(time.Minute))
 	assert.Nil(t, selector.flush(hourlyClose.Add(basicBootstrapWindow-time.Second)))
 	assert.Equal(t, []string{"late"}, pathHosts(selector.flush(hourlyClose.Add(basicBootstrapWindow))))
+}
+
+func TestBasicFirstBatchAfterRestart(t *testing.T) {
+	now := MockTimeNow()
+	save := func(lastBatch string) func(*testing.T) {
+		return func(t *testing.T) {
+			require.NoError(t, persistentcache.Write(basicLastBatchKey, lastBatch))
+		}
+	}
+	tests := []struct {
+		name       string
+		setup      func(*testing.T)
+		firstBatch time.Time
+	}{
+		{"no saved batch", nil, now.Add(basicBootstrapWindow)},
+		{"batch 20 min ago", save(now.Add(-20 * time.Minute).Format(time.RFC3339)), now.Add(40 * time.Minute)},
+		{"batch 58 min ago", save(now.Add(-58 * time.Minute).Format(time.RFC3339)), now.Add(basicBootstrapWindow)},
+		{"batch 2 h ago", save(now.Add(-2 * time.Hour).Format(time.RFC3339)), now.Add(basicBootstrapWindow)},
+		{"batch in the future", save(now.Add(time.Minute).Format(time.RFC3339)), now.Add(basicBootstrapWindow)},
+		{"unparsable batch time", save("not a time"), now.Add(basicBootstrapWindow)},
+		{"unreadable batch time", func(t *testing.T) {
+			path, err := persistentcache.GetFileForKey(basicLastBatchKey)
+			require.NoError(t, err)
+			require.NoError(t, os.Mkdir(path, 0700))
+		}, now.Add(basicBootstrapWindow)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, collector := newTestNpCollector(t, map[string]any{
+				"network_path.connections_monitoring.basic_tests_enabled": true,
+				"network_path.collector.monitor_ip_without_domain":        true,
+			}, &teststatsd.Client{}, nil)
+			collector.TimeNowFn = func() time.Time { return now }
+			if tt.setup != nil {
+				tt.setup(t)
+			}
+			require.NoError(t, collector.start())
+			collector.stop()
+
+			collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
+			collector.flushBasicPaths(tt.firstBatch.Add(-time.Second))
+			assert.Empty(t, scheduledBasicHosts(t, collector), "the first batch ran early")
+			collector.flushBasicPaths(tt.firstBatch)
+			assert.Equal(t, []string{"10.0.0.1"}, scheduledBasicHosts(t, collector))
+		})
+	}
+}
+
+func TestBasicBatchSavesItsTime(t *testing.T) {
+	_, collector := newTestNpCollector(t, map[string]any{
+		"network_path.connections_monitoring.basic_tests_enabled": true,
+		"network_path.collector.monitor_ip_without_domain":        true,
+	}, &teststatsd.Client{}, nil)
+	now := MockTimeNow()
+	collector.TimeNowFn = func() time.Time { return now }
+	require.NoError(t, collector.start())
+	collector.stop()
+
+	collector.flushBasicPaths(now.Add(basicBootstrapWindow))
+	saved, err := persistentcache.Read(basicLastBatchKey)
+	require.NoError(t, err)
+	assert.Empty(t, saved, "an empty window is not a batch")
+
+	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
+	batchTime := now.Add(2 * basicBootstrapWindow)
+	collector.flushBasicPaths(batchTime)
+	require.Equal(t, []string{"10.0.0.1"}, scheduledBasicHosts(t, collector))
+	saved, err = persistentcache.Read(basicLastBatchKey)
+	require.NoError(t, err)
+	assert.Equal(t, batchTime.Format(time.RFC3339), saved)
 }
 
 func TestBasicDisabledCreatesNoCollectorMachinery(t *testing.T) {

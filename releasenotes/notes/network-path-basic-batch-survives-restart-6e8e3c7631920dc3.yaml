@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Network Path basic Dynamic Tests now run at most one batch per hour on each
+    host, even when the Agent or system-probe restarts. Previously, every
+    restart ran a new batch five minutes after start, so a process that
+    restarted often ran several batches an hour. The time of the last batch is
+    saved in the Agent's ``run_path`` directory; when it can't be read or
+    written, the first batch runs five minutes after start, as before.
