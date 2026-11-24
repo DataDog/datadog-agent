@@ -3750,6 +3750,7 @@ func (s *TracerSuite) TestNATFromEbpfConntracker() {
 		assert.Equal(t, cfg.MaxTrackedConnections, m.MaxEntries())
 		// net_dev_queue supplies the NAT'd tuples here
 		testSNATOneSidedClassification(t, tr)
+		t.Run("equal ports cleanup", func(t *testing.T) { testEqualPortsClassificationCleanup(t, tr) })
 	})
 }
 
@@ -3990,6 +3991,96 @@ func (s *TracerSuite) TestNATClassificationCleanup() {
 			}, 3*time.Second, 100*time.Millisecond)
 		})
 	}
+
+	// the conntrack map supplies the NAT'd tuples here
+	t.Run("equal ports", func(t *testing.T) { testEqualPortsClassificationCleanup(t, tr) })
+}
+
+// testEqualPortsClassificationCleanup checks the sides that the two ends of a SNAT'd connection with equal ports mark
+// on the classification entries they share, and that the entries outlive the first end's close. Each end looks up the
+// entry under its own tuple and under the NAT'd tuple, so each entry is shared by both ends. Both ends' source port is
+// the same, so only the tuple's orientation tells them apart. The caller sets up the SNAT.
+func testEqualPortsClassificationCleanup(t *testing.T, tr *Tracer) {
+	protoMap, err := tr.GetMap(probes.ConnectionProtocolMap)
+	require.NoError(t, err)
+
+	var ln net.Listener
+	var client net.Conn
+	// The client binds 6.6.6.6 to the listener's port. The kernel only checked that port was free on 127.0.0.1, so
+	// it can already be in use on 6.6.6.6: then start over with a new listener, and so a new port.
+	const maxAttempts = 10
+	for attempt := 1; ; attempt++ {
+		ln, err = net.Listen("tcp4", "127.0.0.1:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = ln.Close() })
+		local := &net.TCPAddr{IP: net.ParseIP("6.6.6.6"), Port: ln.Addr().(*net.TCPAddr).Port}
+		d := net.Dialer{LocalAddr: local, Timeout: 5 * time.Second}
+		client, err = d.Dial("tcp", ln.Addr().String())
+		if err == nil {
+			break
+		}
+		require.True(t, errors.Is(err, syscall.EADDRINUSE) && attempt < maxAttempts, "dial failed after %d attempt(s): %v", attempt, err)
+		t.Logf("attempt %d: port %d is in use on 6.6.6.6, retrying with a new listener", attempt, local.Port)
+		_ = ln.Close()
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	server, err := ln.Accept()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = server.Close() })
+	require.Equal(t, "7.7.7.7", server.RemoteAddr().(*net.TCPAddr).IP.String(), "connection wasn't SNAT'd")
+
+	// unclassified entries for the ends to mark
+	now, err := ddebpf.NowNanoseconds()
+	require.NoError(t, err)
+	stack := netebpf.ProtocolStackWrapper{Updated: uint64(now)}
+	keys := map[string]netebpf.ConnTuple{
+		"client's tuple": normalizedClassificationKey(client.LocalAddr(), client.RemoteAddr()),
+		"server's tuple": normalizedClassificationKey(server.LocalAddr(), server.RemoteAddr()),
+	}
+	for _, k := range keys {
+		require.NoError(t, protoMap.Put(unsafe.Pointer(&k), unsafe.Pointer(&stack)))
+	}
+
+	// each end updates its stats, and so marks its side, when it sends and receives
+	buf := make([]byte, 1)
+	for _, c := range [][2]net.Conn{{client, server}, {server, client}} {
+		_, err = c[0].Write([]byte{'x'})
+		require.NoError(t, err)
+		_, err = io.ReadFull(c[1], buf)
+		require.NoError(t, err)
+	}
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		for name, k := range keys {
+			var got netebpf.ProtocolStackWrapper
+			if assert.NoError(collect, protoMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&got)), "connection_protocol under the %s", name) {
+				assert.Equal(collect, uint8(flagServerSide|flagClientSide), got.Stack.Flags&(flagServerSide|flagClientSide), "sides marked under the %s", name)
+			}
+		}
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// the first end's close only clears the sides
+	require.NoError(t, client.Close())
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		conn, _ := findConnection(client.LocalAddr(), client.RemoteAddr(), conns)
+		if assert.NotNil(collect, conn, "closed connection not found") {
+			assert.True(collect, conn.IsClosed)
+		}
+	}, 5*time.Second, 100*time.Millisecond)
+	for name, k := range keys {
+		var got netebpf.ProtocolStackWrapper
+		assert.NoError(t, protoMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&got)), "connection_protocol under the %s deleted by the first close", name)
+	}
+
+	// the second end's close deletes them
+	require.NoError(t, server.Close())
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		for name, k := range keys {
+			var got netebpf.ProtocolStackWrapper
+			assert.ErrorIs(collect, protoMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&got)), ebpf.ErrKeyNotExist, "connection_protocol under the %s", name)
+		}
+	}, 3*time.Second, 100*time.Millisecond)
 }
 
 const (
