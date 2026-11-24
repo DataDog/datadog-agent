@@ -16,7 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -40,10 +42,12 @@ func kueueCondition(conditionType, status, reason string, at time.Time) workload
 	return workloadCondition{Type: conditionType, Status: status, Reason: reason, LastTransitionTime: at}
 }
 
-func newTestKueue(t *testing.T, tagger fakeTagger) (*kueueEvents, *collected) {
+// newTestKueue returns the events of Kueue Workloads with a mock tagger. The
+// optional setup sets the tags the tagger has.
+func newTestKueue(t *testing.T, setup func(taggermock.Mock)) (*kueueEvents, *collected) {
 	t.Helper()
 	out := &collected{}
-	kueue := newKueueEvents(tagger, newTestIndex(), started, out.submit)
+	kueue := newKueueEvents(newTestTagger(t, setup), newTestIndex(), started, out.submit)
 	kueue.now = func() time.Time { return after(1000) }
 	return kueue, out
 }
@@ -267,12 +271,11 @@ func TestKueueEvictedByPreemption(t *testing.T) {
 }
 
 func TestKueueEventTagsIncludeThoseOfTheTagger(t *testing.T) {
-	tagger := fakeTagger{
-		"kueue_workload://team-a/job-1":                    {"kueue_workload_tag:from-tagger"},
-		"kubernetes_kueue_queue://clusterqueue//cq":        {"cluster_queue_tag:from-tagger"},
-		"kubernetes_kueue_queue://localqueue/team-a/local": {"local_queue_tag:from-tagger"},
-	}
-	kueue, out := newTestKueue(t, tagger)
+	kueue, out := newTestKueue(t, func(tagger taggermock.Mock) {
+		tagger.SetTags(types.NewEntityID(types.KueueWorkload, "team-a/job-1"), "test", []string{"kueue_workload_tag:from-tagger"}, nil, nil, nil)
+		tagger.SetTags(types.NewEntityID(types.KubernetesKueueQueue, "clusterqueue//cq"), "test", []string{"cluster_queue_tag:from-tagger"}, nil, nil, nil)
+		tagger.SetTags(types.NewEntityID(types.KubernetesKueueQueue, "localqueue/team-a/local"), "test", []string{"local_queue_tag:from-tagger"}, nil, nil, nil)
+	})
 	priority := int32(7)
 
 	workload := kueueWorkload(after(5), kueueCondition("Admitted", "True", "Admitted", after(10)))
@@ -311,7 +314,7 @@ func TestKueueWorkloadCreatedInTheStartSecondIsReported(t *testing.T) {
 	// after the check started in the same second looks as old as the start.
 	out := &collected{}
 	startedInTheSecond := started.Add(700 * time.Millisecond)
-	kueue := newKueueEvents(fakeTagger{}, newTestIndex(), startedInTheSecond, out.submit)
+	kueue := newKueueEvents(newTestTagger(t, nil), newTestIndex(), startedInTheSecond, out.submit)
 	kueue.now = func() time.Time { return after(1000) }
 
 	kueue.set(kueueWorkload(started), true)

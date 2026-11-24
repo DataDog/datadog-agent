@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -91,14 +92,9 @@ func newKueueState(w *kueueView) kueueState {
 	return state
 }
 
-// tagLookup is the part of the tagger the events need.
-type tagLookup interface {
-	Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error)
-}
-
 // kueueEvents turns the updates of Kueue Workloads into events.
 type kueueEvents struct {
-	tagger    tagLookup
+	tagger    tagger.Component
 	index     *eventIndex
 	startedAt time.Time
 	now       func() time.Time
@@ -106,7 +102,7 @@ type kueueEvents struct {
 	states    map[string]kueueState
 }
 
-func newKueueEvents(tagger tagLookup, index *eventIndex, startedAt time.Time, submit func(event.Event)) *kueueEvents {
+func newKueueEvents(tagger tagger.Component, index *eventIndex, startedAt time.Time, submit func(event.Event)) *kueueEvents {
 	return &kueueEvents{
 		tagger:    tagger,
 		index:     index,

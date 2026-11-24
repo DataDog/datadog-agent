@@ -39,7 +39,7 @@ func newTestCheck(t *testing.T, leader func() (bool, error)) (*Check, *mocksende
 	require.NoError(t, c.CommonConfigure(sender.GetSenderManager(), nil, nil, "", ""))
 
 	submit := func(e event.Event) { c.send(e) }
-	c.kueue = newKueueEvents(fakeTagger{}, newTestIndex(), started, submit)
+	c.kueue = newKueueEvents(newTestTagger(t, nil), newTestIndex(), started, submit)
 	c.kueue.now = func() time.Time { return after(1000) }
 	return c, sender
 }

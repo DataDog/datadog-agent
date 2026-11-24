@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
@@ -20,17 +23,23 @@ var (
 	after   = func(seconds int) time.Time { return started.Add(time.Duration(seconds) * time.Second) }
 )
 
-// fakeTagger returns the tags given for an entity ID.
-type fakeTagger map[string][]string
-
-func (f fakeTagger) Tag(entityID types.EntityID, _ types.TagCardinality) ([]string, error) {
-	return f[entityID.String()], nil
+// failingTagger is a tagger whose lookups fail. Only Tag is used by the events.
+type failingTagger struct {
+	tagger.Component
+	err error
 }
 
-// failingTagger fails every lookup.
-type failingTagger struct{ err error }
-
 func (f failingTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) { return nil, f.err }
+
+// newTestTagger returns the mock tagger, with the tags set by setup.
+func newTestTagger(t testing.TB, setup func(taggermock.Mock)) taggermock.Mock {
+	t.Helper()
+	tagger := taggerfxmock.SetupFakeTagger(t)
+	if setup != nil {
+		setup(tagger)
+	}
+	return tagger
+}
 
 func newTestIndex() *eventIndex {
 	index := newEventIndex()

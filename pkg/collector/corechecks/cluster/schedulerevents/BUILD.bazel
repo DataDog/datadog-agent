@@ -55,6 +55,9 @@ dd_agent_go_test(
     include_default = False,
     deps = [
         "//comp/core/config",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/fx-mock",
+        "//comp/core/tagger/mock",
         "//comp/core/tagger/tags",
         "//comp/core/tagger/types",
         "//comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers",
