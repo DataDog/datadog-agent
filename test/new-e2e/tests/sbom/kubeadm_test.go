@@ -396,7 +396,7 @@ var containerTargets = []containerTarget{
 			"sha256:1512b43389a873b0519ae3d6c1a3c4d9b19295b8e3330b040d95d73c50ba2f9e",
 			"sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1",
 		},
-		componentCount: 186,
+		componentCount: 185,
 		components: []expectedComponent{
 			{name: "alpine", version: "3.23.4"},               // OS component
 			{name: "musl", version: "1.2.5-r23", layer: true}, // apk libc (OS)

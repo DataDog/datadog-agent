@@ -119,7 +119,6 @@ func (tcr *Resolver) handleNetworkNamespaceMountRequest(request networkNamespace
 	if request.unmounted {
 		if netns := tcr.ResolveNetworkNamespace(request.nsID); netns != nil {
 			tcr.FlushNetworkNamespace(netns)
-			tcr.tcResolver.FlushNetworkNamespaceID(request.nsID, tcr.manager)
 		}
 		return
 	}
