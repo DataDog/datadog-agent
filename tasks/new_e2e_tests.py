@@ -274,6 +274,11 @@ GO_TEST_MIN_TIMEOUT_SECONDS = 60
 # Fallback go test timeout when no GitLab CI timeout is available (local runs).
 DEFAULT_GO_TEST_TIMEOUT = "4h"
 
+# Match a complete panic header line, not timeout text embedded in other test logs.
+GO_TEST_TIMEOUT_PANIC_RE = re.compile(
+    r"^panic: test timed out after (?:[0-9]+(?:\.[0-9]+)?(?:ns|[uµμ]s|ms|s|m|h))+\r?$", re.MULTILINE
+)
+
 
 def _format_go_duration(seconds: int) -> str:
     """Format an integer number of seconds as a Go duration literal (e.g. "1h55m0s")."""
@@ -689,7 +694,7 @@ def run(
 
         if remaining_tries > 0:
             if any(
-                line.action == ActionType.OUTPUT and line.output and "panic: test timed out after " in line.output
+                line.action == ActionType.OUTPUT and line.output and GO_TEST_TIMEOUT_PANIC_RE.search(line.output)
                 for line in washer.test_output_json.lines
             ):
                 # A Go test timeout can leave remote commands running on the stacks that retries would reuse.

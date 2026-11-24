@@ -327,6 +327,43 @@ class TestE2ERetries(unittest.TestCase):
         )
         self.assertEqual(self.test_flavor.call_count, 2)
 
+    def test_timeout_header_duration_formats(self):
+        for output in (
+            "panic: test timed out after 30s\n",
+            "panic: test timed out after 1h55m0s\nrunning tests:\n",
+            "panic: test timed out after 1.5s\n",
+            "panic: test timed out after 1ms\n",
+            "panic: test timed out after 1µs\n",
+            "panic: test timed out after 1ns\n",
+            "setup output\npanic: test timed out after 30s\r\nrunning tests:\n",
+        ):
+            with self.subTest(output=output):
+                self._run_e2e([self._failure(output), self._failure(), self._failure()])
+                self.test_flavor.assert_called_once()
+
+    def test_logged_timeout_text_does_not_suppress_unrelated_retries(self):
+        for output in (
+            "remote stderr: panic: test timed out after 30s\n",
+            " panic: test timed out after 30s\n",
+            "panic: test timed out after a while\n",
+            "panic: test timed out after 30\n",
+            "panic: test timed out after 30d\n",
+            "panic: test timed out after 30seconds\n",
+            "panic: test timed out after 30s (remote stderr)\n",
+        ):
+            with self.subTest(output=output):
+                events = self._failure() + [
+                    self._event("output", output, test="TestRemote"),
+                    self._event("pass", test="TestRemote"),
+                ]
+                self._run_e2e(
+                    [events, [self._event("output", "install succeeded\n"), self._event("pass")]], success=True
+                )
+                self.assertEqual(self.test_flavor.call_count, 2)
+                self.assertEqual(
+                    self.selections[1], (["tests/installer/script"], '-test.run "^(?:TestInstall)$/^(?:Fail)$"')
+                )
+
     def test_other_failures_are_retried(self):
         for output in ("install failed\n", "panic: unexpected failure\n", "command timed out after 30s\n"):
             with self.subTest(output=output):
