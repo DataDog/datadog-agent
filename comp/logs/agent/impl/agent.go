@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor/ottl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
@@ -170,7 +171,7 @@ func NewComponent(deps Requires) Provides {
 			hostname:           deps.Hostname,
 			started:            atomic.NewUint32(status.StatusNotStarted),
 			auditor:            deps.Auditor,
-			sources:            sources.NewLogSources(),
+			sources:            sources.NewLogSources(ottl.PrepareSource),
 			services:           service.NewServices(),
 			tracker:            tailers.NewTailerTracker(),
 			flarecontroller:    flareController.NewFlareController(),
@@ -285,7 +286,7 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *tagfilter.Filter
 	}
 
 	// setup global processing rules
-	processingRules, err := config.GlobalProcessingRules(a.config)
+	processingRules, err := ottl.GlobalProcessingRules(a.config)
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
 		status.AddGlobalError(invalidProcessingRules, message)

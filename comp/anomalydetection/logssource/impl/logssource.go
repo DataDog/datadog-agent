@@ -21,6 +21,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor/ottl"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -106,7 +107,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	observerHandle := obs.GetHandle("logs")
 
-	processingRules, err := logsconfig.GlobalProcessingRules(deps.Config)
+	processingRules, err := ottl.GlobalProcessingRules(deps.Config)
 	if err != nil {
 		logging.Warnf("logssource invalid global processing rules, proceeding without them: %v", err)
 		processingRules = nil
@@ -124,7 +125,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 
 	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle)
-	logSources := sources.NewLogSources()
+	logSources := sources.NewLogSources(ottl.PrepareSource)
 	tracker := tailers.NewTailerTracker()
 	launchersMgr := launchers.NewLaunchers(logSources, pipeline, deps.Auditor, tracker)
 

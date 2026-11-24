@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add OTTL support to log processing rules. The ``include_at_match``,
+    ``exclude_at_match``, and ``mask_sequences`` rules accept an ``ottl``
+    expression instead of a regular expression ``pattern``, so they can filter
+    on and mask nested JSON fields and message text. Filtering keeps messages
+    on evaluation errors; masking drops them on errors.

@@ -25,6 +25,7 @@ go_library(
         "//comp/healthplatform",
         "//comp/logs-library/pipeline",
         "//comp/logs-library/processor",
+        "//comp/logs-library/processor/ottl",
         "//comp/logs/agent/impl",
         "//pkg/logs/launchers",
         "//pkg/logs/message",

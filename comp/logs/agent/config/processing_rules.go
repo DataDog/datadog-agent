@@ -37,6 +37,8 @@ type ProcessingRule struct {
 	Name               string
 	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder" yaml:"replace_placeholder"`
 	Pattern            string
+	OTTL               string           `mapstructure:"ottl" json:"ottl,omitempty" yaml:"ottl,omitempty"`
+	OTTLProgram        CompiledOTTLRule `mapstructure:"-" json:"-" yaml:"-"`
 	Regex              *regexp.Regexp
 	Placeholder        []byte
 	Matching           []*SourceMatchEntry `mapstructure:"matching" json:"matching" yaml:"matching"`
@@ -46,11 +48,30 @@ type ProcessingRule struct {
 // Each processing rule must have:
 // - a valid name
 // - a valid type
-// - a valid pattern that compiles
+// - a valid regex pattern, or an ottl expression instead (include_at_match, exclude_at_match, mask_sequences)
+// OTTL syntax is validated by the logs runtime before the configuration is used.
 func ValidateProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
 		if rule.Name == "" {
 			return errors.New("all processing rules must have a name")
+		}
+
+		if rule.OTTL != "" {
+			switch rule.Type {
+			case ExcludeAtMatch, IncludeAtMatch, MaskSequences:
+			case "":
+				return fmt.Errorf("type must be set for processing rule `%s`", rule.Name)
+			default:
+				return fmt.Errorf("ottl is not supported for processing rule type %s: %s", rule.Type, rule.Name)
+			}
+			if rule.Pattern != "" {
+				return fmt.Errorf("processing rule %s sets both pattern and ottl; use pattern for a regular expression or ottl for an OTTL expression", rule.Name)
+			}
+			if rule.ReplacePlaceholder != "" {
+				return fmt.Errorf("replace_placeholder cannot be used with ottl in processing rule: %s", rule.Name)
+			}
+			// The logs runtime validates OTTL syntax before accepting the source.
+			continue
 		}
 
 		switch rule.Type {
@@ -88,10 +109,14 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 	return nil
 }
 
-// CompileProcessingRules compiles all processing rule regular expressions.
+// CompileProcessingRules compiles regular expressions. OTTL compilation belongs to the logs runtime.
 func CompileProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
-		if rule.Type == ExcludeTruncated || rule.Type == RemapSource {
+		if rule.OTTL != "" {
+			continue
+		}
+		switch rule.Type {
+		case ExcludeTruncated, RemapSource:
 			continue
 		}
 		re, err := regexp.Compile(rule.Pattern)
@@ -127,4 +152,20 @@ func ApplyMaskSequence(content []byte, rule *ProcessingRule) ([]byte, bool) {
 
 	masked := rule.Regex.ReplaceAll(content, rule.Placeholder)
 	return masked, !bytes.Equal(content, masked)
+}
+
+// OTTLContext is the message-local state shared by compiled OTTL rules. Keeping
+// this interface here lets config consumers avoid linking the OTTL engine.
+type OTTLContext interface {
+	Content() []byte
+	Reset([]byte)
+	Release()
+}
+
+// CompiledOTTLRule is attached by the logs runtime during setup, before rules are
+// published to processors. Evaluate returns a filter match or a masking change.
+// Implementations must support concurrent evaluation with separate contexts.
+type CompiledOTTLRule interface {
+	NewContext([]byte) OTTLContext
+	Evaluate(OTTLContext) (bool, error)
 }
