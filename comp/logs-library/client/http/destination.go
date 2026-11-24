@@ -358,7 +358,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			}
 		}
 
-		if err == context.Canceled || (d.terminalLossOutput != nil && errors.Is(err, context.Canceled)) {
+		if err == context.Canceled {
 			d.updateRetryState(nil, isRetrying)
 			return result
 		}

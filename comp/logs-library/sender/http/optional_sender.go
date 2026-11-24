@@ -74,9 +74,6 @@ func NewOptionalHTTPSender(
 	}
 }
 
-// In returns the bounded input channel for best-effort payloads.
-func (s *OptionalSender) In() chan *message.Payload { return s.input }
-
 // TrySend attempts a non-blocking enqueue to the optional sender. If the queue
 // is full, it records payload and message drop telemetry once and returns false.
 func (s *OptionalSender) TrySend(payload *message.Payload) bool {

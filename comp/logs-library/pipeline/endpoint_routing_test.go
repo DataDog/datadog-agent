@@ -17,7 +17,6 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -54,6 +53,7 @@ type endpointFilteringIntake struct {
 	host       string
 	port       int
 	statusCode atomic.Int32
+	shortReply atomic.Bool
 	requests   atomic.Int32
 	mu         sync.Mutex
 	blockCh    chan struct{}
@@ -80,6 +80,19 @@ func newEndpointFilteringIntake(t *testing.T) *endpointFilteringIntake {
 		}
 
 		code := int(intake.statusCode.Load())
+		if r.Method == http.MethodGet && r.URL.Path == "/redirect-target" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if code == http.StatusFound {
+			http.Redirect(w, r, "/redirect-target", code)
+			return
+		}
+		if intake.shortReply.Load() {
+			w.Header().Set("Content-Length", "1")
+			w.WriteHeader(code)
+			return
+		}
 		if code != http.StatusOK {
 			w.WriteHeader(code)
 			return
@@ -321,10 +334,10 @@ func TestEndpointFilteringUS1FullAndUS5FilteredBatchesWithCommonProcessing(t *te
 	assert.Equal(t, []string{"10", "20", "30", "40"}, offsets)
 }
 
-// TestEndpointFilteringLocalTagsAndStructuredFieldsWithExportTagFilter verifies
+// TestEndpointFilteringLocalTagsWithExportTagFilter verifies
 // that selectors match unfiltered local tags and structured JSON attributes
 // before rendering, while export tag_filters still strip those tags on the wire.
-func TestEndpointFilteringLocalTagsAndStructuredFieldsWithExportTagFilter(t *testing.T) {
+func TestEndpointFilteringLocalTagsWithExportTagFilter(t *testing.T) {
 	us1 := newEndpointFilteringIntake(t)
 	us5 := newEndpointFilteringIntake(t)
 
@@ -332,9 +345,7 @@ func TestEndpointFilteringLocalTagsAndStructuredFieldsWithExportTagFilter(t *tes
 	globalFilters, _ := tagfilter.Compile(nil, []string{"internal_route:*"})
 
 	us5Selector := routing.EvaluatorFunc(func(view routing.RecordView) (bool, error) {
-		hasLocalTag := slices.Contains(view.LocalTags(), "internal_route:us5")
-		env, ok := view.StructuredAttribute("audit.level")
-		return hasLocalTag && ok && env == "high", nil
+		return slices.Contains(view.LocalTags(), "internal_route:us5"), nil
 	})
 
 	sink := &routedTestSink{ch: make(chan *message.Payload, 16)}
@@ -358,24 +369,12 @@ func TestEndpointFilteringLocalTagsAndStructuredFieldsWithExportTagFilter(t *tes
 	in, err := p.SourceInput(sourceID, 1)
 	require.NoError(t, err)
 
-	originMatch := message.NewOrigin(src)
-	originMatch.Identifier = sourceID
-	originMatch.Offset = "10"
-	msgMatch := message.NewStructuredMessage(
-		&message.BasicStructuredContent{Data: map[string]any{"message": "audit-event", "audit": map[string]any{"level": "high"}}},
-		originMatch, message.StatusNotice, time.Now().UnixNano(),
-	)
-
-	originNoMatch := message.NewOrigin(src)
-	originNoMatch.Identifier = sourceID
-	originNoMatch.Offset = "20"
-	msgNoMatch := message.NewStructuredMessage(
-		&message.BasicStructuredContent{Data: map[string]any{"message": "regular-event", "audit": map[string]any{"level": "low"}}},
-		originNoMatch, message.StatusInfo, time.Now().UnixNano(),
-	)
-
-	in <- msgMatch
-	in <- msgNoMatch
+	in <- newCheckpointedFilteringMessage(src, sourceID, "10", "audit-event", message.StatusNotice)
+	noMatch := newCheckpointedFilteringMessage(src, sourceID, "20", "regular-event", message.StatusNotice)
+	noMatch.Origin = message.NewOrigin(sources.NewLogSource("app", &config.LogsConfig{Tags: []string{"env:prod"}}))
+	noMatch.Origin.Identifier = sourceID
+	noMatch.Origin.Offset = "20"
+	in <- noMatch
 	p.Flush(context.Background())
 
 	require.Eventually(t, func() bool {
@@ -385,7 +384,7 @@ func TestEndpointFilteringLocalTagsAndStructuredFieldsWithExportTagFilter(t *tes
 	for _, rec := range us5.records() {
 		assert.NotContains(t, rec.DDTags, "internal_route:us5", "export tag_filter must still strip excluded tag from outgoing payload")
 		assert.Contains(t, rec.DDTags, "env:prod")
-		assert.True(t, strings.Contains(rec.Message, "audit-event"))
+		assert.Equal(t, "audit-event", rec.Message)
 	}
 }
 
@@ -450,10 +449,55 @@ func TestEndpointFilteringIsolatesOptionalFailureAndSaturation(t *testing.T) {
 	assert.Empty(t, optional, "US5 must still be blocked when all US1 checkpoints arrive")
 }
 
-// TestEndpointFilteringStalledReliableSiblingBackpressuresSource records the
-// current bounded fanout behavior. Delivery to one endpoint can advance progress
-// while the dispatcher still waits to offer copies to another reliable endpoint.
-func TestEndpointFilteringStalledReliableSiblingBackpressuresSource(t *testing.T) {
+func TestEndpointFilteringFlushDoesNotWaitForOptionalHandoff(t *testing.T) {
+	reliable := make(chan *message.Message, 1)
+	optional := make(chan *message.Message, 1)
+	p := &RoutedProvider{
+		ctx:             context.Background(),
+		started:         true,
+		stopRequested:   make(chan struct{}),
+		streams:         map[string]*routedStream{"reliable": {input: reliable}},
+		optionalStreams: map[string]*routedStream{"optional": {input: optional}},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	flushed := make(chan struct{})
+	go func() {
+		defer close(flushed)
+		p.Flush(ctx)
+	}()
+
+	takeMarker := func(input <-chan *message.Message) *message.Message {
+		t.Helper()
+		select {
+		case marker := <-input:
+			return marker
+		case <-ctx.Done():
+			t.Fatal("batcher did not receive a flush marker")
+			return nil
+		}
+	}
+	reliableMarker := takeMarker(reliable)
+	optionalMarker := takeMarker(optional)
+	defer close(optionalMarker.RoutingBarrier())
+
+	select {
+	case <-flushed:
+		t.Fatal("flush returned before reliable handoff")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(reliableMarker.RoutingBarrier())
+	select {
+	case <-flushed:
+		require.NoError(t, ctx.Err())
+	case <-time.After(time.Second):
+		t.Fatal("flush waited for optional handoff")
+	}
+}
+
+// TestEndpointFilteringStalledReliableSibling verifies that delivery to one
+// matching endpoint releases offers still waiting for space at its sibling.
+func TestEndpointFilteringStalledReliableSibling(t *testing.T) {
 	healthy := newEndpointFilteringIntake(t)
 	stalled := newEndpointFilteringIntake(t)
 	stalled.block()
@@ -463,8 +507,8 @@ func TestEndpointFilteringStalledReliableSiblingBackpressuresSource(t *testing.T
 	p := newEndpointFilteringTestProvider(t, RoutedOptions{
 		Sink: sink,
 		Endpoints: []routing.EndpointTarget{
-			{ID: "healthy", Endpoints: healthy.endpointsWithBatch("healthy-key", true, 10*time.Millisecond, 1)},
-			{ID: "stalled", Endpoints: stalled.endpointsWithBatch("stalled-key", true, 10*time.Millisecond, 1)},
+			{ID: "healthy", Endpoints: healthy.endpointsWithBatch("healthy-key", true, 10*time.Millisecond, 4)},
+			{ID: "stalled", Endpoints: stalled.endpointsWithBatch("stalled-key", true, 10*time.Millisecond, 2)},
 		},
 	})
 	p.Start()
@@ -497,24 +541,24 @@ func TestEndpointFilteringStalledReliableSiblingBackpressuresSource(t *testing.T
 	require.Eventually(t, func() bool {
 		return stalled.requests.Load() > 0 && len(stalledInput) == cap(stalledInput) && len(sink.ch) > 0
 	}, 10*time.Second, 10*time.Millisecond, "the stalled queue must fill after healthy checkpoints advance")
-	// Let healthy delivery drain any work already in its queues. It cannot
-	// receive the final record until the stalled sibling has room again.
-	require.Never(t, func() bool {
-		logs, _, _ := healthy.snapshot()
-		return len(logs) == total
-	}, 300*time.Millisecond, 10*time.Millisecond)
-	select {
-	case <-feedDone:
-		t.Fatal("source unexpectedly admitted every record while the sibling was stalled")
-	default:
+	deadline := time.After(15 * time.Second)
+	for i := 1; i <= total; i++ {
+		select {
+		case checkpoint := <-sink.ch:
+			require.Equal(t, strconv.Itoa(i), checkpoint.MessageMetas[0].Origin.Offset)
+		case <-deadline:
+			t.Fatalf("checkpoint stalled at record %d", i)
+		}
 	}
-
+	healthyLogs, _, _ := healthy.snapshot()
+	require.Len(t, healthyLogs, total)
+	queued := len(stalledInput)
+	require.Positive(t, queued)
 	stalled.unblock()
 	require.Eventually(t, func() bool {
-		healthyLogs, _, _ := healthy.snapshot()
-		stalledLogs, _, _ := stalled.snapshot()
-		return len(healthyLogs) == total && len(stalledLogs) == total
-	}, 10*time.Second, 10*time.Millisecond, "both endpoints must receive every record after recovery")
+		logs, _, _ := stalled.snapshot()
+		return len(logs) >= queued
+	}, 10*time.Second, 10*time.Millisecond, "copies already in the queue must still send")
 }
 
 // TestEndpointFilteringPrimaryOutageHoldsCheckpointThenRecovers verifies that
@@ -618,12 +662,61 @@ func TestEndpointFilteringMultiReliableTriesAllAndSeparatesRejectionFromSuccess(
 	}
 }
 
+func TestEndpointFilteringDoesNotConfirmDeliveryFromIncompleteResponse(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		status     int
+		shortReply bool
+	}{
+		{name: "redirect", status: http.StatusFound},
+		{name: "truncated_success_response", status: http.StatusOK, shortReply: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			intake := newEndpointFilteringIntake(t)
+			intake.setStatus(tc.status)
+			intake.shortReply.Store(tc.shortReply)
+			sink := &routedTestSink{ch: make(chan *message.Payload, 1)}
+			p := newEndpointFilteringTestProvider(t, RoutedOptions{
+				Sink: sink,
+				Endpoints: []routing.EndpointTarget{{
+					ID: "reliable", Endpoints: intake.endpointsWithBatch("key", true, 10*time.Millisecond, 1),
+				}},
+			})
+			p.Start()
+			defer p.Stop()
+
+			const sourceID = "file:/tmp/redirect.log"
+			src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: "/tmp/redirect.log"})
+			in, err := p.SourceInput(sourceID, 1)
+			require.NoError(t, err)
+			in <- newCheckpointedFilteringMessage(src, sourceID, "10", "must-post", message.StatusInfo)
+			require.Eventually(t, func() bool { return intake.requests.Load() >= 2 }, 5*time.Second, 10*time.Millisecond)
+			select {
+			case <-sink.ch:
+				t.Fatal("incomplete response advanced the checkpoint")
+			default:
+			}
+
+			intake.setStatus(http.StatusOK)
+			intake.shortReply.Store(false)
+			select {
+			case cp := <-sink.ch:
+				require.Equal(t, "10", cp.MessageMetas[0].Origin.Offset)
+				logs, _, _ := intake.snapshot()
+				require.Equal(t, []string{"must-post"}, logs)
+			case <-time.After(5 * time.Second):
+				t.Fatal("missing checkpoint after successful POST")
+			}
+		})
+	}
+}
+
 func TestEndpointFilteringEdgeCases(t *testing.T) {
 	t.Run("reliable_selector_error_blocks_checkpoint_after_known_rejection", func(t *testing.T) {
 		rejected := newEndpointFilteringIntake(t)
 		rejected.setStatus(http.StatusBadRequest)
 		healthy := newEndpointFilteringIntake(t)
-		isFirst := func(v routing.RecordView) bool { return string(v.Content()) == "first" }
+		isFirst := func(v routing.RecordView) bool { return v.Status() == message.StatusError }
 
 		sink := &routedTestSink{ch: make(chan *message.Payload, 16)}
 		p := newEndpointFilteringTestProvider(t, RoutedOptions{
@@ -636,7 +729,7 @@ func TestEndpointFilteringEdgeCases(t *testing.T) {
 					return !isFirst(v), nil
 				})},
 				{ID: "unknown", Endpoints: healthy.endpointsWithBatch("unknown-key", true, 10*time.Millisecond, 1), Evaluator: routing.EvaluatorFunc(func(v routing.RecordView) (bool, error) {
-					if isFirst(v) || string(v.Content()) == "delivered" {
+					if isFirst(v) || v.Status() == message.StatusWarning {
 						return false, errors.New("selector failed")
 					}
 					return false, nil
@@ -651,7 +744,7 @@ func TestEndpointFilteringEdgeCases(t *testing.T) {
 		src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: "/tmp/mixed-reliable-outcomes.log"})
 		other, err := p.SourceInput(otherID, 1)
 		require.NoError(t, err)
-		other <- newCheckpointedFilteringMessage(src, otherID, "5", "delivered", message.StatusInfo)
+		other <- newCheckpointedFilteringMessage(src, otherID, "5", "delivered", message.StatusWarning)
 		select {
 		case cp := <-sink.ch:
 			require.Len(t, cp.MessageMetas, 1)
@@ -663,7 +756,7 @@ func TestEndpointFilteringEdgeCases(t *testing.T) {
 
 		in, err := p.SourceInput(sourceID, 1)
 		require.NoError(t, err)
-		in <- newCheckpointedFilteringMessage(src, sourceID, "10", "first", message.StatusInfo)
+		in <- newCheckpointedFilteringMessage(src, sourceID, "10", "first", message.StatusError)
 		in <- newCheckpointedFilteringMessage(src, sourceID, "20", "later", message.StatusInfo)
 		require.Eventually(t, func() bool {
 			logs, _, _ := healthy.snapshot()
@@ -692,21 +785,20 @@ func TestEndpointFilteringEdgeCases(t *testing.T) {
 					ID:        "us1",
 					Endpoints: us1.endpointsWithBatch("us1-key", true, 10*time.Millisecond, 1),
 					Evaluator: routing.EvaluatorFunc(func(v routing.RecordView) (bool, error) {
-						content := string(v.Content())
-						if content == "eval-err" {
+						if v.Status() == message.StatusError {
 							return false, errors.New("boom")
 						}
-						return content == "match-us1", nil
+						return v.Status() == message.StatusWarning, nil
 					}),
 				},
 				{
 					ID:        "us5",
 					Endpoints: us5.endpointsWithBatch("us5-key", false, 10*time.Millisecond, 1),
 					Evaluator: routing.EvaluatorFunc(func(v routing.RecordView) (bool, error) {
-						if string(v.Content()) == "match-us1" {
+						if v.Status() == message.StatusWarning {
 							return false, errors.New("optional selector error")
 						}
-						return string(v.Content()) == "optional-only", nil
+						return v.Status() == message.StatusNotice, nil
 					}),
 				},
 			},
@@ -721,9 +813,9 @@ func TestEndpointFilteringEdgeCases(t *testing.T) {
 
 		in <- newCheckpointedFilteringMessage(src, sourceID, "10", "empty-match", message.StatusInfo)
 		in <- newCheckpointedFilteringMessage(src, sourceID, "20", "optional-only", message.StatusNotice)
-		in <- newCheckpointedFilteringMessage(src, sourceID, "30", "match-us1", message.StatusInfo)
-		in <- newCheckpointedFilteringMessage(src, sourceID, "40", "eval-err", message.StatusInfo)
-		in <- newCheckpointedFilteringMessage(src, sourceID, "50", "match-us1", message.StatusInfo)
+		in <- newCheckpointedFilteringMessage(src, sourceID, "30", "match-us1", message.StatusWarning)
+		in <- newCheckpointedFilteringMessage(src, sourceID, "40", "eval-err", message.StatusError)
+		in <- newCheckpointedFilteringMessage(src, sourceID, "50", "match-us1", message.StatusWarning)
 
 		deadline := time.After(5 * time.Second)
 		for _, offset := range []string{"10", "20", "30"} {

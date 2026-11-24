@@ -53,7 +53,7 @@ func NewHTTPSender(
 		terminalLossChan = outcomeSink.TerminalLossChannel()
 	}
 
-	destinationFactory := httpDestinationFactoryWithOutcome(
+	destinationFactory := httpDestinationFactory(
 		endpoints,
 		destinationsCtx,
 		pipelineMonitor,
@@ -81,35 +81,6 @@ func NewHTTPSender(
 }
 
 func httpDestinationFactory(
-	endpoints *config.Endpoints,
-	destinationsContext *client.DestinationsContext,
-	pipelineMonitor metrics.PipelineMonitor,
-	serverlessMeta sender.ServerlessMeta,
-	cfg pkgconfigmodel.Reader,
-	componentName string,
-	contentyType string,
-	evpCategory string,
-	minConcurrency int,
-	maxConcurrency int,
-	secretsComp secrets.Component,
-) sender.DestinationFactory {
-	return httpDestinationFactoryWithOutcome(
-		endpoints,
-		destinationsContext,
-		pipelineMonitor,
-		serverlessMeta,
-		cfg,
-		componentName,
-		contentyType,
-		evpCategory,
-		minConcurrency,
-		maxConcurrency,
-		secretsComp,
-		nil,
-	)
-}
-
-func httpDestinationFactoryWithOutcome(
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
 	pipelineMonitor metrics.PipelineMonitor,

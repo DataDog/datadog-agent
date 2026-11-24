@@ -83,12 +83,6 @@ func (d *EndpointDefinitions) Targets() []EndpointTarget {
 	return result
 }
 
-// Target returns a validated endpoint target by ID.
-func (d *EndpointDefinitions) Target(id string) (EndpointTarget, bool) {
-	target, ok := d.targets[id]
-	return target, ok
-}
-
 // Evaluate runs every target's selector against a read-only RecordView and
 // splits matching endpoint IDs into reliable and optional lists.
 // Selector errors do not cancel matches on other endpoints.

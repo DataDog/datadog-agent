@@ -530,6 +530,15 @@ func (p *RoutedProvider) flushSource(identifier string) {
 		seen[stream] = struct{}{}
 		marker := &message.Message{}
 		marker.SetRoutingBarrier(make(chan struct{}))
+		if p.endpointDefs != nil {
+			// A pressure marker must not block delivery on another stream.
+			// Full streams still flush on their normal batch timer.
+			select {
+			case stream.input <- marker:
+			default:
+			}
+			continue
+		}
 		offers = append(offers, channelOffer[*message.Message]{input: stream.input, value: marker})
 	}
 	offerToChannels(p.ctx, offers)
@@ -627,15 +636,13 @@ func (p *RoutedProvider) flushPrior(ctx context.Context, done chan struct{}) {
 		}
 	}
 	for _, stream := range p.optionalStreams {
-		ack := make(chan struct{})
 		marker := &message.Message{}
-		marker.SetRoutingBarrier(ack)
+		marker.SetRoutingBarrier(make(chan struct{}))
 		marker.SetRoutingBarrierContext(ctx)
+		// Neither optional queue admission nor optional batch handoff gates Flush.
 		select {
 		case stream.input <- marker:
-			acknowledgements = append(acknowledgements, ack)
 		default:
-			// A saturated optional stream must not block primary flush.
 		}
 	}
 	for _, ack := range acknowledgements {
@@ -739,7 +746,7 @@ func (p *RoutedProvider) dispatchSource(identifier string, lane *routedSourceDis
 				return
 			}
 			if p.endpointDefs != nil {
-				reliable, optional := p.progress.EndpointRecipients(msg.RoutingToken())
+				reliable, optional, delivered := p.progress.EndpointRecipients(msg.RoutingToken())
 				for _, id := range optional {
 					if stream := p.optionalStreams[id]; stream != nil {
 						select {
@@ -758,7 +765,7 @@ func (p *RoutedProvider) dispatchSource(identifier string, lane *routedSourceDis
 						offers = append(offers, channelOffer[*message.Message]{input: stream.input, value: msg})
 					}
 				}
-				offerToChannelsWithFlush(p.ctx, offers, lane.flushRequested, flushWhileStalled)
+				offerToChannelsWithFlush(p.ctx, offers, lane.flushRequested, flushWhileStalled, delivered)
 			} else {
 				groups := p.progress.Recipients(msg.RoutingToken())
 				seen := make(map[string]struct{}, len(groups))
@@ -777,7 +784,7 @@ func (p *RoutedProvider) dispatchSource(identifier string, lane *routedSourceDis
 					seen[key] = struct{}{}
 					offers = append(offers, channelOffer[*message.Message]{input: p.streams[key].input, value: msg})
 				}
-				offerToChannelsWithFlush(p.ctx, offers, lane.flushRequested, flushWhileStalled)
+				offerToChannelsWithFlush(p.ctx, offers, lane.flushRequested, flushWhileStalled, nil)
 			}
 			lane.completed.Add(1)
 			select {
@@ -828,12 +835,13 @@ type channelOffer[T any] struct {
 // then waits for whichever pending queue has room. Removing a successful send
 // from pending prevents duplicate admission without per-record goroutines.
 func offerToChannels[T any](ctx context.Context, offers []channelOffer[T]) {
-	offerToChannelsWithFlush(ctx, offers, nil, nil)
+	offerToChannelsWithFlush(ctx, offers, nil, nil, nil)
 }
 
 // offerToChannelsWithFlush permits a source pressure request to flush the
 // available streams while fanout is blocked on a different selected stream.
-func offerToChannelsWithFlush[T any](ctx context.Context, offers []channelOffer[T], pressure <-chan struct{}, flush func()) {
+// A reliable delivery signal ends the wait only after all initial offers.
+func offerToChannelsWithFlush[T any](ctx context.Context, offers []channelOffer[T], pressure <-chan struct{}, flush func(), delivered <-chan struct{}) {
 	pending := make([]channelOffer[T], 0, len(offers))
 	for _, offer := range offers {
 		if ctx.Err() != nil {
@@ -849,9 +857,10 @@ func offerToChannelsWithFlush[T any](ctx context.Context, offers []channelOffer[
 		flush()
 	}
 	for len(pending) != 0 {
-		cases := make([]reflect.SelectCase, 2, len(pending)+2)
+		cases := make([]reflect.SelectCase, 3, len(pending)+3)
 		cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ctx.Done())}
 		cases[1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(pressure)}
+		cases[2] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(delivered)}
 		for _, offer := range pending {
 			cases = append(cases, reflect.SelectCase{Dir: reflect.SelectSend, Chan: reflect.ValueOf(offer.input), Send: reflect.ValueOf(offer.value)})
 		}
@@ -863,7 +872,10 @@ func offerToChannelsWithFlush[T any](ctx context.Context, offers []channelOffer[
 			flush()
 			continue
 		}
-		index := chosen - 2
+		if chosen == 2 {
+			return // Only copies still waiting for queue space are skipped.
+		}
+		index := chosen - 3
 		pending[index] = pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
 	}
@@ -943,17 +955,19 @@ func (p *RoutedProvider) Stop() {
 		close(input)
 	}
 	p.groupDone.Wait()
-	for _, s := range p.senders {
-		s.Stop()
-	}
-	for _, sink := range p.sinks {
-		sink.Stop()
-	}
-	for _, sink := range p.endpointSinks {
-		sink.Stop()
-	}
-	for _, optSender := range p.optionalSenders {
-		optSender.Stop()
+	if p.defs != nil {
+		for _, group := range p.defs.Groups() {
+			p.senders[group.ID].Stop()
+			p.sinks[group.ID].Stop()
+		}
+	} else {
+		for id, s := range p.senders {
+			s.Stop()
+			p.endpointSinks[id].Stop()
+		}
+		for _, optSender := range p.optionalSenders {
+			optSender.Stop()
+		}
 	}
 	p.progress.Close()
 	p.cancel()

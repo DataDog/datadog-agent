@@ -57,6 +57,7 @@ type record struct {
 	remaining              map[string]struct{}
 	reliableSet            bool
 	reliableSelectorFailed bool
+	reliableDelivered      chan struct{} // Only multi-endpoint sets can leave sibling offers waiting.
 	selectionPending       bool
 	done                   bool
 }
@@ -375,6 +376,9 @@ func (p *Progress) AttachEndpointSelection(token uint64, reliable, optional []st
 	}
 	r.reliableSet = true
 	r.reliableSelectorFailed = reliableSelectorFailed
+	if len(reliable) > 1 {
+		r.reliableDelivered = make(chan struct{})
+	}
 	r.groups = append([]string(nil), reliable...)
 	if len(optional) != 0 {
 		r.optional = append([]string(nil), optional...)
@@ -387,15 +391,15 @@ func (p *Progress) AttachEndpointSelection(token uint64, reliable, optional []st
 	return nil
 }
 
-// EndpointRecipients returns the immutable reliable and optional endpoint IDs
-// attached to token after common processing.
-func (p *Progress) EndpointRecipients(token uint64) (reliable, optional []string) {
+// EndpointRecipients returns endpoint IDs and a signal for the first reliable
+// delivery. For fewer than two reliable matches the signal is nil.
+func (p *Progress) EndpointRecipients(token uint64) (reliable, optional []string, delivered <-chan struct{}) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if r := p.records[token]; r != nil {
-		return append([]string(nil), r.groups...), append([]string(nil), r.optional...)
+		return append([]string(nil), r.groups...), append([]string(nil), r.optional...), r.reliableDelivered
 	}
-	return nil, nil
+	return nil, nil, nil
 }
 
 // CompleteReliableSuccess resolves a reliable-set record once any matching
@@ -420,6 +424,9 @@ func (p *Progress) CompleteReliableSuccess(endpointID string, payload *message.P
 		}
 		clear(r.remaining)
 		r.done = true
+		if r.reliableDelivered != nil {
+			close(r.reliableDelivered)
+		}
 		p.advance(r)
 	}
 }

@@ -19,23 +19,6 @@ func NewRecordView(msg *message.Message) RecordView {
 	return RecordView{msg: msg}
 }
 
-// Content returns the processed message bytes. Callers must not mutate the slice.
-func (v RecordView) Content() []byte {
-	if v.msg == nil {
-		return nil
-	}
-	return v.msg.GetContent()
-}
-
-// StructuredAttribute retrieves a dot-delimited string attribute from structured
-// content before rendering destroys structured access.
-func (v RecordView) StructuredAttribute(path string) (string, bool) {
-	if v.msg == nil {
-		return "", false
-	}
-	return v.msg.GetStructuredAttribute(path)
-}
-
 // LocalTags returns the record's unfiltered local tags (origin tags, sourcecategory,
 // and source config tags), unaffected by export tag_filters.
 func (v RecordView) LocalTags() []string {
@@ -45,44 +28,12 @@ func (v RecordView) LocalTags() []string {
 	return v.msg.Origin.Tags()
 }
 
-// Source returns the record's effective source (including remap_source overrides).
-func (v RecordView) Source() string {
-	if v.msg == nil || v.msg.Origin == nil {
-		return ""
-	}
-	return v.msg.Origin.Source()
-}
-
-// Service returns the record's service metadata.
-func (v RecordView) Service() string {
-	if v.msg == nil || v.msg.Origin == nil {
-		return ""
-	}
-	return v.msg.Origin.Service()
-}
-
-// SourceCategory returns the configured sourcecategory metadata, if any.
-func (v RecordView) SourceCategory() string {
-	if v.msg == nil || v.msg.Origin == nil || v.msg.Origin.LogSource == nil || v.msg.Origin.LogSource.Config == nil {
-		return ""
-	}
-	return v.msg.Origin.LogSource.Config.SourceCategory
-}
-
 // Status returns the record's normalized log status (defaults to "info").
 func (v RecordView) Status() string {
 	if v.msg == nil {
 		return ""
 	}
 	return v.msg.GetStatus()
-}
-
-// Hostname returns the record's hostname metadata, if set on the message.
-func (v RecordView) Hostname() string {
-	if v.msg == nil {
-		return ""
-	}
-	return v.msg.Hostname
 }
 
 // Evaluator evaluates an endpoint selection predicate against a processed record.

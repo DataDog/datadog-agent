@@ -30,44 +30,13 @@ func testSingleHTTPEndpoint(host, key string, reliable bool) *config.Endpoints {
 	return config.NewEndpointsWithBatchSettings(ep, nil, false, true, time.Second, 1, 10, 1024*1024, 16)
 }
 
-func TestRecordViewExposesLocalTagsStructuredFieldsAndMetadata(t *testing.T) {
-	src := sources.NewLogSource("app", &config.LogsConfig{
-		Type:           config.FileType,
-		Path:           "/tmp/app.log",
-		Source:         "custom-source",
-		Service:        "payments",
-		SourceCategory: "prod-cat",
-		Tags:           []string{"env:prod", "local_only:yes"},
-	})
+func TestRecordViewExposesStatusAndLocalTags(t *testing.T) {
+	src := sources.NewLogSource("app", &config.LogsConfig{Tags: []string{"env:prod", "local_only:yes"}})
 	origin := message.NewOrigin(src)
 	origin.SetTags([]string{"origin_tag:v1"})
-
-	msg := message.NewStructuredMessage(
-		&message.BasicStructuredContent{Data: map[string]any{
-			"message": "hello",
-			"nested":  map[string]any{"team": "logs"},
-		}},
-		origin,
-		message.StatusNotice,
-		time.Now().UnixNano(),
-	)
-	msg.Hostname = "host-1"
-
-	view := NewRecordView(msg)
+	view := NewRecordView(message.NewMessage([]byte("hello"), origin, message.StatusNotice, 0))
 	assert.Equal(t, message.StatusNotice, view.Status())
-	assert.Equal(t, "custom-source", view.Source())
-	assert.Equal(t, "payments", view.Service())
-	assert.Equal(t, "prod-cat", view.SourceCategory())
-	assert.Equal(t, "host-1", view.Hostname())
-
-	team, ok := view.StructuredAttribute("nested.team")
-	assert.True(t, ok)
-	assert.Equal(t, "logs", team)
-
-	tags := view.LocalTags()
-	assert.Contains(t, tags, "env:prod")
-	assert.Contains(t, tags, "local_only:yes")
-	assert.Contains(t, tags, "origin_tag:v1")
+	assert.ElementsMatch(t, []string{"env:prod", "local_only:yes", "origin_tag:v1"}, view.LocalTags())
 }
 
 func TestEndpointDefinitionsValidationAndEvaluation(t *testing.T) {
@@ -153,7 +122,8 @@ func TestProgressReliableSetORAndTerminalLossSeparation(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, p.AttachEndpointSelection(token, []string{"r1", "r2"}, []string{"us5"}, false))
 
-	rel, opt := p.EndpointRecipients(token)
+	rel, opt, delivered := p.EndpointRecipients(token)
+	require.NotNil(t, delivered)
 	assert.Equal(t, []string{"r1", "r2"}, rel)
 	assert.Equal(t, []string{"us5"}, opt)
 
@@ -167,8 +137,19 @@ func TestProgressReliableSetORAndTerminalLossSeparation(t *testing.T) {
 	p.CompleteReliableTerminalLoss("r1", payload)
 	assert.Equal(t, 1, p.Pending())
 
+	select {
+	case <-delivered:
+		t.Fatal("optional success and reliable rejection must not signal reliable delivery")
+	default:
+	}
+
 	// Success on R2 satisfies reliable-set OR and advances checkpoint.
 	p.CompleteReliableSuccess("r2", payload)
+	select {
+	case <-delivered:
+	default:
+		t.Fatal("reliable success must signal waiting offers")
+	}
 	assert.Equal(t, 0, p.Pending())
 	select {
 	case cp := <-sink.ch:
