@@ -12,7 +12,13 @@ A `Deployment` of 1,000 Pods in `activity/workload.yaml`. The Pods do not run co
 
 ## Assertions
 
-None yet. A first CI run gives the memory data for the bounds.
+An upper bound on the peak working-set memory of the Cluster Agent container:
+
+| Container | Upper bound |
+|---|---:|
+| `cluster-agent` (Cluster Agent) | 81 MiB |
+
+The bound is the highest value from 10 CI replicates plus 10%, rounded to the nearest MiB.
 
 ## Special Considerations
 

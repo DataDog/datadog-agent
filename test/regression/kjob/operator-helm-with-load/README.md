@@ -16,8 +16,8 @@ Upper bounds on the peak working-set memory of each container:
 
 | Container | Upper bound |
 |---|---:|
-| `agent` (Node Agent) | 168 MiB |
-| `cluster-agent` (Cluster Agent) | 203 MiB |
+| `agent` (Node Agent) | 169 MiB |
+| `cluster-agent` (Cluster Agent) | 199 MiB |
 
 Each bound is the highest value from 10 CI replicates plus 10%, rounded to the nearest MiB.
 

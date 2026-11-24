@@ -8,3 +8,10 @@ blackhole:
       binding_addr: "0.0.0.0:9091"
       status: 200
       response_delay_millis: 0
+
+checks:
+  - name: cluster_agent_memory_peak
+    description: Limit peak working-set memory of the Cluster Agent container.
+    bounds:
+      series: "target.memory.working_set_bytes{container:cluster-agent}"
+      upper_bound: "66 MiB"

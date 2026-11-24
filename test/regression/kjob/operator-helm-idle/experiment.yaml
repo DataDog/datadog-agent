@@ -37,9 +37,9 @@ checks:
     description: Limit peak working-set memory of the Node Agent container.
     bounds:
       series: "target.memory.working_set_bytes{container:agent}"
-      upper_bound: "164 MiB"
+      upper_bound: "165 MiB"
   - name: cluster_agent_memory_peak
     description: Limit peak working-set memory of the Cluster Agent container.
     bounds:
       series: "target.memory.working_set_bytes{container:cluster-agent}"
-      upper_bound: "100 MiB"
+      upper_bound: "105 MiB"
