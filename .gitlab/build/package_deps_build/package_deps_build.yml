@@ -18,6 +18,7 @@
     KUBERNETES_MEMORY_REQUEST: "64Gi"
     KUBERNETES_MEMORY_LIMIT: "64Gi"
     KUBERNETES_CPU_REQUEST: 24
+    KUBERNETES_CPU_LIMIT: 24
   artifacts:
     expire_in: 2 weeks
     paths:
