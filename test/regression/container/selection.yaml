@@ -17,13 +17,13 @@
 
 always:
   - quality_gates/**
-  - metrics/**
   - openmetrics/**
 
 codeowners:
   agent-log-pipelines:
     - logs/general/**
   agent-metric-pipelines:
+    - metrics/**
     - agent-metric-pipelines/**
 
 labels:
