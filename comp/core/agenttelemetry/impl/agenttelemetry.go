@@ -303,7 +303,7 @@ func NewComponent(deps Requires) Provides {
 	a.localEmitter = localEmitter
 
 	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
-	a.errortrackingFlag = newErrortrackingFlagHandler(a.setErrortracking, a.errortrackingLocallyDisabled, a.isErrortrackingHealthy)
+	a.errortrackingFlag = a.newErrortrackingFlag()
 
 	// Register synchronously, not on start, so errors logged while the
 	// component graph is still being built are not dropped.
@@ -809,9 +809,7 @@ func (a *atel) SubmitErrorLog(log errortracking.ErrorLog) {
 	}
 	ch := a.errLogsCh.Load()
 	if ch == nil {
-		// Errortracking is off: no channel allocated. Calling this should
-		// be a no-op rather than a nil-channel send (which would block
-		// forever).
+		// Errortracking is off: no queue.
 		return
 	}
 	select {

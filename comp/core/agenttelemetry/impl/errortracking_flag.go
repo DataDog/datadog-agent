@@ -8,8 +8,6 @@ package agenttelemetryimpl
 import (
 	"sync"
 
-	"go.uber.org/atomic"
-
 	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
 )
 
@@ -42,8 +40,8 @@ type errortrackingFlagHandler struct {
 	// from a new goroutine per change and SafeRecover from its health monitor,
 	// so without it a quick true then false could leave the feature on.
 	mu sync.Mutex
-	// byFlag is true while errortracking is on because of the flag.
-	byFlag atomic.Bool
+	// byFlag is true while errortracking is on because of the flag; guarded by mu.
+	byFlag bool
 }
 
 func newErrortrackingFlagHandler(set func(on bool) bool, localOff, healthy func() bool) *errortrackingFlagHandler {
@@ -60,14 +58,18 @@ func (h *errortrackingFlagHandler) OnChange(value pkgremoteflags.FlagValue) erro
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if !value {
-		h.releaseLocked()
+		// Turn off only what the flag turned on.
+		if h.byFlag {
+			h.byFlag = false
+			h.set(false)
+		}
 		return nil
 	}
 	if h.localOff() {
 		return nil
 	}
 	if h.set(true) {
-		h.byFlag.Store(true)
+		h.byFlag = true
 	}
 	return nil
 }
@@ -75,13 +77,13 @@ func (h *errortrackingFlagHandler) OnChange(value pkgremoteflags.FlagValue) erro
 // OnNoConfig is called when no config is present on the datacenter for current
 // running agent.
 func (h *errortrackingFlagHandler) OnNoConfig() {
-	h.release()
+	_ = h.OnChange(false)
 }
 
 // SafeRecover is called when something has gone wrong and we have to recover
 // to a healthy state -> disable the feature.
 func (h *errortrackingFlagHandler) SafeRecover(_ error, _ pkgremoteflags.FlagValue) {
-	h.release()
+	_ = h.OnChange(false)
 }
 
 // IsHealthy reports whether errortracking flushes are still succeeding. It is
@@ -90,18 +92,9 @@ func (h *errortrackingFlagHandler) IsHealthy() bool {
 	return h.healthy()
 }
 
-// release switches errortracking off if the flag turned it on.
-func (h *errortrackingFlagHandler) release() {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.releaseLocked()
-}
-
-// releaseLocked is release for callers that hold h.mu.
-func (h *errortrackingFlagHandler) releaseLocked() {
-	if h.byFlag.Swap(false) {
-		h.set(false)
-	}
+// newErrortrackingFlag wires the handler to this component.
+func (a *atel) newErrortrackingFlag() *errortrackingFlagHandler {
+	return newErrortrackingFlagHandler(a.setErrortracking, a.errortrackingLocallyDisabled, a.isErrortrackingHealthy)
 }
 
 // errortrackingLocallyDisabled reports whether the local configuration sets
