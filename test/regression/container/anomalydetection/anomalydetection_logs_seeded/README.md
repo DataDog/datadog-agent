@@ -23,8 +23,11 @@ one-off run, edit a local copy and submit it with `--target-config-dir`, using
 ## Validation
 
 Memory is the comparison goal; resource bounds are inherited from the
-playground and remain provisional. Check accepted log bytes, queue drops,
-rate-limiter drops, and learned pattern counts in the captured Observer
-telemetry when assessing a run.
+playground and remain provisional. The accepted-byte check requires at least
+900 KiB/s after warmup (90% of the offered rate) and fails on missing input.
+Inspect `observer.observer_observations_dropped` and
+`observer.observer_logs_input_rate_limiter_dropped` in the captured telemetry
+for queue and rate-limiter losses. These counters are absent until a drop
+occurs, so an upper bound of zero would also fail healthy runs with no series.
 
 [source]: https://github.com/ddoghq/smp-playground/tree/55bc8fadabba668143efbc2391b57544c2a1275e/experiments/regression/agent/cases/observer_logs_seeded

@@ -45,6 +45,12 @@ target:
     DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:anomalydetection_logs_seeded
 
 checks:
+  - name: observer_accepted_log_bytes
+    description: "Observer accepts at least 90% of the offered 1000 KiB/s."
+    bounds:
+      series: rate(target/observer.observer_logs_accepted_bytes)
+      lower_bound: "900 KiB"
+
   - name: memory_usage
     description: "Memory usage"
     bounds:
