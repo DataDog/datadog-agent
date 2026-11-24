@@ -416,12 +416,36 @@ var DefaultProfiles = Map{
 	ProfilePanOS: {
 		Name: ProfilePanOS,
 		Commands: CommandSet{
-			Verify:     MkCommand("show system info", Expect(`model: *PA-`)),
-			GetRunning: MkCommand("show config running", Expect(`(?s)<config.*</config>`)),
-			GetVersion: MkCommand("show system info"),
+			// PAN-OS answers an SSH exec request with only its login banner, so
+			// every command runs in an interactive shell (see cli.PanOS).
+			Verify: MkCommand("show system info",
+				Expect(`model: *PA-`),
+				InShell(),
+			),
+			// Depending on the PAN-OS version and CLI settings, the running
+			// config prints as XML (<config ...>...</config>) or in the
+			// curly-brace format (config { ... }).
+			GetRunning: MkCommand("show config running",
+				Expect(`(?s)<config.*</config>|(?m)^config \{`),
+				InShell(),
+			),
+			GetVersion: MkCommand("show system info", InShell()),
 		},
 		Redactions: []RedactionRule{
+			// Password hashes: <phash>...</phash> in XML, "phash ...;" in curly-brace.
 			MkRedaction(`<phash>.*?</phash>`, WithReplacement("<phash><secret hidden></phash>")),
+			MkRedaction(`(phash) (?:"[^"]*"|[^\s;]+);`, WithReplacement("$1 <secret hidden>;")),
+			// SNMP community strings.
+			MkRedaction(`<snmp-community-string>.*?</snmp-community-string>`, WithReplacement("<snmp-community-string><secret hidden></snmp-community-string>")),
+			MkRedaction(`(snmp-community-string) (?:"[^"]*"|[^\s;]+);`, WithReplacement("$1 <secret hidden>;")),
+			// SNMP trap server profiles keep their v2c community in a plain
+			// `community` field.
+			MkRedaction(`<community>[^<]*</community>`, WithReplacement("<community><secret hidden></community>")),
+			MkRedaction(`(?m)^(\s*community) (?:"[^"]*"|[^\s;{]+);`, WithReplacement("$1 <secret hidden>;")),
+			// Values PAN-OS stores encrypted with its master key (IKE pre-shared
+			// keys, RADIUS/LDAP secrets, ...) print as "-AQ==<base64>" in both
+			// formats, whatever field they are in.
+			MkRedaction(`-AQ==[A-Za-z0-9+/=]+`, WithReplacement("<secret hidden>")),
 		},
 	},
 

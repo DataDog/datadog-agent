@@ -125,6 +125,49 @@ func Test_TMOSGetRunningValidator(t *testing.T) {
 	assert.Error(t, v.Validate("not a tmos config header\n"))
 }
 
+func Test_PanOSGetRunningValidator(t *testing.T) {
+	v := DefaultProfile(t, ProfilePanOS).Commands.GetRunning.Validator
+	assert.NoError(t, v.Validate("<config version=\"11.1.0\">\n  <mgt-config/>\n</config>\n"))
+	assert.NoError(t, v.Validate("config {\n  mgt-config {\n  }\n}\n"))
+	// What PAN-OS returns to a non-interactive exec request.
+	assert.Error(t, v.Validate("\n\n\nNumber of failed attempts since last successful login: 0\n\n\n\n"))
+	assert.Error(t, v.Validate("Invalid syntax.\n"))
+	assert.Error(t, v.Validate(""))
+}
+
+func Test_PanOSCommandsAreInteractive(t *testing.T) {
+	cmds := DefaultProfile(t, ProfilePanOS).Commands
+	for name, cmd := range map[string]*PlainCommand{"verify": cmds.Verify, "get_running": cmds.GetRunning, "get_version": cmds.GetVersion} {
+		assert.True(t, cmd.Interactive, name)
+	}
+}
+
+func Test_PanOSRedaction(t *testing.T) {
+	rules := DefaultProfile(t, ProfilePanOS).Redactions
+	tests := []struct{ in, want string }{
+		{"<phash>$5$abc$secret</phash>\n", "<phash><secret hidden></phash>"},
+		{"        phash $5$abc$secret;\n", "        phash <secret hidden>;"},
+		{"        phash \"$5$abc secret\";\n", "        phash <secret hidden>;"},
+		{"<snmp-community-string>s3cret</snmp-community-string>\n", "<snmp-community-string><secret hidden></snmp-community-string>"},
+		{"      snmp-community-string s3cret;\n", "      snmp-community-string <secret hidden>;"},
+		{"      snmp-community-string \"ops team secret\";\n", "      snmp-community-string <secret hidden>;"},
+		{"          key -AQ==YWJjZGVm+/Zz0=;\n", "          key <secret hidden>;"},
+		// SNMP trap server profile (v2c).
+		{"<community>trap-secret</community>\n", "<community><secret hidden></community>"},
+		{"                community trap-secret;\n", "                community <secret hidden>;"},
+		{"                community \"trap secret\";\n", "                community <secret hidden>;"},
+		// Not secrets: the SNMP community key, and BGP community blocks.
+		{"      snmp-community-string <secret hidden>;\n", "      snmp-community-string <secret hidden>;"},
+		{"            community {\n", "            community {"},
+		{"<key>-AQ==YWJjZGVm+/Zz0=</key>\n", "<key><secret hidden></key>"},
+	}
+	for _, tt := range tests {
+		got, err := Redact([]byte(tt.in), rules)
+		assert.NoError(t, err)
+		assert.Equal(t, tt.want, string(got), "%q", tt.in)
+	}
+}
+
 func Test_DefaultProfiles_Startup(t *testing.T) {
 	tests := []struct {
 		name                      string

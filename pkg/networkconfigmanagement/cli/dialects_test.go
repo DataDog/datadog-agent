@@ -35,6 +35,16 @@ func TestPrompts(t *testing.T) {
 		{IOS, "R1#show run", false},
 		{IOS, "Destination filename [startup-config]? ", false},
 		{IOS, " --More-- ", false},
+
+		{PanOS, "admin@PA-3420> ", true},
+		{PanOS, "admin@PA-3420>", true},
+		{PanOS, "admin@PA-3420# ", true},
+		{PanOS, "ddncmpa@PA-440-MISSISAUGA-02(passive)> ", true},
+		{PanOS, "admin@fw01.example.com(active)# ", true},
+		{PanOS, "admin@PA-3420> show config running", false},
+		{PanOS, "  <entry name=\"admin@x\">", false},
+		{PanOS, "</config>", false},
+		{PanOS, "R1#", false},
 	} {
 		assert.Equal(t, tc.want, tc.dialect.Prompt.MatchString(tc.line), "%s prompt %q", tc.dialect.Name, tc.line)
 	}
@@ -69,4 +79,22 @@ func TestASAErrors(t *testing.T) {
 	assert.NoError(t, ASA.CheckError("ASA Version 9.24(1)\nhostname FW01\n"))
 	// A config line mentioning an error is not one.
 	assert.NoError(t, ASA.CheckError("logging message 106023 level errors\n"))
+}
+
+func TestPanOSErrors(t *testing.T) {
+	for _, line := range []string{
+		"Invalid syntax.",
+		"Unknown command: show confg",
+		"Server error : configuration is locked",
+	} {
+		assert.EqualError(t, PanOS.CheckError("\n"+line+"\n\n"), line)
+	}
+	for _, out := range []string{
+		"config {\n  mgt-config {\n  }\n}\n",
+		"<config version=\"11.1.0\">\n</config>\n",
+		// Indented config content is never an error line.
+		"    description \"Invalid syntax.\";\n",
+	} {
+		assert.NoError(t, PanOS.CheckError(out), out)
+	}
 }

@@ -68,9 +68,24 @@ var IOS = &Dialect{
 	Exit: "exit",
 }
 
+// PanOS is the Palo Alto Networks PAN-OS CLI.
+var PanOS = &Dialect{
+	Name: "pan-os",
+	// e.g. `admin@PA-3420> `, `admin@PA-3420# ` (configure mode) or
+	// `admin@PA-440-01(passive)> ` on an HA member.
+	Prompt: regexp.MustCompile(`^[\w.-]+@[\w.-]+(\([\w-]+\))?[>#] ?$`),
+	// The pager would stop long output, such as the running config.
+	Setup: []string{"set cli pager off"},
+	// Lines the CLI prints when it rejects or fails to run a command, e.g.
+	// "Invalid syntax." for a command a device doesn't support.
+	Error: regexp.MustCompile(`(?m)^(?:Invalid syntax\.|Unknown command: .*|Server error ?: .*)$`),
+	Exit:  "exit",
+}
+
 var byProfile = map[profile.ProfileName]*Dialect{
 	profile.ProfileCiscoASA: ASA,
 	profile.ProfileCiscoIOS: IOS,
+	profile.ProfilePanOS:    PanOS,
 }
 
 // ForProfile returns the CLI dialect for devices using the named profile, or

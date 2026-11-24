@@ -200,8 +200,18 @@ func stripEcho(text, line string) string {
 	return rest
 }
 
-// normalizeNewlines turns a pty's CRLF and bare CR line endings into LF.
+// lineRedraw matches a line that the CLI erased to redraw it: text, then a
+// carriage return and an erase-line sequence. PAN-OS redraws the command
+// line this way as it echoes each word.
+var lineRedraw = regexp.MustCompile(`[^\r\n]*\r\x1b\[K`)
+
+// normalizeNewlines turns a pty's CRLF and bare CR line endings into LF. Text
+// that the CLI erased with a carriage return and an erase-line sequence is
+// dropped first, as is NUL padding, so a redrawn line reads as it appears on
+// screen.
 func normalizeNewlines(s string) string {
+	s = strings.ReplaceAll(s, "\x00", "")
+	s = lineRedraw.ReplaceAllString(s, "")
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	return strings.ReplaceAll(s, "\r", "\n")
 }

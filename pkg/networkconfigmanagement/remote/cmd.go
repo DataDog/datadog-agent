@@ -7,6 +7,7 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -51,6 +52,19 @@ func ExecuteCommand(ctx context.Context, conn *SSHConnection, cmd *profile.Plain
 // interactive session ends.
 const sessionEndWait = 2 * time.Second
 
+// The check runs without a deadline, and unlike an exec request a shell never
+// ends on its own, so every wait in an interactive session is bounded.
+var (
+	// interactiveLoginTimeout bounds opening the shell, reaching the first
+	// prompt and running the dialect's setup. It is short because a device
+	// that never shows the dialect's prompt (e.g. while testing profiles
+	// against an unknown device) would otherwise stall the check.
+	interactiveLoginTimeout = 30 * time.Second
+	// interactiveCommandTimeout bounds the command itself, including printing
+	// a large running config.
+	interactiveCommandTimeout = 5 * time.Minute
+)
+
 // runInteractive runs the command in a shell session using the CLI dialect
 // for the connection's profile, for devices that scope command side effects
 // (such as the pager) to the session.
@@ -67,17 +81,21 @@ func runInteractive(ctx context.Context, conn *SSHConnection, cmd *profile.Plain
 	}
 	// Paging devices will not read commands without a terminal; StartShell
 	// requests one.
-	sh, terr := conn.StartShell(ctx)
+	loginCtx, cancelLogin := context.WithTimeout(ctx, interactiveLoginTimeout)
+	defer cancelLogin()
+	sh, terr := conn.StartShell(loginCtx)
 	if terr != nil {
 		return nil, terr
 	}
 	defer sh.Close()
 
-	session, err := cli.Open(ctx, sh, dialect)
+	session, err := cli.Open(loginCtx, sh, dialect)
 	if err != nil {
 		return nil, err
 	}
-	reply, runErr := session.Run(ctx, cmd.Command)
+	runCtx, cancelRun := context.WithTimeout(ctx, interactiveCommandTimeout)
+	defer cancelRun()
+	reply, runErr := session.Run(runCtx, cmd.Command)
 	session.End(ctx, sessionEndWait)
 
 	r := &types.CommandResult{
@@ -95,8 +113,11 @@ func runInteractive(ctx context.Context, conn *SSHConnection, cmd *profile.Plain
 	}
 	if reply.Prompt == "" {
 		// Without the closing prompt there is no telling whether the output
-		// is complete.
-		r.Error = fmt.Sprintf("no %s prompt after %q, output may be incomplete: %v", dialect.Name, cmd.Command, runErr)
+		// is complete. The partial output stays in the result but not in the
+		// error: it hasn't been redacted, and the error is shown in the check
+		// status.
+		r.Error = fmt.Sprintf("no %s prompt after %q, output may be incomplete (%d bytes received): %v", dialect.Name, cmd.Command, len(r.Output), runErr)
+		return r, errors.New(r.Error)
 	}
 	return r, r.FormattedError()
 }

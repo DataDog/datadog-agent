@@ -172,6 +172,26 @@ func TestRun_EchoAfterRedrawnPrompt(t *testing.T) {
 	assert.Equal(t, "DevOS 1.2\n", reply.Output)
 }
 
+func TestRun_EchoRedrawnPerWord(t *testing.T) {
+	// PAN-OS redraws the command line after each word with CR, erase-line and
+	// NUL padding (captured from a PA-3420).
+	pad := strings.Repeat("\x00", 12)
+	echo := "show \r\x1b[K" + pad + "admin@fw> show config \r\x1b[K" + pad + "admin@fw> show config running\r\n"
+	sh := &scriptedShell{chunks: []string{"admin@fw> ", echo + "config {\r\n}\r\n\r\nadmin@fw> "}}
+	s, err := Open(context.Background(), sh, &Dialect{Name: "test", Prompt: regexp.MustCompile(`^[\w.-]+@[\w.-]+[>#] ?$`)})
+	require.NoError(t, err)
+
+	reply, err := s.Run(context.Background(), "show config running")
+	require.NoError(t, err)
+	assert.Equal(t, "config {\n}\n\n", reply.Output)
+	assert.Equal(t, "admin@fw> ", reply.Prompt)
+}
+
+func TestNormalizeNewlines(t *testing.T) {
+	assert.Equal(t, "a\nb\nc", normalizeNewlines("a\r\nb\rc"))
+	assert.Equal(t, "new text\n", normalizeNewlines("old\r\x1b[K\x00\x00new text\r\n"))
+}
+
 func TestRun_StopsAtQuestion(t *testing.T) {
 	f := newFakeCLI("", "dev# ", map[string]string{"no paging": ""})
 	f.ask = "copy running-config startup-config"
