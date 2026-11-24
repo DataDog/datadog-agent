@@ -37,7 +37,7 @@ require (
 	code.cloudfoundry.org/bbs v1.30.0
 	code.cloudfoundry.org/bbs/models v1.30.0
 	code.cloudfoundry.org/garden v0.12.0
-	code.cloudfoundry.org/lager/v3 v3.95.0
+	code.cloudfoundry.org/lager/v3 v3.96.0
 	dario.cat/mergo v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.24.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0
