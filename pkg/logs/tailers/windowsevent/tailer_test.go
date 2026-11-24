@@ -8,6 +8,7 @@
 package windowsevent
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -81,7 +82,7 @@ func (s *ReadEventsSuite) SetupTest() {
 	s.Require().NoError(err)
 }
 
-func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan chan *message.Message) (*Tailer, error) {
+func newtailer(ctx context.Context, evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan chan *message.Message) (*Tailer, error) {
 	source := sources.NewLogSource("", &logconfig.LogsConfig{})
 	registry := auditormock.NewMockAuditor()
 	publisherMetadataCache := publishermetadatacache.New(evtapi)
@@ -92,7 +93,7 @@ func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan
 		registry.SetOffset(tailer.Identifier(), bookmark)
 	}
 	tailer.Start()
-	_, err := backoff.Retry(t.Context(), func() (any, error) {
+	_, err := backoff.Retry(ctx, func() (any, error) {
 		if source.Status().IsSuccess() {
 			return nil, nil
 		} else if source.Status().IsError() {
@@ -111,7 +112,7 @@ func (s *ReadEventsSuite) TestReadEvents() {
 		ChannelPath: s.channelPath,
 	}
 	msgChan := make(chan *message.Message)
-	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
+	tailer, err := newtailer(s.T().Context(), s.ti.API(), &config, "", msgChan)
 	s.Require().NoError(err)
 	s.T().Cleanup(func() {
 		tailer.Stop()
@@ -142,7 +143,7 @@ func (s *ReadEventsSuite) TestCustomQuery() {
 		Query:       query,
 	}
 	msgChan := make(chan *message.Message)
-	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
+	tailer, err := newtailer(s.T().Context(), s.ti.API(), &config, "", msgChan)
 	s.Require().NoError(err)
 	s.T().Cleanup(func() {
 		tailer.Stop()
@@ -169,7 +170,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 		ChannelPath: s.channelPath,
 	}
 	msgChan := make(chan *message.Message)
-	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
+	tailer, err := newtailer(s.T().Context(), s.ti.API(), &config, "", msgChan)
 	s.Require().NoError(err)
 	s.T().Cleanup(func() {
 		tailer.Stop()
@@ -188,7 +189,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 
 	// stop the EventLog service and assert the tailer detects the error
 	s.ti.KillEventLogService(s.T())
-	_, err = backoff.Retry(t.Context(), func() (any, error) {
+	_, err = backoff.Retry(s.T().Context(), func() (any, error) {
 		if tailer.source.Status().IsSuccess() {
 			return nil, errors.New("tailer is still running")
 		} else if tailer.source.Status().IsError() {
@@ -201,7 +202,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 
 	// start the EventLog service and assert the tailer resumes from the previous error
 	s.ti.StartEventLogService(s.T())
-	_, err = backoff.Retry(t.Context(), func() (any, error) {
+	_, err = backoff.Retry(s.T().Context(), func() (any, error) {
 		if tailer.source.Status().IsSuccess() {
 			return nil, nil
 		} else if tailer.source.Status().IsError() {
@@ -230,7 +231,7 @@ func (s *ReadEventsSuite) TestBookmarkNewTailer() {
 		ChannelPath: s.channelPath,
 	}
 	msgChan := make(chan *message.Message)
-	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
+	tailer, err := newtailer(s.T().Context(), s.ti.API(), &config, "", msgChan)
 	s.Require().NoError(err)
 	s.T().Cleanup(func() {
 		tailer.Stop()
@@ -259,7 +260,7 @@ func (s *ReadEventsSuite) TestBookmarkNewTailer() {
 
 	// create a new tailer, and provide it the bookmark from the previous run
 	msgChan = make(chan *message.Message)
-	tailer, err = newtailer(s.ti.API(), &config, bookmark, msgChan)
+	tailer, err = newtailer(s.T().Context(), s.ti.API(), &config, bookmark, msgChan)
 	s.Require().NoError(err)
 
 	totalEvents = uint(0)
@@ -294,7 +295,7 @@ func (s *ReadEventsSuite) TestInitialBookmarkSeeding() {
 	// 2. Create a bookmark from that event
 	// 3. Send a synthetic message to persist the bookmark
 	msgChan := make(chan *message.Message, 100) // Buffer to avoid blocking
-	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
+	tailer, err := newtailer(s.T().Context(), s.ti.API(), &config, "", msgChan)
 	s.Require().NoError(err)
 
 	// Step 3: Get the initial bookmark directly from the registry
@@ -345,7 +346,7 @@ drainLoop:
 	// Step 6: Restart tailer with the saved bookmark
 	// This should resume from the saved position, not from "latest"
 	msgChan = make(chan *message.Message, 100)
-	tailer, err = newtailer(s.ti.API(), &config, initialBookmark, msgChan)
+	tailer, err = newtailer(s.T().Context(), s.ti.API(), &config, initialBookmark, msgChan)
 	s.Require().NoError(err)
 	s.T().Cleanup(func() {
 		tailer.Stop()
@@ -390,7 +391,7 @@ func (s *ReadEventsSuite) TestInitialBookmarkSeedingNoEvents() {
 
 	// Start tailer with empty bookmark and empty log
 	msgChan := make(chan *message.Message, 100)
-	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
+	tailer, err := newtailer(s.T().Context(), s.ti.API(), &config, "", msgChan)
 	s.Require().NoError(err)
 
 	// Wait for tailer to initialize and set the bookmark
@@ -420,7 +421,7 @@ func (s *ReadEventsSuite) TestInitialBookmarkSeedingNoEvents() {
 
 	// Restart with saved bookmark
 	msgChan = make(chan *message.Message, 100)
-	tailer, err = newtailer(s.ti.API(), &config, bookmark, msgChan)
+	tailer, err = newtailer(s.T().Context(), s.ti.API(), &config, bookmark, msgChan)
 	s.Require().NoError(err)
 	s.T().Cleanup(func() {
 		tailer.Stop()
@@ -479,7 +480,7 @@ func BenchmarkReadEvents(b *testing.B) {
 					Query:       query,
 				}
 				msgChan := make(chan *message.Message)
-				tailer, err := newtailer(ti.API(), &config, "", msgChan)
+				tailer, err := newtailer(b.Context(), ti.API(), &config, "", msgChan)
 				require.NoError(b, err)
 				b.Cleanup(func() {
 					tailer.Stop()
