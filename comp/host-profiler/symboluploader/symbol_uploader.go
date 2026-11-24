@@ -408,13 +408,37 @@ func (d *DatadogSymbolUploader) shouldUpload(e *symbol.Elf, existingSymbolSource
 func (d *DatadogSymbolUploader) upload(ctx context.Context, e *symbol.Elf, endpointIndices []int) bool {
 	symbolFilePath, err := d.createSymbolFile(ctx, e)
 	if err != nil {
-		d.reporter.Error(reasonExtractError, 1, e.Path())
-		slog.Error("Failed to create symbol file",
-			slog.String("executable", e.String()),
-			slog.String("error", err.Error()))
+		d.reportExtractError(e, err)
 		return false
 	}
 	defer os.Remove(symbolFilePath)
+	return d.uploadSymbolFile(ctx, e, copySymbolFile(symbolFilePath), endpointIndices)
+}
+
+// copySymbolFile returns a function that writes the file at path. Each call
+// opens the file, so every endpoint reads it at its own pace.
+func copySymbolFile(path string) func(io.Writer) error {
+	return func(w io.Writer) error {
+		symbolFile, err := os.Open(path)
+		if err != nil {
+			return fmt.Errorf("failed to open symbol file: %w", err)
+		}
+		defer symbolFile.Close()
+		_, err = io.Copy(w, symbolFile)
+		return err
+	}
+}
+
+func (d *DatadogSymbolUploader) reportExtractError(e *symbol.Elf, err error) {
+	d.reporter.Error(reasonExtractError, 1, e.Path())
+	slog.Error("Failed to create symbol file",
+		slog.String("executable", e.String()),
+		slog.String("error", err.Error()))
+}
+
+// uploadSymbolFile uploads the compressed symbol file that writeSymbolFile
+// writes to every endpoint. Returns true if the upload was successful.
+func (d *DatadogSymbolUploader) uploadSymbolFile(ctx context.Context, e *symbol.Elf, writeSymbolFile func(io.Writer) error, endpointIndices []int) bool {
 	symbolSource, _, _ := d.getSymbolSourceWithGoPCLnTab(e)
 	metadata := newSymbolUploadRequestMetadata(e, symbolSource, d.name, d.version)
 
@@ -426,12 +450,11 @@ func (d *DatadogSymbolUploader) upload(ctx context.Context, e *symbol.Elf, endpo
 	var g errgroup.Group
 	for _, ind := range endpointIndices {
 		g.Go(func() error {
-			return d.uploadSymbols(ctx, symbolFilePath, metadata, ind)
+			return d.uploadSymbols(ctx, writeSymbolFile, metadata, ind)
 		})
 	}
 
-	err = g.Wait()
-	if err != nil {
+	if err := g.Wait(); err != nil {
 		d.reporter.Error(reasonIntakeError, 1, e.Path())
 		slog.Error("Failed to upload symbols",
 			slog.String("error", err.Error()),
@@ -547,29 +570,35 @@ func (d *DatadogSymbolUploader) createSymbolFile(ctx context.Context, e *symbol.
 		}
 	}()
 
-	compressed, err := zstd.NewWriterLevelWithOptions(compressedFile, zstd.BestSpeed,
-		zstd.WithWindowLogSize(symbolCompressionWindowLog(stat.Size())),
-		zstd.WithDisableLowerEncoderMem(),
-	)
+	err = compressSymbolFile(compressedFile, stat.Size(), func(w io.Writer) error {
+		_, err := io.Copy(w, extractedFile)
+		return err
+	})
 	if err != nil {
-		return "", fmt.Errorf("failed to create symbol encoder: %w", err)
-	}
-	_, err = io.Copy(compressed, extractedFile)
-	err = errors.Join(err, compressed.Close())
-	if err != nil {
-		return "", fmt.Errorf("failed to compress symbol file: %w", err)
+		return "", err
 	}
 
 	return compressedFile.Name(), nil
 }
 
-func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePath string, e *symbolUploadRequestMetadata, endpointIdx int) error {
-	symbolFile, err := os.Open(symbolFilePath)
+// compressSymbolFile zstd-compresses the ELF that write produces into w.
+func compressSymbolFile(w io.Writer, size int64, write func(io.Writer) error) error {
+	compressed, err := zstd.NewWriterLevelWithOptions(w, zstd.BestSpeed,
+		zstd.WithWindowLogSize(symbolCompressionWindowLog(size)),
+		zstd.WithDisableLowerEncoderMem(),
+	)
 	if err != nil {
-		return fmt.Errorf("failed to open symbol file: %w", err)
+		return fmt.Errorf("failed to create symbol encoder: %w", err)
 	}
-	defer symbolFile.Close()
+	if err := errors.Join(write(compressed), compressed.Close()); err != nil {
+		return fmt.Errorf("failed to compress symbol file: %w", err)
+	}
+	return nil
+}
 
+// uploadSymbols sends the compressed symbol file that writeSymbolFile writes to
+// one endpoint.
+func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, writeSymbolFile func(io.Writer) error, e *symbolUploadRequestMetadata, endpointIdx int) error {
 	pipeR, pipeW := io.Pipe()
 	mw := multipart.NewWriter(pipeW)
 
@@ -582,7 +611,7 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 	var wg sync.WaitGroup
 	wg.Go(func() {
 		defer pipeW.Close()
-		innerErr := streamRequestBody(symbolFile, e, mw)
+		innerErr := streamRequestBody(writeSymbolFile, e, mw)
 		if innerErr != nil {
 			pipeW.CloseWithError(fmt.Errorf("failed to stream request body: %w", innerErr))
 			return
@@ -627,16 +656,16 @@ func symbolCompressionWindowLog(size int64) int {
 	return windowLog
 }
 
-// streamRequestBody copies the already-compressed ELF part, then writes the JSON event part.
+// streamRequestBody writes the already-compressed ELF part, then the JSON event part.
 // The caller closes mw to write the final multipart boundary.
-func streamRequestBody(symbolFile io.Reader, e *symbolUploadRequestMetadata, mw *multipart.Writer) error {
+func streamRequestBody(writeSymbolFile func(io.Writer) error, e *symbolUploadRequestMetadata, mw *multipart.Writer) error {
 	filePart, err := mw.CreateFormFile("elf_symbol_file", "elf_symbol_file")
 	if err != nil {
 		return fmt.Errorf("failed to create form file: %w", err)
 	}
 	// Symbol Platform detects the zstd frame magic in the stored ELF blob.
 	// Multipart framing and JSON stay unencoded.
-	if _, err := io.Copy(filePart, symbolFile); err != nil {
+	if err := writeSymbolFile(filePart); err != nil {
 		return fmt.Errorf("failed to copy symbol file: %w", err)
 	}
 
