@@ -8,6 +8,7 @@
 package integrationtests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -16,6 +17,8 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
 const (
@@ -57,12 +60,32 @@ type migConfigurationState struct {
 	createdMIGDevices bool
 }
 
+// closeSharedNVMLSession shuts down the safenvml singleton, so that no NVML session of this process
+// is open while it changes MIG mode. Switching MIG mode from this process makes NVML unmap the GPU's
+// shared telemetry page, but a session opened before the switch keeps its pointer to that page, and its
+// next read of a value served from it (FI_DEV_MEMORY_TEMP, for example) segfaults inside NVML. The
+// check never shuts the singleton down, so it is still open after any earlier test of this binary that
+// ran the check. The next GetSafeNvmlLib call opens a new session that maps the page again.
+func closeSharedNVMLSession() error {
+	lib, err := safenvml.GetSafeNvmlLib()
+	if errors.Is(err, safenvml.ErrNVMLReleased) {
+		// A deliberately released singleton holds no session.
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	// GetSafeNvmlLib opens the session if it was closed, so this shutdown always balances it.
+	return lib.Shutdown()
+}
+
 // configureMIG enables MIG mode on every MIG-capable GPU that does not have it and creates MIG devices
 // on the GPUs that have none, using NVML directly. GPUs that already have MIG devices are left as they
 // are. The changes are reverted when the test ends. It fails the test if no GPU could be configured.
 func configureMIG(t *testing.T) {
 	t.Helper()
 
+	require.NoError(t, closeSharedNVMLSession(), "close the shared NVML session before changing MIG mode")
 	requireNVMLSuccess(t, nvml.Init(), "initialize NVML")
 	defer nvml.Shutdown() //nolint:errcheck
 
@@ -150,6 +173,10 @@ func restoreMIGConfiguration(t *testing.T, states []*migConfigurationState) {
 	t.Helper()
 
 	if len(states) == 0 {
+		return
+	}
+	if err := closeSharedNVMLSession(); err != nil {
+		t.Errorf("close the shared NVML session before restoring the MIG configuration: %v", err)
 		return
 	}
 	if ret := nvml.Init(); ret != nvml.SUCCESS {
