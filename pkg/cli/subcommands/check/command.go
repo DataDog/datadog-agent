@@ -40,6 +40,7 @@ import (
 	autodiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/autodiscovery/impl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -86,6 +87,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
+	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -229,6 +231,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				haagentfx.Module(),
 				ipcfx.ModuleReadOnly(),
 				remotetraceroute.Module(),
+				getNCMModule(args),
 			)
 		},
 	}
@@ -287,8 +290,13 @@ func run(
 	logReceiver option.Option[integrations.Component],
 	ipc ipc.Component,
 	traceroute traceroute.Component,
+	ncmComp option.Option[networkconfigmanagement.Component],
 	healthPlatform healthplatformdef.Component,
 ) error {
+	if err := coredump.Setup(config); err != nil {
+		logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
@@ -323,7 +331,7 @@ func run(
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component](), nil)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, ncmComp, nil)
 
 	if err := ac.LoadAndRun(context.Background()); err != nil {
 		return err
@@ -837,6 +845,11 @@ func getAllCheckConfigs(ac autodiscovery.Component, cliParams cliParams) ([]inte
 	if err != nil {
 		return nil, fmt.Errorf("fail to load custom config: %v", err)
 	}
+
+	// The operator chose this file on the command line. Treat it as a file
+	// provider config so checks that only accept local files (for example jetson)
+	// run the same way they do from conf.d.
+	customConf.Provider = names.File
 
 	return []integration.Config{customConf}, nil
 }

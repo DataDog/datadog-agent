@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The node agent now evicts the ``language_detection_dca_client_processed_events``
+    telemetry series for a pod when that pod is deleted. Previously these per-pod
+    series accumulated without bound as pods churned, which could cause the
+    ``agent_telemetry`` check to hit its ``max_returned_metrics`` limit and drop
+    other agent telemetry.

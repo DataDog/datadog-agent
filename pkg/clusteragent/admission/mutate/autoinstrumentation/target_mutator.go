@@ -10,6 +10,7 @@ package autoinstrumentation
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
@@ -38,6 +39,7 @@ type injectionResolution struct {
 	plan       *injectionPlan
 	isSSI      bool
 	selectedBy injectionSourceName
+	additions  []*injectionPlan
 }
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
@@ -125,9 +127,10 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		sources: []injectionSourceEntry{
 			{name: injectionSourceAnnotation, source: annotationSource},
 			{name: injectionSourceDatadogInstrumentation, determinesSSIMode: true, source: ddiSource},
+			{name: injectionSourceOTelOperator, source: otelOperatorSource{}},
 			{name: injectionSourceRemoteConfig, determinesSSIMode: true, source: remoteSource},
 			{name: injectionSourceGPU, determinesSSIMode: true, source: gpuSource},
-			{name: injectionSourceAPMBasic, determinesSSIMode: true, source: apmBasicSource},
+			{name: injectionSourceAPMBasic, determinesSSIMode: true, additive: true, source: apmBasicSource},
 			{name: injectionSourceStatic, determinesSSIMode: true, source: staticSource},
 			{name: injectionSourceInjectAll, determinesSSIMode: true, source: injectAllSource},
 		},
@@ -201,6 +204,12 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 
 	injection := resolved.plan
 	if injection.blocked {
+		if injection.skipReason != "" {
+			log.Debugf("Skipping APM library injection for pod %s: %s", mutatecommon.PodString(pod), injection.skipReason)
+			annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusSkipped)
+			annotation.Set(pod, annotation.InjectionError, injection.skipReason)
+			return false, nil
+		}
 		annotation.Set(pod, annotation.AppliedConfig, injection.appliedMetadataJSON)
 		annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusBlocked)
 		return false, nil
@@ -214,6 +223,10 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		if usingLanguageDetection {
 			extracted = extractedLanguageDetection
 		}
+	}
+	// After language detection, which replaces the library list.
+	if len(resolved.additions) > 0 {
+		extracted = extracted.withLibs(withAddedLibraries(extracted.libs, resolved.additions))
 	}
 
 	// Add the configuration for the security client library.
@@ -230,6 +243,12 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	// in the target.
 	for _, envVar := range injection.tracerEnvVars {
 		_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
+	}
+	// After the plan's configs, so the plan wins on a shared name.
+	for _, addition := range resolved.additions {
+		for _, envVar := range addition.tracerEnvVars {
+			_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
+		}
 	}
 
 	// Inject the libraries.
@@ -265,9 +284,9 @@ func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
 	return m.getTarget(pod) != nil
 }
 
-// getTarget returns an injectable resolution. A remote-config denial is not
-// injectable, but resolveTarget still exposes it so MutatePod can record the
-// blocking policy on the pod.
+// getTarget returns an injectable resolution. A remote-config denial or a veto
+// is not injectable, but resolveTarget still exposes it so MutatePod can record
+// why on the pod.
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *injectionResolution {
 	resolved := m.resolveTarget(pod)
 	if resolved != nil && resolved.plan.blocked {
@@ -279,7 +298,8 @@ func (m *TargetMutator) getTarget(pod *corev1.Pod) *injectionResolution {
 // resolveTarget resolves both the injection plan and whether the pod is in SSI
 // mode. The first decisive source selects the plan. The first decisive SSI
 // source independently selects the mode so annotations can override libraries
-// without hiding an underlying SSI match.
+// without hiding an underlying SSI match. A veto turns the injection the next
+// decisive source would select into a skip.
 func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 	if _, disabled := m.disabledNamespaces[pod.Namespace]; disabled {
 		return nil
@@ -293,13 +313,30 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 	var selected sourceResult
 	var selectedBy injectionSourceName
 	selectionDecided := false
+	ssiDecided := false
 	isSSI := false
+	var veto *sourceResult
+	var vetoBy injectionSourceName
 
 	for _, entry := range m.sources {
+		if entry.additive {
+			continue
+		}
 		result := entry.source.resolve(pod)
 		// An abstaining source has no matching plan, so move on to the next.
 		if result.action == sourcePass {
 			continue
+		}
+
+		if result.action == sourceVeto {
+			if !selectionDecided {
+				veto, vetoBy = &result, entry.name
+			}
+			continue
+		}
+		if veto != nil && !selectionDecided && result.action == sourceInject {
+			selected, selectedBy, selectionDecided = *veto, vetoBy, true
+			break
 		}
 
 		// The first decisive source selects the plan; a deny blocks fallback.
@@ -316,6 +353,7 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 		// first decisive SSI source may supply only the mode.
 		if entry.determinesSSIMode {
 			isSSI = result.action == sourceInject
+			ssiDecided = true
 			break
 		}
 
@@ -325,14 +363,73 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 		}
 	}
 
-	if !selectionDecided || selected.plan == nil {
+	if !selectionDecided {
+		return m.resolveAdditive(pod, nil, false)
+	}
+	if selected.plan == nil {
 		return nil
 	}
-	return &injectionResolution{
+
+	resolved := &injectionResolution{
 		plan:       selected.plan,
 		isSSI:      isSSI,
 		selectedBy: selectedBy,
 	}
+	// A denial also blocks additive sources. An SSI source can deny after an
+	// annotation selected the libraries: the annotation still applies.
+	ssiDenied := ssiDecided && !isSSI
+	if selected.action == sourceDeny || selected.plan.blocked || ssiDenied {
+		return resolved
+	}
+	return m.resolveAdditive(pod, resolved, ssiDecided)
+}
+
+func (m *TargetMutator) resolveAdditive(pod *corev1.Pod, resolved *injectionResolution, ssiDecided bool) *injectionResolution {
+	for _, entry := range m.sources {
+		if !entry.additive {
+			continue
+		}
+		result := entry.source.resolve(pod)
+		if result.action != sourceInject {
+			continue
+		}
+		if resolved == nil {
+			resolved = &injectionResolution{plan: result.plan, isSSI: entry.determinesSSIMode, selectedBy: entry.name}
+			ssiDecided = entry.determinesSSIMode
+			continue
+		}
+		if entry.determinesSSIMode && !ssiDecided {
+			resolved.isSSI = true
+			ssiDecided = true
+		}
+		// Its configs would retarget the plan's own library, e.g. switch GPU's dd-trace-c to RED metrics only.
+		if sharesLanguage(resolved.plan.libraries, result.plan.libraries) {
+			continue
+		}
+		resolved.additions = append(resolved.additions, result.plan)
+	}
+	return resolved
+}
+
+func injectsLanguage(libs []libInfo, lang language) bool {
+	return slices.ContainsFunc(libs, func(l libInfo) bool { return l.lang == lang })
+}
+
+func sharesLanguage(libs, other []libInfo) bool {
+	return slices.ContainsFunc(other, func(l libInfo) bool { return injectsLanguage(libs, l.lang) })
+}
+
+// withAddedLibraries copies libs: they may alias a plan shared across pods.
+func withAddedLibraries(libs []libInfo, additions []*injectionPlan) []libInfo {
+	merged := slices.Clone(libs)
+	for _, addition := range additions {
+		for _, lib := range addition.libraries {
+			if !injectsLanguage(merged, lib.lang) {
+				merged = append(merged, lib)
+			}
+		}
+	}
+	return merged
 }
 
 func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {

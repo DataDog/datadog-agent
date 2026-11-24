@@ -114,6 +114,98 @@ func TestRegister(t *testing.T) {
 	printTree(t, rule)
 }
 
+// A name is an identifier and the chain of the selectors and subscripts over
+// it, all positioned at the identifier but the subscripts.
+func TestName(t *testing.T) {
+	root, err := ParseExpression(`process.ancestors[A].file.name`)
+	require.NoError(t, err)
+	require.Equal(t, `process.ancestors[A].file.name`, ast.Sprint(root))
+
+	start := ast.Position{Offset: 0, Line: 1, Column: 1}
+	name := root.(*ast.Selector)
+	require.Equal(t, "name", name.Member)
+	file := name.Base.(*ast.Selector)
+	require.Equal(t, "file", file.Member)
+	index := file.Base.(*ast.Index)
+	require.Equal(t, ast.Position{Offset: 18, Line: 1, Column: 19}, index.Subscript.Position())
+	require.Equal(t, "A", index.Subscript.(*ast.Ident).Name)
+	ancestors := index.Base.(*ast.Selector)
+	require.Equal(t, "ancestors", ancestors.Member)
+	process := ancestors.Base.(*ast.Ident)
+	require.Equal(t, "process", process.Name)
+	for _, node := range []ast.Node{name, file, index, ancestors, process} {
+		require.Equal(t, start, node.Position())
+	}
+
+	root, err = ParseExpression(`process.argv[1]`)
+	require.NoError(t, err)
+	require.Equal(t, ast.MakeInt(1), root.(*ast.Index).Subscript.(*ast.Literal).Value)
+
+	// the selectors and the subscripts are tokens of their own
+	root, err = ParseExpression("process . ancestors [ A ]\n\t.uid")
+	require.NoError(t, err)
+	require.Equal(t, `process.ancestors[A].uid`, ast.Sprint(root))
+
+	// a field reference is the name inside its braces, its tokens at their
+	// positions in the expression
+	root, err = ParseExpression(`%{process.argv}`)
+	require.NoError(t, err)
+	inner := ast.At(ast.Position{Offset: 2, Line: 1, Column: 3})
+	require.Equal(t, &ast.Selector{Meta: inner, Base: &ast.Ident{Meta: inner, Name: "process"}, Member: "argv"}, root)
+
+	root, err = ParseExpression(`%{process.ancestors[A].file.name}`)
+	require.NoError(t, err)
+	require.Equal(t, `process.ancestors[A].file.name`, ast.Sprint(root))
+
+	// whitespace is allowed in the braces, as in a name
+	root, err = ParseExpression(`%{ process . pid }`)
+	require.NoError(t, err)
+	require.Equal(t, `process.pid`, ast.Sprint(root))
+}
+
+func TestInterpolation(t *testing.T) {
+	root, err := ParseExpression(`"pid:%{process.pid}/${my_var}"`)
+	require.NoError(t, err)
+	at := func(offset int) ast.Meta { return ast.At(ast.Position{Offset: offset, Line: 1, Column: offset + 1}) }
+	require.Equal(t, &ast.Interpolation{Meta: at(0), Parts: []ast.Node{
+		&ast.Literal{Meta: at(1), Value: ast.MakeString("pid:")},
+		&ast.Selector{Meta: at(7), Base: &ast.Ident{Meta: at(7), Name: "process"}, Member: "pid"},
+		&ast.Literal{Meta: at(19), Value: ast.MakeString("/")},
+		&ast.VariableRef{Meta: at(20), Name: "my_var"},
+	}}, root)
+	require.Equal(t, `"pid:%{process.pid}/${my_var}"`, ast.Sprint(root))
+
+	for expr, expected := range map[string]string{
+		// whitespace is allowed in the braces, the text around is kept
+		`" a %{ process . pid } b "`: `" a %{process.pid} b "`,
+		// a field in a subscript
+		`"%{process.argv[%{i}]}"`: `"%{process.argv[i]}"`,
+		// the scanner is back out of the string after it
+		`"%{process.pid}" == "a" && open.flags == 1`: `(&& (== "%{process.pid}" "a") (== open.flags 1))`,
+		// an escaped backslash is text, the `${` after it opens a variable
+		`"\\${a}"`: `"\\${a}"`,
+	} {
+		root, err := ParseExpression(expr)
+		require.NoError(t, err, expr)
+		require.Equal(t, expected, ast.Sprint(root), expr)
+	}
+
+	// an escaped `$` is text: a string with no interpolation once looked into
+	// is a literal
+	root, err = ParseExpression(`"\${a}"`)
+	require.NoError(t, err)
+	require.Equal(t, ast.MakeString(`\${a}`), root.(*ast.Literal).Value)
+
+	// the strings of an array are never looked into
+	root, err = ParseExpression(`["${IFS%??}", "%{a b}", "${x}"]`)
+	require.NoError(t, err)
+	members := root.(*ast.Array).Members
+	require.Len(t, members, 3)
+	require.Equal(t, ast.MakeString("${IFS%??}"), members[0].Value)
+	require.Equal(t, ast.MakeString("%{a b}"), members[1].Value)
+	require.Equal(t, ast.MakeString("${x}"), members[2].Value)
+}
+
 func TestIntAnd(t *testing.T) {
 	rule, err := parseRule(`3 & 3`)
 	if err != nil {
@@ -489,9 +581,65 @@ func TestSyntaxErrors(t *testing.T) {
 		{
 			// columns count characters, not bytes: `é` is two bytes
 			expr: `open.file.name == "é" process.uid == 0`,
-			expected: "1:23: expected `&&`, `||` or end of expression, found identifier `process.uid`, missing `&&` or `||`?\n" +
+			expected: "1:23: expected `&&`, `||` or end of expression, found identifier `process`, missing `&&` or `||`?\n" +
 				"open.file.name == \"é\" process.uid == 0\n" +
-				"                      ^^^^^^^^^^^",
+				"                      ^^^^^^^",
+		},
+		{
+			expr: `process..pid == 1`,
+			expected: "1:9: expected name after `.`, found `.`\n" +
+				"process..pid == 1\n" +
+				"        ^",
+		},
+		{
+			// the errors on a field reference point into its braces
+			expr: `%{process..pid} == 1`,
+			expected: "1:11: expected name after `.`, found `.`\n" +
+				"%{process..pid} == 1\n" +
+				"          ^",
+		},
+		{
+			// an interpolation is parsed with the positions of its parts
+			expr: `"a%{process..pid}" == 1`,
+			expected: "1:13: expected name after `.`, found `.`\n" +
+				"\"a%{process..pid}\" == 1\n" +
+				"            ^",
+		},
+		{
+			expr: `"a%{process.pid" == "b"`,
+			expected: "1:16: expected `}`, found `\"`, to close the `%{` at 1:3\n" +
+				"\"a%{process.pid\" == \"b\"\n" +
+				"               ^",
+		},
+		{
+			expr: `"a%{}" == "b"`,
+			expected: "1:5: expected field name after `%{`, found `}`\n" +
+				"\"a%{}\" == \"b\"\n" +
+				"    ^",
+		},
+		{
+			expr: `%{process.pid == 1`,
+			expected: "1:15: expected `}`, found `==`, to close the `%{` at 1:1\n" +
+				"%{process.pid == 1\n" +
+				"              ^^",
+		},
+		{
+			expr: `process. == 1`,
+			expected: "1:10: expected name after `.`, found `==`\n" +
+				"process. == 1\n" +
+				"         ^^",
+		},
+		{
+			expr: `process.argv[] == "a"`,
+			expected: "1:14: expected operand, found `]`\n" +
+				"process.argv[] == \"a\"\n" +
+				"             ^",
+		},
+		{
+			expr: `process.argv[A == "a"`,
+			expected: "1:16: expected `]`, found `==`, to close the `[` at 1:13\n" +
+				"process.argv[A == \"a\"\n" +
+				"               ^^",
 		},
 	}
 

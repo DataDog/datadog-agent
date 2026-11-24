@@ -35,6 +35,11 @@ func (sp *MockSourceProvider) SubscribeForType(_ string, _, _ chan struct{}) (ch
 	return sp.SourceChan, sp.SourceChan
 }
 
+// SubscribeForTypes implements SourceProvider#SubscribeForTypes.
+func (sp *MockSourceProvider) SubscribeForTypes(_ []string, _, _ chan struct{}) (chan *sources.LogSource, chan *sources.LogSource) {
+	return sp.SourceChan, sp.SourceChan
+}
+
 // GetAddedForType implements SourceProvider#GetAddedForType.
 func (sp *MockSourceProvider) GetAddedForType(_ string, _ chan struct{}) chan *sources.LogSource {
 	return sp.SourceChan

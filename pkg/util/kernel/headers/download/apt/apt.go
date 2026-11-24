@@ -16,8 +16,11 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/aptly-dev/aptly/aptly"
 	"github.com/aptly-dev/aptly/deb"
@@ -282,6 +285,11 @@ func NewBackend(target *types.Target, aptConfigDir string, logger types.Logger) 
 		return nil, fmt.Errorf("parse APT folder: %w", err)
 	}
 
+	addRepo := func(rr remoteRepo) {
+		backend.repoCollection = append(backend.repoCollection, rr)
+		backend.logger.Debugf("Added repository '%s' %s %s %v %v", rr.repoID, rr.uri, rr.distribution, rr.components, rr.arch)
+	}
+	var snapshotRepos []remoteRepo
 	for i, repo := range repoList {
 		if !repo.Enabled || repo.SourceRepo {
 			continue
@@ -318,34 +326,87 @@ func NewBackend(target *types.Target, aptConfigDir string, logger types.Logger) 
 			}
 		}
 
-		backend.repoCollection = append(backend.repoCollection, rr)
-		backend.logger.Debugf("Added repository '%s' %s %s %v %v", rr.repoID, rr.uri, rr.distribution, rr.components, rr.arch)
+		addRepo(rr)
+
+		if uri := getSnapshotRepoURI(repo.URI, target); uri != "" {
+			for _, distribution := range getSnapshotDistributions(rr.distribution, target) {
+				snapshotRepo := rr
+				snapshotRepo.repoID = rr.repoID + "-snapshot-" + distribution
+				snapshotRepo.uri = uri
+				snapshotRepo.distribution = distribution
+				snapshotRepos = append(snapshotRepos, snapshotRepo)
+			}
+		}
+	}
+	for _, rr := range snapshotRepos {
+		addRepo(rr)
 	}
 
 	return backend, nil
 }
 
+func isOfficialDebianRepo(parsedURL *url.URL, target *types.Target) bool {
+	return strings.ToLower(target.Distro.Display) == "debian" &&
+		(parsedURL.Host == "deb.debian.org" || parsedURL.Host == "security.debian.org")
+}
+
 func overrideRepoURI(uri string, target *types.Target) string {
 	parsedURL, err := url.Parse(uri)
-	if err != nil {
+	if err != nil || !isOfficialDebianRepo(parsedURL, target) {
 		return uri
 	}
 
-	switch strings.ToLower(target.Distro.Display) {
-	case "debian":
-		if parsedURL.Host != "deb.debian.org" && parsedURL.Host != "security.debian.org" {
-			return uri
-		}
-		if v, ok := target.OSRelease["VERSION_ID"]; ok {
-			switch v {
-			case "9", "10":
-				parsedURL.Host = "archive.debian.org"
-				return parsedURL.String()
-			}
-		}
+	switch target.OSRelease["VERSION_ID"] {
+	case "9", "10":
+		parsedURL.Host = "archive.debian.org"
+		return parsedURL.String()
 	}
 
 	return uri
+}
+
+// Debian kernels end their uname -v with their package version and changelog date, e.g.
+// "#1 SMP PREEMPT_DYNAMIC Debian 6.1.148-1 (2025-08-26)".
+var debianKernelBuildRegexp = regexp.MustCompile(`Debian \S+ \(([0-9]{4}-[0-9]{2}-[0-9]{2})\)$`)
+
+// getSnapshotRepoURI returns the snapshot.debian.org copy of an official Debian repository two
+// weeks after the build of the running kernel, since Debian drops the headers of superseded kernel
+// ABIs from its mirrors.
+func getSnapshotRepoURI(uri string, target *types.Target) string {
+	parsedURL, err := url.Parse(uri)
+	if err != nil || !isOfficialDebianRepo(parsedURL, target) {
+		return ""
+	}
+
+	m := debianKernelBuildRegexp.FindStringSubmatch(target.Uname.Version)
+	if m == nil {
+		return ""
+	}
+	built, err := time.Parse(time.DateOnly, m[1])
+	if err != nil {
+		return ""
+	}
+
+	// by then, the kernel upload is listed in the release, proposed-updates, or security suite
+	timestamp := built.AddDate(0, 0, 14).Format("20060102T150405Z")
+	parsedURL.Host = "snapshot.debian.org"
+	parsedURL.Path = path.Join("/archive", parsedURL.Path, timestamp) + "/"
+	return parsedURL.String()
+}
+
+// getSnapshotDistributions returns the snapshot suites of a configured one, named after the host
+// release since an alias like oldstable may designate another release at the snapshot time.
+func getSnapshotDistributions(distribution string, target *types.Target) []string {
+	codename := target.OSRelease["VERSION_CODENAME"]
+	if codename == "" || target.OSRelease["VERSION_ID"] == "" { // testing and sid have no VERSION_ID
+		return nil
+	}
+
+	if i := strings.IndexAny(distribution, "-/"); i >= 0 {
+		return []string{codename + distribution[i:]}
+	}
+	// stable updates first appear in proposed-updates, until the next point release
+	return []string{codename, codename + "-proposed-updates"}
 }
 
 func isSignedByUnreachableKey(repo *repository) bool {

@@ -24,10 +24,18 @@ type schedulerOptions struct {
 	Credentials credentialStore
 }
 
-// scheduledRange is one active range and the goroutine sweeping it.
+// scheduledRange is one active range and the goroutine sweeping it. The fields
+// after cancel are guarded by scheduler.mu.
 type scheduledRange struct {
 	cfg    rangeConfig
 	cancel context.CancelFunc
+
+	// prepared is what the latest wake found unusable, refreshed so it tracks credential rotations.
+	prepared []string
+	// sweepErr is the failure of the last sweep that ran.
+	sweepErr string
+	// sweeping is whether a sweep of this range is running now.
+	sweeping bool
 }
 
 // scheduler owns the sweep schedule: one goroutine per range, sharing one worker budget.
@@ -142,7 +150,8 @@ func (s *scheduler) set(cfg rangeConfig) error {
 		replaced = existing.cancel
 	}
 	rangeCtx, rangeCancel := context.WithCancel(s.ctx)
-	s.ranges[cfg.AutodiscoveryID] = &scheduledRange{cfg: cfg, cancel: rangeCancel}
+	sr := &scheduledRange{cfg: cfg, cancel: rangeCancel}
+	s.ranges[cfg.AutodiscoveryID] = sr
 	previous := s.cycles[cfg.AutodiscoveryID]
 	done := make(chan struct{})
 	s.cycles[cfg.AutodiscoveryID] = done
@@ -165,7 +174,7 @@ func (s *scheduler) set(cfg rangeConfig) error {
 		if rangeCtx.Err() != nil {
 			return
 		}
-		s.run(rangeCtx, cfg)
+		s.run(rangeCtx, sr)
 	}()
 	return nil
 }
@@ -209,15 +218,15 @@ func (s *scheduler) remove(autodiscoveryID string) {
 
 // run sweeps one range once per interval, sequentially, counting from the end
 // of the last completed cycle.
-func (s *scheduler) run(ctx context.Context, cfg rangeConfig) {
+func (s *scheduler) run(ctx context.Context, sr *scheduledRange) {
 	// A non-positive interval would spin.
-	interval := time.Duration(cfg.IntervalSec) * time.Second
+	interval := time.Duration(sr.cfg.IntervalSec) * time.Second
 	if floor := time.Duration(minIntervalSec) * time.Second; interval < floor {
 		interval = floor
 	}
 
 	for {
-		wait := s.runCycle(ctx, cfg, interval)
+		wait := s.runCycle(ctx, sr, interval)
 		if wait <= 0 {
 			wait = interval
 		}
@@ -235,26 +244,32 @@ func (s *scheduler) run(ctx context.Context, cfg rangeConfig) {
 
 // runCycle sweeps the range when it is due, and otherwise returns how long is
 // left before it is.
-func (s *scheduler) runCycle(ctx context.Context, cfg rangeConfig, interval time.Duration) time.Duration {
+func (s *scheduler) runCycle(ctx context.Context, sr *scheduledRange, interval time.Duration) time.Duration {
 	if ctx.Err() != nil {
 		return 0
 	}
 
+	cfg := sr.cfg
+	id := cfg.AutodiscoveryID
+
 	plan, err := newChunkPlan(cfg.NetworkAddress, cfg.IgnoredIPAddresses, s.opts.MaxAddresses)
 	if err != nil {
-		s.log.Warnf("ndmdiscovery: skipping range %s: %v", cfg.AutodiscoveryID, err)
+		s.log.Warnf("ndmdiscovery: skipping range %s: %v", id, err)
+		s.locked(func() { sr.prepared = []string{"skipped: " + err.Error()} })
 		return 0
 	}
 
 	// Resolved per cycle, so a credential rotation lands without a restart.
 	opts, dropped := cfg.Probes.resolve(s.opts.Credentials)
 	for _, reason := range dropped {
-		s.log.Warnf("ndmdiscovery: range %s: %s", cfg.AutodiscoveryID, reason)
+		s.log.Warnf("ndmdiscovery: range %s: %s", id, reason)
 	}
 	if opts.Empty() {
-		s.log.Warnf("ndmdiscovery: skipping range %s: it has no usable probe", cfg.AutodiscoveryID)
+		s.log.Warnf("ndmdiscovery: skipping range %s: it has no usable probe", id)
+		s.locked(func() { sr.prepared = append(dropped, "skipped: it has no usable probe") })
 		return 0
 	}
+	s.locked(func() { sr.prepared = dropped })
 
 	req := sweepRequest{
 		Config:   cfg,
@@ -270,8 +285,50 @@ func (s *scheduler) runCycle(ctx context.Context, cfg rangeConfig, interval time
 		return wait
 	}
 
-	if err := s.sweeper.sweep(ctx, req); err != nil && ctx.Err() == nil {
-		s.log.Warnf("ndmdiscovery: sweep of range %s failed: %v", cfg.AutodiscoveryID, err)
+	s.locked(func() { sr.sweeping = true })
+	err = s.sweeper.sweep(ctx, req)
+	s.locked(func() {
+		sr.sweeping = false
+		switch {
+		case err == nil:
+			sr.sweepErr = ""
+		case ctx.Err() == nil:
+			sr.sweepErr = err.Error()
+		}
+	})
+	if err != nil && ctx.Err() == nil {
+		s.log.Warnf("ndmdiscovery: sweep of range %s failed: %v", id, err)
 	}
 	return 0
+}
+
+// locked runs fn under the scheduler lock.
+func (s *scheduler) locked(fn func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	fn()
+}
+
+// rangeSnapshot is one scheduled range as the status page shows it.
+type rangeSnapshot struct {
+	cfg      rangeConfig
+	sweeping bool
+	issues   []string
+}
+
+// snapshot returns every scheduled range, with whether it is sweeping and its latest issues.
+func (s *scheduler) snapshot() []rangeSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := make([]rangeSnapshot, 0, len(s.ranges))
+	for _, r := range s.ranges {
+		issues := append([]string(nil), r.cfg.Probes.Dropped...)
+		issues = append(issues, r.prepared...)
+		if r.sweepErr != "" {
+			issues = append(issues, "last sweep failed: "+r.sweepErr)
+		}
+		out = append(out, rangeSnapshot{cfg: r.cfg, sweeping: r.sweeping, issues: issues})
+	}
+	return out
 }

@@ -40,7 +40,6 @@ cc_library(
     srcs = ["sqlite3.c"],
     hdrs = _SQLITE3_PUBLIC_HEADERS,
     copts = [
-        "-Wall",
         "-DSQLITE_ENABLE_MATH_FUNCTIONS",
         "-DSQLITE_THREADSAFE=1",
         "-O2",

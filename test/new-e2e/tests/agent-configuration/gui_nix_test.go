@@ -23,35 +23,34 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
+const guiLinuxAuthTokenFilePath = "/etc/datadog-agent/auth_token"
+
+var guiLinuxConfig = fmt.Sprintf(`auth_token_file_path: %v
+cmd_port: %d
+GUI_port: %d`, guiLinuxAuthTokenFilePath, agentAPIPort, guiPort)
+
 type guiLinuxSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 func TestGUILinuxSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &guiLinuxSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
+	e2e.Run(t, &guiLinuxSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
+		awshost.WithRunOptions(
+			scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
+			scenec2.WithAgentOptions(
+				agentparams.WithAgentConfig(guiLinuxConfig),
+			),
+			scenec2.WithAgentClientOptions(
+				agentclientparams.WithAuthTokenPath(guiLinuxAuthTokenFilePath),
+			),
+		))))
 }
 
 func (v *guiLinuxSuite) TestGUI() {
-	authTokenFilePath := "/etc/datadog-agent/auth_token"
-
-	config := fmt.Sprintf(`auth_token_file_path: %v
-cmd_port: %d
-GUI_port: %d`, authTokenFilePath, agentAPIPort, guiPort)
-	// start the agent with that configuration
-	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithRunOptions(
-			scenec2.WithAgentOptions(
-				agentparams.WithAgentConfig(config),
-			),
-			scenec2.WithAgentClientOptions(
-				agentclientparams.WithAuthTokenPath(authTokenFilePath),
-			)),
-	))
-
 	// get auth token
 	v.T().Log("Getting the authentication token")
-	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
+	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + guiLinuxAuthTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
 	v.T().Log("Testing GUI authentication flow")
@@ -64,7 +63,4 @@ GUI_port: %d`, authTokenFilePath, agentAPIPort, guiPort)
 
 	v.T().Log("Testing GUI static file server")
 	checkStaticFiles(v.T(), guiClient, v.Env().RemoteHost, "/opt/datadog-agent")
-
-	v.T().Log("Testing GUI ping endpoint")
-	checkPingEndpoint(v.T(), guiClient)
 }

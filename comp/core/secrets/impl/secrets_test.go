@@ -1589,6 +1589,59 @@ func TestRefreshOutput(t *testing.T) {
 	assert.Equal(t, "=== Secret stats ===\nNumber of secrets reloaded: 1\nSecrets handle reloaded:\n\n- 'pass1':\n\tused in 'origin1' configuration in entry 'secret_backend_arguments/0'\n", res)
 }
 
+func TestRefreshOutputAdditionalEndpoints(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	secretValues := map[string]string{
+		"api_key": "key1old12345",
+		"apikey2": "key2old12345",
+		"apikey3": "key3old12345",
+		"apikey4": "key4old12345",
+	}
+
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	resolver.fetchHookFunc = func(handles []string) (map[string]string, error) {
+		values := make(map[string]string, len(handles))
+		for _, handle := range handles {
+			if value, found := secretValues[handle]; found {
+				values[handle] = value
+			}
+		}
+		return values, nil
+	}
+
+	// Match the E2E fixture, including a slash-containing endpoint key, to cover refresh path formatting.
+	conf := `api_key: ENC[api_key]
+additional_endpoints:
+  "intake":
+    - ENC[apikey2]
+    - ENC[apikey3]
+  "api/v2/series":
+    - ENC[apikey4]
+`
+	_, err := resolver.Resolve([]byte(conf), "datadog.yaml", "", "", true)
+	require.NoError(t, err)
+
+	resolver.SubscribeToChanges(func(_, _ string, _ []string, _, _ any) {})
+
+	secretValues["api_key"] = "key1new12345"
+	secretValues["apikey2"] = "key2new12345"
+	secretValues["apikey3"] = "key3new12345"
+	secretValues["apikey4"] = "key4new12345"
+
+	res, err := resolver.RefreshNow()
+	require.NoError(t, err)
+	res = strings.ReplaceAll(res, "\r", "") // templates use OS line breaks, removes \r line breaks from windows
+	expected := "=== Secret stats ===\n" +
+		"Number of secrets reloaded: 4\n" +
+		"Secrets handle reloaded:\n\n" +
+		"- 'api_key':\n\tused in 'datadog.yaml' configuration in entry 'api_key'\n" +
+		"- 'apikey2':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/intake/0'\n" +
+		"- 'apikey3':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/intake/1'\n" +
+		"- 'apikey4':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/api/v2/series/0'\n"
+	assert.Equal(t, expected, res)
+}
+
 func TestResolveNoNotify(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 
@@ -1725,25 +1778,46 @@ snmp_traps:
 		"my_key",
 	}, handles)
 
-	// paths from origins other than datadog.yaml are prefixed with the origin, and listed after datadog.yaml
-	_, err = resolver.Resolve([]byte("instances:\n- password: ENC[db_pass]\n"), "postgres.yaml", "", "", false)
+	// integrations use their config digest as origin.
+	postgresDigest, apacheDigest := "1a2b3c4d5e6f7a8b", "f1e2d3c4b5a69788"
+	_, err = resolver.Resolve([]byte("instances:\n- password: ENC[db_pass]\n"), postgresDigest, "", "", false)
 	require.NoError(t, err)
-	_, err = resolver.Resolve([]byte("token: ENC[other_token]\n"), "apache.yaml", "", "", false)
+	_, err = resolver.Resolve([]byte("token: ENC[other_token]\n"), apacheDigest, "", "", false)
 	require.NoError(t, err)
 
+	// without names for origins, will get config digest as path prefix
 	paths, handles = resolver.GetPathsAndHandles()
 	require.Len(t, paths, 15)
 	assert.Equal(t, "api_key", paths[0])
-	assert.Equal(t, []string{"apache.yaml:token", "postgres.yaml:instances.0.password"}, paths[13:])
+	assert.Equal(t, []string{"1a2b3c4d5e6f7a8b:instances.0.password", "f1e2d3c4b5a69788:token"}, paths[13:])
+	assert.Equal(t, []string{"db_pass", "other_token"}, handles[13:])
+
+	// origins registered with a check name are prefixed with, and sorted by, that name
+	resolver.SetOriginName(postgresDigest, "postgres")
+	resolver.SetOriginName(apacheDigest, "apache")
+	paths, handles = resolver.GetPathsAndHandles()
+	require.Len(t, paths, 15)
+	assert.Equal(t, "api_key", paths[0])
+	assert.Equal(t, []string{"apache:token", "postgres:instances.0.password"}, paths[13:])
 	assert.Equal(t, []string{"other_token", "db_pass"}, handles[13:])
 
-	// removing the origin removes its paths and handles
+	// removing the origin removes its paths, handles and name
 	resolver.RemoveOrigin("datadog.yaml")
-	resolver.RemoveOrigin("postgres.yaml")
-	resolver.RemoveOrigin("apache.yaml")
+	resolver.RemoveOrigin(postgresDigest)
+	resolver.RemoveOrigin(apacheDigest)
 	paths, handles = resolver.GetPathsAndHandles()
 	assert.Empty(t, paths)
 	assert.Empty(t, handles)
+	assert.Empty(t, resolver.originNames)
+
+	// Reporting must sanitize URL keys without changing the resolver's original paths.
+	_, err = resolver.Resolve([]byte("some_setting:\n  https://alice:url-secret@proxy.example.com:\n    password: ENC[url_key]\n"), "datadog.yaml", "", "", false)
+	require.NoError(t, err)
+	paths, handles = resolver.GetPathsAndHandles()
+	assert.Equal(t, []string{"some_setting.https://alice:********@proxy.example.com.password"}, paths)
+	assert.Equal(t, []string{"url_key"}, handles)
+	require.Len(t, resolver.origin["url_key"], 1)
+	assert.Equal(t, []string{"some_setting", "https://alice:url-secret@proxy.example.com", "password"}, resolver.origin["url_key"][0].path)
 }
 
 func TestGetHashValues(t *testing.T) {

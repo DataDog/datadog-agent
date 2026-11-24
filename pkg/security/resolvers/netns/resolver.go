@@ -70,6 +70,7 @@ type Resolver struct {
 	networkNamespaces   *simplelru.LRU[uint32, *NetworkNamespace]
 	tcRequests          chan TcClassifierRequest
 	netnsHandleRequests chan networkNamespaceHandleRequest
+	netnsMountRequests  chan networkNamespaceMountRequest
 	errorCounters       map[string]*atomic.Int64
 	ctx                 context.Context
 	cancel              context.CancelFunc
@@ -87,6 +88,7 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		ctx:        context.Background(),
 
 		netnsHandleRequests: make(chan networkNamespaceHandleRequest, 1024),
+		netnsMountRequests:  make(chan networkNamespaceMountRequest, 64),
 
 		errorCounters: newErrorCounters(),
 	}
@@ -99,7 +101,6 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		// must only release the resources and never mutate the LRU (doing so would
 		// re-enter this callback and deadlock on value's lock)
 		nr.flushNetworkNamespaceResources(value)
-		tcResolver.FlushNetworkNamespaceID(value.nsID, manager)
 	})
 	if err != nil {
 		return nil, err
@@ -403,7 +404,6 @@ func (nr *Resolver) flushNamespaces(ctx context.Context) {
 }
 
 // FlushNetworkNamespace flushes the cached entries for the provided network namespace.
-// (WARNING: you probably want to use probe.FlushNetworkNamespace instead)
 func (nr *Resolver) FlushNetworkNamespace(netns *NetworkNamespace) {
 	nr.Lock()
 	defer nr.Unlock()
@@ -449,7 +449,7 @@ func (nr *Resolver) flushNetworkNamespaceResources(netns *NetworkNamespace) {
 	}
 
 	// remove all references to this network namespace from the manager
-	_ = nr.manager.CleanupNetworkNamespace(netns.nsID)
+	nr.tcResolver.CleanupNetworkNamespace(netns.nsID, nr.manager)
 }
 
 // preventNetworkNamespaceDrift ensures that we do not keep network namespace handles indefinitely
@@ -493,7 +493,6 @@ func (nr *Resolver) preventNetworkNamespaceDrift(probesCount map[uint32]int) {
 			deviceCountNoLoopbackNoDummy := nr.snapshotNetworkDevices(netns)
 			if deviceCountNoLoopbackNoDummy == 0 {
 				nr.flushNetworkNamespace(netns)
-				nr.tcResolver.FlushNetworkNamespaceID(netns.nsID, nr.manager)
 			}
 		}
 	}

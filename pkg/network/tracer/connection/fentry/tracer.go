@@ -51,18 +51,23 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		return nil, nil, fmt.Errorf("%w: %s", ErrorUnsupported, err)
 	}
 
-	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
+	var m *ddebpf.Manager
 	var closeFn func()
-	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	err := ddebpf.LoadCOREAsset("tracer-fentry.o", func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
+		o.MapEditors = mgrOpts.MapEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
 		o.BypassEnabled = mgrOpts.BypassEnabled
-		var initErr error
-		closeFn, initErr = initFentryTracer(ar, o, config, m)
-		return initErr
+		// The tp_btf trial load can pass while the verifier rejects the full program.
+		return util.RetryWithoutTPBTF(netDevQueueTPBTF, func() error {
+			m = ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
+			var initErr error
+			closeFn, initErr = fentryTracerInit(ar, o, config, m)
+			return initErr
+		})
 	})
 
 	if err != nil {
@@ -71,6 +76,9 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 
 	return m, closeFn, nil
 }
+
+// fentryTracerInit exists for mocking out in tests
+var fentryTracerInit = initFentryTracer
 
 // protocolClassificationTailCalls returns the tail call routes for protocol classification
 func protocolClassificationTailCalls() []manager.TailCallRoute {
@@ -128,7 +136,7 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 	isClassificationSupported := ClassificationSupported(config)
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := enabledPrograms(config, isClassificationSupported)
+	enabledProbes, err := enabledPrograms(config, isClassificationSupported, o.MapEditors[probes.ConntrackMap] != nil)
 	if err != nil {
 		return nil, fmt.Errorf("error selecting fentry programs: %w", err)
 	}
@@ -164,6 +172,7 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 	// Protocol classification setup
 	var closeProtocolClassifierSocketFilterFn func()
 	util.AddBoolConst(&o, "protocol_classification_enabled", isClassificationSupported)
+	util.AddBoolConst(&o, "cert_collection_enabled", config.EnableCertCollection)
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if isClassificationSupported {

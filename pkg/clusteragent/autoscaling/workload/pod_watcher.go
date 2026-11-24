@@ -13,6 +13,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	corev1 "k8s.io/api/core/v1"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,7 +38,9 @@ type NamespacedPodOwner struct {
 	Name string
 }
 
-// PodWatcher indexes pods by their owner
+// PodWatcher indexes pods by their owner.
+// Terminal pods (phase Failed or Succeeded, e.g. evicted pods) are not indexed:
+// they are not replicas of their owner and never run again.
 type PodWatcher interface {
 	// Run starts the PodWatcher.
 	Run(ctx context.Context)
@@ -167,6 +171,14 @@ func (pw *PodWatcherImpl) handleSetEvent(pod *workloadmeta.KubernetesPod) {
 		return
 	}
 
+	if isTerminalPod(pod) {
+		// A pod in a terminal phase stays in the API until it is deleted (e.g. evicted pods),
+		// but it is not a replica of its owner anymore: drop it from the index.
+		log.Debugf("Removing terminal pod %s (phase %s) from owner %s", pod.ID, pod.Phase, podOwner)
+		pw.removePod(podOwner, pod.ID)
+		return
+	}
+
 	log.Debugf("Adding pod %s to owner %s", pod.ID, podOwner)
 	if _, ok := pw.podsPerPodOwner[podOwner]; !ok {
 		pw.podsPerPodOwner[podOwner] = make(map[string]*workloadmeta.KubernetesPod)
@@ -207,17 +219,28 @@ func (pw *PodWatcherImpl) handleUnsetEvent(pod *workloadmeta.KubernetesPod) {
 		return
 	}
 	log.Debugf("Removing pod %s from owner %s", pod.ID, podOwner)
-	if _, ok := pw.podsPerPodOwner[podOwner]; !ok {
+	pw.removePod(podOwner, pod.ID)
+}
+
+// removePod removes a pod from the index of its owner, if present.
+// The ready count is updated from the indexed pod, so removing a pod that is
+// not indexed (or removing it twice) leaves the count unchanged.
+func (pw *PodWatcherImpl) removePod(podOwner NamespacedPodOwner, podID string) {
+	pods, ok := pw.podsPerPodOwner[podOwner]
+	if !ok {
+		return
+	}
+	oldPod, exists := pods[podID]
+	if !exists {
 		return
 	}
 
-	// Update ready replicas count if pod was ready
-	if pod.Ready {
+	if oldPod.Ready {
 		pw.readyPodsPerPodOwner[podOwner]--
 	}
 
-	delete(pw.podsPerPodOwner[podOwner], pod.ID)
-	if len(pw.podsPerPodOwner[podOwner]) == 0 {
+	delete(pods, podID)
+	if len(pods) == 0 {
 		delete(pw.podsPerPodOwner, podOwner)
 		delete(pw.readyPodsPerPodOwner, podOwner)
 	}
@@ -265,4 +288,9 @@ func resolveNamespacedPodOwner(pod *workloadmeta.KubernetesPod) (NamespacedPodOw
 	}
 
 	return res, nil
+}
+
+// isTerminalPod returns true if the pod is in a terminal phase (Failed or Succeeded).
+func isTerminalPod(pod *workloadmeta.KubernetesPod) bool {
+	return pod.Phase == string(corev1.PodFailed) || pod.Phase == string(corev1.PodSucceeded)
 }
