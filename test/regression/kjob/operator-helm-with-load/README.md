@@ -1,4 +1,4 @@
-# operator-helm-with-load-on-kind
+# operator-helm-with-load
 
 The Operator, the Node Agent and the Cluster Agent on KinD, with 1,000 simulated Pods in the cluster.
 
@@ -24,5 +24,5 @@ Each bound is the highest value from 10 CI replicates plus 10%, rounded to the n
 ## Special Considerations
 
 - The case uses fixed images: the Helm chart `datadog-operator` `2.29.0` installs Operator `1.31.0`, which selects its default Agent images.
-- Results on KinD are not comparable with `operator-helm-with-load-on-eks`. The same case without load is `operator-helm-idle-on-kind`.
+- The case runs on KinD. The same case without load is `operator-helm-idle`.
 - The Agent sends its payloads to the HTTP receivers in `experiment.yaml`. Remote Configuration, Agent telemetry and the NTP check are off, because the cluster has no internet access.
