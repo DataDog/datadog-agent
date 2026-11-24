@@ -1354,6 +1354,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config": ["goexperiment.systemcrypto", "requirefips", "test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/defaultscript": ["goexperiment.systemcrypto", "requirefips", "test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm": ["goexperiment.systemcrypto", "requirefips", "test"],
+    "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/gpu": ["goexperiment.systemcrypto", "requirefips", "test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/tar": ["test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry": ["test"],
     "github.com/DataDog/datadog-agent/pkg/gohai": ["test"],
