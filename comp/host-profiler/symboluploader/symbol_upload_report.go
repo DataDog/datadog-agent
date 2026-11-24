@@ -28,6 +28,7 @@ const (
 	reasonExistingSymbols  = "upload.existing_symbols"
 	reasonUploaded         = "upload.uploaded"
 	reasonExtractError     = "upload.extract_error"
+	reasonUnsupportedELF   = "upload.unsupported_elf"
 	reasonIntakeError      = "upload.intake_error"
 	reasonQueried          = "query.queried"
 	reasonSourceParseError = "query.source_parse_error"

@@ -42,6 +42,7 @@ import (
 	"go.opentelemetry.io/ebpf-profiler/reporter"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
+	"github.com/DataDog/datadog-agent/pkg/util/elfstream"
 	elf "github.com/DataDog/datadog-agent/pkg/util/safeelf"
 	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
@@ -306,6 +307,7 @@ var testEndpoints = []string{"a.com", "b.com", "c.com", "d.com", "e.com"}
 type uploaderOpts struct {
 	uploadDynamicSymbols bool
 	uploadGoPCLnTab      bool
+	streamSymbols        bool
 }
 
 func newTestUploader(ctx context.Context, opts uploaderOpts) (*DatadogSymbolUploader, error) {
@@ -322,6 +324,7 @@ func newTestUploader(ctx context.Context, opts uploaderOpts) (*DatadogSymbolUplo
 			Enabled:              true,
 			UploadDynamicSymbols: opts.uploadDynamicSymbols,
 			UploadGoPCLnTab:      opts.uploadGoPCLnTab,
+			StreamSymbols:        opts.streamSymbols,
 			SymbolQueryInterval:  0,
 			SymbolEndpoints:      endpoints,
 		},
@@ -491,6 +494,11 @@ func uploadReportCounts(t *testing.T, buf *bytes.Buffer) map[string]int {
 //nolint:tparallel
 func TestSymbolUpload(t *testing.T) {
 	t.Parallel()
+	t.Run("objcopy", func(t *testing.T) { testSymbolUpload(t, false) })
+	t.Run("stream", func(t *testing.T) { testSymbolUpload(t, true) })
+}
+
+func testSymbolUpload(t *testing.T, streamSymbols bool) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
@@ -522,7 +530,7 @@ func TestSymbolUpload(t *testing.T) {
 	t.Run("No symbol upload if no symbols", func(t *testing.T) {
 		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
+		uploader, err := newTestUploader(t.Context(), uploaderOpts{streamSymbols: streamSymbols})
 		require.NoError(t, err)
 		uploader.Start(t.Context())
 
@@ -536,7 +544,7 @@ func TestSymbolUpload(t *testing.T) {
 	t.Run("Upload if symtab", func(t *testing.T) {
 		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
+		uploader, err := newTestUploader(t.Context(), uploaderOpts{streamSymbols: streamSymbols})
 		require.NoError(t, err)
 		uploader.Start(t.Context())
 
@@ -556,7 +564,7 @@ func TestSymbolUpload(t *testing.T) {
 	t.Run("Upload if debug info", func(t *testing.T) {
 		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
+		uploader, err := newTestUploader(t.Context(), uploaderOpts{streamSymbols: streamSymbols})
 		require.NoError(t, err)
 		uploader.Start(t.Context())
 
@@ -570,7 +578,7 @@ func TestSymbolUpload(t *testing.T) {
 	t.Run("No upload if dynamic symbols", func(t *testing.T) {
 		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
+		uploader, err := newTestUploader(t.Context(), uploaderOpts{streamSymbols: streamSymbols})
 		require.NoError(t, err)
 		uploader.Start(t.Context())
 
@@ -584,7 +592,7 @@ func TestSymbolUpload(t *testing.T) {
 	t.Run("Upload if dynamic symbols when enabled", func(t *testing.T) {
 		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadDynamicSymbols: true})
+		uploader, err := newTestUploader(t.Context(), uploaderOpts{streamSymbols: streamSymbols, uploadDynamicSymbols: true})
 		require.NoError(t, err)
 		uploader.Start(t.Context())
 
@@ -598,7 +606,7 @@ func TestSymbolUpload(t *testing.T) {
 	t.Run("Upload pclntab when enabled", func(t *testing.T) {
 		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
+		uploader, err := newTestUploader(t.Context(), uploaderOpts{streamSymbols: streamSymbols, uploadGoPCLnTab: true})
 		require.NoError(t, err)
 		uploader.Start(t.Context())
 
@@ -612,7 +620,7 @@ func TestSymbolUpload(t *testing.T) {
 	t.Run("Upload debug infos if pclntab is corrupted", func(t *testing.T) {
 		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
+		uploader, err := newTestUploader(t.Context(), uploaderOpts{streamSymbols: streamSymbols, uploadGoPCLnTab: true})
 		require.NoError(t, err)
 		uploader.Start(t.Context())
 
@@ -626,7 +634,7 @@ func TestSymbolUpload(t *testing.T) {
 	t.Run("Upload dynamic symbols if pclntab is corrupted and only dyn sym when enabled", func(t *testing.T) {
 		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadDynamicSymbols: true, uploadGoPCLnTab: true})
+		uploader, err := newTestUploader(t.Context(), uploaderOpts{streamSymbols: streamSymbols, uploadDynamicSymbols: true, uploadGoPCLnTab: true})
 		require.NoError(t, err)
 		uploader.Start(t.Context())
 
@@ -640,7 +648,7 @@ func TestSymbolUpload(t *testing.T) {
 	t.Run("No symbol upload if pclntab is corrupted and only dynsym", func(t *testing.T) {
 		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
+		uploader, err := newTestUploader(t.Context(), uploaderOpts{streamSymbols: streamSymbols, uploadGoPCLnTab: true})
 		require.NoError(t, err)
 		uploader.Start(t.Context())
 
@@ -663,7 +671,7 @@ func TestSymbolUpload(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				reports := captureUploadReports(t)
-				uploader, err := newTestUploader(t.Context(), uploaderOpts{})
+				uploader, err := newTestUploader(t.Context(), uploaderOpts{streamSymbols: streamSymbols})
 				require.NoError(t, err)
 				e, err := symbol.NewElfFromDisk(goExeSymtab)
 				require.NoError(t, err)
@@ -820,4 +828,64 @@ func TestNewDatadogSymbolUploaderPropagatesReportConfig(t *testing.T) {
 			require.Equal(t, tt.wantMax, uploader.reporter.errRep.maxPaths)
 		})
 	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// With one endpoint, streaming needs neither objcopy nor a temporary directory.
+// With more, a slow or failing endpoint doesn't hold back the others. Either
+// way, it reads the file that was inspected rather than its path, and reports
+// what it can't export.
+func TestStreamSymbols(t *testing.T) {
+	exe := buildGo(t, t.TempDir(), "stream_build_id", buildOptions{dynsym: true, symtab: true, debugInfos: true})
+	e, err := symbol.NewElfFromDisk(exe)
+	require.NoError(t, err)
+	defer e.Close()
+	require.NoError(t, os.Remove(exe))
+
+	reports := captureUploadReports(t)
+	t.Setenv("PATH", "")
+	t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing"))
+	uploader, err := newTestUploader(t.Context(), uploaderOpts{streamSymbols: true})
+	require.NoError(t, err)
+	requests := make(chan *http.Request, 1)
+	var received chan struct{} // Closed once the healthy endpoint has the whole body.
+	uploader.client.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if strings.Contains(req.URL.Host, testEndpoints[0]) {
+			<-received // Without reading the body.
+			return nil, errors.New("endpoint unavailable")
+		}
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		requests <- req
+		close(received)
+		return httpmock.NewStringResponse(http.StatusOK, ""), nil
+	})
+
+	received = make(chan struct{})
+	require.True(t, uploader.upload(t.Context(), e, []int{1}))
+	checkRequest(t, <-requests, symbol.SourceDebugInfo, false)
+	// Two endpoints need a temporary file.
+	require.False(t, uploader.upload(t.Context(), e, []int{0, 1}))
+
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	received = make(chan struct{})
+	require.False(t, uploader.upload(t.Context(), e, []int{0, 1}))
+	checkRequest(t, <-requests, symbol.SourceDebugInfo, false)
+	left, err := os.ReadDir(tmp)
+	require.NoError(t, err)
+	require.Empty(t, left)
+
+	// A test ELF without an open file makes planning panic.
+	missing := symbol.NewElfForTest("/missing", runtime.GOARCH, "build-id", "", libpf.FileID{})
+	require.False(t, uploader.upload(t.Context(), missing, []int{0}))
+	uploader.reportExtractError(missing, fmt.Errorf("unsupported input: %w", elfstream.ErrUnsupported))
+	uploader.reporter.flush()
+	require.Equal(t, map[string]int{reasonUploaded: 1, reasonExtractError: 2, reasonIntakeError: 1, reasonUnsupportedELF: 1}, uploadReportCounts(t, reports))
 }

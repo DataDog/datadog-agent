@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pipeline"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbolcopier"
+	"github.com/DataDog/datadog-agent/pkg/util/elfstream"
 	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
@@ -76,6 +77,7 @@ type DatadogSymbolUploader struct {
 	dryRun               bool
 	uploadDynamicSymbols bool
 	uploadGoPCLnTab      bool
+	streamSymbols        bool
 
 	uploadCache         *lru.SyncedLRU[libpf.FileID, struct{}]
 	client              *http.Client
@@ -89,9 +91,11 @@ type DatadogSymbolUploader struct {
 }
 
 func NewDatadogSymbolUploader(ctx context.Context, cfg *SymbolUploaderConfig) (*DatadogSymbolUploader, error) {
-	err := exec.CommandContext(ctx, "objcopy", "--version").Run()
-	if err != nil {
-		return nil, fmt.Errorf("objcopy is not available: %w", err)
+	var err error
+	if !cfg.StreamSymbols {
+		if err = exec.CommandContext(ctx, "objcopy", "--version").Run(); err != nil {
+			return nil, fmt.Errorf("objcopy is not available: %w", err)
+		}
 	}
 	if len(cfg.SymbolEndpoints) == 0 {
 		return nil, errors.New("no endpoints to upload symbols to")
@@ -142,6 +146,7 @@ func NewDatadogSymbolUploader(ctx context.Context, cfg *SymbolUploaderConfig) (*
 		dryRun:               cfg.DryRun,
 		uploadDynamicSymbols: cfg.UploadDynamicSymbols,
 		uploadGoPCLnTab:      cfg.UploadGoPCLnTab,
+		streamSymbols:        cfg.StreamSymbols,
 		client:               httpClient,
 		uploadCache:          uploadCache,
 		symbolQueriers:       symbolQueriers,
@@ -406,6 +411,15 @@ func (d *DatadogSymbolUploader) shouldUpload(e *symbol.Elf, existingSymbolSource
 
 // Returns true if the upload was successful, false otherwise
 func (d *DatadogSymbolUploader) upload(ctx context.Context, e *symbol.Elf, endpointIndices []int) bool {
+	if d.streamSymbols {
+		writeSymbolFile, release, err := d.streamSymbolFile(ctx, e, len(endpointIndices))
+		if err != nil {
+			d.reportExtractError(e, err)
+			return false
+		}
+		defer release()
+		return d.uploadSymbolFile(ctx, e, writeSymbolFile, endpointIndices)
+	}
 	symbolFilePath, err := d.createSymbolFile(ctx, e)
 	if err != nil {
 		d.reportExtractError(e, err)
@@ -430,7 +444,11 @@ func copySymbolFile(path string) func(io.Writer) error {
 }
 
 func (d *DatadogSymbolUploader) reportExtractError(e *symbol.Elf, err error) {
-	d.reporter.Error(reasonExtractError, 1, e.Path())
+	reason := reasonExtractError
+	if errors.Is(err, elfstream.ErrUnsupported) {
+		reason = reasonUnsupportedELF
+	}
+	d.reporter.Error(reason, 1, e.Path())
 	slog.Error("Failed to create symbol file",
 		slog.String("executable", e.String()),
 		slog.String("error", err.Error()))
