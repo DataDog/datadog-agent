@@ -592,3 +592,139 @@ func TestActivityTreeJournal_SocketNetdevCloseAndCompaction(t *testing.T) {
 	assert.False(t, jTree.HasJournal())
 	assert.Empty(t, jTree.ProcessNodes[0].Process.Argv, "CloseJournal must dispose of the journal without rehydrating stripped payloads")
 }
+
+func TestActivityTreeJournal_IncrementalFragmentationCompactionAndAsyncWriteFallback(t *testing.T) {
+	jTree := NewActivityTree(activityTreeInsertTestValidator{}, NewPathsReducer(), "security_profile")
+	require.NoError(t, jTree.EnableJournal(t.TempDir(), "frag-compact:v1", 8192))
+	t.Cleanup(func() { _ = jTree.CloseJournal() })
+
+	shim := newJournalTestProcessEntry(1, "/usr/bin/containerd-shim-runc-v2", "containerd-shim-runc-v2", "containerd-shim-runc-v2", nil, nil, nil)
+	worker := newJournalTestProcessEntry(100, "/usr/bin/app", "app", "app", []string{"app", "--serve"}, []string{"ENV=1"}, shim)
+	ts := time.Unix(1700000000, 0)
+
+	fEv := newJournalTestFileOpenEvent(worker, "/var/lib/app/state.db", syscall.O_RDWR, syscall.S_IFREG|0640, ts)
+	_, _, _, err := jTree.Insert(fEv, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+
+	for i := 0; i < 30; i++ {
+		ruleEv := newJournalTestFileOpenEvent(worker, "/var/lib/app/state.db", syscall.O_RDWR, syscall.S_IFREG|0640, ts.Add(time.Duration(i)*time.Second))
+		ruleEv.Rules = []*model.MatchedRule{{
+			RuleID:        fmt.Sprintf("incremental_rule_%d", i),
+			RuleVersion:   "1.0",
+			PolicyName:    "default",
+			PolicyVersion: "1",
+		}}
+		_, _, _, err = jTree.Insert(ruleEv, true, "v1", Runtime, nil)
+		require.NoError(t, err)
+	}
+
+	require.False(t, jTree.Stats.journal.dirty, "no evictions or pattern folds occurred")
+	uncompactedSize := jTree.JournalSize()
+	require.Greater(t, jTree.Stats.journal.fragmentedBytes, int64(2048))
+
+	protoNodes := ToProto(jTree)
+	require.Len(t, protoNodes, 1)
+	compactedSize := jTree.JournalSize()
+	assert.Less(t, compactedSize, uncompactedSize, "ToProto flush must compact fragmented incremental frames even when !dirty")
+	assert.Equal(t, int64(0), jTree.Stats.journal.fragmentedBytes)
+
+	decoded := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+	ProtoDecodeActivityTree(decoded, protoNodes)
+	leaf := decoded.ProcessNodes[0].Files["var"].Children["lib"].Children["app"].Children["state.db"]
+	require.NotNil(t, leaf)
+	assert.Len(t, leaf.MatchedRules, 30)
+
+	// Simulate an async write failure (e.g. disk full / read-only remount) while keeping existing diskBytes readable.
+	roFile, err := os.OpenFile(jTree.Stats.journal.path, os.O_RDONLY, 0600)
+	require.NoError(t, err)
+	jTree.Stats.journal.ioMu.Lock()
+	oldFile := jTree.Stats.journal.file
+	jTree.Stats.journal.file = roFile
+	jTree.Stats.journal.ioMu.Unlock()
+	_ = oldFile.Close()
+
+	ruleEvAfterClose := newJournalTestFileOpenEvent(worker, "/var/lib/app/state.db", syscall.O_RDWR, syscall.S_IFREG|0640, ts.Add(time.Minute))
+	ruleEvAfterClose.Rules = []*model.MatchedRule{{
+		RuleID:        "rule_in_fallback_buf",
+		RuleVersion:   "1.0",
+		PolicyName:    "default",
+		PolicyVersion: "1",
+	}}
+	_, _, _, err = jTree.Insert(ruleEvAfterClose, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+
+	protoAfterFail := ToProto(jTree)
+	assert.Equal(t, int64(0), jTree.JournalSize(), "failed journal must report 0 on-disk bytes after permanent materialization")
+	decodedAfterFail := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+	ProtoDecodeActivityTree(decodedAfterFail, protoAfterFail)
+	leafAfterFail := decodedAfterFail.ProcessNodes[0].Files["var"].Children["lib"].Children["app"].Children["state.db"]
+	require.NotNil(t, leafAfterFail)
+	assert.Len(t, leafAfterFail.MatchedRules, 31, "frame buffered before async write error must still be recovered from fallbackBuf")
+
+	// Simulate async pending buffer cap backpressure on a second tree and verify two consecutive ToProto calls preserve all payloads.
+	bpTree := NewActivityTree(activityTreeInsertTestValidator{}, NewPathsReducer(), "security_profile")
+	require.NoError(t, bpTree.EnableJournal(t.TempDir(), "bp-fallback:v1", 8<<20))
+	t.Cleanup(func() { _ = bpTree.CloseJournal() })
+
+	_, _, _, err = bpTree.Insert(fEv, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	require.NoError(t, bpTree.Stats.journal.flushAsync())
+
+	bpTree.Stats.journal.ioMu.Lock()
+	bpTree.Stats.journal.flushing = true
+	bpTree.Stats.journal.pendingBuf = make([]byte, journalMaxAsyncPendingBytes)
+	bpTree.Stats.journal.ioMu.Unlock()
+
+	fEvBP := newJournalTestFileOpenEvent(worker, "/var/lib/app/backpressure.db", syscall.O_RDONLY, syscall.S_IFREG|0644, ts.Add(2*time.Minute))
+	fEvBP.Open.File.PkgName = "bp-pkg"
+	fEvBP.Rules = []*model.MatchedRule{{RuleID: "bp_rule", RuleVersion: "1.0", PolicyName: "default", PolicyVersion: "1"}}
+	_, _, _, err = bpTree.Insert(fEvBP, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, bpTree.HasJournal(), "hitting async pending buffer cap while flushing must transition journal to failed in-memory fallback")
+
+	bpTree.Stats.journal.ioMu.Lock()
+	bpTree.Stats.journal.flushing = false
+	bpTree.Stats.journal.pendingBuf = nil
+	bpTree.Stats.journal.ioMu.Unlock()
+
+	for pass := 0; pass < 2; pass++ {
+		bpProto := ToProto(bpTree)
+		bpDecoded := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+		ProtoDecodeActivityTree(bpDecoded, bpProto)
+		bpLeaf := bpDecoded.ProcessNodes[0].Files["var"].Children["lib"].Children["app"].Children["backpressure.db"]
+		require.NotNil(t, bpLeaf)
+		require.NotNil(t, bpLeaf.File)
+		assert.Equal(t, "bp-pkg", bpLeaf.File.PkgName)
+		require.Len(t, bpLeaf.MatchedRules, 1)
+		assert.Equal(t, "bp_rule", bpLeaf.MatchedRules[0].RuleID)
+	}
+}
+
+func TestActivityTreeJournal_ProcessLiveFieldPreservationSymmetry(t *testing.T) {
+	jTree := NewActivityTree(activityTreeInsertTestValidator{}, NewPathsReducer(), "security_profile")
+	require.NoError(t, jTree.EnableJournal(t.TempDir(), "proc-symmetry:v1", 0))
+	t.Cleanup(func() { _ = jTree.CloseJournal() })
+
+	shim := newJournalTestProcessEntry(1, "/usr/bin/containerd-shim-runc-v2", "containerd-shim-runc-v2", "containerd-shim-runc-v2", nil, nil, nil)
+	worker := newJournalTestProcessEntry(100, "/usr/bin/app", "app", "app", []string{"app", "--serve"}, []string{"SECRET=1"}, shim)
+	ts := time.Unix(1700000000, 0)
+
+	fEv := newJournalTestFileOpenEvent(worker, "/etc/app.conf", syscall.O_RDONLY, syscall.S_IFREG|0644, ts)
+	_, _, _, err := jTree.Insert(fEv, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+
+	require.Len(t, jTree.ProcessNodes, 1)
+	pn := jTree.ProcessNodes[0]
+	pn.Process.PPid = 4242
+	pn.Process.Cookie = 987654321
+	pn.Process.ExitTime = ts.Add(10 * time.Second)
+	pn.Process.IsExecExec = true
+
+	jTree.WithMaterializedTree(func() {
+		assert.Equal(t, uint32(4242), pn.Process.PPid, "live PPid must not be clobbered by Materialize")
+		assert.Equal(t, uint64(987654321), pn.Process.Cookie, "live Cookie must not be clobbered by Materialize")
+		assert.Equal(t, ts.Add(10*time.Second), pn.Process.ExitTime)
+		assert.True(t, pn.Process.IsExecExec)
+		assert.Equal(t, []string{"SECRET=1"}, pn.Process.Envs)
+	})
+}

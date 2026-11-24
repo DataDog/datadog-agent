@@ -246,6 +246,19 @@ func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
 	if p == nil {
 		return nil
 	}
+	var tree []*adprotov1.ProcessActivityNode
+	var mounts []*adprotov1.MountNode
+	p.ActivityTree.WithMaterializedTree(func() {
+		tree = activity_tree.ToProto(p.ActivityTree)
+		mounts = activity_tree.MountsToProto(p.ActivityTree)
+	})
+	return profileToSecDumpProtoWithTree(p, tree, mounts)
+}
+
+func profileToSecDumpProtoWithTree(p *Profile, tree []*adprotov1.ProcessActivityNode, mounts []*adprotov1.MountNode) *adprotov1.SecDump {
+	if p == nil {
+		return nil
+	}
 
 	pad := adprotov1.SecDumpFromVTPool()
 	*pad = adprotov1.SecDump{
@@ -254,12 +267,20 @@ func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
 		Source:           p.Header.Source,
 		Metadata:         mtdt.ToProto(&p.Metadata),
 		Tags:             p.getDumpTags(),
-		Tree:             activity_tree.ToProto(p.ActivityTree),
+		Tree:             tree,
 		SecurityContexts: securityContextsToProto(p.SecurityContexts),
-		Mounts:           activity_tree.MountsToProto(p.ActivityTree),
+		Mounts:           mounts,
 	}
 
 	return pad
+}
+
+func returnTreeToVTPool(nodes []*adprotov1.ProcessActivityNode) {
+	for _, pan := range nodes {
+		if pan != nil {
+			pan.ReturnToVTPool()
+		}
+	}
 }
 
 // secDumpProtoToProfile converts a SecDump protobuf object to a Profile
@@ -284,9 +305,8 @@ func secDumpProtoToProfile(p *Profile, ad *adprotov1.SecDump) {
 // EncodeSecDumpProtobuf encodes a Profile to its SecDump protobuf binary representation
 func (p *Profile) EncodeSecDumpProtobuf() (*bytes.Buffer, error) {
 	p.Lock()
-	defer p.Unlock()
-
 	pad := profileToSecDumpProto(p)
+	p.Unlock()
 	defer pad.ReturnToVTPool()
 
 	raw, err := pad.MarshalVT()
@@ -361,6 +381,22 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 	if p == nil {
 		return nil, errors.New("imput == nil")
 	}
+	if !p.selector.IsReady() {
+		return nil, errors.New("can't get profile selector, tags shouldn't be resolved yet")
+	}
+	var tree []*adprotov1.ProcessActivityNode
+	var mounts []*adprotov1.MountNode
+	p.ActivityTree.WithMaterializedTree(func() {
+		tree = activity_tree.ToProto(p.ActivityTree)
+		mounts = activity_tree.MountsToProto(p.ActivityTree)
+	})
+	return profileToSecurityProfileProtoWithTree(p, tree, mounts)
+}
+
+func profileToSecurityProfileProtoWithTree(p *Profile, tree []*adprotov1.ProcessActivityNode, mounts []*adprotov1.MountNode) (*adprotov1.SecurityProfile, error) {
+	if p == nil {
+		return nil, errors.New("imput == nil")
+	}
 
 	if !p.selector.IsReady() {
 		return nil, errors.New("can't get profile selector, tags shouldn't be resolved yet")
@@ -369,8 +405,8 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 	output := adprotov1.SecurityProfile{
 		Metadata:         mtdt.ToProto(&p.Metadata),
 		ProfileContexts:  make(map[string]*adprotov1.ProfileContext),
-		Tree:             activity_tree.ToProto(p.ActivityTree),
-		Mounts:           activity_tree.MountsToProto(p.ActivityTree),
+		Tree:             tree,
+		Mounts:           mounts,
 		Selector:         cgroupModel.WorkloadSelectorToProto(&p.selector),
 		Disabled:         !p.isEnabled,
 		SecurityContexts: securityContextsToProto(p.SecurityContexts),
@@ -412,12 +448,12 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 // EncodeSecurityProfileProtobuf encodes a Profile to its SecurityProfile protobuf binary representation
 func (p *Profile) EncodeSecurityProfileProtobuf() (*bytes.Buffer, error) {
 	p.Lock()
-	defer p.Unlock()
-
 	profileProto, err := profileToSecurityProfileProto(p)
+	p.Unlock()
 	if err != nil {
 		return nil, fmt.Errorf("Error while encoding security dump: %v", err)
 	}
+	defer returnTreeToVTPool(profileProto.Tree)
 	raw, err := profileProto.MarshalVT()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't encode dump to `%s` format: %v", config.Profile, err)

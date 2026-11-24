@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	adprotov1 "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
@@ -351,6 +352,107 @@ func (p *Profile) Encode(format config.StorageFormat) (*bytes.Buffer, error) {
 	default:
 		return nil, fmt.Errorf("couldn't encode activity dump [%s] as [%s]: unknown format", p.GetSelectorStr(), format)
 	}
+}
+
+// EncodeFormats encodes all requested formats under a single ActivityTree journal materialization
+// pass, releasing p.Lock() before running protobuf/JSON marshaling.
+func (p *Profile) EncodeFormats(formats []config.StorageFormat) (map[config.StorageFormat]*bytes.Buffer, error) {
+	var (
+		needSecDump bool
+		needProfile bool
+		needJSON    bool
+	)
+	for _, f := range formats {
+		switch f {
+		case config.JSON:
+			needSecDump = true
+			needJSON = true
+		case config.Protobuf:
+			needSecDump = true
+		case config.Profile:
+			needProfile = true
+		case config.Dot:
+		default:
+			return nil, fmt.Errorf("couldn't encode activity dump [%s] as [%s]: unknown format", p.GetSelectorStr(), f)
+		}
+	}
+
+	var (
+		secDumpProto *adprotov1.SecDump
+		profProto    *adprotov1.SecurityProfile
+		treeProto    []*adprotov1.ProcessActivityNode
+		mountsProto  []*adprotov1.MountNode
+		dotBuf       *bytes.Buffer
+		buildErr     error
+	)
+
+	if needSecDump || needProfile {
+		p.Lock()
+		p.ActivityTree.WithMaterializedTree(func() {
+			treeProto = activity_tree.ToProto(p.ActivityTree)
+			mountsProto = activity_tree.MountsToProto(p.ActivityTree)
+			if needSecDump {
+				secDumpProto = profileToSecDumpProtoWithTree(p, treeProto, mountsProto)
+			}
+			if needProfile {
+				profProto, buildErr = profileToSecurityProfileProtoWithTree(p, treeProto, mountsProto)
+			}
+		})
+		p.Unlock()
+	}
+
+	defer func() {
+		returnTreeToVTPool(treeProto)
+		if secDumpProto != nil {
+			secDumpProto.Tree = nil
+			secDumpProto.Mounts = nil
+			secDumpProto.ReturnToVTPool()
+		}
+	}()
+
+	if buildErr != nil {
+		return nil, fmt.Errorf("Error while encoding security dump: %v", buildErr)
+	}
+
+	out := make(map[config.StorageFormat]*bytes.Buffer, len(formats))
+	for _, f := range formats {
+		if _, exists := out[f]; exists {
+			continue
+		}
+		switch f {
+		case config.Protobuf:
+			raw, err := secDumpProto.MarshalVT()
+			if err != nil {
+				return nil, fmt.Errorf("couldn't encode in protobuf: %v", err)
+			}
+			out[f] = bytes.NewBuffer(raw)
+		case config.JSON:
+			if !needJSON {
+				continue
+			}
+			raw, err := marshalSecDumpJSON(secDumpProto, "")
+			if err != nil {
+				return nil, err
+			}
+			out[f] = bytes.NewBuffer(raw)
+		case config.Profile:
+			raw, err := profProto.MarshalVT()
+			if err != nil {
+				return nil, fmt.Errorf("couldn't encode dump to `%s` format: %v", config.Profile, err)
+			}
+			out[f] = bytes.NewBuffer(raw)
+		case config.Dot:
+			if dotBuf == nil {
+				var err error
+				dotBuf, err = p.EncodeDOT()
+				if err != nil {
+					return nil, err
+				}
+			}
+			out[f] = dotBuf
+		}
+	}
+	return out, nil
 }
 
 // Decode decodes an activity dump from a file

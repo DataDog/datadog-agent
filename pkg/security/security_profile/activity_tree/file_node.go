@@ -75,6 +75,7 @@ type FileNode struct {
 	Name           string
 	IsPattern      bool
 	hasJournalFile bool
+	isDir          bool
 	File           *FileInfo
 	GenerationType NodeGenerationType
 	minJournalSeq  uint32

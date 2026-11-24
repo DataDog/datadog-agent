@@ -1807,6 +1807,8 @@ func TestManagerV2_journalEndToEndLifecycle(t *testing.T) {
 
 	require.Len(t, p.ActivityTree.ProcessNodes, 1)
 	assert.Empty(t, p.ActivityTree.ProcessNodes[0].Process.Argv)
+	require.Contains(t, p.ActivityTree.ProcessNodes[0].Files, "tmp")
+	require.Contains(t, p.ActivityTree.ProcessNodes[0].Files["tmp"].Children, "known")
 	assert.Nil(t, p.ActivityTree.ProcessNodes[0].Files["tmp"].Children["known"].File)
 
 	m.persistProfile(p)
@@ -1818,9 +1820,13 @@ func TestManagerV2_journalEndToEndLifecycle(t *testing.T) {
 
 	reloaded, inserted := m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v1", "known"))
 	require.NotNil(t, reloaded)
+	t.Cleanup(func() { reloaded.Close() })
 	assert.False(t, inserted, "reloaded profile must recognize already-learned file open")
 	assert.True(t, reloaded.ActivityTree.HasJournal(), "reloaded profile must attach a fresh journal and strip cold fields")
+	require.Len(t, reloaded.ActivityTree.ProcessNodes, 1)
 	assert.Empty(t, reloaded.ActivityTree.ProcessNodes[0].Process.Argv)
+	require.Contains(t, reloaded.ActivityTree.ProcessNodes[0].Files, "tmp")
+	require.Contains(t, reloaded.ActivityTree.ProcessNodes[0].Files["tmp"].Children, "known")
 	assert.Nil(t, reloaded.ActivityTree.ProcessNodes[0].Files["tmp"].Children["known"].File)
 
 	encoded, err := reloaded.Encode(config.Profile)

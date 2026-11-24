@@ -21,13 +21,16 @@ import (
 
 // ProtoDecodeActivityTree decodes an ActivityTree structure
 func ProtoDecodeActivityTree(dest *ActivityTree, nodes []*adproto.ProcessActivityNode) {
+	if dest.Stats != nil && dest.Stats.journal != nil && len(dest.ProcessNodes) > 0 {
+		_ = dest.Stats.journal.Materialize(dest)
+	}
 	getIDFromTag := func(imageTag string) uint64 {
 		return dest.GetOrInsertImageTag(imageTag)
 	}
 	for _, node := range nodes {
 		dest.ProcessNodes = append(dest.ProcessNodes, protoDecodeProcessActivityNode(dest, node, getIDFromTag))
 	}
-	if dest.Stats != nil && dest.Stats.journal != nil {
+	if dest.Stats != nil && dest.Stats.journal != nil && !dest.Stats.journal.failed {
 		if err := dest.Stats.journal.Checkpoint(dest); err != nil {
 			dest.Stats.journal.fail("initial checkpoint after decode failed: " + err.Error())
 		} else {

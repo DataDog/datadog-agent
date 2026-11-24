@@ -626,25 +626,32 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) {
 	}
 	p.Unlock()
 
-	encoded := make(map[config.StorageFormat]*bytes.Buffer)
+	var formats []config.StorageFormat
 	for format, requests := range m.configuredStorageRequests {
+		for _, request := range requests {
+			if !enabled && request.Type != config.LocalStorage {
+				continue
+			}
+			formats = append(formats, format)
+			break
+		}
+	}
+	encoded, encErr := p.EncodeFormats(formats)
+	if encErr != nil {
+		seclog.Errorf("couldn't encode profile [%s]: %v", p.GetSelectorStr(), encErr)
+		return
+	}
+
+	for format, requests := range m.configuredStorageRequests {
+		data, ok := encoded[format]
+		if !ok {
+			continue
+		}
 		for _, request := range requests {
 			// Avoid sending a disabled profile to the backend
 			if !enabled && request.Type != config.LocalStorage {
 				continue
 			}
-
-			data, ok := encoded[format]
-			if !ok {
-				var err error
-				data, err = p.Encode(format)
-				if err != nil {
-					seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
-					break
-				}
-				encoded[format] = data
-			}
-
 			m.persistProfileToStorage(p, request, data)
 		}
 	}
@@ -1822,28 +1829,38 @@ func (m *ManagerV2) evictUnusedNodes() {
 	containersOnly := !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups
 	filepathsInProcessCache := m.GetNodesInProcessCache(nil, containersOnly)
 
+	type evictionTarget struct {
+		selector cgroupModel.WorkloadSelector
+		profile  *profile.Profile
+	}
 	m.profilesLock.Lock()
-	defer m.profilesLock.Unlock()
+	targets := make([]evictionTarget, 0, len(m.profiles))
+	for selector, p := range m.profiles {
+		if p != nil && p.IsEnabled() {
+			targets = append(targets, evictionTarget{selector: selector, profile: p})
+		}
+	}
+	m.profilesLock.Unlock()
 
-	for selector, profile := range m.profiles {
-		if profile == nil || !profile.IsEnabled() {
+	for _, t := range targets {
+		if !t.profile.IsEnabled() {
 			continue
 		}
 
-		profile.Lock()
-		if profile.ActivityTree == nil {
-			profile.Unlock()
+		t.profile.Lock()
+		if t.profile.ActivityTree == nil {
+			t.profile.Unlock()
 			continue
 		}
-		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image)
+		evicted := t.profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, t.selector.Image)
 		if evicted > 0 {
 			totalEvicted += evicted
-			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
+			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, t.selector.String())
 
 			// Accumulate evicted node count; flushed in SendStats
 			m.evictionNodesEvicted.Add(uint64(evicted))
 		}
-		profile.Unlock()
+		t.profile.Unlock()
 	}
 
 	if totalEvicted > 0 {

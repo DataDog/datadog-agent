@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
@@ -17,7 +18,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"unsafe"
 
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
@@ -34,26 +37,57 @@ const (
 	journalKindSocket
 	journalKindNetworkDevice
 
-	journalHeaderSize     = 17 // 1B kind + 4B seq + 4B procID + 4B subID + 4B payloadLen
-	journalDefaultBufSize = 16 * 1024
-	journalDefaultMaxSize = 16 << 20 // 16 MiB default cap per profile journal
+	journalHeaderSize            = 17 // 1B kind + 4B seq + 4B procID + 4B subID + 4B payloadLen
+	journalDefaultBufSize        = 16 * 1024
+	journalFlushCompactThreshold = 64 * 1024
+	journalSyncBatchBytes        = 64 * 1024
+	journalMaxAsyncPendingBytes  = 2 << 20  // 2 MiB max in-flight async buffer
+	journalDefaultMaxSize        = 16 << 20 // 16 MiB default cap per profile journal
 )
+
+var journalReaderPool = sync.Pool{
+	New: func() any {
+		return bufio.NewReaderSize(nil, journalDefaultBufSize)
+	},
+}
+
+var journalWriteBufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, 0, journalDefaultBufSize)
+		return &b
+	},
+}
 
 // TreeJournal spills cold, high-footprint node payloads (process argv/envs/hashes/credentials,
 // FileInfo structs and strings, DNS response IP/CNAME aggregates, and MatchedRules) to a
 // compact binary protobuf journal file on disk while keeping the hot deduplication skeleton,
 // pattern-matching trie, image-tag timestamps, and eBPF sample cookie targets in RAM.
 type TreeJournal struct {
-	path                string
-	file                *os.File
-	seq                 uint32
-	nextProcID          uint32
-	currentProcID       uint32
-	writtenBytes        int64
-	lastCheckpointBytes int64
-	maxBytes            int64
-	dirty               bool
-	failed              bool
+	path                    string
+	file                    *os.File
+	seq                     uint32
+	nextProcID              uint32
+	currentProcID           uint32
+	writtenBytes            int64
+	lastCheckpointBytes     int64
+	fragmentedBytes         int64
+	maxBytes                int64
+	dirty                   bool
+	failed                  bool
+	permanentlyMaterialized bool
+	materializedDepth       int
+	syncOnly                bool
+
+	ioMu          sync.Mutex
+	ioCond        *sync.Cond
+	diskBytes     int64
+	pendingBuf    []byte
+	flushingBuf   []byte
+	fallbackBuf   []byte
+	asyncErr      error
+	writerRunning bool
+	writerStop    bool
+	flushing      bool
 
 	scratchBuf       []byte
 	enrichmentHashes map[uint64]struct{}
@@ -78,13 +112,16 @@ func newTreeJournal(dir, key string, maxBytes int64) (*TreeJournal, error) {
 		return nil, fmt.Errorf("couldn't open journal file [%s]: %w", journalPath, err)
 	}
 
-	return &TreeJournal{
+	j := &TreeJournal{
 		path:             journalPath,
 		file:             f,
 		maxBytes:         maxBytes,
 		enrichmentHashes: make(map[uint64]struct{}),
 		mergedFileSeqs:   make(map[uint32]uint32),
-	}, nil
+	}
+	j.ioCond = sync.NewCond(&j.ioMu)
+	runtime.SetFinalizer(j, (*TreeJournal).Close)
+	return j, nil
 }
 
 func sanitizeJournalKey(key string) string {
@@ -142,12 +179,12 @@ func (at *ActivityTree) CloseJournal() error {
 
 // HasJournal reports whether an active on-disk journal is attached to the ActivityTree.
 func (at *ActivityTree) HasJournal() bool {
-	return at != nil && at.Stats != nil && at.Stats.journal != nil && !at.Stats.journal.failed
+	return at != nil && at.Stats != nil && at.Stats.journal != nil && !at.Stats.journal.failed && !at.Stats.journal.permanentlyMaterialized
 }
 
 // JournalSize returns the current size in bytes of the on-disk journal.
 func (at *ActivityTree) JournalSize() int64 {
-	if at == nil || at.Stats == nil || at.Stats.journal == nil {
+	if !at.HasJournal() {
 		return 0
 	}
 	return at.Stats.journal.writtenBytes
@@ -164,14 +201,65 @@ func (at *ActivityTree) MaterializeFromJournal() {
 	}
 }
 
+// WithMaterializedTree runs fn while the ActivityTree's journaled fields are hydrated in RAM,
+// then strips them back out once the outermost WithMaterializedTree call finishes.
+func (at *ActivityTree) WithMaterializedTree(fn func()) {
+	if at == nil || at.Stats == nil || at.Stats.journal == nil {
+		fn()
+		return
+	}
+	at.Stats.journal.withMaterializedTree(at, fn)
+}
+
 func (j *TreeJournal) heapSize() int64 {
 	if j == nil {
 		return 0
 	}
-	s := int64(unsafe.Sizeof(*j)) + int64(cap(j.scratchBuf))
+	j.ioMu.Lock()
+	ioBufCap := int64(cap(j.pendingBuf) + cap(j.flushingBuf) + cap(j.fallbackBuf))
+	j.ioMu.Unlock()
+	s := int64(unsafe.Sizeof(*j)) + int64(cap(j.scratchBuf)) + ioBufCap
 	s += fixedKeyMapBytes(j.enrichmentHashes)
 	s += fixedKeyMapBytes(j.mergedFileSeqs)
 	return s
+}
+
+func (j *TreeJournal) stopAndRemoveFile() error {
+	if j == nil {
+		return nil
+	}
+	j.ioMu.Lock()
+	j.writerStop = true
+	if j.ioCond != nil {
+		j.ioCond.Broadcast()
+	}
+	for j.writerRunning {
+		j.ioCond.Wait()
+	}
+	if j.pendingBuf != nil {
+		b := j.pendingBuf[:0]
+		journalWriteBufPool.Put(&b)
+		j.pendingBuf = nil
+	}
+	j.fallbackBuf = nil
+	j.diskBytes = 0
+	f := j.file
+	j.file = nil
+	path := j.path
+	j.ioMu.Unlock()
+	j.writtenBytes = 0
+
+	var closeErr error
+	if f != nil {
+		closeErr = f.Close()
+	}
+	if path != "" {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) && closeErr == nil {
+			closeErr = err
+		}
+		_ = os.Remove(path + ".tmp")
+	}
+	return closeErr
 }
 
 // Close closes and removes the backing journal file.
@@ -179,17 +267,111 @@ func (j *TreeJournal) Close() error {
 	if j == nil {
 		return nil
 	}
-	var closeErr error
-	if j.file != nil {
-		closeErr = j.file.Close()
-		j.file = nil
-	}
-	if j.path != "" {
-		if err := os.Remove(j.path); err != nil && !os.IsNotExist(err) && closeErr == nil {
-			closeErr = err
+	runtime.SetFinalizer(j, nil)
+	return j.stopAndRemoveFile()
+}
+
+func (j *TreeJournal) asyncWriterLoop() {
+	for {
+		j.ioMu.Lock()
+		for len(j.pendingBuf) == 0 && !j.writerStop {
+			j.ioCond.Wait()
 		}
+		if len(j.pendingBuf) == 0 && j.writerStop {
+			j.writerRunning = false
+			j.ioCond.Broadcast()
+			j.ioMu.Unlock()
+			return
+		}
+		buf := j.pendingBuf
+		j.pendingBuf = nil
+		j.flushingBuf = buf
+		j.flushing = true
+		f := j.file
+		prevDiskBytes := j.diskBytes
+		hasErr := j.asyncErr != nil
+		j.ioMu.Unlock()
+
+		var err error
+		if hasErr || f == nil {
+			err = errors.New("journal writer disabled")
+		} else {
+			_, err = f.Write(buf)
+			if err != nil {
+				_ = f.Truncate(prevDiskBytes)
+				_, _ = f.Seek(prevDiskBytes, io.SeekStart)
+			}
+		}
+
+		j.ioMu.Lock()
+		if err != nil {
+			if j.asyncErr == nil {
+				j.asyncErr = err
+			}
+			j.fallbackBuf = append(j.fallbackBuf, buf...)
+		} else {
+			j.diskBytes += int64(len(buf))
+		}
+		j.flushingBuf = nil
+		b := buf[:0]
+		journalWriteBufPool.Put(&b)
+		j.flushing = false
+		j.ioCond.Broadcast()
+		j.ioMu.Unlock()
 	}
-	return closeErr
+}
+
+func (j *TreeJournal) flushAsync() error {
+	if j == nil {
+		return nil
+	}
+	if j.syncOnly {
+		return j.flushSyncBuf()
+	}
+	j.ioMu.Lock()
+	defer j.ioMu.Unlock()
+	if j.ioCond != nil {
+		j.ioCond.Broadcast()
+	}
+	for (len(j.pendingBuf) > 0 || j.flushing) && j.writerRunning {
+		j.ioCond.Wait()
+	}
+	if len(j.pendingBuf) > 0 {
+		if j.asyncErr == nil && j.file != nil {
+			if _, err := j.file.Write(j.pendingBuf); err != nil {
+				_ = j.file.Truncate(j.diskBytes)
+				_, _ = j.file.Seek(j.diskBytes, io.SeekStart)
+				j.asyncErr = err
+				j.fallbackBuf = append(j.fallbackBuf, j.pendingBuf...)
+			} else {
+				j.diskBytes += int64(len(j.pendingBuf))
+			}
+		} else {
+			j.fallbackBuf = append(j.fallbackBuf, j.pendingBuf...)
+		}
+		b := j.pendingBuf[:0]
+		journalWriteBufPool.Put(&b)
+		j.pendingBuf = nil
+	}
+	return j.asyncErr
+}
+
+func (j *TreeJournal) flushSyncBuf() error {
+	if j == nil || len(j.pendingBuf) == 0 {
+		return nil
+	}
+	if j.file == nil {
+		return errors.New("nil journal file")
+	}
+	if _, err := j.file.Write(j.pendingBuf); err != nil {
+		_ = j.file.Truncate(j.diskBytes)
+		_, _ = j.file.Seek(j.diskBytes, io.SeekStart)
+		j.fail(fmt.Sprintf("write error: %v", err))
+		return err
+	}
+	j.diskBytes += int64(len(j.pendingBuf))
+	j.pendingBuf = j.pendingBuf[:0]
+	return nil
 }
 
 func (j *TreeJournal) fail(reason string) {
@@ -251,12 +433,50 @@ func (j *TreeJournal) writeFrame(kind uint8, seq, procID, subID uint32, msg *adp
 		j.fail(fmt.Sprintf("marshal error: %v", err))
 		return false
 	}
-	if _, err := j.file.Write(j.scratchBuf); err != nil {
-		_ = j.file.Truncate(j.writtenBytes)
-		_, _ = j.file.Seek(j.writtenBytes, io.SeekStart)
-		j.fail(fmt.Sprintf("write error: %v", err))
+
+	if j.syncOnly {
+		j.pendingBuf = append(j.pendingBuf, j.scratchBuf...)
+		if len(j.pendingBuf) >= journalSyncBatchBytes {
+			if err := j.flushSyncBuf(); err != nil {
+				return false
+			}
+		}
+		if cap(j.scratchBuf) > journalDefaultBufSize {
+			j.scratchBuf = nil
+		}
+		j.writtenBytes += frameBytes
+		return true
+	}
+
+	j.ioMu.Lock()
+	if j.asyncErr != nil {
+		err := j.asyncErr
+		j.ioMu.Unlock()
+		j.fail(fmt.Sprintf("async write error: %v", err))
 		return false
 	}
+	if j.writerStop || j.file == nil {
+		j.ioMu.Unlock()
+		return false
+	}
+	if int64(len(j.pendingBuf))+frameBytes > journalMaxAsyncPendingBytes && j.flushing {
+		j.ioMu.Unlock()
+		j.fail(fmt.Sprintf("async pending buffer cap (%d bytes) reached", journalMaxAsyncPendingBytes))
+		return false
+	}
+	if j.pendingBuf == nil {
+		bp := journalWriteBufPool.Get().(*[]byte)
+		j.pendingBuf = (*bp)[:0]
+	}
+	j.pendingBuf = append(j.pendingBuf, j.scratchBuf...)
+	if !j.writerRunning {
+		j.writerRunning = true
+		go j.asyncWriterLoop()
+	} else {
+		j.ioCond.Signal()
+	}
+	j.ioMu.Unlock()
+
 	if cap(j.scratchBuf) > journalDefaultBufSize {
 		j.scratchBuf = nil
 	}
@@ -348,20 +568,32 @@ func (j *TreeJournal) recordProcessNode(pn *ProcessNode) {
 	if j == nil || j.failed || pn == nil {
 		return
 	}
-	if pn.journalID == 0 {
-		pn.journalID = j.allocProcID()
+	procID := pn.journalID
+	hadJournalID := procID != 0
+	if !hadJournalID {
+		procID = j.allocProcID()
 	}
 	seq := j.nextSeq()
 	minSeq := pn.minJournalSeq
 	if minSeq == 0 {
 		minSeq = seq
 	}
-	newRules, hashes := j.filterNewRules(pn.journalID, minSeq, "proc_rule", "", pn.MatchedRules)
+	newRules, hashes := j.filterNewRules(procID, minSeq, "proc_rule", "", pn.MatchedRules)
+	procProto := processNodeToProto(&pn.Process)
 	msg := adproto.ProcessActivityNode{
-		Process:      processNodeToProto(&pn.Process),
+		Process:      procProto,
 		MatchedRules: newRules,
 	}
-	if j.writeFrame(journalKindProcess, seq, pn.journalID, 0, &msg) {
+	prevBytes := j.writtenBytes
+	ok := j.writeFrame(journalKindProcess, seq, procID, 0, &msg)
+	if procProto != nil {
+		procProto.ReturnToVTPool()
+	}
+	if ok {
+		pn.journalID = procID
+		if hadJournalID {
+			j.fragmentedBytes += j.writtenBytes - prevBytes
+		}
 		pn.minJournalSeq = minSeq
 		j.commitEnrichments(hashes)
 		pn.stripForJournal()
@@ -390,7 +622,9 @@ func (j *TreeJournal) recordProcessRules(pn *ProcessNode, rules []*model.Matched
 	msg := adproto.ProcessActivityNode{
 		MatchedRules: newRules,
 	}
+	prevBytes := j.writtenBytes
 	if j.writeFrame(journalKindProcess, seq, pn.journalID, 0, &msg) {
+		j.fragmentedBytes += j.writtenBytes - prevBytes
 		j.commitEnrichments(hashes)
 	} else {
 		pn.MatchedRules = model.AppendMatchedRule(pn.MatchedRules, rules)
@@ -401,6 +635,7 @@ func (j *TreeJournal) recordFileNode(fn *FileNode, reducedPath string) {
 	if j == nil || fn == nil {
 		return
 	}
+	hadJournalFile := fn.hasJournalFile
 	if fn.minJournalSeq == 0 {
 		fn.minJournalSeq = j.nextSeq()
 	}
@@ -413,20 +648,30 @@ func (j *TreeJournal) recordFileNode(fn *FileNode, reducedPath string) {
 	seq := j.nextSeq()
 	minSeq := fn.minJournalSeq
 	subID := minSeq << 1
-	if (fn.File != nil && fn.File.IsDir()) || len(fn.Children) > 0 {
+	if fn.isDir || (fn.File != nil && fn.File.IsDir()) || len(fn.Children) > 0 {
+		fn.isDir = true
 		subID |= 1
 	}
 	newRules, hashes := j.filterNewRules(j.currentProcID, minSeq, "file_rule", reducedPath, fn.MatchedRules)
+	fileProto := fileInfoToProto(fn.File)
 	msg := adproto.ProcessActivityNode{
 		Files: []*adproto.FileActivityNode{
 			{
 				Name:         reducedPath,
-				File:         fileInfoToProto(fn.File),
+				File:         fileProto,
 				MatchedRules: newRules,
 			},
 		},
 	}
-	if j.writeFrame(journalKindFile, seq, j.currentProcID, subID, &msg) {
+	prevBytes := j.writtenBytes
+	ok := j.writeFrame(journalKindFile, seq, j.currentProcID, subID, &msg)
+	if fileProto != nil {
+		fileProto.ReturnToVTPool()
+	}
+	if ok {
+		if hadJournalFile {
+			j.fragmentedBytes += j.writtenBytes - prevBytes
+		}
 		j.commitEnrichments(hashes)
 		if fn.File != nil {
 			fn.hasJournalFile = true
@@ -458,7 +703,8 @@ func (j *TreeJournal) recordFileRules(fn *FileNode, reducedPath string, rules []
 	}
 	seq := j.nextSeq()
 	subID := minSeq << 1
-	if (fn.File != nil && fn.File.IsDir()) || len(fn.Children) > 0 {
+	if fn.isDir || (fn.File != nil && fn.File.IsDir()) || len(fn.Children) > 0 {
+		fn.isDir = true
 		subID |= 1
 	}
 	msg := adproto.ProcessActivityNode{
@@ -469,7 +715,9 @@ func (j *TreeJournal) recordFileRules(fn *FileNode, reducedPath string, rules []
 			},
 		},
 	}
+	prevBytes := j.writtenBytes
 	if j.writeFrame(journalKindFile, seq, j.currentProcID, subID, &msg) {
+		j.fragmentedBytes += j.writtenBytes - prevBytes
 		j.commitEnrichments(hashes)
 		fn.MatchedRules = nil
 	} else {
@@ -492,10 +740,24 @@ func (j *TreeJournal) recordMergedFileNode(dst, src *FileNode) {
 }
 
 func (j *TreeJournal) shouldCompact() bool {
-	if j == nil || j.failed || !j.dirty {
+	if j == nil || j.failed || (!j.dirty && j.fragmentedBytes < j.maxBytes/4) {
 		return false
 	}
-	return j.writtenBytes >= j.maxBytes/2 && j.writtenBytes-j.lastCheckpointBytes >= j.maxBytes/4
+	return j.writtenBytes >= j.maxBytes*3/4 && j.writtenBytes-j.lastCheckpointBytes >= j.maxBytes/4
+}
+
+func (j *TreeJournal) shouldCheckpointOnFlush() bool {
+	if j == nil || j.failed {
+		return false
+	}
+	if j.dirty {
+		return true
+	}
+	threshold := int64(journalFlushCompactThreshold)
+	if quarter := j.maxBytes / 4; quarter > 0 && quarter < threshold {
+		threshold = quarter
+	}
+	return j.fragmentedBytes >= threshold
 }
 
 func (j *TreeJournal) maybeCompactBeforeInsert(at *ActivityTree) {
@@ -509,8 +771,9 @@ func (j *TreeJournal) onEviction(at *ActivityTree) {
 		return
 	}
 	j.dirty = true
-	if at != nil && j.shouldCompact() {
-		j.withMaterializedTree(at, func() {})
+	if at != nil && len(at.ProcessNodes) == 0 {
+		j.enrichmentHashes = make(map[uint64]struct{})
+		j.mergedFileSeqs = make(map[uint32]uint32)
 	}
 }
 
@@ -587,8 +850,13 @@ func (j *TreeJournal) recordDNSEnrichment(pn *ProcessNode, dn *DNSNode, qIdx int
 			},
 		},
 	}
+	hadPriorDNS := req.journalIPCount > 0 || req.journalCNameCount > 0
+	prevBytes := j.writtenBytes
 	if !j.writeFrame(journalKindDNS, seq, pn.journalID, uint32(qIdx), &msg) {
 		return false
+	}
+	if hadPriorDNS || len(newRules) > 0 {
+		j.fragmentedBytes += j.writtenBytes - prevBytes
 	}
 	j.commitEnrichments(hashes)
 	req.journalIPCount += addedIPs
@@ -632,7 +900,9 @@ func (j *TreeJournal) recordIMDSRules(pn *ProcessNode, in *IMDSNode, rules []*mo
 			},
 		},
 	}
+	prevBytes := j.writtenBytes
 	if j.writeFrame(journalKindIMDS, seq, pn.journalID, 0, &msg) {
+		j.fragmentedBytes += j.writtenBytes - prevBytes
 		j.commitEnrichments(hashes)
 		in.MatchedRules = nil
 	} else {
@@ -685,9 +955,11 @@ func (j *TreeJournal) recordSocketRules(family string, isConnect bool, port uint
 	msg := adproto.ProcessActivityNode{
 		Sockets: []*adproto.SocketNode{sockProto},
 	}
+	prevBytes := j.writtenBytes
 	if !j.writeFrame(journalKindSocket, seq, j.currentProcID, subID, &msg) {
 		return false
 	}
+	j.fragmentedBytes += j.writtenBytes - prevBytes
 	j.commitEnrichments(hashes)
 	return true
 }
@@ -727,7 +999,9 @@ func (j *TreeJournal) recordNetworkDeviceRules(ndn *NetworkDeviceNode, rules []*
 			},
 		},
 	}
+	prevBytes := j.writtenBytes
 	if j.writeFrame(journalKindNetworkDevice, seq, j.currentProcID, 0, &msg) {
+		j.fragmentedBytes += j.writtenBytes - prevBytes
 		j.commitEnrichments(hashes)
 		ndn.MatchedRules = nil
 	} else {
@@ -752,23 +1026,68 @@ func (pn *ProcessNode) stripForJournal() {
 	pn.MatchedRules = nil
 }
 
+func (pn *ProcessNode) restoreFromJournalProto(pi *adproto.ProcessInfo) {
+	if pn == nil || pi == nil {
+		return
+	}
+	decoded := protoDecodeProcessNode(pi)
+	pn.Process.Argv = decoded.Argv
+	pn.Process.Envs = decoded.Envs
+	pn.Process.EnvsTruncated = decoded.EnvsTruncated
+	pn.Process.ArgsTruncated = decoded.ArgsTruncated
+	pn.Process.Credentials = decoded.Credentials
+	pn.Process.CGroup = decoded.CGroup
+	pn.Process.TTYName = decoded.TTYName
+	pn.Process.Comm = decoded.Comm
+	if pn.Process.Argv0 == "" {
+		pn.Process.Argv0 = decoded.Argv0
+	}
+	livePath := pn.Process.FileEvent.PathnameStr
+	liveBase := pn.Process.FileEvent.BasenameStr
+	livePathKey := pn.Process.FileEvent.PathKey
+	pn.Process.FileEvent = decoded.FileEvent
+	if livePath != "" {
+		pn.Process.FileEvent.PathnameStr = livePath
+	}
+	if liveBase != "" {
+		pn.Process.FileEvent.BasenameStr = liveBase
+	}
+	if livePathKey.Inode != 0 {
+		pn.Process.FileEvent.PathKey = livePathKey
+	}
+}
+
 // withMaterializedTree hydrates the stripped fields of at from the on-disk journal, runs fn,
-// compacts the journal if dirty, and strips the heavy fields back out of RAM.
+// compacts the journal if dirty or fragmented, and strips the heavy fields back out of RAM.
 func (j *TreeJournal) withMaterializedTree(at *ActivityTree, fn func()) {
-	if j == nil || at == nil {
+	if j == nil || at == nil || j.permanentlyMaterialized {
+		fn()
+		return
+	}
+	if j.materializedDepth > 0 {
+		j.materializedDepth++
+		defer func() {
+			j.materializedDepth--
+		}()
 		fn()
 		return
 	}
 	if matErr := j.Materialize(at); matErr != nil {
 		j.fail(fmt.Sprintf("materialize failed: %v", matErr))
+		j.permanentlyMaterialized = true
+		_ = j.stopAndRemoveFile()
 		at.recomputeSizeBytes()
 		fn()
 		return
 	}
+	j.materializedDepth = 1
 	defer func() {
-		if j.dirty && !j.failed {
+		j.materializedDepth = 0
+		if j.shouldCheckpointOnFlush() && !j.failed {
 			if err := j.Checkpoint(at); err != nil {
 				j.fail(fmt.Sprintf("checkpoint failed: %v", err))
+				j.permanentlyMaterialized = true
+				_ = j.stopAndRemoveFile()
 				at.recomputeSizeBytes()
 				return
 			}
@@ -776,6 +1095,8 @@ func (j *TreeJournal) withMaterializedTree(at *ActivityTree, fn func()) {
 		if !j.failed {
 			j.StripTree(at)
 		} else {
+			j.permanentlyMaterialized = true
+			_ = j.stopAndRemoveFile()
 			at.recomputeSizeBytes()
 		}
 	}()
@@ -784,17 +1105,26 @@ func (j *TreeJournal) withMaterializedTree(at *ActivityTree, fn func()) {
 
 // Materialize replays the on-disk journal into the live nodes of at.
 func (j *TreeJournal) Materialize(at *ActivityTree) error {
-	if j == nil || at == nil || j.file == nil {
+	if j == nil || at == nil || j.permanentlyMaterialized {
 		return nil
 	}
-	if _, err := j.file.Seek(0, io.SeekStart); err != nil {
-		return err
+	if err := j.flushAsync(); err != nil {
+		j.fail(fmt.Sprintf("flush before materialize: %v", err))
 	}
-	defer func() {
-		if j.file != nil {
-			_, _ = j.file.Seek(j.writtenBytes, io.SeekStart)
-		}
-	}()
+
+	j.ioMu.Lock()
+	file := j.file
+	diskBytes := j.diskBytes
+	var fallbackCopy []byte
+	if len(j.fallbackBuf) > 0 {
+		fallbackCopy = make([]byte, len(j.fallbackBuf))
+		copy(fallbackCopy, j.fallbackBuf)
+	}
+	j.ioMu.Unlock()
+
+	if file == nil && len(fallbackCopy) == 0 {
+		return nil
+	}
 
 	liveProcs := make(map[uint32]*ProcessNode)
 	liveFileSeqs := make(map[uint32]struct{})
@@ -842,7 +1172,62 @@ func (j *TreeJournal) Materialize(at *ActivityTree) error {
 		}
 	}
 
-	reader := bufio.NewReaderSize(j.file, journalDefaultBufSize)
+	type dnsReqKey struct {
+		dn   *DNSNode
+		qIdx int
+	}
+	var savedDNSResponses map[dnsReqKey]*DNSResponseAggregate
+	if j.failed {
+		for _, pn := range liveProcs {
+			for _, dn := range pn.DNSNames {
+				if dn == nil {
+					continue
+				}
+				for i := range dn.Requests {
+					if dn.Requests[i].Response != nil {
+						if savedDNSResponses == nil {
+							savedDNSResponses = make(map[dnsReqKey]*DNSResponseAggregate)
+						}
+						savedDNSResponses[dnsReqKey{dn: dn, qIdx: i}] = dn.Requests[i].Response
+						dn.Requests[i].Response = nil
+					}
+				}
+			}
+		}
+	}
+	defer func() {
+		for k, saved := range savedDNSResponses {
+			if k.dn.Requests[k.qIdx].Response == nil {
+				k.dn.Requests[k.qIdx].Response = saved
+			} else {
+				mergeDNSResponseAggregate(k.dn.Requests[k.qIdx].Response, saved)
+			}
+		}
+	}()
+
+	var stream io.Reader
+	if file != nil && diskBytes > 0 {
+		stream = io.NewSectionReader(file, 0, diskBytes)
+	}
+	if len(fallbackCopy) > 0 {
+		fbReader := bytes.NewReader(fallbackCopy)
+		if stream != nil {
+			stream = io.MultiReader(stream, fbReader)
+		} else {
+			stream = fbReader
+		}
+	}
+	if stream == nil {
+		return nil
+	}
+
+	reader := journalReaderPool.Get().(*bufio.Reader)
+	reader.Reset(stream)
+	defer func() {
+		reader.Reset(nil)
+		journalReaderPool.Put(reader)
+	}()
+
 	var hdr [journalHeaderSize]byte
 	var payloadBuf []byte
 	var protoNode adproto.ProcessActivityNode
@@ -888,46 +1273,7 @@ func (j *TreeJournal) Materialize(at *ActivityTree) error {
 		switch kind {
 		case journalKindProcess:
 			if protoNode.Process != nil {
-				liveExitTime := pn.Process.ExitTime
-				liveIsExecExec := pn.Process.IsExecExec
-				liveIsThread := pn.Process.IsThread
-				livePid := pn.Process.Pid
-				liveTid := pn.Process.Tid
-				livePath := pn.Process.FileEvent.PathnameStr
-				liveBase := pn.Process.FileEvent.BasenameStr
-				livePathKey := pn.Process.FileEvent.PathKey
-				liveArgv0 := pn.Process.Argv0
-				liveArgsHash := pn.Process.argsHash
-				liveArgsHashed := pn.Process.argsHashed
-				decoded := protoDecodeProcessNode(protoNode.Process)
-				if !liveExitTime.IsZero() {
-					decoded.ExitTime = liveExitTime
-				}
-				decoded.IsExecExec = decoded.IsExecExec || liveIsExecExec
-				decoded.IsThread = liveIsThread
-				if livePid != 0 {
-					decoded.Pid = livePid
-				}
-				if liveTid != 0 {
-					decoded.Tid = liveTid
-				}
-				if livePath != "" {
-					decoded.FileEvent.PathnameStr = livePath
-				}
-				if liveBase != "" {
-					decoded.FileEvent.BasenameStr = liveBase
-				}
-				if livePathKey.Inode != 0 {
-					decoded.FileEvent.PathKey = livePathKey
-				}
-				if liveArgv0 != "" {
-					decoded.Argv0 = liveArgv0
-				}
-				if liveArgsHashed {
-					decoded.argsHash = liveArgsHash
-					decoded.argsHashed = true
-				}
-				pn.Process = decoded
+				pn.restoreFromJournalProto(protoNode.Process)
 			}
 			for _, r := range protoNode.MatchedRules {
 				pn.MatchedRules = model.AppendMatchedRule(pn.MatchedRules, []*model.MatchedRule{protoDecodeProtoMatchedRule(r)})
@@ -1065,8 +1411,7 @@ func (j *TreeJournal) Materialize(at *ActivityTree) error {
 		}
 	}
 
-	_, err := j.file.Seek(0, io.SeekEnd)
-	return err
+	return nil
 }
 
 func mergeDNSResponseAggregate(dst, src *DNSResponseAggregate) {
@@ -1178,6 +1523,10 @@ func (j *TreeJournal) Checkpoint(at *ActivityTree) error {
 	if j == nil || at == nil || j.path == "" {
 		return nil
 	}
+	if err := j.flushAsync(); err != nil {
+		j.fail(fmt.Sprintf("flush before checkpoint: %v", err))
+		return err
+	}
 	tmpPath := j.path + ".tmp"
 	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0600)
 	if err != nil {
@@ -1189,6 +1538,7 @@ func (j *TreeJournal) Checkpoint(at *ActivityTree) error {
 		file:             tmpFile,
 		maxBytes:         j.maxBytes,
 		scratchBuf:       j.scratchBuf,
+		syncOnly:         true,
 		enrichmentHashes: make(map[uint64]struct{}),
 	}
 	var commits []func()
@@ -1201,11 +1551,16 @@ func (j *TreeJournal) Checkpoint(at *ActivityTree) error {
 		procID := staged.allocProcID()
 		seq := staged.nextSeq()
 		newRules, hashes := staged.filterNewRules(procID, seq, "proc_rule", "", pn.MatchedRules)
+		procProto := processNodeToProto(&pn.Process)
 		msg := adproto.ProcessActivityNode{
-			Process:      processNodeToProto(&pn.Process),
+			Process:      procProto,
 			MatchedRules: newRules,
 		}
-		if !staged.writeFrame(journalKindProcess, seq, procID, 0, &msg) {
+		ok := staged.writeFrame(journalKindProcess, seq, procID, 0, &msg)
+		if procProto != nil {
+			procProto.ReturnToVTPool()
+		}
+		if !ok {
 			return
 		}
 		staged.commitEnrichments(hashes)
@@ -1225,20 +1580,26 @@ func (j *TreeJournal) Checkpoint(at *ActivityTree) error {
 			hasFile := fn.File != nil
 			if hasFile || len(fn.MatchedRules) > 0 {
 				subID := fSeq << 1
-				if (fn.File != nil && fn.File.IsDir()) || len(fn.Children) > 0 {
+				if fn.isDir || (fn.File != nil && fn.File.IsDir()) || len(fn.Children) > 0 {
+					fn.isDir = true
 					subID |= 1
 				}
 				fRules, fHashes := staged.filterNewRules(procID, fSeq, "file_rule", fullPath, fn.MatchedRules)
+				fileProto := fileInfoToProto(fn.File)
 				fMsg := adproto.ProcessActivityNode{
 					Files: []*adproto.FileActivityNode{
 						{
 							Name:         fullPath,
-							File:         fileInfoToProto(fn.File),
+							File:         fileProto,
 							MatchedRules: fRules,
 						},
 					},
 				}
-				if !staged.writeFrame(journalKindFile, fSeq, procID, subID, &fMsg) {
+				okFile := staged.writeFrame(journalKindFile, fSeq, procID, subID, &fMsg)
+				if fileProto != nil {
+					fileProto.ReturnToVTPool()
+				}
+				if !okFile {
 					return
 				}
 				staged.commitEnrichments(fHashes)
@@ -1452,6 +1813,9 @@ func (j *TreeJournal) Checkpoint(at *ActivityTree) error {
 	for _, pn := range at.ProcessNodes {
 		writeProc(pn)
 	}
+	if !staged.failed {
+		_ = staged.flushSyncBuf()
+	}
 
 	if staged.failed {
 		_ = tmpFile.Close()
@@ -1463,15 +1827,23 @@ func (j *TreeJournal) Checkpoint(at *ActivityTree) error {
 		_ = os.Remove(tmpPath)
 		return err
 	}
-	if j.file != nil {
-		_ = j.file.Close()
-	}
+	j.ioMu.Lock()
+	oldFile := j.file
 	j.file = tmpFile
+	j.diskBytes = staged.diskBytes
+	j.pendingBuf = nil
+	j.fallbackBuf = nil
+	j.asyncErr = nil
+	j.ioMu.Unlock()
+	if oldFile != nil {
+		_ = oldFile.Close()
+	}
 	j.seq = staged.seq
 	j.nextProcID = staged.nextProcID
 	j.currentProcID = staged.currentProcID
 	j.writtenBytes = staged.writtenBytes
 	j.lastCheckpointBytes = staged.writtenBytes
+	j.fragmentedBytes = 0
 	j.enrichmentHashes = staged.enrichmentHashes
 	clear(j.mergedFileSeqs)
 	j.scratchBuf = staged.scratchBuf
@@ -1494,8 +1866,14 @@ func (j *TreeJournal) StripTree(at *ActivityTree) {
 			return
 		}
 		if fn.File != nil {
+			if fn.File.IsDir() {
+				fn.isDir = true
+			}
 			fn.hasJournalFile = true
 			fn.File = nil
+		}
+		if len(fn.Children) > 0 {
+			fn.isDir = true
 		}
 		fn.MatchedRules = nil
 		for _, child := range fn.Children {
@@ -1565,9 +1943,10 @@ func hashProcessArgs(argv []string) [16]byte {
 	for _, arg := range argv {
 		binary.LittleEndian.PutUint32(lenBuf[:], uint32(len(arg)))
 		_, _ = h.Write(lenBuf[:])
-		_, _ = h.Write([]byte(arg))
+		_, _ = io.WriteString(h, arg)
 	}
-	sum := h.Sum(nil)
+	var sum [sha256.Size]byte
+	h.Sum(sum[:0])
 	var out [16]byte
 	copy(out[:], sum[:16])
 	return out

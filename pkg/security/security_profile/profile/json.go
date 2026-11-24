@@ -20,11 +20,18 @@ import (
 // EncodeJSON encodes an activity dump in the ProtoJSON format
 func (p *Profile) EncodeJSON(indent string) (*bytes.Buffer, error) {
 	p.Lock()
-	defer p.Unlock()
-
 	pad := profileToSecDumpProto(p)
+	p.Unlock()
 	defer pad.ReturnToVTPool()
 
+	raw, err := marshalSecDumpJSON(pad, indent)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewBuffer(raw), nil
+}
+
+func marshalSecDumpJSON(pad *adprotov1.SecDump, indent string) ([]byte, error) {
 	opts := protojson.MarshalOptions{
 		EmitUnpopulated: true,
 		UseProtoNames:   true,
@@ -35,7 +42,7 @@ func (p *Profile) EncodeJSON(indent string) (*bytes.Buffer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't encode in json: %v", err)
 	}
-	return bytes.NewBuffer(raw), nil
+	return raw, nil
 }
 
 // DecodeJSON decodes JSON to an activity dump
