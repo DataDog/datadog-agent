@@ -19,6 +19,8 @@ import (
 
 func TestUprobeMultiConfiguration(t *testing.T) {
 	mock.NewSystemProbe(t)
+	require.False(t, New().EnableUprobeMulti)
+	t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_UPROBE_MULTI", "true")
 	require.True(t, New().EnableUprobeMulti)
 	t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_UPROBE_MULTI", "false")
 	require.False(t, New().EnableUprobeMulti)
