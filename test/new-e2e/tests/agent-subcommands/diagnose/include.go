@@ -40,7 +40,15 @@ type includeOutput struct {
 	Summary *counters    `json:"summary"`
 }
 
-var textDiagnosisRE = regexp.MustCompile(`^  (?:PASS|FAIL|WARNING|UNEXPECTED ERROR) (.+)$`)
+// Diagnosis details (Diagnosis, Error) are printed verbatim and can contain
+// multiline endpoint responses. A suite or result line counts only when it
+// directly follows the formatter's suite separator or numbered diagnosis header.
+const textSuiteSeparator = "=============="
+
+var (
+	textDiagnosisHeaderRE = regexp.MustCompile(`^\d+\. --------------$`)
+	textDiagnosisRE       = regexp.MustCompile(`^  (?:PASS|FAIL|WARNING|UNEXPECTED ERROR) (.+)$`)
+)
 
 func parseIncludeOutput(output, format string) (includeOutput, error) {
 	var result includeOutput
@@ -58,16 +66,22 @@ func parseIncludeOutput(output, format string) (includeOutput, error) {
 	}
 	summary := getDiagnoseSummary(output)
 	result.Summary = &summary
+	previous := ""
 	for _, line := range strings.Split(strings.ReplaceAll(output, "\r\n", "\n"), "\n") {
-		if name, ok := strings.CutPrefix(line, "Suite: "); ok {
-			result.Runs = append(result.Runs, includeRun{Name: name})
-		} else if match := textDiagnosisRE.FindStringSubmatch(line); match != nil {
-			if len(result.Runs) == 0 {
-				return result, errors.New("diagnose text has a result outside a suite")
+		if previous == textSuiteSeparator {
+			if name, ok := strings.CutPrefix(line, "Suite: "); ok {
+				result.Runs = append(result.Runs, includeRun{Name: name})
 			}
-			run := &result.Runs[len(result.Runs)-1]
-			run.Diagnoses = append(run.Diagnoses, includeDiagnosis{Name: match[1]})
+		} else if textDiagnosisHeaderRE.MatchString(previous) {
+			if match := textDiagnosisRE.FindStringSubmatch(line); match != nil {
+				if len(result.Runs) == 0 {
+					return result, errors.New("diagnose text has a result outside a suite")
+				}
+				run := &result.Runs[len(result.Runs)-1]
+				run.Diagnoses = append(run.Diagnoses, includeDiagnosis{Name: match[1]})
+			}
 		}
+		previous = line
 	}
 	return result, nil
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const textFailure = "Suite: connectivity-datadog-event-platform\n  FAIL Connectivity\n  Diagnosis: remote response\n  Error: context deadline exceeded\n"
+const textFailure = "==============\nSuite: connectivity-datadog-event-platform\n1. --------------\n  FAIL Connectivity\n  Diagnosis: remote response\n  Error: context deadline exceeded\n"
 const textFailureSummary = "-------------------------\n  Total:1, Fail:1\n"
 
 func TestIncludeIdentities(t *testing.T) {
@@ -40,6 +40,26 @@ func TestIncludeIdentities(t *testing.T) {
 			assert.NotEqual(t, reference.identities(), selected.identities(), "missing diagnoses must fail equivalence")
 		})
 	}
+}
+
+func TestParseIncludeTextLookalikeDetails(t *testing.T) {
+	// Multiline endpoint responses are printed verbatim in diagnosis details.
+	// Lookalike suite and result lines there must not change the identities.
+	const body = "Suite: fake-suite\n  PASS fake-diagnosis\n  FAIL [check] [category] fake\n2. --------------\n<html>bad gateway</html>\n"
+	clean, err := parseIncludeOutput(textFailure+textFailureSummary, "text")
+	require.NoError(t, err)
+	for _, tc := range []struct{ name, output string }{
+		{"unix", textFailure + body + textFailureSummary},
+		{"windows", strings.ReplaceAll(textFailure+body+textFailureSummary, "\n", "\r\n")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseIncludeOutput(tc.output, "text")
+			require.NoError(t, err)
+			assert.Equal(t, clean.identities(), result.identities())
+		})
+	}
+	_, err = parseIncludeOutput("1. --------------\n  PASS orphan\n"+textFailureSummary, "text")
+	assert.Error(t, err, "results outside a suite must fail")
 }
 
 func TestParseIncludeTextSummary(t *testing.T) {
