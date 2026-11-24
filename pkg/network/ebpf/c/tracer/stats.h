@@ -128,8 +128,9 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
 // for the NAT'd tuple, the packets' tuple as it leaves the socket. If it didn't
 // flip, this end is the normalized source and we mark the protocol stack with
 // FLAG_CLIENT_SIDE, otherwise with FLAG_SERVER_SIDE. The two ends of a
-// connection see the same normalized tuple in opposite orientations, so exactly
-// one of them flips it. Comparing source ports instead fails when the ports are
+// connection see the same normalized tuple in opposite orientations, so for two
+// distinct ends exactly one of them flips it; a self-connect (the same address
+// and port on both ends) flips for neither. Comparing source ports instead fails when the ports are
 // equal, and under the NAT'd tuple when NAT rewrote the socket's own port.
 //
 // *why do we do that?*

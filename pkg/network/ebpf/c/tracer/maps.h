@@ -113,14 +113,14 @@ BPF_HASH_MAP(pending_tcp_retransmit_skb, __u64, tcp_retransmit_skb_args_t, 8192)
 // corresponding kretprobes
 BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)
 
-// Maps skb connection tuple to socket connection tuple.
-// On ingress, skb connection tuple is pre NAT, and socket connection tuple is post NAT, and on egress, the opposite.
-// We track the lifecycle of socket using tracepoint net/net_dev_queue.
-// Some protocol can be classified in a single direction (for example HTTP/2 can be classified only by the first 24 bytes
-// sent on the hand shake), and if we have NAT, then the conn tuple we extract from sk_buff will be different than the
-// one we extract from the sock object, and then we are not able to correctly classify those protocols.
-// To overcome those problems, we save two maps that translates from conn tuple of sk_buff to conn tuple of sock* and vice
-// versa (the vice versa is used for cleanup purposes).
+// Maps a NAT'd socket's connection tuple to the tuple its packets carry, as recorded by tracepoint net/net_dev_queue.
+// Some protocols can be classified in a single direction (for example HTTP/2 can be classified only by the first 24
+// bytes sent on the handshake), and with NAT the conn tuple we extract from the sk_buff differs from the one we extract
+// from the sock object, so the classification stored under the packets' tuple can only be found through this map.
+// Key: the socket's own tuple, normalized, without netns and pid.
+// Value: the egress packet's tuple after NAT, NOT normalized, so the socket's own end is the source. get_skb_tuple
+// normalizes it, and uses whether that flipped it to tell which side of the connection the socket is. Don't normalize
+// the value when storing it.
 BPF_HASH_MAP(conn_tuple_to_socket_skb_conn_tuple, conn_tuple_t, conn_tuple_t, 0)
 
 // The eBPF conntracker's map of NAT'd connections, original tuple to reply tuple and back. Userspace replaces this
