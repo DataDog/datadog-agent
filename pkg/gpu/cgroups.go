@@ -27,16 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ConfigureDeviceCgroups configures the cgroups for a process to allow access to the NVIDIA character devices
-// reapplyInfinitely controls whether the configuration should be reapplied infinitely (true) or only once (false)
-func ConfigureDeviceCgroups(pid uint32, hostRoot string) error {
-	cgroupPath, err := getAbsoluteCgroupForProcess("/", hostRoot, SelfHostPID(), pid, cgroups.Mode())
-	if err != nil {
-		return fmt.Errorf("failed to get cgroup for pid %d: %w", pid, err)
-	}
-	return ConfigureCgroupDevices(cgroupPath, hostRoot)
-}
-
 // ConfigureCgroupDevices configures a cgroup, as seen from the host (see CgroupPathForProcess), to allow access to
 // the NVIDIA character devices.
 func ConfigureCgroupDevices(cgroupPath string, hostRoot string) error {

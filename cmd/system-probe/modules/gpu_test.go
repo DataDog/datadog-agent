@@ -133,10 +133,16 @@ func TestAgentsNextToSystemProbe(t *testing.T) {
 	}
 
 	// Only the agents of the system-probe pod; an agent whose cgroup cannot be read (13) is skipped, with a warning
-	t.Cleanup(func() { cgroupPermissionWarnings.Delete("agent-13") })
+	// under its own key, so that it does not hide a later failure to configure that agent
+	t.Cleanup(func() {
+		cgroupPermissionWarnings.Delete("agent-cgroup-13")
+		cgroupPermissionWarnings.Delete("agent-cgroup-10")
+	})
 	agents := agentsNextToSystemProbe(sysprobe, []uint32{10, 11, 12, 13}, cgroupOf)
-	_, warned := cgroupPermissionWarnings.Load("agent-13")
+	_, warned := cgroupPermissionWarnings.Load("agent-cgroup-13")
 	require.True(t, warned)
+	_, warned = cgroupPermissionWarnings.Load("agent-13")
+	require.False(t, warned)
 	require.Equal(t, []uint32{10, 12}, pids(agents))
 	require.Equal(t, cgroups[10], agents[0].cgroup)
 	// Host services
@@ -144,6 +150,12 @@ func TestAgentsNextToSystemProbe(t *testing.T) {
 		func(uint32) (string, error) { return "/system.slice/datadog-agent.service", nil })))
 	// The agent of the system-probe pod is restarting: the other agents are not touched
 	require.Empty(t, agentsNextToSystemProbe(sysprobe, []uint32{11}, cgroupOf))
+
+	// A transient lookup failure is forgotten once the cgroup can be read again
+	warnCgroupPermissionsOnce("agent-cgroup-10", "failed")
+	agentsNextToSystemProbe(sysprobe, []uint32{10}, cgroupOf)
+	_, warned = cgroupPermissionWarnings.Load("agent-cgroup-10")
+	require.False(t, warned)
 }
 
 func TestForgetDepartedAgentWarnings(t *testing.T) {
@@ -151,15 +163,21 @@ func TestForgetDepartedAgentWarnings(t *testing.T) {
 		cgroupPermissionWarnings.Range(func(key, _ any) bool { cgroupPermissionWarnings.Delete(key); return true })
 	})
 	warnCgroupPermissionsOnce("agent-1", "failed")
+	warnCgroupPermissionsOnce("agent-cgroup-1", "failed")
 	warnCgroupPermissionsOnce("agent-2", "failed")
+	warnCgroupPermissionsOnce("agent-cgroup-2", "failed")
 	warnCgroupPermissionsOnce("system-probe", "failed")
 
 	forgetDepartedAgentWarnings([]uint32{2, 3})
 
-	_, kept := cgroupPermissionWarnings.Load("agent-2")
-	require.True(t, kept)
-	_, kept = cgroupPermissionWarnings.Load("agent-1")
-	require.False(t, kept, "PID 1 is gone")
-	_, kept = cgroupPermissionWarnings.Load("system-probe")
+	for _, key := range []string{"agent-2", "agent-cgroup-2"} {
+		_, kept := cgroupPermissionWarnings.Load(key)
+		require.True(t, kept, key)
+	}
+	for _, key := range []string{"agent-1", "agent-cgroup-1"} {
+		_, kept := cgroupPermissionWarnings.Load(key)
+		require.False(t, kept, "PID 1 is gone: %s", key)
+	}
+	_, kept := cgroupPermissionWarnings.Load("system-probe")
 	require.True(t, kept)
 }
