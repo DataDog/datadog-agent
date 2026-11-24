@@ -1,0 +1,10 @@
+runner: kind
+runtime_config:
+  kwok: false
+# The Cluster Agent payloads go to this receiver, not to public Datadog endpoints.
+blackhole:
+  - id: intake
+    http:
+      binding_addr: "0.0.0.0:9091"
+      status: 200
+      response_delay_millis: 0

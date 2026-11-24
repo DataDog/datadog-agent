@@ -1,0 +1,11 @@
+runner: kind
+runtime_config:
+  # KWOK puts the activity Pods on one fake Node, so their containers do not run.
+  kwok: true
+# The Cluster Agent payloads go to this receiver, not to public Datadog endpoints.
+blackhole:
+  - id: intake
+    http:
+      binding_addr: "0.0.0.0:9091"
+      status: 200
+      response_delay_millis: 0
