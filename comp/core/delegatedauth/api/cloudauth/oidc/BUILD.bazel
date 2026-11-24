@@ -3,14 +3,16 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "oidc",
-    srcs = ["oidc.go"],
+    srcs = [
+        "oidc.go",
+        "token.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/oidc",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/delegatedauth/api/cloudauth/config",
         "//comp/core/delegatedauth/common",
         "//pkg/config/model",
-        "@com_github_datadog_datadog_api_client_go_v2//auth/oidc",
     ],
 )
 

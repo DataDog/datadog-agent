@@ -10,8 +10,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
-
-	oidcauth "github.com/DataDog/datadog-api-client-go/v2/auth/oidc"
+	"time"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
@@ -20,7 +19,8 @@ import (
 
 // OIDCAuth generates custom OIDC proofs from a Datadog-scoped workload token file.
 type OIDCAuth struct {
-	provider *oidcauth.Provider
+	tokenFile string
+	now       func() time.Time
 }
 
 var _ common.Provider = (*OIDCAuth)(nil)
@@ -33,11 +33,7 @@ func NewOIDCAuth(config *cloudauthconfig.OIDCProviderConfig) (*OIDCAuth, error) 
 	if !filepath.IsAbs(config.TokenFile) {
 		return nil, errors.New("delegated_auth.oidc.token_file must be an absolute path")
 	}
-	provider, err := oidcauth.New(oidcauth.WithTokenFile(config.TokenFile))
-	if err != nil {
-		return nil, err
-	}
-	return &OIDCAuth{provider: provider}, nil
+	return &OIDCAuth{tokenFile: config.TokenFile, now: time.Now}, nil
 }
 
 // GenerateAuthProof re-reads the token file and refuses it, without any request, unless it is scoped to the org.
@@ -48,5 +44,5 @@ func (a *OIDCAuth) GenerateAuthProof(ctx context.Context, _ pkgconfigmodel.Reade
 	if config == nil {
 		return "", errors.New("missing delegated auth configuration")
 	}
-	return a.provider.Proof(config.OrgUUID)
+	return proof(a.tokenFile, config.OrgUUID, a.now())
 }

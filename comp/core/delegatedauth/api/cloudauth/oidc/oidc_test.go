@@ -9,8 +9,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,7 +126,7 @@ func TestGenerateAuthProofRefusesUnscopedTokens(t *testing.T) {
 			proof, err := auth.GenerateAuthProof(context.Background(), nil, &common.AuthConfig{OrgUUID: testOrgUUID})
 			require.Error(t, err)
 			assert.Empty(t, proof)
-			var scopeErr *oidcauth.TokenScopeError
+			var scopeErr *TokenScopeError
 			assert.ErrorAs(t, err, &scopeErr)
 			assert.NotContains(t, err.Error(), token)
 		})
@@ -146,4 +148,96 @@ func TestGenerateAuthProofHonorsCanceledContext(t *testing.T) {
 
 	_, err := auth.GenerateAuthProof(ctx, nil, &common.AuthConfig{OrgUUID: testOrgUUID})
 	assert.ErrorIs(t, err, context.Canceled)
+}
+
+// The port must keep refusing exactly what the client library refuses, with the same reasons.
+func TestMatchesClientLibrary(t *testing.T) {
+	encode := func(v any) string {
+		b, err := json.Marshal(v)
+		require.NoError(t, err)
+		return base64.RawURLEncoding.EncodeToString(b)
+	}
+	jwt := func(payload string) string {
+		return encode(map[string]string{"alg": "RS256"}) + "." + payload + ".c2lnbmF0dXJl"
+	}
+	withClaims := func(mutate func(map[string]any)) string {
+		claims := scopedClaims()
+		mutate(claims)
+		return jwt(encode(claims))
+	}
+	contents := map[string]string{
+		"scoped":                    withClaims(func(map[string]any) {}),
+		"scoped with newline":       withClaims(func(map[string]any) {}) + "\n",
+		"matching dd_org_uuid":      withClaims(func(c map[string]any) { c["dd_org_uuid"] = testOrgUUID }),
+		"wrong org audience":        withClaims(func(c map[string]any) { c["aud"] = "datadog/00000000-0000-0000-0000-000000000000" }),
+		"non-Datadog audience":      withClaims(func(c map[string]any) { c["aud"] = "https://other.example" }),
+		"audience list of one":      withClaims(func(c map[string]any) { c["aud"] = []string{"datadog/" + testOrgUUID} }),
+		"multiple audiences":        withClaims(func(c map[string]any) { c["aud"] = []string{"datadog/" + testOrgUUID, "x"} }),
+		"non-string audience":       withClaims(func(c map[string]any) { c["aud"] = 42 }),
+		"missing audience":          withClaims(func(c map[string]any) { delete(c, "aud") }),
+		"mismatched dd_org_uuid":    withClaims(func(c map[string]any) { c["dd_org_uuid"] = "other" }),
+		"non-string dd_org_uuid":    withClaims(func(c map[string]any) { c["dd_org_uuid"] = 1 }),
+		"missing exp":               withClaims(func(c map[string]any) { delete(c, "exp") }),
+		"non-numeric exp":           withClaims(func(c map[string]any) { c["exp"] = "soon" }),
+		"expired":                   withClaims(func(c map[string]any) { c["exp"] = time.Now().Add(-time.Minute).Unix() }),
+		"uppercase AUD only":        jwt(encode(map[string]any{"AUD": "datadog/" + testOrgUUID, "exp": time.Now().Add(time.Hour).Unix()})),
+		"payload not base64url":     jwt("not*base64"),
+		"payload not a JSON object": jwt(encode([]string{"a"})),
+		"two segments":              "eyJhbGciOiJSUzI1NiJ9.eyJhdWQiOiJ4In0",
+		"inner whitespace":          withClaims(func(map[string]any) {})[:10] + " " + withClaims(func(map[string]any) {})[10:],
+		"empty":                     "",
+		"whitespace only":           " \n\t",
+		"oversized":                 strings.Repeat("a", 64*1024+1),
+		"non-printable":             "abc\x01def",
+	}
+	dir := t.TempDir()
+	for name, content := range contents {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(dir, strings.ReplaceAll(name, " ", "_"))
+			require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+			library, err := oidcauth.New(oidcauth.WithTokenFile(path))
+			require.NoError(t, err)
+
+			wantProof, wantErr := library.Proof(testOrgUUID)
+			gotProof, gotErr := proof(path, testOrgUUID, time.Now())
+
+			assert.Equal(t, wantProof, gotProof)
+			if wantErr == nil {
+				assert.NoError(t, gotErr)
+				return
+			}
+			require.Error(t, gotErr)
+			assert.Equal(t, wantErr.Error(), gotErr.Error())
+			var libraryScopeErr *oidcauth.TokenScopeError
+			var scopeErr *TokenScopeError
+			assert.Equal(t, errors.As(wantErr, &libraryScopeErr), errors.As(gotErr, &scopeErr), "refusals must be scope errors exactly when the library's are")
+		})
+	}
+
+	t.Run("missing file", func(t *testing.T) {
+		path := filepath.Join(dir, "absent")
+		library, err := oidcauth.New(oidcauth.WithTokenFile(path))
+		require.NoError(t, err)
+		_, wantErr := library.Proof(testOrgUUID)
+		_, gotErr := proof(path, testOrgUUID, time.Now())
+		require.Error(t, wantErr)
+		assert.Equal(t, wantErr.Error(), gotErr.Error())
+	})
+	t.Run("directory", func(t *testing.T) {
+		library, err := oidcauth.New(oidcauth.WithTokenFile(dir))
+		require.NoError(t, err)
+		_, wantErr := library.Proof(testOrgUUID)
+		_, gotErr := proof(dir, testOrgUUID, time.Now())
+		require.Error(t, wantErr)
+		assert.Equal(t, wantErr.Error(), gotErr.Error())
+	})
+	t.Run("missing org UUID", func(t *testing.T) {
+		path := filepath.Join(dir, "scoped")
+		library, err := oidcauth.New(oidcauth.WithTokenFile(path))
+		require.NoError(t, err)
+		_, wantErr := library.Proof("")
+		_, gotErr := proof(path, "", time.Now())
+		require.Error(t, wantErr)
+		assert.Equal(t, wantErr.Error(), gotErr.Error())
+	})
 }
