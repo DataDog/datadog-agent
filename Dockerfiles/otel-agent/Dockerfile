@@ -21,8 +21,11 @@ ENV GOPATH=/go
 
 # Set the working directory
 WORKDIR /workspace
-# Copy from the CI build context, no-op when doing a stand alone build
-COPY otel-* /workspace
+# Copy from the CI build context, no-op when doing a stand alone build.
+# secret-generic-connector is optional in the CI build context: the FIPS jobs don't provide
+# it, as their base image (the FIPS Agent image) already ships the FIPS build of it.
+# A single COPY so that it doesn't fail on builders rejecting a glob that matches nothing.
+COPY otel-* secret-generic-connector* /workspace/
 
 # APT mirror resilience in CI:
 # Ubuntu EC2 AMIs point apt at a single regional mirror (us-east-1) with no real
@@ -87,12 +90,19 @@ RUN \
         pip install dda && \
         dda self dep sync -f legacy-tasks && \
         invoke collector.generate && \
-        invoke otel-agent.build; \
+        invoke otel-agent.build && \
+        invoke secret-generic-connector.build; \
     else \
-        mkdir -p /workspace/datadog-agent/bin/otel-agent/dist && \
+        mkdir -p /workspace/datadog-agent/bin/otel-agent/dist /workspace/datadog-agent/bin/secret-generic-connector && \
         cp /workspace/otel-agent /workspace/datadog-agent/bin/otel-agent/ && \
-        cp /workspace/otel-config.yaml /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml; \
-    fi
+        cp /workspace/otel-config.yaml /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml && \
+        if [ -f /workspace/secret-generic-connector ]; then \
+            cp /workspace/secret-generic-connector /workspace/datadog-agent/bin/secret-generic-connector/; \
+        fi; \
+    fi && \
+    # Owned by root:root once copied. Executable by the root group, which holds the image's
+    # dd-agent user and the random UID OpenShift runs containers with.
+    chmod -R 0550 /workspace/datadog-agent/bin/secret-generic-connector/
 
 # ------------------------------
 # Inject the otel-agent in the base image
@@ -104,6 +114,12 @@ LABEL org.opencontainers.image.title="Otel Agent"
 # Copy the built OTel agent from the builder stage
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml /etc/datadog-agent/otel-config.yaml
+# secret-generic-connector, run to resolve ENC[] handles with secret_backend_type. The
+# secrets component looks for it at this hard-coded path. The source directory is empty
+# when the base image already ships it (FIPS); the check below fails the build if
+# neither provides it.
+COPY --from=builder /workspace/datadog-agent/bin/secret-generic-connector/ /opt/datadog-agent/embedded/bin/
+RUN /opt/datadog-agent/embedded/bin/secret-generic-connector --version
 # Find all directories and files in /etc with world-writable permissions and remove write permissions for group and others
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
