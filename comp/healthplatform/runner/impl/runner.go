@@ -7,6 +7,7 @@
 package runnerimpl
 
 import (
+	"errors"
 	"fmt"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
@@ -70,9 +71,13 @@ func (r *runner) Run(source string, fn runnerdef.HealthCheckFunc) (issueIDs []st
 		issue := r.toProto(report)
 		if reportErr := r.store.ReportIssue(issue); reportErr != nil {
 			r.log.Warnf("failed to report issue %s from %s: %v", report.IssueID, source, reportErr)
-		} else {
-			issueIDs = append(issueIDs, report.IssueID)
+			if !errors.Is(reportErr, storedef.ErrQueueFull) {
+				continue
+			}
+			// Dropped on a full queue, but the issue is still present: keep its
+			// ID so the scheduler does not resolve it.
 		}
+		issueIDs = append(issueIDs, report.IssueID)
 	}
 
 	return issueIDs, retErr

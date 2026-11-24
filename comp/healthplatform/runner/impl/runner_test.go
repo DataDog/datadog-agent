@@ -21,6 +21,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	registrymock "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/mock"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	storemock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 )
 
@@ -191,6 +192,22 @@ func TestRunStoreError(t *testing.T) {
 	assert.Equal(t, []string{"id-1"}, ids)
 	assert.NotNil(t, store.GetIssue("id-1"))
 	assert.Nil(t, store.GetIssue("id-2"))
+}
+
+func TestRunQueueFullKeepsIssueID(t *testing.T) {
+	store := storemock.New(t, storemock.WithReportIssueError("id-2", storedef.ErrQueueFull))
+	r := &runner{log: logmock.New(t), registry: registrymock.New(t), store: store}
+
+	ids, err := r.Run("mycomp", func() ([]runnerdef.IssueReport, error) {
+		return []runnerdef.IssueReport{
+			{IssueID: "id-1", IssueName: "type-a"},
+			{IssueID: "id-2", IssueName: "type-b"},
+		}, nil
+	})
+	require.NoError(t, err)
+	// A report dropped on a full queue is still present: the scheduler must
+	// not see it as recovered and resolve it.
+	assert.Equal(t, []string{"id-1", "id-2"}, ids)
 }
 
 func TestRunConcurrent(t *testing.T) {
