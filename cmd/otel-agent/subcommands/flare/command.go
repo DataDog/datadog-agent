@@ -222,6 +222,7 @@ func createOTelFlare(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader
 		return "", fmt.Errorf("failed to scrub OTel data: %w", err)
 	}
 	files := append(responseFiles(data), collectDebugSources(data.Sources)...)
+	files = append(files, collectLogFiles(cfg)...)
 	if fallbackReason != "" {
 		files = append(files, flareFile{name: "otel-agent.log", content: []byte(fallbackReason), scrub: true})
 	}

@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "command.go",
         "envvars.go",
+        "logfiles.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/flare",
     visibility = ["//visibility:public"],
@@ -26,6 +27,7 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//comp/otelcol/ddflareextension/types",
         "//pkg/config/model",
+        "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/util/input",
         "//pkg/util/option",
@@ -54,6 +56,7 @@ dd_agent_go_test(
         "//comp/core/ipc/mock",
         "//comp/otelcol/ddflareextension/types",
         "//pkg/config/mock",
+        "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "@com_github_fatih_color//:color",
         "@com_github_spf13_cobra//:cobra",

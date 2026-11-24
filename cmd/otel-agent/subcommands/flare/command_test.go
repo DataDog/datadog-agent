@@ -31,6 +31,7 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -93,6 +94,8 @@ service:
 func newUnreachableCollector(t *testing.T) (config.Component, *ipcmock.IPCMock) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("otelcollector.extension_url", "https://127.0.0.1:1")
+	// Keep the tests off the log file of a collector installed on the machine
+	cfg.SetInTest("log_file", filepath.Join(t.TempDir(), "otel-agent.log"))
 	return cfg, ipcmock.New(t)
 }
 
@@ -235,6 +238,9 @@ func TestCreateOTelFlareFromRunningCollector(t *testing.T) {
 	})))
 	cfg := configmock.New(t)
 	cfg.SetInTest("otelcollector.extension_url", extensionServer.URL)
+	logFile := filepath.Join(t.TempDir(), "otel-agent.log")
+	require.NoError(t, os.WriteFile(logFile, []byte("log of the running collector"), 0644))
+	cfg.SetInTest("log_file", logFile)
 
 	flarePath, err := createOTelFlare(globalParams, cfg, ipcComp.GetClient())
 	require.NoError(t, err)
@@ -244,6 +250,9 @@ func TestCreateOTelFlareFromRunningCollector(t *testing.T) {
 
 	// There is nothing to explain when the collector answered
 	assert.NotContains(t, files, "otel-agent.log")
+
+	// The log of the collector is collected whether or not it answered
+	assert.Equal(t, "log of the running collector", string(files["logs/otel-agent.log"]))
 
 	// The effective configuration of the running collector is used, not the configuration files
 	assert.Contains(t, string(files["build-info.txt"]), "Extension Version: running-collector")
@@ -264,6 +273,132 @@ func TestCreateOTelFlareFromRunningCollector(t *testing.T) {
 		assert.NotContains(t, string(content), testAPIKey, "API key not scrubbed from %s", name)
 		assert.NotContains(t, string(content), testSessionCookie, "session cookie kept in %s", name)
 	}
+}
+
+// TestCreateOTelFlareCollectsLogs checks that the flare contains the log file of the collector and
+// the files its rotation keeps next to it, and no other file of the directory.
+func TestCreateOTelFlareCollectsLogs(t *testing.T) {
+	globalParams := newGlobalParamsTest(t)
+	cfg, ipcComp := newUnreachableCollector(t)
+
+	logDir := t.TempDir()
+	cfg.SetInTest("log_file", filepath.Join(logDir, "otel-agent.log"))
+	for name, content := range map[string]string{
+		"otel-agent.log":     "current log, api_key: " + testAPIKey,
+		"otel-agent.log.1":   "rolled log",
+		"agent.log":          "log of another component",
+		"otel-agent.log.bak": "not a file of the rotation",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(logDir, name), []byte(content), 0644))
+	}
+
+	flarePath, err := createOTelFlare(globalParams, cfg, ipcComp.GetClient())
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(flarePath))
+
+	files := readZip(t, flarePath)
+
+	assert.Contains(t, string(files["logs/otel-agent.log"]), "current log")
+	assert.Equal(t, "rolled log", string(files["logs/otel-agent.log.1"]))
+	assert.NotContains(t, files, "logs/agent.log", "the logs of the other components are not the collector's")
+	assert.NotContains(t, files, "logs/otel-agent.log.bak")
+	assert.NotContains(t, string(files["logs/otel-agent.log"]), testAPIKey, "API key not scrubbed from the log")
+}
+
+// captureColorOutput returns what the command prints on the console
+func captureColorOutput(t *testing.T) *bytes.Buffer {
+	var output bytes.Buffer
+	previousOutput := color.Output
+	color.Output = &output
+	t.Cleanup(func() { color.Output = previousOutput })
+	return &output
+}
+
+func TestCollectorLogFile(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		assert.Equal(t, defaultpaths.GetDefaultOTelAgentLogFile(), collectorLogFile(configmock.New(t)))
+	})
+	t.Run("configured", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.SetInTest("log_file", "/custom/otel.log")
+		assert.Equal(t, "/custom/otel.log", collectorLogFile(cfg))
+	})
+	t.Run("file logging disabled", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.SetInTest("disable_file_logging", true)
+		assert.Empty(t, collectorLogFile(cfg))
+	})
+}
+
+func TestIsLogFileOrRoll(t *testing.T) {
+	for fileName, expected := range map[string]bool{
+		"otel-agent.log":      true,
+		"otel-agent.log.1":    true,
+		"otel-agent.log.12":   true,
+		"otel-agent.log.":     false,
+		"otel-agent.log.bak":  false,
+		"otel-agent.log.1.gz": false,
+		"otel-agent.logs":     false,
+		"agent.log":           false,
+		"my-otel-agent.log":   false,
+	} {
+		assert.Equal(t, expected, isLogFileOrRoll(fileName, "otel-agent.log"), fileName)
+	}
+}
+
+// TestCollectLogFilesWarnings checks that a flare without the log of the collector says why.
+func TestCollectLogFilesWarnings(t *testing.T) {
+	emptyDir := t.TempDir()
+	tests := []struct {
+		name    string
+		setup   func(cfg config.Component)
+		warning string
+	}{
+		{
+			name:    "file logging disabled",
+			setup:   func(cfg config.Component) { cfg.SetInTest("disable_file_logging", true) },
+			warning: "disable_file_logging",
+		},
+		{
+			name:    "no log file in the directory",
+			setup:   func(cfg config.Component) { cfg.SetInTest("log_file", filepath.Join(emptyDir, "otel-agent.log")) },
+			warning: "no log file of the collector found at",
+		},
+		{
+			name: "no log directory",
+			setup: func(cfg config.Component) {
+				cfg.SetInTest("log_file", filepath.Join(emptyDir, "missing", "otel-agent.log"))
+			},
+			warning: "no log file of the collector found at",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			tt.setup(cfg)
+			output := captureColorOutput(t)
+
+			assert.Empty(t, collectLogFiles(cfg))
+			assert.Contains(t, output.String(), tt.warning)
+		})
+	}
+}
+
+// TestCollectLogFilesSkipsWhatIsNotAFile checks that an entry that looks like a rolled log but isn't
+// a regular file is left out without a warning, since it can't be read (a pipe would block).
+func TestCollectLogFilesSkipsWhatIsNotAFile(t *testing.T) {
+	logDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(logDir, "otel-agent.log"), []byte("log"), 0644))
+	require.NoError(t, os.Mkdir(filepath.Join(logDir, "otel-agent.log.1"), 0755))
+	cfg := configmock.New(t)
+	cfg.SetInTest("log_file", filepath.Join(logDir, "otel-agent.log"))
+	output := captureColorOutput(t)
+
+	files := collectLogFiles(cfg)
+
+	require.Len(t, files, 1)
+	assert.Equal(t, "logs/otel-agent.log", files[0].name)
+	assert.NotContains(t, output.String(), "could not read")
 }
 
 func TestFilterEnvironment(t *testing.T) {

@@ -23,3 +23,6 @@ fixes:
     Datadog exporter configuration when ``DD_API_KEY`` isn't set, and keeps the
     customer configuration when it contains ``${env:...}`` or ``${...}``
     environment references.
+  - |
+    ``otel-agent flare`` now collects the log file of the collector, and the
+    files its rotation keeps next to it, like the core Agent flare does.
