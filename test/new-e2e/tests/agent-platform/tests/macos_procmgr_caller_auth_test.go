@@ -49,14 +49,11 @@ func macosProcmgrDescribe(t *testing.T, client *common.MacOSTestClient, name str
 	return detail
 }
 
-// Execute returns an empty string on failure and puts the command output in the error.
 func assertMacosProcmgrRequiresRoot(t *testing.T, client *common.MacOSTestClient, command string) string {
 	t.Helper()
 	_, err := client.Execute(command)
 	require.Error(t, err, command)
-	// The daemon returns this message only as PermissionDenied, which its Rust tests pin
-	// (assert_requires_root in grpc/mod.rs). Matching the message alone keeps this test independent
-	// of how tonic and the CLI format the status code.
+	// The Rust tests pin this message to PermissionDenied. Match only the message, not the status code.
 	assert.Contains(t, err.Error(), "operation requires root")
 	return err.Error()
 }
@@ -85,9 +82,7 @@ func macosSleepPattern(sleepArg string) string {
 	return "^/bin/sleep " + sleepArg + "$"
 }
 
-// waitMacosSleepGone polls until a probe finds no child, so a transient probe error within the
-// timeout does not end the wait. Without a successful probe it returns the last result and error.
-// A timeout of 0 makes exactly one check.
+// waitMacosSleepGone polls until a probe finds no child. A probe error only ends the wait at the deadline.
 func waitMacosSleepGone(client *common.MacOSTestClient, sleepArg string, timeout time.Duration) (string, error) {
 	check := "sudo sh -c 'pgrep -f \"" + macosSleepPattern(sleepArg) + "\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
 	deadline := time.Now().Add(timeout)
@@ -103,7 +98,6 @@ func waitMacosSleepGone(client *common.MacOSTestClient, sleepArg string, timeout
 	}
 }
 
-// killMacosSleep escalates to SIGKILL and returns what is still running.
 func killMacosSleep(t *testing.T, client *common.MacOSTestClient, sleepArg string) (string, error) {
 	t.Helper()
 	// pkill returns before the process exits.
@@ -120,18 +114,14 @@ func killMacosSleep(t *testing.T, client *common.MacOSTestClient, sleepArg strin
 	return left, err
 }
 
-// healMacosCallerAuthLeftovers undoes a failed restore from an earlier attempt, which would fail the
-// pristine-catalog precondition. A child outlives a daemon that was killed or crashed instead of
-// shutting down, and the restart drops its runtime entry, so the marker file is the only trace of
-// it. Only a restart drops runtime entries, so it restarts only when one of this test's own entries
-// is listed, which stops anything still running. Failing to read the marker or to stop its child is
-// an error, because the marker would be lost. Listing and restart failures are logged, not asserted,
-// so the precondition decides whether the daemon is healthy.
+// healMacosCallerAuthLeftovers undoes an earlier failed attempt so the pristine-catalog precondition
+// can pass. The marker is the only trace of a child that outlived a crashed daemon. Restart only when
+// one of this test's entries is listed, since a restart drops runtime entries.
 func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) {
 	t.Helper()
 	out, err := client.Execute("sudo sh -c 'if [ -e " + macosCallerAuthSleepMarker + " ]; then cat " + macosCallerAuthSleepMarker + "; fi'")
 	if err != nil {
-		// Going on would let the test overwrite a marker that was never read.
+		// Going on would overwrite a marker that was never read.
 		t.Errorf("heal: failed to read %s: %v", macosCallerAuthSleepMarker, err)
 		return
 	}
@@ -194,12 +184,10 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	client := common.NewMacOSTestClient(m.Env().RemoteHost)
 	// Unique per run, so cleanup can match this child after a daemon crash drops the runtime entry.
 	sleepArg := strconv.Itoa(100000 + int(time.Now().UnixNano()%900000))
-	// Before this is set, a restart would stop every managed process, including one this test
-	// did not start.
+	// Set once preconditions pass: a restart before that would stop processes this test did not start.
 	preconditionsPassed := false
 
-	// Stop and kill before the restart: each child has its own process group and outlives a daemon
-	// that is killed or crashes, and the restart drops its runtime entry.
+	// Kill children before the restart: a crashed daemon leaves them running, and the restart drops their entries.
 	t.Cleanup(func() {
 		if !preconditionsPassed {
 			return
@@ -219,8 +207,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthStartEntry, err)
 			}
 		}
-		// A stop can report Stopped while the child is still alive, so check the OS on every path.
-		// After a clean stop, give the child time to exit before treating it as a leftover.
+		// A stop can report Stopped while the child lives, so check the OS; a clean stop gets 5s to exit.
 		initialWait := time.Duration(0)
 		if !bodyFailed {
 			initialWait = 5 * time.Second
@@ -236,7 +223,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		} else if strings.TrimSpace(left) != "" {
 			t.Errorf("cleanup: /bin/sleep %s still running:\n%s", sleepArg, left)
 		} else {
-			// Kept while the child may still be alive, so the next attempt can reap it.
+			// Only reached once the child is confirmed gone.
 			if _, rmErr := client.Execute("sudo rm -f " + macosCallerAuthSleepMarker); rmErr != nil {
 				t.Logf("cleanup: failed to remove %s: %v", macosCallerAuthSleepMarker, rmErr)
 			}
@@ -246,7 +233,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 				t.Errorf("cleanup: failed to check for /bin/sleep %s before killing it: %v", sleepArg, initialErr)
 			}
 		}
-		// The restart loads processes.d.
+		// Before the restart, which loads processes.d.
 		if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
 			t.Logf("cleanup: failed to remove %s: %v", macosCallerAuthReloadEntry, err)
 		}
@@ -321,8 +308,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	deniedLower := strings.ToLower(denied)
 	assert.NotContains(t, deniedLower, "notfound")
 	assert.NotContains(t, deniedLower, "not found")
-	// Reload keeps runtime entries, so an unchanged catalog would hide a reload that ran and then
-	// returned PermissionDenied.
+	// Add a catalog entry so a reload that ran anyway would show up.
 	_, err = client.Execute("printf '%s\\n' 'command: /bin/sleep' 'auto_start: false' 'restart: never' | sudo tee " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml >/dev/null")
 	require.NoError(t, err)
 	assertMacosProcmgrRequiresRoot(t, client, macosCallerAuthAgentCLI+" reload")

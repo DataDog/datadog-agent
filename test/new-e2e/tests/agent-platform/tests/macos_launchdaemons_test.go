@@ -95,8 +95,7 @@ func macosReadRemoteFile(t require.TestingT, client *common.MacOSTestClient, pat
 }
 
 // macosLogLaunchDaemonDiagnostics logs what is needed to understand a LaunchDaemon failure: the
-// tail of the postinstall and procmgr logs, the job definitions on disk and what launchd reports
-// for each job.
+// tail of the postinstall and procmgr logs, the job definitions on disk and launchd's view of each job.
 func macosLogLaunchDaemonDiagnostics(t *testing.T, client *common.MacOSTestClient) {
 	out, _ := client.Execute("sudo tail -n 100 " + macosPostinstallLogPath + " 2>&1")
 	t.Logf("tail of %s:\n%s", macosPostinstallLogPath, out)
