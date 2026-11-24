@@ -8,6 +8,7 @@
 package schedulerevents
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -49,7 +50,7 @@ func unschedulable(nodePool string, at time.Time, reasons ...podGroupExplanation
 func newTestKAI(t *testing.T, evictEvents []corev1.Event) (*kaiEvents, *collected) {
 	t.Helper()
 	out := &collected{}
-	kai := newKAIEvents(newTestIndex(), started, out.submit, func(string) ([]corev1.Event, error) {
+	kai := newKAIEvents(newTestIndex(), started, out.submit, func(context.Context, string) ([]corev1.Event, error) {
 		return evictEvents, nil
 	})
 	kai.now = func() time.Time { return after(1000) }
@@ -220,7 +221,7 @@ func TestKAIEvictedWithoutMatchingEvictEvent(t *testing.T) {
 
 func TestKAIEvictEventListFailureDoesNotStopTheEvent(t *testing.T) {
 	out := &collected{}
-	kai := newKAIEvents(newTestIndex(), started, out.submit, func(string) ([]corev1.Event, error) {
+	kai := newKAIEvents(newTestIndex(), started, out.submit, func(context.Context, string) ([]corev1.Event, error) {
 		return nil, errors.New("forbidden")
 	})
 
@@ -307,7 +308,7 @@ func TestKAIPodGroupCreatedInTheStartSecondIsReported(t *testing.T) {
 	// after the check started in the same second looks as old as the start.
 	out := &collected{}
 	startedInTheSecond := started.Add(700 * time.Millisecond)
-	kai := newKAIEvents(newTestIndex(), startedInTheSecond, out.submit, func(string) ([]corev1.Event, error) { return nil, nil })
+	kai := newKAIEvents(newTestIndex(), startedInTheSecond, out.submit, func(context.Context, string) ([]corev1.Event, error) { return nil, nil })
 
 	kai.set(podGroup(started), true)
 	require.Equal(t, []string{"kai.podgroup.created"}, out.types())
@@ -317,4 +318,65 @@ func TestKAIPodGroupCreatedInTheStartSecondIsReported(t *testing.T) {
 	before.UID = "uid-2"
 	kai.set(before, true)
 	assert.Len(t, out.events, 1)
+}
+
+// TestKAIEvictLookupsShareOneBudgetPerBatch checks that, once the lookups of a
+// batch have used the budget, the next evicted PodGroups are sent at once and
+// without details, and that the next batch lists again.
+func TestKAIEvictLookupsShareOneBudgetPerBatch(t *testing.T) {
+	out := &collected{}
+	clock := after(1000)
+	var listed []string
+	var deadlines []time.Duration
+	kai := newKAIEvents(newTestIndex(), started, out.submit, func(ctx context.Context, namespace string) ([]corev1.Event, error) {
+		listed = append(listed, namespace)
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		deadlines = append(deadlines, time.Until(deadline))
+		clock = clock.Add(kaiEvictBudget) // the lookup is slow and takes all the budget
+		return nil, errors.New("timeout")
+	})
+	kai.now = func() time.Time { return clock }
+
+	evict := func(namespace, name string) {
+		pg := podGroup(started.Add(-time.Hour))
+		pg.UID, pg.Namespace, pg.Name = "uid-"+name, namespace, name
+		kai.set(pg, true)
+		pg.LastEvictionTime = after(20)
+		kai.set(pg, true)
+	}
+	evict("ns-a", "a")
+	evict("ns-b", "b")
+	evict("ns-c", "c")
+
+	assert.Equal(t, []string{"kai.podgroup.evicted", "kai.podgroup.evicted", "kai.podgroup.evicted"}, out.types())
+	assert.Equal(t, []string{"ns-a"}, listed, "the budget is spent after the first lookup")
+	require.Len(t, deadlines, 1)
+	assert.LessOrEqual(t, deadlines[0], kaiEvictListTimeout)
+
+	kai.endBatch()
+	evict("ns-d", "d")
+	assert.Equal(t, []string{"ns-a", "ns-d"}, listed, "a new batch has a new budget")
+}
+
+func TestKAIEvictLookupUsesWhatIsLeftOfTheBudget(t *testing.T) {
+	out := &collected{}
+	clock := after(1000)
+	var timeouts []time.Duration
+	kai := newKAIEvents(newTestIndex(), started, out.submit, func(ctx context.Context, namespace string) ([]corev1.Event, error) {
+		deadline, _ := ctx.Deadline()
+		timeouts = append(timeouts, time.Until(deadline))
+		clock = clock.Add(kaiEvictListTimeout - time.Second)
+		return nil, nil
+	})
+	kai.now = func() time.Time { return clock }
+
+	for _, namespace := range []string{"ns-a", "ns-b", "ns-c"} {
+		kai.namespaceEvictEvents(namespace)
+	}
+	// 5s timeout, then what is left (10s - 4s = 6s, capped at 5s), then 2s.
+	require.Len(t, timeouts, 3)
+	assert.LessOrEqual(t, timeouts[0], kaiEvictListTimeout)
+	assert.LessOrEqual(t, timeouts[1], kaiEvictListTimeout)
+	assert.LessOrEqual(t, timeouts[2], 2*time.Second)
 }

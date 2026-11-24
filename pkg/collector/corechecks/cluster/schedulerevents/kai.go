@@ -44,7 +44,13 @@ const (
 	// and the Evict event that KAI records for it.
 	kaiEvictEventTolerance = 1
 
-	kaiEvictListTimeout = 10 * time.Second
+	// kaiEvictBudget is the time one run (batch of updates) may spend listing
+	// Evict events for all its namespaces. Once spent, the remaining evicted
+	// PodGroups are sent without eviction details, so a slow API server cannot
+	// delay the delivery of the events for minutes.
+	kaiEvictBudget = 10 * time.Second
+	// kaiEvictListTimeout is the longest a single list may take.
+	kaiEvictListTimeout = 5 * time.Second
 )
 
 func kaiAlertType(transition string) event.AlertType {
@@ -95,7 +101,7 @@ type kaiTransition struct {
 }
 
 // evictEventLister returns the Evict events that KAI recorded on the PodGroups of a namespace.
-type evictEventLister func(namespace string) ([]corev1.Event, error)
+type evictEventLister func(ctx context.Context, namespace string) ([]corev1.Event, error)
 
 // kaiEvents turns the updates of KAI PodGroups into events.
 type kaiEvents struct {
@@ -109,6 +115,11 @@ type kaiEvents struct {
 	// evictEvents caches the Evict events of a namespace while a batch of
 	// updates is handled, since it can hold many evictions of the same namespace.
 	evictEvents map[string][]corev1.Event
+	// evictDeadline is when the time budget of the batch ends. It is zero until
+	// the first lookup of the batch.
+	evictDeadline time.Time
+	// evictBudgetLogged is true once the batch logged that the budget is spent.
+	evictBudgetLogged bool
 }
 
 func newKAIEvents(index *eventIndex, startedAt time.Time, submit func(event.Event), listEvict evictEventLister) *kaiEvents {
@@ -123,9 +134,12 @@ func newKAIEvents(index *eventIndex, startedAt time.Time, submit func(event.Even
 	}
 }
 
-// endBatch drops what was cached while handling a batch of updates.
+// endBatch drops what was cached while handling a batch of updates and resets
+// the time budget for the Evict lookups.
 func (k *kaiEvents) endBatch() {
 	k.evictEvents = map[string][]corev1.Event{}
+	k.evictDeadline = time.Time{}
+	k.evictBudgetLogged = false
 }
 
 // set handles an update of a PodGroup, like kueueEvents.set does for Workloads,
@@ -400,12 +414,31 @@ func evictEventUnix(e *corev1.Event) int64 {
 	}
 }
 
+// namespaceEvictEvents returns the Evict events of a namespace. All the lookups
+// of a batch share the time kaiEvictBudget; each one takes at most
+// kaiEvictListTimeout or what is left of it. When the budget is spent nothing
+// is listed and the events are sent without eviction details.
 func (k *kaiEvents) namespaceEvictEvents(namespace string) []corev1.Event {
 	if events, cached := k.evictEvents[namespace]; cached {
 		return events
 	}
 
-	events, err := k.listEvict(namespace)
+	now := k.now()
+	if k.evictDeadline.IsZero() {
+		k.evictDeadline = now.Add(kaiEvictBudget)
+	}
+	remaining := k.evictDeadline.Sub(now)
+	if remaining <= 0 {
+		if !k.evictBudgetLogged {
+			k.evictBudgetLogged = true
+			log.Warnf("The %s budget to list KAI Evict events is spent, the evicted PodGroups of this run are sent without eviction details", kaiEvictBudget)
+		}
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), min(remaining, kaiEvictListTimeout))
+	defer cancel()
+	events, err := k.listEvict(ctx, namespace)
 	if err != nil {
 		log.Warnf("Cannot list the Evict events of namespace %s to add eviction details: %v", namespace, err)
 		events = nil
@@ -415,14 +448,12 @@ func (k *kaiEvents) namespaceEvictEvents(namespace string) []corev1.Event {
 }
 
 // listEvictEventsFromAPIServer lists the Evict events that KAI recorded on the PodGroups of a namespace.
-func listEvictEventsFromAPIServer(namespace string) ([]corev1.Event, error) {
+func listEvictEventsFromAPIServer(ctx context.Context, namespace string) ([]corev1.Event, error) {
 	client, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("getting the API server client: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), kaiEvictListTimeout)
-	defer cancel()
 	list, err := client.Cl.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{
 		FieldSelector: "involvedObject.kind=PodGroup,reason=Evict",
 	})
