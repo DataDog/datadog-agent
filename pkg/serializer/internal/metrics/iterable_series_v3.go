@@ -448,7 +448,8 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 		return err
 	}
 
-	serie.PopulateDeviceAndResources()
+	serie.PopulateDeviceField()
+	serie.PopulateResources()
 
 	for {
 		pb.writeSerieToTxn(serie)
