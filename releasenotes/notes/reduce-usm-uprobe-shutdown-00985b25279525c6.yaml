@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Reduce system-probe shutdown latency when USM TLS monitoring instruments many
+    probe locations, by using grouped attachments on supported Linux kernels.

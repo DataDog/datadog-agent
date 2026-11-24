@@ -17,6 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+func TestUprobeMultiConfiguration(t *testing.T) {
+	mock.NewSystemProbe(t)
+	require.True(t, New().EnableUprobeMulti)
+	t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_UPROBE_MULTI", "false")
+	require.False(t, New().EnableUprobeMulti)
+}
+
 func TestDisableMapPreallocation(t *testing.T) {
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)

@@ -299,3 +299,5 @@ func GoTLSDetachPID(pid pid) error {
 
 	return goTLSSpec.Instance.(*goTLSProgram).attacher.DetachPID(pid)
 }
+
+func (p *goTLSProgram) getUprobeAttacher() *uprobes.UprobeAttacher { return p.attacher }
