@@ -1,7 +1,7 @@
 """krb5_shared_library: the cc_library, cc_shared_library and packaging targets of one krb5 library or plugin."""
 
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
-load("//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load(":krb5_codegen.bzl", "krb5_version_script")
 load(":krb5_defs.bzl", "KRB5_COPTS", "KRB5_LOCAL_DEFINES")
 

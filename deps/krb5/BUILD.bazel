@@ -1,1 +1,32 @@
-"""Package delimiter"""
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
+load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
+
+VERSION = "1.22.2"
+
+URL = "https://kerberos.org/dist/krb5/{}/krb5-{}.tar.gz".format(
+    ".".join(VERSION.split(".")[:2]),
+    VERSION,
+)
+
+generate_module_bazel(
+    name = "module_bazel",
+    out = "krb5.MODULE.bazel.new",
+    # Read by the overlay BUILD file for the package_metadata purl.
+    constants = {
+        "URL": URL,
+        "VERSION": VERSION,
+    },
+    module = "krb5",
+    patch_strip = 1,
+    patches = glob(["*.patch"]),
+    sha256 = "3243ffbc8ea4d4ac22ddc7dd2a1dc54c57874c40648b60ff97009763554eaf13",
+    strip_prefix = "krb5-%s" % VERSION,
+    tags = ["manual"],
+    url = URL,
+)
+
+write_source_file(
+    name = "module_consistency",
+    in_file = ":krb5.MODULE.bazel.new",
+    out_file = "krb5.MODULE.bazel",
+)
