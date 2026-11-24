@@ -25,7 +25,8 @@ Provides a minimal tagger gRPC server that allows other agents (process-agent, t
 ### 2. Kubernetes Tag Enrichment (Standalone Mode)
 In standalone mode, the otel-agent runs a **local tagger** backed by workloadmeta collectors (containerd, docker, ECS, crio, podman, plus one collector for pod/K8s metadata). The `infraattributes` processor uses this local tagger to enrich spans, metrics, and logs with K8s entity tags — `kube_deployment`, `kube_namespace`, `pod_name`, `kube_replica_set`, etc. — without a core Datadog Agent on the same host.
 
-The pod/K8s-metadata source defaults to the **`nodefilter`** collector: a workloadmeta collector that watches pods directly from the K8s API server, scoped to the local node via a `spec.nodeName` field selector. This avoids granting the broader kubelet-API RBAC that the `kubelet` collector requires, at the cost of a watch on the API server per node. Set `use_kubelet_collector: true` in the extension config to opt in to the **`kubelet`** collector instead, which lists pods from the local kubelet API.
+The pod/K8s-metadata source defaults to the **`nodefilter`** collector: a workloadmeta collector that watches pods directly from the K8s API server, scoped to the local node via a `spec.nodeName` field selector. This avoids granting the broader kubelet-API RBAC that the `kubelet` collector requires, at the cost of a watch on the API server per node.
+Set `use_kubelet_collector: true` in the extension config to opt in to the **`kubelet`** collector instead, which lists pods from the local kubelet API. Opting in requires more privileges: the ServiceAccount needs `get` on `nodes/proxy`, and the otel-agent container needs the kubelet's address and TLS settings (see [Using kubelet](#using-kubelet)).
 
 #### Using the k8s API (default)
 
