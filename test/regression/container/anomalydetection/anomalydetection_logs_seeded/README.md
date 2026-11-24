@@ -24,8 +24,12 @@ one-off run, edit a local copy and submit it with `--target-config-dir`, using
 ## Validation
 
 Memory is the comparison goal; resource bounds are inherited from the
-playground and remain provisional. Each replica's `captures.parquet` includes
-Observer telemetry. Compute average accepted throughput from the increase in
+playground and remain provisional. Activity checks require positive cumulative
+accepted-log-byte and detector-call counters after warmup. They confirm Observer
+did work and permit queue drops; they do not detect a later stall.
+
+Each replica's `captures.parquet` includes Observer telemetry. Compute average
+accepted throughput from the increase in
 `target/observer.observer_logs_accepted_bytes` over the measurement window.
 Queue and rate-limiter losses are recorded under
 `target/observer.observer_observations_dropped` and

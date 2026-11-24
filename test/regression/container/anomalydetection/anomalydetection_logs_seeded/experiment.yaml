@@ -45,6 +45,18 @@ target:
     DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:anomalydetection_logs_seeded
 
 checks:
+  - name: observer_accepted_logs
+    description: "Observer accepted log input."
+    bounds:
+      series: target/observer.observer_logs_accepted_bytes
+      lower_bound: 1
+
+  - name: observer_ran_detection
+    description: "Observer invoked detection."
+    bounds:
+      series: target/observer.observer_detector_kind_processing_calls
+      lower_bound: 1
+
   - name: memory_usage
     description: "Memory usage"
     bounds:
