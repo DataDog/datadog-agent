@@ -347,7 +347,7 @@ variables:
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0b5f838a19d37fc61"
   RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
   RUN_KMT_TESTS: "auto" # Should be "auto" or "on". "on" forces all Kernel Matrix Testing jobs to run.
-  RUN_PR_E2E_KMT_TESTS: "false" # Set to "true" to restore the original behavior: E2E and KMT jobs run on PR (branch) pipelines based on changed paths. By default they are skipped on PRs.
+  DISABLE_PRE_MERGE_TESTS_AGENT: "false" # Set to "true" to make E2E and KMT jobs manual on PR (branch) pipelines. Overridden by RUN_E2E_TESTS=on, RUN_KMT_TESTS=on, RUN_ALL_BUILDS=true, and by changes to .pre_merge_tests_paths.
   RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
@@ -470,14 +470,28 @@ variables:
 .if_run_all_kmt_tests: &if_run_all_kmt_tests
   if: $RUN_KMT_TESTS == 'on'
 
-# PR/branch pipelines: any pipeline that is not main, a release branch, a tag, a triggered/deploy pipeline.
-# By default E2E and KMT jobs are not executed there automatically: they become manual jobs. Set RUN_PR_E2E_KMT_TESTS=true to get the previous
-# (path-based) behavior back, or RUN_E2E_TESTS=on / RUN_KMT_TESTS=on to force the respective jobs.
+# Pre-merge test gating.
+# When DISABLE_PRE_MERGE_TESTS_AGENT is "true", E2E and KMT jobs become manual on PR/branch pipelines
+# (any pipeline that is not main, a release branch, a tag, or a triggered/deploy pipeline).
+# A "full pipeline" still runs everything: RUN_E2E_TESTS=on / RUN_KMT_TESTS=on / RUN_ALL_BUILDS=true.
+# Changes to .pre_merge_tests_paths always trigger the tests, even when the variable is set.
+.pre_merge_tests_paths: &pre_merge_tests_paths
+  - .gitlab/test/e2e/**/*
+  - .gitlab/test/kernel_matrix_testing/**/*
+  - test/e2e-framework/**/*
+
+.if_pre_merge_tests_paths: &if_pre_merge_tests_paths
+  if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+  changes:
+    paths: *pre_merge_tests_paths
+    compare_to: $COMPARE_TO_BRANCH
+  when: on_success
+
 .if_pr_skip_e2e_tests: &if_pr_skip_e2e_tests
-  if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS != "on" && $RUN_PR_E2E_KMT_TESTS != "true"
+  if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_ALL_BUILDS != "true" && $DISABLE_PRE_MERGE_TESTS_AGENT == "true" && $RUN_E2E_TESTS != "on"
 
 .if_pr_skip_kmt_tests: &if_pr_skip_kmt_tests
-  if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_KMT_TESTS != "on" && $RUN_PR_E2E_KMT_TESTS != "true"
+  if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_ALL_BUILDS != "true" && $DISABLE_PRE_MERGE_TESTS_AGENT == "true" && $RUN_KMT_TESTS != "on"
 
 .if_disable_unit_tests: &if_disable_unit_tests
   if: $RUN_UNIT_TESTS == "off"
@@ -809,6 +823,7 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pre_merge_tests_paths
   - <<: *if_pr_skip_e2e_tests
     when: manual
     allow_failure: true
@@ -836,6 +851,7 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pre_merge_tests_paths
   - <<: *if_pr_skip_e2e_tests
     when: manual
     allow_failure: true
@@ -850,6 +866,7 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pre_merge_tests_paths
   - <<: *if_pr_skip_e2e_tests
     when: manual
     allow_failure: true
@@ -865,6 +882,7 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pre_merge_tests_paths
   - <<: *if_pr_skip_e2e_tests
     when: manual
     allow_failure: true
@@ -879,6 +897,7 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pre_merge_tests_paths
   - <<: *if_pr_skip_e2e_tests
     when: manual
     allow_failure: true
@@ -893,6 +912,7 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pre_merge_tests_paths
   - <<: *if_pr_skip_e2e_tests
     when: manual
     allow_failure: true
@@ -907,6 +927,7 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pre_merge_tests_paths
   - <<: *if_pr_skip_e2e_tests
     when: manual
     allow_failure: true
@@ -921,6 +942,7 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pre_merge_tests_paths
   - <<: *if_pr_skip_e2e_tests
     when: manual
     allow_failure: true
@@ -952,6 +974,7 @@ workflow:
   - <<: *if_main_branch
     allow_failure: true
   - !reference [.except_light_pipeline]
+  - <<: *if_pre_merge_tests_paths
   - <<: *if_pr_skip_kmt_tests
     when: manual
     allow_failure: true
@@ -1016,6 +1039,7 @@ workflow:
 .on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
   - !reference [.except_light_pipeline]
+  - <<: *if_pre_merge_tests_paths
   - <<: *if_pr_skip_kmt_tests
     when: manual
     allow_failure: true
@@ -1032,6 +1056,7 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_light_pipeline]
+  - <<: *if_pre_merge_tests_paths
   - <<: *if_pr_skip_e2e_tests
     when: manual
     allow_failure: true
