@@ -145,9 +145,11 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 	if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
 		t.Logf("heal: failed to remove %s: %v", macosCallerAuthReloadEntry, err)
 	}
-	// A daemon that is still starting must not skip the healing below.
+	// A daemon that is still starting must not skip the healing below. Bound each attempt because a daemon
+	// that accepts the connection and never answers would otherwise hang the loop. The alarm is set inside
+	// sudo so it reaches dd-procmgr itself rather than sudo, avoiding a child keeping the SSH pipes open.
 	for deadline := time.Now().Add(time.Minute); ; time.Sleep(time.Second) {
-		out, err = client.Execute("sudo " + macosProcmgrCLI + " list --json")
+		out, err = client.Execute("sudo perl -e 'alarm shift; exec @ARGV or die \"exec: $!\\n\"' 15 " + macosProcmgrCLI + " list --json")
 		if err == nil || time.Now().After(deadline) {
 			break
 		}
