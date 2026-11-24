@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_path")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "kubernetes-generator_lib",
+    srcs = [
+        "main.go",
+        "parse.go",
+    ],
+    embedsrcs = [
+        "config.yaml",
+        "templates/actions.go.tmpl",
+        "templates/entrypoint.go.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/tools/privateactionrunner/kubernetes-generator",
+    visibility = ["//visibility:private"],
+    deps = ["@in_yaml_go_yaml_v3//:yaml"],
+)
+
+go_binary(
+    name = "kubernetes-generator",
+    args = ["--sdk-root=$(rootpath :sdk_sources)/src"],
+    data = [":sdk_sources"],
+    embed = [":kubernetes-generator_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_path(
+    name = "sdk_sources",
+    include_transitive = False,
+    deps = [
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//batch/v1:batch",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_api//discovery/v1:discovery",
+        "@io_k8s_api//networking/v1:networking",
+        "@io_k8s_client_go//kubernetes/typed/apps/v1:apps",
+        "@io_k8s_client_go//kubernetes/typed/batch/v1:batch",
+        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
+        "@io_k8s_client_go//kubernetes/typed/discovery/v1:discovery",
+        "@io_k8s_client_go//kubernetes/typed/networking/v1:networking",
+    ],
+)
+
+dd_agent_go_test(
+    name = "kubernetes-generator_test",
+    srcs = ["generator_test.go"],
+    embed = [":kubernetes-generator_lib"],
+    deps = ["@com_github_stretchr_testify//require"],
+)
