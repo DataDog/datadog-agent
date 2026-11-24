@@ -29,7 +29,7 @@ const (
 
 	macosProcmgrSocket = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 	// Holds the sleep argument of a run whose child may outlive it, so a retry can reap it.
-	macosCallerAuthSleepMarker = "/tmp/dd-e2e-caller-auth-sleep-arg"
+	macosCallerAuthSleepMarker = "/var/db/dd-e2e-caller-auth-sleep-arg"
 )
 
 type macosProcmgrDetail struct {
