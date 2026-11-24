@@ -408,22 +408,24 @@ func readStablePipelineConfig(cfg config.Component) (*StablePipelineConfig, erro
 
 	selected := 0
 	if cfg.HasSection(prefix + "scanmw") {
-		if err := validateStableDetectorBlock(cfg, stablePrefix+".scanmw", "min_points", "max_points"); err != nil {
+		if err := validateStableDetectorBlock(cfg, stablePrefix+".scanmw", "min_points", "max_points", "min_segment"); err != nil {
 			return nil, err
 		}
 		stable.ScanMW = &StableScanMWConfig{
-			MinPoints: cfg.GetInt(prefix + "scanmw.min_points"),
-			MaxPoints: cfg.GetInt(prefix + "scanmw.max_points"),
+			MinPoints:  cfg.GetInt(prefix + "scanmw.min_points"),
+			MaxPoints:  cfg.GetInt(prefix + "scanmw.max_points"),
+			MinSegment: cfg.GetInt(prefix + "scanmw.min_segment"),
 		}
 		selected++
 	}
 	if cfg.HasSection(prefix + "scanwelch") {
-		if err := validateStableDetectorBlock(cfg, stablePrefix+".scanwelch", "min_points", "max_points"); err != nil {
+		if err := validateStableDetectorBlock(cfg, stablePrefix+".scanwelch", "min_points", "max_points", "min_segment"); err != nil {
 			return nil, err
 		}
 		stable.ScanWelch = &StableScanWelchConfig{
-			MinPoints: cfg.GetInt(prefix + "scanwelch.min_points"),
-			MaxPoints: cfg.GetInt(prefix + "scanwelch.max_points"),
+			MinPoints:  cfg.GetInt(prefix + "scanwelch.min_points"),
+			MaxPoints:  cfg.GetInt(prefix + "scanwelch.max_points"),
+			MinSegment: cfg.GetInt(prefix + "scanwelch.min_segment"),
 		}
 		selected++
 	}

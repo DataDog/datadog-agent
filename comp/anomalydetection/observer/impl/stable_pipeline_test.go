@@ -217,18 +217,27 @@ func TestNewStableDetector_Selection(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, DefaultScanMWConfig(), scanmw.config)
 
-	detector, err = newStableDetector(StablePipelineConfig{ScanMW: &StableScanMWConfig{MinPoints: 42, MaxPoints: 84}})
+	detector, err = newStableDetector(StablePipelineConfig{ScanMW: &StableScanMWConfig{MinPoints: 42, MaxPoints: 84, MinSegment: 6}})
 	require.NoError(t, err)
 	scanmw, ok = detector.(*ScanMWDetector)
 	require.True(t, ok)
 	require.Equal(t, 42, scanmw.config.MinPoints)
 	require.Equal(t, 84, scanmw.config.MaxPoints)
+	require.Equal(t, 6, scanmw.config.MinSegment)
 
 	detector, err = newStableDetector(StablePipelineConfig{ScanWelch: &StableScanWelchConfig{}})
 	require.NoError(t, err)
 	scanwelch, ok := detector.(*ScanWelchDetector)
 	require.True(t, ok)
 	require.Equal(t, DefaultScanWelchConfig(), scanwelch.config)
+
+	detector, err = newStableDetector(StablePipelineConfig{ScanWelch: &StableScanWelchConfig{MinPoints: 15, MaxPoints: 60, MinSegment: 6}})
+	require.NoError(t, err)
+	scanwelch, ok = detector.(*ScanWelchDetector)
+	require.True(t, ok)
+	require.Equal(t, 15, scanwelch.config.MinPoints)
+	require.Equal(t, 60, scanwelch.config.MaxPoints)
+	require.Equal(t, 6, scanwelch.config.MinSegment)
 
 	detector, err = newStableDetector(StablePipelineConfig{BOCPD: &StableBOCPDConfig{WarmupPoints: 42, MaxRunLength: 84}})
 	require.NoError(t, err)

@@ -222,16 +222,18 @@ anomaly_detection:
 
 func TestSettingsFromAgentConfigStableDetectorSelection(t *testing.T) {
 	tests := []struct {
-		name          string
-		block         string
-		wantDetector  string
-		wantMinPoints int
-		wantMaxPoints int
-		wantWarmup    int
-		wantMaxRun    int
+		name           string
+		block          string
+		wantDetector   string
+		wantMinPoints  int
+		wantMaxPoints  int
+		wantMinSegment int
+		wantWarmup     int
+		wantMaxRun     int
 	}{
-		{name: "scanmw", block: "scanmw:\n        min_points: 42\n        max_points: 84", wantDetector: "scanmw", wantMinPoints: 42, wantMaxPoints: 84},
-		{name: "scanwelch", block: "scanwelch:\n        min_points: 43\n        max_points: 85", wantDetector: "scanwelch", wantMinPoints: 43, wantMaxPoints: 85},
+		{name: "scanmw", block: "scanmw:\n        min_points: 42\n        max_points: 84\n        min_segment: 6", wantDetector: "scanmw", wantMinPoints: 42, wantMaxPoints: 84, wantMinSegment: 6},
+		{name: "scanmw_default_min_segment", block: "scanmw:\n        min_points: 15", wantDetector: "scanmw", wantMinPoints: 15, wantMaxPoints: 120, wantMinSegment: 12},
+		{name: "scanwelch", block: "scanwelch:\n        min_points: 43\n        max_points: 85\n        min_segment: 7", wantDetector: "scanwelch", wantMinPoints: 43, wantMaxPoints: 85, wantMinSegment: 7},
 		{name: "bocpd", block: "bocpd:\n        warmup_points: 44\n        max_run_length: 86", wantDetector: "bocpd", wantWarmup: 44, wantMaxRun: 86},
 	}
 	for _, test := range tests {
@@ -255,9 +257,11 @@ anomaly_detection:
 			case *ScanMWDetector:
 				require.Equal(t, test.wantMinPoints, detector.config.MinPoints)
 				require.Equal(t, test.wantMaxPoints, detector.config.MaxPoints)
+				require.Equal(t, test.wantMinSegment, detector.config.MinSegment)
 			case *ScanWelchDetector:
 				require.Equal(t, test.wantMinPoints, detector.config.MinPoints)
 				require.Equal(t, test.wantMaxPoints, detector.config.MaxPoints)
+				require.Equal(t, test.wantMinSegment, detector.config.MinSegment)
 			case *BOCPDDetector:
 				require.Equal(t, test.wantWarmup, detector.config.WarmupPoints)
 				require.Equal(t, test.wantMaxRun, detector.config.MaxRunLength)
