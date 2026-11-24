@@ -279,6 +279,7 @@ rust_test(
         "@crates//:tempfile",
     ] + select({
         "@platforms//os:linux": [
+            "@crates//:libc",
             "@crates//:nix",
         ],
         "@platforms//os:windows": [

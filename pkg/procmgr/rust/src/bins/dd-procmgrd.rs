@@ -11,6 +11,9 @@
 //! initialization. On Unix it runs as a plain console daemon.
 
 fn main() {
+    // First, so a SIGTERM that arrives after the entrypoint's exec is recorded, not discarded.
+    #[cfg(unix)]
+    dd_procmgrd::platform::install_early_stop_handler();
     #[cfg(windows)]
     if let Some(code) = dd_procmgrd::platform::dispatch_internal_console_signal() {
         std::process::exit(code);
@@ -34,6 +37,7 @@ fn run() -> anyhow::Result<i32> {
 fn run() -> anyhow::Result<i32> {
     use dd_procmgrd::config::YamlConfigLoader;
     use dd_procmgrd::manager::ProcessManager;
+    use dd_procmgrd::platform;
     use dd_procmgrd::uuid_gen::V4UuidGenerator;
     use log::info;
     use std::sync::Arc;
@@ -47,8 +51,10 @@ fn run() -> anyhow::Result<i32> {
 
     let runtime = tokio::runtime::Runtime::new()?;
     runtime.block_on(async {
+        // Installed before the catalog loads, so a stop sent during that load is kept.
+        let shutdown = platform::shutdown_signal();
         let loader = Arc::new(YamlConfigLoader::from_env());
         let mgr = ProcessManager::new(loader, Arc::new(V4UuidGenerator));
-        mgr.run().await
+        mgr.run_with_shutdown(shutdown).await
     })
 }

@@ -86,14 +86,45 @@ pub fn stderr_inheritable() -> bool {
     true
 }
 
+/// Installs SIGTERM and SIGINT handlers that only record the stop request. Call it first in
+/// `main`: as PID 1 an unhandled SIGTERM is discarded, and the entrypoint's `exec` resets the
+/// shell's handler, so a signal before this call would be lost. The record survives tokio's
+/// later registration, because tokio chains to the handler installed here.
+pub fn install_early_stop_handler() {
+    extern "C" fn on_stop(_signal: nix::libc::c_int) {
+        crate::stop::request_stop();
+    }
+    let action = nix::sys::signal::SigAction::new(
+        nix::sys::signal::SigHandler::Handler(on_stop),
+        nix::sys::signal::SaFlags::SA_RESTART,
+        nix::sys::signal::SigSet::empty(),
+    );
+    for sig in [Signal::SIGTERM, Signal::SIGINT] {
+        // SAFETY: the handler only stores to an atomic flag, which is async-signal-safe.
+        if let Err(err) = unsafe { nix::sys::signal::sigaction(sig, &action) } {
+            // The logger is not set up yet this early.
+            eprintln!("dd-procmgrd: failed to install early {sig} handler: {err}");
+        }
+    }
+}
+
 /// Wait for a shutdown trigger (SIGTERM or SIGINT).
-pub async fn shutdown_signal() {
+///
+/// Handlers install on this call, not on the first poll. A stop recorded by
+/// [`install_early_stop_handler`] before this call resolves the future at once.
+pub fn shutdown_signal() -> impl std::future::Future<Output = ()> {
     use tokio::signal::unix::{SignalKind, signal};
     let mut sigterm = signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
     let mut sigint = signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
-    tokio::select! {
-        _ = sigterm.recv() => { log::info!("received SIGTERM"); }
-        _ = sigint.recv() => { log::info!("received SIGINT"); }
+    async move {
+        if crate::stop::stop_requested_flag() {
+            log::info!("received stop before the signal handlers were registered");
+            return;
+        }
+        tokio::select! {
+            _ = sigterm.recv() => { log::info!("received SIGTERM"); }
+            _ = sigint.recv() => { log::info!("received SIGINT"); }
+        }
     }
 }
 

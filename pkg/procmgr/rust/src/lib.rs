@@ -35,6 +35,7 @@ pub mod service;
 pub mod shutdown;
 mod spawn;
 pub mod state;
+mod stop;
 #[cfg(any(test, feature = "test-helpers"))]
 pub mod test_helpers;
 pub mod transport;
