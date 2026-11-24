@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,11 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 const (
@@ -56,8 +57,7 @@ var (
 	// recentlyAddedTimeout do not add twice the same discarder in 2sec
 	recentlyAddedTimeout = uint64(2 * time.Second.Nanoseconds())
 
-	allDiscarders      = make(map[eval.Field]discarderDecl)
-	eventZeroDiscarder = model.NewFakeEvent()
+	allDiscarders = make(map[eval.Field]discarderDecl)
 )
 
 type discarderHandler func(rs *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error)
@@ -131,30 +131,18 @@ type inodeDiscarders struct {
 	erpc           *erpc.ERPC
 	dentryResolver *dentry.Resolver
 	rs             *rules.RuleSet
-	discarderEvent *model.Event
-	evalCtx        *eval.Context
 
-	// parentDiscarderFncs holds parent discarder functions per depth
-	parentDiscarderFncs [maxParentDiscarderDepth]map[eval.Field]func(dirname string) (bool, error)
+	// parentDiscarderFncs holds the parent discarder functions of rs
+	parentDiscarderFncs map[eval.Field]func(dir, overlayDir string) bool
 
 	recentlyAddedEntries [maxRecentlyAddedCacheSize]InodeDiscarderEntry
 }
 
 func newInodeDiscarders(erpc *erpc.ERPC, dentryResolver *dentry.Resolver) *inodeDiscarders {
-	event := *eventZeroDiscarder
-
-	ctx := eval.NewContext(&event)
-
-	id := &inodeDiscarders{
+	return &inodeDiscarders{
 		erpc:           erpc,
 		dentryResolver: dentryResolver,
-		discarderEvent: &event,
-		evalCtx:        ctx,
 	}
-
-	id.initParentDiscarderFncs()
-
-	return id
 }
 
 func (id *inodeDiscarders) isRecentlyAdded(mountID uint32, inode uint64, timestamp uint64) bool {
@@ -223,157 +211,145 @@ func getParent(filename string, depth int) string {
 	return filename
 }
 
-func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field eval.Field, depth int) (func(dirname string) (bool, error), error) {
-	fnc, exists := id.parentDiscarderFncs[depth-1][field]
-	if exists {
-		return fnc, nil
-	}
-
+// getParentDiscarderFnc returns whether a directory is a discarder of the files
+// below it, no rule of the event type matching them, the field being their path.
+// It is nil when no directory is. See literalBelow for overlayDir.
+func getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field eval.Field) (func(dir, overlayDir string) bool, error) {
 	bucket := rs.GetBucket(eventType.String())
 	if bucket == nil {
 		return nil, nil
 	}
 
-	if _, _, _, _, err := id.discarderEvent.GetFieldMetadata(field); err != nil {
-		return nil, err
-	}
-
-	if !strings.HasSuffix(field, model.PathSuffix) {
-		return nil, errors.New("path suffix not found")
-	}
-
-	basenameField := strings.Replace(field, model.PathSuffix, model.NameSuffix, 1)
-	if _, _, _, _, err := id.discarderEvent.GetFieldMetadata(basenameField); err != nil {
-		return nil, err
-	}
-
-	var nameRules []*rules.Rule
-
-	var isDiscarderFnc func(dirname string) bool
-	var isDiscarderFncs []func(dirname string) bool
-
+	var canMatch []func(dir, overlayDir string) bool
 	for _, rule := range bucket.GetRules() {
-		// ensure we don't push parent discarder if there is another rule relying on the parent path
-
-		// first case: rule contains a filename field
-		// ex: rule		open.file.path == "/etc/passwd"
-		//     discarder /etc/fstab
-		// /etc/fstab is a discarder but not the parent
-
-		// second case: rule contains a basename field
-		// ex: rule	 	open.file.name == "httpd.conf"
-		//     discarder /etc/conf.d/nginx.conf
-		// /etc/conf.d/nginx.conf is a discarder, as its name is known along with
-		// its path, but not necessarily the parent: the files below it can have
-		// any name, see areNameRulesFalseBelow
-		if values := rule.GetFieldValues(basenameField); len(values) > 0 {
-			nameRules = append(nameRules, rule)
+		below, err := canMatchBelow(rule.GetResolvedAst().Root, field, true)
+		if below == nil || err != nil {
+			return nil, err
 		}
+		canMatch = append(canMatch, below)
+	}
+	return func(dir, overlayDir string) bool {
+		return !slices.ContainsFunc(canMatch, func(below func(dir, overlayDir string) bool) bool { return below(dir, overlayDir) })
+	}, nil
+}
 
-		// check filename
-		if values := rule.GetFieldValues(field); len(values) > 0 {
-			for _, value := range values {
-				if value.Type == eval.GlobValueType {
-					glob, err := eval.NewGlob(value.Value.(string), false, false)
-					if err != nil {
-						return nil, fmt.Errorf("unexpected glob `%v`: %w", value.Value, err)
-					}
-
-					isDiscarderFnc = func(dirname string) bool {
-						return !glob.IsPrefix(dirname)
-					}
-				} else if value.Type == eval.ScalarValueType {
-					str := value.Value.(string)
-					isDiscarderFnc = func(dirname string) bool {
-						return !strings.HasPrefix(str, dirname)
-					}
-				} else {
-					// regex are not currently supported on path, see ValidateFields
-					isDiscarderFnc = func(_ string) bool {
-						return false
-					}
-				}
-
-				isDiscarderFncs = append(isDiscarderFncs, isDiscarderFnc)
+// canMatchBelow returns whether the expression can be true below a directory,
+// or false when it is under an odd number of negations. Only the comparisons of
+// the field in a positive position are decided.
+func canMatchBelow(node ast.Node, field eval.Field, positive bool) (func(dir, overlayDir string) bool, error) {
+	switch n := node.(type) {
+	case *ast.LogicalExpr:
+		left, err := canMatchBelow(n.Left, field, positive)
+		if err != nil {
+			return nil, err
+		}
+		right, err := canMatchBelow(n.Right, field, positive)
+		if err != nil {
+			return nil, err
+		}
+		if (n.Op == ast.LogicalAnd) == positive {
+			if left == nil {
+				return right, nil
 			}
-		}
-	}
-
-	fnc = func(dirname string) (bool, error) {
-		for _, fnc := range isDiscarderFncs {
-			if !fnc(dirname) {
-				return false, nil
+			if right == nil {
+				return left, nil
 			}
+			return func(dir, overlayDir string) bool { return left(dir, overlayDir) && right(dir, overlayDir) }, nil
 		}
-
-		// a rule not testing the name was false for the discarded file, and
-		// doesn't depend on the name: it is false below the parent too
-		return id.areNameRulesFalseBelow(field, dirname, nameRules)
-	}
-	id.parentDiscarderFncs[depth-1][field] = fnc
-
-	return fnc, nil
-}
-
-// areNameRulesFalseBelow returns whether the rules testing the name are false
-// for every file below the directory, whatever its name. With no path of the
-// rules matching below the directory, checked by the caller, a comparison of
-// the path is false below it as for the directory itself, the name being
-// unknown in the partial. A rule testing only the name has no partial on the
-// path, so it is never false.
-func (id *inodeDiscarders) areNameRulesFalseBelow(field eval.Field, dirname string, nameRules []*rules.Rule) (bool, error) {
-	if len(nameRules) == 0 {
-		return true, nil
-	}
-
-	defer func() {
-		*id.discarderEvent = *eventZeroDiscarder
-	}()
-
-	if err := id.discarderEvent.SetFieldValue(field, dirname); err != nil {
-		return false, err
-	}
-
-	for _, rule := range nameRules {
-		if isTrue, err := rule.PartialEval(id.evalCtx, field); err != nil || isTrue {
-			return false, nil
+		if left == nil || right == nil {
+			return nil, nil
 		}
+		return func(dir, overlayDir string) bool { return left(dir, overlayDir) || right(dir, overlayDir) }, nil
+	case *ast.UnaryExpr:
+		if n.Op == ast.UnaryNot {
+			return canMatchBelow(n.Operand, field, !positive)
+		}
+	case *ast.ScalarCompareExpr:
+		left, right := n.Left, n.Right
+		if n.Op == ast.ScalarEqual && !isFieldRef(left, field) {
+			left, right = right, left
+		}
+		literal, ok := right.(*ast.Literal)
+		if ok && positive && isFieldRef(left, field) && (n.Op == ast.ScalarEqual || n.Op == ast.ScalarMatch) {
+			return literalBelow(literal, n.Op == ast.ScalarMatch)
+		}
+	case *ast.ArrayCompareExpr:
+		array, ok := n.Right.(*ast.Array)
+		if !ok || !positive || !isFieldRef(n.Left, field) || n.Op != ast.ArrayIn {
+			return nil, nil
+		}
+		members := make([]func(dir, overlayDir string) bool, 0, len(array.Members))
+		for _, member := range array.Members {
+			below, err := literalBelow(member, false)
+			if below == nil || err != nil {
+				return nil, err
+			}
+			members = append(members, below)
+		}
+		return func(dir, overlayDir string) bool {
+			return slices.ContainsFunc(members, func(below func(dir, overlayDir string) bool) bool { return below(dir, overlayDir) })
+		}, nil
 	}
-
-	return true, nil
+	return nil, nil
 }
 
-func (id *inodeDiscarders) initParentDiscarderFncs() {
-	for i := range id.parentDiscarderFncs {
-		id.parentDiscarderFncs[i] = make(map[eval.Field]func(dirname string) (bool, error))
+func isFieldRef(node ast.Node, field eval.Field) bool {
+	ref, ok := node.(*ast.FieldRef)
+	return ok && ref.Name == field
+}
+
+// literalBelow returns whether a path equal to the literal, or matching it, can
+// be below a directory. As OverlayFSPathname also compares the path relative to
+// its overlay mount point, so is the directory as overlayDir.
+func literalBelow(literal *ast.Literal, match bool) (func(dir, overlayDir string) bool, error) {
+	switch literal.Value.Kind() {
+	case ast.String:
+		if !match {
+			path := ast.StringVal(literal.Value)
+			return func(dir, overlayDir string) bool {
+				return strings.HasPrefix(path, dir) || strings.HasPrefix(path, overlayDir)
+			}, nil
+		}
+		fallthrough
+	case ast.Pattern:
+		glob, err := eval.NewGlob(ast.StringVal(literal.Value), false, false)
+		if err != nil {
+			return nil, err
+		}
+		return func(dir, overlayDir string) bool { return glob.IsPrefix(dir) || glob.IsPrefix(overlayDir) }, nil
 	}
+	return nil, nil
 }
 
-// onRuleSetChanged if the ruleset changed we need to flush all the previous functions
-func (id *inodeDiscarders) onRuleSetChanged(rs *rules.RuleSet) {
-	id.initParentDiscarderFncs()
-	id.rs = rs
-}
-
-func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, depth int) (bool, error) {
+func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, depth int, overlayMountPoint string) (bool, error) {
 	if id.rs != rs {
-		id.onRuleSetChanged(rs)
+		id.parentDiscarderFncs = make(map[eval.Field]func(dir, overlayDir string) bool)
+		id.rs = rs
 	}
 
-	fnc, err := id.getParentDiscarderFnc(rs, eventType, field, depth)
-	if fnc == nil || err != nil {
-		return false, err
+	fnc, exists := id.parentDiscarderFncs[field]
+	if !exists {
+		var err error
+		if fnc, err = getParentDiscarderFnc(rs, eventType, field); err != nil {
+			return false, err
+		}
+		id.parentDiscarderFncs[field] = fnc
 	}
-
-	dirname := getParent(filename, depth)
-	if dirname == "/" {
-		// never discard /
+	if fnc == nil {
 		return false, nil
 	}
 
-	found, err := fnc(dirname)
-	if !found || err != nil {
-		return false, err
+	dirname := getParent(filename, depth)
+	overlayDir := dirname
+	if overlayMountPoint != "" {
+		var below bool
+		if overlayDir, below = strings.CutPrefix(dirname, overlayMountPoint); !below || !strings.HasPrefix(overlayDir, "/") {
+			return false, nil
+		}
+	}
+	if dirname == "/" || !fnc(dirname, overlayDir) {
+		// never discard /
+		return false, nil
 	}
 
 	seclog.Tracef("`%s` discovered as parent discarder for `%s`", dirname, field)
@@ -381,13 +357,13 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 	return true, nil
 }
 
-func (id *inodeDiscarders) discardParentInode(req *erpc.Request, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, pathKey model.PathKey, timestamp uint64) (bool, uint32, uint64, error) {
+func (id *inodeDiscarders) discardParentInode(req *erpc.Request, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, overlayMountPoint string, pathKey model.PathKey, timestamp uint64) (bool, uint32, uint64, error) {
 	var discarderDepth int
 	var isDiscarder bool
 	var err error
 
 	for depth := maxParentDiscarderDepth; depth > 0; depth-- {
-		if isDiscarder, err = id.isParentPathDiscarder(rs, eventType, field, filename, depth); isDiscarder {
+		if isDiscarder, err = id.isParentPathDiscarder(rs, eventType, field, filename, depth, overlayMountPoint); isDiscarder {
 			discarderDepth = depth
 			break
 		}
@@ -449,7 +425,12 @@ func filenameDiscarderWrapper(eventType model.EventType, field eval.Field, gette
 			return false, nil
 		}
 
-		isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, fileEvent.PathKey, event.TimestampRaw)
+		var overlayMountPoint string
+		if event.FieldHandlers.ResolveFileFilesystem(event, fileEvent) == model.OverlayFS {
+			overlayMountPoint = strings.TrimRight(fileEvent.MountPath, "/")
+		}
+
+		isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, overlayMountPoint, fileEvent.PathKey, event.TimestampRaw)
 		if !isDiscarded && !isDeleted && err == nil {
 			if !model.IsFakeInode(fileEvent.PathKey.Inode) {
 				seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, fileEvent.PathKey.Inode, filename)
@@ -529,9 +510,9 @@ func dumpInodeDiscarders(resolver *dentry.Resolver, inodeMap *ebpf.Map) ([]Inode
 }
 
 func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]discarder.Stats, error) {
-	numCPU, err := utils.NumCPU()
+	numCPU, err := ebpf.PossibleCPU()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
+		return nil, fmt.Errorf("couldn't fetch the possible CPU count: %w", err)
 	}
 
 	stats := make(map[string]discarder.Stats)

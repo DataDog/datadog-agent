@@ -35,9 +35,9 @@ replace (
 require (
 	cel.dev/cel-go v0.32.0
 	code.cloudfoundry.org/bbs v1.30.0
-	code.cloudfoundry.org/bbs/models v1.29.0
+	code.cloudfoundry.org/bbs/models v1.30.0
 	code.cloudfoundry.org/garden v0.12.0
-	code.cloudfoundry.org/lager/v3 v3.95.0
+	code.cloudfoundry.org/lager/v3 v3.96.0
 	dario.cat/mergo v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.24.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0
@@ -231,7 +231,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.5.2
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
-	github.com/apache/arrow-go/v18 v18.8.0
+	github.com/apache/arrow-go/v18 v18.9.0
 	github.com/aptly-dev/aptly v1.6.3
 	github.com/aquasecurity/trivy v0.76.2
 	github.com/aquasecurity/trivy-db v0.0.0-20261012084708-cbebf2ecd6df
@@ -373,7 +373,7 @@ require (
 	github.com/prometheus/common v0.74.0
 	github.com/prometheus/procfs v0.23.0
 	github.com/qri-io/jsonpointer v0.1.1
-	github.com/rabbitmq/amqp091-go v1.16.0
+	github.com/rabbitmq/amqp091-go v1.17.0
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/rickar/props v1.1.0
 	github.com/robfig/cron/v3 v3.0.1
@@ -413,7 +413,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yusufpapurcu/wmi v1.2.4
-	gitlab.com/gitlab-org/api/client-go/v3 v3.51.0
+	gitlab.com/gitlab-org/api/client-go/v3 v3.52.0
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v2 v2.305.35
 	go.mongodb.org/mongo-driver/v2 v2.10.0
@@ -571,7 +571,7 @@ require (
 	github.com/Showmax/go-fqdn v1.0.0 // indirect
 	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
-	github.com/andybalholm/brotli v1.2.3 // indirect
+	github.com/andybalholm/brotli v1.2.8 // indirect
 	github.com/antchfx/xmlquery v1.5.2 // indirect
 	github.com/antchfx/xpath v1.3.9 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
@@ -692,7 +692,7 @@ require (
 	github.com/go-resty/resty/v2 v2.17.2 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/gobuffalo/flect v1.0.3 // indirect
-	github.com/goccy/go-json v0.10.6 // indirect
+	github.com/goccy/go-json v0.12.0 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/godror/knownpb v0.3.0 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
@@ -757,7 +757,7 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
-	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.4.2 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
 	github.com/knadh/koanf/maps v0.1.3 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.1 // indirect
@@ -950,7 +950,7 @@ require (
 	github.com/tidwall/gjson v1.20.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
-	github.com/tidwall/sjson v1.2.5 // indirect
+	github.com/tidwall/sjson v1.2.7 // indirect
 	github.com/tilinna/clock v1.1.0 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
