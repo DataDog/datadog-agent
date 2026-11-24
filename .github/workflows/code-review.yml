@@ -22,7 +22,9 @@ jobs:
       id-token: write # for dd-sts
     uses: DataDog/code-review-action/.github/workflows/code-review.yml@e7d55922a352af5a66712b1246cb6c95240911a6 # v1.3.2
     with:
-      provider: codex
+      # Draft PRs (opened or reopened as draft) are reviewed by Claude; the review run when the PR
+      # becomes ready, PRs opened as ready, and on-demand /dd-review default to Codex.
+      provider: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'claude' || 'codex' }}
       # Review PRs when they are opened or transition out of draft. Use on_demand for issue_comments
       trigger_mode: ${{ github.event_name == 'pull_request' && 'always' || 'on_demand' }}
       # Root-level files apply to every PR.
