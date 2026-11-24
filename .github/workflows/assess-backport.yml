@@ -293,6 +293,7 @@ jobs:
     needs: ask-owner
     if: needs.ask-owner.outputs.outcome == 'add'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       id-token: write # for dd-octo-sts
     steps:
