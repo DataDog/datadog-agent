@@ -344,6 +344,9 @@ func (s *serverSecure) ReportHealthIssue(_ context.Context, in *pb.ReportHealthI
 	}
 
 	if err := s.healthPlatformStore.ReportIssue(issue); err != nil {
+		if errors.Is(err, healthplatformstore.ErrQueueFull) {
+			return nil, status.Error(codes.ResourceExhausted, err.Error())
+		}
 		return nil, status.Errorf(codes.Internal, "failed to store issue: %v", err)
 	}
 	return &emptypb.Empty{}, nil

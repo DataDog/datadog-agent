@@ -9,6 +9,8 @@ package agentimpl
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
@@ -101,6 +103,25 @@ func TestReportHealthIssue_EmptyIssueName(t *testing.T) {
 	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: &healthplatformpayload.Issue{Id: "has-id-no-name"}})
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+// TestReportHealthIssue_QueueFull verifies that a report the store drops on a full queue is returned to the remote
+// reporter as ResourceExhausted, so it can tell backpressure from an invalid issue and retry, while other store
+// errors stay Internal.
+func TestReportHealthIssue_QueueFull(t *testing.T) {
+	issue := &healthplatformpayload.Issue{Id: "test-issue", IssueName: "test-issue"}
+
+	for _, queueFull := range []error{healthplatformstore.ErrQueueFull, fmt.Errorf("dropped: %w", healthplatformstore.ErrQueueFull)} {
+		srv := serverWithStore(healthplatformmock.New(t, healthplatformmock.WithReportIssueError("test-issue", queueFull)))
+		_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: issue})
+		require.Error(t, err)
+		assert.Equal(t, codes.ResourceExhausted, status.Code(err), "for %v", queueFull)
+	}
+
+	srv := serverWithStore(healthplatformmock.New(t, healthplatformmock.WithReportIssueError("test-issue", errors.New("store failure"))))
+	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: issue})
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
 }
 
 // TestReportHealthIssue_ValidSession verifies that a registered remote agent with a

@@ -54,6 +54,13 @@ The state machine in the store (`store/impl/store.go`):
 - `ResolveIssue` / `ResolveAllIssues` transitions to `RESOLVED` and sets `ResolvedAt`.
 - A resolved issue that is reported again resets to `ACTIVE` with a fresh `FirstSeen`.
 
+These calls never block their caller, since the store cannot know which callers are on a critical
+path (Autodiscovery reports while holding its config lock). They validate their input, queue the
+change and return; a single worker applies queued changes in call order, so a query made right after
+a call may not reflect it yet. When the queue (1000 changes) is full, the change is dropped and
+counted in the `health_platform.operations_dropped` telemetry counter. Lifecycle state is saved at
+most every 10 seconds, only when it changed, and once more on shutdown.
+
 On-disk state uses human-readable strings (`"active"`, `"resolved"`). The store accepts `"new"` and `"ongoing"` as legacy aliases for `"active"` when reading persistence files written by older agent versions (schema v2).
 
 Persistence depends on the process and environment:
@@ -105,6 +112,11 @@ the shared source. `comp/healthplatform/issueregistry/utils/selfident.SelfIdent`
   synchronous HTTP call to the Cluster Agent (`DD_ORCHESTRATOR_CLUSTER_ID` is not set by current
   Helm chart/Operator deployments), and `cluster_id` is best-effort metadata that must never block
   issue reporting on Cluster Agent availability.
+- The store stamps `deployment_id`/`cluster_id` into issue `Extra`/`Tags` only once `SelfIdent` has
+  resolved them (`DeploymentIDNonBlocking()`/`ClusterIDNonBlocking()`), and never waits for them.
+  `GetAllIssues` stamps them again on the copies it returns, so an issue stored before they resolved
+  carries them on the next egress send without being reported again; the stored issue itself is
+  unchanged until its next report.
 
 **When adding or scoping a new module's `id`:** use `issues.IssueDiscriminator` instead of a bare
 hostname/host ID whenever the module's failure mode can plausibly originate from a cluster-distributed
