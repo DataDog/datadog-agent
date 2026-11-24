@@ -36,12 +36,12 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
+        "//packages/agent/python-scripts:all_files",
         ":agent_binary",
 
         # TODO: sysprobe - windows
         ":trace_agent_binary",
         ":process_agent_binary",
-        ":privateactionrunner_binary",
         ":secret_generic_connector_binary",
         ":security_agent_binary",
 
@@ -60,9 +60,7 @@ pkg_filegroup(
             "//deps/agent_integrations:integrations_runtime_files",
             "//deps/agent_integrations:requirements_agent_release_file",
             "//pkg/discovery/module/rust:all_files",
-            "//pkg/privateactionrunner/par-control:all_files",
-            "//pkg/privateactionrunner/rshell:all_files_linux",
-            "//pkg/procmgr/rust:all_files_linux",
+            "//pkg/procmgr/rust:all_files",
         ],
         "//packages/agent:linux_fips": [
             ":conf_dir_files",
@@ -71,9 +69,13 @@ pkg_filegroup(
             ":system_probe_files",
             ":system_probe_install_dir_files",
             "//pkg/discovery/module/rust:all_files",
-            "//pkg/procmgr/rust:all_files_linux",
+            "//pkg/procmgr/rust:all_files",
         ],
         "//conditions:default": [],
+    }) + select({
+        # Private action runner is not supported in FIPS.
+        "//bazel/platforms:fips": [],
+        "//conditions:default": [":privateactionrunner_files"],
     }) + select({
         "@platforms//os:linux": [
             "//cmd/loader:trace_loader_all_files",
@@ -81,15 +83,14 @@ pkg_filegroup(
         "@platforms//os:macos": [
             "//cmd/loader:trace_loader_all_files",
             "//packages/macos/app:all_files",
-            "//pkg/procmgr/rust:all_files_macos",
+            "//pkg/procmgr/rust:all_files",
             # TODO: systray
         ],
         "@platforms//os:windows": [
             ":installer_binary",
             ":systray_binary",
             "//packages/windows:all_files",
-            "//pkg/privateactionrunner/par-control:all_files",
-            "//pkg/procmgr/rust:all_files_windows",
+            "//pkg/procmgr/rust:all_files",
             "//rtloader:all_files",
         ],
         "//conditions:default": [],
@@ -107,6 +108,7 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
+        "//packages/agent/python-scripts:all_files",
     ],
 )
 
@@ -137,6 +139,9 @@ pkg_mkdirs(
             "run",
             "scripts",
         ],
+    }) + select({
+        "@platforms//os:linux": ["processes.d"],
+        "//conditions:default": [],
     }),
 )
 
@@ -192,6 +197,19 @@ agent_binary_for_package(
     name = "privateactionrunner_binary",
     prefix = "embedded/bin",
     target = "//cmd/privateactionrunner",
+)
+
+# Everything the private action runner ships. Not shipped in FIPS builds (see all_files).
+pkg_filegroup(
+    name = "privateactionrunner_files",
+    srcs = [":privateactionrunner_binary"] + select({
+        "@platforms//os:linux": [
+            "//pkg/privateactionrunner/par-control:all_files",
+            "//pkg/privateactionrunner/rshell:all_files_linux",
+        ],
+        "@platforms//os:windows": ["//pkg/privateactionrunner/par-control:all_files"],
+        "//conditions:default": [],
+    }),
 )
 
 agent_binary_for_package(
@@ -285,11 +303,10 @@ pkg_install(
     visibility = ["//visibility:public"],
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "system_probe_binary",
-    srcs = ["//cmd/system-probe"],
-    attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+    target = "//cmd/system-probe",
 )
 
 pkg_files(
@@ -316,15 +333,29 @@ pkg_files(
     prefix = "embedded/share/system-probe/ebpf/runtime",
 )
 
-# clang-bpf only. llc-bpf stays a toolchain file.
+# clang-bpf only. llvm-strip stays a toolchain file.
 pkg_files(
     name = "system_probe_llvm_bpf",
     srcs = select({
-        "@platforms//os:linux": ["@llvm_bpf//:bin/clang-bpf"],
+        "//:linux_x86_64": ["@llvm_bpf_amd64//:clang-bpf"],
+        "//:linux_arm64": ["@llvm_bpf_arm64//:clang-bpf"],
         "//conditions:default": [],
     }),
     attributes = pkg_attributes(mode = "744"),
     prefix = "embedded/bin",
+)
+
+# Temporary during omnibus migration.
+pkg_install(
+    name = "install_system_probe_llvm_bpf",
+    srcs = [":system_probe_llvm_bpf"],
+)
+
+pkg_files(
+    name = "system_probe_dist_config",
+    srcs = ["//pkg/config:system_probe_config"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "bin/agent/dist",
 )
 
 # Not wired into Omnibus. FIPS omits the binary.
@@ -332,6 +363,7 @@ pkg_filegroup(
     name = "system_probe_install_dir_files",
     srcs = [
         ":system_probe_co_re_objects",
+        ":system_probe_dist_config",
         ":system_probe_ebpf_objects",
         ":system_probe_llvm_bpf",
         ":system_probe_runtime_sources",

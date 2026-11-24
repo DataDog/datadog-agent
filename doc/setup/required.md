@@ -10,7 +10,7 @@ The `dda` [CLI](https://datadoghq.dev/datadog-agent-dev/) is required in all asp
 
 ## Docker
 
-[Docker](https://docs.docker.com/get-started/docker-overview/) is required for both running the developer environment and building images containing the Agent.
+[Docker](https://docs.docker.com/engine/) is required for both running the developer environment and building images containing the Agent.
 
 /// tab | macOS
 1. Install [Docker Desktop for Mac](https://docs.docker.com/desktop/setup/install/mac-install/).

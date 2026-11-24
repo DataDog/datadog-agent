@@ -163,6 +163,66 @@ func TestAMDOnlyHostEmitsMetrics(t *testing.T) {
 	// 32 GT/s x16 with 128b/130b encoding.
 	require.Len(t, gauges["gpu.pci.link.speed.current"], 1)
 	assert.InDelta(t, 32e9*128/130/8*16, gauges["gpu.pci.link.speed.current"][0].Arguments.Get(1), 1)
+	assert.NotContains(t, gauges, "gpu.errors.ecc.uncorrected.total", "no ras directory")
+}
+
+func TestAMDECCMetrics(t *testing.T) {
+	fs := amdgpu.NewFakeSysfs(t)
+	devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", amdgpu.MI300XAttributes("00c0ffee00c0ffee"))
+	fs.WriteFiles(filepath.Join(devDir, "ras"), map[string]string{
+		"features":      "feature mask: 0x20065bff\n",
+		"umc_err_count": "ue: 2\nce: 7\nde: 1\n",
+		"gfx_err_count": "ue: 1\nce: 0\n",
+	})
+	fs.AddCard("card0", devDir)
+	check, mockSender := setupAMDCheck(t, fs.Root, nil)
+
+	require.NoError(t, check.Run())
+	gauges := emittedGauges(mockSender)
+	for name, value := range map[string]float64{
+		"gpu.errors.ecc.uncorrected.total": 3,
+		"gpu.errors.ecc.corrected.total":   7,
+		"gpu.errors.ecc.deferred.total":    1,
+	} {
+		require.Len(t, gauges[name], 1, name)
+		assert.Equal(t, value, gauges[name][0].Arguments.Get(1), name)
+		assert.Contains(t, gauges[name][0].Arguments.Get(3), "gpu_uuid:"+testAMDUUID, name)
+	}
+	assert.Len(t, gauges["gpu.gr_engine_active"], 1, "other metrics are unaffected")
+
+	specs, err := gpuspec.LoadSpecs()
+	require.NoError(t, err)
+	for name, observations := range gpu.GetEmittedGPUMetrics(mockSender) {
+		if !strings.HasPrefix(name, "errors.") {
+			continue
+		}
+		metricSpec, ok := specs.Metrics.Metrics[name]
+		require.True(t, ok, "%s is not in the spec", name)
+		expectedTags, _, err := gpuspec.ExpectedTagsForMetric(specs.Tags, metricSpec)
+		require.NoError(t, err)
+		for _, observation := range observations {
+			require.NotNil(t, observation.Value, name)
+			assert.NoError(t, metricSpec.Validator.ValidateStaticValue(*observation.Value), name)
+			tags := gpuspec.TagsToKeyValues(observation.Tags)
+			for tagName, values := range tags {
+				tagSpec, ok := expectedTags[tagName]
+				if !assert.True(t, ok, "%s has unexpected tag %s", name, tagName) {
+					continue
+				}
+				for _, value := range values {
+					if tagSpec.Regex != nil {
+						assert.Regexp(t, tagSpec.Regex, value, "%s tag %s", name, tagName)
+					}
+				}
+			}
+			// The ECC totals have no memory_location on AMD, as their spec describes.
+			for _, tagName := range metricSpec.CustomTags {
+				if tagName != "memory_location" {
+					assert.Contains(t, tags, tagName, "%s is missing tag %s", name, tagName)
+				}
+			}
+		}
+	}
 }
 
 func TestAMDDeviceExcludedByConfig(t *testing.T) {
@@ -203,9 +263,23 @@ func TestAMDDeviceTagsMatchTagSpec(t *testing.T) {
 	fs.SetDriverVersion("6.14.14")
 	fs.AddCard("card0", fs.AddPCIDevice("0000:c1:00.0", "amdgpu", amdgpu.MI300XAttributes("00c0ffee00c0ffee")))
 	fs.AddCard("card1", fs.AddPCIDevice("0001:0a:00.1", "amdgpu", amdgpu.MI300XAttributes(""))) // UUID from a nonzero PCI function
+	// Two partitions on the first GPU: amd-smi numbers them 0 and 1.
+	fs.AddKFDNode(1, 4101, 0, 0xc100, 90402)
+	fs.AddKFDNode(2, 4102, 0, 0xc101, 90402)
+	fs.AddKFDNode(3, 5100, 1, 0x0a01, 90402)
 	devices, err := amdgpu.Discover(fs.Root)
 	require.NoError(t, err)
 	require.Len(t, devices, 2)
+
+	indexTags := map[string][]string{}
+	for _, dev := range devices {
+		for _, tag := range amdDeviceTags(dev) {
+			if strings.HasPrefix(tag, "gpu_index:") {
+				indexTags[dev.PCIBusID] = append(indexTags[dev.PCIBusID], tag)
+			}
+		}
+	}
+	assert.Equal(t, map[string][]string{"0000:c1:00.0": {"gpu_index:0"}, "0001:0a:00.1": {"gpu_index:2"}}, indexTags)
 
 	for _, dev := range devices {
 		for _, tag := range amdDeviceTags(dev) {

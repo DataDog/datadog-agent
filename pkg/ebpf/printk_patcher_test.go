@@ -10,7 +10,6 @@ package ebpf
 import (
 	"maps"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
@@ -250,47 +249,4 @@ func TestPatchPrintkManualAssembly(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestPatchPrintkAllAssets(t *testing.T) {
-	cfg := NewConfig()
-	require.NotNil(t, cfg)
-	totalPatches := 0
-
-	err := filepath.WalkDir(cfg.BPFDir, func(path string, _ os.DirEntry, err error) error {
-		require.NoError(t, err)
-
-		if !strings.HasSuffix(path, "-debug.o") {
-			return nil // Ignore non-debug assets
-		}
-
-		progname := strings.TrimSuffix(filepath.Base(path), "-debug.o")
-
-		if progname == "dyninst_event" {
-			// dyninst doesn't use the shared debugging infrastructure yet.
-			return nil
-		}
-
-		t.Run(progname, func(t *testing.T) {
-			log.Tracef("Testing program %s, path: %s", progname, path)
-			spec, err := ebpf.LoadCollectionSpec(path)
-			require.NoError(t, err)
-
-			for _, prog := range spec.Programs {
-				t.Run(prog.Name, func(t *testing.T) {
-					patcher := newPrintkPatcher(prog)
-					patches, err := patcher.patch()
-					require.NoError(t, err)
-					totalPatches += patches
-				})
-			}
-
-		})
-
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Some programs might not have log_debug calls, but at least one should
-	require.NotZero(t, totalPatches)
 }

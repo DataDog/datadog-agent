@@ -10,6 +10,7 @@ permissions: {}
 jobs:
   update-ebpf-profiler:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       id-token: write # Required for dd-octo-sts OIDC token
@@ -43,7 +44,7 @@ jobs:
           scope: ${{ github.repository }}
           policy: self.update-ebpf-profiler-branch.create-pr
 
-      - uses: peter-evans/create-pull-request@15733dbdfeedb4f7fdb73d13c6f5ac83b710fab8 # v8.1.2
+      - uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
         name: Create draft PR
         with:
           token: ${{ steps.octo-sts.outputs.token }}

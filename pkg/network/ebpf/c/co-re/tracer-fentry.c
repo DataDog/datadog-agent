@@ -230,7 +230,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     // Pass the entry-time tuple to fexit/tcp_close for protocol-classification
     // cleanup. sk is guaranteed valid here; at fexit it may not be.
     if (is_protocol_classification_supported()) {
-        bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
+        store_tcp_close_args(pid_tgid, &t);
     }
 
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
@@ -277,12 +277,12 @@ int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    conn_tuple_t *t = bpf_map_lookup_elem(&tcp_close_args, &pid_tgid);
-    if (t == NULL) {
+    tcp_close_args_t *args = bpf_map_lookup_elem(&tcp_close_args, &pid_tgid);
+    if (args == NULL) {
         return 0;
     }
 
-    clean_protocol_classification(t);
+    clean_protocol_classification(args);
     bpf_map_delete_elem(&tcp_close_args, &pid_tgid);
     return 0;
 }
@@ -317,6 +317,7 @@ int BPF_PROG(tcp_done, struct sock *sk) {
         return 0;
     }
 
+    clean_skb_tuple_protocol_classification(&t);
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_done_connection_flush);
     }
@@ -703,15 +704,20 @@ static __always_inline struct sock *fentry_sk_buff_sk(struct sk_buff *skb) {
     return sk;
 }
 
-static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
-    struct sock *sk = fentry_sk_buff_sk(skb);
+static __always_inline struct sock *fentry_sk_buff_sk_btf(struct sk_buff *skb) {
+    return skb->sk;
+}
+
+// With btf set, skb must be a BTF-typed pointer (tp_btf argument).
+static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb, const bool btf) {
+    struct sock *sk = BTF_OR_PROBE_READ(btf, fentry_sk_buff_sk, skb);
     if (!sk) {
         return 0;
     }
 
     conn_tuple_t skb_tup;
     bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
-    if (sk_buff_to_tcp_tuple(skb, &skb_tup) <= 0) {
+    if (BTF_OR_PROBE_READ(btf, sk_buff_to_tcp_tuple, skb, &skb_tup) <= 0) {
         return 0;
     }
 
@@ -721,7 +727,7 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
 
     conn_tuple_t sock_tup;
     // netns and pid stay zero: the map is keyed without them.
-    if (!read_conn_tuple_no_netns(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+    if (!BTF_OR_PROBE_READ(btf, read_conn_tuple_no_netns, &sock_tup, sk, 0, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -734,6 +740,15 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
     return 0;
 }
 
+// Preferred over the raw tracepoint when the kernel can load it.
+SEC("tp_btf/net_dev_queue")
+int BPF_PROG(tp_btf__net__net_dev_queue, struct sk_buff *skb) {
+    if (!skb) {
+        return 0;
+    }
+    return fentry_handle_net_dev_queue(skb, true);
+}
+
 // fentry requires 5.8+ which always supports raw tracepoints (4.17+),
 // so no tracepoint or kprobe fallbacks are needed.
 SEC("raw_tracepoint/net/net_dev_queue")
@@ -741,7 +756,7 @@ int BPF_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
     if (!skb) {
         return 0;
     }
-    return fentry_handle_net_dev_queue(skb);
+    return fentry_handle_net_dev_queue(skb, false);
 }
 
 // tcp_enter_loss, tcp_enter_recovery, and tcp_send_probe0 are static kernel

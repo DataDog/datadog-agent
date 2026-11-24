@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Add Agent Health telemetry for active issue instances, report delivery outcomes,
+    and resolved issues, grouped by issue type where applicable.

@@ -18,7 +18,8 @@ new entries under the closest heading, one short bullet each.
 
 - **`optmem_max`:** a socket filter is charged its size after JIT constant blinding, which
   `net.core.bpf_jit_harden=2` (set on some hardened distros) can nearly double. Size socket filters
-  with that setting as well as the default.
+  with that setting as well as the default. Only the program attached to the socket is charged, so the
+  usual fix is a small stub program that tail calls into the handler.
 - **Runtime `-Werror`:** the runtime compile uses `-Wall -Werror`, and the kernel headers' `inline`
   macro adds `__maybe_unused` on recent kernels but not old ones. A `static inline` helper in our eBPF C
   that loses its last caller therefore fails the runtime compile on old kernels only. To catch

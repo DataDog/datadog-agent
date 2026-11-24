@@ -1,26 +1,39 @@
+import json
 import os
 import tempfile
 import time
 import unittest
+from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from invoke import MockContext, Result
 from invoke.exceptions import Exit
 
 from tasks.libs.testing.benchmarkeks import (
-    RUN_BADGE_URL,
+    COMMENT_TITLE,
+    FAILED_BUTTON,
+    INCOMPLETE_BUTTON,
+    PASSED_BUTTON,
+    REGRESSION_BUTTON,
+    RUN_BUTTON,
+    RUNNING_BUTTON,
     Baseline,
     BaselineNotFoundError,
+    Button,
     Commit,
+    done_comment,
     find_baseline,
     format_dotenv,
     index_pipeline_ids,
-    instructions_comment,
     is_missing_image_error,
+    outcome_button,
     parse_rev_list,
+    pending_comment,
+    read_reports,
+    running_comment,
 )
-from tasks.new_e2e_tests import benchmarkeks_baseline, benchmarkeks_instructions
+from tasks.new_e2e_tests import benchmarkeks_baseline, benchmarkeks_comment
 
 SHA_A = "a6c0b31b" + "1" * 32
 SHA_B = "73f0a2f0" + "2" * 32
@@ -250,47 +263,197 @@ def job(name, web_url=None):
     return SimpleNamespace(name=name, web_url=web_url)
 
 
-class TestInstructionsComment(unittest.TestCase):
+class TestButton(unittest.TestCase):
+    def test_badge_url(self):
+        # The emoji and the spaces are percent-encoded
+        self.assertEqual(
+            RUN_BUTTON.badge_url(),
+            "https://img.shields.io/badge/%E2%96%B6%20Run%20the%20benchmark-632CA6?style=for-the-badge",
+        )
+
+    def test_escapes(self):
+        # A single dash would separate the text from the color
+        self.assertEqual(
+            Button("a-b_c d", "FFFFFF").badge_url(),
+            "https://img.shields.io/badge/a--b__c%20d-FFFFFF?style=for-the-badge",
+        )
+
+    def test_markdown(self):
+        self.assertEqual(
+            RUNNING_BUTTON.markdown(JOB_URL),
+            f"[![\N{HOURGLASS WITH FLOWING SAND} Benchmark running]({RUNNING_BUTTON.badge_url()})]({JOB_URL})",
+        )
+
+
+class TestPendingComment(unittest.TestCase):
     def test_button(self):
-        comment = instructions_comment(JOB_URL, PIPELINE_URL)
-        self.assertIn(f"\n\n[![Run the benchmark]({RUN_BADGE_URL})]({JOB_URL})\n", comment)
+        comment = pending_comment(JOB_URL, PIPELINE_URL)
+        self.assertIn(f"\n\n{RUN_BUTTON.markdown(JOB_URL)}\n", comment)
         self.assertIn("then click **Run job**", comment)
         self.assertNotIn(PIPELINE_URL, comment)
 
     def test_pipeline_link(self):
-        comment = instructions_comment(None, PIPELINE_URL)
+        comment = pending_comment(None, PIPELINE_URL)
         self.assertIn(f"`new-e2e-containers-benchmarkeks-baseline` of [the pipeline]({PIPELINE_URL})", comment)
-        self.assertNotIn(RUN_BADGE_URL, comment)
+        self.assertNotIn(RUN_BUTTON.badge_url(), comment)
 
 
-@patch.dict(os.environ, {"CI_PIPELINE_ID": "150947315", "CI_PIPELINE_URL": PIPELINE_URL})
-class TestBenchmarkeksInstructionsTask(unittest.TestCase):
+class TestRunningComment(unittest.TestCase):
+    def test_button(self):
+        comment = running_comment(JOB_URL, PIPELINE_URL, "a6c0b31b", datetime(2026, 11, 13, 14, 3, tzinfo=UTC))
+        self.assertTrue(comment.startswith(RUNNING_BUTTON.markdown(JOB_URL) + "\n\n"))
+        self.assertIn(f"commit `a6c0b31b` started at 2026-11-13 14:03 UTC in [its pipeline]({PIPELINE_URL})", comment)
+
+
+def report(*verdicts):
+    return {"results": [{"verdict": verdict} for verdict in verdicts]}
+
+
+def write_file(directory, name, content):
+    with open(os.path.join(directory, name), "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+class TestOutcomeButton(unittest.TestCase):
+    def test_outcomes(self):
+        for name, report_, button in [
+            ("null results", {"results": None}, PASSED_BUTTON),
+            ("unchanged", report("unchanged", "unchanged"), PASSED_BUTTON),
+            ("improvement", report("unchanged", "improvement"), PASSED_BUTTON),
+            ("error", report("improvement", "error"), INCOMPLETE_BUTTON),
+            ("regression", report("improvement", "error", "regression"), REGRESSION_BUTTON),
+        ]:
+            with self.subTest(name):
+                self.assertEqual(outcome_button(report_), button)
+
+
+class TestDoneComment(unittest.TestCase):
+    def test_report(self):
+        comment = done_comment(JOB_URL, PIPELINE_URL, "a6c0b31b", report("regression"), "Report\n")
+        self.assertEqual(
+            comment,
+            f"{REGRESSION_BUTTON.markdown(JOB_URL)}\n\n"
+            f"Results of the benchmark of commit `a6c0b31b`, in [its pipeline]({PIPELINE_URL}).\n\nReport\n",
+        )
+
+    def test_failed(self):
+        comment = done_comment(JOB_URL, PIPELINE_URL, "a6c0b31b", None, None)
+        self.assertTrue(comment.startswith(FAILED_BUTTON.markdown(JOB_URL) + "\n\n"))
+        self.assertIn(f"failed before comparing the versions: see the log of [its job]({JOB_URL})", comment)
+
+    def test_markdown_missing(self):
+        # The JSON report alone doesn't make the benchmark pass
+        comment = done_comment(JOB_URL, PIPELINE_URL, "a6c0b31b", report("unchanged"), None)
+        self.assertTrue(comment.startswith(FAILED_BUTTON.markdown(JOB_URL) + "\n\n"))
+
+
+class TestReadReports(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmpdir.cleanup)
-        self.output_file = os.path.join(self.tmpdir.name, "instructions.md")
 
-    def run_task(self, repo):
-        with patch("tasks.new_e2e_tests.get_gitlab_repo", return_value=repo):
-            benchmarkeks_instructions(MockContext(), output_file=self.output_file)
-        with open(self.output_file) as f:
-            return f.read()
+    def test_reports(self):
+        write_file(self.tmpdir.name, "report.json", json.dumps(report("unchanged")))
+        write_file(self.tmpdir.name, "report.md", "\N{MEDIUM WHITE CIRCLE} unchanged\n")
+        self.assertEqual(read_reports(self.tmpdir.name), (report("unchanged"), "\N{MEDIUM WHITE CIRCLE} unchanged\n"))
 
-    def test_button(self):
+    def test_missing(self):
+        self.assertEqual(read_reports(self.tmpdir.name), (None, None))
+
+    def test_truncated(self):
+        # The benchmark was killed while writing them
+        write_file(self.tmpdir.name, "report.json", '{"results": [')
+        with open(os.path.join(self.tmpdir.name, "report.md"), "wb") as f:
+            f.write("\N{MEDIUM WHITE CIRCLE}".encode()[:2])
+        self.assertEqual(read_reports(self.tmpdir.name), (None, None))
+
+
+@patch.dict(
+    os.environ,
+    {
+        "CI_PIPELINE_ID": "150947315",
+        "CI_PIPELINE_URL": PIPELINE_URL,
+        "CI_COMMIT_SHA": SHA_A,
+        "CI_COMMIT_BRANCH": "lenaic/benchmark",
+    },
+)
+class TestBenchmarkeksCommentTask(unittest.TestCase):
+    def comment(self, repo, state, prs, report_dir=""):
+        """Runs the task in state, with the pipeline jobs of repo and the pull requests prs of the branch, and returns
+        the mock of pr_commenter."""
+        with (
+            patch("tasks.new_e2e_tests.get_gitlab_repo", return_value=repo),
+            patch("tasks.libs.ciproviders.github_api.GithubAPI") as github,
+            patch("tasks.github_tasks.pr_commenter") as pr_commenter,
+            patch("builtins.print"),
+        ):
+            github.return_value.get_pr_for_branch.return_value = iter(prs)
+            benchmarkeks_comment(MockContext(), state=state, report_dir=report_dir)
+        github.return_value.get_pr_for_branch.assert_called_once_with("lenaic/benchmark")
+        return pr_commenter
+
+    def run_task(self, repo, state, report_dir=""):
+        """Returns the body the task posts in state on the pull request of the commit, with the pipeline jobs of repo."""
+        pr = SimpleNamespace(head=SimpleNamespace(sha=SHA_A))
+        pr_commenter = self.comment(repo, state, [pr], report_dir)
+        pr_commenter.assert_called_once_with(ANY, title=COMMENT_TITLE, body=ANY, pr=pr)
+        return pr_commenter.call_args.kwargs["body"]
+
+    def repo(self, *jobs):
         repo = MagicMock()
-        repo.pipelines.get.return_value.jobs.list.return_value = [
-            job("new-e2e-containers-benchmarkeks-baseline", JOB_URL)
-        ]
-        self.assertEqual(self.run_task(repo), instructions_comment(JOB_URL, PIPELINE_URL))
+        repo.pipelines.get.return_value.jobs.list.return_value = list(jobs)
+        return repo
+
+    def test_pending(self):
+        repo = self.repo(job("new-e2e-containers-benchmarkeks-baseline", JOB_URL))
+        self.assertEqual(self.run_task(repo, "pending"), pending_comment(JOB_URL, PIPELINE_URL))
         self.assertEqual(repo.pipelines.get.call_args.args, ("150947315",))
-        self.assertEqual(repo.pipelines.get.return_value.jobs.list.call_args.kwargs["scope"], "manual")
+        # Whatever their status: the baseline job is still created when the comment is posted
+        self.assertNotIn("scope", repo.pipelines.get.return_value.jobs.list.call_args.kwargs)
 
-    def test_job_not_found(self):
-        repo = MagicMock()
-        repo.pipelines.get.return_value.jobs.list.return_value = [job("deploy_staging")]
-        self.assertEqual(self.run_task(repo), instructions_comment(None, PIPELINE_URL))
+    def test_pending_job_not_found(self):
+        repo = self.repo(job("deploy_staging"))
+        self.assertEqual(self.run_task(repo, "pending"), pending_comment(None, PIPELINE_URL))
 
-    def test_api_error(self):
-        repo = MagicMock()
+    def test_pending_api_error(self):
+        repo = self.repo()
         repo.pipelines.get.return_value.jobs.list.side_effect = RuntimeError("401 Unauthorized")
-        self.assertEqual(self.run_task(repo), instructions_comment(None, PIPELINE_URL))
+        self.assertEqual(self.run_task(repo, "pending"), pending_comment(None, PIPELINE_URL))
+
+    def test_running(self):
+        repo = self.repo(job("new-e2e-containers-benchmarkeks-init"), job("new-e2e-containers-benchmarkeks", JOB_URL))
+        body = self.run_task(repo, "running")
+        self.assertTrue(body.startswith(RUNNING_BUTTON.markdown(JOB_URL)))
+        self.assertIn("commit `a6c0b31b`", body)
+
+    def test_running_job_not_found(self):
+        body = self.run_task(self.repo(job("deploy_staging")), "running")
+        self.assertTrue(body.startswith(RUNNING_BUTTON.markdown(PIPELINE_URL)))
+
+    def test_done(self):
+        repo = self.repo(job("new-e2e-containers-benchmarkeks", JOB_URL))
+        with tempfile.TemporaryDirectory() as report_dir:
+            write_file(report_dir, "report.json", json.dumps(report("unchanged")))
+            write_file(report_dir, "report.md", "Report\n")
+            self.assertEqual(
+                self.run_task(repo, "done", report_dir=report_dir),
+                done_comment(JOB_URL, PIPELINE_URL, "a6c0b31b", report("unchanged"), "Report\n"),
+            )
+
+    def test_not_commenting(self):
+        # Without the jobs looked up
+        for name, prs in [
+            # A new commit was pushed: its pipeline owns the comment
+            ("superseded pipeline", [SimpleNamespace(head=SimpleNamespace(sha=SHA_B))]),
+            ("no pull request", []),
+        ]:
+            with self.subTest(name):
+                repo = self.repo()
+                self.comment(repo, "running", prs).assert_not_called()
+                repo.pipelines.get.assert_not_called()
+
+    def test_invalid_arguments(self):
+        with self.assertRaisesRegex(Exit, "Invalid state started"):
+            benchmarkeks_comment(MockContext(), state="started")
+        with self.assertRaisesRegex(Exit, "--report-dir is required"):
+            benchmarkeks_comment(MockContext(), state="done")

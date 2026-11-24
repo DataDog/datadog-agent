@@ -1515,7 +1515,7 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			},
 		}).Traces().ResourceSpans().At(0), http.Header{}, nil)
 		assert.Equal(t, src.Kind, source.HostnameKind)
-		assert.Equal(t, src.Identifier, tt.out) //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+		assert.Equal(t, src.SourceIdentifier.Primary, tt.out)
 		timeout := time.After(500 * time.Millisecond)
 		select {
 		case <-timeout:
@@ -4394,6 +4394,36 @@ func TestConvertSpanSpanAttributePrecedence(t *testing.T) {
 			} else {
 				assert.NotContains(t, ddspan.Metrics, "team")
 			}
+		})
+	}
+}
+
+// TestTracerDecisionMakerPrefersRealDecision checks that "-0", the tracer's startup fallback, is returned
+// only when no other decision maker is present on the chunk, from either `_dd.p.dm` or the tracestate.
+func TestTracerDecisionMakerPrefersRealDecision(t *testing.T) {
+	dm := func(v string) *pb.Span { return &pb.Span{Meta: map[string]string{"_dd.p.dm": v}} }
+	ts := func(v string) *pb.Span { return &pb.Span{Meta: map[string]string{"w3c.tracestate": v}} }
+	tests := []struct {
+		name     string
+		spans    pb.Trace
+		expected string
+		ok       bool
+	}{
+		{"default then rule", pb.Trace{dm("-0"), dm("-3")}, "-3", true},
+		{"rule then default", pb.Trace{dm("-3"), dm("-0")}, "-3", true},
+		{"first real decision wins", pb.Trace{dm("-0"), dm("-3"), dm("-8")}, "-3", true},
+		{"tracestate beats default attribute", pb.Trace{dm("-0"), ts("dd=s:2;t.dm:-11")}, "-11", true},
+		{"attribute beats tracestate", pb.Trace{ts("dd=s:2;t.dm:-11"), dm("-3")}, "-3", true},
+		{"only default", pb.Trace{dm("-0"), ts("dd=s:1;t.dm:-0")}, "-0", true},
+		{"out of range attribute skipped", pb.Trace{dm("-0"), dm("-99999999999")}, "-0", true},
+		{"out of range tracestate skipped", pb.Trace{dm("-0"), ts("dd=s:2;t.dm:-99999999999")}, "-0", true},
+		{"no decision maker", pb.Trace{{}, dm("abc")}, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := tracerDecisionMaker(tt.spans)
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.expected, got)
 		})
 	}
 }

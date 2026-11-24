@@ -98,8 +98,6 @@ it typechecks.
 - **Interleave variants and normalize against a control.** Warm up, use fixed windows, run each
   variant several times, and treat differences inside the run-to-run spread as noise. For per-call
   costs, load both variants at once so every call runs both, and alternate the load order.
-- **Normalize by work done.** On a saturated node, lower overhead shows up as more throughput, not less
-  CPU; check that the achieved load matches between variants.
 - **Confirm you measured the code you built:** the loaded program's tag should differ between
   variants, and the tracer that loaded should match the configuration.
 - **Resolve probe misses; don't average them.** kprobe and fentry programs can both miss, under
@@ -110,13 +108,8 @@ it typechecks.
 - **Keep `kernel.bpf_stats_enabled` the same in every arm**; it adds cost to every BPF call. Its
   `run_time_ns` covers only the program body, not the kprobe or trampoline dispatch around it, so it
   understates overhead; measure end to end as well.
-- **Loopback and cross-container traffic are valid modes.** Measure them as their own scenario, not as
-  a stand-in for cross-host traffic.
 - **Overhead includes the application's kernel time.** eBPF programs run in the context of the process
   that triggers them, so system-probe's own CPU metrics can miss most of the cost.
-
-A fuller guide to load-testing CNM probes (probe layers, the traffic that drives each one, and the
-surrounding kernel's concurrency) is future work.
 
 ## Stop and ask
 

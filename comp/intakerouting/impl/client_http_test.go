@@ -24,8 +24,13 @@ import (
 )
 
 // newTestClient returns a client that sends every request to srv, whatever its host, so tests can
-// use real Datadog hostnames.
+// use real Datadog hostnames. Its pre-flight checks use the default path.
 func newTestClient(t *testing.T, srv *httptest.Server) *httpRoutingClient {
+	return newTestClientWithPreflightPath(t, srv, defaultPreflightPath)
+}
+
+// newTestClientWithPreflightPath is newTestClient with the pre-flight path given by the test.
+func newTestClientWithPreflightPath(t *testing.T, srv *httptest.Server, preflightPath string) *httpRoutingClient {
 	addr := srv.Listener.Addr().String()
 	tlsConfig := srv.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
 	// The test certificate is issued for example.com.
@@ -38,7 +43,7 @@ func newTestClient(t *testing.T, srv *httptest.Server) *httpRoutingClient {
 		TLSClientConfig: tlsConfig,
 	}
 	t.Cleanup(transport.CloseIdleConnections)
-	return newHTTPRoutingClientWithTransport(transport)
+	return newHTTPRoutingClientWithTransport(transport, preflightPath)
 }
 
 // hostOf returns the host a request was sent to, without the trailing dot of FQDN sites.
@@ -234,10 +239,14 @@ func TestPreflightRequest(t *testing.T) {
 			var hits []string
 			srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				hits = append(hits, r.URL.Path)
+				assert.Equal(t, http.MethodGet, r.Method)
 				assert.Equal(t, tc.expectedHost, r.Host)
+				// The API key is only sent in the header, never in the URL.
 				assert.Equal(t, testKey, r.Header.Get(apiKeyHeader))
+				assert.Empty(t, r.URL.RawQuery)
+				assert.True(t, strings.HasPrefix(r.Header.Get("User-Agent"), "datadog-agent/"))
 				if tc.code == http.StatusFound {
-					http.Redirect(w, r, "https://"+otherEnhancedHost+"/probe", tc.code)
+					http.Redirect(w, r, "https://"+otherEnhancedHost+defaultPreflightPath, tc.code)
 					return
 				}
 				w.WriteHeader(tc.code)
@@ -250,7 +259,76 @@ func TestPreflightRequest(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			assert.Equal(t, []string{preflightPath}, hits)
+			assert.Equal(t, []string{"/api/v1/validate"}, hits)
+		})
+	}
+}
+
+func TestPreflightCustomPath(t *testing.T) {
+	tests := []struct {
+		name            string
+		path            string
+		expectedRawPath string
+	}{
+		{"plain", "/probe", "/probe"},
+		{"escaped", "/a%2Fb/c%20d", "/a%2Fb/c%20d"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var hits []string
+			srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				hits = append(hits, r.URL.EscapedPath())
+				assert.Empty(t, r.URL.RawQuery)
+				assert.Equal(t, testKey, r.Header.Get(apiKeyHeader))
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+
+			path, err := parsePreflightPath(tc.path)
+			require.NoError(t, err)
+			err = newTestClientWithPreflightPath(t, srv, path).preflight(context.Background(), enhancedEndpoint, testKey)
+			require.NoError(t, err)
+			assert.Equal(t, []string{tc.expectedRawPath}, hits)
+		})
+	}
+}
+
+func TestParsePreflightPath(t *testing.T) {
+	valid := []struct {
+		path     string
+		expected string
+	}{
+		{"/api/v1/validate", "/api/v1/validate"},
+		{"/", "/"},
+		{"/probe/", "/probe/"},
+		{"/a%2Fb", "/a%2Fb"},
+		{"/a b", "/a%20b"},
+	}
+	for _, tc := range valid {
+		t.Run(tc.path, func(t *testing.T) {
+			path, err := parsePreflightPath(tc.path)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, path)
+		})
+	}
+
+	invalid := []string{
+		"",
+		"api/v1/validate",
+		" /api/v1/validate",
+		"/api/v1/validate ",
+		"https://acme.agent-http-intake.logs.datadoghq.com/api/v1/validate",
+		"//acme.agent-http-intake.logs.datadoghq.com/api/v1/validate",
+		"/api/v1/validate?api_key=x",
+		"/api/v1/validate?",
+		"/api/v1/validate#x",
+		"/api/v1/validate\n",
+		"/a%zzb",
+	}
+	for _, p := range invalid {
+		t.Run(p, func(t *testing.T) {
+			_, err := parsePreflightPath(p)
+			assert.Error(t, err)
 		})
 	}
 }

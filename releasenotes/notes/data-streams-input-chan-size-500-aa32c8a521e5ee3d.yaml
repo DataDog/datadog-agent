@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Data Streams Monitoring: the Data Streams event pipeline now buffers up to
+    500 messages by default instead of 100, so short bursts of events are less
+    likely to be dropped. A ``data_streams.forwarder.input_chan_size`` value
+    above 100 still sets the buffer size. When the buffer of any event platform
+    pipeline is full, the error now suggests setting ``input_chan_size`` above
+    the reported channel capacity.

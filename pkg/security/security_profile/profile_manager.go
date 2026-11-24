@@ -56,7 +56,7 @@ type ProfileManager interface {
 	// ListActivityDumps returns the list of active activity dumps
 	ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error)
 
-	// StopActivityDump stops an active activity dump if it exists
+	// StopActivityDump stops an active activity dump or flushes the matching security profile if it exists
 	StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error)
 
 	// DumpActivity dumps the activity dump
@@ -65,4 +65,7 @@ type ProfileManager interface {
 	// HandleSampleRefresh updates the LastSeen timestamp for the activity tree node
 	// associated with the given kernel dedup cookie
 	HandleSampleRefresh(cookie uint64)
+
+	// DrainPendingEvents resolves and drains any pending profile events whose workload tags have become available
+	DrainPendingEvents()
 }

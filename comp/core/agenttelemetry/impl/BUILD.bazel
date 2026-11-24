@@ -50,9 +50,15 @@ dd_agent_go_test(
         "agenttelemetry_test.go",
         "errortracking_sender_test.go",
         "phonehome_test.go",
+        "runner_test.go",
         "utils_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":impl"],
+    embedsrcs = [
+        "testdata/zero_metric_counters.yaml",
+        "testdata/zero_metric_histogram.yaml",
+    ],
     deps = [
         "//comp/core/log/def",
         "//comp/core/log/mock",
@@ -70,6 +76,7 @@ dd_agent_go_test(
         "@com_github_datadog_zstd//:zstd",
         "@com_github_prometheus_client_golang//prometheus",
         "@com_github_prometheus_client_model//go",
+        "@com_github_robfig_cron_v3//:cron",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",

@@ -49,6 +49,7 @@ const (
 	nvlinkStateless CollectorName = "nvlink_stateless"
 	nvlinkGPM       CollectorName = "nvlink_gpm"
 	sharing         CollectorName = "sharing"
+	stateChanges    CollectorName = "state_changes"
 )
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
@@ -72,12 +73,16 @@ var factory = map[CollectorName]subsystemBuilder{
 	deviceEvents:    newDeviceEventsCollector,
 	ebpf:            newEbpfCollector,
 	sharing:         newSharingCollector,
+	stateChanges:    newStateChangesCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
 type CollectorDependencies struct {
 	// DeviceEventsGatherer acts like a cache for the most recent device events
 	DeviceEventsGatherer *DeviceEventsGatherer
+	// StateChangesGatherer reads the watched values of the devices every second and keeps
+	// the events of their changes
+	StateChangesGatherer *StateChangesGatherer
 	// SystemProbeCache is a (optional) cache of the latest metrics obtained from system probe
 	SystemProbeCache *SystemProbeCache
 	// PRMCache is a cache of privileged PRM metrics obtained from system-probe
@@ -232,7 +237,7 @@ func (b *CollectorBuilder) buildCollector(name CollectorName, builder subsystemB
 
 	c, err := builder(dev, deps)
 	if errors.Is(err, errUnsupportedDevice) {
-		log.Warnf("device %s does not support collector %s", deviceUUID, name)
+		log.Debugf("device %s does not support collector %s", deviceUUID, name)
 		deps.Telemetry.addCollectorCreation(name, "unsupported", dev)
 		b.clearFailure(deviceUUID, name)
 		return nil
@@ -286,8 +291,11 @@ func collectorDisabled(name CollectorName, config gpuconfig.Config) bool {
 	case nvlinkPLR:
 		return !config.Enabled || !config.PRMEndpointEnabled
 	case sharing:
-		// Only KAI Scheduler fractions assign containers a share of a GPU.
-		return !config.KAISchedulerEnabled
+		// KAI Scheduler fractions and shared-device replicas (time-slicing,
+		// MPS) are reported through the sharing collector. It walks only the
+		// containers holding a GPU share or replicas, so it costs nothing on
+		// nodes without shared GPUs and needs no gate of its own.
+		return false
 	default:
 		return false
 	}
@@ -315,8 +323,8 @@ func NewCollectorTelemetry(tm telemetry.Component) *CollectorTelemetry {
 	}
 }
 
-var collectorTelemetryTagNames = []string{
-	"collector",
+// DeviceTelemetryTagNames are the NVML device labels shared by GPU telemetry.
+var DeviceTelemetryTagNames = []string{
 	"gpu_device",
 	"gpu_virtualization_mode",
 	"gpu_architecture",
@@ -325,6 +333,8 @@ var collectorTelemetryTagNames = []string{
 	"gpu_nvlink_version",
 	"gpu_driver_version",
 }
+
+var collectorTelemetryTagNames = append([]string{"collector"}, DeviceTelemetryTagNames...)
 
 var (
 	cachedDriverVersion     string
@@ -339,9 +349,13 @@ func CollectorTelemetryTags(collector Collector) []string {
 }
 
 func collectorTelemetryTags(name CollectorName, device ddnvml.Device) []string {
+	return append([]string{string(name)}, DeviceTelemetryTags(device)...)
+}
+
+// DeviceTelemetryTags returns values in DeviceTelemetryTagNames order.
+func DeviceTelemetryTags(device ddnvml.Device) []string {
 	deviceInfo := device.GetDeviceInfo()
 	return []string{
-		string(name),
 		gpuutil.NormalizeGPUDeviceName(deviceInfo.Name),
 		gpuutil.VirtualizationModeToString(deviceInfo.VirtualizationMode),
 		gpuutil.ArchToString(deviceInfo.Architecture),
@@ -378,7 +392,7 @@ func isMIGParent(device ddnvml.Device) bool {
 }
 
 func slicingModeTag(device ddnvml.Device) string {
-	if isMIGParent(device) {
+	if physicalDevice, ok := device.(*ddnvml.PhysicalDevice); ok && (physicalDevice.HasMIGFeatureEnabled || isMIGParent(device)) {
 		return "mig-parent"
 	}
 	if _, ok := device.(*ddnvml.MIGDevice); ok {

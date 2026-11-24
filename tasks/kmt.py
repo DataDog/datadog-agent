@@ -39,8 +39,8 @@ from tasks.kernel_matrix_testing.infra import (
     build_alien_infrastructure,
     build_infrastructure,
     ensure_key_in_ec2,
+    find_ssh_key_files,
     get_ssh_agent_key_names,
-    get_ssh_key_name,
     try_get_ssh_key,
 )
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
@@ -109,7 +109,6 @@ DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
 
 CLANG_PATH_CI = Path("/opt/datadog-agent/embedded/bin/clang-bpf")
-LLC_PATH_CI = Path("/opt/datadog-agent/embedded/bin/llc-bpf")
 
 
 @task(
@@ -545,12 +544,7 @@ def config_ssh_key(ctx: Context):
             agent_keys = get_ssh_agent_key_names(ctx)
             ssh_keys = [{'path': None, 'name': key, 'aws_key_name': key} for key in agent_keys]
         else:
-            ssh_key_files = [Path(f[: -len(".pub")]) for f in glob(os.path.expanduser("~/.ssh/*.pub"))]
-            ssh_keys = []
-
-            for f in ssh_key_files:
-                key_name = get_ssh_key_name(f.with_suffix(".pub")) or f.name
-                ssh_keys.append({'path': os.fspath(f), 'name': key_name, 'aws_key_name': ''})
+            ssh_keys = find_ssh_key_files()
 
         keys_str = "\n".join([f" - [{i + 1}] {key['name']} (path: {key['path']})" for i, key in enumerate(ssh_keys)])
         result = ask(f"[?] Found these valid key files:\n{keys_str}\nChoose one of these files (1-{len(ssh_keys)}): ")
@@ -927,14 +921,12 @@ def _prepare(
 
     if ci:
         # In CI, these binaries are always present
-        llc_path = LLC_PATH_CI
         clang_path = CLANG_PATH_CI
 
         # Copy the binaries to the target directory, CI will take them from those
         # paths as artifacts
         copy_static_files = {
             clang_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/clang-bpf",
-            llc_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/llc-bpf",
             "flakes.yaml": paths.dependencies / "flakes.yaml",
             ".github/CODEOWNERS": paths.dependencies / "CODEOWNERS",
         }
@@ -949,9 +941,8 @@ def _prepare(
             f"--destdir={paths.dependencies / "go/bin"}",
         )
 
-        # We cannot use the pre-built local clang and llc-bpf binaries, as they
+        # We cannot use the pre-built local clang binary, as it
         # might not be built for the target architecture.
-        llc_path = paths.tools / "llc-bpf"
         clang_path = paths.tools / "clang-bpf"
         setup_runtime_clang(ctx, arch_obj, paths.tools)
 
@@ -976,7 +967,6 @@ def _prepare(
 
         # Copy embedded tools, make them
         embedded_remote_path = Path("/opt/datadog-agent/embedded/bin")
-        d.copy(ctx, llc_path, embedded_remote_path / llc_path.name, verbose=verbose)
         d.copy(ctx, clang_path, embedded_remote_path / clang_path.name, verbose=verbose)
 
         # Copy all test files
@@ -1507,7 +1497,6 @@ def build(
 
     assert len(domains) > 0, err_msg
 
-    llc_path = paths.tools / "llc-bpf"
     clang_path = paths.tools / "clang-bpf"
     setup_runtime_clang(ctx, arch_obj, paths.tools)
 
@@ -1515,7 +1504,6 @@ def build(
     for d in domains:
         # Copy embedded tools, make them
         embedded_remote_path = Path("/opt/datadog-agent/embedded/bin")
-        d.copy(ctx, llc_path, embedded_remote_path / llc_path.name, verbose=verbose)
         d.copy(ctx, clang_path, embedded_remote_path / clang_path.name, verbose=verbose)
 
         if override_agent:

@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	intakerouting "github.com/DataDog/datadog-agent/comp/intakerouting/def"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -35,10 +36,14 @@ import (
 // The request does not select telemetry types: the response holds an entry for every type the
 // backend has an answer for. "override": false means "no override": use the default endpoint.
 // Unknown telemetry types are ignored. HTTP 404 means the backend does not offer routing.
+//
+// The pre-flight check is a GET of intake_routing.preflight_path (/api/v1/validate by default) on
+// the override host. Like the queries, it sends the API key in the DD-API-KEY header, as the
+// connectivity diagnosis does for /api/v1/validate: never in the URL, where proxies and access logs
+// could record it.
 const (
 	routingURLPrefix = "https://config."
 	routingPath      = "/api/unstable/agent/intake-routing"
-	preflightPath    = "/probe"
 
 	apiKeyHeader = "DD-API-KEY"
 
@@ -65,11 +70,15 @@ type httpRoutingClient struct {
 	queryClient     *http.Client
 	preflightClient *http.Client
 	// baseURL returns the scheme and host of the routing API of a site.
-	baseURL   func(site string) string
-	userAgent string
+	baseURL func(site string) string
+	// preflightPath is the escaped path of the pre-flight check, as returned by parsePreflightPath.
+	preflightPath string
+	userAgent     string
 }
 
-func newHTTPRoutingClientWithTransport(transport http.RoundTripper) *httpRoutingClient {
+// newHTTPRoutingClientWithTransport returns a client that sends its requests with transport.
+// preflightPath must come from parsePreflightPath.
+func newHTTPRoutingClientWithTransport(transport http.RoundTripper, preflightPath string) *httpRoutingClient {
 	return &httpRoutingClient{
 		queryClient: &http.Client{
 			Transport:     transport,
@@ -83,8 +92,29 @@ func newHTTPRoutingClientWithTransport(transport http.RoundTripper) *httpRouting
 		baseURL: func(site string) string {
 			return pkgconfigutils.BuildURLWithPrefix(routingURLPrefix, site)
 		},
-		userAgent: "datadog-agent/" + version.AgentVersion,
+		preflightPath: preflightPath,
+		userAgent:     "datadog-agent/" + version.AgentVersion,
 	}
+}
+
+// parsePreflightPath checks that p is an absolute URL path, with no scheme, host, query or
+// fragment, and returns it in its escaped form. The host of a pre-flight check must be the host
+// of the override, so p must not be able to change it.
+func parsePreflightPath(p string) (string, error) {
+	if strings.TrimSpace(p) != p {
+		return "", errors.New("it starts or ends with a space")
+	}
+	if !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//") {
+		return "", errors.New("it is not an absolute path")
+	}
+	if strings.ContainsAny(p, "?#") {
+		return "", errors.New("it has a query or a fragment")
+	}
+	u, err := url.Parse(p)
+	if err != nil {
+		return "", err
+	}
+	return u.EscapedPath(), nil
 }
 
 // checkQueryRedirect only follows a few redirects, each to an HTTPS URL of an official Datadog
@@ -157,8 +187,9 @@ func parseRoutingResponse(body []byte) (map[intakerouting.TelemetryType]routeAns
 }
 
 func (c *httpRoutingClient) preflight(ctx context.Context, ep intakerouting.Endpoint, apiKey string) error {
-	u := url.URL{Scheme: "https", Host: hostPort(ep), Path: preflightPath}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	// The path is already escaped: it must not go through url.URL.Path, which would escape it again.
+	u := "https://" + hostPort(ep) + c.preflightPath
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return err
 	}
