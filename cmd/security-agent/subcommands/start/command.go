@@ -75,6 +75,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -191,6 +192,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				logscompressionfx.Module(),
 				ipcfx.ModuleReadWrite(),
 				remoteagentfx.Module(),
+				logging.EnableFxLoggingOnDebug[log.Component](),
 				fxinstrumentation.Module(),
 				fx.Supply(configstreamconsumer.NewParams("security-agent", params.ConfigFilePaths[0])),
 				configstreamconsumerfx.Module(),

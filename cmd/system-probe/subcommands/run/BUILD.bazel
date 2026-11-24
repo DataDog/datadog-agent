@@ -79,6 +79,7 @@ go_library(
         "//pkg/system-probe/utils",
         "//pkg/util/coredump",
         "//pkg/util/fxutil",
+        "//pkg/util/fxutil/logging",
         "//pkg/util/log",
         "//pkg/util/profiling",
         "//pkg/version",
