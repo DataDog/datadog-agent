@@ -8,14 +8,13 @@ package npm
 import (
 	_ "embed"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 )
 
 //go:embed "config/dockercompose_tcp_congestion.yaml"
 var dockerTCPCongestionComposeYaml string
 
-// dockerTCPCongestionCompose returns the compose file with the apps image version substituted.
+// dockerTCPCongestionCompose returns the compose file running npmToolsImage, which
+// pullNPMToolsImage must have stored on the host beforehand.
 func dockerTCPCongestionCompose() string {
-	return strings.ReplaceAll(dockerTCPCongestionComposeYaml, "{APPS_VERSION}", apps.Version)
+	return strings.ReplaceAll(dockerTCPCongestionComposeYaml, "{NPM_TOOLS_IMAGE}", npmToolsImage)
 }

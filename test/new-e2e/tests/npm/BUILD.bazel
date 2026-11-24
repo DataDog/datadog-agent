@@ -8,6 +8,7 @@ go_library(
         "config.go",
         "dockercompose_httpbin.go",
         "dockercompose_tcp_congestion.go",
+        "npm_tools_image.go",
         "test_helpers.go",
     ],
     data = [
@@ -32,6 +33,8 @@ go_library(
         "//test/e2e-framework/components/docker",
         "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
         "//test/fakeintake/aggregator",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_kr_pretty//:pretty",
@@ -42,6 +45,7 @@ go_library(
 )
 
 # gazelle:exclude common_1host_unit_test.go
+# gazelle:exclude npm_tools_image_unit_test.go
 dd_agent_go_test(
     name = "npm_test",
     srcs = [
@@ -108,9 +112,13 @@ dd_agent_go_test(
 
 dd_agent_go_test(
     name = "npm_unit_test",
-    srcs = ["common_1host_unit_test.go"],
+    srcs = [
+        "common_1host_unit_test.go",
+        "npm_tools_image_unit_test.go",
+    ],
     embed = [":npm"],
     deps = [
+        "//test/e2e-framework/components/datadog/apps",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "@com_github_datadog_agent_payload_v5//process",

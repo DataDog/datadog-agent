@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	compos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
@@ -61,7 +60,7 @@ func (v *ec2VMSELinuxSuite) SetupSuite() {
 	v.Env().RemoteHost.Reconnect()
 
 	// prefetch docker image locally
-	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-npm-tools:" + apps.Version)
+	pullNPMToolsImage(v.T(), v.Env().RemoteHost)
 }
 
 // TestFakeIntakeNPM_HostRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
@@ -87,7 +86,7 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate a connection
-	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run --rm " + npmToolsImage + " curl " + testURL)
 
 	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -112,7 +111,7 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 
 	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake, v.Env().HTTPBinHost.Address, func() {
 		// generate connections
-		v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " ab -n 1500 -c 600 " + testURL)
+		v.Env().RemoteHost.MustExecute("docker run --rm " + npmToolsImage + " ab -n 1500 -c 600 " + testURL)
 	})
 }
 
@@ -134,8 +133,8 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
-	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " dig @8.8.8.8 www.google.ch")
+	v.Env().RemoteHost.MustExecute("docker run --rm " + npmToolsImage + " curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run --rm " + npmToolsImage + " dig @8.8.8.8 www.google.ch")
 
 	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
 }

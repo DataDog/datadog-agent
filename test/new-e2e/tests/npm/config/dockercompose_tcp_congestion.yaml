@@ -1,6 +1,6 @@
 services:
   tcp-congestion-server:
-    image: ghcr.io/datadog/apps-npm-tools:{APPS_VERSION}
+    image: {NPM_TOOLS_IMAGE}
     container_name: tcp-congestion-server
     hostname: tcp-congestion-server
     cap_add: [NET_ADMIN, SYS_ADMIN]
@@ -12,7 +12,7 @@ services:
     command: >
       bash -c "iperf3 -s -p 5201 -D && sleep infinity"
   tcp-congestion-client:
-    image: ghcr.io/datadog/apps-npm-tools:{APPS_VERSION}
+    image: {NPM_TOOLS_IMAGE}
     container_name: tcp-congestion-client
     hostname: tcp-congestion-client
     cap_add: [NET_ADMIN, SYS_ADMIN]
