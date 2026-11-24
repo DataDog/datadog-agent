@@ -187,6 +187,11 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
     if (copied < 0) { // error
         return 0;
     }
+    // A peek leaves the data in the receive queue, and the receive that later
+    // consumes it is counted. Counting the peek too would double the received bytes.
+    if (flags & MSG_PEEK) {
+        return 0;
+    }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     return handle_tcp_recv_btf(pid_tgid, sk, copied);
@@ -200,6 +205,9 @@ int BPF_PROG(tcp_recvmsg_exit_no_addr_len, struct sock *sk, struct msghdr *msg, 
     if (copied < 0) { // error
         return 0;
     }
+    if (flags & MSG_PEEK) { // see tcp_recvmsg_exit
+        return 0;
+    }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     return handle_tcp_recv_btf(pid_tgid, sk, copied);
@@ -208,6 +216,9 @@ int BPF_PROG(tcp_recvmsg_exit_no_addr_len, struct sock *sk, struct msghdr *msg, 
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
     if (copied < 0) { // error
+        return 0;
+    }
+    if (flags & MSG_PEEK) { // see tcp_recvmsg_exit
         return 0;
     }
 

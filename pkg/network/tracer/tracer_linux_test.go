@@ -1526,6 +1526,25 @@ func setupUDPSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPCon
 	return ln, c
 }
 
+// recvRaw does one recvfrom with flags on rc, letting the runtime poller wait
+// for data so that the connection's read deadline applies.
+func recvRaw(rc syscall.RawConn, buf []byte, flags int) (int, error) {
+	var n int
+	var rerr error
+	err := rc.Read(func(fd uintptr) bool {
+		for {
+			n, _, rerr = syscall.Recvfrom(int(fd), buf, flags)
+			if rerr != syscall.EINTR {
+				return rerr != syscall.EAGAIN
+			}
+		}
+	})
+	if err != nil {
+		return 0, err
+	}
+	return n, rerr
+}
+
 func (s *TracerSuite) TestUDPPeekCount() {
 	t := s.T()
 	t.Run("v4", func(t *testing.T) {
@@ -1548,43 +1567,65 @@ func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	_, err := c.Write(msg)
 	require.NoError(t, err)
 
+	require.NoError(t, tracertestutil.SetTestDeadline(ln))
 	rawConn, err := ln.SyscallConn()
 	require.NoError(t, err)
-	err = rawConn.Control(func(fd uintptr) {
-		buf := make([]byte, 1024)
-		var n int
-		var err error
-		done := make(chan struct{})
-
-		recv := func(flags int) {
-			for {
-				n, _, err = syscall.Recvfrom(int(fd), buf, flags)
-				if err == syscall.EINTR || err == syscall.EAGAIN {
-					continue
-				}
-				break
-			}
-		}
-		go func() {
-			defer close(done)
-			recv(syscall.MSG_PEEK)
-			if n == 0 || err != nil {
-				return
-			}
-			recv(0)
-		}()
-
-		select {
-		case <-done:
-			require.NoError(t, err)
-			require.NotZero(t, n)
-		case <-time.After(5 * time.Second):
-			require.Fail(t, "receive timed out")
-		}
-	})
+	buf := make([]byte, 1024)
+	n, err := recvRaw(rawConn, buf, syscall.MSG_PEEK)
 	require.NoError(t, err)
+	require.Equal(t, len(msg), n, "peek")
+	n, err = recvRaw(rawConn, buf, 0)
+	require.NoError(t, err)
+	require.Equal(t, len(msg), n, "receive")
 
 	requireUDPCounters(t, tr, c, len(msg), 1)
+}
+
+// TestTCPPeekCount checks that a MSG_PEEK receive on a TCP socket isn't
+// counted: peeking at the data and then reading it must count the bytes once.
+func (s *TracerSuite) TestTCPPeekCount() {
+	t := s.T()
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+
+	msg := []byte("asdf")
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		c.Write(msg)
+		// keep the connection open until the client closes it
+		io.Copy(io.Discard, c)
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	defer c.Close()
+	require.NoError(t, tracertestutil.SetTestDeadline(c))
+
+	rawConn, err := c.(*net.TCPConn).SyscallConn()
+	require.NoError(t, err)
+	// TCP may return fewer bytes than were sent, so the peek only needs to see
+	// part of the message; the read below then consumes all of it
+	n, err := recvRaw(rawConn, make([]byte, len(msg)), syscall.MSG_PEEK)
+	require.NoError(t, err)
+	require.NotZero(t, n, "peek")
+	_, err = io.ReadFull(c, make([]byte, len(msg)))
+	require.NoError(t, err)
+
+	// keep the last stats seen across polls, since a poll doesn't necessarily
+	// return a connection again once it has stopped changing
+	var outgoing *network.ConnectionStats
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		if conn, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); conn != nil {
+			outgoing = conn
+		}
+		if assert.NotNil(collect, outgoing, "connection not found") {
+			assert.Equal(collect, len(msg), int(outgoing.Monotonic.RecvBytes), "recv bytes")
+		}
+	}, 4*time.Second, 100*time.Millisecond, "failed to find connection with expected recv bytes")
 }
 
 func (s *TracerSuite) TestUDPPacketSumming() {
