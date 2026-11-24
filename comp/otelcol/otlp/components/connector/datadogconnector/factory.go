@@ -33,9 +33,10 @@ type SourceProviderFunc func(context.Context) (string, error)
 // FactoryOption configures the datadog connector factory.
 type FactoryOption func(*factory)
 
-// WithAgentConfig excludes from APM stats the traces whose root span the trace-agent behind the datadog exporter
-// drops: its root resource matches apm_config.ignore_resources, or it fails apm_config.filter_tags or
-// apm_config.filter_tags_regex. conf is the trace-agent's configuration; it is only read.
+// WithAgentConfig aligns the connector with the trace-agent behind the datadog exporter. It excludes from APM stats
+// the traces whose root span the trace-agent drops: its root resource matches apm_config.ignore_resources, or it
+// fails apm_config.filter_tags or apm_config.filter_tags_regex. It also applies the trace-agent's
+// apm_config.features (DD_APM_FEATURES) to the connector. conf is the trace-agent's configuration; it is only read.
 func WithAgentConfig(conf *config.AgentConfig) FactoryOption {
 	return func(f *factory) {
 		f.agentConfig = conf
@@ -88,7 +89,7 @@ func (f *factory) createTracesToMetricsConnector(_ context.Context, params conne
 	if err != nil {
 		return nil, err
 	}
-	conn, err := newTraceToMetricConnector(params.TelemetrySettings, cfg, nextConsumer, metricsClient, f.concentrator, f.tagger, f.hostname)
+	conn, err := newTraceToMetricConnector(params.TelemetrySettings, cfg, nextConsumer, metricsClient, f.concentrator, f.tagger, f.hostname, f.agentConfig)
 	if err != nil {
 		return nil, err
 	}

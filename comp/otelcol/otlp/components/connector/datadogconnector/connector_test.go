@@ -23,6 +23,7 @@ import (
 	otelstats "github.com/DataDog/datadog-agent/pkg/trace/otel/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -952,6 +953,66 @@ func TestConsumeReadOnlyTracesConcurrent(t *testing.T) {
 		require.NoError(t, err)
 	}
 	assert.Equal(t, before, marshalTraces(t, shared))
+}
+
+// TestAgentFeatures checks that the connector applies the trace-agent's apm_config.features (DD_APM_FEATURES).
+func TestAgentFeatures(t *testing.T) {
+	const disableV2 = "disable_operation_and_resource_name_logic_v2"
+	for _, tt := range []struct {
+		name         string
+		agentConf    func() *config.AgentConfig
+		wantFeatures []string
+		wantAbsent   []string
+	}{
+		{
+			name:       "no agent config",
+			agentConf:  func() *config.AgentConfig { return nil },
+			wantAbsent: []string{disableV2},
+		},
+		{
+			name:       "agent config without features",
+			agentConf:  config.New,
+			wantAbsent: []string{disableV2},
+		},
+		{
+			name: "agent config with features",
+			agentConf: func() *config.AgentConfig {
+				c := config.New()
+				c.Features[disableV2] = struct{}{}
+				c.Features["disable_otlp_container_tags_v2"] = struct{}{}
+				return c
+			},
+			wantFeatures: []string{disableV2, "disable_otlp_container_tags_v2"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var opts []FactoryOption
+			if c := tt.agentConf(); c != nil {
+				opts = append(opts, WithAgentConfig(c))
+			}
+			factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil, opts...)
+			cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+			tconn, err := factory.CreateTracesToMetrics(t.Context(), connectortest.NewNopSettings(datadogComponentType), cfg, consumertest.NewNop())
+			require.NoError(t, err)
+			connector := tconn.(*traceToMetricConnector)
+			for _, f := range tt.wantFeatures {
+				assert.True(t, connector.tcfg.HasFeature(f), "feature %q should be set", f)
+			}
+			for _, f := range tt.wantAbsent {
+				assert.False(t, connector.tcfg.HasFeature(f), "feature %q should not be set", f)
+			}
+		})
+	}
+}
+
+// TestAgentFeaturesAreCopied checks that the connector does not share the feature map with the trace-agent's config.
+func TestAgentFeaturesAreCopied(t *testing.T) {
+	agentConf := config.New()
+	agentConf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
+	acfg := getTraceAgentCfg(zap.NewNop(), datadogconfig.TracesConnectorConfig{ResourceAttributesAsContainerTags: []string{"foo"}}, nil, nil, option.None[string](), agentConf)
+	assert.True(t, acfg.HasFeature("disable_operation_and_resource_name_logic_v2"))
+	assert.True(t, acfg.HasFeature("enable_cid_stats"))
+	assert.False(t, agentConf.HasFeature("enable_cid_stats"), "the trace-agent's config must not be modified")
 }
 
 // TestAgentIgnoreResources covers how the span filter of ignoredRootsFilter fits in ConsumeTraces;

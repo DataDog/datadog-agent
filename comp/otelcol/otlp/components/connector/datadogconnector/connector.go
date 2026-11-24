@@ -78,7 +78,10 @@ type traceToMetricConnector struct {
 }
 
 // newTraceToMetricConnector creates a new connector with native OTel span ingestion
-func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Config, metricsConsumer consumer.Metrics, metricsClient statsd.ClientInterface, concentrator *stats.Concentrator, tagger types.TaggerClient, hostnameOpt option.Option[string]) (*traceToMetricConnector, error) {
+//
+// agentConf is the configuration of the trace-agent behind the datadog exporter, if any. Its apm_config.features
+// (DD_APM_FEATURES) are applied to the connector, so that stats are computed with the same feature flags as traces.
+func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Config, metricsConsumer consumer.Metrics, metricsClient statsd.ClientInterface, concentrator *stats.Concentrator, tagger types.TaggerClient, hostnameOpt option.Option[string], agentConf *config.AgentConfig) (*traceToMetricConnector, error) {
 	set.Logger.Info("Building datadog connector for traces to metrics")
 	statsout := make(chan *pb.StatsPayload, 100)
 	set.MeterProvider = noop.NewMeterProvider() // disable metrics for the connector
@@ -94,7 +97,7 @@ func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Co
 		return nil, fmt.Errorf("failed to create metrics translator: %w", err)
 	}
 
-	tcfg := getTraceAgentCfg(set.Logger, cfg.(*datadogconfig.ConnectorComponentConfig).Traces, attributesTranslator, tagger, hostnameOpt)
+	tcfg := getTraceAgentCfg(set.Logger, cfg.(*datadogconfig.ConnectorComponentConfig).Traces, attributesTranslator, tagger, hostnameOpt, agentConf)
 	oconf := tcfg.Obfuscation.Export(tcfg)
 	oconf.Statsd = metricsClient
 	oconf.Redis.Enabled = true
@@ -118,8 +121,15 @@ func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Co
 	}, nil
 }
 
-func getTraceAgentCfg(logger *zap.Logger, cfg datadogconfig.TracesConnectorConfig, attributesTranslator *attributes.Translator, tagger types.TaggerClient, hostnameOpt option.Option[string]) *config.AgentConfig {
+func getTraceAgentCfg(logger *zap.Logger, cfg datadogconfig.TracesConnectorConfig, attributesTranslator *attributes.Translator, tagger types.TaggerClient, hostnameOpt option.Option[string], agentConf *config.AgentConfig) *config.AgentConfig {
 	acfg := config.New()
+	// Honour apm_config.features (DD_APM_FEATURES), as the trace-agent behind the datadog exporter does.
+	// This is applied first, so that the settings below can still add or remove features.
+	if agentConf != nil {
+		for feat := range agentConf.Features {
+			acfg.Features[feat] = struct{}{}
+		}
+	}
 	acfg.OTLPReceiver.AttributesTranslator = attributesTranslator
 	acfg.OTLPReceiver.SpanNameRemappings = cfg.SpanNameRemappings
 	acfg.OTLPReceiver.SpanNameAsResourceName = cfg.SpanNameAsResourceName
