@@ -507,10 +507,24 @@ func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	delete(m.resolvedCgroups, cgroupID)
 	m.resolvedCgroupsLock.Unlock()
 
+	var replacement *cgroupModel.CacheEntry
+	if !cgce.IsContainerContextNull() && m.resolvers != nil && m.resolvers.CGroupResolver != nil {
+		if entry := m.resolvers.CGroupResolver.GetCacheEntryContainerID(cgce.GetContainerID()); entry != nil && entry != cgce && !entry.IsDeleted() {
+			replacement = entry
+		}
+	}
+
 	// Find and unlink this workload from its profile
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 	for selector, prof := range m.profiles {
+		if replacement != nil {
+			if m.replaceContainerWorkloadCGroup(prof, cgce, replacement) {
+				prof.RemoveBaseMountNamespace(cgce.GetCGroupInode())
+				break
+			}
+			continue
+		}
 		if removed, remainingInstances := m.unlinkWorkloadFromProfile(prof, cgce); removed {
 			prof.RemoveBaseMountNamespace(cgce.GetCGroupInode())
 			if remainingInstances == 0 {
@@ -1204,16 +1218,16 @@ func getWorkloadIDFromEvent(event *model.Event) containerutils.WorkloadID {
 
 // getOrCreateWorkload creates a workload object from an event for tracking in profile Instances
 func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel.WorkloadSelector, workloadID containerutils.WorkloadID) *tags.Workload {
-	var cacheEntry *cgroupModel.CacheEntry
-
-	switch id := workloadID.(type) {
-	case containerutils.ContainerID:
-		cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryContainerID(id)
-	case containerutils.CGroupID:
-		cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryByCgroupID(id)
+	cacheEntry := m.getCacheEntryForWorkload(workloadID)
+	if cacheEntry == nil && m.resolvers != nil && m.resolvers.CGroupResolver != nil {
+		if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
+			if candidate := m.resolvers.CGroupResolver.GetCacheEntryByInode(inode); cacheEntryMatchesWorkloadID(candidate, workloadID) {
+				cacheEntry = candidate
+			}
+		}
 	}
 
-	if cacheEntry == nil {
+	if !cacheEntryMatchesWorkloadID(cacheEntry, workloadID) {
 		return nil
 	}
 
@@ -1221,6 +1235,39 @@ func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel
 		GCroupCacheEntry: cacheEntry,
 		Selector:         selector,
 		Tags:             event.ProcessContext.Process.ContainerContext.Tags,
+	}
+}
+
+func (m *ManagerV2) getCacheEntryForWorkload(workloadID containerutils.WorkloadID) *cgroupModel.CacheEntry {
+	if m.resolvers == nil || m.resolvers.CGroupResolver == nil {
+		return nil
+	}
+
+	var cacheEntry *cgroupModel.CacheEntry
+	switch id := workloadID.(type) {
+	case containerutils.ContainerID:
+		cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryContainerID(id)
+	case containerutils.CGroupID:
+		cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryByCgroupID(id)
+	}
+
+	if cacheEntry == nil || cacheEntry.IsDeleted() {
+		return nil
+	}
+	return cacheEntry
+}
+
+func cacheEntryMatchesWorkloadID(cacheEntry *cgroupModel.CacheEntry, workloadID containerutils.WorkloadID) bool {
+	if cacheEntry == nil || cacheEntry.IsDeleted() {
+		return false
+	}
+	switch id := workloadID.(type) {
+	case containerutils.ContainerID:
+		return id != "" && cacheEntry.GetContainerID() == id
+	case containerutils.CGroupID:
+		return id != "" && cacheEntry.GetCGroupID() == id
+	default:
+		return false
 	}
 }
 
@@ -1352,6 +1399,26 @@ func (m *ManagerV2) seedMountNamespace(secprof *profile.Profile, cgroupInode uin
 		}
 	}
 	return seeded
+}
+
+func (m *ManagerV2) replaceContainerWorkloadCGroup(prof *profile.Profile, deleted, replacement *cgroupModel.CacheEntry) bool {
+	prof.InstancesLock.Lock()
+	defer prof.InstancesLock.Unlock()
+
+	containerID := deleted.GetContainerID()
+	if containerID == "" {
+		return false
+	}
+
+	for _, w := range prof.Instances {
+		if w.GetWorkloadID() == containerID {
+			if w.GCroupCacheEntry == deleted {
+				w.GCroupCacheEntry = replacement
+			}
+			return true
+		}
+	}
+	return false
 }
 
 // unlinkWorkloadFromProfile removes a workload from a profile's Instances
@@ -1690,13 +1757,12 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 	pr := m.resolvers.ProcessResolver
 	tagsResolver := m.resolvers.TagsResolver
 
-	var cacheEntry *cgroupModel.CacheEntry
+	var pids []uint32
 	var imageName, imageTag string
 
 	switch id := workloadID.(type) {
 	case containerutils.ContainerID:
-		cacheEntry = cgr.GetCacheEntryContainerID(id)
-		if cacheEntry == nil {
+		if cgr.GetCacheEntryContainerID(id) == nil {
 			return result
 		}
 		tags, err := tagsResolver.ResolveWithErr(id)
@@ -1705,13 +1771,14 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 		}
 		imageName = utils.GetTagValue("image_name", tags)
 		imageTag = utils.GetTagValue("image_tag", tags)
+		pids = cgr.GetContainerPIDs(id)
 
 	case containerutils.CGroupID:
 		// Skip systemd cgroups if containersOnly is true
 		if containersOnly {
 			return result
 		}
-		cacheEntry = cgr.GetCacheEntryByCgroupID(id)
+		cacheEntry := cgr.GetCacheEntryByCgroupID(id)
 		if cacheEntry == nil {
 			return result
 		}
@@ -1721,6 +1788,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 		}
 		imageName = utils.GetTagValue("service", tags)
 		imageTag = utils.GetTagValue("version", tags)
+		pids = cacheEntry.GetPIDs()
 
 	default:
 		return result
@@ -1730,8 +1798,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 		imageTag = "latest"
 	}
 
-	// Get PIDs and resolve filepaths
-	pids := cacheEntry.GetPIDs()
+	// Resolve filepaths for PIDs
 	key := activity_tree.ImageProcessKey{
 		ImageName: imageName,
 		ImageTag:  imageTag,
