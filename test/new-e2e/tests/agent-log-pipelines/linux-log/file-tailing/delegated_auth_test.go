@@ -32,11 +32,12 @@ const (
 	delegatedAuthAPIHost = "api.datadoghq.com"
 	delegatedLogsHost    = "agent-http-intake.logs.datadoghq.com"
 	delegatedLogFile     = "dela-dual-shipping.log"
+	delegatedLogPath     = utils.LinuxLogsFolderPath + "/" + delegatedLogFile
 	delegatedLogMessage  = "delegated-auth-log-delivered"
 	delegatedServerPath  = "/tmp/dela_auth_server.py"
 	delegatedLogConfig   = `logs:
   - type: file
-    path: /tmp/logs/dela-dual-shipping.log
+    path: ` + delegatedLogPath + `
     service: dela-dual-shipping`
 )
 
@@ -109,10 +110,9 @@ logs_config:
 	s.UpdateEnv(delegatedAuthProvisioner(config))
 	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
-	logPath := utils.LinuxLogsFolderPath + "/" + delegatedLogFile
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p " + utils.LinuxLogsFolderPath)
-	s.Env().RemoteHost.MustExecute("sudo touch " + logPath)
-	s.Env().RemoteHost.MustExecute("sudo chmod +r " + logPath)
+	s.Env().RemoteHost.MustExecute("sudo touch " + delegatedLogPath)
+	s.Env().RemoteHost.MustExecute("sudo chmod +r " + delegatedLogPath)
 	utils.AppendLog(s, delegatedLogFile, delegatedLogMessage, 1)
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
