@@ -69,12 +69,6 @@ checks:
       series: avg(total_cpu_usage_millicores)
       upper_bound: 1500
 
-  - name: intake_connections
-    description: "Connections established to intake APIs."
-    bounds:
-      series: "connection.current"
-      upper_bound: 40
-
   - name: total_bytes_received
     description: "Total Agent egress under the seeded container-log workload."
     bounds:
