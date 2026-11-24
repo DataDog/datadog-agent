@@ -161,7 +161,7 @@ def run_compare(
             code=EXIT_REGRESSION,
         )
     print(
-        f"PASS: no benchmark allocates more or uses more than {max_growth:g}% more bytes per call. "
+        f"PASS: no significant (p < 0.05) increase in allocations, or in bytes per call above {max_growth:g}%. "
         "Time is not judged: read the sec/op table above"
     )
 

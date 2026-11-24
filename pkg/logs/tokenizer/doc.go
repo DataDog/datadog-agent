@@ -80,9 +80,9 @@
 //
 // It benchmarks each consumer's real per-line calls at its real window,
 // against the merge base, in about 2 minutes. It fails if one allocates more
-// often, or if one's bytes per call grow by more than 5%. The last one catches
-// an allocation that keeps its count but gets bigger, which the allocation
-// tests can't see. It prints the timings but doesn't judge them: read them on
+// often, or if one's bytes per call grow by more than 5%, when benchstat calls
+// the change significant (p < 0.05). The bytes check catches an allocation
+// that keeps its count but gets bigger, which the allocation tests can't see. It prints the timings but doesn't judge them: read them on
 // a quiet machine, and trust a change in the code you touched, because
 // changing one function can move the timing of others by 10% or more through
 // code layout (go.dev/issue/8717). CI runs it on every change to this package.
