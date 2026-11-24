@@ -143,6 +143,10 @@ func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	s.pipelineProvider = pipelineProvider
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType, s.addedSourcesDone, s.removedSourcesDone)
 	s.registry = registry
+	// TEMPORARY: guard direct checkpoint writes for the smoke provider.
+	if routed, ok := pipelineProvider.(*pipeline.RoutedProvider); ok {
+		s.registry = routed.GuardRegistry(registry)
+	}
 	tracker.Add(s.tailers)
 	go s.run()
 }
@@ -218,11 +222,22 @@ func (s *Launcher) cleanup() {
 		stopper.Add(tailer)
 	}
 	s.rotatedTailers = []*tailer.Tailer{}
+	var smokeSources []string
 	for _, tailer := range s.tailers.All() {
+		smokeSources = append(smokeSources, tailer.Identifier())
 		stopper.Add(tailer)
 		s.tailers.Remove(tailer)
 	}
 	stopper.Stop()
+	if routed, ok := s.pipelineProvider.(*pipeline.RoutedProvider); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		for _, identifier := range smokeSources {
+			if err := routed.RetireSource(ctx, identifier, 1); err != nil {
+				log.Debugf("routing smoke retirement left for provider shutdown: %v", err)
+			}
+		}
+	}
 
 	// Clean up old info map to prevent memory leaks
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
@@ -591,6 +606,16 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 	}
 
 	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	// TEMPORARY: this smoke run uses fixed files and generation one per process.
+	if routed, ok := s.pipelineProvider.(*pipeline.RoutedProvider); ok {
+		var err error
+		channel, err = routed.SourceInput(file.Identifier(), 1)
+		if err != nil {
+			log.Warnf("routing smoke SourceInput: %v", err)
+			return false
+		}
+		monitor = routed.GetPipelineMonitor().GetCapacityMonitor(metrics.ProcessorTlmName, "routed-0")
+	}
 	tailer := s.createTailer(file, channel, monitor, fingerprint)
 
 	offset, whence := s.tailerPosition(file, tailer, m, fingerprint)
