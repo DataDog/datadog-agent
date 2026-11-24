@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Enable Kubernetes remediation actions by default in the Cluster Agent's
+    Private Action Runner. This behavior can be disabled by setting
+    ``private_action_runner.default_actions_enabled`` to ``false``.
