@@ -223,9 +223,6 @@ func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 			mockConfig.SetInTest("cluster_name", tt.configClusterName)
 			mockConfig.SetInTest("otelcollector.standalone.telemetry_resource_cluster_name", tt.telemetryResourceClusterName)
 			mockConfig.SetInTest("otel_standalone", !tt.connected)
-			// Node labels are only read with the kubelet collector, which
-			// TestGetClusterNameNodeLabelsWithoutKubelet covers the absence of.
-			mockConfig.SetInTest("otelcollector.standalone.use_kubelet_collector", true)
 			env.SetFeatures(t, env.Kubernetes)
 			flavor.SetTestFlavor(t, tt.flavor)
 			catalog := map[string]Provider{}
