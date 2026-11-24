@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix the external metrics provider failing to refresh all ``DatadogMetric`` queries
+    with ``missing result from reply`` when a query too long to be sent to Datadog
+    (more than about 7000 URL-escaped characters) was batched first. A query that is
+    too long is now consistently skipped on its own, wherever it is in the batch, and
+    no longer affects the other queries.

@@ -12,6 +12,10 @@ Be sure that you already set up the [development requirements](required.md).
 Building the Agent for Windows requires using the [build image](https://github.com/DataDog/datadog-agent-buildimages/tree/main/windows). Setting up a local Windows environment is not officially supported.
 ///
 
+/// note
+Building the Agent **for AIX** requires an actual AIX 7.3 (PowerPC) host: there is no build container image or developer environment for it. Prepare such a host by running <<<repo("packaging/aix/setup-host.sh", "`packaging/aix/setup-host.sh`")>>>, and see [How to build agent distribution packages](../how-to/build/distributions.md#building-for-aix) for the full build instructions.
+///
+
 ## Build tools
 
 CMake version 3.15 or later and a C++ compiler are required for building the Agent.

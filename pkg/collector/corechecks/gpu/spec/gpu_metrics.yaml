@@ -1207,7 +1207,8 @@ metrics:
         action), unschedulable (the node is cordoned, not Ready or matches a rule).
         Series carry device tags but no workload tags. Only unschedulable series
         carry unschedulable_reason tags, one per cause, and report 0 for 10 minutes
-        after the cause clears.
+        after the cause clears. A change of the GPU availability is also sent as a
+        gpu_availability_change event.
       aggregation: absolute_usage
     tagsets:
       - device
@@ -1244,6 +1245,27 @@ metrics:
         mig_parent: true
         physical: true
         vgpu: false
+  nvlink.link_up:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether the NVLink port is up (1) or down (0). A change of value is also
+        sent as a gpu_nvlink_state_change event.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+      - nvlink
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        mig_parent: false
+        physical: true
+        vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.count.active:
     metadata:
       metric_type: gauge
