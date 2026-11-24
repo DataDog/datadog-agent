@@ -58,10 +58,10 @@ func NewJSONAggregator(tagCompleteJSON bool, maxContentSize int) JSONAggregator 
 func (r *jsonAggregator) Process(msg *message.Message) []*message.Message {
 	content := msg.GetContent()
 
-	// If buffer is empty and content is likely complete single-line JSON,
-	// validate and return without parsing
-	if len(r.messageBuf) == 0 && json.Valid(content) {
-		return []*message.Message{msg}
+	if len(r.messageBuf) == 0 {
+		if !startsWithJSONObject(content) || json.Valid(content) {
+			return []*message.Message{msg}
+		}
 	}
 
 	r.messageBuf = append(r.messageBuf, msg)
@@ -119,6 +119,9 @@ func (r *jsonAggregator) Process(msg *message.Message) []*message.Message {
 
 // Flush flushes the buffer and returns the messages.
 func (r *jsonAggregator) Flush() []*message.Message {
+	if len(r.messageBuf) == 0 {
+		return r.messageBuf
+	}
 	if len(r.messageBuf) > 1 {
 		metrics.TlmAutoMultilineJSONAggregatorFlush.Inc("false")
 	}
@@ -129,6 +132,19 @@ func (r *jsonAggregator) Flush() []*message.Message {
 	r.currentSize = 0
 	r.checkpointSize = 0
 	return msgs
+}
+
+// startsWithJSONObject reports whether the first non-JSON-whitespace byte is '{'.
+func startsWithJSONObject(b []byte) bool {
+	for _, c := range b {
+		switch c {
+		case ' ', '\t', '\n', '\r':
+			continue
+		default:
+			return c == '{'
+		}
+	}
+	return false
 }
 
 // IsEmpty returns true if the buffer is empty.
