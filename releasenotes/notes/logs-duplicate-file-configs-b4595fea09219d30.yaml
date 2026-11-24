@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    When several log configs match the same file, for instance two configs in the
+    same container's ``ad.datadoghq.com/<container>.logs`` annotation, the Agent now
+    consistently applies the most recently added one. Previously the config in effect
+    could change after a log rotation, so some containers kept their logs while others
+    dropped them. The Agent now logs a warning and shows a message in ``agent status``
+    on each config that is ignored for that file.

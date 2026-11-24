@@ -1,0 +1,46 @@
+{{- with .ndmDiscoveryStats }}
+  Workers: {{.Workers}}
+  Ranges: {{len .Ranges}}
+  {{- if .Rejected }}
+  Rejected ranges: {{len .Rejected}}
+  {{- end }}
+  {{- range .Ranges }}
+
+  {{.NetworkAddress}} ({{.ID}})
+  ---------
+    State: {{.State}}
+    Namespace: {{.Namespace}}
+    Probes: {{.Probes}}
+    Interval: {{.IntervalSec}}s
+    Progress: {{.Scanned}} / {{.Total}} addresses ({{.ProgressPct}}%)
+    {{- if .RunID }}
+    Run ID: {{.RunID}}
+    {{- end }}
+    {{- if .StartedAt }}
+    Started: {{.StartedAt}}
+    {{- end }}
+    {{- if .EndedAt }}
+    Ended: {{.EndedAt}}
+    {{- end }}
+    {{- if .NextRunAt }}
+    Next run: {{.NextRunAt}}
+    {{- end }}
+    {{- if .NextRunIn }}
+    Next run in: {{.NextRunIn}}
+    {{- end }}
+    {{- if .Issues }}
+    Issues:
+    {{- range .Issues }}
+      - {{.}}
+    {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if .Rejected }}
+
+  Rejected ranges
+  ===============
+  {{- range .Rejected }}
+    {{.NetworkAddress}} ({{.ID}}): {{.Error}}
+  {{- end }}
+  {{- end }}
+{{- end }}

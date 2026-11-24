@@ -284,6 +284,14 @@ pkg_filegroup(
 )
 
 dd_cc_packaged(
+    name = "openssl_bin_pkg",
+    dest_dir = "embedded/bin",
+    input = ":openssl_binary",
+    mode = "0755",
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
     name = "libcrypto_shared_pkg",
     # Unix-only in practice: the Windows payload is installed by :windows_pkg
     # below, with plain pkg_* rules.
@@ -293,9 +301,7 @@ dd_cc_packaged(
     }),
     dest_dir = "embedded/lib",
     input = ":libcrypto_shared",
-    installed_executables = {
-        ":openssl_binary": "embedded/bin",
-    } | select({
+    installed_executables = select({
         # Engines, modules, and fips provider are only installed for FIPS builds.
         "@@//bazel/platforms:fips": {
             ":_engines": "embedded/lib",
@@ -419,7 +425,7 @@ copy_to_directory(
     srcs = [":openssl"],
     out = "openssl_extra",
     exclude_srcs_patterns = [
-        # Binary handled via installed_executables
+        # Binary packaged separately by :openssl_bin_pkg
         "bin/**",
         # Engines are rpath-patched and installed via installed_executables
         "lib/engines-3/**",

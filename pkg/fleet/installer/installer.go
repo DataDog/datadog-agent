@@ -634,7 +634,12 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	//       This is used to prevent the agent from being uninstalled when purge is
 	//       called from within the MSI.
 	if uninstallAgent, ok := os.LookupEnv("DD_NO_AGENT_UNINSTALL"); !ok || strings.ToLower(uninstallAgent) != "true" {
-		err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
+		var windowsArgs []string
+		if runtime.GOOS == "windows" {
+			// Keep Fleet hook suppression while requesting complete MSI service cleanup.
+			windowsArgs = []string{"FLEET_PURGE=1"}
+		}
+		err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false, windowsArgs...)
 		if err != nil {
 			log.Warnf("could not remove agent: %v", err)
 		}

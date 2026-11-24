@@ -191,8 +191,11 @@ func TestNodeUnschedulableSkipsWorkloadTags(t *testing.T) {
 
 	hasContainerTag := func(reason string) bool {
 		for _, call := range mockSender.Calls {
+			if call.Method != "GaugeWithTimestamp" {
+				continue // other calls, e.g. events, have other arguments
+			}
 			tags, _ := call.Arguments.Get(3).([]string)
-			if call.Method == "GaugeWithTimestamp" && call.Arguments.String(0) == "gpu.device.unavailable" &&
+			if call.Arguments.String(0) == "gpu.device.unavailable" &&
 				slices.Contains(tags, "unavailable_reason:"+reason) && slices.Contains(tags, "container_id:container0") {
 				return true
 			}

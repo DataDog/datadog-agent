@@ -106,3 +106,27 @@ func TestWIFReplacementLeaderAndCancellation(t *testing.T) {
 		})
 	}
 }
+
+func TestPARKeyOverrideScopesSharedIdentity(t *testing.T) {
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"api_key": "agent-key", "delegated_auth.org_uuid": "agent-org",
+		par.APIKey: "par-key", par.SelfEnroll: true,
+	})
+	secret := makeTestSecret("default", "identity")
+	secret.Data[apiKeyHashField] = []byte(HashAPIKey("par-key"))
+	storage := newK8sIdentityStorage(cfg, nil)
+	require.False(t, storage.useWIF, "an explicit PAR key selects API-key enrollment")
+	require.True(t, storage.acceptsSecret(secret))
+	secret.Data[wifOrgUUIDField] = []byte("old-org")
+	require.False(t, storage.acceptsSecret(secret), "replace a WIF identity when PAR selects its own key")
+	delete(secret.Data, wifOrgUUIDField)
+	secret.Data[urnField] = []byte("urn:dd:apps:on-prem-runner:us1:42:runner")
+	cfg.SetInTest(par.RunnerSite, "datadoghq.eu")
+	require.False(t, storage.acceptsSecret(secret), "replace an identity from another PAR site")
+	cfg.SetInTest(par.RunnerSite, "datadoghq.com")
+	require.True(t, storage.acceptsSecret(secret))
+	cfg.SetInTest("api_key", "rotated-agent-key")
+	require.True(t, newK8sIdentityStorage(cfg, nil).acceptsSecret(secret))
+	cfg.SetInTest(par.APIKey, "rotated-par-key")
+	require.False(t, newK8sIdentityStorage(cfg, nil).acceptsSecret(secret))
+}

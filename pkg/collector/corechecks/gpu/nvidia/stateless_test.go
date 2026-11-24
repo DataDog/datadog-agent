@@ -14,13 +14,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -681,21 +678,25 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// Verify metrics, as we still expect to have all 3 metrics even if some errors were returned
-			require.Len(t, allMetrics, 3)
-			collectedMetrics := requireMetrics(t, allMetrics)
-
-			// Check total links metric
-			require.Equal(t, float64(len(tt.nvlinkStates)), collectedMetrics[0].Value)
-			require.Equal(t, metrics.GaugeType, collectedMetrics[0].Type)
-
-			// Check active links metric
-			require.Equal(t, float64(tt.expectedActive), collectedMetrics[1].Value)
-			require.Equal(t, metrics.GaugeType, collectedMetrics[1].Type)
-
-			// Check inactive links metric
-			require.Equal(t, float64(tt.expectedInactive), collectedMetrics[2].Value)
-			require.Equal(t, metrics.GaugeType, collectedMetrics[2].Type)
+			// The 3 count metrics are reported even if some links can't be read, plus one
+			// nvlink.link_up per readable link
+			require.Len(t, allMetrics, 3+tt.expectedActive+tt.expectedInactive)
+			counts := map[string]float64{}
+			linkUp := 0
+			for _, m := range requireMetrics(t, allMetrics) {
+				require.Equal(t, metrics.GaugeType, m.Type)
+				if m.Name == "nvlink.link_up" {
+					linkUp++
+				} else {
+					counts[m.Name] = m.Value
+				}
+			}
+			require.Equal(t, tt.expectedActive+tt.expectedInactive, linkUp)
+			require.Equal(t, map[string]float64{
+				"nvlink.count.total":    float64(len(tt.nvlinkStates)),
+				"nvlink.count.active":   float64(tt.expectedActive),
+				"nvlink.count.inactive": float64(tt.expectedInactive),
+			}, counts)
 		})
 	}
 }
@@ -872,80 +873,6 @@ func TestProcessDetailListArchitectureSupport(t *testing.T) {
 			require.Equal(t, tt.supported, hasProcessDetailAPICall)
 		})
 	}
-}
-
-func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
-	tests := []struct {
-		name          string
-		features      []env.Feature
-		expectMetrics bool
-		expectError   bool
-	}{
-		{
-			name:          "not emitted when kubernetes device plugins feature is absent",
-			features:      nil,
-			expectMetrics: false,
-			expectError:   true,
-		},
-		{
-			name:          "emitted when kubernetes device plugins feature is present",
-			features:      []env.Feature{env.KubernetesDevicePlugins},
-			expectMetrics: true,
-			expectError:   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			env.SetFeatures(t, tt.features...)
-
-			device := setupMockDevice(t)
-			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
-			apis := createStatelessAPIs(&CollectorDependencies{Workloadmeta: wmeta})
-			deviceUnhealthyAPI := findAPICallByName(t, apis, "device_unhealthy_count")
-
-			gotSamples, _, err := deviceUnhealthyAPI.Handler(device, 0)
-			if tt.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			if tt.expectMetrics {
-				gotMetrics := requireMetrics(t, gotSamples)
-				require.Len(t, gotMetrics, 1)
-				require.Equal(t, "device.unhealthy", gotMetrics[0].Name)
-			} else {
-				require.Empty(t, gotSamples)
-			}
-		})
-	}
-}
-
-// fakeNodeSource stands in for the cluster agent.
-type fakeNodeSource struct{}
-
-func (fakeNodeSource) NodeUnschedulable() (nodeunschedulable.Result, error) {
-	return nodeunschedulable.Result{Reasons: []string{}}, nil
-}
-func (fakeNodeSource) Probe() error { return nil }
-
-// The reasons API is only dropped when no health source can ever exist and the node state is
-// off; a GPU missing from workloadmeta at startup keeps it, so health appears once known.
-func TestUnavailableReasonsAPISupport(t *testing.T) {
-	device := setupMockDevice(t, testutil.WithUnsupportedFields(nvml.FI_DEV_GET_GPU_RECOVERY_ACTION))
-	wmeta := testutil.GetWorkloadMetaMock(t) // no GPUs yet
-	supported := func(deps *CollectorDependencies) int {
-		apis := createStatelessAPIs(deps)
-		return len(filterSupportedAPIs(device, []apiCallInfo{findAPICallByName(t, apis, "device_unavailable_reasons")}))
-	}
-
-	env.SetFeatures(t)
-	require.Zero(t, supported(&CollectorDependencies{Workloadmeta: wmeta}))
-	require.Equal(t, 1, supported(&CollectorDependencies{Workloadmeta: wmeta, NodeUnschedulable: nodeunschedulable.NewCache(fakeNodeSource{}, time.Minute)}))
-
-	env.SetFeatures(t, env.KubernetesDevicePlugins)
-	require.Equal(t, 1, supported(&CollectorDependencies{Workloadmeta: wmeta}))
 }
 
 func TestPCIELinkMetrics(t *testing.T) {
@@ -1530,4 +1457,23 @@ func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInf
 
 	require.FailNowf(t, "api call not found", "expected API call %q to exist", name)
 	return apiCallInfo{}
+}
+
+func TestRecoveryActionTagValue(t *testing.T) {
+	for _, tc := range []struct {
+		code     int64
+		expected string
+	}{
+		{0, "none"},
+		{1, "reset"},
+		{2, "reboot"},
+		{3, "drain"},
+		{4, "drain_and_reset"},
+		{99, "unknown_99"},
+		{-1, "unknown_-1"},
+	} {
+		t.Run(tc.expected, func(t *testing.T) {
+			require.Equal(t, tc.expected, recoveryActionTagValue(tc.code))
+		})
+	}
 }

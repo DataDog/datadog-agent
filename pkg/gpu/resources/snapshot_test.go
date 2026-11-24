@@ -33,7 +33,7 @@ func TestSnapshotUsesCachedAttributes(t *testing.T) {
 	require.Equal(t, uint64(16<<30), d.MemoryTotalBytes)
 	require.Equal(t, "none", d.VirtualizationMode)
 	require.Equal(t, uint32(0), *d.FabricCliqueID)
-	require.Equal(t, d.FabricClusterUUID+":0", d.NVLinkDomain)
+	require.Equal(t, d.FabricClusterUUID+":0", d.NVLinkPartition)
 	tags := taglist.NewTagList()
 	collectors.ExtractGPUTags(&workloadmeta.GPU{
 		EntityID: workloadmeta.EntityID{ID: testUUID}, Vendor: "nvidia", Device: "Tesla T4", PCIBusID: physical.PCIBusID,
@@ -60,12 +60,12 @@ func TestSnapshotExcludesVirtualDevices(t *testing.T) {
 func TestSnapshotFabricMembership(t *testing.T) {
 	const cluster = "01020304-0506-0708-090a-0b0c0d0e0f10"
 	for _, tc := range []struct {
-		name   string
-		clique uint32
-		domain string
+		name      string
+		clique    uint32
+		partition string
 	}{
-		{name: "zero is known", clique: 0, domain: cluster + ":0"},
-		{name: "full NVML range", clique: 4294967295, domain: cluster + ":4294967295"},
+		{name: "zero is known", clique: 0, partition: cluster + ":0"},
+		{name: "full NVML range", clique: 4294967295, partition: cluster + ":4294967295"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			device := &safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{
@@ -73,10 +73,10 @@ func TestSnapshotFabricMembership(t *testing.T) {
 			}}
 			result := Snapshot([]safenvml.Device{device})
 			require.Equal(t, &tc.clique, result[0].FabricCliqueID)
-			require.Equal(t, tc.domain, result[0].NVLinkDomain)
+			require.Equal(t, tc.partition, result[0].NVLinkPartition)
 		})
 	}
 	result := Snapshot([]safenvml.Device{&safenvml.PhysicalDevice{}})
 	require.Nil(t, result[0].FabricCliqueID)
-	require.Empty(t, result[0].NVLinkDomain)
+	require.Empty(t, result[0].NVLinkPartition)
 }

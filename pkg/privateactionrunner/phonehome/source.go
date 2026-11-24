@@ -29,14 +29,19 @@ type Source interface {
 }
 
 type rcSource struct {
-	cfg                model.Reader
-	service            rcservice.Component
-	key, rcURL, parURL string
+	cfg                        model.Reader
+	service                    rcservice.Component
+	key, parKey, rcURL, parURL string
 }
 
 // NewSource uses only the existing RC accessor. Positive RC is sufficient in this slice.
 func NewSource(cfg model.Reader, service rcservice.Component) Source {
-	return &rcSource{cfg: cfg, service: service, key: cfg.GetString("api_key"), rcURL: configutils.GetMainEndpoint(cfg, "https://config.", par.RemoteConfigURL), parURL: enrollmentEndpoint(cfg)}
+	return &rcSource{
+		cfg: cfg, service: service,
+		key: cfg.GetString("api_key"), parKey: par.EnrollmentAPIKey(cfg),
+		rcURL:  configutils.GetMainEndpoint(cfg, "https://config.", par.RemoteConfigURL),
+		parURL: enrollmentEndpoint(cfg),
+	}
 }
 
 // Release is a no-op: RC polling is shared with the rest of core Agent.
@@ -57,7 +62,7 @@ func (r *rcSource) Read(_ time.Time) Observation {
 	}
 	mockPair := os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" && loopbackURL(rcURL) && loopbackURL(parURL)
 	rcKey := r.cfg.GetString("remote_configuration.api_key")
-	if key == "" || key != r.key || rcURL != r.rcURL || parURL != r.parURL || (rcKey != "" && rcKey != key) || r.cfg.GetString("remote_configuration.key") != "" ||
+	if key == "" || key != r.key || par.EnrollmentAPIKey(r.cfg) != r.parKey || rcURL != r.rcURL || parURL != r.parURL || (rcKey != "" && rcKey != key) || r.cfg.GetString("remote_configuration.key") != "" ||
 		(os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" && !mockPair) {
 		return Observation{Reason: phonehomedef.ReasonRCCredentialOrEndpointMismatch}
 	}

@@ -1,0 +1,4 @@
+# description: values of the wrong type in environment variables are reported, valid ones hide invalid file values
+
+# overridden by a valid environment variable: no issue expected
+logs_enabled: [true]
