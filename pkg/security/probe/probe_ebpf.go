@@ -138,7 +138,10 @@ type EBPFProbe struct {
 	eventPool       *ddsync.TypedPool[model.Event]
 	variableStore   *eval.VariableStore
 	variableStoreMu sync.RWMutex
-	numCPU          int
+	// numCPU is the online CPU count, used to size maps
+	numCPU int
+	// numPossibleCPUs is the per-CPU value count of per-CPU maps
+	numPossibleCPUs int
 	pid             uint32
 
 	ctx       context.Context
@@ -790,7 +793,7 @@ func (p *EBPFProbe) enableRawPacket(enable bool) error {
 		return errors.New("unable to find `raw_packet_enabled` map")
 	}
 
-	enabledData := make([]uint32, p.numCPU)
+	enabledData := make([]uint32, p.numPossibleCPUs)
 	if enable {
 		for i := range enabledData {
 			enabledData[i] = 1
@@ -1038,7 +1041,7 @@ func (p *EBPFProbe) getDropActionRuleIDs() map[uint32]string {
 }
 
 func (p *EBPFProbe) clearDroppedPacketsMap(droppedPacketsMap *lib.Map) {
-	zero := make([]uint32, p.numCPU)
+	zero := make([]uint32, p.numPossibleCPUs)
 	for i := uint32(0); i < rawpacket.MaxDropActionFilters; i++ {
 		_ = droppedPacketsMap.Put(i, zero)
 	}
@@ -3873,6 +3876,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	p.numCPU, err = utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
+	}
+
+	p.numPossibleCPUs, err = lib.PossibleCPU()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse possible CPU count: %w", err)
 	}
 
 	p.constantOffsets, err = p.getOffsetConstants()
