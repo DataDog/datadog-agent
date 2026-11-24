@@ -53,6 +53,7 @@ type KubeEndpointSlicesListener struct {
 	promInclAnnot      types.PrometheusAnnotations
 	newService         chan<- Service
 	delService         chan<- Service
+	updService         chan<- ServiceUpdate
 	targetAllEndpoints bool
 	serviceTracker     types.ServiceTracker
 	m                  sync.RWMutex
@@ -94,10 +95,11 @@ func NewKubeEndpointSlicesListener(options ServiceListernerDeps) (ServiceListene
 }
 
 // Listen starts watching service and endpointslice events
-func (l *KubeEndpointSlicesListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *KubeEndpointSlicesListener) Listen(newSvc, delSvc chan<- Service, updSvc chan<- ServiceUpdate) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
+	l.updService = updSvc
 
 	if _, err := l.endpointSliceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    l.endpointSliceAdded,
@@ -314,7 +316,7 @@ func (l *KubeEndpointSlicesListener) updateServiceFromSlice(slice *discv1.Endpoi
 		}
 	}
 
-	sendEndpointsUpdate(l.newService, l.delService, old, eps)
+	sendEndpointsUpdate(l.newService, l.delService, l.updService, old, eps)
 }
 
 // removeServiceFromSlice removes all endpoints from a specific slice

@@ -47,6 +47,7 @@ type KubeEndpointsListener struct {
 	promInclAnnot      types.PrometheusAnnotations
 	newService         chan<- Service
 	delService         chan<- Service
+	updService         chan<- ServiceUpdate
 	targetAllEndpoints bool
 	m                  sync.RWMutex
 	filterStore        workloadfilter.Component
@@ -100,10 +101,11 @@ func NewKubeEndpointsListener(options ServiceListernerDeps) (ServiceListener, er
 }
 
 // Listen starts watching service and endpoint events
-func (l *KubeEndpointsListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *KubeEndpointsListener) Listen(newSvc, delSvc chan<- Service, updSvc chan<- ServiceUpdate) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
+	l.updService = updSvc
 
 	if _, err := l.endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    l.endpointsAdded,
@@ -384,12 +386,12 @@ func (l *KubeEndpointsListener) updateService(kep *v1.Endpoints, checkServiceAnn
 		}
 	}
 
-	sendEndpointsUpdate(l.newService, l.delService, old, eps)
+	sendEndpointsUpdate(l.newService, l.delService, l.updService, old, eps)
 }
 
 // sendEndpointsUpdate sends a ServiceUpdate for each endpoint found in both
 // old and eps, and a deletion or a new service for the others.
-func sendEndpointsUpdate(newService, delService chan<- Service, old, eps []*KubeEndpointService) {
+func sendEndpointsUpdate(newService, delService chan<- Service, updService chan<- ServiceUpdate, old, eps []*KubeEndpointService) {
 	oldByID := make(map[string]*KubeEndpointService, len(old))
 	for _, ep := range old {
 		oldByID[ep.GetServiceID()] = ep
@@ -410,7 +412,7 @@ func sendEndpointsUpdate(newService, delService chan<- Service, old, eps []*Kube
 	for _, ep := range eps {
 		if prev, found := oldByID[ep.GetServiceID()]; found {
 			log.Debugf("Updating AD service: %s", ep.entity)
-			newService <- &ServiceUpdate{Service: ep, Old: prev}
+			updService <- ServiceUpdate{Old: prev, New: ep}
 		} else {
 			log.Debugf("Creating a new AD service: %s", ep.entity)
 			newService <- ep

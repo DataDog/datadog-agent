@@ -92,6 +92,7 @@ type AutoConfig struct {
 	healthListening          *health.Handle
 	newService               chan listeners.Service
 	delService               chan listeners.Service
+	updService               chan listeners.ServiceUpdate
 	refreshConfig            chan struct{}
 	refreshConfigMu          sync.Mutex
 	pendingSecretRefreshes   map[string]struct{}
@@ -227,6 +228,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		healthListening:          health.RegisterLiveness("ad-servicelistening"),
 		newService:               make(chan listeners.Service),
 		delService:               make(chan listeners.Service),
+		updService:               make(chan listeners.ServiceUpdate),
 		refreshConfig:            make(chan struct{}, 1),
 		pendingSecretRefreshes:   make(map[string]struct{}),
 		store:                    newStore(),
@@ -275,11 +277,9 @@ func (ac *AutoConfig) serviceListening() {
 			return
 		case <-ac.healthListening.C: // To be considered healthy
 		case svc := <-ac.newService:
-			if update, ok := svc.(*listeners.ServiceUpdate); ok {
-				ac.processUpdatedService(update.Old, update.Service)
-			} else {
-				ac.processNewService(svc)
-			}
+			ac.processNewService(svc)
+		case update := <-ac.updService:
+			ac.processUpdatedService(update.Old, update.New)
 		case svc := <-ac.delService:
 			ac.processDelService(svc)
 		case <-ac.refreshConfig:
@@ -661,7 +661,7 @@ func (ac *AutoConfig) initListenerCandidates() bool {
 			// Init successful, let's start listening
 			log.Infof("%s listener successfully started", name)
 			ac.listeners = append(ac.listeners, listener)
-			listener.Listen(ac.newService, ac.delService)
+			listener.Listen(ac.newService, ac.delService, ac.updService)
 			delete(ac.listenerCandidates, name)
 		case retry.IsErrWillRetry(err):
 			// Log an info and keep in candidates

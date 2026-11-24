@@ -79,7 +79,7 @@ type MockListener struct {
 	stopReceived bool
 }
 
-func (l *MockListener) Listen(_, _ chan<- listeners.Service) {
+func (l *MockListener) Listen(_, _ chan<- listeners.Service, _ chan<- listeners.ServiceUpdate) {
 	l.ListenCount++
 }
 

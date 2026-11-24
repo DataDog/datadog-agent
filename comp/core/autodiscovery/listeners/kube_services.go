@@ -42,6 +42,7 @@ type KubeServiceListener struct {
 	promInclAnnot     types.PrometheusAnnotations
 	newService        chan<- Service
 	delService        chan<- Service
+	updService        chan<- ServiceUpdate
 	targetAllServices bool
 	m                 sync.RWMutex
 	filterStore       workloadfilter.Component
@@ -106,10 +107,11 @@ func NewKubeServiceListener(options ServiceListernerDeps) (ServiceListener, erro
 }
 
 // Listen starts watching service events
-func (l *KubeServiceListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *KubeServiceListener) Listen(newSvc, delSvc chan<- Service, updSvc chan<- ServiceUpdate) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
+	l.updService = updSvc
 
 	if _, err := l.informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    l.added,
@@ -269,7 +271,7 @@ func (l *KubeServiceListener) updateService(ksvc *v1.Service) {
 	l.services[ksvc.UID] = svc
 	l.m.Unlock()
 
-	l.newService <- &ServiceUpdate{Service: svc, Old: old}
+	l.updService <- ServiceUpdate{Old: old, New: svc}
 }
 
 func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *KubeServiceService {

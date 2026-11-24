@@ -345,6 +345,7 @@ func TestDBMRdsListener(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			newSvc := make(chan Service, 10)
 			delSvc := make(chan Service, 10)
+			updSvc := make(chan ServiceUpdate, 10)
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 			mockConfig := configmock.New(t)
@@ -359,7 +360,7 @@ func TestDBMRdsListener(t *testing.T) {
 			if tc.initialServices != nil {
 				l.(*DBMRdsListener).services = tc.initialServices
 			}
-			l.Listen(newSvc, delSvc)
+			l.Listen(newSvc, delSvc, updSvc)
 			// execute loop
 			for i := 0; i < tc.numDiscoveryIntervals; i++ {
 				ticks <- time.Now()
@@ -369,15 +370,16 @@ func TestDBMRdsListener(t *testing.T) {
 			l.Stop()
 			close(newSvc)
 			close(delSvc)
+			close(updSvc)
 
 			// assert that the expected new services were created
 			createdServices := make([]*DBMRdsService, 0)
 			replacedServices := make([]*DBMRdsService, 0)
+			for update := range updSvc {
+				replacedServices = append(replacedServices, update.Old.(*DBMRdsService))
+				createdServices = append(createdServices, update.New.(*DBMRdsService))
+			}
 			for newService := range newSvc {
-				if update, ok := newService.(*ServiceUpdate); ok {
-					replacedServices = append(replacedServices, update.Old.(*DBMRdsService))
-					newService = update.Service
-				}
 				dbmRdsService, ok := newService.(*DBMRdsService)
 				if !ok {
 					require.Fail(t, "received service of incorrect type on service chan")

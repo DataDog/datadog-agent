@@ -463,7 +463,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			if tc.initialServices != nil {
 				l.(*DBMAuroraListener).services = tc.initialServices
 			}
-			l.Listen(newSvc, delSvc)
+			l.Listen(newSvc, delSvc, make(chan ServiceUpdate, 10))
 			// execute loop
 			for i := 0; i < tc.numDiscoveryIntervals; i++ {
 				ticks <- time.Now()

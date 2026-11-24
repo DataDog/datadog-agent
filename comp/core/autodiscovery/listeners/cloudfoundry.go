@@ -63,7 +63,7 @@ func NewCloudFoundryListener(ServiceListernerDeps) (ServiceListener, error) {
 }
 
 // Listen periodically refreshes services from global BBS API cache
-func (l *CloudFoundryListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *CloudFoundryListener) Listen(newSvc, delSvc chan<- Service, _ chan<- ServiceUpdate) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc

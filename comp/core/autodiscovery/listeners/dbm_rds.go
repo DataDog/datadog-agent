@@ -27,6 +27,7 @@ type DBMRdsListener struct {
 	sync.RWMutex
 	newService   chan<- Service
 	delService   chan<- Service
+	updService   chan<- ServiceUpdate
 	stop         chan bool
 	services     map[string]Service
 	config       aws.Config
@@ -78,9 +79,10 @@ func newDBMRdsListener(config aws.Config, awsClient aws.RdsClient, ticks <-chan 
 }
 
 // Listen listens for new and deleted rds endpoints
-func (l *DBMRdsListener) Listen(newSvc, delSvc chan<- Service) {
+func (l *DBMRdsListener) Listen(newSvc, delSvc chan<- Service, updSvc chan<- ServiceUpdate) {
 	l.newService = newSvc
 	l.delService = delSvc
+	l.updService = updSvc
 	go l.run()
 }
 
@@ -143,7 +145,7 @@ func (l *DBMRdsListener) createService(entityID string, instance aws.Instance) {
 			return
 		}
 		l.services[entityID] = svc
-		l.newService <- &ServiceUpdate{Service: svc, Old: existing}
+		l.updService <- ServiceUpdate{Old: existing, New: svc}
 		return
 	}
 	l.services[entityID] = svc

@@ -32,7 +32,7 @@ func NewEnvironmentListener(ServiceListernerDeps) (ServiceListener, error) {
 }
 
 // Listen starts the goroutine to detect checks based on environment
-func (l *EnvironmentListener) Listen(newSvc chan<- Service, _ chan<- Service) {
+func (l *EnvironmentListener) Listen(newSvc, _ chan<- Service, _ chan<- ServiceUpdate) {
 	l.newService = newSvc
 
 	// ATM we consider environment as a fixed space

@@ -708,7 +708,7 @@ func (f *fakeServiceTracker) set(namespace, name string, tracked bool) {
 // newTrackerTestListener builds a listener backed by indexer-driven listers seeded with
 // svc and slice, wired to tracker and buffered new/del channels. The returned indexer
 // lets a test mutate the Service in the cache mid-run (mimicking an informer update).
-func newTrackerTestListener(t *testing.T, tracker adtypes.ServiceTracker, svc *v1.Service, slice *discv1.EndpointSlice) (*KubeEndpointSlicesListener, cache.Indexer, chan Service, chan Service) {
+func newTrackerTestListener(t *testing.T, tracker adtypes.ServiceTracker, svc *v1.Service, slice *discv1.EndpointSlice) (*KubeEndpointSlicesListener, cache.Indexer, chan Service, chan Service, chan ServiceUpdate) {
 	svcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	require.NoError(t, svcIndexer.Add(svc))
 	sliceIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
@@ -716,6 +716,7 @@ func newTrackerTestListener(t *testing.T, tracker adtypes.ServiceTracker, svc *v
 
 	newCh := make(chan Service, 10)
 	delCh := make(chan Service, 10)
+	updCh := make(chan ServiceUpdate, 10)
 	l := &KubeEndpointSlicesListener{
 		endpointsBySlice:    make(map[types.UID][]*KubeEndpointService),
 		sliceToService:      make(map[types.UID]string),
@@ -725,9 +726,10 @@ func newTrackerTestListener(t *testing.T, tracker adtypes.ServiceTracker, svc *v
 		serviceTracker:      tracker,
 		newService:          newCh,
 		delService:          delCh,
+		updService:          updCh,
 	}
 	l.promInclAnnot = getPrometheusIncludeAnnotations()
-	return l, svcIndexer, newCh, delCh
+	return l, svcIndexer, newCh, delCh, updCh
 }
 
 // TestReconcileServiceOnTrackerChange verifies that when a Service's tracked-state
@@ -750,7 +752,7 @@ func TestReconcileServiceOnTrackerChange(t *testing.T) {
 	}
 
 	tracker := &fakeServiceTracker{tracked: map[string]bool{}}
-	l, _, newCh, delCh := newTrackerTestListener(t, tracker, svc, slice)
+	l, _, newCh, delCh, _ := newTrackerTestListener(t, tracker, svc, slice)
 	// Subscribe as Listen() does, so tracker.set() drives the reconcile via the callback.
 	l.serviceTracker.NotifyOnChange(l.processServiceUpdate)
 
@@ -791,7 +793,7 @@ func TestReconcilesServiceOnUpdatedTags(t *testing.T) {
 	}
 
 	tracker := &fakeServiceTracker{tracked: map[string]bool{"default/mysvc": true}}
-	l, svcIndexer, newCh, delCh := newTrackerTestListener(t, tracker, svcOld, slice)
+	l, svcIndexer, newCh, delCh, updCh := newTrackerTestListener(t, tracker, svcOld, slice)
 
 	// Initial emission carries the current standard tags.
 	l.processServiceUpdate("default", "mysvc")
@@ -809,12 +811,13 @@ func TestReconcilesServiceOnUpdatedTags(t *testing.T) {
 
 	// The endpoint is replaced by one with the updated standard tags.
 	require.Empty(t, delCh)
-	require.Len(t, newCh, 1, "endpoint should be re-emitted")
-	update := (<-newCh).(*ServiceUpdate)
+	require.Empty(t, newCh)
+	require.Len(t, updCh, 1, "endpoint should be re-emitted")
+	update := <-updCh
 	oldTags, err := update.Old.GetTags()
 	require.NoError(t, err)
 	assert.Contains(t, oldTags, "env:prod")
-	newTags, err := update.GetTags()
+	newTags, err := update.New.GetTags()
 	require.NoError(t, err)
 	assert.Contains(t, newTags, "env:staging")
 	assert.NotContains(t, newTags, "env:prod")
@@ -838,7 +841,7 @@ func TestEndpointSlicesServiceUpdatedPrometheusAnnotations(t *testing.T) {
 
 	t.Run("annotation added", func(t *testing.T) {
 		svcOld := &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "nginx-svc", Namespace: "default"}}
-		l, svcIndexer, newCh, _ := newTrackerTestListener(t, nil, svcOld, slice)
+		l, svcIndexer, newCh, _, _ := newTrackerTestListener(t, nil, svcOld, slice)
 
 		svcNew := svcOld.DeepCopy()
 		svcNew.Annotations = map[string]string{"prometheus.io/scrape": "true"}
@@ -850,7 +853,7 @@ func TestEndpointSlicesServiceUpdatedPrometheusAnnotations(t *testing.T) {
 
 	t.Run("scrape annotation value changed", func(t *testing.T) {
 		svcOld := &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "nginx-svc", Namespace: "default", Annotations: map[string]string{"prometheus.io/scrape": "false"}}}
-		l, svcIndexer, newCh, _ := newTrackerTestListener(t, nil, svcOld, slice)
+		l, svcIndexer, newCh, _, _ := newTrackerTestListener(t, nil, svcOld, slice)
 
 		svcNew := svcOld.DeepCopy()
 		svcNew.Annotations["prometheus.io/scrape"] = "true"
@@ -874,7 +877,7 @@ func TestEndpointSliceUpdatedWithNewUID(t *testing.T) {
 		Endpoints: []discv1.Endpoint{{Addresses: []string{"10.0.0.1"}}},
 	}
 	tracker := &fakeServiceTracker{tracked: map[string]bool{"default/mysvc": true}}
-	l, _, newCh, delCh := newTrackerTestListener(t, tracker, svc, oldSlice)
+	l, _, newCh, delCh, _ := newTrackerTestListener(t, tracker, svc, oldSlice)
 
 	l.createServiceFromSlice(oldSlice)
 	oldEp := <-newCh
