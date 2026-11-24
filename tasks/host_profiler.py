@@ -111,6 +111,32 @@ def build(ctx, enable_bazel=False):
 
 
 @task
+def publish(ctx, internal=False, devtest=False, git_ref=""):
+    """
+    Publish the host profiler image of a pushed branch from a reduced pipeline, without needing a PR.
+
+    --internal, the default when no target is given, publishes registry.ddbuild.io/ddot-ebpf:dev-<branch>-<sha>;
+    the tag is in the log of publish_internal_container_image-host_profiler_standalone.
+    --devtest overwrites the shared ddot-ebpf-dev:devtest-latest (used by relenv candidate-experimental)
+    and deploys it to the reliability devtest env.
+    """
+    from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+    from tasks.libs.common.git import get_current_branch
+    from tasks.libs.pipeline.tools import trigger_agent_pipeline
+
+    # Read by the rules of publish_internal_container_image-host_profiler_standalone and dev_deploy-host-profiler-devtest.
+    variables = {}
+    if internal or not devtest:
+        variables["PUBLISH_HOST_PROFILER_INTERNAL"] = "true"
+    if devtest:
+        variables["DEPLOY_HOST_PROFILER_DEVTEST"] = "true"
+
+    ref = git_ref or get_current_branch(ctx)
+    pipeline = trigger_agent_pipeline(get_gitlab_repo(), ref, "dev", variables=variables)
+    print(color_message("Pipeline: ", "blue") + color_message(pipeline.web_url, "green"))
+
+
+@task
 def update_golden_tests(ctx):
     """
     Update golden test files for host-profiler converters
