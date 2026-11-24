@@ -27,6 +27,8 @@ type TestDependencies struct {
 	ServerGroupsAndResources discovery.ServerGroupsAndResourcesFunc
 	// IsCLCRunner runs the check as a cluster check runner.
 	IsCLCRunner bool
+	// OnDeletion is called after the check handles the deletion of an object, queued or not.
+	OnDeletion func(obj interface{})
 }
 
 // NewCheckForTest returns an unconfigured check that uses the test dependencies.
@@ -37,38 +39,9 @@ func NewCheckForTest(cfg configcomp.Component, store workloadmeta.Component, tag
 		waitForAPIClient:         deps.WaitForAPIClient,
 		runLeaderElection:        deps.RunLeaderElection,
 		serverGroupsAndResources: deps.ServerGroupsAndResources,
+		onDeletion:               deps.OnDeletion,
 	}
 	return chk
-}
-
-// CollectorsForTest returns the collectors of the check with the full name.
-func (o *OrchestratorCheck) CollectorsForTest(fullName string) []collectors.K8sCollector {
-	if o.collectorBundle == nil {
-		return nil
-	}
-	var found []collectors.K8sCollector
-	for _, collector := range o.collectorBundle.collectors {
-		if collector.Metadata().FullName() == fullName {
-			found = append(found, collector)
-		}
-	}
-	return found
-}
-
-// DatadogAPIGroupForTest is the API group of the built-in Datadog custom resources.
-const DatadogAPIGroupForTest = datadogAPIGroup
-
-// CollectorOrderForTest returns the full names of the collectors of the check, in the order in which the check starts
-// them.
-func (o *OrchestratorCheck) CollectorOrderForTest() []string {
-	if o.collectorBundle == nil {
-		return nil
-	}
-	names := make([]string, 0, len(o.collectorBundle.collectors))
-	for _, collector := range o.collectorBundle.collectors {
-		names = append(names, collector.Metadata().FullName())
-	}
-	return names
 }
 
 // CollectorMetadataForTest returns the metadata of each version of each collector of the inventory.
@@ -90,19 +63,4 @@ func BuiltinCustomResourcesForTest() []string {
 		}
 	}
 	return names
-}
-
-// PendingDeletionsForTest returns the number of deleted resources that the check queued and has not sent yet, and
-// whether it queues deletions.
-func (o *OrchestratorCheck) PendingDeletionsForTest() (pending int, enabled bool) {
-	if o.collectorBundle == nil {
-		return 0, false
-	}
-	tb := o.collectorBundle.terminatedResourceBundle
-	tb.mu.Lock()
-	defer tb.mu.Unlock()
-	for _, resources := range tb.terminatedResources {
-		pending += len(resources)
-	}
-	return pending, tb.enabled
 }

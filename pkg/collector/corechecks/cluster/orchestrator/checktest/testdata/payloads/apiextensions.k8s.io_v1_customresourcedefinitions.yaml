@@ -1,0 +1,46 @@
+live:
+- envelope: CollectorManifestCRD
+  message:
+    ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+    ClusterName: test-cluster
+    HostName: ""
+    OriginCollector: datadogAgent
+  messageTags: null
+  model:
+    apiVersion: apiextensions.k8s.io/v1
+    content:
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/last-applied-configuration: '-'
+        creationTimestamp: null
+        labels:
+          app: name
+          tags.datadoghq.com/env: prod
+        managedFields: <managed fields>
+        name: apiextensions-k8s-io-v1-customresourcedefinitions
+        resourceVersion: "1"
+        uid: apiextensions.k8s.io_v1_customresourcedefinitions
+      spec:
+        group: ""
+        names:
+          kind: ""
+          plural: ""
+        scope: ""
+        versions: null
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+        storedVersions: null
+    contentType: json
+    kind: CustomResourceDefinition
+    resourceVersion: "1"
+    tags:
+    - kube_api_version:apiextensions.k8s.io/v1
+    type: 20
+    uid: apiextensions.k8s.io_v1_customresourcedefinitions
+    version: v1
+  type: manifest

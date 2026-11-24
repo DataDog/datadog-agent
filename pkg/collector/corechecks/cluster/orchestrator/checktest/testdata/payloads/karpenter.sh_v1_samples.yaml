@@ -1,0 +1,31 @@
+live:
+- envelope: CollectorManifestCR
+  message:
+    ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+    ClusterName: test-cluster
+    HostName: ""
+    OriginCollector: datadogAgent
+  messageTags: null
+  model:
+    apiVersion: karpenter.sh/v1
+    content:
+      apiVersion: karpenter.sh/v1
+      kind: Sample
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/last-applied-configuration: '-'
+        name: karpenter-sh-v1-samples
+        namespace: default
+        resourceVersion: "1"
+        uid: karpenter.sh_v1_samples
+      spec:
+        replicas: 1
+    contentType: json
+    kind: Sample
+    resourceVersion: "1"
+    tags:
+    - kube_api_version:karpenter.sh/v1
+    type: 21
+    uid: karpenter.sh_v1_samples
+    version: v1
+  type: manifest

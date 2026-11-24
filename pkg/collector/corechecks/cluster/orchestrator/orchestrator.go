@@ -106,6 +106,8 @@ type checkDependencies struct {
 	waitForAPIClient         func(ctx context.Context) (*apiserver.APIClient, error)
 	runLeaderElection        func() (leader string, err error)
 	serverGroupsAndResources discovery.ServerGroupsAndResourcesFunc
+	// onDeletion, when set, is called after the check handles the deletion of an object, which tests wait for.
+	onDeletion func(obj interface{})
 }
 
 // withDefaults returns the dependencies, with the production services for the ones that are not set.

@@ -1,0 +1,39 @@
+live:
+- envelope: CollectorCluster
+  message:
+    ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+    ClusterName: test-cluster
+  messageTags: null
+  model:
+    apiServerVersions:
+      v1.30.0: 1
+    kubeletVersions:
+      "": 1
+    nodeCount: 1
+    nodesInfo:
+    - name: v1-nodes
+    resourceVersion: "12239969865841141917"
+  type: metadata
+- envelope: CollectorManifest
+  message:
+    ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+    ClusterName: test-cluster
+    HostName: ""
+    OriginCollector: datadogAgent
+  messageTags: null
+  model:
+    content:
+      apiServerVersions:
+        v1.30.0: 1
+      kubeletVersions:
+        "": 1
+      nodeCount: 1
+      nodesInfo:
+      - name: v1-nodes
+      resourceVersion: "12239969865841141917"
+    contentType: json
+    resourceVersion: "12239969865841141917"
+    type: 5
+    uid: d801b2b1-4811-11ea-8618-121d4d0938a3
+    version: v1
+  type: manifest

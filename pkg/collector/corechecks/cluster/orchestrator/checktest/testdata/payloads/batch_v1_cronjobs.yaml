@@ -1,0 +1,80 @@
+live:
+- envelope: CollectorCronJob
+  message:
+    ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+    ClusterName: test-cluster
+  messageTags:
+  - kube_api_version:batch/v1
+  model:
+    metadata:
+      annotations:
+      - kubectl.kubernetes.io/last-applied-configuration:-
+      labels:
+      - app:name
+      - tags.datadoghq.com/env:prod
+      name: batch-v1-cronjobs
+      namespace: default
+      resourceVersion: "1"
+      uid: batch_v1_cronjobs
+    spec:
+      resourceRequirements:
+      - name: c
+        type: 1
+    status: {}
+    tags:
+    - env:prod
+  type: metadata
+- envelope: CollectorManifest
+  message:
+    ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+    ClusterName: test-cluster
+    HostName: ""
+    OriginCollector: datadogAgent
+  messageTags: null
+  model:
+    apiVersion: batch/v1
+    content:
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/last-applied-configuration: '-'
+        creationTimestamp: null
+        labels:
+          app: name
+          tags.datadoghq.com/env: prod
+        managedFields: <managed fields>
+        name: batch-v1-cronjobs
+        namespace: default
+        resourceVersion: "1"
+        uid: batch_v1_cronjobs
+      spec:
+        jobTemplate:
+          metadata:
+            creationTimestamp: null
+          spec:
+            template:
+              metadata:
+                creationTimestamp: null
+              spec:
+                containers:
+                - env:
+                  - name: PASSWORD
+                    value: '********'
+                  - name: REGION
+                    value: us-east-1
+                  image: image
+                  name: c
+                  resources: {}
+        schedule: ""
+      status: {}
+    contentType: json
+    kind: CronJob
+    resourceVersion: "1"
+    tags:
+    - env:prod
+    - kube_api_version:batch/v1
+    type: 7
+    uid: batch_v1_cronjobs
+    version: v1
+  type: manifest
