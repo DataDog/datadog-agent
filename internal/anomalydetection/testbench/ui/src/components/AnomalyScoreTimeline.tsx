@@ -512,7 +512,7 @@ export function AnomalyScoreTimeline({
       </div>
       {timeMode === 'reordered' && (scoreState?.outside_window_count ?? 0) > 0 && (
         <div className="mb-3 text-[10px] text-amber-300">
-          {scoreState!.outside_window_count} arrivals exceed the {effectiveWindow}s window
+          {scoreState!.outside_window_count} arrivals fell outside the {effectiveWindow}s replay window
           {effectiveBehavior === 'clamp' ? ' and were clamped.' : ' and were ignored.'}
         </div>
       )}

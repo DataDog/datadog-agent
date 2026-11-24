@@ -1528,7 +1528,7 @@ func (api *BenchAPI) replayScoresFromArrivals(
 			)
 			delay := max(0, advance.DataTime-anomaly.Timestamp)
 			inputDelays = append(inputDelays, delay)
-			if windowSecs > 0 && delay > windowSecs {
+			if windowSecs > 0 && (lateAction == "clamped" || lateAction == "ignored") {
 				outsideWindow++
 			}
 			inputs = append(inputs, buildScorerInput(anomaly, scoringSecond, advance.DataTime, lateAction))

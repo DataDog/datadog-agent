@@ -371,6 +371,53 @@ func TestReplayScoresFromArrivalsClamp(t *testing.T) {
 	}
 }
 
+func TestReplayScoresFromArrivalsOutsideWindowCount(t *testing.T) {
+	for _, tc := range []struct {
+		behavior string
+		second   int64
+		action   string
+	}{
+		{"clamp", 411, "clamped"},
+		{"ignore", 0, "ignored"},
+	} {
+		t.Run(tc.behavior, func(t *testing.T) {
+			history := observerimpl.ScorerHistory{
+				Available: true,
+				Arrivals: []observerdef.Anomaly{
+					{Timestamp: 350}, // On time despite the jump from 300 to 1000.
+					{Timestamp: 411}, // Oldest replayable second at 1010.
+					{Timestamp: 410}, // Just outside the replay window.
+				},
+				Advances: []observerimpl.ScorerHistoryAdvance{
+					{DataTime: 300, ArrivalEnd: 0},
+					{DataTime: 1000, ArrivalEnd: 1},
+					{DataTime: 1010, ArrivalEnd: 3},
+				},
+			}
+			req := replayRequest{
+				AnomalyScorerConfig: observerdef.AnomalyScorerConfig{
+					Alpha: 0.5, SaturationK: 1, WindowSecs: 15, MaxBuckets: 100,
+					ReorderingWindowSecs: 600, LateAnomalyBehavior: tc.behavior,
+				},
+			}
+			api := NewBenchAPI(&Bench{debug: anomalyAPIDebugView{}})
+			catchUp := history
+			catchUp.Advances = history.Advances[:2]
+			require.Zero(t, api.replayScoresFromArrivals(req, catchUp, scorerReplayReordered).OutsideWindowCount)
+
+			resp := api.replayScoresFromArrivals(req, history, scorerReplayReordered)
+			require.Equal(t, 1, resp.OutsideWindowCount)
+			require.Len(t, resp.Inputs, 3)
+			require.Equal(t, int64(350), resp.Inputs[0].ScoringSecond)
+			require.Empty(t, resp.Inputs[0].LateAction)
+			require.Equal(t, int64(411), resp.Inputs[1].ScoringSecond)
+			require.Equal(t, "reordered", resp.Inputs[1].LateAction)
+			require.Equal(t, tc.second, resp.Inputs[2].ScoringSecond)
+			require.Equal(t, tc.action, resp.Inputs[2].LateAction)
+		})
+	}
+}
+
 func TestReplayScoresFromArrivalsUnavailable(t *testing.T) {
 	// Arrival history missing: the mode is unavailable.
 	state := anomalyAPIStateView{
