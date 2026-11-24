@@ -1,7 +1,4 @@
-# Deterministic, logs-only Observer workload. One container emits a seeded,
-# paced stdout stream; there is no DogStatsD or other metric load generator.
 generator:
-  # Keep the seeded workload self-contained in the container command.
   - container:
       repository: public.ecr.aws/docker/library/python
       tag: "3.12.14-alpine3.24"

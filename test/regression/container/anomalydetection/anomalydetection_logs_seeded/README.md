@@ -1,72 +1,30 @@
 # Seeded anomaly-detection container logs
 
-This logs-only experiment runs when `agent-anomaly-detection` owns a changed
-pull request file, through `container/selection.yaml`. It is outside the
-`always` bucket and is not selected on `main`. The ordinary SMP experiments
-still run alongside it.
+Runs for PRs involving `agent-anomaly-detection`, through `selection.yaml`.
+Ported from the [seeded playground case][source] linked in AAD-92.
 
-The source is the [seeded logs case linked by AAD-92][source]. Both Agent
-variants receive the same workload and Observer configuration. There is no
-metric load generator, and external Observer metric ingestion is disabled.
-The normal logs pipeline is disabled; Observer reads container stdout through
-its independent container source.
+One Python container emits approximately 1,000 KiB/s to stdout. Seed
+`20260928` generates 3,000 base patterns; the first 300 have ten times the
+selection weight, and each line changes three letters of its chosen pattern.
+The payload sequence repeats across runs; timing and accepted counts can vary.
 
-## Workload
+Observer reads container logs at `info` severity with a 10,000 logs/s cap.
+External metrics, kubelet logs, internal logs, and baseline muting are disabled.
+BOCPD and ScanMW analyze signals from the log metrics and pattern extractors.
+Storage uses the Agent defaults. The normal log forwarding pipeline is disabled.
 
-One Python container builds 3,000 unique base patterns with seed `20260928`.
-Each pattern contains 10–40 words of 3–10 lowercase letters. Each log selects
-one base pattern and changes exactly three letters. The first 300 patterns
-each have ten times the selection weight of the remaining patterns, accounting
-for about 52.6% of emitted logs.
+## Configuration
 
-The generator emits at least 100 KiB every 100 ms, targeting about 1,000 KiB/s
-before container framing. It uses a versioned Python image. Observer accepts
-`info` logs with a medium-priority cap of 10,000 logs/s. Kubelet and internal
-log sources are disabled to isolate the container workload.
-
-BOCPD and ScanMW are the only enabled metric detectors. The log metrics and
-log pattern extractors remain enabled to produce signals from the input logs.
-Baseline analysis is disabled, so baseline muting cannot suppress those
-signals. Storage uses the Agent defaults, including point retention derived
-from the enabled detector windows; this case does not impose a retention
-override.
-
-The seed repeats the payload sequence, not the exact number of logs accepted
-over a timed run. Scheduling, Docker metadata, rate limiting, and ingestion
-can still differ between replicates. Generated base-pattern cardinality also
-does not guarantee the same number of learned Observer clusters.
+CI uses `experiment.yaml` from the Agent PR for both baseline and comparison
+images. Change detector settings in that PR to change the CI workload. For a
+one-off run, edit a local copy and submit it with `--target-config-dir`, using
+`--team-name agent`. No SMP service change is needed.
 
 ## Validation
 
-Preview selection from the repository root:
-
-```sh
-smp experiments resolve \
-  --target-config-dir test/regression/container \
-  --manifest test/regression/container/selection.yaml \
-  --involved-team agent-anomaly-detection
-```
-
-Repeat without `--involved-team` and with an unrelated team: this experiment
-must be absent. With AAD and another team, each experiment must appear once.
-
-Before interpreting a remote performance comparison, check that Observer
-starts, accepts container logs at comparable rates, and has no channel-full
-or sampler drops. Compare learned pattern counts as well as CPU and memory.
-An identical-image comparison establishes the run-to-run noise floor.
-
-For that comparison, use the exact same published Agent image and commit SHA
-for SMP's baseline and comparison variants, with this same scenario
-configuration on both sides. Use `--experiment-name-allow-filter
-anomalydetection_logs_seeded` with `smp job submit-regression` to run only this
-case, rather than the manifest's additional always-selected experiments.
-Compare CPU and memory alongside accepted-log and drop counts. A difference
-between these two variants measures run-to-run variation, not a code change
-or the overhead of enabling Observer.
-
-Memory is the comparative optimization goal; CPU and memory bounds are also
-reported. The bounds are inherited from the playground experiment and need
-calibration on current Agent builds. This is not a `quality_gate_*`
-experiment, so its bounds do not block Agent CI under the current policy.
+Memory is the comparison goal; resource bounds are inherited from the
+playground and remain provisional. Check accepted log bytes, queue drops,
+rate-limiter drops, and learned pattern counts in the captured Observer
+telemetry when assessing a run.
 
 [source]: https://github.com/ddoghq/smp-playground/tree/55bc8fadabba668143efbc2391b57544c2a1275e/experiments/regression/agent/cases/observer_logs_seeded
