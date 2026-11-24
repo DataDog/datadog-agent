@@ -64,9 +64,10 @@ func MkRedaction(regex string, opts ...RedactionOption) RedactionRule {
 	return r
 }
 
-func WithSetup(cmds ...string) CmdOption {
+// InShell runs the command in an interactive shell; see PlainCommand.Interactive.
+func InShell() CmdOption {
 	return func(pc *PlainCommand) {
-		pc.SetupCommands = append(pc.SetupCommands, cmds...)
+		pc.Interactive = true
 	}
 }
 
@@ -164,7 +165,7 @@ var DefaultProfiles = Map{
 			GetRunning: MkCommand("more system:running-config",
 				Expect(`ASA Version \d+\.\d+\(\d+\)`),
 				ExpectNot(`(?i)(<---\s*More\s*--->|--More--)`),
-				WithSetup("terminal pager 0"),
+				InShell(),
 			),
 			GetVersion: MkCommand("show version"),
 		},

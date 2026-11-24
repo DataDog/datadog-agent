@@ -54,20 +54,11 @@ type Command interface {
 type PlainCommand struct {
 	Command   string    `json:"command"`
 	Validator Validator `json:"validator"`
-	// SetupCommands run before Command in the same exec session. Note: if a setup
-	// command prints output, it may appear in the saved config.
-	SetupCommands []string `json:"setup_commands,omitempty"`
-	// Prompt, when set, makes the command run in an interactive shell with a
-	// PTY instead of a one-shot exec session. Some devices (e.g. PAN-OS) answer
-	// an exec request with only their login banner. Prompt must match the
-	// device's CLI prompt at the end of the output; the setup commands and
-	// Command are each sent after the device shows it.
-	Prompt *regexp.Regexp `json:"-"`
-}
-
-// Interactive reports whether the command runs in an interactive shell.
-func (c *PlainCommand) Interactive() bool {
-	return c.Prompt != nil
+	// Interactive runs Command in an interactive shell, using the CLI dialect
+	// for the device's profile (see package cli), instead of as an exec
+	// request. The dialect's session setup (e.g. disabling the pager) runs
+	// first, and only Command's own output is captured.
+	Interactive bool `json:"interactive,omitempty"`
 }
 
 func (c *PlainCommand) CommandType() string {

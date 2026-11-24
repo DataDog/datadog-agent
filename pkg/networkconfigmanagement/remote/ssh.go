@@ -205,7 +205,7 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*type
 		return results, types.WrapErrorf(types.ErrCopyFailed, "unable to copy config to device %q: %w", c.ipAddress, err)
 	}
 	// Set the running configuration from the file
-	result, err = ExecuteCommand(ctx, c.client, pc.SetRunning)
+	result, err = c.execute(ctx, pc.SetRunning)
 	if result != nil {
 		results.SetRunning = append(results.SetRunning, result)
 	}
@@ -214,7 +214,7 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*type
 	}
 	if pc.SetStartup != nil {
 		// Set the startup configuration from the running config
-		result, err = ExecuteCommand(ctx, c.client, pc.SetStartup)
+		result, err = c.execute(ctx, pc.SetStartup)
 		if result != nil {
 			results.SetStartup = append(results.SetStartup, result)
 		}
@@ -263,10 +263,7 @@ func (c *SSHConnection) RetrieveStartupConfig(ctx context.Context) (*types.Comma
 }
 
 func (c *SSHConnection) execute(ctx context.Context, cmd *profile.PlainCommand) (*types.CommandResult, error) {
-	if cmd.Interactive() {
-		return ExecuteInteractive(ctx, c.StartShell, cmd)
-	}
-	return ExecuteCommand(ctx, c.client, cmd)
+	return ExecuteCommand(ctx, c, cmd)
 }
 
 // Close closes the SSH client connection
