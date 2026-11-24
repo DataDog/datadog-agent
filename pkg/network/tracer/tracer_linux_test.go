@@ -3734,6 +3734,7 @@ func (s *TracerSuite) TestNATFromEbpfConntracker() {
 		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 		require.NoError(t, err)
 		assert.Equal(t, uint32(1), m.MaxEntries())
+		netlinktestutil.SetupSNAT(t)
 		testSNATOneSidedClassification(t, tr)
 	})
 
@@ -3749,15 +3750,21 @@ func (s *TracerSuite) TestNATFromEbpfConntracker() {
 		require.NoError(t, err)
 		assert.Equal(t, cfg.MaxTrackedConnections, m.MaxEntries())
 		// net_dev_queue supplies the NAT'd tuples here
+		netlinktestutil.SetupSNAT(t)
 		testSNATOneSidedClassification(t, tr)
-		t.Run("equal ports cleanup", func(t *testing.T) { testEqualPortsClassificationCleanup(t, tr) })
+		t.Run("equal ports cleanup", func(t *testing.T) { testNATSidesCleanup(t, tr, dialEqualPorts) })
+		t.Run("port-rewriting SNAT cleanup", func(t *testing.T) {
+			first, last := portRewriteRange(t)
+			netlinktestutil.SetupSNATPortRewrite(t, first, last)
+			testNATSidesCleanup(t, tr, dialRewrittenPort)
+		})
 	})
 }
 
 // testSNATOneSidedClassification checks that both ends of a SNAT'd connection are classified when only one of them
-// sends, so the other end's socket only sees classified traffic under the NAT'd tuple.
+// sends, so the other end's socket only sees classified traffic under the NAT'd tuple. The caller sets up the SNAT
+// (netlinktestutil.SetupSNAT).
 func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
-	netlinktestutil.SetupSNAT(t)
 	request := []byte("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
 	response := []byte("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
 	for _, tc := range []struct{ serverSends, equalPorts bool }{{false, false}, {true, false}, {false, true}, {true, true}} {
@@ -3773,12 +3780,15 @@ func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
 			var c net.Conn
 			var err error
 			// With equal ports the client binds 6.6.6.6 to the server's port. The kernel only checked that
-			// port was free on 127.0.0.1, so it can already be in use on 6.6.6.6: then start over with a new
-			// server, and so a new port.
+			// port was free on 127.0.0.1, so it can already be in use on 6.6.6.6, and SNAT can still rewrite
+			// it, e.g. when a leftover conntrack entry holds 7.7.7.7 with that port. Either way, start over
+			// with a new server, and so a new port.
 			const maxAttempts = 10
 			for attempt := 1; ; attempt++ {
+				peers := make(chan net.Addr, 1)
 				srv = tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(conn net.Conn) {
 					defer conn.Close()
+					peers <- conn.RemoteAddr()
 					if serverSends {
 						_, _ = conn.Write(response)
 					} else {
@@ -3799,11 +3809,26 @@ func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
 				d := net.Dialer{LocalAddr: local, Timeout: 5 * time.Second}
 				c, err = d.Dial("tcp", srv.Address())
 				if err == nil {
-					break
+					if !tc.equalPorts {
+						break
+					}
+					var peer net.Addr
+					select {
+					case peer = <-peers:
+					case <-time.After(5 * time.Second):
+						require.Fail(t, "server didn't accept the connection")
+					}
+					if peer.(*net.TCPAddr).Port == local.Port {
+						break
+					}
+					err = fmt.Errorf("SNAT rewrote the client's port %d to %v", local.Port, peer)
+					_ = c.Close()
+				} else {
+					require.True(t, tc.equalPorts && errors.Is(err, syscall.EADDRINUSE),
+						"dial failed after %d attempt(s): %v", attempt, err)
 				}
-				require.True(t, tc.equalPorts && errors.Is(err, syscall.EADDRINUSE) && attempt < maxAttempts,
-					"dial failed after %d attempt(s): %v", attempt, err)
-				t.Logf("attempt %d: port %d is in use on 6.6.6.6, retrying with a new server", attempt, local.Port)
+				require.Less(t, attempt, maxAttempts, "no equal-port connection after %d attempts: %v", attempt, err)
+				t.Logf("attempt %d: %v, retrying with a new server", attempt, err)
 				srv.Shutdown()
 			}
 			defer c.Close()
@@ -3993,40 +4018,24 @@ func (s *TracerSuite) TestNATClassificationCleanup() {
 	}
 
 	// the conntrack map supplies the NAT'd tuples here
-	t.Run("equal ports", func(t *testing.T) { testEqualPortsClassificationCleanup(t, tr) })
+	t.Run("equal ports", func(t *testing.T) { testNATSidesCleanup(t, tr, dialEqualPorts) })
+	t.Run("port-rewriting SNAT", func(t *testing.T) {
+		first, last := portRewriteRange(t)
+		netlinktestutil.SetupSNATPortRewrite(t, first, last)
+		testNATSidesCleanup(t, tr, dialRewrittenPort)
+	})
 }
 
-// testEqualPortsClassificationCleanup checks the sides that the two ends of a SNAT'd connection with equal ports mark
-// on the classification entries they share, and that the entries outlive the first end's close. Each end looks up the
-// entry under its own tuple and under the NAT'd tuple, so each entry is shared by both ends. Both ends' source port is
-// the same, so only the tuple's orientation tells them apart. The caller sets up the SNAT.
-func testEqualPortsClassificationCleanup(t *testing.T, tr *Tracer) {
+// testNATSidesCleanup checks the sides that the two ends of a SNAT'd connection mark on the classification entries
+// they share, and that the entries outlive the first end's close. Each end looks up the entry under its own tuple and
+// under the NAT'd tuple, so each entry is shared by both ends. dial connects them in a way that makes comparing the
+// ends' source ports useless for telling them apart, so only the tuples' orientation does. The caller sets up the
+// SNAT (netlinktestutil.SetupSNAT).
+func testNATSidesCleanup(t *testing.T, tr *Tracer, dial func(t *testing.T) (client, server net.Conn)) {
 	protoMap, err := tr.GetMap(probes.ConnectionProtocolMap)
 	require.NoError(t, err)
 
-	var ln net.Listener
-	var client net.Conn
-	// The client binds 6.6.6.6 to the listener's port. The kernel only checked that port was free on 127.0.0.1, so
-	// it can already be in use on 6.6.6.6: then start over with a new listener, and so a new port.
-	const maxAttempts = 10
-	for attempt := 1; ; attempt++ {
-		ln, err = net.Listen("tcp4", "127.0.0.1:0")
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = ln.Close() })
-		local := &net.TCPAddr{IP: net.ParseIP("6.6.6.6"), Port: ln.Addr().(*net.TCPAddr).Port}
-		d := net.Dialer{LocalAddr: local, Timeout: 5 * time.Second}
-		client, err = d.Dial("tcp", ln.Addr().String())
-		if err == nil {
-			break
-		}
-		require.True(t, errors.Is(err, syscall.EADDRINUSE) && attempt < maxAttempts, "dial failed after %d attempt(s): %v", attempt, err)
-		t.Logf("attempt %d: port %d is in use on 6.6.6.6, retrying with a new listener", attempt, local.Port)
-		_ = ln.Close()
-	}
-	t.Cleanup(func() { _ = client.Close() })
-	server, err := ln.Accept()
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = server.Close() })
+	client, server := dial(t)
 	require.Equal(t, "7.7.7.7", server.RemoteAddr().(*net.TCPAddr).IP.String(), "connection wasn't SNAT'd")
 
 	// unclassified entries for the ends to mark
@@ -4081,6 +4090,77 @@ func testEqualPortsClassificationCleanup(t *testing.T, tr *Tracer) {
 			assert.ErrorIs(collect, protoMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&got)), ebpf.ErrKeyNotExist, "connection_protocol under the %s", name)
 		}
 	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// dialSNAT connects a client bound to 6.6.6.6 to a new listener on 127.0.0.1. With equalPorts, the client binds the
+// listener's port, otherwise the kernel picks one. accept reports whether the connection is the one the test needs; if not, or if the port is
+// in use on 6.6.6.6, it starts over with a new listener, and so a new port, a bounded number of times.
+func dialSNAT(t *testing.T, equalPorts bool, accept func(client, server net.Conn) error) (client, server net.Conn) {
+	const maxAttempts = 10
+	for attempt := 1; ; attempt++ {
+		ln, err := net.Listen("tcp4", "127.0.0.1:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = ln.Close() })
+		port := 0
+		if equalPorts {
+			port = ln.Addr().(*net.TCPAddr).Port
+		}
+		d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6"), Port: port}, Timeout: 5 * time.Second}
+		client, err = d.Dial("tcp", ln.Addr().String())
+		if err == nil {
+			t.Cleanup(func() { _ = client.Close() })
+			server, err = ln.Accept()
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = server.Close() })
+			if err = accept(client, server); err == nil {
+				_ = ln.Close()
+				return client, server
+			}
+			_ = client.Close()
+			_ = server.Close()
+		} else {
+			require.ErrorIs(t, err, syscall.EADDRINUSE, "dial failed after %d attempt(s)", attempt)
+		}
+		require.Less(t, attempt, maxAttempts, "no suitable connection after %d attempts: %v", attempt, err)
+		t.Logf("attempt %d: %v, retrying with a new listener", attempt, err)
+		_ = ln.Close()
+	}
+}
+
+// dialEqualPorts connects 6.6.6.6:P to 127.0.0.1:P, which SNAT makes 7.7.7.7:P to 127.0.0.1:P: both ends' source
+// port is P.
+func dialEqualPorts(t *testing.T) (client, server net.Conn) {
+	return dialSNAT(t, true, func(client, server net.Conn) error {
+		// SNAT can still rewrite the port, e.g. when a leftover conntrack entry holds 7.7.7.7 with it
+		if lport, rport := client.LocalAddr().(*net.TCPAddr).Port, server.RemoteAddr().(*net.TCPAddr).Port; lport != rport {
+			return fmt.Errorf("SNAT rewrote the client's port %d to %d", lport, rport)
+		}
+		return nil
+	})
+}
+
+// portRewriteRange returns the ports for SetupSNATPortRewrite: the top of the ephemeral range, above any port the
+// listeners are likely to get.
+func portRewriteRange(t *testing.T) (uint16, uint16) {
+	_, end := network.EphemeralRange()
+	require.Greater(t, end, uint16(1000), "ephemeral range unknown")
+	return end - 99, end
+}
+
+// dialRewrittenPort connects 6.6.6.6:A to 127.0.0.1:Q, which SNAT, set up with SetupSNATPortRewrite, makes
+// 7.7.7.7:B to 127.0.0.1:Q, with B > Q. normalize_tuple then keeps the client's NAT'd tuple as is, while the
+// client's own port A matches neither B nor Q.
+func dialRewrittenPort(t *testing.T) (client, server net.Conn) {
+	first, last := portRewriteRange(t)
+	return dialSNAT(t, false, func(client, server net.Conn) error {
+		a := client.LocalAddr().(*net.TCPAddr).Port
+		b := server.RemoteAddr().(*net.TCPAddr).Port
+		q := server.LocalAddr().(*net.TCPAddr).Port
+		if b == a || b < int(first) || b > int(last) || b <= q {
+			return fmt.Errorf("SNAT made the client's port %d %d, for listener port %d", a, b, q)
+		}
+		return nil
+	})
 }
 
 const (

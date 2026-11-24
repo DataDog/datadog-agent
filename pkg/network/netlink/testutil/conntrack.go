@@ -67,6 +67,22 @@ func SetupSNAT(t *testing.T) string {
 	return linkName
 }
 
+// SetupSNATPortRewrite makes the SNAT set up by SetupSNAT also rewrite the source port of TCP connections, to one in
+// [firstPort, lastPort]. The kernel keeps a source port that is already in that range and free. It must be called
+// after SetupSNAT, and its rule is removed when t ends.
+func SetupSNATPortRewrite(t *testing.T, firstPort, lastPort uint16) {
+	nettestutil.IptablesSave(t)
+	t.Cleanup(func() {
+		// connections from this test keep their rewritten ports in conntrack otherwise
+		nettestutil.RunCommands(t, []string{"conntrack -F"}, true)
+	})
+	cmds := []string{
+		// inserted, so it comes before SetupSNAT's rule
+		fmt.Sprintf("iptables -t nat -I POSTROUTING 1 -s 6.6.6.6/32 -p tcp -j SNAT --to-source 7.7.7.7:%d-%d", firstPort, lastPort),
+	}
+	nettestutil.RunCommands(t, cmds, false)
+}
+
 // addDummyLink creates a dummy interface named prefix plus a random number, and returns its name. A random name
 // can already be taken, either by a link from the same test (SetupDNAT and SetupDNAT6 both use the "dummy" prefix)
 // or by one an earlier run leaked, so on EEXIST it tries another name. Keep the "dummy" prefix: offset guessing
