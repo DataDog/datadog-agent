@@ -169,6 +169,9 @@ impl ProcessKiller {
 pub(crate) struct StopWait {
     name: String,
     handle: JoinHandle<()>,
+    /// When the stop began. The grace period counts from here, so time spent waiting for an
+    /// earlier process in the same shutdown does not add to this one.
+    started: Instant,
     /// How long to let the child exit on its own. `None` means it was never
     /// asked to, so there is nothing for a full `stop_timeout` to wait for.
     timeout: Option<Duration>,
@@ -182,13 +185,13 @@ impl StopWait {
         let StopWait {
             name,
             handle,
+            started,
             timeout,
             mut killer,
             #[cfg(windows)]
             helper,
         } = self;
         tokio::pin!(handle);
-        let started = Instant::now();
 
         // On Linux, request_stop() already knows whether SIGTERM was sent.
         // On Windows, creating the helper does not establish that CTRL_BREAK
@@ -254,6 +257,10 @@ pub struct ManagedProcess {
     /// records native creation failure; `StopWait` resolves actual delivery
     /// from the helper's report.
     graceful_stop_failed: bool,
+    /// When `mark_stop_requested` began this stop. `StopWait` measures the grace period from
+    /// here, so processes stopped together share one start and daemon shutdown waits for the
+    /// longest timeout, not the sum.
+    stop_started: Option<Instant>,
     /// Set only where a respawn was skipped because a start condition was
     /// closed, and cleared in `spawn()`.
     restart_block: RestartBlock,
@@ -316,6 +323,7 @@ impl ManagedProcess {
             restarts,
             stop_requested: false,
             graceful_stop_failed: false,
+            stop_started: None,
             restart_block: RestartBlock::None,
             origin,
             last_exit_status: None,
@@ -640,6 +648,7 @@ impl ManagedProcess {
             bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
         }
         self.stop_requested = false;
+        self.stop_started = None;
         self.graceful_stop_failed = false;
         // The single clear site, which is what keeps the reason from going
         // stale: boot, restart, manual start, and reload all land here.
@@ -755,6 +764,7 @@ impl ManagedProcess {
             return false;
         }
         self.stop_requested = true;
+        self.stop_started = Some(Instant::now());
         // The manager lock is free while the child goes down, so this state is
         // what `list`, `describe`, and `status` report for as long as the stop
         // runs. Reporting `Running` throughout is how a stop that takes its
@@ -843,6 +853,7 @@ impl ManagedProcess {
         Some(StopWait {
             name: self.name.clone(),
             handle,
+            started: self.stop_started.take().unwrap_or_else(Instant::now),
             // A stop that never reached the child leaves nothing to wait for:
             // the timeout would pass with the process untouched.
             timeout: (!self.graceful_stop_failed).then(|| self.stop_timeout()),
@@ -870,6 +881,7 @@ impl ManagedProcess {
 
     fn mark_stopped(&mut self) {
         self.stop_requested = false;
+        self.stop_started = None;
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
         #[cfg(windows)]
@@ -983,6 +995,7 @@ pub mod tests {
         StopWait {
             name: "injected-stop".into(),
             handle,
+            started: Instant::now(),
             timeout: Some(timeout),
             killer: ProcessKiller {
                 job_object: Some(job),
@@ -1167,14 +1180,28 @@ pub mod tests {
         use std::sync::{Arc, atomic::Ordering};
         let job = platform::JobObject::new().unwrap();
         let faults = Arc::clone(&job.faults);
-        let grace = Duration::from_millis(30);
-        let stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
-        // An earlier workload may be awaited first. This wait still receives
-        // its existing relative allowance when its own waiting pass starts.
-        time::sleep(Duration::from_millis(50)).await;
+        // The grace period counts from the shared stop start, which `injected_stop` records.
+        let grace = Duration::from_millis(200);
         let started = Instant::now();
+        let stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
         stop.run().await;
         assert!(started.elapsed() >= grace);
+        assert_eq!(faults.terminate_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn shared_wait_expired_grace_force_kills_without_waiting_again() {
+        use std::sync::{Arc, atomic::Ordering};
+        let job = platform::JobObject::new().unwrap();
+        let faults = Arc::clone(&job.faults);
+        let grace = Duration::from_millis(200);
+        let stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
+        // An earlier process in the same shutdown can use up this process's grace.
+        time::sleep(Duration::from_millis(250)).await;
+        let started = Instant::now();
+        stop.run().await;
+        assert!(started.elapsed() < grace);
         assert_eq!(faults.terminate_calls.load(Ordering::SeqCst), 1);
     }
 
@@ -1188,8 +1215,8 @@ pub mod tests {
         ] {
             let job = platform::JobObject::new().unwrap();
             let faults = Arc::clone(&job.faults);
-            let stop = injected_stop(job, outcome, Duration::from_millis(30));
             let started = Instant::now();
+            let stop = injected_stop(job, outcome, Duration::from_millis(30));
             stop.run().await;
             assert!(started.elapsed() >= ManagedProcess::UNDELIVERED_STOP_GRACE);
             assert_eq!(faults.terminate_calls.load(Ordering::SeqCst), 1);
@@ -1205,6 +1232,7 @@ pub mod tests {
         let stop = StopWait {
             name: "main-exit".into(),
             handle: tokio::spawn(async {}),
+            started: Instant::now(),
             timeout: Some(Duration::from_secs(90)),
             killer: ProcessKiller {
                 job_object: Some(job),

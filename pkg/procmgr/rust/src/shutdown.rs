@@ -27,6 +27,8 @@ mod tests {
     use super::*;
     use crate::state::ProcessState;
     use crate::test_helpers;
+    #[cfg(unix)]
+    use tokio::time::Duration;
 
     fn sleep_config() -> crate::config::ProcessConfig {
         test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS)
@@ -123,6 +125,40 @@ mod tests {
         shutdown_all(&mut procs).await;
 
         assert_eq!(procs[0].state(), ProcessState::Stopped);
+    }
+
+    /// Two children that ignore SIGTERM share one shutdown. Each waits out its own 2 s grace
+    /// from the moment it was asked to stop, so the total is about one grace, not two.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_shutdown_stubborn_children_share_one_grace() {
+        use std::time::Instant;
+
+        let dir = tempfile::tempdir().unwrap();
+        let mut procs = Vec::new();
+        for name in ["stubborn-a", "stubborn-b"] {
+            let ready = dir.path().join(format!("{name}.ready"));
+            let (cmd, args) = test_helpers::trap_term_sleep_ready(&ready);
+            let mut config = test_helpers::make_config(cmd, args);
+            config.stop_timeout = Some(2);
+            let mut proc =
+                ManagedProcess::new_config(name.into(), test_helpers::test_uuid(), config);
+            proc.spawn(test_exit_channel().0).unwrap();
+            test_helpers::wait_for_file(&ready, Duration::from_secs(10)).await;
+            procs.push(proc);
+        }
+
+        let started = Instant::now();
+        shutdown_all(&mut procs).await;
+        let elapsed = started.elapsed();
+
+        for proc in &procs {
+            assert_eq!(proc.state(), ProcessState::Stopped);
+        }
+        assert!(
+            elapsed < Duration::from_millis(3500),
+            "two 2 s stops ran one after another: shutdown took {elapsed:?}"
+        );
     }
 
     #[tokio::test]
