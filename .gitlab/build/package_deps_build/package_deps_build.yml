@@ -14,11 +14,6 @@
       fi
     - bazel test --test_output=errors ${BAZEL_BTF_FLAGS:-} //pkg/ebpf:minimized_btfs //pkg/ebpf:minimized_btfs_test
     - install -m 0644 "$(bazel info bazel-bin)/pkg/ebpf/minimized_btfs.tar.xz" $CI_PROJECT_DIR/minimized-btfs.tar.xz
-  variables:
-    KUBERNETES_CPU_REQUEST: 32
-    KUBERNETES_CPU_LIMIT: 32
-    KUBERNETES_MEMORY_REQUEST: "64Gi"
-    KUBERNETES_MEMORY_LIMIT: "64Gi"
   artifacts:
     expire_in: 2 weeks
     paths:

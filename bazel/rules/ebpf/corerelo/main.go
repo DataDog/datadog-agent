@@ -180,13 +180,13 @@ func coreRelos(raw, strs []byte, spec *btf.Spec, order binary.ByteOrder) ([]relo
 
 	var relos []relo
 	for p := uint32(4); p < uint32(len(sec)); {
-		if p+8 > uint32(len(sec)) {
+		if 8 > uint32(len(sec))-p {
 			return nil, errors.New("core_relo section header truncated")
 		}
 		n := order.Uint32(sec[p+4:])
 		p += 8
 		for range n {
-			if p+recLen > uint32(len(sec)) {
+			if recLen > uint32(len(sec))-p {
 				return nil, errors.New("core_relo record truncated")
 			}
 			typeID := btf.TypeID(order.Uint32(sec[p+4:]))

@@ -143,6 +143,21 @@ func TestRootsKeepTheirRelocationOrder(t *testing.T) {
 	require.Equal(t, []string{"0:1", "0:0", "0:1"}, accesses(got, got[1].typ))
 }
 
+func TestOversizedRecordLength(t *testing.T) {
+	le := binary.LittleEndian
+	// The record size wraps the uint32 cursor back inside the section.
+	sec := le.AppendUint32(nil, 0xfffffff8)
+	sec = le.AppendUint32(sec, 0) // sec_name_off
+	sec = le.AppendUint32(sec, 1) // num_info
+	sec = le.AppendUint32(sec, 0) // truncated record
+	raw := make([]byte, btfExtHeaderLen)
+	le.PutUint16(raw, btfExtMagic)
+	le.PutUint32(raw[4:], btfExtHeaderLen)
+	le.PutUint32(raw[28:], uint32(len(sec)))
+	_, err := coreRelos(append(raw, sec...), nil, nil, le)
+	require.ErrorContains(t, err, "core_relo record truncated")
+}
+
 func accesses(relos []relo, typ btf.Type) []string {
 	var out []string
 	for _, r := range relos {
