@@ -59,7 +59,7 @@ func (r *jsonAggregator) Process(msg *message.Message) []*message.Message {
 	content := msg.GetContent()
 
 	if len(r.messageBuf) == 0 {
-		if !startsWithJSONObject(content) || json.Valid(content) {
+		if !startsWithJSONContainer(content) || json.Valid(content) {
 			return []*message.Message{msg}
 		}
 	}
@@ -134,14 +134,14 @@ func (r *jsonAggregator) Flush() []*message.Message {
 	return msgs
 }
 
-// startsWithJSONObject reports whether the first non-JSON-whitespace byte is '{'.
-func startsWithJSONObject(b []byte) bool {
+// startsWithJSONContainer reports whether the first non-JSON-whitespace byte is '{' or '['.
+func startsWithJSONContainer(b []byte) bool {
 	for _, c := range b {
 		switch c {
 		case ' ', '\t', '\n', '\r':
 			continue
 		default:
-			return c == '{'
+			return c == '{' || c == '['
 		}
 	}
 	return false

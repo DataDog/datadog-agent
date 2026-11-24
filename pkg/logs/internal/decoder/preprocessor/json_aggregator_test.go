@@ -413,6 +413,29 @@ func TestJSONAggregator_TopLevelArraySplitNotAggregated(t *testing.T) {
 	}
 }
 
+func TestJSONAggregator_TopLevelArrayWithOpenObjectOnFirstLine(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	parts := []string{
+		`[{"a":`,
+		`{"b":`,
+		`1}`,
+		`}]`,
+	}
+
+	var emitted []*message.Message
+	for _, p := range parts {
+		emitted = append(emitted, aggregator.Process(newTestMessage(p))...)
+	}
+	emitted = append(emitted, aggregator.Flush()...)
+
+	assert.Len(t, emitted, len(parts))
+	for i, p := range parts {
+		assert.Equal(t, p, string(emitted[i].GetContent()))
+		assert.NotContains(t, emitted[i].ParsingExtra.Tags, message.AggregatedJSONTag)
+	}
+}
+
 // TestJSONAggregator_MidTokenSplitFallsBackToFlushOnInvalid anchors the
 // "MidTokenSplitNotAggregated" behavioural limitation captured at the
 // bottom of json_aggregator.allium: when an incoming chunk's boundary
