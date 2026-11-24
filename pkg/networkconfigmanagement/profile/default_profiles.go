@@ -438,6 +438,10 @@ var DefaultProfiles = Map{
 			// SNMP community strings.
 			MkRedaction(`<snmp-community-string>.*?</snmp-community-string>`, WithReplacement("<snmp-community-string><secret hidden></snmp-community-string>")),
 			MkRedaction(`(snmp-community-string) (?:"[^"]*"|[^\s;]+);`, WithReplacement("$1 <secret hidden>;")),
+			// SNMP trap server profiles keep their v2c community in a plain
+			// `community` field.
+			MkRedaction(`<community>[^<]*</community>`, WithReplacement("<community><secret hidden></community>")),
+			MkRedaction(`(?m)^(\s*community) (?:"[^"]*"|[^\s;{]+);`, WithReplacement("$1 <secret hidden>;")),
 			// Values PAN-OS stores encrypted with its master key (IKE pre-shared
 			// keys, RADIUS/LDAP secrets, ...) print as "-AQ==<base64>" in both
 			// formats, whatever field they are in.

@@ -152,6 +152,13 @@ func Test_PanOSRedaction(t *testing.T) {
 		{"      snmp-community-string s3cret;\n", "      snmp-community-string <secret hidden>;"},
 		{"      snmp-community-string \"ops team secret\";\n", "      snmp-community-string <secret hidden>;"},
 		{"          key -AQ==YWJjZGVm+/Zz0=;\n", "          key <secret hidden>;"},
+		// SNMP trap server profile (v2c).
+		{"<community>trap-secret</community>\n", "<community><secret hidden></community>"},
+		{"                community trap-secret;\n", "                community <secret hidden>;"},
+		{"                community \"trap secret\";\n", "                community <secret hidden>;"},
+		// Not secrets: the SNMP community key, and BGP community blocks.
+		{"      snmp-community-string <secret hidden>;\n", "      snmp-community-string <secret hidden>;"},
+		{"            community {\n", "            community {"},
 		{"<key>-AQ==YWJjZGVm+/Zz0=</key>\n", "<key><secret hidden></key>"},
 	}
 	for _, tt := range tests {
