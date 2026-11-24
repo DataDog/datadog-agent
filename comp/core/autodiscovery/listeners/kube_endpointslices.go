@@ -174,6 +174,13 @@ func (l *KubeEndpointSlicesListener) endpointSliceUpdated(old, obj interface{}) 
 		return
 	}
 
+	// A slice deleted and recreated under the same name can arrive as an update.
+	if oldSlice.UID != slice.UID {
+		l.removeServiceFromSlice(oldSlice)
+		l.createServiceFromSlice(slice)
+		return
+	}
+
 	if l.endpointSlicesDiffer(slice, oldSlice) {
 		l.updateServiceFromSlice(slice)
 	}

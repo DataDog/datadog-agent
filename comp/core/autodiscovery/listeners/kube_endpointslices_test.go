@@ -860,3 +860,37 @@ func TestEndpointSlicesServiceUpdatedPrometheusAnnotations(t *testing.T) {
 		require.Len(t, newCh, 2, "endpoint services should be emitted when scrape annotation value changes")
 	})
 }
+
+func TestEndpointSliceUpdatedWithNewUID(t *testing.T) {
+	svc := &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "mysvc", Namespace: "default"}}
+	oldSlice := &discv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "mysvc-abc",
+			Namespace:       "default",
+			UID:             types.UID("slice-1"),
+			ResourceVersion: "1",
+			Labels:          map[string]string{"kubernetes.io/service-name": "mysvc"},
+		},
+		Endpoints: []discv1.Endpoint{{Addresses: []string{"10.0.0.1"}}},
+	}
+	tracker := &fakeServiceTracker{tracked: map[string]bool{"default/mysvc": true}}
+	l, _, newCh, delCh := newTrackerTestListener(t, tracker, svc, oldSlice)
+
+	l.createServiceFromSlice(oldSlice)
+	oldEp := <-newCh
+
+	newSlice := oldSlice.DeepCopy()
+	newSlice.UID = types.UID("slice-2")
+	newSlice.ResourceVersion = "2"
+	newSlice.Endpoints = []discv1.Endpoint{{Addresses: []string{"10.0.0.2"}}}
+	l.endpointSliceUpdated(oldSlice, newSlice)
+
+	require.Len(t, delCh, 1)
+	assert.Same(t, oldEp, <-delCh)
+	require.Len(t, newCh, 1)
+	newEp, ok := (<-newCh).(*KubeEndpointService)
+	require.True(t, ok)
+	assert.Equal(t, map[string]string{"endpoint": "10.0.0.2"}, newEp.hosts)
+	assert.NotContains(t, l.endpointsBySlice, oldSlice.UID)
+	assert.Len(t, l.endpointsBySlice[newSlice.UID], 1)
+}
