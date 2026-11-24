@@ -3,14 +3,16 @@
 This package populates some of the Agent-related fields in the `inventories` product in DataDog. More specifically the
 `host_agent` table.
 
-This is enabled by default but can be turned off using `inventories_enabled` config.
+This is enabled by default but can be turned off using the `inventories_enabled` or `enable_metadata_collection`
+config.
 
 The payload is sent every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
-update every 5 minutes (see `inventories_min_interval`).
+update every minute (see `inventories_min_interval`).
 
 # Content
 
-The `Set` method from the component allows the rest of the codebase to add any information to the payload.
+The `Refresh` method from the component triggers a new payload to be sent, while still respecting the minimal interval
+between two updates.
 
 # Format
 
@@ -28,8 +30,8 @@ The payload is a JSON dict with the following fields
   - `cpu_family` - **string**: the CPU family.
   - `cpu_stepping` - **string**: the CPU stepping.
   - `cpu_frequency` - **number/float**: the CPU frequency.
-  - `cpu_cache_size` - **int**: the CPU cache size in bytes (only fill on Linux, 0 for Windows and OSX).
-  - `cpu_architecture` - **string**: the hardware name, Linux only (ex "x86_64", "unknown", ...).
+  - `cpu_cache_size` - **int**: the CPU cache size in bytes (filled on Linux and macOS, 0 on Windows).
+  - `cpu_architecture` - **string**: the hardware name, Linux and macOS only (ex "x86_64", "arm64", "unknown", ...).
   - `kernel_name` - **string**: the kernel name (ex: "windows", "Linux", ...).
   - `kernel_release` - **string**:  the kernel release (ex: "10.0.20348", "4.15.0-1080-gcp", ...).
   - `kernel_version` - **string**:  the kernel version (Unix only, empty string on Windows).
@@ -37,9 +39,13 @@ The payload is a JSON dict with the following fields
   - `os_version` - **string**: the OS version (ex: "debian bookworm/sid", ...).
   - `memory_total_kb` - **int**: the total memory size for the host in KiB.
   - `memory_swap_total_kb` - **int**: the `swap` memory size in KiB (Unix only).
-  - `ip_address` - **string**: the IP address for the host.
-  - `ipv6_address` - **string**: the IPV6 address for the host.
+  - `ip_address` - **string**: the IP address for the host. When `metadata_ip_resolution_from_hostname` is true, this is
+    the first IPv4 address the Agent hostname resolves to.
+  - `ipv6_address` - **string**: the IPV6 address for the host. When `metadata_ip_resolution_from_hostname` is true,
+    this is the first IPv6 address the Agent hostname resolves to.
   - `mac_address` - **string**: the MAC address for the host.
+  - `interfaces` - **string**: a JSON-encoded list of the host network interfaces. Each interface has a `name` and,
+    when available, `ipv4` (list of string), `ipv4-network`, `ipv6` (list of string), `ipv6-network` and `macaddress`.
   - `agent_version` - **string**: the version of the Agent that sent this payload.
   - `cloud_provider` - **string**: the name of the cloud provider detected by the Agent.
   - `cloud_provider_source` - **string**: the data source used to know that the Agent is running on `cloud_provider`.
@@ -50,12 +56,14 @@ The payload is a JSON dict with the following fields
     - `DMI`: The Agent successfully used DMI information to fetch the instance ID (only works on Unix EC2 Nitro instances).
     - `UUID`: The hypervisor or product UUID has the EC2 prefix. The Agent knows it's running on EC2 but doesn't know
       which instance (see `hypervisor_guest_uuid` or `dmi_product_uuid`).
-  - `cloud_provider_account_id` - **string**: The account/subscription ID from the cloud provider.
+  - `cloud_provider_account_id` - **string**: The account/subscription ID from the cloud provider. Only collected when
+    `inventories_collect_cloud_provider_account_id` is true (default).
   - `cloud_provider_host_id` - **string**: the unique ID the cloud provider uses to reference this instance.
     This is different for each cloud provider (for now, ony AWS is supported).
     - On AWS: the instance ID returned by querying the IMDSv2 endpoint. An empty string is returned if we can't reach
       IMDSv2 (even if IMDSv1 is available).
-  - `ccrid` - **string**: the Canonical Cloud Resource Identifier for the host provided by the cloud provider.
+  - `ccrid` - **string**: the Canonical Cloud Resource Identifier for the host provided by the cloud provider. Supported
+    on AWS, Azure, GCP and Oracle; empty string otherwise.
   - `hypervisor_guest_uuid` - **string**: the hypervisor guest UUID (Unix only, empty string on Windows or if we can't
     read the data). On `ec2` instances, this might start with "ec2". This was introduced in `7.41.0`/`6.41.0`.
   - `dmi_product_uuid` - **string**: the DMI product UUID (Unix only, empty string on Windows or if we can't read the
@@ -76,10 +84,10 @@ The payload is a JSON dict with the following fields
 
 Here an example of an inventory payload:
 
-```
+```json
 {
     "host_metadata": {
-        "cpu_architecture": "unknown",
+        "cpu_architecture": "x86_64",
         "cpu_cache_size": 9437184,
         "cpu_cores": 6,
         "cpu_family": "6",
@@ -96,16 +104,18 @@ Here an example of an inventory payload:
         "os_version": "debian bookworm/sid",
         "memory_swap_total_kb": 10237948,
         "memory_total_kb": 12227556,
-        "ip_address": "192.168.24.138",
+        "ip_address": "192.168.1.10",
         "ipv6_address": "fe80::1ff:fe23:4567:890a",
         "mac_address": "01:23:45:67:89:AB",
+        "interfaces": "[{\"ipv4\":[\"192.168.1.10\"],\"ipv4-network\":\"192.168.1.0/24\",\"ipv6\":[\"fe80::1ff:fe23:4567:890a\"],\"ipv6-network\":\"fe80::/64\",\"macaddress\":\"01:23:45:67:89:ab\",\"name\":\"eth0\"}]",
         "agent_version": "7.37.0-devel+git.198.68a5b69",
         "cloud_provider": "AWS",
-        "cloud_provider_source": "DMI",
-        "cloud_provider_account_id": "aws_account_id",
+        "cloud_provider_source": "IMDSv2",
+        "cloud_provider_account_id": "123456789012",
         "cloud_provider_host_id": "i-abcedf",
-        "hypervisor_guest_uuid": "ec24ce06-9ac4-42df-9c10-14772aeb06d7",
-        "dmi_product_uuid": "ec24ce06-9ac4-42df-9c10-14772aeb06d7",
+        "ccrid": "arn:aws:ec2:us-east-1:123456789012:instance/i-abcedf",
+        "hypervisor_guest_uuid": "ec200000-0000-0000-0000-000000000001",
+        "dmi_product_uuid": "ec200000-0000-0000-0000-000000000001",
         "dmi_board_asset_tag": "i-abcedf",
         "dmi_board_vendor": "Amazon EC2",
         "linux_package_signing_enabled": true,
@@ -113,6 +123,7 @@ Here an example of an inventory payload:
         "instance-type": "m5.large"
     },
     "hostname": "my-host",
+    "uuid": "ec200000-0000-0000-0000-000000000001",
     "timestamp": 1631281754507358895
 }
 ```
