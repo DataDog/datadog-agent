@@ -7,6 +7,7 @@ package diagnose
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -171,7 +172,7 @@ func (v *baseDiagnoseSuite) AssertDiagnoseJSONInclude() {
 		}
 		diagnoseResult := unmarshalDiagnose(diagnose)
 		if diagnoseResult == nil {
-			return fmt.Errorf("could not unmarshal diagnose JSON output")
+			return errors.New("could not unmarshal diagnose JSON output")
 		}
 		diagnoseSummary := diagnoseResult.Summary
 		for _, suite := range v.suites {
@@ -204,7 +205,7 @@ func (v *baseDiagnoseSuite) AssertDiagnoseJSONInclude() {
 		}
 		diagnoseIncludeEverySuiteResult := unmarshalDiagnose(diagnoseIncludeEverySuite)
 		if diagnoseIncludeEverySuiteResult == nil {
-			return fmt.Errorf("could not unmarshal diagnose JSON output for all suites included")
+			return errors.New("could not unmarshal diagnose JSON output for all suites included")
 		}
 		if diagnoseIncludeEverySuiteResult.Summary != diagnoseSummary {
 			return fmt.Errorf("diagnose with all suites included (%+v) does not match diagnose without args (%+v)", diagnoseIncludeEverySuiteResult.Summary, diagnoseSummary)
@@ -275,7 +276,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseJSON() {
 		}
 		diagnoseResult := unmarshalDiagnose(diagnose)
 		if diagnoseResult == nil {
-			return fmt.Errorf("could not unmarshal diagnose JSON output")
+			return errors.New("could not unmarshal diagnose JSON output")
 		}
 
 		summary := diagnoseResult.Summary
@@ -285,7 +286,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseJSON() {
 			return fmt.Errorf("expected to have the same number of 'PASS' as the number of checks (%v), but was %v", summary.Total, summary.Success)
 		}
 		if !strings.Contains(diagnose, "connectivity-datadog-core-endpoints") {
-			return fmt.Errorf("diagnose output does not contain connectivity-datadog-core-endpoints")
+			return errors.New("diagnose output does not contain connectivity-datadog-core-endpoints")
 		}
 		return nil
 	}, 2*time.Minute, 15*time.Second, "diagnose reported a transient endpoint failure that did not clear on retry")
