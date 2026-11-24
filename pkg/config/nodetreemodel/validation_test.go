@@ -40,6 +40,21 @@ func TestUnknownEnvVars(t *testing.T) {
 		{"DD_UNKNOWN_ENV_TEST_EXTRA", false},
 		{"DD_PROXY_HTTP", false},
 		{"DD_INSIDE_CI", false},
+		// variables that Agent processes read without a setting
+		{"DD_ENTITY_ID", false},
+		{"DD_PM_CONFIG_DIR", false},
+		{"DD_PM_INHERIT_ENV_NAMES", false},
+		{"DD_PM_INHERIT_ENV_PREFIXES", false},
+		{"DD_PM_IPC_CERT_FILE_PATH", false},
+		{"DD_PM_SOCKET_PATH", false},
+		{"DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH", false},
+		{"DD_SECRETS_IMPLICIT_AUTH", false},
+		{"DD_SECRETS_SA_TOKEN_PATH", false},
+		{"DD_SECRETS_VAULT_AUTH_PATH", false},
+		{"DD_SECRETS_VAULT_ROLE", false},
+		// the list holds exact names, not prefixes
+		{"DD_SECRETS_UNKNOWN_ENV_TEST", true},
+		{"DD_PM_UNKNOWN_ENV_TEST", true},
 		{"DD_UNKNOWN_ENV_TEST_UNKNOWN", true},
 		{"UNKNOWN_ENV_TEST", false}, // no DD_ prefix
 	}
