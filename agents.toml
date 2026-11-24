@@ -7,17 +7,10 @@ agents = ["claude", "codex", "cursor", "vscode", "opencode", "pi"]
 github_repos = ["ddoghq/claude-marketplace"]
 
 [[plugins]]
-name = "smp-common"
+name = "smp"
 source = "git@github.com:ddoghq/claude-marketplace.git"
 ref = "main"
-path = "smp/common"
-targets = ["claude", "codex", "cursor", "opencode", "pi"]
-
-[[plugins]]
-name = "smp-datadog-agent"
-source = "git@github.com:ddoghq/claude-marketplace.git"
-ref = "main"
-path = "smp/datadog-agent"
+path = "smp"
 targets = ["claude", "codex", "cursor", "opencode", "pi"]
 
 [[mcp]]

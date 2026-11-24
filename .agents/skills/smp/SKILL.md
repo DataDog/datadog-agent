@@ -1,7 +1,7 @@
 ---
 name: smp
 description: >-
-  Load the shared Single Machine Performance (SMP) skills for datadog-agent.
+  Loads the Single Machine Performance (SMP) plugin skills for datadog-agent.
   Use for SMP questions, performance CI failures, CPU or memory regressions,
   throughput, profiles, experiments, and build or configuration comparisons.
 metadata:
@@ -25,7 +25,9 @@ If setup fails, explain the error and stop the SMP workflow.
 Read these installed files directly so the current session can continue without a skill index reload:
 
 1. `.agents/skills/using-smp/SKILL.md` for capability fit and workflow selection.
-2. `.agents/skills/investigating-datadog-agent-performance/SKILL.md` for Agent CI context.
+2. `.agents/skills/investigating-datadog-agent-performance/SKILL.md` for Agent experiments or CI results.
 
 Read the selected workflow under `.agents/skills/<skill-name>/SKILL.md` and resolve references relative to that file.
 Follow the shared guidance for run limits. Install the SMP CLI only when the workflow needs it.
+Use the common and datadog-agent skills for this repository.
+Use `developing-smp` only for implementation work in the SMP repository itself.
