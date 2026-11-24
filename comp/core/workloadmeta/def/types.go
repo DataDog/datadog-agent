@@ -1782,7 +1782,7 @@ func (w KubernetesKueueWorkload) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Priority:", *w.Priority)
 		}
 		_, _ = fmt.Fprintln(&sb, "Priority Class:", w.PriorityClassName)
-		_, _ = fmt.Fprintln(&sb, "Conditions:", w.Conditions)
+		_, _ = fmt.Fprintln(&sb, "Conditions:", len(w.Conditions))
 	}
 	return sb.String()
 }
@@ -1868,7 +1868,7 @@ func (pg KubernetesKAIPodGroup) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Priority Class:", pg.PriorityClassName)
 		_, _ = fmt.Fprintln(&sb, "Last Start:", pg.LastStartTime)
 		_, _ = fmt.Fprintln(&sb, "Last Eviction:", pg.LastEvictionTime)
-		_, _ = fmt.Fprintln(&sb, "Scheduling Conditions:", pg.SchedulingConditions)
+		_, _ = fmt.Fprintln(&sb, "Scheduling Conditions:", len(pg.SchedulingConditions))
 	}
 	return sb.String()
 }

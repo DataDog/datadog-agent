@@ -326,9 +326,9 @@ func TestKueueWorkloadParserDeprecatedPriorityClassName(t *testing.T) {
 }
 
 func TestParseRFC3339(t *testing.T) {
-	assert.True(t, parseRFC3339("").IsZero())
-	assert.True(t, parseRFC3339("yesterday").IsZero(), "a malformed value gives the zero time")
-	assert.Equal(t, time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC), parseRFC3339("2026-11-19T10:00:00Z"))
+	assert.True(t, parseTime("").IsZero())
+	assert.True(t, parseTime("yesterday").IsZero(), "a malformed value gives the zero time")
+	assert.Equal(t, time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC), parseTime("2026-11-19T10:00:00Z"))
 }
 
 func TestKueueWorkloadParserWithoutEventsLeavesOutConditions(t *testing.T) {

@@ -50,16 +50,15 @@ func (p kaiPodGroupParser) Parse(obj interface{}) workloadmeta.Entity {
 	var lastStartTime, lastEvictionTime time.Time
 	var schedulingConditions []workloadmeta.KAISchedulingCondition
 	if p.events {
-		lastStartTime = parseRFC3339(annotations[kaiLastStartAnnotation])
-		lastEvictionTime = parseRFC3339(annotations[kaiLastEvictionAnnotation])
+		lastStartTime = parseTime(annotations[kaiLastStartAnnotation])
+		lastEvictionTime = parseTime(annotations[kaiLastEvictionAnnotation])
 		schedulingConditions = kaiSchedulingConditions(u)
 	}
 	for _, annotation := range kaiPodGroupExcludedAnnotations {
 		delete(annotations, annotation)
 	}
 
-	queueName, _, _ := unstructured.NestedString(u.Object, "spec", "queue")
-	priorityClassName, _, _ := unstructured.NestedString(u.Object, "spec", "priorityClassName")
+	spec, _ := u.Object["spec"].(map[string]interface{})
 
 	return &workloadmeta.KubernetesKAIPodGroup{
 		EntityID: workloadmeta.EntityID{
@@ -73,9 +72,9 @@ func (p kaiPodGroupParser) Parse(obj interface{}) workloadmeta.Entity {
 			Annotations: annotations,
 			UID:         string(u.GetUID()),
 		},
-		QueueName:            queueName,
+		QueueName:            stringField(spec, "queue"),
 		CreationTimestamp:    u.GetCreationTimestamp().UTC(),
-		PriorityClassName:    priorityClassName,
+		PriorityClassName:    priorityClassName(spec),
 		LastStartTime:        lastStartTime,
 		LastEvictionTime:     lastEvictionTime,
 		SchedulingConditions: schedulingConditions,
@@ -85,47 +84,27 @@ func (p kaiPodGroupParser) Parse(obj interface{}) workloadmeta.Entity {
 // kaiSchedulingConditions returns the entries of status.schedulingConditions
 // of a PodGroup that have a type.
 func kaiSchedulingConditions(u *unstructured.Unstructured) []workloadmeta.KAISchedulingCondition {
-	items, _, _ := unstructured.NestedSlice(u.Object, "status", "schedulingConditions")
-
 	var conditions []workloadmeta.KAISchedulingCondition
-	for _, item := range items {
-		fields, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		conditionType, _, _ := unstructured.NestedString(fields, "type")
-		if conditionType == "" {
-			continue
-		}
-		status, _, _ := unstructured.NestedString(fields, "status")
-		nodePool, _, _ := unstructured.NestedString(fields, "nodePool")
-		reason, _, _ := unstructured.NestedString(fields, "reason")
-		message, _, _ := unstructured.NestedString(fields, "message")
-		transitionTime, _, _ := unstructured.NestedString(fields, "lastTransitionTime")
-
+	for _, fields := range typedEntries(u.Object, "status", "schedulingConditions") {
 		var explanations []workloadmeta.KAISchedulingExplanation
-		rawExplanations, _, _ := unstructured.NestedSlice(fields, "reasons")
+		rawExplanations, _ := fields["reasons"].([]interface{})
 		for _, rawExplanation := range rawExplanations {
-			explanationFields, ok := rawExplanation.(map[string]interface{})
-			if !ok {
-				continue
+			if explanationFields, ok := rawExplanation.(map[string]interface{}); ok {
+				explanations = append(explanations, workloadmeta.KAISchedulingExplanation{
+					Reason:  stringField(explanationFields, "reason"),
+					Message: stringField(explanationFields, "message"),
+				})
 			}
-			explanationReason, _, _ := unstructured.NestedString(explanationFields, "reason")
-			explanationMessage, _, _ := unstructured.NestedString(explanationFields, "message")
-			explanations = append(explanations, workloadmeta.KAISchedulingExplanation{
-				Reason:  explanationReason,
-				Message: explanationMessage,
-			})
 		}
 
 		conditions = append(conditions, workloadmeta.KAISchedulingCondition{
-			Type:               conditionType,
-			Status:             status,
-			NodePool:           nodePool,
-			Reason:             reason,
-			Message:            message,
+			Type:               stringField(fields, "type"),
+			Status:             stringField(fields, "status"),
+			NodePool:           stringField(fields, "nodePool"),
+			Reason:             stringField(fields, "reason"),
+			Message:            stringField(fields, "message"),
 			Explanations:       explanations,
-			LastTransitionTime: parseRFC3339(transitionTime),
+			LastTransitionTime: parseTime(stringField(fields, "lastTransitionTime")),
 		})
 	}
 	return conditions
