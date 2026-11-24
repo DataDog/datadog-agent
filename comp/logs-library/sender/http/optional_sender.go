@@ -89,6 +89,11 @@ func (s *OptionalSender) TrySend(payload *message.Payload) bool {
 	}
 }
 
+// RecordInputDrop counts one optional copy lost before it entered a batch.
+func (s *OptionalSender) RecordInputDrop() {
+	tlmOptionalMessagesDropped.Inc(s.endpointID)
+}
+
 func (s *OptionalSender) recordDrop(payload *message.Payload) {
 	tlmOptionalPayloadsDropped.Inc(s.endpointID)
 	tlmOptionalMessagesDropped.Add(float64(payload.Count()), s.endpointID)

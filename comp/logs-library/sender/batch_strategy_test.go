@@ -228,6 +228,38 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 	}
 }
 
+func TestBatchStrategyDrainQueuedOnFlush(t *testing.T) {
+	input := make(chan *message.Message, 2)
+	output := make(chan *message.Payload, 2)
+	flush := make(chan struct{}, 1)
+	strategy := NewBatchStrategyWithTerminalLoss(
+		input, output, flush, NewMockServerlessMeta(false), time.Hour, 100, 100, "test",
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""), "test", nil, DrainQueuedOnFlush,
+	)
+	log := message.NewMessage([]byte("a"), nil, "", 0)
+	ack := make(chan struct{})
+	marker := &message.Message{}
+	marker.SetRoutingBarrier(ack)
+	input <- marker
+	input <- log
+	flush <- struct{}{}
+	strategy.Start()
+	defer strategy.Stop()
+
+	select {
+	case payload := <-output:
+		assert.Equal(t, []*message.MessageMetadata{&log.MessageMetadata}, payload.MessageMetas)
+	case <-time.After(3 * time.Second):
+		t.Fatal("flush did not include the queued log")
+	}
+	select {
+	case <-ack:
+	default:
+		t.Fatal("queued barrier was not acknowledged")
+	}
+}
+
 func TestBatchStrategyFlushChannel(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)

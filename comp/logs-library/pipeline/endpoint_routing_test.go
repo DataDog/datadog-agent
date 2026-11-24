@@ -495,6 +495,100 @@ func TestEndpointFilteringFlushDoesNotWaitForOptionalHandoff(t *testing.T) {
 	}
 }
 
+func TestEndpointFilteringFlushOffersFinalMarkersIndependently(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	healthy := make(chan *message.Message, 1)
+	stalled := make(chan *message.Message, 1)
+	stalled <- &message.Message{}
+	p := &RoutedProvider{
+		ctx: context.Background(), endpointDefs: &routing.EndpointDefinitions{},
+		stopRequested: make(chan struct{}),
+		streams: map[string]*routedStream{
+			"stalled": {input: stalled},
+			"healthy": {input: healthy},
+		},
+	}
+	done := make(chan struct{})
+	go p.flushPrior(ctx, done)
+	select {
+	case marker := <-healthy:
+		close(marker.RoutingBarrier())
+	case <-ctx.Done():
+		t.Fatal("a full reliable queue blocked the healthy stream's final marker")
+	}
+	select {
+	case <-done:
+		t.Fatal("flush returned before the stalled stream acknowledged")
+	default:
+	}
+	cancel()
+	<-done
+}
+
+func TestEndpointFilteringFlushReleasesPartialBatchesDuringStalledFanout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	progress, err := routing.NewProgress(8, &routedTestSink{})
+	require.NoError(t, err)
+	healthy := make(chan *message.Message, 1)
+	healthyFlush := make(chan struct{}, 1)
+	stalled := make(chan *message.Message, 1)
+	stalled <- &message.Message{} // Leave no queue space for this reliable sibling.
+	p := &RoutedProvider{
+		ctx: ctx, progress: progress, endpointDefs: &routing.EndpointDefinitions{},
+		processed: make(chan *message.Message, 3), processedDone: make(chan struct{}),
+		sourceDispatch: make(map[string]*routedSourceDispatch),
+		streams: map[string]*routedStream{
+			"group:healthy": {input: healthy, flush: healthyFlush, pressureFlush: true},
+			"group:stalled": {input: stalled, flush: make(chan struct{}, 1), pressureFlush: true},
+		},
+	}
+	go p.dispatchProcessed()
+	defer func() {
+		cancel()
+		close(p.processed)
+		<-p.processedDone
+		progress.Close()
+	}()
+	const sourceID = "file:/tmp/flush-stalled.log"
+	src := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: "/tmp/flush-stalled.log"})
+	for i := 1; i <= 2; i++ {
+		msg := newCheckpointedFilteringMessage(src, sourceID, strconv.Itoa(i), "log", message.StatusInfo)
+		token, err := progress.Reserve(ctx, msg, 1)
+		require.NoError(t, err)
+		require.NoError(t, progress.AttachEndpointSelection(token, []string{"healthy", "stalled"}, nil, false))
+		p.processed <- msg
+	}
+	ack := make(chan struct{})
+	marker := &message.Message{}
+	marker.SetRoutingBarrier(ack)
+	marker.SetRoutingBarrierContext(ctx)
+	p.processed <- marker
+
+	for delivered := 0; delivered < 2; {
+		// Do not drain the only data slot until the batcher gets a flush signal.
+		select {
+		case <-healthyFlush:
+		case <-ctx.Done():
+			t.Fatal("full healthy queue lost its flush request")
+		}
+		select {
+		case msg := <-healthy:
+			require.Nil(t, msg.RoutingBarrier())
+			progress.CompleteReliableSuccess("healthy", message.NewPayload([]*message.MessageMetadata{&msg.MessageMetadata}, nil, "", 0))
+			delivered++
+		default:
+			// A repeated signal can arrive after the previous record has drained.
+		}
+	}
+	select {
+	case <-ack:
+		require.NoError(t, ctx.Err())
+	case <-ctx.Done():
+		t.Fatal("flush dispatch barrier did not complete")
+	}
+}
+
 // TestEndpointFilteringStalledReliableSibling verifies that delivery to one
 // matching endpoint releases offers still waiting for space at its sibling.
 func TestEndpointFilteringStalledReliableSibling(t *testing.T) {
