@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -40,7 +41,8 @@ type Reader struct {
 	cgroups         map[string]Cgroup
 	cgroupByInode   map[uint64]Cgroup
 	cgroupsLock     sync.RWMutex
-	scrapeTimestmap time.Time
+	refreshLock     sync.Mutex
+	scrapeTimestamp atomic.Pointer[time.Time]
 }
 
 type readerImpl interface {
@@ -227,13 +229,24 @@ func (r *Reader) GetCgroupByInode(inode uint64) Cgroup {
 	return r.cgroupByInode[inode]
 }
 
+func (r *Reader) isCacheValid(cacheValidity time.Duration) bool {
+	if cacheValidity <= 0 {
+		return false
+	}
+	last := r.scrapeTimestamp.Load()
+	return last != nil && last.Add(cacheValidity).After(time.Now())
+}
+
 // RefreshCgroups triggers a refresh if data are older than cacheValidity. 0 to always refesh.
 func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
-	r.cgroupsLock.Lock()
-	defer r.cgroupsLock.Unlock()
+	if r.isCacheValid(cacheValidity) {
+		return nil
+	}
 
-	// Refresh not required
-	if r.scrapeTimestmap.Add(cacheValidity).After(time.Now()) {
+	r.refreshLock.Lock()
+	defer r.refreshLock.Unlock()
+
+	if r.isCacheValid(cacheValidity) {
 		return nil
 	}
 
@@ -242,14 +255,18 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 		return err
 	}
 
-	r.cgroupByInode = make(map[uint64]Cgroup, len(newCgroups))
+	newCgroupByInode := make(map[uint64]Cgroup, len(newCgroups))
 	for _, cg := range newCgroups {
 		if inode := cg.Inode(); inode != unknownInode {
-			r.cgroupByInode[inode] = cg
+			newCgroupByInode[inode] = cg
 		}
 	}
 
-	r.scrapeTimestmap = time.Now()
+	now := time.Now()
+	r.cgroupsLock.Lock()
 	r.cgroups = newCgroups
+	r.cgroupByInode = newCgroupByInode
+	r.scrapeTimestamp.Store(&now)
+	r.cgroupsLock.Unlock()
 	return nil
 }
