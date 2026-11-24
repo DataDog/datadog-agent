@@ -49,6 +49,7 @@ func TestOTTLMaskStatements(t *testing.T) {
 		{"already redacted duplicate", `{"password":"secret","password":"***"}`, `set(attributes["password"], "***")`, `{"password":"***"}`, true, false},
 		{"no-match duplicate", `{"password":"secret","password":"safe"}`, `replace_pattern(attributes["password"], "secret", "***")`, `{"password":"safe"}`, true, false},
 		{"false condition with duplicates", `{"password":"secret","password":"safe"}`, `set(attributes["password"], "***") where false`, `{"password":"secret","password":"safe"}`, false, false},
+		{"shadowed duplicate in guard", `{"payload":{"id":9223372036854775808,"id":1},"password":"secret"}`, `set(attributes["password"], "***") where IsMap(attributes["payload"])`, `{"payload":{"id":1},"password":"***"}`, true, false},
 		{"duplicate key", `{"password":"first","password":"second"}`, `set(attributes["password"], "***")`, `{"password":"***"}`, true, false},
 		{"escaped duplicate", `{"password":"first","pass\u0077ord":"second"}`, `set(attributes["password"], "***")`, `{"password":"***"}`, true, false},
 		{"duplicate parent", `{"user":{"password":"first"},"user":{"password":"second"}}`, `set(attributes["user"]["password"], "***")`, `{"user":{"password":"***"}}`, true, false},
