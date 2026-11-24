@@ -51,11 +51,13 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",
+            "//pkg/util/winutil",
             "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
             "@org_golang_x_text//encoding/unicode",
         ],
         "//conditions:default": [],

@@ -9,6 +9,7 @@ package observerimpl
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"path/filepath"
 	"sort"
@@ -314,12 +315,17 @@ func (f *logAdmissionFilter) admit(l *logObs) (bool, string) {
 //
 // Keys are declared in pkg/config/schema/yaml/. Component-specific fields
 // are populated by each catalog entry's readConfig callback.
-func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) ComponentSettings {
+func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) (ComponentSettings, error) {
 	var settings ComponentSettings
 	if cfg == nil {
-		return settings
+		return settings, nil
 	}
 	settings.UseMetricPipeline = cfg.GetBool("anomaly_detection.metric_pipeline.enabled")
+	stableConfig, err := readStablePipelineConfig(cfg)
+	if err != nil {
+		return settings, err
+	}
+	settings.StablePipeline = stableConfig
 	if cfg.IsConfigured("anomaly_detection.metric_pipeline.anomaly_cutoff") {
 		cutoff := cfg.GetBool("anomaly_detection.metric_pipeline.anomaly_cutoff")
 		settings.MetricPipelineAnomalyCutoff = &cutoff
@@ -371,7 +377,84 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 		settings.Baseline.Verbose = cfg.GetBool(basePrefix + "verbose")
 	}
 
-	return settings
+	return settings, nil
+}
+
+// readStablePipelineConfig reads the metric pipeline stable detector configuration.
+func readStablePipelineConfig(cfg config.Component) (*StablePipelineConfig, error) {
+	const stablePrefix = "anomaly_detection.metric_pipeline.stable"
+	prefix := stablePrefix + "."
+	if !cfg.HasSection(stablePrefix) {
+		return nil, nil
+	}
+
+	stable := DefaultStablePipelineConfig()
+	if cfg.IsConfigured(prefix + "min_relative_change") {
+		stable.MinRelativeChange = cfg.GetFloat64(prefix + "min_relative_change")
+	}
+
+	detectorNames := map[string]struct{}{
+		"scanmw":    {},
+		"scanwelch": {},
+		"bocpd":     {},
+	}
+	for key := range cfg.GetStringMap(stablePrefix) {
+		if key != "min_relative_change" {
+			if _, known := detectorNames[key]; !known {
+				return nil, fmt.Errorf("unknown stable pipeline detector %q", key)
+			}
+		}
+	}
+
+	selected := 0
+	if cfg.HasSection(prefix + "scanmw") {
+		if err := validateStableDetectorBlock(cfg, stablePrefix+".scanmw", "min_points", "max_points"); err != nil {
+			return nil, err
+		}
+		stable.ScanMW = &StableScanMWConfig{
+			MinPoints: cfg.GetInt(prefix + "scanmw.min_points"),
+			MaxPoints: cfg.GetInt(prefix + "scanmw.max_points"),
+		}
+		selected++
+	}
+	if cfg.HasSection(prefix + "scanwelch") {
+		if err := validateStableDetectorBlock(cfg, stablePrefix+".scanwelch", "min_points", "max_points"); err != nil {
+			return nil, err
+		}
+		stable.ScanWelch = &StableScanWelchConfig{
+			MinPoints: cfg.GetInt(prefix + "scanwelch.min_points"),
+			MaxPoints: cfg.GetInt(prefix + "scanwelch.max_points"),
+		}
+		selected++
+	}
+	if cfg.HasSection(prefix + "bocpd") {
+		if err := validateStableDetectorBlock(cfg, stablePrefix+".bocpd", "warmup_points", "max_run_length"); err != nil {
+			return nil, err
+		}
+		stable.BOCPD = &StableBOCPDConfig{
+			WarmupPoints: cfg.GetInt(prefix + "bocpd.warmup_points"),
+			MaxRunLength: cfg.GetInt(prefix + "bocpd.max_run_length"),
+		}
+		selected++
+	}
+	if selected > 1 {
+		return nil, errors.New("stable pipeline accepts at most one detector block")
+	}
+	return &stable, nil
+}
+
+// validateStableDetectorBlock rejects unknown fields in a stable detector block.
+func validateStableDetectorBlock(cfg config.Component, prefix string, allowedKeys ...string) error {
+	allowed := make(map[string]struct{}, len(allowedKeys))
+	for _, key := range allowedKeys {
+		allowed[key] = struct{}{}
+	}
+	for key := range cfg.GetStringMap(prefix) {
+		if _, ok := allowed[key]; !ok {
+			return fmt.Errorf("unknown stable detector setting %q", key)
+		}
+	}
+	return nil
 }
 
 func logCountBucketConfigFromAgent(cfg config.Component) LogCountBucketConfig {
@@ -431,7 +514,10 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 
 	catalog := defaultCatalog()
-	settings := settingsFromAgentConfig(catalog, cfg)
+	settings, err := settingsFromAgentConfig(catalog, cfg)
+	if err != nil {
+		return Provides{}, err
+	}
 	detectors, correlators, rawScorer, extractors, _, err := catalog.Instantiate(settings)
 	if err != nil {
 		return Provides{}, err
@@ -476,8 +562,6 @@ func NewComponent(deps Requires) (Provides, error) {
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
 	eng.onAnomalyDedupEvicted = obsTelemetry.recordAnomalyDedupEvicted
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
-	eng.onProcessingTime = obsTelemetry.recordProcessingTime
-	eng.onDetectorEmission = obsTelemetry.recordDetectorEmission
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
@@ -736,6 +820,8 @@ func (o *observerImpl) run() {
 	metricsCh, logsCh := o.metricsCh, o.logsCh
 	ticker := time.NewTicker(filteredMetricPublishInterval)
 	defer ticker.Stop()
+	o.engine.publishMetricKindTelemetry(o.telemetry)
+	defer o.engine.publishMetricKindTelemetry(o.telemetry)
 	for metricsCh != nil || logsCh != nil {
 		var obs observation
 		var ok bool
@@ -753,6 +839,7 @@ func (o *observerImpl) run() {
 		case <-ticker.C:
 			o.engine.flushFilteredMetrics()
 			o.publishSeriesFreshness()
+			o.engine.publishMetricKindTelemetry(o.telemetry)
 			continue
 		}
 		if obs.flush != nil {
@@ -1165,13 +1252,26 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 	// transition watcher as the live observer so scorer correlation episodes open
 	// and close as severity changes; telemetry gauges are optional here.
 	if scorer != nil {
-		scorer = newAnomalyScorerWithTelemetry(scorer.config, nil, nil)
+		scorerCfg := scorer.config
+		if storageCfg.TrackScorerHistory {
+			scorerCfg.MaxBuckets = math.MaxInt64
+		}
+		scorer = newAnomalyScorerWithTelemetry(scorerCfg, nil, nil)
+		if storageCfg.TrackScorerHistory {
+			scorer.enableHistory()
+		}
 	}
 	o.replayMu.Lock()
 	defer o.replayMu.Unlock()
 	o.metricFilter.muted.Store(nil)
 	if err := o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline); err != nil {
 		return err
+	}
+	if settings.LogCountBuckets != nil {
+		o.engine.logCounts = nil
+		if settings.LogCountBuckets.Enabled {
+			o.engine.logCounts = newMaterializedLogCountBucketizer(*settings.LogCountBuckets)
+		}
 	}
 	o.publishSeriesCount()
 	return nil

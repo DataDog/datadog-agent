@@ -14,7 +14,7 @@
 
 ## How does the Host Profiler name services?
 
-The Host Profiler determines each process's service name from the `OTEL_SERVICE_NAME` or `DD_SERVICE` environment variables.
+The Host Profiler determines each process's service name from the `DD_SERVICE` environment variable, then from the OpenTelemetry resource. That resource is the process context published by the OpenTelemetry SDK or, when there is none, the `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` environment variables.
 
 If neither variable is set, the profiler infers the service name from the binary name. For interpreted languages, this is the interpreter name, such as `java` or `python`. If multiple services share the same interpreter and do not set a service name, their profiles are grouped under the same inferred name.
 
@@ -26,7 +26,7 @@ env:
     value: my-service
 ```
 
-Set `DD_ENV` and `DD_VERSION` on your workloads for richer filtering in the Datadog Profiler UI. Support for equivalent metadata from `OTEL_RESOURCE_ATTRIBUTES` is in progress.
+Set `DD_ENV` and `DD_VERSION`, or `deployment.environment.name` and `service.version` in `OTEL_RESOURCE_ATTRIBUTES`, on your workloads for richer filtering in the Datadog Profiler UI.
 
 ## Can I deploy the Host Profiler without the Datadog Agent or DDOT?
 
@@ -115,5 +115,5 @@ In Kubernetes, it runs as a host-level DaemonSet with `hostPID: true` so it can 
 The deployment examples configure SELinux compatibility, seccomp, and AppArmor as follows:
 
 - **SELinux** is configured with the `spc_t` super-privileged container type so that SELinux does not block the host and process access required by the Host Profiler. This type does not provide additional SELinux confinement. If `spc_t` is unavailable, replace it with an equivalent type supported by your distribution and security policy. The deployment guide or manifest for your deployment path shows where to configure this value.
-- **seccomp** restricts the syscalls the container can make beyond what those capabilities allow. The seccomp profile ships at `/etc/dd-host-profiler/seccomp.json` inside the image and is applied automatically in the Helm-based guides and the OpenTelemetry Operator guide. In the Datadog Operator preview path, seccomp is optional and must be provisioned manually if you want the extra hardening; a future Operator version is expected to configure it by default.
+- **seccomp** restricts the syscalls the container can make beyond what those capabilities allow. The seccomp profile ships at `/etc/dd-host-profiler/seccomp.json` inside the image and is applied automatically in all deployment guides.
 - **AppArmor** is optional where available. The provided profile restricts which binaries the profiler can execute: only `objcopy`, used for symbol extraction, is permitted.

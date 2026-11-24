@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"github.com/DataDog/jsonapi"
-	"github.com/DataDog/zstd"
 	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
@@ -44,14 +43,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 	elf "github.com/DataDog/datadog-agent/pkg/util/safeelf"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
 const (
 	envBazelGoBinary = "GO_BINARY_RLOCATION"
 	envBazelGoRoot   = "GO_ROOT_RLOCATION"
 )
-
-var objcopyZstdSupport = CheckObjcopyZstdSupport(context.Background())
 
 // dummyProcess implements pfelf.Process for testing purposes
 type dummyProcess struct {
@@ -187,28 +185,16 @@ func checkGoPCLnTab(t *testing.T, f *elf.File, checkGoFunc bool) {
 	}
 }
 
-func checkRequest(t *testing.T, req *http.Request, expectedSymbolSource symbol.Source, expectedGoPCLnTab bool, expectedContentEncoding string) {
+func checkRequest(t *testing.T, req *http.Request, expectedSymbolSource symbol.Source, expectedGoPCLnTab bool) {
 	require.Equal(t, "POST", req.Method)
-	if expectedContentEncoding != "" {
-		require.Equal(t, expectedContentEncoding, req.Header.Get("Content-Encoding"))
-	} else {
-		require.NotContains(t, req.Header, "Content-Encoding")
-	}
+	require.NotContains(t, req.Header, "Content-Encoding")
 
 	_, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
 	require.NoError(t, err)
 	boundary, ok := params["boundary"]
 	require.True(t, ok)
 
-	var reader io.ReadCloser
-	if req.Header.Get("Content-Encoding") == "zstd" {
-		reader = zstd.NewReader(req.Body)
-		defer reader.Close()
-	} else {
-		reader = req.Body
-	}
-
-	mr := multipart.NewReader(reader, boundary)
+	mr := multipart.NewReader(req.Body, boundary)
 	form, err := mr.ReadForm(1 << 20) // 1 MiB
 	require.NoError(t, err)
 	fhs, ok := form.File["elf_symbol_file"]
@@ -230,7 +216,14 @@ func checkRequest(t *testing.T, req *http.Request, expectedSymbolSource symbol.S
 	require.NoError(t, err)
 	require.Equal(t, expectedSymbolSource.String(), result["symbol_source"])
 
-	elfFile, err := elf.NewFile(f)
+	// Only the ELF part is a zstd frame; multipart framing and JSON stay plain.
+	compressed, err := io.ReadAll(f)
+	require.NoError(t, err)
+	require.True(t, bytes.HasPrefix(compressed, []byte{0x28, 0xb5, 0x2f, 0xfd}))
+	require.Empty(t, fhs[0].Header.Get("Content-Encoding"))
+	decoded, err := zstd.Decompress(nil, compressed)
+	require.NoError(t, err)
+	elfFile, err := elf.NewFile(bytes.NewReader(decoded))
 	require.NoError(t, err)
 	defer elfFile.Close()
 
@@ -287,12 +280,32 @@ func hasDWARFData(elfFile *elf.File) bool {
 	return len(elfFile.Progs) == 0 && hasBuildID && hasDebugStr
 }
 
+func TestSymbolCompressionWindowLog(t *testing.T) {
+	for _, tc := range []struct {
+		size int64
+		want int
+	}{
+		{0, 16},
+		{1, 16},
+		{(64 << 10) - 1, 16},
+		{64 << 10, 16},
+		{(64 << 10) + 1, 17},
+		{1 << 20, 20},
+		{(1 << 20) + 1, 21},
+		{(4 << 20) - 1, 22},
+		{4 << 20, 22},
+		{(4 << 20) + 1, 22},
+		{1 << 62, 22},
+	} {
+		assert.Equal(t, tc.want, symbolCompressionWindowLog(tc.size), "size=%d", tc.size)
+	}
+}
+
 var testEndpoints = []string{"a.com", "b.com", "c.com", "d.com", "e.com"}
 
 type uploaderOpts struct {
-	uploadDynamicSymbols           bool
-	uploadGoPCLnTab                bool
-	disableDebugSectionCompression bool
+	uploadDynamicSymbols bool
+	uploadGoPCLnTab      bool
 }
 
 func newTestUploader(ctx context.Context, opts uploaderOpts) (*DatadogSymbolUploader, error) {
@@ -312,7 +325,6 @@ func newTestUploader(ctx context.Context, opts uploaderOpts) (*DatadogSymbolUplo
 			SymbolQueryInterval:  0,
 			SymbolEndpoints:      endpoints,
 		},
-		DisableDebugSectionCompression: opts.disableDebugSectionCompression,
 	}
 	return NewDatadogSymbolUploader(ctx, cfg)
 }
@@ -486,26 +498,18 @@ func TestSymbolUpload(t *testing.T) {
 	buildID := "some_go_build_id"
 	channels := registerResponders(t, buildID)
 
-	checkUploadsWithEncoding := func(t *testing.T, expectedSymbolSource symbol.Source, expectedGoPCLnTab bool, expectedUploads []bool, expectedEncoding string) {
+	checkUploads := func(t *testing.T, expectedSymbolSource symbol.Source, expectedGoPCLnTab bool, expectedUploads []bool) {
 		callCountInfo := httpmock.GetCallCountInfo()
 		for i, e := range testEndpoints {
 			assert.Equal(t, 1, callCountInfo["POST "+buildSymbolQueryURL(e)])
 			if expectedUploads[i] {
 				assert.Equal(t, 1, callCountInfo["POST "+buildSourcemapIntakeURL(e)])
 				req := <-channels[i]
-				checkRequest(t, req, expectedSymbolSource, expectedGoPCLnTab, expectedEncoding)
+				checkRequest(t, req, expectedSymbolSource, expectedGoPCLnTab)
 			} else {
 				assert.Equal(t, 0, callCountInfo["POST "+buildSourcemapIntakeURL(e)])
 			}
 		}
-	}
-
-	checkUploads := func(t *testing.T, expectedSymbolSource symbol.Source, expectedGoPCLnTab bool, expectedUploads []bool) {
-		expectedEncoding := ""
-		if !objcopyZstdSupport {
-			expectedEncoding = "zstd"
-		}
-		checkUploadsWithEncoding(t, expectedSymbolSource, expectedGoPCLnTab, expectedUploads, expectedEncoding)
 	}
 
 	goExeNoSymbols := buildGo(t, t.TempDir(), buildID, buildOptions{dynsym: false, symtab: false, debugInfos: false})
@@ -670,20 +674,6 @@ func TestSymbolUpload(t *testing.T) {
 				require.Equal(t, tt.wantCounts, uploadReportCounts(t, reports))
 			})
 		}
-	})
-
-	t.Run("Upload compressed request when debug section compression is disabled", func(t *testing.T) {
-		reports := captureUploadReports(t)
-		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{disableDebugSectionCompression: true})
-		require.NoError(t, err)
-		uploader.Start(t.Context())
-
-		uploader.UploadSymbols(newExecutableMetadata(t, goExeDebugInfos))
-		uploader.Stop()
-
-		checkUploadsWithEncoding(t, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false}, "zstd")
-		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 }
 

@@ -359,11 +359,20 @@ def _render_node(full_name, name, node, indent_level, os_target):
 
 
 def _get_header(node):
-    title = node.get("title")
-    if title is None:
+    """Return the banner starting a new group of settings before *node*, or "" if it has none.
+
+    The text comes from the Agent's ``banner`` keyword, valid on any node. A section's
+    ``title`` is also rendered as its banner, unless the section has a ``banner``.
+    Settings must not use ``title`` for this: it is the label external JSON Schema tools
+    (IDEs) show for the value, see ``check_no_title_on_settings`` in lint.py.
+    """
+    text = node.get("banner")
+    if text is None and node.get("node_type") == "section":
+        text = node.get("title")
+    if text is None:
         return ""
-    outline = "#" * (len(title) + 6)
-    return f"{outline}\n## {title} ##\n{outline}\n\n"
+    outline = "#" * (len(text) + 6)
+    return f"{outline}\n## {text} ##\n{outline}\n\n"
 
 
 def _render(build_type, os_target, previous_path, name, node, indent_level):

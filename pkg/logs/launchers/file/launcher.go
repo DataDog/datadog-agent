@@ -77,7 +77,13 @@ type Launcher struct {
 	fingerprinter    tailer.Fingerprinter
 	// Keep the exact message recipients: a tailer's ReplaceableSource can change before cleanup.
 	fingerprintRotationErrors map[string]*config.Messages
-	stopOnce                  sync.Once
+	// Sources left out of a file another source owns, with the status message they carry, by scan key.
+	// See resolveDuplicateSources.
+	duplicateSources map[string]map[*sources.LogSource]string
+	stopOnce         sync.Once
+
+	// Status messages about files several tailers read, keyed by tailer. See reportSharedFiles.
+	sharedFileMessages map[*tailer.Tailer]*config.Messages
 }
 
 const (
@@ -207,11 +213,14 @@ func (s *Launcher) resolveScan(files []*tailer.File) {
 	s.cleanUpRotatedTailers()
 	s.clearFingerprintRotationErrors()
 	s.resolveActiveTailers(files)
+	s.reportSharedFiles()
 }
 
 // cleanup all tailers
 func (s *Launcher) cleanup() {
 	s.clearFingerprintRotationErrors()
+	s.clearDuplicateSources()
+	s.clearSharedFiles()
 	stopper := startstop.NewParallelStopper()
 	s.cleanUpRotatedTailers()
 	for _, tailer := range s.rotatedTailers {
@@ -250,13 +259,18 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	// added during a concurrent scan.  In order to mitigate that possibility, any
 	// tailers started while FilesToTail() is running need to be merged with the
 	// result of FilesToTail() to prevent scan() from unscheudling them.
-	// FilesToTail returns at most tailingLimit files, so a result that reached the limit may have
-	// left out files that are still matched. Read before the merge below, which can push the count
-	// past the limit on its own.
-	hitFileLimit := len(files) >= s.tailingLimit
+	// FilesToTail returns at most tailingLimit distinct files, so a result that reached the limit may
+	// have left out files that are still matched. Read before the merge below, which can push the
+	// count past the limit on its own.
+	scannedFiles := make(map[string]struct{}, len(files))
+	for _, file := range files {
+		scannedFiles[file.GetScanKey()] = struct{}{}
+	}
+	hitFileLimit := len(scannedFiles) >= s.tailingLimit
 
 	files = append(files, s.filesTailedBetweenScans...)
 	s.filesTailedBetweenScans = s.filesTailedBetweenScans[:0]
+	files = s.resolveDuplicateSources(files)
 	filesTailed := make(map[string]bool)
 
 	// Every file we are expected to tail during this scan, used to expire skip state for files that
@@ -502,12 +516,9 @@ func (s *Launcher) removeSource(source *sources.LogSource) {
 
 // launch launches new tailers for a new source.
 func (s *Launcher) launchTailers(source *sources.LogSource) {
-	// If we're at the limit already, no need to do a 'CollectFiles', just wait for the next 'scan'
-	if s.tailers.Count() >= s.tailingLimit {
-		log.Debugf("Not launching tailers for %s: already tailing %d files, which is the limit (logs_config.open_files_limit). Files for this source are picked up by the next scan.",
-			source.Config.Path, s.tailingLimit)
-		return
-	}
+	// Files are collected even at the limit (logs_config.open_files_limit): one that is already
+	// tailed is handed to this source without opening another, and the scans keep it there (see
+	// resolveDuplicateSources). Only the files that would need a new tailer wait for the next scan.
 	files, err := s.fileProvider.CollectFiles(source)
 	if err != nil {
 		source.Status().Error(err)
@@ -518,13 +529,8 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 	// Reuse a single resolver so the /var/log/containers scan happens at most once
 	// across all files for this source rather than once per file.
 	symlinkResolver := fileprovider.NewContainerLogSymlinkResolver()
+	reachedLimit := false
 	for _, file := range files {
-		if s.tailers.Count() >= s.tailingLimit {
-			log.Debugf("Reached the limit of %d tailed files (logs_config.open_files_limit) while launching tailers for %s, the remaining files are picked up by the next scan.",
-				s.tailingLimit, source.Config.Path)
-			return
-		}
-
 		if fileprovider.ShouldIgnore(s.validatePodContainerID, file, symlinkResolver) {
 			continue
 		}
@@ -535,6 +541,15 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			// uses this new source going forward
 			s.clearFingerprintRotationError(file.GetScanKey())
 			tailer.ReplaceSource(source)
+			continue
+		}
+
+		if s.tailers.Count() >= s.tailingLimit {
+			if !reachedLimit {
+				log.Debugf("Reached the limit of %d tailed files (logs_config.open_files_limit) while launching tailers for %s, the remaining files are picked up by the next scan.",
+					s.tailingLimit, source.Config.Path)
+				reachedLimit = true
+			}
 			continue
 		}
 

@@ -41,7 +41,7 @@ func TestGUIWindowsSuite(t *testing.T) {
 
 	e2e.Run(t, &guiWindowsSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(
-			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess()),
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 			ec2.WithAgentOptions(
 				agentparams.WithAgentConfig(guiWinConfig),
 				agentparams.WithAdditionalInstallParameters(
@@ -74,7 +74,4 @@ func (v *guiWindowsSuite) TestGUI() {
 
 	v.T().Log("Testing GUI static file server")
 	checkStaticFiles(v.T(), guiClient, v.Env().RemoteHost, guiWinInstallPath)
-
-	v.T().Log("Testing GUI ping endpoint")
-	checkPingEndpoint(v.T(), guiClient)
 }

@@ -12,7 +12,7 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 Before deploying, make sure you have:
 
-- [OpenTelemetry Collector Helm chart](https://opentelemetry.io/docs/platforms/kubernetes/helm/collector/) version **0.152.1** or later.
+- [OpenTelemetry Collector Helm chart](https://opentelemetry.io/docs/platforms/kubernetes/helm/collector/) version **0.159.2** or later.
 - A namespace for the Host Profiler. You can reuse an existing namespace or create a dedicated one.
 - A Datadog API key available to the Collector as `DD_API_KEY`.
 
@@ -83,6 +83,18 @@ After you apply the values, Helm rolls out an OpenTelemetry Collector DaemonSet 
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
+## Running as non-root (optional)
+
+By default, the Host Profiler container runs as root. To run it as a non-privileged user (UID/GID `100`) instead, add `runAsUser`, `runAsGroup`, and `runAsNonRoot` to the `securityContext` in [`helm/collector-values.yaml`](helm/collector-values.yaml):
+
+```yaml
+securityContext:
+  # ... existing fields ...
+  runAsUser: 100
+  runAsGroup: 100
+  runAsNonRoot: true
+```
+
 ## AppArmor (optional)
 
 AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run.
@@ -100,3 +112,9 @@ securityContext:
 ```
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
+
+## Partial deployment (optional)
+
+To run the Host Profiler on selected Linux nodes, add the labels that identify those nodes to `nodeSelector` in [`helm/collector-values.yaml`](helm/collector-values.yaml). Keep `kubernetes.io/os: linux`. For more complex rules, use [required node affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity) under `affinity.nodeAffinity`. If taints block scheduling, add matching [tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) under `tolerations`.
+
+After rollout, verify that every intended node runs a Collector pod and that no Collector pods run on other nodes.

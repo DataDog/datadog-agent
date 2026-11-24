@@ -50,7 +50,8 @@ AI-written PR descriptions tend to restate the diff: which functions moved, whic
 Return a Markdown block as raw text (not in a code fence), ready to paste under "What does this PR do?" after the technical summary. The placeholders show the shape, not required wording:
 
 ```markdown
-**Functional changes**
+<details>
+<summary>Functional changes</summary>
 
 | Before | After |
 | --- | --- |
@@ -59,10 +60,13 @@ Return a Markdown block as raw text (not in a code fence), ready to paste under 
 | — | <Scenario that is now handled or possible> |
 
 Unchanged: <area a reviewer might worry about>.
+
+</details>
 ```
 
 What makes a good block:
 
+- **Collapse by default.** Wrap the whole section (tables or bullets, grouped concerns, and any Unchanged lines) in one `<details>` block with `<summary>Functional changes</summary>`, without the `open` attribute. Keep a blank line after the summary and before `</details>` so GitHub renders the Markdown inside.
 - **Show before and after.** Most changes modify something that already exists, and seeing the old and new behavior side by side is what lets a reviewer judge whether the change is right, so lead with the table. Start the Before cell with the scenario in a few words (e.g. "`HOST_ROOT` mounted: …"), so that each row reads on its own; a short After cell is fine.
 - **Don't invent a before.** For a scenario that wasn't handled or possible, put `—` in Before. When nothing existed before at all (a new check, command, or skill), skip the table and list as bullets what it enables and its notable effects, not each of its steps.
 - **One scenario per row, seen from outside.** Table cells can't hold line breaks, so keep each cell to a short sentence. Name the affected audience when it isn't obvious (e.g. "In `security-agent status`, …"). Config keys, CLI flags, metric and tag names, labels, files, and commands are fine to name. Internal function and type names usually aren't: a cell that needs one is probably describing the implementation. Leave out how you verified the claim; reviewers have the diff for that.
@@ -79,7 +83,8 @@ After the block, add short notes for the user, outside the block and only when t
 **CI workflow change**, reshaped from [#58985](https://github.com/DataDog/datadog-agent/pull/58985). Its technical summary was "Merges the three PR labeling workflows into one, and moves the community PR Slack notification to its own workflow." The functional block then says what that changes for PR authors and maintainers:
 
 ```markdown
-**Functional changes**
+<details>
+<summary>Functional changes</summary>
 
 | Before | After |
 | --- | --- |
@@ -95,6 +100,8 @@ Unchanged: the stale bot's selection rules.
 | Before | After |
 | --- | --- |
 | Internal PRs ran their own `tasks/` code with the labeling token | No code from the PR runs with the labeling token |
+
+</details>
 ```
 
 Workflow file names, job names, and the YAML restructuring are absent: the summary sentence and the diff already cover them.
@@ -108,21 +115,28 @@ Workflow file names, job names, and the YAML restructuring are absent: the summa
 The same change, described functionally:
 
 ```markdown
-**Functional changes**
+<details>
+<summary>Functional changes</summary>
 
 | Before | After |
 | --- | --- |
 | When a tailed file was truncated in place (copytruncate rotation), the Agent waited for it to grow past the previous offset, losing the lines in between | The Agent resumes from the start of the truncated file |
 
 Unchanged: files rotated by rename, and `logs_config` defaults.
+
+</details>
 ```
 
 **Nothing existed before** (hypothetical new check), so bullets instead of a table:
 
 ```markdown
-**Functional changes**
+<details>
+<summary>Functional changes</summary>
+
 - The new `foo` check, disabled by default, reports `foo.connections.active` and `foo.errors` every 15 seconds once configured.
 - `agent status` lists it under Collector like other checks.
+
+</details>
 ```
 
 **Refactor**:

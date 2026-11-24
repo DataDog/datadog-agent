@@ -7,6 +7,7 @@ package com_datadoghq_kubernetes_admissionregistration
 
 import (
 	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 
@@ -34,6 +35,10 @@ func (h *DeleteValidatingAdmissionPolicyBindingHandler) Run(
 	inputs, err := types.ExtractInputs[DeleteValidatingAdmissionPolicyBindingInputs](task)
 	if err != nil {
 		return nil, err
+	}
+
+	if inputs.DeleteFields == nil || inputs.Name == "" {
+		return nil, errors.New("name is required")
 	}
 
 	client, err := support.KubeClient(credential)

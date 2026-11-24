@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
@@ -187,6 +188,7 @@ func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.Mou
 			return ""
 		}
 		e.MountPointPath = mountPointPath
+		e.MountPointPathResolutionError = nil
 	}
 	return e.MountPointPath
 }
@@ -199,12 +201,19 @@ func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.Mo
 			e.MountSourcePathResolutionError = err
 			return ""
 		}
+		bindSourceMountRoot, _, _, err := fh.resolvers.MountResolver.ResolveMountRoot(e.BindSrcMountID, ev.PIDContext.Pid)
+		if err != nil {
+			e.MountSourcePathResolutionError = err
+			return ""
+		}
 		rootStr, err := fh.resolvers.PathResolver.ResolveMountRoot(ev, &e.Mount)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""
 		}
+		rootStr = mount.TrimMountRoot(rootStr, bindSourceMountRoot)
 		e.MountSourcePath = path.Join(bindSourceMountPath, rootStr)
+		e.MountSourcePathResolutionError = nil
 	}
 	return e.MountSourcePath
 }
@@ -218,6 +227,7 @@ func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.Moun
 			return ""
 		}
 		e.MountRootPath = mountRootPath
+		e.MountRootPathResolutionError = nil
 	}
 	return e.MountRootPath
 }
