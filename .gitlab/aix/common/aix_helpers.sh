@@ -151,8 +151,12 @@ copy_file_to_aix() {
 aix_reboot_and_wait() {
     local boot_before boot_now deadline
     boot_before=$(aix_run_cmd 'who -b' | tr -d '\r' | tr -s ' ')
-    # nohup detaches the shutdown so the SSH session closes cleanly.
-    aix_run_cmd 'nohup sh -c "sleep 3; /usr/sbin/shutdown -Fr" >/dev/null 2>&1 & exit 0'
+    # Run the shutdown directly as the remote command: backgrounding it through
+    # aix_run_cmd can get it killed when the SSH session closes, leaving the
+    # host up. The connection dropping here is expected — the host is going
+    # down — so ignore the SSH error.
+    # shellcheck disable=SC2086  # AIX_SSH_COMMON_OPTS intentionally word-splits into multiple ssh options
+    ssh $AIX_SSH_COMMON_OPTS $AIX_SSH_DEST '/usr/sbin/shutdown -Fr' || true
     deadline=$(( $(date +%s) + 1500 ))
     while [ "$(date +%s)" -lt "$deadline" ]; do
         sleep 30
