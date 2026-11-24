@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The CWS instrumentation admission webhook now logs remote copy failures
+    at WARN at most once every 10 minutes, and at DEBUG otherwise. Failures
+    are still counted in the exec mutation attempts metric.

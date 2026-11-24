@@ -85,6 +85,10 @@ const (
 	cwsNoInstrumentationNeededReason       = "no_instrumentation_needed"
 )
 
+// Remote copy failures are usually caused by the target container (no tar, read-only
+// filesystem, missing container) and recur on every exec into the same pod.
+var remoteCopyFailureLogLimit = log.NewLogLimit(1, 10*time.Minute)
+
 type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticationv1.UserInfo, dynamic.Interface, kubernetes.Interface) (bool, error)
 
 // WebhookForPods is the webhook that injects CWS pod instrumentation
@@ -653,7 +657,11 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 
 		// copy CWS instrumentation directly to the target container
 		if err := ci.injectCWSCommandInstrumentationRemoteCopy(pod, container.Name, cwsInstrumentationLocalPath, cwsInstrumentationRemotePath); err != nil {
-			log.Warnf("Ignoring exec request into %s: remote copy failed: %v", mutatecommon.PodString(pod), err)
+			if remoteCopyFailureLogLimit.ShouldLog() {
+				log.Warnf("Ignoring exec request into %s: remote copy failed: %v", mutatecommon.PodString(pod), err)
+			} else {
+				log.Debugf("Ignoring exec request into %s: remote copy failed: %v", mutatecommon.PodString(pod), err)
+			}
 			metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsRemoteCopyFailedReason)
 			return false, errors.New(metrics.InternalError)
 		}
