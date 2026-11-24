@@ -3832,9 +3832,8 @@ func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
 	}
 }
 
-// requireConntrackNATMapShared skips the test unless the eBPF conntracker loaded, then requires that the connection
-// tracer shares its map.
-func requireConntrackNATMapShared(t *testing.T, cfg *config.Config, tr *Tracer) *ebpf.Map {
+// requireEbpfConntracker skips the test unless the eBPF conntracker loaded.
+func requireEbpfConntracker(t *testing.T, tr *Tracer) {
 	ctks := []netlink.Conntracker{tr.conntracker}
 	if chain, ok := tr.conntracker.(*chainConntracker); ok {
 		ctks = chain.ctks
@@ -3842,6 +3841,12 @@ func requireConntrackNATMapShared(t *testing.T, cfg *config.Config, tr *Tracer) 
 	if !slices.ContainsFunc(ctks, func(c netlink.Conntracker) bool { _, ok := c.(*ebpfConntracker); return ok }) {
 		t.Skip("ebpf conntracker not loaded")
 	}
+}
+
+// requireConntrackNATMapShared skips the test unless the eBPF conntracker loaded, then requires that the connection
+// tracer shares its map.
+func requireConntrackNATMapShared(t *testing.T, cfg *config.Config, tr *Tracer) *ebpf.Map {
+	requireEbpfConntracker(t, tr)
 	if !kprobe.ClassificationSupported(cfg) {
 		t.Skip("protocol classification not supported, so the map isn't shared")
 	}
@@ -3978,6 +3983,102 @@ func (s *TracerSuite) TestNATClassificationCleanup() {
 				}
 			}, 3*time.Second, 100*time.Millisecond)
 		})
+	}
+}
+
+// TestNATServerClosesAfterResponse checks that the client of a same-host SNAT'd request/response keeps its NAT
+// translation when the server closes right after writing its response, before the client reads it. The server's
+// close isn't marked (the client hasn't marked its side yet), so its conntrack entry is deleted at once and the
+// client's lookup relies on the conntracker keeping the other direction.
+func (s *TracerSuite) TestNATServerClosesAfterResponse() {
+	t := s.T()
+	cfg := testConfig()
+	cfg.EnableEbpfConntracker = true
+	tr := setupTracer(t, cfg)
+	requireEbpfConntracker(t, tr)
+	netlinktestutil.SetupSNAT(t)
+
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6")}, Timeout: 5 * time.Second}
+	testServerClosesAfterResponse(t, tr, ln, func() (net.Conn, error) { return d.Dial("tcp", ln.Addr().String()) })
+}
+
+// TestNATCrossNsServerClosesAfterResponse is TestNATServerClosesAfterResponse with the server in another network
+// namespace behind a DNAT rule in the root namespace, like a host-network client of a ClusterIP backed by a pod.
+// The tracer never sees the NAT for the server's socket, so its close can't be marked.
+func (s *TracerSuite) TestNATCrossNsServerClosesAfterResponse() {
+	t := s.T()
+	cfg := testConfig()
+	cfg.EnableEbpfConntracker = true
+	tr := setupTracer(t, cfg)
+	requireEbpfConntracker(t, tr)
+	ns := netlinktestutil.SetupVethPair(t)
+	testutil.IptablesSave(t)
+	testutil.RunCommands(t, []string{
+		"iptables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT",
+		"iptables -t nat -A OUTPUT -d 10.96.77.10/32 -p tcp --dport 80 -j DNAT --to-destination 2.2.2.4:8080",
+	}, false)
+	t.Cleanup(func() { testutil.RunCommands(t, []string{"conntrack -F"}, true) })
+
+	h, err := vnetns.GetFromName(ns)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = h.Close() })
+	var ln net.Listener
+	require.NoError(t, netns.WithNS(h, func() error {
+		var err error
+		ln, err = net.Listen("tcp4", "2.2.2.4:8080")
+		return err
+	}))
+	t.Cleanup(func() { _ = ln.Close() })
+	testServerClosesAfterResponse(t, tr, ln, func() (net.Conn, error) { return net.DialTimeout("tcp", "10.96.77.10:80", 5*time.Second) })
+}
+
+func testServerClosesAfterResponse(t *testing.T, tr *Tracer, ln net.Listener, dial func() (net.Conn, error)) {
+	request := []byte("GET / HTTP/1.0\r\nHost: localhost\r\n\r\n")
+	response := []byte("HTTP/1.0 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+	for i := range 5 {
+		serverClosed := make(chan net.Conn, 1)
+		go func() {
+			c, err := ln.Accept()
+			if err != nil {
+				close(serverClosed)
+				return
+			}
+			_, _ = io.ReadFull(c, make([]byte, len(request)))
+			_, _ = c.Write(response)
+			_ = c.Close()
+			serverClosed <- c
+		}()
+		client, err := dial()
+		require.NoError(t, err)
+		_, err = client.Write(request)
+		require.NoError(t, err)
+		server := <-serverClosed
+		require.NotNil(t, server)
+
+		// wait for userspace to store the server's close, which is when its conntrack entry is deleted
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conns, cleanup := getConnections(collect, tr)
+			defer cleanup()
+			conn, _ := findConnection(server.LocalAddr(), server.RemoteAddr(), conns)
+			if assert.NotNil(collect, conn, "server close not found") {
+				assert.True(collect, conn.IsClosed)
+			}
+		}, 5*time.Second, 100*time.Millisecond)
+
+		_, err = io.ReadAll(client)
+		require.NoError(t, err)
+		require.NoError(t, client.Close())
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conns, cleanup := getConnections(collect, tr)
+			defer cleanup()
+			conn, _ := findConnection(client.LocalAddr(), client.RemoteAddr(), conns)
+			if assert.NotNil(collect, conn, "client close not found") && assert.True(collect, conn.IsClosed) {
+				assert.NotNil(collect, conn.IPTranslation, "run %d: client lost its NAT translation", i)
+			}
+		}, 5*time.Second, 100*time.Millisecond)
 	}
 }
 
