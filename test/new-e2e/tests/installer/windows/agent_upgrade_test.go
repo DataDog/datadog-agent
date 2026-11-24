@@ -552,11 +552,19 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithHostNameChange() {
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
 
+	// The rename reboots the host. The Datadog Installer service is delayed-auto-start,
+	// so SCM launches it while the freshly booted host is still busy, and its Go runtime
+	// and component init can exceed the default 30s SCM startup timeout
+	// (ServicesPipeTimeout) before reaching StartServiceCtrlDispatcher. SCM then leaves
+	// the service Stopped and never retries. Raise the timeout, which SCM reads at boot.
+	err := windowscommon.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SYSTEM\CurrentControlSet\Control`, "ServicesPipeTimeout", 120000)
+	s.Require().NoError(err, "should increase SCM ServicesPipeTimeout")
+
 	// Act
 	// change the host name
 	newHostname := s.getNewHostname()
 	// this also deals with retries as it will always make it a new hostname
-	err := windowscommon.RenameComputer(s.Env().RemoteHost, newHostname)
+	err = windowscommon.RenameComputer(s.Env().RemoteHost, newHostname)
 	s.Require().NoError(err)
 
 	// Assert
