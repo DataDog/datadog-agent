@@ -19,6 +19,7 @@ iteration loop.
 | `references/setup.md` | Before offering to run `dda inv -- e2e.setup` |
 | `references/troubleshooting.md` | Any failure before the first `--- PASS`/`--- FAIL` line |
 | `references/flags.md` | The request needs more than a target and a test name |
+| `references/local-package.md` | The code under test isn't in a CI pipeline yet (an unpushed change, or a branch without packaging jobs), or the user asks to test a local build |
 
 ## Step 1 — Get the target, or ask
 
@@ -34,9 +35,16 @@ Anchor a supplied test name (`--run '^TestFlareSuite$'`), or `TestFlare` also se
 ## Step 2 — Decide where it runs
 
 ```bash
+test -z "$WORKSPACE_NAME" && grep -q '^WORKSPACE_NAME=' /etc/environment 2>/dev/null && echo ENV_NOT_LOADED
 test -n "$WORKSPACE_NAME" && echo IN_WORKSPACE
 test -f /.started && echo IN_DEVENV || echo ON_HOST
 ```
+
+`ENV_NOT_LOADED` means this is a workspace, but your shell didn't come from an SSH login, so
+it lacks the workspace's `/etc/environment`. Without it, resources are named after `bits`, which
+every workspace shares, and `aws-vault` fails with `Specified keyring backend not available`.
+Prefix **every** later `dda inv` command with `set -a; . /etc/environment; set +a;` (your shell
+state may not persist between commands), then treat it as `IN_WORKSPACE`.
 
 The dev env entrypoint creates `/.started`. `IN_WORKSPACE` → 3C — a workspace already provides
 the environment the dev env would build, so run directly on it without one. `ON_HOST` → step 3A,
@@ -105,8 +113,14 @@ dev env does not.
 
 ## Step 4 — Confirm before provisioning
 
+First decide which Agent build gets installed, because by default it isn't your working tree: the
+task looks for a CI pipeline for your commit and installs its packages, and without one it
+installs the latest nightly. When the change under test hasn't been through CI, build a local
+package and pass `--local-package`, following `references/local-package.md`. That reference also
+lists the suites that ignore a local package, and the host/architecture match the run needs.
+
 Get an explicit yes for: the exact command, target and `--run`, where it runs, what it provisions and in
-which account, roughly how long, and whether the stack is destroyed afterwards. If you cannot tell what
+which account, which Agent build it installs, roughly how long, and whether the stack is destroyed afterwards. If you cannot tell what
 it provisions, say so — that is worth confirming before paying for it.
 
 ## Step 5 — Run it
@@ -132,18 +146,25 @@ hung one. Silence from the tool is normal; silence from you is not. If the phase
 say so and note the elapsed time (`still provisioning, ~6m in, no new output`) rather than skipping
 the update.
 
+To tell the phases apart, look for Pulumi resource events (`creating`, `**failed**`) in the output.
+The test events go to `e2e_test_output.json.<attempt>.part` at the repository root: `run` lines
+stream live, but testify subtests only report `pass`/`fail` when the whole suite ends, so don't
+read missing results as a hang. The "Monitoring a local run" section of
+`/doc/how-to/test/e2e/running.md` lists every output.
+
 ## Step 6 — Report
 
 ```
 ### E2E run — <target> [--run <regex>]
-- Where:       dev env `e2e-run` | host
+- Where:       dev env `e2e-run` | host | workspace
+- Agent build: pipeline <id> | local package <file> | latest nightly | <version>
 - Command:     <exact command as executed>
 - Result:      PASS | FAIL | SETUP FAILURE (failed before any test ran)
 - Duration:    <mm:ss>
 - Stack:       <name> — destroyed | kept (--keep-stack)
 - Failures:
   - <TestSuite/TestName> — <one-line reason>
-- Diagnostics: <path>   (+ the `docker cp` to retrieve it, if it ran in a dev env)
+- Diagnostics: <path, `~/e2e-output/latest` by default>   (+ the `docker cp` to retrieve it, if it ran in a dev env)
 - Next step:   <the single most useful action>
 ```
 

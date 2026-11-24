@@ -85,6 +85,10 @@ correct (`UbuntuDefault = Ubuntu2204`, `WindowsServerDefault = WindowsServer2025
 There is no generic runtime install: `PackageManager.RuntimeInstallDocker` 
 (Docker and docker-compose) is the only one, for GCP, Azure and local VMs, 
 and it fails on AWS. Add new dependencies to the AMI instead.
+A suite's host comes only from these code options: `awshost.Provisioner` ignores the
+`ddinfra:osDescriptor` / `ddinfra:osImageID` config keys, which only `ec2.VMRun`
+(`dda inv aws.create-vm`) reads through `ec2.ParamsFromEnvironment`. `UpdateEnv` takes a new
+provisioner, so options that aren't repeated there fall back to the defaults.
 Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
 `doc/how-to/test/e2e/custom-amis.md` and
 `doc/how-to/test/e2e/dependencies.md`.
@@ -158,6 +162,14 @@ Use `agentparams` to configure the agent on provisioned infrastructure:
 - `WithLogs()` — enable log collection
 - `WithSystemProbeConfig(yaml)` — system-probe config
 - `WithFile(path, content, useSudo)` — place arbitrary files on the host
+
+The Agent version defaults to the latest nightly. `agentparams.NewParams` overrides that default
+from the config, in increasing precedence: `E2E_PIPELINE_ID`, `ddagent:localPackage`
+(`--local-package`), `ddagent:version`. Explicit options (`WithPipeline`, `WithVersion`,
+`WithLatest`, `WithLocalPackage`) are applied after the defaults and override all of them. A local
+package goes through `HostAgent.directInstallInstallation`, which copies the file to the host and
+installs it with the package manager, skipping the install script. `GetPackagePath` picks it by
+extension, architecture and FIPS flavor.
 
 For `environments.DockerHost`, use `dockeragentparams.WithAgentServiceEnvVariable`
 or `AgentServiceEnvironment` for environment variables that must be visible
