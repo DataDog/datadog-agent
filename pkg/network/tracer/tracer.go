@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
@@ -180,7 +181,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	telemetryComponent.RegisterCollector(tr.conntracker)
 
 	var tracerOpts []connection.Option
-	natMap := sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane)
+	natMap := sharedConntrackNATMap(cfg, tr.conntracker, kprobe.ClassificationSupported(cfg), hostBPFNATDataplane)
 	if natMap != nil {
 		tracerOpts = append(tracerOpts, connection.WithConntrackNATMap(natMap))
 	}
@@ -298,8 +299,9 @@ func loadEbpfConntracker(cfg *config.Config, telemetryComponent telemetryCompone
 // sharedConntrackNATMap returns the eBPF conntracker's map of NAT'd connections for the connection tracer to
 // share, or nil to keep net_dev_queue. It isn't shared alongside a BPF NAT dataplane, found by Cilium's LB
 // conntracker or by findBPFNATDataplane: NAT done in BPF never reaches nf_conntrack, so the map wouldn't hold
-// those connections.
-func sharedConntrackNATMap(cfg *config.Config, c netlink.Conntracker, findBPFNATDataplane func() string) *ebpf.Map {
+// those connections. Nor is it shared without protocol classification, which is the only reader; sharing also
+// defers conntrack deletes, which fills the map.
+func sharedConntrackNATMap(cfg *config.Config, c netlink.Conntracker, classificationSupported bool, findBPFNATDataplane func() string) *ebpf.Map {
 	ctks := []netlink.Conntracker{c}
 	if chain, ok := c.(*chainConntracker); ok {
 		ctks = chain.ctks
@@ -319,6 +321,10 @@ func sharedConntrackNATMap(cfg *config.Config, c netlink.Conntracker, findBPFNAT
 	}
 	if !cfg.ShareConntrackNATMap {
 		log.Info("network_config.share_conntrack_nat_map is false, not sharing the ebpf conntracker's map with the connection tracer")
+		return nil
+	}
+	if !classificationSupported {
+		log.Info("protocol classification is not supported, not sharing the ebpf conntracker's map with the connection tracer")
 		return nil
 	}
 	if cilium {

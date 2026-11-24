@@ -3125,6 +3125,30 @@ func TestDefaultProfilesExportHealthPlatformMetrics(t *testing.T) {
 	}
 }
 
+func TestDefaultProfilesExportAppsecInjectorWatchedChangesReasons(t *testing.T) {
+	tel := makeTelMock(t)
+	counter := tel.NewCounter("appsec_injector", "watched_changes", []string{"proxy_type", "operation", "success", "reason"}, "")
+	counter.Inc("envoy-gateway", "added", "false", "Forbidden")
+	counter.Add(2, "envoy-gateway", "added", "false", "Invalid")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, ""), sender, nil, runner)
+	require.True(t, a.enabled)
+	a.start()
+	runner.(*runnerMock).run()
+
+	require.Len(t, sender.sentMetrics, 1)
+	require.Equal(t, "appsec_injector.watched_changes", sender.sentMetrics[0].name)
+	byReason := map[string]float64{}
+	for _, metric := range sender.sentMetrics[0].metrics {
+		labels := metricLabels(metric)
+		assert.Equal(t, map[string]string{"proxy_type": "envoy-gateway", "operation": "added", "success": "false", "reason": labels["reason"], "emitter": "agent"}, labels)
+		byReason[labels["reason"]] = metric.GetCounter().GetValue()
+	}
+	assert.Equal(t, map[string]float64{"Forbidden": 1, "Invalid": 2}, byReason)
+}
+
 func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
 	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
 	require.NoError(t, err)

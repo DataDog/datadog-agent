@@ -47,7 +47,7 @@ func Snapshot(devices []safenvml.Device) []Device {
 		if info.FabricClusterUUID != "" {
 			clique := info.FabricCliqueID
 			d.FabricCliqueID = &clique
-			d.NVLinkDomain = fmt.Sprintf("%s:%d", info.FabricClusterUUID, clique)
+			d.NVLinkPartition = fmt.Sprintf("%s:%d", info.FabricClusterUUID, clique)
 		}
 		result = append(result, d)
 	}

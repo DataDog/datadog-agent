@@ -132,14 +132,14 @@ runtime_security_config:
       enabled: {{ .HostSBOMEnabled }}
   activity_dump:
     enabled: false
+{{if .WorkloadProfileStorageDir}}
+    local_storage:
+      output_directory: {{ .WorkloadProfileStorageDir }}
+{{end}}
 {{if .EnableSecurityProfile}}
     cgroup_differentiate_args: {{ .WorkloadProfileDifferentiateArgs }}
 {{if gt .WorkloadProfilePersistencePeriod 0}}
     dump_duration: {{ .WorkloadProfilePersistencePeriod }}
-{{end}}
-{{if .WorkloadProfileStorageDir}}
-    local_storage:
-      output_directory: {{ .WorkloadProfileStorageDir }}
 {{end}}
 {{end}}
   security_profile:

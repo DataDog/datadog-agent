@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Private Action Runner: the ``runCommand`` rshell action no longer logs a
+    "path not found" warning for each allowed path on every command. That
+    warning also reported every path error, for example a permission error,
+    as "not found". The action now logs one warning per command with the
+    number of sandbox allowlist warnings and the exact text of the first
+    five. When there are more, the full list is logged at debug level. The
+    action output still returns the full list.

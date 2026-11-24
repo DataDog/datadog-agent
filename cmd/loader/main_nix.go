@@ -50,7 +50,7 @@ func main() {
 
 	cfg := pkgconfigsetup.GlobalConfigBuilder()
 	cfg.SetConfigFile(os.Args[1])
-	err = pkgconfigsetup.LoadDatadog(cfg, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{})
+	err = pkgconfigsetup.LoadDatadog(cfg, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{}, false)
 	if err != nil {
 		log.Warnf("Failed to load the configuration: %v", err)
 		execOrExit(os.Environ(), fullPath)
