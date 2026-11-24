@@ -654,8 +654,6 @@ type AgentConfig struct {
 	// Set it with SetMRFFailoverAPMRC: MRFFailoverAPM reads it on the request and
 	// send paths while remote config updates it.
 	MRFFailoverAPMRC *bool
-	// mrfFailoverAPMMu protects MRFFailoverAPMRC.
-	mrfFailoverAPMMu sync.RWMutex
 
 	// DebugV1Payloads enables debug logging for V1 payloads when they fail to decode
 	DebugV1Payloads bool
@@ -934,11 +932,16 @@ func (c *AgentConfig) AllFeatures() []string {
 	return feats
 }
 
+// mrfFailoverAPMMu protects AgentConfig.MRFFailoverAPMRC. It is a package-level
+// lock, not a field, because AgentConfig is copied by value (for example to
+// publish a scrubbed copy of the config).
+var mrfFailoverAPMMu sync.RWMutex
+
 // MRFFailoverAPM determines whether APM data should be failed over to the secondary (MRF) DC.
 func (c *AgentConfig) MRFFailoverAPM() bool {
-	c.mrfFailoverAPMMu.RLock()
+	mrfFailoverAPMMu.RLock()
 	rc := c.MRFFailoverAPMRC
-	c.mrfFailoverAPMMu.RUnlock()
+	mrfFailoverAPMMu.RUnlock()
 	if rc != nil {
 		return *rc
 	}
@@ -949,9 +952,9 @@ func (c *AgentConfig) MRFFailoverAPM() bool {
 // nil means that remote config does not set it. It is safe to call while
 // MRFFailoverAPM runs on other goroutines.
 func (c *AgentConfig) SetMRFFailoverAPMRC(v *bool) {
-	c.mrfFailoverAPMMu.Lock()
+	mrfFailoverAPMMu.Lock()
 	c.MRFFailoverAPMRC = v
-	c.mrfFailoverAPMMu.Unlock()
+	mrfFailoverAPMMu.Unlock()
 }
 
 // ConfiguredPeerTags returns the set of peer tags that should be used
