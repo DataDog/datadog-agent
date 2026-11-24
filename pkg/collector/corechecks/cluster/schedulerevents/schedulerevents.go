@@ -16,6 +16,7 @@ package schedulerevents
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -100,7 +101,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	kueueEnabled := c.cfg.GetBool("cluster_agent.kueue.enabled") && c.cfg.GetBool("cluster_agent.kueue.events.enabled")
 	kaiEnabled := c.cfg.GetBool("cluster_agent.kai_scheduler.enabled") && c.cfg.GetBool("cluster_agent.kai_scheduler.events.enabled")
 	if !kueueEnabled && !kaiEnabled {
-		return check.ErrSkipCheckInstance
+		// The default conf only schedules the check when a flag is on (see the
+		// _job_scheduler_events identifier), so this is for a hand-written config.
+		return fmt.Errorf("%w: cluster_agent.kueue.events.enabled and cluster_agent.kai_scheduler.events.enabled are both off (or their scheduler is not enabled)", check.ErrSkipCheckInstance)
 	}
 
 	if !c.cfg.GetBool("leader_election") {
