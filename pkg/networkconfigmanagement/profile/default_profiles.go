@@ -71,21 +71,6 @@ func InShell() CmdOption {
 	}
 }
 
-// WithPrompt runs the command in an interactive shell, using prompt to detect
-// when the device is ready for the next line. See PlainCommand.Prompt.
-func WithPrompt(prompt string) CmdOption {
-	re := regexp.MustCompile(prompt)
-	return func(pc *PlainCommand) {
-		pc.Prompt = re
-	}
-}
-
-// panOSPrompt matches a PAN-OS CLI prompt at the end of the output, such as
-// "admin@PA-440-01> " (operational mode), "admin@PA-440-01# " (configure mode)
-// or "admin@PA-440-01(passive)> " on an HA member. It must start a line, so
-// config content that happens to end in ">" can't end a read early.
-const panOSPrompt = `(?:^|[\r\n])[\w.\-]+@[\w.\-]+(?:\([\w\-]+\))?[>#] ?$`
-
 // Names of the built-in NCM device profiles in DefaultProfiles.
 const (
 	ProfileAOSCX    ProfileName = "aoscx"
@@ -432,24 +417,19 @@ var DefaultProfiles = Map{
 		Name: ProfilePanOS,
 		Commands: CommandSet{
 			// PAN-OS answers an SSH exec request with only its login banner, so
-			// every command runs in an interactive shell with the pager off.
+			// every command runs in an interactive shell (see cli.PanOS).
 			Verify: MkCommand("show system info",
 				Expect(`model: *PA-`),
-				WithSetup("set cli pager off"),
-				WithPrompt(panOSPrompt),
+				InShell(),
 			),
 			// Depending on the PAN-OS version and CLI settings, the running
 			// config prints as XML (<config ...>...</config>) or in the
 			// curly-brace format (config { ... }).
 			GetRunning: MkCommand("show config running",
 				Expect(`(?s)<config.*</config>|(?m)^config \{`),
-				WithSetup("set cli pager off"),
-				WithPrompt(panOSPrompt),
+				InShell(),
 			),
-			GetVersion: MkCommand("show system info",
-				WithSetup("set cli pager off"),
-				WithPrompt(panOSPrompt),
-			),
+			GetVersion: MkCommand("show system info", InShell()),
 		},
 		Redactions: []RedactionRule{
 			// Password hashes: <phash>...</phash> in XML, "phash ...;" in curly-brace.

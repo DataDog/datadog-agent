@@ -444,3 +444,66 @@ func TestPagerCommand_ShellClosesBeforePrompt(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, "ASA Version 9.24(1)\nhostname FW01", result.Output)
 }
+
+var panOSProfile = &profile.NCMProfile{Name: profile.ProfilePanOS}
+
+func startFakePanOS(t *testing.T, outputs map[string]FakeResponse) (*FakeSSHServer, *SSHConnection) {
+	t.Helper()
+	srv := StartFakeSSHServer(t, outputs,
+		// What PAN-OS also returns, alone, to an exec request.
+		WithBanner("\n\n\nNumber of failed attempts since last successful login: 0\n\n\n\n"),
+		WithPrompt("admin@PA-440(passive)> "),
+		WithEcho())
+	conn := connectTestConn(t, srv)
+	conn.SetProfile(panOSProfile)
+	return srv, conn
+}
+
+func TestPanOSCommand(t *testing.T) {
+	for name, config := range map[string]string{
+		"xml":   "<config version=\"11.1.0\">\n  <mgt-config/>\n</config>\n",
+		"curly": "config {\n  mgt-config {\n  }\n}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv, conn := startFakePanOS(t, map[string]FakeResponse{
+				"set cli pager off":   Ok(""),
+				"show config running": Ok(config),
+			})
+			cmd := profile.MkCommand("show config running",
+				profile.Expect(`(?s)<config.*</config>|(?m)^config \{`), profile.InShell())
+
+			result, err := ExecuteCommand(t.Context(), conn, cmd)
+			require.NoError(t, err)
+			assert.Equal(t, strings.TrimRight(config, "\n"), result.Output)
+			assert.Equal(t, []string{"set cli pager off", "show config running", "exit"}, srv.Received())
+		})
+	}
+}
+
+func TestPanOSCommand_InvalidSyntaxFails(t *testing.T) {
+	_, conn := startFakePanOS(t, map[string]FakeResponse{
+		"set cli pager off":             Ok(""),
+		"show config effective-running": Ok("Invalid syntax.\n"),
+	})
+	cmd := profile.MkCommand("show config effective-running", profile.Expect(`<config`), profile.InShell())
+
+	_, err := ExecuteCommand(t.Context(), conn, cmd)
+	assert.ErrorContains(t, err, "Invalid syntax.")
+}
+
+func TestPanOSProfile_VerifyAndRunning(t *testing.T) {
+	srv, conn := startFakePanOS(t, map[string]FakeResponse{
+		"set cli pager off":   Ok(""),
+		"show system info":    Ok("hostname: PA-440\nmodel: PA-440\n"),
+		"show config running": Ok("config {\n}\n"),
+	})
+	profs, err := profile.GetProfileMap()
+	require.NoError(t, err)
+	conn.SetProfile(profs[profile.ProfilePanOS])
+
+	require.NoError(t, conn.Verify(t.Context()))
+	result, err := conn.RetrieveRunningConfig(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "config {\n}", result.Output)
+	assert.Contains(t, srv.Received(), "show config running")
+}

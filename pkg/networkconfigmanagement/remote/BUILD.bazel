@@ -6,7 +6,6 @@ go_library(
     srcs = [
         "cmd.go",
         "fake_server.go",
-        "interactive.go",
         "interfaces.go",
         "retry.go",
         "scp.go",
@@ -31,7 +30,6 @@ dd_agent_go_test(
     srcs = [
         "cmd_test.go",
         "fake_server_test.go",
-        "interactive_test.go",
         "retry_test.go",
         "shell_test.go",
         "ssh_test.go",

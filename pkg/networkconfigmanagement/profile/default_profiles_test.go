@@ -138,29 +138,7 @@ func Test_PanOSGetRunningValidator(t *testing.T) {
 func Test_PanOSCommandsAreInteractive(t *testing.T) {
 	cmds := DefaultProfile(t, ProfilePanOS).Commands
 	for name, cmd := range map[string]*PlainCommand{"verify": cmds.Verify, "get_running": cmds.GetRunning, "get_version": cmds.GetVersion} {
-		assert.True(t, cmd.Interactive(), name)
-		assert.Equal(t, []string{"set cli pager off"}, cmd.SetupCommands, name)
-	}
-}
-
-func Test_PanOSPrompt(t *testing.T) {
-	prompt := DefaultProfile(t, ProfilePanOS).Commands.GetRunning.Prompt
-	for _, out := range []string{
-		"admin@PA-3420> ",
-		"banner\r\nadmin@PA-3420> ",
-		"output\nddncmpa@PA-440-MISSISAUGA-02(passive)> ",
-		"output\nadmin@fw01.example.com(active)# ",
-		"output\nadmin@PA-3420>",
-	} {
-		assert.True(t, prompt.MatchString(out), "%q", out)
-	}
-	for _, out := range []string{
-		"output\nadmin@PA-3420> show config running\n",
-		"  <entry name=\"admin@x\">",
-		"</config>",
-		"  users admin@x>",
-	} {
-		assert.False(t, prompt.MatchString(out), "%q", out)
+		assert.True(t, cmd.Interactive, name)
 	}
 }
 
