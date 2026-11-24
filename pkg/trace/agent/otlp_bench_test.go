@@ -55,7 +55,13 @@ import (
 // The receive-only variants stop after the OTLP receiver, to tell its cost
 // apart from the one of the rest of the pipeline.
 func BenchmarkOTLPEndToEnd(b *testing.B) {
+	prevLevel, err := pkglog.GetLogLevel()
 	pkglog.SetupLogger(pkglog.Default(), "off")
+	if err == nil {
+		b.Cleanup(func() {
+			pkglog.SetupLogger(pkglog.Default(), prevLevel.String())
+		})
+	}
 	for _, size := range []struct{ spans, resources int }{
 		{1, 1},
 		{100, 1},
@@ -115,7 +121,9 @@ func runOTLPEndToEndBenchmark(b *testing.B, traces ptrace.Traces, legacy, receiv
 	if legacy {
 		cfg.Features["disable-convert-traces"] = struct{}{}
 	}
-	a := NewAgent(context.Background(), cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, comp)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, comp)
 	go a.StatsWriter.Run()
 	defer func() {
 		a.TraceWriter.Stop()
@@ -123,7 +131,6 @@ func runOTLPEndToEndBenchmark(b *testing.B, traces ptrace.Traces, legacy, receiv
 		a.StatsWriter.Stop()
 	}()
 
-	ctx := context.Background()
 	rspans := traces.ResourceSpans()
 	flushEvery := max(1, 10000/traces.SpanCount())
 	flush := func() {

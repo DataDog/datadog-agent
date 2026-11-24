@@ -673,10 +673,11 @@ func (o *OTLPReceiver) createChunksIdx(builders []*idxChunkBuilder, strs *idx.St
 			if decided.IsKeep() {
 				setIdxDecisionMaker(b.spans[0], decisionMaker)
 				// The first span of the chunk now has a decision maker, so it is the one promoted to
-				// the chunk sampling mechanism.
+				// the chunk sampling mechanism, unless it is the "-0" fallback (indistinguishable from unset).
 				dm, _ := strings.CutPrefix(decisionMaker, "-")
-				samplingMechanism, _ := strconv.ParseUint(dm, 10, 32)
-				b.fields.SamplingMechanism = uint32(samplingMechanism)
+				if samplingMechanism, _ := strconv.ParseUint(dm, 10, 32); samplingMechanism != 0 {
+					b.fields.SamplingMechanism = uint32(samplingMechanism)
+				}
 			}
 		}
 		chunk.ApplyPromotedFields(&b.fields, chunkConvertedFields)

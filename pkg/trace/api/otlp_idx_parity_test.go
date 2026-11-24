@@ -952,6 +952,8 @@ func handWrittenParityCases() []parityCase {
 		addParitySpan(ss, parityTraceID(0, 5810), 5812, 5811, map[string]any{"_dd.p.dm": "-0"})
 		addParitySpan(ss, parityTraceID(0, 5820), 5821, 0, map[string]any{"_dd.p.dm": "-0", "sampling.priority": 1})
 		addParitySpan(ss, parityTraceID(0, 5820), 5822, 5821, map[string]any{"_dd.p.dm": "-99999999999"})
+		addParitySpan(ss, parityTraceID(0, 5830), 5831, 0, map[string]any{"_dd.p.dm": "-0", "sampling.priority": 1})
+		addParitySpan(ss, parityTraceID(0, 5830), 5832, 5831, map[string]any{"_dd.p.dm": "5"})
 		add("decision makers", rs)
 	}
 	{ // Sample rates, measured, analytics events.
