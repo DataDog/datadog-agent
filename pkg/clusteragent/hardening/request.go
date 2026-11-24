@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -243,6 +244,9 @@ type Store struct {
 	mu   sync.RWMutex
 	rc   map[string]*Request // by request id
 	file map[string]*Request // by request id
+	// implicitCaps is what the cluster's runtimes grant a container that
+	// declares no capabilities; the leader and the webhook must agree on it.
+	implicitCaps []string
 
 	changes chan struct{}
 }
@@ -250,11 +254,29 @@ type Store struct {
 // NewStore returns an empty Store for the cluster whose ID is clusterID.
 func NewStore(clusterID string) *Store {
 	return &Store{
-		clusterID: clusterID,
-		rc:        map[string]*Request{},
-		file:      map[string]*Request{},
-		changes:   make(chan struct{}, 1),
+		clusterID:    clusterID,
+		rc:           map[string]*Request{},
+		file:         map[string]*Request{},
+		implicitCaps: implicitCapabilities,
+		changes:      make(chan struct{}, 1),
 	}
+}
+
+// ImplicitCapabilities returns what the cluster's runtimes grant a container
+// that declares no capabilities, as of the last node listing.
+func (s *Store) ImplicitCapabilities() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.implicitCaps
+}
+
+// setImplicitCapabilities reports whether caps differs from the previous set.
+func (s *Store) setImplicitCapabilities(caps []string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	changed := !slices.Equal(s.implicitCaps, caps)
+	s.implicitCaps = caps
+	return changed
 }
 
 // Get returns the request with this id. Remote Config wins over the requests file.

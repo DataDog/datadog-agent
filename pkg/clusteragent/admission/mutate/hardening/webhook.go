@@ -142,7 +142,7 @@ func (w *Webhook) apply(pod *corev1.Pod, ns, deployment, id string, now time.Tim
 	if container == nil {
 		return "skipped: container not found"
 	}
-	sc, reason := hardening.Render(req, &pod.Spec)
+	sc, reason := hardening.Render(req, &pod.Spec, w.store.ImplicitCapabilities())
 	if reason != "" {
 		return "skipped: " + reason
 	}

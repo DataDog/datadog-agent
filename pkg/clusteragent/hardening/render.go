@@ -10,6 +10,7 @@ package hardening
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
@@ -17,10 +18,32 @@ import (
 
 // implicitCapabilities is the set every supported runtime (containerd, CRI-O,
 // Docker) grants a container that declares none; the intersection, so a
-// request can never add one a runtime would not have granted.
+// request can never add one a runtime would not have granted. It applies
+// unless every node is known to grant dockerCapabilities.
 var implicitCapabilities = []string{
 	"CHOWN", "DAC_OVERRIDE", "FSETID", "FOWNER", "SETGID", "SETUID", "SETPCAP",
 	"NET_BIND_SERVICE", "KILL",
+}
+
+// dockerCapabilities is the set containerd and Docker grant a container that
+// declares none.
+var dockerCapabilities = append(slices.Clone(implicitCapabilities),
+	"AUDIT_WRITE", "MKNOD", "NET_RAW", "SETFCAP", "SYS_CHROOT")
+
+// ImplicitCapabilities returns the set a container that declares none gets on
+// every node, given each node's status.nodeInfo.containerRuntimeVersion (such
+// as "containerd://1.7.2"). CRI-O, whose set is configurable, an unknown
+// runtime, or no node at all, keep the intersection.
+// ponytail: assumes containerd's default base spec; one with fewer capabilities
+// (base_runtime_spec) would let a request add some back.
+func ImplicitCapabilities(runtimes []string) []string {
+	grantsDocker := func(runtime string) bool {
+		return strings.HasPrefix(runtime, "containerd://") || strings.HasPrefix(runtime, "docker://")
+	}
+	if len(runtimes) == 0 || slices.ContainsFunc(runtimes, func(r string) bool { return !grantsDocker(r) }) {
+		return implicitCapabilities
+	}
+	return dockerCapabilities
 }
 
 // FindContainer returns the container named name in spec.Containers, or nil.
@@ -36,8 +59,10 @@ func FindContainer(spec *corev1.PodSpec, name string) *corev1.Container {
 
 // Render returns the target container's securityContext with req's control
 // applied, or the reason it cannot be applied. It only ever narrows what the
-// container may do, and never modifies spec.
-func Render(req *Request, spec *corev1.PodSpec) (*corev1.SecurityContext, string) {
+// container may do, given implicit, the capabilities the cluster's runtimes
+// grant a container that declares none (ImplicitCapabilities), and never
+// modifies spec.
+func Render(req *Request, spec *corev1.PodSpec, implicit []string) (*corev1.SecurityContext, string) {
 	c := FindContainer(spec, req.Workload.Container)
 	if c == nil {
 		return nil, "container not found"
@@ -54,7 +79,7 @@ func Render(req *Request, spec *corev1.PodSpec) (*corev1.SecurityContext, string
 	case ControlCapabilities:
 		var add []corev1.Capability
 		for _, name := range req.Parameters.CapabilitiesAdd {
-			if !isGranted(sc.Capabilities, name) {
+			if !isGranted(sc.Capabilities, name, implicit) {
 				return nil, fmt.Sprintf("capability %s is not granted to the container today", name)
 			}
 			add = append(add, corev1.Capability(name))
@@ -121,7 +146,7 @@ func runAsNonRoot(spec *corev1.PodSpec, sc *corev1.SecurityContext) *bool {
 // in that order: a specific drop loses the capability; a specific add (or
 // ALL) grants it; drop:[ALL] with no matching specific add then denies it;
 // otherwise the container gets the implicit default set.
-func isGranted(caps *corev1.Capabilities, name string) bool {
+func isGranted(caps *corev1.Capabilities, name string, implicit []string) bool {
 	var add, drop []corev1.Capability
 	if caps != nil {
 		add, drop = caps.Add, caps.Drop
@@ -136,7 +161,7 @@ func isGranted(caps *corev1.Capabilities, name string) bool {
 	case hasCapability(add, "ALL"):
 		return true
 	}
-	return slices.Contains(implicitCapabilities, name)
+	return slices.Contains(implicit, name)
 }
 
 func hasCapability(list []corev1.Capability, name string) bool {

@@ -38,6 +38,10 @@ import (
 const (
 	resyncPeriod     = 30 * time.Second
 	filePollInterval = 10 * time.Second
+	// nodeListInterval is how often each replica lists the nodes' runtimes.
+	// ponytail: replicas may disagree for this long after a node with another
+	// runtime joins; watch the nodes if that matters.
+	nodeListInterval = 10 * time.Minute
 	fieldManager     = "datadog-cluster-agent-hardening"
 	// replicaSyncWait is Remote Config's default poll interval. The leader waits
 	// this long after it first sees a request, so that every replica has loaded
@@ -59,6 +63,9 @@ func Start(ctx context.Context, requestsFile, clusterID string, client kubernete
 		return nil, errors.New("workload hardening needs remote config or admission_controller.hardening.requests_file")
 	}
 	store := NewStore(clusterID)
+	// Listed before any request loads, so that every replica agrees on it.
+	refreshImplicitCapabilities(ctx, client, store)
+	go watchNodeRuntimes(ctx, client, store, nodeListInterval)
 	if rcClient != nil {
 		store.OnRCUpdate(rcClient.GetConfigs(state.ProductCWSProfiles), rcClient.UpdateApplyStatus)
 		rcClient.Subscribe(state.ProductCWSProfiles, store.OnRCUpdate)
@@ -70,6 +77,39 @@ func Start(ctx context.Context, requestsFile, clusterID string, client kubernete
 	c.self = selfDeployment()
 	go c.Run(ctx)
 	return store, nil
+}
+
+// watchNodeRuntimes refreshes store's implicit capabilities every interval
+// until ctx is done.
+func watchNodeRuntimes(ctx context.Context, client kubernetes.Interface, store *Store, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			refreshImplicitCapabilities(ctx, client, store)
+		}
+	}
+}
+
+// refreshImplicitCapabilities sets store's implicit capabilities from the
+// nodes' container runtimes. A failed listing keeps the previous set.
+func refreshImplicitCapabilities(ctx context.Context, client kubernetes.Interface, store *Store) {
+	nodes, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{ResourceVersion: "0"})
+	if err != nil {
+		log.Warnf("hardening: cannot list nodes, keeping the implicit capabilities: %v", err)
+		return
+	}
+	runtimes := make([]string, 0, len(nodes.Items))
+	for _, n := range nodes.Items {
+		runtimes = append(runtimes, n.Status.NodeInfo.ContainerRuntimeVersion)
+	}
+	caps := ImplicitCapabilities(runtimes)
+	if store.setImplicitCapabilities(caps) {
+		log.Infof("hardening: implicit capabilities are %s", strings.Join(caps, ","))
+	}
 }
 
 // selfDeployment returns the Cluster Agent's own Deployment. The name is empty
@@ -497,7 +537,7 @@ func (c *Controller) preflight(req *Request, d *appsv1.Deployment) (*corev1.Secu
 	if d.Namespace == c.self.Namespace && (c.self.Name == "" || d.Name == c.self.Name) {
 		return nil, "the target may be the Cluster Agent's own Deployment"
 	}
-	sc, reason := Render(req, &d.Spec.Template.Spec)
+	sc, reason := Render(req, &d.Spec.Template.Spec, c.store.ImplicitCapabilities())
 	if reason != "" {
 		return nil, reason
 	}
