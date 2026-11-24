@@ -83,9 +83,6 @@ type atel struct {
 	errLogsFlushFailures atomic.Uint32
 
 	errortrackingMu sync.Mutex
-	// errortrackingSyncMu serializes the reaction to configuration changes,
-	// which reads the key and applies it.
-	errortrackingSyncMu sync.Mutex
 	// errortrackingDrains tracks the flushes of queues released by a switch
 	// off, which stop waits for.
 	errortrackingDrains sync.WaitGroup
@@ -213,8 +210,8 @@ func createAtel(
 		Transport: httputils.CreateHTTPTransport(cfgComp),
 	}
 
-	// Errortracking starts on when the configuration enables it; later changes
-	// of the key, such as the remote flag, switch it (see setErrortracking). The gate
+	// Errortracking starts on when the configuration enables it; the remote
+	// flag switches it later (see setErrortracking). The gate
 	// composes with IsAgentTelemetryEnabled so gov/FIPS sites (parent
 	// agent_telemetry is excluded for them) automatically opt out.
 	errortrackingEnabled := utils.IsErrorTrackingEnabled(cfgComp)
@@ -306,7 +303,7 @@ func NewComponent(deps Requires) Provides {
 	a.localEmitter = localEmitter
 
 	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
-	a.errortrackingFlag = newErrortrackingFlagHandler(deps.Log, a.isErrortrackingHealthy)
+	a.errortrackingFlag = newErrortrackingFlagHandler(a.setErrortracking, a.errortrackingLocallyDisabled, a.isErrortrackingHealthy)
 
 	// Register synchronously, not on start, so errors logged while the
 	// component graph is still being built are not dropped.
@@ -316,11 +313,6 @@ func NewComponent(deps Requires) Provides {
 
 	// If agent telemetry is enabled and configured properly add the start and stop hooks
 	if a.enabled {
-		// Errortracking follows its configuration key after startup: the remote
-		// flag drives it through the Remote Config source. The sync covers a
-		// change between createAtel reading the key and the callback existing.
-		deps.Config.OnUpdate(a.onConfigUpdate)
-		a.syncErrortracking()
 		deps.Lc.Append(compdef.Hook{
 			OnStart: func(_ context.Context) error {
 				return a.start()
@@ -930,8 +922,9 @@ func unpublishErrortracking() {
 	pkglogsetup.RegisterErrortrackingBouncer(nil)
 }
 
-// setErrortracking switches errortracking on or off at runtime. It is a no-op
-// when the component is disabled or stopped, or when the state is unchanged.
+// setErrortracking switches errortracking on or off at runtime and reports
+// whether the state changed. It is a no-op when the component is disabled or
+// stopped, or when the state is unchanged.
 //
 // Switching on allocates the queue, resets the health signal, schedules the
 // flush job (once, it stays scheduled and idles while off) and routes the
@@ -943,11 +936,11 @@ func unpublishErrortracking() {
 // The release of the queue runs in the background so that the Remote Flags
 // client, which calls this under its own lock, is never held up by a slow
 // intake; stop waits for it.
-func (a *atel) setErrortracking(on bool) {
+func (a *atel) setErrortracking(on bool) bool {
 	a.errortrackingMu.Lock()
 	if !a.enabled || a.stopped || (a.errLogsCh.Load() != nil) == on {
 		a.errortrackingMu.Unlock()
-		return
+		return false
 	}
 
 	if on {
@@ -956,7 +949,7 @@ func (a *atel) setErrortracking(on bool) {
 		a.allocErrortrackingQueueLocked()
 		a.addErrortrackingJobLocked()
 		a.publishErrortracking()
-		return
+		return true
 	}
 
 	unpublishErrortracking()
@@ -968,6 +961,7 @@ func (a *atel) setErrortracking(on bool) {
 		defer a.errortrackingDrains.Done()
 		a.drainErrortracking(*ch)
 	}()
+	return true
 }
 
 // drainErrortracking sends what ch holds, bounded by the shutdown drain
