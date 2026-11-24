@@ -174,7 +174,7 @@ _STANDARD_JSON_SCHEMA_KEYWORDS = frozenset(
 #   2. Register it in AGENT_FORMATS.
 #   3. Use `format: <name>` on string settings in the YAML schema; schema.lint
 #      rejects unregistered formats.
-#   4. Document it in doc/reference/agent-schema/keywords.md.
+#   4. Document it in doc/impl/framework/config/reference/keyword.md.
 
 # A Go duration, as read by the Agent: exactly the strings Go's
 # ``time.ParseDuration`` accepts. An optional sign, then either a bare ``0`` or

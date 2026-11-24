@@ -23,7 +23,7 @@ the templates produced by the `generate_config_templates` job of that release's
 pipeline. This way they always reflect what a released Agent ships.
 
 To change the content of a generated example, edit the schema instead (see
-`doc/how-to/agent-schema/settings.md`). The change will show up here after the
+`doc/impl/framework/config/setting.md`). The change will show up here after the
 next release. If you run `dda inv schema.template-all` locally to check your
 change, revert the files it rewrites in this directory before committing.
 

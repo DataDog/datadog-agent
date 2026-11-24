@@ -7,7 +7,7 @@ Although most elements are still under development, here are a few notes that co
 > [!TIP]
 > We recommend using Bazelisk through `dda`, our developer tool.
 >
-> 1. Ensure that the latest version is [installed](https://datadoghq.dev/datadog-agent/setup/required/#tooling).
+> 1. Ensure that the latest version is [installed](https://datadoghq.dev/datadog-agent/dev/env/setup/required/#tooling).
 > 2. Use the [`dda bzl`](https://datadoghq.dev/datadog-agent-dev/reference/cli/commands/#dda-bzl) Bazel wrapper in place of all `bazel` commands. This will forward all arguments to Bazel and transparently download Bazelisk if there is no `bazel` nor `bazelisk` in your PATH.
 
 If your OS or dev container does not already provide it, you will need to install the `bazelisk` tool, which will

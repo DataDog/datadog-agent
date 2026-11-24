@@ -18,7 +18,7 @@ The `*.go` files other than `doc.go` (`all_settings.go`, `generated.go`,
   `BUILD.bazel`.
 
 Do not edit them by hand. Any change is overwritten by the next build. To
-change a setting, edit the schema (see `doc/how-to/agent-schema/settings.md`).
+change a setting, edit the schema (see `doc/impl/framework/config/setting.md`).
 
 ## Committed files
 

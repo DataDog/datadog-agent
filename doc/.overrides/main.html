@@ -24,11 +24,22 @@
       {% set back_title = back_title ~ " (" ~ back_key ~ ")" %}
     {% endif %}
     {% set back = {"title": back_title, "url": nav.homepage.url} %}
-    {% set nav = {"items": (navigation.root.children | list) + [back], "homepage": navigation.root.children | first} %}
+    {% set homepage = navigation.root.children | first %}
+    {% set root_tab = dict(homepage, title=navigation.root.title) %}
+    {% set nav = {"items": [root_tab] + (navigation.root.children | list)[1:] + [back], "homepage": homepage} %}
   {% else %}
     {% set nav = {"items": navigation.items, "homepage": nav.homepage} %}
   {% endif %}
 {% endif %}
+
+{# Give every root's landing page the same sidebar label, independently of its title. #}
+{% block site_nav %}
+  {% if roots and navigation.root %}
+    {% set overview = dict(nav.homepage, title="Overview") %}
+    {% set nav = {"items": [overview] + (navigation.root.children | list)[1:] + [back], "homepage": nav.homepage} %}
+  {% endif %}
+  {{ super() }}
+{% endblock %}
 
 {% block content %}
   {% if roots and navigation.root and back_key %}
