@@ -26,3 +26,12 @@ fixes:
   - |
     ``otel-agent flare`` now collects the log file of the collector, and the
     files its rotation keeps next to it, like the core Agent flare does.
+issues:
+  - |
+    ``otel-agent flare`` has these known limitations:
+
+    - In the gateway deployment of the Datadog Helm chart, the ``ddflare`` and
+      ``health_check`` extensions are not enabled, so the flare can't read the
+      running collector. It falls back to the configuration files, and without
+      ``--config`` it has no configuration and no ``pprof``, ``zpages``, or
+      ``health_check`` data. It still has the collector log and the environment.
