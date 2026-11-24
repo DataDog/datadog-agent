@@ -89,7 +89,7 @@ class BackportRequest:
     def section_text(self) -> str:
         rationale = f"\n> {slack_escape(self.explanation)}\n" if self.explanation else "\n"
         return (
-            f":rewind: Claude thinks <{self.pr_url}|#{self.pr_number} ({slack_escape(self.pr_title)})> "
+            f":rewind: :claude: thinks <{self.pr_url}|#{self.pr_number} ({slack_escape(self.pr_title)})> "
             f"may need a backport (confidence: {self.confidence}).\n{rationale}"
             "Pick one or more branches, then hit *Apply selection* — the labels are only applied once you do. "
             f"Buttons expire in about {self.hours} hour(s) — after that, add the backport/<branch> label manually."
