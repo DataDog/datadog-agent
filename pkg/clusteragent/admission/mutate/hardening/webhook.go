@@ -96,7 +96,7 @@ func (w *Webhook) Timeout() int32 { return 0 }
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), w.mutate, request.DynamicClient))
+		return common.MutationResponse(mutatecommon.Mutate(request.Context, request.Object, request.Namespace, w.Name(), w.mutate, request.DynamicClient))
 	}
 }
 
