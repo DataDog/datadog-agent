@@ -81,7 +81,11 @@ func (c *Controller) onFailure(ctx context.Context, p *Policy, pc *pacing, d *ap
 		if err != nil {
 			return err
 		}
-		if startedByLeader(history, d) {
+		if prev := leaderRolloutBase(history, d); prev != nil {
+			if slices.Equal(ParseMarks(prev.Annotations[PoliciesAnnotation])[p.ID], containers) {
+				// Another policy's mark started this rollout: that policy reverts it.
+				return nil
+			}
 			pc.onRevert(p, d)
 			sum.reverts++
 			return c.revert(ctx, p, d, containers, problem, touched, now)
@@ -142,13 +146,17 @@ func succeeded(d *appsv1.Deployment) bool {
 	})
 }
 
-// startedByLeader reports whether d's current rollout comes from a template
-// change to the hardening keys alone, which only the leader makes.
-func startedByLeader(history []appsv1.ReplicaSet, d *appsv1.Deployment) bool {
+// leaderRolloutBase returns the template d's current rollout replaced, when
+// the rollout comes from a template change to the hardening keys alone, which
+// only the leader makes, or nil.
+func leaderRolloutBase(history []appsv1.ReplicaSet, d *appsv1.Deployment) *corev1.PodTemplateSpec {
 	cur := slices.IndexFunc(history, func(rs appsv1.ReplicaSet) bool {
 		return sameTemplate(&rs.Spec.Template, &d.Spec.Template, false)
 	})
-	return cur > 0 && sameTemplate(&history[cur-1].Spec.Template, &d.Spec.Template, true)
+	if cur <= 0 || !sameTemplate(&history[cur-1].Spec.Template, &d.Spec.Template, true) {
+		return nil
+	}
+	return &history[cur-1].Spec.Template
 }
 
 // failure returns the first sign that the pods p hardens on d fail, and when

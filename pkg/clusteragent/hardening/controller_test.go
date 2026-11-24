@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -226,6 +227,25 @@ func TestRevertsAFailedRolloutItStarted(t *testing.T) {
 	require.Len(t, h.exclusions("web"), 1)
 	assert.Equal(t, Exclusion{Policy: "hp-caps", Containers: []string{"app"}, Reason: ReasonRolledBack, At: h.c.now()}, h.exclusions("web")[0])
 	assert.Contains(t, h.c.status[statusKey{"hp-caps", "shop/web"}], "rolled_back")
+}
+
+func TestRevertsOnlyThePolicyWhoseMarkStartedTheRollout(t *testing.T) {
+	plain := testDeployment("web")
+	before := marked(testDeployment("web"))
+	d := marked(testDeployment("web"))
+	d.Spec.Template.Annotations[PoliciesAnnotation] = `{"hp-caps":["app"],"hp-priv":["app"]}`
+	d.Status.Conditions = []appsv1.DeploymentCondition{{Type: appsv1.DeploymentProgressing, Reason: "ProgressDeadlineExceeded"}}
+	d.Status.UpdatedReplicas = 1
+	h := newHarness(t, d, replicaSet(d, plain.Spec.Template, 1), replicaSet(d, before.Spec.Template, 2), replicaSet(d, d.Spec.Template, 3))
+	priv := strings.NewReplacer(`"hp-caps"`, `"hp-priv"`, `"capabilities"`, `"no_privilege_escalation"`)
+	setRC(t, h.store, testPolicy(StateEnforce, testAddedAt), testExceptions(""),
+		[]byte(priv.Replace(string(testPolicy(StateEnforce, testAddedAt)))), []byte(priv.Replace(string(testExceptions("")))))
+	h.reconcile()
+
+	assert.Equal(t, Marks{"hp-caps": {"app"}}, h.marks("web"), "the rollout that failed only added hp-priv")
+	require.Len(t, h.exclusions("web"), 1)
+	assert.Equal(t, "hp-priv", h.exclusions("web")[0].Policy)
+	assert.NotContains(t, h.c.status[statusKey{"hp-caps", "shop/web"}], "rolled_back")
 }
 
 func TestCustomerRolloutFailureIsDegraded(t *testing.T) {
