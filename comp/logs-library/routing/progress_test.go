@@ -38,6 +38,18 @@ func progressMessage(id, offset string) *message.Message {
 	return m
 }
 
+func reserveWithSelection(p *Progress, ctx context.Context, msg *message.Message, generation uint64, reliable []string) (uint64, error) {
+	token, err := p.Reserve(ctx, msg, generation)
+	if err != nil {
+		return 0, err
+	}
+	if len(reliable) == 0 {
+		p.CompleteLocal(token)
+		return token, nil
+	}
+	return token, p.AttachEndpointSelection(token, reliable, nil, false)
+}
+
 func terminalPayload(m *message.Message) *message.Payload {
 	meta := m.MessageMetadata
 	return message.NewPayload([]*message.MessageMetadata{&meta}, nil, "", 0)
@@ -54,41 +66,6 @@ func nextCheckpoint(t *testing.T, ch chan *message.Payload) string {
 	}
 }
 
-func TestProgressWaitsForEveryGroupAndSafePrefix(t *testing.T) {
-	sink := &progressTestSink{ch: make(chan *message.Payload, 8)}
-	p, err := NewProgress(3, sink)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer p.Close()
-	first, second := progressMessage("file", "10"), progressMessage("file", "20")
-	selection := Selection{Groups: []string{"a", "b"}, Generation: 1}
-	for _, m := range []*message.Message{first, second} {
-		if _, err := p.Register(context.Background(), m, selection, selection.Groups); err != nil {
-			t.Fatal(err)
-		}
-	}
-	p.CompleteGroup("a", terminalPayload(second))
-	p.CompleteGroup("b", terminalPayload(second))
-	p.CompleteGroup("a", terminalPayload(first))
-	select {
-	case checkpoint := <-sink.ch:
-		t.Fatalf("checkpoint advanced early: %s", checkpoint.MessageMetas[0].Origin.Offset)
-	default:
-	}
-	p.CompleteGroup("b", terminalPayload(first))
-	if got := nextCheckpoint(t, sink.ch); got != "10" {
-		t.Fatal(got)
-	}
-	if got := nextCheckpoint(t, sink.ch); got != "20" {
-		t.Fatal(got)
-	}
-	p.CompleteGroup("b", terminalPayload(first))
-	if p.Pending() != 0 || len(sink.ch) != 0 {
-		t.Fatal("duplicate completion changed progress")
-	}
-}
-
 func TestProgressGenerationAndBoundedAdmission(t *testing.T) {
 	sink := &progressTestSink{ch: make(chan *message.Payload, 8)}
 	p, err := NewProgress(1, sink)
@@ -97,15 +74,15 @@ func TestProgressGenerationAndBoundedAdmission(t *testing.T) {
 	}
 	defer p.Close()
 	old := progressMessage("file", "10")
-	if _, err := p.Register(context.Background(), old, Selection{Generation: 1}, []string{"a"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), old, 1, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
-	if _, err := p.Register(ctx, progressMessage("other", "1"), Selection{Generation: 1}, []string{"a"}); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := reserveWithSelection(p, ctx, progressMessage("other", "1"), 1, []string{"a"}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("full capacity should not take ownership: %v", err)
 	}
-	p.CompleteGroup("a", terminalPayload(old))
+	p.CompleteReliableSuccess("a", terminalPayload(old))
 	if got := nextCheckpoint(t, sink.ch); got != "10" {
 		t.Fatal(got)
 	}
@@ -113,10 +90,10 @@ func TestProgressGenerationAndBoundedAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	newer := progressMessage("file", "20")
-	if _, err := p.Register(context.Background(), newer, Selection{Generation: 2}, []string{"a"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), newer, 2, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	p.CompleteGroup("a", terminalPayload(newer))
+	p.CompleteReliableSuccess("a", terminalPayload(newer))
 	if got := nextCheckpoint(t, sink.ch); got != "20" {
 		t.Fatal(got)
 	}
@@ -134,10 +111,10 @@ func TestInvalidSelectionHoldsLaterCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	later := progressMessage("file", "20")
-	if _, err := p.Register(context.Background(), later, Selection{Generation: 1}, []string{"a"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), later, 1, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	p.CompleteGroup("a", terminalPayload(later))
+	p.CompleteReliableSuccess("a", terminalPayload(later))
 	if p.Pending() != 1 {
 		t.Fatalf("only the invalid barrier should retain progress, got %d", p.Pending())
 	}
@@ -168,16 +145,16 @@ func TestInvalidBarriersDoNotRetainDeliveredWindows(t *testing.T) {
 			// Exceed both the per-source and aggregate record windows.
 			for range 16 {
 				m := progressMessage(id, "later")
-				if _, err := p.Register(ctx, m, Selection{Generation: 1}, []string{"a", "b"}); err != nil {
+				if _, err := reserveWithSelection(p, ctx, m, 1, []string{"a", "b"}); err != nil {
 					t.Fatal(err)
 				}
 				before := p.Pending()
-				p.CompleteGroup("a", terminalPayload(m))
+				p.CompleteReliableTerminalLoss("a", terminalPayload(m))
 				if p.Pending() != before {
-					t.Fatal("released a record with a pending group")
+					t.Fatal("released a record with a pending reliable endpoint")
 				}
-				p.CompleteGroup("b", terminalPayload(m))
-				p.CompleteGroup("b", terminalPayload(m))
+				p.CompleteReliableSuccess("b", terminalPayload(m))
+				p.CompleteReliableSuccess("b", terminalPayload(m))
 			}
 			if err := p.RetireSource(id, 1); err != nil {
 				t.Fatal(err)
@@ -202,10 +179,10 @@ func TestInvalidBarriersDoNotRetainDeliveredWindows(t *testing.T) {
 			t.Fatal("published past an invalid barrier")
 		}
 		healthy := progressMessage("healthy", "1")
-		if _, err := p.Register(ctx, healthy, Selection{Generation: 1}, []string{"a"}); err != nil {
+		if _, err := reserveWithSelection(p, ctx, healthy, 1, []string{"a"}); err != nil {
 			t.Fatal(err)
 		}
-		p.CompleteGroup("a", terminalPayload(healthy))
+		p.CompleteReliableSuccess("a", terminalPayload(healthy))
 		if got := nextCheckpoint(t, sink.ch); got != "1" {
 			t.Fatal(got)
 		}
@@ -262,7 +239,7 @@ func TestInvalidationReleasesOnlyCompletedSuffix(t *testing.T) {
 	})
 }
 
-func TestDirectBookmarkCannotBypassPendingGroup(t *testing.T) {
+func TestDirectBookmarkCannotBypassPendingDelivery(t *testing.T) {
 	sink := &progressTestSink{ch: make(chan *message.Payload, 2)}
 	p, err := NewProgress(2, sink)
 	if err != nil {
@@ -280,14 +257,14 @@ func TestDirectBookmarkCannotBypassPendingGroup(t *testing.T) {
 		t.Fatalf("initial bookmark: %q", got)
 	}
 	m := progressMessage("eventlog", "event-1")
-	if _, err := p.Register(context.Background(), m, Selection{Generation: 1}, []string{"a"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), m, 1, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
 	guarded.SetOffset("eventlog", "unsafe-later")
 	if got := guarded.GetOffset("eventlog"); got != "initial" {
-		t.Fatalf("direct write bypassed pending group: %q", got)
+		t.Fatalf("direct write bypassed pending reliable endpoint: %q", got)
 	}
-	p.CompleteGroup("a", terminalPayload(m))
+	p.CompleteReliableSuccess("a", terminalPayload(m))
 	if got := nextCheckpoint(t, sink.ch); got != "event-1" {
 		t.Fatal(got)
 	}
@@ -332,17 +309,17 @@ func TestReplacementGenerationIgnoresOldCompletion(t *testing.T) {
 	defer p.Close()
 	old := progressMessage("file", "old-10")
 	newer := progressMessage("file", "new-1")
-	if _, err := p.Register(context.Background(), old, Selection{Generation: 1}, []string{"a"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), old, 1, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Register(context.Background(), newer, Selection{Generation: 2}, []string{"a"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), newer, 2, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	p.CompleteGroup("a", terminalPayload(newer))
+	p.CompleteReliableSuccess("a", terminalPayload(newer))
 	if len(sink.ch) != 0 {
 		t.Fatal("new source checkpoint advanced past old pending record")
 	}
-	p.CompleteGroup("a", terminalPayload(old))
+	p.CompleteReliableSuccess("a", terminalPayload(old))
 	if got := nextCheckpoint(t, sink.ch); got != "new-1" {
 		t.Fatalf("replacement checkpoint: %q", got)
 	}
@@ -363,38 +340,38 @@ func TestObsoleteGenerationCannotBecomeCurrentAgain(t *testing.T) {
 		message    *message.Message
 		generation uint64
 	}{{old, 42}, {newer, 7}} {
-		if _, err := p.Register(context.Background(), entry.message, Selection{Generation: entry.generation}, []string{"a"}); err != nil {
+		if _, err := reserveWithSelection(p, context.Background(), entry.message, entry.generation, []string{"a"}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	p.CompleteGroup("a", terminalPayload(newer))
-	p.CompleteGroup("a", terminalPayload(old))
+	p.CompleteReliableSuccess("a", terminalPayload(newer))
+	p.CompleteReliableSuccess("a", terminalPayload(old))
 	if got := nextCheckpoint(t, sink.ch); got != "new-1" {
 		t.Fatalf("replacement checkpoint: %q", got)
 	}
 	// The older producer can keep draining after replacement and queue drain.
 	late := progressMessage("file", "old-11")
-	if _, err := p.Register(context.Background(), late, Selection{Generation: 42}, []string{"a"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), late, 42, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
 	latest := progressMessage("file", "new-2")
-	if _, err := p.Register(context.Background(), latest, Selection{Generation: 7}, []string{"a"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), latest, 7, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	p.CompleteGroup("a", terminalPayload(latest))
+	p.CompleteReliableSuccess("a", terminalPayload(latest))
 	select {
 	case <-sink.ch:
 		t.Fatal("checkpoint crossed pending old-producer record")
 	default:
 	}
-	p.CompleteGroup("a", terminalPayload(late))
+	p.CompleteReliableSuccess("a", terminalPayload(late))
 	if got := nextCheckpoint(t, sink.ch); got != "new-2" {
 		t.Fatalf("older producer reclaimed checkpoint ownership: %q", got)
 	}
 	if err := p.RetireSource("file", 42); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Register(context.Background(), progressMessage("file", "old-12"), Selection{Generation: 42}, []string{"a"}); !errors.Is(err, ErrObsoleteGeneration) {
+	if _, err := reserveWithSelection(p, context.Background(), progressMessage("file", "old-12"), 42, []string{"a"}); !errors.Is(err, ErrObsoleteGeneration) {
 		t.Fatalf("retired generation accepted: %v", err)
 	}
 	if len(sink.ch) != 0 || p.Pending() != 0 {
@@ -410,10 +387,10 @@ func TestInvalidBarrierDoesNotPreventProducerRetirement(t *testing.T) {
 	}
 	defer p.Close()
 	m := progressMessage("file", "1")
-	if _, err := p.Register(context.Background(), m, Selection{Generation: 1}, []string{"a"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), m, 1, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	p.CompleteGroup("a", terminalPayload(m))
+	p.CompleteReliableSuccess("a", terminalPayload(m))
 	if got := nextCheckpoint(t, sink.ch); got != "1" {
 		t.Fatal(got)
 	}
@@ -426,7 +403,7 @@ func TestInvalidBarrierDoesNotPreventProducerRetirement(t *testing.T) {
 	if !p.OwnsSource("file") || p.Pending() != 1 {
 		t.Fatal("retirement released unresolved source barrier")
 	}
-	if _, err := p.Register(context.Background(), progressMessage("file", "3"), Selection{Generation: 1}, []string{"a"}); !errors.Is(err, ErrObsoleteGeneration) {
+	if _, err := reserveWithSelection(p, context.Background(), progressMessage("file", "3"), 1, []string{"a"}); !errors.Is(err, ErrObsoleteGeneration) {
 		t.Fatalf("retired producer accepted: %v", err)
 	}
 	if len(sink.ch) != 0 {
@@ -443,26 +420,26 @@ func TestGenerationOwnershipIsBoundedUntilSourceRetires(t *testing.T) {
 	defer p.Close()
 	for _, id := range []string{"a", "b"} {
 		m := progressMessage(id, "1")
-		if _, err := p.Register(context.Background(), m, Selection{Generation: 1}, []string{"g"}); err != nil {
+		if _, err := reserveWithSelection(p, context.Background(), m, 1, []string{"g"}); err != nil {
 			t.Fatal(err)
 		}
 		if err := p.RetireSource(id, 1); !errors.Is(err, ErrSourcePending) {
 			t.Fatalf("retired pending source %q: %v", id, err)
 		}
-		p.CompleteGroup("g", terminalPayload(m))
+		p.CompleteReliableSuccess("g", terminalPayload(m))
 		if got := nextCheckpoint(t, sink.ch); got != "1" {
 			t.Fatalf("%s checkpoint: %q", id, got)
 		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
-	if _, err := p.Register(ctx, progressMessage("c", "1"), Selection{Generation: 1}, []string{"g"}); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := reserveWithSelection(p, ctx, progressMessage("c", "1"), 1, []string{"g"}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("ownership capacity did not backpressure new source: %v", err)
 	}
 	if err := p.RetireSource("a", 1); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Register(context.Background(), progressMessage("c", "1"), Selection{Generation: 1}, []string{"g"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), progressMessage("c", "1"), 1, []string{"g"}); err != nil {
 		t.Fatalf("retirement did not release ownership capacity: %v", err)
 	}
 }
@@ -476,17 +453,17 @@ func TestGenerationHistoryIsBoundedUntilSourceRetires(t *testing.T) {
 	defer p.Close()
 	for generation := uint64(1); generation <= 2; generation++ {
 		m := progressMessage("file", "1")
-		if _, err := p.Register(context.Background(), m, Selection{Generation: generation}, []string{"g"}); err != nil {
+		if _, err := reserveWithSelection(p, context.Background(), m, generation, []string{"g"}); err != nil {
 			t.Fatal(err)
 		}
-		p.CompleteGroup("g", terminalPayload(m))
+		p.CompleteReliableSuccess("g", terminalPayload(m))
 		if got := nextCheckpoint(t, sink.ch); got != "1" {
 			t.Fatalf("generation %d checkpoint: %q", generation, got)
 		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
-	if _, err := p.Register(ctx, progressMessage("file", "2"), Selection{Generation: 3}, []string{"g"}); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := reserveWithSelection(p, ctx, progressMessage("file", "2"), 3, []string{"g"}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("generation history did not backpressure new generation: %v", err)
 	}
 	if err := p.RetireSource("file", 1); err != nil {
@@ -494,18 +471,18 @@ func TestGenerationHistoryIsBoundedUntilSourceRetires(t *testing.T) {
 	}
 	ctxAgain, cancelAgain := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancelAgain()
-	if _, err := p.Register(ctxAgain, progressMessage("file", "2"), Selection{Generation: 3}, []string{"g"}); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := reserveWithSelection(p, ctxAgain, progressMessage("file", "2"), 3, []string{"g"}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("retiring only old generation released current ownership: %v", err)
 	}
 	if err := p.RetireSource("file", 2); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Register(context.Background(), progressMessage("file", "2"), Selection{Generation: 3}, []string{"g"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), progressMessage("file", "2"), 3, []string{"g"}); err != nil {
 		t.Fatalf("retirement did not release generation history: %v", err)
 	}
 }
 
-func TestIndependentGroupKeepsPreviouslyPersistedPrefix(t *testing.T) {
+func TestIndependentEndpointKeepsPreviouslyPersistedPrefix(t *testing.T) {
 	sink := &progressTestSink{ch: make(chan *message.Payload, 3)}
 	p, err := NewProgress(3, sink)
 	if err != nil {
@@ -516,17 +493,17 @@ func TestIndependentGroupKeepsPreviouslyPersistedPrefix(t *testing.T) {
 	// record at 10 must hold the checkpoint even if a later A record completes.
 	first := progressMessage("file", "10")
 	later := progressMessage("file", "20")
-	if _, err := p.Register(context.Background(), first, Selection{Generation: 1}, []string{"b"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), first, 1, []string{"b"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Register(context.Background(), later, Selection{Generation: 1}, []string{"a"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), later, 1, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	p.CompleteGroup("a", terminalPayload(later))
+	p.CompleteReliableSuccess("a", terminalPayload(later))
 	if p.Pending() != 2 || len(sink.ch) != 0 {
 		t.Fatal("later A completion crossed pending B")
 	}
-	p.CompleteGroup("b", terminalPayload(first))
+	p.CompleteReliableSuccess("b", terminalPayload(first))
 	if got := nextCheckpoint(t, sink.ch); got != "10" {
 		t.Fatal(got)
 	}
@@ -541,10 +518,10 @@ func TestProgressCloseReleasesBlockedSink(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := progressMessage("file", "1")
-	if _, err := p.Register(context.Background(), m, Selection{Generation: 1}, []string{"a"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), m, 1, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	p.CompleteGroup("a", terminalPayload(m))
+	p.CompleteReliableSuccess("a", terminalPayload(m))
 	done := make(chan struct{})
 	go func() { p.Close(); close(done) }()
 	select {
@@ -564,7 +541,7 @@ func TestSourceBudgetWakesOnlyAfterSafePrefixRelease(t *testing.T) {
 	x := make([]*message.Message, SourcePendingLimit)
 	for i := range x {
 		x[i] = progressMessage("x", "1")
-		if _, err := p.Register(context.Background(), x[i], Selection{Generation: 1}, []string{"a", "b"}); err != nil {
+		if _, err := reserveWithSelection(p, context.Background(), x[i], 1, []string{"a", "b"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -573,7 +550,7 @@ func TestSourceBudgetWakesOnlyAfterSafePrefixRelease(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	go func() {
-		_, err := p.Register(ctx, blocked, Selection{Generation: 1}, []string{"a", "b"})
+		_, err := reserveWithSelection(p, ctx, blocked, 1, []string{"a", "b"})
 		registered <- err
 	}()
 	select {
@@ -582,20 +559,20 @@ func TestSourceBudgetWakesOnlyAfterSafePrefixRelease(t *testing.T) {
 	case <-time.After(20 * time.Millisecond):
 	}
 	y := progressMessage("y", "1")
-	if _, err := p.Register(context.Background(), y, Selection{Generation: 1}, []string{"b"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), y, 1, []string{"b"}); err != nil {
 		t.Fatal(err)
 	}
-	p.CompleteGroup("b", terminalPayload(y))
+	p.CompleteReliableSuccess("b", terminalPayload(y))
 	if got := nextCheckpoint(t, sink.ch); got != "1" {
 		t.Fatal(got)
 	}
-	p.CompleteGroup("b", terminalPayload(x[0]))
+	p.CompleteReliableTerminalLoss("b", terminalPayload(x[0]))
 	select {
 	case err := <-registered:
-		t.Fatalf("B-only completion freed X before A: %v", err)
+		t.Fatalf("B terminal loss freed X before A: %v", err)
 	case <-time.After(20 * time.Millisecond):
 	}
-	p.CompleteGroup("a", terminalPayload(x[0]))
+	p.CompleteReliableSuccess("a", terminalPayload(x[0]))
 	if got := nextCheckpoint(t, sink.ch); got != "1" {
 		t.Fatal(got)
 	}
@@ -618,20 +595,20 @@ func TestAggregateBudgetBackpressuresOtherSources(t *testing.T) {
 	defer p.Close()
 	x, y, xLater := progressMessage("x", "1"), progressMessage("y", "1"), progressMessage("x", "2")
 	for _, m := range []*message.Message{x, y, xLater} {
-		if _, err := p.Register(context.Background(), m, Selection{Generation: 1}, []string{"b"}); err != nil {
+		if _, err := reserveWithSelection(p, context.Background(), m, 1, []string{"b"}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	if _, err := p.Register(ctx, progressMessage("z", "1"), Selection{Generation: 1}, []string{"b"}); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := reserveWithSelection(p, ctx, progressMessage("z", "1"), 1, []string{"b"}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("aggregate exhaustion did not backpressure Z: %v", err)
 	}
-	p.CompleteGroup("b", terminalPayload(x))
+	p.CompleteReliableSuccess("b", terminalPayload(x))
 	if got := nextCheckpoint(t, sink.ch); got != "1" {
 		t.Fatal(got)
 	}
-	if _, err := p.Register(context.Background(), progressMessage("z", "1"), Selection{Generation: 1}, []string{"b"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), progressMessage("z", "1"), 1, []string{"b"}); err != nil {
 		t.Fatalf("aggregate capacity did not wake Z: %v", err)
 	}
 }
@@ -650,11 +627,11 @@ func TestProgressCancellationUnblocksFullCheckpointQueue(t *testing.T) {
 			defer close(finished)
 			for i := 0; i < 3; i++ {
 				m := progressMessage("file", "10")
-				if _, err := p.Register(context.Background(), m, Selection{Generation: 1}, []string{"a"}); err != nil {
+				if _, err := reserveWithSelection(p, context.Background(), m, 1, []string{"a"}); err != nil {
 					t.Error(err)
 					return
 				}
-				p.CompleteGroup("a", terminalPayload(m))
+				p.CompleteReliableSuccess("a", terminalPayload(m))
 			}
 		}()
 		synctest.Wait()
@@ -702,19 +679,19 @@ func TestRetireAfterCompletedRecordBehindBarrier(t *testing.T) {
 	}
 	defer p.Close()
 	first := progressMessage("file", "1")
-	if _, err := p.Register(context.Background(), first, Selection{Generation: 1}, []string{"a"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), first, 1, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	p.CompleteGroup("a", terminalPayload(first))
+	p.CompleteReliableSuccess("a", terminalPayload(first))
 	_ = nextCheckpoint(t, sink.ch)
 	if err := p.HoldInvalid(context.Background(), progressMessage("file", "bad-2")); err != nil {
 		t.Fatal(err)
 	}
 	third := progressMessage("file", "3")
-	if _, err := p.Register(context.Background(), third, Selection{Generation: 1}, []string{"a"}); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), third, 1, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	p.CompleteGroup("a", terminalPayload(third))
+	p.CompleteReliableSuccess("a", terminalPayload(third))
 	if err := p.RetireSource("file", 1); err != nil {
 		t.Fatalf("producer whose delivery completed cannot retire behind source barrier: %v", err)
 	}
@@ -736,7 +713,7 @@ func TestRegisterSourceReservesOwnershipAndHistoryBeforeRecords(t *testing.T) {
 		}
 	}
 	old := progressMessage("file", "old")
-	if _, err := p.Register(context.Background(), old, Selection{Generation: 42, Excluded: true}, nil); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), old, 42, nil); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -745,7 +722,7 @@ func TestRegisterSourceReservesOwnershipAndHistoryBeforeRecords(t *testing.T) {
 	default:
 	}
 	current := progressMessage("file", "new")
-	if _, err := p.Register(context.Background(), current, Selection{Generation: 7, Excluded: true}, nil); err != nil {
+	if _, err := reserveWithSelection(p, context.Background(), current, 7, nil); err != nil {
 		t.Fatal(err)
 	}
 	if got := nextCheckpoint(t, sink.ch); got != "new" {
@@ -768,11 +745,11 @@ func TestRegisterSourceReservesOwnershipAndHistoryBeforeRecords(t *testing.T) {
 func TestProgressReservedSelectionOutcomes(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
-		groups   []string
+		reliable []string
 		excluded bool
 	}{
 		{"a", []string{"a"}, false}, {"b", []string{"b"}, false},
-		{"both", []string{"a", "b"}, false}, {"repeated", []string{"a", "b", "a"}, false},
+		{"both", []string{"a", "b"}, false},
 		{"excluded", nil, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -788,33 +765,27 @@ func TestProgressReservedSelectionOutcomes(t *testing.T) {
 				t.Fatal(err)
 			}
 			// A later local outcome cannot pass the pending selection.
-			if _, err := p.Register(context.Background(), last, Selection{Generation: 1, Excluded: true}, nil); err != nil {
+			if _, err := reserveWithSelection(p, context.Background(), last, 1, nil); err != nil {
 				t.Fatal(err)
 			}
 			if p.Pending() != 2 || len(sink.ch) != 0 {
 				t.Fatal("pending selection released source order")
 			}
 			// Delivery notifications cannot complete an unselected reservation.
-			p.CompleteGroup("a", terminalPayload(first))
+			p.CompleteReliableSuccess("a", terminalPayload(first))
 			if p.Pending() != 2 {
 				t.Fatal("unselected record completed")
 			}
-			if err := p.Attach(token, Selection{Excluded: tc.excluded}, tc.groups); err != nil {
-				t.Fatal(err)
-			}
-			if err := p.Attach(token, Selection{Groups: []string{"other"}}, []string{"other"}); !errors.Is(err, ErrInvalidSelection) {
-				t.Fatalf("second attachment = %v", err)
-			}
-			seen := map[string]bool{}
-			for _, group := range tc.groups {
-				if seen[group] {
-					continue
+			if tc.excluded {
+				p.CompleteLocal(token)
+			} else {
+				if err := p.AttachEndpointSelection(token, tc.reliable, nil, false); err != nil {
+					t.Fatal(err)
 				}
-				seen[group] = true
-				p.CompleteGroup(group, terminalPayload(first))
-				if tc.name == "both" && group == "a" && p.Pending() != 2 {
-					t.Fatal("one group completed both obligations")
+				if err := p.AttachEndpointSelection(token, []string{"other"}, nil, false); !errors.Is(err, ErrInvalidSelection) {
+					t.Fatalf("second attachment = %v", err)
 				}
+				p.CompleteReliableSuccess(tc.reliable[0], terminalPayload(first))
 			}
 			if got := nextCheckpoint(t, sink.ch); got != "1" {
 				t.Fatalf("first checkpoint = %s", got)
@@ -844,15 +815,12 @@ func TestProgressInvalidatesSameReservationAndReleasesProducer(t *testing.T) {
 	if err := p.RetireSource("file:test", 1); !errors.Is(err, ErrSourcePending) {
 		t.Fatalf("retiring pending selection = %v", err)
 	}
-	if err := p.Attach(token, Selection{Generation: 2, Excluded: true}, nil); !errors.Is(err, ErrInvalidSelection) {
-		t.Fatalf("identity mismatch = %v", err)
-	}
 	p.Invalidate(token)
 	p.Invalidate(token)
 	if p.Pending() != 1 || p.records[token].generation != 0 || !p.OwnsSource("file:test") {
 		t.Fatal("invalid selection did not reuse the source reservation")
 	}
-	if err := p.Attach(token, Selection{Excluded: true}, nil); !errors.Is(err, ErrInvalidSelection) {
+	if err := p.AttachEndpointSelection(token, []string{"a"}, nil, false); !errors.Is(err, ErrInvalidSelection) {
 		t.Fatalf("attached invalid barrier = %v", err)
 	}
 	if err := p.RetireSource("file:test", 1); err != nil {
@@ -942,9 +910,7 @@ func TestProgressSelectionCompletionUnblocksCapacity(t *testing.T) {
 			t.Fatalf("pending selection did not block: %v", err)
 		default:
 		}
-		if err := p.Attach(token, Selection{Excluded: true}, nil); err != nil {
-			t.Fatal(err)
-		}
+		p.CompleteLocal(token)
 		if err := <-reserved; err != nil {
 			t.Fatal(err)
 		}
@@ -987,16 +953,16 @@ func TestProgressNilSinkDoesNotBlockCompletion(t *testing.T) {
 							t.Error(err)
 							return
 						}
-						if err := p.Attach(token, Selection{}, []string{"a", "b"}); err != nil {
+						if err := p.AttachEndpointSelection(token, []string{"a", "b"}, nil, false); err != nil {
 							t.Error(err)
 							return
 						}
-						p.CompleteGroup("a", terminalPayload(m))
+						p.CompleteReliableTerminalLoss("a", terminalPayload(m))
 						if p.Pending() != 1 {
-							t.Error("no-op sink bypassed the pending group")
+							t.Error("no-op sink bypassed the pending reliable endpoint")
 							return
 						}
-						p.CompleteGroup("b", terminalPayload(m))
+						p.CompleteReliableSuccess("b", terminalPayload(m))
 					}
 				}()
 				synctest.Wait()
@@ -1021,7 +987,7 @@ func TestProgressNilSinkDoesNotBlockCompletion(t *testing.T) {
 
 func BenchmarkProgressReserveAttachComplete(b *testing.B) {
 	for _, excluded := range []bool{false, true} {
-		name := "two groups"
+		name := "two reliable endpoints"
 		if excluded {
 			name = "excluded"
 		}
@@ -1033,11 +999,6 @@ func BenchmarkProgressReserveAttachComplete(b *testing.B) {
 			defer p.Close()
 			m := progressMessage("file:benchmark", "1")
 			payload := message.NewPayload([]*message.MessageMetadata{&m.MessageMetadata}, nil, "", 0)
-			groups := []string{"a", "b"}
-			selection := Selection{Excluded: excluded}
-			if excluded {
-				groups = nil
-			}
 			b.ReportAllocs()
 			b.ResetTimer()
 			for range b.N {
@@ -1045,12 +1006,13 @@ func BenchmarkProgressReserveAttachComplete(b *testing.B) {
 				if err != nil {
 					b.Fatal(err)
 				}
-				if err := p.Attach(token, selection, groups); err != nil {
-					b.Fatal(err)
-				}
-				if !excluded {
-					p.CompleteGroup("a", payload)
-					p.CompleteGroup("b", payload)
+				if excluded {
+					p.CompleteLocal(token)
+				} else {
+					if err := p.AttachEndpointSelection(token, []string{"a", "b"}, nil, false); err != nil {
+						b.Fatal(err)
+					}
+					p.CompleteReliableSuccess("a", payload)
 				}
 			}
 			b.StopTimer()
@@ -1145,15 +1107,15 @@ func TestTryRetireSourcePreservesOwnershipWhenBusy(t *testing.T) {
 	}
 }
 
-func TestPendingGroupsOnlyIncludesUnresolvedSourceRecipients(t *testing.T) {
+func TestPendingReliableEndpointsOnlyIncludesUnresolvedSourceRecipients(t *testing.T) {
 	p, err := NewProgress(8, &progressTestSink{ch: make(chan *message.Payload, 8)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	register := func(identifier, offset string, groups []string) *message.Message {
+	register := func(identifier, offset string, endpoints []string) *message.Message {
 		m := progressMessage(identifier, offset)
-		if _, err := p.Register(context.Background(), m, Selection{Generation: 1}, groups); err != nil {
+		if _, err := reserveWithSelection(p, context.Background(), m, 1, endpoints); err != nil {
 			t.Fatal(err)
 		}
 		return m
@@ -1166,21 +1128,21 @@ func TestPendingGroupsOnlyIncludesUnresolvedSourceRecipients(t *testing.T) {
 		t.Fatal(err)
 	}
 	completed := register("file:test", "4", []string{"d"})
-	p.CompleteGroup("d", terminalPayload(completed)) // Released behind the invalid barrier.
+	p.CompleteReliableSuccess("d", terminalPayload(completed)) // Released behind the invalid barrier.
 	register("file:other", "1", []string{"c"})
 	register("", "", []string{"anonymous"})
-	p.CompleteGroup("a", terminalPayload(first))
-	if groups := p.PendingGroups("file:test"); len(groups) != 1 || groups[0] != "b" {
-		t.Fatalf("pending source groups=%v, want [b]", groups)
+	p.CompleteReliableTerminalLoss("a", terminalPayload(first))
+	if endpoints := p.PendingReliableEndpoints("file:test"); len(endpoints) != 1 || endpoints[0] != "b" {
+		t.Fatalf("pending source endpoints=%v, want [b]", endpoints)
 	}
-	p.CompleteGroup("b", terminalPayload(first))
-	if groups := p.PendingGroups("file:test"); len(groups) != 0 {
-		t.Fatalf("pending selection, invalid barrier or completed record inferred recipients: %v", groups)
+	p.CompleteReliableSuccess("b", terminalPayload(first))
+	if endpoints := p.PendingReliableEndpoints("file:test"); len(endpoints) != 0 {
+		t.Fatalf("pending selection, invalid barrier or completed record inferred recipients: %v", endpoints)
 	}
-	if groups := p.PendingGroups("file:other"); len(groups) != 1 || groups[0] != "c" {
-		t.Fatalf("other source groups=%v, want [c]", groups)
+	if endpoints := p.PendingReliableEndpoints("file:other"); len(endpoints) != 1 || endpoints[0] != "c" {
+		t.Fatalf("other source endpoints=%v, want [c]", endpoints)
 	}
-	if groups := p.PendingGroups(""); len(groups) != 1 || groups[0] != "anonymous" {
-		t.Fatalf("anonymous groups=%v, want [anonymous]", groups)
+	if endpoints := p.PendingReliableEndpoints(""); len(endpoints) != 1 || endpoints[0] != "anonymous" {
+		t.Fatalf("anonymous endpoints=%v, want [anonymous]", endpoints)
 	}
 }

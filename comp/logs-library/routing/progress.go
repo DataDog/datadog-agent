@@ -52,10 +52,9 @@ type record struct {
 	meta                   *message.MessageMetadata
 	identifier             string
 	generation             uint64
-	groups                 []string
+	reliable               []string
 	optional               []string
 	remaining              map[string]struct{}
-	reliableSet            bool
 	reliableSelectorFailed bool
 	reliableDelivered      chan struct{} // Only multi-endpoint sets can leave sibling offers waiting.
 	selectionPending       bool
@@ -73,7 +72,7 @@ type sourceProgress struct {
 // NewProgress creates bounded in-memory progress state and a bounded queue to
 // the existing auditor. A nil sink channel disables checkpoint publication, as
 // in the default sender. Start a real auditor before processing records. Call
-// Close after all group senders and sinks have stopped.
+// Close after all endpoint senders and sinks have stopped.
 func NewProgress(limit int, sink sender.Sink) (*Progress, error) {
 	if limit < 1 || sink == nil {
 		return nil, errors.New("invalid routing progress capacity or sink")
@@ -138,35 +137,13 @@ func (p *Progress) RegisterSource(identifier string, generation uint64) error {
 	return nil
 }
 
-// Register reserves a record before processing lanes can reorder it. A
-// checkpointed source must supply a nonzero generation. It returns only after
-// capacity is reserved, or with no ownership transfer on error. Older, unretired
-// producers may drain without reclaiming current checkpoint ownership; retired
-// producers return ErrObsoleteGeneration.
-func (p *Progress) Register(ctx context.Context, msg *message.Message, selection Selection, groups []string) (uint64, error) {
-	return p.register(ctx, msg, selection, groups, true, false)
-}
-
-func (p *Progress) register(ctx context.Context, msg *message.Message, selection Selection, groups []string, requireCompleteSource, pendingSelection bool) (uint64, error) {
+func (p *Progress) reserve(ctx context.Context, msg *message.Message, generation uint64, validSource bool) (uint64, error) {
 	if msg == nil || msg.Origin == nil {
 		return 0, fmt.Errorf("%w: missing source metadata", ErrInvalidSelection)
 	}
 	identifier := msg.Origin.Identifier
-	if requireCompleteSource && identifier != "" && (selection.Generation == 0 || msg.Origin.LogSource == nil) {
+	if validSource && identifier != "" && (generation == 0 || msg.Origin.LogSource == nil) {
 		return 0, fmt.Errorf("%w: checkpointed source needs a generation and source", ErrInvalidSelection)
-	}
-	if selection.Excluded && len(groups) != 0 {
-		return 0, ErrInvalidSelection
-	}
-	if !pendingSelection && !selection.Excluded && len(groups) == 0 {
-		return 0, ErrInvalidSelection
-	}
-	var remaining map[string]struct{}
-	if len(groups) != 0 {
-		remaining = make(map[string]struct{}, len(groups))
-		for _, id := range groups {
-			remaining[id] = struct{}{}
-		}
 	}
 	for {
 		p.mu.Lock()
@@ -175,17 +152,17 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 			return 0, ErrStopped
 		}
 		source := p.sources[identifier]
-		if identifier != "" && requireCompleteSource && source != nil {
-			if retired, seen := source.seenGenerations[selection.Generation]; seen && retired {
+		if identifier != "" && validSource && source != nil {
+			if retired, seen := source.seenGenerations[generation]; seen && retired {
 				p.mu.Unlock()
-				return 0, fmt.Errorf("%w: %d", ErrObsoleteGeneration, selection.Generation)
+				return 0, fmt.Errorf("%w: %d", ErrObsoleteGeneration, generation)
 			}
 		}
 		needsOwner := identifier != "" && source == nil
-		needsHistory := identifier != "" && requireCompleteSource
+		needsHistory := identifier != "" && validSource
 		if source != nil {
-			_, seen := source.seenGenerations[selection.Generation]
-			needsHistory = requireCompleteSource && !seen
+			_, seen := source.seenGenerations[generation]
+			needsHistory = validSource && !seen
 		}
 		sourceHasRoom := identifier == "" || source == nil || len(source.queue) < p.sourceLimit
 		if len(p.records) < p.limit && sourceHasRoom && (!needsOwner || len(p.sources) < p.limit) && (!needsHistory || p.histories < p.limit) {
@@ -207,7 +184,7 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 	meta := msg.MessageMetadata
 	meta.SetRoutingToken(token)
 	msg.SetRoutingToken(token)
-	r := &record{meta: &meta, identifier: identifier, generation: selection.Generation, groups: append([]string(nil), groups...), remaining: remaining, selectionPending: pendingSelection, done: selection.Excluded}
+	r := &record{meta: &meta, identifier: identifier, generation: generation, selectionPending: validSource}
 	p.records[token] = r
 	if identifier != "" {
 		source := p.sources[identifier]
@@ -215,11 +192,11 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 			source = &sourceProgress{seenGenerations: make(map[uint64]bool)}
 			p.sources[identifier] = source
 		}
-		if requireCompleteSource {
-			if _, seen := source.seenGenerations[selection.Generation]; !seen {
+		if validSource {
+			if _, seen := source.seenGenerations[generation]; !seen {
 				p.histories++
-				source.currentGeneration = selection.Generation
-				source.seenGenerations[selection.Generation] = false
+				source.currentGeneration = generation
+				source.seenGenerations[generation] = false
 			}
 		}
 		source.hasAdmittedRecords = true
@@ -228,29 +205,27 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 		}
 		source.queue = append(source.queue, r)
 	}
-	if r.done {
-		p.advance(r)
-	}
 	p.mu.Unlock()
 	return token, nil
 }
 
 // HoldInvalid reserves an unresolved source barrier after a selection failure.
-// Later valid records cannot move a checkpoint past this record. The empty
-// sentinel is not a delivery group and no sender can resolve it. Generation
+// Later valid records cannot move a checkpoint past this record. Generation
 // zero distinguishes this source barrier from every valid producer generation.
 func (p *Progress) HoldInvalid(ctx context.Context, msg *message.Message) error {
 	if msg == nil || msg.Origin == nil || msg.Origin.Identifier == "" {
 		return nil
 	}
-	_, err := p.register(ctx, msg, Selection{}, []string{""}, false, false)
+	_, err := p.reserve(ctx, msg, 0, false)
 	return err
 }
 
 // Reserve claims capacity and source order before processing or selection. No
-// delivery or local completion is inferred while selection is pending.
+// delivery or local completion is inferred while selection is pending. A
+// checkpointed source must supply a nonzero generation; older, unretired
+// producers can drain without reclaiming current checkpoint ownership.
 func (p *Progress) Reserve(ctx context.Context, msg *message.Message, generation uint64) (uint64, error) {
-	return p.register(ctx, msg, Selection{Generation: generation}, nil, true, true)
+	return p.reserve(ctx, msg, generation, true)
 }
 
 // AtCapacity reports pressure on the source window and aggregate record budget.
@@ -265,24 +240,21 @@ func (p *Progress) AtCapacity(identifier string) (sourceFull, aggregateFull bool
 	return identifier != "" && source != nil && len(source.queue) == p.sourceLimit, len(p.records) == p.limit
 }
 
-// PendingGroups returns this source's unresolved recipients for a pressure
+// PendingReliableEndpoints returns this source's unresolved recipients for a pressure
 // flush. Pending selection and invalid barriers do not imply recipients.
-func (p *Progress) PendingGroups(identifier string) []string {
+func (p *Progress) PendingReliableEndpoints(identifier string) []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	seen := make(map[string]struct{})
-	var groups []string
+	var endpoints []string
 	add := func(r *record) {
 		if r.done || r.selectionPending {
 			return
 		}
 		for id := range r.remaining {
-			if id == "" {
-				continue // Invalid-selection sentinel.
-			}
 			if _, duplicate := seen[id]; !duplicate {
 				seen[id] = struct{}{}
-				groups = append(groups, id)
+				endpoints = append(endpoints, id)
 			}
 		}
 	}
@@ -299,36 +271,7 @@ func (p *Progress) PendingGroups(identifier string) []string {
 			}
 		}
 	}
-	return groups
-}
-
-// Attach installs validated group obligations exactly once after processing.
-// A nonzero selection generation must agree with the reserved producer identity.
-// On error the caller must invalidate the pending reservation.
-func (p *Progress) Attach(token uint64, selection Selection, groups []string) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	r := p.records[token]
-	if r == nil || r.done || !r.selectionPending {
-		return ErrInvalidSelection
-	}
-	if (r.identifier != "" && selection.Generation != 0 && selection.Generation != r.generation) ||
-		(selection.Excluded && len(groups) != 0) || (!selection.Excluded && len(groups) == 0) {
-		return ErrInvalidSelection
-	}
-	r.groups = append([]string(nil), groups...)
-	if len(groups) != 0 {
-		r.remaining = make(map[string]struct{}, len(groups))
-		for _, group := range groups {
-			r.remaining[group] = struct{}{}
-		}
-	}
-	r.selectionPending = false
-	if selection.Excluded {
-		r.done = true
-		p.advance(r)
-	}
-	return nil
+	return endpoints
 }
 
 // Invalidate turns the same pending reservation into a source-owned barrier.
@@ -345,21 +288,9 @@ func (p *Progress) Invalidate(token uint64) {
 		}
 		r.generation = 0
 		r.selectionPending = false
-		r.groups = nil
-		r.remaining = map[string]struct{}{"": {}}
 		p.sources[r.identifier].invalidSelection = true
 		p.advance(r)
 	}
-}
-
-// Recipients returns the immutable selection attached after common processing.
-func (p *Progress) Recipients(token uint64) []string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if r := p.records[token]; r != nil {
-		return append([]string(nil), r.groups...)
-	}
-	return nil
 }
 
 // AttachEndpointSelection attaches endpoint-filtering recipients once after
@@ -374,12 +305,11 @@ func (p *Progress) AttachEndpointSelection(token uint64, reliable, optional []st
 	if r == nil || r.done || !r.selectionPending || len(reliable)+len(optional) == 0 {
 		return ErrInvalidSelection
 	}
-	r.reliableSet = true
 	r.reliableSelectorFailed = reliableSelectorFailed
 	if len(reliable) > 1 {
 		r.reliableDelivered = make(chan struct{})
 	}
-	r.groups = append([]string(nil), reliable...)
+	r.reliable = append([]string(nil), reliable...)
 	if len(optional) != 0 {
 		r.optional = append([]string(nil), optional...)
 	}
@@ -397,7 +327,7 @@ func (p *Progress) EndpointRecipients(token uint64) (reliable, optional []string
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if r := p.records[token]; r != nil {
-		return append([]string(nil), r.groups...), append([]string(nil), r.optional...), r.reliableDelivered
+		return append([]string(nil), r.reliable...), append([]string(nil), r.optional...), r.reliableDelivered
 	}
 	return nil, nil, nil
 }
@@ -416,7 +346,7 @@ func (p *Progress) CompleteReliableSuccess(endpointID string, payload *message.P
 			continue
 		}
 		r := p.records[meta.RoutingToken()]
-		if r == nil || r.done || r.selectionPending || !r.reliableSet {
+		if r == nil || r.done || r.selectionPending {
 			continue
 		}
 		if _, selected := r.remaining[endpointID]; !selected {
@@ -445,7 +375,7 @@ func (p *Progress) CompleteReliableTerminalLoss(endpointID string, payload *mess
 			continue
 		}
 		r := p.records[meta.RoutingToken()]
-		if r == nil || r.done || r.selectionPending || !r.reliableSet {
+		if r == nil || r.done || r.selectionPending {
 			continue
 		}
 		if _, selected := r.remaining[endpointID]; !selected {
@@ -468,33 +398,6 @@ func (p *Progress) CompleteLocal(token uint64) {
 		clear(r.remaining)
 		r.done = true
 		p.advance(r)
-	}
-}
-
-// CompleteGroup resolves only the named group's obligations from a terminal
-// reliable sender output. It does not infer success from queue admission.
-func (p *Progress) CompleteGroup(group string, payload *message.Payload) {
-	if payload == nil {
-		return
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	for _, meta := range payload.MessageMetas {
-		if meta == nil {
-			continue
-		}
-		r := p.records[meta.RoutingToken()]
-		if r == nil || r.done || r.selectionPending {
-			continue
-		}
-		if _, selected := r.remaining[group]; !selected {
-			continue
-		}
-		delete(r.remaining, group)
-		if len(r.remaining) == 0 {
-			r.done = true
-			p.advance(r)
-		}
 	}
 }
 
@@ -642,7 +545,7 @@ func (p *Progress) StopForwarding() {
 }
 
 // Close releases unresolved reservations without acknowledging them. Call it
-// only after every group sink has stopped producing outcomes.
+// only after every endpoint sink has stopped producing outcomes.
 func (p *Progress) Close() {
 	p.StopForwarding()
 	p.mu.Lock()
@@ -655,40 +558,6 @@ func (p *Progress) Close() {
 	}
 	p.mu.Unlock()
 	<-p.finished
-}
-
-// GroupSink intercepts terminal output from one group's reliable destinations.
-// Multiple optional reliable endpoints can report the same payload; completion
-// is idempotent within the group.
-type GroupSink struct {
-	group    string
-	input    chan *message.Payload
-	done     chan struct{}
-	progress *Progress
-}
-
-// NewGroupSink creates a bounded completion adapter for one group.
-func (p *Progress) NewGroupSink(group string, capacity int) *GroupSink {
-	if capacity < 1 {
-		capacity = 1
-	}
-	s := &GroupSink{group: group, input: make(chan *message.Payload, capacity), done: make(chan struct{}), progress: p}
-	go func() {
-		defer close(s.done)
-		for payload := range s.input {
-			p.CompleteGroup(group, payload)
-		}
-	}()
-	return s
-}
-
-// Channel implements sender.Sink.
-func (s *GroupSink) Channel() chan *message.Payload { return s.input }
-
-// Stop drains outcomes after the corresponding sender has stopped.
-func (s *GroupSink) Stop() {
-	close(s.input)
-	<-s.done
 }
 
 // EndpointSink implements sender.OutcomeSink for one reliable endpoint target,

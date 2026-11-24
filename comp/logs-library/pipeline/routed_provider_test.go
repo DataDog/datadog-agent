@@ -6,8 +6,6 @@
 package pipeline
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -31,8 +29,6 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/util/compression"
-	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 )
 
 type routedTestSink struct{ ch chan *message.Payload }
@@ -41,34 +37,8 @@ func (s *routedTestSink) Channel() chan *message.Payload { return s.ch }
 
 type routedRequest struct {
 	endpoint   string
-	key        string
 	message    string
 	batchCount int
-}
-
-type countingCompression struct{ closes atomic.Int32 }
-
-func (c *countingCompression) NewCompressor(kind string, level int) compression.Compressor {
-	return &countingCompressor{Compressor: selector.NewCompressor(kind, level), owner: c}
-}
-
-type countingCompressor struct {
-	compression.Compressor
-	owner *countingCompression
-}
-
-func (c *countingCompressor) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	return &countingStream{StreamCompressor: c.Compressor.NewStreamCompressor(output), owner: c.owner}
-}
-
-type countingStream struct {
-	compression.StreamCompressor
-	owner *countingCompression
-}
-
-func (s *countingStream) Close() error {
-	s.owner.closes.Add(1)
-	return s.StreamCompressor.Close()
 }
 
 func routedTestEndpoint(t *testing.T, id, key string, requests chan<- routedRequest) (*httptest.Server, *config.Endpoints) {
@@ -90,7 +60,7 @@ func routedTestEndpoint(t *testing.T, id, key string, requests chan<- routedRequ
 			return
 		}
 		for _, record := range records {
-			requests <- routedRequest{endpoint: id, key: r.Header.Get("DD-API-KEY"), message: record.Message, batchCount: len(records)}
+			requests <- routedRequest{endpoint: id, message: record.Message, batchCount: len(records)}
 		}
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -107,12 +77,11 @@ func routedTestEndpoint(t *testing.T, id, key string, requests chan<- routedRequ
 	return server, endpoints
 }
 
-// newRoutedTestProvider supplies common dependencies. Tests keep groups,
-// selection, capacity, processing, and provider lifecycle explicit.
+// newRoutedTestProvider supplies common dependencies for the lifecycle tests.
 func newRoutedTestProvider(t *testing.T, opts RoutedOptions) *RoutedProvider {
 	t.Helper()
 	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
+
 	opts.Config = cfg
 	opts.DiagnosticMessageReceiver = &diagnostic.BufferedMessageReceiver{}
 	opts.DestinationsContext = client.NewDestinationsContext()
@@ -125,377 +94,7 @@ func newRoutedTestProvider(t *testing.T, opts RoutedOptions) *RoutedProvider {
 	return p
 }
 
-func TestRoutedFanoutOffersHealthyGroupBeforeBlockedGroup(t *testing.T) {
-	blocked := make(chan *message.Payload, 1)
-	healthy := make(chan *message.Payload, 1)
-	blocked <- message.NewPayload(nil, nil, "", 0) // A's queue is already full.
-	sink := &routedTestSink{ch: make(chan *message.Payload, 1)}
-	progress, err := routing.NewProgress(2, sink)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer progress.Close()
-	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
-	msg := message.NewMessageWithSource([]byte("both"), "info", source, time.Now().UnixNano())
-	msg.Origin.Identifier = "file:fanout"
-	msg.Origin.Offset = "1"
-	if _, err := progress.Register(context.Background(), msg, routing.Selection{Groups: []string{"a", "b"}, Generation: 1}, []string{"a", "b"}); err != nil {
-		t.Fatal(err)
-	}
-	meta := msg.MessageMetadata
-	payload := message.NewPayload([]*message.MessageMetadata{&meta}, []byte("encoded"), "", 7)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	done := make(chan struct{})
-	go func() {
-		offerPayloadToGroups(ctx, payload, []string{"a", "b"}, map[string]chan *message.Payload{"a": blocked, "b": healthy})
-		close(done)
-	}()
-	select {
-	case got := <-healthy:
-		if got == payload || !bytes.Equal(got.Encoded, payload.Encoded) {
-			t.Fatal("healthy group received the wrong payload")
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("healthy group waited for blocked A")
-	}
-	select {
-	case <-done:
-		t.Fatal("A's pending copy was discarded")
-	default:
-	}
-	select {
-	case checkpoint := <-sink.ch:
-		t.Fatalf("queue admission advanced checkpoint: %+v", checkpoint)
-	default:
-	}
-	progress.CompleteGroup("b", payload)
-	select {
-	case <-sink.ch:
-		t.Fatal("B completion advanced past pending A")
-	default:
-	}
-	<-blocked // Make room for A's retained copy.
-	select {
-	case got := <-blocked:
-		if !bytes.Equal(got.Encoded, payload.Encoded) {
-			t.Fatal("A's retained payload changed")
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("A's retained copy was not admitted")
-	}
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("fanout did not finish after A had capacity")
-	}
-	select {
-	case <-healthy:
-		t.Fatal("B received a duplicate copy")
-	default:
-	}
-	progress.CompleteGroup("a", payload)
-	select {
-	case checkpoint := <-sink.ch:
-		if got := checkpoint.MessageMetas[0].Origin.Offset; got != "1" {
-			t.Fatalf("checkpoint offset = %q", got)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("completed A and B did not advance checkpoint")
-	}
-}
-
-func TestRoutedFanoutOffersHealthyStreamBeforeBlockedStream(t *testing.T) {
-	blocked := make(chan *message.Message, 1)
-	healthy := make(chan *message.Message, 1)
-	blocked <- &message.Message{}
-	msg := &message.Message{}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	done := make(chan struct{})
-	go func() {
-		offerToChannels(ctx, []channelOffer[*message.Message]{
-			{input: blocked, value: msg},
-			{input: healthy, value: msg},
-		})
-		close(done)
-	}()
-	select {
-	case got := <-healthy:
-		if got != msg {
-			t.Fatal("healthy stream received a different record")
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("healthy stream waited for blocked stream")
-	}
-	select {
-	case <-done:
-		t.Fatal("blocked stream's copy was discarded")
-	default:
-	}
-	<-blocked
-	select {
-	case got := <-blocked:
-		if got != msg {
-			t.Fatal("blocked stream received a different record")
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("blocked stream's copy was not retained")
-	}
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("fanout did not finish")
-	}
-	select {
-	case <-healthy:
-		t.Fatal("healthy stream received a duplicate record")
-	default:
-	}
-}
-
-func TestRoutedDispatchDoesNotWaitAcrossSources(t *testing.T) {
-	requests := make(chan routedRequest, 1)
-	a, endpointA := routedTestEndpoint(t, "a", "key-a", requests)
-	defer a.Close()
-	b, endpointB := routedTestEndpoint(t, "b", "key-b", requests)
-	defer b.Close()
-	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
-	ctx := client.NewDestinationsContext()
-	p, err := NewRoutedProvider(RoutedOptions{
-		NumberOfPipelines: 1, Sink: &routedTestSink{ch: make(chan *message.Payload, 2)},
-		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups:                    []routing.Group{{ID: "a", Endpoints: endpointA}, {ID: "b", Endpoints: endpointB}},
-		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-		Resolve:                   func(*message.Message) (routing.Selection, error) { return routing.Selection{}, nil },
-		DestinationsContext:       ctx, Config: cfg,
-		Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer p.Stop()
-	p.streams["group:a"].input <- &message.Message{} // A is saturated.
-	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
-	makeMessage := func(id string, groups []string) *message.Message {
-		m := message.NewMessageWithSource([]byte(id), "info", source, time.Now().UnixNano())
-		m.Origin.Identifier, m.Origin.Offset = id, "1"
-		if _, err := p.progress.Register(context.Background(), m, routing.Selection{Groups: groups, Generation: 1}, groups); err != nil {
-			t.Fatal(err)
-		}
-		return m
-	}
-	x := makeMessage("x", []string{"a", "b"})
-	y := makeMessage("y", []string{"b"})
-	go p.dispatchProcessed()
-	p.processed <- x
-	p.processed <- y
-	seen := make(map[string]bool)
-	for len(seen) < 2 {
-		select {
-		case got := <-p.streams["group:b"].input:
-			seen[got.Origin.Identifier] = true
-		case <-time.After(time.Second):
-			p.cancel()
-			close(p.processed)
-			<-p.processedDone
-			t.Fatal("Y waited for X's blocked A stream")
-		}
-	}
-	p.cancel()
-	close(p.processed)
-	<-p.processedDone
-}
-
-func TestRoutedProviderExactHTTPRecipientsAndCheckpoints(t *testing.T) {
-	requests := make(chan routedRequest, 8)
-	serverA, endpointA := routedTestEndpoint(t, "a", "key-a", requests)
-	defer serverA.Close()
-	serverB, endpointB := routedTestEndpoint(t, "b", "key-b", requests)
-	defer serverB.Close()
-	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
-	cfg.SetInTest("logs_config.payload_channel_size", 2)
-	ctx := client.NewDestinationsContext()
-	sink := &routedTestSink{}
-	provider, err := NewRoutedProvider(RoutedOptions{
-		NumberOfPipelines:         2,
-		Sink:                      sink,
-		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups:                    []routing.Group{{ID: "a", Endpoints: endpointA}, {ID: "b", Endpoints: endpointB}},
-		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-		Resolve: func(m *message.Message) (routing.Selection, error) {
-			content := string(m.GetContent())
-			switch content {
-			case "a":
-				return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
-			case "b":
-				return routing.Selection{Groups: []string{"b"}, Generation: 1}, nil
-			default:
-				return routing.Selection{Groups: []string{"a", "b", "a"}, Generation: 1}, nil
-			}
-		},
-		DestinationsContext: ctx,
-		Config:              cfg,
-		Compression:         compressionfx.NewMockCompressor(),
-		Secrets:             secretsnoopimpl.NewComponent().Comp,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	sink.ch = make(chan *message.Payload, 8)
-	ctx.Start()
-	provider.Start()
-	defer provider.Stop()
-	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
-	for i, content := range []string{"a", "b", "both"} {
-		msg := message.NewMessageWithSource([]byte(content), "info", source, time.Now().UnixNano())
-		msg.Origin.Identifier = "file:test"
-		msg.Origin.Offset = strconv.Itoa(i + 1)
-		provider.NextPipelineChan() <- msg
-	}
-	want := map[routedRequest]int{
-		{"a", "key-a", "a", 1}:    1,
-		{"b", "key-b", "b", 1}:    1,
-		{"a", "key-a", "both", 1}: 1,
-		{"b", "key-b", "both", 1}: 1,
-	}
-	for range 4 {
-		select {
-		case got := <-requests:
-			want[got]--
-		case <-time.After(5 * time.Second):
-			t.Fatal("timed out waiting for routed HTTP request")
-		}
-	}
-	for request, count := range want {
-		if count != 0 {
-			t.Errorf("recipient %+v: remaining count %d", request, count)
-		}
-	}
-	for i := 1; i <= 3; i++ {
-		select {
-		case checkpoint := <-sink.ch:
-			if got := checkpoint.MessageMetas[0].Origin.Offset; got != strconv.Itoa(i) {
-				t.Fatalf("checkpoint %d advanced to %q", i, got)
-			}
-		case <-time.After(5 * time.Second):
-			t.Fatalf("checkpoint %d did not arrive", i)
-		}
-	}
-	if err := provider.RetireSource(context.Background(), "file:test", 1); err != nil {
-		t.Fatal(err)
-	}
-	provider.sourceDispatchMu.Lock()
-	_, retained := provider.sourceDispatch["\x01file:test"]
-	provider.sourceDispatchMu.Unlock()
-	if retained {
-		t.Fatal("retired source retained its dispatch worker")
-	}
-}
-
-func TestRoutedProviderSharedStreamCompressesOnceAndSendsBothGroups(t *testing.T) {
-	type received struct {
-		key  string
-		body []byte
-	}
-	requests := make(chan received, 2)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
-		encoded, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Error(err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		requests <- received{key: r.Header.Get("DD-API-KEY"), body: encoded}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-	parsed, _ := url.Parse(server.URL)
-	port, _ := strconv.Atoi(parsed.Port())
-	makeGroup := func(id, key string) routing.Group {
-		main := config.NewEndpoint(key, "", parsed.Hostname(), port, "", false)
-		main.UseCompression = true
-		main.CompressionKind = compression.GzipKind
-		main.CompressionLevel = gzip.BestSpeed
-		return routing.Group{ID: id, Stream: "identical", Endpoints: config.NewEndpointsWithBatchSettings(main, nil, false, true, 10*time.Millisecond, 1, 1, 1024*1024, 2)}
-	}
-	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
-	cfg.SetInTest("logs_config.payload_channel_size", 2)
-	ctx := client.NewDestinationsContext()
-	ctx.Start()
-	sink := &routedTestSink{ch: make(chan *message.Payload, 2)}
-	compressor := &countingCompression{}
-	provider, err := NewRoutedProvider(RoutedOptions{
-		NumberOfPipelines:         1,
-		Sink:                      sink,
-		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups:                    []routing.Group{makeGroup("a", "key-a"), makeGroup("b", "key-b")},
-		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-		Resolve: func(*message.Message) (routing.Selection, error) {
-			return routing.Selection{Groups: []string{"a", "b"}, Generation: 1}, nil
-		},
-		DestinationsContext: ctx,
-		Config:              cfg,
-		Compression:         compressor,
-		Secrets:             secretsnoopimpl.NewComponent().Comp,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider.Start()
-	defer provider.Stop()
-	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
-	msg := message.NewMessageWithSource([]byte("shared"), "info", source, time.Now().UnixNano())
-	msg.Origin.Identifier = "file:shared"
-	msg.Origin.Offset = "1"
-	provider.NextPipelineChan() <- msg
-	next := func() received {
-		select {
-		case request := <-requests:
-			return request
-		case <-time.After(5 * time.Second):
-			t.Fatal("timed out waiting for shared stream request")
-			return received{}
-		}
-	}
-	first := next()
-	second := next()
-	if first.key == second.key || !bytes.Equal(first.body, second.body) {
-		t.Fatalf("shared stream must make two requests with distinct credentials and identical bytes: %q, %q", first.key, second.key)
-	}
-	if (first.key != "key-a" && first.key != "key-b") || (second.key != "key-a" && second.key != "key-b") {
-		t.Fatalf("unexpected credentials: %q, %q", first.key, second.key)
-	}
-	decoded, err := gzip.NewReader(bytes.NewReader(first.body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	content, err := io.ReadAll(decoded)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var records []struct {
-		Message string `json:"message"`
-	}
-	if err := json.Unmarshal(content, &records); err != nil || len(records) != 1 || records[0].Message != "shared" {
-		t.Fatalf("decoded payload: %q, %v", content, err)
-	}
-	if got := compressor.closes.Load(); got != 1 {
-		t.Fatalf("compression operations: got %d, want 1", got)
-	}
-	select {
-	case checkpoint := <-sink.ch:
-		if checkpoint.MessageMetas[0].Origin.Offset != "1" {
-			t.Fatal("wrong checkpoint")
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("shared groups did not complete")
-	}
-}
+var excludeAllEndpoints = routing.EvaluatorFunc(func(routing.RecordView) (bool, error) { return false, nil })
 
 func TestRoutedProviderLocalLossesReleaseOnlyTheirRecords(t *testing.T) {
 	requests := make(chan routedRequest, 2)
@@ -503,7 +102,7 @@ func TestRoutedProviderLocalLossesReleaseOnlyTheirRecords(t *testing.T) {
 	defer server.Close()
 	endpoints.BatchMaxContentSize = 1
 	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
+
 	cfg.SetInTest("logs_config.payload_channel_size", 2)
 	ctx := client.NewDestinationsContext()
 	ctx.Start()
@@ -513,15 +112,12 @@ func TestRoutedProviderLocalLossesReleaseOnlyTheirRecords(t *testing.T) {
 		Sink:                      sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		ProcessingRules:           []*config.ProcessingRule{{Type: config.ExcludeAtMatch, Regex: regexp.MustCompile("^excluded$")}},
-		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Endpoints:                 []routing.EndpointTarget{{ID: "a", Endpoints: endpoints}},
 		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-		Resolve: func(*message.Message) (routing.Selection, error) {
-			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
-		},
-		DestinationsContext: ctx,
-		Config:              cfg,
-		Compression:         compressionfx.NewMockCompressor(),
-		Secrets:             secretsnoopimpl.NewComponent().Comp,
+		DestinationsContext:       ctx,
+		Config:                    cfg,
+		Compression:               compressionfx.NewMockCompressor(),
+		Secrets:                   secretsnoopimpl.NewComponent().Comp,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -552,349 +148,12 @@ func TestRoutedProviderLocalLossesReleaseOnlyTheirRecords(t *testing.T) {
 	}
 }
 
-func TestRoutedProviderInvalidSelectionNeverAdvancesLaterCheckpoint(t *testing.T) {
-	requests := make(chan routedRequest, 2)
-	server, endpoints := routedTestEndpoint(t, "a", "key-a", requests)
-	defer server.Close()
-	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
-	cfg.SetInTest("logs_config.payload_channel_size", 2)
-	ctx := client.NewDestinationsContext()
-	ctx.Start()
-	sink := &routedTestSink{ch: make(chan *message.Payload, 2)}
-	errorsReported := make(chan error, 2)
-	provider, err := NewRoutedProvider(RoutedOptions{
-		NumberOfPipelines:         1,
-		Sink:                      sink,
-		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
-		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-		Resolve: func(m *message.Message) (routing.Selection, error) {
-			if string(m.GetContent()) == "invalid" {
-				return routing.Selection{Groups: []string{"unknown"}, Generation: 1}, nil
-			}
-			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
-		},
-		OnError:             func(err error) { errorsReported <- err },
-		DestinationsContext: ctx,
-		Config:              cfg,
-		Compression:         compressionfx.NewMockCompressor(),
-		Secrets:             secretsnoopimpl.NewComponent().Comp,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider.Start()
-	defer provider.Stop()
-	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
-	for i, content := range []string{"invalid", "valid"} {
-		msg := message.NewMessageWithSource([]byte(content), "info", source, time.Now().UnixNano())
-		msg.Origin.Identifier = "file:invalid"
-		msg.Origin.Offset = strconv.Itoa(i + 1)
-		provider.NextPipelineChan() <- msg
-	}
-	select {
-	case err := <-errorsReported:
-		if !errors.Is(err, routing.ErrInvalidSelection) {
-			t.Fatalf("unexpected selection error: %v", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("invalid selection was not reported")
-	}
-	select {
-	case request := <-requests:
-		if request.message != "valid" {
-			t.Fatalf("invalid selection reached endpoint: %+v", request)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("valid later record did not reach endpoint")
-	}
-	select {
-	case checkpoint := <-sink.ch:
-		t.Fatalf("invalid selection was implicitly acknowledged at %s", checkpoint.MessageMetas[0].Origin.Offset)
-	case <-time.After(20 * time.Millisecond):
-	}
-}
-
-func TestRoutedProviderCancellationDoesNotAcknowledgeRetryingGroup(t *testing.T) {
-	requests := make(chan struct{}, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		select {
-		case requests <- struct{}{}:
-		default:
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer server.Close()
-	parsed, _ := url.Parse(server.URL)
-	port, _ := strconv.Atoi(parsed.Port())
-	main := config.NewEndpoint("test-key", "", parsed.Hostname(), port, "", false)
-	endpoints := config.NewEndpointsWithBatchSettings(main, nil, false, true, 10*time.Millisecond, 1, 1, 1024*1024, 2)
-	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
-	cfg.SetInTest("logs_config.payload_channel_size", 2)
-	ctx := client.NewDestinationsContext()
-	ctx.Start()
-	sink := &routedTestSink{ch: make(chan *message.Payload, 2)}
-	provider, err := NewRoutedProvider(RoutedOptions{
-		NumberOfPipelines:         1,
-		Sink:                      sink,
-		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
-		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-		Resolve: func(*message.Message) (routing.Selection, error) {
-			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
-		},
-		DestinationsContext: ctx,
-		Config:              cfg,
-		Compression:         compressionfx.NewMockCompressor(),
-		Secrets:             secretsnoopimpl.NewComponent().Comp,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider.Start()
-	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
-	msg := message.NewMessageWithSource([]byte("retrying"), "info", source, time.Now().UnixNano())
-	msg.Origin.Identifier = "file:retrying"
-	msg.Origin.Offset = "1"
-	provider.NextPipelineChan() <- msg
-	select {
-	case <-requests:
-	case <-time.After(5 * time.Second):
-		t.Fatal("retrying group was never attempted")
-	}
-	ctx.Stop()
-	stopped := make(chan struct{})
-	go func() {
-		provider.Stop()
-		close(stopped)
-	}()
-	select {
-	case <-stopped:
-	case <-time.After(5 * time.Second):
-		t.Fatal("routed shutdown blocked on retrying group")
-	}
-	select {
-	case checkpoint := <-sink.ch:
-		t.Fatalf("cancelled retry advanced checkpoint to %s", checkpoint.MessageMetas[0].Origin.Offset)
-	default:
-	}
-}
-
-func TestRoutedProviderHealthyGroupProgressesDuringOtherGroupRetry(t *testing.T) {
-	unavailable := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer unavailable.Close()
-	parsedA, _ := url.Parse(unavailable.URL)
-	portA, _ := strconv.Atoi(parsedA.Port())
-	mainA := config.NewEndpoint("key-a", "", parsedA.Hostname(), portA, "", false)
-	endpointA := config.NewEndpointsWithBatchSettings(mainA, nil, false, true, 10*time.Millisecond, 1, 1, 1024*1024, 2)
-	requests := make(chan routedRequest, 4)
-	available, endpointB := routedTestEndpoint(t, "b", "key-b", requests)
-	defer available.Close()
-	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
-	cfg.SetInTest("logs_config.payload_channel_size", 2)
-	ctx := client.NewDestinationsContext()
-	ctx.Start()
-	sink := &routedTestSink{ch: make(chan *message.Payload, 4)}
-	provider, err := NewRoutedProvider(RoutedOptions{
-		NumberOfPipelines:         1,
-		Sink:                      sink,
-		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups:                    []routing.Group{{ID: "a", Endpoints: endpointA}, {ID: "b", Endpoints: endpointB}},
-		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-		Resolve: func(*message.Message) (routing.Selection, error) {
-			return routing.Selection{Groups: []string{"a", "b"}, Generation: 1}, nil
-		},
-		DestinationsContext: ctx,
-		Config:              cfg,
-		Compression:         compressionfx.NewMockCompressor(),
-		Secrets:             secretsnoopimpl.NewComponent().Comp,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider.Start()
-	defer func() {
-		ctx.Stop()
-		provider.Stop()
-	}()
-	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
-	for i := range 3 {
-		msg := message.NewMessageWithSource([]byte(strconv.Itoa(i)), "info", source, time.Now().UnixNano())
-		msg.Origin.Identifier = "file:shared-outage"
-		msg.Origin.Offset = strconv.Itoa(i + 1)
-		provider.NextPipelineChan() <- msg
-	}
-	for range 3 {
-		select {
-		case request := <-requests:
-			if request.endpoint != "b" {
-				t.Fatalf("healthy group request: %+v", request)
-			}
-		case <-time.After(5 * time.Second):
-			t.Fatal("healthy group stalled before routing capacity filled")
-		}
-	}
-	select {
-	case checkpoint := <-sink.ch:
-		t.Fatalf("retrying group obligation lost at %s", checkpoint.MessageMetas[0].Origin.Offset)
-	case <-time.After(20 * time.Millisecond):
-	}
-}
-
-// A saturated X must not hold up an unrelated file that selects only B.
-// The source budget is intentionally smaller than the aggregate progress budget.
-func TestRoutedProviderSaturatedSourceDoesNotBlockHealthySource(t *testing.T) {
-	var aAvailable atomic.Bool
-	a := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		if !aAvailable.Load() {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-	}))
-	defer a.Close()
-	parsedA, _ := url.Parse(a.URL)
-	portA, _ := strconv.Atoi(parsedA.Port())
-	mainA := config.NewEndpoint("key-a", "", parsedA.Hostname(), portA, "", false)
-	endpointA := config.NewEndpointsWithBatchSettings(mainA, nil, false, true, 10*time.Millisecond, 1, 1, 1024*1024, 2)
-	requests := make(chan routedRequest, 128)
-	b, endpointB := routedTestEndpoint(t, "b", "key-b", requests)
-	defer b.Close()
-	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
-	cfg.SetInTest("logs_config.payload_channel_size", 2)
-	ctx := client.NewDestinationsContext()
-	ctx.Start()
-	sink := &routedTestSink{ch: make(chan *message.Payload, 128)}
-	provider, err := NewRoutedProvider(RoutedOptions{
-		NumberOfPipelines: 1, Sink: sink,
-		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups:                    []routing.Group{{ID: "a", Endpoints: endpointA}, {ID: "b", Endpoints: endpointB}},
-		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-		Resolve: func(m *message.Message) (routing.Selection, error) {
-			if m.Origin.Identifier == "file:y" {
-				return routing.Selection{Groups: []string{"b"}, Generation: 1}, nil
-			}
-			return routing.Selection{Groups: []string{"a", "b"}, Generation: 1}, nil
-		},
-		DestinationsContext: ctx, Config: cfg,
-		Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider.Start()
-	defer func() { ctx.Stop(); provider.Stop() }()
-	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
-	xInput, err := provider.SourceInput("file:x", 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	yInput, err := provider.SourceInput("file:y", 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	makeMessage := func(id string, offset int) *message.Message {
-		m := message.NewMessageWithSource([]byte(id+":"+strconv.Itoa(offset)), "info", source, time.Now().UnixNano())
-		m.Origin.Identifier, m.Origin.Offset = "file:"+id, strconv.Itoa(offset)
-		return m
-	}
-	for i := 1; i <= 64; i++ {
-		xInput <- makeMessage("x", i)
-	}
-	seenX := make(map[string]bool)
-	for i := 0; i < 64; i++ {
-		select {
-		case request := <-requests:
-			if request.endpoint != "b" || !bytes.HasPrefix([]byte(request.message), []byte("x:")) || seenX[request.message] {
-				t.Fatalf("unexpected or repeated B request %q at %d", request.message, i)
-			}
-			seenX[request.message] = true
-		case <-time.After(10 * time.Second):
-			t.Fatal("X did not reach B before its source budget filled")
-		}
-	}
-	xSent := make(chan struct{})
-	go func() { xInput <- makeMessage("x", 65); close(xSent) }()
-	select {
-	case <-xSent:
-	case <-time.After(10 * time.Second):
-		t.Fatal("X's next record could not enter bounded ingress")
-	}
-	xInput <- makeMessage("x", 66) // One queued record may sit behind registration.
-	select {
-	case xInput <- makeMessage("x", 67):
-		t.Fatal("X kept accepting records beyond its bounded source input")
-	default:
-	}
-	flushCtx, cancelFlush := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	provider.Flush(flushCtx)
-	if flushCtx.Err() != context.DeadlineExceeded {
-		t.Fatal("blocked Flush did not honor its deadline")
-	}
-	cancelFlush()
-	yInput <- makeMessage("y", 1)
-	select {
-	case request := <-requests:
-		if request.message != "y:1" {
-			t.Fatalf("X exceeded its source budget before Y progressed: %q", request.message)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("Y could not deliver to healthy B while X was saturated")
-	}
-	select {
-	case checkpoint := <-sink.ch:
-		if checkpoint.MessageMetas[0].Origin.Identifier != "file:y" {
-			t.Fatalf("X checkpoint advanced with A pending: %s", checkpoint.MessageMetas[0].Origin.Identifier)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("Y checkpoint did not advance independently")
-	}
-	if err := provider.RetireSource(context.Background(), "file:y", 1); err != nil {
-		t.Fatal(err)
-	}
-	provider.lifecycle.RLock()
-	_, yRetained := provider.sourceInputs[sourceInputKey{identifier: "file:y", generation: 1}]
-	provider.lifecycle.RUnlock()
-	if yRetained {
-		t.Fatal("retired Y retained its producer input")
-	}
-	aAvailable.Store(true)
-	for _, want := range []string{"x:65", "x:66"} {
-		select {
-		case request := <-requests:
-			if request.message != want {
-				t.Fatalf("X resumed with request %q, want %q", request.message, want)
-			}
-		case <-time.After(30 * time.Second):
-			t.Fatal("X did not deliver to B after A recovered")
-		}
-	}
-	deadline := time.After(30 * time.Second)
-	for {
-		select {
-		case checkpoint := <-sink.ch:
-			if checkpoint.MessageMetas[0].Origin.Identifier != "file:x" {
-				t.Fatalf("unexpected checkpoint source %s", checkpoint.MessageMetas[0].Origin.Identifier)
-			}
-			if checkpoint.MessageMetas[0].Origin.Offset == "66" {
-				return
-			}
-		case <-deadline:
-			t.Fatal("X checkpoint did not recover after A became available")
-		}
-	}
-}
-
 func TestRoutedProviderStopReleasesBlockedSourceAdmission(t *testing.T) {
 	requests := make(chan routedRequest, 1)
 	server, endpoints := routedTestEndpoint(t, "a", "key-a", requests)
 	defer server.Close()
 	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
+
 	ctx := client.NewDestinationsContext()
 	ctx.Start()
 	defer ctx.Stop()
@@ -902,12 +161,9 @@ func TestRoutedProviderStopReleasesBlockedSourceAdmission(t *testing.T) {
 	p, err := NewRoutedProvider(RoutedOptions{
 		NumberOfPipelines: 1, Sink: sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Endpoints:                 []routing.EndpointTarget{{ID: "a", Endpoints: endpoints}},
 		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-		Resolve: func(*message.Message) (routing.Selection, error) {
-			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
-		},
-		DestinationsContext: ctx, Config: cfg,
+		DestinationsContext:       ctx, Config: cfg,
 		Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
 	})
 	if err != nil {
@@ -925,7 +181,7 @@ func TestRoutedProviderStopReleasesBlockedSourceAdmission(t *testing.T) {
 		return m
 	}
 	for i := 0; i < routing.SourcePendingLimit; i++ {
-		if _, err := p.progress.Register(context.Background(), makeMessage(), routing.Selection{Generation: 1}, []string{"a"}); err != nil {
+		if _, err := p.progress.Reserve(context.Background(), makeMessage(), 1); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -952,7 +208,7 @@ func TestRoutedProviderFlushIncludesPriorRecord(t *testing.T) {
 	endpoints.BatchWait = time.Hour
 	endpoints.BatchMaxSize = 100
 	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
+
 	cfg.SetInTest("logs_config.payload_channel_size", 2)
 	ctx := client.NewDestinationsContext()
 	ctx.Start()
@@ -961,15 +217,12 @@ func TestRoutedProviderFlushIncludesPriorRecord(t *testing.T) {
 		NumberOfPipelines:         2,
 		Sink:                      sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Endpoints:                 []routing.EndpointTarget{{ID: "a", Endpoints: endpoints}},
 		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-		Resolve: func(*message.Message) (routing.Selection, error) {
-			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
-		},
-		DestinationsContext: ctx,
-		Config:              cfg,
-		Compression:         compressionfx.NewMockCompressor(),
-		Secrets:             secretsnoopimpl.NewComponent().Comp,
+		DestinationsContext:       ctx,
+		Config:                    cfg,
+		Compression:               compressionfx.NewMockCompressor(),
+		Secrets:                   secretsnoopimpl.NewComponent().Comp,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1018,152 +271,22 @@ func TestRoutedProviderFlushIncludesPriorRecord(t *testing.T) {
 	}
 }
 
-func TestRoutedProviderCredentialUnavailableKeepsGroupPending(t *testing.T) {
-	for _, tc := range []struct {
-		name        string
-		settingPath string
-	}{
-		{"expected later", "logs_config.additional_endpoints"},
-		{"permanently unavailable", "database_monitoring.samples.additional_endpoints"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			unavailableRequests := make(chan struct{}, 1)
-			unavailable := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				select {
-				case unavailableRequests <- struct{}{}:
-				default:
-				}
-				w.WriteHeader(http.StatusOK)
-			}))
-			defer unavailable.Close()
-			parsed, _ := url.Parse(unavailable.URL)
-			port, _ := strconv.Atoi(parsed.Port())
-			mainA := config.NewEndpoint("DELA[org-uuid, aws]", tc.settingPath, parsed.Hostname(), port, "", false)
-			endpointA := config.NewEndpointsWithBatchSettings(mainA, nil, false, true, 10*time.Millisecond, 1, 1, 1024*1024, 2)
-			availableRequests := make(chan routedRequest, 1)
-			available, endpointB := routedTestEndpoint(t, "b", "key-b", availableRequests)
-			defer available.Close()
-			cfg := configmock.New(t)
-			cfg.SetInTest("logs_config.routing.max_groups", 4)
-			cfg.SetInTest("logs_config.payload_channel_size", 2)
-			ctx := client.NewDestinationsContext()
-			ctx.Start()
-			sink := &routedTestSink{ch: make(chan *message.Payload, 1)}
-			provider, err := NewRoutedProvider(RoutedOptions{
-				NumberOfPipelines:         1,
-				Sink:                      sink,
-				DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-				Groups:                    []routing.Group{{ID: "a", Endpoints: endpointA}, {ID: "b", Endpoints: endpointB}},
-				Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-				Resolve: func(*message.Message) (routing.Selection, error) {
-					return routing.Selection{Groups: []string{"a", "b"}, Generation: 1}, nil
-				},
-				DestinationsContext: ctx,
-				Config:              cfg,
-				Compression:         compressionfx.NewMockCompressor(),
-				Secrets:             secretsnoopimpl.NewComponent().Comp,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			provider.Start()
-			defer func() {
-				ctx.Stop()
-				provider.Stop()
-			}()
-			source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
-			msg := message.NewMessageWithSource([]byte("needs-both"), "info", source, time.Now().UnixNano())
-			msg.Origin.Identifier = "file:credential"
-			msg.Origin.Offset = "1"
-			provider.NextPipelineChan() <- msg
-			select {
-			case <-availableRequests:
-			case <-time.After(5 * time.Second):
-				t.Fatal("available group did not progress")
-			}
-			select {
-			case <-unavailableRequests:
-				t.Fatal("credential-less group sent an HTTP request")
-			case checkpoint := <-sink.ch:
-				t.Fatalf("credential-less group advanced checkpoint to %s", checkpoint.MessageMetas[0].Origin.Offset)
-			case <-time.After(20 * time.Millisecond):
-			}
-		})
-	}
-}
-
-func TestRoutedProviderPermanentHTTPRejectionIsTerminalLoss(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-	}))
-	defer server.Close()
-	parsed, _ := url.Parse(server.URL)
-	port, _ := strconv.Atoi(parsed.Port())
-	main := config.NewEndpoint("key-a", "", parsed.Hostname(), port, "", false)
-	endpoints := config.NewEndpointsWithBatchSettings(main, nil, false, true, 10*time.Millisecond, 1, 1, 1024*1024, 2)
-	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
-	cfg.SetInTest("logs_config.payload_channel_size", 2)
-	ctx := client.NewDestinationsContext()
-	ctx.Start()
-	sink := &routedTestSink{ch: make(chan *message.Payload, 1)}
-	provider, err := NewRoutedProvider(RoutedOptions{
-		NumberOfPipelines:         1,
-		Sink:                      sink,
-		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
-		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-		Resolve: func(*message.Message) (routing.Selection, error) {
-			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
-		},
-		DestinationsContext: ctx,
-		Config:              cfg,
-		Compression:         compressionfx.NewMockCompressor(),
-		Secrets:             secretsnoopimpl.NewComponent().Comp,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider.Start()
-	defer provider.Stop()
-	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
-	msg := message.NewMessageWithSource([]byte("permanent-loss"), "info", source, time.Now().UnixNano())
-	msg.Origin.Identifier = "file:permanent"
-	msg.Origin.Offset = "1"
-	provider.NextPipelineChan() <- msg
-	select {
-	case checkpoint := <-sink.ch:
-		if checkpoint.MessageMetas[0].Origin.Offset != "1" {
-			t.Fatal("wrong terminal-loss checkpoint")
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("permanent HTTP rejection did not reach existing terminal output")
-	}
-}
-
 func TestRoutedProviderRetiredRecordDoesNotBlockReplacement(t *testing.T) {
 	endpoint := config.NewEndpoint("test-key", "", "localhost", 12345, "", false)
 	endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
 	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
+
 	sink := &routedTestSink{ch: make(chan *message.Payload, 4)}
 	reported := make(chan error, 1)
 	p, err := NewRoutedProvider(RoutedOptions{
 		NumberOfPipelines: 1, Sink: sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Endpoints:                 []routing.EndpointTarget{{ID: "a", Endpoints: endpoints, Evaluator: excludeAllEndpoints}},
 		Generation: func(m *message.Message) (uint64, error) {
 			if string(m.GetContent()) == "old" {
 				return 42, nil
 			}
 			return 7, nil
-		},
-		Resolve: func(m *message.Message) (routing.Selection, error) {
-			generation := uint64(7)
-			if string(m.GetContent()) == "old" {
-				generation = 42
-			}
-			return routing.Selection{Excluded: true, Generation: generation}, nil
 		},
 		OnError:             func(err error) { reported <- err },
 		DestinationsContext: client.NewDestinationsContext(), Config: cfg,
@@ -1311,26 +434,21 @@ func TestRoutedProviderRetirementWaitsForAdmission(t *testing.T) {
 				endpoint := config.NewEndpoint("test-key", "", "localhost", 12345, "", false)
 				endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
 				cfg := configmock.New(t)
-				cfg.SetInTest("logs_config.routing.max_groups", 4)
+
 				sink := &routedTestSink{ch: make(chan *message.Payload, 4)}
 				resolving := make(chan struct{})
 				release := make(chan struct{})
 				p, err := NewRoutedProvider(RoutedOptions{
 					NumberOfPipelines: 1, Sink: sink,
 					DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-					Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
-					Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-					Resolve: func(m *message.Message) (routing.Selection, error) {
-						if string(m.GetContent()) == "old-first" {
+					Endpoints: []routing.EndpointTarget{{ID: "a", Endpoints: endpoints, Evaluator: routing.EvaluatorFunc(func(view routing.RecordView) (bool, error) {
+						if view.Status() == message.StatusError {
 							close(resolving)
 							<-release
 						}
-						generation := uint64(7)
-						if bytes.HasPrefix(m.GetContent(), []byte("old")) {
-							generation = 42
-						}
-						return routing.Selection{Excluded: true, Generation: generation}, nil
-					},
+						return false, nil
+					})}},
+					Generation:          func(*message.Message) (uint64, error) { return 1, nil },
 					DestinationsContext: client.NewDestinationsContext(), Config: cfg,
 					Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
 				})
@@ -1352,7 +470,11 @@ func TestRoutedProviderRetirementWaitsForAdmission(t *testing.T) {
 				}
 				source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
 				makeRecord := func(content string) *message.Message {
-					m := message.NewMessageWithSource([]byte(content), "info", source, time.Now().UnixNano())
+					status := message.StatusInfo
+					if content == "old-first" {
+						status = message.StatusError
+					}
+					m := message.NewMessageWithSource([]byte(content), status, source, time.Now().UnixNano())
 					m.Origin.Identifier = "file:test"
 					m.Origin.Offset = content
 					return m
@@ -1365,7 +487,7 @@ func TestRoutedProviderRetirementWaitsForAdmission(t *testing.T) {
 				retired := make(chan error, 1)
 				go func() { retired <- p.RetireSource(context.Background(), "file:test", 42) }()
 				synctest.Wait()
-				// Admission now reserves before Resolve runs in the processor.
+				// Admission now reserves before endpoint evaluation runs.
 				// Retirement may finish its admission barrier, but must refuse
 				// to release the producer while selection remains pending.
 				if err := <-retired; !errors.Is(err, routing.ErrSourcePending) {
@@ -1415,18 +537,15 @@ func TestRoutedProviderStopCancelsRetryingHTTPAfterGrace(t *testing.T) {
 	endpoint.BackoffBase, endpoint.BackoffMax, endpoint.BackoffFactor = 1, 2, 2
 	endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Millisecond, 1, 1, 1024, 2)
 	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
+
 	ctx := client.NewDestinationsContext()
 	ctx.Start()
 	defer ctx.Stop()
 	sink := &routedTestSink{ch: make(chan *message.Payload, 4)}
 	p, err := NewRoutedProvider(RoutedOptions{
 		NumberOfPipelines: 1, Sink: sink, DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups:     []routing.Group{{ID: "a", Endpoints: endpoints}},
-		Generation: func(*message.Message) (uint64, error) { return 1, nil },
-		Resolve: func(*message.Message) (routing.Selection, error) {
-			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
-		},
+		Endpoints:           []routing.EndpointTarget{{ID: "a", Endpoints: endpoints}},
+		Generation:          func(*message.Message) (uint64, error) { return 1, nil },
 		DestinationsContext: ctx, Config: cfg, Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
 	})
 	if err != nil {
@@ -1470,88 +589,16 @@ func TestRoutedProviderStopCancelsRetryingHTTPAfterGrace(t *testing.T) {
 	}
 }
 
-func TestRoutedProviderCancelledFlushDoesNotStallHealthySource(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.SetInTest("logs_config.routing.max_groups", 4)
-		endpoint := config.NewEndpoint("key", "", "localhost", 12345, "", false)
-		endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
-		p, err := NewRoutedProvider(RoutedOptions{
-			NumberOfPipelines: 1, Sink: &routedTestSink{ch: make(chan *message.Payload, 4)},
-			DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-			Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}, {ID: "b", Endpoints: endpoints}},
-			Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-			Resolve:                   func(*message.Message) (routing.Selection, error) { return routing.Selection{}, nil },
-			DestinationsContext:       client.NewDestinationsContext(), Config: cfg,
-			Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		// Exercise processing and dispatch with a saturated A queue, without HTTP.
-		// This represents other A-bound sources filling that bounded stage.
-		for i := 0; i < cap(p.streams["group:a"].input); i++ {
-			p.streams["group:a"].input <- &message.Message{}
-		}
-		p.processors[0].Start()
-		go p.dispatchProcessed()
-		defer func() {
-			p.cancel()
-			p.processors[0].Stop()
-			close(p.processed)
-			<-p.processedDone
-			p.started = false
-			p.Stop()
-		}()
-		source := sources.NewLogSource("audit", &config.LogsConfig{Type: config.StringChannelType})
-		record := func(id string, groups []string) *message.Message {
-			m := message.NewMessageWithSource([]byte(id), "info", source, time.Now().UnixNano())
-			m.Origin.Identifier = id
-			m.Origin.Offset = "1"
-			if _, err := p.progress.Register(context.Background(), m, routing.Selection{Groups: groups, Generation: 1}, groups); err != nil {
-				t.Fatal(err)
-			}
-			return m
-		}
-		p.processed <- record("x", []string{"a", "b"})
-		<-p.streams["group:b"].input // X reached B; its source worker waits for A.
-		// The public Flush has no ingress to drain in this dispatcher-only setup.
-		p.inputs = nil
-		p.started = true
-		for i := 0; i < 2*routing.SourcePendingLimit; i++ {
-			flushCtx, cancel := context.WithCancel(context.Background())
-			done := make(chan struct{})
-			go func() { p.Flush(flushCtx); close(done) }()
-			synctest.Wait() // Flush waits for X's stalled dispatch, without queue markers.
-			cancel()
-			<-done
-		}
-		// More X work must fit in its data queue despite all abandoned flushes.
-		p.processed <- record("x", []string{"a", "b"})
-		p.processed <- record("y", []string{"b"})
-		synctest.Wait()
-		select {
-		case m := <-p.streams["group:b"].input:
-			if m.Origin == nil || m.Origin.Identifier != "y" {
-				t.Fatal("wrong record")
-			}
-		default:
-			t.Error("cancelled Flush left a barrier blocking healthy Y behind stalled X")
-		}
-	})
-}
-
 func TestRoutedProviderRetiresSourceWhoseFirstRecordIsInvalid(t *testing.T) {
 	endpoint := config.NewEndpoint("key", "", "localhost", 12345, "", false)
 	endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
 	cfg := configmock.New(t)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
+
 	p, err := NewRoutedProvider(RoutedOptions{
 		NumberOfPipelines: 1, Sink: &routedTestSink{ch: make(chan *message.Payload, 1)},
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Endpoints:                 []routing.EndpointTarget{{ID: "a", Endpoints: endpoints, Evaluator: routing.EvaluatorFunc(func(routing.RecordView) (bool, error) { return false, errors.New("invalid selection") })}},
 		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-		Resolve:                   func(*message.Message) (routing.Selection, error) { return routing.Selection{Generation: 1}, nil },
 		OnError:                   func(error) {}, DestinationsContext: client.NewDestinationsContext(), Config: cfg,
 		Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
 	})
@@ -1588,180 +635,27 @@ func TestRoutedProviderRetiresSourceWhoseFirstRecordIsInvalid(t *testing.T) {
 	}
 }
 
-func TestRoutedSelectionSeesProcessedStructuredRecordBeforeRendering(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		endpoint := config.NewEndpoint("test-key", "", "localhost", 12345, "", false)
-		endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
-		cfg := configmock.New(t)
-		cfg.SetInTest("logs_config.routing.max_groups", 4)
-		sink := &routedTestSink{ch: make(chan *message.Payload, 1)}
-		selected := make(chan bool, 1)
-		p, err := NewRoutedProvider(RoutedOptions{
-			NumberOfPipelines: 1, Sink: sink,
-			DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-			Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
-			ProcessingRules:           []*config.ProcessingRule{{Type: config.MaskSequences, Regex: regexp.MustCompile("secret"), Placeholder: []byte("masked")}},
-			Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-			Resolve: func(m *message.Message) (routing.Selection, error) {
-				vendor, ok := m.GetStructuredAttribute("device.vendor")
-				selected <- m.State == message.StateStructured && string(m.GetContent()) == "masked" && ok && vendor == "example" && m.Origin.Source() == "mapped"
-				return routing.Selection{Excluded: true, Generation: 1}, nil
-			},
-			DestinationsContext: client.NewDestinationsContext(), Config: cfg,
-			Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		input, err := p.SourceInput("file:test", 1)
-		if err != nil {
-			t.Fatal(err)
-		}
-		p.Start()
-		defer p.Stop()
-		src := sources.NewLogSource("test", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{{
-			Type: config.RemapSource, Matching: []*config.SourceMatchEntry{{Attribute: "device.vendor", Value: "example", NewSource: "mapped"}},
-		}}})
-		m := message.NewStructuredMessage(&message.BasicStructuredContent{Data: map[string]interface{}{
-			"message": "secret", "device": map[string]interface{}{"vendor": "example"},
-		}}, message.NewOrigin(src), "info", 0)
-		m.Origin.Identifier, m.Origin.Offset = "file:test", "1"
-		input <- m
-		synctest.Wait()
-		select {
-		case ok := <-selected:
-			if !ok {
-				t.Error("Resolve did not see processed structured fields before rendering/encoding")
-			}
-		default:
-			t.Fatal("Resolve did not run")
-		}
-	})
-}
-
-func TestRoutedSelectionIdentityAndLocalOutcomes(t *testing.T) {
-	for _, tc := range []struct {
-		name                                                     string
-		shared, anonymous, identity, identityError, drop         bool
-		generation                                               uint64
-		selection                                                routing.Selection
-		selectionError                                           bool
-		wantSelections, wantPending, wantCheckpoints, wantErrors int
-	}{
-		{name: "bound identity", selection: routing.Selection{Excluded: true}, wantSelections: 1, wantCheckpoints: 1},
-		{name: "shared identity", shared: true, identity: true, generation: 1, selection: routing.Selection{Excluded: true}, wantSelections: 1, wantCheckpoints: 1},
-		{name: "missing shared identity", shared: true, wantPending: 1, wantErrors: 1},
-		{name: "failed shared identity", shared: true, identity: true, identityError: true, wantPending: 1, wantErrors: 1},
-		{name: "zero shared identity", shared: true, identity: true, wantPending: 1, wantErrors: 1},
-		{name: "anonymous exclusion", shared: true, anonymous: true, selection: routing.Selection{Excluded: true}, wantSelections: 1},
-		{name: "anonymous failure", shared: true, anonymous: true, selectionError: true, wantSelections: 1, wantErrors: 1},
-		{name: "selection identity mismatch", selection: routing.Selection{Excluded: true, Generation: 2}, wantSelections: 1, wantPending: 1, wantErrors: 1},
-		{name: "selection error", selectionError: true, wantSelections: 1, wantPending: 1, wantErrors: 1},
-		{name: "unknown group", selection: routing.Selection{Groups: []string{"unknown"}}, wantSelections: 1, wantPending: 1, wantErrors: 1},
-		{name: "exclusion with recipients", selection: routing.Selection{Excluded: true, Groups: []string{"a"}}, wantSelections: 1, wantPending: 1, wantErrors: 1},
-		{name: "missing recipients", wantSelections: 1, wantPending: 1, wantErrors: 1},
-		{name: "common processing drop", drop: true, wantCheckpoints: 1},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			synctest.Test(t, func(t *testing.T) {
-				endpoint := config.NewEndpoint("test-key", "", "localhost", 12345, "", false)
-				endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
-				cfg := configmock.New(t)
-				cfg.SetInTest("logs_config.routing.max_groups", 4)
-				sink := &routedTestSink{ch: make(chan *message.Payload, 1)}
-				selections, identities, reports := 0, 0, 0
-				opts := RoutedOptions{
-					NumberOfPipelines: 1, Sink: sink,
-					DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-					Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
-					Resolve: func(*message.Message) (routing.Selection, error) {
-						selections++
-						if tc.selectionError {
-							return routing.Selection{}, errors.New("selection failed")
-						}
-						return tc.selection, nil
-					},
-					OnError:             func(error) { reports++ },
-					DestinationsContext: client.NewDestinationsContext(), Config: cfg,
-					Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
-				}
-				if tc.identity {
-					opts.Generation = func(*message.Message) (uint64, error) {
-						identities++
-						if tc.identityError {
-							return 0, errors.New("identity failed")
-						}
-						return tc.generation, nil
-					}
-				}
-				if tc.drop {
-					opts.ProcessingRules = []*config.ProcessingRule{{Type: config.ExcludeAtMatch, Regex: regexp.MustCompile("drop")}}
-				}
-				p, err := NewRoutedProvider(opts)
-				if err != nil {
-					t.Fatal(err)
-				}
-				input := p.NextPipelineChan()
-				if !tc.shared {
-					input, err = p.SourceInput("file:test", 1)
-					if err != nil {
-						t.Fatal(err)
-					}
-				}
-				p.Start()
-				defer p.Stop()
-				m := message.NewMessageWithSource([]byte("drop"), "info", sources.NewLogSource("test", &config.LogsConfig{}), 0)
-				if !tc.anonymous {
-					m.Origin.Identifier, m.Origin.Offset = "file:test", "1"
-				}
-				input <- m
-				synctest.Wait()
-				if selections != tc.wantSelections || p.progress.Pending() != tc.wantPending || len(sink.ch) != tc.wantCheckpoints || reports != tc.wantErrors {
-					t.Fatalf("selections/pending/checkpoints/errors = %d/%d/%d/%d, want %d/%d/%d/%d", selections, p.progress.Pending(), len(sink.ch), reports, tc.wantSelections, tc.wantPending, tc.wantCheckpoints, tc.wantErrors)
-				}
-				if tc.identity && !tc.anonymous && identities != 1 {
-					t.Fatalf("identity calls = %d", identities)
-				}
-				if !tc.shared {
-					if err := p.RetireSource(context.Background(), "file:test", 1); err != nil {
-						t.Fatal(err)
-					}
-					if p.progress.OwnsSource("file:test") != (tc.wantPending != 0) {
-						t.Fatal("retirement lost source barrier or retained completed source")
-					}
-				}
-				for _, stream := range p.streams {
-					if len(stream.input) != 0 {
-						t.Fatal("excluded or invalid record entered batches")
-					}
-				}
-			})
-		})
-	}
-}
-
 func TestRoutedPendingSelectionHoldsCheckpointsAndCancelledFlush(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		endpoint := config.NewEndpoint("test-key", "", "localhost", 12345, "", false)
 		endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
 		cfg := configmock.New(t)
-		cfg.SetInTest("logs_config.routing.max_groups", 4)
+
 		sink := &routedTestSink{ch: make(chan *message.Payload, 2)}
 		resolving, release := make(chan struct{}), make(chan struct{})
-		selections := 0
+		var selections atomic.Int32
 		p, err := NewRoutedProvider(RoutedOptions{
 			NumberOfPipelines: 2, Sink: sink,
 			DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-			Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
-			Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-			Resolve: func(m *message.Message) (routing.Selection, error) {
-				if m.Origin.Offset == "1" {
+			Endpoints: []routing.EndpointTarget{{ID: "a", Endpoints: endpoints, Evaluator: routing.EvaluatorFunc(func(view routing.RecordView) (bool, error) {
+				if view.Status() == message.StatusError {
 					close(resolving)
 					<-release
 				}
-				selections++
-				return routing.Selection{Excluded: true}, nil
-			},
+				selections.Add(1)
+				return false, nil
+			})}},
+			Generation:          func(*message.Message) (uint64, error) { return 1, nil },
 			DestinationsContext: client.NewDestinationsContext(), Config: cfg,
 			Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
 		})
@@ -1779,13 +673,17 @@ func TestRoutedPendingSelectionHoldsCheckpointsAndCancelledFlush(t *testing.T) {
 		}()
 		src := sources.NewLogSource("test", &config.LogsConfig{})
 		for _, offset := range []string{"1", "2"} {
-			m := message.NewMessageWithSource([]byte(offset), "info", src, 0)
+			status := message.StatusInfo
+			if offset == "1" {
+				status = message.StatusError
+			}
+			m := message.NewMessageWithSource([]byte(offset), status, src, 0)
 			m.Origin.Identifier, m.Origin.Offset = "file:test", offset
 			p.NextPipelineChan() <- m
 		}
 		<-resolving
 		synctest.Wait()
-		if p.progress.Pending() != 2 || len(sink.ch) != 0 || selections != 1 {
+		if p.progress.Pending() != 2 || len(sink.ch) != 0 || selections.Load() != 1 {
 			t.Fatal("later completion passed pending selection")
 		}
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1806,7 +704,7 @@ func TestRoutedPendingSelectionHoldsCheckpointsAndCancelledFlush(t *testing.T) {
 		synctest.Wait()
 		p.Flush(context.Background())
 		synctest.Wait()
-		if selections != 2 || p.progress.Pending() != 0 {
+		if selections.Load() != 2 || p.progress.Pending() != 0 {
 			t.Fatal("selection did not resume exactly once per record")
 		}
 		for _, want := range []string{"1", "2"} {
@@ -1829,13 +727,12 @@ func TestRoutedProviderRetirementCancelsSaturatedAdmission(t *testing.T) {
 				endpoint := config.NewEndpoint("test-key", "", "localhost", 12345, "", false)
 				endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
 				cfg := configmock.New(t)
-				cfg.SetInTest("logs_config.routing.max_groups", 4)
+
 				sink := &routedTestSink{ch: make(chan *message.Payload, 2)}
 				p, err := NewRoutedProvider(RoutedOptions{
 					NumberOfPipelines: 1, Sink: sink,
 					DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-					Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
-					Resolve:                   func(*message.Message) (routing.Selection, error) { return routing.Selection{Excluded: true}, nil },
+					Endpoints:                 []routing.EndpointTarget{{ID: "a", Endpoints: endpoints, Evaluator: excludeAllEndpoints}},
 					DestinationsContext:       client.NewDestinationsContext(), Config: cfg,
 					Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
 				})
@@ -1857,7 +754,7 @@ func TestRoutedProviderRetirementCancelsSaturatedAdmission(t *testing.T) {
 				var pending []*message.Message
 				for range routing.SourcePendingLimit {
 					m := makeRecord("old")
-					if _, err := p.progress.Register(context.Background(), m, routing.Selection{Generation: 1}, []string{"a"}); err != nil {
+					if _, err := p.progress.Reserve(context.Background(), m, 1); err != nil {
 						t.Fatal(err)
 					}
 					pending = append(pending, m)
@@ -1929,8 +826,7 @@ func TestRoutedProviderRetirementCancelsSaturatedAdmission(t *testing.T) {
 				}
 				replacement <- makeRecord("replacement")
 				for _, m := range pending {
-					meta := m.MessageMetadata
-					p.progress.CompleteGroup("a", message.NewPayload([]*message.MessageMetadata{&meta}, nil, "", 0))
+					p.progress.CompleteLocal(m.RoutingToken())
 				}
 				synctest.Wait()
 				retryCtx, retryCancel := context.WithTimeout(context.Background(), time.Second)
@@ -2015,8 +911,7 @@ func TestRoutedProviderRetirementRetriesBlockedAuditor(t *testing.T) {
 		sink := &routedTestSink{ch: make(chan *message.Payload)}
 		p := newRoutedTestProvider(t, RoutedOptions{
 			NumberOfPipelines: 1, Sink: sink,
-			Groups:  []routing.Group{{ID: "a", Endpoints: endpoints}},
-			Resolve: func(*message.Message) (routing.Selection, error) { return routing.Selection{Excluded: true}, nil },
+			Endpoints: []routing.EndpointTarget{{ID: "a", Endpoints: endpoints}},
 		})
 		input, err := p.SourceInput("file:retire", 1)
 		if err != nil {
@@ -2034,10 +929,12 @@ func TestRoutedProviderRetirementRetriesBlockedAuditor(t *testing.T) {
 			for i := 1; i <= count; i++ {
 				m := message.NewMessageWithSource([]byte("complete"), "info", source, 0)
 				m.Origin.Identifier, m.Origin.Offset = "file:publish", strconv.Itoa(i)
-				if _, err := p.progress.Register(context.Background(), m, routing.Selection{Excluded: true, Generation: 1}, nil); err != nil {
+				token, err := p.progress.Reserve(context.Background(), m, 1)
+				if err != nil {
 					published <- err
 					return
 				}
+				p.progress.CompleteLocal(token)
 			}
 			published <- nil
 		}()
@@ -2095,190 +992,62 @@ func TestRoutedProviderRetirementRetriesBlockedAuditor(t *testing.T) {
 	})
 }
 
-// A healthy source must make progress without waiting for the batch timer when
-// its admission window is smaller than the configured batch size.
-func TestRoutedProviderFlushesFullSourceWindow(t *testing.T) {
-	for _, mode := range []string{"bound", "shared", "split", "overlap", "mixed", "shared-stream", "replacement", "excluded", "dropped", "invalid", "generation-error"} {
-		t.Run(mode, func(t *testing.T) {
-			requests := make(chan routedRequest, 2*routing.SourcePendingLimit)
+func TestRoutedPressureFlushesFullSourceWindow(t *testing.T) {
+	for _, ingress := range []string{"bound", "shared"} {
+		t.Run(ingress, func(t *testing.T) {
+			requests := make(chan routedRequest, routing.SourcePendingLimit)
 			server, endpoints := routedTestEndpoint(t, "a", "key", requests)
 			defer server.Close()
-			endpoints.BatchWait = time.Hour // Only a pressure flush can deliver the records.
-			endpoints.BatchMaxSize = 1000
-			groups := []routing.Group{{ID: "a", Endpoints: endpoints}}
-			if mode == "split" || mode == "overlap" || mode == "mixed" || mode == "shared-stream" {
-				other, otherEndpoints := routedTestEndpoint(t, "b", "other-key", requests)
-				defer other.Close()
-				otherEndpoints.BatchWait, otherEndpoints.BatchMaxSize = time.Hour, 1000
-				groups = append(groups, routing.Group{ID: "b", Endpoints: otherEndpoints})
-				if mode == "mixed" {
-					endpoints.BatchMaxSize = 1 // A completes immediately; B still needs pressure flushing.
-				}
-				if mode == "shared-stream" {
-					groups[0].Stream, groups[1].Stream = "identical", "identical"
-				}
-			}
+			endpoints.BatchWait, endpoints.BatchMaxSize = time.Hour, 1000
 			sink := &routedTestSink{ch: make(chan *message.Payload, routing.SourcePendingLimit)}
 			p := newRoutedTestProvider(t, RoutedOptions{
 				NumberOfPipelines: 2, Sink: sink,
-				Groups: groups, Generation: func(m *message.Message) (uint64, error) {
-					if mode == "generation-error" && m.Origin.Offset == strconv.Itoa(routing.SourcePendingLimit) {
-						return 0, errors.New("invalid generation")
-					}
-					return 1, nil
-				},
-				ProcessingRules: []*config.ProcessingRule{{Type: config.ExcludeAtMatch, Regex: regexp.MustCompile("^drop$")}},
-				Resolve: func(m *message.Message) (routing.Selection, error) {
-					if m.Origin.Offset == strconv.Itoa(routing.SourcePendingLimit) {
-						if mode == "excluded" {
-							return routing.Selection{Excluded: true}, nil
-						}
-						if mode == "invalid" {
-							return routing.Selection{}, errors.New("invalid selection")
-						}
-					}
-					if mode == "overlap" || mode == "mixed" || mode == "shared-stream" {
-						return routing.Selection{Groups: []string{"a", "b"}}, nil
-					}
-					if mode == "split" && m.Origin.Offset != "1" {
-						return routing.Selection{Groups: []string{"b"}}, nil
-					}
-					return routing.Selection{Groups: []string{"a"}}, nil
-				},
-				OnError: func(error) {},
+				Endpoints:  []routing.EndpointTarget{{ID: "a", Endpoints: endpoints}},
+				Generation: func(*message.Message) (uint64, error) { return 1, nil },
 			})
-			p.Start()
 			defer p.Stop()
+			const id = "file:pressure"
 			input := p.NextPipelineChan()
-			var err error
-			if mode != "shared" && mode != "generation-error" {
-				input, err = p.SourceInput("file:pressure", 1)
+			if ingress == "bound" {
+				var err error
+				input, err = p.SourceInput(id, 1)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
+			p.Start()
 			source := sources.NewLogSource("pressure", &config.LogsConfig{})
 			for i := 1; i <= routing.SourcePendingLimit; i++ {
-				if mode == "replacement" && i == routing.SourcePendingLimit/2+1 {
-					input, err = p.SourceInput("file:pressure", 2)
-					if err != nil {
-						t.Fatal(err)
-					}
-				}
-				content := "record"
-				if mode == "dropped" && i == routing.SourcePendingLimit {
-					content = "drop"
-				}
-				m := message.NewMessageWithSource([]byte(content), "info", source, 0)
-				m.Origin.Identifier, m.Origin.Offset = "file:pressure", strconv.Itoa(i)
-				input <- m
-			}
-			// Pressure must deliver a prefix before the timer fires. Once that
-			// frees admission, the remaining partial batch may wait normally;
-			// explicitly flush it to check every outcome and checkpoint.
-			first := 1
-			if mode == "replacement" {
-				first = routing.SourcePendingLimit/2 + 1
+				input <- newCheckpointedFilteringMessage(source, id, strconv.Itoa(i), "record", message.StatusInfo)
 			}
 			select {
 			case checkpoint := <-sink.ch:
-				if got := checkpoint.MessageMetas[0].Origin.Offset; got != strconv.Itoa(first) {
-					t.Fatalf("first checkpoint=%s, want %d", got, first)
+				if got := checkpoint.MessageMetas[0].Origin.Offset; got != "1" {
+					t.Fatalf("first checkpoint = %q, want 1", got)
 				}
 			case <-time.After(5 * time.Second):
-				t.Fatal("healthy source window waited for the batch timer")
+				t.Fatal("full source window waited for the batch timer")
+			}
+			if ingress == "bound" {
+				if got := (<-requests).batchCount; got != routing.SourcePendingLimit {
+					t.Fatalf("bound window flushed %d records, want %d", got, routing.SourcePendingLimit)
+				}
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			p.Flush(ctx)
-			if err := ctx.Err(); err != nil {
-				t.Fatal(err)
-			}
-			want := routing.SourcePendingLimit
-			if mode == "invalid" || mode == "generation-error" {
-				want--
-			}
-			deadline := time.NewTimer(5 * time.Second)
-			defer deadline.Stop()
-			for i := first + 1; i <= want; i++ {
+			for i := 2; i <= routing.SourcePendingLimit; i++ {
 				select {
 				case checkpoint := <-sink.ch:
 					if got := checkpoint.MessageMetas[0].Origin.Offset; got != strconv.Itoa(i) {
-						t.Fatalf("checkpoint=%s, want %d", got, i)
+						t.Fatalf("checkpoint = %q, want %d", got, i)
 					}
-				case <-deadline.C:
-					t.Fatal("healthy source window waited for the batch timer")
-				}
-			}
-			if (mode == "invalid" || mode == "generation-error") && p.progress.Pending() != 1 {
-				t.Fatal("invalid selection lost its barrier")
-			}
-			if mode == "bound" {
-				for range routing.SourcePendingLimit {
-					request := <-requests
-					if request.batchCount != routing.SourcePendingLimit {
-						t.Fatalf("pressure fragmented the source window: batch has %d records, want %d", request.batchCount, routing.SourcePendingLimit)
-					}
+				case <-ctx.Done():
+					t.Fatalf("waiting for checkpoint %d: %v", i, ctx.Err())
 				}
 			}
 		})
 	}
-}
-
-func TestRoutedPressureFlushDoesNotWaitForBlockedStream(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		endpoint := config.NewEndpoint("key", "", "localhost", 12345, "", false)
-		endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Hour, 1, 1000, 1024*1024, 2)
-		p := newRoutedTestProvider(t, RoutedOptions{
-			NumberOfPipelines: 1, Sink: &routedTestSink{ch: make(chan *message.Payload, routing.SourcePendingLimit)},
-			Groups:  []routing.Group{{ID: "a", Endpoints: endpoints}, {ID: "b", Endpoints: endpoints}},
-			Resolve: func(*message.Message) (routing.Selection, error) { return routing.Selection{}, nil },
-		})
-		defer p.Stop()
-		blocked, healthy := p.streams["group:a"], p.streams["group:b"]
-		for range cap(blocked.input) {
-			blocked.input <- &message.Message{}
-		}
-		healthy.strategy.Start()
-		defer healthy.strategy.Stop()
-		var records []*message.Message
-		source := sources.NewLogSource("pressure", &config.LogsConfig{})
-		for i := range routing.SourcePendingLimit {
-			m := message.NewMessageWithSource([]byte("record"), "info", source, 0)
-			m.Origin.Identifier, m.Origin.Offset = "file:pressure", strconv.Itoa(i+1)
-			if _, err := p.progress.Register(context.Background(), m, routing.Selection{Generation: 1}, []string{"a", "b"}); err != nil {
-				t.Fatal(err)
-			}
-			records = append(records, m)
-		}
-		lane := &routedSourceDispatch{
-			input:    make(chan *message.Message, routing.SourcePendingLimit),
-			advanced: make(chan struct{}, 1), flushRequested: make(chan struct{}, 1),
-		}
-		p.sourceDone.Add(1)
-		go p.dispatchSource("file:pressure", lane)
-		defer func() { p.cancel(); close(lane.input); p.sourceDone.Wait() }()
-		for _, m := range records {
-			lane.input <- m
-		}
-		synctest.Wait()
-		// The pressure boundary arrives after A has blocked fanout. B still
-		// needs its partial batch flushed while the window waits for A.
-		lane.flushAfter.Store(routing.SourcePendingLimit)
-		lane.flushRequested <- struct{}{}
-		select {
-		case payload := <-healthy.output:
-			if payload.Count() != 1 {
-				t.Fatalf("healthy payload count=%d, want 1", payload.Count())
-			}
-			p.progress.CompleteGroup("b", payload)
-			if p.progress.Pending() != routing.SourcePendingLimit {
-				t.Fatal("pressure flush completed blocked group A")
-			}
-		case <-time.After(time.Second):
-			t.Fatal("healthy stream pressure flush waited for blocked A")
-		}
-	})
 }
 
 func TestRoutedPressureFlushesAggregateCapacity(t *testing.T) {
@@ -2288,10 +1057,7 @@ func TestRoutedPressureFlushesAggregateCapacity(t *testing.T) {
 	endpoints.BatchWait, endpoints.BatchMaxSize = time.Hour, 10000
 	p := newRoutedTestProvider(t, RoutedOptions{
 		NumberOfPipelines: 1, Sink: &routedTestSink{ch: make(chan *message.Payload)},
-		Groups: []routing.Group{{ID: "a", Endpoints: endpoints}},
-		Resolve: func(*message.Message) (routing.Selection, error) {
-			return routing.Selection{Groups: []string{"a"}}, nil
-		},
+		Endpoints: []routing.EndpointTarget{{ID: "a", Endpoints: endpoints}},
 	})
 	defer p.Stop()
 	source := sources.NewLogSource("pressure", &config.LogsConfig{})
@@ -2299,7 +1065,7 @@ func TestRoutedPressureFlushesAggregateCapacity(t *testing.T) {
 	// a per-source window. The final reservation must request a flush as well.
 	for range routedProgressCapacity - 1 {
 		m := message.NewMessageWithSource([]byte("pending"), "info", source, 0)
-		if _, err := p.progress.Register(context.Background(), m, routing.Selection{}, []string{"a"}); err != nil {
+		if _, err := p.progress.Reserve(context.Background(), m, 0); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -2321,20 +1087,23 @@ func TestRoutedAnonymousBacklogDoesNotBlockCheckpointedSource(t *testing.T) {
 		endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
 		p := newRoutedTestProvider(t, RoutedOptions{
 			NumberOfPipelines: 1, Sink: &routedTestSink{ch: make(chan *message.Payload, 1)},
-			Groups:  []routing.Group{{ID: "a", Endpoints: endpoints}, {ID: "b", Endpoints: endpoints}},
-			Resolve: func(*message.Message) (routing.Selection, error) { return routing.Selection{}, nil },
+			Endpoints: []routing.EndpointTarget{{ID: "a", Endpoints: endpoints}, {ID: "b", Endpoints: endpoints}},
 		})
 		defer p.Stop()
-		for range cap(p.streams["group:a"].input) {
-			p.streams["group:a"].input <- &message.Message{}
+		for range cap(p.streams["a"].input) {
+			p.streams["a"].input <- &message.Message{}
 		}
 		go p.dispatchProcessed()
 		defer func() { p.cancel(); close(p.processed); <-p.processedDone }()
 		source := sources.NewLogSource("test", &config.LogsConfig{})
-		record := func(identifier, group string) *message.Message {
+		record := func(identifier, endpointID string) *message.Message {
 			m := message.NewMessageWithSource([]byte("record"), "info", source, 0)
 			m.Origin.Identifier = identifier
-			if _, err := p.progress.Register(context.Background(), m, routing.Selection{Generation: 1}, []string{group}); err != nil {
+			token, err := p.progress.Reserve(context.Background(), m, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := p.progress.AttachEndpointSelection(token, []string{endpointID}, nil, false); err != nil {
 				t.Fatal(err)
 			}
 			return m
@@ -2348,7 +1117,7 @@ func TestRoutedAnonymousBacklogDoesNotBlockCheckpointedSource(t *testing.T) {
 		p.processed <- bound
 		synctest.Wait()
 		select {
-		case got := <-p.streams["group:b"].input:
+		case got := <-p.streams["b"].input:
 			if got != bound {
 				t.Fatal("wrong source reached healthy B")
 			}

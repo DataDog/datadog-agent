@@ -8,6 +8,7 @@ package routing
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -100,6 +101,20 @@ func TestEndpointDefinitionsValidationAndEvaluation(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidSelection)
 	assert.True(t, reliableError)
 	assert.Equal(t, []string{"other"}, rel)
+}
+
+func TestEndpointDefinitionsTotalLimitIncludesOptionalEndpoints(t *testing.T) {
+	require.Equal(t, 32, MaxEndpoints)
+	targets := []EndpointTarget{{ID: "reliable", Endpoints: testSingleHTTPEndpoint("reliable.example", "key", true)}}
+	optional := testSingleHTTPEndpoint("optional.example", "key", false)
+	for i := 1; i <= MaxEndpoints; i++ {
+		targets = append(targets, EndpointTarget{ID: "optional-" + strconv.Itoa(i), Endpoints: optional})
+	}
+	defs, err := NewEndpointDefinitions(targets[:MaxEndpoints])
+	require.NoError(t, err)
+	require.Len(t, defs.Targets(), MaxEndpoints)
+	_, err = NewEndpointDefinitions(targets)
+	require.ErrorIs(t, err, ErrInvalidDefinition)
 }
 
 type endpointTestSink struct{ ch chan *message.Payload }

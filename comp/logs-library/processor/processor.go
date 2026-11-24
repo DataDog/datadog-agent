@@ -102,7 +102,7 @@ func newProcessor(config pkgconfigmodel.Reader, inputChan, outputChan chan *mess
 
 	if enableMRF {
 		// Initialize cached failover config and register for updates only for
-		// the existing default path. Routed group selection is injected.
+		// the existing default path. Injected endpoint selection is injected.
 		p.updateFailoverConfig()
 		if config != nil {
 			config.OnUpdate(p.onLogsFailoverSettingChanged)
@@ -123,7 +123,7 @@ const (
 )
 
 // NewForRouting keeps processing and encoding shared while leaving MRF
-// activation and allowlist classification out of injected group routing.
+// activation and allowlist classification out of injected endpoint routing.
 // selectForRouting runs once after common processing and metadata preparation,
 // before rendering destroys access to structured attributes. It must be local
 // and bounded; stop decisions own their progress outcome.

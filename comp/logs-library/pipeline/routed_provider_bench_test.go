@@ -59,7 +59,6 @@ func benchmarkHTTPDelivery(b *testing.B, routed bool, batchSize int) {
 	}
 	endpoints := config.NewEndpointsWithBatchSettings(main, nil, false, true, batchWait, 1, batchSize, 1024*1024, 2)
 	cfg := configmock.New(b)
-	cfg.SetInTest("logs_config.routing.max_groups", 4)
 	cfg.SetInTest("logs_config.payload_channel_size", 64)
 	cfg.SetInTest("logs_config.message_channel_size", 64)
 	ctx := client.NewDestinationsContext()
@@ -84,15 +83,12 @@ func benchmarkHTTPDelivery(b *testing.B, routed bool, batchSize int) {
 			NumberOfPipelines:         1,
 			Sink:                      sink,
 			DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-			Groups:                    []routing.Group{{ID: "main", Endpoints: endpoints}},
+			Endpoints:                 []routing.EndpointTarget{{ID: "main", Endpoints: endpoints}},
 			Generation:                func(*message.Message) (uint64, error) { return 1, nil },
-			Resolve: func(*message.Message) (routing.Selection, error) {
-				return routing.Selection{Groups: []string{"main"}, Generation: 1}, nil
-			},
-			DestinationsContext: ctx,
-			Config:              cfg,
-			Compression:         compressionfx.NewMockCompressor(),
-			Secrets:             secretsnoopimpl.NewComponent().Comp,
+			DestinationsContext:       ctx,
+			Config:                    cfg,
+			Compression:               compressionfx.NewMockCompressor(),
+			Secrets:                   secretsnoopimpl.NewComponent().Comp,
 		})
 		if err != nil {
 			b.Fatal(err)
@@ -142,14 +138,14 @@ func benchmarkHTTPDelivery(b *testing.B, routed bool, batchSize int) {
 	sinkDone.Wait()
 }
 
-func BenchmarkRoutedFanoutAvailableGroups(b *testing.B) {
+func BenchmarkRoutedFanoutAvailableEndpoints(b *testing.B) {
 	a, c := make(chan *message.Message, 1), make(chan *message.Message, 1)
 	m := &message.Message{}
-	offers := []channelOffer[*message.Message]{{input: a, value: m}, {input: c, value: m}}
+	offers := []channelOffer{{input: a, value: m}, {input: c, value: m}}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		offerToChannels(context.Background(), offers)
+		offerToChannelsWithFlush(context.Background(), offers, nil, nil, nil)
 		<-a
 		<-c
 	}

@@ -4,7 +4,6 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "routing",
     srcs = [
-        "definitions.go",
         "endpoint.go",
         "evaluator.go",
         "progress.go",
@@ -23,7 +22,6 @@ go_library(
 dd_agent_go_test(
     name = "routing_test",
     srcs = [
-        "definitions_test.go",
         "endpoint_test.go",
         "progress_test.go",
     ],

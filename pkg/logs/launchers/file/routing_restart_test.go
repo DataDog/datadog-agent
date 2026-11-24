@@ -40,9 +40,9 @@ type replaySink struct{ ch chan *message.Payload }
 
 func (s *replaySink) Channel() chan *message.Payload { return s.ch }
 
-func TestRoutedProgressReplaysFileFromPersistedPrefix(t *testing.T) {
+func TestEndpointFilteringReplaysFileFromPersistedPrefix(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "replay.log")
-	require.NoError(t, os.WriteFile(path, []byte("first\nsecond\n"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte("first\nsecond\nthird\n"), 0o600))
 	identifier := "file:" + path
 	registry := auditorMock.NewMockRegistry()
 	makeTailer := func(output chan *message.Message) *filetailer.Tailer {
@@ -71,20 +71,24 @@ func TestRoutedProgressReplaysFileFromPersistedPrefix(t *testing.T) {
 	output := make(chan *message.Message, 2)
 	tailer := makeTailer(output)
 	require.NoError(t, tailer.StartFromBeginning())
-	first, second := read(output), read(output)
+	first, second, third := read(output), read(output), read(output)
 	require.Equal(t, "first", string(first.GetContent()))
 	require.Equal(t, "second", string(second.GetContent()))
-	selection := routing.Selection{Groups: []string{"a", "b"}, Generation: 1}
-	for _, m := range []*message.Message{first, second} {
-		_, err := progress.Register(context.Background(), m, selection, selection.Groups)
+	require.Equal(t, "third", string(third.GetContent()))
+	reserve := func(p *routing.Progress, m *message.Message, generation uint64, endpointID string) {
+		t.Helper()
+		token, err := p.Reserve(context.Background(), m, generation)
 		require.NoError(t, err)
+		require.NoError(t, p.AttachEndpointSelection(token, []string{endpointID}, nil, false))
 	}
-	complete := func(p *routing.Progress, group string, m *message.Message) {
+	complete := func(p *routing.Progress, endpointID string, m *message.Message) {
 		meta := m.MessageMetadata
-		p.CompleteGroup(group, message.NewPayload([]*message.MessageMetadata{&meta}, nil, "", 0))
+		p.CompleteReliableSuccess(endpointID, message.NewPayload([]*message.MessageMetadata{&meta}, nil, "", 0))
 	}
+	reserve(progress, first, 1, "a")
+	reserve(progress, second, 1, "a")
+	reserve(progress, third, 1, "b")
 	complete(progress, "a", first)
-	complete(progress, "b", first)
 	select {
 	case checkpoint := <-sink.ch:
 		registry.SetOffset(identifier, checkpoint.MessageMetas[0].Origin.Offset) // Periodically persisted auditor output.
@@ -92,14 +96,15 @@ func TestRoutedProgressReplaysFileFromPersistedPrefix(t *testing.T) {
 		t.Fatal("first checkpoint did not arrive")
 	}
 	require.Equal(t, strconv.Itoa(len("first\n")), registry.GetOffset(identifier))
-	complete(progress, "b", second)
+	complete(progress, "b", third)
+	require.Equal(t, 2, progress.Pending(), "the third record must wait behind the second")
 	select {
 	case checkpoint := <-sink.ch:
 		t.Fatalf("B crossed A's pending checkpoint: %s", checkpoint.MessageMetas[0].Origin.Offset)
 	default:
 	}
 	// Capture the persisted state before any cleanup. This is the abrupt-restart
-	// boundary: second reached B but never advanced the saved file position.
+	// boundary: third reached B but never advanced the saved file position past second.
 	saved := registry.GetOffset(identifier)
 	tailer.Stop() // Test cleanup after the snapshot; no provider Flush is used.
 	progress.Close()
@@ -117,20 +122,23 @@ func TestRoutedProgressReplaysFileFromPersistedPrefix(t *testing.T) {
 	replayTailer := makeTailer(replayOutput)
 	require.NoError(t, replayTailer.Start(offset, whence))
 	defer replayTailer.Stop()
-	replayed := read(replayOutput)
-	require.Equal(t, "second", string(replayed.GetContent()))
-	replaySink := &replaySink{ch: make(chan *message.Payload, 1)}
+	replayedSecond, replayedThird := read(replayOutput), read(replayOutput)
+	require.Equal(t, "second", string(replayedSecond.GetContent()))
+	require.Equal(t, "third", string(replayedThird.GetContent()))
+	replaySink := &replaySink{ch: make(chan *message.Payload, 2)}
 	replayProgress, err := routing.NewProgress(2, replaySink)
 	require.NoError(t, err)
 	defer replayProgress.Close()
-	_, err = replayProgress.Register(context.Background(), replayed, routing.Selection{Groups: []string{"a", "b"}, Generation: 2}, []string{"a", "b"})
-	require.NoError(t, err)
-	complete(replayProgress, "b", replayed) // B receives its duplicate after restart.
-	complete(replayProgress, "a", replayed)
-	select {
-	case checkpoint := <-replaySink.ch:
-		require.Equal(t, strconv.Itoa(len("first\nsecond\n")), checkpoint.MessageMetas[0].Origin.Offset)
-	case <-time.After(5 * time.Second):
-		t.Fatal("replayed file checkpoint did not advance")
+	reserve(replayProgress, replayedSecond, 2, "a")
+	reserve(replayProgress, replayedThird, 2, "b")
+	complete(replayProgress, "b", replayedThird) // B receives its duplicate after restart.
+	complete(replayProgress, "a", replayedSecond)
+	for _, want := range []int{len("first\nsecond\n"), len("first\nsecond\nthird\n")} {
+		select {
+		case checkpoint := <-replaySink.ch:
+			require.Equal(t, strconv.Itoa(want), checkpoint.MessageMetas[0].Origin.Offset)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("replayed file checkpoint did not advance to %d", want)
+		}
 	}
 }

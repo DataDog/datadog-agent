@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+// Package routing holds injected log endpoint definitions and source progress.
+// It does not load a routing policy or activate routing in the Agent.
 package routing
 
 import (
@@ -10,6 +12,16 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+)
+
+// MaxEndpoints caps the total number of reliable and optional endpoint targets.
+const MaxEndpoints = 32
+
+var (
+	// ErrInvalidSelection means no recipient may be inferred or acknowledged.
+	ErrInvalidSelection = errors.New("invalid log routing selection")
+	// ErrInvalidDefinition means no workers may be started for these targets.
+	ErrInvalidDefinition = errors.New("invalid log routing definition")
 )
 
 // EndpointTarget defines one independently filtered HTTP JSON endpoint target.

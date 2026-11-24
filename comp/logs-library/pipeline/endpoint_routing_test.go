@@ -31,10 +31,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/routing"
 	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 )
 
 type endpointFilteringRecord struct {
@@ -44,8 +45,9 @@ type endpointFilteringRecord struct {
 }
 
 type endpointFilteringBatch struct {
-	APIKey  string
-	Records []endpointFilteringRecord
+	APIKey          string
+	ContentEncoding string
+	Records         []endpointFilteringRecord
 }
 
 type endpointFilteringIntake struct {
@@ -123,8 +125,9 @@ func newEndpointFilteringIntake(t *testing.T) *endpointFilteringIntake {
 		}
 		intake.mu.Lock()
 		intake.batches = append(intake.batches, endpointFilteringBatch{
-			APIKey:  r.Header.Get("DD-API-KEY"),
-			Records: records,
+			APIKey:          r.Header.Get("DD-API-KEY"),
+			ContentEncoding: r.Header.Get("Content-Encoding"),
+			Records:         records,
 		})
 		intake.mu.Unlock()
 		w.WriteHeader(http.StatusOK)
@@ -226,6 +229,12 @@ func noticeAndHigherEvaluator() routing.Evaluator {
 	})
 }
 
+type endpointFilteringCompression struct{}
+
+func (endpointFilteringCompression) NewCompressor(kind string, level int) compression.Compressor {
+	return selector.NewCompressor(kind, level)
+}
+
 func newEndpointFilteringTestProvider(t *testing.T, opts RoutedOptions) *RoutedProvider {
 	t.Helper()
 	cfg := configmock.New(t)
@@ -233,7 +242,7 @@ func newEndpointFilteringTestProvider(t *testing.T, opts RoutedOptions) *RoutedP
 	opts.Config = cfg
 	opts.DiagnosticMessageReceiver = &diagnostic.BufferedMessageReceiver{}
 	opts.DestinationsContext = client.NewDestinationsContext()
-	opts.Compression = compressionfx.NewMockCompressor()
+	opts.Compression = endpointFilteringCompression{}
 	opts.Secrets = secretsnoopimpl.NewComponent().Comp
 	if opts.NumberOfPipelines == 0 {
 		opts.NumberOfPipelines = 1
@@ -268,12 +277,18 @@ func TestEndpointFilteringUS1FullAndUS5FilteredBatchesWithCommonProcessing(t *te
 		},
 	}
 
+	us5Endpoints := us5.endpoints("us5-key", false)
+	us5Endpoints.Main.UseCompression = true
+	us5Endpoints.Main.CompressionKind = compression.GzipKind
+	us5Endpoints.Main.CompressionLevel = gzip.BestSpeed
+	us5Endpoints.Endpoints[0] = us5Endpoints.Main
+
 	p := newEndpointFilteringTestProvider(t, RoutedOptions{
 		Sink:            sink,
 		ProcessingRules: commonRules,
 		Endpoints: []routing.EndpointTarget{
 			{ID: "us1", Endpoints: us1.endpoints("us1-key", true)},
-			{ID: "us5", Endpoints: us5.endpoints("us5-key", false), Evaluator: noticeAndHigherEvaluator()},
+			{ID: "us5", Endpoints: us5Endpoints, Evaluator: noticeAndHigherEvaluator()},
 		},
 	})
 	p.Start()
@@ -319,6 +334,13 @@ func TestEndpointFilteringUS1FullAndUS5FilteredBatchesWithCommonProcessing(t *te
 	assert.Equal(t, 1, us5Batches)
 	assert.Equal(t, []string{"us5-key"}, us5Keys)
 
+	us1.mu.Lock()
+	assert.Equal(t, "identity", us1.batches[0].ContentEncoding)
+	us1.mu.Unlock()
+	us5.mu.Lock()
+	assert.Equal(t, "gzip", us5.batches[0].ContentEncoding)
+	us5.mu.Unlock()
+
 	var offsets []string
 	deadline := time.After(5 * time.Second)
 	for len(offsets) < 4 {
@@ -335,8 +357,8 @@ func TestEndpointFilteringUS1FullAndUS5FilteredBatchesWithCommonProcessing(t *te
 }
 
 // TestEndpointFilteringLocalTagsWithExportTagFilter verifies
-// that selectors match unfiltered local tags and structured JSON attributes
-// before rendering, while export tag_filters still strip those tags on the wire.
+// that selectors match unfiltered local tags before rendering, while export
+// tag_filters still strip those tags on the wire.
 func TestEndpointFilteringLocalTagsWithExportTagFilter(t *testing.T) {
 	us1 := newEndpointFilteringIntake(t)
 	us5 := newEndpointFilteringIntake(t)
@@ -535,12 +557,12 @@ func TestEndpointFilteringFlushReleasesPartialBatchesDuringStalledFanout(t *test
 	stalled := make(chan *message.Message, 1)
 	stalled <- &message.Message{} // Leave no queue space for this reliable sibling.
 	p := &RoutedProvider{
-		ctx: ctx, progress: progress, endpointDefs: &routing.EndpointDefinitions{},
+		ctx: ctx, progress: progress,
 		processed: make(chan *message.Message, 3), processedDone: make(chan struct{}),
 		sourceDispatch: make(map[string]*routedSourceDispatch),
 		streams: map[string]*routedStream{
-			"group:healthy": {input: healthy, flush: healthyFlush, pressureFlush: true},
-			"group:stalled": {input: stalled, flush: make(chan struct{}, 1), pressureFlush: true},
+			"healthy": {input: healthy, flush: healthyFlush, pressureFlush: true},
+			"stalled": {input: stalled, flush: make(chan struct{}, 1), pressureFlush: true},
 		},
 	}
 	go p.dispatchProcessed()
@@ -589,6 +611,56 @@ func TestEndpointFilteringFlushReleasesPartialBatchesDuringStalledFanout(t *test
 	}
 }
 
+func TestEndpointFilteringFlushSignalsHealthyStreamWhileAnotherSourceStalls(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	flush := make(chan struct{}, 1)
+	healthy := &routedSourceDispatch{submitted: 1, input: make(chan *message.Message)}
+	healthy.completed.Store(1)
+	stalled := &routedSourceDispatch{
+		submitted: 1, input: make(chan *message.Message),
+		advanced: make(chan struct{}, 1), flushRequested: make(chan struct{}, 1),
+	}
+	p := &RoutedProvider{
+		ctx:       ctx,
+		processed: make(chan *message.Message, 1), processedDone: make(chan struct{}),
+		sourceDispatch: map[string]*routedSourceDispatch{"healthy": healthy, "stalled": stalled},
+		streams: map[string]*routedStream{
+			"healthy": {pressureFlush: true, flush: flush},
+		},
+	}
+	go p.dispatchProcessed()
+	defer func() {
+		cancel()
+		close(p.processed)
+		<-p.processedDone
+	}()
+
+	ack := make(chan struct{})
+	marker := &message.Message{}
+	marker.SetRoutingBarrier(ack)
+	marker.SetRoutingBarrierContext(ctx)
+	p.processed <- marker
+	select {
+	case <-flush:
+	case <-ctx.Done():
+		t.Fatal("healthy stream got no early flush request")
+	}
+	select {
+	case <-ack:
+		t.Fatal("barrier acknowledged before the stalled source completed")
+	default:
+	}
+	stalled.completed.Store(1)
+	stalled.advanced <- struct{}{}
+	select {
+	case <-ack:
+		require.NoError(t, ctx.Err())
+	case <-ctx.Done():
+		t.Fatal("barrier did not acknowledge after the stalled source completed")
+	}
+}
+
 // TestEndpointFilteringStalledReliableSibling verifies that delivery to one
 // matching endpoint releases offers still waiting for space at its sibling.
 func TestEndpointFilteringStalledReliableSibling(t *testing.T) {
@@ -631,7 +703,7 @@ func TestEndpointFilteringStalledReliableSibling(t *testing.T) {
 		<-feedDone
 	}()
 
-	stalledInput := p.streams["group:stalled"].input
+	stalledInput := p.streams["stalled"].input
 	require.Eventually(t, func() bool {
 		return stalled.requests.Load() > 0 && len(stalledInput) == cap(stalledInput) && len(sink.ch) > 0
 	}, 10*time.Second, 10*time.Millisecond, "the stalled queue must fill after healthy checkpoints advance")
