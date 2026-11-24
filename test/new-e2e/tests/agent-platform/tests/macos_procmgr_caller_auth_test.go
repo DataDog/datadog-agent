@@ -28,6 +28,8 @@ const (
 	macosCallerAuthAgentCLI = "sudo -u _dd-agent " + macosProcmgrCLI
 
 	macosProcmgrSocket = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
+	// Holds the sleep argument of a run whose child may outlive it, so a retry can reap it.
+	macosCallerAuthSleepMarker = "/tmp/dd-e2e-caller-auth-sleep-arg"
 )
 
 type macosProcmgrDetail struct {
@@ -76,16 +78,71 @@ func macosProcmgrListNames(t *testing.T, client *common.MacOSTestClient, command
 	return names, true
 }
 
+// macosSleepPattern matches the child of a run by its command line, not by pid, which can be reused.
+func macosSleepPattern(sleepArg string) string {
+	return "^/bin/sleep " + sleepArg + "$"
+}
+
+func waitMacosSleepGone(client *common.MacOSTestClient, sleepArg string, timeout time.Duration) (string, error) {
+	check := "sudo sh -c 'pgrep -f \"" + macosSleepPattern(sleepArg) + "\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
+	deadline := time.Now().Add(timeout)
+	for {
+		left, err := client.Execute(check)
+		if err != nil || strings.TrimSpace(left) == "" || time.Now().After(deadline) {
+			return left, err
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+}
+
+// killMacosSleep escalates to SIGKILL and returns what is still running.
+func killMacosSleep(t *testing.T, client *common.MacOSTestClient, sleepArg string) (string, error) {
+	t.Helper()
+	// pkill returns before the process exits.
+	if _, err := client.Execute("sudo pkill -f '" + macosSleepPattern(sleepArg) + "'"); err != nil {
+		t.Logf("pkill /bin/sleep %s: %v", sleepArg, err)
+	}
+	left, err := waitMacosSleepGone(client, sleepArg, 5*time.Second)
+	if err != nil || strings.TrimSpace(left) != "" {
+		if _, killErr := client.Execute("sudo pkill -9 -f '" + macosSleepPattern(sleepArg) + "'"); killErr != nil {
+			t.Logf("pkill -9 /bin/sleep %s: %v", sleepArg, killErr)
+		}
+		left, err = waitMacosSleepGone(client, sleepArg, 2*time.Second)
+	}
+	return left, err
+}
+
 // healMacosCallerAuthLeftovers undoes a failed restore from an earlier attempt, which would fail the
-// pristine-catalog precondition. Only a restart drops runtime entries, so it restarts only when one
-// of this test's own entries is listed, after killing its child, which would outlive the restart.
-// Failures are logged, not asserted, so a daemon that is still starting gets the precondition's wait.
+// pristine-catalog precondition. A child outlives a daemon restart and its dropped runtime entry, so
+// the marker file is the only trace of it. Only a restart drops runtime entries, so it restarts only
+// when one of this test's own entries is listed. Listing and restart failures are logged, not
+// asserted, so a daemon that is still starting gets the precondition's wait.
 func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) {
 	t.Helper()
+	out, err := client.Execute("sudo sh -c 'cat " + macosCallerAuthSleepMarker + " 2>/dev/null || true'")
+	if err != nil {
+		t.Logf("heal: failed to read %s: %v", macosCallerAuthSleepMarker, err)
+	} else if previous := strings.TrimSpace(out); previous != "" {
+		if strings.Trim(previous, "0123456789") != "" {
+			t.Logf("heal: ignoring invalid %s content %q", macosCallerAuthSleepMarker, previous)
+		} else {
+			left, err := waitMacosSleepGone(client, previous, 0)
+			if err != nil || strings.TrimSpace(left) != "" {
+				left, err = killMacosSleep(t, client, previous)
+			}
+			if err != nil || strings.TrimSpace(left) != "" {
+				t.Errorf("heal: /bin/sleep %s from an earlier attempt could not be stopped: %v\n%s", previous, err, left)
+				return
+			}
+		}
+		if _, err := client.Execute("sudo rm -f " + macosCallerAuthSleepMarker); err != nil {
+			t.Logf("heal: failed to remove %s: %v", macosCallerAuthSleepMarker, err)
+		}
+	}
 	if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
 		t.Logf("heal: failed to remove %s: %v", macosCallerAuthReloadEntry, err)
 	}
-	out, err := client.Execute("sudo " + macosProcmgrCLI + " list --json")
+	out, err = client.Execute("sudo " + macosProcmgrCLI + " list --json")
 	if err != nil {
 		t.Logf("heal: failed to list processes: %v", err)
 		return
@@ -103,23 +160,8 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 			continue
 		}
 		found = true
-		pid := 0
-		if out, err := client.Execute("sudo " + macosProcmgrCLI + " describe " + process.Name + " --json"); err == nil {
-			var detail macosProcmgrDetail
-			if json.Unmarshal([]byte(strings.TrimSpace(out)), &detail) == nil {
-				pid = detail.Pid
-			}
-		}
 		if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + process.Name); err != nil {
 			t.Logf("heal: failed to stop %s: %v", process.Name, err)
-		}
-		if pid == 0 {
-			continue
-		}
-		// A stop can report Stopped while the child is alive, and the pid may have been reused.
-		pidArg := strconv.Itoa(pid)
-		if _, err := client.Execute("sudo sh -c 'case \"$(ps -o command= -p " + pidArg + ")\" in \"/bin/sleep \"[0-9]*) kill " + pidArg + ";; esac'"); err != nil {
-			t.Logf("heal: failed to kill pid %d of %s: %v", pid, process.Name, err)
 		}
 	}
 	if !found {
@@ -162,46 +204,31 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 			}
 		}
 		// A stop can report Stopped while the child is still alive, so check the OS on every path.
-		check := "sudo sh -c 'pgrep -f \"^/bin/sleep " + sleepArg + "$\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
-		waitGone := func(timeout time.Duration) (string, error) {
-			deadline := time.Now().Add(timeout)
-			for {
-				left, err := client.Execute(check)
-				if err != nil || strings.TrimSpace(left) == "" || time.Now().After(deadline) {
-					return left, err
-				}
-				time.Sleep(250 * time.Millisecond)
-			}
-		}
 		// After a clean stop, give the child time to exit before treating it as a leftover.
 		initialWait := time.Duration(0)
 		if !bodyFailed {
 			initialWait = 5 * time.Second
 		}
-		left, err := waitGone(initialWait)
+		left, err := waitMacosSleepGone(client, sleepArg, initialWait)
 		initialErr := err
 		survivedStop := !bodyFailed && err == nil && strings.TrimSpace(left) != ""
 		if err != nil || strings.TrimSpace(left) != "" {
-			// pkill returns before the process exits.
-			if _, killErr := client.Execute("sudo pkill -f '^/bin/sleep " + sleepArg + "$'"); killErr != nil {
-				t.Logf("cleanup: pkill /bin/sleep %s: %v", sleepArg, killErr)
-			}
-			left, err = waitGone(5 * time.Second)
-			if err != nil || strings.TrimSpace(left) != "" {
-				if _, killErr := client.Execute("sudo pkill -9 -f '^/bin/sleep " + sleepArg + "$'"); killErr != nil {
-					t.Logf("cleanup: pkill -9 /bin/sleep %s: %v", sleepArg, killErr)
-				}
-				left, err = waitGone(2 * time.Second)
-			}
+			left, err = killMacosSleep(t, client, sleepArg)
 		}
 		if err != nil {
 			t.Errorf("cleanup: failed to check for /bin/sleep %s: %v", sleepArg, err)
 		} else if strings.TrimSpace(left) != "" {
 			t.Errorf("cleanup: /bin/sleep %s still running:\n%s", sleepArg, left)
-		} else if survivedStop {
-			t.Errorf("cleanup: /bin/sleep %s was still running after stop and had to be killed", sleepArg)
-		} else if !bodyFailed && initialErr != nil {
-			t.Errorf("cleanup: failed to check for /bin/sleep %s before killing it: %v", sleepArg, initialErr)
+		} else {
+			// Kept while the child may still be alive, so the next attempt can reap it.
+			if _, rmErr := client.Execute("sudo rm -f " + macosCallerAuthSleepMarker); rmErr != nil {
+				t.Logf("cleanup: failed to remove %s: %v", macosCallerAuthSleepMarker, rmErr)
+			}
+			if survivedStop {
+				t.Errorf("cleanup: /bin/sleep %s was still running after stop and had to be killed", sleepArg)
+			} else if !bodyFailed && initialErr != nil {
+				t.Errorf("cleanup: failed to check for /bin/sleep %s before killing it: %v", sleepArg, initialErr)
+			}
 		}
 		// The restart loads processes.d.
 		if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
@@ -222,7 +249,9 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	require.Equal(t, "root:daemon 660", strings.TrimSpace(statOut), "socket owner or mode")
 	preconditionsPassed = true
 
-	_, err := client.Execute("sudo " + macosProcmgrCLI + " create --name " + macosCallerAuthEntry + " --command /bin/sleep --args " + sleepArg + " --no-auto-start --restart-policy never")
+	_, err := client.Execute("printf '%s\\n' " + sleepArg + " | sudo tee " + macosCallerAuthSleepMarker + " >/dev/null")
+	require.NoError(t, err)
+	_, err = client.Execute("sudo " + macosProcmgrCLI + " create --name " + macosCallerAuthEntry + " --command /bin/sleep --args " + sleepArg + " --no-auto-start --restart-policy never")
 	require.NoError(t, err)
 	created := macosProcmgrDescribe(t, client, macosCallerAuthEntry)
 	assert.Equal(t, "Skipped", created.State)
