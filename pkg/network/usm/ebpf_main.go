@@ -522,9 +522,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	options.UprobeMultiPrograms = slices.DeleteFunc(options.UprobeMultiPrograms, func(name string) bool {
-		return slices.Contains(options.ExcludedFunctions, name)
-	})
 	err := e.InitWithOptions(buf, &options)
 	if err != nil {
 		cleanup()
