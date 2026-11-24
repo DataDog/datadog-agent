@@ -66,6 +66,12 @@ func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 		pidCache: provider.NewCache(pidCacheGCInterval),
 	}
 
+	return newCollectorMetadata(collector, cache), nil
+}
+
+// newCollectorMetadata builds the collector catalog for containerd: the full
+// set of collectors for default containers, and stats only for sandboxed ones.
+func newCollectorMetadata(collector *containerdCollector, cache *provider.Cache) provider.CollectorMetadata {
 	collectors := &provider.Collectors{
 		Stats:             provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
 		Network:           provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
@@ -89,7 +95,7 @@ func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 	return provider.CollectorMetadata{
 		ID:         collectorID,
 		Collectors: catalog,
-	}, nil
+	}
 }
 
 // GetContainerStats returns stats by container ID.
@@ -192,7 +198,7 @@ func (c *containerdCollector) getContainerdMetrics(containerNS string, container
 
 	metricTask, errTask := c.client.TaskMetrics(containerNS, container)
 	if errTask != nil {
-		return nil, fmt.Errorf("could not get metrics for container with ID %s: %s", containerID, err)
+		return nil, fmt.Errorf("could not get metrics for container with ID %s: %s", containerID, errTask)
 	}
 
 	metrics, err := typeurl.UnmarshalAny(&anypb.Any{
