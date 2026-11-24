@@ -1,7 +1,8 @@
 # Kubelet side of TestDogtelTagParity: tags the calendar app's telemetry from
 # the pods the default kubelet workloadmeta collector finds, and forwards it as
-# received to the nodefilter side (dogtel-tag-parity-nodefilter.yml), so that
-# both otel-agents tag the same payloads.
+# received, minus container.id, to the nodefilter side
+# (dogtel-tag-parity-nodefilter.yml), so that both otel-agents tag the same
+# payloads.
 extensions:
   dogtel:
   pprof:
@@ -28,6 +29,14 @@ processors:
       - key: e2e.workloadmeta.collector
         value: kubelet
         action: upsert
+  # Drops the container ID the calendar app may set (resource.WithContainer)
+  # from the payloads forwarded to the nodefilter side, so that it has to
+  # resolve it from k8s.pod.uid and k8s.container.name, from the pods it
+  # watches through the API server.
+  resource/drop-container-id:
+    attributes:
+      - key: container.id
+        action: delete
 
 exporters:
   datadog:
@@ -60,14 +69,17 @@ service:
       receivers: [otlp]
       processors: [infraattributes, resource/collector]
       exporters: [datadog]
-    # Without processors, these pipelines forward the payloads as received:
-    # the ones above work on copies, as their processors mutate data.
+    # These pipelines forward the payloads as received, minus container.id:
+    # each pipeline works on its own copy, as their processors mutate data.
     traces/forward:
       receivers: [otlp]
+      processors: [resource/drop-container-id]
       exporters: [otlp/nodefilter]
     metrics/forward:
       receivers: [otlp]
+      processors: [resource/drop-container-id]
       exporters: [otlp/nodefilter]
     logs/forward:
       receivers: [otlp]
+      processors: [resource/drop-container-id]
       exporters: [otlp/nodefilter]

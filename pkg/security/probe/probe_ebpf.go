@@ -1336,7 +1336,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 			p.profileManager.ProcessEvent(event)
 		}
-	} else if event.Error == nil {
+	} else {
 		p.profileManager.ProcessEvent(event)
 	}
 
@@ -1518,9 +1518,32 @@ func (p *EBPFProbe) newRelatedCGroupWriteEvent(pce *model.ProcessCacheEntry) *mo
 	return relatedEvent
 }
 
+// newContainerPlaceholder returns the placeholder of a process that couldn't be resolved, in the container of the
+// cgroup reported by the kernel. Returns nil if that cgroup isn't the one of a known container.
+func (p *EBPFProbe) newContainerPlaceholder(pidContext model.PIDContext, cgroupContext model.CGroupContext) *model.ProcessCacheEntry {
+	// without bpf_get_current_cgroup_id(), the cgroup reported by the kernel can be stale
+	if !p.kernelTracksCGroupID || cgroupContext.CGroupPathKey.Inode == 0 {
+		return nil
+	}
+	cgroupEntry := p.Resolvers.CGroupResolver.GetCacheEntryByInode(cgroupContext.CGroupPathKey.Inode)
+	if cgroupEntry == nil || cgroupEntry.IsContainerContextNull() {
+		return nil
+	}
+	entry := model.NewPlaceholderProcessCacheEntry(pidContext.Pid, pidContext.Tid, false)
+	entry.PIDContext = pidContext
+	entry.CGroup = cgroupEntry.GetCGroupContext()
+	entry.ContainerContext = cgroupEntry.GetContainerContext()
+	return entry
+}
+
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
 func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, cgroupContext model.CGroupContext) bool {
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, p.onNewPCE)
+	if !isResolved && !event.PIDContext.IsKworker {
+		if placeholder := p.newContainerPlaceholder(event.PIDContext, cgroupContext); placeholder != nil {
+			entry = placeholder
+		}
+	}
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
@@ -2040,9 +2063,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			}
 		}
 
-		// remember who sent the request, so that the response can be attributed to it. Security
-		// profiles only cover containers.
-		if event.Error == nil && !event.ProcessContext.Process.ContainerContext.IsNull() && p.dnsRequests != nil {
+		// remember who sent the request, so that the response can be attributed to it
+		if p.dnsRequests != nil && needsDNSRequestTracking(event) {
 			p.dnsRequests.RecordRequest(event.DNS.ID, event.DNS.Question.Name, event.DNS.Question.Type, event.ProcessCacheEntry, time.Now())
 		}
 
@@ -2080,9 +2102,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 					}
 				}
 
-				// a rule needing the response sends it here instead of the short path. A response already
-				// attributed to a container reaches the profile with its own process context.
-				if event.ProcessContext.Process.ContainerContext.IsNull() {
+				// a rule needing the response sends it here instead of the short path
+				if needsDNSResponseCorrelation(event) {
 					p.correlateDNSResponseForActivityDump(p.dnsLayer, ips, cnames)
 				}
 			}

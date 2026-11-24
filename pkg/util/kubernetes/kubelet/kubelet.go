@@ -25,6 +25,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgErrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/ddot"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -47,6 +48,21 @@ var (
 	globalKubeUtil              *KubeUtil
 	globalKubeUtilMutex         sync.Mutex
 	errFailedKubeletClientHTTPS = errors.New("failed to use HTTPS for kubelet client")
+	errKubeletDisabled          = errors.New("kubelet access is disabled: otel-agent in DDOT standalone mode with otelcollector.standalone.use_kubelet_collector set to false")
+
+	// kubeletDisabledRetrier is the retrier GetKubeUtilWithRetrier returns
+	// when ddot.KubeletDisabled: it failed permanently, without contacting the
+	// kubelet, so that callers give up rather than retry.
+	kubeletDisabledRetrier = sync.OnceValue(func() *retry.Retrier {
+		r := &retry.Retrier{}
+		r.SetupRetrier(&retry.Config{ //nolint:errcheck
+			Name:          "kubeutil",
+			AttemptMethod: func() error { return errKubeletDisabled },
+			Strategy:      retry.OneTry,
+		})
+		r.TriggerRetry() //nolint:errcheck
+		return r
+	})
 )
 
 // Time is used to mirror the wrapped Time struct inn"k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -227,8 +243,14 @@ func ResetCache() {
 	cache.Cache.Delete(podListCacheKey)
 }
 
-// GetKubeUtilWithRetrier returns an instance of KubeUtil or a retrier
+// GetKubeUtilWithRetrier returns an instance of KubeUtil or a retrier. When
+// ddot.KubeletDisabled, it returns a permanently failed retrier without
+// contacting the kubelet.
 func GetKubeUtilWithRetrier() (KubeUtilInterface, *retry.Retrier) {
+	if ddot.KubeletDisabled(pkgconfigsetup.Datadog()) {
+		return nil, kubeletDisabledRetrier()
+	}
+
 	globalKubeUtilMutex.Lock()
 	defer globalKubeUtilMutex.Unlock()
 	if globalKubeUtil == nil {

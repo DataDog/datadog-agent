@@ -20,6 +20,7 @@
 /.claude/rules/allium.md                        @DataDog/single-machine-performance
 /.claude/rules/bazel.md                         @DataDog/agent-build
 /.claude/rules/msi.md                           @DataDog/windows-products
+/.claude/rules/ndm-testing.md                   @DataDog/network-device-monitoring-core @DataDog/ndm-integrations
 /.claude/rules/systemd.md                       @DataDog/agent-runtimes
 /.cursor/rules/bazel-buildifier.mdc             @DataDog/agent-build
 /.agents/*                                      @DataDog/agent-devx
@@ -708,6 +709,7 @@
 /comp/core/autodiscovery/listeners/                                   @DataDog/container-platform
 /comp/core/autodiscovery/listeners/cloudfoundry*.go                   @DataDog/agent-integrations
 /comp/core/autodiscovery/listeners/snmp*.go                           @DataDog/network-device-monitoring-core
+/comp/core/autodiscovery/listeners/dbm_*.go                           @DataDog/database-monitoring
 /comp/core/autodiscovery/providers/                                   @DataDog/container-platform
 /comp/core/autodiscovery/providers/file*.go                           @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/config_reader*.go                  @DataDog/container-platform @DataDog/agent-log-pipelines
