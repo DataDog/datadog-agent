@@ -314,6 +314,7 @@ func TestScanMW_MinSegmentLargerThanHalfWindowDoesNotPanic(t *testing.T) {
 		dCfg.MinSegment = minSegment
 		dCfg.MaxPoints = 24
 		d := NewScanMWDetector(dCfg)
+		d.config.MinSegment = minSegment
 		storage := newTimeSeriesStorage()
 
 		for timestamp := int64(1); timestamp <= 12; timestamp++ {

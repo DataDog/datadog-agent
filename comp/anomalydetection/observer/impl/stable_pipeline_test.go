@@ -6,10 +6,12 @@
 package observerimpl
 
 import (
+	"bytes"
 	"math"
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -256,14 +258,33 @@ func TestNewStableDetector_RejectsMultipleBlocks(t *testing.T) {
 	require.EqualError(t, err, "stable pipeline accepts at most one detector block")
 }
 
-func TestNewStableDetector_RejectsInvalidMinSegment(t *testing.T) {
-	_, err := newStableDetector(StablePipelineConfig{
+func TestNewStableDetector_InvalidMinSegmentFallsBackWithWarning(t *testing.T) {
+	level, err := pkglog.GetLogLevelSpec()
+	require.NoError(t, err)
+	var output bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndMsgFormat(&output, pkglog.WarnLvl)
+	require.NoError(t, err)
+	pkglog.SetupLogger(logger, "warn")
+	t.Cleanup(func() { pkglog.SetupLogger(pkglog.Default(), level) })
+
+	detector, err := newStableDetector(StablePipelineConfig{
 		ScanMW: &StableScanMWConfig{MaxPoints: 120, MinSegment: 61},
 	})
-	require.EqualError(t, err, "scanmw min_segment (61) must be at most half of max_points (120)")
+	require.NoError(t, err)
+	pkglog.Flush()
+	scanmw, ok := detector.(*ScanMWDetector)
+	require.True(t, ok)
+	require.Equal(t, DefaultScanMWConfig().MinSegment, scanmw.config.MinSegment)
+	require.Contains(t, output.String(), "ScanMW min_segment=61 exceeds half of max_points=120; using 12")
 
-	_, err = newStableDetector(StablePipelineConfig{
-		ScanWelch: &StableScanWelchConfig{MinSegment: 61},
+	output.Reset()
+	detector, err = newStableDetector(StablePipelineConfig{
+		ScanWelch: &StableScanWelchConfig{MinPoints: 10, MaxPoints: 20, MinSegment: 15},
 	})
-	require.EqualError(t, err, "scanwelch min_segment (61) must be at most half of max_points (120)")
+	require.NoError(t, err)
+	pkglog.Flush()
+	scanwelch, ok := detector.(*ScanWelchDetector)
+	require.True(t, ok)
+	require.Equal(t, 10, scanwelch.config.MinSegment)
+	require.Contains(t, output.String(), "ScanWelch min_segment=15 exceeds half of max_points=20; using 10")
 }

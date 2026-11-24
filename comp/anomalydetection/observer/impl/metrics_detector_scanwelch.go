@@ -98,6 +98,14 @@ func NewScanWelchDetector(cfg ScanWelchConfig) *ScanWelchDetector {
 		logging.Warnf("ScanWelch max_points=%d is below min_points=%d; using %d", cfg.MaxPoints, cfg.MinPoints, cfg.MinPoints)
 		cfg.MaxPoints = cfg.MinPoints
 	}
+	if cfg.MinSegment > cfg.MaxPoints/2 {
+		fallback := defaults.MinSegment
+		if fallback > cfg.MaxPoints/2 {
+			fallback = max(1, cfg.MaxPoints/2)
+		}
+		logging.Warnf("ScanWelch min_segment=%d exceeds half of max_points=%d; using %d", cfg.MinSegment, cfg.MaxPoints, fallback)
+		cfg.MinSegment = fallback
+	}
 	if cfg.MinTStatistic <= 0 {
 		cfg.MinTStatistic = defaults.MinTStatistic
 	}

@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TestDefaultCatalog_DetectorTeardownContract is the structural guard that
@@ -306,13 +308,39 @@ func TestSettingsFromAgentConfigStableDetectorErrors(t *testing.T) {
 `,
 			want: "unknown stable detector setting \"enabled\"",
 		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  metric_pipeline:\n    enabled: true\n    stable:\n"+test.yaml)
+			_, err := settingsFromAgentConfig(defaultCatalog(), cfg)
+			require.EqualError(t, err, test.want)
+		})
+	}
+}
+
+func TestSettingsFromAgentConfigStableDetectorMinSegmentFallbackWarning(t *testing.T) {
+	level, err := pkglog.GetLogLevelSpec()
+	require.NoError(t, err)
+	var output bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndMsgFormat(&output, pkglog.WarnLvl)
+	require.NoError(t, err)
+	pkglog.SetupLogger(logger, "warn")
+	t.Cleanup(func() { pkglog.SetupLogger(pkglog.Default(), level) })
+
+	tests := []struct {
+		name           string
+		yaml           string
+		wantMinSegment int
+		wantWarn       string
+	}{
 		{
 			name: "scanmw non-positive min_segment",
 			yaml: `
       scanmw:
         min_segment: 0
 `,
-			want: "scanmw min_segment must be positive",
+			wantMinSegment: 12,
+			wantWarn:       "anomaly_detection.metric_pipeline.stable.scanmw.min_segment=0 must be > 0; using 12",
 		},
 		{
 			name: "scanmw min_segment exceeds half max_points",
@@ -320,7 +348,8 @@ func TestSettingsFromAgentConfigStableDetectorErrors(t *testing.T) {
       scanmw:
         min_segment: 61
 `,
-			want: "scanmw min_segment (61) must be at most half of max_points (120)",
+			wantMinSegment: 12,
+			wantWarn:       "ScanMW min_segment=61 exceeds half of max_points=120; using 12",
 		},
 		{
 			name: "scanwelch non-positive min_segment",
@@ -328,7 +357,8 @@ func TestSettingsFromAgentConfigStableDetectorErrors(t *testing.T) {
       scanwelch:
         min_segment: -1
 `,
-			want: "scanwelch min_segment must be positive",
+			wantMinSegment: 12,
+			wantWarn:       "anomaly_detection.metric_pipeline.stable.scanwelch.min_segment=-1 must be > 0; using 12",
 		},
 		{
 			name: "scanwelch min_segment exceeds half max_points",
@@ -337,14 +367,31 @@ func TestSettingsFromAgentConfigStableDetectorErrors(t *testing.T) {
         max_points: 40
         min_segment: 21
 `,
-			want: "scanwelch min_segment (21) must be at most half of max_points (40)",
+			wantMinSegment: 12,
+			wantWarn:       "ScanWelch min_segment=21 exceeds half of max_points=40; using 12",
 		},
 	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			output.Reset()
 			cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  metric_pipeline:\n    enabled: true\n    stable:\n"+test.yaml)
-			_, err := settingsFromAgentConfig(defaultCatalog(), cfg)
-			require.EqualError(t, err, test.want)
+			settings, err := settingsFromAgentConfig(defaultCatalog(), cfg)
+			require.NoError(t, err)
+			detectors, _, _, _, _ := instantiateForTest(t, defaultCatalog(), settings)
+			require.Len(t, detectors, 1)
+			pipeline := detectors[0].detector.(*MetricPipeline)
+			stable := pipeline.registrations[0].detector.(*StablePipeline)
+			switch d := stable.detector.(type) {
+			case *ScanMWDetector:
+				require.Equal(t, test.wantMinSegment, d.config.MinSegment)
+			case *ScanWelchDetector:
+				require.Equal(t, test.wantMinSegment, d.config.MinSegment)
+			default:
+				t.Fatalf("unexpected detector type %T", d)
+			}
+			pkglog.Flush()
+			require.Contains(t, output.String(), test.wantWarn)
 		})
 	}
 }

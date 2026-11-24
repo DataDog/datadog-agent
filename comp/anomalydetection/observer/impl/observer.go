@@ -411,17 +411,16 @@ func readStablePipelineConfig(cfg config.Component) (*StablePipelineConfig, erro
 		if err := validateStableDetectorBlock(cfg, stablePrefix+".scanmw", "min_points", "max_points", "min_segment"); err != nil {
 			return nil, err
 		}
-		if cfg.IsConfigured(prefix+"scanmw.min_segment") && cfg.GetInt(prefix+"scanmw.min_segment") <= 0 {
-			return nil, errors.New("scanmw min_segment must be positive")
+		minSeg := cfg.GetInt(prefix + "scanmw.min_segment")
+		if cfg.IsConfigured(prefix+"scanmw.min_segment") && minSeg <= 0 {
+			defaults := DefaultScanMWConfig()
+			logging.Warnf("anomaly_detection.metric_pipeline.stable.scanmw.min_segment=%d must be > 0; using %d", minSeg, defaults.MinSegment)
+			minSeg = defaults.MinSegment
 		}
 		stable.ScanMW = &StableScanMWConfig{
 			MinPoints:  cfg.GetInt(prefix + "scanmw.min_points"),
 			MaxPoints:  cfg.GetInt(prefix + "scanmw.max_points"),
-			MinSegment: cfg.GetInt(prefix + "scanmw.min_segment"),
-		}
-		defaults := DefaultScanMWConfig()
-		if err := validateStableScanConfig("scanmw", stable.ScanMW.MinPoints, stable.ScanMW.MaxPoints, stable.ScanMW.MinSegment, defaults.MinPoints, defaults.MaxPoints, defaults.MinSegment); err != nil {
-			return nil, err
+			MinSegment: minSeg,
 		}
 		selected++
 	}
@@ -429,17 +428,16 @@ func readStablePipelineConfig(cfg config.Component) (*StablePipelineConfig, erro
 		if err := validateStableDetectorBlock(cfg, stablePrefix+".scanwelch", "min_points", "max_points", "min_segment"); err != nil {
 			return nil, err
 		}
-		if cfg.IsConfigured(prefix+"scanwelch.min_segment") && cfg.GetInt(prefix+"scanwelch.min_segment") <= 0 {
-			return nil, errors.New("scanwelch min_segment must be positive")
+		minSeg := cfg.GetInt(prefix + "scanwelch.min_segment")
+		if cfg.IsConfigured(prefix+"scanwelch.min_segment") && minSeg <= 0 {
+			defaults := DefaultScanWelchConfig()
+			logging.Warnf("anomaly_detection.metric_pipeline.stable.scanwelch.min_segment=%d must be > 0; using %d", minSeg, defaults.MinSegment)
+			minSeg = defaults.MinSegment
 		}
 		stable.ScanWelch = &StableScanWelchConfig{
 			MinPoints:  cfg.GetInt(prefix + "scanwelch.min_points"),
 			MaxPoints:  cfg.GetInt(prefix + "scanwelch.max_points"),
-			MinSegment: cfg.GetInt(prefix + "scanwelch.min_segment"),
-		}
-		defaults := DefaultScanWelchConfig()
-		if err := validateStableScanConfig("scanwelch", stable.ScanWelch.MinPoints, stable.ScanWelch.MaxPoints, stable.ScanWelch.MinSegment, defaults.MinPoints, defaults.MaxPoints, defaults.MinSegment); err != nil {
-			return nil, err
+			MinSegment: minSeg,
 		}
 		selected++
 	}
