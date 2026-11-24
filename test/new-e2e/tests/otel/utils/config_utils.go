@@ -7,8 +7,11 @@
 package utils
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -405,23 +408,38 @@ func extractFlarePathFromOutput(output string) string {
 	return ""
 }
 
+// readFlareArchive returns the content of every file of a flare archive
+func readFlareArchive(t *testing.T, archive []byte) map[string][]byte {
+	zipReader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
+	require.NoError(t, err, "Flare archive should be a valid zip")
+
+	files := make(map[string][]byte, len(zipReader.File))
+	for _, f := range zipReader.File {
+		rc, err := f.Open()
+		require.NoError(t, err)
+		content, err := io.ReadAll(rc)
+		rc.Close()
+		require.NoError(t, err)
+		files[f.Name] = content
+	}
+	return files
+}
+
 // validateOTelFlareContents validates the contents of the otel flare archive
 func validateOTelFlareContents(s OTelTestSuite, pod corev1.Pod, flarePath string, podType string) {
-	// List contents of the zip file
-	s.T().Log("Listing flare archive contents")
-	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Name, "otel-agent", []string{"unzip", "-l", flarePath})
-	if err != nil {
-		s.T().Logf("Could not list flare contents (unzip may not be available): %v, stderr: %s", err, stderr)
-		// If unzip is not available, we can still validate that the file exists
-		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Name, "otel-agent", []string{"ls", "-lh", flarePath})
-		require.NoError(s.T(), err, "Failed to check flare file exists")
-		require.Empty(s.T(), stderr)
-		require.Contains(s.T(), stdout, "otel-agent-flare_", "Flare file should exist")
-		s.T().Log("Flare file exists but cannot extract contents without unzip utility")
-		return
+	// The image has no unzip, so the archive is read here
+	s.T().Log("Reading the flare archive")
+	archive, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Name, "otel-agent", []string{"cat", flarePath})
+	require.NoError(s.T(), err, "Failed to read the flare archive, stderr: %s", stderr)
+	files := readFlareArchive(s.T(), []byte(archive))
+	for name := range files {
+		s.T().Log("Flare archive file: ", name)
 	}
 
-	s.T().Logf("Flare archive contents:\n%s", stdout)
+	// When the flare could not get the data of the running collector, it says why
+	if reason, ok := files["otel-agent.log"]; ok {
+		s.T().Logf("The flare fell back to the configuration files: %s", reason)
+	}
 
 	// Validate expected files are in the archive
 	// These files should be created by the otel-agent flare command
@@ -432,39 +450,43 @@ func validateOTelFlareContents(s OTelTestSuite, pod corev1.Pod, flarePath string
 		"config/env-config.yaml",
 		"config/runtime-config.yaml",
 		"environment.json",
-		"otel/otel-flare/health_check/dd-autoconfigured.dat",
-		"otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_heap.dat",
-		"otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_allocs.dat",
+		"otel-flare/health_check/dd-autoconfigured.dat",
+		"otel-flare/pprof/dd-autoconfigured_debug_pprof_heap.dat",
+		"otel-flare/pprof/dd-autoconfigured_debug_pprof_allocs.dat",
 	}
 
 	for _, expectedFile := range expectedFiles {
-		assert.Contains(s.T(), stdout, expectedFile, "Flare should contain "+expectedFile)
+		assert.Contains(s.T(), files, expectedFile, "Flare should contain "+expectedFile)
 	}
 
-	// Try to extract and validate the otel-response.json content
-	s.T().Log("Extracting and validating otel-response.json")
-	extractCmd := []string{"sh", "-c", "unzip -p " + flarePath + " otel-response.json"}
-	responseJSON, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Name, "otel-agent", extractCmd)
-	if err != nil {
-		s.T().Logf("Could not extract otel-response.json: %v, stderr: %s", err, stderr)
-		return
-	}
-
-	// Parse and validate the response
+	// Parse and validate the otel-response.json content
+	s.T().Log("Validating otel-response.json")
 	var resp extensiontypes.Response
-	err = json.Unmarshal([]byte(responseJSON), &resp)
+	err = json.Unmarshal(files["otel-response.json"], &resp)
 	require.NoError(s.T(), err, "Should be able to parse otel-response.json")
 
 	// Validate response structure (similar to TestOTelFlareExtensionResponse)
 	assert.Equal(s.T(), "otel-agent", resp.AgentCommand)
-	assert.Equal(s.T(), "Datadog OTel Agent", resp.AgentDesc)
+	assert.Equal(s.T(), "Datadog Agent OpenTelemetry Collector", resp.AgentDesc)
 	assert.Equal(s.T(), "", resp.RuntimeOverrideConfig)
 	assert.NotEmpty(s.T(), resp.AgentVersion, "Agent version should not be empty")
 
 	// Validate that configs are not empty
 	assert.NotEmpty(s.T(), resp.CustomerConfig, "Customer config should not be empty")
 	assert.NotEmpty(s.T(), resp.RuntimeConfig, "Runtime config should not be empty")
+
+	// Only the environment variables that are safe to share are kept, never the API key
 	assert.NotEmpty(s.T(), resp.Environment, "Environment should not be empty")
+	assert.NotContains(s.T(), resp.Environment, "DD_API_KEY")
+
+	// The API key of the collector must not be in any file of the flare
+	apiKey, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Name, "otel-agent", []string{"sh", "-c", `printf %s "$DD_API_KEY"`})
+	require.NoError(s.T(), err, "Failed to read the API key of the collector")
+	if apiKey != "" {
+		for name, content := range files {
+			assert.NotContains(s.T(), string(content), apiKey, "API key found in %s", name)
+		}
+	}
 
 	s.T().Logf("OTel %s flare validation completed successfully", podType)
 }
