@@ -17,6 +17,10 @@ func FormatAnomaly(a Anomaly) (title, description string) {
 	}
 
 	switch a.DetectorAlgorithm() {
+	case "log_failure":
+		// Every error-count series shares one name; the scope is in host and tags.
+		return "Repeated application errors: " + a.Source.DisplayName(),
+			fmt.Sprintf("%.0f explicit application errors across at least %d five-second intervals in the last %d seconds (threshold: %.0f errors)", debug.CurrentValue, debug.FailureMinIntervals, debug.FailureWindowSeconds, debug.Threshold)
 	case "scanmw":
 		direction := "increased"
 		if debug.CurrentValue < debug.BaselineMedian {

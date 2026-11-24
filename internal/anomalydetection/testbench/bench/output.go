@@ -21,6 +21,8 @@ type ObserverOutput struct {
 	Metadata          ObserverMetadata         `json:"metadata"`
 	AnomalyPeriods    []ObserverCorrelation    `json:"anomaly_periods"`
 	DetectorAnomalies *[]DetectorOutputAnomaly `json:"detector_anomalies,omitempty"`
+	// AcceptedAnomalies preserves scorer inputs, including their evidence meaning.
+	AcceptedAnomalies *[]ObserverAnomaly `json:"accepted_anomalies,omitempty"`
 }
 
 // ObserverMetadata describes the scenario and pipeline configuration.
@@ -62,10 +64,11 @@ type ObserverCorrelation struct {
 
 // ObserverAnomaly is a single anomaly nested inside a correlation (verbose only).
 type ObserverAnomaly struct {
-	Timestamp      int64  `json:"timestamp"`
-	Source         string `json:"source"`
-	SourceSeriesID string `json:"source_series_id"`
-	Detector       string `json:"detector"`
+	Timestamp      int64                    `json:"timestamp"`
+	Source         string                   `json:"source"`
+	SourceSeriesID string                   `json:"source_series_id"`
+	Detector       string                   `json:"detector"`
+	Evidence       observerdef.EvidenceKind `json:"evidence,omitempty"`
 }
 
 // WriteObserverOutput collects correlations and metadata from the Bench
@@ -177,6 +180,7 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 					Source:         a.Source.String(),
 					SourceSeriesID: a.SourceRef.CompactID(),
 					Detector:       a.DetectorName,
+					Evidence:       a.Evidence,
 				}
 			}
 		}
@@ -200,6 +204,20 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 		AnomalyPeriods: outCorrelations,
 	}
 	if tb.config.IncludeDetectorAnomalies {
+		accepted := make([]ObserverAnomaly, 0)
+		for _, a := range sv.Anomalies() {
+			if a.SourceRef == nil {
+				continue
+			}
+			accepted = append(accepted, ObserverAnomaly{Timestamp: a.Timestamp, Source: a.Source.Key(), SourceSeriesID: a.SourceRef.CompactID(), Detector: a.DetectorName, Evidence: a.Evidence})
+		}
+		sort.Slice(accepted, func(i, j int) bool {
+			if accepted[i].Timestamp != accepted[j].Timestamp {
+				return accepted[i].Timestamp < accepted[j].Timestamp
+			}
+			return accepted[i].Source < accepted[j].Source
+		})
+		output.AcceptedAnomalies = &accepted
 		output.DetectorAnomalies = &detectorAnomalies
 		totalDetectorAnomalies := len(detectorAnomalies)
 		output.Metadata.TotalDetectorAnomalies = &totalDetectorAnomalies

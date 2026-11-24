@@ -21,4 +21,5 @@ dd_agent_go_test(
     name = "def_test",
     srcs = ["format_test.go"],
     embed = [":def"],
+    deps = ["//pkg/tagset"],
 )

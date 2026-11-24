@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -1539,4 +1540,104 @@ func TestPendingEvents_ResetClearsPending(t *testing.T) {
 	if got := s.PendingEvents(); got != nil {
 		t.Fatalf("expected nil PendingEvents after Reset(), got %v", got)
 	}
+}
+
+func TestOpenHighDurationContinuesAfterExampleCap(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	cfg.MaxEpisodeAnomalies = 1
+	cfg.WindowSecs = 30
+	s := newScorerWithTelemetry(cfg)
+	seedAndCrossHighThreshold(s, 1000)
+	for sec := int64(1010); sec < 1020; sec++ {
+		s.ProcessAnomaly(makeAnomaly("bocpd", sec, nil))
+		s.Advance(sec)
+	}
+	correlations := s.ActiveCorrelations()
+	require.Len(t, correlations, 1)
+	require.Len(t, correlations[0].Anomalies, 1)
+	require.Equal(t, int64(1019), correlations[0].LastUpdated, "example cap must not freeze the active period end")
+	s.Advance(1020)
+	require.Equal(t, int64(1020), s.ActiveCorrelations()[0].LastUpdated, "time advances even without another anomaly")
+}
+
+func TestEpisodeListsRepeatedFailureEvidenceOnce(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	cfg.WindowSecs = 30
+	s := newScorerWithTelemetry(cfg)
+	seedAndCrossHighThreshold(s, 1000)
+	failure := func(ref observer.SeriesRef, ts int64) observer.Anomaly {
+		a := makeAnomaly(LogFailureDetectorName, ts, nil)
+		a.Evidence = observer.EvidenceFailure
+		a.SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: observer.AggregateAverage}
+		return a
+	}
+	for sec := int64(1005); sec <= 1030; sec += 5 {
+		s.ProcessAnomaly(failure(7, sec))
+		s.Advance(sec)
+	}
+	s.ProcessAnomaly(failure(8, 1031))
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1031, nil))
+	s.Advance(1031)
+
+	correlations := s.ActiveCorrelations()
+	require.Len(t, correlations, 1)
+	var detectors []string
+	for _, a := range correlations[0].Anomalies {
+		detectors = append(detectors, a.DetectorName)
+	}
+	require.Equal(t, []string{LogFailureDetectorName, LogFailureDetectorName, "bocpd"}, detectors,
+		"each failure series is listed once, leaving room for other detectors")
+	require.Equal(t, int64(1031), correlations[0].LastUpdated)
+}
+
+func failureAnomaly(detector string, ref observer.SeriesRef, ts int64, weight float64) observer.Anomaly {
+	a := makeAnomaly(detector, ts, nil)
+	a.Source.Name = fmt.Sprintf("series-%d", ref)
+	a.Evidence = observer.EvidenceFailure
+	a.FailureWeight = weight
+	a.SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: observer.AggregateAverage}
+	return a
+}
+
+func TestFailureWeightFloorsInputWhileEvidenceIsFresh(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.Alpha = 0.999999 // the EWMA tracks the per-second input
+	inputs := func(anomalies map[int64][]observer.Anomaly, secs ...int64) []float64 {
+		s := newAnomalyScorerBase(cfg)
+		s.Advance(999)
+		var scores []float64
+		for _, sec := range secs {
+			for _, a := range anomalies[sec] {
+				s.ProcessAnomaly(a)
+			}
+			s.Advance(sec)
+			scores = append(scores, s.LastScore())
+		}
+		return scores
+	}
+	medium := 1 - math.Exp(-1.0/5)
+	at := func(a ...observer.Anomaly) map[int64][]observer.Anomaly { return map[int64][]observer.Anomaly{1000: a} }
+	last := 1000 + cfg.WindowSecs - 1
+
+	boosted := inputs(at(failureAnomaly(LogFailureDetectorName, 1, 1000, 3)), 1000, last, last+1)
+	require.InDelta(t, 3*medium, boosted[0], 1e-4, "fresh failure evidence is floored at its weight")
+	require.Greater(t, boosted[0], cfg.HighThreshold, "the default weight floors above the High threshold")
+	require.InDelta(t, 3*medium, boosted[1], 1e-4, "the floor lasts while the evidence is in the window")
+	require.InDelta(t, 0, boosted[2], 1e-4, "the floor ends once the evidence leaves the window")
+
+	require.InDelta(t, medium, inputs(at(failureAnomaly(LogFailureDetectorName, 1, 1000, 0)), 1000)[0], 1e-4,
+		"zero weight keeps the ordinary Medium contribution")
+	require.InDelta(t, 3*medium, inputs(at(failureAnomaly(LogFailureDetectorName, 1, 1000, 3), failureAnomaly(LogFailureDetectorName, 2, 1000, 3)), 1000)[0], 1e-4,
+		"more failing series cannot raise the floor")
+	require.InDelta(t, medium, inputs(at(makeAnomaly("bocpd", 1000, nil)), 1000)[0], 1e-4, "statistical evidence is not boosted")
+
+	// Each failure detector carries its own weight; the largest fresh one applies.
+	mixed := inputs(map[int64][]observer.Anomaly{
+		1000: {failureAnomaly("metric_failure", 1, 1000, 6)},
+		1005: {failureAnomaly(LogFailureDetectorName, 2, 1005, 3)},
+	}, 1000, 1005, 1000+cfg.WindowSecs)
+	require.InDelta(t, 6*medium, mixed[1], 1e-4, "the larger fresh weight applies")
+	require.InDelta(t, 3*medium, mixed[2], 1e-4, "the smaller weight applies once the larger evidence expires")
 }

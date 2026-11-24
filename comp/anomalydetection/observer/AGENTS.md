@@ -61,10 +61,15 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Extractor | `log_metrics_extractor` | on |
 | Extractor | `log_pattern_extractor` | on |
 | Extractor | `connection_error_extractor` | off |
+| Extractor | `log_error_count_extractor` | with `log_failure` |
 | Detector | `bocpd` | on |
+| Detector | `log_failure` | off |
 | Detector | `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
 | Correlator | `time_cluster` | off |
 | Correlator | `anomaly_scorer` | off |
+
+`log_failure` sees container application logs only when `logs.containers.enabled`
+is true.
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
 
@@ -75,7 +80,7 @@ runtime state.
 restrictions and authoritative aggregation selection. Empty aggregations select
 average then count; explicit selections keep order, skipping duplicates and invalid
 values. Kind/type values and nil presence must stay constant per instance,
-including resets; equal-valued
+including resets; namespace exclusions are also fixed across calls. Equal-valued
 replacement pointers are allowed. Aggregations may vary per call. Empty means
 unrestricted workload detection; telemetry is always excluded. Filtering neither
 advances excluded state nor removes it; callers own reset/transition cleanup.
