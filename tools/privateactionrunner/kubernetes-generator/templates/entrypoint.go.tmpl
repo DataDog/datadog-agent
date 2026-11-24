@@ -1,0 +1,31 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright {{ .CopyrightYear }}-present Datadog, Inc.
+
+package com_datadoghq_kubernetes_{{ .Package }}
+
+import "github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+
+type Kubernetes{{ .Package | title }} struct {
+    actions map[string]types.Action
+}
+
+func NewKubernetes{{ .Package | title }}() *Kubernetes{{ .Package | title }} {
+    return &Kubernetes{{ .Package | title }}{
+        actions: map[string]types.Action{
+            // Manual actions
+            {{ range .ManualActionNames -}}
+            "{{ . }}": New{{ . | title }}Handler(),
+            {{ end -}}
+            // Auto-generated actions
+            {{ range .Actions -}}
+            "{{ .Name }}": New{{ .Name | title }}Handler(),
+            {{ end -}}
+        },
+    }
+}
+
+func (h *Kubernetes{{ .Package | title }}) GetAction(actionName string) types.Action {
+    return h.actions[actionName]
+}
