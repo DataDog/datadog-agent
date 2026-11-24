@@ -36,6 +36,9 @@ type passSummary struct {
 	// degraded describes the first Deployment that failed after its rollout
 	// succeeded and after the cluster was added, or is empty.
 	degraded string
+	// reverts counts the rollouts reverted during the pass, which the
+	// Deployments it started from do not record yet.
+	reverts int
 }
 
 func (c *Controller) pacingFor(p *Policy) *pacing {
@@ -121,7 +124,7 @@ func (c *Controller) markWait(p *Policy, pc *pacing, ready bool, sum *passSummar
 // and failures since the team last added the cluster count, so re-adding a
 // paused cluster resumes it.
 func pauseReason(p *Policy, deployments []*appsv1.Deployment, sum *passSummary) string {
-	reverts := 0
+	reverts := sum.reverts
 	for _, d := range deployments {
 		reverts += revertsSince(parseExclusions(d.Annotations[ExcludedAnnotation]), p.ID, p.cluster.AddedAt)
 	}

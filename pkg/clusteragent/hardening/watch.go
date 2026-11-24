@@ -83,6 +83,7 @@ func (c *Controller) onFailure(ctx context.Context, p *Policy, pc *pacing, d *ap
 		}
 		if startedByLeader(history, d) {
 			pc.onRevert(p, d)
+			sum.reverts++
 			return c.revert(ctx, p, d, containers, problem, touched, now)
 		}
 	}

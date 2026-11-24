@@ -290,6 +290,25 @@ func TestRevertsPauseTheCluster(t *testing.T) {
 	assert.Equal(t, []string{"app"}, h.marks("c")["hp-caps"])
 }
 
+func TestRevertsInOnePassPauseBeforeTheNextMark(t *testing.T) {
+	var objs []runtime.Object
+	for _, name := range []string{"a", "b"} {
+		before := testDeployment(name)
+		d := marked(testDeployment(name))
+		d.Status.Conditions = []appsv1.DeploymentCondition{{Type: appsv1.DeploymentProgressing, Reason: "ProgressDeadlineExceeded"}}
+		d.Status.UpdatedReplicas = 1
+		objs = append(objs, d, replicaSet(d, before.Spec.Template, 1), replicaSet(d, d.Spec.Template, 2))
+	}
+	h := newHarness(t, append(objs, testDeployment("c"))...)
+	setRC(t, h.store, testPolicy(StateEnforce, testAddedAt), testExceptions(""))
+	h.reconcile()
+
+	assert.Len(t, h.exclusions("a"), 1)
+	assert.Len(t, h.exclusions("b"), 1)
+	assert.Empty(t, h.marks("c"), "the pass that reaches the pause threshold marks nothing")
+	assert.Contains(t, h.c.status[statusKey{policy: "hp-caps"}], "paused: 2 rollouts were reverted")
+}
+
 func TestRecordsAMarkSomeoneRemoved(t *testing.T) {
 	d := testDeployment("web")
 	h := newHarness(t, d, replicaSet(d, d.Spec.Template, 1), replicaSet(d, marked(testDeployment("web")).Spec.Template, 2), replicaSet(d, d.Spec.Template, 3))
