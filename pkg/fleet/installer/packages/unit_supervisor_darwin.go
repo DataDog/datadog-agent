@@ -579,9 +579,17 @@ func applyStable(ctx context.Context, request unitsRequest, restart bool) error 
 			return fmt.Errorf("unit supervisor: %w", err)
 		}
 	case status.Loaded:
-		// Loaded without running: what launchd leaves of it after a reboot mid-experiment.
+		// Loaded without running: what launchd leaves of it after a reboot mid-experiment, or after it
+		// died during the stop.
 		if err := installerLaunchdClient().Bootout(ctx, installerJob+string(launchd.Experiment)); err != nil {
 			log.Warnf("unit supervisor: could not unload the idle experiment daemon: %v", err)
+		}
+	}
+	// Whatever happened to the experiment daemon, the host keeps a daemon: the stable one is started
+	// when it is not loaded.
+	if loaded, err := launchdClient().Loaded(ctx, installerJob); err == nil && !loaded {
+		if err := startInstallerDaemon(ctx, installerJobSet(), launchd.Stable); err != nil {
+			return fmt.Errorf("unit supervisor: could not start the stable installer daemon: %w", err)
 		}
 	}
 	if err := installerJobSet().Remove(launchd.Experiment); err != nil {

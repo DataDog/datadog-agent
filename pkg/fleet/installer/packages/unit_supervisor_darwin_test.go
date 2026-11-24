@@ -269,6 +269,24 @@ func TestStopAfterARebootLeavesTheStableJobsRunning(t *testing.T) {
 	assert.True(t, l.isRunning(installerJob), "the stable daemon must stay")
 }
 
+// TestStopStartsTheStableDaemonWhenTheExperimentDaemonDied pins that a stop never leaves the host
+// without an installer daemon: an experiment daemon that died during the stop is unloaded, and the
+// stable daemon started.
+func TestStopStartsTheStableDaemonWhenTheExperimentDaemonDied(t *testing.T) {
+	l := supervisedHost(t)
+	l.mu.Lock()
+	l.loaded["system/"+installerJob] = false
+	l.loaded["system/"+installerJob+"-exp"] = true
+	l.idle["system/"+installerJob+"-exp"] = true
+	l.mu.Unlock()
+	r := request(t, unitsTargetStable)
+
+	require.NoError(t, superviseUnits(context.Background()))
+	waitForStatus(t, r, unitsPhaseDone)
+	assert.True(t, l.isRunning(installerJob), "the stable daemon should be started")
+	assert.False(t, l.isRunning(installerJob+"-exp"))
+}
+
 // TestPromoteRestartsTheStableJobs pins that a promote, unlike a stop, restarts every stable job so
 // it reads the promoted configuration.
 func TestPromoteRestartsTheStableJobs(t *testing.T) {
