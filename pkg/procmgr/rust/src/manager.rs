@@ -203,6 +203,9 @@ impl ProcessManager {
         };
 
         self.shutdown().await;
+        // Children have stopped, so their staged copies can go. The path is the
+        // one directory this start created, never a glob of the volume.
+        platform::remove_startup_staging_dir();
         if let Some(cleanup) = socket_cleanup {
             cleanup.wait().await;
         }

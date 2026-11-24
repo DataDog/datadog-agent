@@ -92,6 +92,17 @@ class TestFiles(unittest.TestCase):
         self.assertEqual(marker_stat.st_gid, dd_agent.pw_gid)
         self.assertEqual(stat.S_IMODE(marker_stat.st_mode), 0o440)
 
+    def test_processes_d_directories_are_traversable(self):
+        for directory in (
+            "/opt/datadog-agent/processes.d",
+            "/opt/datadog-agent/processes.d/aio",
+        ):
+            mode = stat.S_IMODE(os.stat(directory).st_mode)
+            self.assertTrue(stat.S_ISDIR(os.stat(directory).st_mode), directory)
+            self.assertEqual(mode, 0o755, directory)
+        catalog = "/opt/datadog-agent/processes.d/aio/datadog-agent.yaml"
+        self.assertEqual(stat.S_IMODE(os.stat(catalog).st_mode), 0o644, catalog)
+
     def test_files_permissions(self):
         for root, dirs, files in os.walk("/"):
             dirs[:] = filter(

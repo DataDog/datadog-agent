@@ -117,8 +117,10 @@ COPY s6-services /etc/services.d/
 COPY cont-init.d /etc/cont-init.d/
 COPY probe.sh par-probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_multiple_providers.sh /
 
-# dd-procmgrd process definitions
+# dd-procmgrd process definitions.
+# COPY --chmod=644 also sets directories to 0644, which a non-root user cannot traverse.
 COPY --chmod=644 processes.d /opt/datadog-agent/processes.d/
+RUN find /opt/datadog-agent/processes.d -type d -exec chmod 0755 {} +
 
 ##########################################################
 #  Preparation stage: extract Agent package and cleanup  #

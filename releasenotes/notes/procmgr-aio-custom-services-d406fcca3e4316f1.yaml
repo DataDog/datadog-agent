@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    With ``ENTRYPOINT=procmgr-all-in-one``, the Linux Agent container now
+    starts custom services from ``/etc/services.d/`` under ``dd-procmgrd``.
+    A ``down`` file in a shipped service directory keeps its process stopped
+    at start until ``dd-procmgr start <process>``. Scripts in
+    ``/etc/cont-init.d/`` and custom services run with ``S6_KEEP_ENV=1``, so a
+    ``#!/usr/bin/with-contenv`` shebang sees the container environment.
+    Processes inherit the container ``PATH``.
