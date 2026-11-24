@@ -19,6 +19,8 @@ const (
 // LocalArtifact identifies the local files of an extracted authored-script package.
 type LocalArtifact struct {
 	Directory string
+	// CacheHit indicates that Resolve reused a validated artifact.
+	CacheHit bool
 }
 
 func (a LocalArtifact) ScriptDirectory() string {

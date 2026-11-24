@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -91,6 +92,20 @@ func (m *runTestMaterializer) materializationCount() int {
 	return m.materializes
 }
 
+type auditTestLogger struct {
+	log.Logger
+	infos [][]log.Field
+	warns [][]log.Field
+}
+
+func (l *auditTestLogger) Info(_ string, fields ...log.Field) {
+	l.infos = append(l.infos, fields)
+}
+
+func (l *auditTestLogger) Warn(_ string, fields ...log.Field) {
+	l.warns = append(l.warns, fields)
+}
+
 func TestRunAuthoredScriptUsesInjectedArtifactResolver(t *testing.T) {
 	descriptor := authoredscriptssupport.Descriptor{
 		FQN:     testActionFQN,
@@ -113,10 +128,28 @@ func TestRunAuthoredScriptUsesInjectedArtifactResolver(t *testing.T) {
 		Inputs:   map[string]interface{}{"message": "hello"},
 	}
 
-	first, err := handler.Run(context.Background(), task, nil)
+	logger := &auditTestLogger{}
+	first, err := handler.Run(log.ContextWithLogger(context.Background(), logger), task, nil)
 	require.NoError(t, err)
-	second, err := handler.Run(context.Background(), task, nil)
+	require.Len(t, logger.infos, 1)
+	assert.Empty(t, logger.warns)
+	for _, field := range []log.Field{
+		log.String("execution_fqn", testActionFQN),
+		log.String("package_name", descriptor.Package),
+		log.String("package_version", descriptor.Version),
+		log.String("package_digest", "sha256:"+descriptor.SHA256),
+		log.Bool("cache_hit", false),
+		log.Int("exit_code", 0),
+		log.String("decision", "allowed"),
+		log.String("outcome", "success"),
+	} {
+		assert.Contains(t, logger.infos[0], field)
+	}
+	assert.Len(t, logger.infos[0], 9)
+	second, err := handler.Run(log.ContextWithLogger(context.Background(), logger), task, nil)
 	require.NoError(t, err)
+	require.Len(t, logger.infos, 2)
+	assert.Contains(t, logger.infos[1], log.Bool("cache_hit", true))
 
 	require.IsType(t, &RunAuthoredScriptOutputs{}, first)
 	require.IsType(t, &RunAuthoredScriptOutputs{}, second)
@@ -180,9 +213,16 @@ func TestRunAuthoredScriptValidation(t *testing.T) {
 		task := &types.Task{}
 		task.Data.Attributes = &types.Attributes{BundleID: "com.datadoghq.authoredscripts", Name: "test"}
 
-		_, err := handler.Run(context.Background(), task, nil)
+		logger := &auditTestLogger{}
+		_, err := handler.Run(log.ContextWithLogger(context.Background(), logger), task, nil)
 		require.ErrorIs(t, err, authoredscriptssupport.ErrPackageNotConfigured)
 		require.ErrorContains(t, err, "could not look up authored-script package")
+		require.Len(t, logger.warns, 1)
+		assert.Empty(t, logger.infos)
+		assert.Contains(t, logger.warns[0], log.String("failure_stage", "package_not_configured"))
+		assert.Contains(t, logger.warns[0], log.String("decision", "denied"))
+		assert.Contains(t, logger.warns[0], log.String("outcome", "failure"))
+		require.Len(t, logger.warns[0], 5)
 	})
 
 	t.Run("catalog readiness failure", func(t *testing.T) {

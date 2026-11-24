@@ -93,7 +93,9 @@ func TestArtifactResolverResolveReusesValidArtifact(t *testing.T) {
 	second, err := resolver.Resolve(context.Background(), descriptor)
 	require.NoError(t, err)
 
-	assert.Equal(t, first, second)
+	assert.Equal(t, first.Directory, second.Directory)
+	assert.False(t, first.CacheHit)
+	assert.True(t, second.CacheHit)
 	assert.Equal(t, filepath.Join(cacheRoot, "artifacts", descriptor.Package, artifactDigestIDPrefix+descriptor.SHA256, materializer.materializationID), first.Directory)
 	assert.Equal(t, 1, materializer.materializationCount())
 }
@@ -111,6 +113,7 @@ func TestArtifactResolverResolveRepairsInvalidArtifact(t *testing.T) {
 	repaired, err := resolver.Resolve(context.Background(), descriptor)
 	require.NoError(t, err)
 	assert.Equal(t, artifact.Directory, repaired.Directory)
+	assert.False(t, repaired.CacheHit)
 	assert.Equal(t, 2, materializer.materializationCount())
 }
 
@@ -154,9 +157,11 @@ func TestArtifactResolverFollowsRemoteCatalogSelection(t *testing.T) {
 			artifact, err := resolver.Resolve(context.Background(), descriptor)
 			require.NoError(t, err)
 			require.Equal(t, step.materializes, materializer.materializationCount())
+			_, wasCached := artifacts[descriptor.SHA256]
+			require.Equal(t, wasCached, artifact.CacheHit)
 			for digest, cached := range artifacts {
 				if digest == descriptor.SHA256 {
-					require.Equal(t, cached, artifact)
+					require.Equal(t, cached.Directory, artifact.Directory)
 				} else {
 					require.NotEqual(t, cached.Directory, artifact.Directory)
 				}
@@ -179,7 +184,8 @@ func TestArtifactResolverResolveTreatsFQNCaseInsensitively(t *testing.T) {
 	lowercaseDescriptor.FQN = strings.ToLower(descriptor.FQN)
 	resolved, err := resolver.Resolve(context.Background(), lowercaseDescriptor)
 	require.NoError(t, err)
-	assert.Equal(t, artifact, resolved)
+	assert.Equal(t, artifact.Directory, resolved.Directory)
+	assert.True(t, resolved.CacheHit)
 	assert.Equal(t, 1, materializer.materializationCount())
 }
 

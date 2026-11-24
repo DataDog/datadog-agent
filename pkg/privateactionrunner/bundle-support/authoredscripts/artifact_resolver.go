@@ -75,10 +75,12 @@ func (r *ArtifactResolver) Resolve(ctx context.Context, descriptor Descriptor) (
 		return LocalArtifact{}, err
 	}
 
+	cacheHit := true
 	artifact, err := r.store.Ensure(
 		ctx,
 		r.artifactKey(descriptor),
 		func(ctx context.Context, destination string) error {
+			cacheHit = false
 			return r.materializer.Materialize(ctx, descriptor, destination)
 		},
 		func(ctx context.Context, directory string) error {
@@ -88,7 +90,7 @@ func (r *ArtifactResolver) Resolve(ctx context.Context, descriptor Descriptor) (
 	if err != nil {
 		return LocalArtifact{}, fmt.Errorf("could not ensure authored-script package %q version %q: %w", descriptor.Package, descriptor.Version, err)
 	}
-	return LocalArtifact{Directory: artifact.Directory}, nil
+	return LocalArtifact{Directory: artifact.Directory, CacheHit: cacheHit}, nil
 }
 
 func (r *ArtifactResolver) artifactKey(descriptor Descriptor) artifactstore.Key {
