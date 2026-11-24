@@ -337,7 +337,8 @@ pkg_files(
 pkg_files(
     name = "system_probe_llvm_bpf",
     srcs = select({
-        "@platforms//os:linux": ["@llvm_bpf//:bin/clang-bpf"],
+        "//:linux_x86_64": ["@llvm_bpf_amd64//:clang-bpf"],
+        "//:linux_arm64": ["@llvm_bpf_arm64//:clang-bpf"],
         "//conditions:default": [],
     }),
     attributes = pkg_attributes(mode = "744"),

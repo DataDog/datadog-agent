@@ -132,6 +132,9 @@ type Config struct {
 	// RawNetworkClassifierHandle defines the handle at which CWS should insert its Raw TC classifiers.
 	RawNetworkClassifierHandle uint16
 
+	// NetworkTCXEnabled defines if CWS should attach its TC classifiers with TCX, on kernels that support it.
+	NetworkTCXEnabled bool
+
 	// NetworkFlowMonitorEnabled defines if the network flow monitor should be enabled.
 	NetworkFlowMonitorEnabled bool
 
@@ -227,6 +230,7 @@ func NewConfig() (*Config, error) {
 		NetworkClassifierPriority:             uint16(getInt("network.classifier_priority")),
 		NetworkClassifierHandle:               uint16(getInt("network.classifier_handle")),
 		RawNetworkClassifierHandle:            uint16(getInt("network.raw_classifier_handle")),
+		NetworkTCXEnabled:                     getBool("network.tcx.enabled"),
 		NetworkFlowMonitorPeriod:              getDuration("network.flow_monitor.period"),
 		NetworkFlowMonitorEnabled:             getBool("network.flow_monitor.enabled"),
 		NetworkFlowMonitorSKStorageEnabled:    getBool("network.flow_monitor.sk_storage.enabled"),
