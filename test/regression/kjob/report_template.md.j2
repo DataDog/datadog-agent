@@ -119,7 +119,7 @@ unavailable
 {% endfor %}
 {% endfor %}
 {% endfor %}
-{{ table.rows | table([["result", "result"], ["experiment", "experiment"], ["check", "check"], ["metric", "metric"], ["bound", "bound"], ["max", "max_observed"]]) }}
+{{ table.rows | table([["result", "result"], ["experiment", "experiment"], ["check", "check"], ["metric", "metric"], ["max", "max_observed"], ["bound", "bound"]]) }}
 {% if experiments_without_checks %}
 
 Experiments without bounds checks: {% for name in experiments_without_checks %}`{{ name }}`{% if not loop.last %}, {% endif %}{% endfor %}
