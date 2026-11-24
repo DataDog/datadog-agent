@@ -569,3 +569,51 @@ func TestLogsExclusionChangeThroughController(t *testing.T) {
 		assert.Empty(t, mgr.Sources)
 	})
 }
+
+func TestLogsExclusionChangeWithTwoConfigsForOneContainer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sch := New(nil).(*Scheduler)
+		mgr := &trackingSourceManager{}
+		sch.mgr = mgr
+
+		controller := adscheduler.NewControllerAndStart()
+		defer controller.Stop()
+		controller.Register("logs", sch.listener, false)
+
+		serviceID := "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"
+		annotated := integration.Config{
+			Name:       "redis",
+			LogsConfig: []byte(`[{"service":"redis","source":"redis"}]`),
+			Provider:   names.Kubernetes,
+			ServiceID:  serviceID,
+		}
+		collectAll := integration.Config{
+			Name:       "container_collect_all",
+			LogsConfig: []byte(`[{}]`),
+			Provider:   names.Container,
+			ServiceID:  serviceID,
+		}
+		excluded := func(c integration.Config) integration.Config {
+			c.LogsExcluded = true
+			return c
+		}
+
+		controller.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{annotated, collectAll}})
+		synctest.Wait()
+		require.Len(t, mgr.Sources, 2)
+
+		controller.ApplyChanges(integration.ConfigChanges{
+			Unschedule: []integration.Config{annotated, collectAll},
+			Schedule:   []integration.Config{excluded(annotated), excluded(collectAll)},
+		})
+		synctest.Wait()
+		assert.Empty(t, mgr.Sources)
+
+		controller.ApplyChanges(integration.ConfigChanges{
+			Unschedule: []integration.Config{excluded(annotated), excluded(collectAll)},
+			Schedule:   []integration.Config{annotated, collectAll},
+		})
+		synctest.Wait()
+		assert.Len(t, mgr.Sources, 2)
+	})
+}
