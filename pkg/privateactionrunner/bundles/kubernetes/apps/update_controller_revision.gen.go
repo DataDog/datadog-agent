@@ -32,7 +32,7 @@ type UpdateControllerRevisionInputs struct {
 
 type UpdateControllerRevisionOutputs struct {
 	ObjectMeta metav1.ObjectMeta    `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
-	Data       runtime.RawExtension `json:"data,omitempty" protobuf:"bytes,2,opt,name=data"`
+	Data       runtime.RawExtension `json:"data" protobuf:"bytes,2,opt,name=data"`
 	Revision   int64                `json:"revision" protobuf:"varint,3,opt,name=revision"`
 }
 

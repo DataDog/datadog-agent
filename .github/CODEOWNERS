@@ -454,6 +454,7 @@
 /doc/guidelines/components.md                                @DataDog/agent-runtimes
 /doc/reference/components/                                   @DataDog/agent-runtimes
 /doc/how-to/run-jmxfetch.md                                  @DataDog/agent-runtimes
+/doc/how-to/actions/                                        @DataDog/action-platform
 /docs/public/hostname/                                       @DataDog/agent-runtimes
 /doc/architecture/dogstatsd/                                 @DataDog/agent-metric-pipelines
 /doc/how-to/test/e2e/benchmarkeks/                           @DataDog/container-integrations
@@ -1248,6 +1249,7 @@
 /test/regression/container/agent-metric-pipelines/                @DataDog/agent-metric-pipelines
 
 /tools/                                                              @DataDog/agent-devx
+/tools/privateactionrunner/                                          @DataDog/action-platform
 /tools/host-profiler/                                                @DataDog/profiling-full-host
 /tools/bazel*                                                        @DataDog/agent-build
 /tools/ci                                                            @DataDog/agent-devx
