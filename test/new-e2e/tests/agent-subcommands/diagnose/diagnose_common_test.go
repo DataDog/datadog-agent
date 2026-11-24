@@ -71,6 +71,20 @@ func getDiagnoseOutput(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArg
 	return runDiagnose(v, commandArgs...)
 }
 
+// diagnoseForRetry runs diagnose inside an EventuallyWithT callback, reporting a command error
+// through c and returning ok=false so the caller can abort the current attempt. Client.Diagnose
+// calls FailNow on command errors, which here runs in the retry goroutine and exits it via
+// runtime.Goexit — uncatchable by the panic-safe EventuallyWithT wrapper — silently defeating the
+// retry. Reporting the error on c lets the attempt retry instead.
+func diagnoseForRetry(v *baseDiagnoseSuite, c *assert.CollectT, commandArgs ...agentclient.AgentArgsOption) (string, bool) {
+	diagnose, err := v.Env().Agent.Client.DiagnoseWithError(commandArgs...)
+	if !assert.NoError(c, err) {
+		return "", false
+	}
+	v.T().Logf("Diagnose command output: %s", diagnose)
+	return diagnose, true
+}
+
 func (v *baseDiagnoseSuite) TestDiagnoseDefaultConfig() {
 	diagnose := getDiagnoseOutput(v)
 	v.AssertOutputNotError(diagnose)
@@ -110,10 +124,16 @@ func (v *baseDiagnoseSuite) AssertDiagnoseInclude() {
 	// Use the suite's panic-safe EventuallyWithT so a parser panic (e.g. getDiagnoseSummary on
 	// malformed output) fails the test without crashing the binary or skipping teardown.
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		diagnose := runDiagnose(v)
+		diagnose, ok := diagnoseForRetry(v, c)
+		if !ok {
+			return
+		}
 		diagnoseSummary := getDiagnoseSummary(diagnose)
 		for _, suite := range v.suites {
-			diagnoseInclude := runDiagnose(v, agentclient.WithArgs([]string{"--include", suite}))
+			diagnoseInclude, ok := diagnoseForRetry(v, c, agentclient.WithArgs([]string{"--include", suite}))
+			if !ok {
+				return
+			}
 			resultInclude := getDiagnoseSummary(diagnoseInclude)
 			assert.Less(c, resultInclude.Total, diagnoseSummary.Total, "Expected number of checks for suite %v to be lower than the total amount of checks (%v) but was %v", suite, diagnoseSummary.Total, resultInclude.Total)
 			assert.Zero(c, resultInclude.Fail)
@@ -122,7 +142,10 @@ func (v *baseDiagnoseSuite) AssertDiagnoseInclude() {
 		// Create an args array to include all suites
 		includeArgs := strings.Split("--include "+strings.Join(v.suites, " --include "), " ")
 		// Diagnose with all suites included should be equal to diagnose without args
-		diagnoseIncludeEverySuite := runDiagnose(v, agentclient.WithArgs(includeArgs))
+		diagnoseIncludeEverySuite, ok := diagnoseForRetry(v, c, agentclient.WithArgs(includeArgs))
+		if !ok {
+			return
+		}
 		diagnoseIncludeEverySuiteSummary := getDiagnoseSummary(diagnoseIncludeEverySuite)
 		assert.Equal(c, diagnoseIncludeEverySuiteSummary, diagnoseSummary)
 	}, 2*time.Minute, 15*time.Second, "diagnose reported a transient endpoint failure that did not clear on retry")
@@ -138,14 +161,20 @@ func (v *baseDiagnoseSuite) AssertDiagnoseJSONInclude() {
 	// Use the suite's panic-safe EventuallyWithT so an unexpected parser panic fails the test
 	// without crashing the binary or skipping teardown.
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		diagnose := runDiagnose(v, agentclient.WithArgs([]string{"--json"}))
+		diagnose, ok := diagnoseForRetry(v, c, agentclient.WithArgs([]string{"--json"}))
+		if !ok {
+			return
+		}
 		diagnoseResult := unmarshalDiagnose(diagnose)
 		if !assert.NotNil(c, diagnoseResult) {
 			return
 		}
 		diagnoseSummary := diagnoseResult.Summary
 		for _, suite := range v.suites {
-			diagnoseInclude := runDiagnose(v, agentclient.WithArgs([]string{"--json", "--include", suite}))
+			diagnoseInclude, ok := diagnoseForRetry(v, c, agentclient.WithArgs([]string{"--json", "--include", suite}))
+			if !ok {
+				return
+			}
 			diagnoseIncludeResult := unmarshalDiagnose(diagnoseInclude)
 			if !assert.NotNil(c, diagnoseIncludeResult) {
 				return
@@ -162,7 +191,10 @@ func (v *baseDiagnoseSuite) AssertDiagnoseJSONInclude() {
 		includeArgs := strings.Split(" --json "+" --include "+strings.Join(v.suites, " --include "), " ")
 
 		// Diagnose with all suites included should be equal to diagnose without args
-		diagnoseIncludeEverySuite := runDiagnose(v, agentclient.WithArgs(includeArgs))
+		diagnoseIncludeEverySuite, ok := diagnoseForRetry(v, c, agentclient.WithArgs(includeArgs))
+		if !ok {
+			return
+		}
 		diagnoseIncludeEverySuiteResult := unmarshalDiagnose(diagnoseIncludeEverySuite)
 		if !assert.NotNil(c, diagnoseIncludeEverySuiteResult) {
 			return
@@ -227,7 +259,10 @@ func (v *baseDiagnoseSuite) TestDiagnoseJSON() {
 	waitForFakeIntakeHealthy(v)
 	// Retry to tolerate transient timeouts, using the suite's panic-safe EventuallyWithT.
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		diagnose := runDiagnose(v, agentclient.WithArgs([]string{"-v", "--json"}))
+		diagnose, ok := diagnoseForRetry(v, c, agentclient.WithArgs([]string{"-v", "--json"}))
+		if !ok {
+			return
+		}
 		diagnoseResult := unmarshalDiagnose(diagnose)
 		if !assert.NotNil(c, diagnoseResult) {
 			return
