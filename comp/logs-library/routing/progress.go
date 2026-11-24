@@ -49,13 +49,16 @@ type Progress struct {
 }
 
 type record struct {
-	meta             *message.MessageMetadata
-	identifier       string
-	generation       uint64
-	groups           []string
-	remaining        map[string]struct{}
-	selectionPending bool
-	done             bool
+	meta                   *message.MessageMetadata
+	identifier             string
+	generation             uint64
+	groups                 []string
+	optional               []string
+	remaining              map[string]struct{}
+	reliableSet            bool
+	reliableSelectorFailed bool
+	selectionPending       bool
+	done                   bool
 }
 
 type sourceProgress struct {
@@ -358,6 +361,97 @@ func (p *Progress) Recipients(token uint64) []string {
 	return nil
 }
 
+// AttachEndpointSelection attaches endpoint-filtering recipients once after
+// common processing. Only reliable endpoints enter remaining obligations;
+// optional endpoints can never satisfy or release mandatory progress.
+// The dispatcher completes optional-only records after it offers their copies.
+// A reliable selector error leaves a possible match unknown.
+func (p *Progress) AttachEndpointSelection(token uint64, reliable, optional []string, reliableSelectorFailed bool) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	r := p.records[token]
+	if r == nil || r.done || !r.selectionPending || len(reliable)+len(optional) == 0 {
+		return ErrInvalidSelection
+	}
+	r.reliableSet = true
+	r.reliableSelectorFailed = reliableSelectorFailed
+	r.groups = append([]string(nil), reliable...)
+	if len(optional) != 0 {
+		r.optional = append([]string(nil), optional...)
+	}
+	r.remaining = make(map[string]struct{}, len(reliable))
+	for _, id := range reliable {
+		r.remaining[id] = struct{}{}
+	}
+	r.selectionPending = false
+	return nil
+}
+
+// EndpointRecipients returns the immutable reliable and optional endpoint IDs
+// attached to token after common processing.
+func (p *Progress) EndpointRecipients(token uint64) (reliable, optional []string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if r := p.records[token]; r != nil {
+		return append([]string(nil), r.groups...), append([]string(nil), r.optional...)
+	}
+	return nil, nil
+}
+
+// CompleteReliableSuccess resolves a reliable-set record once any matching
+// reliable endpoint succeeds ("at least one successful delivery satisfies the
+// reliable-set rule").
+func (p *Progress) CompleteReliableSuccess(endpointID string, payload *message.Payload) {
+	if payload == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, meta := range payload.MessageMetas {
+		if meta == nil {
+			continue
+		}
+		r := p.records[meta.RoutingToken()]
+		if r == nil || r.done || r.selectionPending || !r.reliableSet {
+			continue
+		}
+		if _, selected := r.remaining[endpointID]; !selected {
+			continue
+		}
+		clear(r.remaining)
+		r.done = true
+		p.advance(r)
+	}
+}
+
+// CompleteReliableTerminalLoss records one matching endpoint's terminal loss.
+// All losses complete the record as a drop only when reliable selection succeeded.
+// A loss does not count as delivery success.
+func (p *Progress) CompleteReliableTerminalLoss(endpointID string, payload *message.Payload) {
+	if payload == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, meta := range payload.MessageMetas {
+		if meta == nil {
+			continue
+		}
+		r := p.records[meta.RoutingToken()]
+		if r == nil || r.done || r.selectionPending || !r.reliableSet {
+			continue
+		}
+		if _, selected := r.remaining[endpointID]; !selected {
+			continue
+		}
+		delete(r.remaining, endpointID)
+		if len(r.remaining) == 0 && !r.reliableSelectorFailed {
+			r.done = true
+			p.advance(r)
+		}
+	}
+}
+
 // CompleteLocal resolves an intentional exclusion or a terminal processing
 // loss before fanout. Repeated notifications are harmless.
 func (p *Progress) CompleteLocal(token uint64) {
@@ -588,4 +682,54 @@ func (s *GroupSink) Channel() chan *message.Payload { return s.input }
 func (s *GroupSink) Stop() {
 	close(s.input)
 	<-s.done
+}
+
+// EndpointSink implements sender.OutcomeSink for one reliable endpoint target,
+// keeping delivery success distinct from permanent HTTP rejection.
+type EndpointSink struct {
+	endpointID   string
+	success      chan *message.Payload
+	terminalLoss chan *message.Payload
+	done         sync.WaitGroup
+	progress     *Progress
+}
+
+// NewEndpointSink creates a bounded outcome adapter for one reliable endpoint.
+func (p *Progress) NewEndpointSink(endpointID string, capacity int) *EndpointSink {
+	if capacity < 1 {
+		capacity = 1
+	}
+	s := &EndpointSink{
+		endpointID:   endpointID,
+		success:      make(chan *message.Payload, capacity),
+		terminalLoss: make(chan *message.Payload, capacity),
+		progress:     p,
+	}
+	s.done.Add(2)
+	go func() {
+		defer s.done.Done()
+		for payload := range s.success {
+			p.CompleteReliableSuccess(endpointID, payload)
+		}
+	}()
+	go func() {
+		defer s.done.Done()
+		for payload := range s.terminalLoss {
+			p.CompleteReliableTerminalLoss(endpointID, payload)
+		}
+	}()
+	return s
+}
+
+// Channel implements sender.Sink for delivery successes.
+func (s *EndpointSink) Channel() chan *message.Payload { return s.success }
+
+// TerminalLossChannel implements sender.OutcomeSink for permanent rejections.
+func (s *EndpointSink) TerminalLossChannel() chan *message.Payload { return s.terminalLoss }
+
+// Stop drains both outcome channels after the corresponding sender has stopped.
+func (s *EndpointSink) Stop() {
+	close(s.success)
+	close(s.terminalLoss)
+	s.done.Wait()
 }
