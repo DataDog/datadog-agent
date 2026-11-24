@@ -302,7 +302,7 @@ func TestMicroVM_LogsTagSetter_InvokedOnRun(t *testing.T) {
 
 	require.NoError(t, srv.ListenAndServe(nil))
 	t.Cleanup(func() {
-		shutCtx, cancel := context.WithTimeout(t.Context(), time.Second)
+		shutCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 		_ = srv.Stop(shutCtx)
 	})

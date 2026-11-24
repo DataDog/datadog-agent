@@ -6,6 +6,7 @@
 package httpimpl
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -39,7 +40,11 @@ func startServer(t *testing.T, overrides map[string]interface{}) *server {
 
 	ctx := t.Context()
 	require.NoError(t, s.start(ctx))
-	t.Cleanup(func() { require.NoError(t, s.stop(ctx)) })
+	t.Cleanup(func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, s.stop(stopCtx))
+	})
 
 	return s
 }
