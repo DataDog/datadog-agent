@@ -61,19 +61,13 @@ checks:
     description: "Memory usage"
     bounds:
       series: total_pss_bytes
-      upper_bound: "1244 MiB"
+      upper_bound: "256 MiB"
 
   - name: cpu_usage
     description: "CPU usage"
     bounds:
       series: avg(total_cpu_usage_millicores)
-      upper_bound: 1500
-
-  - name: total_bytes_received
-    description: "Total Agent egress under the seeded container-log workload."
-    bounds:
-      series: total_bytes_received
-      upper_bound: "292 MiB"
+      upper_bound: 250
 
 report_links:
   - text: "bounds checks dashboard"

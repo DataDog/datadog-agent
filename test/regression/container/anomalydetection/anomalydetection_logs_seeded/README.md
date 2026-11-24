@@ -23,10 +23,11 @@ one-off run, edit a local copy and submit it with `--target-config-dir`, using
 
 ## Validation
 
-Memory is the comparison goal; resource bounds are inherited from the
-playground and remain provisional. Activity checks require positive cumulative
-accepted-log-byte and detector-call counters after warmup. They confirm Observer
-did work and permit queue drops; they do not detect a later stall.
+Memory is the comparison goal. Provisional resource bounds are 256 MiB PSS and
+250 millicores averaged over the measurement window. Activity checks require
+positive cumulative accepted-log-byte and detector-call counters after warmup.
+They confirm Observer did work and permit queue drops; they do not detect a later
+stall.
 
 Each replica's `captures.parquet` includes Observer telemetry. Compute average
 accepted throughput from the increase in
