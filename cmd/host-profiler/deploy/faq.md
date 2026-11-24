@@ -14,7 +14,7 @@
 
 ## How does the Host Profiler name services?
 
-The Host Profiler determines each process's service name from the `OTEL_SERVICE_NAME` or `DD_SERVICE` environment variables.
+The Host Profiler determines each process's service name from the `DD_SERVICE` environment variable, then from the OpenTelemetry resource. That resource is the process context published by the OpenTelemetry SDK or, when there is none, the `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` environment variables.
 
 If neither variable is set, the profiler infers the service name from the binary name. For interpreted languages, this is the interpreter name, such as `java` or `python`. If multiple services share the same interpreter and do not set a service name, their profiles are grouped under the same inferred name.
 
@@ -26,7 +26,7 @@ env:
     value: my-service
 ```
 
-Set `DD_ENV` and `DD_VERSION` on your workloads for richer filtering in the Datadog Profiler UI. Support for equivalent metadata from `OTEL_RESOURCE_ATTRIBUTES` is in progress.
+Set `DD_ENV` and `DD_VERSION`, or `deployment.environment.name` and `service.version` in `OTEL_RESOURCE_ATTRIBUTES`, on your workloads for richer filtering in the Datadog Profiler UI.
 
 ## Can I deploy the Host Profiler without the Datadog Agent or DDOT?
 

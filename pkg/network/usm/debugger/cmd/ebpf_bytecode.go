@@ -42,9 +42,11 @@ func setupBytecode() func() {
 	err := os.MkdirAll(coreDir, os.ModePerm)
 	checkError(err)
 
+	// Loaders always open <name>.o. These bytes are still the DEBUG=1 objects;
+	// the debugger embeds those and writes them under the canonical names.
 	programs := []program{
-		{path.Join(coreDir, "usm-debug.o"), usmProgram},
-		{path.Join(coreDir, "shared-libraries-debug.o"), sharedLibrariesProgram},
+		{path.Join(coreDir, "usm.o"), usmProgram},
+		{path.Join(coreDir, "shared-libraries.o"), sharedLibrariesProgram},
 	}
 
 	for _, p := range programs {

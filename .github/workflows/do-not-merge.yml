@@ -21,6 +21,7 @@ jobs:
     if: ${{ contains(github.event.*.labels.*.name, 'do-not-merge/hold') || contains(github.event.*.labels.*.name, 'do-not-merge/WIP') }}
     name: Check Do Not Merge
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     steps:
       - name: check for label
         run: |

@@ -34,6 +34,7 @@ jobs:
         # Run tests with both the agent's version and gohai's pinned version
         go-file: [.go-version, pkg/gohai/go.mod]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:

@@ -72,8 +72,6 @@ func getConfiguration() *networkconfig.Config {
 
 	c := networkconfig.New()
 
-	// run debug version of the eBPF program
-	c.BPFDebug = true
 	c.EnableUSMEventStream = false
 
 	// don't buffer data in userspace

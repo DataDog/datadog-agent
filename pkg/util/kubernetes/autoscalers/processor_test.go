@@ -436,6 +436,61 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 	}
 }
 
+func TestMakeChunksOverLimitQuery(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("external_metrics_provider.chunk_size", 35, pkgconfigmodel.SourceLocalConfigProcess)
+
+	// Escaped length of a query is len + extraQueryCharacters, so these are well on each side of the limit.
+	long1 := randStringRune(maxCharactersPerChunk + 1386)
+	long2 := randStringRune(maxCharactersPerChunk + 10)
+	short1 := randStringRune(3874)
+	short2 := randStringRune(100)
+	short3 := randStringRune(200)
+
+	tests := []struct {
+		desc     string
+		batch    []string
+		expected [][]string
+	}{
+		{
+			desc:     "over-limit query first does not drop the following queries",
+			batch:    []string{long1, short1, short2},
+			expected: [][]string{{short1, short2}},
+		},
+		{
+			desc:     "over-limit query in the middle",
+			batch:    []string{short1, long1, short2},
+			expected: [][]string{{short1, short2}},
+		},
+		{
+			desc:     "over-limit query last",
+			batch:    []string{short1, short2, long1},
+			expected: [][]string{{short1, short2}},
+		},
+		{
+			desc:     "several over-limit queries interleaved",
+			batch:    []string{long1, short2, long2, short3, long1},
+			expected: [][]string{{short2, short3}},
+		},
+		{
+			desc:     "queries overflowing the chunk are still split after an over-limit query",
+			batch:    []string{long1, short1, short1, short2},
+			expected: [][]string{{short1}, {short1, short2}},
+		},
+		{
+			desc:     "only over-limit queries",
+			batch:    []string{long1, long2},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			assert.Equal(t, tt.expected, makeChunks(tt.batch))
+		})
+	}
+}
+
 func lambdaMakeChunks(numChunks int, chunkToExpand custommetrics.ExternalMetricValue) []string {
 	expanded := make([]string, 0, numChunks)
 	for i := 0; i <= numChunks; i++ {
