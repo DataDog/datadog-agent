@@ -729,7 +729,7 @@ func (s *upgradeScenarioSuite) assertInstallerDaemonRuns(unit, value string) {
 		require.NoError(c, err)
 		pid := strings.TrimPrefix(strings.TrimSpace(out), "MainPID=")
 		require.Regexp(c, `^[1-9][0-9]*$`, pid)
-		environ, err = s.Env().RemoteHost.Execute(fmt.Sprintf(`sudo sh -c 'tr "\000" "\n" < /proc/"$1"/environ' _ %s`, pid))
+		environ, err = s.Env().RemoteHost.Execute(`sudo sh -c 'tr "\000" "\n" < /proc/"$1"/environ' _ ` + pid)
 		require.NoError(c, err)
 	}, time.Minute, time.Second)
 
