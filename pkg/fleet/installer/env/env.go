@@ -192,7 +192,7 @@ type Env struct {
 	Site                  string
 	RemoteUpdates         bool
 	OTelCollectorEnabled  bool
-	ProcessManagerEnabled bool
+	ProcessManagerEnabled bool // Hand-built Envs must set this: ToEnv emits the opt-out when false.
 	ConfigID              string
 
 	Mirror                      string
@@ -420,6 +420,9 @@ func (e *Env) ToEnv() []string {
 	}
 	if e.OTelCollectorEnabled {
 		env = append(env, envOTelCollectorEnabled+"=true")
+	}
+	if !e.ProcessManagerEnabled {
+		env = append(env, envProcessManagerEnabled+"=false")
 	}
 	env = appendStringEnv(env, envMirror, e.Mirror, "")
 	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")

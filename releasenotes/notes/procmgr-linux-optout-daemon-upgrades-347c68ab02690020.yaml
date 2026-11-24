@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    On Linux with systemd, setting ``DD_PROCESS_MANAGER_ENABLED=false`` at install time now keeps the process manager off across Fleet Automation remote upgrades. Other upgrades still turn it back on unless the variable is set again.

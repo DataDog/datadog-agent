@@ -245,12 +245,14 @@ func TestToEnv(t *testing.T) {
 	}{
 		{
 			name:     "Empty configuration",
-			env:      &Env{},
+			env:      &Env{ProcessManagerEnabled: true},
 			expected: nil,
 		},
 		{
 			name: "All configuration set",
 			env: &Env{
+				ProcessManagerEnabled: true,
+
 				APIKey:               "123456",
 				Site:                 "datadoghq.eu",
 				RemoteUpdates:        true,
@@ -334,6 +336,8 @@ func TestToEnv(t *testing.T) {
 		{
 			name: "PAR enabled without app key",
 			env: &Env{
+				ProcessManagerEnabled: true,
+
 				APIKey:              "123456",
 				PAREnabled:          true,
 				PARActionsAllowlist: "action1,action2",
@@ -347,6 +351,8 @@ func TestToEnv(t *testing.T) {
 		{
 			name: "PAR disabled does not emit PAR env vars",
 			env: &Env{
+				ProcessManagerEnabled: true,
+
 				APIKey:              "123456",
 				PAREnabled:          false,
 				AppKey:              "app_key_123",
@@ -364,6 +370,18 @@ func TestToEnv(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected, result)
 		})
 	}
+}
+
+func TestToEnvProcessManagerEnabled(t *testing.T) {
+	assert.Contains(t, (&Env{ProcessManagerEnabled: false}).ToEnv(), "DD_PROCESS_MANAGER_ENABLED=false")
+	assert.NotContains(t, (&Env{ProcessManagerEnabled: true}).ToEnv(), "DD_PROCESS_MANAGER_ENABLED=false")
+}
+
+func TestFromEnvToEnvProcessManagerEnabled(t *testing.T) {
+	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "FALSE")
+	assert.Contains(t, FromEnv().ToEnv(), "DD_PROCESS_MANAGER_ENABLED=false")
+	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "")
+	assert.NotContains(t, FromEnv().ToEnv(), "DD_PROCESS_MANAGER_ENABLED=false")
 }
 
 func TestFromEnvFIPSMode(t *testing.T) {

@@ -166,6 +166,8 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		// The daemon builds its env by hand rather than via env.FromEnv, so mirror
 		// the same FIPS detection: FIPS build flavor or explicit DD_FIPS_MODE=true.
 		FIPSMode: pkgfips.BuiltForFIPS() || strings.ToLower(os.Getenv("DD_FIPS_MODE")) == "true",
+
+		ProcessManagerEnabled: env.FromEnv().ProcessManagerEnabled,
 	}
 	installer := newInstaller(installerBin)
 	refreshInterval := config.GetDuration("installer.refresh_interval")
