@@ -332,7 +332,7 @@ func TestCaseInsensitiveExtension(t *testing.T) {
 		{value: ".TXT", input: ".txt", expected: true},
 		{value: "TXT", input: ".txt", expected: true},
 		{value: "txt", input: ".exe", expected: false},
-		// the sanitized value has a leading dot, an input without one doesn't match
+		// resolved extensions keep their dot, an input without one doesn't match
 		{value: "txt", input: "txt", expected: false},
 	} {
 		input := test.input

@@ -8,7 +8,6 @@ package probe
 
 import (
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -212,7 +211,7 @@ func (fh *FieldHandlers) ResolveFileMetadataIsGarbleObfuscated(_ *model.Event, _
 func (fh *FieldHandlers) ResolveFimFileExtension(ev *model.Event, f *model.FimFileEvent) string {
 	if f.Extension == "" {
 		if baseName := ev.FieldHandlers.ResolveFimFileBasename(ev, f); baseName != "" {
-			f.Extension = strings.TrimPrefix(filepath.Ext(baseName), ".")
+			f.Extension = filepath.Ext(baseName)
 		}
 	}
 	return f.Extension

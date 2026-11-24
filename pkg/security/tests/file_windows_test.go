@@ -233,3 +233,60 @@ func (tm *testModule) validateFileEvent(tb *testing.T, kind wrapperType, validat
 		validate(event, rule)
 	}
 }
+
+var _ = declare(TestFileExtension, testOpts{enableFIM: true})
+
+// A rule matches a file extension written with or without its dot, in any case.
+func TestFileExtension(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_file_extension_dot",
+			Expression: `create.file.path =~ "C:\Temp\**" && create.file.extension == ".dot"`,
+		},
+		{
+			ID:         "test_file_extension_no_dot",
+			Expression: `create.file.path =~ "C:\Temp\**" && create.file.extension == "nodot"`,
+		},
+		{
+			ID:         "test_file_extension_mixed_case",
+			Expression: `create.file.path =~ "C:\Temp\**" && create.file.extension == ".MiXeD"`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTestAndMonitor()
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
+
+	os.MkdirAll("C:\\Temp", 0755)
+
+	for _, tc := range []struct {
+		name   string
+		file   string
+		ruleID string
+	}{
+		{name: "dot", file: "C:\\Temp\\test.dot", ruleID: "test_file_extension_dot"},
+		{name: "no-dot", file: "C:\\Temp\\test.nodot", ruleID: "test_file_extension_no_dot"},
+		{name: "mixed-case", file: "C:\\Temp\\test.mixed", ruleID: "test_file_extension_mixed_case"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// ignore errors; just clean it out if it's there
+			os.Remove(tc.file)
+			defer os.Remove(tc.file)
+
+			test.WaitSignalFromRule(t, func() error {
+				f, err := os.Create(tc.file)
+				if err != nil {
+					return err
+				}
+				return f.Close()
+			}, func(_ *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, tc.ruleID)
+			}, tc.ruleID)
+		})
+	}
+}

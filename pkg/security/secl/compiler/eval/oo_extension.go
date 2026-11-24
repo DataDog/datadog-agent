@@ -16,8 +16,8 @@ var (
 		return "." + pattern, nil
 	}
 
-	// ExtensionCmp normalizes file extension values by stripping a leading dot,
-	// allowing rules to use either ".txt" or "txt" to match the same extension.
+	// ExtensionCmp prefixes the rule's extension values with a dot, as resolved
+	// extensions keep theirs, allowing rules to use either ".txt" or "txt".
 	ExtensionCmp = &OpOverrides{
 		StringCmpOpts: StringCmpOpts{
 			Sanitize: extensionSanitizer,
