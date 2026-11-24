@@ -173,7 +173,12 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 				time.Sleep(250 * time.Millisecond)
 			}
 		}
-		left, err := client.Execute(check)
+		// After a clean stop, give the child time to exit before treating it as a leftover.
+		initialWait := time.Duration(0)
+		if !bodyFailed {
+			initialWait = 5 * time.Second
+		}
+		left, err := waitGone(initialWait)
 		initialErr := err
 		survivedStop := !bodyFailed && err == nil && strings.TrimSpace(left) != ""
 		if err != nil || strings.TrimSpace(left) != "" {
