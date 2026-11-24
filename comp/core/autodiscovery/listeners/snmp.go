@@ -6,6 +6,7 @@
 package listeners
 
 import (
+	"bytes"
 	"encoding/json"
 	"expvar"
 	"fmt"
@@ -73,6 +74,7 @@ type SNMPService struct {
 	config       snmp.Config
 	subnet       *snmpSubnet
 	pending      bool
+	deviceInfo   devicededuper.DeviceInfo
 }
 
 // Make sure SNMPService implements the Service interface
@@ -228,8 +230,6 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 			continue
 		}
 
-		l.deviceDeduper.MarkIPAsProcessed(deviceIP)
-
 		device, exists := job.subnet.devices[entityID]
 		if exists && device.Failures != 0 {
 			device.Failures = 0
@@ -240,6 +240,9 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 
 		deviceInfo := l.checkDeviceInfo(authentication, job.subnet.config.Port, deviceIP)
 		l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, 0, false)
+		// Only mark the IP as processed once its device is pending in the deduper,
+		// otherwise a higher IP of the same device could be deduped before it
+		l.deviceDeduper.MarkIPAsProcessed(deviceIP)
 
 		break
 	}
@@ -498,7 +501,16 @@ func (l *SNMPListener) createService(
 	l.Lock()
 	defer l.Unlock()
 
-	if _, present := l.services[entityID]; present {
+	if svc, present := l.services[entityID]; present {
+		if deviceInfo != (devicededuper.DeviceInfo{}) {
+			svc.deviceInfo = deviceInfo
+			l.addPendingDevice(svc, devicededuper.PendingDevice{
+				Config:    svc.config,
+				Info:      deviceInfo,
+				AuthIndex: authIndex,
+				IP:        deviceIP,
+			})
+		}
 		return
 	}
 
@@ -527,6 +539,7 @@ func (l *SNMPListener) createService(
 		config:       config,
 		subnet:       subnet,
 		pending:      true,
+		deviceInfo:   deviceInfo,
 	}
 	l.services[entityID] = &svc
 
@@ -539,15 +552,30 @@ func (l *SNMPListener) createService(
 		Failures:       deviceFailures,
 	}
 
-	if deviceInfo == (devicededuper.DeviceInfo{}) {
+	// Cached devices are registered right away to avoid a monitoring gap on restart,
+	// duplicates among them are removed once they answer during discovery.
+	if deviceInfo == (devicededuper.DeviceInfo{}) || addedFromCache {
 		l.registerService(pendingDevice)
 		return
 	}
 
-	if addedFromCache {
-		l.registerService(pendingDevice)
-	}
+	l.addPendingDevice(&svc, pendingDevice)
+}
 
+// addPendingDevice hands a device that answered during discovery to the deduper,
+// unless the same device is already monitored through a lower IP.
+func (l *SNMPListener) addPendingDevice(svc *SNMPService, pendingDevice devicededuper.PendingDevice) {
+	for _, other := range l.services {
+		if other.pending || !other.deviceInfo.Equal(svc.deviceInfo) || !ipLess(other.deviceIP, svc.deviceIP) {
+			continue
+		}
+		// Keep monitoring through this IP while the lower one fails, it is removed once the lower IP answers again
+		if !svc.pending && other.subnet.devices[other.entityID].Failures > 0 {
+			continue
+		}
+		l.removeDuplicate(svc)
+		return
+	}
 	l.deviceDeduper.AddPendingDevice(pendingDevice)
 }
 
@@ -555,8 +583,31 @@ func (l *SNMPListener) registerDedupedDevices() {
 	if !l.config.Deduplicate {
 		return
 	}
-	for _, pendingSvc := range l.deviceDeduper.GetDedupedDevices() {
-		l.registerService(pendingSvc)
+	l.Lock()
+	defer l.Unlock()
+	for _, device := range l.deviceDeduper.GetDedupedDevices() {
+		if _, ok := l.services[device.Config.Digest(device.IP)]; !ok {
+			continue
+		}
+		for _, svc := range l.services {
+			if svc.deviceInfo.Equal(device.Info) && ipLess(device.IP, svc.deviceIP) {
+				l.removeDuplicate(svc)
+			}
+		}
+		l.registerService(device)
+	}
+}
+
+// removeDuplicate drops a device that is, or is about to be, monitored through a lower IP
+func (l *SNMPListener) removeDuplicate(svc *SNMPService) {
+	if !svc.pending {
+		log.Infof("Unscheduling SNMP device %s: the same device is monitored through a lower IP", svc.deviceIP)
+		l.delService <- svc
+	}
+	delete(l.services, svc.entityID)
+	if _, cached := svc.subnet.devices[svc.entityID]; cached {
+		delete(svc.subnet.devices, svc.entityID)
+		l.writeCache(svc.subnet)
 	}
 }
 
@@ -564,7 +615,7 @@ func (l *SNMPListener) registerService(pendingDevice devicededuper.PendingDevice
 	entityID := pendingDevice.Config.Digest(pendingDevice.IP)
 
 	svc, ok := l.services[entityID]
-	if !ok {
+	if !ok || !svc.pending {
 		return
 	}
 	svc.pending = false
@@ -777,6 +828,10 @@ func buildCacheKey(configHash string) string {
 // GetSubnetVarKey returns a key for a subnet in the expvar map
 func GetSubnetVarKey(network string, subnetIndex int) string {
 	return fmt.Sprintf("%s|%d", network, subnetIndex)
+}
+
+func ipLess(ip1, ip2 string) bool {
+	return bytes.Compare(net.ParseIP(ip1), net.ParseIP(ip2)) < 0
 }
 
 func extractSNMPValue[T any](value interface{}) (T, bool) {
