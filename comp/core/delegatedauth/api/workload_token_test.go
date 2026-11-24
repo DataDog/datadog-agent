@@ -130,3 +130,28 @@ func TestGetWorkloadTokenStopsBeforeExchange(t *testing.T) {
 	_, err = GetWorkloadToken(context.Background(), cfg, provider, nil, common.WorkloadTokenRequest{}, "datadoghq.com")
 	require.ErrorContains(t, err, "grants")
 }
+
+func TestGetWorkloadTokenVerifiesTLSForOIDCProofDespiteSkipSSLValidation(t *testing.T) {
+	calls := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+	cfg := mock.New(t)
+	cfg.SetInTest("dd_url", server.URL)
+	cfg.SetInTest("skip_ssl_validation", true)
+	provider := workloadProofFunc(func(context.Context, pkgconfigmodel.Reader, *common.AuthConfig, common.WorkloadTokenRequest) (string, error) {
+		return "oidc-header.payload.signature", nil
+	})
+	request := common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}}
+
+	_, err := GetWorkloadToken(context.Background(), cfg, provider, &common.AuthConfig{OrgUUID: "org"}, request, "")
+	require.ErrorContains(t, err, "certificate")
+	require.Zero(t, calls, "the workload token reached an unverified server")
+
+	TrustOIDCExchangeCertificate(t, server.Certificate())
+	_, err = GetWorkloadToken(context.Background(), cfg, provider, &common.AuthConfig{OrgUUID: "org"}, request, "")
+	require.Error(t, err)
+	require.Equal(t, 1, calls)
+}
