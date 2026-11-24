@@ -507,3 +507,70 @@ func TestPanOSProfile_VerifyAndRunning(t *testing.T) {
 	assert.Equal(t, "config {\n}", result.Output)
 	assert.Contains(t, srv.Received(), "show config running")
 }
+
+func setInteractiveTimeouts(t *testing.T, login, command time.Duration) {
+	oldLogin, oldCommand := interactiveLoginTimeout, interactiveCommandTimeout
+	interactiveLoginTimeout, interactiveCommandTimeout = login, command
+	t.Cleanup(func() { interactiveLoginTimeout, interactiveCommandTimeout = oldLogin, oldCommand })
+}
+
+func TestInteractiveCommand_StallKeepsPartialOutputOutOfError(t *testing.T) {
+	setInteractiveTimeouts(t, time.Second, 200*time.Millisecond)
+	// The device prints part of the config, including a secret, then stalls.
+	done := make(chan struct{})
+	srv := StartFakeSSHServerWithFunc(t, func(cmd string, sc *ShellContext) uint32 {
+		if cmd == "show config running" {
+			_, _ = io.WriteString(sc.stdout, "config {\n  phash $5$abc$secret;\n")
+			<-done
+		}
+		return 0
+	}, WithPrompt("admin@PA-440> "), WithEcho())
+	// Registered after the server, so it runs first and unblocks the handler.
+	t.Cleanup(func() { close(done) })
+	conn := connectTestConn(t, srv)
+	conn.SetProfile(panOSProfile)
+
+	cmd := profile.MkCommand("show config running", profile.InShell())
+	start := time.Now()
+	result, err := ExecuteCommand(t.Context(), conn, cmd)
+	assert.Less(t, time.Since(start), 5*time.Second)
+	assert.ErrorContains(t, err, `no pan-os prompt after "show config running"`)
+	assert.ErrorContains(t, err, "bytes received")
+	assert.NotContains(t, err.Error(), "secret")
+	require.NotNil(t, result)
+	assert.Contains(t, result.Output, "phash", "the partial output is still in the result")
+}
+
+func TestInteractiveCommand_ShellSetupStalls(t *testing.T) {
+	setInteractiveTimeouts(t, 200*time.Millisecond, time.Second)
+	// The server accepts the connection but never answers the shell request.
+	release := make(chan struct{})
+	srv := StartFakeSSHServer(t, map[string]FakeResponse{}, WithPrompt("admin@PA-440> "),
+		WithRequestHook(func(reqType string) {
+			if reqType == "shell" {
+				<-release
+			}
+		}))
+	t.Cleanup(func() { close(release) })
+	conn := connectTestConn(t, srv)
+	conn.SetProfile(panOSProfile)
+
+	start := time.Now()
+	_, err := ExecuteCommand(t.Context(), conn, profile.MkCommand("show system info", profile.InShell()))
+	require.Error(t, err)
+	assert.Less(t, time.Since(start), 5*time.Second)
+}
+
+func TestInteractiveCommand_WrongDialectTimesOut(t *testing.T) {
+	setInteractiveTimeouts(t, 200*time.Millisecond, time.Second)
+	// Testing the pan-os profile against a device with a different prompt.
+	srv := StartFakeSSHServer(t, map[string]FakeResponse{}, WithPrompt("R1#"), WithEcho())
+	conn := connectTestConn(t, srv)
+	conn.SetProfile(panOSProfile)
+
+	start := time.Now()
+	_, err := ExecuteCommand(t.Context(), conn, profile.MkCommand("show system info", profile.InShell()))
+	assert.ErrorContains(t, err, "waiting for pan-os prompt")
+	assert.Less(t, time.Since(start), 5*time.Second)
+	assert.Empty(t, srv.Received())
+}
