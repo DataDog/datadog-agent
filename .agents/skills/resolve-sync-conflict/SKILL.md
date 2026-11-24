@@ -1,141 +1,101 @@
 ---
 name: resolve-sync-conflict
 description: >-
-  Resolve a rebase conflict of the internal ddoghq/datadog-agent main onto the public
-  DataDog/datadog-agent main, when the hourly "Rebase internal main onto public main" workflow
-  failed and disabled itself. Prepares and verifies the resolution; a human with admin rights pushes it.
-  Trigger phrases include:
-  - "the internal main sync has a conflict"
-  - "resolve the sync-public-main conflict"
-  - "Internal main sync hit a rebase conflict" (Slack alert from #agent-devx-ops)
+  Resolve a merge conflict while importing public DataDog/datadog-agent main into
+  internal ddoghq/datadog-agent main, when the hourly sync workflow failed and
+  disabled itself. Prepares and verifies the resolution for a human to publish.
 ---
 
 # Resolve an internal main sync conflict
 
 **Ownership:** maintained by `@DataDog/agent-devx`.
 
-Internal `main` of ddoghq/datadog-agent is public `main` plus an internal patch stack, rebased
-hourly by `.github/workflows/sync-public-main.yml` through `tools/ci/sync-public-main.sh`.
-On a conflict, the workflow leaves internal main unchanged, disables itself and posts in
-`#agent-devx-ops`. The resolved stack becomes the new internal main, so the same conflict
-does not come back unless upstream touches the same lines again.
+Internal `main` is a stable integration branch. The hourly workflow merges public
+`main` without rebasing or force-pushing existing internal history. On a conflict
+it leaves remote main unchanged, disables itself, and alerts `#agent-devx-ops`.
 
-**You prepare the resolution; you never push it.** The push rewrites a protected branch and
-needs a human with admin rights: stop at step 5 and hand over.
+Prepare and verify the resolution; leave publication to the human. Do not run
+`--continue` without `--dry-run`, push, or enable the workflow yourself.
 
-## 1. Start the rebase
+## 1. Start a fresh merge
 
-From a ddoghq/datadog-agent clone whose `origin` points to ddoghq (reused for fetch credentials):
+Use a `ddoghq/datadog-agent` clone, where the sync script and workflow live;
+this public source repository only carries the shared skill. First check:
+
+```bash
+tools/ci/sync-public-main.sh --help
+```
+
+The help must describe **merging**, not rebasing. If it still describes a rebase,
+stop: the merge-based sync implementation must land internally before using this
+procedure. Then run:
 
 ```bash
 tools/ci/sync-public-main.sh --manual
 ```
 
-It creates a worktree, fetches both mains under `refs/sync-public-main/` and stops on the conflict,
-printing the worktree path and the conflicting files. Work in that worktree from now on.
+Work in the printed worktree. Do not reuse a worktree prepared by the former
+rebase workflow: keep any valuable resolution notes, then start a fresh merge.
+The script stores the original and upstream SHAs in worktree-specific state.
 
-## 2. Understand what the internal patch wanted
-
-Find the commit being replayed (`git status` names it) and read its change to each conflicting
-file, and what upstream changed meanwhile:
+## 2. Understand both sides
 
 ```bash
 base=$(git merge-base refs/sync-public-main/origin refs/sync-public-main/upstream)
-git show <internal-commit> -- <file>                                 # internal intent
-git log --oneline "$base"..refs/sync-public-main/upstream -- <file>  # upstream changes
+git diff "$base" refs/sync-public-main/origin -- <file>
+git diff "$base" refs/sync-public-main/upstream -- <file>
 ```
 
-## 3. Resolve each file
+During this merge, **ours is internal** and **theirs is public upstream**.
+Resolve hunk by hunk, preserving internal adaptations and upstream changes.
+Do not replace whole files with either side unless you have checked all changes.
+Retain internal CI identities and the public Go module/import paths. If upstream
+removed or moved edited code, follow the new structure and explain the resolution.
 
-Re-apply the internal intent on top of the upstream version; never revert upstream changes.
-Resolve **hunk by hunk**, keeping the upstream side of each conflict and re-applying the internal
-change in it. Avoid `git checkout --ours <file>` (during a rebase *ours* is upstream): it takes the
-whole upstream file and silently drops the internal changes git merged cleanly elsewhere in it.
+The script regenerates CODEOWNERS from upstream with the internal team/handle
+mapping only when the old internal file exactly matches that rewrite at the
+merge base. It also rewrites clean upstream additions. If internal CODEOWNERS
+has custom rules, resolve it manually and preserve them. If a new personal handle
+has no mapping, ask for its internal account and update `CODEOWNERS_RULE` before
+regenerating; do not silently publish public personal handles.
 
-Known patterns of the internal patch:
+Scan newly imported CI configuration for new public repository identity references
+that Git merged cleanly. Retain public Go imports, documentation links, dependency
+repositories, and explicit public-source remotes. Explain any additional internal
+identity rewrites in the hand-over.
 
-| Upstream change | Resolution |
-|---|---|
-| `.github/CODEOWNERS` conflicts | Don't resolve hunks: regenerate it from upstream with the internal rewrite (see below). |
-| Content changed in a file the patch rewrites from `DataDog/…` to `ddoghq/…` (chainguard `*.sts.yaml` subjects and `job_workflow_ref`, `dd-octo-sts --scope`, CI scripts, `GithubAPI(...)` repos) | Keep the upstream side of the hunk, then re-apply the same rewrite to its lines. For chainguard subjects keep the internal `repo:ddoghq@<org-id>/datadog-agent@<repo-id>:…` form used by the other internal `.sts.yaml` files. |
-| File deleted upstream, modified internally (`modify/delete`) | Usually accept the deletion (`git rm <file>`), then remove internal references to it (grep the old name, e.g. in chainguard `job_workflow_ref` patterns). Keep the file only if the internal change is the reason it exists; say so in the hand-over. |
-| Internal-only addition (lines with no public counterpart, e.g. `git remote set-url origin "$AIX_GIT_REMOTE"`) | If upstream adopted it, keep the upstream version only. Otherwise keep it, placed where it still makes sense in the new upstream code. |
-| Code moved or removed upstream while the internal patch edited it | Follow it: re-apply the internal change where the code went (see step 3b), or drop it with the removed code. |
-
-Anything else: stop and ask rather than guess.
-
-### CODEOWNERS
-
-The internal file is the public one with GitHub teams moved to the `ddoghq` org (in both `@DataDog/`
-and `@Datadog/` spellings) and personal handles mapped to their `ddoghq` accounts. Start from the team
-rule and check what else the current internal file maps, by rebuilding it from the public one at
-the merge base:
-
-```bash
-rule='s#@[Dd]ata[Dd]og/#@ddoghq/#g'
-diff <(git show "$base":.github/CODEOWNERS | sed -E "$rule") <(git show refs/sync-public-main/origin:.github/CODEOWNERS)
-```
-
-Each remaining difference should be a personal handle mapped to its `ddoghq` account: add one
-`; s#@<public-handle>([[:space:]]|$)#@<ddoghq-handle>\1#g` per mapping to `rule` until the diff is
-empty. Stop and ask if a difference is anything else. A handle new upstream has no mapping yet: ask
-the user for its `ddoghq` account. Then regenerate:
-
-```bash
-git show refs/sync-public-main/upstream:.github/CODEOWNERS | sed -E "$rule" > .github/CODEOWNERS
-grep -oE '@[A-Za-z0-9_-]+([[:space:]]|$)' .github/CODEOWNERS | sort -u   # personal handles: all must be ddoghq accounts
-```
-
-### 3b. Look beyond the conflicts
-
-Upstream can add public-identity references that conflict with nothing: new files, code moved to
-a new file, new functions next to rewritten ones. Git merges them silently and they break internal
-CI later. Scan what upstream added to CI configuration since the merge base:
-
-```bash
-git diff "$base" refs/sync-public-main/upstream -U0 -- .github .gitlab tools/ci tasks test \
-  | awk '/^\+\+\+ b\//{f=substr($0,7)} /^\+[^+]/ && /DataDog\/datadog-agent|"org": *"DataDog"|repo:DataDog|--scope DataDog/ \
-         && !/github\.com\/DataDog\/datadog-agent\// {print f": "$0}'   # skip Go imports and web links
-```
-
-Rewrite a hit when the internal patch already rewrites the same pattern elsewhere (compare with
-`git grep` on `refs/sync-public-main/origin`): `dd-octo-sts --scope`, `self.*` chainguard policies,
-git remotes such as `AIX_GIT_REMOTE`, `GithubAPI(...)` repositories, PR-comment payload orgs. Leave
-comments, documentation links, test fixtures and Go import paths as they are. List every rewrite in
-the hand-over: the user did not see them as conflicts.
-
-Check that no marker is left and that the rewrite did not miss a spot:
+## 3. Finish the merge
 
 ```bash
 git diff --check
-git grep -n 'DataDog/datadog-agent' -- <resolved files>   # review every hit
+git add <resolved-files>       # or git rm for accepted deletions
+git merge --continue
 ```
 
-## 4. Finish the rebase
+To abandon this attempt: `git merge --abort`. Never rebase, reset, squash, or
+force-push internal main to resolve the sync.
 
-```bash
-git add <files>        # or git rm
-git rebase --continue  # repeat steps 2-4 if another commit conflicts
-```
-
-## 5. Verify, then hand over
+## 4. Verify
 
 ```bash
 tools/ci/sync-public-main.sh --continue --dry-run
-git range-diff refs/sync-public-main/upstream refs/sync-public-main/origin HEAD
+git show --stat HEAD
+git diff refs/sync-public-main/origin HEAD   # changes introduced into internal main
 ```
 
-The range-diff compares the internal stack before and after: the only differences should be your
-resolutions. Report to the user, without pushing:
-- each conflicting file and how you resolved it (and any file you kept despite an upstream deletion),
-- each rewrite made outside the conflicts (step 3b), with why, and the hits you left as they are,
-- the range-diff summary,
-- the commands they must run themselves: the first pushes with a lease and re-enables the workflow,
-  the second removes the worktree once the push succeeded:
+The dry run checks that both the original internal tip and the captured public
+tip remain ancestors and that the working tree is clean. Run checks appropriate
+to the resolved files. Report each resolution and any additional identity rewrites.
+
+## 5. Hand over publication
+
+Provide these commands to the human, leaving the worktree in place:
 
 ```bash
 tools/ci/sync-public-main.sh --continue --workdir <worktree>
 git worktree remove <worktree>
 ```
 
-Leave the worktree in place: the push needs it.
+The first command performs a normal push and re-enables the workflow. If internal
+main advanced meanwhile and the push is rejected, start a fresh `--manual` merge
+from the updated main and reapply the reviewed resolution. Never force the push.
