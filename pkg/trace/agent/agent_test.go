@@ -418,8 +418,8 @@ func TestProcess(t *testing.T) {
 
 	t.Run("ReplacerDoesNotChangeEnvOTLP", func(t *testing.T) {
 		// The OTLP receiver only takes the payload env from resource attributes,
-		// but spans can set it in their own attributes. The agent then takes it
-		// from the span. (The legacy receiver, disable_receive_resource_spans_v2,
+		// but spans can set it in their own attributes. The conversion to V1 then
+		// promotes it from the span. (The legacy receiver, disable_receive_resource_spans_v2,
 		// takes the payload env from the first span itself.)
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
@@ -431,8 +431,8 @@ func TestProcess(t *testing.T) {
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
-		out := make(chan *api.Payload, 1)
-		rcv := api.NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		out := make(chan *api.PayloadV1, 1)
+		rcv := api.NewOTLPReceiverV1(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		now := uint64(time.Now().UnixNano())
 		req := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{{
 			LibName:    "lib",
@@ -448,16 +448,19 @@ func TestProcess(t *testing.T) {
 		_, err = rcv.ReceiveResourceSpans(ctx, req.Traces().ResourceSpans().At(0), http.Header{}, nil)
 		require.NoError(t, err)
 		p := <-out
-		require.Empty(t, p.TracerPayload.Env, "the payload env must come from the span for this test")
-		agnt.Process(p)
+		// The resource has no env: the V1 payload env is promoted from the span at conversion,
+		// before replace rules run.
+		require.Equal(t, "tracer-env", p.TracerPayload.Env(), "the payload env must come from the span for this test")
+		agnt.ProcessV1(p)
 
 		mco := agnt.Concentrator.(*mockConcentrator)
-		require.Len(t, mco.stats, 1)
-		require.Len(t, mco.stats[0].Traces, 1)
-		trace := mco.stats[0].Traces[0]
+		require.Len(t, mco.statsV1, 1)
+		require.Len(t, mco.statsV1[0].Traces, 1)
+		trace := mco.statsV1[0].Traces[0]
 		assert.Equal(t, "tracer-env", trace.TracerEnv, "sampling and stats env is unchanged")
-		assert.Equal(t, "tracer-env", trace.Root.Meta["env"])
-		assert.Equal(t, "redacted-value", trace.Root.Meta["custom.tag"], "other tags are still replaced")
+		assert.Equal(t, "tracer-env", trace.Root.Env())
+		custom, _ := trace.Root.GetAttributeAsString("custom.tag")
+		assert.Equal(t, "redacted-value", custom, "other tags are still replaced")
 	})
 
 	t.Run("ReplacerDoesNotChangeEnvV1", func(t *testing.T) {

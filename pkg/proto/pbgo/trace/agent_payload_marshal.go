@@ -6,8 +6,10 @@
 package trace
 
 import (
+	"cmp"
 	"encoding/binary"
 	"math"
+	"slices"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
@@ -247,6 +249,73 @@ func (c *stringCompactor) remap(oldRef uint32) uint32 {
 	return newRef
 }
 
+// sizeCache records the serialized sizes of the non-nil chunks and spans of a TracerPayload,
+// in payload order, while it is sized, so that serializing it doesn't compute them again for
+// the length prefixes. It holds no pointers, so it costs the GC nothing to keep it.
+type sizeCache struct {
+	chunks []uint32
+	spans  []uint32
+}
+
+// attrEntry is an attribute map entry, used to serialize attributes sorted by key.
+type attrEntry struct {
+	key   uint32
+	value *idx.AnyValue
+}
+
+// compactEncoder holds the state of one serialization of a TracerPayload: its string
+// compactor, the sizes recorded while sizing it, and scratch space. It is local to a single
+// serialization and must not be shared between goroutines.
+type compactEncoder struct {
+	*stringCompactor
+	sizes     sizeCache
+	nextChunk int
+	nextSpan  int
+	attrs     []attrEntry
+}
+
+// reset prepares the encoder to serialize another payload, keeping its scratch space.
+func (e *compactEncoder) reset(c *stringCompactor, sizes sizeCache) {
+	e.stringCompactor = c
+	e.sizes = sizes
+	e.nextChunk = 0
+	e.nextSpan = 0
+}
+
+// chunkSize returns the serialized size of the next non-nil chunk.
+func (e *compactEncoder) chunkSize(chunk *idx.TraceChunk) int {
+	if e.nextChunk < len(e.sizes.chunks) {
+		size := e.sizes.chunks[e.nextChunk]
+		e.nextChunk++
+		return int(size)
+	}
+	return sizeTraceChunkCompacting(chunk, e.stringCompactor, nil)
+}
+
+// spanSize returns the serialized size of the next non-nil span.
+func (e *compactEncoder) spanSize(span *idx.Span) int {
+	if e.nextSpan < len(e.sizes.spans) {
+		size := e.sizes.spans[e.nextSpan]
+		e.nextSpan++
+		return int(size)
+	}
+	return sizeIdxSpanCompacting(span, e.stringCompactor)
+}
+
+// newSizeCache returns a sizeCache with room for the chunks and spans of tp.
+func newSizeCache(tp *idx.TracerPayload) sizeCache {
+	numSpans := 0
+	for _, chunk := range tp.Chunks {
+		if chunk != nil {
+			numSpans += len(chunk.Spans)
+		}
+	}
+	return sizeCache{
+		chunks: make([]uint32, 0, len(tp.Chunks)),
+		spans:  make([]uint32, 0, numSpans),
+	}
+}
+
 // collectAttributeRefs marks all string refs in an attribute map
 func (c *stringCompactor) collectAttributeRefs(attrs map[uint32]*idx.AnyValue, markRef func(uint32)) {
 	for keyRef, value := range attrs {
@@ -291,7 +360,8 @@ func (c *stringCompactor) collectAnyValueRefs(value *idx.AnyValue, markRef func(
 type PreparedTracerPayload struct {
 	payload   *idx.TracerPayload
 	compactor *stringCompactor
-	Size      int // compacted serialized size
+	sizes     sizeCache // chunk and span sizes, reused for the length prefixes
+	Size      int       // compacted serialized size
 }
 
 // PrepareTracerPayload creates a PreparedTracerPayload by computing the string
@@ -301,10 +371,12 @@ func PrepareTracerPayload(tp *idx.TracerPayload) *PreparedTracerPayload {
 		return &PreparedTracerPayload{payload: nil, compactor: nil, Size: 0}
 	}
 	c := newStringCompactor(tp)
-	size := sizeTracerPayloadCompacting(tp, c)
+	sizes := newSizeCache(tp)
+	size := sizeTracerPayloadCompacting(tp, c, &sizes)
 	return &PreparedTracerPayload{
 		payload:   tp,
 		compactor: c,
+		sizes:     sizes,
 		Size:      size,
 	}
 }
@@ -470,8 +542,9 @@ func appendAgentPayloadPrepared(buf []byte, ap *AgentPayload, prepared []*Prepar
 	}
 
 	// Field 11: idxTracerPayloads (using prepared payloads with pre-computed compactors)
+	var e compactEncoder // shared by the payloads so that they reuse its scratch space
 	for _, p := range prepared {
-		buf = appendPreparedIdxTracerPayload(buf, p)
+		buf = appendPreparedIdxTracerPayload(buf, p, &e)
 	}
 
 	return buf, nil
@@ -479,7 +552,7 @@ func appendAgentPayloadPrepared(buf []byte, ap *AgentPayload, prepared []*Prepar
 
 // appendPreparedIdxTracerPayload serializes a PreparedTracerPayload using its
 // pre-computed compactor, avoiding the need to recompute the string mapping.
-func appendPreparedIdxTracerPayload(buf []byte, p *PreparedTracerPayload) []byte {
+func appendPreparedIdxTracerPayload(buf []byte, p *PreparedTracerPayload, e *compactEncoder) []byte {
 	if p == nil || p.payload == nil {
 		return buf
 	}
@@ -498,8 +571,9 @@ func appendPreparedIdxTracerPayload(buf []byte, p *PreparedTracerPayload) []byte
 		buf = newBuf
 	}
 
-	// Use pre-computed compactor
-	buf = appendTracerPayloadCompacting(buf, p.payload, p.compactor)
+	// Use pre-computed compactor and sizes
+	e.reset(p.compactor, p.sizes)
+	buf = appendTracerPayloadCompacting(buf, p.payload, e)
 	return buf
 }
 
@@ -565,7 +639,7 @@ func SizeAgentPayload(ap *AgentPayload) int {
 	// Use compacting size calculation for accurate size
 	for _, tp := range ap.IdxTracerPayloads {
 		compactor := newStringCompactor(tp)
-		payloadSize := sizeTracerPayloadCompacting(tp, compactor)
+		payloadSize := sizeTracerPayloadCompacting(tp, compactor, nil)
 		size += sizeTag(fieldIdxTracerPayloads, wireLengthDelim)
 		size += sizeVarint(uint64(payloadSize))
 		size += payloadSize
@@ -658,7 +732,8 @@ func appendIdxTracerPayload(buf []byte, tp *idx.TracerPayload) []byte {
 	compactor := newStringCompactor(tp)
 
 	// Calculate exact size needed for the TracerPayload (using compacted refs)
-	payloadSize := sizeTracerPayloadCompacting(tp, compactor)
+	sizes := newSizeCache(tp)
+	payloadSize := sizeTracerPayloadCompacting(tp, compactor, &sizes)
 
 	// Write tag + length prefix, then serialize directly
 	buf = appendTag(buf, fieldIdxTracerPayloads, wireLengthDelim)
@@ -671,7 +746,9 @@ func appendIdxTracerPayload(buf []byte, tp *idx.TracerPayload) []byte {
 		buf = newBuf
 	}
 
-	buf = appendTracerPayloadCompacting(buf, tp, compactor)
+	e := compactEncoder{}
+	e.reset(compactor, sizes)
+	buf = appendTracerPayloadCompacting(buf, tp, &e)
 	return buf
 }
 
@@ -680,7 +757,8 @@ func appendIdxTracerPayload(buf []byte, tp *idx.TracerPayload) []byte {
 // =============================================================================
 
 // sizeTracerPayloadCompacting calculates the serialized size using compacted string refs
-func sizeTracerPayloadCompacting(tp *idx.TracerPayload, c *stringCompactor) int {
+// When rec is not nil, the sizes of the chunks and spans are recorded in it.
+func sizeTracerPayloadCompacting(tp *idx.TracerPayload, c *stringCompactor, rec *sizeCache) int {
 	size := 0
 
 	// Field 1: strings (compacted) - will be serialized last but counted here
@@ -729,7 +807,10 @@ func sizeTracerPayloadCompacting(tp *idx.TracerPayload, c *stringCompactor) int 
 
 	// Field 11: chunks
 	for _, chunk := range tp.Chunks {
-		chunkSize := sizeTraceChunkCompacting(chunk, c)
+		chunkSize := sizeTraceChunkCompacting(chunk, c, rec)
+		if rec != nil && chunk != nil {
+			rec.chunks = append(rec.chunks, uint32(chunkSize))
+		}
 		size += sizeTag(fieldTPChunks, wireLengthDelim)
 		size += sizeVarint(uint64(chunkSize))
 		size += chunkSize
@@ -747,7 +828,8 @@ func sizeTracerPayloadCompacting(tp *idx.TracerPayload, c *stringCompactor) int 
 }
 
 // sizeTraceChunkCompacting calculates the serialized size of a TraceChunk with compaction
-func sizeTraceChunkCompacting(chunk *idx.TraceChunk, c *stringCompactor) int {
+// When rec is not nil, the sizes of the spans are recorded in it.
+func sizeTraceChunkCompacting(chunk *idx.TraceChunk, c *stringCompactor, rec *sizeCache) int {
 	if chunk == nil {
 		return 0
 	}
@@ -766,6 +848,9 @@ func sizeTraceChunkCompacting(chunk *idx.TraceChunk, c *stringCompactor) int {
 
 	for _, span := range chunk.Spans {
 		spanSize := sizeIdxSpanCompacting(span, c)
+		if rec != nil && span != nil {
+			rec.spans = append(rec.spans, uint32(spanSize))
+		}
 		size += sizeTag(fieldTCSpans, wireLengthDelim)
 		size += sizeVarint(uint64(spanSize))
 		size += spanSize
@@ -996,7 +1081,7 @@ func sizeIdxAnyValueCompacting(av *idx.AnyValue, c *stringCompactor) int {
 // appendTracerPayloadCompacting serializes a TracerPayload with string compaction.
 // It serializes fields 2-11 first with remapped refs, then serializes the compacted
 // strings table (field 1) last. Protobuf allows fields in any order.
-func appendTracerPayloadCompacting(buf []byte, tp *idx.TracerPayload, c *stringCompactor) []byte {
+func appendTracerPayloadCompacting(buf []byte, tp *idx.TracerPayload, c *compactEncoder) []byte {
 	// Fields 2-11 are serialized first with remapped refs
 	// Field 2: containerIDRef
 	if ref := c.remap(tp.ContainerIDRef); ref != 0 {
@@ -1056,10 +1141,10 @@ func appendTracerPayloadCompacting(buf []byte, tp *idx.TracerPayload, c *stringC
 
 	// Field 12: containerDebug
 	if tp.ContainerDebug != nil {
-		cdSize := sizeContainerDebug(tp.ContainerDebug, c)
+		cdSize := sizeContainerDebug(tp.ContainerDebug, c.stringCompactor)
 		buf = appendTag(buf, fieldTPContainerDebug, wireLengthDelim)
 		buf = appendVarint(buf, uint64(cdSize))
-		buf = appendContainerDebug(buf, tp.ContainerDebug, c)
+		buf = appendContainerDebug(buf, tp.ContainerDebug, c.stringCompactor)
 	}
 
 	// Field 1: strings (compacted) - serialized last
@@ -1073,13 +1158,13 @@ func appendTracerPayloadCompacting(buf []byte, tp *idx.TracerPayload, c *stringC
 }
 
 // appendTraceChunkCompacting serializes a TraceChunk with compacted refs
-func appendTraceChunkCompacting(buf []byte, chunk *idx.TraceChunk, c *stringCompactor) []byte {
+func appendTraceChunkCompacting(buf []byte, chunk *idx.TraceChunk, c *compactEncoder) []byte {
 	if chunk == nil {
 		return buf
 	}
 
 	// Calculate size first, write length prefix, then write content directly
-	chunkSize := sizeTraceChunkCompacting(chunk, c)
+	chunkSize := c.chunkSize(chunk)
 	buf = appendTag(buf, fieldTPChunks, wireLengthDelim)
 	buf = appendVarint(buf, uint64(chunkSize))
 
@@ -1114,13 +1199,13 @@ func appendTraceChunkCompacting(buf []byte, chunk *idx.TraceChunk, c *stringComp
 }
 
 // appendIdxSpanCompacting serializes a Span with compacted refs
-func appendIdxSpanCompacting(buf []byte, span *idx.Span, c *stringCompactor) []byte {
+func appendIdxSpanCompacting(buf []byte, span *idx.Span, c *compactEncoder) []byte {
 	if span == nil {
 		return buf
 	}
 
 	// Calculate size first, write length prefix, then write content directly
-	spanSize := sizeIdxSpanCompacting(span, c)
+	spanSize := c.spanSize(span)
 	buf = appendTag(buf, fieldTCSpans, wireLengthDelim)
 	buf = appendVarint(buf, uint64(spanSize))
 
@@ -1189,13 +1274,13 @@ func appendIdxSpanCompacting(buf []byte, span *idx.Span, c *stringCompactor) []b
 }
 
 // appendSpanLinkCompacting serializes a SpanLink with compacted refs
-func appendSpanLinkCompacting(buf []byte, link *idx.SpanLink, c *stringCompactor) []byte {
+func appendSpanLinkCompacting(buf []byte, link *idx.SpanLink, c *compactEncoder) []byte {
 	if link == nil {
 		return buf
 	}
 
 	// Calculate size first, write length prefix, then write content directly
-	linkSize := sizeSpanLinkCompacting(link, c)
+	linkSize := sizeSpanLinkCompacting(link, c.stringCompactor)
 	buf = appendTag(buf, fieldSpanLinks, wireLengthDelim)
 	buf = appendVarint(buf, uint64(linkSize))
 
@@ -1223,13 +1308,13 @@ func appendSpanLinkCompacting(buf []byte, link *idx.SpanLink, c *stringCompactor
 }
 
 // appendSpanEventCompacting serializes a SpanEvent with compacted refs
-func appendSpanEventCompacting(buf []byte, event *idx.SpanEvent, c *stringCompactor) []byte {
+func appendSpanEventCompacting(buf []byte, event *idx.SpanEvent, c *compactEncoder) []byte {
 	if event == nil {
 		return buf
 	}
 
 	// Calculate size first, write length prefix, then write content directly
-	eventSize := sizeSpanEventCompacting(event, c)
+	eventSize := sizeSpanEventCompacting(event, c.stringCompactor)
 	buf = appendTag(buf, fieldSpanEvents, wireLengthDelim)
 	buf = appendVarint(buf, uint64(eventSize))
 
@@ -1248,24 +1333,27 @@ func appendSpanEventCompacting(buf []byte, event *idx.SpanEvent, c *stringCompac
 }
 
 // appendIdxAttributesCompacting serializes an attributes map with compacted refs
-func appendIdxAttributesCompacting(buf []byte, fieldNum int, attrs map[uint32]*idx.AnyValue, c *stringCompactor) []byte {
+func appendIdxAttributesCompacting(buf []byte, fieldNum int, attrs map[uint32]*idx.AnyValue, c *compactEncoder) []byte {
 	if len(attrs) == 0 {
 		return buf
 	}
 
-	// Sort keys for deterministic output
-	keys := make([]uint32, 0, len(attrs))
-	for k := range attrs {
-		keys = append(keys, k)
+	// Sort entries by key for deterministic output. The encoder's scratch slice is reused:
+	// serializing an attribute value never serializes another attribute map, so this
+	// function is not reentered while entries is in use.
+	entries := c.attrs[:0]
+	for k, v := range attrs {
+		entries = append(entries, attrEntry{key: k, value: v})
 	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	c.attrs = entries
+	slices.SortFunc(entries, func(a, b attrEntry) int { return cmp.Compare(a.key, b.key) })
 
-	for _, key := range keys {
-		value := attrs[key]
-		remappedKey := c.remap(key)
+	for _, entry := range entries {
+		value := entry.value
+		remappedKey := c.remap(entry.key)
 
 		// Calculate entry size
-		valueSize := sizeIdxAnyValueCompacting(value, c)
+		valueSize := sizeIdxAnyValueCompacting(value, c.stringCompactor)
 		entrySize := sizeTag(1, wireVarint) + sizeVarint(uint64(remappedKey))
 		entrySize += sizeTag(2, wireLengthDelim) + sizeVarint(uint64(valueSize)) + valueSize
 
@@ -1287,7 +1375,7 @@ func appendIdxAttributesCompacting(buf []byte, fieldNum int, attrs map[uint32]*i
 }
 
 // appendIdxAnyValueCompacting serializes an AnyValue with compacted refs
-func appendIdxAnyValueCompacting(buf []byte, av *idx.AnyValue, c *stringCompactor) []byte {
+func appendIdxAnyValueCompacting(buf []byte, av *idx.AnyValue, c *compactEncoder) []byte {
 	if av == nil {
 		return buf
 	}
@@ -1323,7 +1411,7 @@ func appendIdxAnyValueCompacting(buf []byte, av *idx.AnyValue, c *stringCompacto
 			// Calculate array size
 			arraySize := 0
 			for _, elem := range v.ArrayValue.Values {
-				elemSize := sizeIdxAnyValueCompacting(elem, c)
+				elemSize := sizeIdxAnyValueCompacting(elem, c.stringCompactor)
 				arraySize += sizeTag(fieldArrayValueValues, wireLengthDelim) + sizeVarint(uint64(elemSize)) + elemSize
 			}
 
@@ -1331,7 +1419,7 @@ func appendIdxAnyValueCompacting(buf []byte, av *idx.AnyValue, c *stringCompacto
 			buf = appendTag(buf, fieldAnyValueArrayValue, wireLengthDelim)
 			buf = appendVarint(buf, uint64(arraySize))
 			for _, elem := range v.ArrayValue.Values {
-				elemSize := sizeIdxAnyValueCompacting(elem, c)
+				elemSize := sizeIdxAnyValueCompacting(elem, c.stringCompactor)
 				buf = appendTag(buf, fieldArrayValueValues, wireLengthDelim)
 				buf = appendVarint(buf, uint64(elemSize))
 				buf = appendIdxAnyValueCompacting(buf, elem, c)
@@ -1345,7 +1433,7 @@ func appendIdxAnyValueCompacting(buf []byte, av *idx.AnyValue, c *stringCompacto
 			for _, kv := range v.KeyValueList.KeyValues {
 				if kv != nil {
 					remappedKey := c.remap(kv.Key)
-					valueSize := sizeIdxAnyValueCompacting(kv.Value, c)
+					valueSize := sizeIdxAnyValueCompacting(kv.Value, c.stringCompactor)
 					kvSize := sizeTag(fieldKeyValueKey, wireVarint) + sizeVarint(uint64(remappedKey))
 					kvSize += sizeTag(fieldKeyValueValue, wireLengthDelim) + sizeVarint(uint64(valueSize)) + valueSize
 					kvListSize += sizeTag(fieldKeyValueListKeyValues, wireLengthDelim) + sizeVarint(uint64(kvSize)) + kvSize
@@ -1358,7 +1446,7 @@ func appendIdxAnyValueCompacting(buf []byte, av *idx.AnyValue, c *stringCompacto
 			for _, kv := range v.KeyValueList.KeyValues {
 				if kv != nil {
 					remappedKey := c.remap(kv.Key)
-					valueSize := sizeIdxAnyValueCompacting(kv.Value, c)
+					valueSize := sizeIdxAnyValueCompacting(kv.Value, c.stringCompactor)
 					kvSize := sizeTag(fieldKeyValueKey, wireVarint) + sizeVarint(uint64(remappedKey))
 					kvSize += sizeTag(fieldKeyValueValue, wireLengthDelim) + sizeVarint(uint64(valueSize)) + valueSize
 

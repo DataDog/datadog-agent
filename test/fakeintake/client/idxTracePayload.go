@@ -7,7 +7,10 @@ package client
 
 import (
 	"encoding/binary"
+	"fmt"
+	"strconv"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
@@ -109,4 +112,151 @@ func IdxPayloadHasService(p *aggregator.TracePayload, service string) bool {
 		}
 	}
 	return false
+}
+
+// LegacyTracerPayloads returns every tracer payload carried by the agent payload in
+// the legacy (non-indexed) shape: the payloads in AgentPayload.TracerPayloads as-is,
+// followed by those in AgentPayload.IdxTracerPayloads converted with
+// IdxToLegacyTracerPayload. Tests that assert on span, chunk or payload metadata can
+// use it to accept both formats without duplicating their assertions.
+func LegacyTracerPayloads(p *pb.AgentPayload) []*pb.TracerPayload {
+	if p == nil {
+		return nil
+	}
+	tps := make([]*pb.TracerPayload, 0, len(p.TracerPayloads)+len(p.IdxTracerPayloads))
+	tps = append(tps, p.TracerPayloads...)
+	for _, tp := range p.IdxTracerPayloads {
+		tps = append(tps, IdxToLegacyTracerPayload(tp))
+	}
+	return tps
+}
+
+// IdxToLegacyTracerPayload converts an indexed tracer payload into the legacy
+// tracer payload shape, resolving every string-table reference. It mirrors how the
+// agent maps legacy fields onto the indexed format so the result reads like the
+// payload the agent would have produced without convert-traces:
+//   - string attributes become Meta (span) or Tags (chunk and payload) entries, and
+//     double/int attributes become span Metrics; bool attributes become "true"/"false"
+//     Meta entries, and other attribute types are dropped;
+//   - the promoted span fields env, version, component and span.kind are restored as
+//     Meta entries, and the chunk's 128-bit trace ID is split back into the span
+//     TraceID (low 64 bits) and the "_dd.p.tid" Meta entry (high 64 bits, hex);
+//   - the chunk SamplingMechanism is restored as the "_dd.p.dm" chunk tag.
+//
+// Promoted values never override an attribute of the same key. Span links, span
+// events and meta_struct are not converted.
+func IdxToLegacyTracerPayload(tp *idx.TracerPayload) *pb.TracerPayload {
+	strs := tp.GetStrings()
+	str := func(ref uint32) string { return IdxStr(strs, ref) }
+	out := &pb.TracerPayload{
+		ContainerID:     str(tp.GetContainerIDRef()),
+		LanguageName:    str(tp.GetLanguageNameRef()),
+		LanguageVersion: str(tp.GetLanguageVersionRef()),
+		TracerVersion:   str(tp.GetTracerVersionRef()),
+		RuntimeID:       str(tp.GetRuntimeIDRef()),
+		Env:             str(tp.GetEnvRef()),
+		Hostname:        str(tp.GetHostnameRef()),
+		AppVersion:      str(tp.GetAppVersionRef()),
+		Tags:            idxStringAttrs(strs, tp.GetAttributes()),
+	}
+	for _, chunk := range tp.GetChunks() {
+		lc := &pb.TraceChunk{
+			Priority:     chunk.GetPriority(),
+			Origin:       str(chunk.GetOriginRef()),
+			Tags:         idxStringAttrs(strs, chunk.GetAttributes()),
+			DroppedTrace: chunk.GetDroppedTrace(),
+		}
+		if sm := chunk.GetSamplingMechanism(); sm != 0 {
+			setIfAbsent(lc.Tags, "_dd.p.dm", "-"+strconv.FormatUint(uint64(sm), 10))
+		}
+		traceID := IdxChunkTraceID(chunk)
+		traceIDUpper := idxChunkTraceIDUpper(chunk)
+		for _, sp := range chunk.GetSpans() {
+			ls := &pb.Span{
+				Service:  str(sp.GetServiceRef()),
+				Name:     str(sp.GetNameRef()),
+				Resource: str(sp.GetResourceRef()),
+				Type:     str(sp.GetTypeRef()),
+				TraceID:  traceID,
+				SpanID:   sp.GetSpanID(),
+				ParentID: sp.GetParentID(),
+				Start:    int64(sp.GetStart()),
+				Duration: int64(sp.GetDuration()),
+				Meta:     map[string]string{},
+				Metrics:  map[string]float64{},
+			}
+			if sp.GetError() {
+				ls.Error = 1
+			}
+			for k, v := range sp.GetAttributes() {
+				switch val := v.GetValue().(type) {
+				case *idx.AnyValue_StringValueRef:
+					ls.Meta[str(k)] = str(val.StringValueRef)
+				case *idx.AnyValue_BoolValue:
+					ls.Meta[str(k)] = strconv.FormatBool(val.BoolValue)
+				case *idx.AnyValue_DoubleValue:
+					ls.Metrics[str(k)] = val.DoubleValue
+				case *idx.AnyValue_IntValue:
+					ls.Metrics[str(k)] = float64(val.IntValue)
+				}
+			}
+			setIfAbsent(ls.Meta, "env", str(sp.GetEnvRef()))
+			setIfAbsent(ls.Meta, "version", str(sp.GetVersionRef()))
+			setIfAbsent(ls.Meta, "component", str(sp.GetComponentRef()))
+			setIfAbsent(ls.Meta, "span.kind", idxSpanKindName(sp.GetKind()))
+			if traceIDUpper != 0 {
+				setIfAbsent(ls.Meta, "_dd.p.tid", fmt.Sprintf("%016x", traceIDUpper))
+			}
+			lc.Spans = append(lc.Spans, ls)
+		}
+		out.Chunks = append(out.Chunks, lc)
+	}
+	return out
+}
+
+// idxStringAttrs returns the string-valued attributes as a map keyed by name.
+func idxStringAttrs(strs []string, attrs map[uint32]*idx.AnyValue) map[string]string {
+	m := make(map[string]string, len(attrs))
+	for k, v := range attrs {
+		if sv, ok := v.GetValue().(*idx.AnyValue_StringValueRef); ok {
+			m[IdxStr(strs, k)] = IdxStr(strs, sv.StringValueRef)
+		}
+	}
+	return m
+}
+
+// idxChunkTraceIDUpper returns the high 64 bits of a chunk's 128-bit trace ID.
+func idxChunkTraceIDUpper(chunk *idx.TraceChunk) uint64 {
+	tid := chunk.GetTraceID()
+	if len(tid) < 16 {
+		return 0
+	}
+	return binary.BigEndian.Uint64(tid[:8])
+}
+
+// idxSpanKindName returns the legacy "span.kind" value for an indexed span kind, or
+// "" when the kind is unspecified.
+func idxSpanKindName(kind idx.SpanKind) string {
+	switch kind {
+	case idx.SpanKind_SPAN_KIND_INTERNAL:
+		return "internal"
+	case idx.SpanKind_SPAN_KIND_SERVER:
+		return "server"
+	case idx.SpanKind_SPAN_KIND_CLIENT:
+		return "client"
+	case idx.SpanKind_SPAN_KIND_PRODUCER:
+		return "producer"
+	case idx.SpanKind_SPAN_KIND_CONSUMER:
+		return "consumer"
+	}
+	return ""
+}
+
+func setIfAbsent(m map[string]string, key, value string) {
+	if value == "" {
+		return
+	}
+	if _, ok := m[key]; !ok {
+		m[key] = value
+	}
 }

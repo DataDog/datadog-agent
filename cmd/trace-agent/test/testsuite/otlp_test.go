@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -134,10 +135,10 @@ apm_config:
 		waitForTrace(t, &r, func(p *pb.AgentPayload) {
 			assert := assert.New(t)
 			assert.Equal(p.Env, "my-env")
-			assert.Len(p.TracerPayloads, 1)
-			assert.Len(p.TracerPayloads[0].Chunks, 1)
-			assert.Len(p.TracerPayloads[0].Chunks[0].Spans, 1)
-			assert.Equal(p.TracerPayloads[0].Chunks[0].Spans[0].Meta["name"], "john")
+			tps := otlpSpanStrAttrs(p, "name")
+			if assert.Len(tps, 1) && assert.Len(tps[0], 1) && assert.Len(tps[0][0], 1) {
+				assert.Equal("john", tps[0][0][0])
+			}
 		})
 	})
 
@@ -405,7 +406,12 @@ apm_config:
 				t.Fatal("Timed out waiting for duplicate SpanID warning.")
 			default:
 				time.Sleep(10 * time.Millisecond)
-				if strings.Contains(r.AgentLog(), `Found malformed trace with duplicate span ID (reason:duplicate_span_id): service:"pylons"`) {
+				// The v1 (idx) normalizer, used by default, logs the span as
+				// "SpanID: <id>, Service: <service>, ..."; the legacy normalizer
+				// (convert-traces disabled) logs the pb.Span string form.
+				agentLog := r.AgentLog()
+				if duplicateSpanIDV1Log.MatchString(agentLog) ||
+					strings.Contains(agentLog, `Found malformed trace with duplicate span ID (reason:duplicate_span_id): service:"pylons"`) {
 					break loop
 				}
 			}
@@ -414,29 +420,32 @@ apm_config:
 
 	// topLevelSpansAgentFn checks that the given agent payload matches with the testSpans input
 	topLevelSpansAgentFn := func(v *pb.AgentPayload) {
-		var serverSpan, internalSpan, clientSpan, producerSpan *pb.Span
-		for _, chunk := range v.TracerPayloads[0].Chunks {
-			for _, span := range chunk.Spans {
-				switch span.Meta["name"] {
+		var serverSpan, internalSpan, clientSpan, producerSpan bool
+		tps := otlpSpanStrAttrs(v, "name")
+		if !assert.Len(t, tps, 1) {
+			return
+		}
+		for _, chunk := range tps[0] {
+			for _, name := range chunk {
+				switch name {
 				case "server":
-					assert.Len(t, chunk.Spans, 3)
-					serverSpan = span
+					assert.Len(t, chunk, 3)
+					serverSpan = true
 				case "internal":
-					assert.Len(t, chunk.Spans, 3)
-					internalSpan = span
+					assert.Len(t, chunk, 3)
+					internalSpan = true
 				case "client":
-					assert.Len(t, chunk.Spans, 3)
-					clientSpan = span
+					assert.Len(t, chunk, 3)
+					clientSpan = true
 				case "producer":
-					assert.Len(t, chunk.Spans, 1)
-					producerSpan = span
+					assert.Len(t, chunk, 1)
+					producerSpan = true
 				}
 			}
 		}
 		assert.Equal(t, "my-env", v.Env)
-		assert.Len(t, v.TracerPayloads, 1)
-		assert.Len(t, v.TracerPayloads[0].Chunks, 2)
-		assert.True(t, serverSpan != nil && internalSpan != nil && clientSpan != nil && producerSpan != nil)
+		assert.Len(t, tps[0], 2)
+		assert.True(t, serverSpan && internalSpan && clientSpan && producerSpan)
 	}
 
 	t.Run("top-level-by-span-kind", func(t *testing.T) {
@@ -592,6 +601,42 @@ func waitForStatsAndTraces(t *testing.T, runner *test.Runner, wait time.Duration
 			t.Fatalf("timed out, log was:\n%s", runner.AgentLog())
 		}
 	}
+}
+
+// duplicateSpanIDV1Log matches the log line of the v1 (idx) normalizer for a trace of
+// the "pylons" service with a duplicate span ID.
+var duplicateSpanIDV1Log = regexp.MustCompile(`Found malformed trace with duplicate span ID \(reason:duplicate_span_id\): SpanID: \d+, Service: pylons, Name: `)
+
+// otlpSpanStrAttrs returns, for every tracer payload in p, for every chunk, the value
+// of the string attribute (legacy span meta) key of every span. It reads both the
+// legacy payloads (convert-traces disabled) and the string-indexed payloads, which
+// carry OTLP traffic by default; the legacy payloads come first.
+func otlpSpanStrAttrs(p *pb.AgentPayload, key string) [][][]string {
+	var tps [][][]string
+	for _, tp := range p.TracerPayloads {
+		var chunks [][]string
+		for _, chunk := range tp.Chunks {
+			values := make([]string, 0, len(chunk.Spans))
+			for _, span := range chunk.Spans {
+				values = append(values, span.Meta[key])
+			}
+			chunks = append(chunks, values)
+		}
+		tps = append(tps, chunks)
+	}
+	for _, tp := range p.IdxTracerPayloads {
+		var chunks [][]string
+		for _, chunk := range tp.Chunks {
+			values := make([]string, 0, len(chunk.Spans))
+			for _, span := range chunk.Spans {
+				value, _ := idxStrAttr(tp.Strings, span.Attributes, key)
+				values = append(values, value)
+			}
+			chunks = append(chunks, values)
+		}
+		tps = append(tps, chunks)
+	}
+	return tps
 }
 
 // otlpSpanEvents returns the span events of the span of the given service in p, by event name,
