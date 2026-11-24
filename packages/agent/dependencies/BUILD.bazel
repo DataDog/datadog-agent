@@ -88,7 +88,6 @@ dd_collect_dependencies(
         ],
         "//packages/agent:linux_fips": [
             "//cmd/agent",
-            "//cmd/privateactionrunner",
             "//cmd/process-agent",
             "//cmd/security-agent",
             "//cmd/trace-agent",

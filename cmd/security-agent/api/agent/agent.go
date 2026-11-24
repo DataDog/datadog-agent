@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -32,15 +33,17 @@ type Agent struct {
 	settings        settings.Component
 	wmeta           workloadmeta.Component
 	secrets         secrets.Component
+	ipc             ipc.Component
 }
 
 // NewAgent returns a new Agent
-func NewAgent(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, secrets secrets.Component) *Agent {
+func NewAgent(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, secrets secrets.Component, ipc ipc.Component) *Agent {
 	return &Agent{
 		statusComponent: statusComponent,
 		settings:        settings,
 		wmeta:           wmeta,
 		secrets:         secrets,
+		ipc:             ipc,
 	}
 }
 
@@ -135,7 +138,7 @@ func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	logFile := pkgconfigsetup.Datadog().GetString("security_agent.log_file")
 
-	filePath, err := securityagent.CreateSecurityAgentArchive(false, logFile, a.statusComponent)
+	filePath, err := securityagent.CreateSecurityAgentArchive(false, logFile, a.statusComponent, a.ipc.GetClient())
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

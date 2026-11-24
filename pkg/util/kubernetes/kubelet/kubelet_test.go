@@ -31,8 +31,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -1036,4 +1038,29 @@ func (suite *KubeletTestSuite) TestGetConfigWithBrokenKubelet() {
 	_, config, err := kubeutil.GetConfig(ctx)
 	require.NotNil(suite.T(), err)
 	require.Nil(suite.T(), config)
+}
+
+// TestGetKubeUtilKubeletDisabled checks that, when ddot.KubeletDisabled,
+// GetKubeUtil fails permanently without creating the global KubeUtil, i.e.
+// without contacting the kubelet.
+func TestGetKubeUtilKubeletDisabled(t *testing.T) {
+	ResetGlobalKubeUtil()
+	t.Cleanup(ResetGlobalKubeUtil)
+	flavor.SetTestFlavor(t, flavor.OTelAgent)
+	cfg := configmock.New(t)
+	cfg.SetInTest("otel_standalone", true)
+	cfg.SetInTest("otelcollector.standalone.use_kubelet_collector", false)
+
+	ku, err := GetKubeUtil()
+	assert.Nil(t, ku)
+	assert.True(t, retry.IsErrPermaFail(err), "want a permanent failure, got %v", err)
+	assert.ErrorIs(t, err, errKubeletDisabled)
+
+	_, retrier := GetKubeUtilWithRetrier()
+	require.NotNil(t, retrier)
+	assert.Equal(t, retry.PermaFail, retrier.RetryStatus())
+
+	globalKubeUtilMutex.Lock()
+	defer globalKubeUtilMutex.Unlock()
+	assert.Nil(t, globalKubeUtil)
 }

@@ -103,7 +103,8 @@ func TestPullReportsGPUEntities(t *testing.T) {
 
 	second, err := store.GetGPU("amd-0000-41-00-0")
 	require.NoError(t, err)
-	assert.Equal(t, 1, second.Index)
+	// amd-smi numbers each partition: the two of the first GPU are 0 and 1.
+	assert.Equal(t, 2, second.Index)
 	assert.Equal(t, []int{100, 200}, second.ActivePIDs)
 	assert.Len(t, store.ListGPUs(), 2)
 }

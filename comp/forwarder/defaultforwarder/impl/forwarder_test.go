@@ -816,6 +816,31 @@ func syncTestProcessLikePayloadResponseTimeout(t *testing.T) {
 	require.False(t, ok) // channel should have been closed without receiving any responses
 }
 
+func TestProcessLikePayloadEmptyPayloadClosesResponsesImmediately(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockConfig := mock.New(t)
+		log := logmock.New(t)
+		r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "api_key1")}})
+		require.NoError(t, err)
+		options := NewOptionsWithResolvers(mockConfig, log, r)
+		options.DisableAPIKeyChecking = true // Disable API key checking so no health check goroutine is started
+		options.Secrets = secretsmock.New(t)
+		f := NewDefaultForwarder(mockConfig, log, options)
+		require.NoError(t, f.Start())
+		defer f.Stop()
+
+		start := time.Now()
+		responses, err := f.submitProcessLikePayload(endpoints.ProcessesEndpoint, transaction.NewBytesPayloadsWithoutMetaData(nil), http.Header{}, true)
+		require.NoError(t, err)
+
+		_, ok := <-responses
+		require.False(t, ok, "the responses channel must be closed without responses")
+		// In a synctest bubble, time advances only when every goroutine is
+		// blocked, so waiting for the response timeout would advance it.
+		require.Zero(t, time.Since(start), "the responses channel must be closed without waiting for the response timeout")
+	})
+}
+
 // Whilst high priority transactions are processed by the worker first,  because the transactions
 // are sent in a separate go func, the actual order they get sent will depend on the go scheduler.
 // This test ensures that we still on average send high priority transactions before low priority.
