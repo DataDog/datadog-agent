@@ -140,7 +140,8 @@ func (serie *Serie) PopulateDeviceField() {
 	serie.Tags = tagset.CompositeTagsFromSlice(filteredTags)
 }
 
-// PopulateDeviceAndResources extracts both `device:` and `dd.internal.resource:` tags in a single pass.
+// PopulateDeviceAndResources extracts both `device:` and `dd.internal.resource:` tags,
+// using a single scan when neither tag is present and filtering in a second pass if found.
 func (serie *Serie) PopulateDeviceAndResources() {
 	t1, t2 := serie.Tags.UnsafeGet()
 	hasSpecial := false
