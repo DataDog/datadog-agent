@@ -26,6 +26,11 @@ fixes:
   - |
     ``otel-agent flare`` now collects the log file of the collector, and the
     files its rotation keeps next to it, like the core Agent flare does.
+  - |
+    ``otel-agent flare`` now resolves the ``ENC[...]`` secrets of the Datadog
+    configuration with the configured secret backend, like the core Agent flare
+    does, so the flare is uploaded with the resolved API key instead of the
+    ``ENC[...]`` handle.
 issues:
   - |
     ``otel-agent flare`` has these known limitations:

@@ -662,3 +662,62 @@ func TestFlareCommand(t *testing.T) {
 		func() {},
 	)
 }
+
+// newSecretBackend writes a secret backend command that runs the given script, and returns its path.
+func newSecretBackend(t *testing.T, script string) string {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell secret backend script not applicable on Windows")
+	}
+	backend := filepath.Join(t.TempDir(), "secret_backend.sh")
+	require.NoError(t, os.WriteFile(backend, []byte(script), 0o700)) //nolint:gosec
+	return backend
+}
+
+// flareAPIKey builds the configuration of the flare command like it runs, and returns the API key
+// the flare would be uploaded with.
+func flareAPIKey(t *testing.T, params *subcommands.GlobalParams) string {
+	// the flare rebuilds the global config: the mock restores it after the test
+	configmock.New(t)
+
+	var apiKey string
+	fxutil.TestOneShotSubcommand(t,
+		[]*cobra.Command{MakeCommand(func() *subcommands.GlobalParams { return params })},
+		[]string{"flare", "--send"},
+		makeFlare,
+		func(cfg config.Component) { apiKey = cfg.GetString("api_key") },
+	)
+	return apiKey
+}
+
+// TestFlareCommandResolvesSecrets checks that the flare resolves the ENC[] handles of the
+// configuration, like the core Agent flare, instead of uploading with the handle as API key.
+func TestFlareCommandResolvesSecrets(t *testing.T) {
+	backend := newSecretBackend(t, "#!/bin/sh\necho '{\"flare_api_key\": {\"value\": \""+testAPIKey+"\"}}'\n")
+
+	t.Run("configuration file", func(t *testing.T) {
+		coreConfig := filepath.Join(t.TempDir(), "datadog.yaml")
+		content := "api_key: ENC[flare_api_key]\nsecret_backend_command: " + backend + "\n"
+		require.NoError(t, os.WriteFile(coreConfig, []byte(content), 0o600))
+
+		assert.Equal(t, testAPIKey, flareAPIKey(t, &subcommands.GlobalParams{CoreConfPath: coreConfig}))
+	})
+
+	// loading the configuration stops before it resolves the secrets when it finds no file
+	t.Run("environment only", func(t *testing.T) {
+		t.Setenv("DD_API_KEY", "ENC[flare_api_key]")
+		t.Setenv("DD_SECRET_BACKEND_COMMAND", backend)
+
+		assert.Equal(t, testAPIKey, flareAPIKey(t, &subcommands.GlobalParams{ConfigName: "datadog-otel"}))
+	})
+}
+
+// TestFlareCommandSecretBackendFailure checks that a failing secret backend doesn't prevent the
+// flare, which is run to diagnose such problems, and that the flare tells it.
+func TestFlareCommandSecretBackendFailure(t *testing.T) {
+	t.Setenv("DD_API_KEY", "ENC[flare_api_key]")
+	t.Setenv("DD_SECRET_BACKEND_COMMAND", newSecretBackend(t, "#!/bin/sh\nexit 1\n"))
+	output := captureColorOutput(t)
+
+	assert.Equal(t, "ENC[flare_api_key]", flareAPIKey(t, &subcommands.GlobalParams{ConfigName: "datadog-otel"}))
+	assert.Contains(t, output.String(), "could not resolve the secrets")
+}

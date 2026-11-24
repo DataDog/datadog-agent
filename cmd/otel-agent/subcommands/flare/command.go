@@ -47,9 +47,12 @@ import (
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
+	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -110,6 +113,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
 				flareConfigModule(globalParams),
+				fx.Invoke(resolveSecrets),
 				fx.Supply(log.ForOneShot(globalParams.LoggerName, "info", false)),
 				logfx.Module(),
 				secretsnoopfx.Module(),
@@ -148,6 +152,22 @@ func flareConfigModule(params *subcommands.GlobalParams) fx.Option {
 		config.Module(),
 		schemanoopfx.Module(),
 	)
+}
+
+// resolveSecrets resolves the ENC[] handles of the configuration with its secret backend, like the
+// core Agent flare does, so that the flare is uploaded with the API key and not with its handle.
+// Loading the configuration doesn't do it when it finds no configuration file, e.g. when the
+// collector is configured by environment variables only. The flare goes on when it fails.
+func resolveSecrets(cfg config.Component) {
+	// the component is backed by the global configuration, which holds the secrets
+	c, ok := cfg.(pkgconfigmodel.Config)
+	if !ok {
+		return
+	}
+	resolver := secretsimpl.NewEnabledResolver(noopsimpl.GetCompatComponent())
+	if err := pkgconfigsetup.ResolveSecrets(c, resolver, "datadog.yaml"); err != nil {
+		fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Warning: could not resolve the secrets of the configuration: %v", err)))
+	}
 }
 
 func makeFlare(
