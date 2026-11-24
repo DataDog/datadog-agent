@@ -8,9 +8,12 @@
 package npcollectorimpl
 
 import (
+	"bufio"
+	"bytes"
 	"math"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -22,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
+	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -428,6 +432,43 @@ func TestBasicBatchSavesItsTime(t *testing.T) {
 	saved, err = persistentcache.Read(basicLastBatchKey)
 	require.NoError(t, err)
 	assert.Equal(t, batchTime.Format(time.RFC3339), saved)
+}
+
+func TestBasicPlantedBatchTimeSymlink(t *testing.T) {
+	_, collector := newTestNpCollector(t, map[string]any{
+		"network_path.connections_monitoring.basic_tests_enabled": true,
+		"network_path.collector.monitor_ip_without_domain":        true,
+	}, &teststatsd.Client{}, nil)
+	// The Agent's user owns run_path and can replace the file with a symlink.
+	target := filepath.Join(t.TempDir(), "target")
+	require.NoError(t, os.WriteFile(target, []byte("secret"), 0600))
+	path, err := persistentcache.GetFileForKey(basicLastBatchKey)
+	require.NoError(t, err)
+	if err := os.Symlink(target, path); err != nil {
+		t.Skipf("can't create a symlink: %s", err)
+	}
+	var logs bytes.Buffer
+	logWriter := bufio.NewWriter(&logs)
+	logger, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(logWriter, utillog.DebugLvl)
+	require.NoError(t, err)
+	utillog.SetupLogger(logger, "debug")
+	now := MockTimeNow()
+	collector.TimeNowFn = func() time.Time { return now }
+	require.NoError(t, collector.start())
+	collector.stop()
+
+	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
+	collector.flushBasicPaths(now.Add(basicBootstrapWindow))
+	require.Equal(t, []string{"10.0.0.1"}, scheduledBasicHosts(t, collector))
+
+	require.NoError(t, logWriter.Flush())
+	assert.NotContains(t, logs.String(), "secret", "the symlink target's content was logged")
+	content, err := os.ReadFile(target)
+	require.NoError(t, err)
+	assert.Equal(t, "secret", string(content), "the batch time was written through the symlink")
+	saved, err := persistentcache.Read(basicLastBatchKey)
+	require.NoError(t, err)
+	assert.Equal(t, now.Add(basicBootstrapWindow).Format(time.RFC3339), saved)
 }
 
 func TestBasicDisabledCreatesNoCollectorMachinery(t *testing.T) {

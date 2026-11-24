@@ -379,7 +379,10 @@ func (s *npCollectorImpl) flushBasicPaths(now time.Time) {
 	paths := s.basicSelector.flush(now)
 	if len(paths) > 0 {
 		// Save the batch time now, not at stop: a crash skips stop hooks.
-		if err := persistentcache.Write(basicLastBatchKey, now.Format(time.RFC3339)); err != nil {
+		// WriteAtomic replaces the file rather than writing through a symlink
+		// that the Agent's user could plant for system-probe, which runs as root.
+		// It also keeps the previous time if the process dies mid-write.
+		if err := persistentcache.WriteAtomic(basicLastBatchKey, now.Format(time.RFC3339)); err != nil {
 			s.logger.Debugf("Couldn't save the Network Path basic batch time: %s", err)
 		}
 	}
@@ -403,7 +406,9 @@ func (s *npCollectorImpl) loadLastBasicBatch(now time.Time) time.Time {
 	}
 	lastBatch, err := time.Parse(time.RFC3339, saved)
 	if err != nil {
-		s.logger.Debugf("Ignoring the last Network Path basic batch time: %s", err)
+		// Don't log the parse error, which quotes the file's content: system-probe
+		// reads it as root, and the Agent's user can replace it with a symlink.
+		s.logger.Debug("Ignoring the last Network Path basic batch time, which isn't an RFC 3339 time")
 		return time.Time{}
 	}
 	if lastBatch.After(now) {
