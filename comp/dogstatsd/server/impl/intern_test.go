@@ -189,3 +189,33 @@ func TestInternLoadOrStoreReset(t *testing.T) {
 	sInterner.LoadOrStore([]byte("val"))
 	assert.Equal(1, len(sInterner.strings))
 }
+
+func TestInternTelemetryAcrossRotationsAndPromotions(t *testing.T) {
+	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	stringInternerTelemetry := newSiTelemetry(true, telemetryComp)
+	sInterner := newStringInterner(2, 1, stringInternerTelemetry)
+
+	sInterner.LoadOrStore([]byte("aaa")) // curr: {aaa}, prev: {} -> 1 entry, 3 bytes
+	sInterner.LoadOrStore([]byte("bb"))  // curr: {aaa, bb}, prev: {} -> 2 entries, 5 bytes
+	assert.Equal(t, 5, sInterner.telemetry.curBytes)
+
+	// Trigger rotation: prev={aaa, bb}, curr={cccc} -> 3 entries, 9 bytes
+	sInterner.LoadOrStore([]byte("cccc"))
+	assert.Equal(t, 1, len(sInterner.strings))
+	assert.Equal(t, 2, len(sInterner.prev))
+	assert.Equal(t, 9, sInterner.telemetry.curBytes)
+
+	// Promote "aaa" from prev to curr: curr={cccc, aaa}, prev={bb} -> still 3 entries, 9 bytes
+	sInterner.LoadOrStore([]byte("aaa"))
+	assert.Equal(t, 2, len(sInterner.strings))
+	assert.Equal(t, 1, len(sInterner.prev))
+	assert.Equal(t, 9, sInterner.telemetry.curBytes)
+
+	// Trigger next rotation: evicts only "bb" (2 bytes), prev={cccc, aaa}, curr={d} -> 3 entries, 8 bytes
+	sInterner.LoadOrStore([]byte("d"))
+	assert.Equal(t, 1, len(sInterner.strings))
+	assert.Equal(t, 2, len(sInterner.prev))
+	assert.Equal(t, 8, sInterner.telemetry.curBytes)
+	assert.Equal(t, 1, sInterner.currBytes)
+	assert.Equal(t, 7, sInterner.prevBytes)
+}

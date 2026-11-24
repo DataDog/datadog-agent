@@ -24,10 +24,12 @@ import (
 // take advantage of the new "Unique" api that is proposed below.
 // ref: https://github.com/golang/go/issues/62483
 type stringInterner struct {
-	strings map[string]string
-	prev    map[string]string
-	maxSize int
-	id      string
+	strings   map[string]string
+	prev      map[string]string
+	currBytes int
+	prevBytes int
+	maxSize   int
+	id        string
 
 	telemetry *stringInternerInstanceTelemetry
 }
@@ -48,9 +50,16 @@ func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerT
 }
 
 func (i *stringInterner) rotate() {
-	i.telemetry.Reset(len(i.strings))
+	if i.maxSize <= 0 {
+		i.telemetry.Rotate(len(i.strings), i.currBytes)
+		clear(i.strings)
+		i.currBytes = 0
+		return
+	}
+	i.telemetry.Rotate(len(i.prev), i.prevBytes)
 	clear(i.prev)
 	i.prev, i.strings = i.strings, i.prev
+	i.prevBytes, i.currBytes = i.currBytes, 0
 }
 
 // LoadOrStore always returns the string from the cache, adding it into the
@@ -70,10 +79,13 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	}
 
 	if s, found := i.prev[string(key)]; found {
+		delete(i.prev, s)
+		i.prevBytes -= len(s)
 		if len(i.strings) >= i.maxSize {
 			i.rotate()
 		}
 		i.strings[s] = s
+		i.currBytes += len(s)
 		i.telemetry.Hit()
 		return s
 	}
@@ -84,6 +96,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 
 	s := string(key)
 	i.strings[s] = s
+	i.currBytes += len(s)
 
 	i.telemetry.Miss(len(s))
 

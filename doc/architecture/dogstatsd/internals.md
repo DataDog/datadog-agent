@@ -60,7 +60,7 @@ The server spawns multiple workers based on the amount of cores available on the
 * When the server is not running multiple time sampling pipelines: the server creates `(number of cores - 2)` workers. If this result is less than 2, the server spawns 2 workers.
 * When the server is running multiple time sampling pipelines: the server creates `(number of cores / 2)` workers.  If this result is less than 2, the server spawns 2 workers.
 
-The Worker is using a system called StringInterner to not allocate memory every time a string is needed. Note that this StringInterner is caching a finite number of strings and when it is full it is emptied to start caching strings again. Its size is configurable with `dogstatsd_string_interner_size`.
+The Worker is using a system called StringInterner to not allocate memory every time a string is needed. The StringInterner uses two generations (active and previous): when the active generation reaches `dogstatsd_string_interner_size`, the previous generation is cleared and reused while the active generation rotates into previous so hot strings can be promoted without reallocating. Because `dogstatsd_string_interner_size` limits each generation, a worker can retain up to twice the configured number of distinct strings for positive limits.
 
 The MetricSamples created are not directly sent to the Agent Demultiplexer but first to a part called the Batcher.
 
