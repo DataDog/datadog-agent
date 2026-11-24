@@ -15,7 +15,8 @@ fixes:
     ``otel-agent flare`` now collects the effective configuration and the
     pprof, zpages, and health_check data of the running collector through its
     ddflare extension, like the core Agent flare does. It falls back to the
-    configuration files when the collector can't be reached.
+    configuration files when the collector can't be reached, and records why in
+    ``otel-agent.log``.
   - |
     ``otel-agent flare`` now uploads the flare with the API key and site of the
     Datadog exporter configuration when ``DD_API_KEY`` isn't set, and keeps the

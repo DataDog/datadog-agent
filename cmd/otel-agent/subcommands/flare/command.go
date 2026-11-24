@@ -65,6 +65,8 @@ const (
 	// noConfigProvided replaces the configurations when no --config is given. It isn't a YAML
 	// comment, which the scrubber would remove.
 	noConfigProvided = "No configuration files provided, pass the --config flags given to the collector"
+	// fallbackNote says what the flare lacks when the running collector can't be reached
+	fallbackNote = "Falling back to the configuration files: the flare won't contain the effective configuration."
 )
 
 // cliParams are the command-line arguments for this subcommand
@@ -205,7 +207,7 @@ func makeFlare(
 // createOTelFlare collects diagnostic data and creates a flare archive
 func createOTelFlare(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader, client ipc.HTTPClient) (string, error) {
 	// Collect data
-	data, err := collectOTelData(params, cfg, client)
+	data, fallbackReason, err := collectOTelData(params, cfg, client)
 	if err != nil {
 		return "", fmt.Errorf("failed to collect OTel data: %w", err)
 	}
@@ -216,6 +218,9 @@ func createOTelFlare(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader
 		return "", fmt.Errorf("failed to scrub OTel data: %w", err)
 	}
 	files := append(responseFiles(data), collectDebugSources(data.Sources)...)
+	if fallbackReason != "" {
+		files = append(files, flareFile{name: "otel-agent.log", content: []byte(fallbackReason), scrub: true})
+	}
 
 	// Private, unpredictable dir (0700 on Unix; per-user temp ACL on Windows) so others can't read/symlink the flare.
 	// Not RemoveAccessToOtherUsers: it grants dd-agent, not the caller, locking out a non-admin operator on Windows.
@@ -238,17 +243,20 @@ func createOTelFlare(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader
 
 // collectOTelData returns the flare data served by the ddflare extension of the running collector,
 // like the core Agent flare does. When the collector can't be reached, it falls back to the data
-// that can be read from the configuration files.
-func collectOTelData(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader, client ipc.HTTPClient) (*extensiontypes.Response, error) {
+// that can be read from the configuration files and returns why, to be kept in the archive.
+func collectOTelData(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader, client ipc.HTTPClient) (*extensiontypes.Response, string, error) {
 	extensionURL := cfg.GetString("otelcollector.extension_url")
 	fmt.Fprintf(color.Output, "Requesting the flare data of the running OTel Agent at %s...\n", extensionURL)
 	resp, err := requestRunningCollector(cfg, client, extensionURL)
 	if err == nil {
-		return resp, nil
+		return resp, "", nil
 	}
 	fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Warning: could not get the flare data of the running OTel Agent: %v", err)))
-	fmt.Fprintln(color.Output, color.YellowString("Falling back to the configuration files: the flare won't contain the effective configuration."))
-	return collectConfigData(params)
+	fmt.Fprintln(color.Output, color.YellowString(fallbackNote))
+	// Like the core Agent flare, which writes it to otel/otel-agent.log
+	reason := fmt.Sprintf("did not get otel-agent configuration: %v\n%s\n", err, fallbackNote)
+	resp, err = collectConfigData(params)
+	return resp, reason, err
 }
 
 // requestRunningCollector requests the flare data from the ddflare extension of the running collector.

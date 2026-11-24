@@ -151,8 +151,14 @@ func TestCreateOTelFlare(t *testing.T) {
 		assert.True(t, found, "Expected file %s not found in flare archive", fileName)
 	}
 
+	files := readZip(t, flarePath)
+
+	// The reason of the fallback is kept in the archive, not only printed
+	assert.Contains(t, string(files["otel-agent.log"]), "did not get otel-agent configuration")
+	assert.Contains(t, string(files["otel-agent.log"]), "won't contain the effective configuration")
+
 	// The API key, resolved from the environment, must be scrubbed everywhere
-	for name, content := range readZip(t, flarePath) {
+	for name, content := range files {
 		assert.NotContains(t, string(content), testAPIKey, "API key not scrubbed from %s", name)
 	}
 }
@@ -206,6 +212,9 @@ func TestCreateOTelFlareFromRunningCollector(t *testing.T) {
 	defer os.RemoveAll(filepath.Dir(flarePath))
 
 	files := readZip(t, flarePath)
+
+	// There is nothing to explain when the collector answered
+	assert.NotContains(t, files, "otel-agent.log")
 
 	// The effective configuration of the running collector is used, not the configuration files
 	assert.Contains(t, string(files["build-info.txt"]), "Extension Version: running-collector")
