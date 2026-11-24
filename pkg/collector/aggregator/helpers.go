@@ -21,6 +21,17 @@ func CStringArrayToSlice(arrayPtr unsafe.Pointer) []string {
 		return nil
 	}
 
+	si := getInterner()
+	res := cStringArrayToSliceWithInterner(arrayPtr, si)
+	putInterner(si)
+	return res
+}
+
+func cStringArrayToSliceWithInterner(arrayPtr unsafe.Pointer, si *stringInterner) []string {
+	if arrayPtr == nil {
+		return nil
+	}
+
 	a := (**C.char)(arrayPtr)
 
 	var length int
@@ -28,13 +39,22 @@ func CStringArrayToSlice(arrayPtr unsafe.Pointer) []string {
 		length++
 	})
 	res := make([]string, 0, length)
-	si, release := acquireInterner()
-	defer release()
 	forEachCString(a, func(s *C.char) {
 		bytes := unsafe.Slice((*byte)(unsafe.Pointer(s)), cstrlen(s))
 		res = append(res, si.intern(bytes))
 	})
 	return res
+}
+
+func cStringToInterned(s *C.char, si *stringInterner) string {
+	if s == nil {
+		return ""
+	}
+	n := cstrlen(s)
+	if n == 0 {
+		return ""
+	}
+	return si.intern(unsafe.Slice((*byte)(unsafe.Pointer(s)), n))
 }
 
 // cstrlen returns the length of a null-terminated C string. It's an alternative
@@ -60,10 +80,18 @@ func forEachCString(a **C.char, f func(*C.char)) {
 // It's a test helper, but it can't be declared in a _test.go file because cgo
 // is not allowed there.
 func testHelperSliceToCStringArray(s []string) **C.char {
-	cArray := (**C.char)(C.malloc(C.size_t(len(s) + 1)))
+	cArray := (**C.char)(C.malloc(C.size_t(len(s)+1) * C.size_t(unsafe.Sizeof((*C.char)(nil)))))
 	for i, str := range s {
 		*(**C.char)(unsafe.Add(unsafe.Pointer(cArray), uintptr(i)*unsafe.Sizeof(cArray))) = C.CString(str)
 	}
 	*(**C.char)(unsafe.Add(unsafe.Pointer(cArray), uintptr(len(s))*unsafe.Sizeof(cArray))) = nil
 	return cArray
+}
+
+func testHelperCString(s string) *C.char {
+	return C.CString(s)
+}
+
+func testHelperGoString(s *C.char) string {
+	return C.GoString(s)
 }

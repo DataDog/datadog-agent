@@ -28,7 +28,10 @@ import "C"
 //
 //export SubmitMetric
 func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.char, value C.double, tags **C.char, hostname *C.char, flushFirstValue C.bool) {
-	goCheckID := C.GoString(checkID)
+	si := getInterner()
+	defer putInterner(si)
+
+	goCheckID := cStringToInterned(checkID, si)
 
 	checkContext, err := GetCheckContext()
 	if err != nil {
@@ -42,10 +45,10 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 		return
 	}
 
-	_name := C.GoString(metricName)
+	_name := cStringToInterned(metricName, si)
 	_value := float64(value)
-	_hostname := C.GoString(hostname)
-	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
+	_hostname := cStringToInterned(hostname, si)
+	_tags := cStringArrayToSliceWithInterner(unsafe.Pointer(tags), si)
 	_flushFirstValue := bool(flushFirstValue)
 
 	switch metricType {

@@ -7,34 +7,54 @@ package aggregator
 
 import "sync"
 
-const maxInternerStrings = 1000
+const maxInternerStrings = 4096
 
 type stringInterner struct {
-	m map[string]string
+	curr map[string]string
+	prev map[string]string
 }
 
 func newStringInterner() *stringInterner {
-	return &stringInterner{m: make(map[string]string)}
+	return &stringInterner{
+		curr: make(map[string]string),
+		prev: make(map[string]string),
+	}
+}
+
+func (si *stringInterner) rotate() {
+	clear(si.prev)
+	si.prev, si.curr = si.curr, si.prev
 }
 
 func (si *stringInterner) intern(s []byte) string {
-	if interned, ok := si.m[string(s)]; ok {
+	if interned, ok := si.curr[string(s)]; ok {
 		return interned
 	}
+	if interned, ok := si.prev[string(s)]; ok {
+		if len(si.curr) >= maxInternerStrings {
+			si.rotate()
+		}
+		si.curr[interned] = interned
+		return interned
+	}
+	if len(si.curr) >= maxInternerStrings {
+		si.rotate()
+	}
 	ss := string(s)
-	si.m[ss] = ss
+	si.curr[ss] = ss
 	return ss
 }
 
-var sharedInternerMu sync.Mutex
-var sharedInterner = newStringInterner()
+var internerPool = sync.Pool{
+	New: func() any {
+		return newStringInterner()
+	},
+}
 
-func acquireInterner() (*stringInterner, func()) {
-	sharedInternerMu.Lock()
-	return sharedInterner, func() {
-		if len(sharedInterner.m) > maxInternerStrings {
-			sharedInterner = newStringInterner()
-		}
-		sharedInternerMu.Unlock()
-	}
+func getInterner() *stringInterner {
+	return internerPool.Get().(*stringInterner)
+}
+
+func putInterner(si *stringInterner) {
+	internerPool.Put(si)
 }
