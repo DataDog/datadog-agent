@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
@@ -192,30 +193,43 @@ func TestInternLoadOrStoreReset(t *testing.T) {
 
 func TestInternTelemetryAcrossRotationsAndPromotions(t *testing.T) {
 	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	telemetryMock, ok := telemetryComp.(telemetry.Mock)
+	require.True(t, ok)
+
+	assertGauges := func(wantEntries, wantBytes float64) {
+		t.Helper()
+		entries, err := telemetryMock.GetGaugeMetric("dogstatsd", "string_interner_entries")
+		require.NoError(t, err)
+		require.Len(t, entries, 1)
+		assert.Equal(t, wantEntries, entries[0].Value())
+
+		bytes, err := telemetryMock.GetGaugeMetric("dogstatsd", "string_interner_bytes")
+		require.NoError(t, err)
+		require.Len(t, bytes, 1)
+		assert.Equal(t, wantBytes, bytes[0].Value())
+	}
+
 	stringInternerTelemetry := newSiTelemetry(true, telemetryComp)
 	sInterner := newStringInterner(2, 1, stringInternerTelemetry)
 
 	sInterner.LoadOrStore([]byte("aaa")) // curr: {aaa}, prev: {} -> 1 entry, 3 bytes
 	sInterner.LoadOrStore([]byte("bb"))  // curr: {aaa, bb}, prev: {} -> 2 entries, 5 bytes
-	assert.Equal(t, 5, sInterner.telemetry.curBytes)
+	assertGauges(2, 5)
 
 	// Trigger rotation: prev={aaa, bb}, curr={cccc} -> 3 entries, 9 bytes
 	sInterner.LoadOrStore([]byte("cccc"))
-	assert.Equal(t, 1, len(sInterner.strings))
-	assert.Equal(t, 2, len(sInterner.prev))
-	assert.Equal(t, 9, sInterner.telemetry.curBytes)
+	assertGauges(3, 9)
 
 	// Promote "aaa" from prev to curr: curr={cccc, aaa}, prev={bb} -> still 3 entries, 9 bytes
 	sInterner.LoadOrStore([]byte("aaa"))
-	assert.Equal(t, 2, len(sInterner.strings))
-	assert.Equal(t, 1, len(sInterner.prev))
-	assert.Equal(t, 9, sInterner.telemetry.curBytes)
+	assertGauges(3, 9)
 
 	// Trigger next rotation: evicts only "bb" (2 bytes), prev={cccc, aaa}, curr={d} -> 3 entries, 8 bytes
 	sInterner.LoadOrStore([]byte("d"))
-	assert.Equal(t, 1, len(sInterner.strings))
-	assert.Equal(t, 2, len(sInterner.prev))
-	assert.Equal(t, 8, sInterner.telemetry.curBytes)
-	assert.Equal(t, 1, sInterner.currBytes)
-	assert.Equal(t, 7, sInterner.prevBytes)
+	assertGauges(3, 8)
+
+	resets, err := telemetryMock.GetCountMetric("dogstatsd", "string_interner_resets")
+	require.NoError(t, err)
+	require.Len(t, resets, 1)
+	assert.Equal(t, float64(2), resets[0].Value())
 }
