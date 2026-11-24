@@ -279,10 +279,10 @@ func TestAssertTranslatorMapFailure(t *testing.T) {
 	ddogfile := "test/datadog/hist/simple-delta_nobuckets-cs.json"
 	translator := NewTestTranslator(t, WithOriginProduct(OriginProductDatadogAgent), WithHistogramMode(HistogramModeDistributions))
 	mockTesting := &testingTMock{t}
-	assert.False(t, AssertTranslatorMap(mockTesting, t.Context(), translator, otlpfile, ddogfile), "AssertTranslatorMap should have failed but did not")
+	assert.False(t, AssertTranslatorMap(t.Context(), mockTesting, translator, otlpfile, ddogfile), "AssertTranslatorMap should have failed but did not")
 	actualFile := ddogfile + ".actual"
 	if assert.FileExists(t, actualFile, "AssertTranslatorMap did not create .actual file") {
-		assert.True(t, AssertTranslatorMap(mockTesting, t.Context(), translator, otlpfile, actualFile), "AssertTranslatorMap should have passed with .actual output")
+		assert.True(t, AssertTranslatorMap(t.Context(), mockTesting, translator, otlpfile, actualFile), "AssertTranslatorMap should have passed with .actual output")
 		require.NoError(t, os.Remove(actualFile))
 	}
 }

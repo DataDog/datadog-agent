@@ -75,7 +75,7 @@ func TestHostsConsumed(t *testing.T) {
 				WithOriginProduct(OriginProductDatadogAgent),
 			)
 			require.NoError(t, err)
-			AssertTranslatorMap(t, t.Context(), translator, testinstance.otlpfile, testinstance.ddogfile)
+			AssertTranslatorMap(t.Context(), t, translator, testinstance.otlpfile, testinstance.ddogfile)
 		})
 	}
 }

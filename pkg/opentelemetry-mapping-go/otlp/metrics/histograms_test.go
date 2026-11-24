@@ -151,7 +151,7 @@ func TestDeltaHistogramTranslatorOptions(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			AssertTranslatorMap(t, t.Context(), translator, testinstance.otlpfile, testinstance.ddogfile)
+			AssertTranslatorMap(t.Context(), t, translator, testinstance.otlpfile, testinstance.ddogfile)
 		})
 	}
 }
@@ -248,7 +248,7 @@ func TestCumulativeHistogramTranslatorOptions(t *testing.T) {
 				testinstance.options...,
 			)
 			translator := NewTestTranslator(t, options...)
-			AssertTranslatorMap(t, t.Context(), translator, testinstance.otlpfile, testinstance.ddogfile)
+			AssertTranslatorMap(t.Context(), t, translator, testinstance.otlpfile, testinstance.ddogfile)
 		})
 	}
 }
@@ -384,7 +384,7 @@ func TestExponentialHistogramTranslatorOptions(t *testing.T) {
 			require.NoError(t, err)
 			translator, err := NewDefaultTranslator(set, attributesTranslator, options...)
 			require.NoError(t, err)
-			AssertTranslatorMap(t, t.Context(), translator, testinstance.otlpfile, testinstance.ddogfile)
+			AssertTranslatorMap(t.Context(), t, translator, testinstance.otlpfile, testinstance.ddogfile)
 			assert.Equal(t, testinstance.expectedUnknownMetricType, observed.FilterMessage("Unknown or unsupported metric type").Len())
 			assert.Equal(t, testinstance.expectedUnsupportedAggregationTemporality, observed.FilterMessage("Unknown or unsupported aggregation temporality").Len())
 		})

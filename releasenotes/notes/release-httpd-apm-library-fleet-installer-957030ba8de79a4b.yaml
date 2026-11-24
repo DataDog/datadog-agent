@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Release ``datadog-apm-library-httpd`` in the fleet installer, with
+    default version ``1``. When APM instrumentation is enabled, it is
+    installed if ``DD_APM_INSTRUMENTATION_LIBRARIES`` lists ``httpd``,
+    is ``all``, or is empty.

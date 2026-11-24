@@ -85,6 +85,23 @@ var (
 		// this variable is no longer used but is still injected by the Helm chart on Linux for backward
 		// compatibility with older agents
 		"DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED": {},
+		// this variable is read by the DogStatsD client library for origin detection
+		"DD_ENTITY_ID": {},
+		// these variables are read by the process manager (dd-procmgrd). Agent processes see them when they are
+		// set in the container environment, or when dd-procmgrd passes DD_* variables to a child process.
+		"DD_PM_CONFIG_DIR":           {},
+		"DD_PM_INHERIT_ENV_NAMES":    {},
+		"DD_PM_INHERIT_ENV_PREFIXES": {},
+		"DD_PM_IPC_CERT_FILE_PATH":   {},
+		"DD_PM_SOCKET_PATH":          {},
+		// this variable is read by the private action runner, but not via the Config struct
+		"DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH": {},
+		// these variables are read by the secret-generic-connector secret backend, which the Agent runs as a
+		// child process
+		"DD_SECRETS_IMPLICIT_AUTH":   {},
+		"DD_SECRETS_SA_TOKEN_PATH":   {},
+		"DD_SECRETS_VAULT_AUTH_PATH": {},
+		"DD_SECRETS_VAULT_ROLE":      {},
 	}
 )
 
