@@ -3835,6 +3835,7 @@ func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
 				srv.Shutdown()
 			}
 			defer c.Close()
+			require.NoError(t, tracertestutil.SetTestDeadline(c))
 			if serverSends {
 				_, err = io.ReadFull(c, make([]byte, len(response)))
 			} else {
@@ -4053,6 +4054,8 @@ func testNATSidesCleanup(t *testing.T, tr *Tracer, dial func(t *testing.T) (clie
 	}
 
 	// each end updates its stats, and so marks its side, when it sends and receives
+	require.NoError(t, tracertestutil.SetTestDeadline(client))
+	require.NoError(t, tracertestutil.SetTestDeadline(server))
 	buf := make([]byte, 1)
 	for _, c := range [][2]net.Conn{{client, server}, {server, client}} {
 		_, err = c[0].Write([]byte{'x'})
@@ -4069,20 +4072,19 @@ func testNATSidesCleanup(t *testing.T, tr *Tracer, dial func(t *testing.T) (clie
 		}
 	}, 3*time.Second, 100*time.Millisecond)
 
-	// the first end's close only clears the sides
+	// The first end's close only clears the sides. The close event is sent before the tcp_close return hook cleans
+	// up, so wait for the cleared sides themselves: they show that the cleanup ran and deferred the deletion, where
+	// an entry that is merely still there could just be one the cleanup hasn't reached yet. Only the tracer marks
+	// the sides here, and neither end sends or receives again before the second close, so nothing marks them again.
 	require.NoError(t, client.Close())
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		conns, cleanup := getConnections(collect, tr)
-		defer cleanup()
-		conn, _ := findConnection(client.LocalAddr(), client.RemoteAddr(), conns)
-		if assert.NotNil(collect, conn, "closed connection not found") {
-			assert.True(collect, conn.IsClosed)
+		for name, k := range keys {
+			var got netebpf.ProtocolStackWrapper
+			if assert.NoError(collect, protoMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&got)), "connection_protocol under the %s deleted by the first close", name) {
+				assert.Zero(collect, got.Stack.Flags&(flagServerSide|flagClientSide), "sides not cleared under the %s", name)
+			}
 		}
-	}, 5*time.Second, 100*time.Millisecond)
-	for name, k := range keys {
-		var got netebpf.ProtocolStackWrapper
-		assert.NoError(t, protoMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&got)), "connection_protocol under the %s deleted by the first close", name)
-	}
+	}, 3*time.Second, 100*time.Millisecond)
 
 	// the second end's close deletes them
 	require.NoError(t, server.Close())
