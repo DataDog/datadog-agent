@@ -234,8 +234,9 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 
 		deviceInfo := l.checkDeviceInfo(authentication, job.subnet.config.Port, deviceIP)
 		l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, 0, false)
-		// Only mark the IP as processed once its device is pending in the deduper,
-		// otherwise a higher IP of the same device could be deduped before it
+		// The deduper only registers an IP once all lower IPs are processed, so this IP can only
+		// count as processed once its device is pending. Otherwise a higher IP of the same device
+		// answering faster on another worker would be registered instead.
 		l.deviceDeduper.MarkIPAsProcessed(deviceIP)
 
 		break
