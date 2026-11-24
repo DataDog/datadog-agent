@@ -10,7 +10,8 @@ The payload sequence repeats across runs; timing and accepted counts can vary.
 
 Observer reads container logs at `info` severity with a 10,000 logs/s cap.
 External metrics, kubelet logs, internal logs, and baseline muting are disabled.
-BOCPD and ScanMW analyze signals from the log metrics and pattern extractors.
+BOCPD and ScanMW analyze signals from the log metrics extractor; the log pattern
+extractor is disabled.
 Storage uses the Agent defaults. The normal log forwarding pipeline is disabled.
 
 ## Configuration
