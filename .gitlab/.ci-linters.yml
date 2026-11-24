@@ -20,7 +20,6 @@ needs-rules:
     - build_clang_arm64
     - build_clang_x64
     - build_dogstatsd_static-binary_x64
-    - build_processed_btfhub_archive
     - check_already_deployed_version_7
     - compute_gitlab_ci_config
     - dogstatsd_x64_size_test
