@@ -9,6 +9,8 @@
 package auditor
 
 import (
+	"io"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -34,5 +36,9 @@ type Component interface {
 
 // RegistryWriter defines the interface for writing registry data
 type RegistryWriter interface {
-	WriteRegistry(registryPath string, registryDirPath string, registryTmpFile string, data []byte) error
+	// WriteRegistry calls encode at most once, with a writer that receives
+	// the encoded registry, and persists what encode writes at registryPath.
+	// When encode returns an error, the registry at registryPath is left as
+	// it was.
+	WriteRegistry(registryPath string, registryDirPath string, registryTmpFile string, encode func(io.Writer) error) error
 }
