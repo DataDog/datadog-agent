@@ -33,9 +33,8 @@ func CompileProcessingRules(rules []*config.ProcessingRule) error {
 
 func rejectOTTLRules(rules []*config.ProcessingRule) error {
 	for _, rule := range rules {
-		switch rule.Type {
-		case config.ExcludeAtMatchOTTL, config.IncludeAtMatchOTTL, config.MaskOTTLTransform:
-			return fmt.Errorf("processing rule %q uses %q, which is not supported by this Agent build", rule.Name, rule.Type)
+		if rule.OTTL != "" {
+			return fmt.Errorf("processing rule %q uses ottl, which is not supported by this Agent build", rule.Name)
 		}
 	}
 	return nil

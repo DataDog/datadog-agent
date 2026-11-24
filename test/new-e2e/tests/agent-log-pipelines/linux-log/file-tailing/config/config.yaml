@@ -27,15 +27,15 @@ logs:
     service: ottl-filtering
     source: custom_log
     log_processing_rules:
-      - type: include_at_match_ottl
+      - type: include_at_match
         name: keep_production
-        pattern: 'attributes["env"] == "prod"'
-      - type: exclude_at_match_ottl
+        ottl: 'attributes["env"] == "prod"'
+      - type: exclude_at_match
         name: drop_health_checks
-        pattern: 'attributes["http"]["path"] == "/health" and attributes["http"]["status"] < 400'
-      - type: mask_ottl
+        ottl: 'attributes["http"]["path"] == "/health" and attributes["http"]["status"] < 400'
+      - type: mask_sequences
         name: redact_password
-        pattern: 'set(attributes["credentials"]["password"], "***") where HasPrefix(body, "{") and attributes["credentials"] != nil'
-      - type: mask_ottl
+        ottl: 'set(attributes["credentials"]["password"], "***") where HasPrefix(body, "{") and attributes["credentials"] != nil'
+      - type: mask_sequences
         name: redact_raw_body
-        pattern: 'replace_pattern(body, "raw-secret", "***") where HasPrefix(body, "ottl-raw-")'
+        ottl: 'replace_pattern(body, "raw-secret", "***") where HasPrefix(body, "ottl-raw-")'

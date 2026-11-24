@@ -24,12 +24,12 @@ func TestSourceAdmissionCompilesBeforePublication(t *testing.T) {
 		defer close(done)
 		added, _ := collection.SubscribeForType(config.FileType, done, done)
 		source := sources.NewLogSource("valid", &config.LogsConfig{Type: config.FileType, Path: "app.log", ProcessingRules: []*config.ProcessingRule{
-			{Name: "keep", Type: config.IncludeAtMatchOTTL, Pattern: `attributes["env"] == "prod"`},
-			{Name: "mask", Type: config.MaskOTTLTransform, Pattern: `set(attributes["password"], "***")`},
+			{Name: "keep", Type: config.IncludeAtMatch, OTTL: `attributes["env"] == "prod"`},
+			{Name: "mask", Type: config.MaskSequences, OTTL: `set(attributes["password"], "***")`},
 		}})
 		go collection.AddSource(source)
 		require.Same(t, source, <-added)
-		first, second := source.Config.ProcessingRules[0].OTTL, source.Config.ProcessingRules[1].OTTL
+		first, second := source.Config.ProcessingRules[0].OTTLProgram, source.Config.ProcessingRules[1].OTTLProgram
 		require.NotNil(t, first)
 		require.NotNil(t, second)
 		c := first.NewContext([]byte(`{"env":"prod","password":"secret"}`))
@@ -42,17 +42,17 @@ func TestSourceAdmissionCompilesBeforePublication(t *testing.T) {
 		require.True(t, changed)
 		require.JSONEq(t, `{"env":"prod","password":"***"}`, string(c.Content()))
 		require.NoError(t, PrepareSource(source))
-		require.Same(t, first, source.Config.ProcessingRules[0].OTTL, "compiled rules are shared across pipelines and inherited sources")
-		require.Same(t, second, source.Config.ProcessingRules[1].OTTL)
+		require.Same(t, first, source.Config.ProcessingRules[0].OTTLProgram, "compiled rules are shared across pipelines and inherited sources")
+		require.Same(t, second, source.Config.ProcessingRules[1].OTTLProgram)
 	})
 }
 
 func TestInvalidOTTLSourceNeverReachesLaunchers(t *testing.T) {
-	for _, kind := range []string{config.IncludeAtMatchOTTL, config.ExcludeAtMatchOTTL, config.MaskOTTLTransform} {
+	for _, kind := range []string{config.IncludeAtMatch, config.ExcludeAtMatch, config.MaskSequences} {
 		t.Run(kind, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				collection := sources.NewLogSources(PrepareSource)
-				invalid := sources.NewLogSource("invalid", &config.LogsConfig{Type: config.FileType, Path: "app.log", ProcessingRules: []*config.ProcessingRule{{Name: "bad_rule", Type: kind, Pattern: "invalid OTTL syntax"}}})
+				invalid := sources.NewLogSource("invalid", &config.LogsConfig{Type: config.FileType, Path: "app.log", ProcessingRules: []*config.ProcessingRule{{Name: "bad_rule", Type: kind, OTTL: "invalid OTTL syntax"}}})
 				collection.AddSource(invalid)
 				require.ErrorContains(t, ValidateLogsConfig(invalid.Config), "bad_rule")
 				require.Contains(t, invalid.Status().GetError(), "bad_rule")

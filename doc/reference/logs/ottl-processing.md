@@ -4,6 +4,12 @@ The Logs Agent supports OTTL (OpenTelemetry Transformation Language) conditions
 for filtering JSON logs and statements for masking sensitive fields or message
 text.
 
+OTTL is an alternative expression language for the existing `include_at_match`,
+`exclude_at_match`, and `mask_sequences` rules. Put a regular expression in
+`pattern`, or an OTTL expression in `ottl`; a rule must set exactly one of them.
+`replace_placeholder` applies only to regex `mask_sequences` rules, because an
+OTTL masking statement contains its own replacement.
+
 ## Integration configuration
 
 Configure rules in the log source's `log_processing_rules` list, for example in
@@ -16,15 +22,15 @@ logs:
     service: my_app
     source: my_app
     log_processing_rules:
-      - type: include_at_match_ottl
+      - type: include_at_match
         name: keep_production
-        pattern: 'attributes["env"] == "production"'
-      - type: exclude_at_match_ottl
+        ottl: 'attributes["env"] == "production"'
+      - type: exclude_at_match
         name: drop_health_checks
-        pattern: 'attributes["http"]["path"] == "/health" and attributes["http"]["status"] < 400'
-      - type: mask_ottl
+        ottl: 'attributes["http"]["path"] == "/health" and attributes["http"]["status"] < 400'
+      - type: mask_sequences
         name: redact_password
-        pattern: 'set(attributes["credentials"]["password"], "[REDACTED]") where IsMap(attributes["credentials"])'
+        ottl: 'set(attributes["credentials"]["password"], "[REDACTED]") where IsMap(attributes["credentials"])'
 ```
 
 These rules retain production logs, remove successful health checks, and redact
@@ -40,9 +46,9 @@ log source:
 logs_enabled: true
 logs_config:
   processing_rules:
-    - type: exclude_at_match_ottl
+    - type: exclude_at_match
       name: drop_debug
-      pattern: 'attributes["level"] == "debug"'
+      ottl: 'attributes["level"] == "debug"'
 ```
 
 Global rules run before source rules. Each list executes in its configured
@@ -52,10 +58,10 @@ order and may mix OTTL with existing processing rule types.
 
 | Rule type | Behavior |
 | --- | --- |
-| `exclude_at_match_ottl` | Drop the message when the condition is true. |
-| `include_at_match_ottl` | Drop the message when the condition is false. |
+| `exclude_at_match` with `ottl` | Drop the message when the condition is true. |
+| `include_at_match` with `ottl` | Drop the message when the condition is false. |
 
-Filtering rules require a name and a nonempty, valid OTTL condition in `pattern`.
+Filtering rules require a name and a nonempty, valid OTTL condition in `ottl`.
 Invalid conditions are rejected during configuration validation.
 
 For filtering, an evaluation error passes the message through that rule; later
@@ -89,20 +95,20 @@ OTTL semantics.
 
 ## Masking
 
-Use `mask_ottl` with an OTTL statement in `pattern`. The replacement is part of
-the statement; `replace_placeholder` is not used.
+Use `mask_sequences` with an OTTL statement in `ottl`. The replacement is part of
+the statement, so `replace_placeholder` must not be set.
 
 ```yaml
 log_processing_rules:
-  - type: mask_ottl
+  - type: mask_sequences
     name: redact_password
-    pattern: 'set(attributes["credentials"]["password"], "[REDACTED]") where IsMap(attributes["credentials"])'
-  - type: mask_ottl
+    ottl: 'set(attributes["credentials"]["password"], "[REDACTED]") where IsMap(attributes["credentials"])'
+  - type: mask_sequences
     name: redact_message
-    pattern: 'replace_pattern(attributes["message"], "password=[^ ]+", "password=***")'
-  - type: mask_ottl
+    ottl: 'replace_pattern(attributes["message"], "password=[^ ]+", "password=***")'
+  - type: mask_sequences
     name: redact_body
-    pattern: 'replace_match(body, "password=*", "password=***")'
+    ottl: 'replace_match(body, "password=*", "password=***")'
 ```
 
 The supported masking editors are:
@@ -117,7 +123,7 @@ converters as filters. Fields inside existing objects and array elements can be
 masked; `set` can also add a final object field. Parent objects and array indexes
 must already exist. Assigning objects or arrays is unsupported.
 
-**Masking errors drop the message.** This follows the original `mask_ottl` rule
+**Masking errors drop the message.** This follows the original OTTL masking rule
 and differs from filtering's pass-through behavior. Errors include malformed
 JSON when a JSON field is accessed, invalid parent types or array indexes, and
 unsupported assignment types. Missing/non-string targets for `replace_pattern`

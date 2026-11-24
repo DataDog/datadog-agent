@@ -15,16 +15,16 @@ An integration-level rule list looks like:
 
 ```yaml
 log_processing_rules:
-  - type: exclude_at_match_ottl
+  - type: exclude_at_match
     name: drop_successful_health_checks
-    pattern: 'attributes["http"]["path"] == "/health" and attributes["http"]["status"] < 400'
-  - type: include_at_match_ottl
+    ottl: 'attributes["http"]["path"] == "/health" and attributes["http"]["status"] < 400'
+  - type: include_at_match
     name: keep_production
-    pattern: 'attributes["env"] == "production"'
+    ottl: 'attributes["env"] == "production"'
 ```
 
-`exclude_at_match_ottl` drops matching messages. `include_at_match_ottl` drops
-nonmatching messages. As in the summer prototype, runtime errors pass the message
+`exclude_at_match` with `ottl` drops matching messages. `include_at_match` with
+`ottl` drops nonmatching messages. As in the summer prototype, runtime errors pass the message
 through that rule; later rules still execute. Invalid conditions reject the
 configuration. Missing JSON fields evaluate to `nil`. Malformed JSON and
 out-of-range indexes produce runtime errors. The pass-through behavior means an
@@ -50,7 +50,7 @@ Global rules run before source rules, in their configured order. A legacy
 so subsequent OTTL rules see the masked value. Filtering preserves the original
 bytes. JSON masks share the cached tree with
 filters and defer serialization until bytes are needed. A body edit invalidates
-that tree. Masking errors drop messages, matching Ralph's original mask_ottl
+that tree. Masking errors drop messages, matching Ralph's original OTTL masking
 behavior; filter errors keep them.
 
 ## Implementation choices
@@ -81,7 +81,7 @@ source rules, and cache invalidation after masking.
 
 ## Masking implementation
 
-The mask_ottl rule follows [Ralph's combined benchmark PR](https://github.com/DataDog/datadog-agent/pull/53809)
+The OTTL masking rule follows [Ralph's combined benchmark PR](https://github.com/DataDog/datadog-agent/pull/53809)
 for statement execution and dropping messages on masking errors. It parses an upstream OTTL statement, including an optional where
 clause. Writes are tracked by parent/key location instead of replacing shared
 fastjson boolean/null singletons. Values come from a reusable arena. Scalar
@@ -404,3 +404,13 @@ the stdlib way (`1e-9`). The fork's `encoding/json` output and upstream OTTL now
 agree, so `TestOTTLStringJSONCompatibility` no longer special-cases the
 `small exponent` row, and the exponent difference described above no longer
 applies.
+
+## Configuration schema: `ottl` field on existing rules (2026-11-24)
+
+Following review (r4496711352), OTTL no longer adds rule types. The existing
+`include_at_match`, `exclude_at_match`, and `mask_sequences` rules take an OTTL
+expression in a new `ottl` field instead of a regex in `pattern`; a rule sets
+exactly one of them, and `replace_placeholder` is rejected with `ottl`. New
+expression languages can be added the same way, as one field each, instead of
+three rule types each. Older Agents reject these rules loudly ("no pattern
+provided") instead of misreading the OTTL expression as a regex.

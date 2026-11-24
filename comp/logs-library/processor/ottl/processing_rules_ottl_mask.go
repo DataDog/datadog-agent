@@ -40,7 +40,7 @@ func compileOTTLMaskStatement(pattern string) (*OTTLStatement, error) {
 }
 
 // ApplyMask executes one statement and reports actual content changes. The
-// caller must drop the message on error, as with the original mask_ottl rule.
+// caller must drop the message on error, as with the original OTTL masking rule.
 func (c *OTTLContext) ApplyMask(ctx context.Context, statement *OTTLStatement) (bool, error) {
 	before := c.revision
 	_, executed, err := statement.Execute(ctx, c)

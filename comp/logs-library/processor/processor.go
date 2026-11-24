@@ -356,6 +356,48 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 	}()
 	for _, rules := range [2][]*config.ProcessingRule{processingRules, extraRules} {
 		for _, rule := range rules {
+			if rule.OTTL != "" {
+				if !ottlEnabled {
+					return false, errOTTLUnavailable
+				}
+				if rule.OTTLProgram == nil {
+					err := fmt.Errorf("OTTL processing rule %q was not compiled during logs setup", rule.Name)
+					if msg.Origin != nil && msg.Origin.LogSource != nil {
+						msg.Origin.LogSource.Status().Error(err)
+					}
+					return false, err
+				}
+				if ottlContext == nil {
+					ottlContext = rule.OTTLProgram.NewContext(content)
+				}
+				result, err := rule.OTTLProgram.Evaluate(ottlContext)
+				switch rule.Type {
+				case config.ExcludeAtMatch:
+					// Keep the message on evaluation errors; subsequent rules still apply.
+					if err == nil && result {
+						msg.RecordProcessingRule(rule.Type, rule.Name)
+						return false, nil
+					}
+				case config.IncludeAtMatch:
+					if err != nil {
+						continue
+					}
+					if !result {
+						return false, nil
+					}
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+				case config.MaskSequences:
+					if err != nil {
+						// Masking is fail-closed: never forward a message that failed to mask.
+						msg.RecordProcessingRule(rule.Type, rule.Name)
+						return false, nil
+					}
+					if result {
+						msg.RecordProcessingRule(rule.Type, rule.Name)
+					}
+				}
+				continue
+			}
 			switch rule.Type {
 			case config.ExcludeAtMatch:
 				if ottlEnabled && ottlContext != nil {
@@ -375,59 +417,6 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 					return false, nil
 				}
 				msg.RecordProcessingRule(rule.Type, rule.Name)
-			case config.ExcludeAtMatchOTTL, config.IncludeAtMatchOTTL:
-				if !ottlEnabled {
-					return false, errOTTLUnavailable
-				}
-				if rule.OTTL == nil {
-					err := fmt.Errorf("OTTL processing rule %q was not compiled during logs setup", rule.Name)
-					if msg.Origin != nil && msg.Origin.LogSource != nil {
-						msg.Origin.LogSource.Status().Error(err)
-					}
-					return false, err
-				}
-				if ottlContext == nil {
-					ottlContext = rule.OTTL.NewContext(content)
-				}
-				matched, err := rule.OTTL.Evaluate(ottlContext)
-				if err != nil {
-					// Keep the message on evaluation errors; subsequent rules still apply.
-					continue
-				}
-				if rule.Type == config.ExcludeAtMatchOTTL {
-					if matched {
-						msg.RecordProcessingRule(rule.Type, rule.Name)
-						return false, nil
-					}
-				} else {
-					if !matched {
-						return false, nil
-					}
-					msg.RecordProcessingRule(rule.Type, rule.Name)
-				}
-			case config.MaskOTTLTransform:
-				if !ottlEnabled {
-					return false, errOTTLUnavailable
-				}
-				if rule.OTTL == nil {
-					err := fmt.Errorf("OTTL processing rule %q was not compiled during logs setup", rule.Name)
-					if msg.Origin != nil && msg.Origin.LogSource != nil {
-						msg.Origin.LogSource.Status().Error(err)
-					}
-					return false, err
-				}
-				if ottlContext == nil {
-					ottlContext = rule.OTTL.NewContext(content)
-				}
-				changed, err := rule.OTTL.Evaluate(ottlContext)
-				if err != nil {
-					// Masking is fail-closed, matching the original mask_ottl rule.
-					msg.RecordProcessingRule(rule.Type, rule.Name)
-					return false, nil
-				}
-				if changed {
-					msg.RecordProcessingRule(rule.Type, rule.Name)
-				}
 			case config.MaskSequences:
 				if ottlEnabled && ottlContext != nil {
 					content = ottlContext.Content()

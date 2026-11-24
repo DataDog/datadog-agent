@@ -164,18 +164,18 @@ func TestOTTLMaskStatementConcurrentUse(t *testing.T) {
 func TestOTTLMaskConfiguration(t *testing.T) {
 	pattern := `set(attributes["password"], "***")`
 	cfg := coreconfig.NewMock(t)
-	cfg.SetInTest("logs_config.processing_rules", []map[string]any{{"type": config.MaskOTTLTransform, "name": "redact", "pattern": pattern}})
+	cfg.SetInTest("logs_config.processing_rules", []map[string]any{{"type": config.MaskSequences, "name": "redact", "ottl": pattern}})
 	global, err := GlobalProcessingRules(cfg)
 	require.NoError(t, err)
-	require.NotNil(t, global[0].OTTL)
+	require.NotNil(t, global[0].OTTLProgram)
 
-	sources, err := config.ParseYAML([]byte("logs:\n  - type: file\n    path: app.log\n    log_processing_rules:\n      - type: mask_ottl\n        name: redact\n        pattern: '" + pattern + "'\n"))
+	sources, err := config.ParseYAML([]byte("logs:\n  - type: file\n    path: app.log\n    log_processing_rules:\n      - type: mask_sequences\n        name: redact\n        ottl: '" + pattern + "'\n"))
 	require.NoError(t, err)
 	require.NoError(t, ValidateLogsConfig(sources[0]))
-	require.NotNil(t, sources[0].ProcessingRules[0].OTTL)
+	require.NotNil(t, sources[0].ProcessingRules[0].OTTLProgram)
 
 	for _, pattern := range []string{"", `attributes["password"] == "secret"`, `replace_pattern(body, "[", "***")`, `delete_key(attributes, "password")`, `set(body, "x") where replace_pattern(body, ".", "*")`} {
-		rules := []*config.ProcessingRule{{Name: "invalid", Type: config.MaskOTTLTransform, Pattern: pattern}}
+		rules := []*config.ProcessingRule{{Name: "invalid", Type: config.MaskSequences, OTTL: pattern}}
 		require.Error(t, CompileProcessingRules(rules), pattern)
 	}
 }
