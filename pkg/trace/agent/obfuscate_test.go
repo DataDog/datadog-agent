@@ -70,7 +70,7 @@ func TestObfuscateStatsGroupNeverLogsRawSQL(t *testing.T) {
 	oldLogger := log.SetLogger(log.NewBufferLogger(&b))
 	defer log.SetLogger(oldLogger)
 
-	agnt, stop := agentWithDefaults()
+	agnt, stop := agentWithDefaults(t.Context())
 	defer stop()
 
 	const secret = "s3cr3t-token-9f3c"

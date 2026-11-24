@@ -59,6 +59,7 @@ dd_agent_go_test(
         "//comp/core/remoteagentregistry/expvarcompat",
         "//comp/core/secrets/mock",
         "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//comp/def",
         "//pkg/config/mock",
         "//pkg/config/model",

@@ -246,7 +246,7 @@ func (s *StartStopServiceRaceConditionTestSuite) onStopServiceInvoke() {
 		err := StartService(s.onInvokeNameOfStartingService)
 		assert.Nil(s.T(), err, "Unexpected error of starting `%s` service: %v", s.onInvokeNameOfStartingService, err)
 		if s.onInvokeWaitStartToComplete {
-			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(s.T().Context(), 30*time.Second)
 			defer cancel()
 			err = WaitForState(ctx, s.onInvokeNameOfStartingService, svc.Running)
 			assert.Nil(s.T(), err, "`%s` service should be running: %v", s.onInvokeNameOfStartingService, err)
@@ -293,7 +293,7 @@ func (s *StartStopServiceRaceConditionTestSuite) startAllServices() {
 	assert.Nil(s.T(), err, "Failed to start `dep1` service: %v", err)
 	err = s.dep2Svc.Start()
 	assert.Nil(s.T(), err, "Failed to start `dep2` service: %v", err)
-	ctx1, cancel1 := context.WithTimeout(t.Context(), 30*time.Second)
+	ctx1, cancel1 := context.WithTimeout(s.T().Context(), 30*time.Second)
 	defer cancel1()
 	err = WaitForState(ctx1, s.mainSvcName, svc.Running)
 	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
@@ -318,7 +318,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestBasicRestartWhenOnlyMainIsR
 	// SETUP: Start main service
 	err := s.mainSvc.Start()
 	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
-	ctx1, cancel1 := context.WithTimeout(t.Context(), 30*time.Second)
+	ctx1, cancel1 := context.WithTimeout(s.T().Context(), 30*time.Second)
 	defer cancel1()
 	err = WaitForState(ctx1, s.mainSvcName, svc.Running)
 	assert.Nil(s.T(), err, "`Main` service should be running successfully: %v", err)
@@ -327,7 +327,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestBasicRestartWhenOnlyMainIsR
 	err = RestartService(s.mainSvcName)
 	assert.Nil(s.T(), err, "`Main` service should restart successfully: %v", err)
 	// VALIDATION
-	ctx2, cancel2 := context.WithTimeout(t.Context(), 30*time.Second)
+	ctx2, cancel2 := context.WithTimeout(s.T().Context(), 30*time.Second)
 	defer cancel2()
 	err = WaitForState(ctx2, s.mainSvcName, svc.Running)
 	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
@@ -341,7 +341,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestBasicRestartWhenAllServices
 	assert.Nil(s.T(), err, "Failed to start `dep1` service: %v", err)
 	err = s.dep2Svc.Start()
 	assert.Nil(s.T(), err, "Failed to start `dep2` service: %v", err)
-	ctx1, cancel1 := context.WithTimeout(t.Context(), 30*time.Second)
+	ctx1, cancel1 := context.WithTimeout(s.T().Context(), 30*time.Second)
 	defer cancel1()
 	err = WaitForState(ctx1, s.mainSvcName, svc.Running)
 	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
@@ -359,7 +359,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestBasicRestartWhenAllServices
 	// be running and it will be indication that main service was able to be
 	// restarted.
 	var status svc.Status
-	ctx2, cancel2 := context.WithTimeout(t.Context(), 30*time.Second)
+	ctx2, cancel2 := context.WithTimeout(s.T().Context(), 30*time.Second)
 	defer cancel2()
 	err = WaitForState(ctx2, s.mainSvcName, svc.Running)
 	assert.Nil(s.T(), err, "Unexpected error of making `main` service running: %v", err)
@@ -377,7 +377,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServic
 	// SETUP: Start only main service
 	err := s.mainSvc.Start()
 	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(s.T().Context(), 30*time.Second)
 	defer cancel()
 	err = WaitForState(ctx, s.mainSvcName, svc.Running)
 	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
@@ -406,7 +406,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServic
 	// SETUP: Start main service only
 	err := s.mainSvc.Start()
 	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(s.T().Context(), 30*time.Second)
 	defer cancel()
 	err = WaitForState(ctx, s.mainSvcName, svc.Running)
 	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
@@ -483,7 +483,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServic
 	// SETUP: Start main service only
 	err := s.mainSvc.Start()
 	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(s.T().Context(), 30*time.Second)
 	defer cancel()
 	err = WaitForState(ctx, s.mainSvcName, svc.Running)
 	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
@@ -540,7 +540,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestStartServiceAfterStopServic
 	// to make sure it is in the stop pending state
 	err := s.mainSvc.Start()
 	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(s.T().Context(), 30*time.Second)
 	defer cancel()
 	err = WaitForState(ctx, s.mainSvcName, svc.Running)
 	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
@@ -575,7 +575,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestStopServiceAfterStopService
 	// to make sure it is in the stop pending state
 	err := s.mainSvc.Start()
 	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(s.T().Context(), 30*time.Second)
 	defer cancel()
 	err = WaitForState(ctx, s.mainSvcName, svc.Running)
 	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)

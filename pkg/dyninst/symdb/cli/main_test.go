@@ -71,7 +71,7 @@ func BenchmarkExtractAndUpload(b *testing.B) {
 	}))
 	defer srv.Close()
 
-	ctx := t.Context()
+	ctx := b.Context()
 	extractOpts := symdb.ExtractOptions{
 		Scope:     symdb.ExtractScopeModulesFromSameOrg,
 		DiskCache: diskCache,
