@@ -12,12 +12,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -38,9 +40,16 @@ const (
 	filePollInterval = 10 * time.Second
 	fieldManager     = "datadog-cluster-agent-hardening"
 	// replicaSyncWait is Remote Config's default poll interval. The leader waits
-	// this long after it first sees a trial, so that every replica has loaded it
-	// before the first pod listing it is created.
+	// this long after it first sees a request, so that every replica has loaded
+	// it before the first pod listing it is created.
 	replicaSyncWait = time.Minute
+	// heartbeatPeriod is how often the leader reports every request's status
+	// again, since the status scope keeps events for one day.
+	heartbeatPeriod = time.Hour
+	// maxRolloutsInProgress and maxAppliesPerHour bound how much of a cluster
+	// one leader changes at once, whatever the backend sends.
+	maxRolloutsInProgress = 3
+	maxAppliesPerHour     = 10
 )
 
 // Start loads hardening requests from Remote Config and the requests file, and
@@ -51,8 +60,8 @@ func Start(ctx context.Context, requestsFile, clusterID string, client kubernete
 	}
 	store := NewStore(clusterID)
 	if rcClient != nil {
-		store.OnRCUpdate(rcClient.GetConfigs(state.ProductCWSWorkloadHardening), rcClient.UpdateApplyStatus)
-		rcClient.Subscribe(state.ProductCWSWorkloadHardening, store.OnRCUpdate)
+		store.OnRCUpdate(rcClient.GetConfigs(state.ProductCWSProfiles), rcClient.UpdateApplyStatus)
+		rcClient.Subscribe(state.ProductCWSProfiles, store.OnRCUpdate)
 	}
 	if requestsFile != "" {
 		go store.WatchFile(ctx, requestsFile, filePollInterval)
@@ -69,7 +78,7 @@ func selfDeployment() types.NamespacedName {
 	self := types.NamespacedName{Namespace: namespace.GetMyNamespace()}
 	pod, err := apicommon.GetSelfPodName()
 	if err != nil {
-		log.Warnf("hardening: cannot find the Cluster Agent's own Deployment, refusing trials in namespace %s: %v", self.Namespace, err)
+		log.Warnf("hardening: cannot find the Cluster Agent's own Deployment, refusing requests in namespace %s: %v", self.Namespace, err)
 		return self
 	}
 	self.Name = kubeutil.ParseDeploymentForPodName(pod)
@@ -77,33 +86,44 @@ func selfDeployment() types.NamespacedName {
 }
 
 // Controller adds and removes request ids on the pod template of the
-// Deployments that requests target. It acts only on the leader.
+// Deployments that requests target, and watches the rollouts it starts. It
+// acts only on the leader.
 type Controller struct {
 	client   kubernetes.Interface
 	store    *Store
 	isLeader func() bool
 	now      func() time.Time
-	// self is the Cluster Agent's own Deployment, which is never trialled.
+	// self is the Cluster Agent's own Deployment, which is never hardened.
 	self     types.NamespacedName
 	syncWait time.Duration
 
-	// firstSeen maps a trial id to when this leader first saw it.
+	// firstSeen maps a request id to when this leader first saw it.
 	firstSeen map[string]time.Time
 	// done maps a request id to the hash of the content that reached a final
 	// status, so it is not reconciled again until that content changes.
 	done map[string]string
+	// status maps a request id to the last status reported for it.
+	status        map[string]string
+	lastHeartbeat time.Time
+	// rollingOut holds the requests whose rollout this leader started and has
+	// not seen complete, and applied when it applied requests in the last hour.
+	// ponytail: in memory, so a new leader starts both counts from zero.
+	rollingOut map[string]bool
+	applied    []time.Time
 }
 
 // NewController returns a Controller.
 func NewController(client kubernetes.Interface, store *Store, isLeader func() bool) *Controller {
 	return &Controller{
-		client:    client,
-		store:     store,
-		isLeader:  isLeader,
-		now:       time.Now,
-		syncWait:  replicaSyncWait,
-		firstSeen: map[string]time.Time{},
-		done:      map[string]string{},
+		client:     client,
+		store:      store,
+		isLeader:   isLeader,
+		now:        time.Now,
+		syncWait:   replicaSyncWait,
+		firstSeen:  map[string]time.Time{},
+		done:       map[string]string{},
+		status:     map[string]string{},
+		rollingOut: map[string]bool{},
 	}
 }
 
@@ -127,7 +147,9 @@ func (c *Controller) reconcile(ctx context.Context) {
 		return
 	}
 	now := c.now()
-	for _, req := range c.store.List() {
+	reqs := c.store.List()
+	maps.DeleteFunc(c.rollingOut, func(id string, _ bool) bool { _, ok := c.store.Get(id); return !ok })
+	for _, req := range reqs {
 		if err := c.reconcileRequest(ctx, req, now); err != nil {
 			log.Warnf("hardening request %s: will retry: %v", req.ID, err)
 		}
@@ -139,74 +161,85 @@ func (c *Controller) reconcile(ctx context.Context) {
 			return
 		}
 	}
+	c.heartbeat(reqs, now)
 }
 
 func (c *Controller) reconcileRequest(ctx context.Context, req *Request, now time.Time) error {
 	if c.done[req.ID] == req.hash {
 		return nil
 	}
+	validate := req.Action == ActionValidate
+	if validate && !(req.Listed() && req.inForce(now)) {
+		c.done[req.ID] = req.hash
+		return nil
+	}
 	d, reason, err := c.deployment(ctx, req)
 	if err != nil {
 		return err
 	}
-	retire := req.Action == ActionRevert || (req.Action == ActionTrial && !req.Active(now))
+	enforce := req.Active(now)
 	switch {
-	case d == nil && retire:
-		c.done[req.ID] = req.hash // nothing to remove
-	case d == nil:
+	case d == nil && (enforce || validate):
 		c.finish(req, "rejected", reason)
-	case retire:
-		return c.retire(ctx, req, d)
-	case req.Action == ActionValidate:
+	case d == nil:
+		c.done[req.ID] = req.hash // nothing to remove
+	case validate:
 		return c.validate(ctx, req, d)
+	case enforce:
+		return c.reconcileEnforce(ctx, req, d, now)
 	default:
-		return c.reconcileTrial(ctx, req, d, now)
+		return c.retire(ctx, req, d, now)
 	}
 	return nil
 }
 
 // deployment returns the Deployment req targets, or the reason there is none.
 func (c *Controller) deployment(ctx context.Context, req *Request) (*appsv1.Deployment, string, error) {
-	d, err := c.client.AppsV1().Deployments(req.Target.Namespace).Get(ctx, req.Target.Name, metav1.GetOptions{})
+	d, err := c.client.AppsV1().Deployments(req.Workload.Namespace).Get(ctx, req.Workload.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		return nil, "deployment not found", nil
 	}
 	if err != nil {
 		return nil, "", err
 	}
-	// In place of a uid, which findings do not carry: a Deployment recreated
-	// under the same name is not the one the finding is about.
-	if d.CreationTimestamp.After(req.CreatedAt) {
-		return nil, "deployment was created after the request", nil
+	// A Deployment recreated under the same name is not the one the findings are about.
+	if req.Listed() && d.CreationTimestamp.After(req.addedAt) {
+		return nil, "deployment was created after this cluster was added to the request", nil
 	}
 	return d, "", nil
 }
 
-// retire removes a reverted or expired trial from the pod template.
-func (c *Controller) retire(ctx context.Context, req *Request, d *appsv1.Deployment) error {
+// retire removes a request this cluster no longer enforces (reverted,
+// expired, or no longer listed) from the pod template, unless the template
+// sets the control itself, so that retiring it costs no rollout.
+func (c *Controller) retire(ctx context.Context, req *Request, d *appsv1.Deployment, now time.Time) error {
 	ids := ParseIDs(d.Spec.Template.Annotations[RequestsAnnotation])
 	if !slices.Contains(ids, req.ID) {
 		c.done[req.ID] = req.hash
+		return nil
+	}
+	if setsControl(req, &d.Spec.Template.Spec) {
+		c.finish(req, "superseded", "the pod template sets the control itself, so the request is left in place")
 		return nil
 	}
 	if err := c.patchTemplate(ctx, d, without(ids, req.ID), false); err != nil {
 		return err
 	}
 	status := "reverted"
-	if req.Action == ActionTrial {
+	if req.Action == ActionEnforce && req.Listed() && !req.inForce(now) {
 		status = "expired"
 	}
 	c.finish(req, status, "")
 	return nil
 }
 
-// validate runs a trial's pre-flight checks and dry runs, and writes nothing.
+// validate runs a request's pre-flight checks and dry runs, and writes nothing.
 func (c *Controller) validate(ctx context.Context, req *Request, d *appsv1.Deployment) error {
 	sc, reason := c.preflight(req, d)
 	if reason == "" {
 		ids := append(ParseIDs(d.Spec.Template.Annotations[RequestsAnnotation]), req.ID)
 		var err error
-		if reason, err = c.dryRun(ctx, d, ids, req.Target.Container, sc); err != nil {
+		if reason, err = c.dryRun(ctx, d, ids, req.Workload.Container, sc); err != nil {
 			return err
 		}
 	}
@@ -218,18 +251,18 @@ func (c *Controller) validate(ctx context.Context, req *Request, d *appsv1.Deplo
 	return nil
 }
 
-// reconcileTrial adds an active trial to the pod template, once, or watches
-// it once added.
-func (c *Controller) reconcileTrial(ctx context.Context, req *Request, d *appsv1.Deployment, now time.Time) error {
-	ids := ParseIDs(d.Spec.Template.Annotations[RequestsAnnotation])
-	if slices.Contains(ids, req.ID) {
-		return c.watch(ctx, req, d, ids)
-	}
+// reconcileEnforce adds an active request to the pod template, once, or
+// watches it once added.
+func (c *Controller) reconcileEnforce(ctx context.Context, req *Request, d *appsv1.Deployment, now time.Time) error {
 	history, err := c.replicaSets(ctx, d)
 	if err != nil {
 		return err
 	}
-	if slices.ContainsFunc(history, func(rs appsv1.ReplicaSet) bool { return lists(rs.Spec.Template.Annotations, req.ID) }) {
+	ids := ParseIDs(d.Spec.Template.Annotations[RequestsAnnotation])
+	if slices.Contains(ids, req.ID) {
+		return c.watch(ctx, req, d, history, now)
+	}
+	if firstListing(history, req.ID) != nil {
 		c.finish(req, "removed", "an older ReplicaSet lists it but the pod template does not, so a rollback or a deploy tool removed it; not re-adding")
 		return nil
 	}
@@ -243,7 +276,7 @@ func (c *Controller) reconcileTrial(ctx context.Context, req *Request, d *appsv1
 		return nil
 	}
 	newIDs := append(ids, req.ID)
-	if reason, err := c.dryRun(ctx, d, newIDs, req.Target.Container, sc); reason != "" || err != nil {
+	if reason, err := c.dryRun(ctx, d, newIDs, req.Workload.Container, sc); reason != "" || err != nil {
 		if reason != "" {
 			c.finish(req, "rejected", reason)
 		}
@@ -252,64 +285,195 @@ func (c *Controller) reconcileTrial(ctx context.Context, req *Request, d *appsv1
 	if err := c.patchTemplate(ctx, d, newIDs, false); err != nil {
 		return err
 	}
+	c.rollingOut[req.ID] = true
+	c.applied = append(c.applied, now)
 	c.report(req, "applied", "")
 	return nil
 }
 
-// watch supersedes an added trial: in place when the pod template now sets
-// the control itself, so that retiring it costs no restart, and by removing it
-// when the Deployment runs another build than the one the finding is about.
-func (c *Controller) watch(ctx context.Context, req *Request, d *appsv1.Deployment, ids []string) error {
+// watch follows an applied request. Inside its confirmation window, counted
+// from the ReplicaSet that first listed it, a failure reverts it, unless the
+// customer changed the template since. After the window, or during a
+// customer's rollout, a failure is only reported as degraded.
+func (c *Controller) watch(ctx context.Context, req *Request, d *appsv1.Deployment, history []appsv1.ReplicaSet, now time.Time) error {
 	if setsControl(req, &d.Spec.Template.Spec) {
 		c.finish(req, "superseded", "the pod template sets the control itself")
 		return nil
 	}
-	reason, err := c.otherBuild(ctx, req, d)
-	if reason == "" || err != nil {
-		return err
+	first := firstListing(history, req.ID)
+	if first == nil {
+		return nil // the Deployment controller has not created the ReplicaSet yet
 	}
-	if err := c.patchTemplate(ctx, d, without(ids, req.ID), false); err != nil {
-		return err
+	if !rolloutInProgress(d) {
+		delete(c.rollingOut, req.ID)
 	}
-	c.finish(req, "superseded", reason)
+	// Pods of older ReplicaSets, such as the ones a rollback is scaling down,
+	// say nothing about the current template.
+	var pods []corev1.Pod
+	if rs := currentReplicaSet(history, d); rs != nil {
+		var err error
+		if pods, err = c.pods(ctx, d, rs); err != nil {
+			return err
+		}
+	}
+	problem := failure(d, pods, req)
+	ours := sameTemplate(&first.Spec.Template, &d.Spec.Template, true)
+	switch {
+	case problem != "" && ours && inWindow(req, first, now):
+		return c.rollBack(ctx, d, history, problem, now)
+	case problem != "":
+		c.report(req, "degraded", problem)
+	case !ours && rolloutSafetyReason(d, req.Workload.Container) != "":
+		c.report(req, "degraded", "the customer's template change makes the rollout unsafe to watch: "+rolloutSafetyReason(d, req.Workload.Container))
+	case unhardened(pods, req) != "":
+		c.report(req, "partial", unhardened(pods, req))
+	case !inWindow(req, first, now):
+		c.report(req, "confirmed", "")
+	}
 	return nil
 }
 
-// otherBuild returns why d no longer runs the build req's image_id names, or
-// "": a deploy changed the container's image since the ReplicaSet that first
-// listed req, or a pod listing req runs another digest, which also catches a
-// tag pushed again for a new build.
-func (c *Controller) otherBuild(ctx context.Context, req *Request, d *appsv1.Deployment) (string, error) {
-	history, err := c.replicaSets(ctx, d)
-	if err != nil {
-		return "", err
+func inWindow(req *Request, first *appsv1.ReplicaSet, now time.Time) bool {
+	return now.Before(first.CreationTimestamp.Add(req.confirmFor))
+}
+
+// rollBack removes the requests a failure on d is pinned on, and reports them rolled_back.
+func (c *Controller) rollBack(ctx context.Context, d *appsv1.Deployment, history []appsv1.ReplicaSet, problem string, now time.Time) error {
+	culprits := c.culprits(d, history, now)
+	ids := slices.DeleteFunc(ParseIDs(d.Spec.Template.Annotations[RequestsAnnotation]), func(id string) bool {
+		return slices.ContainsFunc(culprits, func(r *Request) bool { return r.ID == id })
+	})
+	if err := c.patchTemplate(ctx, d, ids, false); err != nil {
+		return err
 	}
-	image := containerImage(&d.Spec.Template.Spec, req.Target.Container)
-	if i := slices.IndexFunc(history, func(rs appsv1.ReplicaSet) bool { return lists(rs.Spec.Template.Annotations, req.ID) }); i >= 0 {
-		if first := containerImage(&history[i].Spec.Template.Spec, req.Target.Container); first != image {
-			return fmt.Sprintf("the container image changed from %s to %s", first, image), nil
-		}
+	if len(culprits) > 1 {
+		problem += "; the failure cannot be pinned on one request, so every request on the container still in its confirmation window was removed"
 	}
-	pods, err := c.client.CoreV1().Pods(d.Namespace).List(ctx, metav1.ListOptions{LabelSelector: selector(d)})
-	if err != nil {
-		return "", err
+	for _, r := range culprits {
+		delete(c.rollingOut, r.ID)
+		c.finish(r, "rolled_back", problem)
 	}
-	owned := map[types.UID]bool{}
-	for _, rs := range history {
-		owned[rs.UID] = true
-	}
-	want := Digest(req.Target.ImageID)
-	for _, p := range pods.Items {
-		if ref := metav1.GetControllerOf(&p); ref == nil || !owned[ref.UID] || !lists(p.Annotations, req.ID) {
+	return nil
+}
+
+// culprits returns the requests on d's template still in their confirmation
+// window. A failure during the rollout one of them started is pinned on that
+// one; any other failure cannot be pinned, so it is on all of them.
+func (c *Controller) culprits(d *appsv1.Deployment, history []appsv1.ReplicaSet, now time.Time) []*Request {
+	var open []*Request
+	for _, id := range ParseIDs(d.Spec.Template.Annotations[RequestsAnnotation]) {
+		r, ok := c.store.Get(id)
+		if !ok || !r.Active(now) {
 			continue
 		}
-		for _, s := range p.Status.ContainerStatuses {
-			if got := Digest(s.ImageID); s.Name == req.Target.Container && got != "" && got != want {
-				return fmt.Sprintf("pod %s runs digest %s, not image_id's", p.Name, got), nil
+		first := firstListing(history, id)
+		if first != nil && inWindow(r, first, now) && sameTemplate(&first.Spec.Template, &d.Spec.Template, true) {
+			open = append(open, r)
+		}
+	}
+	if rolloutInProgress(d) {
+		latest := history[len(history)-1].UID
+		for _, r := range open {
+			if firstListing(history, r.ID).UID == latest {
+				return []*Request{r}
 			}
 		}
 	}
-	return "", nil
+	return open
+}
+
+// failure returns the first sign that req's hardened pods fail, or "".
+func failure(d *appsv1.Deployment, pods []corev1.Pod, req *Request) string {
+	if d.Status.ObservedGeneration >= d.Generation {
+		for _, cond := range d.Status.Conditions {
+			switch {
+			case cond.Type == appsv1.DeploymentProgressing && cond.Reason == "ProgressDeadlineExceeded":
+				return "the rollout stalled (ProgressDeadlineExceeded)"
+			case cond.Type == appsv1.DeploymentAvailable && cond.Status == corev1.ConditionFalse:
+				return "the Deployment lost availability (Available=False)"
+			}
+		}
+	}
+	for _, p := range pods {
+		if applied(&p)[req.ID] != "applied" {
+			continue
+		}
+		for _, s := range p.Status.ContainerStatuses {
+			// An OOM kill says nothing about the control.
+			if t := s.LastTerminationState.Terminated; s.Name == req.Workload.Container && s.RestartCount > 0 && t != nil && t.Reason != "OOMKilled" {
+				return fmt.Sprintf("container %s of pod %s restarted (%s, exit code %d)", s.Name, p.Name, t.Reason, t.ExitCode)
+			}
+		}
+	}
+	return ""
+}
+
+// unhardened returns why a pod that lists req started without its settings, or "".
+func unhardened(pods []corev1.Pod, req *Request) string {
+	for _, p := range pods {
+		if !lists(p.Annotations, req.ID) {
+			continue
+		}
+		if result := applied(&p)[req.ID]; result != "applied" {
+			return fmt.Sprintf("pod %s started without the settings (%q)", p.Name, result)
+		}
+	}
+	return ""
+}
+
+// applied decodes a pod's AppliedAnnotation; a pod the webhook never saw has none.
+func applied(p *corev1.Pod) map[string]string {
+	var results map[string]string
+	_ = json.Unmarshal([]byte(p.Annotations[AppliedAnnotation]), &results)
+	return results
+}
+
+// sameTemplate reports whether two pod templates are the same, apart from a
+// ReplicaSet's pod-template-hash label and, with ignoreHardening, the
+// hardening keys: then a Deployment's rollout since a ReplicaSet with the
+// same template was Datadog's alone.
+func sameTemplate(a, b *corev1.PodTemplateSpec, ignoreHardening bool) bool {
+	strip := func(t *corev1.PodTemplateSpec) *corev1.PodTemplateSpec {
+		t = t.DeepCopy()
+		delete(t.Labels, appsv1.DefaultDeploymentUniqueLabelKey)
+		if ignoreHardening {
+			delete(t.Labels, EnabledLabel)
+			delete(t.Annotations, RequestsAnnotation)
+		}
+		return t
+	}
+	return equality.Semantic.DeepEqual(strip(a), strip(b))
+}
+
+// currentReplicaSet returns the ReplicaSet of history that runs d's pod template, or nil.
+func currentReplicaSet(history []appsv1.ReplicaSet, d *appsv1.Deployment) *appsv1.ReplicaSet {
+	for i := len(history) - 1; i >= 0; i-- {
+		if sameTemplate(&history[i].Spec.Template, &d.Spec.Template, false) {
+			return &history[i]
+		}
+	}
+	return nil
+}
+
+// firstListing returns the oldest ReplicaSet of history whose template lists id:
+// the one the request's rollout created.
+func firstListing(history []appsv1.ReplicaSet, id string) *appsv1.ReplicaSet {
+	if i := slices.IndexFunc(history, func(rs appsv1.ReplicaSet) bool { return lists(rs.Spec.Template.Annotations, id) }); i >= 0 {
+		return &history[i]
+	}
+	return nil
+}
+
+// pods returns the pods of rs, a ReplicaSet of d.
+func (c *Controller) pods(ctx context.Context, d *appsv1.Deployment, rs *appsv1.ReplicaSet) ([]corev1.Pod, error) {
+	list, err := c.client.CoreV1().Pods(d.Namespace).List(ctx, metav1.ListOptions{LabelSelector: selector(d)})
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(list.Items, func(p corev1.Pod) bool {
+		ref := metav1.GetControllerOf(&p)
+		return ref == nil || ref.UID != rs.UID
+	}), nil
 }
 
 // replicaSets returns d's ReplicaSets, oldest first: its revision history.
@@ -333,35 +497,27 @@ func (c *Controller) preflight(req *Request, d *appsv1.Deployment) (*corev1.Secu
 	if d.Namespace == c.self.Namespace && (c.self.Name == "" || d.Name == c.self.Name) {
 		return nil, "the target may be the Cluster Agent's own Deployment"
 	}
-	spec := &d.Spec.Template.Spec
-	sc, reason := Render(req, spec)
+	sc, reason := Render(req, &d.Spec.Template.Spec)
 	if reason != "" {
 		return nil, reason
 	}
-	container := FindContainer(spec, req.Target.Container) // Render found it
-	switch {
-	case Digest(container.Image) != "" && Digest(container.Image) != Digest(req.Target.ImageID):
-		return nil, "the template image pins another digest than image_id"
-	// minReadySeconds does not count: without a probe the kubelet reports a running
-	// container Ready, so a crash it is slow to notice outlasts minReadySeconds.
-	case container.ReadinessProbe == nil && container.StartupProbe == nil:
-		return nil, "the container has no readinessProbe or startupProbe, so pods that crash at start could replace every replica"
-	case ptr.Deref(d.Spec.RevisionHistoryLimit, 1) == 0:
-		return nil, "revisionHistoryLimit is 0, so a removed trial could not be told from a new one"
+	if ptr.Deref(d.Spec.RevisionHistoryLimit, 1) == 0 {
+		return nil, "revisionHistoryLimit is 0, so a removed request could not be told from a new one"
 	}
-	if reason := rolloutSafetyReason(d); reason != "" {
+	if reason := rolloutSafetyReason(d, req.Workload.Container); reason != "" {
 		return nil, reason
 	}
 	return sc, ""
 }
 
-// waitReason returns what a trial that passed pre-flight waits for, or "".
+// waitReason returns what a request that passed pre-flight waits for, or "".
 func (c *Controller) waitReason(req *Request, d *appsv1.Deployment, now time.Time) string {
 	seen, ok := c.firstSeen[req.ID]
 	if !ok {
 		seen = now
 		c.firstSeen[req.ID] = now
 	}
+	c.applied = slices.DeleteFunc(c.applied, func(t time.Time) bool { return now.Sub(t) >= time.Hour })
 	switch {
 	case now.Sub(seen) < c.syncWait:
 		return "every Cluster Agent replica to load it"
@@ -369,6 +525,10 @@ func (c *Controller) waitReason(req *Request, d *appsv1.Deployment, now time.Tim
 		return fmt.Sprintf("%s/%s to be resumed", d.Namespace, d.Name)
 	case rolloutInProgress(d):
 		return fmt.Sprintf("the rollout of %s/%s to complete", d.Namespace, d.Name)
+	case len(c.rollingOut) >= maxRolloutsInProgress:
+		return fmt.Sprintf("fewer than %d hardening rollouts in progress", maxRolloutsInProgress)
+	case len(c.applied) >= maxAppliesPerHour:
+		return fmt.Sprintf("fewer than %d requests applied in the last hour", maxAppliesPerHour)
 	}
 	return ""
 }
@@ -397,13 +557,36 @@ func refusal(what string, err error) (string, error) {
 	return "", err
 }
 
-// report logs one of the request statuses the RFC defines.
-// ponytail: logs only; status events on the secinfo track come with cws-api.
+// report records one of the request statuses the RFC defines, and logs it
+// when it changed.
+// ponytail: logs only; status events on the secinfo track need an Event Platform pipeline in the Cluster Agent.
 func (c *Controller) report(req *Request, status, reason string) {
 	if reason != "" {
 		status += ": " + reason
 	}
-	log.Infof("hardening request %s (%s on %s/%s container %s): %s", req.ID, req.Control, req.Target.Namespace, req.Target.Name, req.Target.Container, status)
+	if c.status[req.ID] == status {
+		return
+	}
+	c.status[req.ID] = status
+	emit(req, status)
+}
+
+func emit(req *Request, status string) {
+	w := req.Workload
+	log.Infof("hardening request %s (%s on %s/%s container %s): %s", req.ID, req.Control, w.Namespace, w.Name, w.Container, status)
+}
+
+// heartbeat reports the status of every request again each heartbeatPeriod.
+func (c *Controller) heartbeat(reqs []*Request, now time.Time) {
+	if now.Sub(c.lastHeartbeat) < heartbeatPeriod {
+		return
+	}
+	c.lastHeartbeat = now
+	for _, req := range reqs {
+		if status, ok := c.status[req.ID]; ok {
+			emit(req, status)
+		}
+	}
 }
 
 // finish reports a final status, and stops reconciling req until its content changes.
@@ -418,13 +601,6 @@ func lists(annotations map[string]string, id string) bool {
 
 func without(ids []string, id string) []string {
 	return slices.DeleteFunc(ids, func(x string) bool { return x == id })
-}
-
-func containerImage(spec *corev1.PodSpec, name string) string {
-	if c := FindContainer(spec, name); c != nil {
-		return c.Image
-	}
-	return ""
 }
 
 // selector returns d's label selector; an invalid one selects everything,
@@ -481,16 +657,19 @@ func (c *Controller) patch(ctx context.Context, d *appsv1.Deployment, pt types.P
 // maxUnavailable, used when the Deployment leaves the field unset.
 var defaultMaxUnavailable = intstr.FromString("25%")
 
-// rolloutSafetyReason reports why d's rollout strategy cannot be trusted to
-// roll back a failing trial, or "" when it can: a plain RollingUpdate always
-// keeps at least one replica on the old (unhardened) template while the
-// Deployment controller notices the new one is unhealthy, so it undoes the
-// change on its own. Recreate tears down every replica before starting new
-// ones, and a RollingUpdate whose maxUnavailable covers every replica does
-// the same in effect, so neither has that safety net.
-func rolloutSafetyReason(d *appsv1.Deployment) string {
+// rolloutSafetyReason reports why d's rollout cannot catch a control that
+// breaks container, or "" when it can. A RollingUpdate keeps old pods serving
+// only while new ones are not available, and a container with no probe is
+// available as soon as it starts. Recreate tears down every replica first,
+// and a maxUnavailable that covers every replica does the same in effect.
+func rolloutSafetyReason(d *appsv1.Deployment, container string) string {
+	// minReadySeconds does not count: without a probe the kubelet reports a running
+	// container Ready, so a crash it is slow to notice outlasts minReadySeconds.
+	if c := FindContainer(&d.Spec.Template.Spec, container); c != nil && c.ReadinessProbe == nil && c.StartupProbe == nil {
+		return "the container has no readinessProbe or startupProbe, so pods that crash at start could replace every replica"
+	}
 	if d.Spec.Strategy.Type == appsv1.RecreateDeploymentStrategyType {
-		return "deployment uses the Recreate strategy, so a failing trial would take every pod down"
+		return "deployment uses the Recreate strategy, so a failing control would take every pod down"
 	}
 	replicas := int32(1)
 	if d.Spec.Replicas != nil {
@@ -515,7 +694,7 @@ func rolloutSafetyReason(d *appsv1.Deployment) string {
 }
 
 // rolloutInProgress reports whether d has not finished rolling out its current
-// template, so a new trial would stack on an unfinished change.
+// template, so a new request would stack on an unfinished change.
 func rolloutInProgress(d *appsv1.Deployment) bool {
 	replicas := int32(1)
 	if d.Spec.Replicas != nil {

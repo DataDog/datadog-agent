@@ -9,8 +9,10 @@ package hardening
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,16 +86,48 @@ func testReplicaSet(name string, age time.Duration, ids, image string) *appsv1.R
 	}
 }
 
-// testPod returns a pod of rs that runs imageID.
-func testPod(name string, rs *appsv1.ReplicaSet, imageID string) *corev1.Pod {
+// rollout returns the ReplicaSet the Deployment controller creates for d's
+// current template, as if age ago.
+func rollout(d *appsv1.Deployment, name string, age time.Duration) *appsv1.ReplicaSet {
+	rs := testReplicaSet(name, age, "", "")
+	rs.Spec.Template = *d.Spec.Template.DeepCopy()
+	if rs.Spec.Template.Labels == nil {
+		rs.Spec.Template.Labels = map[string]string{}
+	}
+	rs.Spec.Template.Labels[appsv1.DefaultDeploymentUniqueLabelKey] = name
+	return rs
+}
+
+// hardenedPod returns a pod of rs on which the webhook applied every request rs lists.
+func hardenedPod(name string, rs *appsv1.ReplicaSet, status corev1.ContainerStatus) *corev1.Pod {
+	results := map[string]string{}
+	for _, id := range ParseIDs(rs.Spec.Template.Annotations[RequestsAnnotation]) {
+		results[id] = "applied"
+	}
+	raw, _ := json.Marshal(results)
+	annotations := maps.Clone(rs.Spec.Template.Annotations)
+	annotations[AppliedAnnotation] = string(raw)
+	status.Name = "app"
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name, Namespace: "shop", Labels: map[string]string{"app": "web"},
-			Annotations:     rs.Spec.Template.Annotations,
+			Name: name, Namespace: "shop", Labels: map[string]string{"app": "web"}, Annotations: annotations,
 			OwnerReferences: []metav1.OwnerReference{{Kind: "ReplicaSet", Name: rs.Name, UID: rs.UID, Controller: ptr.To(true)}},
 		},
-		Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{Name: "app", ImageID: imageID}}},
+		Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{status}},
 	}
+}
+
+func restarted(reason string) corev1.ContainerStatus {
+	return corev1.ContainerStatus{RestartCount: 1, LastTerminationState: corev1.ContainerState{
+		Terminated: &corev1.ContainerStateTerminated{Reason: reason, ExitCode: 1},
+	}}
+}
+
+// enforced returns a Deployment whose template lists ids, as the leader left it.
+func enforced(ids string) *appsv1.Deployment {
+	d := testDeployment(map[string]string{RequestsAnnotation: ids})
+	d.Spec.Template.Labels = map[string]string{EnabledLabel: "true", "app": "web"}
+	return d
 }
 
 func create(t *testing.T, client *fake.Clientset, objs ...runtime.Object) {
@@ -129,7 +163,7 @@ func patches(client *fake.Clientset) (dryRuns, real int) {
 	return
 }
 
-func TestControllerAppliesTrial(t *testing.T) {
+func TestControllerAppliesRequest(t *testing.T) {
 	c, client, _ := newTestController(t, testDeployment(nil), rawRequest(t, nil))
 	c.reconcile(context.Background())
 
@@ -155,16 +189,13 @@ func TestControllerAppendsToInertIDs(t *testing.T) {
 
 func TestControllerRejects(t *testing.T) {
 	tests := map[string]func(d *appsv1.Deployment){
-		"created after the request": func(d *appsv1.Deployment) { d.CreationTimestamp = metav1.NewTime(time.Now().Add(time.Hour)) },
+		"created after the cluster was added": func(d *appsv1.Deployment) { d.CreationTimestamp = metav1.NewTime(time.Now().Add(time.Hour)) },
 		"privileged": func(d *appsv1.Deployment) {
 			d.Spec.Template.Spec.Containers[0].SecurityContext = &corev1.SecurityContext{Privileged: ptr.To(true)}
 		},
 		"missing container": func(d *appsv1.Deployment) { d.Spec.Template.Spec.Containers[0].Name = "other" },
 		"not narrowing": func(d *appsv1.Deployment) {
 			d.Spec.Template.Spec.Containers[0].SecurityContext = &corev1.SecurityContext{Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}}}
-		},
-		"template pins another digest": func(d *appsv1.Deployment) {
-			d.Spec.Template.Spec.Containers[0].Image = "web@sha256:" + strings.Repeat("0", 64)
 		},
 		"only minReadySeconds, no probe": func(d *appsv1.Deployment) {
 			d.Spec.MinReadySeconds = 30
@@ -182,14 +213,6 @@ func TestControllerRejects(t *testing.T) {
 			assert.Contains(t, c.done, "req-1")
 		})
 	}
-}
-
-func TestControllerAppliesWhenTemplatePinsImageIDDigest(t *testing.T) {
-	d := testDeployment(nil)
-	d.Spec.Template.Spec.Containers[0].Image = "mirror.example.com/web@sha256:" + testDigest
-	c, client, _ := newTestController(t, d, rawRequest(t, nil))
-	c.reconcile(context.Background())
-	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
 }
 
 func TestControllerAcceptsStartupProbe(t *testing.T) {
@@ -255,7 +278,7 @@ func TestControllerValidateRejects(t *testing.T) {
 }
 
 func TestControllerRejectsMissingDeployment(t *testing.T) {
-	c, client, _ := newTestController(t, testDeployment(nil), rawRequest(t, func(m map[string]any) { target(m)["name"] = "gone" }))
+	c, client, _ := newTestController(t, testDeployment(nil), rawRequest(t, func(m map[string]any) { workload(m)["name"] = "gone" }))
 	c.reconcile(context.Background())
 	assert.Contains(t, c.done, "req-1")
 	_, real := patches(client)
@@ -383,21 +406,43 @@ func TestControllerWaitsWhilePaused(t *testing.T) {
 }
 
 func TestControllerRevertAndExpiry(t *testing.T) {
-	for name, mutate := range map[string]func(m map[string]any){
-		"revert":  func(m map[string]any) { m["action"] = "revert" },
-		"expired": func(m map[string]any) { m["expires_at"] = time.Now().Add(-time.Minute).Format(time.RFC3339) },
+	for name, tt := range map[string]struct {
+		mutate func(m map[string]any)
+		status string
+	}{
+		"revert":           {func(m map[string]any) { m["action"] = "revert" }, "reverted"},
+		"no longer listed": {func(m map[string]any) { m["clusters"] = []any{} }, "reverted"},
+		"listed elsewhere": {func(m map[string]any) { m["clusters"].([]any)[0].(map[string]any)["id"] = "cluster-2" }, "reverted"},
+		"expired":          {func(m map[string]any) { m["expires_at"] = time.Now().Add(-time.Minute).Format(time.RFC3339) }, "expired"},
+		"expired, unlisted": {func(m map[string]any) {
+			m["expires_at"] = time.Now().Add(-time.Minute).Format(time.RFC3339)
+			m["clusters"] = []any{}
+		}, "reverted"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			d := testDeployment(map[string]string{RequestsAnnotation: "req-1"})
-			d.Spec.Template.Labels = map[string]string{EnabledLabel: "true", "app": "web"}
-			c, client, _ := newTestController(t, d, rawRequest(t, mutate))
+			c, client, _ := newTestController(t, enforced("req-1"), rawRequest(t, tt.mutate))
 			c.reconcile(context.Background())
 
 			got := getDeployment(t, client).Spec.Template
 			assert.NotContains(t, got.Annotations, RequestsAnnotation)
 			assert.Equal(t, map[string]string{"app": "web"}, got.Labels)
+			assert.Equal(t, tt.status, c.status["req-1"])
 		})
 	}
+}
+
+func TestControllerRetireLeavesSupersededInPlace(t *testing.T) {
+	d := enforced("req-1")
+	d.Spec.Template.Spec.Containers[0].SecurityContext = &corev1.SecurityContext{
+		Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}, Add: []corev1.Capability{"NET_BIND_SERVICE"}},
+	}
+	c, client, _ := newTestController(t, d, rawRequest(t, func(m map[string]any) { m["clusters"] = []any{} }))
+	c.reconcile(context.Background())
+
+	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation], "no rollout once the PR is deployed")
+	assert.Contains(t, c.status["req-1"], "superseded")
+	_, real := patches(client)
+	assert.Zero(t, real)
 }
 
 func TestControllerRevertKeepsOtherIDs(t *testing.T) {
@@ -452,69 +497,205 @@ func TestControllerSupersededByTemplate(t *testing.T) {
 	assert.Zero(t, real)
 }
 
-func TestControllerSupersededByAnotherBuild(t *testing.T) {
-	otherDigest := strings.Repeat("0", 64)
-	tests := map[string]struct {
-		template string
-		objs     func() []runtime.Object
-		want     string
-	}{
-		"same build": {
-			template: "web:1.2",
-			objs: func() []runtime.Object {
-				rs := testReplicaSet("web-2", time.Minute, "req-1", "web:1.2")
-				return []runtime.Object{rs, testPod("web-2-a", rs, "docker.io/library/web@sha256:"+testDigest)}
-			},
-			want: "req-1",
-		},
-		"image config id only": {
-			template: "web:1.2",
-			objs: func() []runtime.Object {
-				rs := testReplicaSet("web-2", time.Minute, "req-1", "web:1.2")
-				return []runtime.Object{rs, testPod("web-2-a", rs, "sha256:"+otherDigest)}
-			},
-			want: "req-1",
-		},
-		"template image changed": {
-			template: "web:1.3",
-			objs: func() []runtime.Object {
-				return []runtime.Object{testReplicaSet("web-2", 2*time.Minute, "req-1", "web:1.2"), testReplicaSet("web-3", time.Minute, "req-1", "web:1.3")}
-			},
-		},
-		"tag pushed again": {
-			template: "web:1.2",
-			objs: func() []runtime.Object {
-				rs := testReplicaSet("web-2", time.Minute, "req-1", "web:1.2")
-				return []runtime.Object{rs, testPod("web-2-a", rs, "docker.io/library/web@sha256:"+otherDigest)}
-			},
-		},
-		"unhardened pod of an older ReplicaSet": {
-			template: "web:1.2",
-			objs: func() []runtime.Object {
-				old := testReplicaSet("web-1", time.Hour, "", "web:1.2")
-				return []runtime.Object{old, testReplicaSet("web-2", time.Minute, "req-1", "web:1.2"), testPod("web-1-a", old, "docker.io/library/web@sha256:"+otherDigest)}
-			},
-			want: "req-1",
-		},
+// watched returns a controller watching req-1, applied on enforced("req-1")
+// by a ReplicaSet created age ago, whose pod reports status.
+func watched(t *testing.T, d *appsv1.Deployment, age time.Duration, status corev1.ContainerStatus, reqs ...[]byte) (*Controller, *fake.Clientset) {
+	if len(reqs) == 0 {
+		reqs = [][]byte{rawRequest(t, nil)}
 	}
-	for name, tt := range tests {
+	c, client, _ := newTestController(t, d, reqs...)
+	rs := rollout(d, "web-2", age)
+	create(t, client, rs, hardenedPod("web-2-a", rs, status))
+	return c, client
+}
+
+func TestControllerRollsBackInsideWindow(t *testing.T) {
+	for name, tt := range map[string]struct {
+		condition appsv1.DeploymentCondition
+		status    corev1.ContainerStatus
+	}{
+		"restart":                  {status: restarted("Error")},
+		"liveness kill":            {status: restarted("Completed")},
+		"ProgressDeadlineExceeded": {condition: appsv1.DeploymentCondition{Type: appsv1.DeploymentProgressing, Status: corev1.ConditionFalse, Reason: "ProgressDeadlineExceeded"}},
+		"Available=False":          {condition: appsv1.DeploymentCondition{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionFalse}},
+	} {
 		t.Run(name, func(t *testing.T) {
-			d := testDeployment(map[string]string{RequestsAnnotation: "req-1"})
-			d.Spec.Template.Spec.Containers[0].Image = tt.template
-			c, client, _ := newTestController(t, d, rawRequest(t, nil))
-			create(t, client, tt.objs()...)
+			d := enforced("req-1")
+			if tt.condition.Type != "" {
+				d.Status.Conditions = []appsv1.DeploymentCondition{tt.condition}
+			}
+			c, client := watched(t, d, 10*time.Minute, tt.status)
 			c.reconcile(context.Background())
-			assert.Equal(t, tt.want, getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
-			assert.Equal(t, tt.want == "", c.done["req-1"] != "", "superseded is final")
+
+			got := getDeployment(t, client).Spec.Template
+			assert.NotContains(t, got.Annotations, RequestsAnnotation)
+			assert.NotContains(t, got.Labels, EnabledLabel)
+			assert.Contains(t, c.status["req-1"], "rolled_back")
+			assert.Contains(t, c.done, "req-1")
 		})
 	}
+}
+
+func TestControllerIgnoresStaleConditions(t *testing.T) {
+	d := enforced("req-1")
+	d.Generation = 2 // the Deployment controller has not observed the template change yet
+	d.Status.Conditions = []appsv1.DeploymentCondition{{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionFalse}}
+	c, client := watched(t, d, time.Minute, corev1.ContainerStatus{})
+	c.reconcile(context.Background())
+	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+}
+
+func TestControllerKeepsRequestThrough(t *testing.T) {
+	for name, tt := range map[string]struct {
+		age    time.Duration
+		status corev1.ContainerStatus
+		want   string
+	}{
+		"an OOM kill":                {age: 10 * time.Minute, status: restarted("OOMKilled"), want: "applied"},
+		"a healthy window":           {age: 10 * time.Minute, want: "applied"},
+		"the end of a clean window":  {age: 2 * time.Hour, want: "confirmed"},
+		"a restart after the window": {age: 2 * time.Hour, status: restarted("Error"), want: "degraded: container app of pod web-2-a restarted (Error, exit code 1)"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c, client := watched(t, enforced("req-1"), tt.age, tt.status)
+			c.status["req-1"] = "applied"
+			c.reconcile(context.Background())
+
+			assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+			assert.Equal(t, tt.want, c.status["req-1"])
+			assert.NotContains(t, c.done, "req-1", "an enforced request stays watched")
+		})
+	}
+}
+
+func TestControllerNeverRevertsDuringCustomerRollout(t *testing.T) {
+	d := enforced("req-1")
+	c, client, _ := newTestController(t, d, rawRequest(t, nil))
+	ours := rollout(d, "web-2", 10*time.Minute)
+	d.Spec.Template.Spec.Containers[0].Image = "web:1.3" // a new release keeps the keys
+	theirs := rollout(d, "web-3", time.Minute)
+	create(t, client, ours, theirs, hardenedPod("web-3-a", theirs, restarted("Error")))
+	_, err := client.AppsV1().Deployments("shop").Update(context.Background(), d, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	c.reconcile(context.Background())
+
+	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation], "a new release stays hardened")
+	assert.Contains(t, c.status["req-1"], "degraded")
+}
+
+func TestControllerReportsUnsafeCustomerChange(t *testing.T) {
+	d := enforced("req-1")
+	c, client, _ := newTestController(t, d, rawRequest(t, nil))
+	ours := rollout(d, "web-2", 10*time.Minute)
+	d.Spec.Template.Spec.Containers[0].ReadinessProbe = nil
+	create(t, client, ours, rollout(d, "web-3", time.Minute))
+	_, err := client.AppsV1().Deployments("shop").Update(context.Background(), d, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	c.reconcile(context.Background())
+	assert.Contains(t, c.status["req-1"], "degraded: the customer's template change makes the rollout unsafe to watch")
+}
+
+func TestControllerReportsPartial(t *testing.T) {
+	d := enforced("req-1")
+	c, client, _ := newTestController(t, d, rawRequest(t, nil))
+	rs := rollout(d, "web-2", 10*time.Minute)
+	unhardened := hardenedPod("web-2-b", rs, corev1.ContainerStatus{})
+	unhardened.Annotations[AppliedAnnotation] = `{"req-1":"skipped: unknown request"}`
+	create(t, client, rs, unhardened)
+
+	c.reconcile(context.Background())
+	assert.Equal(t, `partial: pod web-2-b started without the settings ("skipped: unknown request")`, c.status["req-1"])
+}
+
+// TestControllerPinsFailures covers two requests on one container, both in
+// their confirmation window.
+func TestControllerPinsFailures(t *testing.T) {
+	ro := rawRequest(t, func(m map[string]any) {
+		m["id"], m["control"], m["parameters"] = "req-2", "read_only_root_fs", map[string]any{}
+	})
+	for name, tt := range map[string]struct {
+		rollingOut bool
+		want       string
+	}{
+		"during req-2's rollout": {rollingOut: true, want: "req-1"},
+		"after the rollouts":     {want: ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			d := enforced("req-1")
+			first := rollout(d, "web-2", 30*time.Minute)
+			d.Spec.Template.Annotations[RequestsAnnotation] = "req-1,req-2"
+			second := rollout(d, "web-3", 5*time.Minute)
+			if tt.rollingOut {
+				d.Status.UpdatedReplicas = 1
+			}
+			c, client, _ := newTestController(t, d, rawRequest(t, nil), ro)
+			create(t, client, first, second, hardenedPod("web-3-a", second, restarted("Error")))
+
+			c.reconcile(context.Background())
+
+			assert.Equal(t, tt.want, getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+			assert.Contains(t, c.status["req-2"], "rolled_back")
+			assert.Equal(t, tt.want == "", strings.Contains(c.status["req-1"], "rolled_back"))
+		})
+	}
+}
+
+func TestControllerCapsRolloutsInProgress(t *testing.T) {
+	others := [][]byte{rawRequest(t, nil)}
+	for _, id := range []string{"a", "b", "c"} {
+		others = append(others, rawRequest(t, func(m map[string]any) { m["id"] = id; workload(m)["name"] = id }))
+	}
+	c, client, _ := newTestController(t, testDeployment(nil), others...)
+	c.rollingOut = map[string]bool{"a": true, "b": true, "c": true}
+
+	c.reconcile(context.Background())
+	assert.Empty(t, getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+	assert.NotContains(t, c.done, "req-1", "a cap is a wait, not a rejection")
+
+	delete(c.rollingOut, "a")
+	c.reconcile(context.Background())
+	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+}
+
+func TestControllerCapsAppliesPerHour(t *testing.T) {
+	c, client, _ := newTestController(t, testDeployment(nil), rawRequest(t, nil))
+	now := time.Now()
+	c.now = func() time.Time { return now }
+	for range maxAppliesPerHour {
+		c.applied = append(c.applied, now.Add(-59*time.Minute))
+	}
+
+	c.reconcile(context.Background())
+	assert.Empty(t, getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+
+	now = now.Add(time.Minute)
+	c.reconcile(context.Background())
+	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+}
+
+func TestControllerHeartbeat(t *testing.T) {
+	c, _, _ := newTestController(t, testDeployment(nil), rawRequest(t, nil))
+	now := time.Now()
+	c.now = func() time.Time { return now }
+	c.reconcile(context.Background())
+	first := c.lastHeartbeat
+
+	now = now.Add(30 * time.Minute)
+	c.reconcile(context.Background())
+	assert.Equal(t, first, c.lastHeartbeat)
+
+	now = now.Add(31 * time.Minute)
+	c.reconcile(context.Background())
+	assert.Equal(t, now, c.lastHeartbeat)
 }
 
 func TestControllerDeletedConfigIsInert(t *testing.T) {
 	c, client, store := newTestController(t, testDeployment(nil), rawRequest(t, nil))
 	c.reconcile(context.Background())
 
-	setRC(t, store) // PR merged: cws-api deletes the config
+	setRC(t, store) // every cluster is superseded: cws-api deletes the config
 	c.reconcile(context.Background())
 	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
 }

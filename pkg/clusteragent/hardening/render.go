@@ -38,7 +38,7 @@ func FindContainer(spec *corev1.PodSpec, name string) *corev1.Container {
 // applied, or the reason it cannot be applied. It only ever narrows what the
 // container may do, and never modifies spec.
 func Render(req *Request, spec *corev1.PodSpec) (*corev1.SecurityContext, string) {
-	c := FindContainer(spec, req.Target.Container)
+	c := FindContainer(spec, req.Workload.Container)
 	if c == nil {
 		return nil, "container not found"
 	}
@@ -61,13 +61,15 @@ func Render(req *Request, spec *corev1.PodSpec) (*corev1.SecurityContext, string
 		}
 		slices.Sort(add)
 		sc.Capabilities = &corev1.Capabilities{Add: slices.Compact(add), Drop: []corev1.Capability{"ALL"}}
+	case ControlNonRoot:
+		// The kubelet would refuse to start the container, and the rollout would stall.
+		if uid := runAsUser(spec, sc); uid != nil && *uid == 0 {
+			return nil, "container runs as uid 0"
+		}
+		sc.RunAsNonRoot = ptr.To(true)
+		sc.AllowPrivilegeEscalation = ptr.To(false)
 	case ControlReadOnlyRootFS:
 		sc.ReadOnlyRootFilesystem = ptr.To(true)
-	case ControlSeccompRuntimeDefault:
-		if profile := seccompProfile(spec, sc); profile != nil && profile.Type == corev1.SeccompProfileTypeLocalhost {
-			return nil, "container has a Localhost seccomp profile"
-		}
-		sc.SeccompProfile = &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}
 	default:
 		return nil, fmt.Sprintf("unknown control %q", req.Control)
 	}
@@ -77,7 +79,7 @@ func Render(req *Request, spec *corev1.PodSpec) (*corev1.SecurityContext, string
 // setsControl reports whether the target container in spec already applies
 // req's control on its own, at least as strictly as req would.
 func setsControl(req *Request, spec *corev1.PodSpec) bool {
-	c := FindContainer(spec, req.Target.Container)
+	c := FindContainer(spec, req.Workload.Container)
 	if c == nil {
 		return false
 	}
@@ -88,21 +90,28 @@ func setsControl(req *Request, spec *corev1.PodSpec) bool {
 		return hasCapability(caps.Drop, "ALL") && !slices.ContainsFunc(caps.Add, func(a corev1.Capability) bool {
 			return !slices.Contains(req.Parameters.CapabilitiesAdd, normalizeCapability(string(a)))
 		})
+	case ControlNonRoot:
+		return ptr.Deref(runAsNonRoot(spec, &sc), false) && !ptr.Deref(sc.AllowPrivilegeEscalation, true)
 	case ControlReadOnlyRootFS:
 		return ptr.Deref(sc.ReadOnlyRootFilesystem, false)
-	case ControlSeccompRuntimeDefault:
-		profile := seccompProfile(spec, &sc)
-		return profile != nil && profile.Type == corev1.SeccompProfileTypeRuntimeDefault
 	}
 	return false
 }
 
-// seccompProfile returns the seccomp profile a container with sc runs with in spec.
-func seccompProfile(spec *corev1.PodSpec, sc *corev1.SecurityContext) *corev1.SeccompProfile {
-	if sc.SeccompProfile == nil && spec.SecurityContext != nil {
-		return spec.SecurityContext.SeccompProfile
+// runAsUser and runAsNonRoot return what a container with sc runs with in
+// spec, where the pod's securityContext provides the default.
+func runAsUser(spec *corev1.PodSpec, sc *corev1.SecurityContext) *int64 {
+	if sc.RunAsUser == nil && spec.SecurityContext != nil {
+		return spec.SecurityContext.RunAsUser
 	}
-	return sc.SeccompProfile
+	return sc.RunAsUser
+}
+
+func runAsNonRoot(spec *corev1.PodSpec, sc *corev1.SecurityContext) *bool {
+	if sc.RunAsNonRoot == nil && spec.SecurityContext != nil {
+		return spec.SecurityContext.RunAsNonRoot
+	}
+	return sc.RunAsNonRoot
 }
 
 // isGranted reports whether a container declaring caps runs with capability

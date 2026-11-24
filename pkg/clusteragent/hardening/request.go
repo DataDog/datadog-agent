@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-// Package hardening applies workload hardening trials. The leader marks a
+// Package hardening enforces workload hardening requests. The leader marks a
 // Deployment's pod template with a request id, and the hardening admission
 // webhook narrows the securityContext of the targeted container in each new pod.
 package hardening
@@ -43,9 +43,9 @@ const (
 type Action string
 
 const (
-	// ActionTrial applies the control.
-	ActionTrial Action = "trial"
-	// ActionRevert removes a trial.
+	// ActionEnforce applies the control in every listed cluster.
+	ActionEnforce Action = "enforce"
+	// ActionRevert removes the control.
 	ActionRevert Action = "revert"
 	// ActionValidate runs the pre-flight checks and dry runs, and writes nothing.
 	ActionValidate Action = "validate"
@@ -57,23 +57,28 @@ type Control string
 const (
 	// ControlCapabilities drops every capability except Parameters.CapabilitiesAdd.
 	ControlCapabilities Control = "capabilities"
+	// ControlNonRoot sets runAsNonRoot and disallows privilege escalation.
+	ControlNonRoot Control = "non_root"
 	// ControlReadOnlyRootFS sets readOnlyRootFilesystem.
 	ControlReadOnlyRootFS Control = "read_only_root_fs"
-	// ControlSeccompRuntimeDefault sets the RuntimeDefault seccomp profile.
-	ControlSeccompRuntimeDefault Control = "seccomp_runtime_default"
 )
 
-// Target is the container a request applies to.
-type Target struct {
-	Cluster   string `json:"cluster"`
+// defaultConfirmFor is the confirmation window of a request that sets none.
+const defaultConfirmFor = 7 * 24 * time.Hour
+
+// Workload is the workload definition a request applies to. It names no
+// cluster and no image, so the control carries over to every later release.
+type Workload struct {
 	Kind      string `json:"kind"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 	Container string `json:"container"`
-	// ImageID is the build the finding's evidence is about,
-	// <registry>/<repository>@sha256:<digest>. Only its digest is compared,
-	// because registry mirrors and image-rewriting webhooks change the rest.
-	ImageID string `json:"image_id"`
+}
+
+// Cluster is one cluster a request covers, by the ID of its datadog-cluster-id ConfigMap.
+type Cluster struct {
+	ID      string    `json:"id"`
+	AddedAt time.Time `json:"added_at"`
 }
 
 // Parameters holds control-specific parameters.
@@ -82,40 +87,42 @@ type Parameters struct {
 	CapabilitiesAdd []string `json:"capabilities_add,omitempty"`
 }
 
-// Request is one hardening trial, as delivered by Remote Config or the requests file.
+// Request is one hardening request, as delivered by Remote Config or the requests file.
 type Request struct {
 	ID         string     `json:"id"`
 	Action     Action     `json:"action"`
 	Control    Control    `json:"control"`
-	Target     Target     `json:"k8s_target"`
+	Workload   Workload   `json:"workload"`
 	Parameters Parameters `json:"parameters"`
-	CreatedAt  time.Time  `json:"created_at"`
-	ExpiresAt  time.Time  `json:"expires_at"`
+	Clusters   []Cluster  `json:"clusters"`
+	// ConfirmFor is the confirmation window, a Go duration counted from the
+	// rollout in each cluster.
+	ConfirmFor string     `json:"confirm_for,omitempty"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 
-	// hash identifies the request's content, so the controller can tell a
-	// changed request from one it already rejected.
+	// addedAt is when this cluster was added to Clusters, zero when it is not listed.
+	addedAt    time.Time
+	confirmFor time.Duration
+	// hash identifies what the request means for this cluster, so the
+	// controller can tell a changed request from one it already finished.
 	hash string
 }
 
-// Active reports whether the request may be applied.
+// Listed reports whether the request covers this cluster.
+func (r *Request) Listed() bool {
+	return !r.addedAt.IsZero()
+}
+
+func (r *Request) inForce(now time.Time) bool {
+	return r.ExpiresAt == nil || now.Before(*r.ExpiresAt)
+}
+
+// Active reports whether the request is to be enforced in this cluster.
 func (r *Request) Active(now time.Time) bool {
-	return r.Action == ActionTrial && now.Before(r.ExpiresAt)
+	return r.Action == ActionEnforce && r.Listed() && r.inForce(now)
 }
 
-var (
-	idPattern     = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
-	digestPattern = regexp.MustCompile(`@sha256:([0-9a-f]{64})$`)
-)
-
-// Digest returns the sha256 digest an image reference or a container status
-// imageID pins, or "" when it pins none. A bare "sha256:..." imageID is the
-// image config id, not a registry digest, so it pins none.
-func Digest(image string) string {
-	if m := digestPattern.FindStringSubmatch(image); m != nil {
-		return m[1]
-	}
-	return ""
-}
+var idPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
 
 // knownCapabilities is the set of Linux capability names (without the CAP_
 // prefix) that parseRequest accepts. ALL is deliberately not a member.
@@ -134,7 +141,9 @@ var knownCapabilities = map[string]bool{
 }
 
 // parseRequest decodes and validates one request. Unknown fields are rejected so
-// that a payload this version does not understand is never half-applied.
+// that a payload this version does not understand is never half-applied. A
+// request that does not list clusterID is kept, so the leader can remove it
+// from a cluster that left the list.
 func parseRequest(raw []byte, clusterID string) (*Request, error) {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
@@ -145,44 +154,69 @@ func parseRequest(raw []byte, clusterID string) (*Request, error) {
 	if !idPattern.MatchString(r.ID) {
 		return nil, fmt.Errorf("invalid request id %q", r.ID)
 	}
-	if r.Action != ActionTrial && r.Action != ActionRevert && r.Action != ActionValidate {
+	if r.Action != ActionEnforce && r.Action != ActionRevert && r.Action != ActionValidate {
 		return nil, fmt.Errorf("request %s: unknown action %q", r.ID, r.Action)
 	}
+	if err := parseParameters(&r); err != nil {
+		return nil, err
+	}
+	w := r.Workload
+	if w.Kind != "Deployment" {
+		return nil, fmt.Errorf("request %s: unsupported kind %q", r.ID, w.Kind)
+	}
+	if w.Namespace == "" || w.Name == "" || w.Container == "" {
+		return nil, fmt.Errorf("request %s: incomplete workload", r.ID)
+	}
+	for _, c := range r.Clusters {
+		if c.ID == "" || c.AddedAt.IsZero() {
+			return nil, fmt.Errorf("request %s: a cluster has no id or added_at", r.ID)
+		}
+		if c.ID == clusterID {
+			r.addedAt = c.AddedAt
+		}
+	}
+	r.confirmFor = defaultConfirmFor
+	if r.ConfirmFor != "" {
+		d, err := time.ParseDuration(r.ConfirmFor)
+		if err != nil || d <= 0 {
+			return nil, fmt.Errorf("request %s: invalid confirm_for %q", r.ID, r.ConfirmFor)
+		}
+		r.confirmFor = d
+	}
+	r.hash = clusterHash(r)
+	return &r, nil
+}
+
+func parseParameters(r *Request) error {
 	switch r.Control {
 	case ControlCapabilities:
 		for i, c := range r.Parameters.CapabilitiesAdd {
 			c = normalizeCapability(c)
 			if !knownCapabilities[c] {
-				return nil, fmt.Errorf("request %s: invalid capability %q", r.ID, r.Parameters.CapabilitiesAdd[i])
+				return fmt.Errorf("request %s: invalid capability %q", r.ID, r.Parameters.CapabilitiesAdd[i])
 			}
 			r.Parameters.CapabilitiesAdd[i] = c
 		}
-	case ControlReadOnlyRootFS, ControlSeccompRuntimeDefault:
+	case ControlNonRoot, ControlReadOnlyRootFS:
 		if len(r.Parameters.CapabilitiesAdd) > 0 {
-			return nil, fmt.Errorf("request %s: capabilities_add is only valid for %s", r.ID, ControlCapabilities)
+			return fmt.Errorf("request %s: capabilities_add is only valid for %s", r.ID, ControlCapabilities)
 		}
 	default:
-		return nil, fmt.Errorf("request %s: unknown control %q", r.ID, r.Control)
+		return fmt.Errorf("request %s: unknown control %q", r.ID, r.Control)
 	}
-	t := r.Target
-	if t.Kind != "Deployment" {
-		return nil, fmt.Errorf("request %s: unsupported kind %q", r.ID, t.Kind)
-	}
-	if t.Cluster == "" || t.Namespace == "" || t.Name == "" || t.Container == "" {
-		return nil, fmt.Errorf("request %s: incomplete target", r.ID)
-	}
-	if Digest(t.ImageID) == "" {
-		return nil, fmt.Errorf("request %s: image_id %q pins no sha256 digest", r.ID, t.ImageID)
-	}
-	if t.Cluster != clusterID {
-		return nil, fmt.Errorf("request %s: targets cluster %q, not this cluster", r.ID, t.Cluster)
-	}
-	if r.CreatedAt.IsZero() || r.ExpiresAt.IsZero() {
-		return nil, fmt.Errorf("request %s: missing created_at or expires_at", r.ID)
-	}
+	return nil
+}
+
+// clusterHash hashes the request without the other clusters' entries, so that
+// adding or dropping another cluster does not make this one reconcile it again.
+func clusterHash(r Request) string {
+	r.Clusters = nil
+	raw, _ := json.Marshal(struct {
+		Request Request
+		AddedAt time.Time
+	}{r, r.addedAt})
 	sum := sha256.Sum256(raw)
-	r.hash = hex.EncodeToString(sum[:])
-	return &r, nil
+	return hex.EncodeToString(sum[:])
 }
 
 // normalizeCapability returns the Kubernetes spelling of a capability name.
@@ -213,7 +247,7 @@ type Store struct {
 	changes chan struct{}
 }
 
-// NewStore returns an empty Store that accepts requests for clusterID only.
+// NewStore returns an empty Store for the cluster whose ID is clusterID.
 func NewStore(clusterID string) *Store {
 	return &Store{
 		clusterID: clusterID,
