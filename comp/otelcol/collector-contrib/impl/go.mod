@@ -162,7 +162,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.85.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-20261030015547-4fcf7d423463 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.67.0 // indirect
-	github.com/DataDog/datadog-go/v5 v5.9.1 // indirect
+	github.com/DataDog/datadog-go/v5 v5.9.2-0.20261118144720-1114bfec5a3d // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-sqllexer v0.2.6 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect

@@ -97,6 +97,9 @@ const (
 	OpcodeInitFilterMapLoop
 	OpcodeEmitFilterMapElement
 	OpcodeFilterMapAdvance
+	// Metric probe opcodes — see MetricCondErrorCheckOp and MetricUpdateOp.
+	OpcodeMetricCondErrorCheck
+	OpcodeMetricUpdate
 )
 
 //revive:enable:exported

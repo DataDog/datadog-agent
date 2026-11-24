@@ -336,7 +336,7 @@ func runScenario(t *testing.T, cfg testprogs.Config, sc scenario) {
 	}()
 
 	// Wait for the server to announce its port.
-	port := waitForDropTesterPort(t, filepath.Join(tempDir, "sample.out"))
+	port := waitForListeningPort(t, filepath.Join(tempDir, "sample.out"))
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 
 	// Register the process with our probe set.
@@ -435,10 +435,11 @@ func runScenario(t *testing.T, cfg testprogs.Config, sc scenario) {
 	sc.assert(t, snaps)
 }
 
-// waitForDropTesterPort reads the drop_tester process's stdout file
-// (populated by dyninsttest.StartProcess) and returns the listening
-// port as soon as the "Listening on port N" line appears.
-func waitForDropTesterPort(t *testing.T, stdoutPath string) int {
+// waitForListeningPort reads the stdout file of a test program that serves
+// HTTP, such as drop_tester or rc_tester (populated by
+// dyninsttest.StartProcess), and returns the listening port as soon as the
+// "Listening on port N" line appears.
+func waitForListeningPort(t *testing.T, stdoutPath string) int {
 	deadline := time.After(30 * time.Second)
 	tick := time.NewTicker(100 * time.Millisecond)
 	defer tick.Stop()
@@ -446,7 +447,7 @@ func waitForDropTesterPort(t *testing.T, stdoutPath string) int {
 	for {
 		select {
 		case <-deadline:
-			t.Fatalf("drop_tester did not print listening port within 30s")
+			t.Fatalf("process did not print its listening port within 30s")
 		case <-tick.C:
 			data, err := os.ReadFile(stdoutPath)
 			if err != nil {

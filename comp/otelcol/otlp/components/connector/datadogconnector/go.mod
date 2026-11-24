@@ -16,7 +16,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.84.0-devel.0.20261030015547-4fcf7d423463
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.84.0-devel.0.20261030015547-4fcf7d423463
 	github.com/DataDog/datadog-agent/pkg/util/option v0.85.0
-	github.com/DataDog/datadog-go/v5 v5.9.1
+	github.com/DataDog/datadog-go/v5 v5.9.2-0.20261118144720-1114bfec5a3d
 	github.com/google/go-cmp v0.7.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.165.1
 	github.com/stretchr/testify v1.12.1

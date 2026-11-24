@@ -26,7 +26,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd
-	github.com/DataDog/datadog-go/v5 v5.9.1
+	github.com/DataDog/datadog-go/v5 v5.9.2-0.20261118144720-1114bfec5a3d
 	github.com/Microsoft/go-winio v0.6.4
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/go-viper/mapstructure/v2 v2.5.0

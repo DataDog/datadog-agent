@@ -728,6 +728,9 @@ const (
 	// RootExpressionKindCaptureExpression means that this expression is a
 	// capture expression specified by the user.
 	RootExpressionKindCaptureExpression
+	// RootExpressionKindMetricValue means that this expression is the value
+	// reported by a metric probe.
+	RootExpressionKindMetricValue
 )
 
 func (k RootExpressionKind) String() string {
@@ -742,6 +745,8 @@ func (k RootExpressionKind) String() string {
 		return "template_segment"
 	case RootExpressionKindCaptureExpression:
 		return "capture_expression"
+	case RootExpressionKindMetricValue:
+		return "metric_value"
 	default:
 		return fmt.Sprintf("RootExpressionKind(%d)", k)
 	}

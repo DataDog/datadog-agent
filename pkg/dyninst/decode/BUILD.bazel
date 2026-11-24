@@ -7,6 +7,7 @@ go_library(
         "bitset.go",
         "decoder.go",
         "doc.go",
+        "evaluation_errors.go",
         "hmaps.go",
         "marshal.go",
         "not_captured_reason.go",

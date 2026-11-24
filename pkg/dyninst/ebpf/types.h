@@ -29,7 +29,8 @@ typedef struct probe_params {
   uint8_t ctx_loc_kind;
   uint8_t ctx_reg_tab;
   uint8_t ctx_reg_data;
-  char __padding[3];
+  bool is_metric;
+  char __padding[2];
   int32_t ctx_stack_offset;
 } probe_params_t;
 
@@ -74,6 +75,49 @@ typedef struct stats {
   uint64_t recovery_filtered_goexit;
   uint64_t recovery_invalid_state;
 } stats_t;
+
+// To be kept in sync with compiler.MetricKind.
+typedef enum metric_kind {
+  METRIC_KIND_COUNT = 1, // adds the value (or 1, without a value) to sum
+  METRIC_KIND_GAUGE = 2, // records the value in value
+} metric_kind_t;
+
+// How SM_OP_METRIC_UPDATE interprets the bytes of a metric probe's value. To be
+// kept in sync with compiler.MetricValueKind.
+typedef enum metric_value_kind {
+  METRIC_VALUE_NONE = 0,     // the probe has no value; each hit counts as 1
+  METRIC_VALUE_SIGNED = 1,   // signed integer, sign-extended to 64 bits
+  METRIC_VALUE_UNSIGNED = 2, // unsigned integer or bool, zero-extended
+  METRIC_VALUE_FLOAT = 3,    // float32 or float64, recorded as raw bits
+} metric_value_kind_t;
+
+// Kinds of evaluation errors recorded in metric_state_t.last_error. To be kept
+// in sync with loader.MetricError.
+typedef enum metric_error {
+  METRIC_ERROR_NONE = 0,
+  METRIC_ERROR_VALUE_UNAVAILABLE = 1,
+  METRIC_ERROR_VALUE_NIL_DEREF = 2,
+  METRIC_ERROR_VALUE_OUT_OF_BOUNDS = 3,
+  METRIC_ERROR_CONDITION = 4,
+  METRIC_ERROR_CONDITION_NIL_DEREF = 5,
+} metric_error_t;
+
+// The state of a metric probe, in metrics_buf. The counters are cumulative
+// over the lifetime of the program; userspace computes deltas.
+typedef struct metric_state {
+  // Count probes: running sum of the values.
+  int64_t sum;
+  // Gauge probes: bits of the most recent value.
+  uint64_t value;
+  // Number of times sum or value was updated.
+  uint64_t updates;
+  // Number of hits that weren't counted because the probe's condition or
+  // value couldn't be evaluated.
+  uint64_t eval_errors;
+  // The most recent evaluation error, a metric_error_t.
+  uint8_t last_error;
+  uint8_t __padding[7];
+} metric_state_t;
 
 typedef enum dynamic_size_class {
   DYNAMIC_SIZE_CLASS_STATIC = 0,
@@ -257,6 +301,10 @@ typedef enum sm_opcode {
   SM_OP_INIT_FILTER_MAP_LOOP = 65,
   SM_OP_EMIT_FILTER_MAP_ELEMENT = 66,
   SM_OP_FILTER_MAP_ADVANCE = 67,
+  // Metric probe opcodes. See compiler.MetricCondErrorCheckOp and
+  // compiler.MetricUpdateOp.
+  SM_OP_METRIC_COND_ERROR_CHECK = 68,
+  SM_OP_METRIC_UPDATE = 69,
 } sm_opcode_t;
 
 // cmp_op_t identifies which comparison SM_OP_EXPR_CMP_BASE /
@@ -385,6 +433,10 @@ static const char* op_code_name(sm_opcode_t op_code) {
     return "PANIC_UNWIND_PREPARE";
   case SM_OP_PANIC_UNWIND_EVICT_SLOTS:
     return "PANIC_UNWIND_EVICT_SLOTS";
+  case SM_OP_METRIC_COND_ERROR_CHECK:
+    return "METRIC_COND_ERROR_CHECK";
+  case SM_OP_METRIC_UPDATE:
+    return "METRIC_UPDATE";
   default:
     break;
   }
