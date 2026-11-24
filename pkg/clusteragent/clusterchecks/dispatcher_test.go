@@ -218,7 +218,7 @@ func TestDescheduleRescheduleSameNode(t *testing.T) {
 
 func TestNodesRunningCheck(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	dispatcher := newDispatcher(fakeTagger)
+	dispatcher := newDispatcher(fakeTagger, nil)
 	dispatcher.store.getOrCreateNodeStore("runner", "").nodetype = types.NodeTypeCLCRunner
 	dispatcher.store.getOrCreateNodeStore("agent-hostname", "").nodetype = types.NodeTypeNodeAgent
 	dispatcher.addConfig(generateIntegration("kueue"), "runner")
@@ -240,7 +240,7 @@ func TestNodesRunningCheck(t *testing.T) {
 	assert.Equal(t, map[string]struct{}{"node1": {}}, nodes, "cluster check runners are not returned")
 
 	// A check dispatched only to cluster check runners runs on no node Agent.
-	onRunnerOnly := newDispatcher(fakeTagger)
+	onRunnerOnly := newDispatcher(fakeTagger, nil)
 	onRunnerOnly.store.getOrCreateNodeStore("runner", "").nodetype = types.NodeTypeCLCRunner
 	onRunnerOnly.addConfig(generateIntegration("kueue"), "runner")
 	onRunnerOnly.store.active = true

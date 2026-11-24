@@ -139,7 +139,7 @@ func TestUpdateLeaderIP(t *testing.T) {
 // lifecycle: unknown -> follower -> leader -> follower -> leader -> stop
 func TestNodesRunningCheckRequiresLeadership(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	h := &Handler{dispatcher: newDispatcher(fakeTagger)}
+	h := &Handler{dispatcher: newDispatcher(fakeTagger, nil)}
 	h.dispatcher.addEndpointConfig(generateEndpointsIntegration("kueue", "node1", false), "node1")
 	// The store stays active until the dispatcher resets after leadership is lost.
 	h.dispatcher.store.active = true

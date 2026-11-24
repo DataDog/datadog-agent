@@ -15,10 +15,14 @@ import (
 )
 
 // checkCLCRunnersHealth reports a health platform issue when the leader has
-// cluster checks to dispatch but no worker of any kind (Cluster Check Runner or
-// node agent) is reporting to run them. In that situation cluster checks are
-// left undispatched and their metrics may be lost. The issue is resolved as
-// soon as a worker is available again (or there are no checks to dispatch).
+// cluster checks stuck undispatched with no worker (Cluster Check Runner or node
+// agent) to run them, and resolves it once a worker returns.
+//
+// It gates on UnscheduledChecks (checks dangling past
+// cluster_checks.unscheduled_check_threshold) rather than on config count, so
+// the transient startup / leader-failover / runner-rollout window — where the
+// leader is dispatching but runners have not registered yet — does not raise an
+// issue. Operators needing a longer grace raise that threshold.
 //
 // It is a no-op when health platform reporting is unavailable.
 func (d *dispatcher) checkCLCRunnersHealth() {
@@ -29,8 +33,8 @@ func (d *dispatcher) checkCLCRunnersHealth() {
 	clcRunnerCount, nodeAgentCount := d.store.countNodeTypes()
 	stats := d.getStats()
 
-	if clcRunnerCount == 0 && nodeAgentCount == 0 && stats.TotalConfigs > 0 {
-		d.reportMissingCLCRunnersIssue(stats.TotalConfigs)
+	if clcRunnerCount == 0 && nodeAgentCount == 0 && stats.UnscheduledChecks > 0 {
+		d.reportMissingCLCRunnersIssue(stats.UnscheduledChecks)
 		return
 	}
 
@@ -38,10 +42,11 @@ func (d *dispatcher) checkCLCRunnersHealth() {
 }
 
 // reportMissingCLCRunnersIssue reports (or refreshes) the missing cluster check
-// runners health issue, recording how many cluster checks are stranded.
-func (d *dispatcher) reportMissingCLCRunnersIssue(pendingChecks int) {
+// runners health issue, recording how many cluster checks are stuck
+// undispatched.
+func (d *dispatcher) reportMissingCLCRunnersIssue(stuckChecks int) {
 	issue, err := (&missingclcrunners.MissingCLCRunnersIssue{}).BuildIssue(map[string]string{
-		"pending_checks": strconv.Itoa(pendingChecks),
+		"pending_checks": strconv.Itoa(stuckChecks),
 	})
 	if err != nil {
 		log.Warnf("Failed to build missing cluster check runners health issue: %v", err)
