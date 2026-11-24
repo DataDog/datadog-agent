@@ -298,16 +298,20 @@ def format_difference(item: dict, difference: dict) -> str:
     return f'metadata {field} omnibus_only={json.dumps(omnibus_only)} bazel_only={json.dumps(bazel_only)}'
 
 
+def scope_attributes(scope: dict) -> str:
+    return f'product={scope["product"]} format={scope["format"]} arch={scope["arch"]}'
+
+
 def print_report(report: dict) -> None:
     for item in report['tasks']:
         scope = f'{item["product"]}/{item["format"]}/{item["arch"]}'
         for difference in item['differences']:
-            print(f'{LOG_PREFIX} {scope} {format_difference(item, difference)}')
+            print(f'{LOG_PREFIX} {scope} {format_difference(item, difference)} {scope_attributes(item)}')
     for package in report['packages']:
         scope = f'{package["product"]}/{package["format"]}/{package["arch"]}'
         if 'files' in package:
             counts = ' '.join(f'{result}={count}' for result, count in package['files'].items())
-            print(f'{LOG_PREFIX} {scope} counts {counts}')
+            print(f'{LOG_PREFIX} {scope} counts {counts} {scope_attributes(package)}')
     summary = report['summary']
     total = summary['done'] + summary['remaining']
     print(f'{LOG_PREFIX} summary {summary["done"]}/{total} tasks complete; {summary["remaining"]} remaining')

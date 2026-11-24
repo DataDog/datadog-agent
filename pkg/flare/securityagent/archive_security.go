@@ -12,6 +12,7 @@ import (
 
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
@@ -19,18 +20,18 @@ import (
 )
 
 // CreateSecurityAgentArchive packages up the files
-func CreateSecurityAgentArchive(local bool, logFilePath string, statusComponent status.Component) (string, error) {
+func CreateSecurityAgentArchive(local bool, logFilePath string, statusComponent status.Component, client ipc.HTTPClient) (string, error) {
 	fb, err := flarehelpers.NewFlareBuilder(local, flaretypes.FlareArgs{})
 	if err != nil {
 		return "", err
 	}
-	createSecurityAgentArchive(fb, logFilePath, statusComponent)
+	createSecurityAgentArchive(fb, logFilePath, statusComponent, client)
 
 	return fb.Save()
 }
 
 // createSecurityAgentArchive packages up the files
-func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, statusComponent status.Component) {
+func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, statusComponent status.Component, client ipc.HTTPClient) {
 	ctx := context.Background()
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
@@ -51,7 +52,7 @@ func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, 
 	common.GetConfigFiles(fb, map[string]string{})
 	getComplianceFiles(ctx, fb)                          //nolint:errcheck
 	getRuntimeFiles(ctx, fb)                             //nolint:errcheck
-	common.GetExpVar(ctx, fb)                            //nolint:errcheck
+	common.GetExpVar(ctx, fb, client)                    //nolint:errcheck
 	fb.AddFileFromFunc("envvars.log", common.GetEnvVars) //nolint:errcheck
 
 	addSecurityAgentPlatformSpecificEntries(ctx, fb)
