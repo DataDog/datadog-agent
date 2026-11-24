@@ -80,7 +80,7 @@ func TestKAICreatedAndPendingWithReasons(t *testing.T) {
 	require.Equal(t, []string{"kai.podgroup.created", "kai.podgroup.pending"}, out.types())
 	pending := out.events[1]
 	assert.Equal(t, event.AlertTypeWarning, pending.AlertType)
-	assert.Equal(t, "PodGroup ns/pg pending. queue limit reached no matching node", pending.Text)
+	assert.Equal(t, "PodGroup ns/pg pending. queue limit reached no matching node.", pending.Text)
 	assert.Equal(t, "KAI PodGroup ns/pg pending", pending.Title)
 	assert.Equal(t, "kai", pending.SourceTypeName)
 	for _, tag := range []string{
@@ -91,6 +91,21 @@ func TestKAICreatedAndPendingWithReasons(t *testing.T) {
 	} {
 		requireTag(t, pending, tag)
 	}
+}
+
+func TestKAIPendingTextDoesNotEndWithRepeatedPeriods(t *testing.T) {
+	kai, out := newTestKAI(t, nil)
+
+	pg := podGroup(started.Add(-time.Hour))
+	kai.set(pg, true)
+	// The message KAI gave on a real cluster ends with two periods.
+	condition := unschedulable("gpu", after(6))
+	condition.Message = "NonPreemptibleOverQuota: Non-preemptible workload is over quota. Use a preemptible workload to go over quota.."
+	pg.SchedulingConditions = []workloadmeta.KAISchedulingCondition{condition}
+	kai.set(pg, true)
+
+	require.Equal(t, []string{"kai.podgroup.pending"}, out.types())
+	assert.Equal(t, "PodGroup ns/pg pending. NonPreemptibleOverQuota: Non-preemptible workload is over quota. Use a preemptible workload to go over quota.", out.events[0].Text)
 }
 
 func TestKAIPendingIsNotRepeatedWhileTheMessageChanges(t *testing.T) {

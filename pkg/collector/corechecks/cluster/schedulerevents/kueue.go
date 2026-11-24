@@ -50,9 +50,18 @@ var kueueTransitions = []kueueTransition{
 	{"pending", "QuotaReserved", "False", "pending", event.AlertTypeWarning},
 }
 
-// kueuePendingReasons are the reasons of an unreserved quota that mean the
-// Workload is waiting, and not that it was just created.
-var kueuePendingReasons = map[string]struct{}{"Inadmissible": {}, "Pending": {}}
+// kueueNotEvaluatedReasons are the reasons of an unreserved quota that mean the
+// scheduler has not looked at the Workload yet ("PendingEvaluation" in recent
+// Kueue versions), so it is not waiting for anything and the "created" event
+// covers it.
+//
+// Any other reason is a Workload that is waiting. Kueue has used several over
+// its versions, and keeps adding some: "Inadmissible" (queue missing or inactive),
+// "Pending" (deprecated, also used when a Workload is requeued), "WaitingForQuota"
+// (v0.20.7), "NoMatchingFlavor", "ExceedsMaxQuota", "WaitingForPreemptedWorkloads",
+// "Misconfigured", "Suspended", "WaitingForPodsReady", and others. Listing them
+// would silently drop the next one, so the check does not.
+var kueueNotEvaluatedReasons = map[string]struct{}{"PendingEvaluation": {}}
 
 var kueuePreemptingWorkloadUID = regexp.MustCompile(`(?i)\bworkload \(UID: ([^),\s]+)`)
 
@@ -61,6 +70,10 @@ var kueuePreemptingWorkloadUID = regexp.MustCompile(`(?i)\bworkload \(UID: ([^),
 type kueueState struct {
 	conditions   map[string]workloadmeta.KueueWorkloadCondition
 	clusterQueue string
+	// pendingReported is true while the Workload is waiting for quota and its
+	// "pending" event was sent (or would have been, on a follower). The reason of
+	// the wait changes while it lasts, and it must not send one event for each.
+	pendingReported bool
 }
 
 func newKueueState(w *workloadmeta.KubernetesKueueWorkload) kueueState {
@@ -118,6 +131,12 @@ func (k *kueueEvents) set(w *workloadmeta.KubernetesKueueWorkload, emit bool) {
 
 	previous, known := k.states[uid]
 	current := newKueueState(w)
+	pending := false
+	if quota, found := current.conditions["QuotaReserved"]; found && quota.Status == "False" {
+		_, notEvaluated := kueueNotEvaluatedReasons[quota.Reason]
+		pending = !notEvaluated && !previous.pendingReported
+		current.pendingReported = pending || previous.pendingReported
+	}
 	k.states[uid] = current
 	if !emit {
 		return
@@ -135,13 +154,23 @@ func (k *kueueEvents) set(w *workloadmeta.KubernetesKueueWorkload, emit bool) {
 		if !found || condition.Status != transition.status {
 			continue
 		}
-		if transition.name == "pending" {
-			if _, waiting := kueuePendingReasons[condition.Reason]; !waiting {
+		previousCondition, had := previous.conditions[transition.conditionType]
+		switch transition.name {
+		case "pending":
+			// One event per wait, whatever its reason does.
+			if !pending {
 				continue
 			}
-		}
-		if previousCondition, had := previous.conditions[transition.conditionType]; had && !conditionChanged(condition, previousCondition) {
-			continue
+		case "running":
+			// Kueue changes the reason and time of PodsReady while it stays True
+			// ("Started" to "Recovered" when the Job finishes): not a new start.
+			if had && previousCondition.Status == condition.Status {
+				continue
+			}
+		default:
+			if had && !conditionChanged(condition, previousCondition) {
+				continue
+			}
 		}
 		k.send(transition.name, transition.label, transition.alertType, w, &condition, previous)
 	}

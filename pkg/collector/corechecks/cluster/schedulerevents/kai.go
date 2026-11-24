@@ -298,7 +298,9 @@ func kaiPendingDetails(condition *workloadmeta.KAISchedulingCondition, eventTags
 	if message == "" {
 		return nil, eventTags
 	}
-	return []string{message}, eventTags
+	// KAI's messages may already end with a period (even two), so the text does
+	// not end with a repeated one.
+	return []string{strings.TrimRight(message, ".") + "."}, eventTags
 }
 
 // kaiAdmittedDetails says how long the PodGroup waited. KAI also stamps a new

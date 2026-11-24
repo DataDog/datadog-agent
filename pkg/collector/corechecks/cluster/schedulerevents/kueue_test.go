@@ -100,18 +100,115 @@ func TestKueueFollowerRecordsStateWithoutEvents(t *testing.T) {
 	assert.Equal(t, []string{"kueue.workload.running"}, out.types())
 }
 
-func TestKueuePendingOnlyForWaitingReasons(t *testing.T) {
-	kueue, out := newTestKueue(t, nil)
+// kueueWorkloadFromCluster is the Workload that Kueue v0.20.7 requeued after a
+// preemption (/tmp/kind-validation/workloads-final.yaml of a real kind cluster).
+func kueueWorkloadFromCluster(created time.Time) *workloadmeta.KubernetesKueueWorkload {
+	return kueueWorkload(created,
+		workloadmeta.KueueWorkloadCondition{
+			Type: "QuotaReserved", Status: "False", Reason: "WaitingForQuota", LastTransitionTime: after(40),
+			Message: "couldn't assign flavors to pod set main: insufficient unused quota for cpu in flavor default-flavor, 1 more needed",
+		},
+		workloadmeta.KueueWorkloadCondition{Type: "Evicted", Status: "True", Reason: "Preempted", LastTransitionTime: after(39)},
+		workloadmeta.KueueWorkloadCondition{Type: "Admitted", Status: "False", Reason: "NoReservation", LastTransitionTime: after(40)},
+	)
+}
 
+func TestKueuePendingForAnyWaitingReason(t *testing.T) {
+	// Reasons used by Kueue over its versions for QuotaReserved=False.
+	for _, reason := range []string{"WaitingForQuota", "Inadmissible", "Pending", "NoMatchingFlavor", "ExceedsMaxQuota", "WaitingForPreemptedWorkloads", "Misconfigured"} {
+		t.Run(reason, func(t *testing.T) {
+			kueue, out := newTestKueue(t, nil)
+			kueue.set(kueueWorkload(started.Add(-time.Hour)), true)
+			kueue.set(kueueWorkload(started.Add(-time.Hour), kueueCondition("QuotaReserved", "False", reason, after(6))), true)
+			require.Equal(t, []string{"kueue.workload.pending"}, out.types())
+			assert.Equal(t, event.AlertTypeWarning, out.events[0].AlertType)
+			requireTag(t, out.events[0], "kueue_pending_reason:"+reason)
+		})
+	}
+}
+
+func TestKueueWorkloadNotEvaluatedYetIsNotPending(t *testing.T) {
+	kueue, out := newTestKueue(t, nil)
 	kueue.set(kueueWorkload(started.Add(-time.Hour)), true)
-	kueue.set(kueueWorkload(started.Add(-time.Hour), kueueCondition("QuotaReserved", "False", "Other", after(5))), true)
+	kueue.set(kueueWorkload(started.Add(-time.Hour), kueueCondition("QuotaReserved", "False", "PendingEvaluation", after(5))), true)
 	assert.Empty(t, out.events)
 
-	kueue.set(kueueWorkload(started.Add(-time.Hour), kueueCondition("QuotaReserved", "False", "Inadmissible", after(6))), true)
-	require.Len(t, out.events, 1)
-	assert.Equal(t, "kueue.workload.pending", out.events[0].EventType)
-	assert.Equal(t, event.AlertTypeWarning, out.events[0].AlertType)
-	requireTag(t, out.events[0], "kueue_pending_reason:Inadmissible")
+	// Once evaluated, it waits and the event is sent once.
+	kueue.set(kueueWorkload(started.Add(-time.Hour), kueueCondition("QuotaReserved", "False", "WaitingForQuota", after(6))), true)
+	assert.Equal(t, []string{"kueue.workload.pending"}, out.types())
+}
+
+func TestKueueWaitingWorkloadSendsOnePendingEvent(t *testing.T) {
+	kueue, out := newTestKueue(t, nil)
+	kueue.set(kueueWorkload(after(5), kueueCondition("QuotaReserved", "False", "Pending", after(6))), true)
+	require.Equal(t, []string{"kueue.workload.created", "kueue.workload.pending"}, out.types())
+
+	// Updates of the wait: a new reason, message and time, still one wait.
+	kueue.set(kueueWorkload(after(5), kueueCondition("QuotaReserved", "False", "WaitingForQuota", after(8))), true)
+	kueue.set(kueueWorkload(after(5), kueueCondition("QuotaReserved", "False", "NoMatchingFlavor", after(9))), true)
+	kueue.set(kueueWorkload(after(5), kueueCondition("QuotaReserved", "False", "NoMatchingFlavor", after(9))), true)
+	assert.Equal(t, []string{"kueue.workload.created", "kueue.workload.pending"}, out.types())
+}
+
+func TestKueuePreemptedWorkloadThatIsRequeuedIsPending(t *testing.T) {
+	kueue, out := newTestKueue(t, nil)
+	kueue.set(kueueWorkload(after(5),
+		kueueCondition("QuotaReserved", "True", "QuotaReserved", after(6)),
+		kueueCondition("Admitted", "True", "Admitted", after(6)),
+	), true)
+	require.Equal(t, []string{"kueue.workload.created", "kueue.workload.quota_reserved", "kueue.workload.admitted"}, out.types())
+	out.events = nil
+
+	kueue.set(kueueWorkloadFromCluster(after(5)), true)
+	assert.Equal(t, []string{"kueue.workload.evicted", "kueue.workload.pending"}, out.types())
+	requireTag(t, out.events[1], "kueue_pending_reason:WaitingForQuota")
+
+	// Quota is reserved again, and the Workload waits again later: a new wait.
+	out.events = nil
+	kueue.set(kueueWorkload(after(5), kueueCondition("QuotaReserved", "True", "QuotaReserved", after(50))), true)
+	assert.Equal(t, []string{"kueue.workload.quota_reserved"}, out.types())
+	out.events = nil
+	kueue.set(kueueWorkloadFromCluster(after(5)), true)
+	assert.Contains(t, out.types(), "kueue.workload.pending")
+}
+
+func TestKueueFollowerDoesNotRepeatThePendingOfTheLeader(t *testing.T) {
+	kueue, out := newTestKueue(t, nil)
+	kueue.set(kueueWorkload(started.Add(-time.Hour)), false)
+	kueue.set(kueueWorkload(started.Add(-time.Hour), kueueCondition("QuotaReserved", "False", "WaitingForQuota", after(6))), false)
+	kueue.set(kueueWorkload(started.Add(-time.Hour), kueueCondition("QuotaReserved", "False", "WaitingForQuota", after(7))), true)
+	assert.Empty(t, out.events)
+}
+
+// TestKueueRunningIsNotRepeatedWhenTheWorkloadFinishes uses what Kueue v0.20.7
+// does when a Job finishes: PodsReady stays True, with the reason Recovered and
+// a new transition time, in the same second as Finished.
+func TestKueueRunningIsNotRepeatedWhenTheWorkloadFinishes(t *testing.T) {
+	kueue, out := newTestKueue(t, nil)
+	admitted := []workloadmeta.KueueWorkloadCondition{
+		kueueCondition("QuotaReserved", "True", "QuotaReserved", after(6)),
+		kueueCondition("Admitted", "True", "Admitted", after(6)),
+	}
+	kueue.set(kueueWorkload(after(5), append(admitted, kueueCondition("PodsReady", "True", "PodsReady", after(10)))...), true)
+	require.Equal(t, []string{"kueue.workload.created", "kueue.workload.quota_reserved", "kueue.workload.admitted", "kueue.workload.running"}, out.types())
+	out.events = nil
+
+	kueue.set(kueueWorkload(after(5), append(admitted,
+		kueueCondition("PodsReady", "True", "Recovered", after(50)),
+		kueueCondition("Finished", "True", "Succeeded", after(50)),
+	)...), true)
+	assert.Equal(t, []string{"kueue.workload.finished"}, out.types())
+}
+
+func TestKueueRunningAgainAfterTheWorkloadIsEvictedAndRestarted(t *testing.T) {
+	kueue, out := newTestKueue(t, nil)
+	kueue.set(kueueWorkload(after(5), kueueCondition("PodsReady", "True", "PodsReady", after(10))), true)
+	out.events = nil
+
+	kueue.set(kueueWorkload(after(5), kueueCondition("PodsReady", "False", "WaitForStart", after(20))), true)
+	assert.Empty(t, out.events)
+	kueue.set(kueueWorkload(after(5), kueueCondition("PodsReady", "True", "PodsReady", after(30))), true)
+	assert.Equal(t, []string{"kueue.workload.running"}, out.types())
 }
 
 func TestKueueEvictedByPreemption(t *testing.T) {
