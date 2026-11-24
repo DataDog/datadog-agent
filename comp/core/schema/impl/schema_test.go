@@ -36,6 +36,17 @@ properties:
     type: string
     pattern: "^https://"
     default: ""
+  additional_endpoints:
+    type: object
+    additionalProperties:
+      type: string
+    default: {}
+  logs_config:
+    type: object
+    properties:
+      enabled:
+        type: boolean
+        default: false
 `
 	testSchema        *jsonschema.Schema
 	schemaCompileOnce sync.Once
@@ -245,6 +256,60 @@ func TestValidateConfigSkipsSecretPlaceholders(t *testing.T) {
 			violations, err := v.ValidateConfig(fakeReader{schemaID: model.CoreSchema, settings: tc.settings})
 			require.NoError(t, err)
 			assert.Len(t, violations, tc.want)
+		})
+	}
+}
+
+func TestValidateYAMLSkipsNull(t *testing.T) {
+	v := newTestValidator(t)
+	violations, err := v.ValidateYAML([]byte("api_key:\ntags: ~\nlogs_config:\n"), model.CoreSchema)
+	require.NoError(t, err)
+	assert.Empty(t, violations)
+
+	violations, err = v.ValidateYAML([]byte("tags: [a, ~]\n"), model.CoreSchema)
+	require.NoError(t, err)
+	require.Len(t, violations, 1)
+	assert.Equal(t, "/tags/1", violations[0].Path)
+}
+
+func TestValidateConfigSkipsNull(t *testing.T) {
+	// the configuration ignores a null setting or section and keeps the default instead, but keeps a null within the
+	// value of a setting
+	for _, tc := range []struct {
+		name     string
+		cfg      fakeReader
+		wantPath []string
+	}{
+		{"null setting", fakeReader{settings: map[string]interface{}{"api_key": nil}}, nil},
+		{"null list setting", fakeReader{settings: map[string]interface{}{"tags": nil}}, nil},
+		{
+			"null section",
+			fakeReader{settings: map[string]interface{}{"logs_config": nil}, notSettings: map[string]bool{"logs_config": true}},
+			nil,
+		},
+		{
+			"null setting in a section",
+			fakeReader{settings: map[string]interface{}{"logs_config": map[string]interface{}{"enabled": nil}}, notSettings: map[string]bool{"logs_config": true}},
+			nil,
+		},
+		{"null list item", fakeReader{settings: map[string]interface{}{"tags": []interface{}{"a", nil}}}, []string{"/tags/1"}},
+		{
+			"null map setting entry",
+			fakeReader{settings: map[string]interface{}{"additional_endpoints": map[string]interface{}{"https://a.test": nil}}},
+			[]string{"/additional_endpoints/https:~1~1a.test"},
+		},
+		{"null next to a violation", fakeReader{settings: map[string]interface{}{"api_key": nil, "tags": "not a list"}}, []string{"/tags"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v := newTestValidator(t)
+			tc.cfg.schemaID = model.CoreSchema
+			violations, err := v.ValidateConfig(tc.cfg)
+			require.NoError(t, err)
+			var paths []string
+			for _, violation := range violations {
+				paths = append(paths, violation.Path)
+			}
+			assert.Equal(t, tc.wantPath, paths)
 		})
 	}
 }
