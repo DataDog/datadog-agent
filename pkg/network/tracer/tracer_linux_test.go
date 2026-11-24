@@ -3985,7 +3985,12 @@ func normalizedClassificationKey(local, remote net.Addr) netebpf.ConnTuple {
 	if ephemeral(k.Sport) && !ephemeral(k.Dport) {
 		return k
 	}
-	if (!ephemeral(k.Sport) && ephemeral(k.Dport)) || k.Dport > k.Sport {
+	flip := (!ephemeral(k.Sport) && ephemeral(k.Dport)) || k.Dport > k.Sport
+	if !flip && k.Sport == k.Dport {
+		// equal ports: normalize_tuple breaks the tie on the address
+		flip = k.Daddr_h > k.Saddr_h || (k.Daddr_h == k.Saddr_h && k.Daddr_l > k.Saddr_l)
+	}
+	if flip {
 		k.Saddr_h, k.Saddr_l, k.Daddr_h, k.Daddr_l = k.Daddr_h, k.Daddr_l, k.Saddr_h, k.Saddr_l
 		k.Sport, k.Dport = k.Dport, k.Sport
 	}
