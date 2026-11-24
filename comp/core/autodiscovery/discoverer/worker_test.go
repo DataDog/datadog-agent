@@ -222,6 +222,8 @@ func TestWorker_ServiceRemovedBetweenRetries(t *testing.T) {
 		w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond}, nil)
 		w.Start()
 		defer w.Stop()
+		releaseProbes := sync.OnceFunc(func() { close(release) })
+		defer releaseProbes()
 		w.Enqueue("svc-1", testTplDigest, "myinteg")
 		// Wait until the first DiscoverConfig call is in flight.
 		synctest.Wait()
@@ -229,7 +231,7 @@ func TestWorker_ServiceRemovedBetweenRetries(t *testing.T) {
 
 		// Simulate processDelService removing the service from activeServices.
 		lookup.remove("svc-1")
-		close(release)
+		releaseProbes()
 
 		// Wait long enough that any retry would have run.
 		time.Sleep(time.Minute)
@@ -360,14 +362,15 @@ func TestWorker_ParallelProbes_DifferentServices(t *testing.T) {
 		w := NewWorker(disco, lookup, cb.callback, Config{Workers: workers, MaxAttempts: 1, RetryDelay: 5 * time.Millisecond}, nil)
 		w.Start()
 		defer w.Stop()
+		releaseProbes := sync.OnceFunc(func() { close(release) })
+		defer releaseProbes()
 		for id := range services {
 			w.Enqueue(id, testTplDigest, "myinteg")
 		}
 
 		synctest.Wait()
-		started := inFlight.Load()
-		close(release)
-		require.Equal(t, int32(workers), started, "expected %d concurrent probes", workers)
+		require.Equal(t, int32(workers), inFlight.Load(), "expected %d concurrent probes", workers)
+		releaseProbes()
 		synctest.Wait()
 		require.Zero(t, inFlight.Load())
 		assert.Len(t, cb.snapshot(), workers)
@@ -401,15 +404,16 @@ func TestWorker_SameKeyStillSerial(t *testing.T) {
 		w := NewWorker(disco, lookup, cb.callback, Config{Workers: 4, MaxAttempts: 10, RetryDelay: 5 * time.Millisecond}, nil)
 		w.Start()
 		defer w.Stop()
+		releaseProbes := sync.OnceFunc(func() { close(release) })
+		defer releaseProbes()
 		for range 20 {
 			w.Enqueue("svc-1", testTplDigest, "myinteg")
 		}
 
 		time.Sleep(time.Minute)
 		synctest.Wait()
-		inFlightBeforeRelease := inFlight.Load()
-		close(release)
-		require.Equal(t, int32(1), inFlightBeforeRelease)
+		require.Equal(t, int32(1), inFlight.Load())
+		releaseProbes()
 		time.Sleep(time.Minute)
 		synctest.Wait()
 		require.Zero(t, inFlight.Load())
