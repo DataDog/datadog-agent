@@ -372,7 +372,7 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
         "flavor": 'Agent package flavor to install (e.g. "datadog-agent")',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
         "use_bazel_built_binaries": "Build the test binaries with Bazel first instead of building them on the fly, then execute them with gotestsum",
-        "max_retries": "Maximum number of retries for failed tests, only in e2e CI jobs where the job after_script cleans up the stacks",
+        "max_retries": "Maximum number of retries for failed tests (except Go test timeouts), only in e2e CI jobs where the job after_script cleans up the stacks",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
         "timeout": "Go test timeout (Go duration string, e.g. '1h55m'). Defaults to CI_JOB_TIMEOUT minus a teardown buffer when running in GitLab CI, otherwise to 4h.",
@@ -688,6 +688,19 @@ def run(
         washer = TestWasher(test_output_json_file=partial_result_json)
 
         if remaining_tries > 0:
+            if any(
+                line.action == ActionType.OUTPUT and line.output and "panic: test timed out after " in line.output
+                for line in washer.test_output_json.lines
+            ):
+                # A Go test timeout can leave remote commands running on the stacks that retries would reuse.
+                print(
+                    color_message(
+                        "Go test timed out; skipping retries because remote commands may still be running.",
+                        Color.ORANGE,
+                    )
+                )
+                break
+
             failed_tests = filter_only_leaf_tests(
                 (package, test_name) for package, tests in washer.get_failing_tests().items() for test_name in tests
             )

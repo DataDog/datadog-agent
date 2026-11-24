@@ -1,9 +1,16 @@
 import datetime
+import json
 import os
 import unittest
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
+from invoke.context import Context
+from invoke.exceptions import Exit
+
+from tasks.flavor import AgentFlavor
+from tasks.libs.common.gomodules import GoModule
 from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
 from tasks.new_e2e_tests import (
     DEFAULT_GO_TEST_TIMEOUT,
@@ -12,8 +19,10 @@ from tasks.new_e2e_tests import (
     _format_go_duration,
     post_process_output,
     pretty_print_logs,
+    run,
     write_result_to_log_files,
 )
+from tasks.test_core import TestResult
 
 
 class TestE2ETesting(unittest.TestCase):
@@ -207,6 +216,140 @@ class TestCreateTestSelectionGotestRegex(unittest.TestCase):
         self.assertEqual(
             create_test_selection_gotest_regex(["TestA/B", "TestA/C", "TestB/B"]), '"^(?:TestA|TestB)$/^(?:B|C)$"'
         )
+
+
+class TestE2ERetries(unittest.TestCase):
+    PACKAGE = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/script"
+
+    def setUp(self):
+        self.tmpdir = Path(self.enterContext(TemporaryDirectory()))
+        self.result_json = self.tmpdir / "results.json"
+        self.logs_folder = self.tmpdir / "logs"
+        self.ctx = Context()
+        self.enterContext(patch("tasks.new_e2e_tests.shutil.which", return_value="/usr/bin/pulumi"))
+        self.enterContext(patch("tasks.new_e2e_tests.running_in_ci", return_value=True))
+        self.enterContext(patch("tasks.new_e2e_tests._stacks_cleaned_up_by_job", return_value=True))
+        self.enterContext(patch("tasks.new_e2e_tests.tool.pulumi_env", return_value={}))
+        self.enterContext(patch("tasks.new_e2e_tests.tool.install_pulumi_plugins"))
+        self.enterContext(patch("tasks.new_e2e_tests._install_windows_testsuites"))
+        self.enterContext(patch("tasks.new_e2e_tests.schema_codegen"))
+        self.enterContext(patch("tasks.new_e2e_tests.get_commit_sha", return_value="abcdef42"))
+        self.enterContext(
+            patch("tasks.new_e2e_tests.get_default_modules", return_value={"test/new-e2e": GoModule("test/new-e2e")})
+        )
+        self.test_flavor = self.enterContext(patch("tasks.new_e2e_tests.test_flavor", side_effect=self._test_flavor))
+        self.process_result = self.enterContext(patch("tasks.new_e2e_tests.process_test_result"))
+        self.pretty_print = self.enterContext(patch("tasks.new_e2e_tests.pretty_print_logs"))
+
+    def _event(self, action, output=None, test="TestInstall/Fail", package=None):
+        event = {"Time": "2026-11-24T10:00:00Z", "Action": action, "Package": package or self.PACKAGE}
+        if output is not None:
+            event["Output"] = output
+        if test is not None:
+            event["Test"] = test
+        return event
+
+    def _failure(self, output="install failed\n"):
+        return [self._event("output", output), self._event("fail"), self._event("fail", test=None)]
+
+    def _test_flavor(self, ctx, **kwargs):
+        attempt = len(self.results)
+        self.selections.append((list(kwargs["modules"][0].test_targets), kwargs["args"]["run"]))
+        with open(kwargs["result_json"], "w") as f:
+            for event in self.outputs[attempt]:
+                f.write(json.dumps(event) + "\n")
+        result = TestResult(".")
+        result.result_json_path = kwargs["result_json"]
+        result.failed = any(event["Action"] == "fail" for event in self.outputs[attempt])
+        self.results.append(result)
+        return result
+
+    def _run_e2e(self, outputs, *, success=False, max_retries=2):
+        self.outputs = outputs
+        self.results = []
+        self.selections = []
+        self.test_flavor.reset_mock()
+        self.process_result.reset_mock()
+        self.pretty_print.reset_mock()
+        self.process_result.return_value = success
+        kwargs = {
+            "targets": ["./tests/installer/script", "./tests/other"],
+            "result_json": str(self.result_json),
+            "junit_tar": "junit.tar.gz",
+            "logs_post_processing": True,
+            "logs_folder": str(self.logs_folder),
+            "max_retries": max_retries,
+            "timeout": "10m",
+        }
+        if success:
+            run(self.ctx, **kwargs)
+        else:
+            with self.assertRaises(Exit) as error:
+                run(self.ctx, **kwargs)
+            self.assertEqual(error.exception.code, 1)
+
+        attempts = self.test_flavor.call_count
+        with self.result_json.open() as f:
+            self.assertEqual(
+                [json.loads(line) for line in f], [event for events in outputs[:attempts] for event in events]
+            )
+        self.process_result.assert_called_once_with(
+            self.ctx,
+            self.results[-1],
+            "junit.tar.gz",
+            [f"junit-out-AgentFlavor.base-{attempt}.xml" for attempt in range(attempts)],
+            AgentFlavor.base,
+            False,
+            test_system="e2e",
+        )
+        self.pretty_print.assert_called_once()
+        self.assertEqual(self.pretty_print.call_args.args[0], self.results[-1].result_json_path)
+        self.assertTrue(list(self.logs_folder.glob("*.log")))
+
+    def test_timeout_stops_all_retries_and_preserves_reports(self):
+        for test_name in (None, "TestOther"):
+            with self.subTest(test=test_name):
+                events = self._failure() + [
+                    self._event(
+                        "output",
+                        "panic: test timed out after 10m0s\nrunning tests:\n",
+                        test=test_name,
+                        package="github.com/DataDog/datadog-agent/test/new-e2e/tests/other",
+                    )
+                ]
+                self._run_e2e([events, self._failure(), self._failure()])
+                self.test_flavor.assert_called_once()
+
+    def test_timeout_during_retry_preserves_previous_attempt_results(self):
+        self._run_e2e(
+            [self._failure(), self._failure("panic: test timed out after 5m0s\n"), self._failure(), self._failure()],
+            max_retries=3,
+        )
+        self.assertEqual(self.test_flavor.call_count, 2)
+
+    def test_other_failures_are_retried(self):
+        for output in ("install failed\n", "panic: unexpected failure\n", "command timed out after 30s\n"):
+            with self.subTest(output=output):
+                self._run_e2e(
+                    [self._failure(output), [self._event("output", "install succeeded\n"), self._event("pass")]],
+                    success=True,
+                )
+                self.assertEqual(self.test_flavor.call_count, 2)
+                self.assertEqual(
+                    self.selections[1], (["tests/installer/script"], '-test.run "^(?:TestInstall)$/^(?:Fail)$"')
+                )
+
+    def test_retry_limit_is_preserved(self):
+        self._run_e2e([self._failure()] * 3)
+        self.assertEqual(self.test_flavor.call_count, 3)
+
+    def test_known_flaky_failures_are_not_retried(self):
+        self._run_e2e([self._failure("flakytest: this is a known flaky test\n")], success=True)
+        self.test_flavor.assert_called_once()
+
+    def test_timeout_without_retries_preserves_reports(self):
+        self._run_e2e([self._failure("panic: test timed out after 10m0s\n")], max_retries=0)
+        self.test_flavor.assert_called_once()
 
 
 class TestComputeGoTestTimeout(unittest.TestCase):
