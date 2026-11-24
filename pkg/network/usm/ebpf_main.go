@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -58,6 +60,10 @@ var (
 	}
 )
 
+type multiUprobeProtocol interface {
+	getUprobeAttacher() *uprobes.UprobeAttacher
+}
+
 const (
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
@@ -89,8 +95,7 @@ type ebpfProgram struct {
 	enabledProtocols  []*protocols.ProtocolSpec
 	disabledProtocols []*protocols.ProtocolSpec
 
-	buildMode    buildmode.Type
-	multiUprobes *uprobeMulti
+	buildMode buildmode.Type
 }
 
 func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
@@ -141,10 +146,8 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		}
 	}
 
-	multiUprobes := &uprobeMulti{}
 	program := &ebpfProgram{
-		multiUprobes:          multiUprobes,
-		Manager:               ddebpf.NewManager(mgr, "usm", &ebpftelemetry.ErrorsTelemetryModifier{}, multiUprobes),
+		Manager:               ddebpf.NewManager(mgr, "usm", &ebpftelemetry.ErrorsTelemetryModifier{}),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
 	}
@@ -524,11 +527,32 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	e.multiUprobes.configure(e.cfg.EnableUprobeMulti, supported, e.tailCallRouter)
+	var multiAttachers []*uprobes.UprobeAttacher
+	if e.cfg.EnableUprobeMulti {
+		for _, spec := range supported {
+			if protocol, ok := spec.Instance.(multiUprobeProtocol); ok {
+				multiAttachers = append(multiAttachers, protocol.getUprobeAttacher())
+				for _, probe := range spec.Probes {
+					if !slices.Contains(options.ExcludedFunctions, probe.EBPFFuncName) && (strings.Contains(probe.EBPFFuncName, "uprobe__") || strings.Contains(probe.EBPFFuncName, "uretprobe__")) {
+						options.UprobeMultiPrograms = append(options.UprobeMultiPrograms, probe.EBPFFuncName)
+					}
+				}
+			}
+		}
+	}
 	err := e.InitWithOptions(buf, &options)
 	if err != nil {
 		cleanup()
 	} else {
+		enabled, fallback := e.UprobeMultiStatus()
+		if fallback != nil {
+			log.Warnf("Cannot enable USM multi-uprobes; using perf uprobes: %v", fallback)
+		} else if enabled {
+			log.Info("Using multi-uprobe links for USM TLS monitoring")
+		}
+		for _, attacher := range multiAttachers {
+			attacher.UseUprobeMulti(enabled)
+		}
 		// Update the protocols lists to reflect the ones we actually enabled
 		e.enabledProtocols = supported
 		e.disabledProtocols = notSupported

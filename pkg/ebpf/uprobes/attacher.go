@@ -323,6 +323,10 @@ type ProbeManager interface {
 	GetProbe(manager.ProbeIdentificationPair) (*manager.Probe, bool)
 }
 
+// UseUprobeMulti selects grouped offsets after manager initialization has
+// selected the backend. Call before Start; the manager owns all probe resources.
+func (ua *UprobeAttacher) UseUprobeMulti(enabled bool) { ua.useUprobeMulti = enabled }
+
 // FileRegistry is an interface that defines the methods that a FileRegistry implements, so that we can replace it in tests for a mock object
 type FileRegistry interface {
 	// Register registers a file path to be tracked by the attacher for the given PID. The registry will call the activationCB when the file is opened
@@ -380,7 +384,7 @@ type UprobeAttacher struct {
 	// Used to detach them once the path is no longer used.
 	fileIDToAttachedProbes map[utils.PathIdentifier][]manager.ProbeIdentificationPair
 
-	multi *multiUprobeAttacher
+	useUprobeMulti bool
 
 	// onAttachCallback is a callback that is called whenever a probe is attached
 	onAttachCallback AttachCallback
@@ -973,9 +977,6 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 }
 
 func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, fpath utils.FilePath, fpathUID string, rule *AttachRule, inspectResult map[string]bininspect.FunctionMetadata) error {
-	if ua.multi != nil {
-		return ua.attachMultiProbeSelector(selector, fpath, rule, inspectResult)
-	}
 	_, isBestEffort := selector.(*manager.BestEffort)
 
 	for _, probeID := range selector.GetProbesIdentificationPairList() {
@@ -1006,7 +1007,17 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 			probeTypeCode = "d"
 		}
 
-		for i, location := range locationsToAttach {
+		// A multi probe owns all locations for this program/file. Legacy probes
+		// retain one manager hook per location.
+		groups := make([][]uint64, 0, len(locationsToAttach))
+		if ua.useUprobeMulti && len(locationsToAttach) != 0 {
+			groups = append(groups, locationsToAttach)
+		} else {
+			for _, location := range locationsToAttach {
+				groups = append(groups, []uint64{location})
+			}
+		}
+		for i, locations := range groups {
 			newProbeID := manager.ProbeIdentificationPair{
 				EBPFFuncName: probeID.EBPFFuncName,
 				UID:          fmt.Sprintf("%s%s%d", fpathUID, probeTypeCode, i), // Make UID unique even if we have multiple locations
@@ -1021,7 +1032,7 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 						ua.telemetry.probeAttachErrorsAttachExisting.Inc()
 						return fmt.Errorf("cannot attach running probe %v: %w", newProbeID, err)
 					}
-					ua.telemetry.attachedProbes.Inc()
+					ua.telemetry.attachedProbes.Add(float64(len(locations)))
 				}
 				if ua.config.EnableDetailedLogging {
 					log.Debugf("Probe %v already attached to %s", newProbeID, fpath.HostPath)
@@ -1032,16 +1043,19 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 			newProbe := &manager.Probe{
 				ProbeIdentificationPair: newProbeID,
 				BinaryPath:              fpath.HostPath,
-				UprobeOffset:            location,
+				UprobeOffset:            locations[0],
 				HookFuncName:            probeOpts.Symbol,
+			}
+			if ua.useUprobeMulti {
+				newProbe.UprobeOffsets = locations
 			}
 			err = ua.manager.AddHook("", newProbe)
 			if err != nil {
 				ua.telemetry.probeAttachErrorsAddHook.Inc()
 				return fmt.Errorf("error attaching probe %+v: %w", newProbe, err)
 			}
-			ua.telemetry.createdProbes.Inc()
-			ua.telemetry.attachedProbes.Inc()
+			ua.telemetry.createdProbes.Add(float64(len(locations)))
+			ua.telemetry.attachedProbes.Add(float64(len(locations)))
 
 			ebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, ua.name)
 			ua.fileIDToAttachedProbes[fpath.ID] = append(ua.fileIDToAttachedProbes[fpath.ID], newProbeID)
@@ -1095,22 +1109,18 @@ func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) (map[int]
 }
 
 func (ua *UprobeAttacher) detachFromBinary(fpath utils.FilePath) error {
-	if ua.multi != nil {
-		err := ua.detachMultiProbes(fpath)
-		ua.inspector.Cleanup(fpath)
-		return err
-	}
+	var errs error
 	for _, probeID := range ua.fileIDToAttachedProbes[fpath.ID] {
 		err := ua.manager.DetachHook(probeID)
 		if err != nil {
-			return fmt.Errorf("error detaching probe %+v: %w", probeID, err)
+			errs = errors.Join(errs, fmt.Errorf("error detaching probe %+v: %w", probeID, err))
 		}
 	}
 
 	delete(ua.fileIDToAttachedProbes, fpath.ID)
 	ua.inspector.Cleanup(fpath)
 
-	return nil
+	return errs
 }
 
 func (ua *UprobeAttacher) getLibrariesFromMapsFile(pid int) ([]string, error) {

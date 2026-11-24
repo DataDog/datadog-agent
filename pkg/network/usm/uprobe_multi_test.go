@@ -22,43 +22,11 @@ import (
 	"testing"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
-
-func TestUprobeMultiFallback(t *testing.T) {
-	for _, probeErr := range []error{ebpf.ErrNotSupported, unix.EPERM} {
-		t.Run(probeErr.Error(), func(t *testing.T) {
-			multi := &uprobeMulti{enabled: true, roots: []string{"uprobe__foo"}, supportProbe: func() error { return probeErr }}
-			mgr := &manager.Manager{}
-			opts := &manager.Options{}
-			require.NoError(t, multi.BeforeInit(mgr, names.NewModuleName("usm"), opts))
-			require.Len(t, mgr.InstructionPatchers, 1)
-			require.NoError(t, mgr.InstructionPatchers[0](mgr))
-			require.Nil(t, multi.prepared)
-			require.NoError(t, multi.AfterInit(mgr, names.NewModuleName("usm"), opts))
-			require.Nil(t, multi.loaded, "leave the initialized perf backend selected")
-		})
-	}
-}
-
-func TestUprobeMultiIncludesPrefixedTLSPrograms(t *testing.T) {
-	multi := &uprobeMulti{}
-	multi.configure(true, []*protocols.ProtocolSpec{{Instance: &nodeJSMonitor{}, Probes: nodejsSpec.Probes}}, nil)
-	for _, probe := range nodejsSpec.Probes {
-		if probe.EBPFFuncName == "kprobe__tcp_sendmsg" {
-			require.NotContains(t, multi.roots, probe.EBPFFuncName)
-			continue
-		}
-		require.Contains(t, multi.roots, probe.EBPFFuncName, "include protocol-prefixed TLS programs")
-	}
-}
 
 // TestUSMUprobeMultiHTTPS exercises the real TLS programs, patched constants,
 // shared state maps, and tail-called HTTP decoder. It is opt-in because it
@@ -88,11 +56,9 @@ func TestUSMUprobeMultiHTTPS(t *testing.T) {
 				cfg.CollectTCPv4Conns = true
 				cfg.CollectTCPv6Conns = true
 				monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
-				if multi {
-					require.NotNil(t, monitor.ebpfProgram.multiUprobes.loaded, "multi backend must load, not silently fall back")
-				} else {
-					require.Nil(t, monitor.ebpfProgram.multiUprobes.loaded)
-				}
+				enabled, fallback := monitor.ebpfProgram.UprobeMultiStatus()
+				require.NoError(t, fallback)
+				require.Equal(t, multi, enabled, "exercise the selected backend, not silent fallback")
 				server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "ok") }))
 				server.EnableHTTP2 = runtime == "go-http2"
 				server.StartTLS()
