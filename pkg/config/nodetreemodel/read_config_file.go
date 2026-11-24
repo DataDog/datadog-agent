@@ -257,7 +257,10 @@ func (c *ntmConfig) loadYamlInto(dest *nodeImpl, source model.Source, inData map
 
 		childValue, err := ToMapStringInterface(value, currPath)
 		if err != nil {
-			warnings = append(warnings, err.Error())
+			// a section with no value is valid: the nil leaf marks it as existing (see above)
+			if value != nil {
+				warnings = append(warnings, err.Error())
+			}
 			// Insert child node here as a leaf. It has the wrong type, but this maintains better
 			// compatibility with how viper works.
 			dest.InsertChildNode(key, newLeafNode(value, source))

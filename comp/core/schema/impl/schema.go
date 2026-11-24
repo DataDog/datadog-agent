@@ -155,26 +155,36 @@ func normalizeForSchema(in map[string]any) (map[string]any, error) {
 	return normalized, nil
 }
 
-// collectViolations appends a violation for every leaf of ve to out. When skipSecretPlaceholders is true, the leaves
-// whose value in data is an ENC[] secret placeholder are skipped.
+// collectViolations appends a violation for every leaf of ve to out. When cfg is set, the leaves on a null setting or
+// section are skipped. When skipSecretPlaceholders is true, the leaves whose value in data is an ENC[] secret
+// placeholder are skipped too.
 func collectViolations(ve *jsonschema.ValidationError, cfg model.Reader, data interface{}, skipSecretPlaceholders bool, out *[]*model.Violation) {
 	if len(ve.Causes) == 0 {
 		if skipSecretPlaceholders && isSecretPlaceholder(data, ve.InstanceLocation) {
 			return
 		}
 		settingKey := ""
+		// settingDepth is the number of path chunks forming settingKey
+		settingDepth := 0
 		if cfg != nil {
 			key := ""
-			for _, chunk := range jsonpointer.Pointer(ve.InstanceLocation) {
+			for i, chunk := range jsonpointer.Pointer(ve.InstanceLocation) {
 				if key != "" {
 					key += "."
 				}
 				key += chunk
 				if cfg.IsSetting(key) {
 					settingKey = key
+					settingDepth = i + 1
 					break
 				}
 			}
+		}
+		// without cfg there is no way to tell a null setting or section, ignored by the configuration, from a null
+		// within the value of a setting, kept by the configuration
+		insideSettingValue := settingKey != "" && settingDepth < len(ve.InstanceLocation)
+		if cfg != nil && !insideSettingValue && isNullMapEntry(data, ve.InstanceLocation) {
+			return
 		}
 		path := jsonpointer.Pointer(ve.InstanceLocation).String()
 		violation := &model.Violation{
@@ -223,6 +233,24 @@ func scrubMessage(message string, path string) string {
 		return fmt.Sprintf("at '%s': invalid value", path)
 	}
 	return scrubbed
+}
+
+// isNullMapEntry returns true when location is a key of an object in data holding null. The configuration ignores a
+// setting or section with a null value (e.g. a key with no value in a YAML file) and keeps its default instead.
+func isNullMapEntry(data interface{}, location []string) bool {
+	if len(location) == 0 {
+		return false
+	}
+	parent, err := jsonpointer.Pointer(location[:len(location)-1]).Eval(data)
+	if err != nil {
+		return false
+	}
+	container, ok := parent.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	value, ok := container[location[len(location)-1]]
+	return ok && value == nil
 }
 
 // isSecretPlaceholder returns true when the value at location in data is an ENC[] secret placeholder. The

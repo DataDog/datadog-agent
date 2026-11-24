@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -356,22 +358,62 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 		chunk.Origin = semantics.LookupString(reg, semantics.NewStringMapAccessor(root.Meta), semantics.ConceptDDOrigin)
 	}
 
-	if _, ok := chunk.Tags[tagDecisionMaker]; !ok {
-		for _, span := range chunk.Spans {
-			// First span wins
-			if dm, ok := span.Meta[tagDecisionMaker]; ok {
-				// A v0.7 payload that omits the "tags" key decodes with a nil
-				// map; allocate before writing to avoid panicking on it.
-				if chunk.Tags == nil {
-					chunk.Tags = make(map[string]string, 1)
-				}
-				chunk.Tags[tagDecisionMaker] = dm
-				break
+	// A chunk-level decision maker of mechanism 0 ("-0" or "0", the tracer's startup fallback) is
+	// treated as missing, so that a real decision found on the spans still replaces it. When the spans
+	// carry no decision maker, the chunk's own value is left untouched.
+	if chunkDM, ok := chunk.Tags[tagDecisionMaker]; !ok || isDefaultDecisionMaker(chunkDM) {
+		// There are downstream systems that rely on this tag being on the span,
+		// so it is copied rather than moved.
+		if dm, ok := chunkDecisionMaker(chunk.Spans); ok {
+			// A v0.7 payload that omits the "tags" key decodes with a nil
+			// map; allocate before writing to avoid panicking on it.
+			if chunk.Tags == nil {
+				chunk.Tags = make(map[string]string, 1)
 			}
-			// There are downstream systems that rely on this tag being on the span
-			// delete(span.Meta, tagDecisionMaker)
+			chunk.Tags[tagDecisionMaker] = dm
 		}
 	}
+}
+
+// chunkDecisionMaker returns the decision maker to promote from the spans of a chunk, following the
+// same rule as the V1 conversion paths: the first one whose sampling mechanism is non-zero, or else the
+// first one whose mechanism is 0 ("-0", the tracer's startup fallback, used before agent rates are
+// available). A real sampling decision made on the chunk must not be credited to the startup fallback.
+// Values that don't parse as a sampling mechanism are ignored.
+func chunkDecisionMaker(spans []*pb.Span) (string, bool) {
+	fallback, hasFallback := "", false
+	for _, span := range spans {
+		dm, ok := span.Meta[tagDecisionMaker]
+		if !ok {
+			continue
+		}
+		mechanism, ok := decisionMakerMechanism(dm)
+		if !ok {
+			continue
+		}
+		if mechanism != 0 {
+			return dm, true
+		}
+		if !hasFallback {
+			fallback, hasFallback = dm, true
+		}
+	}
+	return fallback, hasFallback
+}
+
+// decisionMakerMechanism parses a decision maker (digits, normally prefixed by "-") into its
+// sampling mechanism. It reports false when dm isn't a valid uint32 mechanism.
+func decisionMakerMechanism(dm string) (uint64, bool) {
+	digits, _ := strings.CutPrefix(dm, "-")
+	mechanism, err := strconv.ParseUint(digits, 10, 32)
+	return mechanism, err == nil
+}
+
+// isDefaultDecisionMaker reports whether dm is sampling mechanism 0 ("-0" or "0"), the tracer's
+// startup fallback, which says nothing about how the chunk was actually sampled.
+func isDefaultDecisionMaker(dm string) bool {
+	mechanism, ok := decisionMakerMechanism(dm)
+	return ok && mechanism == 0
 }
 
 // normalizeTrace takes a trace and
