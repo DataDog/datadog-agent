@@ -86,20 +86,22 @@ func TestIsLeaderIsFalseWithoutErrorWhenLeaderElectionIsOff(t *testing.T) {
 	assert.False(t, leader)
 }
 
-func TestRunKeepsUpdatesWhenLeaderIsUnknownAndSendsThemLater(t *testing.T) {
+func TestRunHandlesUpdatesAsAFollowerWhenTheLeaderIsUnknown(t *testing.T) {
 	failure := errors.New("no leader election")
 	c, sender := newTestCheck(t, func() (bool, error) { return false, failure })
 	c.queue = []workloadmeta.Event{setKueue(kueueWorkload(after(5)))}
 
 	err := c.Run()
 
-	require.ErrorIs(t, err, failure)
+	require.ErrorIs(t, err, failure, "the run is reported as failed")
 	sender.AssertNumberOfCalls(t, "Event", 0)
-	assert.Len(t, c.queue, 1, "updates wait for the next run")
-	assert.NotContains(t, c.kueue.states, "uid-1")
+	assert.Empty(t, c.queue, "the queue is drained, so it cannot grow while the leader is unknown")
+	assert.Contains(t, c.kueue.states, "uid-1", "the state is recorded")
 
-	// Once the leader is known, the waiting updates produce their events.
+	// Once the leader is known, only what changes after is sent: the creation
+	// was recorded and is not reported.
 	c.leader = func() (bool, error) { return true, nil }
+	c.queue = []workloadmeta.Event{setKueue(kueueWorkload(after(5), kueueCondition("Finished", "True", "Succeeded", after(30))))}
 	require.NoError(t, c.Run())
 	sender.AssertNumberOfCalls(t, "Event", 1)
 	assert.Empty(t, c.queue)
@@ -280,34 +282,4 @@ func TestConfigureSubscribesToTheKindsWithEventsOn(t *testing.T) {
 			assert.True(t, wmeta.unsubscribed)
 		})
 	}
-}
-
-func TestCompactQueueKeepsTheLatestSetOfEachEntityAndEveryUnset(t *testing.T) {
-	first := kueueWorkload(after(5))
-	second := kueueWorkload(after(5), kueueCondition("Admitted", "True", "Admitted", after(10)))
-	other := kueueWorkload(after(5))
-	other.EntityID.ID = "team-a/job-2"
-	other.UID = "uid-2"
-	unset := workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: other.KubernetesKueueWorkload}
-
-	compacted := compactQueue([]workloadmeta.Event{setKueue(first), setKueue(other), unset, setKueue(second)})
-
-	require.Len(t, compacted, 3)
-	assert.Same(t, other.KubernetesKueueWorkload, compacted[0].Entity)
-	assert.Equal(t, workloadmeta.EventTypeSet, compacted[0].Type)
-	assert.Equal(t, workloadmeta.EventTypeUnset, compacted[1].Type)
-	assert.Same(t, second.KubernetesKueueWorkload, compacted[2].Entity)
-}
-
-func TestRunDoesNotGrowTheQueueWhileTheLeaderIsUnknown(t *testing.T) {
-	c, _ := newTestCheck(t, func() (bool, error) { return false, errors.New("no answer") })
-
-	for i := 0; i < 50; i++ {
-		c.mu.Lock()
-		c.queue = append(c.queue, setKueue(kueueWorkload(after(5))))
-		c.mu.Unlock()
-		require.Error(t, c.Run())
-	}
-
-	assert.Len(t, c.queue, 1)
 }

@@ -156,16 +156,12 @@ func (c *Check) Run() error {
 	defer s.Commit()
 	c.sender = s
 
+	// When the leader is unknown the updates are handled as a follower would:
+	// their state is recorded and nothing is sent, so the queue is always
+	// drained. The error is the failure of the run, so it is not logged here too.
 	emit, leaderErr := c.leader()
 	if leaderErr != nil {
-		// Keep the updates for the next run. Handling them now would record
-		// their transitions as seen, and no event would be sent for them once
-		// the leader is known again. The error is the failure of the run, so it
-		// is not logged here too.
-		c.mu.Lock()
-		c.queue = compactQueue(c.queue)
-		c.mu.Unlock()
-		return leaderErr
+		emit = false
 	}
 
 	c.mu.Lock()
@@ -180,29 +176,7 @@ func (c *Check) Run() error {
 		c.kai.endBatch()
 	}
 
-	return nil
-}
-
-// compactQueue keeps the latest update of each entity and every unset, in
-// order, so that a queue that waits for the leader stays as small as the set of
-// Workloads and PodGroups. An earlier update is dropped when a later one
-// replaces it, and the transitions in between are not reported.
-func compactQueue(queue []workloadmeta.Event) []workloadmeta.Event {
-	latest := make(map[workloadmeta.EntityID]int, len(queue))
-	for i, update := range queue {
-		if update.Type == workloadmeta.EventTypeSet {
-			latest[update.Entity.GetID()] = i
-		}
-	}
-
-	compacted := queue[:0:0]
-	for i, update := range queue {
-		if update.Type == workloadmeta.EventTypeSet && latest[update.Entity.GetID()] != i {
-			continue
-		}
-		compacted = append(compacted, update)
-	}
-	return compacted
+	return leaderErr
 }
 
 func (c *Check) handle(update workloadmeta.Event, emit bool) {
