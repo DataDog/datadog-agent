@@ -336,14 +336,21 @@ func (c *OTTLContext) ottlJSONValue(value *fastjson.Value) (any, error) {
 		return result, nil
 	case fastjson.TypeObject:
 		object, _ := value.Object()
-		result := make(map[string]any, object.Len())
-		var err error
+		// Duplicate keys use the last value, as direct field access does. Shadowed
+		// values are skipped rather than converted, so they cannot fail conversion.
+		members := make(map[string]*fastjson.Value, object.Len())
 		object.Visit(func(key []byte, v *fastjson.Value) {
-			if err == nil {
-				result[string(key)], err = c.ottlJSONValue(c.replacedChild(value, ottlJSONKey{name: string(key)}, v))
-			}
+			members[string(key)] = v
 		})
-		return result, err
+		result := make(map[string]any, len(members))
+		for key, v := range members {
+			converted, err := c.ottlJSONValue(c.replacedChild(value, ottlJSONKey{name: key}, v))
+			if err != nil {
+				return nil, err
+			}
+			result[key] = converted
+		}
+		return result, nil
 	default:
 		return nil, fmt.Errorf("unsupported JSON value type %s", value.Type())
 	}
