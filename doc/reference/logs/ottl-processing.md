@@ -80,9 +80,12 @@ exclusion of malformed or non-JSON messages.
 
 String keys, integer array indexes, and computed keys are supported. Object
 fields use bracket notation. JSON integers retain `int64` precision, including
-IDs larger than 2^53. Reading an integer outside that range produces an
-evaluation error; masking a different field preserves that integer's original
-token. Duplicate keys use the last value.
+IDs larger than 2^53. Reading an integer outside that range directly produces an
+evaluation error, so IDs are never silently rounded. Inside an object or list that
+is read as a whole (for example `IsMap`, `Len`, or `String` on a parent), such an
+integer reads as a double instead, so an unrelated field cannot make a type check
+fail. Masking a different field preserves that integer's original token.
+Duplicate keys use the last value; shadowed values are ignored.
 
 The registered converters are `IsMatch`, `HasPrefix`, `HasSuffix`, `IsString`,
 `IsInt`, `IsDouble`, `IsBool`, `IsMap`, `IsList`, `Len`, `Int`, `Double`, and

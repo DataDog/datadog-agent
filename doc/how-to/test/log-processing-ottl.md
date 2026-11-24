@@ -35,7 +35,8 @@ The context exposes:
 - `attributes`: the JSON object in the message content. Nested bracket notation,
   array indexes, and computed keys are supported. Duplicate object keys use the
   last value, matching `encoding/json`. Integer values remain `int64`; integers
-  outside that range cause an evaluation error when accessed.
+  outside that range cause an evaluation error when accessed directly, and read
+  as doubles when nested inside an object or list converted as a whole.
 - `body`: the original message text, including for non-JSON logs.
 - `log.attributes` and `log.body`: aliases for those paths.
 
