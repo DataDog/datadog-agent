@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -278,6 +279,58 @@ func TestErrorLevelPreCheckMatchesReferenceRegexp(t *testing.T) {
 		`2026-11-16 10:00:00 INFO request served`, "naïve café ünïcode", "\x02level\":50",
 	} {
 		require.Equal(t, reference.MatchString(content), mayDeclareErrorLevel(content), "%q", content)
+	}
+}
+
+// TestJSONLevelMatchesMapDecoding keeps the top-level key scan equivalent to the
+// map decoding it replaced, which allocated every field to read one.
+func TestJSONLevelMatchesMapDecoding(t *testing.T) {
+	reference := func(content string) (string, bool) {
+		var fields map[string]json.RawMessage
+		if json.Unmarshal([]byte(content), &fields) != nil {
+			return "", false
+		}
+		for _, key := range jsonLevelKeys {
+			for name, raw := range fields {
+				if !strings.EqualFold(name, key) {
+					continue
+				}
+				var text string
+				if json.Unmarshal(raw, &text) == nil {
+					if level, ok := declaredLogLevel(text); ok {
+						return level, true
+					}
+				}
+				var number int
+				if json.Unmarshal(raw, &number) == nil {
+					if level, ok := pinoLevels[number]; ok {
+						return level, true
+					}
+				}
+			}
+		}
+		return "", false
+	}
+	for _, content := range []string{
+		`{}`, ` { } `, `{"level":"ERROR"}`, `{"LEVEL":"warn"}`, `{"Severity":"critical"}`, `{"log.level":"error"}`,
+		`{"levelname":"WARNING"}`, `{"lvl":"err"}`, `{"loglevel":"panic"}`, `{"level":50}`, `{"level":60,"msg":"x"}`,
+		`{"level":30}`, `{"level":3}`, `{"level":"50"}`, `{"level":50.0}`, `{"level":-50}`, `{"level":5e1}`,
+		`{"level":true}`, `{"level":null}`, `{"level":{"name":"error"}}`, `{"level":["error"]}`,
+		`{"severity":"info","level":"error"}`, `{"level":"bogus","severity":"error"}`, `{"level":"info","level":"error"}`,
+		`{"meta":{"level":"error"},"level":"info"}`, `{"msg":"level: error","x":[1,{"level":"error"}]}`,
+		`{"msg":"quote \" and brace } inside","level":"error"}`, `{"lev\u0065l":"error"}`, `{"level":"err\u006fr"}`,
+		"{\n\t\"level\" :\t\"error\" ,\r\n\"msg\":\"x\"\n}", `{"time":1,"msg":"done","lvl":"WARN"}`,
+		`{"message":"ERROR: fake level inside message"}`, `{"level":"info"} trailing text`, `{"level":`,
+	} {
+		content := strings.TrimSpace(content)
+		wantLevel, wantOK := reference(content)
+		var gotLevel string
+		var gotOK bool
+		if json.Valid([]byte(content)) {
+			gotLevel, gotOK = jsonLogLevel(content)
+		}
+		require.Equal(t, wantOK, gotOK, "%q", content)
+		require.Equal(t, wantLevel, gotLevel, "%q", content)
 	}
 }
 

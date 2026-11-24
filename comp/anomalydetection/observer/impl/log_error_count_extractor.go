@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"encoding/json"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
@@ -190,7 +191,8 @@ var levelWords = []string{"TRACE", "DEBUG", "INFO", "NOTICE", "WARNING", "WARN",
 
 const applicationLevelHeaderBytes = 256
 
-var jsonLevelKeys = []string{"level", "severity", "log.level", "levelname", "lvl", "loglevel"}
+// jsonLevelKeys are read in priority order, ignoring key case.
+var jsonLevelKeys = [...]string{"level", "severity", "log.level", "levelname", "lvl", "loglevel"}
 
 var klogLevels = map[string]string{"I": "info", "W": "warn", "E": "error", "F": "fatal"}
 
@@ -202,11 +204,8 @@ func applicationLogSeverity(log observerdef.LogView) (string, bool) {
 	if len(content) > 16384 {
 		return "", false
 	}
-	if strings.HasPrefix(content, "{") {
-		var fields map[string]json.RawMessage
-		if json.Unmarshal([]byte(content), &fields) == nil {
-			return jsonLogLevel(fields)
-		}
+	if strings.HasPrefix(content, "{") && json.Valid([]byte(content)) {
+		return jsonLogLevel(content)
 	}
 	if match := klogLevelPattern.FindStringSubmatch(content); match != nil {
 		return klogLevels[match[1]], true
@@ -294,28 +293,102 @@ func levelWord(word string) (string, bool) {
 	return "", false
 }
 
-// jsonLogLevel reads the first recognized level key, ignoring key case.
-func jsonLogLevel(fields map[string]json.RawMessage) (string, bool) {
-	for _, key := range jsonLevelKeys {
-		for name, raw := range fields {
-			if !strings.EqualFold(name, key) {
-				continue
+// jsonLogLevel reads the first recognized top-level level key from a valid JSON
+// object without decoding the object into a map. A repeated key's last value
+// wins, as in map decoding.
+func jsonLogLevel(object string) (string, bool) {
+	var values [len(jsonLevelKeys)]string
+	for i := skipJSONSpace(object, 1); object[i] != '}'; {
+		keyEnd := jsonValueEnd(object, i)
+		key := object[i+1 : keyEnd-1]
+		if strings.IndexByte(key, '\\') >= 0 {
+			key = unquoteJSON(object[i:keyEnd])
+		}
+		valueStart := skipJSONSpace(object, skipJSONSpace(object, keyEnd)+1)
+		valueEnd := jsonValueEnd(object, valueStart)
+		for p, want := range jsonLevelKeys {
+			if strings.EqualFold(key, want) {
+				values[p] = object[valueStart:valueEnd]
 			}
-			var text string
-			if json.Unmarshal(raw, &text) == nil {
-				if level, ok := declaredLogLevel(text); ok {
-					return level, true
-				}
-			}
-			var number int
-			if json.Unmarshal(raw, &number) == nil {
-				if level, ok := pinoLevels[number]; ok {
-					return level, true
-				}
-			}
+		}
+		if i = skipJSONSpace(object, valueEnd); object[i] == ',' {
+			i = skipJSONSpace(object, i+1)
+		}
+	}
+	for _, raw := range values {
+		if level, ok := jsonLevelValue(raw); ok {
+			return level, true
 		}
 	}
 	return "", false
+}
+
+// jsonLevelValue accepts a recognized level string or an integer pino/bunyan level.
+func jsonLevelValue(raw string) (string, bool) {
+	if raw == "" {
+		return "", false
+	}
+	if raw[0] == '"' {
+		text := raw[1 : len(raw)-1]
+		if strings.IndexByte(text, '\\') >= 0 {
+			text = unquoteJSON(raw)
+		}
+		return declaredLogLevel(text)
+	}
+	number, err := strconv.Atoi(raw)
+	if err != nil {
+		return "", false
+	}
+	level, ok := pinoLevels[number]
+	return level, ok
+}
+
+// unquoteJSON decodes a valid JSON string literal that contains escapes. It is a
+// separate function so the common unescaped path does not allocate.
+func unquoteJSON(literal string) string {
+	var text string
+	_ = json.Unmarshal([]byte(literal), &text)
+	return text
+}
+
+// jsonValueEnd returns the index just past the valid JSON value at s[i].
+func jsonValueEnd(s string, i int) int {
+	depth := 0
+	for j := i; j < len(s); j++ {
+		switch s[j] {
+		case '"':
+			for j++; s[j] != '"'; j++ {
+				if s[j] == '\\' {
+					j++
+				}
+			}
+			if depth == 0 {
+				return j + 1
+			}
+		case '{', '[':
+			depth++
+		case '}', ']':
+			depth--
+			if depth == 0 {
+				return j + 1
+			}
+			if depth < 0 {
+				return j // a scalar ended at the enclosing object's closing brace
+			}
+		case ',', ' ', '\t', '\n', '\r':
+			if depth == 0 {
+				return j
+			}
+		}
+	}
+	return len(s)
+}
+
+func skipJSONSpace(s string, i int) int {
+	for i < len(s) && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
+		i++
+	}
+	return i
 }
 
 func declaredLogLevel(value string) (string, bool) {
