@@ -20,17 +20,21 @@ import (
 )
 
 func TestLogErrorCountSeverity(t *testing.T) {
-	for status, want := range map[string]float64{
-		"error": 1, " ERROR ": 1, "critical": 1, "fatal": 1, "alert": 1, "emergency": 1,
-		"warn": 0, "info": 0, "debug": 0, "trace": 0,
+	for status, counted := range map[string]bool{
+		"error": true, " ERROR ": true, "critical": true, "fatal": true, "alert": true, "emergency": true,
+		"warn": false, "info": false, "debug": false, "trace": false,
 	} {
 		t.Run(status, func(t *testing.T) {
 			out := (&LogErrorCountExtractor{}).ProcessLog(&logObs{source: "datadog-agent",
 				status: status, content: "error in the text does not determine severity",
 				tags: []string{"service:api", "env:prod", "container_id:123", "source:java", "level:" + status},
 			})
+			if !counted {
+				require.Empty(t, out.Metrics, "non-error logs create no error-count series")
+				return
+			}
 			require.Len(t, out.Metrics, 1)
-			require.Equal(t, want, out.Metrics[0].Value)
+			require.Equal(t, 1.0, out.Metrics[0].Value)
 			require.True(t, out.Metrics[0].Tags.Find(func(tag string) bool { return tag == "service:api" }))
 			require.True(t, out.Metrics[0].Tags.Find(func(tag string) bool { return tag == "env:prod" }))
 			require.Equal(t, 2, out.Metrics[0].Tags.Len())
@@ -58,7 +62,7 @@ func errorCountTestSeries(e *engine, service string) *observerdef.Series {
 func TestLogErrorCountPoolsPatternsBeforeFirstError(t *testing.T) {
 	e := newErrorCountTestEngine()
 	// Pattern bucketization remains disabled. Container and pattern changes
-	// must not create fresh error-count series or reset their histories.
+	// must not split the error count; non-error logs contribute nothing.
 	for _, input := range []struct {
 		sec                        int64
 		status, content, container string
@@ -74,7 +78,7 @@ func TestLogErrorCountPoolsPatternsBeforeFirstError(t *testing.T) {
 	e.Advance(114)
 	series := errorCountTestSeries(e, "api")
 	require.NotNil(t, series)
-	require.Equal(t, []observerdef.Point{{Timestamp: 104, Value: 0}, {Timestamp: 109, Value: 0}, {Timestamp: 114, Value: 2}}, series.Points)
+	require.Equal(t, []observerdef.Point{{Timestamp: 114, Value: 2}}, series.Points)
 	meta := e.storage.ListSeries(observerdef.WorkloadSeriesFilter())
 	require.Len(t, meta, 1)
 	require.True(t, e.storage.SupportsAggregate(meta[0].Ref, observerdef.AggregateAverage))
@@ -90,7 +94,7 @@ func TestLogErrorCountMissingIntervalsAndServiceIsolation(t *testing.T) {
 	e.Advance(199)
 	e.IngestLog("logs", &logObs{source: "datadog-agent", timestampMs: 201_000, status: "error", tags: []string{"service:api"}})
 	e.Advance(204)
-	require.Equal(t, []observerdef.Point{{Timestamp: 104, Value: 0}, {Timestamp: 204, Value: 1}}, errorCountTestSeries(e, "api").Points)
+	require.Equal(t, []observerdef.Point{{Timestamp: 204, Value: 1}}, errorCountTestSeries(e, "api").Points)
 	require.Equal(t, []observerdef.Point{{Timestamp: 104, Value: 1}}, errorCountTestSeries(e, "worker").Points)
 	// Completed history must never be rewritten by late errors.
 	e.IngestLog("logs", &logObs{source: "datadog-agent", timestampMs: 102_000, status: "error", tags: []string{"service:api"}})
@@ -104,9 +108,9 @@ func TestLogErrorCountDoesNotInheritPatternIdleZeros(t *testing.T) {
 		extractors:      []observerdef.LogMetricsExtractor{&LogErrorCountExtractor{}, &fixedLogCountExtractor{}},
 		logCountBuckets: LogCountBucketConfig{Enabled: true, BucketSeconds: 10, IdleTTLSeconds: 60},
 	})
-	e.IngestLog("logs", &logObs{source: "datadog-agent", timestampMs: 101_000, status: "info", tags: []string{"service:api"}})
+	e.IngestLog("logs", &logObs{source: "datadog-agent", timestampMs: 101_000, status: "error", tags: []string{"service:api"}})
 	e.Advance(170)
-	require.Equal(t, []observerdef.Point{{Timestamp: 104, Value: 0}}, errorCountTestSeries(e, "api").Points)
+	require.Equal(t, []observerdef.Point{{Timestamp: 104, Value: 1}}, errorCountTestSeries(e, "api").Points)
 	patterns := e.storage.GetSeries("fixed_log_count", "log.fixed.count",
 		[]string{"observer_source:logs", "service:api"}, observerdef.AggregateAverage)
 	require.Greater(t, len(patterns.Points), 1, "existing pattern idle-zero behavior is preserved")
@@ -117,13 +121,18 @@ func TestLogErrorCountPendingBoundsAndReset(t *testing.T) {
 	telComp := telemetryimpl.NewMock(t)
 	tel := newObserverTelemetry(telComp)
 	e.onErrorCountCapacityHit = tel.recordErrorCountCapacityHit
+	// Non-error logs take no pending state, so they cannot crowd out errors.
 	for i := 0; i < 300; i++ {
-		e.IngestLog("logs", &logObs{source: "datadog-agent", status: "info", timestampMs: 100_000, tags: []string{fmt.Sprintf("service:s%d", i)}})
+		e.IngestLog("logs", &logObs{source: "datadog-agent", status: "info", timestampMs: 100_000, tags: []string{fmt.Sprintf("service:quiet%d", i)}})
+	}
+	require.Empty(t, e.errorCounts.series)
+	for i := 0; i < 300; i++ {
+		e.IngestLog("logs", &logObs{source: "datadog-agent", status: "error", timestampMs: 100_000, tags: []string{fmt.Sprintf("service:s%d", i)}})
 	}
 	require.Len(t, e.errorCounts.series, 256)
 	require.Equal(t, 44.0, observerMetric(t, telComp, telemetryErrorCountCapacityDropped, nil).GetCounter().GetValue())
 	for sec := int64(105); sec < 200; sec += 5 {
-		e.IngestLog("logs", &logObs{source: "datadog-agent", status: "info", timestampMs: sec * 1000, tags: []string{"service:s0"}})
+		e.IngestLog("logs", &logObs{source: "datadog-agent", status: "error", timestampMs: sec * 1000, tags: []string{"service:s0"}})
 	}
 	for _, state := range e.errorCounts.series {
 		require.LessOrEqual(t, len(state.values), 2)
@@ -363,9 +372,9 @@ func TestLogErrorCountEvictionAndReplayReset(t *testing.T) {
 	require.Empty(t, e.errorCounts.series)
 	// Replaying earlier timestamps must not inherit a previous run's watermark.
 	require.NoError(t, e.ResetForReplay(nil, nil, nil, []observerdef.LogMetricsExtractor{&LogErrorCountExtractor{}}, StorageConfig{}, BaselineConfig{}))
-	e.IngestLog("logs", &logObs{source: "datadog-agent", timestampMs: 100_000, status: "info", tags: []string{"service:api"}})
+	e.IngestLog("logs", &logObs{source: "datadog-agent", timestampMs: 100_000, status: "error", tags: []string{"service:api"}})
 	e.Advance(104)
-	require.Equal(t, []observerdef.Point{{Timestamp: 104, Value: 0}}, errorCountTestSeries(e, "api").Points)
+	require.Equal(t, []observerdef.Point{{Timestamp: 104, Value: 1}}, errorCountTestSeries(e, "api").Points)
 }
 
 func BenchmarkLogErrorCountIngest(b *testing.B) {

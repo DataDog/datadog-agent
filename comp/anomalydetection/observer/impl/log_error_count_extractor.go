@@ -23,9 +23,9 @@ const LogErrorCountExtractorName = "log_error_count_extractor"
 const logErrorCountMetric = "log.errors.count"
 
 // LogErrorCountExtractor counts accepted error-or-higher logs across patterns.
-// Non-error logs contribute zero, establishing history before the first error.
-// The engine sums these contributions into completed five-second intervals;
-// intervals without accepted logs are unknown and are not synthesized as zero.
+// Only errors contribute: log_failure counts error intervals and has no use for
+// zero history, so a scope that never errors creates no series or pending state.
+// The engine sums contributions into completed five-second intervals.
 type LogErrorCountExtractor struct{}
 
 // Name returns the extractor's storage namespace and catalog identifier.
@@ -36,7 +36,7 @@ func (*LogErrorCountExtractor) Name() string { return LogErrorCountExtractorName
 // severity tags must not split the aggregate's baseline.
 func (*LogErrorCountExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
 	severity, known := applicationLogSeverity(log)
-	if !known {
+	if !known || logsfilter.BucketForStatus(severity) < logsfilter.ErrorPriority {
 		return observerdef.LogMetricsExtractorOutput{}
 	}
 	tags := make([]string, 0, 2)
@@ -45,12 +45,8 @@ func (*LogErrorCountExtractor) ProcessLog(log observerdef.LogView) observerdef.L
 			tags = append(tags, tag)
 		}
 	}
-	value := 0.0
-	if logsfilter.BucketForStatus(severity) >= logsfilter.ErrorPriority {
-		value = 1
-	}
 	return observerdef.LogMetricsExtractorOutput{Metrics: []observerdef.MetricOutput{{
-		Name: logErrorCountMetric, Value: value, Tags: tagset.CompositeTagsFromSlice(tags), MetricType: metrics.CountType,
+		Name: logErrorCountMetric, Value: 1, Tags: tagset.CompositeTagsFromSlice(tags), MetricType: metrics.CountType,
 	}}}
 }
 
@@ -173,7 +169,7 @@ func (b *materializedLogCountBucketizer) hasErrorCountCapacity(seriesKey uint64,
 }
 
 // Explicit application severity takes precedence over transport status. Container
-// stderr is not an application error level. Unknown logs establish no zero history.
+// stderr is not an application error level.
 // Parsing is bounded; production defaults leave this experimental extractor off.
 //
 // Text levels are read only from the line header, where loggers put them: klog
