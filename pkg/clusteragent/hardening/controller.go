@@ -20,6 +20,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -100,11 +101,15 @@ func (c *Controller) reconcile(ctx context.Context) {
 	}
 	now := c.now()
 	for _, req := range c.store.List() {
-		if ctx.Err() != nil {
-			return
-		}
 		if err := c.reconcileRequest(ctx, req, now); err != nil {
 			log.Warnf("hardening request %s: will retry: %v", req.ID, err)
+		}
+		// Checked after, not before: a request already in flight finishes
+		// (Run() promises one full reconcile pass even with an already-done
+		// ctx), but a shutdown signalled mid-loop still skips the rest
+		// rather than logging bogus "will retry" warnings for them.
+		if ctx.Err() != nil {
+			return
 		}
 	}
 }
@@ -165,6 +170,14 @@ func (c *Controller) reconcileRequest(ctx context.Context, req *Request, now tim
 	sc, reason := Render(req, &d.Spec.Template.Spec)
 	if reason != "" {
 		c.reject(req, reason)
+		return nil
+	}
+	if reason := rolloutSafetyReason(d); reason != "" {
+		c.reject(req, reason)
+		return nil
+	}
+	if d.Spec.Paused {
+		log.Debugf("hardening request %s: waiting for %s/%s to be resumed", req.ID, d.Namespace, d.Name)
 		return nil
 	}
 	if rolloutInProgress(d) {
@@ -242,6 +255,43 @@ func (c *Controller) patch(ctx context.Context, d *appsv1.Deployment, pt types.P
 	}
 	_, err = c.client.AppsV1().Deployments(d.Namespace).Patch(ctx, d.Name, pt, data, opts)
 	return err
+}
+
+// defaultMaxUnavailable is the Deployment controller's default RollingUpdate
+// maxUnavailable, used when the Deployment leaves the field unset.
+var defaultMaxUnavailable = intstr.FromString("25%")
+
+// rolloutSafetyReason reports why d's rollout strategy cannot be trusted to
+// roll back a failing trial, or "" when it can: a plain RollingUpdate always
+// keeps at least one replica on the old (unhardened) template while the
+// Deployment controller notices the new one is unhealthy, so it undoes the
+// change on its own. Recreate tears down every replica before starting new
+// ones, and a RollingUpdate whose maxUnavailable covers every replica does
+// the same in effect, so neither has that safety net.
+func rolloutSafetyReason(d *appsv1.Deployment) string {
+	if d.Spec.Strategy.Type == appsv1.RecreateDeploymentStrategyType {
+		return "deployment uses the Recreate strategy, so a failing trial would take every pod down"
+	}
+	replicas := int32(1)
+	if d.Spec.Replicas != nil {
+		replicas = *d.Spec.Replicas
+	}
+	if replicas == 0 {
+		return "" // nothing to take down
+	}
+	maxUnavailable := &defaultMaxUnavailable
+	if ru := d.Spec.Strategy.RollingUpdate; ru != nil && ru.MaxUnavailable != nil {
+		maxUnavailable = ru.MaxUnavailable
+	}
+	// Round down, as the Deployment controller itself does.
+	n, err := intstr.GetScaledValueFromIntOrPercent(maxUnavailable, int(replicas), false)
+	if err != nil {
+		return fmt.Sprintf("cannot resolve maxUnavailable: %v", err)
+	}
+	if n >= int(replicas) {
+		return "maxUnavailable allows every pod to be down"
+	}
+	return ""
 }
 
 // rolloutInProgress reports whether d has not finished rolling out its current

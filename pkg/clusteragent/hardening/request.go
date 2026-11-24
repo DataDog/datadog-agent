@@ -93,10 +93,23 @@ func (r *Request) Active(now time.Time) bool {
 	return r.Action == ActionTrial && now.Before(r.ExpiresAt)
 }
 
-var (
-	idPattern         = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
-	capabilityPattern = regexp.MustCompile(`^[A-Z_]{1,64}$`)
-)
+var idPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
+
+// knownCapabilities is the set of Linux capability names (without the CAP_
+// prefix) that parseRequest accepts. ALL is deliberately not a member.
+var knownCapabilities = map[string]bool{
+	"CHOWN": true, "DAC_OVERRIDE": true, "DAC_READ_SEARCH": true, "FOWNER": true,
+	"FSETID": true, "KILL": true, "SETGID": true, "SETUID": true, "SETPCAP": true,
+	"LINUX_IMMUTABLE": true, "NET_BIND_SERVICE": true, "NET_BROADCAST": true,
+	"NET_ADMIN": true, "NET_RAW": true, "IPC_LOCK": true, "IPC_OWNER": true,
+	"SYS_MODULE": true, "SYS_RAWIO": true, "SYS_CHROOT": true, "SYS_PTRACE": true,
+	"SYS_PACCT": true, "SYS_ADMIN": true, "SYS_BOOT": true, "SYS_NICE": true,
+	"SYS_RESOURCE": true, "SYS_TIME": true, "SYS_TTY_CONFIG": true, "MKNOD": true,
+	"LEASE": true, "AUDIT_WRITE": true, "AUDIT_CONTROL": true, "SETFCAP": true,
+	"MAC_OVERRIDE": true, "MAC_ADMIN": true, "SYSLOG": true, "WAKE_ALARM": true,
+	"BLOCK_SUSPEND": true, "AUDIT_READ": true, "PERFMON": true, "BPF": true,
+	"CHECKPOINT_RESTORE": true,
+}
 
 // parseRequest decodes and validates one request. Unknown fields are rejected so
 // that a payload this version does not understand is never half-applied.
@@ -117,7 +130,7 @@ func parseRequest(raw []byte, clusterID string) (*Request, error) {
 	case ControlCapabilities:
 		for i, c := range r.Parameters.CapabilitiesAdd {
 			c = normalizeCapability(c)
-			if !capabilityPattern.MatchString(c) || c == "ALL" {
+			if !knownCapabilities[c] {
 				return nil, fmt.Errorf("request %s: invalid capability %q", r.ID, r.Parameters.CapabilitiesAdd[i])
 			}
 			r.Parameters.CapabilitiesAdd[i] = c
@@ -133,7 +146,7 @@ func parseRequest(raw []byte, clusterID string) (*Request, error) {
 	if t.Kind != "Deployment" {
 		return nil, fmt.Errorf("request %s: unsupported kind %q", r.ID, t.Kind)
 	}
-	if t.Namespace == "" || t.Name == "" || t.UID == "" || t.Container == "" {
+	if t.Cluster == "" || t.Namespace == "" || t.Name == "" || t.UID == "" || t.Container == "" {
 		return nil, fmt.Errorf("request %s: incomplete target", r.ID)
 	}
 	if t.Cluster != clusterID {
