@@ -253,6 +253,30 @@ func TestSetFieldValue(t *testing.T) {
 					t.Errorf("unable to get the expected value: %v", err)
 				}
 			}
+		case reflect.Map:
+			err = event.SetFieldValue(field, map[string]string{"KEY": "aaa"})
+			if err != nil {
+				if errors.As(err, &readOnlyError) {
+					continue
+				}
+				t.Error(err)
+			}
+			dict, err := event.GetFieldValue(field)
+			if err != nil {
+				t.Errorf("unable to get the expected `%s` value: %v", field, err)
+			}
+			switch v := dict.(type) {
+			case map[string]string:
+				if v["KEY"] != "aaa" {
+					t.Errorf("unable to get the expected `%s` value: %v", field, v)
+				}
+			case []map[string]string:
+				if len(v) == 0 || v[0]["KEY"] != "aaa" {
+					t.Errorf("unable to get the expected `%s` value: %v", field, v)
+				}
+			default:
+				t.Errorf("unable to get the expected `%s` value: %v", field, v)
+			}
 		default:
 			t.Errorf("type of field %s unknown: %v", field, kind)
 		}
