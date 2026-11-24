@@ -371,3 +371,60 @@ func TestExpvarExist(t *testing.T) {
 	)
 	assert.NotNil(t, expvar.Get("inventories"))
 }
+
+func TestGetPayloadCapsLogsMetadata(t *testing.T) {
+	ic := getTestInventoryChecks(t,
+		option.None[collector.Component](),
+		option.None[logagent.Component](),
+		map[string]any{
+			"inventories_configuration_enabled":        true,
+			"inventories_checks_configuration_enabled": true,
+		},
+	)
+	ic.maxLogsMetadataEntries = 3
+
+	logSources := sources.NewLogSources()
+	newSource := func(name string, i int, inError bool) {
+		src := sources.NewLogSource(name, &logConfig.LogsConfig{
+			Type:              logConfig.FileType,
+			Path:              fmt.Sprintf("/var/log/%s/%d.log", name, i),
+			IntegrationSource: fmt.Sprintf("%s-%d", name, i),
+		})
+		if inError {
+			src.Status().Error(errors.New("broken"))
+		} else {
+			src.Status().Success()
+		}
+		logSources.AddSource(src)
+	}
+	// 2 sources in error before 2 working ones, for the same name
+	for i := range 4 {
+		newSource("container_collect_all", i, i < 2)
+	}
+	// under the cap
+	for i := range 3 {
+		newSource("redisdb", i, false)
+	}
+	ic.sources.Set(logSources)
+
+	p := ic.getPayloadWithConfigs().(*Payload)
+
+	cca := p.LogsMetadata["container_collect_all"]
+	require.Len(t, cca, 3)
+	// working sources are kept first, then sources in error, in their original order
+	var kept []string
+	for _, m := range cca {
+		kept = append(kept, m["integration_source"].(string))
+	}
+	assert.Equal(t, []string{"container_collect_all-2", "container_collect_all-3", "container_collect_all-0"}, kept)
+	assert.Len(t, p.LogsMetadata["redisdb"], 3)
+	assert.Equal(t, map[string]int{"container_collect_all": 1}, p.LogsMetadataTruncated)
+
+	// the truncation count is only serialized when something was dropped
+	ic.maxLogsMetadataEntries = 10
+	p = ic.getPayloadWithConfigs().(*Payload)
+	assert.Nil(t, p.LogsMetadataTruncated)
+	b, err := p.MarshalJSON()
+	require.NoError(t, err)
+	assert.NotContains(t, string(b), "logs_metadata_truncated")
+}
