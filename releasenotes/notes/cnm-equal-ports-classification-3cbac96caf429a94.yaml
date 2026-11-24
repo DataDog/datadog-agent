@@ -2,6 +2,6 @@
 fixes:
   - |
     Fixed Cloud Network Monitoring and Universal Service Monitoring protocol
-    classification for connections whose source and destination ports are
-    equal (for example IKE 500 to 500). The end of such a connection that only
-    received data was reported with an unknown protocol.
+    classification for TCP connections whose source and destination ports are
+    equal. The end of such a connection that only received data was reported
+    with an unknown protocol.
