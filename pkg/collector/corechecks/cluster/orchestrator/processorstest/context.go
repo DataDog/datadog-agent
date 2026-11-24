@@ -9,8 +9,6 @@
 package processorstest
 
 import (
-	"github.com/benbjohnson/clock"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
@@ -21,7 +19,6 @@ type ProcessorContext struct {
 	AgentVersion        *model.AgentVersion
 	APIVersion          string
 	Kind                string
-	Clock               *clock.Mock
 	ClusterID           string
 	CollectorGroup      string
 	CollectorName       string
@@ -54,7 +51,6 @@ func NewProcessorContext() *ProcessorContext {
 		},
 		APIVersion:       "apiGroup/v1",
 		Kind:             "ResourceKind",
-		Clock:            clock.NewMock(),
 		ClusterID:        "cluster-id",
 		CollectorGroup:   "apiGroup",
 		CollectorName:    "resources",
@@ -85,11 +81,6 @@ func (pc *ProcessorContext) GetAgentVersion() *model.AgentVersion {
 //nolint:revive
 func (pc *ProcessorContext) GetAPIVersion() string {
 	return pc.APIVersion
-}
-
-//nolint:revive
-func (pc *ProcessorContext) GetClock() clock.Clock {
-	return pc.Clock
 }
 
 //nolint:revive

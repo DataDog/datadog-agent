@@ -9,6 +9,7 @@ package k8s
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -109,36 +110,38 @@ func TestSecretCollector(t *testing.T) {
 // the cache transform cannot be registered, which happens when the shared
 // informer was already started.
 func TestSecretCollectorFailsClosed(t *testing.T) {
-	metadataScheme := runtime.NewScheme()
-	require.NoError(t, metav1.AddMetaToScheme(metadataScheme))
-	metadataClient := metafake.NewSimpleMetadataClient(metadataScheme, newTestSecret())
-	metadataInformerFactory := metadatainformer.NewSharedInformerFactory(metadataClient, 300*time.Second)
+	synctest.Test(t, func(t *testing.T) {
+		metadataScheme := runtime.NewScheme()
+		require.NoError(t, metav1.AddMetaToScheme(metadataScheme))
+		metadataClient := metafake.NewSimpleMetadataClient(metadataScheme, newTestSecret())
+		metadataInformerFactory := metadatainformer.NewSharedInformerFactory(metadataClient, 300*time.Second)
 
-	// Start the informer before the collector gets to set its transform.
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-	informer := metadataInformerFactory.ForResource(secretGVR).Informer()
-	metadataInformerFactory.Start(stopCh)
-	require.True(t, cache.WaitForCacheSync(stopCh, informer.HasSynced))
+		// Start the informer before the collector gets to set its transform.
+		stopCh := make(chan struct{})
+		defer close(stopCh)
+		informer := metadataInformerFactory.ForResource(secretGVR).Informer()
+		metadataInformerFactory.Start(stopCh)
+		require.True(t, cache.WaitForCacheSync(stopCh, informer.HasSynced))
 
-	rcfg := &collectors.CollectorRunConfig{
-		K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
-			OrchestratorInformerFactory: &collectors.OrchestratorInformerFactory{
-				SecretMetadataInformerFactory: metadataInformerFactory,
+		rcfg := &collectors.CollectorRunConfig{
+			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+				OrchestratorInformerFactory: &collectors.OrchestratorInformerFactory{
+					SecretMetadataInformerFactory: metadataInformerFactory,
+				},
 			},
-		},
-	}
+		}
 
-	collector := NewSecretCollector()
-	collector.Init(rcfg)
+		collector := NewSecretCollector()
+		collector.Init(rcfg)
 
-	result, err := collector.Run(rcfg)
-	assert.Error(t, err)
-	assert.Nil(t, result)
+		result, err := collector.Run(rcfg)
+		assert.Error(t, err)
+		assert.Nil(t, result)
 
-	result, err = collector.Process(rcfg, []*metav1.PartialObjectMetadata{newTestSecret()})
-	assert.Error(t, err)
-	assert.Nil(t, result)
+		result, err = collector.Process(rcfg, []*metav1.PartialObjectMetadata{newTestSecret()})
+		assert.Error(t, err)
+		assert.Nil(t, result)
+	})
 }
 
 func TestTrimSecretMetadata(t *testing.T) {

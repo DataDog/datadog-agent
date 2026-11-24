@@ -11,7 +11,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	jsoniter "github.com/json-iterator/go"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -44,7 +43,6 @@ type ProcessorContext interface {
 	GetCollectorName() string
 	GetCollectorTags() []string
 	GetAgentVersion() *model.AgentVersion
-	GetClock() clock.Clock
 }
 
 // BaseProcessorContext is the base context for all processors
@@ -61,7 +59,6 @@ type BaseProcessorContext struct {
 	CollectorTags       []string
 	TerminatedResources bool
 	AgentVersion        *model.AgentVersion
-	Clock               clock.Clock
 }
 
 // GetOrchestratorConfig returns the orchestrator config
@@ -122,11 +119,6 @@ func (c *BaseProcessorContext) IsTerminatedResources() bool {
 // GetAgentVersion returns the agent version
 func (c *BaseProcessorContext) GetAgentVersion() *model.AgentVersion {
 	return c.AgentVersion
-}
-
-// GetClock returns the clock
-func (c *BaseProcessorContext) GetClock() clock.Clock {
-	return c.Clock
 }
 
 // K8sProcessorContext holds k8s resource processing attributes
@@ -263,7 +255,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 	rawList := p.h.ResourceList(ctx, list)
 	resourceMetadataModels := make([]interface{}, 0, len(rawList))
 	resourceManifestModels := make([]interface{}, 0, len(rawList))
-	now := ctx.GetClock().Now()
+	now := time.Now()
 
 	for _, rawResource := range rawList {
 		// Attempt an early cache check on the raw resource before the expensive

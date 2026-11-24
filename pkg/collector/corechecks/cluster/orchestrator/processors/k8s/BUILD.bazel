@@ -128,7 +128,6 @@ dd_agent_go_test(
         "//pkg/orchestrator/config",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/pointer",
-        "@com_github_benbjohnson_clock//:clock",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"go.yaml.in/yaml/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,7 +57,6 @@ func newConfigMapProcessorContext(cfg *orchestratorconfig.OrchestratorConfig) *p
 	return &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,

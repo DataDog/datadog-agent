@@ -9,6 +9,7 @@ package k8s
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -28,87 +29,89 @@ import (
 )
 
 func TestCRCollector(t *testing.T) {
-	// Create a custom resource instance
-	customResource := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "example.com/v1",
-			"kind":       "MyCustomResource",
-			"metadata": map[string]interface{}{
-				"name":              "test-cr",
-				"namespace":         "default",
-				"uid":               "test-uid-123",
-				"resourceVersion":   "1204",
-				"creationTimestamp": metav1.Now().Format(time.RFC3339),
-				"labels": map[string]interface{}{
-					"app": "my-app",
+	synctest.Test(t, func(t *testing.T) {
+		// Create a custom resource instance
+		customResource := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "example.com/v1",
+				"kind":       "MyCustomResource",
+				"metadata": map[string]interface{}{
+					"name":              "test-cr",
+					"namespace":         "default",
+					"uid":               "test-uid-123",
+					"resourceVersion":   "1204",
+					"creationTimestamp": metav1.Now().Format(time.RFC3339),
+					"labels": map[string]interface{}{
+						"app": "my-app",
+					},
+					"annotations": map[string]interface{}{
+						"annotation": "my-annotation",
+					},
 				},
-				"annotations": map[string]interface{}{
-					"annotation": "my-annotation",
+				"spec": map[string]interface{}{
+					"replicas": float64(3),
+					"image":    "nginx:latest",
+				},
+				"status": map[string]interface{}{
+					"ready": true,
 				},
 			},
-			"spec": map[string]interface{}{
-				"replicas": float64(3),
-				"image":    "nginx:latest",
+		}
+
+		// Create a fake dynamic client
+		scheme := runtime.NewScheme()
+		dynamicClient := fake.NewSimpleDynamicClient(scheme, customResource)
+
+		// Create fake dynamic informer factory
+		dynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 300*time.Second)
+
+		// Create OrchestratorInformerFactory with dynamic informers
+		orchestratorInformerFactory := &collectors.OrchestratorInformerFactory{
+			DynamicInformerFactory: dynamicInformerFactory,
+		}
+
+		apiClient := &apiserver.APIClient{DynamicCl: dynamicClient}
+
+		orchestratorCfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+		orchestratorCfg.KubeClusterName = "test-cluster"
+
+		runCfg := &collectors.CollectorRunConfig{
+			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+				APIClient:                   apiClient,
+				OrchestratorInformerFactory: orchestratorInformerFactory,
 			},
-			"status": map[string]interface{}{
-				"ready": true,
-			},
-		},
-	}
+			ClusterID:   "test-cluster",
+			Config:      orchestratorCfg,
+			MsgGroupRef: atomic.NewInt32(0),
+		}
 
-	// Create a fake dynamic client
-	scheme := runtime.NewScheme()
-	dynamicClient := fake.NewSimpleDynamicClient(scheme, customResource)
+		// Create CR collector
+		collector, err := NewCRCollector("mycustomresources", "example.com/v1")
+		assert.NoError(t, err)
 
-	// Create fake dynamic informer factory
-	dynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 300*time.Second)
+		// Initialize the collector
+		collector.Init(runCfg)
 
-	// Create OrchestratorInformerFactory with dynamic informers
-	orchestratorInformerFactory := &collectors.OrchestratorInformerFactory{
-		DynamicInformerFactory: dynamicInformerFactory,
-	}
+		// Start the informer factory
+		stopCh := make(chan struct{})
+		defer close(stopCh)
+		dynamicInformerFactory.Start(stopCh)
 
-	apiClient := &apiserver.APIClient{DynamicCl: dynamicClient}
+		// Wait for the informer to sync
+		cache.WaitForCacheSync(stopCh, collector.Informer().HasSynced)
 
-	orchestratorCfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
-	orchestratorCfg.KubeClusterName = "test-cluster"
+		// Run the collector
+		result, err := collector.Run(runCfg)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 1, result.ResourcesListed)
+		assert.Equal(t, 1, result.ResourcesProcessed)
+		// CRs produce manifest messages but metadata messages are nil
+		assert.Nil(t, result.Result.MetadataMessages[0])
+		assert.Len(t, result.Result.ManifestMessages, 1)
+		assert.IsType(t, &model.CollectorManifestCR{}, result.Result.ManifestMessages[0])
 
-	runCfg := &collectors.CollectorRunConfig{
-		K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
-			APIClient:                   apiClient,
-			OrchestratorInformerFactory: orchestratorInformerFactory,
-		},
-		ClusterID:   "test-cluster",
-		Config:      orchestratorCfg,
-		MsgGroupRef: atomic.NewInt32(0),
-	}
-
-	// Create CR collector
-	collector, err := NewCRCollector("mycustomresources", "example.com/v1")
-	assert.NoError(t, err)
-
-	// Initialize the collector
-	collector.Init(runCfg)
-
-	// Start the informer factory
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-	dynamicInformerFactory.Start(stopCh)
-
-	// Wait for the informer to sync
-	cache.WaitForCacheSync(stopCh, collector.Informer().HasSynced)
-
-	// Run the collector
-	result, err := collector.Run(runCfg)
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, 1, result.ResourcesListed)
-	assert.Equal(t, 1, result.ResourcesProcessed)
-	// CRs produce manifest messages but metadata messages are nil
-	assert.Nil(t, result.Result.MetadataMessages[0])
-	assert.Len(t, result.Result.ManifestMessages, 1)
-	assert.IsType(t, &model.CollectorManifestCR{}, result.Result.ManifestMessages[0])
-
+	})
 }
 
 func TestGenericCollectorManifestKind(t *testing.T) {

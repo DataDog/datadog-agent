@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -67,7 +66,6 @@ func TestCronJobV1Handlers_ExtractResource(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -101,7 +99,6 @@ func TestCronJobV1Handlers_ResourceList(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -167,7 +164,6 @@ func TestCronJobV1Handlers_BuildMessageBody(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -205,7 +201,6 @@ func TestCronJobV1Handlers_BeforeMarshalling(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -239,7 +234,6 @@ func TestCronJobV1Handlers_AfterMarshalling(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -310,7 +304,6 @@ func TestCronJobV1Processor_Process(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,

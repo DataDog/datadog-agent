@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -22,9 +23,16 @@ import (
 )
 
 func TestWorker(t *testing.T) {
+	// The cache janitor goroutine never exits, so the cache must live outside the bubble.
 	cached := cache.New(3*time.Minute, 30*time.Second)
 	cached.SetDefault("task-cached", struct{}{})
 
+	synctest.Test(t, func(t *testing.T) {
+		testWorker(t, cached)
+	})
+}
+
+func testWorker(t *testing.T, cached *cache.Cache) {
 	processFunc := func(_ context.Context, task v1.Task) (v3or4.Task, error) {
 		switch task.Arn {
 		case "task-error":

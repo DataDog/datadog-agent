@@ -16,7 +16,6 @@ go_library(
         "//pkg/orchestrator/model",
         "//pkg/tagger/types",
         "//pkg/tagset",
-        "@com_github_benbjohnson_clock//:clock",
         "@com_github_datadog_agent_payload_v5//process",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],

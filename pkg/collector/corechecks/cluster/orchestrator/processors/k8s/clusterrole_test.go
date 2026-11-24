@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,7 +63,6 @@ func TestClusterRoleHandlers_ExtractResource(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -98,7 +96,6 @@ func TestClusterRoleHandlers_ResourceList(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -164,7 +161,6 @@ func TestClusterRoleHandlers_BuildMessageBody(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -202,7 +198,6 @@ func TestClusterRoleHandlers_BeforeMarshalling(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -236,7 +231,6 @@ func TestClusterRoleHandlers_AfterMarshalling(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -318,7 +312,6 @@ func TestClusterRoleProcessor_Process(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,

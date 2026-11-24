@@ -18,7 +18,6 @@ go_library(
         "//pkg/process/util",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/log",
-        "@com_github_benbjohnson_clock//:clock",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_json_iterator_go//:go",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",

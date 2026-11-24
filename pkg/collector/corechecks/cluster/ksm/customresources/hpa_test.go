@@ -10,7 +10,7 @@ package customresources
 import (
 	"context"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -206,67 +206,64 @@ func newV2beta2HPA(namespace, name string) *unstructured.Unstructured {
 // TestHPAV2Beta2Factory_ListWatch checks that the autoscaling/v2beta2 HPAs
 // served by the dynamic client are handed out as autoscaling/v2 ones.
 func TestHPAV2Beta2Factory_ListWatch(t *testing.T) {
-	ctx := context.Background()
-	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
-		map[schema.GroupVersionResource]string{hpav2beta2GVR: "HorizontalPodAutoscalerList"},
-		newV2beta2HPA("default", "hpa-0"),
-	)
-	factory := NewHorizontalPodAutoscalerV2Beta2Factory(&apiserver.APIClient{DynamicInformerCl: client})
-	c, err := factory.CreateClient(nil)
-	require.NoError(t, err)
-	lw := factory.ListWatch(c, metav1.NamespaceAll, "").(cache.ListerWatcherWithContext)
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
+			map[schema.GroupVersionResource]string{hpav2beta2GVR: "HorizontalPodAutoscalerList"},
+			newV2beta2HPA("default", "hpa-0"),
+		)
+		factory := NewHorizontalPodAutoscalerV2Beta2Factory(&apiserver.APIClient{DynamicInformerCl: client})
+		c, err := factory.CreateClient(nil)
+		require.NoError(t, err)
+		lw := factory.ListWatch(c, metav1.NamespaceAll, "").(cache.ListerWatcherWithContext)
 
-	list, err := lw.ListWithContext(ctx, metav1.ListOptions{})
-	require.NoError(t, err)
-	hpaList, ok := list.(*autoscalingv2.HorizontalPodAutoscalerList)
-	require.True(t, ok, "list should be a *autoscalingv2.HorizontalPodAutoscalerList, got %T", list)
-	require.Len(t, hpaList.Items, 1)
-	hpa := hpaList.Items[0]
-	assert.Equal(t, "hpa-0", hpa.Name)
-	assert.Equal(t, int32(5), hpa.Spec.MaxReplicas)
-	assert.Equal(t, "hpa-0", hpa.Spec.ScaleTargetRef.Name)
-	require.Len(t, hpa.Spec.Metrics, 1)
-	assert.Equal(t, "requests_per_s", hpa.Spec.Metrics[0].External.Metric.Name)
-	assert.Equal(t, int64(10), hpa.Spec.Metrics[0].External.Target.Value.Value())
+		list, err := lw.ListWithContext(ctx, metav1.ListOptions{})
+		require.NoError(t, err)
+		hpaList, ok := list.(*autoscalingv2.HorizontalPodAutoscalerList)
+		require.True(t, ok, "list should be a *autoscalingv2.HorizontalPodAutoscalerList, got %T", list)
+		require.Len(t, hpaList.Items, 1)
+		hpa := hpaList.Items[0]
+		assert.Equal(t, "hpa-0", hpa.Name)
+		assert.Equal(t, int32(5), hpa.Spec.MaxReplicas)
+		assert.Equal(t, "hpa-0", hpa.Spec.ScaleTargetRef.Name)
+		require.Len(t, hpa.Spec.Metrics, 1)
+		assert.Equal(t, "requests_per_s", hpa.Spec.Metrics[0].External.Metric.Name)
+		assert.Equal(t, int64(10), hpa.Spec.Metrics[0].External.Target.Value.Value())
 
-	fakeWatcher := watch.NewFakeWithChanSize(3, false)
-	client.PrependWatchReactor("horizontalpodautoscalers", func(clienttesting.Action) (bool, watch.Interface, error) {
-		return true, fakeWatcher, nil
-	})
-	w, err := lw.WatchWithContext(ctx, metav1.ListOptions{})
-	require.NoError(t, err)
-	defer w.Stop()
+		fakeWatcher := watch.NewFakeWithChanSize(3, false)
+		client.PrependWatchReactor("horizontalpodautoscalers", func(clienttesting.Action) (bool, watch.Interface, error) {
+			return true, fakeWatcher, nil
+		})
+		w, err := lw.WatchWithContext(ctx, metav1.ListOptions{})
+		require.NoError(t, err)
+		defer w.Stop()
 
-	status := &metav1.Status{Status: metav1.StatusFailure, Reason: metav1.StatusReasonExpired}
-	fakeWatcher.Add(newV2beta2HPA("default", "hpa-1"))
-	fakeWatcher.Error(status)
-	fakeWatcher.Modify(&unstructured.Unstructured{Object: map[string]interface{}{"spec": "invalid"}})
+		status := &metav1.Status{Status: metav1.StatusFailure, Reason: metav1.StatusReasonExpired}
+		fakeWatcher.Add(newV2beta2HPA("default", "hpa-1"))
+		fakeWatcher.Error(status)
+		fakeWatcher.Modify(&unstructured.Unstructured{Object: map[string]interface{}{"spec": "invalid"}})
 
-	nextEvent := func() watch.Event {
-		select {
-		case event := <-w.ResultChan():
-			return event
-		case <-time.After(5 * time.Second):
-			require.FailNow(t, "timeout waiting for a watch event")
-			return watch.Event{}
+		nextEvent := func() watch.Event {
+			// In the synctest bubble, a missing event is reported as a deadlock.
+			return <-w.ResultChan()
 		}
-	}
 
-	event := nextEvent()
-	assert.Equal(t, watch.Added, event.Type)
-	addedHPA, ok := event.Object.(*autoscalingv2.HorizontalPodAutoscaler)
-	require.True(t, ok, "watched object should be a *autoscalingv2.HorizontalPodAutoscaler, got %T", event.Object)
-	assert.Equal(t, "hpa-1", addedHPA.Name)
-	require.Len(t, addedHPA.Spec.Metrics, 1)
-	assert.Equal(t, "requests_per_s", addedHPA.Spec.Metrics[0].External.Metric.Name)
+		event := nextEvent()
+		assert.Equal(t, watch.Added, event.Type)
+		addedHPA, ok := event.Object.(*autoscalingv2.HorizontalPodAutoscaler)
+		require.True(t, ok, "watched object should be a *autoscalingv2.HorizontalPodAutoscaler, got %T", event.Object)
+		assert.Equal(t, "hpa-1", addedHPA.Name)
+		require.Len(t, addedHPA.Spec.Metrics, 1)
+		assert.Equal(t, "requests_per_s", addedHPA.Spec.Metrics[0].External.Metric.Name)
 
-	// error events are passed through untouched
-	assert.Equal(t, watch.Event{Type: watch.Error, Object: status}, nextEvent())
+		// error events are passed through untouched
+		assert.Equal(t, watch.Event{Type: watch.Error, Object: status}, nextEvent())
 
-	// objects that cannot be converted are turned into error events
-	event = nextEvent()
-	assert.Equal(t, watch.Error, event.Type)
-	assert.IsType(t, &metav1.Status{}, event.Object)
+		// objects that cannot be converted are turned into error events
+		event = nextEvent()
+		assert.Equal(t, watch.Error, event.Type)
+		assert.IsType(t, &metav1.Status{}, event.Object)
+	})
 }
 
 func TestHPAV2Beta2Factory_InfoGeneratorHasNoOwnerRefLabels(t *testing.T) {

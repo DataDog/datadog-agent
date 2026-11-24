@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
@@ -40,7 +39,6 @@ func TestCRHandlers_ResourceList(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -118,7 +116,6 @@ func TestCRHandlers_BuildManifestMessageBody(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -169,7 +166,6 @@ func TestCRHandlers_BuildManifestMessageBody_GenericResource(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -213,7 +209,6 @@ func TestCRHandlers_ScrubBeforeExtraction(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -255,7 +250,6 @@ func TestCRProcessor_Process(t *testing.T) {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              cfg,
-			Clock:            clock.New(),
 			ClusterID:        "test-cluster-id",
 			MsgGroupID:       1,
 			ManifestProducer: true,
@@ -364,7 +358,7 @@ func TestCRProcessor_KongPluginCredentials(t *testing.T) {
 				cfg.IsManifestCollectionEnabled = true
 				ctx := &processors.K8sProcessorContext{
 					BaseProcessorContext: processors.BaseProcessorContext{
-						Cfg: cfg, Clock: clock.New(), ClusterID: "test-cluster-id", MsgGroupID: 1,
+						Cfg: cfg, ClusterID: "test-cluster-id", MsgGroupID: 1,
 						ManifestProducer: true, NodeType: orchestrator.K8sCR,
 						Kind: kind, APIVersion: "configuration.konghq.com/v1",
 					},

@@ -9,6 +9,7 @@ package processors
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -134,26 +135,34 @@ func (s *ProcessorTestSuite) TestProcess_Panic() {
 }
 
 func (s *ProcessorTestSuite) TestProcess_TerminatedResources_DeletionTimestampMissing() {
-	processorContext := processorstest.NewProcessorContext()
-	processorContext.TerminatedResources = true
+	// Inside a synctest bubble, time.Now() is frozen (it only advances when
+	// the test sleeps), so the deletion timestamp set by the processor is
+	// exactly the time observed here.
+	outer := s.T()
+	synctest.Test(outer, func(t *testing.T) {
+		s.SetT(t)
+		defer s.SetT(outer)
 
-	deletionTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	processorContext.Clock.Set(deletionTime)
+		processorContext := processorstest.NewProcessorContext()
+		processorContext.TerminatedResources = true
 
-	outputResourceMetadata := processorstest.NewExpectedResourceMetadata()
-	outputResourceMetadata.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: deletionTime}
+		deletionTime := time.Now()
 
-	outputResourceManifest := processorstest.NewExpectedResourceManifest()
-	outputResourceManifest.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: deletionTime}
+		outputResourceMetadata := processorstest.NewExpectedResourceMetadata()
+		outputResourceMetadata.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: deletionTime}
 
-	s.testProcessScenario(testProcessScenario{
-		inputHandlers:          &TestResourceHandlers{},
-		inputProcessorContext:  processorContext,
-		inputResource:          processorstest.NewResource(),
-		outputListed:           1,
-		outputProcessed:        1,
-		outputResourceMetadata: outputResourceMetadata,
-		outputResourceManifest: outputResourceManifest,
+		outputResourceManifest := processorstest.NewExpectedResourceManifest()
+		outputResourceManifest.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: deletionTime}
+
+		s.testProcessScenario(testProcessScenario{
+			inputHandlers:          &TestResourceHandlers{},
+			inputProcessorContext:  processorContext,
+			inputResource:          processorstest.NewResource(),
+			outputListed:           1,
+			outputProcessed:        1,
+			outputResourceMetadata: outputResourceMetadata,
+			outputResourceManifest: outputResourceManifest,
+		})
 	})
 }
 

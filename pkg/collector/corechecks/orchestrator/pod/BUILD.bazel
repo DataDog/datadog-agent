@@ -32,7 +32,6 @@ go_library(
         "//pkg/util/option",
         "//pkg/util/retry",
         "//pkg/version",
-        "@com_github_benbjohnson_clock//:clock",
         "@com_github_datadog_agent_payload_v5//process",
         "@org_uber_go_atomic//:atomic",
     ],
