@@ -412,3 +412,18 @@ a:
 
 	assert.Equal(t, true, cfg.GetBool("a"))
 }
+
+func TestNilSectionFromFileIsKeptWithoutWarning(t *testing.T) {
+	var yamlPayload = `
+c:
+`
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetDefault("c.d", true)
+	cfg.BuildSchema()
+
+	err := cfg.ReadConfig(strings.NewReader(yamlPayload))
+	require.NoError(t, err)
+
+	assert.Empty(t, cfg.(*ntmConfig).warnings)
+	assert.True(t, cfg.HasSection("c"))
+}
