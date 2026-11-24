@@ -302,4 +302,4 @@ func (*nodeJSMonitor) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
 
-func (p *nodeJSMonitor) getUprobeAttacher() *uprobes.UprobeAttacher { return p.attacher }
+func (m *nodeJSMonitor) getUprobeAttacher() *uprobes.UprobeAttacher { return m.attacher }

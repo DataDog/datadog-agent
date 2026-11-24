@@ -244,4 +244,4 @@ func (*istioMonitor) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
 
-func (p *istioMonitor) getUprobeAttacher() *uprobes.UprobeAttacher { return p.attacher }
+func (m *istioMonitor) getUprobeAttacher() *uprobes.UprobeAttacher { return m.attacher }

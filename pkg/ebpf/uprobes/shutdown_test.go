@@ -8,7 +8,6 @@
 package uprobes
 
 import (
-	"debug/elf"
 	"encoding/json"
 	"os"
 	"os/signal"
@@ -26,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 	"strings"
 )
 
@@ -56,7 +56,7 @@ func TestUprobeShutdownScenario(t *testing.T) {
 	signal.Notify(signals, syscall.SIGTERM)
 	defer signal.Stop(signals)
 
-	file, err := elf.Open(target)
+	file, err := safeelf.Open(target)
 	require.NoError(t, err)
 	defer file.Close()
 	symbols, err := file.Symbols()
@@ -67,7 +67,7 @@ func TestUprobeShutdownScenario(t *testing.T) {
 			continue
 		}
 		for _, segment := range file.Progs {
-			if segment.Type == elf.PT_LOAD && symbol.Value >= segment.Vaddr && symbol.Value < segment.Vaddr+segment.Filesz {
+			if segment.Type == safeelf.PT_LOAD && symbol.Value >= segment.Vaddr && symbol.Value < segment.Vaddr+segment.Filesz {
 				base = symbol.Value - segment.Vaddr + segment.Off
 			}
 		}
