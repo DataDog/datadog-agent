@@ -32,7 +32,7 @@ build do
             license_files_install_target = heroku_target? ? "//packages/heroku:license_files_install" : "//packages/agent/linux:license_files_install"
             command "bazel run #{omnibazel_flags} -- #{license_files_install_target} --destdir=#{install_dir}",
                 :live_stream => Omnibus.logger.live_stream(:info)
-        elsif osx_target?
+        elsif osx_target? || windows_target?
             command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}",
                 :live_stream => Omnibus.logger.live_stream(:info)
         end
