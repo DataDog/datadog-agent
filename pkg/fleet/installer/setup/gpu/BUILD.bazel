@@ -9,7 +9,6 @@ go_library(
     deps = [
         "//pkg/fleet/installer/setup/common",
         "//pkg/fleet/installer/setup/config",
-        "//pkg/fleet/installer/setup/djm",
     ],
 )
 
@@ -23,5 +22,6 @@ dd_agent_go_test(
         "//pkg/fleet/installer/setup/config",
         "//pkg/fleet/installer/telemetry",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
