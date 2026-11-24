@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Universal Service Monitoring now caps the total number of partial HTTP
+    transactions that system-probe holds while pairing requests with responses
+    at ``service_monitoring_config.http.max_stats_buffered``. Previously this
+    buffer only capped the number of client connections at that setting, and
+    each connection could hold any number of partial transactions until the
+    next collection. While the buffer is full, it periodically joins buffered
+    requests with their responses on keep-alive connections to make room;
+    partial transactions that do not fit are dropped.

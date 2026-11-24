@@ -47,8 +47,14 @@ const (
 // request segment at "t0" with response segment "t3". This is why we buffer data here for 30 seconds
 // and then sort all events by their timestamps before joining them.
 type incompleteBuffer struct {
-	data       map[types.ConnectionKey]*txParts
+	data map[types.ConnectionKey]*txParts
+	// maxEntries caps the transactions buffered across all connections, not the number of connections.
 	maxEntries int
+	size       int
+	// addsSinceJoin counts Add calls, dropped ones included, since the last joinBuffered.
+	addsSinceJoin int
+	// changed holds the connections that buffered a half since the last joinBuffered; only they can join.
+	changed    map[types.ConnectionKey]struct{}
 	telemetry  *Telemetry
 	minAgeNano int64
 }
@@ -69,13 +75,36 @@ func newTXParts(requestCapacity, responseCapacity int) *txParts {
 func NewIncompleteBuffer(c *config.Config, telemetry *Telemetry) IncompleteBuffer {
 	return &incompleteBuffer{
 		data:       make(map[types.ConnectionKey]*txParts),
+		changed:    make(map[types.ConnectionKey]struct{}),
 		maxEntries: c.MaxHTTPStatsBuffered,
 		telemetry:  telemetry,
 		minAgeNano: defaultMinAge.Nanoseconds(),
 	}
 }
 
-func (b *incompleteBuffer) Add(tx Transaction) {
+// Add buffers tx. When the buffer is full, it periodically joins the buffered pairs that a later request on
+// the same connection confirms and returns them, so paired traffic is not dropped while waiting for Flush.
+func (b *incompleteBuffer) Add(tx Transaction) []Transaction {
+	// copy underlying httpTX value. this is now needed because these objects are
+	// now coming directly from pooled perf records
+	ebpfTX, ok := tx.(*EbpfEvent)
+	if !ok {
+		// should never happen
+		return nil
+	}
+
+	var joined []Transaction
+	// Join at most once per maxEntries/16 Add calls to bound the cost of re-sorting changed connections.
+	if b.size >= b.maxEntries && b.addsSinceJoin >= b.maxEntries/16 {
+		joined = b.joinBuffered()
+		b.addsSinceJoin = 0
+	}
+	b.addsSinceJoin++
+	if b.size >= b.maxEntries {
+		b.telemetry.dropped.Add(1)
+		return joined
+	}
+
 	connTuple := tx.ConnTuple()
 	key := types.ConnectionKey{
 		SrcIPHigh: connTuple.SrcIPHigh,
@@ -85,26 +114,15 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 
 	parts, ok := b.data[key]
 	if !ok {
-		if len(b.data) >= b.maxEntries {
-			b.telemetry.dropped.Add(1)
-			return
-		}
-
 		parts = newTXParts(defaultArraySize, defaultArraySize)
 		b.data[key] = parts
-	}
-
-	// copy underlying httpTX value. this is now needed because these objects are
-	// now coming directly from pooled perf records
-	ebpfTX, ok := tx.(*EbpfEvent)
-	if !ok {
-		// should never happen
-		return
 	}
 
 	ebpfTxCopy := new(EbpfEvent)
 	*ebpfTxCopy = *ebpfTX
 	tx = ebpfTxCopy
+	b.size++
+	b.changed[key] = struct{}{}
 
 	if tx.StatusCode() == 0 {
 		b.telemetry.joiner.requests.Add(1)
@@ -113,6 +131,51 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 		b.telemetry.joiner.responses.Add(1)
 		parts.responses = append(parts.responses, tx)
 	}
+	return joined
+}
+
+// joinBuffered joins a buffered request with the earliest response after it only when the connection's next
+// buffered request started after that response: an HTTP/1.1 client sends the next request once the previous
+// response arrives, so a response read later cannot belong to the earlier request. Other halves stay buffered.
+func (b *incompleteBuffer) joinBuffered() []Transaction {
+	var joined []Transaction
+	for key := range b.changed {
+		parts := b.data[key]
+		slices.SortFunc(parts.requests, func(a, b Transaction) int { return cmp.Compare(a.RequestStarted(), b.RequestStarted()) })
+		slices.SortFunc(parts.responses, func(a, b Transaction) int { return cmp.Compare(a.ResponseLastSeen(), b.ResponseLastSeen()) })
+
+		var unpaired []Transaction
+		i, j := 0, 0
+		for i+1 < len(parts.requests) && j < len(parts.responses) {
+			request := parts.requests[i]
+			response := parts.responses[j]
+			if request.RequestStarted() > response.ResponseLastSeen() {
+				unpaired = append(unpaired, response)
+				j++
+				continue
+			}
+			if parts.requests[i+1].RequestStarted() <= response.ResponseLastSeen() {
+				break
+			}
+			request.SetStatusCode(response.StatusCode())
+			request.SetResponseLastSeen(response.ResponseLastSeen())
+			joined = append(joined, request)
+			i++
+			j++
+			b.telemetry.joiner.requestJoined.Add(1)
+		}
+		if i == 0 {
+			continue
+		}
+
+		kept := newTXParts(len(parts.requests)-i, len(unpaired)+len(parts.responses)-j)
+		kept.requests = append(kept.requests, parts.requests[i:]...)
+		kept.responses = append(append(kept.responses, unpaired...), parts.responses[j:]...)
+		b.data[key] = kept
+		b.size -= len(parts.requests) + len(parts.responses) - len(kept.requests) - len(kept.responses)
+	}
+	clear(b.changed)
+	return joined
 }
 
 func (b *incompleteBuffer) Flush() []Transaction {
@@ -127,6 +190,8 @@ func (b *incompleteBuffer) Flush() []Transaction {
 	}
 
 	b.data = make(map[types.ConnectionKey]*txParts)
+	b.size = 0
+	clear(b.changed)
 	for key, parts := range previous {
 		// TODO: in this loop we're sorting all transactions at once, but we could also
 		// consider sorting data during insertion time (using a tree-like structure, for example)
@@ -169,6 +234,7 @@ func (b *incompleteBuffer) Flush() []Transaction {
 					parts.requests = append(parts.requests, keep...)
 					b.data[key] = parts
 				}
+				b.size += len(parts.requests) - i
 				break
 			}
 			b.telemetry.joiner.agedRequest.Add(1)

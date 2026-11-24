@@ -21,7 +21,7 @@ func NewIncompleteBuffer(*config.Config, *Telemetry) IncompleteBuffer {
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
-func (b *incompleteBuffer) Add(Transaction) {}
+func (b *incompleteBuffer) Add(Transaction) []Transaction { return nil }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (b *incompleteBuffer) Flush() []Transaction { return nil }

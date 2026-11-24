@@ -10,6 +10,7 @@ package http
 // IncompleteBuffer is responsible for buffering incomplete transactions
 // (eg. httpTX objects that have either only the request or response information)
 type IncompleteBuffer interface {
-	Add(tx Transaction)
+	// Add buffers tx and returns any transactions it joined to make room.
+	Add(tx Transaction) []Transaction
 	Flush() []Transaction
 }
