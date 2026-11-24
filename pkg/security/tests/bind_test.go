@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -345,6 +346,27 @@ func TestBindSampleAfterFailure(t *testing.T) {
 	}
 	defer test.CloseTest()
 
+	clearExcludedCgroups := func() {
+		p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
+		if !ok {
+			return
+		}
+		excludedMap, found, err := p.Manager.Get().GetMap("excluded_cgroups")
+		if err != nil || !found || excludedMap == nil {
+			return
+		}
+		var inode uint64
+		var val uint8
+		var inodes []uint64
+		iter := excludedMap.Iterate()
+		for iter.Next(&inode, &val) {
+			inodes = append(inodes, inode)
+		}
+		for _, inode := range inodes {
+			_ = excludedMap.Delete(inode)
+		}
+	}
+
 	port, err := getFreePort("tcp")
 	if err != nil {
 		t.Fatalf("failed to get free port: %v", err)
@@ -372,6 +394,7 @@ func TestBindSampleAfterFailure(t *testing.T) {
 	defer unix.Close(fd)
 
 	err = test.GetProbeEvent(func() error {
+		clearExcludedCgroups()
 		if err := unix.Bind(fd, sa); !errors.Is(err, unix.EADDRINUSE) {
 			return fmt.Errorf("expected EADDRINUSE, got %v", err)
 		}
@@ -380,6 +403,7 @@ func TestBindSampleAfterFailure(t *testing.T) {
 		if err != nil {
 			return err
 		}
+		clearExcludedCgroups()
 		return unix.Bind(fd, sa)
 	}, func(event *model.Event) bool {
 		if event.Bind.Addr.Port != uint16(port) {

@@ -4,6 +4,8 @@
 #include "constants/offsets/filesystem.h"
 #include "constants/enums.h"
 #include "maps.h"
+#include "cgroup.h"
+#include "process.h"
 #include "rate_limiter.h"
 
 // size of the prefix and suffix basename keys, which share one key on the stack;
@@ -137,6 +139,14 @@ static __always_inline int sample_entry_is_stale(struct sample_entry_t *entry, u
     return sample_entry_ttl_ns > 0 && (now - entry->last_refresh_ns) >= sample_entry_ttl_ns;
 }
 
+static __always_inline u64 get_process_cgroup_id(u32 pid) {
+    struct proc_cache_t *proc_cache_entry = get_proc_cache(pid);
+    if (proc_cache_entry && proc_cache_entry->cgroup.path_key.ino != 0) {
+        return proc_cache_entry->cgroup.path_key.ino;
+    }
+    return get_current_cgroup_id();
+}
+
 // approve_bind_connect_sample dedups bind/connect endpoints via the provided LRU map:
 // first hit is sampled, later hits only emit a refresh heartbeat.
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_connect_sample(void *samples, u64 event_type, u32 limiter_key, u16 rate, u8 threshold, struct bind_connect_sample_key_t *key, struct syscall_cache_t *syscall) {
@@ -151,6 +161,11 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_connect_sa
     // current task for io_uring requests run by a worker thread
     u32 pid = key->pid;
     if (IS_KERNEL_THREAD(pid)) {
+        return DISCARDED;
+    }
+
+    u64 cgroup_id = get_process_cgroup_id(pid);
+    if (bpf_map_lookup_elem(&excluded_cgroups, &cgroup_id) != NULL) {
         return DISCARDED;
     }
 
@@ -528,6 +543,8 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
     // event_sampling_open_enabled covers v2 profiles and runtime package usage.
     u64 event_sampling_open_enabled = 0;
     LOAD_CONSTANT("event_sampling_open_enabled", event_sampling_open_enabled);
+    u64 event_sampling_open_host_enabled = 0;
+    LOAD_CONSTANT("event_sampling_open_host_enabled", event_sampling_open_host_enabled);
 
     u64 event_sampling_open_rate = 0;
     LOAD_CONSTANT("event_sampling_open_rate", event_sampling_open_rate);
@@ -553,6 +570,11 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
         return DISCARDED;
     }
 
+    u64 cgroup_id = get_process_cgroup_id(pid);
+    if (!event_sampling_open_host_enabled && bpf_map_lookup_elem(&excluded_cgroups, &cgroup_id) != NULL) {
+        return DISCARDED;
+    }
+
     struct path_key_t *process_path_key = bpf_map_lookup_elem(&pid_path_keys, &pid);
     if (process_path_key == NULL) {
         return DISCARDED;
@@ -563,6 +585,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
     u32 ppid = get_current_ppid();
 
     struct process_path_key_t key = {
+        .cgroup_id = cgroup_id,
         .ppid = ppid,
         .process_path_key = *process_path_key,
         .file_path_key = file->path_key,
@@ -628,7 +651,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct s
         state = approve_by_in_upper_layer(EVENT_OPEN, &syscall->open.file);
     }
 
-    if (state == DISCARDED && approve_open_sample(syscall->open.dentry, &syscall->open.file, syscall) == SAMPLED) {
+    if (state == DISCARDED && !syscall->open.from_terminate_walk && approve_open_sample(syscall->open.dentry, &syscall->open.file, syscall) == SAMPLED) {
         return SAMPLED;
     }
 

@@ -37,7 +37,7 @@ const (
 	BindSamplesMaxEntries    = 10000
 	ConnectSamplesMaxEntries = 10000
 	// ExcludedCgroupsMaxEntries sizes the excluded_cgroups LRU: it holds host/systemd cgroup
-	// inodes the v2 syscall sampler skips, so it must cover a host's active non-container cgroups.
+	// inodes the v2 samplers skip, so it must cover a host's active non-container cgroups.
 	ExcludedCgroupsMaxEntries = 4096
 )
 
@@ -344,6 +344,9 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: superReducedProcPidCacheSize,
 			EditorFlag: manager.EditMaxEntries,
 		}
+	}
+
+	if opts.EventSamplingOpenEnabled || opts.EventSamplingBindEnabled || opts.EventSamplingConnectEnabled || opts.EventSamplingSyscallsEnabled {
 		editors["excluded_cgroups"] = manager.MapSpecEditor{
 			MaxEntries: ExcludedCgroupsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,

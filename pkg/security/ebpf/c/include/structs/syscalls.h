@@ -61,6 +61,7 @@ struct syscall_cache_t {
         struct {
             int flags;
             umode_t mode;
+            u8 from_terminate_walk;
             struct dentry *dentry;
             struct file_t file;
             u64 pid_tgid;
