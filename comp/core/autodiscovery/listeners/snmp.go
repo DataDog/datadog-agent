@@ -230,13 +230,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 			continue
 		}
 
-		device, exists := job.subnet.devices[entityID]
-		if exists && device.Failures != 0 {
-			device.Failures = 0
-			job.subnet.devices[entityID] = device
-
-			l.writeCache(job.subnet)
-		}
+		l.resetFailures(entityID, job.subnet)
 
 		deviceInfo := l.checkDeviceInfo(authentication, job.subnet.config.Port, deviceIP)
 		l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, 0, false)
@@ -629,6 +623,20 @@ func (l *SNMPListener) registerService(pendingDevice devicededuper.PendingDevice
 		l.writeCache(svc.subnet)
 	}
 	l.newService <- svc
+}
+
+func (l *SNMPListener) resetFailures(entityID string, subnet *snmpSubnet) {
+	l.Lock()
+	defer l.Unlock()
+
+	device, exists := subnet.devices[entityID]
+	if !exists || device.Failures == 0 {
+		return
+	}
+
+	device.Failures = 0
+	subnet.devices[entityID] = device
+	l.writeCache(subnet)
 }
 
 func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
