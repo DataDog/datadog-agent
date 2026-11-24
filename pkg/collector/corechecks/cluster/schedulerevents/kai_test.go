@@ -363,7 +363,7 @@ func TestKAIEvictLookupUsesWhatIsLeftOfTheBudget(t *testing.T) {
 	out := &collected{}
 	clock := after(1000)
 	var timeouts []time.Duration
-	kai := newKAIEvents(newTestIndex(), started, out.submit, func(ctx context.Context, namespace string) ([]corev1.Event, error) {
+	kai := newKAIEvents(newTestIndex(), started, out.submit, func(ctx context.Context, _ string) ([]corev1.Event, error) {
 		deadline, _ := ctx.Deadline()
 		timeouts = append(timeouts, time.Until(deadline))
 		clock = clock.Add(kaiEvictListTimeout - time.Second)
