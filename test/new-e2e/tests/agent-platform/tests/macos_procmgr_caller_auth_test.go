@@ -82,6 +82,12 @@ func macosSleepPattern(sleepArg string) string {
 	return "^/bin/sleep " + sleepArg + "$"
 }
 
+// macosBoundedProcmgrCommand runs dd-procmgr under sudo with SIGALRM after the given seconds. The alarm is set
+// inside sudo so it reaches dd-procmgr itself, and a failed exec exits with an error instead of empty output.
+func macosBoundedProcmgrCommand(seconds, args string) string {
+	return "sudo perl -e 'alarm shift; exec @ARGV or die \"exec: $!\\n\"' " + seconds + " " + macosProcmgrCLI + " " + args
+}
+
 // waitMacosSleepGone polls until a probe finds no child. A probe error only ends the wait at the deadline.
 func waitMacosSleepGone(client *common.MacOSTestClient, sleepArg string, timeout time.Duration) (string, error) {
 	check := "sudo sh -c 'pgrep -f \"" + macosSleepPattern(sleepArg) + "\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
@@ -146,10 +152,9 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 		t.Logf("heal: failed to remove %s: %v", macosCallerAuthReloadEntry, err)
 	}
 	// A daemon that is still starting must not skip the healing below. Bound each attempt because a daemon
-	// that accepts the connection and never answers would otherwise hang the loop. The alarm is set inside
-	// sudo so it reaches dd-procmgr itself rather than sudo, avoiding a child keeping the SSH pipes open.
+	// that accepts the connection and never answers would otherwise hang the loop.
 	for deadline := time.Now().Add(time.Minute); ; time.Sleep(time.Second) {
-		out, err = client.Execute("sudo perl -e 'alarm shift; exec @ARGV or die \"exec: $!\\n\"' 15 " + macosProcmgrCLI + " list --json")
+		out, err = client.Execute(macosBoundedProcmgrCommand("15", "list --json"))
 		if err == nil || time.Now().After(deadline) {
 			break
 		}
@@ -202,11 +207,12 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 			}
 		}()
 		if bodyFailed {
-			// Bounded because a graceful stop can take up to 90s, and an unanswered RPC would hang cleanup.
-			if _, err := client.Execute("sudo perl -e 'alarm shift; exec @ARGV or die \"exec: $!\\n\"' 120 " + macosProcmgrCLI + " stop " + macosCallerAuthEntry); err != nil {
+			// Bounded because a stop can take up to about 100s (90s graceful plus the force-kill wait), and an
+			// unanswered RPC would hang cleanup.
+			if _, err := client.Execute(macosBoundedProcmgrCommand("120", "stop "+macosCallerAuthEntry)); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthEntry, err)
 			}
-			if _, err := client.Execute("sudo perl -e 'alarm shift; exec @ARGV or die \"exec: $!\\n\"' 120 " + macosProcmgrCLI + " stop " + macosCallerAuthStartEntry); err != nil {
+			if _, err := client.Execute(macosBoundedProcmgrCommand("120", "stop "+macosCallerAuthStartEntry)); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthStartEntry, err)
 			}
 		}
