@@ -8,18 +8,21 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/httpdomain"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -34,17 +37,22 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	if metricsClient == nil {
 		metricsClient = &statsd.NoOpClient{}
 	}
-	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
-	ddHost := getDatadogHost(mainEndpoint)
-	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
-	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
-	urn := config.GetString(setup.PARUrn)
+	ddSite := par.Site(config)
+	apiBaseURL, err := par.APIBaseURL(config, ddSite)
+	if err != nil {
+		return nil, err
+	}
+	if par.ShouldWarnAboutRCOverride(config) {
+		log.Warn("PAR is enabled with remote_configuration.rc_dd_url set but private_action_runner.par_dd_url unset; the RC override does not change PAR routing. Set private_action_runner.par_dd_url explicitly if PAR requires custom routing.")
+	}
+	encodedPrivateKey := config.GetString(par.PrivateKey)
+	urn := config.GetString(par.URN)
 
 	var privateKey *ecdsa.PrivateKey
 	if encodedPrivateKey != "" {
 		jwk, err := util.Base64ToJWK(encodedPrivateKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode %s: %w", setup.PARPrivateKey, err)
+			return nil, fmt.Errorf("failed to decode %s: %w", par.PrivateKey, err)
 		}
 		privateKey = jwk.Key.(*ecdsa.PrivateKey)
 	}
@@ -62,62 +70,109 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	}
 
 	var taskTimeoutSeconds *int32
-	if v := config.GetInt32(setup.PARTaskTimeoutSeconds); v != 0 {
+	if v := config.GetInt32(par.TaskTimeoutSeconds); v != 0 {
 		taskTimeoutSeconds = &v
 	}
 
 	httpTimeout := defaultHTTPClientTimeout
-	if v := config.GetInt32(setup.PARHttpTimeoutSeconds); v != 0 {
+	if v := config.GetInt32(par.HTTPTimeoutSeconds); v != 0 {
 		httpTimeout = time.Duration(v) * time.Second
+	}
+	agentHTTPClient := &http.Client{
+		Transport: httputils.CreateHTTPTransport(config),
 	}
 
 	return &Config{
-		MaxBackoff:                     maxBackoff,
-		MinBackoff:                     minBackoff,
-		MaxAttempts:                    maxAttempts,
-		WaitBeforeRetry:                waitBeforeRetry,
-		LoopInterval:                   loopInterval,
-		OpmsRequestTimeout:             opmsRequestTimeout,
-		RunnerPoolSize:                 config.GetInt32(setup.PARTaskConcurrency),
-		HealthCheckInterval:            healthCheckInterval,
-		HttpServerReadTimeout:          defaultHTTPServerReadTimeout,
-		HttpServerWriteTimeout:         defaultHTTPServerWriteTimeout,
-		HTTPTimeout:                    httpTimeout,
-		TaskTimeoutSeconds:             taskTimeoutSeconds,
-		RunnerAccessTokenHeader:        runnerAccessTokenHeader,
-		RunnerAccessTokenIdHeader:      runnerAccessTokenIDHeader,
-		Port:                           defaultPort,
-		JWTRefreshInterval:             defaultJwtRefreshInterval,
-		HealthCheckEndpoint:            defaultHealthCheckEndpoint,
-		HeartbeatInterval:              heartbeatInterval,
-		Version:                        version.AgentVersion,
-		MetricsClient:                  metricsClient,
-		ActionsAllowlist:               makeActionsAllowlist(config),
-		Allowlist:                      config.GetStringSlice(setup.PARHttpAllowlist),
-		AllowIMDSEndpoint:              config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		RShellAllowedPaths:             rshellAllowedPaths(config),
-		RShellAllowedCommands:          rshellAllowedCommands(config),
-		RShellAllowedSystemServices:    rshellAllowedSystemServices(config),
-		RShellDisableDetailedTelemetry: config.GetBool(setup.PARRestrictedShellDisableDetailedTelemetry),
-		RShellPrivilegedEnabled:        config.GetBool(setup.PARRestrictedShellPrivilegedEnabled),
-		RShellPrivilegedSocket:         config.GetString(setup.PARRestrictedShellPrivilegedSocket),
-		OpmsExtraHeaders:               config.GetStringMapString(setup.PAROpmsExtraHeaders),
-		DDHost:                         ddHost,
-		DDApiHost:                      "api." + ddSite,
-		Modes:                          []modes.Mode{modes.ModePull},
-		OrgId:                          orgID,
-		PrivateKey:                     privateKey,
-		RunnerId:                       runnerID,
-		Urn:                            urn,
-		DatadogSite:                    ddSite,
+		MaxBackoff:                         maxBackoff,
+		MinBackoff:                         minBackoff,
+		MaxAttempts:                        maxAttempts,
+		WaitBeforeRetry:                    waitBeforeRetry,
+		LoopInterval:                       loopInterval,
+		OpmsRequestTimeout:                 opmsRequestTimeout,
+		RunnerPoolSize:                     config.GetInt32(par.TaskConcurrency),
+		HealthCheckInterval:                healthCheckInterval,
+		HttpServerReadTimeout:              defaultHTTPServerReadTimeout,
+		HttpServerWriteTimeout:             defaultHTTPServerWriteTimeout,
+		HTTPTimeout:                        httpTimeout,
+		TaskTimeoutSeconds:                 taskTimeoutSeconds,
+		RunnerAccessTokenHeader:            runnerAccessTokenHeader,
+		RunnerAccessTokenIdHeader:          runnerAccessTokenIDHeader,
+		Port:                               defaultPort,
+		JWTRefreshInterval:                 defaultJwtRefreshInterval,
+		HealthCheckEndpoint:                defaultHealthCheckEndpoint,
+		HeartbeatInterval:                  heartbeatInterval,
+		Version:                            version.AgentVersion,
+		MetricsClient:                      metricsClient,
+		AgentHTTPClient:                    agentHTTPClient,
+		ActionsAllowlist:                   makeActionsAllowlist(config),
+		Allowlist:                          config.GetStringSlice(par.HTTPAllowlist),
+		DomainAllowlist:                    domainAllowlist(config),
+		AllowIMDSEndpoint:                  config.GetBool(par.HTTPAllowIMDSEndpoint),
+		KubernetesAllowedCustomResources:   kubernetesAllowedCustomResources(config),
+		RShellAllowedPaths:                 rshellAllowedPaths(config),
+		RShellAllowedCommands:              rshellAllowedCommands(config),
+		RShellAllowedSystemServices:        rshellAllowedSystemServices(config),
+		RShellDisableDetailedTelemetry:     config.GetBool(par.RestrictedShellDisableDetailedTelemetry),
+		RShellPrivilegedEnabled:            config.GetBool(par.RestrictedShellPrivilegedEnabled),
+		RShellPrivilegedSocket:             config.GetString(par.RestrictedShellPrivilegedSocket),
+		RShellPrivilegedElevatableCommands: rshellElevatableCommands(config),
+		RShellAllowedCommandsConfigured:    config.IsConfigured(par.RestrictedShellAllowedCommands),
+		RShellAllowedPathsConfigured:       config.IsConfigured(par.RestrictedShellAllowedPaths),
+		OpmsExtraHeaders:                   config.GetStringMapString(par.OPMSExtraHeaders),
+		APIBaseURL:                         apiBaseURL,
+		Modes:                              []modes.Mode{modes.ModePull},
+		OrgId:                              orgID,
+		PrivateKey:                         privateKey,
+		RunnerId:                           runnerID,
+		Urn:                                urn,
+		DatadogSite:                        ddSite,
 	}, nil
 }
 
-func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
-	allowlist := make(map[string]sets.Set[string])
-	actionFqns := config.GetStringSlice(setup.PARActionsAllowlist)
+// kubernetesAllowedCustomResources preserves nil for an unset allowlist so custom
+// resource actions can distinguish compatibility mode from an explicit
+// empty-list deny-all policy.
+func kubernetesAllowedCustomResources(config config.Component) []string {
+	if !config.IsConfigured(par.KubernetesAllowedCustomResources) {
+		return nil
+	}
+	return config.GetStringSlice(par.KubernetesAllowedCustomResources)
+}
 
-	if config.GetBool(setup.PARDefaultActionsEnabled) {
+// domainAllowlist returns nil when domain_allowlist is unset: HTTP actions then use
+// http_allowlist and other actions reach every domain. An explicit list, even
+// empty, allows only matching domains and replaces http_allowlist.
+func domainAllowlist(config config.Component) []string {
+	httpAllowlistSet := config.IsConfigured(par.HTTPAllowlist)
+	if !config.IsConfigured(par.DomainAllowlist) {
+		if httpAllowlistSet {
+			log.Warnf("%s is deprecated, use %s instead", par.HTTPAllowlist, par.DomainAllowlist)
+		}
+		return nil
+	}
+	if httpAllowlistSet {
+		log.Warnf("%s is ignored because %s is set", par.HTTPAllowlist, par.DomainAllowlist)
+	}
+	// Env values are split on commas without trimming, so "a, b" yields " b".
+	patterns := []string{}
+	for _, pattern := range config.GetStringSlice(par.DomainAllowlist) {
+		pattern = strings.TrimSpace(pattern)
+		if pattern == "" {
+			continue
+		}
+		if err := httpdomain.ValidatePattern(pattern); err != nil {
+			log.Warnf("ignoring %s entry %q: expected a hostname, an IP address, or a *.domain pattern", par.DomainAllowlist, pattern)
+			continue
+		}
+		patterns = append(patterns, pattern)
+	}
+	return patterns
+}
+
+func makeActionsAllowlist(config config.Component) ActionsAllowlist {
+	actionFqns := config.GetStringSlice(par.ActionsAllowlist)
+
+	if config.GetBool(par.DefaultActionsEnabled) {
 		if flavor.GetFlavor() == flavor.ClusterAgent {
 			actionFqns = append(actionFqns, DefaultClusterAgentActionFQNs...)
 		} else {
@@ -125,13 +180,20 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 		}
 	}
 
-	// When the kubeactions subsystem is enabled, auto-allow its bundle so the
-	// kubernetes-actions backend (dispatching via wf-actions-server) works
-	// without operators having to set actions_allowlist manually.
-	if config.GetBool("kubeactions.enabled") {
+	// When the kubeactions subsystem is enabled and its Private Action Runner
+	// delivery path is on, auto-allow its bundle so the kubernetes-actions
+	// backend (dispatching via wf-actions-server) works without operators having
+	// to set actions_allowlist manually.
+	if config.GetBool("kubeactions.enabled") && config.GetBool("kubeactions.private_action_runner.enabled") {
 		actionFqns = append(actionFqns, KubeActionsActionFQNs...)
 	}
 
+	return NewActionsAllowlist(actionFqns)
+}
+
+// NewActionsAllowlist parses action FQNs and adds inherited actions without adding defaults.
+func NewActionsAllowlist(actionFqns []string) ActionsAllowlist {
+	allowlist := make(ActionsAllowlist)
 	for _, fqn := range actionFqns {
 		bundleName, actionName := actions.SplitFQN(fqn)
 		previous, ok := allowlist[bundleName]
@@ -141,8 +203,7 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 		allowlist[bundleName] = previous.Insert(actionName)
 	}
 
-	bundleInheritedActions := GetBundleInheritedAllowedActions(allowlist)
-	for bundleID, actionsSet := range bundleInheritedActions {
+	for bundleID, actionsSet := range GetBundleInheritedAllowedActions(allowlist) {
 		allowlist[bundleID] = allowlist[bundleID].Union(actionsSet)
 	}
 
@@ -152,7 +213,7 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 // rshellAllowedCommands returns the operator-configured rshell command allowlist.
 //
 // The default value is a wildcard ["rshell:*"] created to match all commands in the rshell namespace.
-// See pkg/config/setup/privateactionrunner.go for more details.
+// See pkg/config/schema/yaml/private_action_runner.yaml for more details.
 //
 // If the wildcard "rshell:*" is present, the operator-configured list acts as an ALLOW ALL:
 // only the backend will be used to filter the commands.
@@ -161,25 +222,34 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 // For a command to be executed by rshell, it needs to be present in both the operator-configured list
 // AND the backend's allowed commands list. (intersection operation)
 func rshellAllowedCommands(config config.Component) []string {
-	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
-	warnUnnamespacedCommands(commands)
+	commands := config.GetStringSlice(par.RestrictedShellAllowedCommands)
+	warnUnnamespacedCommands(par.RestrictedShellAllowedCommands, commands)
 	return commands
 }
 
 // Nil means unset; a configured empty map is the explicit deny-all policy.
 func rshellAllowedSystemServices(config config.Component) map[string][]string {
-	if !config.IsConfigured(setup.PARRestrictedShellAllowedSystemServices) {
+	if !config.IsConfigured(par.RestrictedShellAllowedSystemServices) {
 		return nil
 	}
-	return config.GetStringMapStringSlice(setup.PARRestrictedShellAllowedSystemServices)
+	return config.GetStringMapStringSlice(par.RestrictedShellAllowedSystemServices)
 }
 
-func warnUnnamespacedCommands(commands []string) {
+func rshellElevatableCommands(config config.Component) []string {
+	if !config.IsConfigured(par.RestrictedShellPrivilegedElevatableCommands) {
+		return nil
+	}
+	commands := config.GetStringSlice(par.RestrictedShellPrivilegedElevatableCommands)
+	warnUnnamespacedCommands(par.RestrictedShellPrivilegedElevatableCommands, commands)
+	return commands
+}
+
+func warnUnnamespacedCommands(key string, commands []string) {
 	for _, c := range commands {
 		if !strings.HasPrefix(c, RshellCommandNamespacePrefix) {
 			log.Warnf(
 				"%s entry %q is missing the %q prefix and will never match a backend command; use %q instead",
-				setup.PARRestrictedShellAllowedCommands,
+				key,
 				c,
 				RshellCommandNamespacePrefix,
 				RshellCommandNamespacePrefix+c,
@@ -191,13 +261,13 @@ func warnUnnamespacedCommands(commands []string) {
 // rshellAllowedPaths returns the operator-configured rshell path allowlist.
 //
 // The default value is ["/"] matching all paths.
-// See pkg/config/setup/privateactionrunner.go for more details.
+// See pkg/config/schema/yaml/private_action_runner.yaml for more details.
 //
 // The operator-configured list is used to filter the paths.
 // For a path to be accessible by rshell, it needs to be present in both the operator-configured list
 // AND the backend's allowed paths list. (intersection operation)
 func rshellAllowedPaths(config config.Component) []string {
-	paths := config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
+	paths := config.GetStringSlice(par.RestrictedShellAllowedPaths)
 	warnBackslashPaths(paths)
 	warnNonDirectoryPaths(paths)
 	return paths
@@ -207,7 +277,7 @@ func warnBackslashPaths(paths []string) {
 	for _, p := range paths {
 		if strings.ContainsRune(p, '\\') {
 			log.Warnf("%s entry %q contains a backslash; only forward-slash paths are supported and this entry will never match a backend rule",
-				setup.PARRestrictedShellAllowedPaths, p)
+				par.RestrictedShellAllowedPaths, p)
 		}
 	}
 }
@@ -217,17 +287,9 @@ func warnNonDirectoryPaths(paths []string) {
 		info, err := os.Stat(p)
 		if err == nil && !info.IsDir() {
 			log.Warnf("%s entry %q is not a directory; rshell's sandbox only accepts directory entries and will drop this entry at runtime. Use the containing directory instead.",
-				setup.PARRestrictedShellAllowedPaths, p)
+				par.RestrictedShellAllowedPaths, p)
 		}
 	}
-}
-
-// getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
-// It removes the "https://" prefix and any trailing "." from the endpoint URL.
-func getDatadogHost(endpoint string) string {
-	host := strings.TrimSuffix(endpoint, ".")
-	host = strings.TrimPrefix(host, "https://")
-	return host
 }
 
 func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
@@ -240,7 +302,7 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 
 		matched := false
 		for bundleID, actionsSet := range actionsAllowlist {
-			if actionsSet.Len() > 0 && strings.HasPrefix(bundleID, prefix) {
+			if actionsSet.Len() > 0 && (bundleID == prefix || strings.HasPrefix(bundleID, prefix+".")) {
 				matched = true
 				break
 			}

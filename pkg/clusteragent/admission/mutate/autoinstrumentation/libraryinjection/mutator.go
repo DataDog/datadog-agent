@@ -71,6 +71,9 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 	factory := NewProviderFactory(InjectionMode(cfg.InjectionMode))
 	provider := factory.GetProviderForPod(pod, cfg)
 	annotation.Set(pod, annotation.EffectiveInjectionMode, provider.GetName())
+	if auto, ok := provider.(*AutoProvider); ok {
+		annotation.Set(pod, annotation.AutoInjectionModeReason, auto.Reason())
+	}
 
 	// Inject the APM injector
 	injectorResult := provider.InjectInjector(pod, cfg.Injector)

@@ -1,4 +1,6 @@
 #!/bin/sh
+# Configuration Script — runs on fresh installs and upgrades, last of the
+# lifecycle scripts (right after postinst).
 CONFIG_DIR=/etc/datadog-agent
 CONFIG_FILE="$CONFIG_DIR/datadog.yaml"
 EXAMPLE_FILE="$CONFIG_DIR/datadog.yaml.example"

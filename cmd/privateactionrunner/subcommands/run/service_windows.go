@@ -9,10 +9,8 @@ package run
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 
-	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
@@ -43,7 +41,7 @@ func (s *windowsService) Init() error {
 
 func (s *windowsService) Run(ctx context.Context) error {
 	err := runPrivateActionRunner(ctx, defaultConfPath, nil)
-	if errors.Is(err, privateactionrunner.ErrNotEnabled) {
+	if isCleanStop(err) {
 		return servicemain.ErrCleanStopAfterInit
 	}
 	return err

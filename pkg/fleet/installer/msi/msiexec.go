@@ -128,20 +128,61 @@ func WithMsi(target string) MsiexecOption {
 	}
 }
 
-// WithMsiFromPackagePath finds an MSI from the packages folder
-func WithMsiFromPackagePath(target, product string) MsiexecOption {
+// AgentMSIName returns the MSI filename for an Agent package version.
+func AgentMSIName(version string, fipsMode bool) string {
+	prefix := "datadog-agent"
+	if fipsMode {
+		prefix = "datadog-fips-agent"
+	}
+	return fmt.Sprintf("%s-%s-x86_64.msi", prefix, version)
+}
+
+// AgentProductName returns the Agent's Windows Installer product name.
+func AgentProductName(fipsMode bool) string {
+	if fipsMode {
+		return "Datadog FIPS Agent"
+	}
+	return "Datadog Agent"
+}
+
+// FindAgentMSI finds exactly one Agent MSI of the requested flavor.
+func FindAgentMSI(dir string, fipsMode bool) (string, error) {
+	msis, err := filepath.Glob(filepath.Join(dir, AgentMSIName("*", fipsMode)))
+	if err != nil {
+		return "", err
+	}
+	// Older installers saved the FIPS rollback MSI as datadog-agent-*.msi.
+	if fipsMode && len(msis) == 0 {
+		msis, err = filepath.Glob(filepath.Join(dir, AgentMSIName("*", false)))
+		if err != nil {
+			return "", err
+		}
+	}
+	if len(msis) > 1 {
+		return "", errors.New("too many MSIs in package")
+	}
+	if len(msis) == 0 {
+		return "", errors.New("no MSIs in package")
+	}
+	product, err := readMSIProductName(msis[0])
+	if err != nil {
+		return "", fmt.Errorf("read MSI product: %w", err)
+	}
+	if product != AgentProductName(fipsMode) {
+		return "", fmt.Errorf("unexpected MSI product %q, expected %q", product, AgentProductName(fipsMode))
+	}
+	return msis[0], nil
+}
+
+// WithMsiFromPackagePath finds the Agent MSI from the packages folder.
+func WithMsiFromPackagePath(target, product string, fipsMode bool) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		updaterPath := filepath.Join(paths.PackagesPath, product, target)
-		msis, err := filepath.Glob(filepath.Join(updaterPath, product+"-*-1-x86_64.msi"))
+		msiPath, err := FindAgentMSI(updaterPath, fipsMode)
 		if err != nil {
 			return err
 		}
-		if len(msis) > 1 {
-			return errors.New("too many MSIs in package")
-		} else if len(msis) == 0 {
-			return errors.New("no MSIs in package")
-		}
-		a.target = msis[0]
+		a.target = msiPath
 		return nil
 	}
 }
@@ -149,7 +190,7 @@ func WithMsiFromPackagePath(target, product string) MsiexecOption {
 // WithProduct specifies the product name to target for msiexec
 func WithProduct(productName string) MsiexecOption {
 	return func(a *msiexecArgs) error {
-		product, err := FindProductCode(productName)
+		product, err := FindProductCodeFromUninstallRegistry(productName)
 		if err != nil {
 			return fmt.Errorf("error trying to find product %s: %w", productName, err)
 		}
@@ -622,10 +663,13 @@ func formatPropertyArg(key, value string) string {
 
 func setProductCodeTags(span *telemetry.Span) {
 	// Get all product codes associated with "Datadog Agent" display name
-	products, err := FindAllProductCodes("Datadog Agent")
-	if err != nil {
+	products, err := FindMsiProductCodesByName("Datadog Agent")
+	if err != nil && len(products) == 0 {
 		span.SetTag("installer.msi.product_codes", fmt.Sprintf("error getting product codes: %v", err))
 	} else {
+		if err != nil {
+			span.SetTag("installer.msi.product_codes_error", fmt.Sprintf("error getting product codes: %v", err))
+		}
 		productCodes := []string{}
 		features := []string{}
 		for _, product := range products {
@@ -639,7 +683,7 @@ func setProductCodeTags(span *telemetry.Span) {
 		span.SetTag("installer.msi.product_codes", strings.Join(productCodes, ";"))
 		span.SetTag("installer.msi.features", strings.Join(features, ";"))
 	}
-	uninstallProducts, err := FindUninstallProductCodes("Datadog Agent")
+	uninstallProducts, err := FindUninstallRegistryProductCodes("Datadog Agent")
 	if err != nil {
 		span.SetTag("installer.uninstall_product_codes", fmt.Sprintf("error getting uninstall product codes: %v", err))
 	} else {

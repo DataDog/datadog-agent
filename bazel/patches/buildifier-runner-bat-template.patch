@@ -1,11 +1,10 @@
 diff --git a/buildifier/runner.bat.template b/buildifier/runner.bat.template
-index 13ca3fa..3c8882f 100644
+index f5d1e58..687805b 100644
 --- a/buildifier/runner.bat.template
 +++ b/buildifier/runner.bat.template
-@@ -11,7 +11,38 @@ set stripped_args=%stripped_args:'=%
+@@ -11,7 +11,36 @@ set stripped_args=%stripped_args:'=%
  rem Get the absolute path to the buildifier executable
 -for /f "tokens=2" %%i in ('findstr /r "\<buildifier\.exe\>" MANIFEST') do (set buildifier_abs_path=%%i)
-+set "manifest_file="
 +if exist MANIFEST (
 +    set manifest_file=MANIFEST
 +) else if exist "%RUNFILES_MANIFEST_FILE%" (
@@ -14,8 +13,7 @@ index 13ca3fa..3c8882f 100644
 +    set "manifest_file=%~f0.runfiles\MANIFEST"
 +) else if exist "%TEST_SRCDIR%\MANIFEST" (
 +    set "manifest_file=%TEST_SRCDIR%\MANIFEST"
-+)
-+if not defined manifest_file (
++) else (
 +    >&2 echo Error: manifest file not found
 +    exit /b 1
 +)
@@ -41,8 +39,8 @@ index 13ca3fa..3c8882f 100644
  $Files = Get-ChildItem -LiteralPath '%BUILD_WORKSPACE_DIRECTORY:/=\%' -Recurse -File -ErrorAction SilentlyContinue ^|^
      Where-Object {^
 +        (^
-         $_.Name -eq 'BUILD.bazel' `^
-@@ -28,2 +59,3 @@ $Files = Get-ChildItem -LiteralPath '%BUILD_WORKSPACE_DIRECTORY:/=\%' -Recurse -
+         $_.Name -eq 'BUILD' `^
+@@ -28,2 +57,3 @@ $Files = Get-ChildItem -LiteralPath '%BUILD_WORKSPACE_DIRECTORY:/=\%' -Recurse -
          -or $_.Name -clike 'WORKSPACE.*.oss'^
 +        ) -and -not (Should-Exclude $_.FullName)^
      };^

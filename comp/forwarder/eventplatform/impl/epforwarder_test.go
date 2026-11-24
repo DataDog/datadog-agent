@@ -86,13 +86,32 @@ func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesInclude
 	suite.Equal("Agent Discovery", agentDiscoveryDesc.category)
 	suite.Equal(logshttp.ProtobufContentType, agentDiscoveryDesc.contentType)
 	suite.Equal("config_files_discovery.forwarder.", agentDiscoveryDesc.endpointsConfigPrefix)
-	suite.Equal("agentdiscovery-intake.", agentDiscoveryDesc.hostnameEndpointPrefix)
+	suite.Equal("instrumentation-telemetry-intake.", agentDiscoveryDesc.hostnameEndpointPrefix)
 	suite.Equal(laconfig.IntakeTrackType("agentdiscovery"), agentDiscoveryDesc.intakeTrackType)
 	suite.Equal(0, agentDiscoveryDesc.defaultBatchMaxConcurrentSend)
 	suite.Equal(5000000, agentDiscoveryDesc.defaultBatchMaxContentSize)
 	suite.Equal(1000, agentDiscoveryDesc.defaultBatchMaxSize)
 	suite.Equal(100, agentDiscoveryDesc.defaultInputChanSize)
 	suite.False(agentDiscoveryDesc.useStreamStrategy)
+}
+
+func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesIncludesDataStreams() {
+	var dataStreamsDesc passthroughPipelineDesc
+	found := false
+	for _, desc := range getPassthroughPipelines() {
+		if desc.eventType == eventTypeDataStreamsMessage {
+			dataStreamsDesc = desc
+			found = true
+			break
+		}
+	}
+
+	suite.Require().True(found)
+	suite.Equal("data_streams.forwarder.", dataStreamsDesc.endpointsConfigPrefix)
+	suite.Equal(10, dataStreamsDesc.defaultBatchMaxConcurrentSend)
+	suite.Equal(500, dataStreamsDesc.defaultInputChanSize)
+	suite.Equal(500, dataStreamsDesc.effectiveInputChanSize(100))
+	suite.Equal(1000, dataStreamsDesc.effectiveInputChanSize(1000))
 }
 
 func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineCompression() {

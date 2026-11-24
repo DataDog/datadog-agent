@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Network Path basic Dynamic Tests are now enabled by default on hosts with
+    Cloud Network Monitoring enabled (``network_config.enabled``). These tests
+    run limited traceroutes to a representative subset of observed destinations.
+    Set ``network_path.connections_monitoring.basic_tests_enabled: false`` to
+    opt out.

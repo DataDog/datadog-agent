@@ -1,6 +1,8 @@
 #ifndef _HOOKS_EXEC_H_
 #define _HOOKS_EXEC_H_
 
+#include <uapi/linux/capability.h>
+
 #include "constants/syscall_macro.h"
 #include "constants/offsets/filesystem.h"
 #include "helpers/cgroup.h"
@@ -10,8 +12,9 @@
 #include "helpers/network/stats.h"
 #include "constants/fentry_macro.h"
 #include "helpers/caps.h"
+#include "helpers/syscall_usage.h"
 
-int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
+static __always_inline int trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
     // use the fist 56 bits of ktime to simulate a somewhat monotonic id
     // the last 8 bits are the cpu id to avoid collisions between cores
     // increment the id by 1 for the envs to have distinct ids (this assumes a new exec syscall cannot be issued in the next nanosecond)
@@ -38,7 +41,11 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
         //     before sending the event to userspace
         //   - because the "real" thread leader will be terminated during this exec syscall, we also need to make sure to not send
         //     the corresponding exit event
-        bpf_map_update_elem(&exec_pid_transfer, &tgid, &pid_tgid, BPF_ANY);
+        struct exec_pid_transfer_t transfer = {
+            .pid_tgid = pid_tgid,
+            .task = bpf_get_current_task(),
+        };
+        bpf_map_update_elem(&exec_pid_transfer, &tgid, &transfer, BPF_ANY);
     }
 
     cache_syscall_update_cgroup(ctx, &syscall);
@@ -53,8 +60,14 @@ HOOK_SYSCALL_ENTRY4(execveat, int, fd, const char *, filename, const char **, ar
     return trace__sys_execveat(ctx, filename, argv, env);
 }
 
-int __attribute__((always_inline)) handle_execve_exit() {
-    pop_syscall(EVENT_EXEC);
+static __always_inline int handle_execve_exit() {
+    pop_current_or_impersonated_exec_syscall();
+
+    u32 tgid = bpf_get_current_pid_tgid() >> 32;
+    struct exec_pid_transfer_t *transfer = (struct exec_pid_transfer_t *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+    if (transfer && transfer->task == bpf_get_current_task()) {
+        bpf_map_delete_elem(&exec_pid_transfer, &tgid);
+    }
     return 0;
 }
 
@@ -66,7 +79,98 @@ HOOK_SYSCALL_EXIT(execveat) {
     return handle_execve_exit();
 }
 
-int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, struct syscall_cache_t *syscall, struct file *file) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_exec_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return handle_execve_exit();
+}
+
+// The cpu_vfs_cap_data layout varies across kernels. Read only the fields we
+// need at the resolved field offsets, without assuming a
+// particular layout or reading rootid. Linux 4.14's object is only 20 bytes.
+// Both mask representations can be read as u64 on amd64 and little-endian arm64.
+static __always_inline void read_exec_file_capabilities(void *file_caps, u64 permitted_offset, u64 inheritable_offset, struct file_capabilities_t *caps) {
+    *caps = (struct file_capabilities_t){};
+    if (!permitted_offset || !inheritable_offset) {
+        // Unresolved offsets are loaded as zero: leave unavailable.
+        return;
+    }
+
+    u32 magic_etc = 0;
+    struct file_capabilities_t result = {};
+    if (bpf_probe_read(&magic_etc, sizeof(magic_etc), file_caps) != 0 ||
+        bpf_probe_read(&result.permitted, sizeof(result.permitted), (char *)file_caps + permitted_offset) != 0 ||
+        bpf_probe_read(&result.inheritable, sizeof(result.inheritable), (char *)file_caps + inheritable_offset) != 0) {
+        return;
+    }
+
+    result.effective = (magic_etc & VFS_CAP_FLAGS_EFFECTIVE) != 0;
+    result.available = 1;
+    *caps = result;
+}
+
+HOOK_ENTRY("get_vfs_caps_from_disk")
+int hook_get_vfs_caps_from_disk(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall) {
+        return 0;
+    }
+
+    u64 argc;
+    LOAD_CONSTANT("get_vfs_caps_from_disk_argc", argc);
+    if (argc != 2 && argc != 3) {
+        return 0;
+    }
+
+    // Materialize the arguments before selecting between prototypes. Otherwise
+    // LLVM can merge the loads into a register-offset ctx access, which the
+    // verifier rejects in both kprobe and fentry programs.
+    u64 arg1 = CTX_PARM1(ctx);
+    u64 arg2 = CTX_PARM2(ctx);
+    barrier_var(arg1);
+    barrier_var(arg2);
+
+    u64 arg3 = 0;
+    if (argc == 3) {
+        // This slot is not valid for the two-argument fentry prototype.
+        arg3 = CTX_PARM3(ctx);
+        barrier_var(arg3);
+    }
+
+    // An idmap/user_namespace argument was added before dentry in Linux 5.12.
+    struct dentry *dentry = (struct dentry *)(argc == 3 ? arg2 : arg1);
+    if (dentry != syscall->exec.dentry) {
+        // In particular, do not attribute an interpreter's capabilities to a script.
+        return 0;
+    }
+
+    syscall->exec.file_caps = (void *)(argc == 3 ? arg3 : arg2);
+    syscall->exec.file_capabilities = (struct file_capabilities_t){};
+    return 0;
+}
+
+HOOK_EXIT("get_vfs_caps_from_disk")
+int rethook_get_vfs_caps_from_disk(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall || !syscall->exec.file_caps) {
+        return 0;
+    }
+
+    void *file_caps = syscall->exec.file_caps;
+    syscall->exec.file_caps = NULL;
+    if ((int)CTX_PARMRET(ctx) != 0) {
+        return 0;
+    }
+
+    u64 permitted_offset, inheritable_offset;
+    LOAD_CONSTANT("cpu_vfs_cap_data_permitted_offset", permitted_offset);
+    LOAD_CONSTANT("cpu_vfs_cap_data_inheritable_offset", inheritable_offset);
+
+    // These are the file sets, before the bounding-set check. Merely acquiring
+    // capabilities during exec is deliberately not reported as capability usage.
+    read_exec_file_capabilities(file_caps, permitted_offset, inheritable_offset, &syscall->exec.file_capabilities);
+    return 0;
+}
+
+static __always_inline int handle_interpreted_exec_event(void *ctx, struct syscall_cache_t *syscall, struct file *file) {
     struct inode *interpreter_inode;
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), get_file_f_inode_addr(file));
 
@@ -100,7 +204,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
 
 #define DO_FORK_STRUCT_INPUT 1
 
-int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
+static __always_inline int handle_do_fork(ctx_t *ctx) {
     struct syscall_cache_t syscall = {
         .type = EVENT_FORK,
         .fork.is_thread = 1,
@@ -175,14 +279,14 @@ int hook__do_fork(ctx_t *ctx) {
     return handle_do_fork(ctx);
 }
 
-int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid, u32 parent_pid, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sched_process_fork_common(void *ctx, u32 pid, u32 parent_pid, enum TAIL_CALL_PROG_TYPE prog_type) {
     // ignore the rest if kworker
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
     if (!syscall || syscall->fork.is_kthread || IS_KTHREADD(parent_pid)) {
         u8 value = 1;
         bpf_map_update_elem(&kernel_thread_pids, &pid, &value, BPF_ANY);
         if (syscall) {
-            pop_syscall(EVENT_FORK);
+            goto pop_and_exit;
         }
         return 0;
     }
@@ -194,12 +298,9 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         bpf_map_update_elem(&netns_cache, &pid, &child_netns_entry, BPF_ANY);
     }
 
-    // TODO should inherit the nmtns
-
     // if this is a thread, leave
     if (syscall->fork.is_thread) {
-        pop_syscall(EVENT_FORK);
-        return 0;
+        goto pop_and_exit;
     }
 
     u64 ts = bpf_ktime_get_ns();
@@ -208,8 +309,7 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
     // by the tail-called fill_span_and_send program.
     struct process_event_t *event = SPAN_FILL_EVENT(struct process_event_t, EVENT_FORK);
     if (event == NULL) {
-        pop_syscall(EVENT_FORK);
-        return 0;
+        goto pop_and_exit;
     }
 
     event->pid_entry.fork_timestamp = ts;
@@ -225,8 +325,7 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
     if (IS_KTHREADD(ppid)) {
         u8 value = 1;
         bpf_map_update_elem(&kernel_thread_pids, &pid, &value, BPF_ANY);
-        pop_syscall(EVENT_FORK);
-        return 0;
+        goto pop_and_exit;
     }
 
     // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value.
@@ -238,9 +337,22 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
 
     event->pid_entry.fork_flags = syscall->fork.flags;
 
-    u32 *inum = bpf_map_lookup_elem(&mntns_cache, &ppid);
-    if (inum) {
-        event->process.mntns = *inum;
+    u32 child_mntns_entry = 0;
+    if (syscall->fork.flags & CLONE_NEWNS) {
+        if (syscall->fork.newmnt) {
+            child_mntns_entry = get_mount_mount_ns_inum(syscall->fork.newmnt);
+        }
+    } else {
+        u32 *inum = bpf_map_lookup_elem(&mntns_cache, &ppid);
+        if (inum) {
+            child_mntns_entry = *inum;
+        }
+    }
+    event->process.mntns = child_mntns_entry;
+    if (child_mntns_entry) {
+        bpf_map_update_elem(&mntns_cache, &pid, &child_mntns_entry, BPF_ANY);
+    } else {
+        bpf_map_delete_elem(&mntns_cache, &pid);
     }
 
     struct pid_cache_t *parent_pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &ppid);
@@ -288,6 +400,8 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
     // fill_span_and_send program matching this caller's program type.
     span_fill_tail_call(ctx, prog_type);
 
+pop_and_exit:
+    pop_syscall(EVENT_FORK);
     return 0;
 }
 
@@ -319,8 +433,10 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 }
 
 
-int __attribute__((always_inline)) coredump_common() {
-    u64 key = bpf_get_current_pid_tgid();
+static __always_inline int coredump_common() {
+    // the core can be dumped by any thread of the process, so key it at the thread-group level
+    u64 tgid = bpf_get_current_pid_tgid() >> 32;
+    u64 key = (tgid << 32) | tgid;
     u8 in_coredump = 1;
 
     bpf_map_update_elem(&tasks_in_coredump, &key, &in_coredump, BPF_ANY);
@@ -337,7 +453,7 @@ int hook_do_coredump(ctx_t *ctx) {
     return coredump_common();
 }
 
-int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
+static __always_inline int handle_exit_group_dead(ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
@@ -347,59 +463,50 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         return 0;
     }
 
-    // delete netns entry
-    bpf_map_delete_elem(&netns_cache, &pid);
-
-    u64 *pid_tgid_execing = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
-
-    // only send the exit event if this is the thread group leader that isn't being killed by an execing thread
-    if (tgid == pid && pid_tgid_execing == NULL) {
-        // update exit time
-        struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
-        if (pid_entry) {
-            pid_entry->exit_timestamp = bpf_ktime_get_ns();
-            flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
-        } else if (is_current_kworker_dying()) {
-            pop_syscall(EVENT_ANY);
-            return 0;
-        }
-
-        // send the entry to maintain userspace cache
-        struct exit_event_t *event = SPAN_FILL_EVENT(struct exit_event_t, EVENT_EXIT);
-        if (!event) {
-            // tear down the process state even if the event can't be staged
-            unregister_span_context();
-            cleanup_traced_state(tgid);
-            pop_syscall(EVENT_ANY);
-            return 0;
-        }
-
-        struct proc_cache_t *pc = fill_process_context(&event->process);
-        fill_cgroup_context(pc, &event->cgroup);
-        event->exit_code = (u32)(u64)CTX_PARM1(ctx);
-        u8 *in_coredump = (u8 *)bpf_map_lookup_elem(&tasks_in_coredump, &pid_tgid);
-        if (in_coredump) {
-            event->exit_code |= 0x80;
-            bpf_map_delete_elem(&tasks_in_coredump, &pid_tgid);
-        }
-
-        // should be sampled for activity dumps
-        event->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-
-        cleanup_traced_state(tgid);
-        pop_syscall(EVENT_ANY);
-
-        span_fill_tail_call_key(ctx, KPROBE_OR_FENTRY_TYPE, SPAN_FILL_KEY_EXIT);
+    struct exec_pid_transfer_t *exec_transfer = (struct exec_pid_transfer_t *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+    if (exec_transfer != NULL) {
         return 0;
     }
 
-    // cleanup any remaining syscall cache entry for this pid_tgid
-    pop_syscall(EVENT_ANY);
+    // update exit time
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
+    if (pid_entry) {
+        pid_entry->exit_timestamp = bpf_ktime_get_ns();
+        flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
+        flush_syscall_usage(ctx, tgid, SYSCALL_MONITOR_REASON_EXIT);
+    } else if (is_current_kworker_dying()) {
+        return 0;
+    }
 
+    // send the entry to maintain userspace cache
+    struct exit_event_t *event = SPAN_FILL_EVENT(struct exit_event_t, EVENT_EXIT);
+    if (!event) {
+        // tear down the process state even if the event can't be staged
+        unregister_span_context();
+        cleanup_traced_state(tgid);
+        return 0;
+    }
+
+    struct proc_cache_t *pc = fill_process_context(&event->process);
+    fill_cgroup_context(pc, &event->cgroup);
+    event->exit_code = pid_entry ? pid_entry->exit_code : 0;
+    u64 coredump_key = ((u64)tgid << 32) | tgid;
+    u8 *in_coredump = (u8 *)bpf_map_lookup_elem(&tasks_in_coredump, &coredump_key);
+    if (in_coredump) {
+        event->exit_code |= 0x80;
+        bpf_map_delete_elem(&tasks_in_coredump, &coredump_key);
+    }
+
+    // should be sampled for activity dumps
+    event->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+
+    cleanup_traced_state(tgid);
+
+    span_fill_tail_call_key(ctx, KPROBE_OR_FENTRY_TYPE, SPAN_FILL_KEY_EXIT);
     return 0;
 }
 
-TAIL_CALL_FNC_WITH_HOOK_POINT("do_exit", flush_network_stats_exit, ctx_t *ctx) {
+TAIL_CALL_FNC_WITH_HOOK_POINT("exit_itimers", flush_network_stats_exit, ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid;
     u32 tgid = pid_tgid >> 32;
@@ -409,24 +516,57 @@ TAIL_CALL_FNC_WITH_HOOK_POINT("do_exit", flush_network_stats_exit, ctx_t *ctx) {
         flush_pid_network_stats(tgid, ctx, PID_EXIT);
     }
 
-    return handle_do_exit(ctx);
+    return handle_exit_group_dead(ctx);
 }
 
 HOOK_ENTRY("do_exit")
 int hook_do_exit(ctx_t *ctx) {
-    if (is_network_flow_monitor_enabled()) {
-        bpf_tail_call_compat(ctx, &flush_network_stats_progs, PID_EXIT);
-    }
-    return handle_do_exit(ctx);
-}
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+    u32 pid = pid_tgid;
 
-HOOK_ENTRY("exit_itimers")
-int hook_exit_itimers(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
-    if (!syscall) {
+    if (IS_KERNEL_THREAD(pid)) {
         return 0;
     }
 
+    // delete netns entry
+    bpf_map_delete_elem(&netns_cache, &pid);
+
+    // every thread has its own capability context, not just the group leader
+    cleanup_capabilities_context(pid);
+
+    struct exec_pid_transfer_t *transfer = (struct exec_pid_transfer_t *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+    if (transfer && transfer->task == bpf_get_current_task()) {
+        bpf_map_delete_elem(&exec_pid_transfer, &tgid);
+    }
+
+    u32 exit_code = (u32)(u64)CTX_PARM1(ctx);
+    u64 coredump_key = ((u64)tgid << 32) | tgid;
+    u8 *in_coredump = (u8 *)bpf_map_lookup_elem(&tasks_in_coredump, &coredump_key);
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
+    if (pid_entry) {
+        if ((tgid == pid && !in_coredump) || (in_coredump && exit_code != 0)) {
+            pid_entry->exit_code = exit_code;
+        }
+    } else if (!is_current_kworker_dying()) {
+        struct pid_cache_t new_pid_entry = {
+            .exit_code = (tgid == pid || in_coredump) ? exit_code : 0,
+        };
+        bpf_map_update_elem(&pid_cache, &tgid, &new_pid_entry, BPF_NOEXIST);
+    }
+
+    // cleanup any remaining syscall cache entry for this pid_tgid
+    pop_syscall(EVENT_ANY);
+
+    return 0;
+}
+
+#ifndef SIGNAL_GROUP_EXIT
+#define SIGNAL_GROUP_EXIT 0x00000004
+#endif
+
+HOOK_ENTRY("exit_itimers")
+int hook_exit_itimers(ctx_t *ctx) {
     void *signal = (void *)CTX_PARM1(ctx);
 
     // Since kernel 5.19, exit_itimers takes a struct task_struct* instead of a struct signal_struct*,
@@ -439,28 +579,67 @@ int hook_exit_itimers(ctx_t *ctx) {
         bpf_probe_read(&signal, sizeof(signal), (char *)signal + task_struct_signal_offset);
     }
 
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 tgid = pid_tgid >> 32;
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
+    if (syscall) {
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u32 tgid = pid_tgid >> 32;
 
-    struct proc_cache_t *pc = get_proc_cache(tgid);
-    if (pc) {
-        u64 tty_offset;
-        LOAD_CONSTANT("tty_offset", tty_offset);
+        struct proc_cache_t *pc = get_proc_cache(tgid);
+        if (pc) {
+            u64 tty_offset;
+            LOAD_CONSTANT("tty_offset", tty_offset);
 
-        u64 tty_name_offset;
-        LOAD_CONSTANT("tty_name_offset", tty_name_offset);
+            u64 tty_name_offset;
+            LOAD_CONSTANT("tty_name_offset", tty_name_offset);
 
-        struct tty_struct *tty;
-        bpf_probe_read(&tty, sizeof(tty), (char *)signal + tty_offset);
-        if (tty) {
-            bpf_probe_read_str(pc->entry.tty_name, TTY_NAME_LEN, (char *)tty + tty_name_offset);
+            struct tty_struct *tty;
+            bpf_probe_read(&tty, sizeof(tty), (char *)signal + tty_offset);
+            if (tty) {
+                bpf_probe_read_str(pc->entry.tty_name, TTY_NAME_LEN, (char *)tty + tty_name_offset);
+            }
+        }
+
+        return 0;
+    }
+
+    u64 signal_live_offset;
+    LOAD_CONSTANT("signal_live_offset", signal_live_offset);
+
+    u32 live = 1;
+    if (signal) {
+        bpf_probe_read(&live, sizeof(live), (char *)signal + signal_live_offset);
+    }
+    if (live != 0) {
+        return 0;
+    }
+
+    if (signal) {
+        u64 signal_flags_offset;
+        LOAD_CONSTANT("signal_flags_offset", signal_flags_offset);
+        u64 signal_group_exit_code_offset;
+        LOAD_CONSTANT("signal_group_exit_code_offset", signal_group_exit_code_offset);
+        if (signal_flags_offset && signal_group_exit_code_offset) {
+            u32 signal_flags = 0;
+            bpf_probe_read(&signal_flags, sizeof(signal_flags), (char *)signal + signal_flags_offset);
+            if (signal_flags & SIGNAL_GROUP_EXIT) {
+                u32 group_exit_code = 0;
+                bpf_probe_read(&group_exit_code, sizeof(group_exit_code), (char *)signal + signal_group_exit_code_offset);
+                u32 tgid = bpf_get_current_pid_tgid() >> 32;
+                struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
+                if (pid_entry) {
+                    pid_entry->exit_code = group_exit_code;
+                }
+            }
         }
     }
 
-    return 0;
+    if (is_network_flow_monitor_enabled()) {
+        bpf_tail_call_compat(ctx, &flush_network_stats_progs, PID_EXIT);
+    }
+    return handle_exit_group_dead(ctx);
 }
 
-int __attribute__((always_inline)) fill_exec_context() {
+static __always_inline int fill_exec_context() {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -540,7 +719,7 @@ TAIL_CALL_FNC(get_envs_offset, void *ctx) {
     return 0;
 }
 
-void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_parsing_context_t *args_envs_ctx, struct args_envs_t *args_envs) {
+static __always_inline void parse_args_envs(void *ctx, struct args_envs_parsing_context_t *args_envs_ctx, struct args_envs_t *args_envs) {
     const char *args_start = args_envs_ctx->args_start;
     int offset = args_envs_ctx->parsing_offset;
 
@@ -674,7 +853,7 @@ TAIL_CALL_FNC(parse_args_envs, void *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) fetch_interpreter(void *ctx, struct linux_binprm *bprm) {
+static __always_inline int fetch_interpreter(void *ctx, struct linux_binprm *bprm) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -766,6 +945,7 @@ int hook_setup_arg_pages(ctx_t *ctx) {
     struct pid_cache_t *pid_entry = get_pid_cache(tgid);
     if (pid_entry) {
         flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
+        flush_syscall_usage(ctx, tgid, SYSCALL_MONITOR_REASON_EXECVE);
     }
 
     if (syscall->exec.args_envs_ctx.envs_offset != 0) {
@@ -777,8 +957,8 @@ int hook_setup_arg_pages(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = pop_current_or_impersonated_exec_syscall();
+static __always_inline int send_exec_event(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
     }
@@ -787,8 +967,6 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 now = bpf_ktime_get_ns();
     u32 tgid = pid_tgid >> 32;
-
-    bpf_map_delete_elem(&exec_pid_transfer, &tgid);
 
     struct proc_cache_t pc = {
         .entry = {
@@ -804,6 +982,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
                 },
             },
             .exec_timestamp = now,
+            .file_capabilities = syscall->exec.file_capabilities,
         },
         .cgroup = {},
     };
@@ -846,6 +1025,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // update pid <-> cookie mapping
     if (fork_entry) {
         fork_entry->cookie = cookie;
+        fork_entry->exit_code = 0;
     } else {
         struct pid_cache_t new_pid_entry = {
             .cookie = cookie,
@@ -853,14 +1033,13 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         bpf_map_update_elem(&pid_cache, &tgid, &new_pid_entry, BPF_ANY);
         fork_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (fork_entry == NULL) {
-            // should never happen, ignore
-            return 0;
+            goto pop_and_exit;
         }
     }
 
     struct process_event_t *event = new_process_event(0);
     if (event == NULL) {
-        return 0;
+        goto pop_and_exit;
     }
 
     // copy proc_cache data
@@ -897,11 +1076,15 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     // Through symlink
     event->is_through_symlink = syscall->exec.is_through_symlink;
+
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
 
     unregister_span_context();
 
+pop_and_exit:
+    pop_current_or_impersonated_exec_syscall();
+    bpf_map_delete_elem(&exec_pid_transfer, &tgid);
     return 0;
 }
 

@@ -18,12 +18,13 @@ import (
 )
 
 // CreateDummyKubeService creates a dummy KubeServiceService for testing purposes.
-func CreateDummyKubeService(name, namespace string, annotations map[string]string) *KubeServiceService {
+func CreateDummyKubeService(name, namespace string, annotations, labels map[string]string) *KubeServiceService {
 	ksvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Namespace:   namespace,
 			Annotations: annotations,
+			Labels:      labels,
 		},
 		Spec: v1.ServiceSpec{
 			ClusterIP: "10.0.0.1",
@@ -34,15 +35,15 @@ func CreateDummyKubeService(name, namespace string, annotations map[string]strin
 	}
 	return &KubeServiceService{
 		entity:   apiserver.EntityForService(ksvc),
-		metadata: workloadfilter.CreateKubeService(name, namespace, annotations),
+		metadata: workloadfilter.CreateKubeService(name, namespace, annotations, labels),
 	}
 }
 
 // CreateDummyKubeEndpoint creates a dummy KubeEndpointService for testing purposes.
-func CreateDummyKubeEndpoint(name, namespace string, annotations map[string]string) *KubeEndpointService {
+func CreateDummyKubeEndpoint(name, namespace string, annotations, labels map[string]string) *KubeEndpointService {
 	return &KubeEndpointService{
 		entity:   apiserver.EntityForEndpoints(namespace, name, "10.0.0.1"),
-		metadata: workloadfilter.CreateKubeEndpoint(name, namespace, annotations),
+		metadata: workloadfilter.CreateKubeEndpoint(name, namespace, annotations, labels),
 	}
 }
 

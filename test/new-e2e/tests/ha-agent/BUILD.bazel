@@ -4,7 +4,6 @@ dd_agent_go_test(
     name = "ha-agent_test",
     srcs = [
         "haagent_failover_test.go",
-        "haagent_metadata_test.go",
         "haagent_test.go",
     ],
     data = [

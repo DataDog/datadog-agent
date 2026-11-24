@@ -47,6 +47,7 @@ go_library(
         "//comp/metadata/inventoryagent/fx",
         "//comp/metadata/inventoryhost/fx",
         "//comp/metadata/resources/fx",
+        "//comp/procmgr/flare/fx",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/fx",
         "//pkg/config/helper",

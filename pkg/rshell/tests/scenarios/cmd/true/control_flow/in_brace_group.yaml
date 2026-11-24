@@ -1,0 +1,10 @@
+description: True works correctly inside a brace group.
+input:
+  script: |+
+    { true; }
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

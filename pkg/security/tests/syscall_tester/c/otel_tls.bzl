@@ -4,27 +4,32 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 
-# -mtls-dialect spells the two general-dynamic dialects differently per
-# architecture; the rest of the flags are the same everywhere.
-_TLS_DIALECT = select({
-    "@platforms//cpu:aarch64": ["-mtls-dialect=desc"],
+# -mtls-dialect is x86_64 only. Other CPUs leave it unset. On aarch64 that is
+# TLSDESC, so _gnu duplicates the default flavor and _ld matches _ld_desc.
+# Exported: the Node.js tester in BUILD.bazel needs it too, and it is the only
+# access model that one ever builds.
+TLS_DIALECT = select({
     "@platforms//cpu:x86_64": ["-mtls-dialect=gnu2"],
+    "//conditions:default": [],
 })
 
 _TLS_ALT_DIALECT = select({
-    "@platforms//cpu:aarch64": ["-mtls-dialect=trad"],
     "@platforms//cpu:x86_64": ["-mtls-dialect=gnu"],
+    "//conditions:default": [],
 })
 
 # The access models, mirroring the matrix the upstream profiler builds for its
 # own integration tests (open-telemetry/opentelemetry-ebpf-profiler#1229).
 # local-dynamic only appears when the TLS symbol is hidden, hence
-# OTEL_TLS_HIDDEN.
+# OTEL_TLS_HIDDEN. A small TLSDESC module dlopen'd still lands in static TLS;
+# OTEL_TLS_BIG is what makes one resolve through the DTV.
 _DSO_FLAVORS = {
-    "": _TLS_DIALECT,
+    "": TLS_DIALECT,
     "_gnu": _TLS_ALT_DIALECT,
     "_ie": ["-ftls-model=initial-exec"],
     "_ld": ["-DOTEL_TLS_HIDDEN", "-ftls-model=local-dynamic"] + _TLS_ALT_DIALECT,
+    "_ld_desc": ["-DOTEL_TLS_HIDDEN", "-ftls-model=local-dynamic"] + TLS_DIALECT,
+    "_big": ["-DOTEL_TLS_BIG"] + TLS_DIALECT,
 }
 
 def otel_tls_dsos(name):

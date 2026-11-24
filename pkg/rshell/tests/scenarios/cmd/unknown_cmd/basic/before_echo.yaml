@@ -1,0 +1,12 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: An unknown command before echo on the next line does not stop execution.
+input:
+  script: |+
+    foo
+    echo hello
+expect:
+  stdout: |+
+    hello
+  stderr_contains: ["foo", "unknown command"]
+  exit_code: 0

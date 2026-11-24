@@ -11,11 +11,9 @@ load("//compliance:package_licenses.bzl", "package_licenses")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
-# On Windows the binary lives at the install dir root as datadog-installer.exe,
-# not under bin/installer/ as on Linux/macOS.
 pkg_files(
     name = "installer_binary",
-    srcs = ["@installer_binary//:installer"],
+    srcs = ["//cmd/installer"],
 )
 
 # Everything that belongs under C:/opt/datadog-installer/

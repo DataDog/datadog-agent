@@ -1,0 +1,10 @@
+description: Successful || left side followed by && continues.
+input:
+  script: |+
+    echo ok || echo fallback && echo continued
+expect:
+  stdout: |+
+    ok
+    continued
+  stderr: ""
+  exit_code: 0

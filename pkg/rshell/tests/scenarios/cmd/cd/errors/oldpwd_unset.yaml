@@ -1,0 +1,13 @@
+description: cd - errors when OLDPWD has not been set yet.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    unset OLDPWD
+    cd -
+expect:
+  stdout: ""
+  # bash: "bash: line 2: cd: OLDPWD not set"
+  # ours: "cd: OLDPWD not set"
+  # Common substrings match the meaningful part.
+  stderr_contains: ["cd:", "OLDPWD not set"]
+  exit_code: 1

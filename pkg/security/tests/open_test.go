@@ -48,7 +48,7 @@ func TestOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -460,7 +460,7 @@ func TestOpenMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	fileMode := 0o447
 	expectedMode := uint16(applyUmask(fileMode))
@@ -507,7 +507,7 @@ func TestOpenDiscarded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("pipefs", func(t *testing.T) {
 		SkipIfNotAvailable(t)
@@ -548,7 +548,7 @@ func TestOpenApproverZero(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, testFilePtr, err := test.Path("test-open")
 	if err != nil {
@@ -614,7 +614,7 @@ func benchmarkOpenSameFile(b *testing.B, rules ...*rules.RuleDefinition) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("benchtest")
 	if err != nil {
@@ -690,7 +690,7 @@ func benchmarkFind(b *testing.B, filesPerFolder, maxDepth int, rules ...*rules.R
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	if err := createFolder(test.Root(), filesPerFolder, maxDepth); err != nil {
 		b.Fatal(err)

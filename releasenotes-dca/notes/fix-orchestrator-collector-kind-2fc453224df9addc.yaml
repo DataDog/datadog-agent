@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Set the Kubernetes kind in collector metadata and manifest payloads for
+    generic resources and discovered custom resources.

@@ -1,0 +1,9 @@
+description: Printf with an invalid number argument prints 0 and produces a warning.
+input:
+  script: |+
+    printf "%d\n" abc
+expect:
+  stdout: |+
+    0
+  stderr_contains: ["printf:"]
+  exit_code: 1

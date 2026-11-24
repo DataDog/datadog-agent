@@ -1,0 +1,28 @@
+description: |+
+  Bash treats a lone `.` or `+.` as a zero-timeout poll, equivalent
+  to `-t 0` / `-t ""`. The parser must accept these forms, NOT
+  reject them as "invalid timeout specification". Compatible scripts
+  using `read -t .` for dynamically built fractional timeouts that
+  collapse to dot-only rely on this. Verified empirically against
+  bash 5.2.0:
+    echo x | { read -t . v; read rest; }   → v="" rest="x"
+    echo x | { read -t +. v; read rest; }  → v="" rest="x"
+setup:
+  files:
+    - path: data.txt
+      content: |
+        hello
+        world
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    read -t . X < data.txt
+    echo "rc=$?"
+    read -t +. Y < data.txt
+    echo "rc=$?"
+expect:
+  stdout: |+
+    rc=0
+    rc=0
+  stderr: ""
+  exit_code: 0

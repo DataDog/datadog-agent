@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//bazel/rules/go_shim:defs.bzl", "go_shim")
 
 go_library(
     name = "system-probe_lib",
@@ -63,4 +64,9 @@ go_binary(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
+)
+
+go_shim(
+    name = "start-microvms",
+    tool = ":system-probe",
 )

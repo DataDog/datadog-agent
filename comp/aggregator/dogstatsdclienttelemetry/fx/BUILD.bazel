@@ -17,6 +17,7 @@ dd_agent_go_test(
     srcs = ["fx_test.go"],
     embed = [":fx"],
     deps = [
+        "//comp/aggregator/dogstatsdclientdropdetector/def",
         "//comp/core/telemetry/mock",
         "//pkg/aggregator",
         "//pkg/util/fxutil",

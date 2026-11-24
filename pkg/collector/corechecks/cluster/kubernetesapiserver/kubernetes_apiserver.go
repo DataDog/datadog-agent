@@ -35,9 +35,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	apiservercommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 // Covers the Control Plane service check and the in memory pod metadata.
@@ -46,6 +48,8 @@ const (
 	CheckName = "kubernetes_apiserver"
 
 	KubeControlPaneCheck               = "kube_apiserver_controlplane.up"
+	storageObjectsMetricName           = "apiserver_storage_objects"
+	legacyStorageObjectsMetricName     = "etcd_object_counts"
 	eventTokenKey                      = "event"
 	componentStatusMaxVersionString    = "v1.35.0"
 	maxEventCardinality                = 300
@@ -74,6 +78,14 @@ var (
 		"emitted_events",
 		[]string{"kind", "type", "source", "is_bundled"},
 		"Number of events emitted by the check.",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
+
+	truncatedEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		CheckName,
+		"truncated_events",
+		[]string{"kind", "source"},
+		"Number of Kubernetes events whose message was truncated to fit the events API limit.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 
@@ -350,6 +362,8 @@ func (k *KubeASCheck) Run() error {
 		k.sendAPIResourceMetrics(sender, clusterResources)
 	}
 
+	k.sendStorageObjectsMetrics(sender)
+
 	return nil
 }
 
@@ -446,9 +460,7 @@ func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Eve
 
 	ddevents, errs := k.eventCollection.Transformer.Transform(events)
 
-	for _, err := range errs {
-		k.Warnf("Error transforming events: %s", err.Error())
-	}
+	k.logEventTransformErrors(errs)
 
 	return ddevents, nil
 }
@@ -494,11 +506,21 @@ func (k *KubeASCheck) legacyEventCollectionCheck() ([]event.Event, error) {
 
 	events, errs := k.eventCollection.Transformer.Transform(kubeEvents)
 
-	for _, err := range errs {
-		k.Warnf("Error transforming events: %s", err.Error()) //nolint:errcheck
-	}
+	k.logEventTransformErrors(errs)
 
 	return events, nil
+}
+
+// logEventTransformErrors logs event transform errors; oversized events are
+// dropped as expected and logged at debug level, other errors at warn level.
+func (k *KubeASCheck) logEventTransformErrors(errs []error) {
+	for _, err := range errs {
+		if errors.Is(err, errEventTextTooLong) {
+			log.Debugf("Error transforming events: %s", err.Error())
+		} else {
+			k.Warnf("Error transforming events: %s", err.Error()) //nolint:errcheck
+		}
+	}
 }
 
 func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatus *v1.ComponentStatusList) error {
@@ -571,7 +593,6 @@ func (k *KubeASCheck) componentStatusCheck(sender sender.Sender) error {
 		}
 
 		err = k.parseComponentStatus(sender, componentsStatus)
-
 		if err != nil {
 			k.Warnf("Could not parse control plane status from ComponentStatus: %s", err.Error())
 			return err
@@ -591,7 +612,6 @@ func (k *KubeASCheck) componentStatusCheck(sender sender.Sender) error {
 
 func (k *KubeASCheck) controlPlaneHealthCheck(sender sender.Sender) error {
 	apiServerReady, etcdReady, err := k.ac.IsAPIServerReady()
-
 	if err != nil {
 		return err
 	}
@@ -625,6 +645,55 @@ func (k *KubeASCheck) sendAPIResourceMetrics(sender sender.Sender, resources map
 			"api_resource_version:" + resource.APIVersion,
 		}
 		sender.Gauge("kube_apiserver.api_resource", 1, "", tags)
+	}
+}
+
+// sendStorageObjectsMetrics scrapes the API server's own /metrics endpoint for
+// apiserver_storage_objects or the legacy etcd_object_counts metric. They report the
+// number of objects of each resource type (including CRDs) currently held in the
+// underlying storage. Unlike the rest of this check, this reflects cluster-wide storage
+// state rather than the state of whichever API server node happened to answer the request,
+// so it is safe to treat as a single, cluster-level data point emitted once per leader run.
+//
+// The API server's /metrics endpoint is not guaranteed to be reachable in every
+// environment (e.g. restrictive network policies), so any failure here is
+// best-effort: it is logged and does not fail the check.
+func (k *KubeASCheck) sendStorageObjectsMetrics(sender sender.Sender) {
+	ctx, cancel := context.WithTimeout(context.Background(), apiServerClientTimeout())
+	defer cancel()
+
+	family, err := apiservercommon.FetchAPIServerMetricFamily(
+		ctx,
+		k.ac.Cl.Discovery(),
+		storageObjectsMetricName,
+		legacyStorageObjectsMetricName,
+	)
+	if err != nil {
+		log.Debugf("Could not collect %s from the API server's /metrics endpoint: %s", storageObjectsMetricName, err)
+		return
+	}
+	if family == nil {
+		log.Debugf(
+			"Metrics %s and %s not found in the API server's /metrics endpoint",
+			storageObjectsMetricName,
+			legacyStorageObjectsMetricName,
+		)
+		return
+	}
+
+	submitStorageObjectsMetrics(sender, family)
+}
+
+func apiServerClientTimeout() time.Duration {
+	return time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_apiserver_client_timeout")) * time.Second
+}
+
+// submitStorageObjectsMetrics emits one kube_apiserver.storage_objects gauge per sample
+// from either supported Kubernetes storage-object metric family.
+func submitStorageObjectsMetrics(sender sender.Sender, family *prometheus.MetricFamily) {
+	for _, sample := range family.Samples {
+		tags := []string{"resource:" + sample.Metric["resource"]}
+		sender.Gauge("kube_apiserver.storage_objects", sample.Value, "", tags)
 	}
 }
 

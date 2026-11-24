@@ -359,9 +359,6 @@ class KMTPipeline:
         for subpipeline in self.subpipelines.values():
             subpipeline._link_related_jobs()
 
-    def get_job(self, job_id: int | str) -> KMTJob | None:
-        return self.id_to_job.get(int(job_id))
-
 
 class KMTSubPipeline:
     """KMTSubpipeline is a collection of jobs that are part of a specific component and architecture"""
@@ -442,9 +439,6 @@ class KMTSubPipeline:
 
             for setup_job in self.setup_jobs:
                 setup_job.dependency_upload_jobs.append(dependency_upload_job)
-
-    def get_job(self, job_id: int | str) -> KMTJob | None:
-        return self.id_to_job.get(int(job_id))
 
     def retry_setup_and_dependency_upload(self) -> list[int]:
         """Retry the setup and dependency upload jobs, and return the list of newly scheduled jobs"""

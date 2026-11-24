@@ -19,6 +19,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,106 +53,6 @@ func (suite *ConfigTestSuite) SetupTest() {
 func TestNoURIsProvided(t *testing.T) {
 	_, err := NewConfigComponent(context.Background(), "", []string{})
 	assert.Error(t, err, "no URIs provided for configs")
-}
-
-// TestDDOTSeriesV3EnabledForDefaultEndpoint verifies DDOT opts its default Datadog series
-// endpoint in to the v3 metrics intake. The default endpoint is api.<site>, which
-// datadog_only's IsDatadogURL does not recognize, so without an explicit per-endpoint
-// override series would silently stay on v2. The override must be keyed by the exact dd_url
-// the forwarder resolver reports as its config name.
-func TestDDOTSeriesV3EnabledForDefaultEndpoint(t *testing.T) {
-	configmock.New(t)
-	// CI runners (Fabric Egress Gateway) set HTTP(S)_PROXY; DDOT keeps proxied Agents on
-	// v2, so clear proxy env to exercise the no-proxy enable path. DD_PROXY_* shadow HTTP(S)_PROXY.
-	t.Setenv("DD_PROXY_HTTP", "")
-	t.Setenv("DD_PROXY_HTTPS", "")
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
-	require.NoError(t, err)
-
-	ddURL := c.GetString("dd_url")
-	require.Equal(t, "https://api.datadoghq.com", ddURL, "DDOT default metrics endpoint")
-
-	endpoints := c.GetStringMapString("use_v3_api.series.endpoints")
-	assert.Equal(t, "true", endpoints[ddURL],
-		"DDOT must opt the default api.<site> endpoint in to v3, keyed by dd_url")
-
-	// The global default stays datadog_only, so custom (non-Datadog) endpoints are not
-	// forced onto v3.
-	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
-}
-
-// TestDDOTSeriesV3NotForcedForCustomEndpoint verifies a non-default (custom / proxy) metrics
-// endpoint is NOT force-opted into v3: it falls through to the global datadog_only default,
-// preserving the safeguard that keeps non-Datadog destinations on v2.
-func TestDDOTSeriesV3NotForcedForCustomEndpoint(t *testing.T) {
-	configmock.New(t)
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_custom_metrics_endpoint.yaml"})
-	require.NoError(t, err)
-
-	ddURL := c.GetString("dd_url")
-	require.Equal(t, "https://custom-proxy.example.test", ddURL)
-
-	endpoints := c.GetStringMapString("use_v3_api.series.endpoints")
-	_, present := endpoints[ddURL]
-	assert.False(t, present, "custom endpoint must not be force-opted into v3")
-	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
-}
-
-// TestDDOTSeriesV3NotForcedForNonDatadogSite verifies a non-Datadog site (private or proxy)
-// is NOT force-opted into v3, even though its default derived endpoint has the same
-// https://api.<site> shape as a real Datadog default. IsDatadogURL only recognizes Datadog
-// domains, so the override is withheld and the destination stays on the datadog_only default
-// (v2) — guarding against shipping an unsupported v3 payload to a non-Datadog intake.
-func TestDDOTSeriesV3NotForcedForNonDatadogSite(t *testing.T) {
-	configmock.New(t)
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_non_datadog_site.yaml"})
-	require.NoError(t, err)
-
-	ddURL := c.GetString("dd_url")
-	require.Equal(t, "https://api.mycompany.internal", ddURL,
-		"exporter still derives api.<site> for a non-Datadog site")
-
-	endpoints := c.GetStringMapString("use_v3_api.series.endpoints")
-	_, present := endpoints[ddURL]
-	assert.False(t, present, "a non-Datadog site must not be force-opted into v3")
-	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
-}
-
-// TestDDOTSeriesV3NotForcedBehindProxy verifies a proxied Agent is NOT force-opted into v3,
-// even on a default Datadog endpoint. A forwarding proxy may inflate/recompress payloads and
-// reject the v3 format (and custom proxy/pipeline endpoints may not support v3 yet), so per
-// the v3 migration RFC a proxied deployment stays on v2 under datadog_only.
-func TestDDOTSeriesV3NotForcedBehindProxy(t *testing.T) {
-	configmock.New(t)
-	t.Setenv("DD_PROXY_HTTPS", "http://proxy.corp.internal:3128")
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
-	require.NoError(t, err)
-
-	require.Equal(t, "https://api.datadoghq.com", c.GetString("dd_url"))
-	require.NotEmpty(t, c.GetString("proxy.https"), "proxy env var must be loaded")
-
-	endpoints := c.GetStringMapString("use_v3_api.series.endpoints")
-	_, present := endpoints[c.GetString("dd_url")]
-	assert.False(t, present, "a proxied Agent must not be force-opted into v3")
-	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
-}
-
-// TestDDOTSeriesV3RespectsExplicitOptOut verifies DD_USE_V3_API_SERIES_ENABLED=false keeps
-// the default api.<site> endpoint on v2: the per-endpoint opt-in is only injected on the
-// datadog_only default, so an explicit operator kill-switch is honored (a per-endpoint entry
-// would otherwise outrank use_v3_api.series.enabled).
-func TestDDOTSeriesV3RespectsExplicitOptOut(t *testing.T) {
-	configmock.New(t)
-	t.Setenv("DD_USE_V3_API_SERIES_ENABLED", "false")
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
-	require.NoError(t, err)
-
-	require.Equal(t, "https://api.datadoghq.com", c.GetString("dd_url"))
-	require.Equal(t, "false", c.GetString("use_v3_api.series.enabled"))
-
-	endpoints := c.GetStringMapString("use_v3_api.series.endpoints")
-	_, present := endpoints[c.GetString("dd_url")]
-	assert.False(t, present, "explicit enabled=false must not be overridden by the per-endpoint opt-in")
 }
 
 // TestDDOTSketchesV3BetaShadowDisabled verifies DDOT opts out of the v3beta sketches
@@ -340,6 +241,21 @@ func (suite *ConfigTestSuite) TestStandaloneModeIgnoresCoreAgentIPCEnvVars() {
 	assert.Equal(t, 0, c.GetInt("agent_ipc.config_refresh_interval"))
 }
 
+// TestStandaloneContainerizedKeepsTraceReceiverDisabled checks that running the
+// standalone image in a Kubernetes pod (DOCKER_DD_AGENT is set by the image) doesn't
+// open the trace-agent HTTP receiver, which would otherwise listen on 0.0.0.0.
+func (suite *ConfigTestSuite) TestStandaloneContainerizedKeepsTraceReceiverDisabled() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	t.Setenv("DOCKER_DD_AGENT", "true")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
+
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	require.NoError(t, err)
+
+	assert.False(t, c.GetBool("apm_config.receiver_enabled"))
+}
+
 func (suite *ConfigTestSuite) TestAgentConfigSetAPMFeaturesFromDatadogYaml() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
@@ -436,7 +352,36 @@ func (suite *ConfigTestSuite) TestEnvUpperCaseLogLevel() {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
 
-	// log_level will be mapped to lowercase by code and set accordingly
+	lvl, err := types.ValidateLogLevel(c.GetString("log_level"))
+	require.NoError(t, err)
+	assert.Equal(t, types.InfoLvl, lvl)
+}
+
+func (suite *ConfigTestSuite) TestLogLevelSpec() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_log_level_spec.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+
+	// a specification whose default level is at least as verbose as the
+	// collector telemetry level is kept as configured
+	assert.Equal(t, "debug,./pkg/...=error", c.Get("log_level"))
+}
+
+func (suite *ConfigTestSuite) TestLogLevelSpecReplacedByTelemetryLevel() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_log_level_spec_low_default.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+
+	// a specification whose default level is less verbose than the
+	// collector telemetry level is replaced by it, like a plain level would
 	assert.Equal(t, "info", c.Get("log_level"))
 }
 
@@ -492,6 +437,115 @@ func (suite *ConfigTestSuite) TestNilDDAPISection() {
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
 	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestNilDDAPISectionWithDDSite() {
+	t := suite.T()
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	fileName := "testdata/config_nil_api.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestDDAPIBlockAbsentWithDDSite() {
+	t := suite.T()
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	fileName := "testdata/config_no_api_block.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestExplicitSiteWithEmptyDDSite() {
+	t := suite.T()
+	// Verify that explicit api.site in OTel config works even with empty DD_SITE
+	t.Setenv("DD_SITE", "")
+	fileName := "testdata/config.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	// Should NOT return an error - explicit api.site takes precedence
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	// config.yaml has custom endpoint, so dd_url uses that instead of deriving from site
+	assert.Equal(t, "test.metrics.com", c.Get("dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestSiteWithWhitespace() {
+	t := suite.T()
+	// Verify that api.site with whitespace is properly trimmed
+	fileName := "testdata/config_site_with_whitespace.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	// Site should be trimmed
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestSiteWithOnlyWhitespace() {
+	t := suite.T()
+	// Site with only whitespace should fall back to datadoghq.com
+	fileName := "testdata/config_site_whitespace.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	// Should use datadoghq.com as fallback
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+}
+
+// TestWhitespaceSiteFallsBackToDDSite verifies that a whitespace-only api.site in
+// the OTel exporter config is treated as absent and DD_SITE is used as the fallback,
+// rather than jumping straight to the hardcoded datadoghq.com default.
+func (suite *ConfigTestSuite) TestWhitespaceSiteFallsBackToDDSite() {
+	t := suite.T()
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	// config_site_whitespace.yaml has api.site: "   " (whitespace only)
+	fileName := "testdata/config_site_whitespace.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestEmptyDDSiteFallback() {
+	t := suite.T()
+	// When DD_SITE is empty and no api.site in OTel config, fall back to datadoghq.com
+	t.Setenv("DD_SITE", "")
+	fileName := "testdata/config_no_api_block.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestNilDatadogExporter() {
+	t := suite.T()
+	fileName := "testdata/config_nil_datadog_exporter.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestNilDatadogExporterWithDDSite() {
+	t := suite.T()
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	fileName := "testdata/config_nil_datadog_exporter.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
 }
 
 func (suite *ConfigTestSuite) TestMalformedDDAPISection() {
@@ -615,7 +669,7 @@ func (suite *ConfigTestSuite) TestProxyEnvVarsHTTPOnly() {
 
 	assert.Equal(t, "http://proxy.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 func (suite *ConfigTestSuite) TestProxyEnvVarsNone() {
@@ -651,7 +705,7 @@ func (suite *ConfigTestSuite) TestProxyConfigURLOnly() {
 
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 func (suite *ConfigTestSuite) TestProxyConfigURLPrecedence() {
@@ -666,7 +720,7 @@ func (suite *ConfigTestSuite) TestProxyConfigURLPrecedence() {
 	// ProxyURL from config should take precedence over environment variables
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 func (suite *ConfigTestSuite) TestProxyConfigURLOverridesDDConfig() {
@@ -678,7 +732,7 @@ func (suite *ConfigTestSuite) TestProxyConfigURLOverridesDDConfig() {
 	// ProxyURL from OTLP config should override proxy.http and proxy.https from datadog config
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 // TestLogsEnabledViaEnvironmentVariable is a regression test for the issue where
@@ -724,6 +778,33 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_FullStandaloneConfig() {
 	assert.Equal(t, false, c.GetBool("kubelet_tls_verify"))
 	assert.Equal(t, 10255, c.GetInt("kubernetes_http_kubelet_port"))
 	assert.Equal(t, 10250, c.GetInt("kubernetes_https_kubelet_port"))
+	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+	assert.Equal(t, "MY_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
+}
+
+// TestStandaloneTelemetryResourceClusterName verifies that, in standalone mode,
+// the k8s.cluster.name attribute of service.telemetry.resource, with its
+// ${env:...} references resolved, reaches the cluster name resolution even
+// without a dogtel extension.
+func (suite *ConfigTestSuite) TestStandaloneTelemetryResourceClusterName() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	t.Setenv("TEST_CLUSTER_NAME", "my-cluster")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_telemetry_resource.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "my-cluster", c.GetString("otelcollector.standalone.telemetry_resource_cluster_name"))
+}
+
+// TestConnectedTelemetryResourceClusterName verifies that service.telemetry.resource
+// is ignored outside standalone mode, where the core Agent provides the cluster name.
+func (suite *ConfigTestSuite) TestConnectedTelemetryResourceClusterName() {
+	t := suite.T()
+	t.Setenv("TEST_CLUSTER_NAME", "my-cluster")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_telemetry_resource.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "", c.GetString("otelcollector.standalone.telemetry_resource_cluster_name"))
 }
 
 // TestDogtelExtensionConfig_PartialConfig verifies that only the dogtelextension
@@ -739,6 +820,35 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_PartialConfig() {
 	// Fields not set in dogtelextension must not override DD agent defaults.
 	assert.Equal(t, "", c.GetString("hostname"))
 	assert.Equal(t, "", c.GetString("secret_backend_command"))
+	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+	// node_from_env_var not set in dogtelextension config: DD agent schema
+	// default (K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME)
+	// must remain intact.
+	assert.Equal(t, "K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
+}
+
+// TestDogtelExtensionConfig_UseKubeletCollectorFromDatadogConfig verifies that
+// a dogtelextension config leaving use_kubelet_collector unset doesn't clobber
+// the value set in datadog.yaml.
+func (suite *ConfigTestSuite) TestDogtelExtensionConfig_UseKubeletCollectorFromDatadogConfig() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	c, err := NewConfigComponent(context.Background(), "testdata/datadog_no_kubelet_collector.yaml", []string{"testdata/config_standalone_partial.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+}
+
+// TestDogtelExtensionConfig_UseKubeletCollectorExplicitTrue verifies that an
+// explicit use_kubelet_collector: true in the dogtelextension config still
+// overrides the value set in datadog.yaml.
+func (suite *ConfigTestSuite) TestDogtelExtensionConfig_UseKubeletCollectorExplicitTrue() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	c, err := NewConfigComponent(context.Background(), "testdata/datadog_no_kubelet_collector.yaml", []string{"testdata/config_standalone_use_kubelet_collector.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
 }
 
 // TestDogtelExtensionConfig_MetadataDisabled verifies that setting
@@ -842,6 +952,8 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_StandaloneNoDDExporter()
 	assert.Equal(t, false, c.GetBool("kubelet_tls_verify"))
 	assert.Equal(t, 10255, c.GetInt("kubernetes_http_kubelet_port"))
 	assert.Equal(t, 10250, c.GetInt("kubernetes_https_kubelet_port"))
+	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+	assert.Equal(t, "MY_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
 
 	providers := c.Get("metadata_providers")
 	require.NotNil(t, providers)
@@ -863,6 +975,70 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_ConnectedModeIgnored() {
 	assert.Equal(t, "", c.GetString("hostname"))
 	assert.Equal(t, "", c.GetString("secret_backend_command"))
 	assert.Equal(t, "", c.GetString("kubernetes_kubelet_host"))
+}
+
+func TestTelemetryResourceAttribute(t *testing.T) {
+	tests := []struct {
+		name      string
+		telemetry any
+		want      string
+	}{
+		{
+			name:      "inline map",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.cluster.name": "inline", "k8s.node.name": "node"}},
+			want:      "inline",
+		},
+		{
+			name: "attributes list",
+			telemetry: map[string]any{"resource": map[string]any{
+				"schema_url": "https://opentelemetry.io/schemas/1.27.0",
+				"attributes": []any{
+					map[string]any{"name": "k8s.node.name", "value": "node"},
+					map[string]any{"name": "k8s.cluster.name", "value": "listed"},
+				},
+			}},
+			want: "listed",
+		},
+		{
+			name: "the attributes list wins over the inline map",
+			telemetry: map[string]any{"resource": map[string]any{
+				"k8s.cluster.name": "inline",
+				"attributes":       []any{map[string]any{"name": "k8s.cluster.name", "value": "listed"}},
+			}},
+			want: "listed",
+		},
+		{
+			name:      "a null inline value leaves it unset",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.cluster.name": nil}},
+			want:      "",
+		},
+		{
+			name:      "whitespace is trimmed",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.cluster.name": " spaced \n"}},
+			want:      "spaced",
+		},
+		{
+			name:      "not set",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.node.name": "node"}},
+			want:      "",
+		},
+		{
+			name:      "no resource",
+			telemetry: map[string]any{"logs": map[string]any{"level": "debug"}},
+			want:      "",
+		},
+		{
+			name:      "no telemetry section",
+			telemetry: nil,
+			want:      "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, telemetryResourceAttribute(tt.telemetry, "k8s.cluster.name"))
+		})
+	}
 }
 
 // TestGetDogtelExtensionConfig_NilExtensionSection verifies that getDogtelExtensionConfig
@@ -890,7 +1066,9 @@ func TestGetDogtelExtensionConfig_EmptyDogtelSection(t *testing.T) {
 	assert.Equal(t, "", extcfg.Hostname)
 	assert.Nil(t, extcfg.KubeletTLSVerify)
 	assert.Nil(t, extcfg.EnableMetadataCollection)
+	assert.Nil(t, extcfg.UseKubeletCollector)
 	assert.Equal(t, 0, extcfg.MetadataInterval)
+	assert.Equal(t, "", extcfg.NodeFromEnvVar)
 }
 
 // TestGetDogtelExtensionConfig_EnableMetadataCollectionFalse verifies that
@@ -928,6 +1106,41 @@ func TestGetDogtelExtensionConfig_KubeletTLSVerify(t *testing.T) {
 	require.NotNil(t, extcfg)
 	require.NotNil(t, extcfg.KubeletTLSVerify)
 	assert.False(t, *extcfg.KubeletTLSVerify)
+}
+
+// TestGetDogtelExtensionConfig_UseKubeletCollector verifies that
+// use_kubelet_collector can be explicitly set to false (distinguishable from
+// the unset/nil state, which defaults to the kubelet collector).
+func TestGetDogtelExtensionConfig_UseKubeletCollector(t *testing.T) {
+	falseVal := false
+	cfg := confmap.NewFromStringMap(map[string]any{
+		"extensions": map[string]any{
+			"dogtel": map[string]any{
+				"use_kubelet_collector": falseVal,
+			},
+		},
+	})
+	extcfg, err := getDogtelExtensionConfig(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, extcfg)
+	require.NotNil(t, extcfg.UseKubeletCollector)
+	assert.False(t, *extcfg.UseKubeletCollector)
+}
+
+// TestGetDogtelExtensionConfig_NodeFromEnvVar verifies that node_from_env_var
+// is parsed from the dogtelextension config.
+func TestGetDogtelExtensionConfig_NodeFromEnvVar(t *testing.T) {
+	cfg := confmap.NewFromStringMap(map[string]any{
+		"extensions": map[string]any{
+			"dogtel": map[string]any{
+				"node_from_env_var": "MY_NODE_NAME",
+			},
+		},
+	})
+	extcfg, err := getDogtelExtensionConfig(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, extcfg)
+	assert.Equal(t, "MY_NODE_NAME", extcfg.NodeFromEnvVar)
 }
 
 // TestGetDogtelExtensionConfig_InvalidExtensions verifies that a malformed

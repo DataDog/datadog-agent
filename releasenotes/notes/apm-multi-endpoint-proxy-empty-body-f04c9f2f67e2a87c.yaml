@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: Fix a panic in the trace-agent's Data Streams pipeline stats,
+    OpenLineage, and profiling proxies when ``apm_config.additional_endpoints``
+    is configured and a request arrives with an empty body. The request is
+    now forwarded to every endpoint instead of the connection being dropped.

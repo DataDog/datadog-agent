@@ -13,6 +13,9 @@ env_vars(
     # target using it is potentially uncachable.
     # ⚠️ Keep in sync with the `--repo_env=` entries in .bazelrc
     variables = [
+        # Stamps pkg/version.{Commit,FullCommit}, only in builds that also set
+        # PACKAGE_VERSION, so other CI jobs keep caching across commits.
+        "CI_COMMIT_SHA",
         # This gets set by omnibus builds in many cases. It's used in the script
         # to set things like compression, so we'll mimic that for now.
         "DEPLOY_AGENT",
@@ -72,30 +75,35 @@ archive_override(
     url = "https://github.com/bazel-contrib/supply-chain/releases/download/supply-chain-go-0.0.11/supply-chain-go-0.0.11.tar.gz",
 )
 
-bazel_dep(name = "bazel_features", version = "1.50.0")
-bazel_dep(name = "bazel_lib", version = "3.7.2")
+bazel_dep(name = "apple_support", version = "2.12.0")  # provides --platforms=@apple_support//platforms:macos_x86_64
+bazel_dep(name = "bazel_features", version = "1.56.0")
+bazel_dep(name = "bazel_lib", version = "3.8.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
-bazel_dep(name = "gawk", version = "5.4.0.bcr.1")
+bazel_dep(name = "gawk", version = "5.4.0.bcr.5")
 bazel_dep(name = "gazelle", version = "0.54.0")
 bazel_dep(name = "gcc_toolchain", version = "0.12.1")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.3")
+bazel_dep(name = "llvm", version = "0.8.27")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
-bazel_dep(name = "re.bzl", version = "0.3.1")
-bazel_dep(name = "rules_cc", version = "0.2.22")
+bazel_dep(name = "re.bzl", version = "0.5.0")
+bazel_dep(name = "rules_bison", version = "0.4.bcr.2")
+bazel_dep(name = "rules_cc", version = "0.2.27")
 bazel_dep(name = "rules_flex", version = "0.4.1")
-bazel_dep(name = "rules_go", version = "0.63.0")
+bazel_dep(name = "rules_foreign_cc", version = "0.17.0")
+bazel_dep(name = "rules_go", version = "0.65.0")
+bazel_dep(name = "rules_jvm_external", version = "7.2")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
-bazel_dep(name = "rules_pkg", version = "1.2.0")
-bazel_dep(name = "rules_python", version = "2.3.3")
-bazel_dep(name = "rules_rs", version = "0.0.27")
-bazel_dep(name = "rules_rust", version = "0.74.0")
-bazel_dep(name = "rules_rust_prost", version = "0.74.0")
-bazel_dep(name = "rules_shell", version = "0.8.0")
-bazel_dep(name = "toml.bzl", version = "0.4.1")
-bazel_dep(name = "toolchains_llvm", version = "1.8.0")
+bazel_dep(name = "rules_perl", version = "2.1.0")
+bazel_dep(name = "rules_pkg", version = "1.3.0")
+bazel_dep(name = "rules_python", version = "2.5.1")
+bazel_dep(name = "rules_rs", version = "0.1.3")
+bazel_dep(name = "rules_shell", version = "0.10.0")
+bazel_dep(name = "rules_wine", version = "0.1.3")
+bazel_dep(name = "toml.bzl", version = "0.6.1")
 bazel_dep(name = "toolchains_msvc", version = "0.1.0")
+bazel_dep(name = "with_cfg.bzl", version = "1.1.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
@@ -108,38 +116,75 @@ single_version_override(
     version = "35.1",
 )
 
-# Temporary until rules_go cuts a release >0.63.0, to pick up build info improvements: bazel-contrib/rules_go#4694
-# (main module), bazel-contrib/rules_go#4700 (checksums), and bazel-contrib/rules_go#4709 (actually reachable deps)
-archive_override(
+single_version_override(
+    module_name = "llvm",
+    patch_strip = 1,
+    patches = [
+        # Additional -L directory so -static links find real glibc archives; upstream proposal pending
+        "//bazel/patches:llvm/0001-glibc-additional-library-search-directory.patch",
+    ],
+    version = "0.8.27",
+)
+
+single_version_override(
+    module_name = "rules_foreign_cc",
+    patch_strip = 1,
+    patches = [
+        # https://github.com/bazel-contrib/rules_foreign_cc/pull/1452
+        "//bazel/patches:rules_foreign_cc/0002-configure_make-provide-DY-LD_LIBRARY_PATH-based-on-t.patch",
+        # https://github.com/bazel-contrib/rules_foreign_cc/pull/1491
+        "//bazel/patches:rules_foreign_cc/0003-pass-j-flag-directly-on-make-command-line.patch",
+        # https://github.com/bazel-contrib/rules_foreign_cc/issues/985
+        # TODO(agent-build): Ideally we'd like to find a better way to solve this, possibly
+        # finding a general solution that could be properly upstreamed
+        "//bazel/patches:rules_foreign_cc/0004-Pass-cc-flags-as-CPPFLAGS.patch",
+    ],
+)
+
+# Temporary until the following PRs (or equivalents) land
+single_version_override(
     module_name = "rules_go",
     patch_strip = 1,
     patches = [
-        "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
+        # https://github.com/bazel-contrib/rules_go/pull/3977
+        "//bazel/patches:rules_go-windows-symlink-workaround.patch",
+        # https://github.com/bazel-contrib/rules_go/pull/4727
+        "//bazel/patches:rules_go-link-resource-set.patch",
+        # Local only: loads //bazel/go_tags:transition.bzl from the main repository.
+        "//bazel/patches:rules_go-project-library-tags.patch",
     ],
-    sha256 = "d8ca6eab826bc071e7306da19960130cd7e9c11a4523d4f661d091d2003a23b0",
-    strip_prefix = "rules_go-18a6fbb9f4fa93331640efddf81271eb467710f4",
-    urls = ["https://github.com/bazel-contrib/rules_go/archive/18a6fbb9f4fa93331640efddf81271eb467710f4.tar.gz"],  # master as of September 14, 2026
 )
 
-# Temporary until rules_pkg > 1.2.0 is in BCR
-archive_override(
-    module_name = "rules_pkg",
+# The patch loads //bazel/toolchains:cc_toolchain_transition.bzl from the main repo.
+# Drop once cc toolchains no longer inherit their consumer's configuration:
+# https://github.com/hermeticbuild/hermetic-llvm/issues/895
+single_version_override(
+    module_name = "rules_cc",
     patch_strip = 1,
     patches = [
-        # Windows runfiles junctions cannot point at files; follow them on copy.
-        "//bazel/patches:rules_pkg-windows-junction-copy.patch",
+        "//bazel/patches:rules_cc-cc_toolchain-reset-go-settings.patch",
     ],
-    sha256 = "9923c6c8855b153f837a953760159908507f571b4b77cb24ed862dda1de20f90",
-    strip_prefix = "rules_pkg-401969d4367c42dcbb45d33a637eae87788d025e",
-    urls = ["https://github.com/bazelbuild/rules_pkg/archive/401969d4367c42dcbb45d33a637eae87788d025e.tar.gz"],  # main as of April 22, 2026
+    version = "0.2.27",
 )
 
-# Temporary until https://github.com/bazel-contrib/toolchains_llvm/pull/790 lands in a release
+# Pinned to the datadog-patchset branch of chouquette/rules_pkg, which carries
+# patches pending upstream review. Upstream asked for the pkg_rpm compression
+# change to be tested in datadog-agent before merging it. Go back to upstream
+# once they're all merged.
 archive_override(
-    module_name = "toolchains_llvm",
-    sha256 = "addeebfa8fdcf9fbc1c339e451cbb285e1c0d4c078c3718e42bd1791d0d96d4e",
-    strip_prefix = "toolchains_llvm-ffe407ca2423f4d171b7a0f3897c23bbb7e40310",
-    urls = ["https://github.com/bazel-contrib/toolchains_llvm/archive/ffe407ca2423f4d171b7a0f3897c23bbb7e40310.tar.gz"],
+    module_name = "rules_pkg",
+    sha256 = "80cc0b7654d020eaecd5544c040d5dd0c642df449ddc40c9364c2ee37605f6af",
+    strip_prefix = "rules_pkg-de794196bc9eab6ee1fcdebc2324b10c89f9705a",
+    urls = ["https://github.com/chouquette/rules_pkg/archive/de794196bc9eab6ee1fcdebc2324b10c89f9705a.tar.gz"],
+)
+
+single_version_override(
+    module_name = "rules_rs",
+    patch_strip = 1,
+    patches = [
+        "//bazel/patches:rules_rs-windows-gnu.patch",
+    ],
+    version = "0.1.3",
 )
 
 ##########################################
@@ -160,17 +205,9 @@ find_macos_pkgbuild(
     exec_compatible_with = ["@platforms//os:macos"],
 )
 
-find_selinux_tools = use_repo_rule("//bazel/toolchains/selinux_tools:configure.bzl", "find_selinux_tools")
-
-find_selinux_tools(
-    name = "selinux_tools",
-    exec_compatible_with = ["@platforms//os:linux"],
-)
-
 register_toolchains(
     "@macos_codesign//:all",
     "@macos_pkgbuild//:all",
-    "@selinux_tools//:all",
     dev_dependency = True,
 )
 
@@ -178,6 +215,12 @@ register_toolchains(
     "//bazel/toolchains/dd_strip:linux_toolchain",
     "//bazel/toolchains/dd_strip:macos_toolchain",
     "//bazel/toolchains/dd_strip:windows_toolchain",
+)
+
+register_toolchains(
+    "//bazel/platforms:fips_test_toolchain",
+    "//bazel/rules/windows:linux_x86_64_toolchain",
+    "//bazel/rules/windows:windows_toolchain",
 )
 
 #########################
@@ -188,24 +231,26 @@ http_archive(
     name = "com_github_bazelbuild_buildtools",
     patch_strip = 1,
     patches = [
-        "//bazel/patches:buildifier-build.patch",  # bazelbuild/buildtools#1398
-        "//bazel/patches:buildifier-internal-factory.patch",  # bazelbuild/buildtools#1399
-        "//bazel/patches:buildifier-runner-bat-template.patch",  # bazelbuild/buildtools#1400
-        "//bazel/patches:buildifier-runner-bash-template.patch",  # bazelbuild/buildtools#1454
+        "//bazel/patches:buildifier-build.patch",  # bazel-contrib/buildtools#1398
+        "//bazel/patches:buildifier-internal-factory.patch",  # bazel-contrib/buildtools#1399
+        "//bazel/patches:buildifier-runner-bat-template.patch",  # bazel-contrib/buildtools#1399, #1400
     ],
-    sha256 = "f3b800e9f6ca60bdef3709440f393348f7c18a29f30814288a7326285c80aab9",
-    strip_prefix = "buildtools-8.5.1",
+    sha256 = "fa0b905032d49a621679e7318875736e451895a1417d992fbbebd27f82b83c38",
+    strip_prefix = "buildtools-10.1.0",
     type = "tar.gz",
     urls = [
-        "https://codeload.github.com/bazelbuild/buildtools/tar.gz/refs/tags/v8.5.1",
-        "https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.5.1.tar.gz",
+        "https://codeload.github.com/bazel-contrib/buildtools/tar.gz/refs/tags/v10.1.0",
+        "https://github.com/bazel-contrib/buildtools/archive/refs/tags/v10.1.0.tar.gz",
     ],
 )
 
 # Upstream Linux kernel syscall tables, used by
-# //pkg/security/utils:utils_syscall_table to (re)generate
-# pkg/security/utils/syscalls.go. Bumping the kernel version requires updating
-# the URLs and sha256 of both files together.
+# //pkg/security/utils:utils_syscall_table and
+# //pkg/security/secl/model:syscall_table to regenerate
+# pkg/security/utils/syscalls.go and
+# pkg/security/secl/model/syscalls_linux_{amd64,arm64}.go.
+# Bumping the kernel version requires updating the URLs and sha256 of both
+# files together.
 http_file(
     name = "linux_v6_13_syscall_64_tbl",
     sha256 = "a25d490b97e98fa2ad7912f229555e1c8f0e5ba70960f508ae4c324b2439aa04",
@@ -232,6 +277,7 @@ register_toolchains(
     "//bazel/toolchains/rpath_rewriter:install_name_tool_toolchain",
     "//bazel/toolchains/rpath_rewriter:noop_windows_toolchain",
     "//bazel/toolchains/rpath_rewriter:patchelf_toolchain",
+    "//bazel/toolchains/selinux_tools:selinux_tools_toolchain",
 )
 
 find_rpmbuild = use_extension("@rules_pkg//toolchains/rpm:rpmbuild_configure.bzl", "find_system_rpmbuild_bzlmod", dev_dependency = True)
@@ -248,16 +294,14 @@ register_toolchains(
 
 llvm_bpf_ext = use_extension("//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl", "llvm_bpf_extension")
 llvm_bpf_ext.configure(
-    clang_build_version = "v60409452-ee70de70",
+    clang_build_version = "v150220922-61ce1181",
     clang_version = "12.0.1",
     s3_base_url = "https://dd-agent-omnibus.s3.amazonaws.com/llvm",
     sha256s = {
-        "clang.amd64": "2a4df4c49a57efb33ec4e51f87f837bc80f3a5874a5828384f265541a018394e",
-        "clang.arm64": "5432ee1afc66453a457e756b025e4cace3aa56f687f595ac5d5bebcff00eac1b",
-        "llc.amd64": "aa6ca65c28ac09f3ba1d22ccbda6a85d1414c6ed4491d8d758a08351cb66f86e",
-        "llc.arm64": "08429823efd7d4ab6a247b195dabd0e8d8b43c50789704fd3a19947e71dd4776",
-        "llvm-strip.amd64": "70a9edc44ccad32361f1c6ae619c3b98e5505d4b67f24b5996f55bf841ee5cbd",
-        "llvm-strip.arm64": "1fd0cb6344d606d8c6fe6ea424fdfdd1cba1228f027dd3f08463c914bc47f67e",
+        "clang.amd64": "fe8b6949807895ef99d112db3c83b8d093d4d4b6bc6c7cd59a4fd93a86651e7c",
+        "clang.arm64": "18fc009137b869c9b207f38c05d2651886307eecef2bb9d3aa63b8d6ca357100",
+        "llvm-strip.amd64": "aea858c07cc9b719f2de087e4387d4f30a6c064d4d13cc7bf6d04d92c69339bb",
+        "llvm-strip.arm64": "8a0497a6a951f0d049f80ff318ffd09039b24075f3f5562c078b269ef9c0fc32",
     },
 )
 use_repo(llvm_bpf_ext, "llvm_bpf")
@@ -268,19 +312,26 @@ register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
 ## Registers three repos: host auto-detect + explicit x86_64 + explicit aarch64
 ## for cross-compilation via --//bazel/rules/ebpf:target_arch=<arch>.
 linux_headers_ext = use_extension("//bazel/toolchains/linux_headers:hermetic_linux_headers.bzl", "linux_headers_extension")
-
-# snapshot.ubuntu.com is mirrored through the ADMS Bazel downloader.
 linux_headers_ext.configure(
     arch_sha256s = {
         "aarch64": "bc6d614bc03a0bdbe35b2ab71a86118194f66a7f75d10f02d65e9eb30088ff2e",
         "x86_64": "00deb560f75ee2947f298ba687b386e3df920d8e3cca9dcd8eedc64c0755f42e",
     },
     arch_urls = {
-        "aarch64": "https://snapshot.ubuntu.com/ubuntu/20260415T000000Z/pool/main/l/linux/linux-headers-6.8.0-110-generic_6.8.0-110.110_arm64.deb",
-        "x86_64": "https://snapshot.ubuntu.com/ubuntu/20260415T000000Z/pool/main/l/linux/linux-headers-6.8.0-110-generic_6.8.0-110.110_amd64.deb",
+        "aarch64": [
+            "https://launchpad.net/ubuntu/+archive/primary/+files/linux-headers-6.8.0-110-generic_6.8.0-110.110_arm64.deb",
+            "https://snapshot.ubuntu.com/ubuntu/20260415T000000Z/pool/main/l/linux/linux-headers-6.8.0-110-generic_6.8.0-110.110_arm64.deb",
+        ],
+        "x86_64": [
+            "https://launchpad.net/ubuntu/+archive/primary/+files/linux-headers-6.8.0-110-generic_6.8.0-110.110_amd64.deb",
+            "https://snapshot.ubuntu.com/ubuntu/20260415T000000Z/pool/main/l/linux/linux-headers-6.8.0-110-generic_6.8.0-110.110_amd64.deb",
+        ],
     },
     common_sha256 = "fa7ec534c2fec2f287158073f1d9fe8f285ced726d5c1d040cb66f658fb5eba7",
-    common_url = "https://snapshot.ubuntu.com/ubuntu/20260415T000000Z/pool/main/l/linux/linux-headers-6.8.0-110_6.8.0-110.110_all.deb",
+    common_urls = [
+        "https://launchpad.net/ubuntu/+archive/primary/+files/linux-headers-6.8.0-110_6.8.0-110.110_all.deb",
+        "https://snapshot.ubuntu.com/ubuntu/20260415T000000Z/pool/main/l/linux/linux-headers-6.8.0-110_6.8.0-110.110_all.deb",
+    ],
     header_release = "6.8.0-110",
 )
 use_repo(linux_headers_ext, "linux_headers", "linux_headers_aarch64", "linux_headers_x86_64")
@@ -294,7 +345,11 @@ archive_override(
     patch_strip = 1,
     # Adds MSBuild + the VC project system, and whole-tree filegroups, so MSBuild-driven
     # builds (CPython) can run against the same hermetic toolchain as rules_cc.
-    patches = ["//bazel/patches:toolchains_msvc/0001-hermetic-msbuild-and-toolchain-trees.patch"],
+    patches = [
+        "//bazel/patches:toolchains_msvc/0001-hermetic-msbuild-and-toolchain-trees.patch",
+        "//bazel/patches:toolchains_msvc/0002-pin-channel-manifests-as-facts.patch",  # Dragnalith/toolchains_msvc#6
+        "//bazel/patches:toolchains_msvc/0003-strip-forward-slash-installers-prefix.patch",  # Dragnalith/toolchains_msvc#5
+    ],
     sha256 = "1ab52698bd8b1eac2e005a07e25e62538daed471e9657586213b88d7cd7cb14d",
     strip_prefix = "toolchains_msvc-8e2aa4624bbb5a53a94f135e90995f307875d1ad",
     urls = ["https://github.com/Dragnalith/toolchains_msvc/archive/8e2aa4624bbb5a53a94f135e90995f307875d1ad.tar.gz"],
@@ -308,6 +363,7 @@ archive_override(
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
         "//bazel/patches:gcc-toolchain/0006-independent-exec-target-arch.patch",
+        "//bazel/patches:gcc-toolchain/0007-link-cxx-against-libstdcxx-by-default.patch",  # f0rmiga/gcc-toolchain#221
     ],
     sha256 = "9602cf9a7f854a9a70758e6eac241e269996d2a1eb941479e8886f4ccf127412",
     strip_prefix = "gcc-toolchain-0.12.1",
@@ -353,36 +409,52 @@ use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
 use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
 use_repo(gcc_toolchains, "gcc_toolchain_armv7")
 
-sysroot = use_repo_rule("@toolchains_llvm//toolchain:sysroot.bzl", "sysroot")
+llvm_toolchain = use_extension("@llvm//extensions:toolchain.bzl", "toolchain")
+llvm_toolchain.exec(
+    arch = "aarch64",
+    os = "linux",
+)
+llvm_toolchain.exec(
+    arch = "aarch64",
+    os = "macos",
+)
+llvm_toolchain.exec(
+    arch = "x86_64",
+    os = "linux",
+)
+llvm_toolchain.exec(
+    arch = "x86_64",
+    os = "macos",
+)
+llvm_toolchain.target(
+    arch = "aarch64",
+    os = "macos",
+)
+llvm_toolchain.target(
+    arch = "x86_64",
+    os = "macos",
+)
+llvm_toolchain.target(
+    arch = "x86_64",
+    os = "windows",
+)
+use_repo(llvm_toolchain, "llvm_toolchains")
 
-sysroot(
-    name = "macos_sdk",
-    sha256 = "c15cf0f3f17d714d1aa5a642da8e118db53d79429eb015771ba816aa7c6c1cbd",
-    strip_components = 1,
-    url = "https://github.com/joseluisq/macosx-sdks/releases/download/15.5/MacOSX15.5.sdk.tar.xz",
-)
-
-llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
-use_repo(
-    llvm,
-    "llvm_toolchain",
-    # This gives us a reference to call individual tools directly
-    "llvm_toolchain_llvm",
-)
-
-# buildifier: leave-alone
-llvm.sysroot(
-    name = "llvm_toolchain",
-    label = "@macos_sdk//sysroot",
-    targets = [
-        "darwin-aarch64",
-        "darwin-x86_64",
-    ],
-)
-llvm.toolchain(
-    name = "llvm_toolchain",
-    llvm_version = "19.1.7",  # https://github.com/bazel-contrib/toolchains_llvm/blob/master/toolchain/internal/llvm_distributions.bzl
-)
+osx = use_extension("@llvm//extensions:osx.bzl", "osx")
+osx.frameworks(names = [
+    "CFNetwork",  # CoreServices and Foundation headers
+    "CoreFoundation",  # default
+    "CoreGraphics",  # Foundation headers
+    "CoreServices",  # pkg/notableevents
+    "DiskArbitration",  # CoreServices headers
+    "Foundation",  # default
+    "IOKit",  # battery and thermal checks, inventory systeminfo
+    "Kernel",  # default
+    "OSLog",  # default
+    "Security",  # default
+    "SystemConfiguration",  # default
+])
+osx.libraries(names = ["libpcap"])  # gopacket/pcap
 
 # Hermetic MinGW-w64 toolchain sourced from a pinned WinLibs distribution.
 # Variant: GCC 14.2.0 + MinGW-w64 12.0.0, POSIX threads, MSVCRT runtime,
@@ -396,7 +468,10 @@ winlibs_mingw_repository(
     name = "winlibs_mingw64",
     gcc_version = "14.2.0",
     sha256 = "ff475e985a98c5f3785129baf7460db14fee27708bce35f2833db5009507f1b9",
-    url = "https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64msvcrt-12.0.0-r3.zip",
+    urls = [
+        "https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64msvcrt-12.0.0-r3.zip",
+        "https://downloads.sourceforge.net/project/winlibs-mingw/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64msvcrt-12.0.0-r3.zip",
+    ],
 )
 
 # Hermetic MSVC + Windows SDK + MSBuild for CPython and DatadogInterop
@@ -421,7 +496,7 @@ register_toolchains(
     "@gcc_toolchain_armv7//:cc_toolchain",
     "@winlibs_mingw64//:mingw_cc_toolchain",
     "@msvc_toolchains//:all",
-    "@llvm_toolchain//:all",  # last to avoid taking precedence over GCC toolchains
+    "@llvm_toolchains//:all",  # last to avoid taking precedence over GCC toolchains
 )
 
 # =========================================
@@ -446,6 +521,14 @@ pip.parse(
     hub_name = "py_dev_requirements",
     python_version = PYTHON_VERSION,
     requirements_lock = "//deps:py_dev_requirements_lock.txt",
+    # Resolve wheels for all platforms, not just the host's, to allow cross-platform (e.g. macOS -> Linux RBE) builds.
+    target_platforms = [
+        "linux_aarch64",
+        "linux_x86_64",
+        "osx_aarch64",
+        "osx_x86_64",
+        "windows_x86_64",
+    ],
 )
 pip.parse(
     hub_name = "py_agent_integrations_tool_requirements",
@@ -458,29 +541,21 @@ use_repo(pip, "py_agent_integrations_tool_requirements", "py_dev_requirements")
 ## Rust dependencies ##
 #######################
 
-rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
-
-# Register a GNU-ABI Rust toolchain for Windows so that rustc generates
-# GNU-style linker flags (-lkernel32, -o, etc.) compatible with the MinGW
-# cc_toolchain used on the Windows CI runner.
-rust.repository_set(
-    name = "rust_windows_gnu_x86_64",
+toolchains = use_extension("@rules_rs//rs/toolchains:module_extension.bzl", "toolchains")
+toolchains.toolchain(
     edition = "2024",
-    exec_triple = "x86_64-pc-windows-gnu",
-    target_compatible_with = [
-        "@platforms//os:windows",
-        "@platforms//cpu:x86_64",
-    ],
-    target_triple = "x86_64-pc-windows-gnu",
-    versions = ["1.94.0"],
+    use_rust_redist = False,  # rust-redist lacks the GNU-hosted Windows archives our patch needs
+    version = "1.94.0",
 )
-rust.toolchain(
-    edition = "2024",
-    versions = ["1.94.0"],
-)
-use_repo(rust, "rust_toolchains")
+use_repo(toolchains, "default_rust_toolchains")
 
-register_toolchains("@rust_toolchains//:all")
+register_toolchains("@default_rust_toolchains//...")
+
+rules_rust_shim = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
+use_repo(rules_rust_shim, "rules_rust")
+
+rules_rust_prost_shim = use_extension("@rules_rs//rs:rules_rust_prost.bzl", "rules_rust_prost")
+use_repo(rules_rust_prost_shim, "rules_rust_prost")
 
 register_toolchains("//bazel/toolchains/prost:prost_toolchain")
 
@@ -497,6 +572,9 @@ include("//deps:crates.MODULE.bazel")
 # doesn't fail nor re-format them.
 # buildifier: leave-alone
 include("//deps:repos.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/openssl:openssl_sys.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/acl:acl.MODULE.bazel")
@@ -523,7 +601,7 @@ include("//deps/freetds:freetds.MODULE.bazel")
 include("//deps/gstatus:gstatus.MODULE.bazel")
 
 # buildifier: leave-alone
-include("//deps/jmxfetch:jmxfetch.MODULE.bazel")
+include("//deps/maven:maven.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/nfsiostat:nfsiostat.MODULE.bazel")
@@ -532,7 +610,16 @@ include("//deps/nfsiostat:nfsiostat.MODULE.bazel")
 include("//deps/openscap:openscap.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/pulumi_plugins:pulumi_plugins.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/libpcap:libpcap.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/libxml2:libxml2.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/s6_overlay:s6_overlay.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/security_agent_policies:security_agent_policies.MODULE.bazel")
@@ -555,28 +642,16 @@ include("//deps:go.MODULE.bazel")
 # buildifier: leave-alone
 include("//deps/agent_integrations:integrations.MODULE.bazel")
 
-# This enables cross-compilation for macOS x86_64 on Apple Silicon.
-# Simply add --platforms=@apple_support//platforms:macos_x86_64
-# to the build command to enable it.
-bazel_dep(name = "apple_support", version = "2.8.3")
+rules_wine_ext = use_extension("@rules_wine//wine/extension:wine.bzl", "wine")
+use_repo(
+    rules_wine_ext,
+    "wine_toolchains",
+    "wine_tools_toolchains",
+)
+
+register_toolchains(
+    "@wine_toolchains//:all",
+    "@wine_tools_toolchains//:all",
+)
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
-
-###########################################################################
-## Hybrid build. Capture binaries built with dda (or whatever) as if they
-## were built as bazel targets.
-###########################################################################
-
-prebuilt_file = use_repo_rule("//bazel/repo:prebuilt_file.bzl", "prebuilt_file")
-
-prebuilt_file(
-    name = "installer_binary",
-    target_label = "@@//:bin/installer/installer",
-    target_name = "installer",
-)
-
-prebuilt_file(
-    name = "trace_loader_binary",
-    target_label = "@@//:bin/trace-loader/trace-loader",
-    target_name = "trace_loader",
-)

@@ -48,7 +48,7 @@ func newTestInteger[T testIntegerType](value T) *testInteger[T] {
 }
 
 func TestMarshalProcCache(t *testing.T) {
-	const procCacheSize = 176
+	const procCacheSize = ProcCacheEntrySize - FileCapabilitiesSize // fixture prefix before file capabilities
 
 	testCGroupFileInode := newTestInteger(uint64(123456789))
 	testCGroupFileMountID := newTestInteger(uint32(24))
@@ -230,7 +230,8 @@ func TestMarshalProcCache(t *testing.T) {
 				expectedData = append(expectedData, chunk...)
 			}
 
-			data := make([]byte, procCacheSize)
+			expectedData = append(expectedData, make([]byte, FileCapabilitiesSize)...)
+			data := make([]byte, ProcCacheEntrySize)
 			n, err := testCase.process.MarshalProcCache(data, testCase.bootTime)
 			if err != nil {
 				t.Fatalf("failed to marshal process: %v", err)

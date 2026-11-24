@@ -1,0 +1,9 @@
+description: First succeeds, second fails in && list.
+input:
+  script: |+
+    echo 1 && false
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 1

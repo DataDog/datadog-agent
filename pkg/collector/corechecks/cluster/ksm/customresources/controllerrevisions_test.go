@@ -24,7 +24,7 @@ import (
 
 func TestControllerRevisionRolloutFactory_Name(t *testing.T) {
 	client := &apiserver.APIClient{
-		Cl: fake.NewSimpleClientset(),
+		InformerCl: fake.NewSimpleClientset(),
 	}
 	tracker := NewRolloutTracker()
 	factory := NewControllerRevisionRolloutFactory(client, tracker)
@@ -34,7 +34,7 @@ func TestControllerRevisionRolloutFactory_Name(t *testing.T) {
 
 func TestControllerRevisionRolloutFactory_ExpectedType(t *testing.T) {
 	client := &apiserver.APIClient{
-		Cl: fake.NewSimpleClientset(),
+		InformerCl: fake.NewSimpleClientset(),
 	}
 	tracker := NewRolloutTracker()
 	factory := NewControllerRevisionRolloutFactory(client, tracker)
@@ -46,7 +46,7 @@ func TestControllerRevisionRolloutFactory_ExpectedType(t *testing.T) {
 
 func TestControllerRevisionRolloutFactory_MetricFamilyGenerators(t *testing.T) {
 	client := &apiserver.APIClient{
-		Cl: fake.NewSimpleClientset(),
+		InformerCl: fake.NewSimpleClientset(),
 	}
 	tracker := NewRolloutTracker()
 	factory := NewControllerRevisionRolloutFactory(client, tracker)
@@ -62,7 +62,7 @@ func TestControllerRevisionRolloutFactory_MetricFamilyGenerators(t *testing.T) {
 
 func TestControllerRevisionTracking(t *testing.T) {
 	client := &apiserver.APIClient{
-		Cl: fake.NewSimpleClientset(),
+		InformerCl: fake.NewSimpleClientset(),
 	}
 	tracker := NewRolloutTracker()
 	factory := NewControllerRevisionRolloutFactory(client, tracker).(*controllerRevisionRolloutFactory)

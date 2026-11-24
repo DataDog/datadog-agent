@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix an issue where updates to DatadogInstrumentation resources containing both
+    checks and logs could leave node Agents running the previous configuration.

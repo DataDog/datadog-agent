@@ -11,11 +11,14 @@ package symbolcopier
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
+	"syscall"
+	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/oom"
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pclntab"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 	elf "github.com/DataDog/datadog-agent/pkg/util/safeelf"
@@ -133,28 +136,44 @@ func CopySymbols(ctx context.Context, inputPath, outputPath string, goPCLnTabInf
 	args = append(args, inputPath, outputPath)
 
 	cmd := exec.CommandContext(ctx, "objcopy", args...)
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start copying symbols: %w", err)
+	if !testing.Testing() {
+		// Because ambient capabilities are per-thread and this is a cgo binary (syscall.AllThreadsSyscall is disabled
+		// under cgo), the ambient raise cannot be done process-wide. Instead it is done per-exec here
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			AmbientCaps: []uintptr{unix.CAP_SYS_PTRACE, unix.CAP_DAC_READ_SEARCH},
+		}
 	}
 
-	// Increase probability that objcopy gets killed in case the cgroup is OOM
-	if err := oom.SetOOMScoreAdj(cmd.Process.Pid, 1000); err != nil {
-		slog.Warn("Could not adjust OOM score", slog.String("error", err.Error()))
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start copying symbols: %w", err)
 	}
 
 	return cmd.Wait()
 }
 
+// getStringFlags mirrors the flags BFD derives from the input section header.
+// objcopy only copies the input section type when both flag sets are equal,
+// otherwise binutils < 2.35 turns the section into SHT_PROGBITS with sh_link
+// cleared, which makes the extracted .dynsym unreadable.
+// Sections handled here always have contents, SHT_NOBITS is not supported.
 func getStringFlags(flags elf.SectionFlag) string {
-	flagsStr := "contents"
-	if flags&elf.SHF_WRITE == 0 {
-		flagsStr += ",readonly"
-	}
+	flagsStr := []string{"contents"}
 	if flags&elf.SHF_ALLOC != 0 {
-		flagsStr += ",alloc"
+		flagsStr = append(flagsStr, "alloc", "load")
+	}
+	if flags&elf.SHF_WRITE == 0 {
+		flagsStr = append(flagsStr, "readonly")
 	}
 	if flags&elf.SHF_EXECINSTR != 0 {
-		flagsStr += ",exec"
+		flagsStr = append(flagsStr, "code")
+	} else if flags&elf.SHF_ALLOC != 0 {
+		flagsStr = append(flagsStr, "data")
 	}
-	return flagsStr
+	if flags&elf.SHF_MERGE != 0 {
+		flagsStr = append(flagsStr, "merge")
+	}
+	if flags&elf.SHF_STRINGS != 0 {
+		flagsStr = append(flagsStr, "strings")
+	}
+	return strings.Join(flagsStr, ",")
 }

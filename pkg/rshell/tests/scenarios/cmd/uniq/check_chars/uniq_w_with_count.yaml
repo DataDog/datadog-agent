@@ -1,0 +1,13 @@
+description: uniq -w combined with -c counts duplicates based on first N chars.
+setup:
+  files:
+    - path: input.txt
+      content: "abc1\nabc2\ndef1\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -w 3 -c input.txt
+expect:
+  stdout: "      2 abc1\n      1 def1\n"
+  stderr: ""
+  exit_code: 0

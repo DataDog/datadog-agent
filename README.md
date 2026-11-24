@@ -9,12 +9,11 @@ This repository contains the source code of the Datadog Agent version 7 and vers
 
 The [developer docs site](https://datadoghq.dev/datadog-agent/setup/required/) contains information about how to develop the Datadog Agent itself.
 
-The source of the content is located under [the docs directory](docs) and may contain pages that are not yet published.
+The source of the content is located under [the doc directory](doc) and may contain pages that are not yet published.
 
 ## Contributing code
 
-You'll find information and help on how to contribute code to this project under
-[the `docs/dev` directory](docs/dev) of the present repo.
+Start with the [development requirements](https://datadoghq.dev/datadog-agent/setup/required/) and [contribution guidelines](https://datadoghq.dev/datadog-agent/guidelines/contributing/).
 
 ## License
 

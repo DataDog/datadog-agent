@@ -39,8 +39,8 @@ func (r scanRequest) Collector() string {
 	return collectors.CrioCollector
 }
 
-// Type returns the scan request type based on ScanOptions
-func (r scanRequest) Type(_ sbom.ScanOptions) string {
+// Type returns the scan request type
+func (r scanRequest) Type() string {
 	return sbom.ScanFilesystemType
 }
 
@@ -60,14 +60,9 @@ type Collector struct {
 	closed bool
 }
 
-// CleanCache cleans the cache in the trivy collector
-func (c *Collector) CleanCache() error {
-	return c.trivyCollector.CleanCache()
-}
-
 // Init initializes the collector with configuration and workloadmeta component
 func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.Component]) error {
-	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
+	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
 		return err
 	}

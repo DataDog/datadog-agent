@@ -38,6 +38,16 @@ func (a *logAgent) restart(_ context.Context, newEndpoints *config.Endpoints) er
 	a.restartMutex.Lock()
 	defer a.restartMutex.Unlock()
 
+	return a.restartLocked(newEndpoints)
+}
+
+// restartLocked is restart without taking restartMutex, which the caller must hold. It is also used
+// to switch to the hosts chosen by intake routing. It fails once the logs-agent is stopped.
+func (a *logAgent) restartLocked(newEndpoints *config.Endpoints) error {
+	if a.stopped {
+		return errors.New("the logs-agent is stopped")
+	}
+
 	// Store current endpoints for rollback if restart fails
 	previousEndpoints := a.endpoints
 
@@ -79,8 +89,8 @@ func (a *logAgent) restart(_ context.Context, newEndpoints *config.Endpoints) er
 // This is called by the smart HTTP restart mechanism after HTTP connectivity has been verified.
 //
 // Since HTTP connectivity was verified before calling this function, we commit to HTTP
-// and will keep retrying HTTP even if the upgrade fails. If restart fails, the base
-// restart() function will rollback to TCP temporarily, but this function returns an
+// and will keep retrying HTTP even if the upgrade fails. If restart fails, restartLocked()
+// will rollback to TCP temporarily, but this function returns an
 // error to trigger retry - ensuring we eventually upgrade to HTTP since connectivity exists.
 func (a *logAgent) restartWithHTTPUpgrade(ctx context.Context) error {
 	// Build HTTP endpoints since we already verified HTTP connectivity
@@ -93,7 +103,29 @@ func (a *logAgent) restartWithHTTPUpgrade(ctx context.Context) error {
 		return errors.New(message)
 	}
 
-	err = a.restart(ctx, endpoints)
+	// Intake routing applies to the new HTTP endpoints. Wait for its first decision before taking
+	// restartMutex, as it can take up to the startup grace period.
+	reg, indices := a.registerIntakeRouting(endpoints)
+	if reg != nil {
+		reg.WaitInitial(ctx)
+	}
+
+	a.log.Info("Attempting to restart logs-agent pipeline")
+	a.restartMutex.Lock()
+	previous := a.routing
+	a.routing = intakeRoutingState{base: endpoints, reg: reg, indices: indices}
+	err = a.restartLocked(a.routedEndpointsLocked())
+	if err != nil {
+		a.routing = previous
+		if reg != nil {
+			reg.Close()
+		}
+	} else {
+		previous.close()
+		a.watchIntakeRoutingLocked()
+	}
+	a.restartMutex.Unlock()
+
 	if err != nil {
 		// Restart failed (may have rolled back to TCP to keep agent functional)
 		// Since we verified HTTP connectivity, return error to trigger retry
@@ -130,12 +162,12 @@ func (a *logAgent) rollbackToPreviousTransport(previousEndpoints *config.Endpoin
 // This preserves persistent components (sources, auditor, tracker, schedulers)
 // and only recreates components that need to be updated for the new configuration.
 func (a *logAgent) setupAgentForRestart() error {
-	processingRules, fingerprintConfig, err := a.configureAgent()
+	processingRules, tagFilters, fingerprintConfig, err := a.configureAgent()
 	if err != nil {
 		return err
 	}
 
-	a.rebuildTransientComponents(processingRules, a.wmeta, a.integrationsLogs, *fingerprintConfig)
+	a.rebuildTransientComponents(processingRules, tagFilters, a.wmeta, a.integrationsLogs, *fingerprintConfig)
 	return nil
 }
 
@@ -144,6 +176,10 @@ func (a *logAgent) setupAgentForRestart() error {
 // since persistent components (auditor, schedulers, diagnosticMessageReceiver) remain running.
 func (a *logAgent) restartPipeline() {
 	status.Init(a.started, a.endpoints, a.sources, a.tracker, logsmetrics.LogsExpvars, a.pipelineProvider.GetPipelineMonitor())
+
+	// Tag filters are immutable and retain the same compiled instance across a
+	// transport restart, so existing source caches remain valid.
+	a.reportTagFilterWarnings()
 
 	starter := startstop.NewStarter(a.destinationsCtx, a.pipelineProvider, a.launchers)
 	starter.Start()

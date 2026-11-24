@@ -73,13 +73,14 @@ func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
 	PushFakeRunnerKeysConfig(s.T(), s.Env().FakeIntake.Client())
 
 	// run-executor is a foreground subcommand, not the packaged systemd service.
-	// Launch it detached as dd-agent so it can bind its socket under
-	// /opt/datadog-agent/run and read the agent IPC cert from /etc/datadog-agent.
+	// Launch it detached as dd-agent, with split mode enabled only for this process,
+	// so it can bind its socket under /opt/datadog-agent/run and read the agent IPC
+	// cert from /etc/datadog-agent.
 	// The pid is captured directly (rather than found via pgrep) because pgrep -f
 	// matches on the full command line, so it would also match the very shell
 	// invocation used to search for it.
 	launch := fmt.Sprintf(
-		`sudo -u dd-agent bash -c 'nohup %s run-executor --cfgpath=%s </dev/null >/dev/null 2>&1 & echo $!'`,
+		`sudo -u dd-agent bash -c 'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=true nohup %s run-executor --cfgpath=%s </dev/null >/dev/null 2>&1 & echo $!'`,
 		privateActionRunnerBinary, privateActionRunnerConfigPath,
 	)
 	pid := strings.TrimSpace(host.MustExecute(launch))

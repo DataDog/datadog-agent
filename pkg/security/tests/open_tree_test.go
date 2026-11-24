@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -61,6 +62,7 @@ func TmpMountFdAt(fd int, at string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	defer unix.Close(openfd)
 
 	_ = fsconfigStr(openfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
 	_ = fsconfigStr(openfd, unix.FSCONFIG_SET_STRING, "size", "1M", 0)
@@ -72,6 +74,7 @@ func TmpMountFdAt(fd int, at string) (int, error) {
 
 	err = unix.MoveMount(mountfd, "", fd, at, unix.MOVE_MOUNT_F_EMPTY_PATH)
 	if err != nil {
+		unix.Close(mountfd)
 		return 0, err
 	}
 
@@ -90,6 +93,12 @@ func getMountID(path string) (uint32, error) {
 	}
 
 	for _, mnt := range mounts {
+		if mnt.Mountpoint == path {
+			return uint32(mnt.ID), nil
+		}
+	}
+
+	for _, mnt := range mounts {
 		mountDevice := unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))
 		if mountDevice == stat.Dev {
 			return uint32(mnt.ID), nil
@@ -101,6 +110,10 @@ func getMountID(path string) (uint32, error) {
 
 func TestOpenTree(t *testing.T) {
 	SkipIfNotAvailable(t)
+
+	if ebpfLessEnabled {
+		t.Skip("not supported in ebpfless mode")
+	}
 
 	if !openTreeIsSupported() {
 		t.Skip("open_tree syscall is not supported on this platform")
@@ -127,6 +140,11 @@ func TestOpenTree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if test != nil {
+			test.CloseTest()
+		}
+	}()
 
 	// Mount the following directory struct in /tmp:
 	// + /tmp/<tmpdir>        (tmpfs, 1MB)
@@ -139,7 +157,6 @@ func TestOpenTree(t *testing.T) {
 	mountIDsToPath := make(map[uint32]string)
 
 	dir := t.TempDir()
-	tounmount = append(tounmount, dir)
 
 	fdRoot, err := TmpMountAt(dir)
 	if err != nil {
@@ -147,19 +164,24 @@ func TestOpenTree(t *testing.T) {
 		t.Skip(err)
 	}
 	defer unix.Close(fdRoot)
+	tounmount = append(tounmount, dir)
+	defer func() {
+		for i := len(tounmount) - 1; i >= 0; i-- {
+			if err := unix.Unmount(tounmount[i], syscall.MNT_DETACH); err != nil {
+				t.Logf("failed to unmount %s: %v", tounmount[i], err)
+			}
+		}
+	}()
 
-	if id, err := getMountID(dir); err != nil {
+	rootMountID, err := getMountID(dir)
+	if err != nil {
 		t.Fatal(err)
-	} else {
-		mountIDsToPath[id] = "/"
 	}
+	mountIDsToPath[rootMountID] = "/"
 
 	mountSubDir := func(subdir string) {
 		fullpath := dir + "/" + subdir
 		err = os.Mkdir(fullpath, 0755)
-
-		tounmount = append(tounmount, fullpath)
-
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -168,6 +190,7 @@ func TestOpenTree(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer unix.Close(fd)
+		tounmount = append(tounmount, fullpath)
 
 		if id, err := getMountID(fullpath); err != nil {
 			t.Fatal(err)
@@ -179,17 +202,25 @@ func TestOpenTree(t *testing.T) {
 	mountSubDir("tmp1")
 	mountSubDir("tmp2")
 
-	defer func() {
-		for i := len(tounmount) - 1; i >= 0; i-- {
-			err = unix.Unmount(tounmount[i], syscall.MNT_DETACH)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-	}()
+	type mountEvent struct {
+		srcMountID uint32
+		path       string
+		detached   bool
+		visible    bool
+	}
+
+	// GetProbeEvent sees every mount on the host, so scope the stream to the open_tree calls made below
+	isOwnOpenTreeMount := func(event *model.Event) bool {
+		return event.GetType() == "mount" &&
+			event.Mount.Origin == model.MountOriginOpenTree &&
+			event.ProcessContext.Pid == testSuitePid
+	}
 
 	t.Run("copy-tree-test-detached-recursive", func(t *testing.T) {
-		seen := 0
+		var mu sync.Mutex
+		seen := make(map[uint32]mountEvent)
+
+		test.DrainProbeEvents()
 
 		err = test.GetProbeEvent(func() error {
 			fd, err := unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
@@ -199,30 +230,43 @@ func TestOpenTree(t *testing.T) {
 			defer unix.Close(fd)
 			return nil
 		}, func(event *model.Event) bool {
-			if event.GetType() != "mount" || event.Mount.Origin != model.MountOriginOpenTree {
+			if !isOwnOpenTreeMount(event) {
 				return false
 			}
 
-			assert.NotEqual(t, uint32(0), event.Mount.BindSrcMountID, "mount id is zero")
-			assert.NotEmpty(t, event.GetMountMountpointPath(), "path is empty")
-			assert.Equal(t, mountIDsToPath[event.Mount.BindSrcMountID], event.GetMountMountpointPath(), "Wrong Path")
-
-			seen++
-			if seen == 1 {
-				assert.Equal(t, true, event.Mount.Detached, "First mount should be detached")
-				assert.Equal(t, false, event.Mount.Visible, "First mount shouldn't be visible")
-			} else {
-				assert.Equal(t, false, event.Mount.Detached, "Second and third mounts shouldn't be detached")
-				assert.Equal(t, false, event.Mount.Visible, "Second and third mounts shouldn't be visible")
+			mu.Lock()
+			defer mu.Unlock()
+			seen[event.Mount.BindSrcMountID] = mountEvent{
+				srcMountID: event.Mount.BindSrcMountID,
+				path:       event.GetMountMountpointPath(),
+				detached:   event.Mount.Detached,
+				visible:    event.Mount.Visible,
 			}
 
-			return seen == 3
+			return len(seen) == len(mountIDsToPath)
 		}, 10*time.Second, model.FileMountEventType)
-		assert.Equal(t, 3, seen)
+
+		mu.Lock()
+		defer mu.Unlock()
+		assert.Len(t, seen, len(mountIDsToPath), "wrong number of open_tree mounts (%v)", err)
+		for srcMountID, srcPath := range mountIDsToPath {
+			ev, ok := seen[srcMountID]
+			if !assert.True(t, ok, "no open_tree mount event for %s", srcPath) {
+				continue
+			}
+			assert.Equal(t, srcPath, ev.path, "Wrong Path")
+			// only the root of the copy is detached from the VFS, its children stay attached to it
+			assert.Equal(t, srcPath == "/", ev.detached, "Wrong detached state for %s", srcPath)
+			assert.False(t, ev.visible, "%s shouldn't be visible", srcPath)
+		}
 	})
 
 	t.Run("copy-tree-test-detached-non-recursive", func(t *testing.T) {
-		seen := 0
+		var mu sync.Mutex
+		var seen []mountEvent
+
+		test.DrainProbeEvents()
+
 		err = test.GetProbeEvent(func() error {
 			fd, err := unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
 			if err != nil {
@@ -231,20 +275,31 @@ func TestOpenTree(t *testing.T) {
 			defer unix.Close(fd)
 			return nil
 		}, func(event *model.Event) bool {
-			if event.GetType() != "mount" && event.Mount.Origin != model.MountOriginOpenTree {
+			if !isOwnOpenTreeMount(event) {
 				return false
 			}
-			seen++
 
-			assert.NotEqual(t, uint32(0), event.Mount.BindSrcMountID, "mount id is zero")
-			assert.NotEmpty(t, event.GetMountMountpointPath(), "path is empty")
-			assert.Equal(t, "/", event.GetMountMountpointPath(), "Wrong Path")
-			assert.Equal(t, true, event.Mount.Detached, "Mount should be detached")
-			assert.Equal(t, false, event.Mount.Visible, "Mount shouldn't be visible")
+			mu.Lock()
+			defer mu.Unlock()
+			seen = append(seen, mountEvent{
+				srcMountID: event.Mount.BindSrcMountID,
+				path:       event.GetMountMountpointPath(),
+				detached:   event.Mount.Detached,
+				visible:    event.Mount.Visible,
+			})
 
-			return seen == 1
+			return true
 		}, 10*time.Second, model.FileMountEventType)
-		assert.Equal(t, 1, seen)
+
+		mu.Lock()
+		defer mu.Unlock()
+		if !assert.Len(t, seen, 1, "wrong number of open_tree mounts (%v)", err) {
+			return
+		}
+		assert.Equal(t, rootMountID, seen[0].srcMountID, "wrong source mount")
+		assert.Equal(t, "/", seen[0].path, "Wrong Path")
+		assert.True(t, seen[0].detached, "Mount should be detached")
+		assert.False(t, seen[0].visible, "Mount shouldn't be visible")
 	})
 
 	t.Run("detached-event-captured", func(t *testing.T) {
@@ -261,25 +316,30 @@ func TestOpenTree(t *testing.T) {
 		}, "test_rule3")
 	})
 
-	test.Close()
+	test.CloseTest()
+	test = nil
 	test, err = newTestModule(t, nil, execRules)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
 
 	t.Run("execution-from-detached-mount", func(t *testing.T) {
 		srcPath := which(t, "true")
-		pid := os.Getpid()
 		fd, err := unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
 		if err != nil {
 			t.Fatal(err)
 		}
-		destPath := fmt.Sprintf("/proc/%d/fd/%d/true", pid, fd)
-		_ = exec.Command("cp", srcPath, destPath).Run()
 		defer unix.Close(fd)
+
+		destPath := fmt.Sprintf("/proc/%d/fd/%d/true", os.Getpid(), fd)
+		if out, err := exec.Command("cp", srcPath, destPath).CombinedOutput(); err != nil {
+			t.Fatalf("failed to copy %s to %s: %v (%s)", srcPath, destPath, err, out)
+		}
+
 		test.WaitSignalFromRule(t, func() error {
-			err = exec.Command(destPath).Run()
+			if out, err := exec.Command(destPath).CombinedOutput(); err != nil {
+				return fmt.Errorf("failed to run %s: %w (%s)", destPath, err, out)
+			}
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, true, event.Exec.FileEvent.MountDetached, "Mount should be detached")
@@ -288,9 +348,18 @@ func TestOpenTree(t *testing.T) {
 	})
 
 	t.Run("execution-from-visible-mount", func(t *testing.T) {
-		exePath, _ := exec.LookPath("false")
+		// not which: it resolves symlinks, and "false" points at the multi-call coreutils binary on uutils distros
+		exePath, err := exec.LookPath("false")
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		test.WaitSignalFromRule(t, func() error {
-			_ = exec.Command(exePath).Run()
+			// "false" is expected to exit non-zero, only a failure to start it is an error
+			var exitErr *exec.ExitError
+			if err := exec.Command(exePath).Run(); err != nil && !errors.As(err, &exitErr) {
+				return fmt.Errorf("failed to run %s: %w", exePath, err)
+			}
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, false, event.Exec.FileEvent.MountDetached, "Mount should be detached")

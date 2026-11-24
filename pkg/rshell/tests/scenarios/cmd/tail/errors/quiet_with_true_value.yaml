@@ -1,0 +1,15 @@
+description: tail --quiet=true is rejected because boolean flags do not take any value.
+setup:
+  files:
+    - path: a.txt
+      content: "hello\n"
+    - path: b.txt
+      content: "world\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail --quiet=true a.txt b.txt
+expect:
+  stdout: ""
+  stderr_contains: ["tail:"]
+  exit_code: 1

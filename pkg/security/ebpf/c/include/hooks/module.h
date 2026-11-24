@@ -6,7 +6,7 @@
 #include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace_init_module(void *ctx, u32 loaded_from_memory, const char *uargs) {
+static __always_inline int trace_init_module(void *ctx, u32 loaded_from_memory, const char *uargs) {
     struct syscall_cache_t syscall = {
         .type = EVENT_INIT_MODULE,
         .init_module = {
@@ -31,7 +31,7 @@ HOOK_SYSCALL_ENTRY3(finit_module, int, fd, const char *, uargs, int, flags) {
     return trace_init_module(ctx, 0, uargs);
 }
 
-int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int trace_kernel_file(ctx_t *ctx, struct file *f, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
@@ -57,7 +57,7 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     return 0;
 }
 
-int __attribute__((always_inline)) fetch_mod_name_common(struct module *m) {
+static __always_inline int fetch_mod_name_common(struct module *m) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
@@ -97,15 +97,15 @@ int hook_security_kernel_read_file(ctx_t *ctx) {
     return trace_kernel_file(ctx, f, KPROBE_OR_FENTRY_TYPE);
 }
 
-int __attribute__((always_inline)) trace_init_module_ret_impl(void *ctx, int retval, char *modname, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_INIT_MODULE);
+static __always_inline int trace_init_module_ret_impl(void *ctx, int retval, char *modname, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
     }
 
     struct init_module_event_t *event = SPAN_FILL_EVENT(struct init_module_event_t, EVENT_INIT_MODULE);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
 
     event->syscall.retval = retval;
@@ -125,14 +125,19 @@ int __attribute__((always_inline)) trace_init_module_ret_impl(void *ctx, int ret
         fill_file(syscall->init_module.dentry, &event->file);
     }
 
+    pop_syscall(EVENT_INIT_MODULE);
+
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_INIT_MODULE);
     return 0;
 }
 
-int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, char *modname) {
+static __always_inline int trace_init_module_ret(void *ctx, int retval, char *modname) {
     return trace_init_module_ret_impl(ctx, retval, modname, KPROBE_OR_FENTRY_TYPE);
 }
 
@@ -177,27 +182,32 @@ HOOK_SYSCALL_ENTRY1(delete_module, const char *, name_user) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace_delete_module_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_DELETE_MODULE);
+static __always_inline int trace_delete_module_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_DELETE_MODULE);
     if (!syscall) {
         return 0;
     }
 
     struct delete_module_event_t *event = SPAN_FILL_EVENT(struct delete_module_event_t, EVENT_DELETE_MODULE);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     bpf_probe_read_str(&event->name, sizeof(event->name), (void *)syscall->delete_module.name);
+
+    pop_syscall(EVENT_DELETE_MODULE);
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_DELETE_MODULE);
     return 0;
 }
 
-int __attribute__((always_inline)) trace_delete_module_ret(void *ctx, int retval) {
+static __always_inline int trace_delete_module_ret(void *ctx, int retval) {
     return trace_delete_module_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

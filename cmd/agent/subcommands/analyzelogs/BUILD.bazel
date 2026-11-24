@@ -26,7 +26,6 @@ go_library(
         "//comp/logs-library/pipeline",
         "//comp/logs-library/processor",
         "//comp/logs/agent/impl",
-        "//pkg/config/setup",
         "//pkg/logs/launchers",
         "//pkg/logs/message",
         "//pkg/logs/schedulers/ad",
@@ -44,6 +43,7 @@ dd_agent_go_test(
     deps = [
         "//cmd/agent/command",
         "//comp/core",
+        "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/mock",
         "//comp/core/autodiscovery/scheduler",
         "//comp/core/config",

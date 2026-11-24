@@ -82,14 +82,16 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		}),
 		flaretypes.NewFiller(getRegistryJSON),
 		flaretypes.NewFiller(getVersionHistory),
-		flaretypes.NewFiller(getWindowsData),
-		flaretypes.NewFiller(common.GetExpVar),
+		flaretypes.NewFiller(func(ctx context.Context, fb flaretypes.FlareBuilder) error {
+			return common.GetExpVar(ctx, fb, ipc.GetClient())
+		}),
 		flaretypes.NewFiller(provideInstallInfo),
 		flaretypes.NewFiller(provideAuthTokenPerm),
 		flaretypes.NewFiller(provideContainers(workloadmeta)),
 		flaretypes.NewFiller(provideRuntimeDebugInfo),
 		flaretypes.NewFiller(getUlimitData),
 		flaretypes.NewFiller(getSvmonData),
+		flaretypes.NewFiller(provideCertificateSources),
 	}
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
@@ -104,6 +106,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		))
 	}
 
+	providers = append(providers, windowsFlareProviders()...)
 	return providers
 }
 
@@ -425,8 +428,8 @@ func getECSMeta() ([]byte, error) {
 	return json.MarshalIndent(ecsMeta, "", "\t")
 }
 
-func (r *RemoteFlareProvider) GetGoRoutineDump() ([]byte, error) {
-	pprofURL := "http://127.0.0.1:" + pkgconfigsetup.Datadog().GetString("expvar_port") + "/debug/pprof/goroutine?debug=2"
+func (r *RemoteFlareProvider) GetGoRoutineDump(port int) ([]byte, error) {
+	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof/goroutine?debug=2", port)
 	return r.getHTTPCallContent(pprofURL)
 }
 

@@ -205,7 +205,7 @@ func TestFlowPidBind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("test_sock_ipv4_udp_bind_0.0.0.0:1234", func(t *testing.T) {
 		boundPort := make(chan int)
@@ -665,7 +665,7 @@ func TestFlowPidBindLeak(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("test_sock_ipv4_udp_bind_99.99.99.99:2234", func(t *testing.T) {
 		boundPort := make(chan int)
@@ -869,7 +869,7 @@ func TestMultipleProtocols(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {

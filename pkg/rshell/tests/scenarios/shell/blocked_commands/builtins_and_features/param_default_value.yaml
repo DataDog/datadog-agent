@@ -1,0 +1,11 @@
+# skip: feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Parameter expansion operations are intentionally blocked.
+input:
+  script: |+
+    echo ${a-default}
+expect:
+  stdout: ""
+  stderr: |+
+    ${var} operations (defaults, pattern removal, case conversion) are not supported
+  exit_code: 2

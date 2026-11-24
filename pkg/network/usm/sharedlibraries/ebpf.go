@@ -28,6 +28,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/modifiers"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -482,8 +483,7 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 }
 
 func (e *EbpfProgram) initCORE() error {
-	assetName := getAssetName("shared-libraries", e.cfg.BPFDebug)
-	return ddebpf.LoadCOREAsset(assetName, e.init)
+	return ddebpf.LoadCOREAsset("shared-libraries.o", e.init)
 }
 
 func (e *EbpfProgram) initRuntimeCompiler() error {
@@ -496,7 +496,7 @@ func (e *EbpfProgram) initRuntimeCompiler() error {
 }
 
 func (e *EbpfProgram) initPrebuilt() error {
-	bc, err := netebpf.ReadSharedLibrariesModule(e.cfg.BPFDir, e.cfg.BPFDebug)
+	bc, err := netebpf.ReadSharedLibrariesModule(e.cfg.BPFDir)
 	if err != nil {
 		return err
 	}
@@ -506,7 +506,7 @@ func (e *EbpfProgram) initPrebuilt() error {
 }
 
 func sysOpenAt2Supported() bool {
-	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
+	missing, err := ksyms.VerifyKernelFuncs("do_sys_openat2")
 
 	return err == nil && len(missing) == 0
 }
@@ -661,14 +661,6 @@ func (e *EbpfProgram) initializeProbes() ([]manager.ProbeIdentificationPair, err
 	e.disabledProbes = append(e.disabledProbes, disabledTracingProbes...)
 
 	return sleepableIDs, nil
-}
-
-func getAssetName(module string, debug bool) string {
-	if debug {
-		return module + "-debug.o"
-	}
-
-	return module + ".o"
 }
 
 // ToBytes converts the libpath to a byte array containing the path

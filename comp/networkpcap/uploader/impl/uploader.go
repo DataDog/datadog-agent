@@ -1,0 +1,431 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+// Package uploaderimpl implements the network packet capture uploader component.
+package uploaderimpl
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/textproto"
+	"net/url"
+	"strconv"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	uploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/hostport"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
+)
+
+const (
+	// trackType is the networkpcap intake track; uploads go to
+	// /api/v2/networkpcap.
+	trackType = "networkpcap"
+	// hostnameEndpointPrefix is prepended to the site to build the default
+	// intake host, e.g. "cnm-intake.datadoghq.com".
+	hostnameEndpointPrefix = "cnm-intake."
+	// endpointsConfigPrefix is the prefix of the logs-style endpoint settings
+	// (logs_dd_url, dd_url, additional_endpoints, ...).
+	endpointsConfigPrefix = "network_pcap.forwarder."
+
+	defaultMaxAttempts  = 4
+	defaultRetryBackoff = 2 * time.Second
+	// defaultAttemptTimeout bounds a single request, body included.
+	defaultAttemptTimeout = 60 * time.Second
+)
+
+// uploadMetrics is the upload telemetry. Every endpoint an upload is sent to
+// is counted on its own, tagged reliable or unreliable: additional endpoints
+// are reliable unless configured otherwise, and the MRF endpoint is counted
+// only while a failover is active. An upload whose endpoints cannot be
+// resolved is only timed.
+type uploadMetrics struct {
+	attempts telemetry.Counter
+	results  telemetry.Counter
+	bytes    telemetry.SimpleHistogram
+	duration telemetry.SimpleHistogram
+}
+
+func newUploadMetrics(tel telemetry.Component) uploadMetrics {
+	return uploadMetrics{
+		attempts: tel.NewCounter(
+			"remote_pcap", "upload_attempts", []string{"status_class", "retry"},
+			"Packet capture upload requests sent to an intake endpoint, by response status class",
+		),
+		results: tel.NewCounter(
+			"remote_pcap", "upload_result", []string{"endpoint", "result"},
+			"Packet capture uploads by intake endpoint and final result, after retries",
+		),
+		bytes: tel.NewSimpleHistogram(
+			"remote_pcap", "upload_bytes",
+			"Compressed request body size of successful packet capture uploads, per endpoint",
+			[]float64{64 << 10, 256 << 10, 1 << 20, 4 << 20, 16 << 20, 64 << 20, 256 << 20},
+		),
+		duration: tel.NewSimpleHistogram(
+			"remote_pcap", "upload_duration_seconds",
+			"Duration of packet capture uploads across all endpoints, retries included",
+			[]float64{0.5, 1, 2, 5, 10, 20, 30, 60, 120},
+		),
+	}
+}
+
+// statusClass returns the status_class tag of a response status.
+func statusClass(code int) string {
+	switch {
+	case code >= 200 && code < 300:
+		return "2xx"
+	case code >= 400 && code < 500:
+		return "4xx"
+	case code >= 500:
+		return "5xx"
+	default:
+		// The intake does not answer 1xx or 3xx; keep them apart from errors.
+		return "other"
+	}
+}
+
+// recordResult records the outcome of an upload to one endpoint, sent being
+// the compressed body size when it succeeded.
+func (m uploadMetrics) recordResult(endpoint *logsconfig.Endpoint, sent int64, err error) {
+	endpointTag := "unreliable"
+	if endpoint.IsReliable() {
+		endpointTag = "reliable"
+	}
+	switch {
+	case err == nil:
+		m.results.Inc(endpointTag, "success")
+		m.bytes.Observe(float64(sent))
+	case errors.Is(err, uploader.ErrPayloadTooLarge):
+		m.results.Inc(endpointTag, "too_large")
+	default:
+		m.results.Inc(endpointTag, "failed")
+	}
+}
+
+// countingReader counts the bytes read from a request body.
+type countingReader struct {
+	io.ReadCloser
+	n *atomic.Int64
+}
+
+func (r countingReader) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	r.n.Add(int64(n))
+	return n, err
+}
+
+// Requires defines the component's dependencies.
+type Requires struct {
+	Config    configcomp.Component
+	Telemetry telemetry.Component
+}
+
+// Provides defines the component's output.
+type Provides struct {
+	Comp uploader.Component
+}
+
+// NewComponent creates a new network packet capture uploader component.
+func NewComponent(reqs Requires) Provides {
+	return Provides{Comp: newUploader(reqs.Config, reqs.Telemetry)}
+}
+
+type pcapUploader struct {
+	cfg          model.Reader
+	httpClient   *http.Client
+	maxAttempts  int
+	retryBackoff time.Duration
+	metrics      uploadMetrics
+
+	mu        sync.Mutex
+	endpoints *logsconfig.Endpoints
+}
+
+func newUploader(cfg model.Reader, tel telemetry.Component) *pcapUploader {
+	return &pcapUploader{
+		cfg: cfg,
+		// The Agent transport applies the proxy and TLS settings.
+		httpClient: &http.Client{
+			Timeout:   defaultAttemptTimeout,
+			Transport: httputils.CreateHTTPTransport(cfg),
+		},
+		maxAttempts:  defaultMaxAttempts,
+		retryBackoff: defaultRetryBackoff,
+		metrics:      newUploadMetrics(tel),
+	}
+}
+
+// getEndpoints resolves the networkpcap endpoints once, the same way the event
+// platform forwarder does: <prefix>logs_dd_url / dd_url override the main
+// endpoint, <prefix>additional_endpoints adds more, and the MRF endpoint is
+// added when multi_region_failover is enabled. Each endpoint carries its own
+// API key, which follows runtime config updates.
+func (u *pcapUploader) getEndpoints() (*logsconfig.Endpoints, error) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.endpoints != nil {
+		return u.endpoints, nil
+	}
+	configKeys := logsconfig.NewLogsConfigKeys(endpointsConfigPrefix, u.cfg)
+	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(
+		u.cfg,
+		configKeys,
+		hostnameEndpointPrefix,
+		logsconfig.IntakeTrackType(trackType),
+		logsconfig.DefaultIntakeProtocol,
+		logsconfig.DefaultIntakeOrigin,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("building endpoints for track %s: %w", trackType, err)
+	}
+	u.endpoints = endpoints
+	return endpoints, nil
+}
+
+// Upload sends req to every networkpcap endpoint concurrently. Failures on
+// reliable endpoints are returned; failures on unreliable ones are logged.
+func (u *pcapUploader) Upload(ctx context.Context, req uploader.UploadRequest) error {
+	start := time.Now()
+	defer func() { u.metrics.duration.Observe(time.Since(start).Seconds()) }()
+
+	endpoints, err := u.getEndpoints()
+	if err != nil {
+		return err
+	}
+
+	// The MRF endpoint only receives data while a failover is active, like
+	// every other sender on the logs/EvP intake.
+	mrfActive := u.cfg.GetBool("multi_region_failover.enabled") && u.cfg.GetBool("multi_region_failover.failover_logs")
+
+	var (
+		wg   sync.WaitGroup
+		mu   sync.Mutex
+		errs []error
+	)
+	for i := range endpoints.Endpoints {
+		endpoint := &endpoints.Endpoints[i]
+		if endpoint.IsMRF && !mrfActive {
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			endpointURL := buildURL(endpoint)
+			sent, err := u.sendWithRetries(ctx, endpoint, endpointURL, req)
+			u.metrics.recordResult(endpoint, sent, err)
+			if err != nil {
+				if !endpoint.IsReliable() {
+					log.Warnf("packet capture upload to unreliable endpoint %s failed: %v", endpointURL, err)
+					return
+				}
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("%s: %w", endpointURL, err))
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	return errors.Join(errs...)
+}
+
+// sendWithRetries retries transport errors, 408, 429 and 5xx. 413 is not
+// retried: resending the same bytes cannot succeed. On success it returns the
+// compressed body size of the accepted attempt.
+func (u *pcapUploader) sendWithRetries(ctx context.Context, endpoint *logsconfig.Endpoint, endpointURL string, req uploader.UploadRequest) (int64, error) {
+	var lastErr error
+	for attempt := 0; attempt < u.maxAttempts; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-time.After(u.retryBackoff * time.Duration(attempt)):
+			case <-ctx.Done():
+				return 0, ctx.Err()
+			}
+		}
+		retryable, sent, err := u.send(ctx, endpoint, endpointURL, req, attempt > 0)
+		if err == nil {
+			return sent, nil
+		}
+		if !retryable {
+			return 0, err
+		}
+		lastErr = err
+	}
+	return 0, fmt.Errorf("upload failed after %d attempts: %w", u.maxAttempts, lastErr)
+}
+
+// send makes one attempt. It reports whether a failure is worth retrying and,
+// on success, the bytes sent. Attempts are counted once a request is sent;
+// failures to build one are not.
+func (u *pcapUploader) send(ctx context.Context, endpoint *logsconfig.Endpoint, endpointURL string, req uploader.UploadRequest, retry bool) (bool, int64, error) {
+	apiKey, ready := endpoint.GetAPIKeyIfReady()
+	if !ready || apiKey == "" {
+		return false, 0, errors.New("no API key available for this endpoint")
+	}
+
+	boundary := multipart.NewWriter(io.Discard).Boundary()
+	var sent atomic.Int64
+	newBody := func() (io.ReadCloser, error) {
+		// A body re-read from the start (GetBody) replaces the earlier one.
+		sent.Store(0)
+		body, err := newMultipartBody(boundary, req)
+		if err != nil {
+			return nil, err
+		}
+		return countingReader{ReadCloser: body, n: &sent}, nil
+	}
+
+	body, err := newBody()
+	if err != nil {
+		// The attachments cannot be read; retrying will not help.
+		return false, 0, err
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, body)
+	if err != nil {
+		_ = body.Close()
+		return false, 0, fmt.Errorf("building request: %w", err)
+	}
+	httpReq.GetBody = newBody
+	httpReq.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
+	httpReq.Header.Set("Content-Encoding", "zstd")
+	httpReq.Header.Set("DD-API-KEY", apiKey)
+	for k, v := range endpoint.ExtraHTTPHeaders {
+		httpReq.Header.Set(k, v)
+	}
+
+	retryTag := strconv.FormatBool(retry)
+	resp, err := u.httpClient.Do(httpReq)
+	if err != nil {
+		u.metrics.attempts.Inc("transport", retryTag)
+		return true, 0, fmt.Errorf("sending request: %w", err)
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+	_ = resp.Body.Close()
+	u.metrics.attempts.Inc(statusClass(resp.StatusCode), retryTag)
+
+	switch code := resp.StatusCode; {
+	case code >= 200 && code < 300:
+		return false, sent.Load(), nil
+	case code == http.StatusRequestEntityTooLarge:
+		return false, 0, fmt.Errorf("%w (%d)", uploader.ErrPayloadTooLarge, code)
+	case code == http.StatusRequestTimeout, code == http.StatusTooManyRequests, code >= 500:
+		return true, 0, fmt.Errorf("intake returned status %d", code)
+	default:
+		return false, 0, fmt.Errorf("intake returned status %d", code)
+	}
+}
+
+// newMultipartBody opens the attachments and returns a reader that streams
+// the zstd-compressed multipart body: the event part, then each attachment.
+// Opening up front surfaces unreadable attachments before anything is sent.
+func newMultipartBody(boundary string, req uploader.UploadRequest) (io.ReadCloser, error) {
+	readers := make([]io.ReadCloser, 0, len(req.Attachments))
+	closeAll := func() {
+		for _, r := range readers {
+			_ = r.Close()
+		}
+	}
+	for _, a := range req.Attachments {
+		if a.Open == nil {
+			closeAll()
+			return nil, fmt.Errorf("attachment %q has no content", a.Name)
+		}
+		r, err := a.Open()
+		if err != nil {
+			closeAll()
+			return nil, fmt.Errorf("opening attachment %q: %w", a.Name, err)
+		}
+		readers = append(readers, r)
+	}
+
+	pr, pw := io.Pipe()
+	go func() {
+		defer closeAll()
+		err := func() error {
+			zw, err := zstd.NewWriter(pw)
+			if err != nil {
+				return err
+			}
+			if err := writeMultipart(zw, boundary, req, readers); err != nil {
+				// Close frees the compressor even when the body was
+				// abandoned, e.g. the server answered before reading it.
+				_ = zw.Close()
+				return err
+			}
+			return zw.Close()
+		}()
+		_ = pw.CloseWithError(err)
+	}()
+	return pr, nil
+}
+
+func writeMultipart(w io.Writer, boundary string, req uploader.UploadRequest, readers []io.ReadCloser) error {
+	mw := multipart.NewWriter(w)
+	if err := mw.SetBoundary(boundary); err != nil {
+		return err
+	}
+
+	h := make(textproto.MIMEHeader)
+	// filename="" is required: the intake only accepts a part as a file
+	// upload when it carries a filename attribute, even an empty one.
+	// Without it: 400 "File event not found in the request".
+	h.Set("Content-Disposition", `form-data; name="event"; filename=""`)
+	h.Set("Content-Type", "application/json")
+	part, err := mw.CreatePart(h)
+	if err != nil {
+		return fmt.Errorf("creating event part: %w", err)
+	}
+	if _, err := part.Write(req.Event); err != nil {
+		return fmt.Errorf("writing event part: %w", err)
+	}
+
+	for i, a := range req.Attachments {
+		contentType := a.ContentType
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, a.Name, a.Filename))
+		h.Set("Content-Type", contentType)
+		part, err := mw.CreatePart(h)
+		if err != nil {
+			return fmt.Errorf("creating attachment part %q: %w", a.Name, err)
+		}
+		if _, err := io.Copy(part, readers[i]); err != nil {
+			return fmt.Errorf("writing attachment part %q: %w", a.Name, err)
+		}
+	}
+	return mw.Close()
+}
+
+// buildURL returns the networkpcap upload URL on an endpoint. Uploads always
+// use the v2 intake API, whatever <prefix>use_v2_api says.
+func buildURL(endpoint *logsconfig.Endpoint) string {
+	scheme := "http"
+	if endpoint.UseSSL() {
+		scheme = "https"
+	}
+	host := endpoint.Host
+	if endpoint.Port != 0 {
+		host = hostport.Join(endpoint.Host, strconv.Itoa(endpoint.Port))
+	}
+	u := url.URL{
+		Scheme: scheme,
+		Host:   host,
+		Path:   endpoint.PathPrefix + "/api/v2/" + trackType,
+	}
+	return u.String()
+}

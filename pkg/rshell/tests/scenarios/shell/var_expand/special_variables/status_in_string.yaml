@@ -1,0 +1,13 @@
+description: The $? variable can be used in string concatenation.
+input:
+  script: |+
+    true
+    echo "exit:$?"
+    false
+    echo "code=${?}!"
+expect:
+  stdout: |+
+    exit:0
+    code=1!
+  stderr: ""
+  exit_code: 0

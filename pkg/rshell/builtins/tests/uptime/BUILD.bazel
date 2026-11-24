@@ -1,0 +1,20 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "uptime_test",
+    srcs = ["uptime_test.go"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/internal/sysinfo",
+        "//pkg/rshell/builtins/uptime",
+        "@com_github_spf13_pflag//:pflag",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

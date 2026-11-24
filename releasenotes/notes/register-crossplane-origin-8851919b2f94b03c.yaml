@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Register the crossplane metric origin for Agent-side serialization.

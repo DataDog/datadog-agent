@@ -47,8 +47,11 @@ type bootstrapperCmd struct {
 	*cmd
 }
 
-func newBootstrapperCmd(operation string) *bootstrapperCmd {
-	cmd := newCmd(operation)
+func newBootstrapperCmd(operation string) (*bootstrapperCmd, error) {
+	cmd, err := newCmd(operation)
+	if err != nil {
+		return nil, err
+	}
 	cmd.span.SetTag("env_var.DD_UPGRADE", os.Getenv(envUpgrade))
 	cmd.span.SetTag("env_var.DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE", os.Getenv(envAPMInstrumentationNoConfigChange))
 	cmd.span.SetTag("env_var.DD_SYSTEM_PROBE_ENSURE_CONFIG", os.Getenv(envSystemProbeEnsureConfig))
@@ -76,7 +79,7 @@ func newBootstrapperCmd(operation string) *bootstrapperCmd {
 	cmd.span.SetTag("env_var.no_proxy", os.Getenv(envnoProxy))
 	return &bootstrapperCmd{
 		cmd: cmd,
-	}
+	}, nil
 }
 
 func redactURL(u string) string {
@@ -96,7 +99,10 @@ func bootstrapCommand() *cobra.Command {
 		Short:   "Bootstraps the package with the first version.",
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			b := newBootstrapperCmd("bootstrap")
+			b, err := newBootstrapperCmd("bootstrap")
+			if err != nil {
+				return err
+			}
 			defer func() { b.stop(err) }()
 			return bootstrap.Bootstrap(b.ctx, b.env)
 		},

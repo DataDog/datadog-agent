@@ -10,7 +10,6 @@ go_library(
         "//cmd/agent/common/signals",
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",
-        "//comp/core/flare",
         "//comp/core/flare/helpers",
         "//comp/core/flare/types",
         "//pkg/aggregator/sender",

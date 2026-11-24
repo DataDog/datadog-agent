@@ -70,7 +70,10 @@ func apmInstrumentStartCommand() *cobra.Command {
 		Short: "Add the APM injector to /etc/ld.so.preload. Called by the datadog-apm-inject systemd service on start.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			c := newCmd("apm_instrument_start")
+			c, err := newCmd("apm_instrument_start")
+			if err != nil {
+				return err
+			}
 			defer func() { c.stop(err) }()
 			c.span.SetTag("params.instrument", args[0])
 			return packages.InstrumentAPMInjectorStart(c.ctx)
@@ -85,7 +88,10 @@ func apmInstrumentStopCommand() *cobra.Command {
 		Short: "Remove the APM injector from /etc/ld.so.preload. Called by the datadog-apm-inject systemd service on stop.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			c := newCmd("apm_instrument_stop")
+			c, err := newCmd("apm_instrument_stop")
+			if err != nil {
+				return err
+			}
 			defer func() { c.stop(err) }()
 			c.span.SetTag("params.instrument", args[0])
 			return packages.UninstrumentAPMInjectorStop(c.ctx)

@@ -163,19 +163,19 @@ func TestBuildEnvironment_SessionEnvVarRejectsPathTraversal(t *testing.T) {
 
 func TestBuildExecutablePath_DedupsDirectories(t *testing.T) {
 	path, err := buildExecutablePath([]string{
-		"/tools/a/helm",
-		"/tools/a/jq",
-		"/tools/b/kubectl",
+		"/tools/bin",
+		"/tools/bin",
+		"/tools",
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "/tools/a"+string(os.PathListSeparator)+"/tools/b"+string(os.PathListSeparator)+defaultExecutablePath, path)
+	assert.Equal(t, "/tools/bin"+string(os.PathListSeparator)+"/tools"+string(os.PathListSeparator)+defaultExecutablePath, path)
 }
 
 func TestBuildExecutablePath_RejectsPathSeparatorInDirectory(t *testing.T) {
 	directory := "/tools" + string(os.PathListSeparator) + "a"
 
-	_, err := buildExecutablePath([]string{directory + "/helm"})
+	_, err := buildExecutablePath([]string{directory})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "path separator")

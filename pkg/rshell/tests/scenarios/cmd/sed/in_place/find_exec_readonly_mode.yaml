@@ -1,0 +1,17 @@
+description: sed -i invoked via find -exec without remediation mode is refused and does not mutate the file.
+setup:
+  files:
+    - path: big.log
+      content: "error: bad\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  script: |+
+    find . -name "*.log" -exec sed -i 's/bad/good/' {} \;
+    cat big.log
+expect:
+  stdout: |+
+    error: bad
+  stderr: |+
+    sed: -i: in-place editing requires remediation mode
+  exit_code: 0
+skip_assert_against_bash: true

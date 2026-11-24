@@ -90,12 +90,10 @@ func anomalySeverityLabel(level int) string {
 	return anomalySeverityLabels[level]
 }
 
-// anomalyLevel assigns a 0–4 level to an anomaly.
-// If the detector has an entry in cfg.DetectorThresholds, the numeric Score is
-// compared against its four boundaries. Detectors without an entry (including
-// unscored detectors such as bocpd) default to Medium (level 2).
-func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) int {
-	if thresholds, ok := cfg.DetectorThresholds[a.DetectorName]; ok {
+// detectorConfidenceLevel assigns a 0–4 confidence level from the detector
+// score. Detectors without calibrated thresholds default to Medium.
+func detectorConfidenceLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) int {
+	if thresholds, ok := cfg.DetectorThresholds[a.DetectorAlgorithm()]; ok {
 		if a.Score == nil {
 			return 0 // treat nil score from a scored detector as VeryLow
 		}
@@ -110,11 +108,65 @@ func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) in
 	return 2 // detectors without explicit thresholds default to Medium
 }
 
+// relativeChangeLevel assigns a 0–4 severity level from the gate-relative
+// magnitude between the before and after medians. Bounds are inclusive.
+func relativeChangeLevel(change float64) int {
+	switch {
+	case change <= 0.06:
+		return 0
+	case change <= 0.10:
+		return 1
+	case change <= 0.20:
+		return 2
+	case change <= 0.50:
+		return 3
+	default:
+		return 4
+	}
+}
+
+// relativeChangeMagnitude measures the gate-relative difference between two
+// finite levels. It saturates at MaxFloat64 when the ratio overflows.
+func relativeChangeMagnitude(before, after float64) float64 {
+	if before == 0 {
+		return math.MaxFloat64
+	}
+	change := math.Abs(after - before)
+	if math.IsInf(change, 0) {
+		return math.MaxFloat64
+	}
+	change /= math.Abs(before)
+	if math.IsInf(change, 0) {
+		return math.MaxFloat64
+	}
+	return change
+}
+
+// anomalyLevel assigns a 0–4 level to an anomaly. Stable gate evidence uses
+// relative change for the base level, with one level of confidence bonus.
+func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) int {
+	if a.LevelChange == nil {
+		return detectorConfidenceLevel(a, cfg)
+	}
+	level := relativeChangeLevel(relativeChangeMagnitude(
+		a.LevelChange.BeforeMedian,
+		a.LevelChange.AfterMedian,
+	))
+	if detectorConfidenceLevel(a, cfg) >= 3 {
+		level++
+	}
+	return min(level, len(levelWeights)-1)
+}
+
 // contributorWeight interpolates an anomaly score between the adjacent
 // calibrated levelWeights. It is used only to rank retained top anomalies; the
 // scorer's EWMA continues to use the calibrated discrete levelWeights.
 func contributorWeight(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) float64 {
-	thresholds, ok := cfg.DetectorThresholds[a.DetectorName]
+	if a.LevelChange != nil {
+		return levelWeights[anomalyLevel(a, cfg)]
+	}
+
+	thresholds, ok := cfg.DetectorThresholds[a.DetectorAlgorithm()]
 	if !ok {
 		return levelWeights[2] // uncalibrated detectors retain Medium's weight
 	}
@@ -518,6 +570,9 @@ type anomalyScorer struct {
 
 	config AnomalyScorerConfig
 
+	// history is populated only for interactive replay introspection.
+	history *scorerHistory
+
 	// pending holds anomalies received since the last Advance, grouped by second.
 	// Past-timestamped anomalies are clamped to lastAdvancedSec+1 in ProcessAnomaly,
 	// so the past side is always drained on the next Advance. Future-timestamped
@@ -567,6 +622,12 @@ type anomalyScorer struct {
 	// pendingEvents holds lifecycle events (EpisodeStarted/EpisodeEnded) produced
 	// during the last Advance cycle. Drained once by the engine via PendingEvents().
 	pendingEvents []observerdef.CorrelatorEvent
+}
+
+type scorerHistory struct {
+	inputs  []ScorerHistoryInput
+	events  []severityeventsdef.SeverityEvent
+	reports []ScorerHistoryReport
 }
 
 // StandaloneAnomalyScorer is the public interface for a scorer that is used
@@ -660,6 +721,41 @@ func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, severityGauge, ewmaG
 	return s
 }
 
+func (s *anomalyScorer) enableHistory() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.history == nil {
+		s.history = &scorerHistory{}
+	}
+}
+
+func (s *anomalyScorer) historyState() ScorerHistory {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.history == nil {
+		return ScorerHistory{}
+	}
+
+	history := ScorerHistory{
+		Available:    true,
+		Buckets:      append([]observerdef.AnomalyScoreBucket(nil), s.buckets...),
+		Events:       append([]severityeventsdef.SeverityEvent(nil), s.history.events...),
+		Inputs:       append([]ScorerHistoryInput(nil), s.history.inputs...),
+		Config:       s.config.AnomalyScorerConfig,
+		CooldownSecs: s.config.CooldownSecs,
+	}
+	// Replay owns retention; keep MaxInt64 out of browser round trips.
+	history.Config.MaxBuckets = 0
+	history.Reports = make([]ScorerHistoryReport, len(s.history.reports))
+	for i, report := range s.history.reports {
+		history.Reports[i] = ScorerHistoryReport{
+			Timestamp:    report.Timestamp,
+			Contributors: append([]observerdef.ScorerContributor(nil), report.Contributors...),
+		}
+	}
+	return history
+}
+
 // ---------------------------------------------------------------------------
 // severityevents.SeverityEventListener — internal watcher callback
 // ---------------------------------------------------------------------------
@@ -683,8 +779,15 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 		)
 	}
 
-	if s.config.CorrelationEvents {
+	if s.config.CorrelationEvents || s.history != nil {
 		s.mu.Lock()
+		if s.history != nil {
+			s.history.events = append(s.history.events, evt)
+		}
+		if !s.config.CorrelationEvents {
+			s.mu.Unlock()
+			return
+		}
 		threshold := correlationEventSeverity(s.config.CorrelationEventThreshold)
 		if evt.FromLevel < threshold && evt.ToLevel >= threshold {
 			thresholdName := s.config.CorrelationEventThreshold
@@ -694,6 +797,7 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 				FirstSeen:   evt.Timestamp,
 				LastUpdated: evt.Timestamp,
 			}
+			contributors := s.topAnomalies.contributors(s.config.MaxReportedItems)
 			s.pendingEvents = append(s.pendingEvents, observerdef.CorrelatorEvent{
 				Kind:           observerdef.CorrelatorEventEpisodeStarted,
 				CorrelatorName: s.Name(),
@@ -703,8 +807,14 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 				ToLevel:        evt.ToLevel,
 				// Live scheduling advances one data second at a time, so this
 				// snapshot represents the same second as the severity transition.
-				Contributors: s.topAnomalies.contributors(s.config.MaxReportedItems),
+				Contributors: contributors,
 			})
+			if s.history != nil {
+				s.history.reports = append(s.history.reports, ScorerHistoryReport{
+					Timestamp:    evt.Timestamp,
+					Contributors: contributors,
+				})
+			}
 		} else if evt.FromLevel >= threshold && evt.ToLevel < threshold && s.openEpisode != nil {
 			ep := *s.openEpisode
 			ep.LastUpdated = evt.Timestamp
@@ -740,6 +850,12 @@ func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 		sec = s.lastAdvancedSec + 1
 	}
 	s.pending[sec] = append(s.pending[sec], a)
+	if s.history != nil {
+		s.history.inputs = append(s.history.inputs, ScorerHistoryInput{
+			ScoringSecond: sec,
+			Anomaly:       a,
+		})
+	}
 
 	if s.openEpisode != nil {
 		if s.config.MaxEpisodeAnomalies <= 0 || len(s.openEpisode.Anomalies) < s.config.MaxEpisodeAnomalies {
@@ -855,6 +971,9 @@ func (s *anomalyScorer) Reset() {
 	s.rawLevelInitialized = false
 	s.openEpisode = nil
 	s.pendingEvents = nil
+	if s.history != nil {
+		s.history = &scorerHistory{}
+	}
 	s.mu.Unlock()
 
 	s.dispatchersMu.RLock()

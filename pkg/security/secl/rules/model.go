@@ -7,11 +7,13 @@
 package rules
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"reflect"
+	"strconv"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -166,6 +168,11 @@ func (a *ActionDefinition) getCandidateActions() map[string]ActionDefinitionInte
 
 // PreCheck returns an error if the action is invalid
 func (a *ActionDefinition) PreCheck(opts PolicyLoaderOpts) error {
+	// a `null` entry in the YAML actions list yields a nil definition
+	if a == nil {
+		return errors.New("action definition can't be null")
+	}
+
 	candidateActions := a.getCandidateActions()
 	actions := 0
 
@@ -191,6 +198,10 @@ func (a *ActionDefinition) PreCheck(opts PolicyLoaderOpts) error {
 
 // IsActionSupported returns true if the action is supported given a list of enabled event type
 func (a *ActionDefinition) IsActionSupported(eventTypeEnabled map[eval.EventType]bool) error {
+	if a == nil {
+		return nil
+	}
+
 	candidateActions := a.getCandidateActions()
 
 	for _, action := range candidateActions {
@@ -237,6 +248,15 @@ type SetDefinition struct {
 	Inherited               bool                   `yaml:"inherited,omitempty" json:"inherited,omitempty"`
 }
 
+// source returns the field or the expression the value of the variable is read
+// from, empty for a constant value.
+func (s *SetDefinition) source() string {
+	if s.Field != "" {
+		return s.Field
+	}
+	return s.Expression
+}
+
 // PreCheck returns an error if the set action is invalid
 func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	if s.Name == "" {
@@ -276,6 +296,67 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	}
 
 	return nil
+}
+
+// UnmarshalJSON unmarshals a set definition from JSON. The integers of 'value' and 'default_value'
+// are decoded as int, as YAML does, instead of the float64 that encoding/json uses for all numbers,
+// which is not a type of SECL variables and can't hold every integer exactly
+func (s *SetDefinition) UnmarshalJSON(data []byte) error {
+	// setDefinition has the fields of SetDefinition but not its methods, decoding it doesn't recurse
+	type setDefinition SetDefinition
+	def := setDefinition(*s)
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&def); err != nil {
+		return err
+	}
+
+	var err error
+	if def.Value, err = decodeJSONNumbers(def.Value); err != nil {
+		return err
+	}
+	if def.DefaultValue, err = decodeJSONNumbers(def.DefaultValue); err != nil {
+		return err
+	}
+
+	*s = SetDefinition(def)
+	return nil
+}
+
+var _ json.Unmarshaler = (*SetDefinition)(nil)
+
+// decodeJSONNumbers replaces the json.Number values found in a value, decoded with UseNumber, by an
+// int when they are integers that fit in an int, and by a float64 otherwise
+func decodeJSONNumbers(value interface{}) (interface{}, error) {
+	switch value := value.(type) {
+	case json.Number:
+		if i, err := strconv.ParseInt(value.String(), 10, 0); err == nil {
+			return int(i), nil
+		}
+		f, err := value.Float64()
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
+	case []interface{}:
+		for i, item := range value {
+			decoded, err := decodeJSONNumbers(item)
+			if err != nil {
+				return nil, err
+			}
+			value[i] = decoded
+		}
+	case map[string]interface{}:
+		for key, item := range value {
+			decoded, err := decodeJSONNumbers(item)
+			if err != nil {
+				return nil, err
+			}
+			value[key] = decoded
+		}
+	}
+	return value, nil
 }
 
 // KillDefinition describes the 'kill' section of a rule action

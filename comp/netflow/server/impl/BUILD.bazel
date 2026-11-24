@@ -23,6 +23,7 @@ go_library(
         "//comp/def",
         "//comp/ndmtmp/forwarder/def",
         "//comp/netflow/config/def",
+        "//comp/netflow/dpi",
         "//comp/netflow/flowaggregator",
         "//comp/netflow/goflowlib",
         "//comp/netflow/server/def",

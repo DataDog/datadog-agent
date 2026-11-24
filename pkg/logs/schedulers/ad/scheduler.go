@@ -8,6 +8,7 @@ package ad
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -17,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -79,7 +79,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		}
 		switch {
 		case s.newSources(config):
-			log.Infof("Received a new logs config: %v", configName(config))
+			log.Infof("Received a new logs config: %v, entity: %v", configName(config), config.ServiceID)
 			sources, err := CreateSources(config)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
@@ -168,16 +168,37 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			// This may also remove sources not added by this scheduler, for
 			// example sources added by other schedulers or sources added by
 			// launchers.
-			for _, source := range s.mgr.GetSources() {
-				if identifier == source.Config.Identifier {
-					s.mgr.RemoveSource(source)
-				}
+			//
+			// If that removes the sources of another logs config that
+			// autodiscovery still considers scheduled, autodiscovery will not
+			// send it again and the container's logs stop: report it.
+			if others := s.removeSourcesFor(identifier, configName(config)); len(others) > 0 {
+				log.Warnf("Unscheduling logs config %s removed all logs sources of %s while logs config(s) %s are still scheduled for the same container: the container's logs stop until the Agent restarts",
+					configName(config), config.ServiceID, strings.Join(others, ", "))
 			}
 		default:
 			// invalid integration config
 			continue
 		}
 	}
+}
+
+// removeSourcesFor removes all the sources for identifier, and returns the
+// sorted names of the configs other than the one named name that had sources
+// for it. Sources derived by a launcher from another source are not counted.
+func (s *Scheduler) removeSourcesFor(identifier string, name string) []string {
+	var others []string
+	for _, source := range s.mgr.GetSources() {
+		if identifier != source.Config.Identifier {
+			continue
+		}
+		if source.ParentSource == nil && source.Name != name && !slices.Contains(others, source.Name) {
+			others = append(others, source.Name)
+		}
+		s.mgr.RemoveSource(source)
+	}
+	slices.Sort(others)
+	return others
 }
 
 // newSources returns true if the config can be mapped to sources.
@@ -210,13 +231,6 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	case names.Container, names.Kubernetes, names.KubeContainer, names.ProcessLog, names.InstrumentationChecks:
 		// config attached to a container label, a pod annotation, or an instrumentation check
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
-	case names.RemoteConfig:
-		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
-			// config supplied by remote config
-			configs, err = logsConfig.ParseJSON(config.LogsConfig)
-		} else {
-			log.Warnf("parsing logs config from %v is disabled. You can enable it by setting remote_configuration.agent_integrations.allow_log_config_scheduling to true", names.RemoteConfig)
-		}
 	default:
 		// invalid provider
 		err = fmt.Errorf("parsing logs config from %v is not supported yet", config.Provider)
@@ -262,6 +276,11 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 
 		cfg.IntegrationSourceIndex = index
 		cfg.IntegrationSource = config.Source
+		if config.Provider == names.ProcessLog && cfg.Type == logsConfig.FileType {
+			// process_log paths identify already-open files. Reject symlinks introduced
+			// at those paths after discovery.
+			cfg.NoFollow = true
+		}
 
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,

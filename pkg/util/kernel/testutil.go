@@ -15,8 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 )
 
 // resetProcFSRoot resets any memoization of ProcFSRoot, useful for unit tests
@@ -67,7 +68,7 @@ func WithRealStat() func(testing.TB, string) {
 }
 
 // CreateFakeProcFS creates a fake /proc filesystem with the given entries
-func CreateFakeProcFS(t *testing.T, entries []FakeProcFSEntry, options ...FakeProcFSOption) string {
+func CreateFakeProcFS(t testing.TB, entries []FakeProcFSEntry, options ...FakeProcFSOption) string {
 	procRoot := t.TempDir()
 
 	for _, entry := range entries {

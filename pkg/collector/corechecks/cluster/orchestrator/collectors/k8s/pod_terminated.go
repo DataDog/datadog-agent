@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
+//go:build kubeapiserver
 
 package k8s
 
 import (
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -20,26 +21,20 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
-	corev1Informers "k8s.io/client-go/informers/core/v1"
-	corev1Listers "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/cache"
 )
 
 // NewTerminatedPodCollectorVersions builds the group of collector versions.
 func NewTerminatedPodCollectorVersions(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) collectors.CollectorVersions {
-	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_pods_improved.enabled") {
-		return collectors.NewCollectorVersions(NewImprovedTerminatedPodCollector(cfg, store, tagger))
-	}
 	return collectors.NewCollectorVersions(NewTerminatedPodCollector(cfg, store, tagger))
 }
 
-// TerminatedPodCollector is a collector for Kubernetes Pods that have been deleted.
+// TerminatedPodCollector is a collector for Kubernetes Pods that have been deleted, including force deletions.
+// For performance reasons it uses a custom event watch logic instead of an informer (no local storage, no heavy List
+// calls).
 type TerminatedPodCollector struct {
-	informer  corev1Informers.PodInformer
-	lister    corev1Listers.PodLister
 	metadata  *collectors.CollectorMetadata
 	processor *processors.Processor
+	watcher   *PodDeletionWatcher
 }
 
 // NewTerminatedPodCollector creates a new collector for terminated pods.
@@ -62,15 +57,15 @@ func NewTerminatedPodCollector(cfg config.Component, store workloadmeta.Componen
 	}
 }
 
-// Informer returns the shared informer.
+// Informer returns the shared informer, nil in this case because the collector does not use one.
 func (c *TerminatedPodCollector) Informer() cache.SharedInformer {
-	return c.informer.Informer()
+	return nil
 }
 
 // Init is used to initialize the collector.
 func (c *TerminatedPodCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.OrchestratorInformerFactory.TerminatedPodInformerFactory.Core().V1().Pods()
-	c.lister = c.informer.Lister()
+	eventHandler := func(pod *v1.Pod) { rcfg.TerminatedResourceHandler(c, pod) }
+	c.watcher = NewPodDeletionWatcher(rcfg.APIClient.Cl, eventHandler, rcfg.StopCh)
 }
 
 // Metadata is used to access information about the collector.

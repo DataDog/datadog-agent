@@ -10,18 +10,23 @@ package apt
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/aptly-dev/aptly/aptly"
 	"github.com/aptly-dev/aptly/deb"
 	"github.com/aptly-dev/aptly/http"
 	"github.com/aptly-dev/aptly/pgp"
+	"github.com/aptly-dev/aptly/utils"
 	"github.com/xor-gate/ar"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/extract"
@@ -66,6 +71,7 @@ func (b *Backend) extractPackage(pkg, directory string) error {
 func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Verifier, query *deb.FieldQuery, directory string) (*deb.PackageDependencies, error) {
 	var packageURL *url.URL
 	var packageDeps *deb.PackageDependencies
+	var checksums utils.ChecksumInfo
 
 	stanza := make(deb.Stanza, 32)
 
@@ -119,6 +125,7 @@ func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Veri
 		*/
 
 		packageList := repo.PackageList()
+		// A repository without a usable package must not prevent trying others.
 		_ = packageList.ForEach(func(pkg *deb.Package) error {
 			b.logger.Infof("Found package %s with version %s", pkg.Name, pkg.Version)
 
@@ -128,6 +135,7 @@ func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Veri
 			}
 
 			packageURL = repo.PackageURL(packageFiles[0].DownloadURL())
+			checksums = packageFiles[0].Checksums
 			packageDeps = pkg.Deps()
 			b.logger.Infof("Package URL: %s", packageURL)
 			return nil
@@ -144,14 +152,29 @@ func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Veri
 	}
 
 	b.logger.Info("Downloading package")
-	purl := packageURL.String()
-	outputFile := filepath.Join(directory, filepath.Base(purl))
-	if err := downloader.Download(context.Background(), purl, outputFile); err != nil {
-		return nil, fmt.Errorf("download %s to %s: %w", purl, directory, err)
-	}
-	defer os.Remove(outputFile)
+	return packageDeps, b.downloadAndExtract(downloader, packageURL.String(), checksums, directory)
+}
 
-	return packageDeps, b.extractPackage(outputFile, directory)
+// downloadAndExtract authenticates package bytes against the signed repository
+// metadata before allowing any archive content to reach the extraction directory.
+func (b *Backend) downloadAndExtract(downloader aptly.Downloader, purl string, checksums utils.ChecksumInfo, directory string) error {
+	validHash := func(value string, size int) bool {
+		decoded, err := hex.DecodeString(value)
+		return err == nil && len(decoded) == size
+	}
+	if checksums.Size < 0 || !(validHash(checksums.SHA256, 32) || validHash(checksums.SHA512, 64)) {
+		return fmt.Errorf("package %s has no valid authenticated size and SHA-256/SHA-512 checksum", purl)
+	}
+	tmp, err := os.MkdirTemp(directory, ".download-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+	outputFile := filepath.Join(tmp, "package.deb")
+	if err := downloader.DownloadWithChecksum(context.Background(), purl, outputFile, &checksums, false); err != nil {
+		return fmt.Errorf("download %s to %s: %w", purl, directory, err)
+	}
+	return b.extractPackage(outputFile, directory)
 }
 
 func (b *Backend) createGpgVerifier() (*pgp.GoVerifier, error) {
@@ -212,7 +235,8 @@ func (b *Backend) GetKernelHeaders(directory string) error {
 
 				_, err = b.downloadPackage(downloader, gpgVerifier, query, directory)
 				if err != nil {
-					b.logger.Warnf("Failed to download dependent package %s", depName)
+					// Propagate verification and extraction failures so the download attempt cleans up partial headers.
+					return fmt.Errorf("download dependent package %s: %w", depName, err)
 				}
 			}
 		}
@@ -261,6 +285,11 @@ func NewBackend(target *types.Target, aptConfigDir string, logger types.Logger) 
 		return nil, fmt.Errorf("parse APT folder: %w", err)
 	}
 
+	addRepo := func(rr remoteRepo) {
+		backend.repoCollection = append(backend.repoCollection, rr)
+		backend.logger.Debugf("Added repository '%s' %s %s %v %v", rr.repoID, rr.uri, rr.distribution, rr.components, rr.arch)
+	}
+	var snapshotRepos []remoteRepo
 	for i, repo := range repoList {
 		if !repo.Enabled || repo.SourceRepo {
 			continue
@@ -297,34 +326,87 @@ func NewBackend(target *types.Target, aptConfigDir string, logger types.Logger) 
 			}
 		}
 
-		backend.repoCollection = append(backend.repoCollection, rr)
-		backend.logger.Debugf("Added repository '%s' %s %s %v %v", rr.repoID, rr.uri, rr.distribution, rr.components, rr.arch)
+		addRepo(rr)
+
+		if uri := getSnapshotRepoURI(repo.URI, target); uri != "" {
+			for _, distribution := range getSnapshotDistributions(rr.distribution, target) {
+				snapshotRepo := rr
+				snapshotRepo.repoID = rr.repoID + "-snapshot-" + distribution
+				snapshotRepo.uri = uri
+				snapshotRepo.distribution = distribution
+				snapshotRepos = append(snapshotRepos, snapshotRepo)
+			}
+		}
+	}
+	for _, rr := range snapshotRepos {
+		addRepo(rr)
 	}
 
 	return backend, nil
 }
 
+func isOfficialDebianRepo(parsedURL *url.URL, target *types.Target) bool {
+	return strings.ToLower(target.Distro.Display) == "debian" &&
+		(parsedURL.Host == "deb.debian.org" || parsedURL.Host == "security.debian.org")
+}
+
 func overrideRepoURI(uri string, target *types.Target) string {
 	parsedURL, err := url.Parse(uri)
-	if err != nil {
+	if err != nil || !isOfficialDebianRepo(parsedURL, target) {
 		return uri
 	}
 
-	switch strings.ToLower(target.Distro.Display) {
-	case "debian":
-		if parsedURL.Host != "deb.debian.org" && parsedURL.Host != "security.debian.org" {
-			return uri
-		}
-		if v, ok := target.OSRelease["VERSION_ID"]; ok {
-			switch v {
-			case "9", "10":
-				parsedURL.Host = "archive.debian.org"
-				return parsedURL.String()
-			}
-		}
+	switch target.OSRelease["VERSION_ID"] {
+	case "9", "10":
+		parsedURL.Host = "archive.debian.org"
+		return parsedURL.String()
 	}
 
 	return uri
+}
+
+// Debian kernels end their uname -v with their package version and changelog date, e.g.
+// "#1 SMP PREEMPT_DYNAMIC Debian 6.1.148-1 (2025-08-26)".
+var debianKernelBuildRegexp = regexp.MustCompile(`Debian \S+ \(([0-9]{4}-[0-9]{2}-[0-9]{2})\)$`)
+
+// getSnapshotRepoURI returns the snapshot.debian.org copy of an official Debian repository two
+// weeks after the build of the running kernel, since Debian drops the headers of superseded kernel
+// ABIs from its mirrors.
+func getSnapshotRepoURI(uri string, target *types.Target) string {
+	parsedURL, err := url.Parse(uri)
+	if err != nil || !isOfficialDebianRepo(parsedURL, target) {
+		return ""
+	}
+
+	m := debianKernelBuildRegexp.FindStringSubmatch(target.Uname.Version)
+	if m == nil {
+		return ""
+	}
+	built, err := time.Parse(time.DateOnly, m[1])
+	if err != nil {
+		return ""
+	}
+
+	// by then, the kernel upload is listed in the release, proposed-updates, or security suite
+	timestamp := built.AddDate(0, 0, 14).Format("20060102T150405Z")
+	parsedURL.Host = "snapshot.debian.org"
+	parsedURL.Path = path.Join("/archive", parsedURL.Path, timestamp) + "/"
+	return parsedURL.String()
+}
+
+// getSnapshotDistributions returns the snapshot suites of a configured one, named after the host
+// release since an alias like oldstable may designate another release at the snapshot time.
+func getSnapshotDistributions(distribution string, target *types.Target) []string {
+	codename := target.OSRelease["VERSION_CODENAME"]
+	if codename == "" || target.OSRelease["VERSION_ID"] == "" { // testing and sid have no VERSION_ID
+		return nil
+	}
+
+	if i := strings.IndexAny(distribution, "-/"); i >= 0 {
+		return []string{codename + distribution[i:]}
+	}
+	// stable updates first appear in proposed-updates, until the next point release
+	return []string{codename, codename + "-proposed-updates"}
 }
 
 func isSignedByUnreachableKey(repo *repository) bool {

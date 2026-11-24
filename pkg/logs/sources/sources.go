@@ -147,26 +147,31 @@ func (s *LogSources) SubscribeAll(addedDone, removedDone chan struct{}) (chan *L
 //
 // Any sources added before this call are delivered from a new goroutine.
 func (s *LogSources) SubscribeForType(sourceType string, addedDone, removedDone chan struct{}) (chan *LogSource, chan *LogSource) {
+	return s.SubscribeForTypes([]string{sourceType}, addedDone, removedDone)
+}
+
+// SubscribeForTypes is like SubscribeForType for several source types, with a
+// single pair of channels for all of them.
+//
+// Sources are delivered directly on these channels: AddSource and RemoveSource
+// return once the subscriber received them. So if a source is removed after
+// AddSource returned, the subscriber receives its addition before its removal.
+func (s *LogSources) SubscribeForTypes(sourceTypes []string, addedDone, removedDone chan struct{}) (chan *LogSource, chan *LogSource) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	added := &subscription{ch: make(chan *LogSource), done: addedDone}
 	removed := &subscription{ch: make(chan *LogSource), done: removedDone}
 
-	if _, exists := s.addedByType[sourceType]; !exists {
-		s.addedByType[sourceType] = []*subscription{}
+	for _, sourceType := range sourceTypes {
+		s.addedByType[sourceType] = append(s.addedByType[sourceType], added)
+		s.removedByType[sourceType] = append(s.removedByType[sourceType], removed)
 	}
-	s.addedByType[sourceType] = append(s.addedByType[sourceType], added)
-
-	if _, exists := s.removedByType[sourceType]; !exists {
-		s.removedByType[sourceType] = []*subscription{}
-	}
-	s.removedByType[sourceType] = append(s.removedByType[sourceType], removed)
 
 	existingSources := slices.Clone(s.sources) // clone for goroutine
 	go func() {
 		for _, source := range existingSources {
-			if source.Config.Type == sourceType {
+			if slices.Contains(sourceTypes, source.Config.Type) {
 				select {
 				case added.ch <- source:
 				case <-addedDone:

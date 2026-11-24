@@ -151,7 +151,7 @@ func FuzzSyscallContext_UnmarshalBinary(f *testing.F) {
 }
 
 func FuzzSyscallsEvent_UnmarshalBinary(f *testing.F) {
-	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &SyscallsEvent{} }, 72)
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &SyscallsEvent{} }, 88)
 }
 
 func FuzzSpanContext_UnmarshalBinary(f *testing.F) {
@@ -171,7 +171,11 @@ func FuzzArgsEnvsEvent_UnmarshalBinary(f *testing.F) {
 }
 
 func FuzzProcess_UnmarshalBinary(f *testing.F) {
-	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &Process{} }, 300)
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &Process{} }, ProcessEntrySize+PidCacheEntrySize+PathKeySize+28)
+}
+
+func FuzzFileCapabilities_UnmarshalBinary(f *testing.F) {
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &FileCapabilities{} }, FileCapabilitiesSize)
 }
 
 func FuzzBPFEvent_UnmarshalBinary(f *testing.F) {
@@ -306,8 +310,12 @@ func FuzzSetrlimitEvent_UnmarshalBinary(f *testing.F) {
 	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &SetrlimitEvent{} }, 32)
 }
 
+func FuzzSetNSEvent_UnmarshalBinary(f *testing.F) {
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &SetNSEvent{} }, 76)
+}
+
 func FuzzCapabilitiesEvent_UnmarshalBinary(f *testing.F) {
-	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &CapabilitiesEvent{} }, 16)
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &CapabilitiesEvent{} }, 40)
 }
 
 func FuzzPrCtlEvent_UnmarshalBinary(f *testing.F) {

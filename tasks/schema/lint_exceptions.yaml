@@ -11,3 +11,18 @@ array_no_items:
   - metric_tag_filterlist
   - logs_config.processing_rules
   - dogstatsd_mapper_profiles
+
+# Setting and section names that are not snake_case.
+non_snake_case:
+  - GUI_host
+  - GUI_port
+  - GUI_session_expiration
+  - gpu.tracing.ddTraceVersions
+
+# Settings accepting null as a value. NEVER add an entry here: the Agent treats an
+# empty or null config value as "not set", and these settings are `type: string`, so
+# their null enum entry is already rejected everywhere and only misleads users. See
+# check_no_null_values in lint.py. The test suite fails if this list grows.
+null_value:
+  - infrastructure_mode
+  - logs_config.file_wildcard_selection_mode

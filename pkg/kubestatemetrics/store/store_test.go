@@ -462,6 +462,32 @@ func TestReplace(t *testing.T) {
 	assert.Contains(t, metrics, types.UID("8b136387-8a51-11ea-8546-42010a80022c"))
 }
 
+func TestLastStoreSyncResourceVersion(t *testing.T) {
+	genFunc := func(_ interface{}) []metric.FamilyInterface { return nil }
+	ms := NewMetricsStore(genFunc, "*v1.Node")
+	assert.Empty(t, ms.LastStoreSyncResourceVersion())
+
+	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{UID: "uid1", ResourceVersion: "123"}}
+	require.NoError(t, ms.Add(node))
+	assert.Equal(t, "123", ms.LastStoreSyncResourceVersion())
+
+	node.ResourceVersion = "124"
+	require.NoError(t, ms.Update(node))
+	assert.Equal(t, "124", ms.LastStoreSyncResourceVersion())
+
+	node.ResourceVersion = "125"
+	require.NoError(t, ms.Delete(node))
+	assert.Equal(t, "125", ms.LastStoreSyncResourceVersion())
+
+	ms.Bookmark("126")
+	assert.Equal(t, "126", ms.LastStoreSyncResourceVersion())
+
+	// The resource version of the list wins over the ones of the listed objects
+	other := &v1.Node{ObjectMeta: metav1.ObjectMeta{UID: "uid2", ResourceVersion: "1"}}
+	require.NoError(t, ms.Replace([]interface{}{other}, "127"))
+	assert.Equal(t, "127", ms.LastStoreSyncResourceVersion())
+}
+
 func (ms *MetricsStore) addMetrics(toAdd map[types.UID][]DDMetricsFam) {
 	ms.mutex.Lock()
 	for uid := range toAdd {

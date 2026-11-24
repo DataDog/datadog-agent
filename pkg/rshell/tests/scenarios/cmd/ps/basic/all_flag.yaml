@@ -1,0 +1,10 @@
+description: ps -e shows all processes with PID column header.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps -e
+expect:
+  stdout_contains:
+    - "PID"
+    - "CMD"
+  exit_code: 0

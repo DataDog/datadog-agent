@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fix the Docker check logging a ``Cannot list routes for container id ...``
+    warning on every check run, and reporting ``docker.net.*`` metrics tagged
+    with the raw interface name (for example ``docker_network:eth0``) instead
+    of the Docker network name (``docker_network:bridge``). When reading the
+    routing table of a container, the check now tries all the processes of that
+    container instead of a single one, which could already have exited on hosts
+    where the kernel PID counter has wrapped around.

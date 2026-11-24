@@ -15,9 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -68,33 +71,74 @@ func TestApplySnapshotAfterStreamReset(t *testing.T) {
 	snapshot := func(seqID int32) *pb.ConfigSnapshot {
 		return &pb.ConfigSnapshot{SequenceId: seqID}
 	}
+	apply := func(t *testing.T, c *consumer, seqID int32) bool {
+		t.Helper()
+		applied, err := c.applySnapshot(snapshot(seqID))
+		require.NoError(t, err)
+		return applied
+	}
 
 	t.Run("lower sequence id is accepted on a new stream", func(t *testing.T) {
 		c := newTestConsumer(t)
-		require.NoError(t, c.applySnapshot(snapshot(100)))
+		require.True(t, apply(t, c, 100))
 		require.Equal(t, int32(100), c.lastSeqID.Load())
 
 		// A restarted core agent counts from zero again. connectAndStream resets the
 		// sequence ID before every stream, so the fresh snapshot must win.
 		c.lastSeqID.Store(seqIDUnset)
-		require.NoError(t, c.applySnapshot(snapshot(3)))
+		require.True(t, apply(t, c, 3))
 		require.Equal(t, int32(3), c.lastSeqID.Load())
 	})
 
 	t.Run("sequence id zero is accepted on a new stream", func(t *testing.T) {
 		c := newTestConsumer(t)
 		c.lastSeqID.Store(seqIDUnset)
-		require.NoError(t, c.applySnapshot(snapshot(0)))
+		require.NoError(t, c.handleConfigEvent(&pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{Snapshot: snapshot(0)},
+		}))
 		require.Equal(t, int32(0), c.lastSeqID.Load())
 		require.True(t, c.IsActive())
 	})
 
 	t.Run("stale snapshot within a stream is dropped", func(t *testing.T) {
 		c := newTestConsumer(t)
-		require.NoError(t, c.applySnapshot(snapshot(10)))
-		require.NoError(t, c.applySnapshot(snapshot(4)))
+		require.True(t, apply(t, c, 10))
+		require.False(t, apply(t, c, 4))
 		require.Equal(t, int32(10), c.lastSeqID.Load())
 	})
+}
+
+func TestOnlySnapshotsSignalReadiness(t *testing.T) {
+	event := func(seqID int32) *pb.ConfigEvent {
+		return &pb.ConfigEvent{Event: &pb.ConfigEvent_Update{Update: &pb.ConfigUpdate{
+			SequenceId: seqID,
+			Setting:    &pb.ConfigSetting{Key: "log_level", Value: structpb.NewStringValue("info"), Source: string(pkgconfigmodel.SourceFile)},
+		}}}
+	}
+	t.Cleanup(func() {
+		configstreambootstrap.Config().UnsetForSource("log_level", pkgconfigmodel.SourceFile)
+	})
+
+	c := newTestConsumer(t)
+	c.lastSeqID.Store(seqIDUnset)
+	require.NoError(t, c.handleConfigEvent(event(0)))
+	require.NoError(t, c.handleConfigEvent(event(1)))
+	require.False(t, c.IsActive())
+
+	require.NoError(t, c.handleConfigEvent(&pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{Snapshot: &pb.ConfigSnapshot{SequenceId: 2}},
+	}))
+	require.True(t, c.IsActive())
+}
+
+// A stale snapshot is not an apply, so it must not release waitForReady.
+func TestStaleSnapshotDoesNotSignalReadiness(t *testing.T) {
+	c := newTestConsumer(t)
+	c.lastSeqID.Store(10)
+	require.NoError(t, c.handleConfigEvent(&pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{Snapshot: &pb.ConfigSnapshot{SequenceId: 4}},
+	}))
+	require.False(t, c.IsActive())
 }
 
 func TestSessionRejected(t *testing.T) {

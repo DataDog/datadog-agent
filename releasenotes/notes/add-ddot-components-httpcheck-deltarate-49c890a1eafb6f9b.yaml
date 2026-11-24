@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Added ``k8seventsreceiver``, ``kafkareceiver``, and ``httpcheckreceiver``
+    receivers, and ``deltatorateprocessor`` processor to the Datadog OpenTelemetry
+    Collector (DDOT) manifest, enabling collection of Kubernetes events, telemetry
+    transported over Kafka topics, HTTP health check status, and delta-to-rate
+    metric conversion in standalone DDOT deployments.

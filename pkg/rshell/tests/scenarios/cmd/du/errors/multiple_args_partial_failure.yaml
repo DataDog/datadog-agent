@@ -1,0 +1,14 @@
+description: du with one missing and one valid operand exits 1 but still emits the valid one.
+setup:
+  files:
+    - path: a.txt
+      content: "12345"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -b nope a.txt
+expect:
+  stdout: |+
+    5	a.txt
+  stderr_contains: ["du: cannot access 'nope':"]
+  exit_code: 1

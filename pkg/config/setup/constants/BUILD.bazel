@@ -26,6 +26,7 @@ go_library(
     name = "constants",
     srcs = [
         "constants.go",
+        "inframode.go",
         ":codegen_constants",  # keep: generated constants file (see above)
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/setup/constants",

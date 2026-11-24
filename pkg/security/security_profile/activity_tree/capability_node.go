@@ -18,8 +18,10 @@ type CapabilityNode struct {
 	NodeBase
 	GenerationType NodeGenerationType
 
-	Capability uint64 // The capability number
-	Capable    bool   // Whether the process was capable of using the capability
+	Capability          uint64 // The capability number
+	Capable             bool   // Whether the process was capable of using the capability
+	AttemptedHostUserNS bool   // Whether the capability was checked against the initial user namespace
+	CapableHostUserNS   bool   // Whether the capability was obtained from the initial user namespace
 }
 
 // size approximates this node's heap footprint
@@ -28,7 +30,7 @@ func (cn *CapabilityNode) size() int64 {
 }
 
 // NewCapabilityNode creates a new CapabilityNode
-func NewCapabilityNode(capability uint64, capable bool, timestamp time.Time, imageTagID uint64, generationType NodeGenerationType) *CapabilityNode {
+func NewCapabilityNode(capability uint64, capable, attemptedHostUserNS, capableHostUserNS bool, timestamp time.Time, imageTagID uint64, generationType NodeGenerationType) *CapabilityNode {
 	nodeBase := NewNodeBase()
 	nodeBase.AppendImageTagID(imageTagID, timestamp)
 
@@ -36,7 +38,9 @@ func NewCapabilityNode(capability uint64, capable bool, timestamp time.Time, ima
 		NodeBase:       nodeBase,
 		GenerationType: generationType,
 
-		Capability: capability,
-		Capable:    capable,
+		Capability:          capability,
+		Capable:             capable,
+		AttemptedHostUserNS: attemptedHostUserNS,
+		CapableHostUserNS:   capableHostUserNS,
 	}
 }

@@ -18,3 +18,7 @@ process_config:
 network_path:
   collector:
     filters: "not-a-valid-filter"
+# Keep the invalid filters above: schema enforcement would revert them to their default, so system-probe would never
+# fail to unmarshal them.
+schema:
+  enforce: false

@@ -1,0 +1,11 @@
+# skip: function declarations are intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Simple function definition with parentheses is blocked.
+input:
+  script: |+
+    hello() { echo world; }
+expect:
+  stdout: ""
+  stderr: |+
+    function declarations are not supported
+  exit_code: 2

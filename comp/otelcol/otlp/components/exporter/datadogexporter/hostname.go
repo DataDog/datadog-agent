@@ -35,7 +35,7 @@ func (hs *hostnameService) Get(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if src.Kind == source.HostnameKind {
-		return src.Identifier, nil
+		return src.SourceIdentifier.Primary, nil
 	}
 	return "", nil
 }

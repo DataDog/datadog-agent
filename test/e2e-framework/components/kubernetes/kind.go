@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	sdkconfig "github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -54,6 +55,15 @@ func validateKubeVersionFormat(kubeVersion string) error {
 }
 
 func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion string, kindFlags KindConfigFlags, opts ...pulumi.ResourceOption) (*Cluster, error) {
+	// The cluster is reached from outside the VM at <vm address>:<port> (see the kubeconfig patch below),
+	// so the API server must be published on all IPv4 interfaces, not on loopback, and on a known port.
+	if kindFlags.APIServerAddress == "" {
+		kindFlags.APIServerAddress = "0.0.0.0"
+	}
+	if kindFlags.APIServerPort == 0 {
+		kindFlags.APIServerPort = 8443
+	}
+
 	return components.NewComponent(env, name, func(clusterComp *Cluster) error {
 		kindClusterName := env.CommonNamer().DisplayName(49) // We can have some issues if the name is longer than 50 characters
 		opts = utils.MergeOptions[pulumi.ResourceOption](opts, pulumi.Parent(clusterComp))
@@ -100,7 +110,7 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 			return fmt.Errorf("could not generate kind cluster config: %w", err)
 		}
 
-		kindInstall, err := InstallKindBinary(env, vm, kindVersionConfig.KindVersion, opts...)
+		kindBinary, kindInstall, err := requireKindBinary(env, vm, kindVersionConfig.KindVersion, opts...)
 		if err != nil {
 			return err
 		}
@@ -157,8 +167,8 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 		createCluster, err := runner.Command(
 			commonEnvironment.CommonNamer().ResourceName("kind-create-cluster"),
 			&command.Args{
-				Create:   pulumi.Sprintf("kind create cluster --name %s --config %s --image %s --wait %s", kindClusterName, clusterConfigFilePath, nodeImage, kindReadinessWait),
-				Delete:   pulumi.Sprintf("kind delete cluster --name %s", kindClusterName),
+				Create:   pulumi.Sprintf("%s create cluster --name %s --config %s --image %s --wait %s", kindBinary, kindClusterName, clusterConfigFilePath, nodeImage, kindReadinessWait),
+				Delete:   pulumi.Sprintf("%s delete cluster --name %s", kindBinary, kindClusterName),
 				Triggers: pulumi.Array{pulumi.String(kindConfig)},
 			},
 			utils.MergeOptions(opts, utils.PulumiDependsOn(clusterConfig, kindInstall), pulumi.DeleteBeforeReplace(true))...,
@@ -170,7 +180,7 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 		kubeConfigCmd, err := runner.Command(
 			commonEnvironment.CommonNamer().ResourceName("kind-kubeconfig"),
 			&command.Args{
-				Create: pulumi.Sprintf("kind get kubeconfig --name %s", kindClusterName),
+				Create: pulumi.Sprintf("%s get kubeconfig --name %s", kindBinary, kindClusterName),
 			},
 			utils.MergeOptions(opts, utils.PulumiDependsOn(createCluster))...,
 		)
@@ -227,14 +237,14 @@ func NewLocalKindClusterWithConfig(env config.Env, name string, kubeVersion stri
 			return err
 		}
 
-		// See the note above regarding InternalDockerhubMirror() and non-AWS environments.
-		nodeImage := fmt.Sprintf("%s/%s:%s", env.InternalDockerhubMirror(), kindNodeImageName, kindVersionConfig.NodeImageVersion)
+		imageFlag := localKindNodeImageFlag(env)
 		createCluster, err := runner.Command(
 			commonEnvironment.CommonNamer().ResourceName("kind-create-cluster"),
 			&command.Args{
-				Create:   pulumi.Sprintf("kind create cluster --name %s --config %s --image %s --wait %s", kindClusterName, clusterConfigFilePath, nodeImage, kindReadinessWait),
-				Delete:   pulumi.Sprintf("kind delete cluster --name %s", kindClusterName),
-				Triggers: pulumi.Array{pulumi.String(kindConfig)},
+				Create: pulumi.Sprintf("kind create cluster --name %s --config %s %s --wait %s", kindClusterName, clusterConfigFilePath, imageFlag, kindReadinessWait),
+				Delete: pulumi.Sprintf("kind delete cluster --name %s", kindClusterName),
+				// imageFlag is a trigger because changing the node image requires a new cluster.
+				Triggers: pulumi.Array{pulumi.String(kindConfig), pulumi.String(imageFlag)},
 			},
 			utils.MergeOptions(opts, utils.PulumiDependsOn(clusterConfig), pulumi.DeleteBeforeReplace(true))...,
 		)
@@ -242,10 +252,16 @@ func NewLocalKindClusterWithConfig(env config.Env, name string, kubeVersion stri
 			return err
 		}
 
+		cluster, ok := createCluster.(pulumi.CustomResource)
+		if !ok {
+			return fmt.Errorf("the kind create cluster command has no ID: %T isn't a pulumi.CustomResource", createCluster)
+		}
 		kubeConfigCmd, err := runner.Command(
 			commonEnvironment.CommonNamer().ResourceName("kind-kubeconfig"),
 			&command.Args{
 				Create: pulumi.Sprintf("kind get kubeconfig --name %s", kindClusterName),
+				// The cluster ID is a trigger because a new cluster has a new API server port and certificates.
+				Triggers: pulumi.Array{cluster.ID()},
 			},
 			utils.MergeOptions(opts, utils.PulumiDependsOn(createCluster))...,
 		)
@@ -260,16 +276,37 @@ func NewLocalKindClusterWithConfig(env config.Env, name string, kubeVersion stri
 	}, opts...)
 }
 
-func InstallKindBinary(env config.Env, vm *remote.Host, kindVersion string, opts ...pulumi.ResourceOption) (pulumi.Resource, error) {
-	kindArch := vm.OS.Descriptor().Architecture
-	if kindArch == os.AMD64Arch {
-		kindArch = "amd64"
+// localKindNodeImageFlag returns the --image flag of `kind create cluster` for a local cluster:
+// the image from ddinfra:kubeNodeUrl if set, otherwise none, so kind uses its default image.
+//
+// The images pinned in kind_versions.json are only in Datadog's internal registries, which local
+// clusters can't reach.
+func localKindNodeImageFlag(env config.Env) string {
+	if url := env.KubeNodeURL(); url != "" {
+		return "--image " + url
 	}
-	return vm.OS.Runner().Command(
+	if sdkconfig.New(env.Ctx(), config.DDInfraConfigNamespace).Get(config.DDInfraKubernetesVersion) != "" {
+		env.Ctx().Log.Warn(fmt.Sprintf("%s:%s doesn't pick the node image of local kind clusters, which use the default node image of the local kind binary; set %s:%s to choose one, e.g. kindest/node:v1.35.1",
+			config.DDInfraConfigNamespace, config.DDInfraKubernetesVersion, config.DDInfraConfigNamespace, config.DDInfraKubeNodeURL), nil)
+	}
+	return ""
+}
+
+func requireKindBinary(env config.Env, vm *remote.Host, kindVersion string, opts ...pulumi.ResourceOption) (string, pulumi.Resource, error) {
+	kindBinary := KindBinaryName(kindVersion)
+	if kindBinary == "" {
+		return "", nil, fmt.Errorf("no preinstalled kind binary for kind version %s", kindVersion)
+	}
+
+	cmd, err := vm.OS.Runner().Command(
 		env.CommonNamer().ResourceName("kind-install"),
 		&command.Args{
-			Create: pulumi.Sprintf(`curl --retry 10 -fsSLo ./kind "https://kind.sigs.k8s.io/dl/%s/kind-linux-%s" && sudo install kind /usr/local/bin/kind`, kindVersion, kindArch),
+			Create: pulumi.Sprintf("[ -x /usr/local/bin/%s ] || { echo \"kind %s is not preinstalled on this image\" >&2; exit 1; }", kindBinary, kindVersion),
 		},
 		opts...,
 	)
+	if err != nil {
+		return "", nil, err
+	}
+	return kindBinary, cmd, nil
 }

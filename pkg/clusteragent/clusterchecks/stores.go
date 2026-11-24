@@ -60,8 +60,8 @@ func (s *clusterStore) getNodeStore(nodeName string) (*nodeStore, bool) {
 	return node, ok
 }
 
-// CountNodeTypes returns the number of nodes with NodeTypeCLCRunner and NodeTypeNodeAgent.
-func (s *clusterStore) CountNodeTypes() (clcRunnerCount, nodeAgentCount int) {
+// countNodeTypes returns the number of nodes with NodeTypeCLCRunner and NodeTypeNodeAgent.
+func (s *clusterStore) countNodeTypes() (clcRunnerCount, nodeAgentCount int) {
 	s.RLock()
 	defer s.RUnlock()
 	for _, node := range s.nodes {
@@ -100,7 +100,6 @@ func (s *clusterStore) getOrCreateNodeStore(nodeName, clientIP string) *nodeStor
 
 // clearDangling resets the danglingConfigs map to a new empty one, cleaning up
 // the telemetry tracked for the configs it held.
-// sticky) at their last value until the process restarts.
 func (s *clusterStore) clearDangling() {
 	for _, c := range s.danglingConfigs {
 		if c.unscheduledCheck {
@@ -121,9 +120,9 @@ type nodeStore struct {
 	digestToConfig   map[string]integration.Config
 	clientIP         string
 	clcRunnerStats   types.CLCRunnersStats
-	busyness         int
 	workers          int
 	nodetype         types.NodeType
+	group            string // runner group, "" for a general worker
 }
 
 func newNodeStore(name, clientIP string) *nodeStore {
@@ -132,7 +131,6 @@ func newNodeStore(name, clientIP string) *nodeStore {
 		clientIP:       clientIP,
 		digestToConfig: make(map[string]integration.Config),
 		clcRunnerStats: types.CLCRunnersStats{},
-		busyness:       defaultBusynessValue,
 	}
 }
 
@@ -184,16 +182,4 @@ func (s *nodeStore) GetRunnerStats(checkID string) (types.CLCRunnerStats, error)
 		return stats, fmt.Errorf("check ID not found: %s", checkID)
 	}
 	return stats, nil
-}
-
-// GetBusyness calculates busyness of the node
-// The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetBusyness(busynessFunc func(stats types.CLCRunnerStats) int) int {
-	s.RLock()
-	defer s.RUnlock()
-	busyness := 0
-	for _, stats := range s.clcRunnerStats {
-		busyness += busynessFunc(stats)
-	}
-	return busyness
 }

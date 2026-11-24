@@ -6,6 +6,12 @@
         "id": {
             "type": "string"
         },
+        "pod_uid": {
+            "type": "string"
+        },
+        "ecs_task_id": {
+            "type": "string"
+        },
         "created_at": {
             "$ref": "datetime.schema.json"
         },
@@ -14,7 +20,6 @@
         }
     },
     "required": [
-        "id",
         "created_at",
         "source"
     ]

@@ -1,0 +1,32 @@
+# GNU sed's -s/--separate (which -i always behaves as) resets the hold
+# space per file, verified against real GNU sed 4.9:
+# `sed -s '/keepme/h; $G' a.txt b.txt` does NOT carry a.txt's hold-space
+# value into b.txt. b.txt's only line is both the /keepme/ non-match and $,
+# so $G appends the (reset, empty) hold space, producing a trailing blank
+# line rather than "keepme".
+description: sed -i resets the hold space per file (matches GNU sed -s semantics).
+setup:
+  files:
+    - path: a.txt
+      content: |+
+        keepme
+        other
+    - path: b.txt
+      content: |+
+        anything
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    sed -i '/keepme/h; $G' a.txt b.txt
+    cat a.txt
+    cat b.txt
+expect:
+  stdout: |+
+    keepme
+    other
+    keepme
+    anything
+
+  stderr: |+
+  exit_code: 0

@@ -14,3 +14,19 @@ component/system-probe:
     - pkg/util/kernel/** # ebpf-platform
     - cmd/system-probe/** # ebpf_platform (system-probe executable)
     - tasks/system_probe.py # invoke tasks
+
+# The paths of .benchmarkeks_component_changes in .gitlab/test/e2e/e2e_containers_benchmarkeks.yml
+performance/benchmarkeks:
+- changed-files:
+  - any-glob-to-any-file:
+    - comp/core/autodiscovery/**
+    - comp/core/tagger/**
+    - comp/core/workloadmeta/**
+    - pkg/clusteragent/clusterchecks/**
+    - pkg/collector/corechecks/cluster/**
+    - pkg/collector/corechecks/containers/**
+    - pkg/kubestatemetrics/**
+    - pkg/util/containerd/**
+    - pkg/util/containers/**
+    - pkg/util/kubernetes/**
+    - pkg/util/prometheus/**

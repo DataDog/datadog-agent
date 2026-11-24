@@ -86,7 +86,7 @@ func TestGroupByConnection(t *testing.T) {
 		SPort:  60000,
 		DPort:  80,
 	}}
-	connectionData1 := byConnection.Find(connection1)
+	connectionData1 := byConnection.Find(&connection1)
 	assert.NotNil(t, connectionData1)
 	assert.Len(t, connectionData1.Data, 2)
 	assert.Condition(t, keyValueExists(connectionData1, key1, val1))
@@ -100,7 +100,7 @@ func TestGroupByConnection(t *testing.T) {
 		SPort:  60000,
 		DPort:  80,
 	}}
-	connectionData2 := byConnection.Find(connection2)
+	connectionData2 := byConnection.Find(&connection2)
 	assert.NotNil(t, connectionData2)
 	assert.Len(t, connectionData1.Data, 2)
 	assert.Condition(t, keyValueExists(connectionData2, key3, val3))
@@ -115,5 +115,39 @@ func keyValueExists[K, V comparable](connectionData *USMConnectionData[K, V], ke
 			}
 		}
 		return false
+	}
+}
+
+func TestFindMissDoesNotAllocate(t *testing.T) {
+	key := http.NewKey(
+		util.AddressFromString("1.1.1.1"),
+		util.AddressFromString("2.2.2.2"),
+		60000,
+		80,
+		[]byte("/path"),
+		true,
+		http.MethodGet,
+	)
+	data := map[http.Key]*http.RequestStats{key: http.NewRequestStats()}
+	miss := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
+		Source: util.AddressFromString("5.5.5.5"),
+		Dest:   util.AddressFromString("6.6.6.6"),
+		SPort:  60001,
+		DPort:  8080,
+		Type:   network.TCP,
+	}}
+
+	for _, rollup := range []bool{false, true} {
+		byConnection := GroupByConnection("http", data, func(httpKey http.Key) types.ConnectionKey {
+			return httpKey.ConnectionKey
+		})
+		byConnection.enableConnectionRollup = rollup
+
+		allocs := testing.AllocsPerRun(100, func() {
+			if byConnection.Find(&miss) != nil {
+				t.Fatal("unexpected match")
+			}
+		})
+		assert.Zero(t, allocs, "rollup=%v", rollup)
 	}
 }

@@ -8,8 +8,10 @@
 package sysctl
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -110,6 +112,90 @@ func TestReadSnapshotSystemControl(t *testing.T) {
 		root := t.TempDir()
 		_, err := readSnapshotSystemControl(filepath.Join(root, "sys", "lockdown"), filepath.Join(root, "root", "sys", "lockdown"), nil)
 		assert.ErrorIs(t, err, ErrRequiredSysctlSnapshotFileNotFound)
+	})
+}
+
+func TestSnapshotProcSys(t *testing.T) {
+	t.Run("skips the entries vanishing during the walk", func(t *testing.T) {
+		procRoot := t.TempDir()
+		root := filepath.Join(procRoot, "sys")
+		for _, file := range []string{
+			"kernel/yama/ptrace_scope",
+			"net/ipv4/conf/tun0/forwarding",
+			"net/ipv4/conf/tun1/forwarding",
+		} {
+			file = filepath.Join(root, file)
+			assert.NoError(t, os.MkdirAll(filepath.Dir(file), 0755))
+			assert.NoError(t, os.WriteFile(file, []byte("1\n"), 0644))
+		}
+
+		// remove a directory and a file right before the walk reads them, like a network interface vanishing
+		vanished := []string{
+			filepath.Join(root, "net/ipv4/conf/tun0"),
+			filepath.Join(root, "net/ipv4/conf/tun1/forwarding"),
+		}
+
+		s := NewSnapshot()
+		walk := s.procSysWalkFunc(procRoot, root, nil)
+		err := filepath.WalkDir(root, func(file string, d fs.DirEntry, err error) error {
+			if err == nil && slices.Contains(vanished, file) {
+				assert.NoError(t, os.RemoveAll(file))
+			}
+			return walk(file, d, err)
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]interface{}{
+			"sys": map[string]interface{}{
+				"kernel": map[string]interface{}{
+					"yama": map[string]interface{}{
+						"ptrace_scope": "1",
+					},
+				},
+			},
+		}, s.Proc)
+	})
+
+	t.Run("fails when /proc/sys is missing", func(t *testing.T) {
+		procRoot := t.TempDir()
+		root := filepath.Join(procRoot, "sys")
+
+		s := NewSnapshot()
+		err := filepath.WalkDir(root, s.procSysWalkFunc(procRoot, root, nil))
+		assert.ErrorIs(t, err, fs.ErrNotExist)
+	})
+}
+
+func TestFindKernelConfigPath(t *testing.T) {
+	const kernelVersion = "6.8.0-1067-aws"
+
+	for name, configPaths := range map[string][]string{
+		"finds the config of the boot directory":      {"boot/config-" + kernelVersion},
+		"falls back to the proc config":               {"proc/config.gz"},
+		"falls back to the boot directory of init":    {"proc/1/root/boot/config-" + kernelVersion},
+		"falls back to the modules directory of init": {"proc/1/root/usr/lib/modules/" + kernelVersion + "/config"},
+		"prefers the boot directory over the root of init": {
+			"boot/config-" + kernelVersion,
+			"proc/1/root/boot/config-" + kernelVersion,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			for _, file := range configPaths {
+				file = filepath.Join(root, file)
+				assert.NoError(t, os.MkdirAll(filepath.Dir(file), 0755))
+				assert.NoError(t, os.WriteFile(file, nil, 0644))
+			}
+
+			configPath, err := findKernelConfigPath(filepath.Join(root, "boot"), filepath.Join(root, "proc"), kernelVersion)
+			assert.NoError(t, err)
+			assert.Equal(t, filepath.Join(root, configPaths[0]), configPath)
+		})
+	}
+
+	t.Run("returns a sentinel error when no config is available", func(t *testing.T) {
+		root := t.TempDir()
+		_, err := findKernelConfigPath(filepath.Join(root, "boot"), filepath.Join(root, "proc"), kernelVersion)
+		assert.ErrorIs(t, err, errKernelConfigNotFound)
 	})
 }
 

@@ -27,18 +27,11 @@ func TestEC2VMSELinuxSuite(t *testing.T) {
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(ec2.WithEC2InstanceOptions(
-			// RHEL9
-			ec2.WithAMI(
-				"ami-04e7f0e0bde783f77", // https://gitlab.ddbuild.io/DataDog/ami-builder/-/jobs/1232214462
-				compos.AmazonLinux2,
-				compos.AMD64Arch,
-			),
+			// RHEL9 with SELinux, Docker and network utilities pre-baked (ami-builder: redhat.x86_64."9-selinux-npm").
+			ec2.WithOS(compos.RedHat9SELinuxNPM),
 			ec2.WithInstanceType("t3.medium"))), nil)),
 	}
 
-	// Source of our kitchen CI images test/kitchen/platforms.json
-	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json
-	// ec2params.WithImageName("ami-a4dc46db", os.AMD64Arch, ec2os.AmazonLinuxOS) // ubuntu-16-04-4.4
 	e2e.Run(t, s, e2eParams...)
 }
 
@@ -101,28 +94,26 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_DockerRequests() {
 
 // TestFakeIntakeNPM600cnxBucket_HostRequests Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
-//   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for n payloads and check if the last 2 have a maximum span of 200ms
+//   - looking for a collection split into several payloads of at most 600 connections, sent together
 func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
-	// generate connections
-	v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 " + testURL)
-
-	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
+	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake, v.Env().HTTPBinHost.Address, func() {
+		// generate connections
+		v.Env().RemoteHost.MustExecute("ab -n 1500 -c 600 " + testURL)
+	})
 }
 
 // TestFakeIntakeNPM600cnxBucket_DockerRequests Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
-//   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for n payloads and check if the last 2 have a maximum span of 200ms
+//   - looking for a collection split into several payloads of at most 600 connections, sent together
 func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
-	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " ab -n 600 -c 600 " + testURL)
-
-	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
+	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake, v.Env().HTTPBinHost.Address, func() {
+		// generate connections
+		v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " ab -n 1500 -c 600 " + testURL)
+	})
 }
 
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections

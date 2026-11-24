@@ -35,6 +35,8 @@ AGENT_CORECHECKS = [
     "cisco_sdwan",
     "network_path",
     "gpu",
+    "amd_gpu",
+    "tpu",
     "nccl",
     "discovery",
     "versa",
@@ -71,6 +73,7 @@ WINDOWS_CORECHECKS = [
     "wincrashdetect",
     "windows_certificate",
     "winproc",
+    "vdi",
     "win32_event_log",
     "wlan",
 ]

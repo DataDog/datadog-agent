@@ -22,6 +22,11 @@ import (
 	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
+// cpuStatsProvider reads CPU stats and returns them in the collector's common format.
+type cpuStatsProvider interface {
+	read(collectionTime time.Time) (*ServerlessContainerStats, error)
+}
+
 // CgroupReader reads cgroup stats. Satisfied by *cgroups.Reader
 type CgroupReader interface {
 	RefreshCgroups(cacheValidity time.Duration) error
@@ -65,12 +70,12 @@ var NullServerlessRateStats = ServerlessRateStats{
 	TotalCPU: nil,
 }
 
-// Collector stores the cgroup reader used for data collection, the collection interval,
+// Collector stores the CPU stats provider used for data collection, the collection interval,
 // the metric prefix, the metric metadata, and the metrics agent where metrics are sent
 type Collector struct {
 	metricAgent        EnhancedMetricSender
 	metricSource       metrics.MetricSource
-	cgroupReader       CgroupReader
+	cpuStatsProvider   cpuStatsProvider
 	collectionInterval time.Duration
 	cancelFunc         context.CancelFunc
 	done               chan struct{}
@@ -87,14 +92,15 @@ func NewCollector(metricAgent EnhancedMetricSender, metricSource metrics.MetricS
 	}
 
 	cgroupReader, err := cgroups.NewSelfReader("/proc", true)
-	if err != nil {
-		return nil, err
+	statsProvider, providerErr := newCPUStatsProvider(metricSource, cgroupReader, err)
+	if providerErr != nil {
+		return nil, providerErr
 	}
 
 	return &Collector{
 		metricAgent:        metricAgent,
 		metricSource:       metricSource,
-		cgroupReader:       cgroupReader,
+		cpuStatsProvider:   statsProvider,
 		collectionInterval: collectionInterval,
 		metricPrefix:       metricPrefix + "enhanced.",
 		usageMetricSuffix:  usageMetricSuffix,
@@ -109,7 +115,11 @@ func (c *Collector) Start() {
 	c.done = make(chan struct{})
 
 	log.Info("Enhanced metrics collector started")
-	log.Debugf("Using cgroup version %d", c.cgroupReader.CgroupVersion())
+	if cgroupProvider, ok := c.cpuStatsProvider.(*cgroupCPUStatsProvider); ok {
+		log.Debugf("Using cgroup version %d", cgroupProvider.reader.CgroupVersion())
+	} else {
+		log.Debug("Using proc-stat CPU stats provider")
+	}
 	c.collectLoop(ctx)
 	close(c.done)
 }
@@ -144,43 +154,32 @@ func (c *Collector) collectLoop(ctx context.Context) {
 	}
 }
 
-// collect collects the enhanced metrics from the cgroup and sends them to the metric agent
+// collect collects the enhanced metrics from the CPU stats provider and sends them to the metric agent
 func (c *Collector) collect() {
 	collectionTime := time.Now()
 	timestamp := float64(collectionTime.UnixNano()) / float64(time.Second)
 
-	// Always send the usage metric, regardless of cgroup collection success.
+	// Always send the usage metric, regardless of CPU collection success.
 	if c.usageMetricSuffix != "" {
 		c.metricAgent.AddEnhancedUsageMetric(c.metricPrefix+c.usageMetricSuffix, 1, c.metricSource, timestamp)
 	}
 
-	if err := c.cgroupReader.RefreshCgroups(0); err != nil {
-		log.Warnf("Failed to refresh cgroups: %v", err)
+	containerStats, err := c.cpuStatsProvider.read(collectionTime)
+	if err != nil {
+		log.Warnf("Failed to collect CPU stats: %v", err)
 		return
 	}
 
-	cgroup := c.cgroupReader.GetCgroup(cgroups.SelfCgroupIdentifier)
-	if cgroup == nil {
-		log.Warn("Failed to get self cgroup")
-		return
-	}
-
-	stats := &cgroups.Stats{}
-	allFailed, errs := cgroups.GetStats(cgroup, stats)
-	if allFailed {
-		log.Warnf("Failed to get cgroup stats: %v", errs)
-		return
-	} else if len(errs) > 0 {
-		log.Debugf("Incomplete cgroup stats: %v", errs)
-	}
-
-	containerStats := c.convertToServerlessContainerStats(stats, collectionTime)
 	enhancedMetrics := c.computeEnhancedMetrics(containerStats)
 	c.sendMetrics(enhancedMetrics)
 }
 
 // convertToServerlessContainerStats converts the cgroup stats to the ServerlessContainerStats struct
 func (c *Collector) convertToServerlessContainerStats(stats *cgroups.Stats, collectionTime time.Time) *ServerlessContainerStats {
+	return convertCgroupStats(stats, collectionTime)
+}
+
+func convertCgroupStats(stats *cgroups.Stats, collectionTime time.Time) *ServerlessContainerStats {
 	serverlessStats := &ServerlessContainerStats{
 		CollectionTime: collectionTime,
 	}

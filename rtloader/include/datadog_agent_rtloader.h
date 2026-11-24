@@ -334,30 +334,6 @@ DATADOG_AGENT_RTLOADER_API int has_error(const rtloader_t *);
     array employed by the underlying RtLoader implementation.
 */
 DATADOG_AGENT_RTLOADER_API const char *get_error(const rtloader_t *);
-#ifndef _WIN32
-
-/*! \fn int handle_crashes(const int, char** error)
-    \brief Routine to install a crash handler in C-land to better debug crashes on RtLoader.
-    \param int A const integer boolean flag indicating whether dumps should be created
-    on crashes or not.
-    \param error A C-string pointer output parameter to return error messages.
-    \return An integer reflecting if the handler was correctly installed on RtLoader. Zero for
-    false, non-zero for true.
-    \sa rtloader_t
-
-    If core dumps are enabled, you will NOT get the go-routine dump in the event of a crash.
-    Core dumps generated from go-land are not as useful as C-stack has unwound, and so we
-    get no real visibility into how rtloader may have crashed. On the counterpart, when generating
-    the core dumps from C-land, we terminate early, and miss the Go panic handler that would
-    provide the go-routine dump. If you need both, just crash twice trying both options :)
-
-    Currently only SEGFAULT is handled.
-
-    The returned error C-string must be freed by the caller.
-*/
-DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, const int, char **error);
-#endif
-
 // PYTHON HELPERS
 /*! \fn char *get_integration_list(rtloader_t *)
     \brief Routine to build a list of every datadog wheel installed.
@@ -407,6 +383,16 @@ DATADOG_AGENT_RTLOADER_API void set_submit_event_cb(rtloader_t *, cb_submit_even
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_submit_histogram_bucket_cb(rtloader_t *, cb_submit_histogram_bucket_t);
+
+/*! \fn void set_submit_histogram_bucket_multi_cb(rtloader_t *, cb_submit_histogram_bucket_multi_t)
+    \brief Sets the submit callback to be used by rtloader for histogram buckets that share
+    their context with other buckets of the same histogram.
+    \param cb A function pointer with cb_submit_histogram_bucket_multi_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_submit_histogram_bucket_multi_cb(rtloader_t *, cb_submit_histogram_bucket_multi_t);
 
 /*! \fn void set_submit_event_platform_event_cb(rtloader_t *, cb_submit_event_platform_event_t)
     \brief Sets the submit event callback to be used by rtloader for event-platform event.

@@ -1,5 +1,8 @@
 """Installer package shared files."""
 
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
 package(default_visibility = ["//packages/installer:__subpackages__"])
 
 exports_files([
@@ -7,3 +10,23 @@ exports_files([
     "version-manifest.json.in",
     "version-manifest.txt.in",
 ])
+
+# The install-time README only differs in the uninstall command for the
+# package format being built on this host; packages/installer/linux owns
+# generating both variants (readme_deb_gen, readme_rpm_gen).
+pkg_files(
+    name = "readme_file",
+    srcs = select({
+        "//packages/agent:distribution_debian": ["//packages/installer/linux:readme_deb_gen"],
+        "//conditions:default": ["//packages/installer/linux:readme_rpm_gen"],
+    }),
+    renames = select({
+        "//packages/agent:distribution_debian": {"//packages/installer/linux:readme_deb_gen": "README.md"},
+        "//conditions:default": {"//packages/installer/linux:readme_rpm_gen": "README.md"},
+    }),
+)
+
+pkg_install(
+    name = "install_readme",
+    srcs = [":readme_file"],
+)

@@ -1,0 +1,5 @@
+security:
+  - |
+    Fix a memory-exhaustion vulnerability in the DDOT collector's ``fluentforward``
+    receiver: a malicious message declaring a huge entry count could trigger an
+    out-of-memory crash. Entry counts are now capped before allocation.

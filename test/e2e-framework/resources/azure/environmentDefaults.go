@@ -28,7 +28,6 @@ type ddInfra struct {
 	defaultResourceGroup     string
 	defaultVNet              string
 	defaultSubnet            string
-	defaultSecurityGroup     string
 	defaultInstanceType      string
 	defaultARMInstanceType   string
 	aks                      ddInfraAks
@@ -62,7 +61,6 @@ func sandboxDefault() environmentDefault {
 			defaultResourceGroup:     "datadog-agent-testing",
 			defaultVNet:              "/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/datadog-agent-testing/providers/Microsoft.Network/virtualNetworks/default-vnet",
 			defaultSubnet:            "/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/datadog-agent-testing/providers/Microsoft.Network/virtualNetworks/default-vnet/subnets/default-subnet",
-			defaultSecurityGroup:     "/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/datadog-agent-testing/providers/Microsoft.Network/networkSecurityGroups/default",
 			defaultInstanceType:      "Standard_D4s_v5",  // Allows nested virtualization for kata runtimes
 			defaultARMInstanceType:   "Standard_D4ps_v5", // No azure arm instance supports nested virtualization
 			aks: ddInfraAks{
@@ -85,7 +83,6 @@ func agentSandboxDefault() environmentDefault {
 			defaultResourceGroup:     "dd-agent-sandbox",
 			defaultVNet:              "/subscriptions/9972cab2-9e99-419b-a683-86bfa77b3df1/resourceGroups/dd-agent-sandbox/providers/Microsoft.Network/virtualNetworks/dd-agent-sandbox",
 			defaultSubnet:            "/subscriptions/9972cab2-9e99-419b-a683-86bfa77b3df1/resourceGroups/dd-agent-sandbox/providers/Microsoft.Network/virtualNetworks/dd-agent-sandbox/subnets/dd-agent-sandbox-private",
-			defaultSecurityGroup:     "/subscriptions/9972cab2-9e99-419b-a683-86bfa77b3df1/resourceGroups/dd-agent-sandbox/providers/Microsoft.Network/networkSecurityGroups/appgategreen",
 			defaultInstanceType:      "Standard_D4s_v5",  // Allows nested virtualization for kata runtimes
 			defaultARMInstanceType:   "Standard_D4ps_v5", // No azure arm instance supports nested virtualization
 			aks: ddInfraAks{
@@ -108,7 +105,6 @@ func agentQaDefault() environmentDefault {
 			defaultResourceGroup:     "dd-agent-qa",
 			defaultVNet:              "/subscriptions/c767177d-c6fc-47d3-a87e-3ab195f5b99e/resourceGroups/dd-agent-qa/providers/Microsoft.Network/virtualNetworks/dd-agent-qa",
 			defaultSubnet:            "/subscriptions/c767177d-c6fc-47d3-a87e-3ab195f5b99e/resourceGroups/dd-agent-qa/providers/Microsoft.Network/virtualNetworks/dd-agent-qa/subnets/dd-agent-qa-private",
-			defaultSecurityGroup:     "/subscriptions/c767177d-c6fc-47d3-a87e-3ab195f5b99e/resourceGroups/dd-agent-qa/providers/Microsoft.Network/networkSecurityGroups/appgategreen",
 			defaultInstanceType:      "Standard_D4s_v5",  // Allows nested virtualization for kata runtimes
 			defaultARMInstanceType:   "Standard_D4ps_v5", // No azure arm instance supports nested virtualization
 			aks: ddInfraAks{

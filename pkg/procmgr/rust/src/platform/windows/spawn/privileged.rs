@@ -87,11 +87,19 @@ fn validate_privileged_command_args(
 }
 
 fn validate_privileged_env(process_name: &str, request: &SpawnRequest) -> Result<()> {
-    if request.env().is_empty() {
+    // A privileged child runs as the supervisor (LocalSystem). The copied
+    // supervisor environment is that process's own environment. YAML `env:`
+    // and `environment_file` are still refused.
+    let configured = if request.inherit_supervisor_env() {
+        request.config_env()
+    } else {
+        request.env()
+    };
+    if configured.is_empty() {
         return Ok(());
     }
 
-    let keys: Vec<&str> = request.env().iter().map(|(k, _)| k.as_str()).collect();
+    let keys: Vec<&str> = configured.iter().map(|(k, _)| k.as_str()).collect();
     bail!(
         "[{process_name}] refusing privileged spawn: disallowed env vars for privileged process: {keys:?}"
     );
@@ -121,7 +129,7 @@ fn privileged_process_spec(
     install_root: &Path,
     etc_root: &Path,
 ) -> Result<PrivilegedProcessSpec> {
-    use crate::spawn::DATADOG_AGENT_PROCESS;
+    use crate::spawn::{DATADOG_AGENT_PROCESS, DATADOG_AGENT_SYSPROBE};
 
     match process_name {
         DATADOG_AGENT_PROCESS => Ok(PrivilegedProcessSpec {
@@ -133,6 +141,16 @@ fn privileged_process_spec(
                 "--cfgpath".to_string(),
                 etc_root.join("datadog.yaml").to_string_lossy().into_owned(),
             ],
+            disallow_working_dir: true,
+        }),
+        // No args, matching both the shipped template and the ImagePath the MSI
+        // registers. The binary resolves system-probe.yaml from the default location.
+        DATADOG_AGENT_SYSPROBE => Ok(PrivilegedProcessSpec {
+            expected_command: install_root
+                .join(r"bin\agent\system-probe.exe")
+                .to_string_lossy()
+                .into_owned(),
+            expected_args: vec![],
             disallow_working_dir: true,
         }),
         other => bail!(
@@ -154,7 +172,60 @@ fn normalize_win_path(s: &str) -> String {
 mod tests {
     use super::*;
     use crate::config::ProcessConfig;
-    use crate::spawn::DATADOG_AGENT_PROCESS;
+    use crate::fleet_template_support::{INSTALL_DIR, load_template};
+    use crate::spawn::{DATADOG_AGENT_PROCESS, DATADOG_AGENT_SYSPROBE};
+
+    /// Resolves relative to the manifest rather than to this file, which sits deep enough
+    /// that a counted path is easy to get wrong and says nothing about where it aims.
+    macro_rules! shipped_template {
+        ($name:literal) => {
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../pkg/fleet/installer/packages/embedded/tmpl/",
+                $name
+            ))
+        };
+    }
+
+    const PROCESS_TEMPLATE: &str = shipped_template!("datadog-agent-process-windows.yaml.tmpl");
+    const SYSPROBE_TEMPLATE: &str = shipped_template!("datadog-agent-sysprobe-windows.yaml.tmpl");
+
+    /// The spawn a shipped template asks for has to be one the validator accepts.
+    ///
+    /// Nothing else connects the two: the template is data the installer writes and the
+    /// catalog here is code, so a drift in either shows up only as a refused spawn on a
+    /// real host, where the process simply never starts. The templates also write paths
+    /// with forward slashes while the catalog joins backslashes, so this doubles as the
+    /// check that normalization bridges the two conventions.
+    #[test]
+    fn shipped_templates_pass_the_privileged_catalog() {
+        for (name, template) in [
+            (DATADOG_AGENT_PROCESS, PROCESS_TEMPLATE),
+            (DATADOG_AGENT_SYSPROBE, SYSPROBE_TEMPLATE),
+        ] {
+            let etc = tempfile::tempdir().expect("tempdir");
+            let config = load_template(template, name, etc.path());
+            // Production privileged spawn copies the supervisor environment.
+            let request = SpawnRequest::from_config(name, &config, true).expect("request");
+
+            let spec = privileged_process_spec(name, Path::new(INSTALL_DIR), etc.path())
+                .unwrap_or_else(|e| panic!("{name} has no privileged catalog entry: {e}"));
+
+            validate_privileged_working_dir(name, &spec, &request)
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
+            validate_privileged_command_args(name, &spec, &request)
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
+            validate_privileged_stdio(name, &request).unwrap_or_else(|e| panic!("{name}: {e}"));
+            validate_privileged_env(name, &request).unwrap_or_else(|e| panic!("{name}: {e}"));
+
+            assert!(
+                config.env.is_empty() && config.environment_file.is_none(),
+                "{name} declares env the privileged validator rejects: {:?} {:?}",
+                config.env,
+                config.environment_file
+            );
+        }
+    }
 
     #[test]
     fn normalize_win_path_strips_verbatim_prefix() {
@@ -193,11 +264,47 @@ mod tests {
                 stderr: "inherit".to_string(),
                 ..Default::default()
             },
+            false,
         )
         .expect("request");
 
         validate_privileged_command_args(DATADOG_AGENT_PROCESS, &spec, &request)
             .expect("resolved install root command should match");
+    }
+
+    #[test]
+    fn privileged_env_allows_copied_supervisor_env() {
+        let request =
+            SpawnRequest::from_config(DATADOG_AGENT_PROCESS, &ProcessConfig::default(), true)
+                .expect("request");
+
+        validate_privileged_env(DATADOG_AGENT_PROCESS, &request)
+            .expect("copied supervisor env is the LocalSystem environment");
+    }
+
+    #[test]
+    fn privileged_env_rejects_yaml_env() {
+        // inherit_supervisor_env: true also copies the real test-process
+        // environment (PATH, HOME, ...). The validator must report only
+        // DD_FOO, the entry that came from `env:`, not the copied part.
+        let request = SpawnRequest::from_config(
+            DATADOG_AGENT_PROCESS,
+            &ProcessConfig {
+                env: [("DD_FOO".to_string(), "bar".to_string())]
+                    .into_iter()
+                    .collect(),
+                ..Default::default()
+            },
+            true,
+        )
+        .expect("request");
+
+        let err = validate_privileged_env(DATADOG_AGENT_PROCESS, &request).unwrap_err();
+        assert!(
+            err.to_string()
+                .ends_with("disallowed env vars for privileged process: [\"DD_FOO\"]"),
+            "{err}"
+        );
     }
 
     #[test]
@@ -215,6 +322,7 @@ mod tests {
                 stderr: "inherit".to_string(),
                 ..Default::default()
             },
+            false,
         )
         .expect("request");
 

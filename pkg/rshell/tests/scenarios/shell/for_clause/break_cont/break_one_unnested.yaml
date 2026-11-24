@@ -1,0 +1,10 @@
+description: Break 1 in unnested for loop.
+input:
+  script: |+
+    for i in 1 2 3; do echo $i; break 1; echo unreached; done; echo done $?
+expect:
+  stdout: |+
+    1
+    done 0
+  stderr: ""
+  exit_code: 0

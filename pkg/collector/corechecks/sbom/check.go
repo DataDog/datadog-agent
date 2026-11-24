@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build trivy || (windows && wmi)
+//go:build trivy || windows
 
 package sbom
 
@@ -32,6 +32,10 @@ const (
 	// CheckName is the name of the check
 	CheckName    = "sbom"
 	metricPeriod = 15 * time.Minute
+
+	// usageGraceSweepPeriod is how often the SBOMs that waited long enough for
+	// their runtime usage go out.
+	usageGraceSweepPeriod = 10 * time.Second
 )
 
 // Config holds the container_image check configuration
@@ -167,6 +171,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return err
 	}
 
+	// An unseen package reads as unused once its workload was watched for one
+	// refresh period.
+	c.processor.imageUsageWindow = time.Duration(c.instance.ContainerPeriodicRefreshSeconds) * time.Second
+	c.processor.hostUsageWindow = time.Duration(c.instance.HostPeriodicRefreshSeconds) * time.Second
+
 	return nil
 }
 
@@ -218,6 +227,13 @@ func (c *Check) Run() error {
 	metricTicker := time.NewTicker(metricPeriod)
 	defer metricTicker.Stop()
 
+	var usageGraceSweep <-chan time.Time
+	if c.processor.usageEnrichment {
+		usageGraceTicker := time.NewTicker(usageGraceSweepPeriod)
+		defer usageGraceTicker.Stop()
+		usageGraceSweep = usageGraceTicker.C
+	}
+
 	defer c.processor.stop()
 	for {
 		select {
@@ -231,6 +247,8 @@ func (c *Check) Run() error {
 				return nil
 			}
 			c.processor.processHostScanResult(scanResult)
+		case usage := <-sbom.HostUsage():
+			c.processor.processHostUsage(usage)
 		case scanResult, ok := <-procfsSbomChan:
 			if !ok {
 				return nil
@@ -242,6 +260,8 @@ func (c *Check) Run() error {
 			c.processor.triggerHostScan()
 		case <-metricTicker.C:
 			c.sendUsageMetrics()
+		case now := <-usageGraceSweep:
+			c.processor.releaseExpiredHolds(now)
 		case <-c.stopCh:
 			return nil
 		}

@@ -1,0 +1,11 @@
+description: df rejects -B / --block-size (deferred to v2)
+skip_assert_against_bash: true
+input:
+  script: |+
+    df -B 1M; echo "exit:$?"
+expect:
+  stdout_contains:
+    - "exit:1"
+  stderr_contains:
+    - "df:"
+  exit_code: 0

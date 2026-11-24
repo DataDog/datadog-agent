@@ -1,0 +1,18 @@
+description: ALLOWED_PATHS environment variable lists resolved allowed directories
+# skip: ALLOWED_PATHS env var is an rshell-specific feature
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir1/file.txt
+      content: "a\n"
+    - path: dir2/file.txt
+      content: "b\n"
+input:
+  allowed_paths: ["dir1", "dir2"]
+  script: |+
+    echo $ALLOWED_PATHS
+expect:
+  stdout_contains:
+    - "dir1"
+    - "dir2"
+  exit_code: 0

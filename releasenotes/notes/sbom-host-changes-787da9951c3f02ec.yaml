@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The CWS SBOM resolver checks the package databases of the host every
+    minute, and scans the host packages again once they changed, so that the
+    runtime usage enrichment of the host SBOM follows package installs and
+    upgrades within a minute with CWS disabled too, rather than at the hourly
+    scan. The run of a binary of a new package before the scan that indexes
+    the package counts as a run of the package.

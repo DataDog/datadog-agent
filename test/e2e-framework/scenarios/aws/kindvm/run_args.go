@@ -61,7 +61,7 @@ type RunOption = func(*RunParams) error
 func GetRunParams(opts ...RunOption) *RunParams {
 	p := &RunParams{
 		Name:                     defaultKindName,
-		vmOptions:                []ec2.VMOption{},
+		vmOptions:                []ec2.VMOption{ec2.WithOS(os.UbuntuKindDefault)},
 		agentOptions:             nil, // nil by default - Agent is only deployed when options are explicitly provided
 		fakeintakeOptions:        []fakeintake.Option{},
 		preAgentWorkloadAppFuncs: []kubecomp.WorkloadAppFunc{},
@@ -85,8 +85,7 @@ func ParamsFromEnvironment(e aws.Environment) *RunParams {
 		Name: defaultKindName,
 	}
 
-	// VM: pick OS from InfraOSDescriptor
-	osDesc := os.DescriptorFromString(e.InfraOSDescriptor(), os.UbuntuDefault)
+	osDesc := os.DescriptorFromString(e.InfraOSDescriptor(), os.UbuntuKindDefault)
 	p.vmOptions = append(p.vmOptions, ec2.WithOS(osDesc))
 
 	// Agent defaults
@@ -125,8 +124,8 @@ func WithVMOptions(opts ...ec2.VMOption) RunOption {
 
 // WithoutInternetAccess opts the Kind VM out of internet access: the account's default
 // security groups are replaced with the ones configured to block internet access (see
-// ec2.WithoutInternetAccess). This is opt-in: internet access remains the default, and
-// a suite only uses this once its bootstrap and image pulls work without internet.
+// ec2.WithoutInternetAccess). The Kubernetes test provisioner applies this by default;
+// direct scenario callers must opt in.
 func WithoutInternetAccess() RunOption {
 	return WithVMOptions(ec2.WithoutInternetAccess())
 }
@@ -232,7 +231,7 @@ func WithStandaloneOTelAgent(fn StandaloneDdotDeployFunc) RunOption {
 	return func(p *RunParams) error { p.standaloneDdotFunc = fn; return nil }
 }
 
-// WithKindWorkerNodes configures the kind cluster worker nodes with custom labels and taints.
+// WithKindWorkerNodes configures the kind cluster worker nodes: their labels, taints, kubelet flags and mounts.
 // Use this to test workloads that depend on node topology (e.g. spot vs on-demand capacity types).
 func WithKindWorkerNodes(nodes ...kubecomp.KindWorkerNode) RunOption {
 	return func(p *RunParams) error {

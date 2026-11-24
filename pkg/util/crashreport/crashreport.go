@@ -9,12 +9,14 @@
 package crashreport
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
@@ -23,8 +25,9 @@ import (
 
 // WinCrashReporter is the helper object for getting/storing crash state
 type WinCrashReporter struct {
-	hive             registry.Key
-	baseKey          string
+	checkpointKey    string
+	legacyHive       registry.Key
+	legacyKey        string
 	startupWarnCount int
 	hasRunOnce       bool
 	sysProbeClient   *sysprobeclient.CheckClient
@@ -33,55 +36,88 @@ type WinCrashReporter struct {
 const (
 	maxStartupWarnings = 20
 	reportedKey        = `lastReported`
+	checkpointVersion  = 1
 )
 
-// NewWinCrashReporter creates the object for checking/setting the windows
-// crash registry keys
-func NewWinCrashReporter(hive registry.Key, key string) (*WinCrashReporter, error) {
+// crashCheckpoint is the on-disk format for crash deduplication state.
+type crashCheckpoint struct {
+	Version    int    `json:"version"`
+	FileName   string `json:"file_name"`
+	DateString string `json:"date_string"`
+}
+
+// NewWinCrashReporter creates a file-backed crash reporter. The legacy registry
+// location is read only when importing a checkpoint left by an older Agent.
+func NewWinCrashReporter(checkpointKey string, legacyHive registry.Key, legacyKey string) (*WinCrashReporter, error) {
 	wcr := &WinCrashReporter{
-		hive:           hive,
-		baseKey:        key,
+		checkpointKey:  checkpointKey,
+		legacyHive:     legacyHive,
+		legacyKey:      legacyKey,
 		sysProbeClient: sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))),
 	}
 	return wcr, nil
 }
 
-func (wcr *WinCrashReporter) generateReportedValue(wcs probe.WinCrashStatus) string {
+// legacyReportedValue is used only to compare the old registry marker. There
+// is no unambiguous way to split that marker back into its two fields.
+func legacyReportedValue(wcs probe.WinCrashStatus) string {
 	return fmt.Sprintf("%s_%s", wcs.FileName, wcs.DateString)
 }
 
+func (wcr *WinCrashReporter) writeCheckpoint(wcs probe.WinCrashStatus) error {
+	value, err := json.Marshal(crashCheckpoint{
+		Version:    checkpointVersion,
+		FileName:   wcs.FileName,
+		DateString: wcs.DateString,
+	})
+	if err != nil {
+		return err
+	}
+	return persistentcache.WriteAtomic(wcr.checkpointKey, string(value))
+}
+
 func (wcr *WinCrashReporter) haveAlreadyReported(wcs probe.WinCrashStatus) bool {
-
-	newval := wcr.generateReportedValue(wcs)
-
-	k, err := registry.OpenKey(wcr.hive, wcr.baseKey, registry.QUERY_VALUE)
+	cacheKey := wcr.checkpointKey
+	// A missing or empty checkpoint has no usable state; only a nonempty
+	// file takes precedence over the legacy registry value.
+	reportedVal, err := persistentcache.Read(cacheKey)
 	if err != nil {
-		// key not even there
+		log.Warnf("Cannot read crash checkpoint %s: %v", cacheKey, err)
 		return false
 	}
-	defer k.Close()
-	reportedval, _, err := k.GetStringValue(reportedKey)
+	if reportedVal != "" {
+		// Compare only the fields used for deduplication; ignore version and
+		// any unknown fields from future checkpoint formats.
+		var saved crashCheckpoint
+		if err := json.Unmarshal([]byte(reportedVal), &saved); err != nil {
+			log.Warnf("Invalid crash checkpoint %s: %v", cacheKey, err)
+			return false
+		}
+		return saved.FileName == wcs.FileName && saved.DateString == wcs.DateString
+	}
+
+	k, err := registry.OpenKey(wcr.legacyHive, wcr.legacyKey, registry.QUERY_VALUE)
 	if err != nil {
 		return false
 	}
-	if newval == reportedval {
-		return true
+	legacyValue, _, err := k.GetStringValue(reportedKey)
+	_ = k.Close()
+	if err != nil || legacyValue == "" || legacyValue != legacyReportedValue(wcs) {
+		return false
 	}
-	return false
+	// A matching legacy marker can be converted using the current crash's
+	// separate fields. Do not try to parse the old filename_date string.
+	if err := wcr.writeCheckpoint(wcs); err != nil {
+		log.Warnf("Cannot migrate crash checkpoint %s: %v", cacheKey, err)
+	}
+	return true
 }
 
 func (wcr *WinCrashReporter) setReported(wcs probe.WinCrashStatus) {
-	newval := wcr.generateReportedValue(wcs)
-
-	k, _, err := registry.CreateKey(wcr.hive, wcr.baseKey, registry.ALL_ACCESS)
-	if err != nil {
-		// key not even there
-		return
+	if err := wcr.writeCheckpoint(wcs); err != nil {
+		// The same crash may be reported again after restart if it cannot be saved.
+		log.Warnf("Cannot save crash checkpoint %s: %v", wcr.checkpointKey, err)
 	}
-	defer k.Close()
-	// if we can't set the value, there's nothing we can do.  On next agent
-	// start, the same crash will be reported if the file is still there.
-	_ = k.SetStringValue(reportedKey, newval)
 }
 
 func (wcr *WinCrashReporter) handleStartupError(err error) error {
@@ -104,7 +140,7 @@ func (wcr *WinCrashReporter) CheckForCrash() (*probe.WinCrashStatus, error) {
 		return nil, nil
 	}
 
-	crash, err := sysprobeclient.GetCheck[probe.WinCrashStatus](wcr.sysProbeClient, sysconfig.WindowsCrashDetectModule)
+	crash, err := sysprobeclient.GetCheck[probe.WinCrashStatus](wcr.sysProbeClient, sysconfigtypes.WindowsCrashDetectModule)
 	if err != nil {
 		if sysprobeclient.IgnoreStartupError(err) == nil {
 			return nil, nil

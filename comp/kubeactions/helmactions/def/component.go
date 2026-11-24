@@ -15,10 +15,22 @@ import (
 
 // team: container-integrations
 
+const AnnotationActionID = "helmactions.datadoghq.com/helm-action-id"
+
 // Component is the component type.
 type Component interface {
 	// OnRollback is called when Job successfully scheduled
-	OnRollback(in *RollbackInputs, job *batchv1.Job)
+	OnRollback(in *RollbackInputs, meta TaskMeta, job *batchv1.Job)
+}
+
+// TaskMeta carries task-lifecycle metadata that is not part of a rollback's
+// wire-format inputs — the handler fills it in from task.Data.ID /
+// task.Data.Attributes.OrgId after ExtractInputs decodes the payload, so the
+// Job watcher can later report completion back to EVP against the
+// originating task, long after the handler's Run() has returned.
+type TaskMeta struct {
+	ActionID string
+	OrgID    int64
 }
 
 // RollbackInputs describes a single `helm rollback` invocation.
@@ -30,13 +42,17 @@ type RollbackInputs struct {
 	// Revision is the target revision number. A value of 0 means "previous
 	// revision" (helm's default behaviour).
 	Revision int `json:"revision"`
-	// JobServiceAccountName is the service account the Job pod runs as. Required:
-	// it must have the RBAC permissions helm needs to act on the release
-	// (typically: read/write secrets in the release namespace, plus permissions
-	// on the resources the chart manages).
-	JobServiceAccountName string `json:"jobServiceAccountName"`
-	// JobNamespace is the namespace where the K8s Job will be created. Required.
-	JobNamespace string `json:"jobNamespace,omitempty"`
+	// JobServiceAccountName is the service account the Job pod runs as. It must
+	// have the RBAC permissions helm needs to act on the release (typically:
+	// read/write secrets in the release namespace, plus permissions on the
+	// resources the chart manages). Derived by the runner from the cluster
+	// agent's own service account name, never supplied by the caller.
+	JobServiceAccountName string `json:"-"`
+	// JobNamespace is the namespace where the K8s Job will be created. It is
+	// always the cluster agent's own namespace (that's where the Helm chart
+	// provisions the Job's ServiceAccount) and is filled in by the runner
+	// after decoding the wire inputs, never supplied by the caller.
+	JobNamespace string `json:"-"`
 	// Image overrides the helm container image. Defaults to DefaultHelmImage.
 	Image string `json:"image,omitempty"`
 	// Driver selects the helm storage backend that holds the release state.
@@ -45,9 +61,12 @@ type RollbackInputs struct {
 	// Leave empty to inherit helm's default.
 	Driver string `json:"driver,omitempty"`
 	// BackoffLimit overrides the Job's spec.backoffLimit. When nil, defaults to
-	// 0 — a failed rollback is surfaced as a failed Job rather than retried,
+	// k8s default. A failed rollback is surfaced as a failed Job rather than retried,
 	// because retrying produces another helm revision instead of being a no-op.
 	BackoffLimit *int32 `json:"backoffLimit,omitempty"`
+	// ActiveDeadlineSeconds allows for control of how long the job will hang in a pending state
+	// not being able to move forward until considered as failed.
+	ActiveDeadlineSeconds *int64 `json:"activeDeadlineSeconds,omitempty"`
 	// TTLSecondsAfterFinished overrides the Job's spec.ttlSecondsAfterFinished.
 	// When nil, defaults to 1h so finished Jobs are garbage-collected by the
 	// TTL controller.
@@ -64,11 +83,13 @@ func (o RollbackInputs) Validate() error {
 	case o.ReleaseNamespace == "":
 		return errors.New("release namespace is required")
 	case o.JobNamespace == "":
-		return errors.New("job namespace is required")
+		return errors.New("job namespace must be set by the runner")
 	case o.JobServiceAccountName == "":
-		return errors.New("service account name is required")
+		return errors.New("job service account name must be set by the runner")
 	case o.Revision < 0:
 		return fmt.Errorf("revision must be >= 0, got %d", o.Revision)
 	}
 	return nil
 }
+
+const HelmRollbackAction = "helm_rollback"

@@ -32,7 +32,7 @@ func TestChmod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	fileMode := 0o447
 	expectedMode := uint16(applyUmask(fileMode))

@@ -407,3 +407,104 @@ func TestMergeGPU(t *testing.T) {
 	assert.Equal(t, gpu1.Vendor, "nvidia")
 	assert.ElementsMatch(t, gpu1.ChildrenGPUUUIDs, []string{"gpu-4-id", "gpu-5-id"})
 }
+
+func TestGenerateKubernetesAutoscalerEntityID(t *testing.T) {
+	tests := []struct {
+		kind     AutoscalerKind
+		expected string
+	}{
+		{kind: AutoscalerKindHPA, expected: "horizontalpodautoscaler/default/my-autoscaler"},
+		{kind: AutoscalerKindKEDA, expected: "horizontalpodautoscaler/default/my-autoscaler"}, // KEDA ScaledObject owns an HPA
+		{kind: AutoscalerKindVPA, expected: "verticalpodautoscaler/default/my-autoscaler"},
+		{kind: AutoscalerKindWPA, expected: "watermarkpodautoscaler/default/my-autoscaler"},
+		{kind: AutoscalerKindDPA, expected: "datadogpodautoscaler/default/my-autoscaler"},
+	}
+
+	for _, test := range tests {
+		t.Run(string(test.kind), func(t *testing.T) {
+			entityID := GenerateKubernetesAutoscalerEntityID(test.kind, "default", "my-autoscaler")
+			assert.Equal(t, EntityID{Kind: KindKubernetesAutoscaler, ID: test.expected}, entityID)
+		})
+	}
+}
+
+func TestKubernetesPodAutoscalerTarget(t *testing.T) {
+	tests := []struct {
+		name     string
+		owners   []KubernetesPodOwner
+		labels   map[string]string
+		expected AutoscalerTarget
+		found    bool
+	}{
+		{
+			name:     "deployment through its replicaset",
+			owners:   []KubernetesPodOwner{{Kind: "ReplicaSet", Name: "app-6b7d9c5f4"}},
+			expected: AutoscalerTarget{Namespace: "ns", Kind: AutoscalerTargetDeployment, Name: "app"},
+			found:    true,
+		},
+		{
+			name:     "argo rollout through its replicaset",
+			owners:   []KubernetesPodOwner{{Kind: "ReplicaSet", Name: "app-6b7d9c5f4"}},
+			labels:   map[string]string{"rollouts-pod-template-hash": "6b7d9c5f4"},
+			expected: AutoscalerTarget{Namespace: "ns", Kind: AutoscalerTargetArgoRollout, Name: "app"},
+			found:    true,
+		},
+		{
+			name:     "statefulset",
+			owners:   []KubernetesPodOwner{{Kind: "StatefulSet", Name: "db"}},
+			expected: AutoscalerTarget{Namespace: "ns", Kind: AutoscalerTargetStatefulSet, Name: "db"},
+			found:    true,
+		},
+		{
+			name:     "deployment as direct owner",
+			owners:   []KubernetesPodOwner{{Kind: "Deployment", Name: "app"}},
+			expected: AutoscalerTarget{Namespace: "ns", Kind: AutoscalerTargetDeployment, Name: "app"},
+			found:    true,
+		},
+		{
+			name:   "replicaset not created by a deployment",
+			owners: []KubernetesPodOwner{{Kind: "ReplicaSet", Name: "standalone"}},
+			found:  false,
+		},
+		{
+			name:   "daemonset",
+			owners: []KubernetesPodOwner{{Kind: "DaemonSet", Name: "agent"}},
+			found:  false,
+		},
+		{
+			name:  "no owners",
+			found: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pod := &KubernetesPod{
+				EntityMeta: EntityMeta{Namespace: "ns", Name: "pod", Labels: test.labels},
+				Owners:     test.owners,
+			}
+			target, found := pod.AutoscalerTarget()
+			assert.Equal(t, test.found, found)
+			assert.Equal(t, test.expected, target)
+		})
+	}
+}
+
+func TestGPUSlicingMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		gpu      GPU
+		expected string
+	}{
+		{"physical", GPU{DeviceType: GPUDeviceTypePhysical}, "none"},
+		{"MIG device", GPU{DeviceType: GPUDeviceTypeMIG, ParentGPUUUID: "gpu-1"}, "mig"},
+		{"MIG parent with children", GPU{DeviceType: GPUDeviceTypePhysical, MIGModeEnabled: true, ChildrenGPUUUIDs: []string{"mig-1"}}, "mig-parent"},
+		{"children only", GPU{DeviceType: GPUDeviceTypePhysical, ChildrenGPUUUIDs: []string{"mig-1"}}, "mig-parent"},
+		{"MIG mode enabled without children", GPU{DeviceType: GPUDeviceTypePhysical, MIGModeEnabled: true}, "mig-parent"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.gpu.SlicingMode())
+		})
+	}
+}

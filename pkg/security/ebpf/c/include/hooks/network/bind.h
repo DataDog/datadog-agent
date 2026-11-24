@@ -3,12 +3,15 @@
 
 #include "constants/offsets/netns.h"
 #include "constants/syscall_macro.h"
+#include "helpers/approvers.h"
 #include "helpers/discarders.h"
 #include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) sys_bind(void *ctx, u64 pid_tgid) {
+static __always_inline int sys_bind(void *ctx, u64 pid_tgid) {
+    struct policy_t policy = fetch_policy(EVENT_BIND);
     struct syscall_cache_t syscall = {
+        .policy = policy,
         .type = EVENT_BIND,
         .async = pid_tgid ? 1: 0,
         .bind = {
@@ -27,20 +30,42 @@ HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr *, addr, unsigned int, ad
     return sys_bind(ctx, 0);
 }
 
-int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_BIND);
+static __always_inline int sys_bind_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_BIND);
     if (!syscall) {
         return 0;
     }
 
+    // Handled errors (EACCES, EPERM, or any error when capture_all_errors is enabled) are kept for
+    // rule evaluation, but bind_approvers only samples successful binds.
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
+    }
+    syscall->retval = retval;
+
+    // approve on behalf of the io_uring submitter, so that activity dump tracing and sampling apply to it
+    approve_syscall_with_tgid(get_bind_tgid(syscall), syscall, bind_approvers);
+
+    // these probes are also loaded with the network probes, only send the event when a rule asks for it
+    if (!is_event_enabled(EVENT_BIND)) {
+        goto pop_and_exit;
+    }
+
+    // emit a sample refresh if the dedup map flagged one
+    if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
+        struct sample_refresh_event_t ev = {};
+        ev.cookie = syscall->sample_cookie;
+        send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
+    }
+
+    if (syscall->state == DISCARDED) {
+        goto pop_and_exit;
     }
 
     /* pre-fill the event */
     struct bind_event_t *event = SPAN_FILL_EVENT(struct bind_event_t, EVENT_BIND);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->addr[0] = syscall->bind.addr[0];
@@ -48,6 +73,8 @@ int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum
     event->family = syscall->bind.family;
     event->port = syscall->bind.port;
     event->protocol = syscall->bind.protocol;
+    event->event.flags = (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? (EVENT_FLAGS_SAVED_BY_AD | EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE) : 0);
+    event->sample_cookie = syscall->sample_cookie;
 
     struct proc_cache_t *entry;
     if (syscall->bind.pid_tgid != 0) {
@@ -55,6 +82,9 @@ int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum
     } else {
         entry = fill_process_context(&event->process);
     }
+
+    pop_syscall(EVENT_BIND);
+
     fill_cgroup_context(entry, &event->cgroup);
 
     // v1: check if this PID is traced by an activity dump
@@ -66,10 +96,13 @@ int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum
     }
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_BIND);
     return 0;
 }
 
-int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
+static __always_inline int sys_bind_ret(void *ctx, int retval) {
     return sys_bind_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

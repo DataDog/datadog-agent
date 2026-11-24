@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build usm_debugger
+//go:build usm_debugger && linux && bpf
 
 package main
 
@@ -23,6 +23,7 @@ import (
 //go:embed usm-debug.o
 var usmProgram []byte
 
+//nolint:typecheck
 //go:embed shared-libraries-debug.o
 var sharedLibrariesProgram []byte
 
@@ -41,9 +42,11 @@ func setupBytecode() func() {
 	err := os.MkdirAll(coreDir, os.ModePerm)
 	checkError(err)
 
+	// Loaders always open <name>.o. These bytes are still the DEBUG=1 objects;
+	// the debugger embeds those and writes them under the canonical names.
 	programs := []program{
-		{path.Join(coreDir, "usm-debug.o"), usmProgram},
-		{path.Join(coreDir, "shared-libraries-debug.o"), sharedLibrariesProgram},
+		{path.Join(coreDir, "usm.o"), usmProgram},
+		{path.Join(coreDir, "shared-libraries.o"), sharedLibrariesProgram},
 	}
 
 	for _, p := range programs {

@@ -18,7 +18,8 @@ import (
 )
 
 // Check determines if all directories the agent could write to are writable.
-func Check(cfg config.Component) ([]runnerdef.IssueReport, error) {
+// issueID is only called when an issue is reported.
+func Check(cfg config.Component, issueID func() string) ([]runnerdef.IssueReport, error) {
 	writeDirs := []string{
 		"/tmp",
 		cfg.GetString("run_path"),
@@ -59,7 +60,7 @@ func Check(cfg config.Component) ([]runnerdef.IssueReport, error) {
 
 	return []runnerdef.IssueReport{
 		{
-			IssueID:   IssueID,
+			IssueID:   issueID(),
 			IssueName: IssueName,
 			Source:    "agent",
 			Context: map[string]string{

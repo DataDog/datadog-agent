@@ -1,0 +1,13 @@
+description: Blank lines between commands are ignored.
+input:
+  script: |+
+    echo first
+
+    echo second
+
+
+    echo third
+expect:
+  stdout: "first\nsecond\nthird\n"
+  stderr: ""
+  exit_code: 0

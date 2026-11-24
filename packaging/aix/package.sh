@@ -22,14 +22,11 @@ log "=== Stage: $STAGE_NAME ==="
 : "${STAGING:?STAGING must be set}"
 : "${BUILD_DIR:?BUILD_DIR must be set}"
 
-# --- Output artifact path ---
-BFF_OUT="$BUILD_DIR/datadog-agent-${AGENT_VERSION}-${AGENT_BUILD}.aix.ppc64.bff"
-
 # --- Cleanup on failure ---
 cleanup() {
     if [ $? -ne 0 ]; then
         log "ERROR: $STAGE_NAME failed. Removing partial outputs."
-        rm -f "$BFF_OUT"
+        rm -f "$BFF_PATH"
     fi
 }
 trap cleanup EXIT
@@ -158,8 +155,8 @@ if [ ! -f "$BFF_SRC" ]; then
     exit 1
 fi
 
-cp "$BFF_SRC" "$BFF_OUT"
-ls -l "$BFF_OUT"
-log "Package ready: $BFF_OUT"
+mv "$BFF_SRC" "$BFF_PATH"
+ls -l "$BFF_PATH"
+log "Package ready: $BFF_PATH"
 
 log "=== $STAGE_NAME complete ==="

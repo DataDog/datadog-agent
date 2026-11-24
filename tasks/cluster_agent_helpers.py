@@ -5,6 +5,7 @@ Common utilities for building Cluster Agent variants
 import os
 import shutil
 
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version
@@ -33,17 +34,18 @@ def build_common(
     go_mod="readonly",
     cover=False,
     enable_bazel=False,
+    fips_backend=FipsBackend.none,
 ):
     """
     Build Cluster Agent
     """
 
-    schema_compress(ctx)
+    schema_compress(ctx, fips_backend=fips_backend.strip_boringcrypto())
 
     agent_bin = os.path.join(bin_path, bin_name(f"datadog-cluster-agent{bin_suffix}"))
 
     if enable_bazel:
-        build_binary_with_bazel(f"//cmd/cluster-agent{bin_suffix}", bin_path=agent_bin)
+        build_binary_with_bazel(f"//cmd/cluster-agent{bin_suffix}", bin_path=agent_bin, fips_backend=fips_backend)
     else:
         # We rely on the go libs embedded in the debian stretch image to build dynamically
         ldflags, gcflags, env = get_build_flags(ctx, static=False)
@@ -61,6 +63,7 @@ def build_common(
             env=env,
             check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
             coverage=cover,
+            fips_backend=fips_backend,
         )
 
     # Render the configuration file template. The cluster-agent and the

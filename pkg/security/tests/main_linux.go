@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ptracer"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -72,7 +74,9 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestLoadModule",
 			"~TestUnloadModule",
 			"~TestOsOrigin",
-			"~TestSpan",
+			"~TestOTelSpanEBPFLess",
+			"~TestNodeSpanEBPFLess",
+			"~TestDDTraceGoSpanEBPFLess",
 			"~TestChdir",
 			"~TestBindEvent",
 			"~TestSocketEvent",
@@ -85,6 +89,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestSetrlimitEvent",
 			"TestPrCtl",
 			"TestCGroupVariables",
+			"TestCGroupContainerForkNoExec",
 			"TestTimestampVariable",
 		}
 
@@ -151,6 +156,14 @@ func SkipIfNotAvailable(t *testing.T) {
 	}
 }
 
+// checkContainerRuntime returns an error when containers can't be run on this host
+func checkContainerRuntime() error {
+	if kv, err := kernel.NewKernelVersion(); err == nil && kv.IsSuse12Kernel() {
+		return errors.New("broken containerd support on Suse 12")
+	}
+	return nil
+}
+
 // getPIDCGroup returns the path of the first cgroup found for a PID
 func getPIDCGroup(pid uint32) (string, error) {
 	cgroups, err := utils.GetProcControlGroups(pid, pid)
@@ -207,7 +220,7 @@ func preTestsHook() {
 
 func postTestsHook() {
 	if testMod != nil {
-		testMod.cleanup()
+		testMod.CloseTestAndMonitor()
 	}
 
 	if restoreRCU != nil {

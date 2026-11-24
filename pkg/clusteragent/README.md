@@ -31,7 +31,7 @@ To start working on the Cluster Agent, you can build the `main` branch:
 3. Install go tools: `dda inv install-tools`.
 4. Build the whole project with `dda inv cluster-agent.build`
 
-Please refer to the [Agent Developer Guide](/docs/dev/README.md) for more details.
+Please refer to the [Datadog Agent developer documentation](https://datadoghq.dev/datadog-agent/) for more details.
 
 ## Run
 

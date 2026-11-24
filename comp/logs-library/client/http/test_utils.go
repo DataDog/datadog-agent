@@ -95,6 +95,21 @@ func NewTestServerWithOptions(statusCode int, concurrentSends int, retryDestinat
 	}
 }
 
+// NewDelegatedAuthPendingTestServer creates a reliable test destination that is still waiting for
+// a delegated-auth credential.
+func NewDelegatedAuthPendingTestServer(cfg pkgconfigmodel.Reader) *TestServer {
+	s := NewTestServerWithOptions(http.StatusOK, 1, true, nil, cfg)
+	s.Destination.endpoint = config.NewEndpoint(
+		"DELA[some-org-uuid, aws]",
+		"logs_config.additional_endpoints",
+		s.Endpoint.Host,
+		s.Endpoint.Port,
+		config.EmptyPathPrefix,
+		false,
+	)
+	return s
+}
+
 // NewTestHTTPSServer creates a new test server that can support HTTP/2
 func NewTestHTTPSServer(forceHTTP1 bool) *httptest.Server {
 	// Create an HTTP/2 test server

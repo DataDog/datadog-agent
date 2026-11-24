@@ -48,10 +48,12 @@ var preflightModeDataPlaneOnlyOverrides = map[string]any{
 var preflightModeGlobalOverrides = map[string]any{
 	// Ensure that ADP is enabled overall, that we're at least running the DogStatsD pipeline, but that OTLP is
 	// disabled.
-	DataPlaneEnabled:                true,
-	"data_plane.dogstatsd.enabled":  true,
-	"data_plane.otlp.enabled":       false,
-	"data_plane.otlp.proxy.enabled": false,
+	DataPlaneEnabled:                             true,
+	"data_plane.dogstatsd.enabled":               true,
+	"data_plane.otlp.enabled":                    false,
+	"data_plane.experimental.otlp.proxy.logs":    false,
+	"data_plane.experimental.otlp.proxy.metrics": false,
+	"data_plane.experimental.otlp.proxy.traces":  false,
 
 	// Keep ADP from contacting the Core Agent to register as a Remote Agent or to fetch configuration. See also
 	// preflightModeDataPlaneOnlyOverrides.

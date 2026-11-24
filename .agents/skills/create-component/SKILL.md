@@ -35,26 +35,22 @@ Create a new Fx component following the **modern** (new-style) pattern with sepa
    ```
    comp/<bundle>/<component>/
    ├── def/
-   │   ├── go.mod
    │   ├── component.go     # Interface definition + team tag
    │   └── params.go        # (optional) Params struct
    ├── fx/
-   │   ├── go.mod
    │   └── fx.go            # Module() function
    └── impl/
-       ├── go.mod
        └── <component>.go   # Requires, Provides, NewComponent()
    ```
 
 5. **Create each file** following the patterns from the reference. Key rules:
-   - `def/component.go`: Package name = component name, include `// team:` comment, only interfaces
+   - `def/component.go`: Use the component name as the package name, include the `// team:` comment, and define the interface and its public types here.
    - `fx/fx.go`: Use `fxutil.ProvideComponentConstructor` (NEVER raw `fx.Provide`), returns `fxutil.Module`
-   - `impl/<component>.go`: Plain Go constructor `func NewComponent(deps Requires) (Provides, error)`, **no** `fx.In`/`fx.Out`/`compdef.In`/`compdef.Out` embedding in Requires/Provides, unexported implementation type
-   - `go.mod` files: Use `v0.0.0` for inter-module dependencies, match Go version from root `go.mod`
+   - `impl/<component>.go`: Use a plain Go constructor returning `Provides` or `(Provides, error)` and an unexported implementation type. Prefer plain exported `Requires` and `Provides` structs for new constructors. The constructor's outer dependency and result structs do not need `compdef.In` or `compdef.Out`. A nested struct needs the corresponding marker when its fields should be resolved as individual dependencies or exposed as individual results. Do not embed `fx.In` or `fx.Out` in the structs passed to the adapter.
 
-6. **Register the modules** in `modules.yml` — add entries for `def`, `fx`, and `impl` (use `default` or `used_by_otel: true`).
+6. **Choose module boundaries only when external consumers need them.** Components can use the repository's existing modules. For external consumers, create separate modules for the required `def` and implementation packages. Follow the [component module guidelines](../../../doc/guidelines/components.md#go-modules) for new components: do not create a module at the component root or in an Fx wrapper package. Existing components may have different module layouts.
 
-7. **Run `dda inv create-module --path=comp/<bundle>/<component>/def`** (and for `fx`, `impl`) or manually add to `modules.yml` and run `dda inv tidy`.
+7. **If new modules are needed, follow the `create-go-module` skill for each selected path.** Register only those modules in `modules.yml`, use the repository's Go version, and run `dda inv tidy` through that workflow.
 
 8. **Wire into a bundle** if appropriate — add the component's `Module()` to the relevant `comp/<bundle>/bundle.go`.
 

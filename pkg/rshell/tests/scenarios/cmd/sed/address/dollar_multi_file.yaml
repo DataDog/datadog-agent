@@ -1,0 +1,15 @@
+description: "The $ address matches only the last line of the last file (continuous stream)."
+setup:
+  files:
+    - path: a.txt
+      content: "a1\na2\n"
+    - path: b.txt
+      content: "b1\nb2\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n '$p' a.txt b.txt
+expect:
+  stdout: "b2\n"
+  stderr: ""
+  exit_code: 0

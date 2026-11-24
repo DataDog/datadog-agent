@@ -221,19 +221,14 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			_ profiler.Component,
 			_ expvars.Component,
 			_ apiserver.Component,
-			cfg config.Component,
 			// TODO: This is needed by the container-provider which is not currently a component.
 			// We should ensure the tagger is a dependency when converting to a component.
 			_ tagger.Component,
-			_ pid.Component,
-			processAgent agent.Component,
 			_ autoexit.Component,
-		) error {
-			if !processAgent.Enabled() && !collector.Enabled(cfg) {
-				return errAgentDisabled
-			}
-			return nil
+		) {
 		}),
+
+		requireEnabled(),
 	)
 
 	err := app.Start(ctx)
@@ -271,6 +266,21 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	}
 
 	return nil
+}
+
+// requireEnabled stops the app with errAgentDisabled when neither the process-agent nor the
+// process collector is enabled. The PID file is only written once that check passes, so a
+// process-agent that exits as disabled never leaves a PID file behind.
+func requireEnabled() fx.Option {
+	return fx.Options(
+		fx.Invoke(func(processAgent agent.Component, cfg config.Component) error {
+			if !processAgent.Enabled() && !collector.Enabled(cfg) {
+				return errAgentDisabled
+			}
+			return nil
+		}),
+		fx.Invoke(func(_ pid.Component) {}),
+	)
 }
 
 type miscDeps struct {

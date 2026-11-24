@@ -54,7 +54,7 @@ func TestContainerCreatedAt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("test-open")
 	if err != nil {
@@ -66,7 +66,7 @@ func TestContainerCreatedAt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	dockerWrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
 		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestContainerVariables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("test-open")
 	if err != nil {
@@ -152,7 +152,7 @@ func TestContainerVariables(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	dockerWrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
 		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
@@ -213,9 +213,9 @@ func TestContainerVariablesReleased(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
-	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	dockerWrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
 		t.Fatalf("failed to create docker wrapper: %v", err)
 	}

@@ -1,0 +1,55 @@
+properties:
+  enum_with_null:
+    node_type: setting
+    type: string
+    default: a
+    enum:
+      - a
+      - null
+  const_null:
+    node_type: setting
+    type: string
+    default: a
+    const: null
+  nullable_type:
+    node_type: setting
+    type: [string, "null"]
+    default: a
+  nested_items_null:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [x, null]
+  any_of_null:
+    node_type: setting
+    type: string
+    default: a
+    anyOf:
+      - type: string
+      - type: "null"
+  section:
+    node_type: section
+    properties:
+      nested_enum_with_null:
+        node_type: setting
+        type: string
+        default: a
+        enum: [a, ~]
+  # null inside instance data is a config value, not an accepted null: must not be reported.
+  null_in_default_object:
+    node_type: setting
+    type: object
+    default:
+      key: null
+    additionalProperties:
+      type: string
+  valid_enum:
+    node_type: setting
+    type: string
+    default: a
+    enum: [a, b]

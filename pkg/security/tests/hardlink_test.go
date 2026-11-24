@@ -43,7 +43,7 @@ func runHardlinkTests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	// copy touch to make sure it is place on the same fs, hard link constraint
 	executable := which(t, "touch")
@@ -154,7 +154,7 @@ func TestHardLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	// copy touch to make sure it is place on the same fs, hard link constraint
 	executable := which(t, "touch")
@@ -215,10 +215,10 @@ func TestHardlinkBusybox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	// busybox uses hardlinks
-	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
+	wrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "busybox", "")
 	if err != nil {
 		t.Fatalf("failed to start docker wrapper: %v", err)
 	}

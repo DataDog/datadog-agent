@@ -8,7 +8,10 @@
 package connection
 
 import (
+	"errors"
 	"fmt"
+
+	"github.com/google/gopacket/afpacket"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -35,4 +38,12 @@ func createPacketSource(_ *config.Config) (filter.PacketSource, error) {
 		return nil, fmt.Errorf("error creating AFPacket source: %w", err)
 	}
 	return packetSrc, nil
+}
+
+// isPlatformFatalPacketSourceError reports whether err is a fatal AF_PACKET error.
+// afpacket.ErrPoll means poll reported POLLERR, POLLHUP or POLLNVAL on the packet socket
+// or on the source's exit pipe. Nothing reads the socket's pending error, so a POLLERR
+// stays set, and POLLNVAL or POLLHUP means a descriptor is closed: retrying cannot recover.
+func isPlatformFatalPacketSourceError(err error) bool {
+	return errors.Is(err, afpacket.ErrPoll)
 }

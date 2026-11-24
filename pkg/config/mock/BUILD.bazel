@@ -2,7 +2,13 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "mock",
-    srcs = ["mock.go"],
+    srcs = [
+        "agent_configs.go",
+        "fleet_windows.go",
+        "mock.go",
+        "overrides.go",
+        "overrides_notest.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/mock",
     visibility = ["//visibility:public"],
     deps = [

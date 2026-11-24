@@ -1,1 +1,0 @@
-cinst -y undo-winrmconfig-during-shutdown

@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    An Agent running with ``infrastructure_mode`` set to ``cloud_cost_only`` or
+    ``end_user_device`` now adds an ``infra_mode`` tag to the bundled
+    Kubernetes API server events it collects, which is the default collection
+    path. Event Management uses the tag to hide events coming from an Agent
+    that only reports cloud cost data.

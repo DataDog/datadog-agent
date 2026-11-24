@@ -185,7 +185,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	var ruleSetloadedErr *multierror.Error
 	if !opts.staticOpts.disableRuntimeSecurity {
 		compression := logscompression.NewComponent()
-		cmdServer, err := module.NewCommandServer(secconfig.RuntimeSecurity)
+		cmdServer, err := module.NewCommandServer(secconfig.RuntimeSecurity, ipcComp)
 		if err != nil {
 			return nil, err
 		}
@@ -237,7 +237,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	if ruleSetloadedErr.ErrorOrNil() != nil {
-		defer testMod.Close()
+		defer testMod.CloseTestAndMonitor()
 		return nil, ruleSetloadedErr.ErrorOrNil()
 	}
 
@@ -245,8 +245,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 }
 
-func (tm *testModule) Close() {
-	tm.eventMonitor.Close()
+func (tm *testModule) CloseTestAndMonitor() {
+	if tm.eventMonitor != nil {
+		tm.eventMonitor.Close()
+		tm.eventMonitor = nil
+	}
 }
 
 // etwReadyProvider is an interface for probes that support ETW ready signaling

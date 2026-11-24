@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "AGENT_HEROKU_TAGS", "AGENT_TAGS", "COMMON_TAGS")
 
-exports_files(["macos/uninstall_mac_os.sh"])
+package(default_package_metadata = ["//:package_metadata"])
 
 go_library(
     name = "agent_lib",
@@ -173,7 +173,6 @@ go_library(
 
 dd_agent_go_binary(
     name = "agent",
-    # keep
     srcs = select({
         "@platforms//os:windows": ["//cmd/agent/windows_resources:rsrc"],
         "//conditions:default": [],
@@ -191,7 +190,6 @@ dd_agent_go_binary(
 dd_agent_go_binary(
     name = "agent-heroku",
     embed = [":agent_lib"],
-    # keep
     exact_gotags = sorted(COMMON_TAGS | AGENT_HEROKU_TAGS),
     visibility = ["//visibility:public"],
 )

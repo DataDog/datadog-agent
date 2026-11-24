@@ -29,6 +29,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
@@ -77,6 +78,12 @@ type atel struct {
 	errLogsFlushInterval time.Duration
 	errLogsStartupJitter time.Duration
 	shutdownDrainTimeout time.Duration
+
+	// flag gates profiles carrying a `remote_flag`; nil means every gated profile is off.
+	flag *remoteFlagHandler
+
+	// flushFailures counts consecutive flushSession failures, the health signal for remote flags.
+	flushFailures *atomic.Uint32
 }
 
 const (
@@ -105,6 +112,8 @@ type Provides struct {
 
 	Comp     agenttelemetry.Component
 	Endpoint api.AgentEndpointProvider
+	// Subscriber registers this component's remote flag handlers.
+	Subscriber pkgremoteflags.RemoteFlagSubscriber `group:"remoteFlagSubscriber"`
 }
 
 // Interfacing with runner.
@@ -250,6 +259,8 @@ func createAtel(
 		prevPromMetricCounterValues:   make(map[string]float64),
 		prevPromMetricHistogramValues: make(map[string]uint64),
 
+		flushFailures: atomic.NewUint32(0),
+
 		errortrackingEnabled: errortrackingEnabled,
 		errLogsCh:            errLogsCh,
 		errLogsDropped:       atomic.NewUint64(0),
@@ -284,6 +295,8 @@ func NewComponent(deps Requires) Provides {
 	}
 	a.localEmitter = localEmitter
 
+	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
+
 	// If agent telemetry is enabled and configured properly add the start and stop hooks
 	if a.enabled {
 		deps.Lc.Append(compdef.Hook{
@@ -297,8 +310,9 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	return Provides{
-		Comp:     a,
-		Endpoint: api.NewAgentEndpointProvider(a.writePayload, "/metadata/agent-telemetry", "GET"),
+		Comp:       a,
+		Endpoint:   api.NewAgentEndpointProvider(a.writePayload, "/metadata/agent-telemetry", "GET"),
+		Subscriber: a.flag,
 	}
 }
 
@@ -440,18 +454,40 @@ func deductAndUpdatePrevValue(key string, prevPromMetricValues map[string]uint64
 	prevPromMetricValues[key] = origCurValue
 }
 
+// isCumulativeCountLower reports whether a cumulative count went down since the previous period.
+func isCumulativeCountLower(key string, prevPromMetricValues map[string]uint64, curValue uint64) bool {
+	prevValue, ok := prevPromMetricValues[key]
+	return ok && curValue < prevValue
+}
+
 func convertPromHistogramsToDatadogHistogramsValues(metrics []*dto.Metric, prevPromMetricValues map[string]uint64, keyNames []string) {
 	if len(metrics) > 0 {
 		bucketCount := len(metrics[0].Histogram.GetBucket())
 		var prevValue uint64
 
 		for i, m := range metrics {
+			infKey := keyNames[((i+1)*(bucketCount+1))-1]
+
+			// A lower cumulative count in any bucket marks a producer reset (e.g. the series was deleted
+			// and recreated). The whole series is then reset: its current values are the deltas. Handling
+			// buckets independently would mix reset and non-reset buckets and underflow in step 3.
+			reset := isCumulativeCountLower(infKey, prevPromMetricValues, m.Histogram.GetSampleCount())
+			for j, b := range m.Histogram.GetBucket() {
+				reset = reset || isCumulativeCountLower(keyNames[(i*(bucketCount+1))+j], prevPromMetricValues, b.GetCumulativeCount())
+			}
+			if reset {
+				for j := range m.Histogram.GetBucket() {
+					delete(prevPromMetricValues, keyNames[(i*(bucketCount+1))+j])
+				}
+				delete(prevPromMetricValues, infKey)
+			}
+
 			// 1. deduct the previous cumulative count from each explicit  buckets
 			for j, b := range m.Histogram.GetBucket() {
 				deductAndUpdatePrevValue(keyNames[(i*(bucketCount+1))+j], prevPromMetricValues, b.CumulativeCount)
 			}
 			// 2. deduct the previous cumulative count from the implicit  "+Inf" bucket
-			deductAndUpdatePrevValue(keyNames[((i+1)*(bucketCount+1))-1], prevPromMetricValues, m.Histogram.SampleCount)
+			deductAndUpdatePrevValue(infKey, prevPromMetricValues, m.Histogram.SampleCount)
 
 			// 3. "De-cumulate" next explicit bucket value from the preceding bucket value
 			prevValue = 0
@@ -499,12 +535,10 @@ func (a *atel) convertPromMetricToDatadogMetricsValues(mt dto.MetricType, metric
 	}
 }
 
-func isMetricFiltered(p *Profile, mCfg *MetricConfig, mt dto.MetricType, m *dto.Metric) bool {
-	// filter out zero values if specified in the profile
-	if p.excludeZeroMetric && isZeroValueMetric(mt, m) {
-		return false
-	}
-
+// isMetricFiltered reports whether a metric passes the profile's tag filters. The zero_metric filter
+// is not applied here: for counters and histograms it must see the per-period delta, which is only
+// known after convertPromMetricToDatadogMetricsValues (see transformMetricFamily).
+func isMetricFiltered(p *Profile, mCfg *MetricConfig, m *dto.Metric) bool {
 	// filter out if contains excluded tags
 	if len(p.excludeTagsMap) > 0 && areTagsMatching(m.GetLabel(), p.excludeTagsMap) {
 		return false
@@ -535,11 +569,10 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 		return nil
 	}
 
-	// Filter the metric according to the profile configuration
-	// Currently we only support filtering out zero values if specified in the profile
+	// Filter the metric according to the profile's tag filters
 	var fm []*dto.Metric
 	for _, m := range mfam.Metric {
-		if isMetricFiltered(p, mCfg, mt, m) {
+		if isMetricFiltered(p, mCfg, m) {
 			fm = append(fm, m)
 		}
 	}
@@ -556,6 +589,17 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 	// Mathematically: sum(deltas) == delta(sums), so aggregating deltas is equivalent.
 	a.convertPromMetricToDatadogMetricsValues(mt, mCfg.Name, fm)
 
+	// Filter out zero values if specified in the profile. This must happen AFTER the conversion:
+	// a counter keeps a non-zero cumulative value once incremented, so checking it before would
+	// report it with a zero delta in every later payload. All metrics still go through the
+	// conversion so their previous-value cache stays up to date while they are excluded.
+	if p.excludeZeroMetric {
+		fm = slices.DeleteFunc(fm, func(m *dto.Metric) bool { return isZeroValueMetric(mt, m) })
+		if len(fm) == 0 {
+			return nil
+		}
+	}
+
 	// Aggregate the metric tags (now operating on deltas rather than cumulative values)
 	amt := a.aggregateMetricTags(mCfg, mt, fm)
 
@@ -564,38 +608,6 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 		metrics: amt,
 		family:  mfam,
 	}
-}
-
-// coalesceMetricFamilies merges compatible metric families with the same name.
-//
-// The regular and default telemetry registries are gathered separately. Coalescing lets profile aggregation see all
-// time series together instead of later payload writes overwriting earlier ones in the sender's metric map.
-func coalesceMetricFamilies(pms []*telemetry.MetricFamily) []*telemetry.MetricFamily {
-	mergedByName := make(map[string]*telemetry.MetricFamily, len(pms))
-	merged := make([]*telemetry.MetricFamily, 0, len(pms))
-
-	for _, pm := range pms {
-		if pm == nil || pm.Name == nil || pm.Type == nil {
-			merged = append(merged, pm)
-			continue
-		}
-
-		name := pm.GetName()
-		existing := mergedByName[name]
-		if existing == nil {
-			mergedByName[name] = pm
-			merged = append(merged, pm)
-			continue
-		}
-		if existing.GetType() != pm.GetType() {
-			merged = append(merged, pm)
-			continue
-		}
-
-		existing.Metric = append(existing.Metric, pm.Metric...)
-	}
-
-	return merged
 }
 
 func (a *atel) reportAgentMetrics(session *senderSession, pms []*telemetry.MetricFamily, p *Profile) {
@@ -627,24 +639,12 @@ func (a *atel) reportAgentMetrics(session *senderSession, pms []*telemetry.Metri
 }
 
 func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
-	// Gather all prom metrics. Currently Gather() does not allow filtering by
-	// metric name, so we need to gather all metrics and filter them on our own.
-	pms, err := a.telComp.Gather(false)
+	// Gather all prom metrics, then filter them per-profile below.
+	pms, err := a.telComp.Gather(telemetry.NoFilter)
 	if err != nil {
 		a.logComp.Errorf("failed to get filtered telemetry metrics: %v", err)
 		return nil, err
 	}
-
-	// Ensure that metrics from the default Prometheus registry are also collected.
-	pmsDefault, errDefault := a.telComp.Gather(true)
-	if errDefault == nil {
-		pms = append(pms, pmsDefault...)
-	} else {
-		// Not a fatal error, just log it
-		a.logComp.Errorf("failed to get filtered telemetry metrics: %v", err)
-	}
-
-	pms = coalesceMetricFamilies(pms)
 
 	// All metrics stored in the "pms" slice above must follow the format:
 	//    <subsystem>__<metric_name>
@@ -654,6 +654,9 @@ func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
 
 	session := a.sender.startSession(a.cancelCtx)
 	for _, p := range profiles {
+		if p.RemoteFlag != "" && !a.flag.enabledFor(p.RemoteFlag) {
+			continue
+		}
 		a.reportAgentMetrics(session, pms, p)
 	}
 	return session, nil
@@ -670,10 +673,37 @@ func (a *atel) run(profiles []*Profile) {
 	}
 
 	err = a.sender.flushSession(session)
+	a.recordFlushResult(err)
 	if err != nil {
 		a.logComp.Errorf("failed to flush agent telemetry session: %s", err)
 		return
 	}
+}
+
+// recordFlushResult feeds the remote flag health signal: consecutive failures
+// accumulate, any success clears them.
+func (a *atel) recordFlushResult(err error) {
+	if a.flushFailures == nil {
+		return
+	}
+	if err != nil {
+		a.flushFailures.Inc()
+		return
+	}
+	a.flushFailures.Store(0)
+}
+
+// isHealthy is the health probe the Remote Flags client polls after a flag is
+// enabled. Reporting false long enough makes the client call SafeRecover,
+// which turns the gated profiles back off.
+func (a *atel) isHealthy() bool {
+	if !a.enabled {
+		return false
+	}
+	if a.flushFailures == nil {
+		return true
+	}
+	return a.flushFailures.Load() < maxConsecutiveFlushFailures
 }
 
 func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {

@@ -13,6 +13,7 @@ type RegisteredAgent struct {
 	DisplayName          string
 	SanitizedDisplayName string
 	PID                  string
+	ProcessInstanceID    string
 	LastSeen             time.Time
 	SessionID            string
 }
@@ -40,11 +41,12 @@ type FlareData struct {
 
 // RegistrationData contains the registration information for a remote agent
 type RegistrationData struct {
-	AgentFlavor      string
-	AgentDisplayName string
-	AgentPID         string
-	APIEndpointURI   string
-	Services         []string
+	AgentFlavor       string
+	AgentDisplayName  string
+	AgentPID          string
+	ProcessInstanceID string
+	APIEndpointURI    string
+	Services          []string
 }
 
 // EventDetails is implemented by each remote agent event detail variant. It mirrors the `details` oneof in the
