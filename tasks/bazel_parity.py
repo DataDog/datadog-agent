@@ -56,6 +56,13 @@ PRODUCTS = {
         bazel_job='bazel:package:iot:linux-amd64',
         omnibus_jobs=('iot_agent_deb-x64', 'iot_agent_rpm-x64'),
     ),
+    'heroku': Product(
+        'datadog-heroku-agent',
+        '//packages/heroku',
+        bazel_job='bazel:package:heroku:linux-amd64',
+        omnibus_jobs=('agent_heroku_deb-x64-a7',),
+        formats=('deb',),
+    ),
 }
 ARCHITECTURES = {'amd64': {'deb': 'amd64', 'rpm': 'x86_64'}}
 FORMATS = {'deb': read_deb_metadata, 'rpm': read_rpm_metadata}
