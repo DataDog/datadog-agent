@@ -158,6 +158,8 @@ const (
 	Assured ConnFlags = 0x4
 )
 
+const FlagLocalNATPeerOpen = 0x80
+
 const SizeofConn = 0xa0
 
 type ClassificationProgram = uint32

@@ -181,6 +181,8 @@ typedef struct {
     conn_tuple_t tup;
     conn_tuple_t skb_tup;
     __u8 has_skb_tup;
+    // whether the close was marked FLAG_LOCAL_NAT_PEER_OPEN, so userspace defers its conntrack delete
+    __u8 local_peer_open;
 } tcp_close_args_t;
 
 typedef struct {

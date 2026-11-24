@@ -97,9 +97,6 @@ func (c *ConnectionStats) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// flagLocalNATPeerOpen mirrors FLAG_LOCAL_NAT_PEER_OPEN in protocols/classification/defs.h
-const flagLocalNATPeerOpen = 1 << 7
-
 // FromConn populates relevant fields on ConnectionStats from the connection data
 func (c *ConnectionStats) FromConn(ct *netebpf.Conn) {
 	c.FromTupleAndStats(&ct.Tup, &ct.Conn_stats)
@@ -132,7 +129,7 @@ func (c *ConnectionStats) FromTupleAndStats(t *netebpf.ConnTuple, s *netebpf.Con
 		c.Duration = time.Duration(s.Duration) * time.Nanosecond
 	}
 
-	c.LocalNATPeerOpen = s.Protocol_stack.Flags&flagLocalNATPeerOpen != 0
+	c.LocalNATPeerOpen = s.Protocol_stack.Flags&netebpf.FlagLocalNATPeerOpen != 0
 	c.ProtocolStack = protocols.Stack{
 		API:         protocols.API(s.Protocol_stack.Api),
 		Application: protocols.Application(s.Protocol_stack.Application),

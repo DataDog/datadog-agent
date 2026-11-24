@@ -23,8 +23,8 @@ func TestFromTupleAndStatsLocalNATPeerOpen(t *testing.T) {
 	}{
 		{"no flags", 0, false},
 		{"side flags only", 1<<5 | 1<<6, false},
-		{"marked", flagLocalNATPeerOpen, true},
-		{"marked with side flags", flagLocalNATPeerOpen | 1<<5 | 1<<6, true},
+		{"marked", netebpf.FlagLocalNATPeerOpen, true},
+		{"marked with side flags", netebpf.FlagLocalNATPeerOpen | 1<<5 | 1<<6, true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var c ConnectionStats
