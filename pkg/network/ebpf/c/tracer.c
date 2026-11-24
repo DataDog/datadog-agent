@@ -1166,11 +1166,15 @@ static __always_inline int handle_net_dev_queue(struct sk_buff* skb, const bool 
     if (!is_equal(&skb_tup, &sock_tup)) {
         // the key is normalized, but the value keeps the packet's orientation, with the socket's end as the
         // source: get_skb_tuple normalizes it and uses the orientation to tell the ends apart when the ports are
-        // equal
+        // equal.
+        // Look up first and write only when the entry is missing or differs, so the last value wins (a stale value,
+        // e.g. from a reused 4-tuple, doesn't stick) without a write on every egress packet: the lookup doesn't take
+        // the bucket lock that an update takes.
         normalize_tuple(&sock_tup);
-        // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
-        // and do not provide any useful signal since the key is expected to be present sometimes.
-        bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST, -EEXIST);
+        conn_tuple_t *cur = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &sock_tup);
+        if (!cur || !is_equal(cur, &skb_tup)) {
+            bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_ANY);
+        }
     }
 
     return 0;
