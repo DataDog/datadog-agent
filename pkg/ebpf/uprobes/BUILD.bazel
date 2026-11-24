@@ -81,7 +81,6 @@ dd_agent_go_test(
         "attacher_test.go",
         "inspector_test.go",
         "multi_test.go",
-        "shutdown_test.go",
         "testutil_attacher_runner_test.go",
     ],
     embed = [":uprobes"],
@@ -106,7 +105,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
-            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
@@ -125,7 +123,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
-            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),
@@ -136,7 +133,6 @@ dd_agent_go_test(
     srcs = [
         "attacher_test.go",
         "multi_test.go",
-        "shutdown_test.go",
     ],
     embed = [":uprobes"],
     gotags_sets = [["bpf"]],
@@ -159,7 +155,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
-            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
@@ -177,7 +172,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
-            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),
