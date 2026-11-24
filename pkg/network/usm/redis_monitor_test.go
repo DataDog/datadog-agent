@@ -8,7 +8,6 @@
 package usm
 
 import (
-	"context"
 	"net"
 	"os"
 	"reflect"
