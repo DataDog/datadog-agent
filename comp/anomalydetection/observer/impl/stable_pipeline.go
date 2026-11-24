@@ -92,6 +92,26 @@ func ParseStablePipelineConfigJSON(raw []byte) (*StablePipelineConfig, error) {
 	return &stable, nil
 }
 
+// validateStableScanConfig rejects scan* configurations whose window cannot fit two segments.
+func validateStableScanConfig(name string, minPoints, maxPoints, minSegment, defaultMinPoints, defaultMaxPoints, defaultMinSegment int) error {
+	if minPoints <= 0 {
+		minPoints = defaultMinPoints
+	}
+	if maxPoints <= 0 {
+		maxPoints = defaultMaxPoints
+	}
+	if maxPoints < minPoints {
+		maxPoints = minPoints
+	}
+	if minSegment <= 0 {
+		minSegment = defaultMinSegment
+	}
+	if minSegment > maxPoints/2 {
+		return fmt.Errorf("%s min_segment (%d) must be at most half of max_points (%d)", name, minSegment, maxPoints)
+	}
+	return nil
+}
+
 // newStableDetector selects the detector configured by stable-pipeline blocks.
 func newStableDetector(cfg StablePipelineConfig) (stableDetector, error) {
 	if err := validateStableDetectorSelection(cfg); err != nil {
@@ -99,12 +119,20 @@ func newStableDetector(cfg StablePipelineConfig) (stableDetector, error) {
 	}
 	switch {
 	case cfg.ScanMW != nil:
+		defaults := DefaultScanMWConfig()
+		if err := validateStableScanConfig("scanmw", cfg.ScanMW.MinPoints, cfg.ScanMW.MaxPoints, cfg.ScanMW.MinSegment, defaults.MinPoints, defaults.MaxPoints, defaults.MinSegment); err != nil {
+			return nil, err
+		}
 		return NewScanMWDetector(ScanMWConfig{
 			MinPoints:  cfg.ScanMW.MinPoints,
 			MaxPoints:  cfg.ScanMW.MaxPoints,
 			MinSegment: cfg.ScanMW.MinSegment,
 		}), nil
 	case cfg.ScanWelch != nil:
+		defaults := DefaultScanWelchConfig()
+		if err := validateStableScanConfig("scanwelch", cfg.ScanWelch.MinPoints, cfg.ScanWelch.MaxPoints, cfg.ScanWelch.MinSegment, defaults.MinPoints, defaults.MaxPoints, defaults.MinSegment); err != nil {
+			return nil, err
+		}
 		return NewScanWelchDetector(ScanWelchConfig{
 			MinPoints:  cfg.ScanWelch.MinPoints,
 			MaxPoints:  cfg.ScanWelch.MaxPoints,

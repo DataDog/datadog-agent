@@ -239,7 +239,7 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	// A valid split requires MinSegment points on each side. MinPoints is
 	// independently configurable, so a newly activated series may legitimately
 	// reach this method before a candidate split exists.
-	if n < 2*minSeg {
+	if minSeg <= 0 || minSeg > n/2 {
 		return observer.Anomaly{}, 0, false
 	}
 

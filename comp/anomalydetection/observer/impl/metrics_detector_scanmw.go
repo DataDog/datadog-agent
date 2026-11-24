@@ -226,13 +226,16 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64, 
 // Returns (anomaly, changeIndex, found). Pure function over the input data.
 func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series, agg observer.Aggregate) (observer.Anomaly, int, bool) {
 	n := len(points)
+	minSeg := d.config.MinSegment
+	if minSeg <= 0 || minSeg > n/2 {
+		return observer.Anomaly{}, 0, false
+	}
 
 	values := d.workspace.valuesFromPoints(points)
 
 	// Efficient O(n log n) scan: assign ranks once, then slide the split point.
 	ranks, tieCorrection := d.workspace.assignRanks(values)
 
-	minSeg := d.config.MinSegment
 	var R1 float64
 	for i := 0; i < minSeg; i++ {
 		R1 += ranks[i]

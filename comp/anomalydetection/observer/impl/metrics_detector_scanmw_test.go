@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"math"
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -304,4 +305,24 @@ func TestScanMW_PreloadedReplayFiresAsDataTimeAdvances(t *testing.T) {
 	}
 
 	assert.True(t, fired, "preloaded replay should detect the step change as dataTime advances")
+}
+
+func TestScanMW_MinSegmentLargerThanHalfWindowDoesNotPanic(t *testing.T) {
+	for _, minSegment := range []int{12, 40, math.MaxInt} {
+		dCfg := DefaultScanMWConfig()
+		dCfg.MinPoints = 4
+		dCfg.MinSegment = minSegment
+		dCfg.MaxPoints = 24
+		d := NewScanMWDetector(dCfg)
+		storage := newTimeSeriesStorage()
+
+		for timestamp := int64(1); timestamp <= 12; timestamp++ {
+			storage.Add("ns", "metric", 100, timestamp, nil)
+		}
+
+		require.NotPanics(t, func() {
+			result := d.Detect(storage, 12, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
+			assert.Empty(t, result.Anomalies)
+		})
+	}
 }

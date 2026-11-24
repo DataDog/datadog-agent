@@ -255,3 +255,15 @@ func TestNewStableDetector_RejectsMultipleBlocks(t *testing.T) {
 	})
 	require.EqualError(t, err, "stable pipeline accepts at most one detector block")
 }
+
+func TestNewStableDetector_RejectsInvalidMinSegment(t *testing.T) {
+	_, err := newStableDetector(StablePipelineConfig{
+		ScanMW: &StableScanMWConfig{MaxPoints: 120, MinSegment: 61},
+	})
+	require.EqualError(t, err, "scanmw min_segment (61) must be at most half of max_points (120)")
+
+	_, err = newStableDetector(StablePipelineConfig{
+		ScanWelch: &StableScanWelchConfig{MinSegment: 61},
+	})
+	require.EqualError(t, err, "scanwelch min_segment (61) must be at most half of max_points (120)")
+}

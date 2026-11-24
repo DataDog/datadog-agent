@@ -306,6 +306,39 @@ func TestSettingsFromAgentConfigStableDetectorErrors(t *testing.T) {
 `,
 			want: "unknown stable detector setting \"enabled\"",
 		},
+		{
+			name: "scanmw non-positive min_segment",
+			yaml: `
+      scanmw:
+        min_segment: 0
+`,
+			want: "scanmw min_segment must be positive",
+		},
+		{
+			name: "scanmw min_segment exceeds half max_points",
+			yaml: `
+      scanmw:
+        min_segment: 61
+`,
+			want: "scanmw min_segment (61) must be at most half of max_points (120)",
+		},
+		{
+			name: "scanwelch non-positive min_segment",
+			yaml: `
+      scanwelch:
+        min_segment: -1
+`,
+			want: "scanwelch min_segment must be positive",
+		},
+		{
+			name: "scanwelch min_segment exceeds half max_points",
+			yaml: `
+      scanwelch:
+        max_points: 40
+        min_segment: 21
+`,
+			want: "scanwelch min_segment (21) must be at most half of max_points (40)",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
