@@ -14,6 +14,7 @@ jobs:
   cleanup-codex-review:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     permissions:
       issues: write
       pull-requests: write

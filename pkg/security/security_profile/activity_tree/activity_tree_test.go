@@ -9,6 +9,8 @@
 package activitytree
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -17,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -792,4 +795,32 @@ func TestProcessInfoMatches(t *testing.T) {
 		Argv:      []string{"-s", "https://example.com"},
 	}
 	assert.True(t, node.Matches(entry, true, false))
+}
+
+func TestInsertionErrorType(t *testing.T) {
+	cause := errors.New("cause")
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, InsertionErrorBrokenLineage},
+		{"broken lineage in the tree", ErrBrokenLineage, InsertionErrorBrokenLineage},
+		{"no process context", model.ErrNoProcessContext, InsertionErrorNoProcessContext},
+		{"path resolution", &path.ErrPathResolution{Err: cause}, InsertionErrorPathResolution},
+		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), InsertionErrorPathResolution},
+		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, InsertionErrorPathResolutionNotCritical},
+		{"path resolution wrapping a non critical one", &path.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", &path.ErrPathResolutionNotCritical{Err: cause})}, InsertionErrorPathResolution},
+		{"dns decoding", model.ErrFailedDNSPacketDecoding, InsertionErrorDNSDecoding},
+		{"invalid generation type", fmt.Errorf("%w: %v", ErrInvalidGenerationType, 42), InsertionErrorInvalidGenerationType},
+		{"process node not created", ErrProcessNodeNotCreated, InsertionErrorProcessNodeNotCreated},
+		{"other", cause, InsertionErrorOther},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := InsertionErrorType(tt.err)
+			assert.Equal(t, tt.want, got)
+			assert.Contains(t, InsertionErrorTypes, got)
+		})
+	}
 }

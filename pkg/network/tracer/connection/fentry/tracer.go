@@ -53,9 +53,10 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 
 	var m *ddebpf.Manager
 	var closeFn func()
-	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	err := ddebpf.LoadCOREAsset("tracer-fentry.o", func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
+		o.MapEditors = mgrOpts.MapEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
@@ -135,7 +136,7 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 	isClassificationSupported := ClassificationSupported(config)
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := enabledPrograms(config, isClassificationSupported)
+	enabledProbes, err := enabledPrograms(config, isClassificationSupported, o.MapEditors[probes.ConntrackMap] != nil)
 	if err != nil {
 		return nil, fmt.Errorf("error selecting fentry programs: %w", err)
 	}
@@ -171,6 +172,7 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 	// Protocol classification setup
 	var closeProtocolClassifierSocketFilterFn func()
 	util.AddBoolConst(&o, "protocol_classification_enabled", isClassificationSupported)
+	util.AddBoolConst(&o, "cert_collection_enabled", config.EnableCertCollection)
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if isClassificationSupported {

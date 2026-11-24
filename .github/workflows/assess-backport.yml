@@ -31,6 +31,7 @@ jobs:
     name: List active release branches
     if: github.event.pull_request.merged && github.event.pull_request.head.repo.full_name == github.repository && !contains(github.event.pull_request.user.login, '[bot]') && !contains(join(github.event.pull_request.labels.*.name, ','), 'backport/')
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: read # listLabelsForRepo; anonymous access only works on public repos
@@ -64,7 +65,7 @@ jobs:
     needs: list-active-branches
     if: needs.list-active-branches.outputs.branches != '[]'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     permissions:
       contents: read
       actions: read
@@ -96,7 +97,7 @@ jobs:
           git diff "${MERGE_COMMIT_SHA}^1" "${MERGE_COMMIT_SHA}" > pr.diff
 
       - name: Assess backport need
-        uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
+        uses: anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc # v1.0.276
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -168,6 +169,7 @@ jobs:
     needs: [list-active-branches, assess]
     if: always() && needs.assess.result == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       id-token: write # for dd-octo-sts
     steps:

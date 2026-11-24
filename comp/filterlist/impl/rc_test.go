@@ -1037,89 +1037,6 @@ func TestFilterListUpdateMultipleMetrics(t *testing.T) {
 	)
 }
 
-// TestNewHashedMetricTagListTagsAreSorted verifies that newHashedMetricTagList always returns
-// a hashedMetricTagList with tags in sorted order, regardless of input order.
-func TestNewHashedMetricTagListTagsAreSorted(t *testing.T) {
-	require := require.New(t)
-
-	// Use tags whose hash values are unlikely to already be in sorted order.
-	tags := []string{"zzz", "aaa", "mmm", "bbb", "env", "host"}
-	hashedTags := hashTags(tags)
-	result := newHashedMetricTagList(exclude, hashedTags)
-	require.True(slices.IsSorted(result.tags), "tags in hashedMetricTagList must always be sorted")
-
-	// Also verify with include action.
-	result = newHashedMetricTagList(include, hashedTags)
-	require.True(slices.IsSorted(result.tags), "tags in hashedMetricTagList must always be sorted")
-}
-
-// TestBuildTagFilterListConfigTagsAreSorted verifies that hashedMetricTagList entries produced by
-// buildTagFilterListConfig always have their tags in sorted order when first created.
-func TestBuildTagFilterListConfigTagsAreSorted(t *testing.T) {
-	require := require.New(t)
-
-	filterList, _ := newFilterList(t)
-
-	updates := []filteredTags{
-		{
-			ByName: tagByName{
-				Metrics: []tagEntry{
-					{
-						Name:       "test.metric",
-						ExcludeTag: true,
-						Tags:       []string{"zzz", "aaa", "mmm", "bbb"},
-					},
-				},
-			},
-		},
-	}
-
-	tags, _ := filterList.buildTagFilterListConfig(updates)
-	require.True(slices.IsSorted(tags["test.metric"].tags), "newly created hashedMetricTagList tags must be sorted")
-}
-
-// TestMergeMetricTagListEntryTagsAreSorted verifies that after merging two entries with the same action,
-// the resulting hashedMetricTagList always has its tags in sorted order.
-func TestMergeMetricTagListEntryTagsAreSorted(t *testing.T) {
-	require := require.New(t)
-
-	filterList, _ := newFilterList(t)
-
-	// Use tags whose hashes are unlikely to already be ordered after concatenation.
-	currentHashed := newHashedMetricTagList(exclude, hashTags([]string{"zzz", "mmm"}))
-	currentEntry := MetricTagListEntry{
-		MetricName: "test.metric",
-		Action:     "exclude",
-		Tags:       []string{"zzz", "mmm"},
-	}
-
-	newMetric := tagEntry{
-		Name:       "test.metric",
-		ExcludeTag: true,
-		Tags:       []string{"aaa", "bbb"},
-	}
-
-	hashedResult, _ := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
-	require.True(slices.IsSorted(hashedResult.tags), "merged hashedMetricTagList tags must be sorted")
-
-	// Also test with include action.
-	currentHashed = newHashedMetricTagList(include, hashTags([]string{"zzz", "mmm"}))
-	currentEntry = MetricTagListEntry{
-		MetricName: "test.metric",
-		Action:     "include",
-		Tags:       []string{"zzz", "mmm"},
-	}
-
-	newMetric = tagEntry{
-		Name:       "test.metric",
-		ExcludeTag: false,
-		Tags:       []string{"aaa", "bbb"},
-	}
-
-	hashedResult, _ = filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
-	require.True(slices.IsSorted(hashedResult.tags), "merged hashedMetricTagList tags must be sorted")
-}
-
 // TestMergeMetricTagListEntry_SameActionInclude tests merging tags when both entries have include action
 func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 	require := require.New(t)
@@ -1127,10 +1044,6 @@ func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 	filterList, _ := newFilterList(t)
 
 	// Setup: current entry with include action
-	currentHashed := hashedMetricTagList{
-		action: include,
-		tags:   hashTags([]string{"env", "host"}),
-	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "include",
@@ -1145,14 +1058,7 @@ func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 	}
 
 	// Execute merge
-	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
-
-	tags := hashTags([]string{"env", "host", "pod", "cluster"})
-	slices.Sort(tags)
-	require.Equal(hashedResult, hashedMetricTagList{
-		action: include,
-		tags:   tags,
-	})
+	entryResult := filterList.mergeMetricTagListEntry(newMetric, currentEntry)
 
 	require.Equal(entryResult, MetricTagListEntry{
 		MetricName: "test.metric",
@@ -1168,10 +1074,6 @@ func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
 	filterList, _ := newFilterList(t)
 
 	// Setup: current entry with exclude action
-	currentHashed := hashedMetricTagList{
-		action: exclude,
-		tags:   hashTags([]string{"env", "host"}),
-	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "exclude",
@@ -1186,14 +1088,7 @@ func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
 	}
 
 	// Execute merge
-	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
-
-	tags := hashTags([]string{"env", "host", "pod", "cluster"})
-	slices.Sort(tags)
-	require.Equal(hashedResult, hashedMetricTagList{
-		action: exclude,
-		tags:   tags,
-	})
+	entryResult := filterList.mergeMetricTagListEntry(newMetric, currentEntry)
 
 	require.Equal(entryResult, MetricTagListEntry{
 		MetricName: "test.metric",
@@ -1209,10 +1104,6 @@ func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
 	filterList, _ := newFilterList(t)
 
 	// Setup: current entry with include action
-	currentHashed := hashedMetricTagList{
-		action: include,
-		tags:   hashTags([]string{"env", "host"}),
-	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "include",
@@ -1227,12 +1118,7 @@ func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
 	}
 
 	// Execute merge
-	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
-
-	require.Equal(hashedResult, hashedMetricTagList{
-		action: exclude,
-		tags:   hashTags([]string{"pod"}),
-	})
+	entryResult := filterList.mergeMetricTagListEntry(newMetric, currentEntry)
 
 	require.Equal(entryResult, MetricTagListEntry{
 		MetricName: "test.metric",
@@ -1248,10 +1134,6 @@ func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 	filterList, _ := newFilterList(t)
 
 	// Setup: current entry with exclude action
-	currentHashed := hashedMetricTagList{
-		action: exclude,
-		tags:   hashTags([]string{"env", "host"}),
-	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "exclude",
@@ -1266,14 +1148,9 @@ func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 	}
 
 	// Execute merge
-	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
+	entryResult := filterList.mergeMetricTagListEntry(newMetric, currentEntry)
 
-	// Results should be the original exclude
-	require.Equal(hashedResult, hashedMetricTagList{
-		action: exclude,
-		tags:   hashTags([]string{"env", "host"}),
-	})
-
+	// Result should be the original exclude
 	require.Equal(entryResult, MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "exclude",

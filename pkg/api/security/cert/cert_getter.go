@@ -34,7 +34,7 @@ func getCertFilepath(config configModel.Reader) string {
 	// we should follow this behavior for the cert/key generation as well to minimize the risk of disrupting IPC functionality.
 	if config.GetString("auth_token_file_path") != "" {
 		dest := filepath.Join(filepath.Dir(config.GetString("auth_token_file_path")), defaultCertFileName)
-		log.Warnf("IPC cert/key created or retrieved next to auth_token_file_path location: %v", dest)
+		log.Debugf("IPC cert/key created or retrieved next to auth_token_file_path location: %v", dest)
 		return dest
 	}
 	return filepath.Join(filepath.Dir(config.ConfigFileUsed()), defaultCertFileName)

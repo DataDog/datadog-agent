@@ -10,6 +10,7 @@ package amd
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -35,6 +36,7 @@ type kfdGPU struct {
 	gfxTarget    string   // e.g. gfx942, empty if unknown
 	gpuIDs       []uint64 // one per KFD node (partition) of the GPU
 	renderMinors []int    // DRM render node minors (renderD<minor>) of the KFD nodes
+	amdSMIIndex  int      // amd-smi GPU index of the first KFD node, -1 if unknown
 
 	nodes             int    // KFD nodes (partitions) of the GPU
 	maxEngineClockMHz uint32 // max_engine_clk_fcompute, the highest over the nodes
@@ -81,9 +83,17 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 	}
 	gpus = make(map[string]*kfdGPU)
 	var errs []error
+	// The GPU nodes, with the GPU each belongs to ("" if not probed).
+	type gpuNode struct {
+		address  uint64
+		node     uint64
+		pciBusID string
+	}
+	var gpuNodes []gpuNode
 	topologyComplete := true
 	for _, entry := range entries {
-		if _, err := strconv.ParseUint(entry.Name(), 10, 32); err != nil || !entry.IsDir() {
+		nodeNumber, err := strconv.ParseUint(entry.Name(), 10, 32)
+		if err != nil || !entry.IsDir() {
 			continue
 		}
 		nodeDir := filepath.Join(nodesDir, entry.Name())
@@ -119,6 +129,7 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 			errs = append(errs, fmt.Errorf("%s: missing or invalid PCI location_id/domain", nodeDir))
 			continue
 		}
+		gpuNodes = append(gpuNodes, gpuNode{address: domain<<32 | location, node: nodeNumber})
 		slot := fmt.Sprintf("%04x:%02x:%02x.", domain, (location>>8)&0xff, (location>>3)&0x1f)
 		pciBusID, known := pciSlots[slot]
 		if !known {
@@ -145,6 +156,7 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 			continue
 		}
 
+		gpuNodes[len(gpuNodes)-1].pciBusID = pciBusID
 		gpu, ok := gpus[pciBusID]
 		if !ok {
 			gpu = &kfdGPU{banksComplete: true}
@@ -169,6 +181,23 @@ func readKFDTopology(sysRoot string, pciDevices map[string]struct{}) (gpus map[s
 			gpu.maxMemoryClockMHz = max(gpu.maxMemoryClockMHz, bank.memClockMHz)
 			gpu.vramBanks++
 			gpu.busWidthBits = bank.widthBits
+		}
+	}
+	for _, gpu := range gpus {
+		gpu.amdSMIIndex = -1
+	}
+	// amd-smi numbers the GPU KFD nodes, one per partition, by a stable sort
+	// of the nodes in KFD order on their PCI location (RocmSMI::Initialize in
+	// rocm_smi/src/rocm_smi_main.cc): a GPU's index is the position of its
+	// first node. Any unreadable node may sort before it.
+	if topologyComplete {
+		slices.SortFunc(gpuNodes, func(a, b gpuNode) int {
+			return cmp.Or(cmp.Compare(a.address, b.address), cmp.Compare(a.node, b.node))
+		})
+		for i, n := range gpuNodes {
+			if gpu := gpus[n.pciBusID]; gpu != nil && gpu.amdSMIIndex < 0 {
+				gpu.amdSMIIndex = i
+			}
 		}
 	}
 	for _, gpu := range gpus {

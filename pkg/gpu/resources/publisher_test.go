@@ -98,25 +98,27 @@ func TestPublisherChangesAndDroppedFields(t *testing.T) {
 	require.Len(t, sender.payloads, 4, "disappearance must not emit a tombstone")
 }
 
-func TestPublisherClearsFabricFieldsWhenDeviceLeavesDomain(t *testing.T) {
+func TestPublisherClearsFabricFieldsWhenDeviceLeavesPartition(t *testing.T) {
 	p := newTestPublisher(t)
 	sender := &recordingSender{}
 	now := time.Unix(1700000000, 0)
 	clique := uint32(3)
 	d := Device{
 		UUID: testUUID, Model: "h100",
-		FabricClusterUUID: "cluster-1", FabricCliqueID: &clique, NVLinkDomain: "cluster-1:3",
+		FabricClusterUUID: "cluster-1", FabricCliqueID: &clique, NVLinkPartition: "cluster-1:3",
 	}
 	require.NoError(t, p.Publish(now, "host", []Device{d}, sender))
 	_, fields := decodeEvent(t, sender.payloads[0])
-	require.Equal(t, "cluster-1:3", fields["nvlink_domain"])
+	require.Equal(t, "cluster-1:3", fields["gpu_nvlink_partition"])
+	require.NotContains(t, fields, "nvlink_domain")
 
-	d.FabricClusterUUID, d.FabricCliqueID, d.NVLinkDomain = "", nil, ""
+	d.FabricClusterUUID, d.FabricCliqueID, d.NVLinkPartition = "", nil, ""
 	require.NoError(t, p.Publish(now.Add(time.Second), "host", []Device{d}, sender))
 	require.Len(t, sender.payloads, 2)
 	_, fields = decodeEvent(t, sender.payloads[1])
 	require.NotContains(t, fields, "gpu_fabric_cluster_uuid")
 	require.NotContains(t, fields, "gpu_fabric_clique_id")
+	require.NotContains(t, fields, "gpu_nvlink_partition")
 	require.NotContains(t, fields, "nvlink_domain")
 	require.Equal(t, "h100", fields["gpu_device"])
 }

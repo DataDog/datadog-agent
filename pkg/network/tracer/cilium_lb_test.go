@@ -12,8 +12,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 )
 
 type fakeBackendsIterator struct {
@@ -91,4 +98,38 @@ func TestRefreshBackendsKeepsRemovedBackendWhileLookedUp(t *testing.T) {
 	// once lookups stop, it's evicted a TTL after the last one
 	refreshBackends(cache, &fakeBackendsIterator{ids: []uint32{2}}, start.Add(9*time.Minute+removedBackendTTL+time.Second))
 	assert.ElementsMatch(t, []uint32{2}, backendIDs(cache))
+}
+
+func TestSharedConntrackNATMapNotSharedWithCilium(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+	ctMap, err := maps.NewGenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple](&ebpf.MapSpec{Type: ebpf.Hash, MaxEntries: 1})
+	require.NoError(t, err)
+	t.Cleanup(func() { ctMap.Map().Close() })
+	ebpfCtk := &ebpfConntracker{ctMap: ctMap}
+
+	cfg := &config.Config{ShareConntrackNATMap: true}
+	none := func() string { return "" }
+	assert.Equal(t, ctMap.Map(), sharedConntrackNATMap(cfg, ebpfCtk, true, none))
+	assert.Equal(t, ctMap.Map(), sharedConntrackNATMap(cfg, chainConntrackers(ebpfCtk, netlink.NewNoOpConntracker()), true, none))
+	assert.Nil(t, sharedConntrackNATMap(cfg, chainConntrackers(ebpfCtk, &ciliumLoadBalancerConntracker{}), true, none))
+	assert.Nil(t, sharedConntrackNATMap(cfg, &ciliumLoadBalancerConntracker{}, true, none))
+	assert.Nil(t, sharedConntrackNATMap(cfg, netlink.NewNoOpConntracker(), true, none))
+
+	t.Run("BPF NAT dataplane found", func(t *testing.T) {
+		found := func() string { return "tc/globals/cilium_ct6_global" }
+		assert.Nil(t, sharedConntrackNATMap(cfg, ebpfCtk, true, found))
+		assert.Nil(t, sharedConntrackNATMap(cfg, chainConntrackers(ebpfCtk, netlink.NewNoOpConntracker()), true, found))
+	})
+
+	t.Run("disabled by config", func(t *testing.T) {
+		detected := false
+		assert.Nil(t, sharedConntrackNATMap(&config.Config{}, ebpfCtk, true, func() string { detected = true; return "" }))
+		assert.False(t, detected, "detection ran though sharing is disabled")
+	})
+
+	t.Run("protocol classification not supported", func(t *testing.T) {
+		detected := false
+		assert.Nil(t, sharedConntrackNATMap(cfg, ebpfCtk, false, func() string { detected = true; return "" }))
+		assert.False(t, detected, "detection ran though classification is not supported")
+	})
 }

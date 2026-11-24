@@ -596,6 +596,85 @@ func TestProcessMetrics(t *testing.T) {
 			},
 		},
 		{
+			name:   "networkpolicy spec rule counts",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_networkpolicy_spec_ingress_rules": {
+					{
+						Type: "*networking.k8s.io/v1.NetworkPolicy",
+						Name: "kube_networkpolicy_spec_ingress_rules",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "networkpolicy": "deny-all"},
+								Val:    2,
+							},
+						},
+					},
+				},
+				"kube_networkpolicy_spec_egress_rules": {
+					{
+						Type: "*networking.k8s.io/v1.NetworkPolicy",
+						Name: "kube_networkpolicy_spec_egress_rules",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "kube-system", "networkpolicy": "allow-dns"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet:       []ksmstore.DDMetricsFam{},
+			metricTransformers: defaultMetricTransformers(nil),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.networkpolicy.spec_ingress_rules",
+					val:      2,
+					tags:     []string{"kube_namespace:default", "kube_networkpolicy:deny-all"},
+					hostname: "",
+				},
+				{
+					name:     "kubernetes_state.networkpolicy.spec_egress_rules",
+					val:      1,
+					tags:     []string{"kube_namespace:kube-system", "kube_networkpolicy:allow-dns"},
+					hostname: "",
+				},
+			},
+		},
+		{
+			name:   "networkpolicy metrics with label joins",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_networkpolicy_spec_ingress_rules": {
+					{
+						Type: "*networking.k8s.io/v1.NetworkPolicy",
+						Name: "kube_networkpolicy_spec_ingress_rules",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "networkpolicy": "web"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_networkpolicy_labels",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "networkpolicy": "web", "label_tags_datadoghq_com_env": "staging", "label_tags_datadoghq_com_service": "webapp", "label_tags_datadoghq_com_version": "v2"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(nil),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.networkpolicy.spec_ingress_rules",
+					val:      1,
+					tags:     []string{"kube_namespace:default", "kube_networkpolicy:web", "env:staging", "service:webapp", "version:v2"},
+					hostname: "",
+				},
+			},
+		},
+		{
 			name:   "node nvidia gpu capacity",
 			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
@@ -1916,6 +1995,7 @@ var metadataMetrics = []string{
 	"kube_service_labels",
 	"kube_statefulset_labels",
 	"kube_verticalpodautoscaler_labels",
+	"kube_networkpolicy_labels",
 }
 
 func TestShouldDropForMetadata(t *testing.T) {
@@ -1930,16 +2010,17 @@ func TestShouldDropForMetadata(t *testing.T) {
 
 func TestResourceNameFromMetric(t *testing.T) {
 	testCases := map[string]string{
-		"kube_cronjob_info":               "cronjob",
-		"kube_job_info":                   "job",
-		"kube_pod_container_info":         "pod",
-		"kube_service_info":               "service",
-		"kube_persistentvolume_info":      "persistentvolume",
-		"kube_persistentvolumeclaim_info": "persistentvolumeclaim",
-		"kube_deployment_labels":          "deployment",
-		"foo_":                            "",
-		"foo":                             "",
-		"":                                "",
+		"kube_cronjob_info":                     "cronjob",
+		"kube_job_info":                         "job",
+		"kube_pod_container_info":               "pod",
+		"kube_service_info":                     "service",
+		"kube_persistentvolume_info":            "persistentvolume",
+		"kube_persistentvolumeclaim_info":       "persistentvolumeclaim",
+		"kube_deployment_labels":                "deployment",
+		"kube_networkpolicy_spec_ingress_rules": "networkpolicy",
+		"foo_":                                  "",
+		"foo":                                   "",
+		"":                                      "",
 	}
 	for k, v := range testCases {
 		assert.Equal(t, v, resourceNameFromMetric(k))
@@ -1994,27 +2075,34 @@ func TestDefaultCollectors(t *testing.T) {
 	}
 }
 
-func TestAllowDeny(t *testing.T) {
-	deniedMetrics := buildDeniedMetricsSet(defaultCollectors())
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
+func newKSMCheckWithLabelJoins(t *testing.T) *KSMCheck {
+	config := &KSMConfig{
+		LabelsMapper: defaultLabelsMapper(),
+		LabelJoins:   defaultLabelJoins(),
+	}
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	check := newKSMCheck(core.NewCheckBase(CheckName), config, fakeTagger, nil)
+	check.processLabelJoins()
+	return check
+}
+
+func TestAllowList(t *testing.T) {
+	check := newKSMCheckWithLabelJoins(t)
+	allowedMetrics := check.buildAllowedMetricsSet()
+	allowDenyList, err := allowdenylist.New(allowedMetrics, options.MetricSet{})
 	assert.NoError(t, err)
 
 	err = allowDenyList.Parse()
 	assert.NoError(t, err)
 
-	// Make sure denied metrics have been parsed and excluded
+	// Make sure allowed metrics have been parsed and included
 	assert.NotEqual(t, "", allowDenyList.Status())
-	for metric := range deniedMetrics {
-		isIncluded, err := allowDenyList.IsIncluded(metric)
-		assert.NoError(t, err)
-		assert.False(t, isIncluded)
-		isExcluded, err := allowDenyList.IsExcluded(metric)
-		assert.NoError(t, err)
-		assert.True(t, isExcluded)
-	}
+
+	included := map[string]struct{}{}
 
 	// Make sure we don't exclude metrics by mistake
 	for metric := range defaultMetricNamesMapper() {
+		included[metric] = struct{}{}
 		isIncluded, err := allowDenyList.IsIncluded(metric)
 		assert.NoError(t, err)
 		assert.True(t, isIncluded)
@@ -2025,6 +2113,7 @@ func TestAllowDeny(t *testing.T) {
 
 	// Make sure we don't exclude metric transformers
 	for metric := range defaultMetricTransformers(nil) {
+		included[metric] = struct{}{}
 		isIncluded, err := allowDenyList.IsIncluded(metric)
 		assert.NoError(t, err)
 		assert.True(t, isIncluded)
@@ -2033,19 +2122,46 @@ func TestAllowDeny(t *testing.T) {
 		assert.False(t, isExcluded)
 	}
 
-	// Make sure we don't exclude metadata metrics
-	for _, metric := range metadataMetrics {
+	// Make sure we don't exclude metric aggregators
+	for metric := range defaultMetricAggregators() {
+		included[metric] = struct{}{}
 		isIncluded, err := allowDenyList.IsIncluded(metric)
 		assert.NoError(t, err)
 		assert.True(t, isIncluded)
 		isExcluded, err := allowDenyList.IsExcluded(metric)
 		assert.NoError(t, err)
 		assert.False(t, isExcluded)
+	}
+
+	// Make sure we don't exclude metadata metrics that are actually used as
+	// label-join sources by the default configuration.
+	for metric := range defaultLabelJoins() {
+		included[metric] = struct{}{}
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isIncluded)
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isExcluded)
+	}
+
+	// Make sure we exclude other metadata metrics
+	for _, metric := range metadataMetrics {
+		if _, found := included[metric]; found {
+			continue
+		}
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isExcluded)
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isIncluded)
 	}
 }
 
 func TestCreationMetricsFiltering(t *testing.T) {
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(defaultCollectors()))
+	check := newKSMCheckWithLabelJoins(t)
+	allowDenyList, err := allowdenylist.New(check.buildAllowedMetricsSet(), options.MetricSet{})
 	assert.NoError(t, err)
 
 	err = allowDenyList.Parse()
@@ -2083,53 +2199,63 @@ func TestCreationMetricsFiltering(t *testing.T) {
 	}
 }
 
-func TestCronJobStartTimeMetricsNotDenied(t *testing.T) {
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(defaultCollectors()))
-	assert.NoError(t, err)
-
-	err = allowDenyList.Parse()
-	assert.NoError(t, err)
-
+func TestCronJobStartTimeMetricsAllowed(t *testing.T) {
 	// The kubernetes_state.cronjob.complete service check needs these families
+	check := newKSMCheckWithLabelJoins(t)
+	allowDenyList, err := allowdenylist.New(check.buildAllowedMetricsSet(), options.MetricSet{})
+	require.NoError(t, err)
+	require.NoError(t, allowDenyList.Parse())
+
 	for _, metric := range []string{"kube_job_complete_start_time", "kube_job_failed_start_time"} {
-		isExcluded, err := allowDenyList.IsExcluded(metric)
-		assert.NoError(t, err)
-		assert.False(t, isExcluded, metric)
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		require.NoError(t, err)
+		assert.True(t, isIncluded, metric)
 	}
 }
 
-func TestResourceClaimCreatedMetricNotDenied(t *testing.T) {
-	// Regression test: buildDeniedMetricsSet runs on the raw collector names
-	// (before splitDRACollectors), so resourceclaims used to hit the
-	// generic kube_<resource>_created deny rule and drop the family that the
-	// resourceclaim.pending.age transformer consumes.
-	collectors := append(defaultCollectors(), draResourceClaims, draResourceSlices, draDeviceTaintRules)
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
+func TestResourceClaimCreatedMetricAllowed(t *testing.T) {
+	// Regression test: the resourceclaim.pending.age transformer consumes
+	// kube_resourceclaim_created, so the family must survive the allow-list,
+	// which derives from the transformer map.
+	check := newKSMCheckWithLabelJoins(t)
+	allowDenyList, err := allowdenylist.New(check.buildAllowedMetricsSet(), options.MetricSet{})
 	require.NoError(t, err)
+	require.NoError(t, allowDenyList.Parse())
 
-	err = allowDenyList.Parse()
-	require.NoError(t, err)
-
-	// The transformer input must survive when the DRA collector is enabled.
-	isExcluded, err := allowDenyList.IsExcluded("kube_resourceclaim_created")
-	require.NoError(t, err)
-	assert.False(t, isExcluded)
 	isIncluded, err := allowDenyList.IsIncluded("kube_resourceclaim_created")
 	require.NoError(t, err)
 	assert.True(t, isIncluded)
 
-	// Slices and taint rules keep their generic deny entries: they publish
-	// no *_created family at all, so the entries are inert but harmless.
-	for _, metric := range []string{"kube_resourceslice_created", "kube_devicetaintrule_created"} {
-		isExcluded, err := allowDenyList.IsExcluded(metric)
-		require.NoError(t, err)
-		assert.True(t, isExcluded, metric)
-	}
-
-	// The exemption must not leak into non-DRA resources.
-	isExcluded, err = allowDenyList.IsExcluded("kube_deployment_created")
+	// Non-DRA *_created families stay dropped.
+	isIncluded, err = allowDenyList.IsIncluded("kube_deployment_created")
 	require.NoError(t, err)
-	assert.True(t, isExcluded)
+	assert.False(t, isIncluded)
+}
+
+func TestRolloutTrackerFamiliesAllowed(t *testing.T) {
+	// Regression test: the rollout-tracker families emit no metrics, so they
+	// appear in none of the maps the allow-list is derived from. Their
+	// generators only populate the rollout tracker (StoreReplicaSet,
+	// StoreControllerRevision, StoreDaemonSetControllerRevision) that the
+	// rollout-duration transformers read; without an explicit entry the
+	// generator filter drops them and rollout durations start at
+	// observation time instead of revision-creation time.
+	check := newKSMCheckWithLabelJoins(t)
+	allowDenyList, err := allowdenylist.New(check.buildAllowedMetricsSet(), options.MetricSet{})
+	require.NoError(t, err)
+	require.NoError(t, allowDenyList.Parse())
+
+	for _, family := range []string{
+		customresources.ReplicaSetRolloutTrackerFamily,
+		customresources.ControllerRevisionRolloutTrackerFamily,
+	} {
+		isIncluded, err := allowDenyList.IsIncluded(family)
+		require.NoError(t, err)
+		assert.True(t, isIncluded, family)
+		isExcluded, err := allowDenyList.IsExcluded(family)
+		require.NoError(t, err)
+		assert.False(t, isExcluded, family)
+	}
 }
 
 func TestKSMCheckInitTags(t *testing.T) {
