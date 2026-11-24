@@ -260,7 +260,7 @@ func TestKueueEvictedByPreemption(t *testing.T) {
 	require.Len(t, out.events, 1)
 	e := out.events[0]
 	assert.Equal(t, "kueue.workload.evicted", e.EventType)
-	assert.Contains(t, e.Text, "Eviction reason: Preempted.")
+	assert.Contains(t, e.Text, "due to prioritization. Eviction reason: Preempted.")
 	assert.Contains(t, e.Text, "Preemption reason: InClusterQueue.")
 	for _, tag := range []string{
 		tags.SchedulerQueue + ":team-a-gpu", "kueue_cluster_queue:team-a-gpu", "kueue_eviction_reason:Preempted",

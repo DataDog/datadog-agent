@@ -51,7 +51,7 @@ func (p kaiPodGroupParser) Parse(obj interface{}) workloadmeta.Entity {
 	if p.events {
 		events = &KAIPodGroupEvents{
 			CreationTimestamp:    u.GetCreationTimestamp().UTC(),
-			PriorityClassName:    priorityClassName(spec),
+			PriorityClassName:    stringField(spec, "priorityClassName"),
 			LastStartTime:        parseTime(annotations[kaiLastStartAnnotation]),
 			LastEvictionTime:     parseTime(annotations[kaiLastEvictionAnnotation]),
 			SchedulingConditions: kaiSchedulingConditions(u),

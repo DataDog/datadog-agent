@@ -240,6 +240,7 @@ func (k *kueueEvents) eventText(transition string, w *kueueView, condition *work
 			text += fmt.Sprintf(" Queued wait time was %.0fs.", waited.Seconds())
 		}
 	case "evicted":
+		text = strings.TrimRight(text, ".") + "."
 		if condition.Reason != "" {
 			text += fmt.Sprintf(" Eviction reason: %s.", condition.Reason)
 		}
