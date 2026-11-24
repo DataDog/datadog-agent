@@ -59,7 +59,7 @@ func (s *noPulumiHostInstallerSuite) SetupSuite() {
 		assert.NoError(s.T(), err, "failed to remove the Agent installed by the test")
 	})
 
-	require.NoError(s.T(), hostinstallscript.Install(t.Context(), s.Env(), hostinstallscript.Params{
+	require.NoError(s.T(), hostinstallscript.Install(s.T().Context(), s.Env(), hostinstallscript.Params{
 		AgentVersion: "latest",
 		AgentConfig:  "logs_enabled: true",
 		Integrations: map[string]string{"custom_logs.d": noPulumiCustomLogsConfig},

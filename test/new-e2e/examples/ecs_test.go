@@ -28,7 +28,7 @@ func TestMyECSSuite(t *testing.T) {
 }
 
 func (v *myECSSuite) TestECS() {
-	ctx := t.Context()
+	ctx := v.T().Context()
 
 	tasks, err := v.Env().ECSCluster.ECSClient.ListTasks(ctx, &awsecs.ListTasksInput{
 		Cluster: aws.String(v.Env().ECSCluster.ClusterName),

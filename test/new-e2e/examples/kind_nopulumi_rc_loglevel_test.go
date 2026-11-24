@@ -58,7 +58,7 @@ func (s *rcLogLevelKindNoPulumiAgentInstallExampleSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
 	require.Nil(s.T(), s.Env().Agent, "the provisioner must not install the Agent")
-	require.NoError(s.T(), helminstaller.Install(t.Context(), s.Env(), helminstaller.Params{
+	require.NoError(s.T(), helminstaller.Install(s.T().Context(), s.Env(), helminstaller.Params{
 		AgentVersion:        "latest",
 		ClusterAgentVersion: "latest",
 		Namespace:           "datadog",
@@ -78,7 +78,7 @@ func (s *rcLogLevelKindNoPulumiAgentInstallExampleSuite) TestLogLevelViaRCKindNo
 	var agentPodName, agentPodNamespace string
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").
-			List(t.Context(), v1.ListOptions{LabelSelector: "app=dda-linux-datadog"})
+			List(s.T().Context(), v1.ListOptions{LabelSelector: "app=dda-linux-datadog"})
 		if !assert.NoError(c, err) {
 			return
 		}
