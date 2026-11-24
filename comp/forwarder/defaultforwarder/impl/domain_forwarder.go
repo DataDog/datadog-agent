@@ -382,28 +382,63 @@ func (f *domainForwarder) sendHTTPTransactionDirect(ctx context.Context, t *tran
 	return nil
 }
 
+// isMRFTransactionAllowed reports whether a transaction of the given kind should be sent to an
+// MRF domain. Metadata is always dual-shipped; service checks follow
+// multi_region_failover.failover_service_checks when configured and fall back to
+// multi_region_failover.failover_metrics otherwise; all other kinds follow failover_metrics.
+func isMRFTransactionAllowed(cfg config.Component, kind transaction.Kind) bool {
+	if kind == transaction.Metadata {
+		return true
+	}
+	if !cfg.GetBool("multi_region_failover.enabled") {
+		return false
+	}
+	if kind == transaction.CheckRuns || kind == transaction.ServiceChecks {
+		if cfg.IsConfigured("multi_region_failover.failover_service_checks") {
+			return cfg.GetBool("multi_region_failover.failover_service_checks")
+		}
+	}
+	return cfg.GetBool("multi_region_failover.failover_metrics")
+}
+
+// isMRFNonMetadataActive reports whether any non-metadata traffic is enabled for the MRF domain.
+func isMRFNonMetadataActive(cfg config.Component) bool {
+	if !cfg.GetBool("multi_region_failover.enabled") {
+		return false
+	}
+	if cfg.GetBool("multi_region_failover.failover_metrics") {
+		return true
+	}
+	return cfg.IsConfigured("multi_region_failover.failover_service_checks") &&
+		cfg.GetBool("multi_region_failover.failover_service_checks")
+}
+
 func (f *domainForwarder) shouldSendHTTPTransaction(t transaction.Transaction) bool {
 	// Metadata types should always be submitted in dual-shipping fashion - no special considerations for
 	// Metadata transactions.
 	if f.isMRF && t.GetKind() != transaction.Metadata {
-		if f.State() == Disabled {
-			if f.config.GetBool("multi_region_failover.enabled") && f.config.GetBool("multi_region_failover.failover_metrics") {
-				f.m.Lock()
-				f.internalState = Started
-				f.m.Unlock()
-				f.log.Debugf("Forwarder for domain %v has been failed over to, enabling it for HA.", t.GetTarget())
-			} else {
-				f.log.Debugf("Forwarder for domain %v is disabled; dropping transaction for this domain.", t.GetTarget())
-				return false
-			}
-		} else {
-			if (!f.config.GetBool("multi_region_failover.enabled") || !f.config.GetBool("multi_region_failover.failover_metrics")) && f.State() != Disabled {
+		if !isMRFNonMetadataActive(f.config) {
+			if f.State() != Disabled {
 				f.m.Lock()
 				f.internalState = Disabled
 				f.m.Unlock()
 				f.log.Infof("Forwarder for domain %v was disabled; transactions will be dropped for this domain.", t.GetTarget())
-				return false
+			} else {
+				f.log.Debugf("Forwarder for domain %v is disabled; dropping transaction for this domain.", t.GetTarget())
 			}
+			return false
+		}
+
+		if f.State() == Disabled {
+			f.m.Lock()
+			f.internalState = Started
+			f.m.Unlock()
+			f.log.Debugf("Forwarder for domain %v has been failed over to, enabling it for HA.", t.GetTarget())
+		}
+
+		if !isMRFTransactionAllowed(f.config, t.GetKind()) {
+			f.log.Debugf("Multi-Region Failover is disabled for endpoint %q on domain %v; dropping transaction.", t.GetEndpointName(), t.GetTarget())
+			return false
 		}
 	}
 

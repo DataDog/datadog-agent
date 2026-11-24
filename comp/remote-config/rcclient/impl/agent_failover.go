@@ -12,11 +12,12 @@ import (
 
 // multiRegionFailoverConfig is a deserialized Multi-Region Failover configuration file
 type multiRegionFailoverConfig struct {
-	FailoverMetrics      *bool    `json:"failover_metrics"`
-	FailoverLogs         *bool    `json:"failover_logs"`
-	FailoverAPM          *bool    `json:"failover_apm"`
-	MetricsAllowlist     []string `json:"metrics_allowlist"`
-	LogsServiceAllowlist []string `json:"logs_service_allowlist"`
+	FailoverMetrics       *bool    `json:"failover_metrics"`
+	FailoverServiceChecks *bool    `json:"failover_service_checks"`
+	FailoverLogs          *bool    `json:"failover_logs"`
+	FailoverAPM           *bool    `json:"failover_apm"`
+	MetricsAllowlist      []string `json:"metrics_allowlist"`
+	LogsServiceAllowlist  []string `json:"logs_service_allowlist"`
 }
 
 // parseMultiRegionFailoverConfig parses an AGENT_FAILOVER Multi-Region Failover configuration file

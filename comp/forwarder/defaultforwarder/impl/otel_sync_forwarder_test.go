@@ -348,3 +348,84 @@ func TestOTelSyncForwarder_sendHTTPTransactions_SendsMRFWhenFailoverMetricsEnabl
 	}
 	assert.Equal(t, 1, mrfHits, "MRF domain should receive exactly one request when both MRF flags are true")
 }
+
+func TestOTelSyncForwarder_sendHTTPTransactions_ServiceChecksMRFGating(t *testing.T) {
+	boolPtr := func(b bool) *bool { return &b }
+
+	tests := []struct {
+		name                  string
+		mrfEnabled            bool
+		failoverMetrics       bool
+		failoverServiceChecks *bool
+		expectMRF             bool
+	}{
+		{
+			name:            "metrics enabled, service checks unset falls back to metrics",
+			mrfEnabled:      true,
+			failoverMetrics: true,
+			expectMRF:       true,
+		},
+		{
+			name:                  "metrics enabled, service checks explicitly disabled",
+			mrfEnabled:            true,
+			failoverMetrics:       true,
+			failoverServiceChecks: boolPtr(false),
+			expectMRF:             false,
+		},
+		{
+			name:                  "metrics disabled, service checks explicitly enabled",
+			mrfEnabled:            true,
+			failoverMetrics:       false,
+			failoverServiceChecks: boolPtr(true),
+			expectMRF:             true,
+		},
+		{
+			name:            "metrics disabled, service checks unset falls back to metrics",
+			mrfEnabled:      true,
+			failoverMetrics: false,
+			expectMRF:       false,
+		},
+		{
+			name:                  "MRF disabled blocks service checks even when explicitly enabled",
+			mrfEnabled:            false,
+			failoverMetrics:       true,
+			failoverServiceChecks: boolPtr(true),
+			expectMRF:             false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var requestedHosts []string
+			client := &http.Client{
+				Transport: handlerTransport(func(w http.ResponseWriter, r *http.Request) {
+					requestedHosts = append(requestedHosts, r.Host)
+					w.WriteHeader(http.StatusOK)
+				}),
+			}
+			f := newTestOTelSyncForwarderWithMRF(t, client, tt.mrfEnabled, tt.failoverMetrics)
+			if tt.failoverServiceChecks != nil {
+				f.config.Set("multi_region_failover.failover_service_checks", *tt.failoverServiceChecks, pkgconfigmodel.SourceFile)
+			}
+
+			payload := transaction.BytesPayloads{
+				transaction.NewBytesPayloadWithoutMetaData([]byte(`[]`)),
+			}
+			require.NoError(t, f.SubmitV1CheckRuns(payload, http.Header{}))
+
+			mrfHits := 0
+			for _, h := range requestedHosts {
+				if strings.Contains(h, "mrf") {
+					mrfHits++
+				}
+			}
+			if tt.expectMRF {
+				require.Len(t, requestedHosts, 2)
+				assert.Equal(t, 1, mrfHits)
+			} else {
+				require.Len(t, requestedHosts, 1)
+				assert.Equal(t, 0, mrfHits)
+			}
+		})
+	}
+}

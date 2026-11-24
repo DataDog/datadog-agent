@@ -35,12 +35,13 @@ import (
 )
 
 const (
-	agentTaskTimeout            = 5 * time.Minute
-	failoverMetricsSetting      = "multi_region_failover.failover_metrics"
-	failoverLogsSetting         = "multi_region_failover.failover_logs"
-	failoverAPMSetting          = "multi_region_failover.failover_apm"
-	metricsAllowlistSetting     = "multi_region_failover.metric_allowlist"
-	logsServiceAllowlistSetting = "multi_region_failover.logs_service_allowlist"
+	agentTaskTimeout             = 5 * time.Minute
+	failoverMetricsSetting       = "multi_region_failover.failover_metrics"
+	failoverServiceChecksSetting = "multi_region_failover.failover_service_checks"
+	failoverLogsSetting          = "multi_region_failover.failover_logs"
+	failoverAPMSetting           = "multi_region_failover.failover_apm"
+	metricsAllowlistSetting      = "multi_region_failover.metric_allowlist"
+	logsServiceAllowlistSetting  = "multi_region_failover.logs_service_allowlist"
 )
 
 type rcClient struct {
@@ -192,8 +193,8 @@ func (rc *rcClient) start() error {
 //
 // If a setting is not set via any config, it will fallback if the source was RC.
 func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	var enableLogs, enableMetrics, enableAPM *bool
-	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth string
+	var enableLogs, enableMetrics, enableServiceChecks, enableAPM *bool
+	var enableLogsCfgPth, enableMetricsCfgPth, enableServiceChecksCfgPth, enableAPMCfgPth string
 	// Configs setting an allowlist. Empty when none does, in which case the setting falls back.
 	var metricsAllowlistCfgPths, logsServiceAllowlistCfgPths []string
 	allowedMetrics := make(map[string]struct{})
@@ -223,6 +224,7 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		}
 
 		if mrfUpdate == nil || (mrfUpdate.FailoverMetrics == nil &&
+			mrfUpdate.FailoverServiceChecks == nil &&
 			mrfUpdate.FailoverLogs == nil &&
 			mrfUpdate.FailoverAPM == nil &&
 			mrfUpdate.MetricsAllowlist == nil &&
@@ -233,6 +235,11 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		if !(enableMetrics != nil && *enableMetrics) && mrfUpdate.FailoverMetrics != nil {
 			enableMetrics = mrfUpdate.FailoverMetrics
 			enableMetricsCfgPth = cfgPath
+		}
+
+		if !(enableServiceChecks != nil && *enableServiceChecks) && mrfUpdate.FailoverServiceChecks != nil {
+			enableServiceChecks = mrfUpdate.FailoverServiceChecks
+			enableServiceChecksCfgPth = cfgPath
 		}
 
 		if !(enableLogs != nil && *enableLogs) && mrfUpdate.FailoverLogs != nil {
@@ -272,6 +279,14 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		allowlistSetting:  metricsAllowlistSetting,
 		allowed:           allowedMetrics,
 		allowlistCfgPaths: metricsAllowlistCfgPths,
+		dependentFlags: []mrfFailoverFlag{
+			{
+				what:    "service checks",
+				setting: failoverServiceChecksSetting,
+				enable:  enableServiceChecks,
+				cfgPath: enableServiceChecksCfgPth,
+			},
+		},
 	}, reportApplyStatus)
 
 	rc.applyMRFFailover(mrfFailoverUpdate{
@@ -287,7 +302,15 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 	rc.applyMRFFailoverFlag(failoverAPMSetting, "apm", enableAPM, enableAPMCfgPth, reportApplyStatus)
 }
 
-// mrfFailoverUpdate is the update to apply to a failover flag and to the allowlist that goes with it.
+// mrfFailoverFlag is a failover boolean setting applied alongside a parent failover flag.
+type mrfFailoverFlag struct {
+	what    string // for the log lines
+	setting string
+	enable  *bool // nil when no config sets the flag, which then falls back
+	cfgPath string
+}
+
+// mrfFailoverUpdate is the update to apply to a failover flag, its allowlist, and any dependent flags.
 type mrfFailoverUpdate struct {
 	what              string // "metrics" or "logs", for the log lines
 	flagSetting       string
@@ -296,36 +319,47 @@ type mrfFailoverUpdate struct {
 	allowlistSetting  string
 	allowed           map[string]struct{}
 	allowlistCfgPaths []string // configs setting the allowlist; empty when none does, which then falls back
+	// dependentFlags are settings whose fallback depends on flagSetting (for example,
+	// failover_service_checks falls back to failover_metrics when unconfigured). They follow the
+	// same ordering as the allowlist so enabling flagSetting never transiently forwards data that
+	// a dependent flag disables, and disabling flagSetting happens before a dependent flag is unset.
+	dependentFlags []mrfFailoverFlag
 }
 
-// applyMRFFailover applies a failover flag and its allowlist.
+// applyMRFFailover applies a failover flag, its allowlist, and any dependent flags.
 //
-// The two settings are written one after the other, and each write publishes a configuration of its
+// The settings are written one after the other, and each write publishes a configuration of its
 // own, which the logs processors are notified of. The writes are ordered from the current state so that
 // no published configuration forwards data that neither the previous nor the new configuration forwards:
 //   - while failover is active, the flag is applied first: it can only stay on or turn off, and
-//     once off the allowlist change forwards nothing;
-//   - while failover is inactive, the allowlist is applied first: the flag can only stay off or
-//     turn on, and it turns on with the new allowlist already in place.
+//     once off the allowlist and dependent flag changes forward nothing;
+//   - while failover is inactive, the allowlist and dependent flags are applied first: the flag can
+//     only stay off or turn on, and it turns on with the new allowlist and dependent flags already in place.
 //
 // This holds whether a setting comes from the configs or falls back because no config sets it. It is a
-// guarantee on the published configurations, not on a consumer that reads the two settings separately.
+// guarantee on the published configurations, not on a consumer that reads the settings separately.
 //
-// The pair stops at its first failed write and returns false: on enable the allowlist comes first, so a
-// failed allowlist write never turns the flag on; on disable the flag comes first, so a failed flag write
-// never widens the allowlist while the flag is still on.
+// The group stops at its first failed stage and returns false: on enable the allowlist and dependent
+// flags come first, so a failed write never turns the parent flag on; on disable the parent flag comes
+// first, so a failed flag write never widens the allowlist or unsets a dependent flag while the flag is still on.
 func (rc *rcClient) applyMRFFailover(update mrfFailoverUpdate, applyStateCallback func(string, state.ApplyStatus)) bool {
 	applyFlag := func() bool {
 		return rc.applyMRFFailoverFlag(update.flagSetting, update.what, update.enable, update.enableCfgPath, applyStateCallback)
 	}
-	applyAllowlist := func() bool {
-		return rc.applyMRFAllowlist(update.allowlistSetting, update.allowed, update.allowlistCfgPaths, applyStateCallback)
+	applyCompanions := func() bool {
+		ok := rc.applyMRFAllowlist(update.allowlistSetting, update.allowed, update.allowlistCfgPaths, applyStateCallback)
+		for _, dep := range update.dependentFlags {
+			if !rc.applyMRFFailoverFlag(dep.setting, dep.what, dep.enable, dep.cfgPath, applyStateCallback) {
+				ok = false
+			}
+		}
+		return ok
 	}
 
 	if pkgconfigsetup.Datadog().GetBool(update.flagSetting) {
-		return applyFlag() && applyAllowlist()
+		return applyFlag() && applyCompanions()
 	}
-	return applyAllowlist() && applyFlag()
+	return applyCompanions() && applyFlag()
 }
 
 // applyMRFFailoverFlag applies a failover flag, or unsets its remote config value when no config sets it.

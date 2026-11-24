@@ -101,14 +101,13 @@ type mrfChecker interface{ IsMRF() bool }
 // handler to intercept those status codes and surface them as errors so the OTel
 // exporterhelper can count them and drive retries or permanent-error handling.
 //
-// MRF gating: non-metadata transactions for MRF resolvers are skipped unless
-// both multi_region_failover.enabled and multi_region_failover.failover_metrics
-// are true, mirroring the steady-state guard in domainForwarder.shouldSendHTTPTransaction.
+// MRF gating: transactions for MRF resolvers are gated by isMRFTransactionAllowed,
+// mirroring domainForwarder.shouldSendHTTPTransaction.
 func (f *OTelSyncForwarder) sendHTTPTransactions(ctx context.Context, transactions []*transaction.HTTPTransaction) error {
 	var errs error
 	for _, txn := range transactions {
 		if dr, ok := txn.Resolver.(mrfChecker); ok && dr.IsMRF() {
-			if txn.Kind != transaction.Metadata && (!f.config.GetBool("multi_region_failover.enabled") || !f.config.GetBool("multi_region_failover.failover_metrics")) {
+			if !isMRFTransactionAllowed(f.config, txn.Kind) {
 				continue
 			}
 		}

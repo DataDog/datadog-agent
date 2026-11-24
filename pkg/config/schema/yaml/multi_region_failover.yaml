@@ -28,6 +28,11 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  failover_service_checks:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: When not explicitly configured, falls back to multi_region_failover.failover_metrics for backwards compatibility.
   logs_service_allowlist:
     node_type: setting
     type: array
