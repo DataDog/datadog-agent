@@ -48,15 +48,28 @@ func TestUprobeMultiFallback(t *testing.T) {
 	}
 }
 
+func TestUprobeMultiIncludesPrefixedTLSPrograms(t *testing.T) {
+	multi := &uprobeMulti{}
+	multi.configure(true, []*protocols.ProtocolSpec{{Instance: &nodeJSMonitor{}, Probes: nodejsSpec.Probes}}, nil)
+	for _, probe := range nodejsSpec.Probes {
+		if probe.EBPFFuncName == "kprobe__tcp_sendmsg" {
+			require.NotContains(t, multi.roots, probe.EBPFFuncName)
+			continue
+		}
+		require.Contains(t, multi.roots, probe.EBPFFuncName, "include protocol-prefixed TLS programs")
+	}
+}
+
 // TestUSMUprobeMultiHTTPS exercises the real TLS programs, patched constants,
 // shared state maps, and tail-called HTTP decoder. It is opt-in because it
-// installs kernel probes and requires the built USM CO-RE assets and Python SSL.
+// installs kernel probes and requires the built USM CO-RE assets, Python SSL,
+// and Node.js.
 func TestUSMUprobeMultiHTTPS(t *testing.T) {
 	if os.Getenv("DD_USM_UPROBE_MULTI_INTEGRATION") != "1" {
 		t.Skip("opt-in privileged USM HTTPS integration")
 	}
 	for _, multi := range []bool{false, true} {
-		for _, runtime := range []string{"go", "go-http2", "native"} {
+		for _, runtime := range []string{"go", "go-http2", "native", "nodejs"} {
 			t.Run(fmt.Sprintf("multi=%t/%s", multi, runtime), func(t *testing.T) {
 				cfg := NewUSMEmptyConfig()
 				cfg.EnableCORE = true
@@ -65,10 +78,12 @@ func TestUSMUprobeMultiHTTPS(t *testing.T) {
 				cfg.AllowPrebuiltFallback = false
 				cfg.EnableUSMEventStream = false
 				cfg.EnableUprobeMulti = multi
+				cfg.BypassEnabled = true
 				cfg.EnableHTTPMonitoring = true
-				cfg.EnableGoTLSSupport = runtime != "native"
+				cfg.EnableGoTLSSupport = runtime == "go" || runtime == "go-http2"
 				cfg.EnableHTTP2Monitoring = runtime == "go-http2"
 				cfg.EnableNativeTLSMonitoring = runtime == "native"
+				cfg.EnableNodeJSMonitoring = runtime == "nodejs"
 				cfg.GoTLSExcludeSelf = runtime == "go-http2"
 				cfg.CollectTCPv4Conns = true
 				cfg.CollectTCPv6Conns = true
@@ -100,11 +115,21 @@ func TestUSMUprobeMultiHTTPS(t *testing.T) {
 					_, err = io.WriteString(input, "1")
 					require.NoError(t, err)
 					require.NoError(t, command.Wait())
-				} else if runtime != "native" {
+				} else if runtime == "go" {
 					require.NoError(t, GoTLSAttachPID(uint32(os.Getpid())))
 					transport := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, ForceAttemptHTTP2: runtime == "go-http2"}
 					t.Cleanup(transport.CloseIdleConnections)
 					client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
+					require.NoError(t, monitor.Pause())
+					pausedResponse, err := client.Get(url + "-paused")
+					require.NoError(t, err)
+					_, err = io.Copy(io.Discard, pausedResponse.Body)
+					require.NoError(t, err)
+					require.NoError(t, pausedResponse.Body.Close())
+					// Resume on a new connection so its TLS state is observed
+					// while monitoring is enabled, including with perf probes.
+					transport.CloseIdleConnections()
+					require.NoError(t, monitor.Resume())
 					response, err := client.Get(url)
 					require.NoError(t, err)
 					if runtime == "go-http2" {
@@ -114,14 +139,20 @@ func TestUSMUprobeMultiHTTPS(t *testing.T) {
 					require.NoError(t, err)
 					require.NoError(t, response.Body.Close())
 				} else {
-					// Import SSL and wait on stdin, so attachment is complete
-					// before the client creates its first TLS connection. No
-					// application build or timing-based attachment delay needed.
-					python, err := exec.LookPath("python3")
-					require.NoError(t, err)
+					// Wait on stdin so attachment completes before the client's
+					// first TLS connection, without a timing-based delay.
 					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 					t.Cleanup(cancel)
-					command := exec.CommandContext(ctx, python, "-u", "-c", "import ssl,sys,urllib.request; print('ready'); sys.stdin.read(1); print(urllib.request.urlopen(sys.argv[1], context=ssl._create_unverified_context()).read().decode())", url)
+					var command *exec.Cmd
+					if runtime == "nodejs" {
+						node, err := exec.LookPath("node")
+						require.NoError(t, err)
+						command = exec.CommandContext(ctx, node, "-e", `const https = require('https'); console.log('ready'); process.stdin.once('data', () => { process.stdin.pause(); https.get(process.argv[1], {rejectUnauthorized: false}, response => { let body = ''; response.on('data', data => body += data); response.on('end', () => console.log(body)); }).on('error', error => { console.error(error); process.exit(1); }); });`, url)
+					} else {
+						python, err := exec.LookPath("python3")
+						require.NoError(t, err)
+						command = exec.CommandContext(ctx, python, "-u", "-c", "import ssl,sys,urllib.request; print('ready'); sys.stdin.read(1); print(urllib.request.urlopen(sys.argv[1], context=ssl._create_unverified_context()).read().decode())", url)
+					}
 					command.Stderr = os.Stderr
 					input, err := command.StdinPipe()
 					require.NoError(t, err)
@@ -133,8 +164,12 @@ func TestUSMUprobeMultiHTTPS(t *testing.T) {
 					ready, err := reader.ReadString('\n')
 					require.NoError(t, err)
 					require.Equal(t, "ready\n", ready)
-					err = opensslSpec.Instance.(*sslProgram).attacher.AttachPIDWithOptions(uint32(command.Process.Pid), true)
-					require.True(t, err == nil || errors.Is(err, utils.ErrPathIsAlreadyRegistered), "native TLS attach: %v", err)
+					attacher := opensslSpec.Instance
+					if runtime == "nodejs" {
+						attacher = nodejsSpec.Instance
+					}
+					err = attacher.(multiUprobeProtocol).getUprobeAttacher().AttachPIDWithOptions(uint32(command.Process.Pid), true)
+					require.True(t, err == nil || errors.Is(err, utils.ErrPathIsAlreadyRegistered), "%s TLS attach: %v", runtime, err)
 					_, err = io.WriteString(input, "1")
 					require.NoError(t, err)
 					body, err := reader.ReadString('\n')
@@ -147,14 +182,18 @@ func TestUSMUprobeMultiHTTPS(t *testing.T) {
 				if runtime == "go-http2" {
 					protocol = protocols.HTTP2
 				}
+				capturedWhilePaused := false
 				require.Eventually(t, func() bool {
+					captured := false
 					for key, stats := range getHTTPLikeProtocolStats(t, monitor, protocol) {
+						capturedWhilePaused = capturedWhilePaused || key.Path.Content.Get() == path+"-paused"
 						if key.Path.Content.Get() == path && stats.Data[200] != nil && stats.Data[200].Count > 0 {
-							return true
+							captured = true
 						}
 					}
-					return false
+					return captured
 				}, 10*time.Second, 20*time.Millisecond, "real %s HTTPS request must reach USM via backend multi=%t", runtime, multi)
+				require.False(t, capturedWhilePaused, "paused TLS traffic must not be captured")
 				fds, err := os.ReadDir("/proc/self/fd")
 				require.NoError(t, err)
 				perfFDs := 0
