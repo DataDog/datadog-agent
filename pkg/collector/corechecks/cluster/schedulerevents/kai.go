@@ -19,7 +19,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -64,7 +63,7 @@ type kaiState struct {
 	lastEviction     time.Time
 }
 
-func newKAIState(pg *workloadmeta.KubernetesKAIPodGroup) kaiState {
+func newKAIState(pg *kaiView) kaiState {
 	pools := map[string]struct{}{}
 	for nodePool := range kaiPendingConditions(pg) {
 		pools[nodePool] = struct{}{}
@@ -74,8 +73,8 @@ func newKAIState(pg *workloadmeta.KubernetesKAIPodGroup) kaiState {
 
 // kaiPendingConditions returns, by node pool, the conditions that say the
 // PodGroup cannot be scheduled.
-func kaiPendingConditions(pg *workloadmeta.KubernetesKAIPodGroup) map[string]workloadmeta.KAISchedulingCondition {
-	conditions := map[string]workloadmeta.KAISchedulingCondition{}
+func kaiPendingConditions(pg *kaiView) map[string]podGroupCondition {
+	conditions := map[string]podGroupCondition{}
 	for _, condition := range pg.SchedulingConditions {
 		if condition.Type != kaiUnschedulableCondition || condition.Status != "True" {
 			continue
@@ -92,7 +91,7 @@ func kaiPendingConditions(pg *workloadmeta.KubernetesKAIPodGroup) map[string]wor
 type kaiTransition struct {
 	name      string
 	timestamp time.Time
-	condition *workloadmeta.KAISchedulingCondition
+	condition *podGroupCondition
 }
 
 // evictEventLister returns the Evict events that KAI recorded on the PodGroups of a namespace.
@@ -131,7 +130,7 @@ func (k *kaiEvents) endBatch() {
 
 // set handles an update of a PodGroup, like kueueEvents.set does for Workloads,
 // including the truncation of the start to the second of the creation timestamps.
-func (k *kaiEvents) set(pg *workloadmeta.KubernetesKAIPodGroup, emit bool) {
+func (k *kaiEvents) set(pg *kaiView, emit bool) {
 	uid := pg.UID
 	if uid == "" {
 		log.Debugf("Skipping KAI PodGroup without uid: %s/%s", pg.Namespace, pg.Name)
@@ -206,7 +205,7 @@ func (k *kaiEvents) unset(uid string) {
 	k.index.forget(uid)
 }
 
-func (k *kaiEvents) send(pg *workloadmeta.KubernetesKAIPodGroup, transition kaiTransition, previous kaiState) {
+func (k *kaiEvents) send(pg *kaiView, transition kaiTransition, previous kaiState) {
 	text := []string{fmt.Sprintf("PodGroup %s/%s %s.", pg.Namespace, pg.Name, transition.name)}
 	eventTags := kaiEventTags(pg, transition)
 
@@ -240,7 +239,7 @@ func (k *kaiEvents) send(pg *workloadmeta.KubernetesKAIPodGroup, transition kaiT
 	})
 }
 
-func kaiEventTags(pg *workloadmeta.KubernetesKAIPodGroup, transition kaiTransition) []string {
+func kaiEventTags(pg *kaiView, transition kaiTransition) []string {
 	var nodePool string
 	if transition.condition != nil {
 		nodePool = transition.condition.NodePool
@@ -270,7 +269,7 @@ func kaiEventTags(pg *workloadmeta.KubernetesKAIPodGroup, transition kaiTransiti
 	return eventTags
 }
 
-func kaiPendingDetails(condition *workloadmeta.KAISchedulingCondition, eventTags []string) ([]string, []string) {
+func kaiPendingDetails(condition *podGroupCondition, eventTags []string) ([]string, []string) {
 	if condition == nil {
 		return nil, eventTags
 	}
@@ -310,7 +309,7 @@ func kaiPendingDetails(condition *workloadmeta.KAISchedulingCondition, eventTags
 // started, and is unknown otherwise. The annotations do not tell a partial
 // eviction from a full one, so after a partial eviction the wait can include
 // time the PodGroup spent running.
-func kaiAdmittedDetails(pg *workloadmeta.KubernetesKAIPodGroup, transition kaiTransition, previous kaiState) []string {
+func kaiAdmittedDetails(pg *kaiView, transition kaiTransition, previous kaiState) []string {
 	start := transition.timestamp
 	created := pg.CreationTimestamp
 
@@ -335,7 +334,7 @@ func kaiAdmittedDetails(pg *workloadmeta.KubernetesKAIPodGroup, transition kaiTr
 
 // evictedDetails adds the eviction action and the evicting PodGroup, which only
 // the Evict event that KAI records on the PodGroup has.
-func (k *kaiEvents) evictedDetails(pg *workloadmeta.KubernetesKAIPodGroup, transition kaiTransition, eventTags []string) ([]string, []string) {
+func (k *kaiEvents) evictedDetails(pg *kaiView, transition kaiTransition, eventTags []string) ([]string, []string) {
 	eviction := transition.timestamp
 	if eviction.IsZero() {
 		return nil, eventTags

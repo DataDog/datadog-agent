@@ -127,15 +127,19 @@ func (p kueueWorkloadParser) Parse(obj interface{}) workloadmeta.Entity {
 		podTemplateLabels, podTemplateAnnotations = kueuePodTemplateMetadata(u)
 	}
 
-	var priority *int32
-	if value, found, err := unstructured.NestedInt64(u.Object, "spec", "priority"); found && err == nil {
-		narrowed := int32(value)
-		priority = &narrowed
-	}
-
-	var conditions []workloadmeta.KueueWorkloadCondition
+	var events any
 	if p.events {
-		conditions = kueueWorkloadConditions(u)
+		var priority *int32
+		if value, found, err := unstructured.NestedInt64(u.Object, "spec", "priority"); found && err == nil {
+			narrowed := int32(value)
+			priority = &narrowed
+		}
+		events = &KueueWorkloadEvents{
+			CreationTimestamp: u.GetCreationTimestamp().UTC(),
+			Priority:          priority,
+			PriorityClassName: priorityClassName(spec),
+			Conditions:        kueueWorkloadConditions(u),
+		}
 	}
 
 	return &workloadmeta.KubernetesKueueWorkload{
@@ -149,19 +153,16 @@ func (p kueueWorkloadParser) Parse(obj interface{}) workloadmeta.Entity {
 		PodSetAssignments:      kueuePodSetAssignments(u),
 		PodTemplateLabels:      podTemplateLabels,
 		PodTemplateAnnotations: podTemplateAnnotations,
-		CreationTimestamp:      u.GetCreationTimestamp().UTC(),
-		Priority:               priority,
-		PriorityClassName:      priorityClassName(spec),
-		Conditions:             conditions,
+		SchedulerEvents:        events,
 	}
 }
 
 // kueueWorkloadConditions returns the status conditions of a Workload that
 // have a type, in the order Kueue reports them.
-func kueueWorkloadConditions(u *unstructured.Unstructured) []workloadmeta.KueueWorkloadCondition {
-	var conditions []workloadmeta.KueueWorkloadCondition
+func kueueWorkloadConditions(u *unstructured.Unstructured) []KueueWorkloadCondition {
+	var conditions []KueueWorkloadCondition
 	for _, fields := range typedEntries(u.Object, "status", "conditions") {
-		conditions = append(conditions, workloadmeta.KueueWorkloadCondition{
+		conditions = append(conditions, KueueWorkloadCondition{
 			Type:               stringField(fields, "type"),
 			Status:             stringField(fields, "status"),
 			Reason:             stringField(fields, "reason"),

@@ -47,10 +47,12 @@ func TestKAIPodGroupParserFixtures(t *testing.T) {
 			},
 			UID: "355f982a-d7b8-4ef4-ab6e-232bb97a6ad2",
 		},
-		QueueName:         "default-queue",
-		CreationTimestamp: time.Date(2026, 10, 14, 14, 49, 10, 0, time.UTC),
-		PriorityClassName: "train",
-		LastStartTime:     time.Date(2026, 10, 14, 14, 49, 10, 0, time.UTC),
+		QueueName: "default-queue",
+		SchedulerEvents: &KAIPodGroupEvents{
+			CreationTimestamp: time.Date(2026, 10, 14, 14, 49, 10, 0, time.UTC),
+			PriorityClassName: "train",
+			LastStartTime:     time.Date(2026, 10, 14, 14, 49, 10, 0, time.UTC),
+		},
 	}, podGroup)
 }
 
@@ -86,20 +88,21 @@ func TestKAIPodGroupParserSchedulingState(t *testing.T) {
 
 	podGroup := NewKAIPodGroupParser(true).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
 
-	assert.Equal(t, time.Date(2026, 10, 14, 14, 49, 10, 0, time.UTC), podGroup.LastStartTime)
-	assert.Equal(t, time.Date(2026, 10, 14, 14, 50, 0, 0, time.UTC), podGroup.LastEvictionTime)
-	assert.Equal(t, []workloadmeta.KAISchedulingCondition{
+	events := podGroup.SchedulerEvents.(*KAIPodGroupEvents)
+	assert.Equal(t, time.Date(2026, 10, 14, 14, 49, 10, 0, time.UTC), events.LastStartTime)
+	assert.Equal(t, time.Date(2026, 10, 14, 14, 50, 0, 0, time.UTC), events.LastEvictionTime)
+	assert.Equal(t, []KAISchedulingCondition{
 		{
 			Type:     "UnschedulableOnNodePool",
 			Status:   "True",
 			NodePool: "gpu",
 			Message:  "not enough GPUs",
-			Explanations: []workloadmeta.KAISchedulingExplanation{
+			Explanations: []KAISchedulingExplanation{
 				{Reason: "OverLimit", Message: "queue limit reached"},
 			},
 			LastTransitionTime: time.Date(2026, 10, 14, 14, 49, 30, 0, time.UTC),
 		},
-	}, podGroup.SchedulingConditions)
+	}, events.SchedulingConditions)
 
 	// The volatile annotation stays out of the metadata that is streamed to the nodes.
 	assert.NotContains(t, podGroup.Annotations, "kai.scheduler/last-start-timestamp")
@@ -119,9 +122,10 @@ func TestKAIPodGroupParserMalformedTimes(t *testing.T) {
 
 	podGroup := NewKAIPodGroupParser(true).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
 
-	assert.True(t, podGroup.LastStartTime.IsZero())
-	assert.True(t, podGroup.LastEvictionTime.IsZero())
-	assert.Empty(t, podGroup.SchedulingConditions)
+	events := podGroup.SchedulerEvents.(*KAIPodGroupEvents)
+	assert.True(t, events.LastStartTime.IsZero())
+	assert.True(t, events.LastEvictionTime.IsZero())
+	assert.Empty(t, events.SchedulingConditions)
 }
 
 func TestKAIPodGroupParserInvalidQueue(t *testing.T) {
@@ -167,13 +171,12 @@ func TestKAIPodGroupParserWithoutEventsLeavesOutStatusFields(t *testing.T) {
 	}
 
 	with := NewKAIPodGroupParser(true).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
-	assert.False(t, with.LastStartTime.IsZero())
-	assert.False(t, with.LastEvictionTime.IsZero())
-	assert.Len(t, with.SchedulingConditions, 1)
+	withEvents := with.SchedulerEvents.(*KAIPodGroupEvents)
+	assert.False(t, withEvents.LastStartTime.IsZero())
+	assert.False(t, withEvents.LastEvictionTime.IsZero())
+	assert.Len(t, withEvents.SchedulingConditions, 1)
 
 	without := NewKAIPodGroupParser(false).Parse(&unstructured.Unstructured{Object: obj}).(*workloadmeta.KubernetesKAIPodGroup)
-	assert.True(t, without.LastStartTime.IsZero())
-	assert.True(t, without.LastEvictionTime.IsZero())
-	assert.Empty(t, without.SchedulingConditions)
+	assert.Nil(t, without.SchedulerEvents)
 	assert.NotContains(t, without.Annotations, kaiLastStartAnnotation)
 }

@@ -217,18 +217,20 @@ func TestKueueWorkloadParser(t *testing.T) {
 			Annotations: map[string]string{"owner": "batch"},
 			UID:         "uid-workload",
 		},
-		QueueName:         "gpu",
-		ClusterQueueName:  "team-a-gpu",
-		CreationTimestamp: time.Date(2026, 10, 14, 14, 0, 0, 0, time.UTC),
-		Priority:          &priority,
-		PriorityClassName: "high",
-		Conditions: []workloadmeta.KueueWorkloadCondition{
-			{
-				Type:               "QuotaReserved",
-				Status:             "True",
-				Reason:             "QuotaReserved",
-				Message:            "Quota reserved in ClusterQueue team-a-gpu",
-				LastTransitionTime: time.Date(2026, 10, 14, 14, 1, 0, 0, time.UTC),
+		QueueName:        "gpu",
+		ClusterQueueName: "team-a-gpu",
+		SchedulerEvents: &KueueWorkloadEvents{
+			CreationTimestamp: time.Date(2026, 10, 14, 14, 0, 0, 0, time.UTC),
+			Priority:          &priority,
+			PriorityClassName: "high",
+			Conditions: []KueueWorkloadCondition{
+				{
+					Type:               "QuotaReserved",
+					Status:             "True",
+					Reason:             "QuotaReserved",
+					Message:            "Quota reserved in ClusterQueue team-a-gpu",
+					LastTransitionTime: time.Date(2026, 10, 14, 14, 1, 0, 0, time.UTC),
+				},
 			},
 		},
 		PodTemplateLabels: map[string]string{
@@ -319,10 +321,11 @@ func TestKueueWorkloadParserDeprecatedPriorityClassName(t *testing.T) {
 
 	workload := NewKueueWorkloadParser(false, true).Parse(obj).(*workloadmeta.KubernetesKueueWorkload)
 
-	assert.Equal(t, "legacy", workload.PriorityClassName)
-	assert.Nil(t, workload.Priority)
-	assert.True(t, workload.CreationTimestamp.IsZero())
-	assert.Empty(t, workload.Conditions)
+	events := workload.SchedulerEvents.(*KueueWorkloadEvents)
+	assert.Equal(t, "legacy", events.PriorityClassName)
+	assert.Nil(t, events.Priority)
+	assert.True(t, events.CreationTimestamp.IsZero())
+	assert.Empty(t, events.Conditions)
 }
 
 func TestParseRFC3339(t *testing.T) {
@@ -342,8 +345,8 @@ func TestKueueWorkloadParserWithoutEventsLeavesOutConditions(t *testing.T) {
 	}}
 
 	with := NewKueueWorkloadParser(false, true).Parse(obj).(*workloadmeta.KubernetesKueueWorkload)
-	assert.Len(t, with.Conditions, 1)
+	assert.Len(t, with.SchedulerEvents.(*KueueWorkloadEvents).Conditions, 1)
 
 	without := NewKueueWorkloadParser(false, false).Parse(obj).(*workloadmeta.KubernetesKueueWorkload)
-	assert.Empty(t, without.Conditions)
+	assert.Nil(t, without.SchedulerEvents)
 }

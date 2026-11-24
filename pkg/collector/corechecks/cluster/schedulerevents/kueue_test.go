@@ -17,22 +17,27 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
-func kueueWorkload(created time.Time, conditions ...workloadmeta.KueueWorkloadCondition) *workloadmeta.KubernetesKueueWorkload {
-	return &workloadmeta.KubernetesKueueWorkload{
-		EntityID:          workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "team-a/job-1"},
-		EntityMeta:        workloadmeta.EntityMeta{Name: "job-1", Namespace: "team-a", UID: "uid-1"},
-		QueueName:         "local",
-		CreationTimestamp: created,
-		Conditions:        conditions,
+func kueueWorkload(created time.Time, conditions ...workloadCondition) *kueueView {
+	return &kueueView{
+		KubernetesKueueWorkload: &workloadmeta.KubernetesKueueWorkload{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "team-a/job-1"},
+			EntityMeta: workloadmeta.EntityMeta{Name: "job-1", Namespace: "team-a", UID: "uid-1"},
+			QueueName:  "local",
+		},
+		KueueWorkloadEvents: &kubernetesresourceparsers.KueueWorkloadEvents{
+			CreationTimestamp: created,
+			Conditions:        conditions,
+		},
 	}
 }
 
-func kueueCondition(conditionType, status, reason string, at time.Time) workloadmeta.KueueWorkloadCondition {
-	return workloadmeta.KueueWorkloadCondition{Type: conditionType, Status: status, Reason: reason, LastTransitionTime: at}
+func kueueCondition(conditionType, status, reason string, at time.Time) workloadCondition {
+	return workloadCondition{Type: conditionType, Status: status, Reason: reason, LastTransitionTime: at}
 }
 
 func newTestKueue(t *testing.T, tagger fakeTagger) (*kueueEvents, *collected) {
@@ -219,11 +224,11 @@ func TestKueueEvictedByPreemption(t *testing.T) {
 	kueue.set(admitted, true)
 
 	evicted := kueueWorkload(started.Add(-time.Hour),
-		workloadmeta.KueueWorkloadCondition{
+		workloadCondition{
 			Type: "Evicted", Status: "True", Reason: "Preempted", LastTransitionTime: after(30),
 			Message: "Preempted to accommodate a workload (UID: abc-123, JobUID: j) due to prioritization",
 		},
-		workloadmeta.KueueWorkloadCondition{Type: "Preempted", Status: "True", Reason: "InClusterQueue", LastTransitionTime: after(30)},
+		workloadCondition{Type: "Preempted", Status: "True", Reason: "InClusterQueue", LastTransitionTime: after(30)},
 	)
 	// The eviction clears the admission, so the queue comes from the state before.
 	kueue.set(evicted, true)

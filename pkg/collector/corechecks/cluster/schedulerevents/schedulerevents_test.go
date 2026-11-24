@@ -44,8 +44,9 @@ func newTestCheck(t *testing.T, leader func() (bool, error)) (*Check, *mocksende
 	return c, sender
 }
 
-func setKueue(w *workloadmeta.KubernetesKueueWorkload) workloadmeta.Event {
-	return workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: w}
+func setKueue(w *kueueView) workloadmeta.Event {
+	w.SchedulerEvents = w.KueueWorkloadEvents
+	return workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: w.KubernetesKueueWorkload}
 }
 
 func TestRunSendsEventsOfQueuedUpdatesWhenLeader(t *testing.T) {
@@ -116,7 +117,7 @@ func TestRunForgetsUnsetWorkloads(t *testing.T) {
 	require.NoError(t, c.Run())
 	require.Contains(t, c.kueue.states, "uid-1")
 
-	c.queue = []workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: w}}
+	c.queue = []workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: w.KubernetesKueueWorkload}}
 	require.NoError(t, c.Run())
 	assert.NotContains(t, c.kueue.states, "uid-1")
 }
@@ -287,15 +288,15 @@ func TestCompactQueueKeepsTheLatestSetOfEachEntityAndEveryUnset(t *testing.T) {
 	other := kueueWorkload(after(5))
 	other.EntityID.ID = "team-a/job-2"
 	other.UID = "uid-2"
-	unset := workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: other}
+	unset := workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: other.KubernetesKueueWorkload}
 
 	compacted := compactQueue([]workloadmeta.Event{setKueue(first), setKueue(other), unset, setKueue(second)})
 
 	require.Len(t, compacted, 3)
-	assert.Same(t, other, compacted[0].Entity)
+	assert.Same(t, other.KubernetesKueueWorkload, compacted[0].Entity)
 	assert.Equal(t, workloadmeta.EventTypeSet, compacted[0].Type)
 	assert.Equal(t, workloadmeta.EventTypeUnset, compacted[1].Type)
-	assert.Same(t, second, compacted[2].Entity)
+	assert.Same(t, second.KubernetesKueueWorkload, compacted[2].Entity)
 }
 
 func TestRunDoesNotGrowTheQueueWhileTheLeaderIsUnknown(t *testing.T) {

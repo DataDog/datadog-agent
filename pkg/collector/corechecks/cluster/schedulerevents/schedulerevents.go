@@ -213,7 +213,7 @@ func (c *Check) handle(update workloadmeta.Event, emit bool) {
 		}
 		switch update.Type {
 		case workloadmeta.EventTypeSet:
-			c.kueue.set(entity, emit)
+			c.kueue.set(newKueueView(entity), emit)
 		case workloadmeta.EventTypeUnset:
 			c.kueue.unset(entity.UID)
 		}
@@ -223,7 +223,7 @@ func (c *Check) handle(update workloadmeta.Event, emit bool) {
 		}
 		switch update.Type {
 		case workloadmeta.EventTypeSet:
-			c.kai.set(entity, emit)
+			c.kai.set(newKAIView(entity), emit)
 		case workloadmeta.EventTypeUnset:
 			c.kai.unset(entity.UID)
 		}

@@ -21,22 +21,27 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
-func podGroup(created time.Time) *workloadmeta.KubernetesKAIPodGroup {
-	return &workloadmeta.KubernetesKAIPodGroup{
-		EntityID:          workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKAIPodGroup, ID: "ns/pg"},
-		EntityMeta:        workloadmeta.EntityMeta{Name: "pg", Namespace: "ns", UID: "uid-1"},
-		QueueName:         "research",
-		PriorityClassName: "train",
-		CreationTimestamp: created,
+func podGroup(created time.Time) *kaiView {
+	return &kaiView{
+		KubernetesKAIPodGroup: &workloadmeta.KubernetesKAIPodGroup{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKAIPodGroup, ID: "ns/pg"},
+			EntityMeta: workloadmeta.EntityMeta{Name: "pg", Namespace: "ns", UID: "uid-1"},
+			QueueName:  "research",
+		},
+		KAIPodGroupEvents: &kubernetesresourceparsers.KAIPodGroupEvents{
+			PriorityClassName: "train",
+			CreationTimestamp: created,
+		},
 	}
 }
 
-func unschedulable(nodePool string, at time.Time, reasons ...workloadmeta.KAISchedulingExplanation) workloadmeta.KAISchedulingCondition {
-	return workloadmeta.KAISchedulingCondition{
+func unschedulable(nodePool string, at time.Time, reasons ...podGroupExplanation) podGroupCondition {
+	return podGroupCondition{
 		Type: kaiUnschedulableCondition, Status: "True", NodePool: nodePool, LastTransitionTime: at, Explanations: reasons,
 	}
 }
@@ -69,10 +74,10 @@ func TestKAICreatedAndPendingWithReasons(t *testing.T) {
 	kai, out := newTestKAI(t, nil)
 
 	pg := podGroup(after(5))
-	pg.SchedulingConditions = []workloadmeta.KAISchedulingCondition{
+	pg.SchedulingConditions = []podGroupCondition{
 		unschedulable("gpu", after(6),
-			workloadmeta.KAISchedulingExplanation{Reason: "OverLimit", Message: "queue limit reached"},
-			workloadmeta.KAISchedulingExplanation{Reason: "NodeSelector", Message: "no matching node"},
+			podGroupExplanation{Reason: "OverLimit", Message: "queue limit reached"},
+			podGroupExplanation{Reason: "NodeSelector", Message: "no matching node"},
 		),
 	}
 	kai.set(pg, true)
@@ -114,12 +119,12 @@ func TestKAIPendingIsNotRepeatedWhileTheMessageChanges(t *testing.T) {
 	pg := podGroup(started.Add(-time.Hour))
 	kai.set(pg, true)
 
-	pg.SchedulingConditions = []workloadmeta.KAISchedulingCondition{unschedulable("gpu", after(6))}
+	pg.SchedulingConditions = []podGroupCondition{unschedulable("gpu", after(6))}
 	kai.set(pg, true)
 	require.Len(t, out.events, 1)
 
 	// KAI resets the transition time when only the message changes.
-	pg.SchedulingConditions = []workloadmeta.KAISchedulingCondition{unschedulable("gpu", after(9))}
+	pg.SchedulingConditions = []podGroupCondition{unschedulable("gpu", after(9))}
 	kai.set(pg, true)
 	assert.Len(t, out.events, 1)
 }
@@ -128,11 +133,11 @@ func TestKAIPendingAgainAfterANewStart(t *testing.T) {
 	kai, out := newTestKAI(t, nil)
 
 	pg := podGroup(started.Add(-time.Hour))
-	pg.SchedulingConditions = []workloadmeta.KAISchedulingCondition{unschedulable("gpu", after(-100))}
+	pg.SchedulingConditions = []podGroupCondition{unschedulable("gpu", after(-100))}
 	kai.set(pg, true)
 
 	pg.LastStartTime = after(10)
-	pg.SchedulingConditions = []workloadmeta.KAISchedulingCondition{unschedulable("gpu", after(20))}
+	pg.SchedulingConditions = []podGroupCondition{unschedulable("gpu", after(20))}
 	kai.set(pg, true)
 
 	// The condition came back at 20s, after the start at 10s, so the events follow that order.
@@ -276,7 +281,7 @@ func TestKAIPendingOnSeveralNodePoolsIsSentInNodePoolOrder(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		kai, out := newTestKAI(t, nil)
 		pg := podGroup(after(5))
-		pg.SchedulingConditions = []workloadmeta.KAISchedulingCondition{
+		pg.SchedulingConditions = []podGroupCondition{
 			unschedulable("pool-c", after(6)),
 			unschedulable("pool-a", after(6)),
 			unschedulable("pool-b", after(6)),

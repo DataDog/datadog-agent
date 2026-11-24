@@ -8,8 +8,6 @@
 package kubernetesresourceparsers
 
 import (
-	"time"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -45,20 +43,23 @@ func NewKAIPodGroupParser(events bool) ObjectParser {
 func (p kaiPodGroupParser) Parse(obj interface{}) workloadmeta.Entity {
 	u := obj.(*unstructured.Unstructured)
 	annotations := u.GetAnnotations()
+	spec, _ := u.Object["spec"].(map[string]interface{})
+
 	// The excluded annotations are dropped from the entity metadata, but the
 	// Cluster Agent still needs the times they hold to emit events.
-	var lastStartTime, lastEvictionTime time.Time
-	var schedulingConditions []workloadmeta.KAISchedulingCondition
+	var events any
 	if p.events {
-		lastStartTime = parseTime(annotations[kaiLastStartAnnotation])
-		lastEvictionTime = parseTime(annotations[kaiLastEvictionAnnotation])
-		schedulingConditions = kaiSchedulingConditions(u)
+		events = &KAIPodGroupEvents{
+			CreationTimestamp:    u.GetCreationTimestamp().UTC(),
+			PriorityClassName:    priorityClassName(spec),
+			LastStartTime:        parseTime(annotations[kaiLastStartAnnotation]),
+			LastEvictionTime:     parseTime(annotations[kaiLastEvictionAnnotation]),
+			SchedulingConditions: kaiSchedulingConditions(u),
+		}
 	}
 	for _, annotation := range kaiPodGroupExcludedAnnotations {
 		delete(annotations, annotation)
 	}
-
-	spec, _ := u.Object["spec"].(map[string]interface{})
 
 	return &workloadmeta.KubernetesKAIPodGroup{
 		EntityID: workloadmeta.EntityID{
@@ -72,32 +73,28 @@ func (p kaiPodGroupParser) Parse(obj interface{}) workloadmeta.Entity {
 			Annotations: annotations,
 			UID:         string(u.GetUID()),
 		},
-		QueueName:            stringField(spec, "queue"),
-		CreationTimestamp:    u.GetCreationTimestamp().UTC(),
-		PriorityClassName:    priorityClassName(spec),
-		LastStartTime:        lastStartTime,
-		LastEvictionTime:     lastEvictionTime,
-		SchedulingConditions: schedulingConditions,
+		QueueName:       stringField(spec, "queue"),
+		SchedulerEvents: events,
 	}
 }
 
 // kaiSchedulingConditions returns the entries of status.schedulingConditions
 // of a PodGroup that have a type.
-func kaiSchedulingConditions(u *unstructured.Unstructured) []workloadmeta.KAISchedulingCondition {
-	var conditions []workloadmeta.KAISchedulingCondition
+func kaiSchedulingConditions(u *unstructured.Unstructured) []KAISchedulingCondition {
+	var conditions []KAISchedulingCondition
 	for _, fields := range typedEntries(u.Object, "status", "schedulingConditions") {
-		var explanations []workloadmeta.KAISchedulingExplanation
+		var explanations []KAISchedulingExplanation
 		rawExplanations, _ := fields["reasons"].([]interface{})
 		for _, rawExplanation := range rawExplanations {
 			if explanationFields, ok := rawExplanation.(map[string]interface{}); ok {
-				explanations = append(explanations, workloadmeta.KAISchedulingExplanation{
+				explanations = append(explanations, KAISchedulingExplanation{
 					Reason:  stringField(explanationFields, "reason"),
 					Message: stringField(explanationFields, "message"),
 				})
 			}
 		}
 
-		conditions = append(conditions, workloadmeta.KAISchedulingCondition{
+		conditions = append(conditions, KAISchedulingCondition{
 			Type:               stringField(fields, "type"),
 			Status:             stringField(fields, "status"),
 			NodePool:           stringField(fields, "nodePool"),

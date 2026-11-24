@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "schedulerevents",
     srcs = [
+        "entities.go",
         "index.go",
         "kai.go",
         "kueue.go",
@@ -21,6 +22,7 @@ go_library(
         "//comp/core/tagger/types",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
+        "//comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers",
         "//comp/core/workloadmeta/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
@@ -55,6 +57,7 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/tagger/tags",
         "//comp/core/tagger/types",
+        "//comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers",
         "//comp/core/workloadmeta/def",
         "//pkg/aggregator/mocksender",
         "//pkg/collector/check",

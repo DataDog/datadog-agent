@@ -68,7 +68,7 @@ var kueuePreemptingWorkloadUID = regexp.MustCompile(`(?i)\bworkload \(UID: ([^),
 // kueueState is what is remembered of a Workload to tell what changed in its
 // next update.
 type kueueState struct {
-	conditions   map[string]workloadmeta.KueueWorkloadCondition
+	conditions   map[string]workloadCondition
 	clusterQueue string
 	// pendingReported is true while the Workload is waiting for quota and its
 	// "pending" event was sent (or would have been, on a follower). The reason of
@@ -76,9 +76,9 @@ type kueueState struct {
 	pendingReported bool
 }
 
-func newKueueState(w *workloadmeta.KubernetesKueueWorkload) kueueState {
+func newKueueState(w *kueueView) kueueState {
 	state := kueueState{
-		conditions:   make(map[string]workloadmeta.KueueWorkloadCondition, len(w.Conditions)),
+		conditions:   make(map[string]workloadCondition, len(w.Conditions)),
 		clusterQueue: w.ClusterQueueName,
 	}
 	for _, condition := range w.Conditions {
@@ -122,7 +122,7 @@ func newKueueEvents(tagger tagLookup, index *eventIndex, startedAt time.Time, su
 // of one second, so the start is truncated to the second: a Workload created in
 // the startup second is reported, and a rare duplicate is better than a miss. The
 // ones that already existed are the state the check starts from.
-func (k *kueueEvents) set(w *workloadmeta.KubernetesKueueWorkload, emit bool) {
+func (k *kueueEvents) set(w *kueueView, emit bool) {
 	uid := w.UID
 	if uid == "" {
 		log.Debugf("Skipping Kueue Workload without uid: %s/%s", w.Namespace, w.Name)
@@ -182,7 +182,7 @@ func (k *kueueEvents) unset(uid string) {
 	k.index.forget(uid)
 }
 
-func conditionChanged(condition, previous workloadmeta.KueueWorkloadCondition) bool {
+func conditionChanged(condition, previous workloadCondition) bool {
 	return condition.Status != previous.Status ||
 		condition.Reason != previous.Reason ||
 		!condition.LastTransitionTime.Equal(previous.LastTransitionTime)
@@ -191,8 +191,8 @@ func conditionChanged(condition, previous workloadmeta.KueueWorkloadCondition) b
 func (k *kueueEvents) send(
 	transition, label string,
 	alertType event.AlertType,
-	w *workloadmeta.KubernetesKueueWorkload,
-	condition *workloadmeta.KueueWorkloadCondition,
+	w *kueueView,
+	condition *workloadCondition,
 	previous kueueState,
 ) {
 	key := w.UID
@@ -211,7 +211,7 @@ func (k *kueueEvents) send(
 	})
 }
 
-func (k *kueueEvents) eventTimestamp(w *workloadmeta.KubernetesKueueWorkload, condition *workloadmeta.KueueWorkloadCondition) int64 {
+func (k *kueueEvents) eventTimestamp(w *kueueView, condition *workloadCondition) int64 {
 	if condition != nil && !condition.LastTransitionTime.IsZero() {
 		return condition.LastTransitionTime.Unix()
 	}
@@ -221,7 +221,7 @@ func (k *kueueEvents) eventTimestamp(w *workloadmeta.KubernetesKueueWorkload, co
 	return k.now().Unix()
 }
 
-func (k *kueueEvents) eventText(transition string, w *workloadmeta.KubernetesKueueWorkload, condition *workloadmeta.KueueWorkloadCondition) string {
+func (k *kueueEvents) eventText(transition string, w *kueueView, condition *workloadCondition) string {
 	text := fmt.Sprintf("Workload %s/%s %s.", w.Namespace, w.Name, humanTransition(transition))
 	if condition == nil {
 		return text
@@ -271,7 +271,7 @@ func dedupeTags(in []string) []string {
 	return out
 }
 
-func findKueueCondition(w *workloadmeta.KubernetesKueueWorkload, conditionType string) *workloadmeta.KueueWorkloadCondition {
+func findKueueCondition(w *kueueView, conditionType string) *workloadCondition {
 	for i := range w.Conditions {
 		if w.Conditions[i].Type == conditionType {
 			return &w.Conditions[i]
@@ -282,8 +282,8 @@ func findKueueCondition(w *workloadmeta.KubernetesKueueWorkload, conditionType s
 
 func (k *kueueEvents) eventTags(
 	transition string,
-	w *workloadmeta.KubernetesKueueWorkload,
-	condition *workloadmeta.KueueWorkloadCondition,
+	w *kueueView,
+	condition *workloadCondition,
 	previous kueueState,
 ) []string {
 	var eventTags []string
@@ -363,8 +363,8 @@ func (k *kueueEvents) entityTags(id workloadmeta.EntityID) []string {
 
 // preemptingWorkloadUID finds the UID of the Workload that preempted another
 // one in the message of the Evicted or Preempted condition.
-func preemptingWorkloadUID(condition *workloadmeta.KueueWorkloadCondition, preempted *workloadmeta.KueueWorkloadCondition) string {
-	for _, candidate := range []*workloadmeta.KueueWorkloadCondition{condition, preempted} {
+func preemptingWorkloadUID(condition *workloadCondition, preempted *workloadCondition) string {
+	for _, candidate := range []*workloadCondition{condition, preempted} {
 		if candidate == nil {
 			continue
 		}
