@@ -8,9 +8,9 @@ package agenttelemetryimpl
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -457,26 +457,46 @@ func TestSetErrortracking_StaleFlushDoesNotCountAsFailure(t *testing.T) {
 // The Remote Flags client runs each OnChange in its own goroutine, so a true
 // followed by an overlapping false must still end with the feature off.
 func TestErrortrackingFlagHandler_OverlappingChangesEndOff(t *testing.T) {
-	var on atomic.Bool
-	entered := make(chan struct{})
-	proceed := make(chan struct{})
-	set := func(v bool) bool {
-		if v {
-			close(entered)
-			<-proceed
+	// The final state must be off whatever the interleaving of an enable that
+	// is held inside set and a disable that follows it. Repeating makes the
+	// disable reach the handler while the enable is still held in many runs;
+	// no timing is assumed for correctness.
+	for range 200 {
+		var on atomic.Bool
+		entered := make(chan struct{})
+		proceed := make(chan struct{})
+		set := func(v bool) bool {
+			if v {
+				close(entered)
+				<-proceed
+			}
+			return on.Swap(v) != v
 		}
-		return on.Swap(v) != v
+		h := newErrortrackingFlagHandler(set, func() bool { return false }, func() bool { return true })
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() { defer wg.Done(); _ = h.OnChange(true) }()
+		<-entered
+		go func() { defer wg.Done(); _ = h.OnChange(false) }()
+		runtime.Gosched()
+		close(proceed)
+		wg.Wait()
+
+		require.False(t, on.Load(), "the later false must win")
 	}
-	h := newErrortrackingFlagHandler(set, func() bool { return false }, func() bool { return true })
+}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() { defer wg.Done(); _ = h.OnChange(true) }()
-	<-entered
-	go func() { defer wg.Done(); _ = h.OnChange(false) }()
-	time.Sleep(50 * time.Millisecond) // let the false change reach the handler
-	close(proceed)
-	wg.Wait()
+// After failed flushes, switching forwarding off must leave the probe healthy
+// so the recovery monitor does not report the rollback as failed.
+func TestSetErrortracking_ProbeHealthyAfterDisable(t *testing.T) {
+	a, _ := newErrortrackingFlagTestAtel(t, errortrackingLocalUnset, newGatedSender(nil))
+	a.setErrortracking(true)
+	a.errLogsFlushFailures.Store(maxConsecutiveFlushFailures)
+	assert.False(t, a.isErrortrackingHealthy())
 
-	assert.False(t, on.Load(), "the later false must win")
+	a.setErrortracking(false)
+	a.errortrackingDrains.Wait()
+
+	assert.True(t, a.isErrortrackingHealthy())
 }

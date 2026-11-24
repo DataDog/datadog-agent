@@ -894,9 +894,15 @@ func (a *atel) flushErrortrackingQueue(ctx context.Context, ch chan errortrackin
 
 // isErrortrackingHealthy is the health probe of the errortracking remote
 // flag: consecutive failed flushes make it unhealthy. It is independent from
-// isHealthy so one feature's failures never switch off the other.
+// isHealthy so one feature's failures never switch off the other. Once
+// forwarding is off there is nothing left to fail, so the probe reports
+// healthy; this keeps the recovery monitor from calling a successful
+// rollback a failure.
 func (a *atel) isErrortrackingHealthy() bool {
-	return a.enabled && a.errLogsFlushFailures.Load() < maxConsecutiveFlushFailures
+	if !a.enabled {
+		return false
+	}
+	return a.errLogsCh.Load() == nil || a.errLogsFlushFailures.Load() < maxConsecutiveFlushFailures
 }
 
 // allocErrortrackingQueueLocked allocates the bounded queue; the caller holds
