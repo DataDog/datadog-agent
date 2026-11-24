@@ -1,0 +1,806 @@
+ <!doctype html> <html id="html" lang="en"> <head> <meta charset="utf-8" /><script type="text/javascript" src="/WebResource.axd?d=DzHrpQl5URXarFHAtrmzFnIfPRhJrDSEV8MOvE7dmeJL_iL5wh-CJbOrwQxTLscD5X7EpLKD9wTbqGgI0Zgprmd-6uvdDWBdQG_m_t58DPWLsTAiO9c4TIL2P6pxkl9p5MDwMO0aG4rYeSX8Ug_yEwnz5I5TBc4uyfGDfBVZHf6gUG_K0&amp;t=637739729240000000">
+
+</script><script type="text/javascript">
+	(function() { TrackingConsentManager.init('\u003cdiv id=\"tracking-consent-dialog\" style=\"display:none\" /\u003e'); })();
+</script> <meta http-equiv="X-UA-Compatible" content="IE=edge" /> <meta name="viewport" content="width=device-width, initial-scale=1"> <link rel="shortcut icon" href="/favicon.ico" /> <meta property="og:locale" content="en_US" /> <meta property="og:image:width" content="1200" /> <meta property="og:image:height" content="630" /> <title>
+	Online Master License and Services Agreement | Chef
+</title> <link href="https://d2i1toup5z0rfd.cloudfront.net/cache/1ad397ad45d921092f4cc2c702103b1f7aa2f446/css/style.min.css" rel="stylesheet" type="text/css"> <meta property="og:title" content="Online Master License and Services Agreement | Chef" /><meta property="og:description" content="Learn more about the terms of our Online master license and services agreement for Chef branded products and services!" /><meta property="og:url" content="https://www.chef.io/online-master-agreement" /><meta property="og:type" content="website" /><meta property="og:site_name" content="Chef Software" /><link href="https://d6vtbcy3ong79.cloudfront.net/fonts/2.0.0/css/metric.min.css" media="all" rel="stylesheet" type="text/css" /><link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700&display=swap" media="all" rel="stylesheet" type="text/css" /><meta name="Generator" content="Sitefinity 13.3.7600.0 PU" /><link rel="canonical" href="https://www.chef.io/online-master-agreement" /><meta name="twitter:title" content="Online Master License and Services Agreement | Chef" /><meta name="twitter:description" content="Learn more about the terms of our Online master license and services agreement for Chef branded products and services!" /><meta name="twitter:url" content="https://www.chef.io/online-master-agreement" /><meta property="og:image" content="https://www.chef.io/images/default-source/logos/chef_progress_primarylogo.png" /><meta name="twitter:image" content="https://www.chef.io/images/default-source/logos/chef_progress_primarylogo.png" /><meta property="fb:app_id" /><meta name="twitter:site" content="@chef" /><meta name="twitter:creator" content="@chef" /><meta name="twitter:card" content="summary_large_image" /><script type="text/javascript">
+	
+(function(){
+    var metadataStr = '{\"Id\":\"fe964b4c-7d13-4ad6-a7e0-2ccb205279a3\",\"ContentType\":\"Page\",\"Title\":\"Online Master License and Services Agreement\",\"CanonicalTitle\":\"Online Master License and Services Agreement\",\"CanonicalUrl\":\"https://www.chef.io/online-master-agreement\",\"CreatedOn\":\"2021-05-05T13:07:09.743Z\",\"ModifiedOn\":\"2021-05-05T13:07:09.743Z\",\"SiteName\":\"Chef\",\"PageId\":\"fe964b4c-7d13-4ad6-a7e0-2ccb205279a3\"}';
+    window.decMetadata = window.decMetadata || {};
+    window.decMetadata.contentMetadata = JSON.parse(metadataStr);
+})();
+</script><script type="text/javascript">
+	InsightInitScript = { _settings: null, _client: null, _createClient: function (t) { InsightInitScript._client = new sfDataIntell.Client({ apiKey: InsightInitScript._settings.apiKey, source: InsightInitScript._settings.applicationName, apiServerUrl: InsightInitScript._settings.apiServerUrl, trackingCookieDomain: InsightInitScript._settings.trackingCookieDomain, maxAgeForTrackingCookieInDays: InsightInitScript._settings.maxAgeForTrackingCookieInDays, slidingExpirationForTrackingCookie: InsightInitScript._settings.slidingExpirationForTrackingCookie, trackPageVisits: !0, trackUtmParameters: !0, instrument: !0, trackBrowserInformation: !0, enableTracking: t }); var n = InsightInitScript._settings.keepDecTrackingCookieOnTrackingConsentRejection || !1; if (!1 === t && !1 === n && InsightInitScript._client.deleteCookie(InsightInitScript._settings.trackingCookieDomain), window.DataIntelligenceSubmitScript = InsightInitScript, "function" == typeof e) document.dispatchEvent(new e("decclientready")); else { var e = function (t, n) { n = n || { bubbles: !1, cancelable: !1, detail: void 0 }; var e = document.createEvent("CustomEvent"); return e.initCustomEvent(t, n.bubbles, n.cancelable, n.detail), e }; e.prototype = window.Event.prototype, window.CustomEvent = e; var i = new e("decclientready", { bubbles: !0, cancelable: !0 }); document.dispatchEvent(i) } }, load: function (t) { this._settings = t, window.TrackingConsentManager ? (TrackingConsentManager.removeEventListener("ConsentChanged", this._createClient), TrackingConsentManager.addEventListener("ConsentChanged", this._createClient), this._createClient(TrackingConsentManager.canTrackCurrentUser())) : this._createClient(!0) } };
+</script><script src="https://cdn.insight.sitefinity.com/sdk/sitefinity-insight-client.min.3.1.2.js" async="async" onload="InsightInitScript.load({&quot;apiServerUrl&quot;:&quot;https://api.insight.sitefinity.com&quot;,&quot;apiKey&quot;:&quot;d76abbf8-03ac-fa14-ce7c-b1b276339fd0&quot;,&quot;applicationName&quot;:&quot;Website&quot;,&quot;trackingCookieDomain&quot;:&quot;.chef.io&quot;,&quot;keepDecTrackingCookieOnTrackingConsentRejection&quot;:false,&quot;slidingExpirationForTrackingCookie&quot;:false,&quot;maxAgeForTrackingCookieInDays&quot;:365,&quot;strategy&quot;:&quot;Persist|False&quot;});">
+
+</script><meta name="description" content="Learn more about the terms of our Online master license and services agreement for Chef branded products and services!" /></head> <body id="chef"> 
+<nav class="Nav">
+  <div class="Nav-Container container">
+    <div class="Nav-Logo"><a href="/home"><img height="41" width="195" src="https://d1l5pp53ux74mz.cloudfront.net/images/default-source/logos/progress-chef-primary-logo-svg.svg?sfvrsn=5865c2aa_3" alt="Chef Progress Primary Logo" /></a></div>
+    <input type="checkbox" class="Nav-Toggle" id="mobile-nav" />
+    <label type="checkbox" class="Nav-ToggleLabel -fs40" for="mobile-nav">
+      <svg xmlns="http://www.w3.org/2000/svg" height="24" width="24" viewBox="0 0 24 24">
+        <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"></path>
+      </svg>
+    </label>
+    <div class="Nav-Content">
+      <form class="Nav-Search" method="GET" action="/search">
+          <input type="search" placeholder="Search…" name="q" required="required" />
+          <button type="submit">
+            <svg viewBox="0 0 512 512">
+              <path d="M508.5 468.9L387.1 347.5c-2.3-2.3-5.3-3.5-8.5-3.5h-13.2c31.5-36.5 50.6-84 50.6-136C416 93.1 322.9 0 208 0S0 93.1 0 208s93.1 208 208 208c52 0 99.5-19.1 136-50.6v13.2c0 3.2 1.3 6.2 3.5 8.5l121.4 121.4c4.7 4.7 12.3 4.7 17 0l22.6-22.6c4.7-4.7 4.7-12.3 0-17zM208 368c-88.4 0-160-71.6-160-160S119.6 48 208 48s160 71.6 160 160-71.6 160-160 160z"></path>
+            </svg>
+        </button>
+      </form>
+      <div class="Nav-Main">
+        <ul>
+          <li class="-has-dropdown js-tglslf-is-open"><a href="/products">Products</a>
+            <div class="Nav-Sheet">
+              <div class="container">
+                <div class="row">
+                  <div class="col-5">
+                    <div class="-bg-dark -p2 -l-dn">
+                      <h4><a href="/products/enterprise-automation-stack" class="-c-white">Chef Enterprise Automation Stack</a></h4>
+                      <p>Our full suite of enterprise infrastructure, application and DevSecOps automation technologies for delivering change quickly, repeatedly, and securely.</p>
+                      <p>Chef EAS is powered by:</p>
+                      <div class="BlockItems -mark-next"><a href="/products/chef-infra" class="-c-white">Chef Infra</a>
+                        <a href="/products/chef-inspec" class="-c-white">Chef InSpec</a>
+                        <a href="/products/chef-habitat" class="-c-white">Chef Habitat</a>
+                        <a href="/products/chef-automate" class="-c-white">Chef Automate</a>
+                        <a href="/products/enterprise-automation-stack" class="-i-next -fs20 -mt1">Learn more</a>
+                      </div>
+                    </div>
+                    <div class="-dn -l-db">
+                      <h4><a href="/products/enterprise-automation-stack">Chef Enterprise Automation Stack</a></h4>
+                      <div class="BlockItems -mark-next -l-pl1"><a href="/products/chef-infra">Chef Infra</a>
+                        <a href="/products/chef-inspec">Chef InSpec</a>
+                        <a href="/products/chef-habitat">Chef Habitat</a>
+                        <a href="/products/chef-automate">Chef Automate</a>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-4 -l-mb0">
+                    <h4><a href="/products/chef-infrastructure-management">Chef Infrastructure Management</a></h4>
+                    <p class="-mb0 -l-dn">
+                      Chef Infrastructure Management ensures configurations are applied consistently in every environment with infrastructure management automation.
+                      <a href="/products/chef-infrastructure-management" class="-i-next -fs20 -mb4 -l-mb2 -db -mt2 -l-mt1">Learn more</a>
+                    </p>
+                    <h4><a href="/products/chef-app-delivery">Chef App Delivery</a></h4>
+                    <p class="-mb0 -l-dn">
+                      Deliver successful application outcomes consistently at scale with Chef App Delivery.
+                      <a href="/products/chef-app-delivery" class="-i-next -fs20 -db -mt2 -l-mt1">Learn more</a>
+                    </p>
+                  </div>
+                  <div class="col-3">
+                    <h4><a href="/products/chef-compliance">Chef Compliance</a></h4>
+                    <p class="-mb0 -l-dn">Chef Compliance makes it easy to maintain and enforce compliance across the enterprise.
+                      <a href="/products/chef-compliance" class="-i-next -fs20 -mb4 -l-mb2 -db -mt2 -l-mt1">Learn more</a>
+                    </p>
+                    <h4><a href="/products/chef-desktop">Chef Desktop</a></h4>
+                    <p class="-mb0 -l-dn">Chef Desktop allows IT teams to automate the deployment, management, and ongoing compliance of IT resources.
+                      <a href="/products/chef-desktop" class="-i-next -fs20 -db -mt2 -l-mt1">Learn more</a>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </li>
+          <li class="-has-dropdown js-tglslf-is-open"><a href="/solutions">Solutions</a>
+            <div class="Nav-Sheet">
+              <div class="container">
+                <div class="row">
+                  <div class="col-3">
+                    <h4 class="-l-mb1">Security and Compliance</h4>
+                    <ul class="List0 -mark-next">
+                      <li><a href="/solutions/compliance-audits">Compliance Audits</a></li>
+                      <li><a href="/solutions/compliance">Compliance Solutions</a></li>
+                      <li><a href="/solutions/compliance/pci-dss">PCI-DSS</a></li>
+                      <li><a href="/solutions/gdpr">GDPR</a></li>
+                      <li><a href="/solutions/patch-management">Patch Management</a></li>
+                    </ul>
+                  </div>
+                  <div class="col-3">
+                    <h4 class="-l-mb1">Application Delivery</h4>
+                    <ul class="List0 -mark-next">
+                      <li><a href="/solutions/cloud-migration">Cloud Migration</a></li>
+                      <li><a href="/solutions/cloud-native">Cloud Native</a></li>
+                      <li><a href="/solutions/modernizing-apps">Modernizing Legacy Apps</a></li>
+                      <li><a href="/solutions/edge-computing">Edge Computing Automation</a></li>
+                      <li><a href="/solutions/windows-application-automation">Windows Application Automation</a></li>
+                      <li><a href="/solutions/application-deployment">Application Deployment</a></li>
+                    </ul>
+                  </div>
+                  <div class="col-3">
+                    <h4 class="-l-mb1">DevOps and Integrations</h4>
+                    <ul class="List0 -mark-next">
+                      <li><a href="/solutions/continuous-delivery">Continuous Delivery</a></li>
+                      <li><a href="/solutions/devops">DevOps</a></li>
+                      <li><a href="/solutions/devsecops">DevSecOps</a></li>
+                      <li><a href="/solutions/chef-and-docker">Chef and Docker</a></li>
+                      <li><a href="/solutions/chef-and-kubernetes">Chef and Kubernetes</a></li>
+                      <li><a href="/solutions/chef-and-azure">Chef and Azure</a></li>
+                      <li><a href="/solutions/chef-and-vmware">Chef and VMware</a></li>
+                    </ul>
+                  </div>
+                  <div class="col-3">
+                    <h4 class="-l-mb1 -l-mt2">Industry Solutions</h4>
+                    <ul class="List0 -mark-next">
+                      <li><a href="/solutions/financial-services">Financial Services</a></li>
+                      <li><a href="/solutions/government">Government</a></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </li>
+          <li class="-has-dropdown js-tglslf-is-open">
+            <button type="button">Services &amp; Support</button>
+            <div class="Nav-Sheet">
+              <div class="container">
+                <div class="row">
+                  <div class="col-4 -l-mb0">
+                    <h4 class="-l-mb1"><a href="/professional-services">Professional Services</a></h4>
+                    <p class="-l-dn">Let our experts help accelerate your adoption of Chef and its best practices.</p><a href="/professional-services" class="-i-next -fs20 -mta -l-dn">Learn more</a>
+                  </div>
+                  <div class="col-4 -l-mb0">
+                    <h4 class="-l-mb1"><a href="/training">Training</a></h4>
+                    <p class="-l-dn">Hands on training for Chef practitioners designed to solve real business problems.</p><a href="/training" class="-i-next -fs20 -mta -l-dn">See training classes</a>
+                  </div>
+                  <div class="col-4">
+                    <h4><a href="/support">Support</a></h4>
+                    <p class="-l-dn">Got a question? Our support team is here to help.</p><a href="/support" class="-i-next -fs20 -mta -l-dn">Get support</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </li>
+          <li><a href="/pricing">Pricing</a></li>
+          <li><a href="https://learn.chef.io/">Learn</a></li>
+          <li class="-has-dropdown js-tglslf-is-open">
+            <button type="button">About</button>
+            <div class="Nav-Sheet">
+              <div class="container">
+                <div class="row">
+                  <div class="col-4 -l-mb0">
+                    <h4 class="-l-mb1"><a href="https://www.progress.com/company" target="_blank">About Progress</a></h4>
+                    <p class="-l-dn">Progress provides everything you need to develop, deploy and manage high-impact business applications.</p>
+                    <a href="https://www.progress.com/company" target="_blank" class="-i-next -fs20 -mta -l-dn">Learn more</a>
+                  </div>
+                  <div class="col-4 -l-mb0">
+                    <h4 class="-l-mb1"><a href="/why-chef">Why Chef Products</a></h4>
+                    <p class="-l-dn">Chef delivers the Coded Enterprise, a blueprint for organizations to win in the digital future.</p>
+                    <a href="/why-chef" class="-i-next -fs20 -mta -l-dn">Learn more</a>
+                  </div>
+                  <div class="col-4">
+                    <h4><a href="https://www.progress.com/company/press-coverage" target="_blank">Press Coverage</a></h4>
+                    <p class="-l-dn">Catch up with the latest Progress press coverage.</p>
+                    <a href="https://www.progress.com/company/press-coverage" target="_blank" class="-i-next -fs20 -mta -l-dn">Learn more</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </li>
+          <li>
+            <a href="https://www.chef.io/downloads" target="_blank" class="Btn -mb0 -ml2 -l-ml0">Downloads</a>
+          </li>
+        </ul>
+      </div>
+      <div class="Nav-Complementary">
+        <ul>
+          <li>
+            <a href="https://chef.io/chefconf">
+              <span class="-c-brand">{</span><span class="-ttu">ChefConf</span><span class="-c-brand">}</span>
+            </a>
+          </li>
+          <li><a target="_blank" href="https://docs.chef.io">Docs</a></li>
+          <li><a href="https://community.chef.io" target="_blank">Developers</a></li>
+          <li><a href="/partners">Partners</a></li>
+          <li class="Nav-Complementary-Dropdown">
+            <button type="button">Resources
+              <svg viewBox="0 0 255 255" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" style="width:6px;height:7px;" class="-l-dn">
+                <polygon points="0,63.75 127.5,191.25 255,63.75"></polygon>
+              </svg>
+            </button>
+            <ul class="List0">
+              <li><a href="/resources">All Resources</a></li>
+              <li><a href="/webinars">Webinars</a></li>
+              <li><a href="/customers">Customer Stories</a></li>
+              <li><a href="/blog">Blog</a></li>
+            </ul>
+          </li>
+          <li class="Nav-Complementary-Dropdown">
+            <button type="button">Logins
+              <svg viewBox="0 0 255 255" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" style="width:6px;height:7px;" class="-l-dn">
+                <polygon points="0,63.75 127.5,191.25 255,63.75"></polygon>
+              </svg>
+            </button>
+            <ul class="List0">
+              <li><a href="https://account.chef.io/account/login">Account</a></li>
+              <li><a target="_blank" href="https://manage.chef.io">Management Console</a></li>
+              <li><a href="https://partners.chef.io/s/login" target="_blank">Chef Partner Kitchen</a></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</nav><main id="Content_TDA3D64C3003_Col00" class="sf_colsIn Main Page-Content" data-sf-element="Row" data-placeholder-label="Main - Place page content here."><section class="Section" data-sf-element="Row">
+  <div id="Content_C001_Col00" class="sf_colsIn container" data-sf-element="Column 1" data-placeholder-label="Section">
+
+
+<h1>End User License Agreement</h1><p><small>Last Modified: April 28, 2021 (<a data-sf-ec-immutable="" href="/online-master-agreement-archive-20201006">view archived version</a>)</small></p><p>READ THIS END USER LICENSE AGREEMENT (&ldquo;EULA&rdquo;) BEFORE INSTALLING OR USING THE PRODUCT TO WHICH THIS EULA APPLIES. BY ACCEPTING THIS EULA, COMPLETING THE REGISTRATION PROCESS, AND/OR INSTALLING OR USING THE PRODUCT, YOU AGREE ON BEHALF OF YOURSELF
+    AND YOUR COMPANY (IF APPLICABLE) TO THE TERMS BELOW. IF YOU DO NOT AGREE WITH THESE TERMS, OR DO NOT HAVE THE AUTHORITY TO BIND YOUR COMPANY, DO NOT INSTALL, REGISTER FOR OR USE THE PRODUCT, AND DESTROY OR RETURN ALL COPIES OF THE PRODUCT. ONCE YOU
+    HAVE DONE THIS, YOU MAY REQUEST FROM THE POINT OF PURCHASE A FULL REFUND OF THE LICENSE FEES, IF ANY, PAID FOR THE PRODUCT (OR, IF THE PRODUCT IS PROVIDED TO YOU AS A HOSTED SERVICE, A REFUND OF THE PREPAID SERVICE FEES FOR THE REMAINDER OF THE SUBSCRIPTION
+    PERIOD OF THE PRODUCT). SUCH REQUEST MUST BE COMPLETED WITHIN THIRTY (30) DAYS OF DELIVERY OF THE PRODUCT TO YOU. UNLESS OTHERWISE SPECIFIED IN THIS EULA, PROGRESS SOFTWARE CORPORATION IS THE LICENSOR OF THE PRODUCT. THE LICENSOR MAY BE REFERRED TO
+    HEREIN AS &ldquo;<strong>Licensor</strong>&rdquo;, &ldquo;<strong>we</strong>&rdquo;, &ldquo;<strong>us</strong>&rdquo;, or &ldquo;<strong>our</strong>&rdquo;. IF YOU ARE AGREEING TO THIS EULA ON BEHALF OF YOURSELF IN YOUR INDIVIDUAL CAPACITY, THEN
+    YOU ARE THE LICENSEE AND YOU MAY BE REFERRED TO HEREIN AS &ldquo;<strong>Licensee</strong>&rdquo;, &ldquo;<strong>you</strong>&rdquo;, or &ldquo;<strong>your</strong>&rdquo;. IF YOU ARE AGREEING TO THIS EULA ON BEHALF OF YOUR COMPANY, THEN YOUR COMPANY
+    IS THE LICENSEE AND ANY REFERENCES TO &ldquo;<strong>Licensee</strong>&rdquo;, &ldquo;<strong>you</strong>&rdquo;, or &ldquo;<strong>your</strong>&rdquo; WILL MEAN YOUR COMPANY.
+</p><p>This EULA includes the following sections:</p><p>1. <a data-sf-ec-immutable="" href="#general-terms-and-conditions">GENERAL TERMS AND CONDITIONS</a> &ndash;
+    <em>these terms apply to all Products</em>;<br />2.A. <a data-sf-ec-immutable="" href="#terms-for-on-premise-products">TERMS FOR ON-PREMISE PRODUCTS</a> &ndash; <em>these terms apply to Products that you or Permitted Third Parties install on computers</em>;<br />2.B. <a data-sf-ec-immutable="" href="#terms-for-hosted-services">TERMS FOR HOSTED SERVICES</a> &ndash; <em>these terms apply to Products that we host;</em><br />3. <a data-sf-ec-immutable="" href="#product-family-specific-terms">PRODUCT FAMILY SPECIFIC TERMS</a> &ndash; <em>these terms apply to <strong>all</strong> Products that are part of the family of Products referenced in this section; and </em><br />4. <a data-sf-ec-immutable="" href="#product-specific-terms">PRODUCT SPECIFIC TERMS</a> &ndash; <em>these terms apply to <strong>specific</strong> Products referenced in this section.</em>
+</p><p id="general-terms-and-conditions"><strong>1. GENERAL TERMS AND CONDITIONS</strong></p><p><strong>1.1 Definitions.</strong></p><p>1.1.1. &ldquo;<strong>Affiliate</strong>&rdquo; means any legal entity that directly or indirectly controls, is controlled by, or is under common control with you or us. For the purposes of this definition, &ldquo;control&rdquo; means ownership, directly
+    or indirectly, of more than fifty percent (50%) of the voting shares or other equity interest in an entity.
+</p><p>1.1.2. &ldquo;<strong>Applicable Laws</strong>&rdquo; means national, federal, state, and local laws, rules, and regulations including, without limitation, those laws and regulations relating to data privacy and security in each applicable jurisdiction.
+</p><p>1.1.3. &ldquo;<strong>Authorized Reseller</strong>&rdquo; means a third party who is not our Affiliate and who is authorized by us or our Affiliate to resell the Product.</p><p>1.1.4. &ldquo;<strong>Authorized User</strong>&rdquo; means you, your employee or a third-party consultant or agent that you authorize to use the Product for your benefit in accordance with section 1.2.3 (Third Party Use).
+</p><p>1.1.5. &ldquo;<strong>Documentation</strong>&rdquo; means any technical instructions or materials describing the operation of the Product made available to you (electronically or otherwise) by us for use with the Product, expressly excluding any user
+    blogs, reviews or forums.
+</p><p>1.1.6. &ldquo;<strong>Hosted Services</strong>&rdquo; means computer software program(s), content and related services provided by us on a software-as-a-service basis through computers we or our Affiliates or our respective contractors (including cloud
+    infrastructure suppliers) control.
+</p><p>1.1.7. &ldquo;<strong>Intellectual Property Rights</strong>&rdquo; means any and all current and future (a) rights associated with works of authorship, including copyrights, mask work rights, and moral rights; (b) trademark or service mark rights; (c)
+    trade secret rights; (d) patents, patent rights, and industrial property rights; (e) layout design rights, design rights, and other proprietary rights of every kind and nature other than trademarks, service marks, trade dress, and similar rights;
+    and (f) registrations, applications, renewals, extensions, or reissues of any of (a) to (e) , in each case, in any jurisdiction throughout the world.
+</p><p>1.1.8. &ldquo;<strong>On-Premise Product(s)</strong>&rdquo; means computer software program(s) provided to you to download, install and use on computer(s) controlled directly or indirectly by you.</p><p>1.1.9. &ldquo;<strong>Order</strong>&rdquo; means a written or electronic order document entered into between you and us (or our Affiliate or an Authorized Reseller) for the Product. Unless an Order says something different, each Order will be governed
+    by the terms of this EULA and include the name of the Product being licensed and any usage limitations, applicable fees, and any other details related to the transaction.
+</p><p>1.1.10. &ldquo;<strong>Our Technology</strong>&rdquo; means any software, code, tools, libraries, scripts, application programming interfaces, templates, algorithms, data science recipes (including any source code for data science recipes and any modifications
+    to such source code), data science workflows, user interfaces, links, proprietary methods and systems, know-how, trade secrets, techniques, designs, inventions, and other tangible or intangible technical material, information and works of authorship
+    underlying or otherwise used to make available the Product, including, without limitation, all Intellectual Property Rights therein and thereto.
+</p><p>1.1.11. &ldquo;<strong>Permitted Third Party</strong>&rdquo; has the meaning given in section 1.2.3 (Third Party Use).</p><p>1.1.12. &ldquo;<strong>Product</strong>&rdquo; means the On-Premise Product(s) or Hosted Services, as applicable, identified in an Order, and any Updates.</p><p>1.1.13. &ldquo;<strong>Update</strong>&rdquo; means any update, enhancement, error correction, modification or new release to the Product that we make available to you.</p><p><strong>1.2. General License Terms, Restrictions and Order of Precedence.</strong></p><p>1.2.1. <strong>General License Terms</strong>. The Product is licensed, not sold, to you by us under the terms of this EULA and the Order. The scope of license granted by us to you for the Product is set out in section 3 (Product Family Specific Terms)
+    and section 4 (Product Specific Terms).
+</p><p>1.2.2. <strong>Authorized Users</strong>. Anything your Authorized Users do or fail to do will be considered your act or omission, and you accept full responsibility for any such act or omission to the extent you would be liable if it were your act or
+    omission.
+</p><p>1.2.3. <strong>Third Party Use</strong>. You may allow your agents, contractors and outsourcing service providers (each a &ldquo;<strong>Permitted Third Party</strong>&rdquo;) to use the Product(s) licensed to you hereunder solely for your benefit in
+    accordance with the terms of this EULA and you are responsible for any such Permitted Third Party&rsquo;s compliance with this EULA in such use. Any breach by any Permitted Third Party of the terms of this EULA will be considered your breach.
+</p><p>1.2.4. <strong>Restrictions</strong>. Except as otherwise expressly permitted in this EULA, you will not (and will not allow any of your Affiliates or any third party to):</p><p>(a) copy, modify, adapt, translate, or otherwise create derivative works of the Product, Documentation, or any software, services, or other technology of third party vendor(s) or hosting provider(s) that we or our Affiliate engage;
+</p><p>(b) disassemble, decompile or &ldquo;unlock&rdquo;, decode or otherwise reverse translate or engineer, or attempt in any manner to reconstruct or discover the source code or underlying structure, ideas, or algorithms of the Product except as expressly
+    permitted by law in effect in the jurisdiction in which you are located;
+</p><p>(c) rent, lease, sell, distribute, pledge, assign, sublicense or otherwise transfer or encumber rights to the Product;</p><p>(d) make the Product available on a timesharing or service bureau basis or otherwise allow any third party to use or access the Product;</p><p>(e) remove or modify any proprietary notices, legends, or labels on the Product or Documentation;</p><p>(f) use or access the Product in a manner that: (i) violates any Applicable Laws; (ii) violates the rights of any third party; (iii) purports to subject us or our Affiliates to any other obligations; (iv) could be fraudulent; or (v) is not permitted under
+    this EULA;
+</p><p>(g) use the Product to develop, test, support or market products that are competitive with and/or provide similar functionality to the Product; or</p><p>(h) permit your Affiliates to access or use the Product unless specifically authorized elsewhere in this EULA or the Order.</p><p>1.2.5. <strong>Limitations on Evaluation or Trial Licenses. </strong>If the Product is licensed to you on an evaluation or trial basis, then you may use the Product only for such purposes until the earlier of: (a) the end of the evaluation period, if
+    any, specified in the Order, this EULA or otherwise communicated by us to you at the time of delivery; or (b) the start date of a paid for license to the Product; or (c) termination in accordance with the terms of this EULA. You may not extend the
+    evaluation period by uninstalling and re-installing the Product(s) or by any other means other than our written consent. You must not use the Product in a production environment. You will be required to pay for a license for the Product at our then
+    applicable license price if you continue to use the Product, whether in a production or non-production environment, after the evaluation license expires or terminates, and the terms and conditions of the EULA in effect at that time will apply to your
+    continued use of the Product. A Product licensed to you on an evaluation or trial basis may be subject to one or more usage limits specified in section 3 (Product Family Specific Terms), section 4 (Product Specific Terms), the Order or otherwise communicated
+    at the time of delivery (including posting of such limits at the location where you download the Product for evaluation). We may, at our sole discretion, decide whether to offer any maintenance and support for the Product during the evaluation period,
+    and to include any conditions or limits on such maintenance and support. You may not circumvent any technical limitations included in the Product licensed to you on an evaluation or trial basis.
+</p><p>1.2.6. <strong>Redistribution</strong>. If the Order or section 3 (Product Family Specific Terms) or section 4 (Product Specific Terms) grants you the express right to redistribute or offer access to all or a portion of the Product (&ldquo;<strong>Redistributables</strong>&rdquo;),
+ then, in conjunction with any such grant, you must comply with any limitations or requirements specified in the Order, section 3 (Product Family Specific Terms) or section 4 (Product Specific Terms), as applicable, and you must distribute or offer
+    access to the Redistributables subject to a license agreement or terms of use between you and each third party receiving or accessing the Redistributables (&ldquo;
+    <strong>your customer</strong>&rdquo;) that: (a) protects our interests consistent with the terms contained in this EULA, (b) prohibits your customer from any further distribution of the Redistributables (unless expressly permitted pursuant to section
+    3 (Product Family Specific Terms) or section 4 (Product Specific Terms)), (c) includes a limitation of damages clause that, to the maximum extent permitted by applicable law, disclaims on behalf of us, our Affiliates or our or their respective licensors,
+    suppliers or Authorized Resellers, liability for any and all damages, whether direct, special, incidental or consequential damages, (d) contains terms substantially similar to those in subparts (a) through (g) of section 1.2.4 (Restrictions), section
+    1.5.1 (Export Compliance) and section 1.5.2 (U.S. Government Customers), and (e) includes a notice substantially similar to section 1.2.7 (Third Party Notices).
+</p><p>1.2.7. <strong>Third Party Notices</strong>. The Product may contain or be accompanied by certain third-party components which are subject to additional restrictions. These components, are identified in, and subject to, special license terms and conditions
+    which, in the case of On-Premise Product(s), are set out in the &ldquo;readme.txt&rdquo; file, the &ldquo;notices.txt&rdquo; file, or the &ldquo;Third Party Software&rdquo; file accompanying the Product or portions thereof, and in the case of Hosted
+    Services, are set out in the third-party license agreement or notices that comes with the third-party component or is otherwise provided on the web page on which such third-party component is made available (&ldquo;<strong>Special Notices</strong>&rdquo;).
+ The Special Notices include important licensing and warranty information and disclaimers. Unless otherwise expressly stated for a given third-party component, all such third-party components may be used solely in connection with the use of the Product
+    subject to and in accordance with the terms and conditions of this EULA and the Special Notices. In the event of conflict between the Special Notices and the other portions of this EULA, the Special Notices will take precedence (but solely with respect
+    to the third-party component(s) to which the Special Notice relates).
+</p><p>1.2.8. <strong>Order of Precedence between EULA and Order</strong>. If there is any conflict between the terms and conditions in the Order and the terms and conditions of this EULA, or if the Order changes any of the terms of this EULA, the terms and
+    conditions of the Order will apply, except if the Order is between you and an Authorized Reseller, or the Order is issued/generated by you. In the case where the Order is between you and an Authorized Reseller, the terms of the Order will apply subject
+    to the following: (a) any terms and conditions in the Order imposing obligations on the Authorized Reseller that are in addition to or different from the obligations we have to you pursuant to this EULA will be born solely by the Authorized Reseller
+    and our obligations to you and limits on our liability will be governed solely by the terms and conditions of this EULA and (b) any terms and conditions that conflict with or would otherwise alter any of the following under this EULA will have no
+    effect unless expressly agreed to in a written instrument executed by us: our ownership rights, yours and our confidentiality obligations, your export compliance obligations, limitations on your rights as a U.S. Government customer (if applicable),
+    our audit rights, restrictions on your right to assign or governing law and jurisdiction. In cases where the Order is issued/generated by you, the terms and conditions of Section 1.18.2. of this EULA, governing a purchase order or other document you
+    supply in connection with this EULA, shall apply to such Order.
+</p><p>1.2.9. <strong>Order of Precedence within EULA</strong>. If there is any conflict among the terms and conditions of this EULA, or if a section changes the terms of another section within this EULA, the order of precedence will be as follows: first, section
+    4 (Product Specific Terms) (if any); second, section 3 (Product Family Specific Terms) (if any); third, section 2.A (Terms for On-Premise Products) and/or section 2.B (Terms for Hosted Services), as applicable; and fourth and finally, section 1 (General
+    Terms and Conditions).
+</p><p><strong>1.3. License Types.</strong></p><p>1.3.1. <strong>Overview of License Types</strong>. The license type for the Product will, unless otherwise specified in this EULA, be one of the following license types: perpetual, term or subscription. This will be confirmed in the Order or will be the
+    default license type listed in section 3 (Product Family Specific Terms) or section 4 (Product Specific Terms).
+</p><p>1.3.2. <strong>Perpetual License Type</strong>. Your license to use the Product will continue in perpetuity unless earlier terminated in accordance with the terms of this EULA.</p><p>1.3.3. <strong>Term License Type</strong>. Your license to use the Product will continue until the expiration of the term identified in the Order unless earlier terminated in accordance with the terms of this EULA. If we continue to make the Product generally
+    available to our customers, you may purchase a new term license for the Product from us or our Authorized Reseller.
+</p><p>1.3.4. <strong>Subscription License Type</strong>. Your license to use the Product will continue until the expiration of the subscription period identified in the Order unless earlier terminated in accordance with the terms of this EULA. The procedure
+    for renewing your license to the Product is set out in section 3 (Product Family Specific Terms) or section 4 (Product Specific Terms). If you upgrade your subscription to the Product, the upgrade will take effect immediately and you will be charged
+    and must pay the applicable fee, and the term of your then-current subscription period may be extended, as described at the time you upgrade. You may not downgrade a subscription to the Product.
+</p><p><strong>1.4. Our Business Principles.</strong> We will apply the principles set out in our Code of Conduct and Business Ethics (published on our website at <a data-sf-ec-immutable="" href="http://investors.progress.com/governance.cfm">http://investors.progress.com/governance.cfm</a>)
+ in our performance under this EULA.</p><p><strong>1.5. Export Compliance and U.S. Government Customers. </strong></p><p>1.5.1. <strong>Export Compliance</strong>. Export laws and regulations of the United States and any other relevant local export laws and regulations apply to the Products. You agree that such export control laws, including, without limitation, the U.S.
+    Export Administration Act and its associated regulations, govern your use of the Product (including technical data), and you agree to comply with all such export laws and regulations (including &ldquo;deemed export&rdquo; and &ldquo;deemed re-export&rdquo;
+    regulations). You agree that no data, information and/or Product (or direct product thereof) will be exported, directly or indirectly, in violation of these laws, or will be used for any purpose prohibited by these laws including, without limitation,
+    nuclear, chemical, or biological weapons proliferation, or development of missile technology.
+</p><p>1.5.2. <strong>U.S. Government Customers</strong>. If the Product is being acquired by or on behalf of the U.S. Government or by a U.S. Government prime contractor or subcontractor (at any tier), then the U.S. Government&rsquo;s rights in the Product
+    will be only as set out herein. The Product and Documentation are &ldquo;commercial items&rdquo; as that term is defined at 48 C.F.R. 2.101, consisting of &ldquo;commercial computer software&rdquo; and &ldquo;commercial software documentation&rdquo;
+    as such terms are used in 48 C.F.R. 12.212. Consistent with 48 C.F.R. 12.212 and 48 C.F.R. 227.7202-1 through 227.7202-4, all U.S. Government end users acquire the Product and such Documentation with only those rights set out herein.
+</p><p><strong>1.6. IP Ownership and Feedback. </strong></p><p>1.6.1. <strong>IP Ownership</strong>. The Product, Our Technology, Documentation, and all other current or future intellectual property developed by us or our Affiliates, and all worldwide Intellectual Property Rights in each of the foregoing and all
+    Updates, upgrades, enhancements, new versions, releases, corrections, and other modifications thereto and derivative works thereof, are the exclusive property of us or our Affiliates or our or their licensors or suppliers. Except for the rights and
+    licenses expressly granted herein, all such rights are reserved by us and our Affiliates and our or their licensors and suppliers. All title and Intellectual Property Rights in and to the content that may be accessed through use of the Product is
+    the property of the respective content owner and may be protected by applicable copyright or other intellectual property laws and treaties. This EULA grants you no rights to use such content.
+</p><p>1.6.2. <strong>Feedback</strong>. If you provide us any ideas, thoughts, criticisms, suggested improvements or other feedback related to Our Technology (collectively &ldquo;Feedback&rdquo;) you own the Feedback and you grant to us a worldwide, royalty-free,
+    fully paid, perpetual, irrevocable license to use, reproduce, modify, translate, distribute, perform, display, import, sell, license, offer for sale, make, have made and otherwise exploit the Feedback in any form, media, or technology, whether now
+    known or hereafter developed, and to allow others to do the same without restriction or obligation of any kind, on account of confidential information, intellectual property rights or otherwise, and may incorporate into our products or services any
+    service, product, technology, enhancement, documentation or other development (&ldquo;Improvement&rdquo;) incorporating or derived from any Feedback with no obligation to license or to make available the Improvement to you or any other person or entity.
+    This is true whether you provide the Feedback through use of the Product or through any other method of communication with us, unless we have entered into a separate agreement with you that provides otherwise.
+</p><p><strong>1.7. Maintenance. </strong></p><p>1.7.1. <strong>Our Maintenance and Support Policies</strong>. If we offer and you purchase maintenance and support for the Product, then it will be provided in accordance with our then current maintenance and support policies for the applicable Product
+    in effect at the time of purchase. You may access our maintenance and support policies by clicking on the applicable Product family link located at <a data-sf-ec-immutable="" href="https://www.progress.com/support">https://www.progress.com/support</a>.
+</p><p>1.7.2. <strong>Maintenance and Support for Perpetual or Term License Types</strong>. For Perpetual and Term License Types, unless otherwise expressly stated by us in the Order, first year annual maintenance and support (if offered by us) is required for
+    the Product and starts on the date the Product is delivered. Thereafter, you may choose to purchase annual maintenance and support (if offered by us). If you do not purchase renewal maintenance and support services for a Product, then you will not
+    receive any maintenance and support services for that Product and will have no entitlement to any benefits of maintenance and support services including, bug fixes, patches, upgrades, enhancements, new releases or technical support. If you want to
+    reinstate lapsed maintenance and support services on a Product, and we offer reinstatement to our customers, then you may re-instate maintenance and support services by paying the then-current fee, plus a reinstatement fee for the lapsed maintenance
+    and support period in accordance with our maintenance and support reinstatement policies then in effect.
+</p><p>1.7.3. <strong>Maintenance and Support for Subscription License Type</strong>. If the license type for the Product licensed to you is the subscription license type, then maintenance and support (if offered by us) is included in the subscription fees for
+    each subscription period.
+</p><p><strong>1.8. Fees and Taxes. </strong></p><p>1.8.1. <strong>Payment Terms and Taxes</strong>. All fees payable to us are payable in the currency specified in the Order, or if no currency is specified, in United States Dollars, are due within 30 days from the invoice date and, except as otherwise
+    expressly specified herein, are non-cancellable and non-refundable. We may charge you interest at a rate of 1.5% per month (or the highest rate permitted by law, if less) on all overdue payments. You agree to pay any sales, value-added or other similar
+    taxes imposed by applicable law that we must pay on such fees, except those based on our income. Invoices may be issued by our Affiliate. If you and we agree that you will pay by credit card, you will provide us with valid and updated credit card
+    information and you authorize us to store such information and bill such credit card for all fees applicable: (a) at the time that you order the Product and (b) at the time of any renewal or upgrade.
+</p><p>1.8.2. <strong>Fees for Renewal Subscription Licenses</strong>. If the license type for the Product licensed to you is the Subscription License Type then each renewal subscription will be calculated at the then-current price offered for the Product at
+    the time of renewal.
+</p><p>1.8.3. <strong>Fees for Renewal Maintenance Terms</strong>. If the license type for the Product licensed to you is a Perpetual license or Term license, then, unless otherwise specified in the Order or in section 3 (Product Family Specific Terms) or section
+    4 (Product-Specific Terms), the fee for an optional annual renewal maintenance and support term for the Product will be calculated based on the annual rate applicable for the initial maintenance and support term or immediately preceding renewal maintenance
+    and support term, whichever is applicable, plus a rate increase, if applicable, calculated at the lesser of any standard price increase or CPI (or equivalent index) after applying any increases as a consequence of our Lifetime Support policy, if applicable.
+</p><p>1.8.4. <strong>Orders between You and Our Authorized Reseller</strong>. Notwithstanding the above terms of this section 1.8 (Fees and Taxes), if you purchased your license to the Product and/or maintenance and support from an Authorized Reseller, then
+    the fees will be set out in the Order between you and the Authorized Reseller. The Authorized Reseller may be responsible for billing and/or collecting payment from you and if so, the billing and collection terms agreed to between you and the Authorized
+    Reseller may differ from the terms set out in this section 1.8 (Fees and Taxes).
+</p><p>1.8.5. <strong>No Reliance on Future Availability of any Product or Update</strong>. You agree that you have not relied on the future availability of any Product or Updates in your purchasing decision or in entering into the payment obligations in your
+    Order.
+</p><p><strong>1.9. Warranties.</strong></p><p>1.9.1. <strong>Authority</strong>. Each party represents and warrants that it has the legal power and authority to enter into this EULA.</p><p>1.9.2. <strong>Product Compliance with Documentation</strong>. We warrant to you that, for six (6) months from delivery (in the case of an On-Premise Product) or for the duration of the license (in the case of a Hosted Service), the Product will comply
+    with the applicable Documentation in all material respects. Your exclusive remedy, and our sole liability, with respect to any breach of this warranty will be for us to use commercially reasonable efforts to promptly correct the non-compliance (provided
+    that you notify us in writing within the warranty period and allow us a reasonable cure period). If we, at our discretion, reasonably determine that correction is not economically or technically feasible, we may terminate your license to the Product
+    and provide you a full refund of the fees paid to us with respect to the Product (in the case of an On-Premise Product) or a refund of the prepaid fees for the unused portion of the license period (in the case of a Hosted Service). Delivery of additional
+    copies of, or Updates to, the Product will not restart or otherwise affect the warranty period.
+</p><p>1.9.3. <strong>Warranty Exclusions</strong>. The warranty specified in section 1.9.2 (Product Compliance with Documentation) does not cover any Product provided on an unpaid evaluation or trial basis, or defects to the Product due to accident, abuse,
+    service, alteration, modification or improper installation or configuration by you, your Affiliates, your or their personnel or any third party not engaged by us.
+</p><p>1.9.4. <strong>Warranty Disclaimers</strong>. EXCEPT FOR THE WARRANTIES EXPRESSLY STATED IN THIS SECTION 1.9 OR THE ADDITIONAL WARRANTIES (IF ANY) EXPRESSLY STATED IN SECTION 3 (PRODUCT FAMILY SPECIFIC TERMS) OR SECTION 4 (PRODUCT SPECIFIC TERMS), THE
+    PRODUCT, DOCUMENTATION AND OUR TECHNOLOGY ARE PROVIDED &ldquo;AS IS&rdquo;, WITH ALL FAULTS, AND WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE,
+    NONINFRINGEMENT, AVAILABILITY, ERROR-FREE OR UNINTERRUPTED OPERATION, AND ANY WARRANTIES ARISING FROM COURSE OF DEALING, COURSE OF PERFORMANCE, OR USAGE OF TRADE. TO THE EXTENT THAT WE MAY NOT AS A MATTER OF APPLICABLE LAW DISCLAIM ANY IMPLIED WARRANTY,
+    THE SCOPE AND DURATION OF SUCH WARRANTY WILL BE THE MINIMUM PERMITTED UNDER APPLICABLE LAW.
+</p><p><strong>1.10. Indemnification.</strong></p><p>1.10.1. <strong>Our Indemnification Obligation</strong>.</p><p>1.10.1.1. <strong>Intellectual Property Infringement</strong>. We will defend you, and your officers, directors, employees, and agents from and against any and all third party claims, lawsuits, and proceedings alleging that your use of the Product, in
+    accordance with the terms and conditions of this EULA, constitutes a direct infringement or misappropriation of such third party&rsquo;s patent, copyright or trade secret rights (the &ldquo;<strong>IP Claim</strong>&rdquo;), and we will indemnify
+    you for damages finally awarded against you by a court of competent jurisdiction with respect to the IP Claim.
+</p><p>1.10.1.2. <strong>Exceptions</strong>. We will not indemnify you to the extent that the alleged infringement or misappropriation results from (a) use of the Product in combination with any other software or item not supplied by us; (b) failure to promptly
+    implement an Update provided by us pursuant to 1.10.1.3 (Our Options); (c) modification of the Product not made or provided by us; or (d) use of the Product in a manner not permitted by this EULA. We also will not indemnify you if we notify you of
+    our decision to terminate this EULA, and the license to the Product granted hereunder, in accordance with section 1.10.1.3 (Our Options) and you have not ceased all use of the Product within thirty (30) days of such notification.
+</p><p>1.10.1.3. <strong>Our Options</strong>. If a final injunction is, or we reasonably believe that it could be, obtained against your use of the Product, or if in our opinion the Product is likely to become the subject of a successful claim of infringement,
+    we may, at our option and expense, (a) replace or modify the Product so that it becomes non-infringing (provided that the functionality is substantially equivalent), (b) obtain for you a license to continue to use the Product, or (c) if neither (a)
+    nor (b) are reasonably practicable, terminate this EULA on thirty (30) days&rsquo; notice and, if the Product was licensed to you on a Perpetual License or Term License basis, refund to you the license fee paid to us for the Product less an amount
+    for depreciation determined on a straight-line five year (or actual term if shorter) depreciation basis with a commencement date as of the date of delivery of the Product, or if the Product was licensed to you on a Subscription License basis, refund
+    to you the unused portion of the fees paid in advance to us for the then-current subscription period for the Product. THE INDEMNIFICATION PROVISIONS SET OUT IN THIS SECTION 1.10.1 STATE OUR ENTIRE LIABILITY AND YOUR SOLE AND EXCLUSIVE REMEDY WITH
+    RESPECT TO ANY INFRINGEMENT OR ALLEGED INFRINGEMENT BY US OF ANY INTELLECTUAL PROPERTY RIGHTS OR PROPRIETARY RIGHTS IN RESPECT OF THE PRODUCT OR ITS USE.
+</p><p>1.10.2. <strong>Your Indemnification Obligation</strong>.</p><p>1.10.2.1. <strong>Indemnification for Third Party-Claims</strong>. To the extent permitted by applicable law, you will defend us and our Affiliates, and our and their respective officers, directors, employees, and agents from and against any and all third
+    party claims, lawsuits, and proceedings that arise or result from (a) your breach of this EULA, (b) your use, distribution and/or licensing of the Redistributables, if applicable, except to the extent it arises from an IP Claim covered under section
+    1.10.1 above, or (c) your failure or alleged failure to comply with Applicable Laws or any violation of a third party&rsquo;s rights in connection with your use of the Product (each a &ldquo;<strong>Third-Party Claim</strong>&rdquo; and collectively
+    &ldquo;<strong>Third-Party Claims</strong>&rdquo;) and you will indemnify for damages finally awarded by a court of competent jurisdiction with respect to any Third-Party Claim.
+</p><p>1.10.3. <strong>Control of the Defense or Settlement</strong>. For any indemnification obligation covered in section 1.10.1,&ldquo;<strong>Indemnifying Party</strong>&rdquo; means us, &ldquo;<strong>Indemnified Party</strong>&rdquo; means you, and &ldquo;<strong>Claim</strong>&rdquo;
+ means an IP Claim. For any indemnification obligation covered in section 1.10.2, &ldquo;<strong>Indemnifying Party</strong>&rdquo; means you, &ldquo;<strong>Indemnified Party</strong>&rdquo; means us, and &ldquo;<strong>Claim</strong>&rdquo; means
+    a Third-Party Claim. The Indemnified Party must provide the Indemnifying Party with prompt written notice of a Claim; however, the Indemnified Party&rsquo;s failure to provide or delay in providing such notice will not relieve the Indemnifying Party
+    of its obligations under this section except to the extent the Indemnifying Party is prejudiced by the Indemnified Party&rsquo;s failure or delay. The Indemnified Party will give the Indemnifying Party full control of the defense and settlement of
+    the Claim as long as such settlement does not include a financial obligation on or admission of liability by the Indemnified Party. If the Indemnified Party does not do so, then the Indemnified Party waives the Indemnifying Party&rsquo;s indemnification
+    obligations under section 1.10.1 or 1.10.2, as applicable. The Indemnified Party will reasonably cooperate in the defense of the Claim and may appear, at its own expense, through counsel reasonably acceptable to the Indemnifying Party.
+</p><p><strong>1.11. Confidentiality. </strong></p><p>1.11.1. <strong>Confidentiality Obligations</strong>. Except as otherwise provided herein, each party agrees to retain in confidence all information and know-how transmitted or disclosed to the other that the disclosing party has identified as being proprietary
+    and/or confidential or should reasonably be understood to be confidential given the nature of the information and the circumstances surrounding its disclosure, and agrees to make no use of such information and know-how except under the terms of this
+    EULA. However, neither party will have an obligation to maintain the confidentiality of information that (a) it received rightfully from a third party without an obligation to maintain such information in confidence; (b) was known to the receiving
+    party prior to its disclosure by the disclosing party; (c) is or becomes a matter of public knowledge through no fault of the receiving party; or (d) is independently developed by the receiving party without use of the confidential information of
+    the disclosing party. Further, either party may disclose confidential information of the other party as required by governmental or judicial order, provided such party gives the other party prompt written notice prior to such disclosure (unless such
+    prior notice is not permitted by applicable law) and complies with any protective order (or equivalent) imposed on such disclosure. You will treat any source code for the Product as our confidential information and will not disclose, disseminate or
+    distribute such materials to any third party without our prior written permission. Each party&rsquo;s obligations under this section 1.11 will apply during the term of this EULA and for five (5) years following termination of this EULA, provided,
+    however, that (i) obligations with respect to source code will survive forever and (ii) trade secrets will be maintained as such until they fall into the public domain.
+</p><p>1.11.2. <strong>Product Benchmark Results</strong>. You acknowledge that any benchmark results pertaining to the Product are our confidential information and may not be disclosed or published without our prior written consent. This provision applies regardless
+    of whether the benchmark tests are conducted by you or us.
+</p><p>1.11.3. <strong>Remedies for Breach of Confidentiality Obligations</strong>. Each party acknowledges that in the event of a breach or threat of breach of this section 1.11, money damages will not be adequate. Therefore, in addition to any other legal
+    or equitable remedies, the non-breaching party will be entitled to seek injunctive or similar equitable relief against such breach or threat of breach without proof of actual injury and without posting of a bond.
+</p><p><strong>1.12. </strong><strong>Data Collection and Personal Data.</strong></p><p>1.12.1. <strong>Data Collection through use of the Product</strong>. THE PRODUCT MAY INCLUDE FEATURE(S) THAT (A) GATHER PRODUCT ACTIVATION, USAGE AND/OR ENVIRONMENT INFORMATION, (B) IDENTIFY TRENDS AND/OR BUGS, (C) COLLECT USAGE STATISTICS, AND/OR (D)
+    TRACK OTHER DATA RELATED TO YOUR USE OF THE PRODUCT, AS FURTHER DESCRIBED IN THE CURRENT VERSION OF OUR PRIVACY POLICY AVAILABLE AT
+    <a data-sf-ec-immutable="" href="https://www.progress.com/legal/privacy-policy">https://www.progress.com/legal/privacy-policy</a>. BY YOUR ACCEPTANCE OF THE TERMS OF THIS EULA AND/OR USE OF THE PRODUCT, YOU AUTHORIZE THE COLLECTION, USE AND DISCLOSURE
+    OF THIS DATA FOR THE PURPOSES PROVIDED FOR IN THIS EULA AND/OR THE PRIVACY POLICY.
+</p><p>1.12.2. <strong>Additional Data Collection Terms.</strong> Depending on the Product licensed to you, this EULA may contain additional data collection terms in section 3 (Product Family Specific Terms) or section 4 (Product Specific Terms) and/or, if we
+    are hosting the Product, in section 2.B (Terms for Hosted Services).
+</p><p>1.12.3. <strong>Your Personal Data. </strong>If you determine that you will be supplying us with your Personal Data (as defined in the Data Processing Addendum referenced below) for us to process on your behalf, in the provision of maintenance and support
+    services or hosting services (if the Product licensed to you is a Hosted Service) or during the course of any audits we conduct pursuant to section 1.14 (Audit), you may submit a written request at
+    <a data-sf-ec-immutable="" href="mailto:privacy@progress.com">privacy@progress.com</a> for the mutual execution of a Data Processing Addendum substantially in the form we make available at <a data-sf-ec-immutable="" href="https://www.progress.com/docs/default-source/progress-software/data-processing-addendum.pdf">https://www.progress.com/docs/default-source/progress-software/data-processing-addendum.pdf</a> and we will enter into such Data Processing Addendum with you. To the extent there is any conflict between this EULA and such Data Processing Addendum, the Data Processing Addendum will prevail with respect to our handling and processing of your Personal
+    Data.
+</p><p><strong>1.13. Limitation of Liability and Disclaimer of Certain Types of Damages.</strong></p><p>1.13.1. <strong>Limitation of Liability</strong>. Except for a party&rsquo;s indemnification obligations set OUT in this EULA OR A PARTY&rsquo;S BREACH OF ITS CONFIDENTIALITY OBLIGATIONS PURSUANT TO SECTION 1.11 (CONFIDENTIALITY), or your material violation
+    of our intellectual property rights or OF the license restrictions set OUT in this EULA, to the extent permitted by applicable law, IN NO EVENT WILL EITHER PARTY&rsquo;S LIABILITY FOR all costS, damageS, and expenses ARISING OUt of or related to this
+    EULA whether based upon warranty, contract, tort (including negligence), strict liability or otherwise at law exceed, in the aggregate, the fees paid TO US FOr the producT AND/OR SErvice that is THE SUBJecT OF THE claim, proVIDED, HOWEVER, THAT IF
+    THE FEES PAID FOR SUCH PRODUCT AND/OR SERVICE ARE PAID ON A RECURRING BASIS, THEN the not to exceed limit will be the fees paid to us for the product aND/OR SERVICE DURING THE TWELVE (12) MONTH PERIOD IMMEDIATELY PRECEDING THE DATE THE CLAIM AROSE.
+    Our Affiliates and licensors, and the suppliers to us, our Affiliates or licensors, will, to the extent permitted by applicable law, have no liability to you or to any other person or entity for damages, direct or otherwise, arising out of this EULA,
+    including, without limitation, damages in connection with the performance or operation of Our Products or our performance of services.
+</p><p>1.13.2 <strong>Disclaimer of Certain Types of Damages</strong>. Except for a party&rsquo;s indemnification obligations set OUT in this EULA or your material violation of our intellectual property rights or the license restrictions set OUT in this EULA,
+    to the extent permitted by applicable law, in no event will either party, its Affiliates or its licensors or their respective suppliers be liable for any special, indirect, consequential, incidental, punitive or tort damages arising in connection
+    with this EULA or either party&rsquo;s performance under this EULA or the performance of Our Products, or FOR any damages resulting from loss of use, loss of opportunity, loss of data, LOSS OF REVENUE, loss of profits, or loss of business, even if
+    the party, its Affiliates, its licensors, or any of their respective suppliers have been advised of the possibility of those damages.
+</p><p><strong>1.14. Audit. </strong> We may install and use automated license tracking, management and/or enforcement solutions with the Product, which you may not disrupt or alter. You will maintain records in connection with this EULA and the use of the Product
+    and any Updates and/or services provided hereunder. Such records will include at a minimum the number of licenses purchased and being used by you. At our expense and with reasonable written notice to you, we or a third party appointed by us may audit
+    the records, and if necessary and as applicable, the systems on which the Product or any Update is installed for the sole purpose of ensuring compliance with the terms of this EULA. We will have the right to conduct audits as necessary. These audits
+    may be conducted on site at a location where you have installed the Product, remotely from our offices, or a combination of both, if applicable to the Product. On-site audits will be conducted during regular business hours, and neither on-site nor
+    remote audits will interfere unreasonably with your business operations. You agree to share with us copies of all records referenced herein, as well as Product log files and other information reasonably requested by us promptly following such request,
+    but in no event more than five (5) business days following receipt of our written request (or such longer period, if applicable, that we specify in the written request). We will treat all such information obtained or accessed by us during the audit
+    as confidential information pursuant to section 1.11 (Confidentiality) for use by us only as necessary to ensure compliance with and enforcement of the terms of this EULA. If any audit reveals that you have underpaid license, maintenance and support
+    or subscription fees, you will be invoiced for all such underpaid fees based on our list price in effect at the time the audit is completed. If the underpaid fees exceed five percent (5%) of the fees previously paid by you, then you will also pay
+    our reasonable costs of conducting the audit and enforcement of this EULA.
+</p><p><strong>1.15. Termination. </strong></p><p>1.15.1. <strong>Termination for Breach</strong>. We may terminate this EULA by written notice at any time if you do not comply with any of your obligations under this EULA and fail to cure such failure to our satisfaction within thirty (30) days after
+    such notice. This remedy will not be exclusive and will be in addition to any other remedies which we may have under this EULA or otherwise.
+</p><p>1.15.2. <strong>Effect of Termination</strong>. Upon expiration of your license term to the Product (if applicable) or earlier termination of this EULA, your license to access and/or use the Product and/or distribute the Redistributables (if applicable)
+    will terminate. You must immediately cease use of the Product and destroy all copies of the Product in your possession (and required any Permitted Third Parties to do the same). Any licenses you have granted to the Redistributables in accordance with
+    the terms and conditions of this EULA will, unless otherwise specified in section 3 (Product Family Specific Terms) or section 4 (Product Specific Terms), survive termination of this EULA.
+</p><p>1.15.3. <strong>Survival</strong>. Any provisions of this EULA containing licensing restrictions, warranties and warranty disclaimers, confidentiality obligations, limitations of liability and/or indemnity terms, audits rights, and any term of this EULA
+    which, by its nature, is intended to survive termination or expiration, will remain in effect following any termination or expiration if this EULA, as will your obligation to pay any fees accrued and owing to us as of termination or expiration.
+</p><p><strong>1.16. Assignment</strong>. You may not, without our prior written consent, assign or novate this EULA, any of your rights or obligations under this EULA, or the Products or any of our Confidential Information, in whole or in part, by operation
+    of law, sale of assets, merger or otherwise, to any other party, including any parent, subsidiary or affiliated entity. Your Change of Control will constitute an assignment for purposes of the preceding sentence. A &ldquo;Change of Control&rdquo;
+    will include, but not be limited to, any merger, consolidation, amalgamation, reorganization or sale, transfer or exchange of the capital stock or equity interests of you in a transaction or series of transactions which results in the holders of your
+    capital stock or equity interests holding less than 50% of the outstanding capital stock or equity interests immediately following such transaction(s).
+</p><p><strong>1.17. Choice of Law</strong>. This EULA is governed by the laws of the Commonwealth of Massachusetts, U.S.A., without regard to the conflict of laws principles thereof. If any dispute, controversy, or claim cannot be resolved by a good-faith discussion
+    between the parties, then it will be submitted for resolution to a state or federal court in Boston, Massachusetts, USA, and the parties hereby irrevocably and unconditionally agree to submit to the exclusive jurisdiction and venue of such court.
+    The Uniform Computer Information Transactions Act and the United Nations Convention on the International Sale of Goods will not apply to this EULA.
+</p><p><strong>1.18. </strong><strong>Miscellaneous.</strong></p><p>1.18.1. <strong>Notices</strong>. Notices of termination, material breach, your insolvency or an indemnifiable claim (&ldquo;<strong>Legal Notices</strong>&rdquo;) must be clearly identified as Legal Notices and sent via overnight courier or certified
+    mail with proof of delivery to the following addresses: For us: 14 Oak Park Drive, Bedford, MA 01730, Attention: General Counsel. For you: your address set out in the Order. Legal Notices sent in accordance with the above will be effective upon the
+    second business day after mailing. Either party may change its address for receipt of notices upon written notice to the other party.
+</p><p>1.18.2. <strong>Entire Agreement</strong>. This EULA, and any terms expressly incorporated herein by reference, will constitute the entire agreement between you and us with respect to the subject matter of this EULA and supersedes all prior and contemporaneous
+    communications, oral or written, signed or unsigned, regarding such subject matter. Use of any purchase order or other document you supply in connection with this EULA will be for administrative convenience only and all terms and conditions stated
+    therein will be void and of no effect. Except as otherwise expressly contemplated in this EULA, this EULA may not be modified or amended other than in writing signed by you and us.
+</p><p>1.18.3. <strong>Severability</strong>. If any provision of this EULA is terminated or held by a court of competent jurisdiction to be invalid, illegal, or unenforceable, the remainder of this EULA will remain in full force and effect.
+</p><p>1.18.4. <strong>Waiver</strong>. Failure or delay in exercising any right, power, privilege or remedy hereunder will not constitute a waiver thereof. A waiver of default will not operate as a waiver of any other default or of the same type of default
+    on future occasions.
+</p><p>1.18.5. <strong>English Language</strong>. This EULA has been drawn up in English at the express wish of the parties. Le pr&eacute;sent contrat a &eacute;t&eacute; r&eacute;dig&eacute; en anglais &agrave; la demande expresse des parties.
+</p><p>1.18.6. <strong>Force Majeure</strong>. Neither you nor we will be liable for any delay or failure to take any action required under this EULA (except for payment) due to any cause beyond the reasonable control of you or us, as the case may be, including,
+    but not limited to unavailability or shortages of labour, materials, or equipment, failure or delay in the delivery of vendors and suppliers and delays in transportation.
+</p><p>1.18.7. <strong>Our Use of Our Affiliates</strong>. We may, at our discretion, engage one or more of our Affiliates in the fulfilment of our obligations, including, our obligations for delivery of the Product to you and/or the provision of any maintenance
+    and support services.
+</p><p id="terms-for-on-premise-products"><strong>2.A. TERMS FOR ON-PREMISE PRODUCTS.</strong></p><p>2.A.1. <strong>Delivery</strong>. Unless otherwise specified by us, On-Premise Product(s) will be provided to you via electronic delivery, and delivery is deemed complete when the On-Premise Product(s) is/are made available at the electronic software
+    download site specified by us and you are e-mailed or otherwise provided with any necessary instructions, password and/or license keys required for you to be able to access, download and install the On-Premise Product(s). If we provide the On-Premise
+    Product(s) on physical media, shipping terms will be FOB shipping point.
+</p><p>2.A.2. <strong>Updates</strong>. Each Update to an On-Premise Product replaces part or all of the On-Premise Product (or earlier Update) previously licensed to you (&ldquo;<strong>Replaced Product</strong>&rdquo;) and will terminate such previously licensed
+    Replaced Product to the extent replaced by the Update; provided, however, that you may continue to operate the Replaced Product for up to ninety (90) days from delivery of the Update to allow you to complete your implementation of the Update. You
+    must cease all use of the Replaced Product at the end of the ninety (90) day period. Each Update will be subject to the terms and conditions of the license agreement accompanying the Update which must be accepted by you at the time you download or
+    install the Update. If you do not agree to the license agreement accompanying the Update, do not download or install the Update.
+</p><p>2.A.3. <strong>Cloud Environment</strong>. You may upload the On-Premise Product(s) licensed to you pursuant to this EULA onto a cloud instance supplied by a third party, provided that the operation of the On-Premise Product(s) in the cloud instance complies
+    with all license model restrictions and usage limitations applicable to the On-Premise Product(s). You may also allow the third party to upload, install, operate and/or use the On-Premise Products on the cloud instance, provided that the third party&rsquo;s
+    access to and use of the On-Premise Products is solely for your benefit in accordance with the terms of this EULA. The third party will be considered a Permitted Third Party, and you will be responsible for the Permitted Third Party&rsquo;s compliance
+    with this EULA in accordance with section 1.2.3 (Third Party Use).
+</p><p id="terms-for-hosted-services"><strong>2.B. TERMS FOR HOSTED SERVICES.</strong></p><p>2.B.1. <strong>Definitions</strong>.</p><p>2.B.1.1. &ldquo;<strong>Access Credentials</strong>&rdquo; means login information, passwords, security protocols, and policies through which you or Authorized Users access and use the Hosted Services.</p><p>2.B.1.2. &ldquo;<strong>Account</strong>&rdquo; means the account through which you access the Hosted Services or your Authorized Users access the Hosted Services for your benefit and/or on your behalf.</p><p>2.B.1.3. &ldquo;<strong>Acceptable Use Policy</strong>&rdquo; or &ldquo;<strong>AUP</strong>&rdquo; means our acceptable use policy located at <a data-sf-ec-immutable="" href="https://www.progress.com/legal/aup">https://www.progress.com/legal/aup</a> that specifies rules, requirements and limitations concerning your use of the Hosted Services, and as may be updated by us from time to time.</p><p>2.B.1.4. &ldquo;<strong>Content</strong>&rdquo; means all data and content, such as data files, written text, keys, computer software, music, audio files or other sounds, photographs, videos or other images that you or your Authorized Users upload to
+    or process using the Hosted Services.
+</p><p>2.B.1.5. &ldquo;<strong>Downloadable Software</strong>&rdquo; means any computer software programs, SDKs, codes, and/or files made available by us through or as part of the Hosted Services which you may be required to download and install/store locally
+    on your computer to connect to and/or use the Hosted Services, along with any related Documentation and Updates.
+</p><p>2.B.1.6. &ldquo;<strong>Terms</strong>&rdquo; means collectively: (a) this EULA, (b) the AUP, (c) the Terms of Use for our website located at <a data-sf-ec-immutable="" href="https://www.progress.com/legal/terms-of-use">https://www.progress.com/legal/terms-of-use</a>,
+ as updated by us from time to time, and (d) our Privacy Policy located at <a data-sf-ec-immutable="" href="https://www.progress.com/legal/privacy-policy">https://www.progress.com/legal/privacy-policy</a>, as updated by us from time to time.
+</p><p>2.B.2. <strong>Eligibility, Registration and Access Credentials</strong>.</p><p>2.B.2.1. <strong>Eligibility</strong>. To be eligible to use the Hosted Services, you must meet the following criteria and represent and warrant that you: (a) are 18 years of age or older, (b) are not currently restricted from the Hosted Services, (c)
+    are not a competitor of ours or our Affiliates and are not using the Hosted Services for reasons that are in competition with us or our Affiliates, (d) have full power and authority to enter into the Terms and in doing so will not violate any other
+    agreement to which you are a party, (e) will not violate any of our rights, including Intellectual Property Rights, (f) will comply with the Terms as the same may be amended from time to time, and (g) agree to provide at your cost all equipment, software
+    and internet access necessary to use the Hosted Services.
+</p><p>2.B.2.2. <strong>Registration</strong>. Except as otherwise specified in section 3 (Product Family Specific Terms) or section 4 (Product Specific Terms), this section specifies the terms applicable to your registration to use the Hosted Services. When
+    you register to use the Hosted Services, we will ask for your name, email address and other related information. Assuming we don&rsquo;t find the information you provide to be of concern, we will create an Account for you. As part of the registration
+    process you (or we at your request) will create Access Credentials for each of your Authorized Users.
+</p><p>2.B.2.3. <strong>Access Credentials</strong>. Except as otherwise specified in section 3 (Product Family Specific Terms) or section 4 (Product Specific Terms), this section specifies the terms applicable to Access Credentials provided to you to access
+    the Hosted Services. You are responsible for safeguarding the Access Credentials. You agree to: (a) keep your Access Credentials secure and confidential and not allow any of your Authorized Users to provide their Access Credentials to anyone else;
+    (b) not permit others to use your Account; and (c) refrain from using other users&rsquo; accounts. We rely on the Access Credentials as a method to differentiate one user from another. If someone else is using your Access Credentials, we will assume
+    they are you and we&rsquo;ll give them access. (Don&rsquo;t forget, &ldquo;you&rdquo; includes your Authorized Users for whom you are responsible). You will be responsible for all activity carried out under your Account using Access Credentials made
+    available to you and anything that happens through your Account, whether or not you have authorized such activities or actions, until you close your Account or prove that your Account security was compromised due to no fault of your own. If you know
+    or suspect that someone has gained access to Access Credentials made available to you, you will immediately let us know. We will turn off the compromised Access Credentials and issue new Access Credentials. We reserve the right to take any action
+    we deem necessary or reasonable to ensure the security of the Hosted Services and your Account, including terminating your access or the access of any of your Authorized Users, changing passwords, or requesting additional information to authorize
+    activities related to your Account. In no event and under no circumstances will we be held liable to you for any liabilities or damages resulting from or arising out of (i) any action or inaction on our part under this provision, (ii) any compromise
+    of the confidentiality of your Account, or (iii) any unauthorized access to or use of your Account.
+</p><p>2.B.3. <strong>Content</strong>.</p><p>2.B.3.1. <strong>Your Responsibility for the Content and License Grant to Us</strong>. You are responsible for any Content submitted and made available through the Hosted Services. You will be entirely responsible for each Content item provided by you
+    or your Authorized Users through the Hosted Services, and, as between you and us, you retain ownership and any intellectual property rights in such Content. You will, at your own expense, obtain all third-party licenses, consents and/or permissions
+    that may be necessary or appropriate with respect to such Content to enable each party to exercise its rights and perform its obligations under this EULA. You grant us a world-wide, royalty free, fully paid up, transferable, sublicenseable license
+    to use, copy, host, store, disseminate, distribute, publicly display, sublicense, post or publish such Content, but only to the extent necessary for us to provide the Hosted Services. You agree that we may use our third-party contractors and service
+    providers to exercise the licenses granted to us in this section to perform services for or on our behalf. You agree that you will have no rights against such third-party contractors or service providers in connection with this EULA or your use of
+    the Hosted Services hereunder. In addition, you acknowledge that to protect your transmission of Content to the Hosted Services, it is your responsibility to use a secure encrypted connection to communicate with and/or utilize the Hosted Services.
+</p><p>2.B.3.2. <strong>Your Warranties Regarding the Content</strong>. You represent and warrant that the Content does not and will not violate the AUP.</p><p>2.B.3.3. <strong>Our Disclaimer Regarding the Content</strong>. We do not endorse any Content or any opinion, recommendation, or advice expressed in any Content, and we expressly disclaim any liability in connection with any Content. We do not pre-screen
+    Content, but we and our designees (including our Affiliates, third party contractors and service providers) reserve the right (but not the obligation) in our or their sole discretion to access, review, and monitor the Content and to refuse, remove
+    or delete any Content that is inappropriate or not in compliance with this EULA and/or suspend or terminate your use of the Hosted Services at any time, without prior notice and in our sole discretion. ANY USE OF CONTENT PROVIDED BY OTHERS, INCLUDING
+    OTHER CUSTOMERS, IS ENTIRELY AT YOUR OWN RISK. WE MAKE NO REPRESENTATIONS OR WARRANTIES ABOUT ANY CONTENT AVAILABLE ON OUR WEBSITE OR THROUGH THE HOSTED SERVICES, INCLUDING WITHOUT LIMITATION WITH RESPECT TO SUCH CONTENT&rsquo;S QUALITY, ACCURACY,
+    LEGALITY OR RELIABILITY.
+</p><p>2.B.4. <strong>Changes to the Hosted Services or EULA</strong>.</p><p>2.B.4.1. <strong>Changes to the Hosted Services</strong>. We reserve the right to add, modify or discontinue any product, feature or service made available through the Hosted Services. Any additions or modifications to the Hosted Services may be subject
+    to additional terms and conditions which will be included in section 3 (Product Family Specific Terms) or section 4 (Product Specific Terms) of an updated version of this EULA implemented in accordance with the terms of section 2.B.4.2 (Changes to
+    the EULA).
+</p><p>2.B.4.2. <strong>Changes to the EULA</strong>. We may modify this EULA at any time by posting a revised version on our website at <a data-sf-ec-immutable="" href="https://www.progress.com/legal">https://www.progress.com/legal</a>. Modified terms that
+    relate to modifications or additions to the Hosted Services will be effective at the time such modifications or additions to the Hosted Services are made in accordance with section 2.B.4.1 (Changes to the Hosted Services). Modified terms that are
+    required by law will be effective immediately. All other modified terms will be effective at the commencement of your renewal subscription period occurring immediately following the posting of the revised version of this EULA. If we post any revisions
+    to this EULA after the date on which you are required to notify us that you do not want to renew your subscription (pursuant to section 1.3.4 (Subscription License Type)) and you do not agree with the terms and conditions of the revised EULA, you
+    may notify us that you do not want to renew your subscription at any time prior to the commencement of your renewal subscription period. It is your responsibility to check our website regularly for revisions to this EULA.
+</p><p>2.B.5. <strong>Data Backup and Limitations on Availability of Hosted Services.</strong></p><p>2.B.5.1. <strong>Data Backup</strong>. We will follow our standard archival procedures for storage of Content. In the event of any loss or corruption of Content, we will use commercially reasonable efforts to restore the lost or corrupted Content from
+    the latest backup of such Content maintained by us or our third-party service provider in accordance with its archival procedures. We will not be responsible for any loss, corruption, destruction, alteration, or unauthorized disclosure of or access
+    to Content directly or indirectly arising from acts or omissions of you, your Authorized Users or a third party. OUR EFFORTS TO RESTORE LOST OR CORRUPTED CONTENT PURSUANT TO THIS SECTION 2.B.5.1 WILL CONSTITUTE OUR SOLE LIABILITY AND YOUR SOLE AND
+    EXCLUSIVE REMEDY IN THE EVENT OF ANY LOSS, CORRUPTION, DESTRUCTION, ALTERATION OR UNAUTHORIZED DISCLOSURE OF OR ACCESS TO CONTENT.
+</p><p>2.B.5.2. <strong>Limitations on Availability of Hosted Services</strong>. The Hosted Services may be inaccessible for reasons including maintenance updates, power outages, internet delays, system failures, extended downtime and other interruptions. During
+    such periods, you and your Authorized Users may be unable to access or use all or a portion of the Hosted Services and some or all of the Content may be lost or corrupted (in which case, our sole obligation to you will be to exercise commercially
+    reasonable efforts to restore the Content in accordance with section 2.B.5.1 (Data Backup)). Additionally, we may immediately suspend the Hosted Services if there is a reasonable threat to the technical security or technical integrity of the Hosted
+    Services.
+</p><p>2.B.5.3. <strong>SLA for Hosted Services</strong>. We may offer Service Level Agreements (SLAs) for certain Hosted Services. If a Hosted Service has an SLA associated with it, the terms will be specified in section 3 (Product Family Terms) or section
+    4 (Product Specific Terms).
+</p><p>2.B.6. <strong>Use of Third Party Vendors; Transmission of Data</strong>. Progress may use third party vendors to provide the infrastructure, hardware, software, networking, storage, and related technology required to operate and provide the Hosted Services
+    (&ldquo;<strong>Cloud Infrastructure Environment</strong>&rdquo;) and such third party vendors may be granted access to your Content while performing services for us in accordance with the terms set out in section 2.B.3.1 (Your Responsibility for
+    the Content and License Grant to Us). You agree to abide by such third party vendors&rsquo; acceptable use policies which are provided or otherwise noticed to you and you shall have no rights against any such third party vendors in connection with
+    the Hosted Services.
+</p><p>2.B.7. <strong>Location of Cloud Infrastructure Environment and Personnel</strong>. Except as otherwise specified in section 3 (Product Family Specific Terms) or section 4 (Product Specific Terms), the Cloud Infrastructure Environment, or any portion
+    thereof, and any of our personnel or the personnel of our Affiliates or service providers with access to the Content under the license granted in section 2.B.3.1 (Your Responsibility for the Content and License Grant to Us), may be located in the
+    United States or any other country in which we or our Affiliates or service providers maintain facilities.
+</p><p>2.B.8. <strong>Information Use and Disclosure by Us</strong>. With respect to the Hosted Services, we may access or disclose information about you, your Authorized Users, Account(s) and/or the content of your or your Authorized Users&rsquo; communications
+    in order to (i) provide, operate, and improve the Hosted Services; (ii) comply with Applicable Laws or respond to lawful requests or legal process; or (iii) protect our rights or property and/or that of our customers, including the enforcement of
+    our agreements or policies governing the use of the Hosted Services. Personal data collected or otherwise processed by us in the performance of services related to the Hosted Services may be transferred to, and stored and processed in, the United
+    States or any other country in which we or our Affiliates or service providers maintain facilities. For more information on our privacy practices read the privacy statement at <a data-sf-ec-immutable="" href="https://www.progress.com/legal/privacy-policy">https://www.progress.com/legal/privacy-policy</a>.
+</p><p>2.B.9. <strong>Promotional and Trial Offers</strong>. We may offer trial or promotional subscriptions (&ldquo;Promotional Subscriptions&rdquo;) for Hosted Services other than the Hosted Services you have ordered from us or our Authorized Reseller. Unless
+    otherwise specified, a Promotional Subscription will remain active only for as long as you maintain an active, paid subscription to the Hosted Services you have ordered from us or our Authorized Reseller and which formed the basis for your eligibility
+    for the Promotional Subscription. We reserve the right at any time to modify or discontinue, temporarily or permanently, any Promotional Subscription and your access to the Hosted Services licensed under such Promotional Subscription with or without
+    notice.
+</p><p>2.B.10. <strong>Links to Third-Party Sites</strong>. The Hosted Services may include links to third-party sites. We do not control such sites and are not responsible for the content of any linked site, any links contained in the linked site, or any changes
+    or updates to such sites. We are not responsible for any form of transmission received from any linked site. You acknowledge and agree that we are not liable for any loss or damage which you may incur as a result of the availability of third-party
+    vendor resources or external sites.
+</p><p>2.B.11. <strong>Terms for Downloadable Software</strong>. If the Hosted Services includes any Downloadable Software then the license granted to you to the Hosted Services pursuant to this EULA includes the right to download, install and use the Downloadable
+    Software only for the purpose of connecting to and using the Hosted Services. Your right to use the Downloadable Software applies only while you have an active subscription for the Hosted Services and will automatically terminate immediately following
+    the termination of your subscription. You will destroy all copies of the Downloadable Software in your possession and will cause your Authorized Users to do the same. Upon our request, you will provide us with a written instrument signed by your authorized
+    representative certifying your compliance with the destruction requirements set forth in this section 2.B.11.
+</p><p>2.B.12. <strong>Termination</strong>. In addition to any other termination rights we may have under this EULA, unless otherwise prohibited by law, and without prejudice to our other rights or remedies, we may terminate this EULA and the licenses to the
+    Hosted Services granted to you hereunder immediately if: (i) we believe providing the Hosted Services could create a substantial economic or technical burden or material security risk for us or any of our Affiliates, or (ii) termination is required
+    in order to comply with the law or requests of governmental entities.
+</p><p>&nbsp;</p><p id="product-family-specific-terms"><strong>3. PRODUCT FAMILY SPECIFIC TERMS </strong></p><p>This section specifies terms and conditions that are applicable to the following On-Premise Products, as made generally available by us to our customers: all Chef On-Premise Products, and for the following Hosted Service: Hosted Chef.</p><p>Default License Type for each of the above-referenced On-Premise Products and Hosted Service: Subscription.</p><p><strong>3.1. </strong><strong>Product Family Definitions</strong><span>.</span></p><p>Any defined term used in this section 3 (Product Family Specific Terms) but not defined herein will have the meaning ascribed to it in section 1 (General Terms and Conditions), section 2.A (Terms for On-Premise Products) (as applicable for On-Premise
+    Products) or section 2.B (Terms for Hosted Services) (as applicable for Hosted Services).
+</p><p>3.1.1. &ldquo;<strong>Administered License Units</strong>&rdquo; has the meaning given to it in section 3.5.2 (Third Party Support).</p><p>3.1.2. &ldquo;<strong>Endpoint</strong>&rdquo; means each individual device with supported platforms deployed, managed, and maintained by Chef Desktop such as laptops, desktops, tablets, and kiosk workstations, excluding, without limitation, servers.
+</p><p>3.1.3. &ldquo;<strong>License Fee</strong>&rdquo; means fees paid to us (or our Authorized Reseller) by you in exchange for your right to use the Product as provided in this EULA.</p><p>3.1.4. &ldquo;<strong>License Term</strong>&rdquo; means the subscription period during which you are permitted to use the Product, as described in the applicable Order.</p><p>3.1.5. &ldquo;<strong>License Unit</strong>&rdquo; means a specific license type or metric, and a numeric quantity thereof, used in an Order to establish the extent and amount of your license to the Product. &ldquo;License Unit&rdquo; types/metrics include
+    Node, Service Instance, Target and/or Endpoint.
+</p><p>3.1.6. &ldquo;<strong>Node</strong>&rdquo; means each individual component of your system, physical or virtual (i.e., server, workstation, IP router, virtual machine, or other device or component) that is assessed, installed, configured, updated, scanned
+    and/or managed through the use of Chef Infra.
+</p><p>3.1.7. &ldquo;<strong>Product Usage and Technical Support Data</strong>&rdquo; means data and information transmitted directly from the Product regarding your use of the Product (i.e., when you install an update or upgrade), as well as any Product bugs,
+    errors, and other similar technical support issue.
+</p><p>3.1.8. &ldquo;<strong>Professional Services</strong>&rdquo; means any services (other than Support Services) performed by us for you pursuant to the terms set forth in section 3.6 (Professional Services) and <span class="-tdu">Exhibit A</span> attached
+    hereto.
+</p><p>3.1.9. &ldquo;<strong>Progress Marks</strong>&rdquo; means the trademarks, service marks, proprietary logos and other distinctive brand features found in the Product.</p><p>3.1.10. &ldquo;<strong>Service Instance</strong>&rdquo; means each individual component of your system, physical or virtual (i.e., server, workstation, IP router, virtual machine, or other device or component) onto which one or more Chef Habitat packages
+    are deployed.
+</p><p>3.1.11. &ldquo;<strong>Support Services</strong>&rdquo; means the technical support services described at <a data-sf-ec-immutable="" href="/service-level-agreement">https://www.chef.io/service-level-agreement/</a> or in any Order.</p><p>3.1.12. &ldquo;<strong>Target</strong>&rdquo; means each instance of infrastructure, software, configuration, or other technical resource that is the compliance target of one or more Chef InSpec profiles used by you.</p><p>3.1.13. &ldquo;<strong>Third Party Components</strong>&rdquo; means components included in the Product that are under license from third parties, including open source licenses.</p><p><strong>3.2. </strong><strong>Software; Terms of Use</strong>.</p><p>3.2.1. <strong>Product. </strong>The term &ldquo;Product&rdquo; as defined in section 1.1.12 will, for each of the applicable Chef products referenced in this section 3, include all Updates, libraries, gems, databases, plug-ins, messaging services, authentication
+    sub-functions, certificate management, and environments provided by us to you during the applicable License Term.
+</p><p>3.2.2. <strong>References to Software in an Order</strong>. Any references to the term &ldquo;Software&rdquo; in an Order will mean the Chef product(s) identified in that Order and each will be deemed a &ldquo;Product&rdquo; as that term is defined and
+    referenced in this EULA.
+</p><p>3.2.3. <strong>Terms of Use. </strong>Notwithstanding anything to the contrary in the definition of &ldquo;Terms&rdquo; in section 2.B.1.6, the reference to &ldquo;Terms of Use&rdquo; shall mean the Terms and Conditions of Use located at <a data-sf-ec-immutable="" href="https://www.chef.io/terms-and-conditions-of-use">https://www.chef.io/terms-and-conditions-of-use</a> for the website: <a data-sf-ec-immutable="" href="/home">https://www.chef.io</a>, and any other related websites that link to such Terms and
+    Conditions of Use, as may be updated by us from time to time.
+</p><p><strong>3.3. </strong><strong>License</strong>.</p><p>3.3.1. <strong>License Grant</strong>. Subject to the terms and conditions contained in this EULA and during the applicable License Term, we hereby grant you a worldwide, non-exclusive, non-transferable, non-sublicensable license to (i) install and/or
+    use the Product only for your internal use, whether on premises or in the cloud, including any information technology infrastructure, and limited to the number of License Units for which you are current in the payment of the applicable License Fee,
+    and (ii) to use the Documentation only for your internal operation and use.
+</p><p>3.3.2. <strong>Product Restrictions</strong>. In addition to the restrictions set forth in section 1.2.4 (Restrictions), you will not use or deploy the Product in excess of the License Units for which you have paid the applicable License Fee.
+</p><p><strong>3.4. </strong><strong>License Fees and Costs and Expenses</strong>.</p><p>3.4.1. <strong>License Fees</strong>. An Order will state the specific License Fee and the number of License Units licensed to deploy or use the Product. License Fees are based on Product purchased, not actual usage (subject always to section 1.14 (Audit)
+    and section 3.8.1 (Verification of Product Usage)). Except as otherwise provided in this EULA, all License Fees are non-cancelable and fees paid are non-refundable. The number of License Units purchased cannot be decreased during the relevant License
+    Term. License Fees will be paid in advance either in full or in accordance with any different billing frequency stated in the applicable Order.
+</p><p><strong>3.5. </strong><strong>Support</strong>.</p><p>3.5.1. <strong>Scope of Support</strong>. During the applicable License Term, we will provide you with Support Services for the Product as listed at <a data-sf-ec-immutable="" href="/service-level-agreement">https://www.chef.io/service-level-agreement</a> at the &ldquo;Standard&rdquo; level, or as otherwise described in the applicable Order.</p><p>3.5.2. <strong>Third Party Support</strong>. You may also elect, at your discretion, to obtain separate support by a third party for all or some of your licensed Product(s) excluding Hosted Chef (&ldquo;<strong>Administered License Units</strong>&rdquo;).
+</p><p>3.5.2.1. You agree that you will provide us with the following information in connection with all Administered License Units for all periods that you are using a third party to support Administered License Units during the applicable License Term:
+</p><p>Your customer identification number and the name of the third party providing the support</p><p>The number of Administered License Units for the prior month</p><p>The information described in (i) and (ii) above to be provided for each month on or before the 10<sup>th</sup> day of the following month.</p><p>3.5.2.2. The License Term for the Product is independent of any support term for Administered License Units that you may elect with a third party.</p><p><strong>3.6. </strong><strong>Professional Services</strong>. Any Professional Services will be provided upon mutual agreement by you and us, as evidenced by the mutual execution of an Order specifying the Professional Services to be provided to you,
+    and the performance of such Professional Services will be subject to the terms of <span class="-tdu">Exhibit A</span>.
+</p><p><strong>3.7. </strong><strong>Proprietary Rights</strong>. In addition to the terms set out in section 1.6 (IP Ownership and Feedback), we and/or our licensors own all graphics, user and visual interfaces, images, code, applications, and text, as well
+    as the design, structure, selection, coordination, expression, &ldquo;look and feel&rdquo;, and arrangement of the Product and its content, and the Progress Marks. This EULA does not permit you to distribute any product or service using the Progress
+    Marks, including in connection with any Third Party Components. We will retain all title to all copies of the Product provided to you or made by you. There are no implied rights or licenses in this EULA. All rights are expressly reserved by us.
+</p><p><strong>3.8. Product Usage Tracking and Collection of Data</strong>.</p><p>3.8.1. <strong>Verification of Product Usage</strong>. If and when you add additional License Units to your license, you will pay us (or our Authorized Reseller, if applicable) for such additional License Units added to any license. Upon our request (such
+    request not to be made more than twice during any twelve (12) month period without good cause), you agree to promptly deliver to us (i) any usage files and reports generated by the Product to permit us to verify the number of License Units actually
+    used by you during the applicable License Term; and/or (ii) a certification signed by one of your officers regarding the number of License Units actually used by you during the applicable License Term. Notwithstanding the foregoing, you agree to reasonably
+    cooperate with us to verify the number of License Units actually used by you during the applicable License Term, including, without limitation, cooperating with any reviews we conduct in accordance with section 1.14 (Audit). If we confirm that you
+    have exceeded the number of License Units for the applicable License Term, in addition to any other remedies available under this EULA or applicable law, you agree to pay the then-current License Fees for the additional License Units used by you.
+</p><p>3.8.2. <strong>Telemetry Features and Collection of Data</strong>. Unless you choose to disable telemetry features in the Product by following the steps available at <a data-sf-ec-immutable="" href="https://docs.chef.io/automate/telemetry/">https://docs.chef.io/automate/telemetry/</a>,
+ you consent to us receiving Product Usage and Technical Support Data. We will use the Product Usage and Technical Support Data to (i) provide the Support Services; and (ii) gather information about how you use the Product, which may be combined with
+    information about how other customers use the Product in an aggregate, anonymized form and solely for our own business purposes, including to help us better understand trends and customers&rsquo; needs, consider new features, and improve the Product
+    and customers&rsquo; use experience.
+</p><p><strong>3.9. </strong><strong>Third Party Software</strong>. In accordance with section 1.2.7 (Third Party Notices), Third Party Components are subject to the terms of their accompanying licenses. Please see <a data-sf-ec-immutable="" href="/3rd-party-licenses">https://www.chef.io/3rd-party-licenses/</a> for more details. The license associated with each Third Party Component, as available at the website referenced in this paragraph, will each be considered a &ldquo;Special Notice&rdquo; as defined in section 1.2.7 (Third Party Notices). For the avoidance
+    of doubt, our warranty of the Product includes all Third Party Components to the extent embedded in, and used by, the Product.
+</p><p><strong>3.10. </strong><strong>Additional Warranty Exclusions</strong>. In addition to the terms set forth in section 1.9.3 (Warranty Exclusions), the warranties specified in section 1.9.2 (Product Compliance with Documentation) do not apply to (i) any
+    use of experimental features which you may enable in the Product; and (ii) any Product performance noncompliance resulting from any: (1) use not in accordance with this EULA or any applicable Order, (2) combination with any goods, services or other
+    items provided by you or any third party, or (3) combination of the Product with any distribution or binary not provided to you by us, even if the distribution or binary is derived from the same source code as the Product. Further, we do not warrant
+    that the Product or any other items furnished by us under this EULA or any Order are free from non-material bugs, errors, defects or deficiencies.
+</p><p id="product-specific-terms"><strong>4. PRODUCT SPECIFIC TERMS</strong></p><p>This section specifies specific terms and conditions that are applicable to the Hosted Service designated as Hosted Chef.</p><p>4.1. <strong>Product Specific Definitions</strong>. Any defined term used in this section 4 (Product-Specific Terms) but not defined herein will have the meaning ascribed to it in section 1 (General Terms and Conditions), section 2.A (Terms for On-Premise
+    Products), section 2.B (Terms for Hosted Services) or section 3 (Product Family Specific Terms).
+</p><p>4.2. <strong>SLA</strong>. If the Product identified in the Order is Hosted Chef, then, unless otherwise expressly stated in the Order, we will exercise commercially reasonable efforts to provide Hosted Chef to you in accordance with the service level
+    agreement located at <a data-sf-ec-immutable="" href="/service-level-agreement">https://www.chef.io/service-level-agreement/</a>.
+</p><p>4.3. <strong>Termination</strong>. We may terminate your subscription to the Hosted Services in accordance with the terms specified in sections 1.15.1 (Termination for Breach) and 2.B.12 (Termination). In the event of termination of your subscription
+    for the Hosted Services, you will be required to satisfy the requirements specified in section 1.15.2 (Effect of Termination) and section 2.B.11 (Terms for Downloadable Software). We will hold your Content for a period of thirty (30) days following
+    termination, during which you will be provided a reasonable opportunity to collect your Content. After the end of the thirty (30) day period, your Content will be deleted. You are solely responsible for backing up your Content. Except in the case
+    of termination by us for your breach in accordance with section 1.15.1 (Termination for Breach), you may, if the Hosted Services continue to be made generally available by us to our customers, create a new Account and obtain a new subscription following
+    the expiration or termination of your subscription. If you obtained a free subscription, we also reserve the right at any time to modify or discontinue, temporarily or permanently, such free subscription and your access to the Hosted Services thereunder
+    with or without notice. Unless modified or discontinued by us in our sole discretion, your free subscription will automatically terminate if you cancel or upgrade to a paid subscription for the Hosted Services.
+</p><p><strong><span class="-tdu">Exhibit A</span></strong></p><p><strong>PROFESSIONAL SERVICES TERMS AND CONDITIONS</strong></p><p><strong>1. Definitions</strong>. Any defined term used in this <span class="-tdu">Exhibit A</span> but not defined herein will have the meaning ascribed to it in any of the following sections of this EULA: section 1 (General Terms and Conditions), section
+    2.A (Terms for On-Premise Products) (as applicable for Professional Services associated with On-Premise Products), section 2.B (Terms for Hosted Services)(as applicable for Professional Services associated with Hosted Services), section 3 (Product
+    Family Specific Terms) or section 4 (Product Specific Terms). In the event of conflict among the defined terms, the order of precedence shall be: first, this <span class="-tdu">Exhibit A</span>; and then the sections listed in the previous sentence
+    in the reverse order (e.g., section 4 (Product Specific Terms), section 3 (Product Family Specific Terms), and so on).
+</p><p>1.1. &ldquo;<strong>Deliverables</strong>&rdquo; has the meaning given to it in section 6.2 of this <span class="-tdu">Exhibit A</span> (Ownership of Deliverables and Other Works of Authorship).
+</p><p>1.2. &ldquo;<strong>Professional Services Warranty Period</strong>&rdquo; has the meaning given to it in section 7 of this <span class="-tdu">Exhibit A</span> (Professional Services Warranty and Disclaimer).</p><p>1.3. &ldquo;<strong>Progress Proprietary Items</strong>&rdquo; means any of Our Technology, Product Usage and Technical Support Data, or work, materials, or other tangible or intangible property used by us in the course of performance of Professional
+    Services under this EULA and this <span class="-tdu">Exhibit A</span> or any Order that is (i) not a Deliverable; or (ii) developed by us independently of the Professional Services performed pursuant to this <span class="-tdu">Exhibit A</span>. Inclusion
+    of any Progress Proprietary Item in a Deliverable does not change its character as a Progress Proprietary Item.
+</p><p><strong>2. Orders, Professional Services and Change Orders</strong>.</p><p>2.1. <strong>Professional Services</strong>. We will perform the Professional Services detailed in any Order. Each Order referencing Professional Services will set forth a description of the work to be performed, fees, time schedules and other special
+    terms and conditions applicable to the project.
+</p><p>2.2. <strong>Change Orders</strong>. Any modifications to the Professional Services set forth in an Order, and any fees or other terms associated with such modifications, will be memorialized in an amendment to the Order or a replacement Order accepted
+    by you and us as evidenced by signature of an authorized representative of each party on the applicable amendment or replacement Order. No modifications to the Professional Services set forth in an Order will be effective, and we will not have any
+    obligation to implement the modifications to the Professional Services, until accepted by you and us in accordance with this paragraph.
+</p><p><strong>3. Personnel and Your Responsibilities</strong>.</p><p>3.1. <strong>Personnel</strong>. We will perform the Professional Services using our employees, subcontractors or agents, as we in our sole discretion deem appropriate. We will remain responsible to you for the actions of our employees, subcontractors
+    or agents, when so used.
+</p><p>3.1.1. <strong>Non-Solicit</strong>. We and you agree that our and your respective employees and subcontractors are a valuable asset to our and your respective organizations and are difficult to replace. Accordingly, during the term of the Professional
+    Services engagement described in the Order and for a period of one (1) year thereafter, neither we nor you will solicit, whether directly or indirectly, the employment of any of the other party&rsquo;s employees or subcontractors who are, or who were
+    engaged or employed in the provision or receipt of the Professional Services without the prior written consent of the other party. If either party violates this section 3.1.1, we and you agree that the violating party of this section will pay to the
+    other party an amount equal to one (1) year of annual compensation of such employee or subcontractor, which amount will be payable at the time such action occurs. For purposes of this section 3.1.1, &ldquo;one year of annual compensation&rdquo; will
+    be calculated by multiplying two thousand (2,000) by the hourly rate derived from the Order. If the applicable Order includes multiple resources and hourly rates, then the parties will use the average of the hourly rates referenced in the applicable
+    Order. If the applicable Order is for a fixed fee with no hours listed, then our list hourly rate(s) applicable for our personnel performing the Professional Services will be used and, in accordance with the above, if there are multiple personnel
+    providing Professional Services under the applicable Order with differing list hourly rate(s), then the average of the list hourly rates will be used to complete the calculation. Notwithstanding the foregoing, the provisions of this section 3.1.1
+    will not preclude either party from interviewing, making an offer of employment or other engagement, or hiring any person who responds to a general publicly available advertisement or solicitation initiated by or on behalf of either party, such as
+    a website posting or referral from an employment agency.
+</p><p>3.1.2. <strong>Independent Contractor Status; No Agency</strong>. We, at all times, will be an independent contractor providing Professional Services to you pursuant to this EULA and this <span class="-tdu">Exhibit A</span>. Those performing Professional
+    Services on behalf of us hereunder, as set forth in the applicable Order or otherwise, will be employees or subcontractors of us or our Affiliates. Neither us or our Affiliates nor any employee or subcontractor of us or our Affiliates providing Professional
+    Services will represent to third parties that we, our Affiliates or said employee or subcontractor is an employee or agent of yours in the provision of Professional Services under this EULA and this <span class="-tdu">Exhibit A</span>. Nothing in
+    this EULA or this <span class="-tdu">Exhibit A</span> will give you control over the manner in which we, our Affiliates or any employee or subcontractor of us or our Affiliates provides such Professional Services. Notwithstanding the foregoing, you
+    agree to provide us or our Affiliates, to the extent applicable, a safe and satisfactory work environment for our personnel, as well as other services or materials such personnel may reasonably request in order to perform the Professional Services.
+</p><p>3.2. <strong>Your Responsibilities</strong>. You understand your business needs and have determined independently that the Deliverables and Professional Services will meet your needs.
+</p><p><strong>4. Fees; Costs and Expenses</strong>.</p><p>4.1. <strong>Fees for Professional Services</strong>. For Professional Services designated as &ldquo;fixed fee&rdquo; in the Order, we will invoice you upon execution of the applicable Order. For Professional Services not designated as &ldquo;fixed fee&rdquo;
+    in the Order, we will invoice you monthly in arrears based on actual hours worked and expenses incurred during the preceding month. Unless the applicable Order provides otherwise, Professional Services fees designated as &ldquo;fixed fee&rdquo; are
+    non-cancelable and fees paid are non-refundable.
+</p><p>4.2. <strong>Costs and Expenses</strong>. You will reimburse us for any reasonable expenses incurred by us in the performance of the Professional Services, including without limitation, travel and lodging expenses.
+</p><p><strong>5. Acceptance of Professional Services</strong>. Unless otherwise expressly stated in the Order, all Professional Services will be deemed accepted upon performance and all Deliverables will be deemed accepted upon delivery.</p><p><strong>6. Proprietary Rights</strong>.</p><p>6.1. <strong>Progress Proprietary Items</strong>. You will have or obtain no rights in Progress Proprietary Items (or in any modifications or enhancements to them or any derivative work within the meaning of the US Copyright Act) except that, to the extent
+    that we incorporate the Progress Proprietary Items into a Deliverable, we will grant you a worldwide, non-exclusive, non-transferable, non-sublicensable license in such Progress Proprietary Items to use them as part of (but not unbundled from) the
+    Deliverable. All other Intellectual Property Rights in and to the Progress Proprietary Items will remain in and/or are hereby assigned to us.
+</p><p>6.2. <strong>Ownership of Deliverables and Other Works of Authorship</strong>. Should the Professional Services set forth in an Order result in any reports, work product or other tangible items identified in an Order as a deliverable (&ldquo;<strong>Deliverables</strong>&rdquo;),
+ unless otherwise provided in an Order, we grant you a worldwide, non-exclusive, non-transferable, non-sublicensable license to use the Deliverables for your internal use. Other than the limited license to the Deliverables contained herein or as otherwise
+    set forth in an Order, we will own and retain all right, title and interest, express or implied, in and to any Deliverables created during the course of providing Professional Services and to all other works of authorship of any kind or nature prepared,
+    created or conceived by us (or our employees, subcontractors or agents) in the performance of the Professional Services, exclusive of any Confidential Information of yours incorporated therein. We will not own or have any right, title or interest
+    in or to your Confidential Information, whether by assignment, license or otherwise.
+</p><p>6.3. <strong>Residuals/Items of General Knowledge</strong>. We may use our general knowledge, skills and experience, and any ideas, concepts, know-how, and techniques within the scope of our professional services practice in the course of providing the
+    Professional Services, including information publicly known or available or that could reasonably be acquired in similar work performed for another customer of ours. In no event will we be precluded from developing for ourselves, or for others, materials
+    that are competitive with the Deliverables, irrespective of their similarity to the Deliverables, provided this is done without use of your Confidential Information.
+</p><p><strong>7. Professional Services Warranty and Disclaimer</strong>. Notwithstanding anything to the contrary in section 1.9 of the EULA (Warranties), we warrant to you that for a period of sixty (60) days after our performance of the Professional Services
+    or delivery of the Deliverables (the &ldquo;<strong>Professional Services Warranty Period</strong>&rdquo;): (i) the Professional Services will be performed in a good and workmanlike manner; and (ii) the Deliverables will conform in all material respects
+    to the applicable specifications identified in an Order. Our sole obligation under the limited warranty set forth in this section 7 is to use commercially reasonable efforts to correct any Professional Services or Deliverables that do not comply with
+    the warranties set forth in this section 7 (e.g., by reperformance of any noncomplying Professional Services or modifying any noncomplying Deliverables), provided that you give us written notice of the noncompliance within the Professional Services
+    Warranty Period. If, after the expenditure of commercially reasonable efforts, we are unable to correct the noncompliance, we may choose to refund an equitable portion (e.g., based upon the value of your actual use of the applicable Deliverable(s)
+    or any benefits received by you) of the fee paid by you for such Professional Services or Deliverables, whereupon your rights in and to any such nonconforming Professional Services or Deliverables will be terminated. Except for the express warranty
+    set forth in this section 7, the warranty exclusions and disclaimers specified in sections 1.9.3 of the EULA (Warranty Exclusions) and 1.9.4 of the EULA (Warranty Disclaimers) apply to the Professional Services provided by us to you pursuant to this
+    <span class="-tdu">Exhibit A</span> and any Order.
+</p><p><strong>8. Term; Termination</strong>.</p><p>8.1. The terms of this <span class="-tdu">Exhibit A</span> will remain in effect until termination in accordance with section 8.2 of this
+    <span class="-tdu">Exhibit A</span>.
+</p><p>8.2. <strong>Termination</strong>.</p><p>8.2.1. <strong>Termination of the EULA</strong>. The terms of this <span class="-tdu">Exhibit A</span>, and any outstanding Professional Services engagements set forth in any Order(s), will automatically terminate in the event of termination of this EULA
+    in accordance with section 1.15.1 (Termination for Breach). Notwithstanding anything to the contrary in section 1.15.1 of the EULA, we may not terminate this EULA or your license(s) to the Product(s) granted under this EULA, or the parties&rsquo;
+    respective rights and obligations associated therewith, pursuant to section 1.15.1 (Termination for Breach) if the nature of your breach is solely related to the Professional Services engagement set forth in an Order.
+</p><p>8.2.2. <strong>Termination of Professional Services for Breach</strong>. Either party may terminate any Professional Services engagement set forth in any Order by written notice to the other party if the other party materially breaches its obligations
+    under this <span class="-tdu">Exhibit A</span> or the applicable Order in relation to such Professional Services engagement and, where such breach is curable, fails to cure such breach to the non-breaching party&rsquo;s reasonable satisfaction within
+    thirty (30) days after such notice. Your failure to pay any fees owing to us for the Professional Services as provided in Section 1.8.1 of the EULA (Payment Terms and Taxes) is a material breach for which we may terminate the Professional Services
+    under the applicable Order(s) pursuant to this section 8.2.2 immediately upon written notice. The remedy specified in this section 8.2.2 will not be exclusive and will be in addition to any other remedies which the non-breaching party may have under
+    this EULA or otherwise.
+</p><p>8.2.3. <strong>Effect of Termination of Professional Services</strong>.</p><p>8.2.3.1. We will have no obligation to perform any Professional Services under a terminated Professional Services engagement set forth in an Order after the effective date of the termination.</p><p>8.2.3.2. In the event of termination of any Professional Services engagement(s) set forth in one or more Order(s) in accordance with section 8.2.2 of this
+    <span class="-tdu">Exhibit A</span>, you agree that you will pay all fees, reimbursable expenses, compensation or other amounts payable to us pursuant to section 4 of this <span class="-tdu">Exhibit A</span> and the applicable Order for all Professional
+    Services performed by us up to and including the date of termination of the Professional Services under the applicable Order(s).
+</p></div>
+</section>
+</main>
+
+
+<section class="Chef-Footer" data-sf-element="Row">
+  <div id="Content_TDA3D64C3004_Col00" class="sf_colsIn container -oh" data-sf-element="Column 1" data-placeholder-label="Section"><div class="row row--equal" data-sf-element="Row">
+  <div id="Content_TDA3D64C3014_Col00" class="sf_colsIn col-8 -l-full -l-mb3" data-sf-element="Column 1" data-placeholder-label="Column 1"><div class="row" data-sf-element="Row">
+  <div id="Content_TDA3D64C3015_Col00" class="sf_colsIn col-3 -xl-third" data-sf-element="Column 1" data-placeholder-label="Column 1">
+
+
+<h6 class="-co-black">Company</h6><ul class="List0 -vs1 -fs16"><li><a href="/blog">Blog</a></li><li><a href="https://www.progress.com/company" target="_blank">About Progress</a></li><li><a href="https://www.progress.com/company/leadership#exec" target="_blank">Leadership</a></li><li><a href="/customers">Customer Stories</a></li><li><a href="https://www.progress.com/company/press-coverage/" target="_blank">Press Coverage</a></li><li><a href="https://investors.progress.com/press-releases" target="_blank">Press Releases</a></li><li><a href="/events">Events</a></li><li><a href="/careers">Careers</a></li><li><a href="/contact-us">Contact Us</a></li></ul></div>
+  <div id="Content_TDA3D64C3015_Col01" class="sf_colsIn col-3 -xl-third" data-sf-element="Column 2" data-placeholder-label="Column 2">
+
+
+<h6 class="-co-black">Using Chef</h6><ul class="List0 -vs1 -fs16"><li><a href="https://learn.chef.io/">Learn Chef</a></li><li><a href="https://docs.chef.io/">Docs</a></li><li><a href="/webinars">Webinars</a></li><li><a href="https://discourse.chef.io/">Forums</a></li><li><a href="/training">Training</a></li><li><a href="/security">Security</a></li><li><a href="https://github.com/chef/chef/blob/master/CONTRIBUTING.md#developer-certification-of-origin-dco">Contributing to Chef</a></li><li><a href="https://www.progress.com/company/code-of-conduct/">Code of Conduct</a></li></ul></div>
+  <div id="Content_TDA3D64C3015_Col02" class="sf_colsIn col-5 -xl-third" data-sf-element="Column 3" data-placeholder-label="Column 3">
+
+
+<h6 class="-co-black">Legal</h6><ul class="List0 -vs1 -fs16"><li><a href="https://www.progress.com/legal/terms-of-use">Terms &amp; Conditions</a></li><li><a href="https://www.progress.com/legal/privacy-policy">Privacy Policy</a></li><li><a href="/online-master-agreement">Online Master License and Services Agreement</a></li><li><a href="/trademark-policy">Trademark Policy</a></li><li><a href="/3rd-party-licenses">3rd Party Software Licenses</a></li><li><a href="https://www.progress.com/legal/cookie-policy">Cookie Policy</a></li></ul></div>
+</div>
+</div>
+  <div id="Content_TDA3D64C3014_Col01" class="sf_colsIn col-4 -l-half -s-three-fourths" data-sf-element="Column 2" data-placeholder-label="Column 2">
+
+
+<h6 class="-co-black">Connect with us</h6>
+
+
+<a href="/contact-us" class="Btn Btn--ghost -db -mb2">Contact Us</a>
+
+
+<div class="InlineItems InlineItems--social -fs24 -mb2"><a href="https://github.com/chef" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><svg width="24" height="24" viewBox="0 0 1536 1536"><path d="M394,1224q-8,9-20-3-13-11-4-19,8-9,20,3Q402,1216,394,1224Zm-42-61q9,12,0,19-8,6-17-7t0-18Q344,1150,352,1163Zm-61-60q-5,7-13,2-10-5-7-12,3-5,13-2Q294,1096,291,1103Zm31,34q-6,7-16-3-9-11-2-16,6-6,16,3Q329,1132,322,1137Zm129,112q-4,12-19,6-17-4-13-15t19-7Q454,1238,451,1249Zm63,5q0,11-16,11-17,2-17-11,0-11,16-11Q514,1241,514,1254Zm58-10q2,10-14,14t-18-8q-2-12,14-15Q570,1233,572,1244Zm964-956v960q0,119-84.5,203.5T1248,1536H1024a224.35,224.35,0,0,1-24.5-1,88.32,88.32,0,0,1-19.5-5,27.47,27.47,0,0,1-16-14.5q-5-10.5-5-27.5V1249q0-97-52-142,57-6,102.5-18t94-39q48.49-27,81-66.5t53-105Q1258,813,1258,728q0-121-79-206,37-91-8-204-28-9-81,11t-92,44l-38,24a721.92,721.92,0,0,0-384,0q-16-11-42.5-27T450,331.5Q393,309,364,318q-44,113-7,204-79,85-79,206,0,85,20.5,150T351,983q32,40,80.5,67t94,39q45.5,12,102.5,18-40,36-49,103a198,198,0,0,1-45,15q-24,5-57,5t-65.5-21.5Q379,1187,356,1146a161.33,161.33,0,0,0-48.5-52q-29.5-20-49.5-24l-20-3q-21,0-29,4.5t-5,11.5a55.07,55.07,0,0,0,9,14,72.75,72.75,0,0,0,13,12l7,5q22,10,43.5,38t31.5,51l10,23q13,38,44,61.5t67,30a427.11,427.11,0,0,0,69.5,7q33.5.49,55.5-3.5l23-4q0,38,.5,103t.5,68q0,22-11,33.5t-22,13q-11,1.5-33,1.5H288q-119,0-203.5-84.5T0,1248V288Q0,169,84.5,84.5T288,0h960q119,0,203.5,84.5T1536,288Z" fill="currentColor"></path></svg>&nbsp;</a>
+ <a href="https://www.facebook.com/getchefdotcom" target="_blank" rel="noopener noreferrer" aria-label="Facebook"><svg width="24" height="24" viewBox="0 0 1536 1536"><path d="M1307,790l23-219H1132V462q0-49,15.5-68.5T1219,374h110V155H1154q-152,0-218,72T870,440V571H739V790H870v635h262V790Zm229-502v960q0,119-84.5,203.5T1248,1536H288q-119,0-203.5-84.5T0,1248V288Q0,169,84.5,84.5T288,0h960q119,0,203.5,84.5T1536,288Z" fill="currentColor"></path></svg>&nbsp;</a>
+ <a href="https://twitter.com/chef" target="_blank" rel="noopener noreferrer" aria-label="Twitter"><svg width="24" height="24" viewBox="0 0 1536 1536"><path d="M1280,482q-56,25-121,34,68-40,93-117-65,38-134,51-61-66-153-66-87,0-148.5,61.5T755,594q0,29,5,48-129-7-242-65T326,422q-29,50-29,106,0,114,91,175-47-1-100-26v2q0,75,50,133.5T461,885q-29,8-51,8-13,0-39-4,21,63,74.5,104T567,1035q-116,90-261,90a403.1,403.1,0,0,1-50-3q148,94,322,94,112,0,210-35.5t168-95a630.7,630.7,0,0,0,120.5-137q50.51-77.5,75-162T1176,618a265.59,265.59,0,0,0-1-27A408.1,408.1,0,0,0,1280,482Zm256-194v960q0,119-84.5,203.5T1248,1536H288q-119,0-203.5-84.5T0,1248V288Q0,169,84.5,84.5T288,0h960q119,0,203.5,84.5T1536,288Z" fill="currentColor"></path></svg>&nbsp;</a>
+ <a href="https://www.linkedin.com/company/chef-software" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn"><svg width="24" height="24" viewBox="0 0 1536 1536"><path d="M237,1286H468V592H237ZM483,378q-1-52-36-86t-93-34q-58,0-94.5,34T223,378q0,51,35.5,85.5T351,498h1q59,0,95-34.5T483,378Zm585,908h231V888q0-154-73-233t-193-79q-136,0-209,117h2V592H595q3,66,0,694H826V898q0-38,7-56a154.36,154.36,0,0,1,45-59.5Q908,758,952,758q116,0,116,157Zm468-998v960q0,119-84.5,203.5T1248,1536H288q-119,0-203.5-84.5T0,1248V288Q0,169,84.5,84.5T288,0h960q119,0,203.5,84.5T1536,288Z" fill="currentColor"></path></svg>&nbsp;</a>
+ <a href="https://www.youtube.com/user/getchef" target="_blank" rel="noopener noreferrer" aria-label="YouTube"><svg width="24" height="24" viewBox="0 0 1536 1536"><path d="M919,1175V1018q0-50-29-50-17,0-33,16v224q16,16,33,16Q919,1224,919,1175Zm184-122h66v-34q0-51-33-51t-33,51ZM532,787v70H452v423H378V857H300V787ZM733,913v367H666v-40q-39,45-76,45-33,0-42-28-6-16-6-54V913h66v270q0,24,1,26,1,15,15,15,20,0,42-31V913Zm252,111v146q0,52-7,73-12,42-53,42-35,0-68-41v36H790V787h67V948q32-40,68-40,41,0,53,42Q985,971,985,1024Zm251,129v9q0,29-2,43a94,94,0,0,1-15,40q-27,40-80,40-52,0-81-38-21-27-21-86V1032q0-59,20-86,29-38,80-38t78,38q21,28,21,86v76H1103v65q0,51,34,51,24,0,30-26,0-1,.5-7t.5-16.5V1153ZM785,329V485q0,51-32,51t-32-51V329q0-52,32-52T785,329Zm533,713q0-177-19-260-10-44-43-73.5T1180,674q-136-15-412-15-275,0-411,15-44,5-76.5,34.5T238,782q-20,87-20,260,0,176,20,260a140.53,140.53,0,0,0,42.5,73q32.5,30,75.5,35,137,15,412,15t412-15q43-5,75.5-35a140.53,140.53,0,0,0,42.5-73Q1318,1218,1318,1042ZM563,391,653,95H578L527,290,474,95H396l24,69s7.67,23,23,69q35,103,46,158V592h74Zm289,81V342q0-58-21-87-29-38-78-38-51,0-78,38-21,29-21,87V472q0,58,21,87,27,38,78,38,49,0,78-38Q852,532,852,472Zm181,120h67V222h-67V505q-22,31-42,31-15,0-16-16-1-2-1-26V222H907V515q0,37,6,55,11,27,43,27,36,0,77-45Zm503-304v960q0,119-84.5,203.5T1248,1536H288q-119,0-203.5-84.5T0,1248V288Q0,169,84.5,84.5T288,0h960q119,0,203.5,84.5T1536,288Z" fill="currentColor"></path></svg>&nbsp;</a>
+ <a href="https://www.instagram.com/chef_software" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><svg width="24" height="24" viewBox="0 0 448 448"><path d="M224,170.66A53.34,53.34,0,1,0,277.36,224,53.34,53.34,0,0,0,224,170.66Zm124.71-41A54,54,0,0,0,318.3,99.25c-21-8.29-71-6.43-94.3-6.43s-73.25-1.93-94.31,6.43a54,54,0,0,0-30.41,30.41c-8.28,21-6.43,71.05-6.43,94.33S91,297.26,99.32,318.33a54,54,0,0,0,30.41,30.41c21,8.29,71,6.43,94.31,6.43s73.24,1.93,94.3-6.43a54,54,0,0,0,30.41-30.41c8.35-21,6.43-71,6.43-94.33s1.92-73.26-6.43-94.33ZM224,306a81.9,81.9,0,1,1,.2,0Zm85.38-148.3a19.14,19.14,0,1,1,19.13-19.15h0a19.1,19.1,0,0,1-19,19.18h-.07ZM400,0H48A48,48,0,0,0,0,48V400a48,48,0,0,0,48,48H400a48,48,0,0,0,48-48V48A48,48,0,0,0,400,0ZM382.88,290c-1.29,25.63-7.14,48.34-25.85,67s-41.4,24.63-67,25.85c-26.41,1.49-105.59,1.49-132,0-25.63-1.29-48.26-7.15-67-25.85S66.4,315.58,65.18,290c-1.49-26.42-1.49-105.61,0-132,1.29-25.63,7.07-48.34,25.85-67s41.47-24.56,67-25.78c26.41-1.49,105.59-1.49,132,0,25.63,1.29,48.33,7.15,67,25.85s24.63,41.42,25.85,67.05C384.37,184.44,384.37,263.56,382.88,290Z" fill="currentColor"></path></svg>&nbsp;</a>
+</div></div>
+</div>
+
+
+
+<hr class="-op-2 -mb4" />
+
+
+<a href="https://www.progress.com" class="-mb2" aria-label="Progress Software" data-sf-ec-immutable=""><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 120" width="144" style="width:144px;height:34px;"><path fill="#5ce500" d="M95.52,29.33h0v51a3.93,3.93,0,0,1-1.78,3.08l-1.67,1L79.35,91.76l-8.59,5-1.78,1V42.6L21.23,15,43.91,1.93,46,0.74a3.94,3.94,0,0,1,3.56,0L81,18.9l14.51,8.38v2.05ZM58.36,48.72l-9.79-5.66L25.66,29.83a4,4,0,0,0-3.56,0L1.77,41.57,0,42.6,34.49,62.51v39.83l20.3-11.73,1.79-1a3.94,3.94,0,0,0,1.78-3.08V48.72ZM0,82.43L23.86,96.21V68.63Z"></path><path fill="#4b4e52" d="M148.09,27.28h-26V97.76h11.55V70.1h14.57c15.77,0,24.45-7.7,24.45-21.69,0-6.35-2.4-21.12-24.55-21.12M160.89,48.6c0,7.95-4.12,11.19-14.24,11.19h-13V37.69h14.57c8.56,0,12.71,3.57,12.71,10.91M207,46.41l0.87,0.42-2,10.42-1.35-.42a11.32,11.32,0,0,0-3.34-.51c-10.79,0-11.67,8.59-11.67,19V97.76H178.87V46h10v6.24c2.73-4.2,6-6.37,10.37-6.9A14.55,14.55,0,0,1,207,46.41M233.29,45c-8.42,0-15.16,3.2-19.5,9.27-4.56,6.37-5.23,13.85-5.23,17.74,0,16.36,9.7,26.92,24.73,26.92,18.26,0,24.73-14.71,24.73-27.3,0-7.25-2.15-13.82-6-18.51-4.41-5.31-10.87-8.12-18.7-8.12m0,44.38c-8.37,0-13.57-6.66-13.57-17.37s5.2-17.55,13.57-17.55S247,61.23,247,71.78c0,10.83-5.24,17.56-13.66,17.56M347.89,46.41l0.87,0.42-2,10.42-1.35-.42a11.26,11.26,0,0,0-3.33-.51c-10.78,0-11.66,8.59-11.66,19V97.76H319.76V46h10v6.24c2.73-4.2,6-6.37,10.37-6.9a14.54,14.54,0,0,1,7.73,1.06m38.4,34.76-0.2.57c-2.23,6.36-7.57,7.7-11.65,7.7-8.09,0-13.3-5.37-13.81-14.09h36.59l0.13-1a31.26,31.26,0,0,0,.12-4.12c0-.34,0-0.64,0-0.93C396.93,54.78,387.48,45,374,45c-7.9,0-14.37,3.1-18.73,9a30.85,30.85,0,0,0-5.54,18c0,16,9.95,26.74,24.74,26.74,11.45,0,19.33-5.82,22.2-16.38L397,81.16h-10.7ZM361,66.05c0.9-7.17,5.81-11.73,12.79-11.73,5.33,0,11.64,3.1,12.52,11.73H361Zm-60.7-15.71c-3.45-3.58-8.06-5.39-13.76-5.39-15.69,0-22.83,13.81-22.83,26.63,0,13.16,7.06,26.44,22.83,26.44a18.33,18.33,0,0,0,13.35-5.42c0,2.28-.1,4.45-0.16,5.38-0.58,8.54-4.68,12.51-12.91,12.51-4.47,0-9.61-1.59-10.6-6l-0.22-1H265.46l0.17,1.41c1.1,9.12,9.11,14.79,20.9,14.79,10.34,0,17.7-3.9,21.28-11.26,1.73-3.55,2.6-8.72,2.6-15.37V46H300.28v4.34ZM287.19,88.49c-3.74,0-12.43-1.69-12.43-17.37,0-10.3,4.87-16.7,12.71-16.7,6.06,0,12.52,4.39,12.52,16.7,0,10.87-4.79,17.37-12.81,17.37m159.67-6.31c0,8.23-6.83,16.53-22.09,16.53-13.5,0-21.53-5.85-22.61-16.45L402,81.16h10.52L412.73,82c1.29,6.38,7.37,7.72,12.24,7.72,5.34,0,11-1.72,11-6.54,0-2.44-1.59-4.18-4.73-5.16-1.86-.55-4.15-1.2-6.56-1.87-4.16-1.16-8.47-2.38-11.12-3.29-6.56-2.35-10.33-6.93-10.33-12.56,0-10.43,10.16-15.11,20.22-15.11,13.46,0,20.42,5.07,21.3,15.49l0.09,1.07H434.5l-0.14-.82c-1-6-7-6.9-10.48-6.9-3,0-10,.53-10,5.5,0,2.25,1.93,3.91,5.89,5.06,1.18,0.33,2.94.78,5,1.31,4.22,1.09,9.48,2.46,12.13,3.37,6.59,2.32,9.93,6.67,9.93,13m49.39,0c0,8.23-6.83,16.53-22.09,16.53-13.5,0-21.53-5.85-22.61-16.45l-0.11-1.09H462L462.12,82c1.29,6.38,7.37,7.72,12.24,7.72,5.34,0,11-1.72,11-6.54,0-2.44-1.59-4.18-4.72-5.16-1.86-.55-4.15-1.2-6.57-1.87-4.16-1.16-8.46-2.38-11.11-3.29-6.57-2.35-10.33-6.93-10.33-12.56,0-10.43,10.16-15.11,20.22-15.11,13.46,0,20.42,5.07,21.29,15.49l0.09,1.07H483.9l-0.14-.82c-1-6-7-6.9-10.48-6.9-3,0-9.95.53-9.95,5.5,0,2.25,1.93,3.91,5.89,5.06,1.18,0.33,2.94.78,5,1.31,4.22,1.09,9.48,2.46,12.13,3.37,6.58,2.32,9.93,6.67,9.93,13"></path><path fill="#4b4e52" d="M504.71,51.49A7.37,7.37,0,1,1,512,44.12a7.23,7.23,0,0,1-7.29,7.37m0-13.49a6.12,6.12,0,1,0,6,6.12,5.91,5.91,0,0,0-6-6.12m-0.85,7.49v2.46h-2.17V40.21h3.62a2.58,2.58,0,0,1,2.86,2.7,2.26,2.26,0,0,1-1.49,2.34l1.77,2.7H506l-1.49-2.46h-0.68ZM505.07,42h-1.21v1.73h1.21a0.86,0.86,0,0,0,1-.85,0.88,0.88,0,0,0-1-.89"></path></svg> </a>
+<p class="-ff-base -fs13 -mb1">Chef is part of the Progress product portfolio. Progress is the leading provider of application development and digital experience technologies.</p><div class="row"><div class="col-8 -l-full"><ul class="InlineItems -fs18 -fw5 -pl0"><li class="-s-db"><a href="https://www.progress.com/company" target="_blank" rel="noopener" data-sf-ec-immutable="">About Us</a></li><li class="-ml2 -s-db -s-m0"><a href="/awards" data-sf-ec-immutable="">Awards</a></li><li class="-ml2 -s-db -s-m0"><a href="https://investors.progress.com/press-releases" target="_blank" rel="noopener" data-sf-ec-immutable="">Press Releases</a></li><li class="-ml2 -s-db -s-m0"><a href="https://www.progress.com/company/press-coverage" target="_blank" rel="noopener" data-sf-ec-immutable="">Media Coverage</a></li><li class="-ml2 -s-db -s-m0"><a href="/careers" data-sf-ec-immutable="">Careers</a></li><li class="-ml2 -s-db -s-m0"><a href="https://www.progress.com/company/offices" target="_blank" rel="noopener" data-sf-ec-immutable="">Offices</a></li></ul><p class="-ff-base -fs14 -fw5 -mb1">Copyright &copy; 2021 Progress Software Corporation and/or its subsidiaries or affiliates. All Rights Reserved.</p><p class="-ff-base -fs13">Progress, Telerik, Ipswitch, Chef and certain product names used herein are trademarks or registered trademarks of Progress Software Corporation and/or one of its subsidiaries or affiliates in the U.S. and/or other countries. See <a href="/trademark-policy" class="-h-op-6" data-sf-ec-immutable="">Trademarks</a> for appropriate markings.
+        </p></div><div class="col-4 -l-full -vab -tar -l-tal"><ul class="InlineItems -fs15 -fw5 -pl0 -mb0 -vs0"><li><a href="https://www.progress.com/security" target="_blank" rel="noopener" data-sf-ec-immutable="">Security Center</a></li><li class="-ml1"><a href="https://www.progress.com/legal" target="_blank" rel="noopener" data-sf-ec-immutable="">License Agreement</a></li></ul><p class="-fs15 -mb0"><a href="https://forms.progress.com/ccpa-subscription" target="_blank" rel="noopener" class="-h-op-6" data-sf-ec-immutable="">Do not sell my personal information</a></p><p class="-fs15">Powered by <a href="https://www.progress.com/sitefinity-cms" target="_blank" rel="noopener" class="-h-op-6" data-sf-ec-immutable="">Progress Sitefinity</a></p></div></div></div>
+</section>
+<script type="text/javascript" src="/WebResource.axd?d=wnB2OjhYopty-dCFa4b2kMyspCBLpq8pN219dONE31PTSwyQp3X1A0T_lLP-gDZNxXBw6cBVoXoqwXahtwDhy_FiRhdWwUOgeE5UAtqyLeyExvUd8JywkofaL-uaTHEp9M2JG0rcKxXr9rKQA4ffBU-7i6RO-bIjqrVArz-aPMT86d_FGcdBfunMdRuyuf8Dm99p-KioR_oF944pCNXRENANCbI1&amp;t=637739729240000000">
+
+</script><script data-sf-pers-id="34efbecc-bebe-4738-b943-befcc0b84834" data-sf-pers-raise-events="True" data-sf-pers-page-node-id="fe964b4c-7d13-4ad6-a7e0-2ccb205279a3" data-sf-pers-page-data-id="55639e73-f8b7-40cd-90a7-b9a095d26eac" data-sf-pers-page-node-key="FE964B4C-7D13-4AD6-A7E0-2CCB205279A3/450e9c08-c66b-4197-bad7-594b287f99a2/SitefinitySiteMap" data-sf-app-path="/" data-sf-loaded-scripts="['https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/jquery-migrate/3.3.2/jquery-migrate.min.js', 'https://d2i1toup5z0rfd.cloudfront.net/cache/1e769921d65d3c41b24ae6b15cdb77b67e6fbdeb/js/polyfills.min.js', 'https://d2i1toup5z0rfd.cloudfront.net/cache/cfe6a63506ac0fcdffdafea67d9e81d0f8b28161/js/all.min.js']"></script>
+
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" type="text/javascript"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-migrate/3.3.2/jquery-migrate.min.js" type="text/javascript"></script>
+            <script src="https://cdn.cookielaw.org/scripttemplates/otSDKStub.js" data-language="en" type="text/javascript" charset="UTF-8" data-domain-script="e231efa5-3ed9-4b92-96bc-f4c0872ca486"></script>
+            
+<script type="text/javascript">
+    (function (w) {
+        w.OptanonGroups = {"StrictlyNecessaryCookies":"1","PerformanceCookies":"2","FunctionalCookies":"3","TargetingCookies":"4"};
+
+        w.isOptanonGroupActive = function (groupId, explicit) {
+            if (!w.OptanonActiveGroups) return !explicit;
+            var groupMatchKey = ',' + groupId + ',';
+
+            return w.OptanonActiveGroups.indexOf(groupMatchKey) !== -1;
+        }
+
+        function toggleSitefinityTrackingConsent() {
+            var performanceCookiesGroupId = w.OptanonGroups.PerformanceCookies;
+            var isPerformanceCookiesGroupIdActive = w.isOptanonGroupActive(performanceCookiesGroupId, true);
+
+            if (w.TrackingConsentManager) {
+                w.TrackingConsentManager.updateUserConsent(isPerformanceCookiesGroupIdActive);
+            }
+        };
+
+        var trackingScriptsQueue = [];
+        w.invokeTrackingScript = function (thisReference, trackingGroup, functionReference) {
+            if (isOptanonGroupActive(trackingGroup, true)) {
+                functionReference.call(thisReference);
+            }
+            else {
+                trackingScriptsQueue.push({
+                    thisReference: thisReference,
+                    trackingGroup: trackingGroup,
+                    functionReference: functionReference
+                });
+            }
+        }
+
+        var isOptanonToggled = false;
+        w.OptanonWrapper = function () {
+            var newTrackingScriptsQueue = [];
+            for (var i = 0; i < trackingScriptsQueue.length; i++) {
+                var trackingScriptData = trackingScriptsQueue[i];
+                if (isOptanonGroupActive(trackingScriptData.trackingGroup, true)) {
+                    trackingScriptData.functionReference.call(trackingScriptData.thisReference);
+                }
+                else {
+                    newTrackingScriptsQueue.push(trackingScriptData);
+                }
+            }
+
+            trackingScriptsQueue = newTrackingScriptsQueue;
+
+            if (!isOptanonToggled && w.location.hash === '#cookie-settings' && true) {
+                isOptanonToggled = true;
+                Optanon.ToggleInfoDisplay();
+            }
+
+            toggleSitefinityTrackingConsent();
+        }
+
+        if (w.addEventListener) {
+            w.addEventListener('DOMContentLoaded', toggleSitefinityTrackingConsent, false);
+        } else if (window.attachEvent) {
+            w.attachEvent('onload', toggleSitefinityTrackingConsent);
+        }
+        
+    })(window);
+</script> <script type="text/javascript">(function (w, d, s, l, i) { w[l] = w[l] || []; w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' }); var f = d.getElementsByTagName(s)[0], j = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : ''; j.async = true; j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl; f.parentNode.insertBefore(j, f); })(window, document, 'script', 'dataLayer', 'GTM-NS7D7G');</script>  <script src='https://d6vtbcy3ong79.cloudfront.net/external-assets/1.0.13/utils/store-lead-data.min.js' type="text/plain" class="optanon-category-2">
+        </script> <script type="text/javascript" defer src='/WebResource.axd?d=1yNISCCAat2DDFV0AJOzAxKiPCVb45LrDZLWJb26BONrBjjMJu91SqbT3PJobBh5pjx4eHDap5QFFamgXRrmmjihHBl7RdYLcP1t_aNOed-GX_KUf7VaeLyRqqC59hB1o9f9AhhlyUS5VVcxoqQHSD3v4D71pYdVzDlef6X8qX_aGmFUaN7tvw2A_IVbooFiMghieOXPeOv9ouPJvcEFHvLRxTU1&amp;t=637739729240000000'></script> <script type="text/javascript" defer src='/WebResource.axd?d=sBld-64cLKvhsRpwctHBq3eV6E1nJWTucxWFXB4nUOPtdN8KMh_ENXopLO50_CGJcIikjoeC-ZiIaCP6BePgAGb51IfAn7J-_gCjqIJ0nPlnpGDJ7I7k4TVuQex6IgEHp4O_GYqQfdoIkz31WXgEKOf6X5uDLmZ0CpuM11gJb4abGOMBHr7Xqvb2-3k8ObgQf1WnxKhbcu8CDogitnwo0lvo_Fs1&amp;t=637739729240000000'></script> <script src="https://d2i1toup5z0rfd.cloudfront.net/cache/1e769921d65d3c41b24ae6b15cdb77b67e6fbdeb/js/polyfills.min.js" type="text/javascript"></script><script src="https://d2i1toup5z0rfd.cloudfront.net/cache/cfe6a63506ac0fcdffdafea67d9e81d0f8b28161/js/all.min.js" type="text/javascript"></script><script type="text/plain" class="optanon-category-2">
+	(function() {
+				var script = '//s1325.t.eloqua.com/visitor/v200/svrGP?pps=70&siteid=1325';
+				(function getScript(source, callback) {
+					var script = document.createElement('script');
+					var prior = document.getElementsByTagName('script')[0];
+					script.async = 1;
+					prior.parentNode.insertBefore(script, prior);
+					script.onload = script.onreadystatechange = function( _, isAbort ) {
+						if(isAbort || !script.readyState || /loaded|complete/.test(script.readyState) ) {
+							script.onload = script.onreadystatechange = null;
+							script = undefined;
+
+							if(!isAbort) { if(callback) callback(); }
+						}
+					};
+					script.src = source;
+				})(script, function() {
+					if (typeof GetElqCustomerGUID == 'function') {
+						var userId = GetElqCustomerGUID();
+						document.cookie = 'elqUserId=' + userId + '; path=/;SameSite=Lax;';
+					}
+				});
+			})();
+</script><script type="text/javascript" src="/WebResource.axd?d=NjxTqR2bqTw1rewxxlkHPhplvAUnxSpr6AsHaohXmFQy7PvpyNIWmyomqG9oxGhGdHejYR5lBqZFYmY8dxEEFXMnxekxHE2Y1f0rIl_4roxXp1LDcB7suPsNAQ-63JEdmoO5dysXL60ePZJsSpHsnbdqGPKRdFNyovXHNwytNriZUtA3ZtSqdc_yar2Z8zfC2yMZRtU0U4WiTAFoNX8Ftt8XGx41&amp;t=637739729240000000">
+
+</script> </body> </html>

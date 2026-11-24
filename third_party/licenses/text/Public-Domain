@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head profile="http://www.w3.org/1999/xhtml/vocab">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="Generator" content="Drupal 7 (http://drupal.org)" />
+<link rel="canonical" href="/faq" />
+<link rel="shortlink" href="/node/211" />
+<meta name="MobileOptimized" content="width" />
+<meta name="HandheldFriendly" content="true" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="shortcut icon" href="https://opensource.org/files/osi_favicon.png" type="image/png" />
+  <title>Frequently Answered Questions | Open Source Initiative</title>
+  <link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_xE-rWrJf-fncB6ztZfd2huxqgxu4WO-qwma6Xer30m4.css" media="all" />
+<link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_gh8wMJiOGewsPCJRDYXmqv3eEGGGSn0O_fqsi_9a-LY.css" media="all" />
+<link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_qMtvtYjDyL3jyvKhdeFzZVkBLhrAzESpT6WEC6RDrBo.css" media="all" />
+<link type="text/css" rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css" media="all" />
+<link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_KGZcOm3i1wmtbgZsjo-3V9FM4wZ-5UDcpJ7Vfzmt45E.css" media="all" />
+<link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_ulIzRpfhtuifCQvQJ8NpvGx_J9mvqUlZZLik4d4ZG-s.css" media="all" />
+
+<!--[if (lt IE 9)]>
+<link type="text/css" rel="stylesheet" href="https://opensource.org/sites/all/themes/bootstrap-business/css/ie8.css?r42bxq" media="all" />
+<![endif]-->
+
+    
+  <!-- HTML5 element support for IE6-8 -->
+  <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+  <script type="text/javascript" src="//code.jquery.com/jquery-1.10.2.min.js"></script>
+<script type="text/javascript">
+<!--//--><![CDATA[//><!--
+window.jQuery || document.write("<script src='/sites/all/modules/jquery_update/replace/jquery/1.10/jquery.min.js'>\x3C/script>")
+//--><!]]>
+</script>
+<script type="text/javascript" src="https://opensource.org/files/js/js_Hfha9RCTNm8mqMDLXriIsKGMaghzs4ZaqJPLj2esi7s.js"></script>
+<script type="text/javascript">
+<!--//--><![CDATA[//><!--
+
+      (function ($, D) {
+        D.behaviors.webform_civicrm_1125_3 = {
+          attach: function (context) {
+            var toHide = [];
+            var field = $('.webform-client-form-1125 :input.civicrm-enabled[name$="civicrm_1_contact_1_contact_existing]"]', context);
+            field.change(function() {
+                  wfCivi.existingSelect(1, 1125, "/webform-civicrm/js/1125-3", toHide, 'hide', 0, $(this).val(), true, {"disclaimer":"Sign up with your email to receive OSI's newsletter \u2014 your resource for industry news, upcoming events, insights from open source thought leaders and more.","civicrm-1-contact-1-email-email":"[current-user:mail]","civicrm-1-contact-1-contact-first-name":"[current-user:civicrm-contact:contact-id-contact:first-name]","civicrm-1-contact-1-contact-last-name":"[current-user:civicrm-contact:contact-id-contact:last-name]"});
+                });
+          }
+        };
+      })(jQuery, Drupal);
+//--><!]]>
+</script>
+<script type="text/javascript" src="https://opensource.org/files/js/js_DUNTYodva32GqgFb5T11Sne7vNBydw_Kz6E6zejEPcs.js"></script>
+<script type="text/javascript" src="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+<script type="text/javascript">
+<!--//--><![CDATA[//><!--
+jQuery(document).ready(function($) { 
+		$(window).scroll(function() {
+			if($(this).scrollTop() != 0) {
+				$("#toTop").fadeIn();	
+			} else {
+				$("#toTop").fadeOut();
+			}
+		});
+		
+		$("#toTop").click(function() {
+			$("body,html").animate({scrollTop:0},800);
+		});	
+		
+		});
+//--><!]]>
+</script>
+<script type="text/javascript" src="https://opensource.org/files/js/js_ruOYJN6FkJU2O5L1dAKVnDloSn5R6LjnLW88zFxS1Uw.js"></script>
+<script type="text/javascript" src="https://opensource.org/files/js/js_JQHTvV_SkyFlN3f2BnQwnusF-eI6tkX8wrKAk2siiZU.js"></script>
+<script type="text/javascript">
+<!--//--><![CDATA[//><!--
+jQuery.extend(Drupal.settings, {"basePath":"\/","pathPrefix":"","setHasJsCookie":0,"ajaxPageState":{"theme":"bootstrap_business","theme_token":"4BdxBDfDyWXkt_t935iFKuR4IauJiGRMGgxIdaSWE6s","js":{"sites\/all\/modules\/webform_civicrm\/js\/webform_civicrm_forms.js":1,"\/\/code.jquery.com\/jquery-1.10.2.min.js":1,"0":1,"misc\/jquery-extend-3.4.0.js":1,"misc\/jquery-html-prefilter-3.5.0-backport.js":1,"misc\/jquery.once.js":1,"misc\/drupal.js":1,"1":1,"sites\/all\/modules\/antibot\/js\/antibot.js":1,"sites\/all\/modules\/webform\/js\/webform.js":1,"\/\/maxcdn.bootstrapcdn.com\/bootstrap\/3.2.0\/js\/bootstrap.min.js":1,"2":1,"sites\/all\/libraries\/superfish\/jquery.hoverIntent.minified.js":1,"sites\/all\/libraries\/superfish\/sftouchscreen.js":1,"sites\/all\/libraries\/superfish\/sfsmallscreen.js":1,"sites\/all\/libraries\/superfish\/supposition.js":1,"sites\/all\/libraries\/superfish\/superfish.js":1,"sites\/all\/libraries\/superfish\/supersubs.js":1,"sites\/all\/modules\/superfish\/superfish.js":1,"sites\/all\/themes\/bootstrap-business\/js\/jquery.browser.min.js":1},"css":{"modules\/system\/system.base.css":1,"modules\/system\/system.menus.css":1,"modules\/system\/system.messages.css":1,"modules\/system\/system.theme.css":1,"modules\/aggregator\/aggregator.css":1,"modules\/comment\/comment.css":1,"modules\/field\/theme\/field.css":1,"modules\/node\/node.css":1,"modules\/search\/search.css":1,"modules\/user\/user.css":1,"sites\/all\/modules\/views\/css\/views.css":1,"sites\/all\/modules\/ckeditor\/css\/ckeditor.css":1,"sites\/all\/modules\/ctools\/css\/ctools.css":1,"sites\/all\/modules\/civicrm\/css\/crm-i.css":1,"sites\/all\/modules\/civicrm\/css\/civicrm.css":1,"sites\/all\/civicustom\/extras.css":1,"public:\/\/honeypot\/honeypot.css":1,"sites\/all\/modules\/webform\/css\/webform.css":1,"sites\/all\/modules\/webform_civicrm\/css\/webform_civicrm_forms.css":1,"\/\/maxcdn.bootstrapcdn.com\/bootstrap\/3.2.0\/css\/bootstrap.min.css":1,"sites\/all\/libraries\/superfish\/css\/superfish.css":1,"sites\/all\/themes\/bootstrap-business\/css\/style.css":1,"sites\/all\/themes\/bootstrap-business\/color\/colors.css":1,"sites\/all\/themes\/bootstrap-business\/css\/local.css":1,"sites\/all\/themes\/bootstrap-business\/css\/ie8.css":1}},"urlIsAjaxTrusted":{"\/faq":true},"superfish":{"1":{"id":"1","sf":{"animation":{"opacity":"show","height":"show"},"speed":"\u0027fast\u0027","autoArrows":false,"dropShadows":true,"disableHI":false},"plugins":{"touchscreen":{"mode":"window_width"},"smallscreen":{"mode":"window_width","addSelected":false,"menuClasses":false,"hyperlinkClasses":false,"title":"Navigation"},"supposition":true,"bgiframe":false,"supersubs":{"minWidth":"12","maxWidth":"27","extraWidth":1}}}},"antibot":{"forms":{"webform-client-form-1125":{"action":"\/faq","key":"899fb40be12e159cb2de5f89a4e3e2c1"}}}});
+//--><!]]>
+</script>
+</head>
+<body class="html not-front not-logged-in one-sidebar sidebar-second page-node page-node- page-node-211 node-type-page" >
+  <div id="skip-link">
+    <a href="#main-content" class="element-invisible element-focusable">Skip to main content</a>
+  </div>
+    <div id="toTop"><span class="glyphicon glyphicon-chevron-up"></span></div>
+
+
+
+<!-- #header-top -->
+<div id="header-top" class="clearfix">
+    <div class="container">
+
+        <!-- #header-top-inside -->
+        <div id="header-top-inside" class="clearfix">
+            <div class="row">
+            
+                        <div class="col-md-8">
+                <!-- #header-top-left -->
+                <div id="header-top-left" class="clearfix">
+                      <div class="region region-header-top-left">
+    <div id="block-menu-secondary-menu" class="block block-menu clearfix">
+
+    
+  <div class="content">
+    <ul class="menu"><li class="first leaf"><a href="/" title="">Home</a></li>
+<li class="leaf"><a href="/contact" title="">Contact</a></li>
+<li class="leaf"><a href="/civicrm/contribute/transact?reset=1&amp;id=2" title="">Donate</a></li>
+<li class="last leaf"><a href="/user/login" title="">Login</a></li>
+</ul>  </div>
+</div>
+  </div>
+                </div>
+                <!-- EOF:#header-top-left -->
+            </div>
+                        
+                        <div class="col-md-4">
+                <!-- #header-top-right -->
+                <div id="header-top-right" class="clearfix">
+                      <div class="region region-header-top-right">
+    <div id="block-search-form" class="block block-search clearfix">
+
+    
+  <div class="content">
+    <form action="/faq" method="post" id="search-block-form" accept-charset="UTF-8"><div><div class="container-inline">
+      <h2 class="element-invisible">Search form</h2>
+    <div class="form-item form-type-textfield form-item-search-block-form">
+ <input onblur="if (this.value == &#039;&#039;) {this.value = &#039;Search this website...&#039;;}" onfocus="if (this.value == &#039;Search this website...&#039;) {this.value = &#039;&#039;;}" type="text" id="edit-search-block-form--2" name="search_block_form" value="Search this website..." size="15" maxlength="128" class="form-text" />
+</div>
+<div class="form-actions form-wrapper" id="edit-actions"><input value="" type="submit" id="edit-submit" name="op" class="form-submit" /></div><input type="hidden" name="form_build_id" value="form-LsMpVlkLzMCBbCZahb0wL0qKnKV3yrkXjNYdj_NDAOE" />
+<input type="hidden" name="form_id" value="search_block_form" />
+</div>
+</div></form>  </div>
+</div>
+  </div>
+                </div>
+                <!-- EOF:#header-top-right -->
+            </div>
+                        
+            </div>
+        </div>
+        <!-- EOF: #header-top-inside -->
+
+    </div>
+</div>
+<!-- EOF: #header-top -->    
+
+<!-- header -->
+<header id="header" role="banner" class="clearfix">
+    <div class="container">
+
+        <!-- #header-inside -->
+        <div id="header-inside" class="clearfix">
+            <div class="row">
+                <div class="col-md-8">
+
+                                <div id="logo">
+                <a href="/" title="Home" rel="home"> <img src="https://opensource.org/files/osi_keyhole_300X300_90ppi_0.png" alt="Home" /> </a>
+                </div>
+                
+                                <div id="site-name">
+                <a href="/" title="Home">Open Source Initiative</a>
+                </div>
+                                
+                                <div id="site-slogan">
+                Guaranteeing the 'our' in source...                </div>
+                                
+                </div>
+                
+                <div class="col-md-4">
+                
+                
+                </div>
+            </div>
+        </div>
+        <!-- EOF: #header-inside -->
+
+    </div>
+</header>
+<!-- EOF: #header --> 
+
+<!-- #main-navigation --> 
+<div id="main-navigation" class="clearfix">
+    <div class="container">
+
+        <!-- #main-navigation-inside -->
+        <div id="main-navigation-inside" class="clearfix">
+            <div class="row">
+                <div class="col-md-12">
+                    <nav role="navigation">
+                                                  <div class="region region-navigation">
+    <div id="block-superfish-1" class="block block-superfish clearfix">
+
+    
+  <div class="content">
+    <ul id="superfish-1" class="menu sf-menu sf-navigation sf-horizontal sf-style-none sf-total-items-6 sf-parent-items-6 sf-single-items-0"><li id="menu-37-1" class="first odd sf-item-1 sf-depth-1 sf-total-children-4 sf-parent-children-2 sf-single-children-2 menuparent"><a href="/about" title="About the Open Source Initiative" class="sf-depth-1 menuparent">About</a><ul><li id="menu-75-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/history" title="History of the OSI" class="sf-depth-2">History</a></li><li id="menu-82-1" class="middle even sf-item-2 sf-depth-2 sf-total-children-7 sf-parent-children-0 sf-single-children-7 menuparent"><a href="/board" title="Board of Directors" class="sf-depth-2 menuparent">Board</a><ul><li id="menu-83-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/docs/board-annotated" title="OSI Board -- With Annotations" class="sf-depth-3">Board - Annotated</a></li><li id="menu-96-1" class="middle even sf-item-2 sf-depth-3 sf-no-children"><a href="/minutes" title="Public Minutes of Board Meetings" class="sf-depth-3">Minutes</a></li><li id="menu-185-1" class="middle odd sf-item-3 sf-depth-3 sf-no-children"><a href="/organization" title="These portfolios represent the activities of the current OSI board." class="sf-depth-3">Organization &amp; Operations</a></li><li id="menu-95-1" class="middle even sf-item-4 sf-depth-3 sf-no-children"><a href="/articles-of-incorporation" title="OSI incorporation record" class="sf-depth-3">Articles of Incorporation</a></li><li id="menu-1475-1" class="middle odd sf-item-5 sf-depth-3 sf-no-children"><a href="/elections" class="sf-depth-3">Board Elections</a></li><li id="menu-84-1" class="middle even sf-item-6 sf-depth-3 sf-no-children"><a href="/bylaws" title="Bylaws of the Open Source Initiative" class="sf-depth-3">Bylaws</a></li><li id="menu-1317-1" class="last odd sf-item-7 sf-depth-3 sf-no-children"><a href="/conflict_of_interest_policy" class="sf-depth-3">Conflict of Interest</a></li></ul></li><li id="menu-1843-1" class="middle odd sf-item-3 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/trademark" title="" class="sf-depth-2 menuparent">Trademark &amp; Logo</a><ul><li id="menu-184-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/trademark-guidelines" title="OSI&#039;s Trademark Policy" class="sf-depth-3">Trademark Guidelines</a></li><li id="menu-183-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/logo-usage-guidelines" title="Guidelines for appearance and usage of OSI Logo" class="sf-depth-3">Logo Guidelines</a></li></ul></li><li id="menu-126-1" class="last even sf-item-4 sf-depth-2 sf-no-children"><a href="/ToS" title="Rules for posting content on this site" class="sf-depth-2">Terms of Service</a></li></ul></li><li id="menu-65-1" class="middle even sf-item-2 sf-depth-1 sf-total-children-5 sf-parent-children-2 sf-single-children-3 menuparent"><a href="/licenses" class="sf-depth-1 menuparent">Licenses</a><ul><li id="menu-61-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/osd" title="The actual OSD defining what constitutes an Open Source licence" class="sf-depth-2">Open Source Definition</a></li><li id="menu-77-1" class="middle even sf-item-2 sf-depth-2 sf-no-children"><a href="/licenses/category" title="Licenses by Category" class="sf-depth-2">Licenses by Category</a></li><li id="menu-72-1" class="middle odd sf-item-3 sf-depth-2 sf-no-children"><a href="/licenses/alphabetical" title="Licenses that are approved by the OSI as conforming to the OSD" class="sf-depth-2">Licenses by Name</a></li><li id="menu-66-1" class="middle even sf-item-4 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/approval" title="Certifying licences as OSD-compliant" class="sf-depth-2 menuparent">License Review Process</a><ul><li id="menu-67-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/proliferation" title="Supporting choice while maintaining sanity" class="sf-depth-3">Licence Proliferation</a></li><li id="menu-69-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/proliferation-report" title="License Proliferation Committee&#039;s report to the OSI Board" class="sf-depth-3">LP report to the Board</a></li></ul></li><li id="menu-99-1" class="last odd sf-item-5 sf-depth-2 sf-total-children-4 sf-parent-children-0 sf-single-children-4 menuparent"><a href="/osr-intro" title="Open Standards Requirement for Software" class="sf-depth-2 menuparent">Open Standards</a><ul><li id="menu-101-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/osr" title="An &quot;open standard&quot; must not prohibit conforming implementations in open source software." class="sf-depth-3">The Open Standards Requirement</a></li><li id="menu-102-1" class="middle even sf-item-2 sf-depth-3 sf-no-children"><a href="/osr-compliance" class="sf-depth-3">Open Standards Requirement Compliance</a></li><li id="menu-100-1" class="middle odd sf-item-3 sf-depth-3 sf-no-children"><a href="/osr-rationale" class="sf-depth-3">Open Standards Requirement Rationale</a></li><li id="menu-103-1" class="last even sf-item-4 sf-depth-3 sf-no-children"><a href="/osr-faq" title="Frequently asked questions about the Open Standards Requirement" class="sf-depth-3">OSR Frequently Asked Questions</a></li></ul></li></ul></li><li id="menu-1842-1" class="middle odd sf-item-3 sf-depth-1 sf-total-children-3 sf-parent-children-2 sf-single-children-1 menuparent"><a href="/membership" title="Page for our various membership programs" class="sf-depth-1 menuparent">Membership</a><ul><li id="menu-914-1" class="first odd sf-item-1 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/members" class="sf-depth-2 menuparent">Individuals</a><ul><li id="menu-897-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/civicrm/contribute/transact?reset=1&amp;id=1" title="" class="sf-depth-3">Join</a></li><li id="menu-2265-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/benefits" class="sf-depth-3">Benefits</a></li></ul></li><li id="menu-675-1" class="middle even sf-item-2 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/osi-affiliate-membership" title="Home page for OSI&#039;s membership scheme for non-profits and not-for-profits" class="sf-depth-2 menuparent">Affiliates</a><ul><li id="menu-676-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/affiliates/about" class="sf-depth-3">Become an Affiliate</a></li><li id="menu-2071-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/AffiliateRequirements" class="sf-depth-3">Affiliate  Criteria</a></li></ul></li><li id="menu-1436-1" class="last odd sf-item-3 sf-depth-2 sf-no-children"><a href="/corporate-sponsors-support" title="" class="sf-depth-2">Sponsors &amp; Support</a></li></ul></li><li id="menu-1841-1" class="middle even sf-item-4 sf-depth-1 sf-total-children-5 sf-parent-children-1 sf-single-children-4 menuparent"><a href="/community" title="Page for our various community members." class="sf-depth-1 menuparent">Community</a><ul><li id="menu-2271-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/associations" class="sf-depth-2">Associations</a></li><li id="menu-63-1" class="middle even sf-item-2 sf-depth-2 sf-total-children-5 sf-parent-children-0 sf-single-children-5 menuparent"><a href="/lists" title="The virtual committees where the OSI&#039;s work gets done" class="sf-depth-2 menuparent">Mailing lists</a><ul><li id="menu-1072-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/codeofconduct/licensing" class="sf-depth-3">Licensing Code of Conduct</a></li><li id="menu-78-1" class="middle even sf-item-2 sf-depth-3 sf-no-children"><a href="/codeofconduct" title="Guidelines for OSI Mailing Lists" class="sf-depth-3">General Code of Conduct</a></li><li id="menu-2272-1" class="middle odd sf-item-3 sf-depth-3 sf-no-children"><a href="/node/960" title="Monthly reports summarizing the OSI&#039;s License-Discuss and License-Review mailing lists." class="sf-depth-3">Discussion List Reports</a></li><li id="menu-2111-1" class="middle even sf-item-4 sf-depth-3 sf-no-children"><a href="/public_forums_disclaimer" class="sf-depth-3">Disclaimer for OSI Public Forums</a></li><li id="menu-2110-1" class="last odd sf-item-5 sf-depth-3 sf-no-children"><a href="/public_archives_policy" class="sf-depth-3">Policy on Public Communications and Archives</a></li></ul></li><li id="menu-2032-1" class="middle odd sf-item-3 sf-depth-2 sf-no-children"><a href="/volunteersandstaff" class="sf-depth-2">Volunteers &amp; Staff</a></li><li id="menu-2192-1" class="middle even sf-item-4 sf-depth-2 sf-no-children"><a href="/AdvocateCircle" class="sf-depth-2">Advocate Circle</a></li><li id="menu-1846-1" class="last odd sf-item-5 sf-depth-2 sf-no-children"><a href="http://wiki.opensource.org" title="" class="sf-depth-2">Wiki</a></li></ul></li><li id="menu-1840-1" class="active-trail middle odd sf-item-5 sf-depth-1 sf-total-children-6 sf-parent-children-1 sf-single-children-5 menuparent"><a href="/resources" title="Page offering resources to OSI personas" class="sf-depth-1 menuparent">Resources</a><ul><li id="menu-342-1" class="active-trail first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/faq" title="Frequently Asked Questions about open source and about the OSI." class="sf-depth-2 active">FAQ</a></li><li id="menu-45-1" class="middle even sf-item-2 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/help" title="Resources for questions and further exploration" class="sf-depth-2 menuparent">Getting Help</a><ul><li id="menu-76-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/links" title="Links and References to Open Source" class="sf-depth-3">Bibliography</a></li><li id="menu-125-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/advocacy/case_for_business.php" title="How to advocate Open Source to businesses" class="sf-depth-3">Open Source Case for Business</a></li></ul></li><li id="menu-1514-1" class="middle odd sf-item-3 sf-depth-2 sf-no-children"><a href="/working_groups" class="sf-depth-2">Working Groups &amp; Incubator Projects</a></li><li id="menu-12-1" class="middle even sf-item-4 sf-depth-2 sf-no-children"><a href="/osi-open-source-education" title="OSI&#039;s Open Source Education Initiative and Activities" class="sf-depth-2">Open Source Education</a></li><li id="menu-3046-1" class="middle odd sf-item-5 sf-depth-2 sf-no-children"><a href="/node/1012" class="sf-depth-2">Articles &amp; Books</a></li><li id="menu-2193-1" class="last even sf-item-6 sf-depth-2 sf-no-children"><a href="/authority" class="sf-depth-2">International Authority &amp; Recognition</a></li></ul></li><li id="menu-1844-1" class="last even sf-item-6 sf-depth-1 sf-total-children-3 sf-parent-children-0 sf-single-children-3 menuparent"><a href="/news" title="Page dedicated to the latest news and events." class="sf-depth-1 menuparent">News &amp; Events</a><ul><li id="menu-1845-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/news" title="Index of newsletters" class="sf-depth-2">Blog</a></li><li id="menu-1999-1" class="middle even sf-item-2 sf-depth-2 sf-no-children"><a href="/events" class="sf-depth-2">Events</a></li><li id="menu-4709-1" class="last odd sf-item-3 sf-depth-2 sf-no-children"><a href="/newsletter" title="" class="sf-depth-2">Newsletters</a></li></ul></li></ul>  </div>
+</div>
+  </div>
+                                            </nav>
+                </div>
+            </div>
+        </div>
+        <!-- EOF: #main-navigation-inside -->
+
+    </div>
+</div>
+<!-- EOF: #main-navigation -->
+
+<!-- #banner -->
+<div id="banner" class="clearfix">
+    <div class="container">
+        
+        <!-- #banner-inside -->
+        <div id="banner-inside" class="clearfix">
+            <div class="row">
+                <div class="col-md-12">
+                  <div class="region region-banner">
+    <div id="block-block-21" class="block block-block clearfix">
+
+    
+  <div class="content">
+    <div class="banner" style="&#10;   height: 150px; &#10;   background-image: url(https://join.opensource.org/static/img/audience.jpg);&#10;   background-repeat: no-repeat;&#10;   background-position: center center;&#10;   ">
+<h2 class="rtecenter" style="font-size: min(max(1.5rem, 7.258vw), 55px); line-height: 1;font-weight: bold; padding-top: 15px;"><a href="https://join.opensource.org?utm_source=web&amp;utm_medium=banner&amp;utm_campaign=300in30" style="text-decoration:none;color: white;">Join today</a></h2>
+
+<h3 class="rtecenter" style="font-size: min(max(.5rem, 1.258vw), 24px); line-height: 5px; color: white;"><a href="http://join.opensource.org?utm_source=web&amp;utm_medium=banner&amp;utm_campaign=300in30" style="text-decoration:none;color: white;">Get involved in open source community development and advocacy.</a></h3>
+</div>
+  </div>
+</div>
+  </div>
+                </div>
+            </div>
+        </div>
+        <!-- EOF: #banner-inside -->        
+
+    </div>
+</div>
+<!-- EOF:#banner -->
+
+<!-- #page -->
+<div id="page" class="clearfix">
+    
+    
+    <!-- #main-content -->
+    <div id="main-content">
+        <div class="container">
+        
+            <!-- #messages-console -->
+                        <!-- EOF: #messages-console -->
+            
+            <div class="row">
+
+                
+
+                <section class="col-md-10">
+
+                    <!-- #main -->
+                    <div id="main" class="clearfix">
+                    
+                        
+                        
+                        <!-- EOF:#content-wrapper -->
+                        <div id="content-wrapper">
+
+                                                                                    <h1 class="page-title">Frequently Answered Questions</h1>
+                                                        
+                                                  
+                            <!-- #tabs -->
+                                                            <div class="tabs">
+                                                                </div>
+                                                        <!-- EOF: #tabs -->
+
+                            <!-- #action links -->
+                                                        <!-- EOF: #action links -->
+
+                              <div class="region region-content">
+    <div id="block-system-main" class="block block-system clearfix">
+
+    
+  <div class="content">
+    <article id="node-211" class="node node-page clearfix">
+
+  
+  <div class="content">
+    <div class="field field-name-body field-type-text-with-summary field-label-hidden"><div class="field-items"><div class="field-item even"><p>Here are answers to questions we are frequently asked. If you have a question not addressed here, please <a href="/contact">contact us</a>.</p>
+
+<div id="toc-basics" title="toc-basics">
+<p><strong>Basics of Open Source</strong></p>
+
+<ul><li><a href="#osd">What is "Open Source" software?</a></li>
+	<li><a href="#commercial">Can Open Source software be used for commercial purposes?</a></li>
+	<li><a href="#restrict">Can I restrict how people use an Open Source licensed program?</a></li>
+	<li><a href="#evil">Can I stop "evil people" from using my program?</a></li>
+	<li><a href="#free-software">What is "free software" and is it the same as "open source"?</a></li>
+	<li><a href="#copyleft">What is "copyleft"? Is it the same as "open source"?</a></li>
+	<li><a href="#permissive">What is a "permissive" Open Source license?</a></li>
+	<li><a href="#approved-licenses-only">Is <em>&lt;SOME PROGRAM&gt;</em> Open Source?</a></li>
+	<li><a href="#avoid-unapproved-licenses">Can I call my program "Open Source" even if I don't use an approved license?</a></li>
+	<li><a href="#unlisted-licenses">Is <em>&lt;SOME LICENSE&gt;</em> an Open Source license, even if it is not listed on your website?</a></li>
+	<li><a href="#variant-licenses">Is a license an Open Source license if it differs by only a few words from a license listed on your website?</a></li>
+	<li><a href="#public-domain">What about software in the "public domain"? Is that Open Source?</a></li>
+	<li><a href="#cc-zero">What about the Creative Commons "CC0" ("CC Zero") public domain dedication? Is that Open Source?</a></li>
+</ul></div>
+
+<div id="toc-distributing-using" title="toc-distributing-using">
+<p><strong>Distributing and Using Open Source Software</strong></p>
+
+<ul><li><a href="#non-distribution">What if I do not want to distribute my program in source code form? Or what if I don't want to distribute it in either source or binary form?</a></li>
+	<li><a href="#which-license">Which Open Source license should I choose to release my software under?</a></li>
+	<li><a href="#which-best">Which Open Source license is best?</a></li>
+	<li><a href="#apply-license">How do I apply <em>&lt;SOME OPEN SOURCE LICENSE&gt;</em> to software I'm releasing?</a></li>
+	<li><a href="#contributor-agreements">What are "contributor agreements"? Are they like open source licenses?</a></li>
+	<li><a href="#preserve-copyright-notices">Can I strip out the copyrights on Open Source code and put in my own?</a></li>
+	<li><a href="#linking-proprietary-code">Can I write proprietary code that links to a shared library that's open source?</a></li>
+	<li><a href="#publish-code">I want to publish some code as Open Source code — can I get a license from you?</a></li>
+	<li><a href="#language-vs-license">Is <em>&lt;SOME PROGRAM&gt;</em> Open Source simply because it's written in <em>&lt;SOME LANGUAGE WITH AN OPEN SOURCE REFERENCE IMPLEMENTATION&gt;</em>?</a></li>
+	<li><a href="#distribution">What does it mean to "distribute" a program? Is letting people use it on my server the same as distribution?</a></li>
+	<li><a href="#copyleft-violation">Someone is violating a copyleft license, for example by refusing to give me source code when they are required to. What can I do?</a></li>
+</ul></div>
+
+<div id="toc-commerce" title="toc-commerce">
+<p><strong>Commerce and Open Source</strong></p>
+
+<ul><li><a href="#profit">How do I make money if anybody can sell my code?</a></li>
+	<li><a href="#selling">Can I sell Open Source programs? Even if I haven't written it?</a></li>
+	<li><a href="#copying-and-identity">Does Open Source mean anybody else can use my name and logo?</a></li>
+</ul></div>
+
+<div id="toc-osi-identity" title="toc-osi-identity">
+<p><strong>Using Our Logo, Linking to Us, Etc</strong></p>
+
+<ul><li><a href="#logo-use">Can I use your corporate logo (green open keyhole saying "Open Source") or something very similar (different color / texture / words) on my product (hat, shirt, web page, etc)?</a></li>
+	<li><a href="#osi-site-no-ads">How much does it cost for a link on opensource.org to my website?</a></li>
+	<li><a href="#logo-nominative-use">Can I use your corporate logo on my web page to link to you?</a></li>
+	<li><a href="#linking">Can I link to your site?</a></li>
+	<li><a href="#reuse-osi-materials">Can I use one of your pages in a document I'm writing?</a></li>
+</ul></div>
+
+<div id="toc-help" title="toc-help">
+<p><strong>Getting Help / Contacting the OSI</strong></p>
+
+<ul><li><a href="#license-discussion">Where can I discuss an issue about an open source license?</a></li>
+	<li><a href="#legal-advice">Can I ask a legal question here?</a></li>
+	<li><a href="#fund-projects">Can the OSI fund my open source software project?</a></li>
+	<li><a href="#finding">Can you help me find an Open Source programmer or program?</a></li>
+	<li><a href="#unsubscribe">How do I unsubscribe from one of your mailing lists?</a></li>
+	<li><a href="#join-a-project">How can I join an open source project?</a></li>
+	<li><a href="#surveys">I have a thesis and I'm sending out a survey...</a></li>
+</ul></div>
+
+<div id="toc-support" title="toc-support">
+<p><strong>Supporting the OSI</strong></p>
+
+<ul><li><a href="#support-osi">How can I support the OSI?</a></li>
+	<li><a href="#improve-osi-site">How can I help improve the OSI web site?</a></li>
+</ul></div>
+
+<center>
+<p> </p>
+
+<hr width="66%" /><p> </p>
+</center>
+
+<div id="category-basics" title="category-basics">
+<h2 style="text-decoration: underline;">Basics of Open Source</h2>
+
+<div id="osd" title="osd">
+<dl><dt><strong>What is "Open Source" software?</strong></dt>
+	<dd>
+	<p>Generally, Open Source software is software that can be freely accessed, used, changed, and shared (in modified or unmodified form) by anyone. Open source software is made by many people, and distributed under licenses that comply with the <a href="/osd">Open Source Definition</a>.</p>
+
+	<p>The internationally recognized <a href="/osd">Open Source Definition</a> provides ten criteria that must be met for any software license, and the software distributed under that license, to be labeled "Open Source software." Only software licensed under an OSI-approved Open Source license should be labeled "Open Source" software.</p>
+	</dd>
+</dl></div>
+
+<div id="commercial" title="commercial">
+<dl><dt><strong>Can Open Source software be used for commercial purposes?</strong></dt>
+	<dd>
+	<p>Absolutely. All Open Source software can be used for commercial purpose; the Open Source Definition <a href="/docs/osd#fields-of-endeavor">guarantees</a> this. You can even <a href="#selling">sell</a> Open Source software.</p>
+
+	<p>However, note that <em>commercial</em> is not the same as <em>proprietary</em>. If you receive software under an Open Source license, you can always use that software for commercial purposes, but that doesn't always mean you can place further restrictions on people who receive the software from you. In particular, <a href="#copyleft">copyleft</a>-style Open Source licenses require that, in at least some cases, when you distribute the software, you must do so under the same license you received it under.</p>
+	</dd>
+</dl></div>
+
+<div id="restrict" title="restrict">
+<dl><dt><strong>Can I restrict how people use an Open Source licensed program?</strong></dt>
+	<dd>
+	<p>No. The freedom to use the program for any purpose is <a href="/docs/osd#fields-of-endeavor">part of the Open Source Definition</a>. Open source licenses do not discriminate against fields of endeavor.</p>
+	</dd>
+</dl></div>
+
+<div id="evil" title="evil">
+<dl><dt><strong>Can I stop "evil people" from using my program?</strong></dt>
+	<dd>
+	<p>No. The Open Source Definition <a href="/docs/osd#persons-or-groups">specifies</a> that Open Source licenses may not discriminate against persons or groups. Giving everyone freedom means giving evil people freedom, too.</p>
+	</dd>
+</dl></div>
+
+<div id="free-software" title="free-software">
+<dl><dt><strong>What is "free software" and is it the same as "open source"?</strong></dt>
+	<dd>
+	<p>"Free software" and "open source software" are two terms for the same thing: software released under licenses that guarantee a certain specific set of freedoms.</p>
+
+	<p>The term "free software" is older, and is reflected in the name of the <a href="http://fsf.org/">Free Software Foundation</a> (FSF), an organization founded in 1985 to protect and promote free software. The term "open source" was coined by Christine Peterson and adopted in 1998 by the founders of the <a href="http://opensource.org/">Open Source Initiative</a>. Like the FSF, the OSI's founders supported the development and distribution of free software, but they disagreed with the FSF about how to promote it, believing that software freedom was primarily a practical issue rather than an ideological one (see for example the entry <em>"How is `open source' related to `free software'?"</em> from the OSI's <a href="http://web.archive.org/web/19981206185148/http://www.opensource.org/history.html">original 1998 FAQ page</a>).</p>
+	Many who later adopted the term "open source" broadly shared the ideological perspective of the FSF but had some disagreements over strategy and rhetoric. Today some people use both terms, choosing according to context and audience.
+
+	<p>One of the tactical concerns often cited by adopters of the term "open source" was the ambiguity of the English word "free", which can refer either to freedom or to mere monetary price; this ambiguity was also given by the OSI founders as a reason to prefer the new term (see <a href="http://web.archive.org/web/19991013111143/http://opensource.org/free-notfree.html">"What Does `free' Mean, Anyway?"</a>, and similar language on the <a href="http://web.archive.org/web/19991013094510/http://opensource.org/for-hackers.html#marketing">marketing for hackers</a> page, both from the original 1998 web site).</p>
+
+	<p>In the 1990s, the term "open" applied to software source code was sometimes used to imply source code being merely inspectable or visible or available. Going back further, in the 1980s there were uses of "open" in the computing industry that primarily connoted something like "absence of hardware vendor lockin". OSI's term "open source", as defined in the Open Source Definition, makes clear that open source specifically entails not mere inspection access but also conveying to recipients the perpetual right to fork covered code and use it without additional fees.</p>
+
+	<p>The FSF uses a shorter, <a href="http://www.gnu.org/philosophy/free-sw.html">four-point definition</a> of software freedom when evaluating licenses, while the OSI uses a longer, <a href="http://opensource.org/osd">ten-point definition</a>. The two definitions lead to the same result in practice, but use superficially different language to get there.</p>
+
+	<p>This history has led to occasional confusion about the relationship between the two terms. Sometimes people mistakenly assume that users of the term "open source" do not intend to communicate a philosophical point of view via that term, even though many actually do use it that way. Another mistake, which has occasionally been seen since about 2008, is to assume that "free software" refers only to software licensed under <a href="#copyleft">copyleft</a> licenses, since that is how the FSF typically releases software, while "open source" refers to software released under so-called <a href="#permissive">permissive</a> (i.e., non-copyleft) licenses. In fact, <em>both</em> terms refer to software released under <em>both</em> kinds of license.</p>
+
+	<p>Neither term binds exclusively to one set of associations or another, however; it is always question of context and intended audience. When you sense a potential misunderstanding, you may wish to reassure your audience that the terms are essentially interchangeable, except when being used specifically to discuss the history or connotations of the terminological difference itself. Some people also prefer to use the term "free and open source software" (or FOSS, FLOSS [free, libre and open source software]) for this reason.</p>
+
+	<p>See also our <a href="/history">history</a> page for more information about the history and usage of the term "open source".</p>
+	</dd>
+</dl></div>
+
+<div id="copyleft" title="copyleft">
+<dl><dt><strong>What is "copyleft"? Is it the same as "open source"?</strong></dt>
+	<dd>
+	<p>"Copyleft" refers to licenses that allow derivative works but require them to use the same license as the original work. For example, if you write some software and release it under the <a href="/licenses/GPL-3.0">GNU General Public License</a> (a widely-used copyleft license), and then someone else modifies that software and distributes their modified version, the modified version must be licensed under the GNU GPL too — including any new code written specifically to go into the modified version. Both the original and the new work are Open Source; the copyleft license simply ensures that property is perpetuated to all downstream derivatives. (There is at least one copyleft license, the <a href="/licenses/AGPL-3.0">Affero GPL</a>, that even requires you to offer the source code, under the AGPL, to anyone to whom you make the software's functionality available as a network service — however, most copyleft licenses activate their share-and-share-alike requirement on distribution of a copy of the software itself. You should read the license to understand its requirements for source code distribution.)</p>
+
+	<p>Most copyleft licenses are Open Source, but not all Open Source licenses are copyleft. When an Open Source license is <em>not</em> copyleft, that means software released under that license can be used as part of programs distributed under other licenses, including proprietary (non-open-source) licenses. For example, the <a href="/licenses/BSD-2-Clause">BSD</a> license is a non-copyleft Open Source license. Such licenses are usually called either "non-copyleft" or "permissive" open source licenses</p>
+
+	<p>Copyleft provisions apply only to actual derivatives, that is, cases where an existing copylefted work was modified. Merely distributing a copyleft work alongside a non-copyleft work does not cause the latter to fall under the copyleft terms.</p>
+
+	<p>For more information, look at the text of the specific copyleft license you're thinking of using, or see the <a href="http://en.wikipedia.org/wiki/Copyleft">Wikipedia entry on copyleft</a>. C.f. <a href="#permissive">"permissive"</a> licensing.</p>
+	</dd>
+</dl></div>
+
+<div id="permissive" title="permissive">
+<dl><dt><strong>What is a "permissive" Open Source license?</strong></dt>
+	<dd>
+	<p>A "permissive" license is simply a non-copyleft open source license — one that guarantees the freedoms to use, modify, and redistribute, but that permits proprietary derivative works. See <a href="#copyleft">the copyleft entry</a> for more information.</p>
+	</dd>
+</dl></div>
+
+<div id="approved-licenses-only" title="approved-licenses-only">
+<dl><dt><strong>Is <em>&lt;SOME PROGRAM&gt;</em> Open Source?</strong></dt>
+	<dd>
+	<p>Only if it uses one of the <a href="/licenses">approved licenses</a>, and releases appropriate software.</p>
+	</dd>
+</dl></div>
+
+<div id="avoid-unapproved-licenses" title="avoid-unapproved-licenses">
+<dl><dt><strong>Can I call my program "Open Source" even if I don't use an approved license?</strong></dt>
+	<dd>
+	<p>Please don't do that. If you call it "Open Source" without using an approved license, you will confuse people. This is not merely a theoretical concern — we have seen this confusion happen in the past, and it's part of the reason we have a formal <a href="/approval">license approval process</a>. See also our page on <a href="/proliferation">license proliferation</a> for why this is a problem.</p>
+	</dd>
+</dl></div>
+
+<div id="unlisted-licenses" title="unlisted-licenses">
+<dl><dt><strong>Is <em>&lt;SOME LICENSE&gt;</em> an Open Source license, even if it is not listed on your web site?</strong></dt>
+	<dd>
+	<p>In general, no. We run all licenses through an <a href="/approval">approval process</a> to provide an accepted standard on which licenses are Open Source, and we list <a href="/licenses">the approved ones</a>. Be dubious of claimed Open Source-ness for licenses that haven't gone through the process. See also the <a href="/proliferation">license proliferation</a> page for why this matters so much.</p>
+	</dd>
+</dl></div>
+
+<div id="variant-licenses" title="variant-licenses">
+<dl><dt><strong>Is a license an Open Source license if it is just a few words different from a license listed on your web site?</strong></dt>
+	<dd>
+	<p>Many older licenses, such as the BSD license, have several variations that differ only by a few words or sentences. Unfortunately, it is not possible for OSI to approve every variation, so we cannot say if a specific variation is approved. Where possible, please avoid using these variants, and instead use the same version used on the OSI website.</p>
+	</dd>
+</dl><div id="public-domain" title="public-domain">
+<dl><dt><strong>What about software in the "public domain"? Is that Open Source?</strong></dt>
+	<dd>
+	<p>For most practical purposes, it is — sort of. This is a complicated question, so please read on.</p>
+
+	<p><em>"Public domain"</em> is a technical term in copyright law that refers to works not under copyright — either because they were never in copyright to begin with (for example, works authored by U.S. government employees, on government time and as part of their job, are automatically in the public domain), or because their copyright term has finally lapsed and they have "fallen into" the public domain.</p>
+
+	<p>Not all jurisdictions have a public domain, and it doesn't always mean exactly the same thing in the jurisdictions that do have it. Furthermore, even where it is clear what it means, it's still not a license. To be subject to a license, a work must still be in copyright. That means there is no way for the "public domain", as a concept, to go through the OSI evaluation and approval process. We wouldn't be evaluating a license text. Instead, we would have to somehow evaluate the laws themselves, in different jurisdictions, and say which jurisdictions have a public domain that meets the <a href="/docs/osd">Open Source Definition</a> and does not create problems for software authors and users. This would be very difficult, because it would mean evaluating not just the statutes but various bodies of case law (for example, open source licenses usually have a strong disclaimer of liability for the copyright holder — but we don't know how or whether the author would be protected from liability for software released into the public domain in various jurisdictions). This approach would not be useful to the OSI's mission, because open source is an international phenomenon and we only want to approve licenses that meet the Open Source Definition everywhere.</p>
+
+	<p>Thus we recommend that you always apply an <a href="/licenses">approved Open Source license</a> to software you are releasing, rather than try to waive copyright altogether. Using a clear, recognized Open Source license actually makes it <em>easier</em> for others to know that your software meets the Open Source Definition. It also enables the protection of attribution, and various other non-restrictive rights, that cannot be reliably enforced when there is no license.</p>
+
+	<p>There are certain circumstances, such as with U.S. government works as described above, where it is not easy to apply a license, and the software must be released into the public domain. In these cases, while it would be inaccurate to display the OSI logo or say that the license is OSI-approved (since there is no license), nevertheless we think it is accurate to say that such software is effectively open source, or open source for most practical purposes, even though it is not officially released under an open source license. (This is assuming, of course, that in the laws of releasing jurisdiction the meaning of "public domain" is compatible with the Open Source Definition.) After all, the freedoms guaranteed by open source licenses are still present, and it is possible for the familiar dynamics of open source collaboration to arise around the software.</p>
+
+	<p>For a detailed discussion of the complexities of the public domain and open source, search for the words "public domain" and "PD" in the subject headers of the <a href="http://projects.opensource.org/pipermail/license-review/2012-January/thread.html">January 2012</a>, <a href="http://projects.opensource.org/pipermail/license-review/2012-February/thread.html">February 2012</a>, and <a href="http://projects.opensource.org/pipermail/license-review/2012-March/thread.html">March 2012</a> archives of the OSI License Review mailing list. And if the thought of reading all those conversations is daunting, please take that as more evidence that it's just better to use an approved Open Source License if you can!</p>
+
+	<p>See also the <a href="#cc-zero">CC0 question</a>. For a different viewpoint than the one presented above, see <a href="http://unlicense.org/">unlicense.org</a>.</p>
+	</dd>
+</dl></div>
+
+<div id="cc0" title="cc0">
+<div id="cc-zero" title="cc-zero">
+<dl><dt><strong>What about the Creative Commons "CC0" ("CC Zero") public domain dedication? Is that Open Source?</strong></dt>
+	<dd>
+	<p>At this time, we do not recommend releasing software using the the <a href="http://creativecommons.org/publicdomain/zero/1.0/">CC0</a> public domain dedication.</p>
+
+	<p>Creative Commons Zero is a legal device known as a "public domain dedication". It is essentially a statement of intent by the copyright holder to waive copyright ownership in the work — that is, the copyright holder wishes to place the work into the public domain.</p>
+
+	<p>Because such a waiver is (perhaps surprisingly) not possible in all jurisdictions, CC0 also contains a "Public License Fallback" clause that goes into effect <em>"should any part of the Waiver for any reason be judged legally invalid or ineffective under applicable law"</em>. The fallback is essentially a copyright license that is very similar to an Open Source license, in that it gives up most of the restrictive powers associated with copyright, and allows redistribution and modification of the work.</p>
+
+	<p>In February 2012, Creative Commons <a href="https://lists.opensource.org:2083/cpsess7954301574/3rdparty/mailman/private/license-review_lists.opensource.org/2012-February/001409.html">submitted</a> CC0 to the OSI for approval as an open source license, requesting that the OSI evaluate the public license fallback section, since the rest of the text is a waiver of rights rather than a license. An unexpectedly intense and detailed discussion followed — search for "CC0" and "Creative Commons Zero" in the subject headers of the <a href="http://projects.opensource.org/pipermail/license-review/2012-February/thread.html">February 2012</a> and <a href="http://projects.opensource.org/pipermail/license-review/2012-March/thread.html">March 2012</a> archives of the OSI License Review mailing list.</p>
+
+	<p>CC0 was not explicitly rejected, but the License Review Committee was unable to reach consensus that it should be approved, and Creative Commons eventually withdrew the application. The most serious of the concerns raised had to do with the effects of clause 4(a), which reads: <em>"No ... patent rights held by Affirmer are waived, abandoned, surrendered, licensed or otherwise affected by this document."</em>. While many open source licenses simply do not mention patents, it is exceedingly rare for open source licenses to explicitly disclaim any conveyance of patent rights, and the Committee felt that approving such a license would set a dangerous precedent, and possibly even weaken patent infringement defenses available to users of software released under CC0.</p>
+
+	<p>See also the <a href="#public-domain">public domain question</a>.</p>
+	</dd>
+</dl></div>
+</div>
+</div>
+
+<dl></dl></div>
+
+<div id="category-distributing-using" title="category-distributing-using">
+<h2 style="text-decoration: underline;">Distributing and Using Open Source Software</h2>
+
+<div id="non-distribution" title="non-distribution">
+<dl><dt><strong>What if I do not want to distribute my program in source code form? Or what if I don't want to distribute it in either source or binary form?</strong></dt>
+	<dd>
+	<p>If you don't distribute source code, then what you are distributing cannot meaningfully be called "Open Source". And if you don't distribute at all, then by definition you're not distributing source code, so you're not distributing anything Open Source.</p>
+
+	<p>Think of it this way: Open Source licenses are always applied to the source code — so if you're not distributing the source, then you're not distributing the thing to which an Open Source license applies. You might or might not distribute binaries; that's a separate question. But while some Open Source licenses allow you to distribute binary code without distributing the corresponding source, it is only the source code that can be "open source". The binaries alone cannot be Open Source, because you're not making any source code available to be open. (If someone else distributes the source code under an Open Source license, then that's still Open Source, of course.)</p>
+
+	<p>Note that <a href="#copyleft">copyleft</a> Open Source licenses require redistributors to make source code available under certain circumstances; for example, see the <a href="/licenses/gpl-3.0">GNU General Public License</a> and <a href="/licenses/agpl-3.0">GNU Affero General Public License</a>.</p>
+
+	<p>See also the <a href="#distribution">"What is 'distribution'?"</a> question.</p>
+	</dd>
+</dl></div>
+
+<div id="which-license" title="which-license">
+<dl><dt><strong>Which Open Source license should I choose to release my software under?</strong></dt>
+	<dd>
+	<p>You can choose any license from the open source licenses listed starting here: <a href="http://opensource.org/licenses">opensource.org/licenses</a>. Most people select one from the "popular" category, but you are free to choose any listed license.</p>
+
+	<p>If this is your first time choosing an open source license, we recommend that you find someone who has experience with open source licensing and talk to them about your project — that will help you choose the most appropriate license. The person doesn't have to be a lawyer; it could be a developer who has experience releasing open source code. The section <a href="http://wiki.civiccommons.org/Choosing_a_License">Choosing a License</a> at the Civic Commons wiki may be useful, and you can learn more about open source licenses from, Section 3.2 of the eBook <a href="http://ftacademy.org/sites/ftacademy.org/files/materials/fta-m1-intro_to_FS-v1.pdf">Introduction to Free Software</a> by Hernandez, Jimenez, Barahona, Pascual, and Robles, and Karl Fogel's book, <a href="https://producingoss.com/en/license-quickstart.html">Producing Open Source Software</a>, Chapter 2, "Choosing a License and Applying It."</p>
+	</dd>
+</dl></div>
+
+<div id="which-best" title="which-best">
+<dl><dt><strong>Which Open Source license is best?</strong></dt>
+	<dd>
+	<p>Unlike bilateral copyright licenses, which are negotiated between two parties and embody a truce between them for business purposes, multilateral copyright licenses — of which open source licenses are a kind — are community agreements. They express the consensus of how a community chooses to collaborate. They also embody its ethical assumptions, even if they are not explicitly enumerated.</p>
+
+	<p>When that consensus includes giving permission to all to use, study improve and share the code without prejudice, the license is an open source license. The <a href="/definition">Open Source Definition</a> provides an objective test of evaluating that such a license is indeed an open source license and delivers the software freedom we all expect.</p>
+
+	<p>Since licenses are the consensus of communities, it is natural that different communities will have different licenses, that communities with different norms will find fault with the licenses used by others, and that all will regard their way as optimum. The arguments over this will be as deep as the gulf between the philosophical positions of the communities involved.</p>
+
+	<p>Ultimately, there is no license that is right for every community. Use the one that best aligns with your community’s objectives and ethos.</p>
+	</dd>
+</dl></div>
+
+<div id="apply-license" title="apply-license">
+<dl><dt><strong>How do I apply <em>&lt;SOME OPEN SOURCE LICENSE&gt;</em> to software I'm releasing?</strong></dt>
+	<dd>
+	<p>This question isn't actually specific to open source licenses — it's really just about how to apply some particular copyright license (whether open source or not) to your software. Please note that the OSI is not a legal services organization and does not provide legal advice. However, many licenses come with instructions on how to apply them: for example, see the section <em>"APPENDIX: How to apply the Apache License to your work"</em> in the <a href="http://opensource.org/licenses/Apache-2.0">Apache-2.0</a> license, or the section <em>"How to Apply These Terms to Your New Programs"</em> in the <a href="http://opensource.org/licenses/GPL-3.0">GPL-3.0</a> license. If the license you want to apply has such instructions, just follow them. If it does not, then look at the previous two examples (or at other licenses that contain similar instructions) and follow a similar recipe, adjusting for the license you're actually using of course. The Software Freedom Law Center also maintains a guide on <a href="http://softwarefreedom.org/resources/2012/ManagingCopyrightInformation.html">managing copyright information</a> within open source projects. Finally, <a href="http://producingoss.com/en/license-quickstart.html#license-quickstart-applying">this guide</a> may also help, though please note again that neither it nor this FAQ item constitutes legal advice.</p>
+
+	<p>Note that releasing software under an open source license does <em>not</em> involve contacting the OSI, signing up to some process, or handing a copy of your software to the OSI or any other organization for evaluation. You just publish the software with an OSI-approved open source license attached, in the manner described above — that's all you need to do.</p>
+	</dd>
+</dl></div>
+
+<div id="contributor-agreements" title="contributor-agreements">
+<dl><dt><strong>What are "contributor agreements"? Are they like open source licenses?</strong></dt>
+	<dd>
+	<p>Many open source projects will only accept patches (code contributions or documentation contributions) from people who have submitted a legal document known as a <em>contributor agreement</em>. Contributor agreements are <em>not</em> open source licenses — rather, they are a way for the contributor to tell the project that it has the right to distribute the new contributions under the project's existing open source license. (Some contributor agreements also allow for the project to distribute the contributions under other open source licenses too, which enables projects to change their license in the future, and some agreements even allow the project to distribute the contributions under <em>any</em> license the project wants.)</p>
+
+	<p>There are two kinds of contributor agreements. In a <strong>Contributor License Agreement</strong> <strong>(CLA)</strong>, the original contributor retains copyright ownership of their contributions, but grants the project a broad set of rights such that the project can incorporate and distribute the contributions as it needs to. In a <strong>Copyright Assignment Agreement</strong> <strong>(CAA)</strong>, the contributor actually transfers copyright ownership of the contributions to the project, who can then license it however they want since they own it (but a CAA typically grants very broad non-exclusive rights back to the contributor so that they too can use, distribute, sublicense etc their contribution freely).</p>
+
+	<p>With both CLAs and CAAs, it is of course necessary that "the project" be some kind of legal entity able to enter into agreements. Sometimes the project is incorporated itself, usually as a non-profit entity; sometimes it is represented by an umbrella non-profit organization (such as the <a href="http://apache.org/">Apache Software Foundation</a> or the <a href="http://sfconservancy.org/">Software Freedom Conservancy</a>); sometimes a for-profit corporation considers itself the main sponsor of the project and requests contributor agreements in order to manage the development community and maintain a public distribution of the software in question.</p>
+
+	<p>For more about contributor agreements in general, and some examples, see <a href="http://wiki.civiccommons.org/Contributor_Agreements">civiccommons.org/Contributor_Agreements</a>. See also the <a href="http://harmonyagreements.org/">Project Harmony</a>, "...a community-centered group focused on contributor agreements for free and open source software (FOSS)."</p>
+	</dd>
+</dl></div>
+
+<div id="preserve-copyright-notices" title="preserve-copyright-notices">
+<dl><dt><strong>Can I strip out the copyrights on Open Source code and put in my own?</strong></dt>
+	<dd>
+	<p>Definitely not! This isn't even about Open Source, really: in general, you should not remove a valid copyright notice, no matter what license it specifies. Copyright notices are legal notices; they are also a source of information about the provenance of source code, and if that information is stripped out, recipients of downstream copies have no easy way to rediscover it.</p>
+	</dd>
+</dl></div>
+
+<div id="linking-proprietary-code" title="linking-proprietary-code">
+<dl><dt><strong>Can I write proprietary code that links to a shared library that's open source?</strong></dt>
+	<dd>
+	<p>Sometimes you can; it depends on the Open Source license. Authors often want you to be able to do this, so most shared libraries are licensed under a <a href="#permissive">permissive</a> license or one that allows linking under certain circumstances (e.g., the <a href="/licenses/LGPL-3.0">LGPL</a>). A very small number of libraries use the <a href="/licenses/GPL-3.0">GPL</a>, which only allows linking with proprietary works if the licensor grants an explicit exception. Thus, you are wise to check the licenses that your program links to. The community expects that all code linked to GPL code will be licensed under the GPL, even if the link is made at runtime using a shared library.</p>
+	</dd>
+</dl></div>
+
+<div id="publish-code" title="publish-code">
+<dl><dt><strong>I want to publish some code as Open Source code — can I get a license from you?</strong></dt>
+	<dd>
+	<p>As long as you own that source code, all that you need to do is choose one of the <a href="/licenses">approved Open Source licenses</a>, include a copy of the license text, typically in a filenamed "COPYRIGHT", including a statement saying that you are licensing the code under that copyright, and give it to somebody else! Of course, you probably want to give it to a lot of people in order to gain the maximum benefit from giving away your code. A number of websites will help you do that: berlios.de, bitbucket.org, github.com, gitlab.com, sourceforge.net, code.google.com, and others.</p>
+	</dd>
+</dl></div>
+
+<div id="php-code" title="php-code">
+<div id="language-vs-license" title="language-vs-license">
+<dl><dt><strong>Is <em>&lt;SOME PROGRAM&gt;</em> Open Source simply because it's written in <em>&lt;SOME OPEN SOURCE LICENSED LANGUAGE&gt;</em>?</strong></dt>
+	<dd>
+	<p>No. While languages like <a href="/licenses/PHP-3.0">PHP</a>, <a href="/licenses/Artistic-Perl-1.0">Perl</a> or <a href="/licenses/Python-2.0">Python</a> have implementations that are licensed under Open Source licenses, that doesn't turn all code written in these languages or run under such implementations into Open Source. The code written in such languages or run under such implementations would need to be licensed under an approved Open Source license in order to be Open Source.</p>
+	</dd>
+</dl></div>
+</div>
+
+<div id="distribution" title="distribution">
+<dl><dt><strong>What is "distribution"? What does it mean to "distribute" a program? Is letting people use it on my server the same as distribution?</strong></dt>
+	<dd>
+	<p>Colloquially, to "distribute" a program means to give someone else a copy of its code — either its source code, or its binary (executable) code, or both. Merely allowing people to invoke a program on your server, for example via networked API calls, does not constitute distribution of the program as generally understood.</p>
+
+	<p>To avoid confusion, some licenses use the terms "propagate" and "convey" instead of "distribute". For example, in the <a href="/licenses/gpl-3.0">GNU General Public License, version 3</a>, to "propagate" means <em>"...to do anything with it that, without permission, would make you directly or secondarily liable for infringement under applicable copyright law, except executing it on a computer or modifying a private copy. Propagation includes copying, distribution (with or without modification), making available to the public, and in some countries other activities as well."</em> Even that leaves some question as to what "making available to the public" means. The definition for "convey" narrows it down, however: <em>"...any kind of propagation that enables other parties to make or receive copies. Mere interaction with a user through a computer network, with no transfer of a copy, is not conveying."</em></p>
+
+	<p>In a legal context, you may wish to use similar precision. However, in informal communications, "distribute" is usually understood to mean "deliver copies in source code and/or binary form".</p>
+
+	<p>Not all programs have separate source and binary forms. For programs written in so-called "scripting" languages there is generally only a source code form (though sometimes compressed, for example via the <a href="http://en.wikipedia.org/wiki/Minification_%28programming%29">minification</a> often performed on Javascript code prior to distribution). But other programming languages are typically compiled to an architecture-specific executable form and can optionally be distributed as executables without source code. The distinction between source code and executable form is important for understanding the terms and conditions of some open source licenses, so if you don't have the necessary technical background, you should consult someone who does.</p>
+
+	<p>See also the <a href="#non-distribution">"What if I don't want to distribute?"</a> question.</p>
+	</dd>
+</dl></div>
+
+<div id="copyleft-violation" title="copyleft-violation">
+<dl><dt><strong>Someone is violating a copyleft license, for example by refusing to give me source code when they are required to. What can I do?</strong></dt>
+	<dd>
+	<p>The Open Source Initiative is not a legal services organization and generally cannot help you when someone is violating a <a href="#copyleft">copyleft</a> license. However, as of late 2011, one of the organizations below may be able to help (note that most of the enforcement they do is about the GNU <a href="/licenses/GPL-3.0">GPL</a> and <a href="/licenses/AGPL-3.0">AGPL</a> licenses, though in theory they can help enforce other copyleft licenses too):</p>
+
+	<ul><li>The <a href="http://gpl-violations.org/">GPL Violations Project</a>.</li>
+		<li>If the violation includes software that is one of <a href="http://sfconservancy.org/members/current/">Software Freedom Conservancy's Member Projects</a>, you can contact the Conservancy at <a href="mailto:compliance@sfconservancy.org">&lt;compliance@sfconservancy.org&gt;</a> and they will help you help that project enforce the GPL.</li>
+	</ul><p>If you know of other organizations that provide similar legal assistance, please let us know at <strong>osi {_AT_} opensource.org</strong>.</p>
+	</dd>
+</dl></div>
+
+<dl><!-- Keep the extra outer div wrapper here; it's for compatibility with an older version of this entry. --></dl></div>
+
+<div id="category-commerce" title="category-commerce">
+<h2 style="text-decoration: underline;">Commerce and Open Source</h2>
+
+<div id="profit" title="profit">
+<dl><dt><strong>How do I make money if anybody can sell my code?</strong></dt>
+	<dd>
+	<p>You can sell services based on the code (i.e., sell your time), sell warranties and other assurances, sell customization and maintenance work, license the trademark, etc. The only kind of profit strategy that is incompatible with Open Source is monopoly-based sales, also known as "royalties". See <a href="http://blogs.fsfe.org/greve/?p=260">this article</a> for how to think about business strategies that make money from Open Source. Also, this 2015 survey of open source leaders (including many OSI Directors) provides several <a href="http://papers.ssrn.com/sol3/papers.cfm?abstract_id=2769875">business models for Free and Open Source software</a>.</p>
+	</dd>
+</dl></div>
+
+<div id="selling" title="selling">
+<dl><dt><strong>Can I sell Open Source programs? Even if I haven't written it?</strong></dt>
+	<dd>
+	<p>Yes, you can. But depending on the license, you probably can't stop your customers from selling it in the same manner as you. See the <a href="#commercial">commercial use</a> for more details.</p>
+	</dd>
+</dl></div>
+
+<div id="copying-and-identity" title="copying-and-identity">
+<dl><dt><strong>Does Open Source mean anybody else can use my name and logo?</strong></dt>
+	<dd>
+	<p>No, at least not any more than they could otherwise. Open Source is about software source code, <em>not</em> about identity. That is, letting people use your code under an Open Source license is not the same as letting them use your trademarks or other identifying attributes, except insofar as they would be permitted to anyway (for example, in <a href="http://en.wikipedia.org/wiki/Nominative_use">nominative use</a> doctrine). There are many companies and other organizations that release open source code while exercising tight control over their trademarks.</p>
+
+	<p>Trademarks and other marks of attribution are primarily about preventing public confusion over identity and provenance, and therefore trademark regulation is useful in Open Source software in the same way it is useful generally.</p>
+	</dd>
+</dl></div>
+
+<dl></dl></div>
+
+<div id="category-osi-identity" title="category-osi-identity">
+<h2 style="text-decoration: underline;">Using Our Logo, Linking to Us, Etc</h2>
+
+<div id="logo-use" title="logo-use">
+<dl><dt><strong>Can I use your corporate logo (green open keyhole saying "Open Source") or something very similar (different color / texture / words) on my product (hat, shirt, web page, etc)?</strong></dt>
+	<dd>
+	<p>Alas, no, it is a trademark and we need to retain control over it. Please see our <a href="/trademark">Trademark and Logo Usage</a> guidelines.</p>
+	</dd>
+</dl></div>
+
+<div id="osi-site-no-ads" title="osi-site-no-ads">
+<dl><dt><strong>How much does it cost for a link on opensource.org to my website?</strong></dt>
+	<dd>
+	<p>We don't sell advertising space on our website.</p>
+	</dd>
+</dl></div>
+
+<div id="logo-nominative-use" title="logo-nominative-use">
+<dl><dt><strong>Can I use your corporate logo on my web page to link to you?</strong></dt>
+	<dd>
+	<p>Yes. You can always use a trademark in a truthful manner <a href="http://en.wikipedia.org/wiki/Nominative_use">to refer accurately</a> to an entity.</p>
+	</dd>
+</dl></div>
+
+<div id="linking" title="linking">
+<dl><dt><strong>Can I link to your site?</strong></dt>
+	<dd>
+	<p>Yes, but you don't have to ask permission. It's always okay to link to <em>anybody</em>'s site. Linking to something is like saying its name and address out loud.</p>
+	</dd>
+</dl></div>
+
+<div id="reuse-osi-materials" title="reuse-osi-materials">
+<dl><dt><strong>Can I use one of your pages in a document I'm writing?</strong></dt>
+	<dd>
+	<p>Generally, yes. Look at the bottom of each page for the Creative Commons License. That gives you fairly broad permission to re-use the material; read the license to see the exact permissions.</p>
+	</dd>
+</dl></div>
+
+<dl></dl></div>
+
+<div id="category-help" title="category-help">
+<h2 style="text-decoration: underline;">Getting Help</h2>
+
+<div id="licence-discussion" name="licence-discussion"><!-- British spelling of "licence" deliberately included as outer div's id. -->
+<div id="license-discussion" title="license-discussion">
+<dl><dt><strong>Where can I discuss an issue about an open source license?</strong></dt>
+	<dd>
+	<p>The best place to discuss an issue about an open source license, or about a potential open source license, is on our <tt>license-discuss</tt> mailing list, about which you can read more on our <a href="http://opensource.org/lists">mailing lists</a> page. You do not have to be subscribed to post, but posts from non-members are moderated (solely to prevent spam), so please be patient if it takes a few days for your first post to show up. For questions about submitting new licenses, you may also want to read about the <a href="http://opensource.org/approval">license approval process</a>.</p>
+	</dd>
+</dl></div>
+</div>
+
+<div id="legal-advice" title="legal-advice">
+<dl><dt><strong>Can I ask a legal question here?</strong></dt>
+	<dd>
+	<p>We are not a legal services organization and we can't give you legal advice. If you want legal advice, you need to have an attorney-client relationship with a lawyer. Even if the lawyer is <em>pro bono</em>, there still needs to be a formal client arrangement.</p>
+
+	<p>Without giving you legal advice, we can still give you advice about community norms and expectations. It won't be legal advice, but you may find it useful when talking with your lawyer or, if necessary, coming to a decision without the help of a lawyer.</p>
+	</dd>
+</dl></div>
+
+<div id="fund-projects" title="fund-projects">
+<dl><dt><strong>Can the OSI fund my open source software project?</strong></dt>
+	<dd>
+	<p>The OSI's work, and thus funding support, focuses on the creation and curation of resources that enable, promote, and protect open source software development, adoption, and communities. The OSI cannot directly fund your open source software project, we fund projects that raise awareness and adoption of your open source software project.</p>
+
+	<p>If you are looking for funding opportunities (and other resources) to support your open source software development project, you may want to try and join, or align your project with an existing open source software community. If you can find a complimentary project or supporting foundation much of the work needed to develop your own community of practice will be done. It will also introduce you and your software to other projects, developers, contributors, and sponsors who are working on similar or aligned efforts, understand your project and its value, and thus may want to collaborate with you to see it succeed as a part of their larger work, project, and or foundation.</p>
+	</dd>
+</dl></div>
+
+<div id="finding" title="finding">
+<dl><dt><strong>Can you help me find an Open Source programmer or program?</strong></dt>
+	<dd>
+	<p>Unfortunately, we can't; Open Source is now too big for us to keep track of all the people and activities in it. A web search engine is your best bet. For specific software packages, you may also find it useful to look in <a href="http://freecode.com/">Freecode</a>.</p>
+	</dd>
+</dl></div>
+
+<div id="unsubscribe" title="unsubscribe">
+<dl><dt><strong>How do I unsubscribe from one of your mailing lists?</strong></dt>
+	<dd>
+	<p>Visit the <a href="/lists">lists</a> page, and click on the appropriate "unsubscribe" link to generate the necessary email request.</p>
+	</dd>
+</dl></div>
+
+<div id="join-a-project" title="join-a-project">
+<dl><dt><strong>How can I join an open source project?</strong></dt>
+	<dd>
+	<p>Most open source projects are run via online discussion forums: mailing lists, wikis, chat rooms, etc. We encourage you to find a project you care about, look at their web site to see what kinds of discussion forums they're using, and join those forums. The usual next step is to starting filing bug reports and/or fixing bugs.</p>
+	</dd>
+</dl></div>
+
+<div id="surveys" title="surveys">
+<dl><dt><strong>I have a thesis and I'm sending out a survey...</strong></dt>
+	<dd>
+	<p>We do not personally answer surveys. <a href="http://opensource.org/faq/surveys">Read this for more information.</a></p>
+	</dd>
+</dl></div>
+
+<dl></dl></div>
+
+<div id="category-support" title="category-support">
+<h2 style="text-decoration: underline;">Supporting the OSI</h2>
+
+<div id="support-osi" title="support-osi">
+<dl><dt><strong>How can I support the OSI?</strong></dt>
+	<dd>
+	<p>If you're an individual, please <a href="/join">join us as a member</a>!</p>
+
+	<p>If you're an non-profit / not-for-profit organization for whom open source software is part of your mission, please consider becoming one of our <a href="/affiliates">Affiliate Organizations.</a></p>
+
+	<p><a href="/affiliates">If you're a for-profit corporation that uses or produces open source software (and pretty much every corporation falls into at least one of those categories these days!), please consider becoming a </a><a href="/sponsors">Corporate Sponsor</a>.</p>
+
+	<p>And of course, anyone can <a href="/donate">donate</a> at any time.</p>
+	</dd>
+</dl></div>
+
+<div id="improve-osi-site" title="improve-osi-site">
+<dl><dt><strong>How can I help improve the OSI web site?</strong></dt>
+	<dd>
+	<p>The OSI web site uses the <a href="http://drupal.org/">Drupal</a> content management system (Drupal is, of course, open source software). The web page content is licensed under a <a href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>, which offers similar freedoms for non-software works as open source offers for software works.</p>
+
+	<p>However, the web pages are stored in our Drupal database, so it's not as if one can "check out" a copy of the OSI web site using a version control system (as is typically done with software projects) and send a change back to us using a patch, pull request, or other method commonly used in open source software projects. Instead, just <a href="/contact">contact us</a> with your proposed change, and we'll review it by email.</p>
+	</dd>
+</dl></div>
+
+<dl></dl></div>
+</div></div></div>  </div>
+    
+     
+
+  
+</article>  </div>
+</div>
+  </div>
+                            
+                        </div>
+                        <!-- EOF:#content-wrapper -->
+
+                    </div>
+                    <!-- EOF:#main -->
+
+                </section>
+
+                                <aside class="col-md-2">
+                    <!--#sidebar-second-->
+                    <section id="sidebar-second" class="sidebar clearfix">
+                      <div class="region region-sidebar-second">
+    <div id="block-webform-client-block-1125" class="block block-webform clearfix">
+
+    <h2>Keep up with Open Source</h2>
+  
+  <div class="content">
+    <noscript>
+  <style>form.antibot { display: none !important; }</style>
+  <div class="antibot-no-js antibot-message antibot-message-warning messages warning">
+    You must have JavaScript enabled to use this form.  </div>
+</noscript>
+<div class="webform-civicrm-prefix contact-unknown">Sign up with your email to receive our newsletter — your resource for industry news, upcoming events, insights from Open Source thought leaders and more.</div><form class="webform-client-form webform-client-form-1125 antibot" action="/antibot" method="post" id="webform-client-form-1125" accept-charset="UTF-8"><div><div class="webform-progressbar">
+  
+
+  
+  </div>
+<div  class="form-item webform-component webform-component-markup webform-component--disclaimer">
+ Sign up with your email to receive OSI's newsletter — your resource for industry news, upcoming events, insights from open source thought leaders and more.
+</div>
+<div  class="form-item webform-component webform-component-email webform-component--civicrm-1-contact-1-email-email webform-container-inline">
+  <label for="edit-submitted-civicrm-1-contact-1-email-email">Email <span class="form-required" title="This field is required.">*</span></label>
+ <input required="required" class="email civicrm-enabled form-text form-email required" data-civicrm-field-key="civicrm_1_contact_1_email_email" type="email" id="edit-submitted-civicrm-1-contact-1-email-email" name="submitted[civicrm_1_contact_1_email_email]" size="20" />
+</div>
+<div class="form-item webform-component webform-component-civicrm_contact static webform-component--civicrm-1-contact-1-contact-existing">
+<input data-hide-method="hide" data-no-hide-blank="0" class="civicrm-enabled" data-civicrm-field-key="civicrm_1_contact_1_contact_existing" type="hidden" name="submitted[civicrm_1_contact_1_contact_existing]" value="" />
+
+</div>
+<div  class="form-item webform-component webform-component-textfield webform-component--civicrm-1-contact-1-contact-first-name webform-container-inline">
+  <label for="edit-submitted-civicrm-1-contact-1-contact-first-name">First Name </label>
+ <input class="civicrm-enabled form-text" data-civicrm-field-key="civicrm_1_contact_1_contact_first_name" type="text" id="edit-submitted-civicrm-1-contact-1-contact-first-name" name="submitted[civicrm_1_contact_1_contact_first_name]" value="" size="20" maxlength="128" />
+</div>
+<div  class="form-item webform-component webform-component-textfield webform-component--civicrm-1-contact-1-contact-last-name webform-container-inline">
+  <label for="edit-submitted-civicrm-1-contact-1-contact-last-name">Last Name </label>
+ <input class="civicrm-enabled form-text" data-civicrm-field-key="civicrm_1_contact_1_contact_last_name" type="text" id="edit-submitted-civicrm-1-contact-1-contact-last-name" name="submitted[civicrm_1_contact_1_contact_last_name]" value="" size="20" maxlength="128" />
+</div>
+<input type="hidden" name="details[sid]" />
+<input type="hidden" name="details[page_num]" value="1" />
+<input type="hidden" name="details[page_count]" value="1" />
+<input type="hidden" name="details[finished]" value="0" />
+<input type="hidden" name="form_build_id" value="form-0UX9dSwsApm9fyvAGxyRXnjeeQ30yg-tppm2e1tYyyk" />
+<input type="hidden" name="form_id" value="webform_client_form_1125" />
+<input type="hidden" name="antibot_key" value="" />
+<input type="hidden" name="honeypot_time" value="1639563102|jvbDnsIlV6NI_vMaaV_rbBWNWJAJzL-QAgG4RKyXXdM" />
+<div class="url-textfield"><div class="form-item form-type-textfield form-item-url">
+  <label for="edit-url">Leave this field blank </label>
+ <input autocomplete="off" type="text" id="edit-url" name="url" value="" size="20" maxlength="128" class="form-text" />
+</div>
+</div><div class="form-actions"><input class="webform-submit button-primary form-submit" type="submit" name="op" value="Send me the newsletter!" /></div></div></form>  </div>
+</div>
+  </div>
+                    </section>
+                    <!--EOF:#sidebar-second-->
+                </aside>
+                        
+            </div>
+
+        </div>
+    </div>
+    <!-- EOF:#main-content -->
+
+        <!-- #bottom-content -->
+    <div id="bottom-content" class="clearfix">
+        <div class="container">
+
+            <!-- #bottom-content-inside -->
+            <div id="bottom-content-inside" class="clearfix">
+                <div class="row">
+                    <div class="col-md-12">
+                      <div class="region region-bottom-content">
+    <div id="block-block-15" class="block block-block clearfix">
+
+    <h2>To promote and protect open source software and communities...</h2>
+  
+  <div class="content">
+    <p>For <a href="https://opensource.org/history">over 20 years</a> the Open Source Initiative (OSI) has worked to raise awareness and adoption of open source software, and build bridges between <a href="https://opensource.org/affiliates">open source communities</a> of practice. As a <a href="https://opensource.org/sponsors#sponOps">global non-profit</a>, the OSI champions software freedom in society through education, collaboration, and infrastructure, stewarding the <a href="https://opensource.org/osd">Open Source Definition</a> (OSD), and preventing abuse of the ideals and ethos inherent to the open source movement.</p>
+
+<p>Open source software is made by <a href="https://opensource.org/members">many people</a> and distributed under an <a href="https://opensource.org/licenses">OSD-compliant license</a> which grants all the rights to use, study, change, and share the software in modified and unmodified form. Software freedom is essential to enabling community development of open source software.</p>
+  </div>
+</div>
+  </div>
+                    </div>
+                </div>
+            </div>
+            <!-- EOF:#bottom-content-inside -->
+
+        </div>
+    </div>
+    <!-- EOF: #bottom-content -->
+    
+</div>
+<!-- EOF:#page -->
+
+
+<footer id="subfooter" class="clearfix">
+    <div class="container">
+        
+        <!-- #subfooter-inside -->
+        <div id="subfooter-inside" class="clearfix">
+            <div class="row">
+                <div class="col-md-12">
+                    <!-- #subfooter-left -->
+                    <div class="subfooter-area">
+                                            
+
+                                          <div class="region region-footer">
+    <div id="block-block-11" class="block block-block clearfix">
+
+    
+  <div class="content">
+    <div class="filler" style="vertical-align: middle; display: inline-block;">
+<p style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><a href="https://twitter.com/OpenSourceOrg" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><img alt="" src="/files/twitterlogo.png" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;" width="50" /></a> <a href="https://www.linkedin.com/company/open-source-initiative-osi-" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><img alt="" src="/files/linkedin.png" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;" width="50" /></a> <a href="http://wiki.opensource.org" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><img alt="" src="/files/xwikilogo.png" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;" width="50" /></a> <a href="http://creativecommons.org/licenses/by/4.0/" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><img alt="" src="/files/ccby.png" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;" width="50" /></a></p>
+</div>
+
+<p> </p>
+
+<div class="license" style="vertical-align: middle; display: inline-block;">
+<p>Sign-up for our <a href="newsletter/signup">newsletter</a>!</p>
+
+<p>The content on this website, of which Opensource.org is the author, is licensed under a <a href="http://creativecommons.org/licenses/by/4.0/" rel="license">Creative Commons Attribution 4.0 International License</a>.<br />
+Opensource.org is not the author of any of the licenses reproduced on this site. Questions about the copyright in a license should be directed to the license steward.</p>
+
+<p>Hosting for Opensource.org is generously provided by <a href="https://www.digitalocean.com/">DigitalOcean</a>. Please see <a href="../ToS">Terms of Service</a>.<br /><span style="font-size:10px;">For questions regarding the OSI website and contents pleasee <a href="mailto:webmaster@lists.opensource.org?subject=OSI%20website%20comment">email our webmaster</a>.</span></p>
+</div>
+
+<p> </p>
+  </div>
+</div>
+<div id="block-block-7" class="block block-block clearfix">
+
+    
+  <div class="content">
+    <script src="https://www.google-analytics.com/urchin.js" type="text/javascript"></script><script type="text/javascript">
+<!--//--><![CDATA[// ><!--
+
+_uacct = "UA-3916956-1";
+urchinTracker();
+
+//--><!]]>
+</script><script defer="defer" data-domain="opensource.org" src="https://plausible.io/js/plausible.js"></script>  </div>
+</div>
+  </div>
+                    
+                    </div>
+                    <!-- EOF: #subfooter-left -->
+                </div>
+            </div>
+        </div>
+        <!-- EOF: #subfooter-inside -->
+    
+    </div>
+</footer>
+<!-- EOF:#subfooter -->
+  <script type="text/javascript" src="https://opensource.org/files/js/js_y3dyBEa8T4s6UYWE26s2_6WUn3S7BX2OqjjPrLL6g1E.js"></script>
+</body>
+</html>
