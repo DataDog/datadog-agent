@@ -106,7 +106,7 @@ func TestKAIPendingTextDoesNotEndWithRepeatedPeriods(t *testing.T) {
 	// The message KAI gave on a real cluster ends with two periods.
 	condition := unschedulable("gpu", after(6))
 	condition.Message = "NonPreemptibleOverQuota: Non-preemptible workload is over quota. Use a preemptible workload to go over quota.."
-	pg.SchedulingConditions = []workloadmeta.KAISchedulingCondition{condition}
+	pg.SchedulingConditions = []podGroupCondition{condition}
 	kai.set(pg, true)
 
 	require.Equal(t, []string{"kai.podgroup.pending"}, out.types())

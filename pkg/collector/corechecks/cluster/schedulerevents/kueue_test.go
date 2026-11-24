@@ -107,14 +107,14 @@ func TestKueueFollowerRecordsStateWithoutEvents(t *testing.T) {
 
 // kueueWorkloadFromCluster is the Workload that Kueue v0.20.7 requeued after a
 // preemption (/tmp/kind-validation/workloads-final.yaml of a real kind cluster).
-func kueueWorkloadFromCluster(created time.Time) *workloadmeta.KubernetesKueueWorkload {
+func kueueWorkloadFromCluster(created time.Time) *kueueView {
 	return kueueWorkload(created,
-		workloadmeta.KueueWorkloadCondition{
+		workloadCondition{
 			Type: "QuotaReserved", Status: "False", Reason: "WaitingForQuota", LastTransitionTime: after(40),
 			Message: "couldn't assign flavors to pod set main: insufficient unused quota for cpu in flavor default-flavor, 1 more needed",
 		},
-		workloadmeta.KueueWorkloadCondition{Type: "Evicted", Status: "True", Reason: "Preempted", LastTransitionTime: after(39)},
-		workloadmeta.KueueWorkloadCondition{Type: "Admitted", Status: "False", Reason: "NoReservation", LastTransitionTime: after(40)},
+		workloadCondition{Type: "Evicted", Status: "True", Reason: "Preempted", LastTransitionTime: after(39)},
+		workloadCondition{Type: "Admitted", Status: "False", Reason: "NoReservation", LastTransitionTime: after(40)},
 	)
 }
 
@@ -190,7 +190,7 @@ func TestKueueFollowerDoesNotRepeatThePendingOfTheLeader(t *testing.T) {
 // a new transition time, in the same second as Finished.
 func TestKueueRunningIsNotRepeatedWhenTheWorkloadFinishes(t *testing.T) {
 	kueue, out := newTestKueue(t, nil)
-	admitted := []workloadmeta.KueueWorkloadCondition{
+	admitted := []workloadCondition{
 		kueueCondition("QuotaReserved", "True", "QuotaReserved", after(6)),
 		kueueCondition("Admitted", "True", "Admitted", after(6)),
 	}
