@@ -1456,6 +1456,38 @@ func TestOpOverrides(t *testing.T) {
 	}
 }
 
+func TestOpOverridePartials(t *testing.T) {
+	tests := []struct {
+		Expr        string
+		Field       string
+		Event       *testEvent
+		IsDiscarder bool
+	}{
+		// a value matching only through an extra input is not a discarder
+		{Expr: `event.title == "Hello World"`, Field: "event.title", Event: &testEvent{title: "hello world"}, IsDiscarder: false},
+		{Expr: `event.title == "Hello World"`, Field: "event.title", Event: &testEvent{title: "foo"}, IsDiscarder: true},
+		// the partial is compiled through StaticEquals, which matches the upper-cased value
+		{Expr: `process.or_name == "abd"`, Field: "process.or_name", Event: &testEvent{process: testProcess{orName: "ABD"}}, IsDiscarder: false},
+		{Expr: `process.or_name == "abd"`, Field: "process.or_name", Event: &testEvent{process: testProcess{orName: "abd"}}, IsDiscarder: true},
+	}
+
+	for _, test := range tests {
+		rule, err := parseRule(test.Expr, &testModel{}, newOptsWithParams(testConstants, nil))
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		result, err := rule.PartialEval(NewContext(test.Event), test.Field)
+		if err != nil {
+			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
+		}
+
+		if !result != test.IsDiscarder {
+			t.Fatalf("expected discarder `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, !result, test.Expr)
+		}
+	}
+}
+
 func TestMultipleOpOverrides(t *testing.T) {
 	event := &testEvent{
 		title: "hello world",
