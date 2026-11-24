@@ -7672,6 +7672,11 @@ properties:
     node_type: setting
     type: integer
     default: 4096
+  dogstatsd_string_interner_two_generation:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Use two alternating maps in the DogStatsD string interner so hot strings survive resets without reallocating. Each generation holds up to dogstatsd_string_interner_size entries.
   dogstatsd_telemetry_enabled_listener_id:
     node_type: setting
     type: boolean

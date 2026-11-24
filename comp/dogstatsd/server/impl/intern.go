@@ -24,31 +24,46 @@ import (
 // take advantage of the new "Unique" api that is proposed below.
 // ref: https://github.com/golang/go/issues/62483
 type stringInterner struct {
-	strings map[string]string
-	maxSize int
-	id      string
+	strings       map[string]string
+	prev          map[string]string
+	currBytes     int
+	prevBytes     int
+	twoGeneration bool
+	maxSize       int
+	id            string
 
 	telemetry *stringInternerInstanceTelemetry
 }
 
-func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerTelemetry) *stringInterner {
+func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerTelemetry, twoGeneration bool) *stringInterner {
 	// telemetryOnce.Do(func() { initGlobalTelemetry(telemetrycomp) })
 
 	id := fmt.Sprintf("interner_%d", internerID)
 	i := &stringInterner{
-		strings:   make(map[string]string),
-		id:        id,
-		maxSize:   maxSize,
-		telemetry: siTelemetry.PrepareForID(id),
+		strings:       make(map[string]string),
+		twoGeneration: twoGeneration && maxSize > 0,
+		id:            id,
+		maxSize:       maxSize,
+		telemetry:     siTelemetry.PrepareForID(id),
+	}
+	if i.twoGeneration {
+		i.prev = make(map[string]string)
 	}
 
 	return i
 }
 
+func (i *stringInterner) rotate() {
+	i.telemetry.Rotate(len(i.prev), i.prevBytes)
+	clear(i.prev)
+	i.prev, i.strings = i.strings, i.prev
+	i.prevBytes, i.currBytes = i.currBytes, 0
+}
+
 // LoadOrStore always returns the string from the cache, adding it into the
 // cache if needed.
 // If we need to store a new entry and the cache is at its maximum capacity,
-// it is reset.
+// it is reset (or rotated into prev when two-generation mode is enabled).
 func (i *stringInterner) LoadOrStore(key []byte) string {
 	// here is the string interner trick: the map lookup using
 	// string(key) doesn't actually allocate a string, but is
@@ -57,6 +72,28 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
 	if s, found := i.strings[string(key)]; found {
 		i.telemetry.Hit()
+		return s
+	}
+
+	if i.twoGeneration {
+		if s, found := i.prev[string(key)]; found {
+			delete(i.prev, s)
+			i.prevBytes -= len(s)
+			if len(i.strings) >= i.maxSize {
+				i.rotate()
+			}
+			i.strings[s] = s
+			i.currBytes += len(s)
+			i.telemetry.Hit()
+			return s
+		}
+		if len(i.strings) >= i.maxSize {
+			i.rotate()
+		}
+		s := string(key)
+		i.strings[s] = s
+		i.currBytes += len(s)
+		i.telemetry.Miss(len(s))
 		return s
 	}
 

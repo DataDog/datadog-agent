@@ -86,6 +86,16 @@ func (si *stringInternerInstanceTelemetry) Reset(length int) {
 	}
 }
 
+// Rotate increments the reset counter and subtracts only the entries and bytes actually evicted.
+func (si *stringInternerInstanceTelemetry) Rotate(evictedEntries int, evictedBytes int) {
+	if si.enabled {
+		si.resets.Inc()
+		si.bytes.Sub(float64(evictedBytes))
+		si.size.Sub(float64(evictedEntries))
+		si.curBytes -= evictedBytes
+	}
+}
+
 // Miss increments the miss counter and updates the size and bytes gauges.
 func (si *stringInternerInstanceTelemetry) Miss(length int) {
 	if si.enabled {

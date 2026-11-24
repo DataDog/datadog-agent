@@ -74,10 +74,11 @@ type parser struct {
 
 func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wmeta option.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry) *parser {
 	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
+	stringInternerTwoGen := cfg.GetBool("dogstatsd_string_interner_two_generation")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	return &parser{
-		interner:         newStringInterner(stringInternerCacheSize, workerNum, stringInternerTelemetry),
+		interner:         newStringInterner(stringInternerCacheSize, workerNum, stringInternerTelemetry, stringInternerTwoGen),
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),
