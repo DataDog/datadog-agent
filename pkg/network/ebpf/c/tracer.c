@@ -1164,7 +1164,9 @@ static __always_inline int handle_net_dev_queue(struct sk_buff* skb, const bool 
     }
 
     if (!is_equal(&skb_tup, &sock_tup)) {
-        normalize_tuple(&skb_tup);
+        // the key is normalized, but the value keeps the packet's orientation, with the socket's end as the
+        // source: get_skb_tuple normalizes it and uses the orientation to tell the ends apart when the ports are
+        // equal
         normalize_tuple(&sock_tup);
         // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
         // and do not provide any useful signal since the key is expected to be present sometimes.

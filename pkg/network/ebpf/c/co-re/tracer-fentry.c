@@ -732,7 +732,9 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb, cons
     }
 
     if (!is_equal(&skb_tup, &sock_tup)) {
-        normalize_tuple(&skb_tup);
+        // the key is normalized, but the value keeps the packet's orientation, with the socket's end as the
+        // source: get_skb_tuple normalizes it and uses the orientation to tell the ends apart when the ports are
+        // equal
         normalize_tuple(&sock_tup);
         bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST, -EEXIST);
     }
