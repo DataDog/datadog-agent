@@ -1886,13 +1886,20 @@ func (s *configMacOSSuite) TestStopEdgeCasesMacOS() {
 		s.startConfigExperimentRC(deploymentID, logLevelPatch("debug"), nil)
 		s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
 		s.requireSingleSupervisor()
+		// The experiment daemon has just been swapped in: wait until it serves Remote Config, so the
+		// stop below is not pushed while it is still starting and never executed.
+		require.True(s.T(), s.waitForPackageState(func(pkg backend.RemoteConfigStatePackage) bool {
+			return pkg.ExperimentConfigVersion == deploymentID && pkg.RunningConfigVersion == deploymentID
+		}, 60*time.Second), "the experiment daemon should report the experiment as running")
 
 		// Kill the experiment daemon and its stop command as soon as the stop asks the unit
 		// supervisor for the stable jobs, from a background shell on the host, so the kill lands
-		// inside the stop, while the supervisor restores the Agent jobs.
+		// inside the stop, while the supervisor restores the Agent jobs. The shell gives up without
+		// killing anything after 90 s: a kill that fires later would hit whatever runs then.
 		_, err := s.Env().RemoteHost.Execute(`sudo sh -c 'nohup sh -c "` +
-			`for i in \$(seq 1 6000); do grep -q ^stable ` + unitsTargetPath + ` 2>/dev/null && break; sleep 0.01; done; ` +
-			`pkill -9 -f \"installer remove-config-experiment\"; launchctl kill SIGKILL system/` + installerDaemonExperimentLabel +
+			`end=\$((\$(date +%s) + 90)); hit=0; ` +
+			`while [ \$(date +%s) -lt \$end ]; do grep -q ^stable ` + unitsTargetPath + ` 2>/dev/null && hit=1 && break; sleep 0.01; done; ` +
+			`[ \$hit = 1 ] && pkill -9 -f \"installer remove-config-experiment\"; [ \$hit = 1 ] && launchctl kill SIGKILL system/` + installerDaemonExperimentLabel +
 			`" >/dev/null 2>&1 &'`)
 		require.NoError(s.T(), err)
 		s.pushTask("stop_experiment_config", s.currentExpectedState(), nil)
