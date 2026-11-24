@@ -365,8 +365,9 @@ func TestWorker_ParallelProbes_DifferentServices(t *testing.T) {
 		}
 
 		synctest.Wait()
-		require.Equal(t, int32(workers), inFlight.Load(), "expected %d concurrent probes", workers)
+		started := inFlight.Load()
 		close(release)
+		require.Equal(t, int32(workers), started, "expected %d concurrent probes", workers)
 		synctest.Wait()
 		require.Zero(t, inFlight.Load())
 		assert.Len(t, cb.snapshot(), workers)
@@ -406,8 +407,9 @@ func TestWorker_SameKeyStillSerial(t *testing.T) {
 
 		time.Sleep(time.Minute)
 		synctest.Wait()
-		require.Equal(t, int32(1), inFlight.Load())
+		inFlightBeforeRelease := inFlight.Load()
 		close(release)
+		require.Equal(t, int32(1), inFlightBeforeRelease)
 		time.Sleep(time.Minute)
 		synctest.Wait()
 		require.Zero(t, inFlight.Load())
