@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -136,9 +135,9 @@ func (d *Monitor) SendStats() error {
 
 // NewApproverMonitor returns a new Monitor
 func NewApproverMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
-	numCPU, err := utils.NumCPU()
+	numCPU, err := lib.PossibleCPU()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
+		return nil, fmt.Errorf("couldn't fetch the possible CPU count: %w", err)
 	}
 
 	monitor := &Monitor{

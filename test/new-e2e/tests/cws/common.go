@@ -35,6 +35,9 @@ const (
 
 	// policiesPath is the path of the default runtime security policies
 	policiesPath = "/etc/datadog-agent/runtime-security.d/test.policy"
+
+	// reexecPolicyPath is the path of the policy used by the systemd re-exec test
+	reexecPolicyPath = "/etc/datadog-agent/runtime-security.d/reexec.policy"
 )
 
 type agentSuite struct {
@@ -231,6 +234,52 @@ func (a *agentSuite) Test04SecurityAgentSIGTERM() {
 
 	// make sure the security-agent is running after this test
 	a.Env().RemoteHost.MustExecute("sudo systemctl start datadog-agent-security.service")
+}
+
+// runs after the other event tests, as the re-exec changes pid 1 for the rest of the suite
+func (a *agentSuite) Test98SystemdReexec() {
+	beforeFile := "/tmp/cws-e2e-reexec-before-" + a.testID
+	afterFile := "/tmp/cws-e2e-reexec-after-" + a.testID
+	beforeRuleID := "e2e_systemd_reexec_before_" + a.testID
+	afterRuleID := "e2e_systemd_reexec_after_" + a.testID
+	defer func() {
+		a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -f %s %s %s", beforeFile, afterFile, reexecPolicyPath))
+		a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo %s runtime policy reload", systemProbePath))
+	}()
+
+	policy := fmt.Sprintf(`version: 1.0.0
+rules:
+  - id: %s
+    expression: open.file.path == "%s"
+  - id: %s
+    expression: open.file.path == "%s"
+`, beforeRuleID, beforeFile, afterRuleID, afterFile)
+	_, err := a.Env().RemoteHost.WriteFile("/tmp/reexec.policy", []byte(policy))
+	require.NoError(a.T(), err, "could not write the re-exec policy")
+	a.Env().RemoteHost.MustExecute("sudo mv /tmp/reexec.policy " + reexecPolicyPath)
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo %s runtime policy reload", systemProbePath))
+	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		testRulesetLoaded(c, a, "file", path.Base(reexecPolicyPath))
+	}, 4*time.Minute, 5*time.Second)
+
+	// systemd-run makes pid 1 the parent of the process opening the file
+	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		_, err := a.Env().RemoteHost.Execute("sudo systemd-run --wait --quiet /usr/bin/touch " + beforeFile)
+		if !assert.NoError(c, err) {
+			return
+		}
+		testRuleEvent(c, a, beforeRuleID)
+	}, 10*time.Minute, 30*time.Second)
+
+	a.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
+
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		_, err := a.Env().RemoteHost.Execute("sudo systemd-run --wait --quiet /usr/bin/touch " + afterFile)
+		if !assert.NoError(c, err) {
+			return
+		}
+		testRuleEvent(c, a, afterRuleID)
+	}, 10*time.Minute, 30*time.Second)
 }
 
 // test that the detection of CWS is properly working

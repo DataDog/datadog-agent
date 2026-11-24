@@ -1,0 +1,14 @@
+---
+features:
+  - |
+    The pod, container and KSM metrics of Deployments, StatefulSets and Argo
+    Rollouts targeted by an autoscaler can now get the ``kube_autoscaler_kind``
+    tag, with the kind of the autoscaler as its value:
+    ``horizontalpodautoscaler``, ``verticalpodautoscaler``,
+    ``watermarkpodautoscaler``, ``datadogpodautoscaler`` or ``keda``. Until
+    now, only pods managed by a DatadogPodAutoscaler got this tag. It's
+    disabled by default. To enable it, set
+    ``cluster_agent.autoscaler_tags.enabled`` to ``true`` in the Cluster
+    Agent, which needs permissions to list and watch these autoscalers. The
+    Cluster Agent then also collects pods, which uses more memory on large
+    clusters.

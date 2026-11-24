@@ -248,12 +248,15 @@ func (g *gui) renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 }
 
 func serveAssets(w http.ResponseWriter, req *http.Request) {
-	staticFilePath := path.Join(defaultpaths.GetDistPath(), "views")
+	serveAssetsFromDir(w, req, path.Join(defaultpaths.GetDistPath(), "views"))
+}
 
+func serveAssetsFromDir(w http.ResponseWriter, req *http.Request, viewsDir string) {
 	// checking against path traversal
-	path, err := securejoin.SecureJoin(staticFilePath, req.URL.Path)
+	path, err := securejoin.SecureJoin(viewsDir, req.URL.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	data, err := os.ReadFile(path)

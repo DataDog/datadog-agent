@@ -6,8 +6,10 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -31,6 +33,7 @@ type InstallOption func(*installParams)
 type installParams struct {
 	remoteUpdates        bool
 	stablePackages       bool
+	stablePackageVersion *string
 	stagingPackages      string
 	pipelineID           string
 	otelCollectorEnabled bool
@@ -53,6 +56,16 @@ func WithRemoteUpdates() InstallOption {
 func WithStablePackages() InstallOption {
 	return func(p *installParams) {
 		p.stablePackages = true
+	}
+}
+
+// WithStablePackageVersion installs an exact released Agent package version,
+// including its package revision, and uses the matching Windows installer.
+// The optional v prefix is accepted. It cannot be combined with staging packages.
+func WithStablePackageVersion(version string) InstallOption {
+	return func(p *installParams) {
+		p.stablePackages = true
+		p.stablePackageVersion = &version
 	}
 }
 
@@ -80,11 +93,11 @@ func WithOTelCollectorEnabled() InstallOption {
 
 // Install installs the agent.
 func (a *Agent) Install(options ...InstallOption) error {
-	paramsCopy := *defaultInstallParams
-	params := &paramsCopy
-	for _, option := range options {
-		option(params)
+	params, err := resolveInstallParams(options...)
+	if err != nil {
+		return err
 	}
+
 	switch a.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
 		return a.installLinuxInstallScript(params)
@@ -93,6 +106,79 @@ func (a *Agent) Install(options ...InstallOption) error {
 	default:
 		return fmt.Errorf("unsupported OS family: %v", a.host.RemoteHost.OSFamily)
 	}
+}
+
+var stablePackageVersionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[1-9][0-9]*)?$`)
+
+func resolveInstallParams(options ...InstallOption) (*installParams, error) {
+	params := *defaultInstallParams
+	for _, option := range options {
+		option(&params)
+	}
+	if params.stablePackageVersion != nil {
+		if params.stagingPackages != "" {
+			return nil, errors.New("an exact stable package version cannot be combined with staging packages")
+		}
+		version := strings.TrimPrefix(*params.stablePackageVersion, "v")
+		if !stablePackageVersionPattern.MatchString(version) {
+			return nil, fmt.Errorf("invalid stable package version %q: expected major.minor.patch with an optional numeric package revision", *params.stablePackageVersion)
+		}
+		params.stablePackageVersion = &version
+	}
+	return &params, nil
+}
+
+// pinnedStableEnvironment pins both native packages and OCI packages. The Linux
+// script resolves major + minor (including patch and revision) through the native
+// package manager; the Windows installer consumes the exact OCI package version.
+func (p *installParams) pinnedStableEnvironment() map[string]string {
+	if p.stablePackageVersion == nil {
+		return nil
+	}
+	version := *p.stablePackageVersion
+	major, minor, _ := strings.Cut(version, ".")
+	return map[string]string{
+		"DD_AGENT_MAJOR_VERSION":                         major,
+		"DD_AGENT_MINOR_VERSION":                         minor,
+		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": version,
+	}
+}
+
+func (p *installParams) stableInstallerURL() string {
+	return fmt.Sprintf("https://s3.amazonaws.com/dd-agent/datadog-installer-%s-x86_64.exe", *p.stablePackageVersion)
+}
+
+// NativePackageVersion returns the installed package version, including its
+// revision. Use it before a Fleet upgrade: Linux package-manager registration can
+// retain the original version after the installer promotes an OCI package.
+func (a *Agent) NativePackageVersion() (string, error) {
+	switch a.host.RemoteHost.OSFamily {
+	case e2eos.WindowsFamily:
+		return a.PackageVersion()
+	case e2eos.LinuxFamily:
+		debian := a.host.RemoteHost.OSFlavor == e2eos.Debian || a.host.RemoteHost.OSFlavor == e2eos.Ubuntu
+		command := `rpm -q --qf '%{VERSION}-%{RELEASE}' datadog-agent`
+		if debian {
+			command = `dpkg-query -W -f='${Version}' datadog-agent`
+		}
+		output, err := a.host.RemoteHost.Execute(command)
+		if err != nil {
+			return "", fmt.Errorf("querying installed Agent package: %w", err)
+		}
+		return normalizeNativePackageVersion(output, debian), nil
+	default:
+		return "", fmt.Errorf("unsupported OS family: %v", a.host.RemoteHost.OSFamily)
+	}
+}
+
+func normalizeNativePackageVersion(version string, debian bool) string {
+	version = strings.TrimSpace(version)
+	if debian {
+		if _, withoutEpoch, found := strings.Cut(version, ":"); found {
+			return withoutEpoch
+		}
+	}
+	return version
 }
 
 // MustInstall installs the agent and panics if it fails.
@@ -150,6 +236,9 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		env["DD_AGENT_MINOR_VERSION"] = strings.TrimPrefix(params.stagingPackages, "7.")
 		env["DD_AGENT_DIST_CHANNEL"] = "beta"
 	}
+	for name, value := range params.pinnedStableEnvironment() {
+		env[name] = value
+	}
 	_, err = a.host.RemoteHost.Execute(fmt.Sprintf(`bash -c "$(curl -L %s)"`, linuxInstallScriptURL), client.WithEnvVariables(env))
 	return err
 }
@@ -182,6 +271,12 @@ func (a *Agent) installWindowsInstallExe(params *installParams) error {
 		installerURL = fmt.Sprintf("https://install.datad0g.com/builds/beta/datadog-installer-%s-1-x86_64.exe", strings.ReplaceAll(params.stagingPackages, "~", "-"))
 		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = strings.ReplaceAll(params.stagingPackages, "~", "-") + "-1"
 		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "install.datad0g.com.internal.dda-testing.com"
+	}
+	for name, value := range params.pinnedStableEnvironment() {
+		env[name] = value
+	}
+	if params.stablePackageVersion != nil {
+		installerURL = params.stableInstallerURL()
 	}
 	// Download the installer exe and run it directly, retrying the download since e2e VMs
 	// occasionally hit transient network errors right after boot.

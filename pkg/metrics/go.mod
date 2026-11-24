@@ -14,6 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.71.0-rc.1
 	github.com/stretchr/testify v1.12.1
+	github.com/twmb/murmur3 v1.2.2
 	go.uber.org/atomic v1.12.0
 )
 
@@ -85,7 +86,6 @@ require (
 	github.com/spf13/pflag v1.1.0 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
-	github.com/twmb/murmur3 v1.2.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect

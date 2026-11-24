@@ -11,7 +11,7 @@ permissions: {}
 
 jobs:
   update-k8s-versions:
-    timeout-minutes: 30
+    timeout-minutes: 5
     name: Check for new Kubernetes version
     runs-on: ubuntu-latest
     permissions:

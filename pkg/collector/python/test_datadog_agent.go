@@ -176,6 +176,41 @@ func testObfuscaterConfig(t *testing.T) {
 	assert.Equal(t, expected, obfuscaterConfig)
 }
 
+func testPostgresPlanKeepValues(t *testing.T) {
+	o := obfuscate.NewObfuscator(obfuscate.Config{
+		SQLExecPlan:          defaultSQLPlanObfuscateSettings,
+		SQLExecPlanNormalize: defaultSQLPlanNormalizeSettings,
+	})
+	defer o.Stop()
+
+	rawPlan := `{"Plan":{"Node Type":"ModifyTable","Operation":"Update","Disabled":false,"Plans":[{"Node Type":"Nested Loop","Join Type":"Inner","Inner Unique":true,"Disabled":true,"Startup Cost":0.42,"Total Cost":12.34,"Plan Rows":5,"Plan Width":16,"Filter":"(id = 42)"}]}}`
+
+	obfuscated, err := o.ObfuscateSQLExecPlan(rawPlan, false)
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{"Plan":{"Node Type":"ModifyTable","Operation":"Update","Disabled":false,"Plans":[{"Node Type":"Nested Loop","Join Type":"Inner","Inner Unique":true,"Disabled":true,"Startup Cost":0.42,"Total Cost":12.34,"Plan Rows":5,"Plan Width":16,"Filter":"( id = ? )"}]}}`,
+		obfuscated,
+		"plan definition should preserve Disabled, Inner Unique, and Operation while obfuscating SQL literals",
+	)
+
+	normalized, err := o.ObfuscateSQLExecPlan(rawPlan, true)
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{"Plan":{"Node Type":"ModifyTable","Operation":"?","Disabled":false,"Plans":[{"Node Type":"Nested Loop","Join Type":"Inner","Inner Unique":"?","Disabled":true,"Startup Cost":"?","Total Cost":"?","Plan Rows":"?","Plan Width":"?","Filter":"( id = ? )"}]}}`,
+		normalized,
+		"plan normalization should preserve Disabled for PG 18+ signatures while keeping Inner Unique and Operation obfuscated to avoid pre-PG18 signature churn",
+	)
+
+	// Confirm toggling Disabled changes the normalized output (and therefore db.plan.signature).
+	planDisabledFalse := `{"Plan":{"Node Type":"Seq Scan","Disabled":false}}`
+	planDisabledTrue := `{"Plan":{"Node Type":"Seq Scan","Disabled":true}}`
+	normFalse, err := o.ObfuscateSQLExecPlan(planDisabledFalse, true)
+	require.NoError(t, err)
+	normTrue, err := o.ObfuscateSQLExecPlan(planDisabledTrue, true)
+	require.NoError(t, err)
+	assert.NotEqual(t, normFalse, normTrue)
+}
+
 func testReportIssue(t *testing.T) {
 	hp := healthplatformmock.New(t)
 	SetHealthPlatform(hp)
