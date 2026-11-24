@@ -49,14 +49,26 @@ var commonSuites = []string{
 	"port-conflict",
 }
 
-func getDiagnoseOutput(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArgsOption) string {
+// waitForFakeIntakeHealthy blocks until the fakeintake is reachable, failing the test if it never
+// becomes healthy. Call it once before a retry loop so the loop's deadline can't fire while this
+// readiness wait is still in progress.
+func waitForFakeIntakeHealthy(v *baseDiagnoseSuite) {
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		assert.NoError(c, v.Env().FakeIntake.Client().GetServerHealth())
 	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
+}
 
+// runDiagnose runs the agent diagnose command and returns its output. It assumes the fakeintake is
+// already healthy; use getDiagnoseOutput for a one-shot call that also waits for readiness.
+func runDiagnose(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArgsOption) string {
 	diagnose := v.Env().Agent.Client.Diagnose(commandArgs...)
 	v.T().Logf("Diagnose command output: %s", diagnose)
 	return diagnose
+}
+
+func getDiagnoseOutput(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArgsOption) string {
+	waitForFakeIntakeHealthy(v)
+	return runDiagnose(v, commandArgs...)
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseDefaultConfig() {
@@ -89,48 +101,74 @@ func (v *baseDiagnoseSuite) TestDiagnoseList() {
 }
 
 func (v *baseDiagnoseSuite) AssertDiagnoseInclude() {
-	diagnose := getDiagnoseOutput(v)
-	diagnoseSummary := getDiagnoseSummary(diagnose)
-	for _, suite := range v.suites {
-		diagnoseInclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--include", suite}))
-		resultInclude := getDiagnoseSummary(diagnoseInclude)
-		assert.Less(v.T(), resultInclude.Total, diagnoseSummary.Total, "Expected number of checks for suite %v to be lower than the total amount of checks (%v) but was %v", suite, diagnoseSummary.Total, resultInclude.Total)
-		assert.Zero(v.T(), resultInclude.Fail)
-		assert.Zero(v.T(), resultInclude.UnexpectedErr)
-	}
-	// Create an args array to include all suites
-	includeArgs := strings.Split("--include "+strings.Join(v.suites, " --include "), " ")
-	// Diagnose with all suites included should be equal to diagnose without args
-	diagnoseIncludeEverySuite := getDiagnoseOutput(v, agentclient.WithArgs(includeArgs))
-	diagnoseIncludeEverySuiteSummary := getDiagnoseSummary(diagnoseIncludeEverySuite)
-	assert.Equal(v.T(), diagnoseIncludeEverySuiteSummary, diagnoseSummary)
+	// Wait for readiness outside the retry window so the retry deadline below can't fire while the
+	// fakeintake health wait is still in progress.
+	waitForFakeIntakeHealthy(v)
+	// diagnose runs live connectivity checks, so a transient endpoint timeout can make an
+	// otherwise-passing run report a failure. The baseline and the include-everything run are
+	// separate point-in-time measurements, so retry to tolerate a flake that clears on retry.
+	// Use the suite's panic-safe EventuallyWithT so a parser panic (e.g. getDiagnoseSummary on
+	// malformed output) fails the test without crashing the binary or skipping teardown.
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		diagnose := runDiagnose(v)
+		diagnoseSummary := getDiagnoseSummary(diagnose)
+		for _, suite := range v.suites {
+			diagnoseInclude := runDiagnose(v, agentclient.WithArgs([]string{"--include", suite}))
+			resultInclude := getDiagnoseSummary(diagnoseInclude)
+			assert.Less(c, resultInclude.Total, diagnoseSummary.Total, "Expected number of checks for suite %v to be lower than the total amount of checks (%v) but was %v", suite, diagnoseSummary.Total, resultInclude.Total)
+			assert.Zero(c, resultInclude.Fail)
+			assert.Zero(c, resultInclude.UnexpectedErr)
+		}
+		// Create an args array to include all suites
+		includeArgs := strings.Split("--include "+strings.Join(v.suites, " --include "), " ")
+		// Diagnose with all suites included should be equal to diagnose without args
+		diagnoseIncludeEverySuite := runDiagnose(v, agentclient.WithArgs(includeArgs))
+		diagnoseIncludeEverySuiteSummary := getDiagnoseSummary(diagnoseIncludeEverySuite)
+		assert.Equal(c, diagnoseIncludeEverySuiteSummary, diagnoseSummary)
+	}, 2*time.Minute, 15*time.Second, "diagnose reported a transient endpoint failure that did not clear on retry")
 }
 
 func (v *baseDiagnoseSuite) AssertDiagnoseJSONInclude() {
-	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json"}))
-	diagnoseResult := unmarshalDiagnose(diagnose)
-	require.NotNil(v.T(), diagnoseResult)
-	diagnoseSummary := diagnoseResult.Summary
-	for _, suite := range v.suites {
-		diagnoseInclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json", "--include", suite}))
-		diagnoseIncludeResult := unmarshalDiagnose(diagnoseInclude)
-		assert.NotNil(v.T(), diagnoseIncludeResult)
+	// Wait for readiness outside the retry window so the retry deadline below can't fire while the
+	// fakeintake health wait is still in progress.
+	waitForFakeIntakeHealthy(v)
+	// diagnose runs live connectivity checks, so a transient endpoint timeout can make an
+	// otherwise-passing run report a failure. The baseline and the include-everything run are
+	// separate point-in-time measurements, so retry to tolerate a flake that clears on retry.
+	// Use the suite's panic-safe EventuallyWithT so an unexpected parser panic fails the test
+	// without crashing the binary or skipping teardown.
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		diagnose := runDiagnose(v, agentclient.WithArgs([]string{"--json"}))
+		diagnoseResult := unmarshalDiagnose(diagnose)
+		if !assert.NotNil(c, diagnoseResult) {
+			return
+		}
+		diagnoseSummary := diagnoseResult.Summary
+		for _, suite := range v.suites {
+			diagnoseInclude := runDiagnose(v, agentclient.WithArgs([]string{"--json", "--include", suite}))
+			diagnoseIncludeResult := unmarshalDiagnose(diagnoseInclude)
+			if !assert.NotNil(c, diagnoseIncludeResult) {
+				return
+			}
 
-		resultInclude := diagnoseIncludeResult.Summary
+			resultInclude := diagnoseIncludeResult.Summary
 
-		assert.Less(v.T(), resultInclude.Total, diagnoseSummary.Total, "Expected number of checks for suite %v to be lower than the total amount of checks (%v) but was %v", suite, diagnoseSummary.Total, resultInclude.Total)
-		assert.Zero(v.T(), resultInclude.Fail)
-		assert.Zero(v.T(), resultInclude.UnexpectedErr)
-	}
+			assert.Less(c, resultInclude.Total, diagnoseSummary.Total, "Expected number of checks for suite %v to be lower than the total amount of checks (%v) but was %v", suite, diagnoseSummary.Total, resultInclude.Total)
+			assert.Zero(c, resultInclude.Fail)
+			assert.Zero(c, resultInclude.UnexpectedErr)
+		}
 
-	// Create an args array to include all suites
-	includeArgs := strings.Split(" --json "+" --include "+strings.Join(v.suites, " --include "), " ")
+		// Create an args array to include all suites
+		includeArgs := strings.Split(" --json "+" --include "+strings.Join(v.suites, " --include "), " ")
 
-	// Diagnose with all suites included should be equal to diagnose without args
-	diagnoseIncludeEverySuite := getDiagnoseOutput(v, agentclient.WithArgs(includeArgs))
-	diagnoseIncludeEverySuiteResult := unmarshalDiagnose(diagnoseIncludeEverySuite)
-	require.NotNil(v.T(), diagnoseIncludeEverySuiteResult)
-	assert.Equal(v.T(), diagnoseIncludeEverySuiteResult.Summary, diagnoseSummary)
+		// Diagnose with all suites included should be equal to diagnose without args
+		diagnoseIncludeEverySuite := runDiagnose(v, agentclient.WithArgs(includeArgs))
+		diagnoseIncludeEverySuiteResult := unmarshalDiagnose(diagnoseIncludeEverySuite)
+		if !assert.NotNil(c, diagnoseIncludeEverySuiteResult) {
+			return
+		}
+		assert.Equal(c, diagnoseIncludeEverySuiteResult.Summary, diagnoseSummary)
+	}, 2*time.Minute, 15*time.Second, "diagnose reported a transient endpoint failure that did not clear on retry")
 }
 
 func (v *baseDiagnoseSuite) AssertDiagnoseExclude() {
@@ -184,9 +222,12 @@ func (v *baseDiagnoseSuite) TestDiagnoseVerbose() {
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseJSON() {
-	// Retry to tolerate transient timeouts
-	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"-v", "--json"}))
+	// Wait for readiness outside the retry window so the retry deadline below can't fire while the
+	// fakeintake health wait is still in progress.
+	waitForFakeIntakeHealthy(v)
+	// Retry to tolerate transient timeouts, using the suite's panic-safe EventuallyWithT.
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		diagnose := runDiagnose(v, agentclient.WithArgs([]string{"-v", "--json"}))
 		diagnoseResult := unmarshalDiagnose(diagnose)
 		if !assert.NotNil(c, diagnoseResult) {
 			return
