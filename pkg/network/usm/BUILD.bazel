@@ -30,6 +30,7 @@ go_library(
             "//pkg/ebpf/bytecode",
             "//pkg/ebpf/bytecode/runtime",
             "//pkg/ebpf/ksyms",
+            "//pkg/ebpf/names",
             "//pkg/ebpf/prebuilt",
             "//pkg/ebpf/telemetry",
             "//pkg/ebpf/uprobes",
@@ -77,6 +78,7 @@ go_library(
             "//pkg/ebpf/bytecode",
             "//pkg/ebpf/bytecode/runtime",
             "//pkg/ebpf/ksyms",
+            "//pkg/ebpf/names",
             "//pkg/ebpf/prebuilt",
             "//pkg/ebpf/telemetry",
             "//pkg/ebpf/uprobes",
@@ -222,6 +224,7 @@ dd_agent_go_test(
             "@org_golang_google_grpc//metadata",
             "@org_golang_x_net//http2",
             "@org_golang_x_net//http2/hpack",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
@@ -285,6 +288,7 @@ dd_agent_go_test(
             "@org_golang_google_grpc//metadata",
             "@org_golang_x_net//http2",
             "@org_golang_x_net//http2/hpack",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/network",
