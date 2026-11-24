@@ -35,6 +35,9 @@ import (
 // testAPIKey looks like a real API key so that the scrubber recognizes it
 const testAPIKey = "0123456789abcdef0123456789abcdef"
 
+// testSessionCookie is a secret that no scrubber recognizes, by its value or by the name of its variable
+const testSessionCookie = "c0ffee-cafe-1234-abcd-0123456789"
+
 func newGlobalParamsTest(t *testing.T) *subcommands.GlobalParams {
 	tmpDir := t.TempDir()
 	t.Setenv("TEST_FLARE_API_KEY", testAPIKey)
@@ -111,6 +114,8 @@ func readZip(t *testing.T, zipPath string) map[string][]byte {
 
 func TestCreateOTelFlare(t *testing.T) {
 	globalParams := newGlobalParamsTest(t)
+	t.Setenv("DD_HOSTNAME", "flare-test-host")
+	t.Setenv("SESSION_COOKIE", testSessionCookie)
 	cfg, ipcComp := newUnreachableCollector(t)
 
 	// Create the flare
@@ -157,9 +162,13 @@ func TestCreateOTelFlare(t *testing.T) {
 	assert.Contains(t, string(files["otel-agent.log"]), "did not get otel-agent configuration")
 	assert.Contains(t, string(files["otel-agent.log"]), "won't contain the effective configuration")
 
+	// Only the environment variables that are safe to share are kept: a secret can have any name
+	assert.Contains(t, string(files["environment.json"]), "DD_HOSTNAME")
+
 	// The API key, resolved from the environment, must be scrubbed everywhere
 	for name, content := range files {
 		assert.NotContains(t, string(content), testAPIKey, "API key not scrubbed from %s", name)
+		assert.NotContains(t, string(content), testSessionCookie, "session cookie kept in %s", name)
 	}
 }
 
@@ -194,7 +203,7 @@ func TestCreateOTelFlareFromRunningCollector(t *testing.T) {
 				"zpages/dd-autoconfigured": {URLs: []string{debugHost + "/debug/servicez", debugHost + "/debug/missing"}},
 			},
 		},
-		Environment: map[string]string{"DD_API_KEY": testAPIKey},
+		Environment: map[string]string{"DD_API_KEY": testAPIKey, "DD_SITE": "datadoghq.eu", "SESSION_COOKIE": testSessionCookie},
 	}
 	responseBytes, err := json.Marshal(response)
 	require.NoError(t, err)
@@ -225,12 +234,47 @@ func TestCreateOTelFlareFromRunningCollector(t *testing.T) {
 	assert.Contains(t, string(files["otel-flare/zpages/dd-autoconfigured_debug_servicez.dat"]), "<html>")
 	assert.Contains(t, string(files["otel-flare/zpages/dd-autoconfigured_debug_missing.err"]), "404")
 
+	// Only the environment variables that are safe to share are kept: a secret can have any name
+	assert.Contains(t, string(files["environment.json"]), "DD_SITE")
+
 	for name, content := range files {
 		if name == "otel-flare/pprof_debug_pprof_heap.dat" {
 			continue
 		}
 		assert.NotContains(t, string(content), testAPIKey, "API key not scrubbed from %s", name)
+		assert.NotContains(t, string(content), testSessionCookie, "session cookie kept in %s", name)
 	}
+}
+
+func TestFilterEnvironment(t *testing.T) {
+	cfg := configmock.New(t)
+
+	env := map[string]string{
+		// Bound to a setting of the configuration
+		"DD_SITE":     "datadoghq.eu",
+		"DD_HOSTNAME": "my-host",
+		// Not bound to a setting, but kept
+		"HTTPS_PROXY": "http://proxy:3128",
+		"https_proxy": "http://proxy:3128",
+		"GOMEMLIMIT":  "400MiB",
+		// Bound to a sensitive setting of the schema, without _KEY nor _AUTH_TOKEN in the name
+		"DD_APM_ADDITIONAL_ENDPOINTS": `{"https://example.com": ["` + testAPIKey + `"]}`,
+		// Credentials by their name
+		"DD_API_KEY":                  testAPIKey,
+		"DD_CLUSTER_AGENT_AUTH_TOKEN": "token",
+		// Unknown: it could hold anything
+		"SESSION_COOKIE": testSessionCookie,
+		"MY_DB_PASSWORD": "hunter2",
+		"PATH":           "/usr/bin",
+	}
+
+	assert.Equal(t, map[string]string{
+		"DD_SITE":     "datadoghq.eu",
+		"DD_HOSTNAME": "my-host",
+		"HTTPS_PROXY": "http://proxy:3128",
+		"https_proxy": "http://proxy:3128",
+		"GOMEMLIMIT":  "400MiB",
+	}, filterEnvironment(env, cfg))
 }
 
 // TestScrubResponseStructuredSecrets checks secrets that the text scrubber alone misses once

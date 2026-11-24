@@ -9,7 +9,8 @@
 security:
   - |
     ``otel-agent flare`` now scrubs credentials, such as the API key, from the
-    flare archive.
+    flare archive, and only keeps the environment variables that are safe to
+    share, like the core Agent flare does.
 fixes:
   - |
     ``otel-agent flare`` now collects the effective configuration and the

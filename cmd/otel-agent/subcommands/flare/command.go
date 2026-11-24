@@ -211,6 +211,7 @@ func createOTelFlare(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader
 	if err != nil {
 		return "", fmt.Errorf("failed to collect OTel data: %w", err)
 	}
+	data.Environment = filterEnvironment(data.Environment, cfg)
 	// Scrub the data before serializing it: once embedded in JSON, secrets are out of reach of the
 	// text scrubber applied to every file of the archive.
 	data, err = scrubResponse(data)

@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "flare",
-    srcs = ["command.go"],
+    srcs = [
+        "command.go",
+        "envvars.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/flare",
     visibility = ["//visibility:public"],
     deps = [
