@@ -24,6 +24,7 @@ type testOpts struct {
 	enableSecurityProfile                   bool
 	securityProfileNodeEvictionTimeout      time.Duration
 	securityProfileSampleRefreshPeriod      time.Duration
+	securityProfileMaxImageTags             int
 	enableAnomalyDetection                  bool
 	workloadProfileStorageDir               string
 	workloadProfilePersistencePeriod        time.Duration
@@ -45,6 +46,7 @@ type testOpts struct {
 	enableFIM                               bool // only valid on windows
 	networkIngressEnabled                   bool
 	networkRawPacketEnabled                 bool
+	networkTCXEnabled                       bool
 	disableOnDemandRateLimiter              bool
 	ebpfLessEnabled                         bool
 	dontWaitEBPFLessClient                  bool

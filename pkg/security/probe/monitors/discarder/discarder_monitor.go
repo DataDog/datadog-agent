@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Stats is used to collect kernel space metrics about discarders
@@ -89,9 +88,9 @@ func (d *Monitor) SendStats() error {
 
 // NewDiscarderMonitor returns a new Monitor
 func NewDiscarderMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
-	numCPU, err := utils.NumCPU()
+	numCPU, err := lib.PossibleCPU()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
+		return nil, fmt.Errorf("couldn't fetch the possible CPU count: %w", err)
 	}
 
 	d := &Monitor{

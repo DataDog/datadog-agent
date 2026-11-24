@@ -12,12 +12,14 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 )
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname string) (*RuntimeSecurityAgent, error) {
-	client, err := NewRuntimeSecurityCmdClient()
+func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname string, ipc ipc.Component) (*RuntimeSecurityAgent, error) {
+	client, err := NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return nil, err
 	}
@@ -30,6 +32,7 @@ func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname strin
 
 	rsa := &RuntimeSecurityAgent{
 		cmdClient:            client,
+		ipc:                  ipc,
 		statsdClient:         statsdClient,
 		hostname:             hostname,
 		storage:              storage,

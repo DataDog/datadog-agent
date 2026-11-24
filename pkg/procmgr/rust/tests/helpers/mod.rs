@@ -720,7 +720,9 @@ impl DaemonHandle {
         socket_path: &Path,
         extra_env: &[(&str, &str)],
     ) -> Self {
-        let bin = env!("CARGO_BIN_EXE_dd-procmgrd");
+        // Read at run time: some envs (e.g. AIX) drop names with '-' at compile time.
+        let bin =
+            std::env::var("CARGO_BIN_EXE_dd-procmgrd").expect("CARGO_BIN_EXE_dd-procmgrd not set");
 
         let mut cmd = Command::new(bin);
         cmd.env("DD_PM_CONFIG_DIR", config_dir)
@@ -1168,7 +1170,9 @@ impl CliRunner {
 
     /// Run a dd-procmgr command and capture output.
     fn run(&self, args: &[&str]) -> CliOutput {
-        let bin = env!("CARGO_BIN_EXE_dd-procmgr");
+        // Read at run time: some envs (e.g. AIX) drop names with '-' at compile time.
+        let bin =
+            std::env::var("CARGO_BIN_EXE_dd-procmgr").expect("CARGO_BIN_EXE_dd-procmgr not set");
         let output = Command::new(bin)
             .arg("--socket")
             .arg(&self.socket_path)

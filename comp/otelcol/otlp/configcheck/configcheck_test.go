@@ -614,3 +614,278 @@ otlp_config:
 
 	assert.Equal(t, expectMap, configSection)
 }
+
+func TestDataPlaneOTLPModes(t *testing.T) {
+	const (
+		plaintext = `
+otlp_config:
+  receiver:
+    protocols:
+      grpc:
+      http:
+`
+		grpcTLS = `
+otlp_config:
+  receiver:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        tls:
+          cert_file: /etc/datadog-agent/otlp/cert.pem
+          key_file: /etc/datadog-agent/otlp/key.pem
+      http:
+        endpoint: 0.0.0.0:4318
+`
+		httpTLS = `
+otlp_config:
+  receiver:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        tls:
+          cert_file: /etc/datadog-agent/otlp/cert.pem
+          key_file: /etc/datadog-agent/otlp/key.pem
+`
+		bothTLS = `
+otlp_config:
+  receiver:
+    protocols:
+      grpc:
+        tls:
+          cert_file: /etc/datadog-agent/otlp/cert.pem
+      http:
+        tls:
+          cert_file: /etc/datadog-agent/otlp/cert.pem
+`
+		bareTLS = `
+otlp_config:
+  receiver:
+    protocols:
+      grpc:
+        tls:
+`
+		nullTLS = `
+otlp_config:
+  receiver:
+    protocols:
+      http:
+        tls: null
+`
+		emptyTLS = `
+otlp_config:
+  receiver:
+    protocols:
+      grpc:
+        tls: {}
+`
+		unixTLS = `
+otlp_config:
+  receiver:
+    protocols:
+      grpc:
+        transport: unix
+        endpoint: /tmp/configured-otlp.sock
+        tls:
+          cert_file: /etc/datadog-agent/otlp/cert.pem
+          key_file: /etc/datadog-agent/otlp/key.pem
+`
+	)
+	env := func(sets ...map[string]string) map[string]string {
+		merged := map[string]string{}
+		for _, set := range sets {
+			for key, value := range set {
+				merged[key] = value
+			}
+		}
+		return merged
+	}
+	dataPlane := map[string]string{"DD_DATA_PLANE_ENABLED": "true", "DD_DATA_PLANE_OTLP_ENABLED": "true"}
+	proxyLogs := map[string]string{"DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_LOGS": "true"}
+	proxyMetrics := map[string]string{"DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_METRICS": "true"}
+	proxyTraces := map[string]string{"DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_TRACES": "true"}
+	proxyAll := env(proxyLogs, proxyMetrics, proxyTraces)
+
+	tests := []struct {
+		name          string
+		yaml          string
+		env           map[string]string
+		proxy         bool
+		dataPlaneOnly bool
+		agentPipeline bool
+		traceReceiver bool
+		errContains   []string
+	}{
+		{
+			name:          "data plane disabled",
+			yaml:          grpcTLS,
+			env:           env(proxyAll, map[string]string{"DD_DATA_PLANE_ENABLED": "false", "DD_DATA_PLANE_OTLP_ENABLED": "true"}),
+			agentPipeline: true,
+			traceReceiver: true,
+		},
+		{
+			name:          "data plane OTLP disabled",
+			yaml:          grpcTLS,
+			env:           env(proxyAll, map[string]string{"DD_DATA_PLANE_ENABLED": "true", "DD_DATA_PLANE_OTLP_ENABLED": "false"}),
+			agentPipeline: true,
+			traceReceiver: true,
+		},
+		{
+			name:          "data plane unset",
+			yaml:          grpcTLS,
+			env:           env(proxyAll, map[string]string{"DD_DATA_PLANE_OTLP_ENABLED": "true"}),
+			agentPipeline: true,
+			traceReceiver: true,
+		},
+		{
+			name:          "data plane OTLP unset",
+			yaml:          grpcTLS,
+			env:           env(proxyAll, map[string]string{"DD_DATA_PLANE_ENABLED": "true"}),
+			agentPipeline: true,
+			traceReceiver: true,
+		},
+		{
+			name: "data plane disabled without receiver",
+			env:  proxyAll,
+		},
+		{
+			name:          "data plane only",
+			yaml:          plaintext,
+			env:           dataPlane,
+			dataPlaneOnly: true,
+		},
+		{
+			name:          "data plane only allows TLS",
+			yaml:          bothTLS,
+			env:           dataPlane,
+			dataPlaneOnly: true,
+		},
+		{
+			name:          "data plane only without receiver",
+			env:           dataPlane,
+			dataPlaneOnly: true,
+		},
+		{
+			name:          "proxy logs",
+			yaml:          plaintext,
+			env:           env(dataPlane, proxyLogs),
+			proxy:         true,
+			agentPipeline: true,
+			traceReceiver: true,
+		},
+		{
+			name:          "proxy metrics",
+			yaml:          plaintext,
+			env:           env(dataPlane, proxyMetrics),
+			proxy:         true,
+			agentPipeline: true,
+			traceReceiver: true,
+		},
+		{
+			name:          "proxy traces",
+			yaml:          plaintext,
+			env:           env(dataPlane, proxyTraces),
+			proxy:         true,
+			agentPipeline: true,
+			traceReceiver: true,
+		},
+		{
+			name:          "proxy all signals",
+			yaml:          plaintext,
+			env:           env(dataPlane, proxyAll),
+			proxy:         true,
+			agentPipeline: true,
+			traceReceiver: true,
+		},
+		{
+			name:  "proxy without receiver",
+			env:   env(dataPlane, proxyTraces),
+			proxy: true,
+		},
+		{
+			name:          "proxy rejects gRPC TLS mixed with plaintext HTTP",
+			yaml:          grpcTLS,
+			env:           env(dataPlane, proxyMetrics),
+			proxy:         true,
+			agentPipeline: true,
+			errContains: []string{
+				"remove tls from otlp_config.receiver.protocols.grpc, or set data_plane.experimental.otlp.proxy.metrics to false",
+			},
+		},
+		{
+			name:          "proxy rejects HTTP TLS",
+			yaml:          httpTLS,
+			env:           env(dataPlane, proxyLogs),
+			proxy:         true,
+			agentPipeline: true,
+			errContains:   []string{"remove tls from otlp_config.receiver.protocols.http, or set data_plane.experimental.otlp.proxy.logs to false"},
+		},
+		{
+			name:          "proxy rejects TLS on both protocols",
+			yaml:          bothTLS,
+			env:           env(dataPlane, proxyAll),
+			proxy:         true,
+			agentPipeline: true,
+			errContains: []string{
+				"remove tls from otlp_config.receiver.protocols.grpc and otlp_config.receiver.protocols.http, " +
+					"or set data_plane.experimental.otlp.proxy.logs and data_plane.experimental.otlp.proxy.metrics and " +
+					"data_plane.experimental.otlp.proxy.traces to false",
+			},
+		},
+		{
+			name:          "proxy rejects bare TLS section",
+			yaml:          bareTLS,
+			env:           env(dataPlane, proxyTraces),
+			proxy:         true,
+			agentPipeline: true,
+			errContains:   []string{"otlp_config.receiver.protocols.grpc,"},
+		},
+		{
+			name:          "proxy rejects null TLS section",
+			yaml:          nullTLS,
+			env:           env(dataPlane, proxyTraces),
+			proxy:         true,
+			agentPipeline: true,
+			errContains:   []string{"otlp_config.receiver.protocols.http,"},
+		},
+		{
+			name:          "proxy rejects empty TLS section",
+			yaml:          emptyTLS,
+			env:           env(dataPlane, proxyTraces),
+			proxy:         true,
+			agentPipeline: true,
+			errContains:   []string{"otlp_config.receiver.protocols.grpc,"},
+		},
+		{
+			name:          "proxy rejects TLS with Unix transport",
+			yaml:          unixTLS,
+			env:           env(dataPlane, proxyTraces),
+			proxy:         true,
+			agentPipeline: true,
+			errContains:   []string{"otlp_config.receiver.protocols.grpc,"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for key, value := range tt.env {
+				t.Setenv(key, value)
+			}
+			cfg := configmock.NewFromYAML(t, tt.yaml)
+
+			assert.Equal(t, tt.proxy, IsDataPlaneProxyEnabled(cfg), "IsDataPlaneProxyEnabled")
+			assert.Equal(t, tt.dataPlaneOnly, IsDataPlaneOnlyEnabled(cfg), "IsDataPlaneOnlyEnabled")
+			assert.Equal(t, tt.agentPipeline, IsAgentPipelineEnabled(cfg), "IsAgentPipelineEnabled")
+			assert.Equal(t, tt.traceReceiver, IsTraceInternalReceiverEnabled(cfg), "IsTraceInternalReceiverEnabled")
+			assert.Equal(t, tt.yaml != "", IsEnabled(cfg), "IsEnabled")
+
+			err := ValidateDataPlaneProxy(cfg)
+			if len(tt.errContains) == 0 {
+				assert.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, ErrDataPlaneProxyTLS)
+			for _, contains := range tt.errContains {
+				assert.ErrorContains(t, err, contains)
+			}
+		})
+	}
+}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/port/portlist"
+	"github.com/DataDog/datadog-agent/pkg/util/port/sockdiag"
 )
 
 var (
@@ -34,7 +35,7 @@ var (
 // fetchService, which is invoked sequentially by the direct sender.
 func getListeningPortToPIDMap() map[listenKey]int32 {
 	portPollerOnce.Do(func() {
-		portPoller = &portlist.Poller{IncludeLocalhost: true}
+		portPoller = portlist.NewTCPPoller(true, sockdiag.TCPListeners)
 	})
 
 	ports, changed, err := portPoller.Poll()

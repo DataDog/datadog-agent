@@ -61,7 +61,7 @@ func TestLoadCustomSchemaEnforcement(t *testing.T) {
 			config.SetConfigFile(configPath)
 
 			// schema.enforce is read once the file is loaded, so it can come from the file itself
-			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, config))
+			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, config, false))
 			assert.Equal(t, tc.hostname, config.GetString("hostname"))
 		})
 	}
@@ -79,7 +79,7 @@ func TestLoadCustomSchemaEnforcementFromAnotherConfig(t *testing.T) {
 			require.NoError(t, os.WriteFile(configPath, []byte("hostname: invalid\n"), 0o600))
 			config.SetConfigFile(configPath)
 
-			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, ddConf))
+			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, ddConf, false))
 			if enforce {
 				assert.Equal(t, "", config.GetString("hostname"))
 			} else {
@@ -582,12 +582,13 @@ func TestProxy(t *testing.T) {
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
 					&pkgconfigmodel.Proxy{
-						HTTP:  "http_url",
-						HTTPS: "https_url",
+						HTTP:    "http_url",
+						HTTPS:   "https_url",
+						NoProxy: []string{},
 					},
 					config.GetProxies())
 				fmt.Printf("%#v\n", config.Get("proxy.no_proxy"))
-				assert.Equal(t, []string(nil), config.Get("proxy.no_proxy"))
+				assert.Equal(t, []string{}, config.Get("proxy.no_proxy"))
 			},
 			proxyForCloudMetadata: true,
 		},
@@ -642,7 +643,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{})
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{}, false)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -759,7 +760,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{})
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{}, false)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1533,7 +1534,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1581,7 +1582,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1596,17 +1597,16 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	require.Equal(t, "different", config.Get("secret_backend_command"))
 
 	assert.Equal(t,
-		map[string]interface{}(
-			map[string]interface{}{
-				"https://url1.com": []interface{}{"first", "changed"},
-				"https://url2.eu":  []interface{}{"third"},
-			}),
+		map[string][]string{
+			"https://url1.com": {"first", "changed"},
+			"https://url2.eu":  {"third"},
+		},
 		config.Get("additional_endpoints"))
 	assert.Equal(t,
-		map[string]interface{}(
-			map[string]interface{}{
-				"https://url1.com": []interface{}{"fourth", "fifth"},
-				"https://url2.eu":  []interface{}{"modified"}}),
+		map[string][]string{
+			"https://url1.com": {"fourth", "fifth"},
+			"https://url2.eu":  {"modified"},
+		},
 		config.Get("process_config.additional_endpoints"))
 }
 
@@ -1623,7 +1623,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
@@ -1676,7 +1676,7 @@ use_proxy_for_cloud_metadata: true
 		"diff_url": "second_value",
 	})
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = resolveSecrets(config, resolver, "unit_test")
@@ -1723,15 +1723,40 @@ additional_endpoints:
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
 	assert.NoError(t, err)
 
 	assert.Equal(t,
-		map[string]string{"0": "apple", "1": "banana", "2": "cherry"},
-		config.GetStringMapString("additional_endpoints"),
+		map[string][]string{"0": {"apple"}, "1": {"banana"}, "2": {"cherry"}},
+		config.GetStringMapStringSlice("additional_endpoints"),
+	)
+}
+
+func TestConfigAssignAtPathStringMap(t *testing.T) {
+	testStringMapConf := []byte(`
+kubernetes_node_labels_as_tags:
+  label.one: ENC[tag1]
+  label.two: ENC[tag2]
+`)
+	config := newTestConf(t)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testStringMapConf, 0o600)
+	config.SetConfigFile(configPath)
+
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"kubernetes_node_labels_as_tags", "label.one"}, "first")
+	assert.NoError(t, err)
+	err = configAssignAtPath(config, []string{"kubernetes_node_labels_as_tags", "label.two"}, "second")
+	assert.NoError(t, err)
+
+	assert.Equal(t,
+		map[string]string{"label.one": "first", "label.two": "second"},
+		config.GetStringMapString("kubernetes_node_labels_as_tags"),
 	)
 }
 
@@ -1872,7 +1897,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), noopSchemaValidator{})
+	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), noopSchemaValidator{}, false)
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -2058,64 +2083,6 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			assert.Equal(t, tt.wantSource, cfg.GetSource("data_plane.enabled"))
 		})
 	}
-}
-
-func TestApplyKubernetesHealthPlatformDefault(t *testing.T) {
-	const key = "health_platform.enabled"
-	setKubernetes := func(t *testing.T, k8s bool) {
-		t.Setenv("KUBERNETES_SERVICE_PORT", "")
-		t.Setenv("DD_EKS_FARGATE", "")
-		if k8s {
-			t.Setenv("KUBERNETES", "yes")
-		} else {
-			t.Setenv("KUBERNETES", "")
-		}
-	}
-
-	t.Run("non-kubernetes keeps it enabled by default", func(t *testing.T) {
-		setKubernetes(t, false)
-		config := newTestConf(t)
-		applyKubernetesHealthPlatformDefault(config)
-		assert.True(t, config.GetBool(key))
-	})
-
-	t.Run("kubernetes disables it by default", func(t *testing.T) {
-		setKubernetes(t, true)
-		config := newTestConf(t)
-		applyKubernetesHealthPlatformDefault(config)
-		assert.False(t, config.GetBool(key))
-		assert.False(t, config.IsConfigured(key))
-	})
-
-	t.Run("eks fargate disables it by default", func(t *testing.T) {
-		setKubernetes(t, false)
-		t.Setenv("DD_EKS_FARGATE", "true")
-		config := newTestConf(t)
-		applyKubernetesHealthPlatformDefault(config)
-		assert.False(t, config.GetBool(key))
-	})
-
-	t.Run("explicit true wins on kubernetes", func(t *testing.T) {
-		setKubernetes(t, true)
-		config := confFromYAML(t, "health_platform:\n  enabled: true\n")
-		applyKubernetesHealthPlatformDefault(config)
-		assert.True(t, config.GetBool(key))
-	})
-
-	t.Run("explicit true from env var wins on kubernetes", func(t *testing.T) {
-		setKubernetes(t, true)
-		t.Setenv("DD_HEALTH_PLATFORM_ENABLED", "true")
-		config := newTestConf(t)
-		applyKubernetesHealthPlatformDefault(config)
-		assert.True(t, config.GetBool(key))
-	})
-
-	t.Run("explicit false wins off kubernetes", func(t *testing.T) {
-		setKubernetes(t, false)
-		config := confFromYAML(t, "health_platform:\n  enabled: false\n")
-		applyKubernetesHealthPlatformDefault(config)
-		assert.False(t, config.GetBool(key))
-	})
 }
 
 func TestApplyKubernetesContainerDefaults(t *testing.T) {

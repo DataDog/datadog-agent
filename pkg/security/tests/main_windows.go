@@ -10,6 +10,11 @@ package tests
 
 import "errors"
 
+// checkContainerRuntime returns an error when containers can't be run on this host
+func checkContainerRuntime() error {
+	return nil
+}
+
 // getPIDCGroup returns the path of the first cgroup found for a PID
 func getPIDCGroup(pid uint32) (string, error) {
 	return "", errors.New("cgroups are not supported on Windows")
