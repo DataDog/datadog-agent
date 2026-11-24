@@ -194,9 +194,6 @@ func TestControllerRejects(t *testing.T) {
 			d.Spec.Template.Spec.Containers[0].SecurityContext = &corev1.SecurityContext{Privileged: ptr.To(true)}
 		},
 		"missing container": func(d *appsv1.Deployment) { d.Spec.Template.Spec.Containers[0].Name = "other" },
-		"not narrowing": func(d *appsv1.Deployment) {
-			d.Spec.Template.Spec.Containers[0].SecurityContext = &corev1.SecurityContext{Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}}}
-		},
 		"only minReadySeconds, no probe": func(d *appsv1.Deployment) {
 			d.Spec.MinReadySeconds = 30
 			d.Spec.Template.Spec.Containers[0].ReadinessProbe = nil
@@ -429,6 +426,30 @@ func TestControllerRevertAndExpiry(t *testing.T) {
 			assert.Equal(t, tt.status, c.status["req-1"])
 		})
 	}
+}
+
+func TestControllerRejectsCapabilityOfSomeRuntimesOnly(t *testing.T) {
+	c, client, _ := newTestController(t, testDeployment(nil), rawRequest(t, func(m map[string]any) {
+		m["parameters"] = map[string]any{"capabilities_add": []string{"NET_RAW"}}
+	}))
+	c.reconcile(context.Background())
+
+	assert.Empty(t, getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+	assert.Contains(t, c.status["req-1"], "rejected", "the nodes' runtimes are not known yet")
+}
+
+func TestControllerSupersededBeforeApplying(t *testing.T) {
+	d := testDeployment(nil)
+	d.Spec.Template.Spec.Containers[0].SecurityContext = &corev1.SecurityContext{
+		Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+	}
+	c, client, _ := newTestController(t, d, rawRequest(t, nil))
+	c.reconcile(context.Background())
+
+	assert.Empty(t, getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation], "no rollout")
+	assert.Contains(t, c.status["req-1"], "superseded")
+	_, real := patches(client)
+	assert.Zero(t, real)
 }
 
 func TestControllerRetireLeavesSupersededInPlace(t *testing.T) {
@@ -734,27 +755,28 @@ func TestStartWithRequestsFileReturnsStore(t *testing.T) {
 	assert.NotNil(t, store)
 }
 
-func TestRefreshImplicitCapabilities(t *testing.T) {
+func TestRefreshDefaults(t *testing.T) {
 	node := func(name, runtime string) *corev1.Node {
 		return &corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{Name: name},
 			Status:     corev1.NodeStatus{NodeInfo: corev1.NodeSystemInfo{ContainerRuntimeVersion: runtime}},
 		}
 	}
+	docker := Defaults{Capabilities: dockerCapabilities, Exact: true}
 	ctx := context.Background()
 	store := NewStore(testCluster)
-	assert.Equal(t, implicitCapabilities, store.ImplicitCapabilities(), "the intersection until the nodes are listed")
+	assert.Equal(t, fallbackDefaults, store.Defaults(), "the intersection until the nodes are listed")
 
 	client := fake.NewClientset(node("a", "containerd://1.7.2"), node("b", "containerd://2.0.0"))
-	refreshImplicitCapabilities(ctx, client, store)
-	assert.Equal(t, dockerCapabilities, store.ImplicitCapabilities())
+	refreshDefaults(ctx, client, store)
+	assert.Equal(t, docker, store.Defaults())
 
 	client.PrependReactor("list", "nodes", func(k8stesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("forbidden")
 	})
-	refreshImplicitCapabilities(ctx, client, store)
-	assert.Equal(t, dockerCapabilities, store.ImplicitCapabilities(), "a failed listing keeps the previous set")
+	refreshDefaults(ctx, client, store)
+	assert.Equal(t, docker, store.Defaults(), "a failed listing keeps the previous defaults")
 
-	refreshImplicitCapabilities(ctx, fake.NewClientset(node("a", "containerd://1.7.2"), node("c", "cri-o://1.29.1")), store)
-	assert.Equal(t, implicitCapabilities, store.ImplicitCapabilities())
+	refreshDefaults(ctx, fake.NewClientset(node("a", "containerd://1.7.2"), node("c", "cri-o://1.29.1")), store)
+	assert.Equal(t, fallbackDefaults, store.Defaults())
 }
