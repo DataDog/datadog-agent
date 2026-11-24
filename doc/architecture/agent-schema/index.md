@@ -58,7 +58,7 @@ The schema files under `pkg/config/schema/yaml/` are the source of truth and are
 - `schema.codegen` generates the Go files that register the settings into `pkg/config/setup/generatedsettings_local`, which in-repo builds use. Bazel runs the same logic automatically via `//pkg/config/setup/generatedsettings_local:codegen_settings`.
 - `schema.codegen-snapshot` refreshes `pkg/config/setup/generatedsettings`, the committed snapshot of those files that external consumers of `pkg/config/setup` (such as the OTel Collector) build against. See [the generated settings snapshot](#the-generated-settings-snapshot).
 - `schema.template` renders the shipped `datadog.yaml.example` and `system-probe.yaml.example` files.
-- `schema.produce-embedded` / `schema.compress` build the artifact embedded into the Agent binary; `schema.produce-jsonschema` builds the pure JSON Schema for external consumers.
+- `schema.produce-embedded` / `schema.compress` build the artifact embedded into the Agent binary; `schema.produce-jsonschema` builds the pure JSON Schema for external consumers. It keeps only standard JSON Schema keywords. Both it and the embedded schema replace the custom Agent formats (`format: duration`, `format: url`) with the regexp they stand for, so the Agent and external tools validate those values the same way (see [`format`](../../reference/agent-schema/keywords.md#format)).
 - `schema.locate` finds where a setting is declared.
 
 ## The generated settings snapshot

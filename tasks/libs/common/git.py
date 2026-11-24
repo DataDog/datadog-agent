@@ -245,6 +245,16 @@ def get_commit_sha(ctx, commit="HEAD", short=False) -> str:
     return ctx.run(f"git rev-parse {'--short ' if short else ''}{commit}", hide=True).stdout.strip()
 
 
+def ref_exists(ctx, ref: str) -> bool:
+    """
+    Checks if `ref` (a branch, a tag or a commit SHA) resolves to a commit
+    """
+    from tasks.libs.common.utils import join_command  # Imported here because utils imports this module.
+
+    command = join_command(["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
+    return ctx.run(command, hide=True, warn=True).ok
+
+
 def get_main_parent_commit(ctx) -> str:
     """
     Get the commit sha from the LCA between main and the current branch

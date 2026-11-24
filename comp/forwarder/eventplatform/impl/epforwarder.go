@@ -110,7 +110,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	case p.in <- e:
 		return nil
 	default:
-		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider increasing batch_max_concurrent_send", eventType, cap(p.in))
+		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider setting input_chan_size above %d or increasing batch_max_concurrent_send", eventType, cap(p.in), cap(p.in))
 	}
 }
 
