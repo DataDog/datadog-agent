@@ -333,7 +333,7 @@ func (l *SNMPListener) checkDeviceInfo(authentication snmp.Authentication, port 
 	}
 
 	// sysUptime is in hundredths of a second, convert it to milliseconds
-	uptime := time.Duration(sysUptime*10) * time.Millisecond
+	uptime := time.Duration(sysUptime) * 10 * time.Millisecond
 
 	bootTimestamp := time.Now().Add(-uptime).UnixMilli()
 
