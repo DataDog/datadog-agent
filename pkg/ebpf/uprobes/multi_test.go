@@ -53,7 +53,7 @@ func TestMultiUprobeGroupsAndReturnSemantics(t *testing.T) {
 	var links []*testMultiLink
 	var returns []bool
 	var offsets [][]uint64
-	ua.attachMulti = func(_ string, _ *ebpf.Program, locations []uint64, ret bool) (io.Closer, error) {
+	ua.multi.attach = func(_ string, _ *ebpf.Program, locations []uint64, ret bool) (io.Closer, error) {
 		l := &testMultiLink{}
 		links = append(links, l)
 		returns = append(returns, ret)
@@ -74,14 +74,14 @@ func TestMultiUprobeGroupsAndReturnSemantics(t *testing.T) {
 	for _, l := range links {
 		require.Equal(t, 1, l.closed, "a failed close must not prevent other groups being closed")
 	}
-	require.Empty(t, ua.fileIDToMultiLinks)
+	require.Empty(t, ua.multi.links)
 }
 
 func TestMultiUprobePrefixedReturnProbe(t *testing.T) {
 	ua := multiTestAttacher(t)
-	ua.multiPrograms["nodejs_uretprobe__SSL_read"] = &ebpf.Program{}
+	ua.multi.programs["nodejs_uretprobe__SSL_read"] = &ebpf.Program{}
 	var returnProbe bool
-	ua.attachMulti = func(_ string, _ *ebpf.Program, offsets []uint64, ret bool) (io.Closer, error) {
+	ua.multi.attach = func(_ string, _ *ebpf.Program, offsets []uint64, ret bool) (io.Closer, error) {
 		require.Equal(t, []uint64{42}, offsets)
 		returnProbe = ret
 		return &testMultiLink{}, nil
@@ -97,7 +97,7 @@ func TestMultiUprobeRegistryReferencesAndRollback(t *testing.T) {
 		t.Run(map[bool]string{false: "shared inode and reattach", true: "partial attachment failure"}[fail], func(t *testing.T) {
 			ua := multiTestAttacher(t)
 			var links []*testMultiLink
-			ua.attachMulti = func(_ string, _ *ebpf.Program, _ []uint64, _ bool) (io.Closer, error) {
+			ua.multi.attach = func(_ string, _ *ebpf.Program, _ []uint64, _ bool) (io.Closer, error) {
 				if fail && len(links) == 1 {
 					return nil, errors.New("attach failure")
 				}
@@ -119,7 +119,7 @@ func TestMultiUprobeRegistryReferencesAndRollback(t *testing.T) {
 				require.ErrorContains(t, register(uint32(os.Getpid())), "attach failure")
 				require.Len(t, links, 1)
 				require.Equal(t, 1, links[0].closed)
-				require.Empty(t, ua.fileIDToMultiLinks)
+				require.Empty(t, ua.multi.links)
 				return
 			}
 			require.NoError(t, register(uint32(os.Getpid())))
@@ -143,7 +143,7 @@ func TestMultiUprobeRejectsMissingProgramOrLocations(t *testing.T) {
 	ua := multiTestAttacher(t)
 	selector := multiTestSelector("uprobe__foo__return")
 	require.ErrorContains(t, ua.attachProbeSelector(selector, utils.FilePath{}, "", &AttachRule{}, map[string]bininspect.FunctionMetadata{"foo": {}}), "no probe locations")
-	delete(ua.multiPrograms, "uprobe__foo__return")
+	delete(ua.multi.programs, "uprobe__foo__return")
 	require.ErrorContains(t, ua.attachProbeSelector(selector, utils.FilePath{}, "", &AttachRule{}, map[string]bininspect.FunctionMetadata{"foo": {ReturnLocations: []uint64{1}}}), "missing multi-uprobe program")
 }
 
