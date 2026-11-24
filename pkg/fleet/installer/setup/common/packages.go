@@ -71,6 +71,7 @@ var (
 		DatadogAPMLibraryDotNetPackage,
 		DatadogAPMLibraryPHPPackage,
 		DatadogAPMLibraryNginxPackage,
+		DatadogAPMLibraryHttpdPackage,
 	}
 
 	// ExplicitOnlyApmLibraries are apm libraries that must be named in
@@ -81,7 +82,6 @@ var (
 	ExplicitOnlyApmLibraries = []string{
 		DatadogAPMLibraryIISPackage,
 		DatadogAPMLibraryIISRumPackage,
-		DatadogAPMLibraryHttpdPackage,
 		DatadogAPMLibraryCPackage,
 	}
 )

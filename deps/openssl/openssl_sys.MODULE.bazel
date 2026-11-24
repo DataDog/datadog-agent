@@ -13,5 +13,6 @@ crate.annotation(
         "OPENSSL_DIR": "$(execpath @openssl//:gen_dir)",
     },
     crate = "openssl-sys",
+    gen_build_script = "on",  # silence rules_rs' well-known annotation warning
     link_deps = ["@@//deps/openssl:openssl_sys_link_inputs"],
 )

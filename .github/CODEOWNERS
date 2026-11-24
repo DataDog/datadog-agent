@@ -454,6 +454,7 @@
 /doc/guidelines/components.md                                @DataDog/agent-runtimes
 /doc/reference/components/                                   @DataDog/agent-runtimes
 /doc/how-to/run-jmxfetch.md                                  @DataDog/agent-runtimes
+/doc/how-to/actions/                                        @DataDog/action-platform
 /docs/public/hostname/                                       @DataDog/agent-runtimes
 /doc/architecture/dogstatsd/                                 @DataDog/agent-metric-pipelines
 /doc/how-to/test/e2e/benchmarkeks/                           @DataDog/container-integrations
@@ -836,6 +837,7 @@
 /pkg/fleet/installer/msi/                                             @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/**/windows/                                                @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/installer/setup/djm/                                       @DataDog/fleet @DataDog/data-observability
+/pkg/fleet/installer/setup/gpu/                                       @DataDog/accelerator-telemetry @DataDog/fleet
 /pkg/inventory/                                                       @DataDog/windows-products
 /pkg/inventory/software/                                              @DataDog/windows-products
 /pkg/inventory/systeminfo/                                            @DataDog/windows-products
@@ -1226,6 +1228,7 @@
 /test/new-e2e/tests/fleet                                       @DataDog/fleet
 /test/new-e2e/tests/installer                                   @DataDog/fleet
 /test/new-e2e/tests/installer/script                            @DataDog/fleet @DataDog/data-observability
+/test/new-e2e/tests/installer/script/databricks_gpu_test.go     @DataDog/accelerator-telemetry @DataDog/fleet
 /test/new-e2e/tests/sbom                                        @DataDog/agent-security
 # windows-products primary owner for windows tests so we get failure notifications
 /test/new-e2e/tests/installer/windows                           @DataDog/windows-products @DataDog/fleet
@@ -1246,8 +1249,10 @@
 /test/regression/container/selection.yaml                         @DataDog/single-machine-performance
 /test/regression/container/logs/                                  @DataDog/agent-log-pipelines
 /test/regression/container/agent-metric-pipelines/                @DataDog/agent-metric-pipelines
+/test/regression/container/openmetrics/                         @DataDog/single-machine-performance @DataDog/agent-integrations
 
 /tools/                                                              @DataDog/agent-devx
+/tools/privateactionrunner/                                          @DataDog/action-platform
 /tools/host-profiler/                                                @DataDog/profiling-full-host
 /tools/bazel*                                                        @DataDog/agent-build
 /tools/ci                                                            @DataDog/agent-devx
