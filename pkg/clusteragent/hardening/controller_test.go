@@ -38,12 +38,13 @@ func testDeployment(annotations map[string]string) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "shop", UID: "uid-1", Generation: 1},
 		Spec: appsv1.DeploymentSpec{
-			Replicas:        ptr.To(int32(2)),
-			MinReadySeconds: 10,
-			Selector:        &metav1.LabelSelector{MatchLabels: map[string]string{"app": "web"}},
+			Replicas: ptr.To(int32(2)),
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "web"}},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{Annotations: annotations},
-				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "app", Image: "web:1.2"}}},
+				Spec: corev1.PodSpec{Containers: []corev1.Container{
+					{Name: "app", Image: "web:1.2", ReadinessProbe: &corev1.Probe{}},
+				}},
 			},
 		},
 		Status: appsv1.DeploymentStatus{ObservedGeneration: 1, Replicas: 2, UpdatedReplicas: 2, AvailableReplicas: 2},
@@ -165,7 +166,10 @@ func TestControllerRejects(t *testing.T) {
 		"template pins another digest": func(d *appsv1.Deployment) {
 			d.Spec.Template.Spec.Containers[0].Image = "web@sha256:" + strings.Repeat("0", 64)
 		},
-		"no readiness gate":   func(d *appsv1.Deployment) { d.Spec.MinReadySeconds = 0 },
+		"only minReadySeconds, no probe": func(d *appsv1.Deployment) {
+			d.Spec.MinReadySeconds = 30
+			d.Spec.Template.Spec.Containers[0].ReadinessProbe = nil
+		},
 		"no revision history": func(d *appsv1.Deployment) { d.Spec.RevisionHistoryLimit = ptr.To(int32(0)) },
 	}
 	for name, mutate := range tests {
@@ -182,9 +186,16 @@ func TestControllerRejects(t *testing.T) {
 
 func TestControllerAppliesWhenTemplatePinsImageIDDigest(t *testing.T) {
 	d := testDeployment(nil)
-	d.Spec.MinReadySeconds = 0
 	d.Spec.Template.Spec.Containers[0].Image = "mirror.example.com/web@sha256:" + testDigest
-	d.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{}
+	c, client, _ := newTestController(t, d, rawRequest(t, nil))
+	c.reconcile(context.Background())
+	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+}
+
+func TestControllerAcceptsStartupProbe(t *testing.T) {
+	d := testDeployment(nil)
+	d.Spec.Template.Spec.Containers[0].ReadinessProbe = nil
+	d.Spec.Template.Spec.Containers[0].StartupProbe = &corev1.Probe{}
 	c, client, _ := newTestController(t, d, rawRequest(t, nil))
 	c.reconcile(context.Background())
 	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
