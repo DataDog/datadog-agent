@@ -313,8 +313,8 @@
   "moduleExtensions": {
     "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
       "general": {
-        "bzlTransitiveDigest": "wHUgbCWuQdCue2hZCzP9VmcwaHZRV0N0FUKiafhju0Y=",
-        "usagesDigest": "4kw0eF8/TH5vbIHdAlyms3D6zWCp+MIB6BPECjah9I4=",
+        "bzlTransitiveDigest": "guGFKy64ncfb8z+YoSio8AkbxAn409IMG9AU/2xtnKw=",
+        "usagesDigest": "d2L1DHRk3qJFLfzauw4Pkn+xqqyXN6axBhaNYWjiX1o=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "llvm_bpf": {
@@ -322,7 +322,7 @@
             "attributes": {
               "s3_base_url": "https://dd-agent-omnibus.s3.amazonaws.com/llvm",
               "clang_version": "12.0.1",
-              "clang_build_version": "v150220922-61ce1181",
+              "clang_build_version": "v155772521-afccbb17",
               "sha256s": {
                 "clang.amd64": "fe8b6949807895ef99d112db3c83b8d093d4d4b6bc6c7cd59a4fd93a86651e7c",
                 "clang.arm64": "18fc009137b869c9b207f38c05d2651886307eecef2bb9d3aa63b8d6ca357100",

@@ -283,7 +283,7 @@ register_toolchains(
 
 llvm_bpf_ext = use_extension("//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl", "llvm_bpf_extension")
 llvm_bpf_ext.configure(
-    clang_build_version = "v150220922-61ce1181",
+    clang_build_version = "v155772521-afccbb17",
     clang_version = "12.0.1",
     s3_base_url = "https://dd-agent-omnibus.s3.amazonaws.com/llvm",
     sha256s = {
