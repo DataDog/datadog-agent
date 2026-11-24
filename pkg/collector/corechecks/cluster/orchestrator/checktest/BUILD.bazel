@@ -17,7 +17,7 @@ dd_agent_go_test(
         "settings_test.go",
         "tags_test.go",
     ],
-    data = glob(["testdata/**"]),
+    data = glob(["testdata/*.yaml"]),
     gotags_sets = [[
         "cel",
         "clusterchecks",
