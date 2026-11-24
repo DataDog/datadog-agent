@@ -14,18 +14,27 @@ checktest/
 │                         releases, tags, pods, failures
 ├── suite/                the environment of the tests
 │   ├── env.go            Setup, its options, the actions, and Pop
-│   ├── expected.go       the assertions, and the payload files
+│   ├── expected.go       the assertions, and the payloads of the test data files
 │   ├── cluster.go        the fake API server and API discovery
 │   ├── fixtures.go       the default objects of the cluster
 │   ├── objects.go        small objects for the tests that replace the default ones
-│   └── sent.go           what the check sent, and how payloads are normalized
-└── testdata/
-    ├── manifests/        input: a Kubernetes manifest for each collector of a built-in resource
-    └── payloads/         expected: what the check sends for each object, with the name of its manifest
+│   ├── sent.go           what the check sent, and how payloads are normalized
+│   └── testdata.go       how the suite reads and writes the test data files
+└── testdata/             a file for each resource: the input manifest and the expected payloads of its objects
 ```
 
-`testdata/manifests/apps_v1_deployments.yaml` is the Deployment of the cluster, and `testdata/payloads/apps_v1_deployments.yaml` is what the check sends for it: its manifest and metadata payloads under `live`, and under `deleted` for the objects whose deletion a test checks.
-The UID of each object is the name of its files, so a test expects `live apps_v1_deployments`.
+`testdata/deployments.yaml` has a section for each Deployment of the cluster, by UID:
+
+```yaml
+apps_v1_deployments:
+  manifest:   # input: the object of the cluster
+  live:       # expected: its manifest and metadata payloads
+  deleted:    # expected, for the objects whose deletion a test checks
+```
+
+The UID of an object is the full name of its collector, with underscores for slashes, so a test expects `live apps_v1_deployments`.
+A file is named after the resource only, so the versions of a resource share it, like `batch_v1_cronjobs` and `batch_v1beta1_cronjobs` in `cronjobs.yaml`.
+The short names keep the paths within the limit of `dda inv linter.filenames`, which the Windows build needs.
 
 ## The pattern of a test
 
@@ -108,14 +117,14 @@ Then compare the result:
 | Assertion | Checks |
 |---|---|
 | `suite.AssertObjects(t, expected, actual)` | which objects were sent, and that no payload was sent twice; `suite.Live(uids...)` and `suite.Deleted(uids...)` build the list |
-| `suite.AssertPayloadFiles(t, actual, "live a")` | the full content of the payloads of the objects, with their payload files |
-| `suite.AssertPayloads(t, expected, actual)` | the full content, with payloads that the test builds: `suite.ReadPayloads(t, objects...)` reads the payload files, `Payloads.WithMessageTags` adds tags, and `Payloads.Walk` changes values, like an environment variable |
+| `suite.AssertPayloadFiles(t, actual, "live a")` | the full content of the payloads of the objects, with their test data files |
+| `suite.AssertPayloads(t, expected, actual)` | the full content, with payloads that the test builds: `suite.ReadPayloads(t, objects...)` reads the test data files, `Payloads.WithMessageTags` adds tags, and `Payloads.Walk` changes values, like an environment variable |
 | `suite.AssertUpdated(t, actual)` | every payload has the label that `env.UpdateAll` adds |
 | `suite.AssertDeleted(t, actual)` | every payload reports a deleted object, with a deletion timestamp |
 
 Check which objects are sent at every step: a payload check cannot notice a payload that is missing.
 Check the full content once for each resource, in `TestEveryResource`.
-A test about a variation builds its expected payloads from the payload files and states the difference, so the difference is visible in the test:
+A test about a variation builds its expected payloads from the test data files and states the difference, so the difference is visible in the test:
 
 ```go
 env := suite.Setup(t, suite.WithMode(suite.ClusterCheckRunner))
@@ -134,6 +143,19 @@ It runs the default environment through three steps (first run, update every obj
 - The leader and the cluster check runner compare the first-run content of every built-in resource, of the cluster, and of two custom resources: the built-in custom resources share their collector and processor, so a resource-specific one and a group-wide one cover them. They also compare the deleted pod, whose status and version change.
 - The update and delete steps check the generic fields of every payload with `AssertUpdated` and `AssertDeleted`.
 
+## Add a pipeline
+
+The suite runs, stops and records a list of pipelines, each a producer of payloads with its own check ID: today the orchestrator check only.
+A second producer, like a manifest pipeline that the Agent schedules apart from the check, needs one `env.addPipeline(id, run, cancel)` call in `configure`.
+These parts already hold for it:
+
+- The tests expect objects, `live <uid>` or `deleted <uid>`, whichever pipeline sends their payloads, and `AssertObjects` fails when two pipelines send the same payload of an object.
+- `env.ExpireResourceCache` and `Setup` flush the whole process cache, so a cache namespace for each pipeline needs no change.
+- `WaitForDeletions` works for every terminated resource bundle of the check, as each one calls the `OnDeletion` test dependency of the check.
+
+A configuration of `TestEveryResource` with the new pipeline expects the same objects.
+Its payload content can differ in known ways, like the envelope of custom resources: change the expected payloads with `Payloads.Walk`, so that the difference is visible in the test, instead of adding sections to the test data files.
+
 ## The fake cluster
 
 The fake clients of client-go differ from an API server. The suite makes them behave like one where the check depends on it:
@@ -143,23 +165,24 @@ The fake clients of client-go differ from an API server. The suite makes them be
 - The metadata client also serves the ConfigMaps and Secrets of the typed client.
 - API discovery reports every built-in resource, the custom resources of the cluster, and the failures that a test sets.
 
-## Payload files
+## Expected payloads
 
-A payload file lists the payloads of an object as JSON values: the manifest content is decoded, so that a difference names the field.
+The `live` and `deleted` sections list the payloads of an object as JSON values: the manifest content is decoded, so that a difference names the field.
 The suite replaces the values that a test cannot predict: the deletion time, the version of a pod (a hash of its model, which the payload holds, with the deletion time), and the managed fields, which the fake clients generate and the files show as `<managed fields>`.
 Lists that the check builds from maps (tags, labels, annotations) are sorted.
 
 Each run also checks that no payload, manifest or metadata model, holds a sensitive value: the fixtures put `secret` in the last-applied-configuration annotation and in container environment variables, and the manifests of ConfigMaps and Secrets must not include managed fields.
 `Setup` restores the global list of sensitive annotations and labels when a test ends, as its setting only adds to it.
 
-To change what the check sends, run the tests with `-update`, and review the diff of `testdata/payloads`.
-`-update` writes the payloads that the tests compare, but does not delete the files or sections that they no longer compare: delete those with the change that stops comparing them.
+To change what the check sends, run the tests with `-update`, and review the diff of `testdata`.
+`-update` writes the `live` and `deleted` sections that the tests compare, and keeps the rest of each file as it is, the manifests included.
+It does not delete the sections that the tests no longer compare: delete those with the change that stops comparing them.
 
 ## Add a collector
 
-1. Add a manifest to `testdata/manifests/<group>_<version>_<resource>.yaml` (the collector full name, with underscores for slashes), with that name as its UID. `TestFixtures` fails until each collector has one.
+1. Add a section to `testdata/<resource>.yaml`, named after the collector full name with underscores for slashes, with a `manifest` that has that name as its UID. `TestFixtures` fails until each collector has one.
    Built-in custom resources need no fixture: the suite generates one for each entry of the check.
-2. Run the tests with `-update`, and review the new file in `testdata/payloads`.
+2. Run the tests with `-update`, and review the new `live` and `deleted` payloads of the section.
 
 ## Run
 

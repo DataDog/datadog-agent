@@ -15,7 +15,7 @@ import (
 )
 
 // TestSettings checks the settings that change the payloads of every resource. Each test states how its payloads
-// differ from the payload files.
+// differ from the test data files.
 func TestSettings(t *testing.T) {
 	t.Run("container_scrubbing_disabled", func(t *testing.T) {
 		env := suite.Setup(t, suite.WithSetting("orchestrator_explorer.container_scrubbing.enabled", false))

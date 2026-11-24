@@ -1,0 +1,50 @@
+v1_configmaps:
+  manifest:
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      managedFields:
+        - manager: kubectl
+          operation: Apply
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: secret
+      labels:
+        app: name
+        tags.datadoghq.com/env: prod
+      name: v1-configmaps
+      namespace: default
+      resourceVersion: "1"
+      uid: v1_configmaps
+  live:
+    - envelope: CollectorManifest
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+        HostName: ""
+        OriginCollector: datadogAgent
+      messageTags: null
+      model:
+        apiVersion: v1
+        content:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            annotations:
+              kubectl.kubernetes.io/last-applied-configuration: '-'
+            creationTimestamp: null
+            labels:
+              app: name
+              tags.datadoghq.com/env: prod
+            name: v1-configmaps
+            namespace: default
+            resourceVersion: "1"
+            uid: v1_configmaps
+        contentType: json
+        kind: ConfigMap
+        resourceVersion: "1"
+        tags:
+          - kube_api_version:v1
+        type: 30
+        uid: v1_configmaps
+        version: v1
+      type: manifest

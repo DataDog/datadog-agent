@@ -9,7 +9,7 @@ package suite
 
 import (
 	"fmt"
-	"os"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -51,10 +51,6 @@ var pseudoCollectors = []string{"v1/helm-releases-configmaps", "v1/terminated-po
 // endpointSlices are listed through the dynamic client.
 var endpointSlices = schema.GroupVersionResource{Group: "discovery.k8s.io", Version: "v1", Resource: "endpointslices"}
 
-// ManifestDir holds a Kubernetes manifest for each collector of a built-in resource, relative to the package of the
-// tests. The file of a manifest is the full name of its collector, with underscores for slashes.
-var ManifestDir = filepath.Join("testdata", "manifests")
-
 // builtinFixtures returns a fixture for each collector of a built-in resource, with its own copy of the object.
 func builtinFixtures(t testing.TB) []Fixture {
 	t.Helper()
@@ -67,24 +63,34 @@ func builtinFixtures(t testing.TB) []Fixture {
 	return copies
 }
 
-// decodedBuiltinFixtures decodes the manifests once for the whole test binary.
+// decodedBuiltinFixtures decodes the manifests of the test data files once for the whole test binary. A section with a
+// manifest is the fixture of the collector of its UID.
 var decodedBuiltinFixtures = sync.OnceValues(func() ([]Fixture, error) {
-	paths, err := filepath.Glob(filepath.Join(ManifestDir, "*.yaml"))
+	paths, err := filepath.Glob(filepath.Join(TestDataDir, "*.yaml"))
 	if err != nil {
 		return nil, err
 	}
-	fixtures := make([]Fixture, 0, len(paths))
-	for _, file := range paths {
-		collector := strings.ReplaceAll(strings.TrimSuffix(filepath.Base(file), ".yaml"), "_", "/")
-		object, err := decodeFixture(file)
+	var fixtures []Fixture
+	for _, path := range paths {
+		sections, err := readSections(path)
 		if err != nil {
 			return nil, err
 		}
-		f, err := newBuiltinFixture(collector, object)
-		if err != nil {
-			return nil, err
+		for _, uid := range slices.Sorted(maps.Keys(sections)) {
+			manifest, found := sections[uid]["manifest"]
+			if !found {
+				continue
+			}
+			object, err := decodeFixture(manifest)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %s: %w", path, uid, err)
+			}
+			f, err := newBuiltinFixture(strings.ReplaceAll(uid, "_", "/"), object)
+			if err != nil {
+				return nil, err
+			}
+			fixtures = append(fixtures, f)
 		}
-		fixtures = append(fixtures, f)
 	}
 	return fixtures, nil
 })
@@ -135,16 +141,9 @@ var fixtureCodecs = sync.OnceValue(func() fixtureScheme {
 	return fixtureScheme{scheme: scheme, codecs: serializer.NewCodecFactory(scheme)}
 })
 
-func decodeFixture(file string) (runtime.Object, error) {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return nil, err
-	}
-	object, _, err := fixtureCodecs().codecs.UniversalDeserializer().Decode(data, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", file, err)
-	}
-	return object, nil
+func decodeFixture(manifest []byte) (runtime.Object, error) {
+	object, _, err := fixtureCodecs().codecs.UniversalDeserializer().Decode(manifest, nil, nil)
+	return object, err
 }
 
 // sampleResource is the resource that the fixture of a group-wide custom resource serves.
@@ -307,5 +306,5 @@ func AssertFixturesCoverEveryCollector(t *testing.T) {
 	for _, f := range builtinFixtures(t) {
 		fixtures = append(fixtures, f.Collector)
 	}
-	assert.ElementsMatch(t, collectors, fixtures, "add a manifest to testdata/manifests for each new collector, or a reason to withoutFixture")
+	assert.ElementsMatch(t, collectors, fixtures, "add a section with a manifest to testdata/<resource>.yaml for each new collector, or a reason to withoutFixture")
 }

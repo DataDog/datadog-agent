@@ -14,12 +14,12 @@ import (
 )
 
 // TestEveryResource runs an object of every resource through its lifecycle in each configuration of the check, which
-// sends every object except the ones that the configuration lists. Some configurations also compare testdata/payloads.
+// sends every object except the ones that the configuration lists. Some configurations also compare the payloads of testdata.
 func TestEveryResource(t *testing.T) {
 	configurations := []struct {
 		name    string
 		options []suite.Option
-		// checkContent compares the payload content with the payload files. The other configurations only change which
+		// checkContent compares the payload content with the test data files. The other configurations only change which
 		// objects the check selects.
 		checkContent bool
 		// notCollected are the objects of the cluster that the check does not collect.

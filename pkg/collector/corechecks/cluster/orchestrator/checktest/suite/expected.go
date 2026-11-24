@@ -8,12 +8,9 @@
 package suite
 
 import (
-	"errors"
+	"encoding/json"
 	"flag"
-	"io/fs"
 	"maps"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -22,16 +19,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"sigs.k8s.io/yaml"
 )
 
-// update makes AssertPayloadFiles write the payload files with what the check sends, instead of comparing them.
-var update = flag.Bool("update", false, "write the payload files with what the check sends")
-
-// PayloadDir holds the payloads that the check sends for each object of the default environment, relative to the
-// package of the tests. The file of an object is its UID, like the file of its manifest in ManifestDir: it holds its
-// live payloads, and its deleted payloads when a test checks them.
-var PayloadDir = filepath.Join("testdata", "payloads")
+// update makes AssertPayloadFiles write the payloads of the test data files with what the check sends, instead of
+// comparing them.
+var update = flag.Bool("update", false, "write the payloads of the test data files with what the check sends")
 
 // Payloads are normalized payloads, by object: "live <uid>" or "deleted <uid>".
 type Payloads map[string][]map[string]any
@@ -78,7 +70,7 @@ func AssertPayloads(t *testing.T, expected Payloads, actual Output) {
 	}
 }
 
-// AssertPayloadFiles compares the payloads that the check sent for the objects with their payload files. With
+// AssertPayloadFiles compares the payloads that the check sent for the objects with their test data files. With
 // -update, it writes them in the files instead.
 func AssertPayloadFiles(t *testing.T, actual Output, objects ...string) {
 	t.Helper()
@@ -97,17 +89,13 @@ func AssertPayloadFiles(t *testing.T, actual Output, objects ...string) {
 	}
 }
 
-// ReadPayloads returns the payloads of the objects from their payload files.
+// ReadPayloads returns the payloads of the objects from their test data files.
 func ReadPayloads(t *testing.T, objects ...string) Payloads {
 	t.Helper()
 	payloads := Payloads{}
 	for _, object := range objects {
 		state, uid, _ := strings.Cut(object, " ")
-		byState := readPayloadFile(t, uid)
-		if _, found := byState[state]; !found {
-			t.Fatalf("%s has no %s payloads: run the test with -update", payloadPath(uid), state)
-		}
-		payloads[object] = byState[state]
+		payloads[object] = readPayloads(t, uid, state)
 	}
 	return payloads
 }
@@ -137,7 +125,7 @@ func (p Payloads) WithMessageTags(tags ...string) Payloads {
 }
 
 // Walk returns a copy of the payloads where fn replaces each value of each map, given its key, like the value of an
-// environment variable. A test states this way how its payloads differ from the payload files.
+// environment variable. A test states this way how its payloads differ from the test data files.
 func (p Payloads) Walk(fn func(key string, value any) any) Payloads {
 	walked := Payloads{}
 	for object, payloads := range p {
@@ -219,51 +207,43 @@ func labelsOf(t *testing.T, s Sent) []string {
 	return labels
 }
 
-func payloadPath(uid string) string { return filepath.Join(PayloadDir, uid+".yaml") }
-
-// readPayloadFile returns the payloads of a payload file, by object state.
-func readPayloadFile(t *testing.T, uid string) map[string][]map[string]any {
+// readPayloads returns the payloads of an object state from the section of the object in its test data file.
+func readPayloads(t *testing.T, uid, state string) []map[string]any {
 	t.Helper()
-	data, err := os.ReadFile(payloadPath(uid))
-	if errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("no payload file %s: run the test with -update", payloadPath(uid))
-	}
+	path := testDataPath(uid)
+	sections, err := readSections(path)
 	require.NoError(t, err)
-	var byState map[string][]map[string]any
-	require.NoError(t, yaml.Unmarshal(data, &byState), payloadPath(uid))
-	return byState
+	raw, found := sections[uid][state]
+	if !found {
+		t.Fatalf("%s has no %s payloads of %s: run the test with -update", path, state, uid)
+	}
+	var payloads []map[string]any
+	require.NoError(t, json.Unmarshal(raw, &payloads), "%s: %s %s", path, state, uid)
+	return payloads
 }
 
 var (
-	payloadFilesMu sync.Mutex
-	// written are the payloads that this run wrote with -update, by file and state, so that tests that check the
-	// same payloads send the same.
+	testDataMu sync.Mutex
+	// written are the payloads that this run wrote with -update, by object, so that tests that check the same
+	// payloads send the same.
 	written = map[string]string{}
 )
 
-// writePayloads writes the payloads of an object state in its payload file, and keeps its other states.
+// writePayloads writes the payloads of an object state in the section of the object in its test data file, and keeps
+// the rest of the file.
 func writePayloads(t *testing.T, uid, state string, payloads []map[string]any) {
 	t.Helper()
-	payloadFilesMu.Lock()
-	defer payloadFilesMu.Unlock()
-	path := payloadPath(uid)
-	data, err := yaml.Marshal(payloads)
+	testDataMu.Lock()
+	defer testDataMu.Unlock()
+	data, err := json.Marshal(payloads)
 	require.NoError(t, err)
-	if previous, found := written[path+" "+state]; found && previous != string(data) {
-		t.Errorf("another test wrote other %s payloads to %s", state, path)
+	object := state + " " + uid
+	if previous, found := written[object]; found && previous != string(data) {
+		t.Errorf("another test wrote other payloads of %s", object)
 		return
 	}
-	written[path+" "+state] = string(data)
-
-	byState := map[string][]map[string]any{}
-	if existing, err := os.ReadFile(path); err == nil {
-		require.NoError(t, yaml.Unmarshal(existing, &byState), path)
-	}
-	byState[state] = payloads
-	data, err = yaml.Marshal(byState)
-	require.NoError(t, err)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, data, 0o644))
+	written[object] = string(data)
+	require.NoError(t, writeSection(uid, state, payloads))
 }
 
 // BuiltinUIDs returns the UIDs of the objects of the built-in resources in the default environment, which serves the

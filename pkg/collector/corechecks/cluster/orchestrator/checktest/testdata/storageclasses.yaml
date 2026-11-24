@@ -1,0 +1,71 @@
+storage.k8s.io_v1_storageclasses:
+  manifest:
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      managedFields:
+        - manager: kubectl
+          operation: Apply
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: secret
+      labels:
+        app: name
+        tags.datadoghq.com/env: prod
+      name: storage-k8s-io-v1-storageclasses
+      resourceVersion: "1"
+      uid: storage.k8s.io_v1_storageclasses
+    provisioner: ""
+  live:
+    - envelope: CollectorManifest
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+        HostName: ""
+        OriginCollector: datadogAgent
+      messageTags: null
+      model:
+        apiVersion: storage.k8s.io/v1
+        content:
+          apiVersion: storage.k8s.io/v1
+          kind: StorageClass
+          metadata:
+            annotations:
+              kubectl.kubernetes.io/last-applied-configuration: '-'
+            creationTimestamp: null
+            labels:
+              app: name
+              tags.datadoghq.com/env: prod
+            managedFields: <managed fields>
+            name: storage-k8s-io-v1-storageclasses
+            resourceVersion: "1"
+            uid: storage.k8s.io_v1_storageclasses
+          provisioner: ""
+        contentType: json
+        kind: StorageClass
+        resourceVersion: "1"
+        tags:
+          - kube_api_version:storage.k8s.io/v1
+        type: 26
+        uid: storage.k8s.io_v1_storageclasses
+        version: v1
+      type: manifest
+    - envelope: CollectorStorageClass
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+      messageTags:
+        - kube_api_version:storage.k8s.io/v1
+      model:
+        allowedTopologies: {}
+        metadata:
+          annotations:
+            - kubectl.kubernetes.io/last-applied-configuration:-
+          labels:
+            - app:name
+            - tags.datadoghq.com/env:prod
+          name: storage-k8s-io-v1-storageclasses
+          resourceVersion: "1"
+          uid: storage.k8s.io_v1_storageclasses
+        reclaimPolicy: Delete
+        volumeBindingMode: Immediate
+      type: metadata

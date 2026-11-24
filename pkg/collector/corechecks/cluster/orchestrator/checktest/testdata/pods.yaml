@@ -1,0 +1,178 @@
+v1_pods:
+  manifest:
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      managedFields:
+        - manager: kubectl
+          operation: Apply
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: secret
+      labels:
+        app: name
+        tags.datadoghq.com/env: prod
+      name: v1-pods
+      namespace: default
+      resourceVersion: "1"
+      uid: v1_pods
+    spec:
+      containers:
+        - env:
+            - name: PASSWORD
+              value: secret
+            - name: REGION
+              value: us-east-1
+          image: image
+          name: c
+  live:
+    - envelope: CollectorManifest
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+        HostName: ""
+        OriginCollector: datadogAgent
+      messageTags: null
+      model:
+        apiVersion: v1
+        content:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            annotations:
+              kubectl.kubernetes.io/last-applied-configuration: '-'
+            creationTimestamp: null
+            labels:
+              app: name
+              tags.datadoghq.com/env: prod
+            managedFields: <managed fields>
+            name: v1-pods
+            namespace: default
+            resourceVersion: "1"
+            uid: v1_pods
+          spec:
+            containers:
+              - env:
+                  - name: PASSWORD
+                    value: '********'
+                  - name: REGION
+                    value: us-east-1
+                image: image
+                name: c
+                resources: {}
+          status: {}
+        contentType: json
+        kind: Pod
+        resourceVersion: <hash of the pod model>
+        tags:
+          - env:prod
+          - kube_api_version:v1
+          - 'pod_status:'
+        type: 1
+        uid: v1_pods
+        version: v1
+      type: manifest
+    - envelope: CollectorPod
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+        HostName: ""
+      messageTags:
+        - kube_api_version:v1
+      model:
+        metadata:
+          annotations:
+            - kubectl.kubernetes.io/last-applied-configuration:-
+          labels:
+            - app:name
+            - tags.datadoghq.com/env:prod
+          name: v1-pods
+          namespace: default
+          resourceVersion: <hash of the pod model>
+          uid: v1_pods
+        resourceRequirements:
+          - name: c
+            type: 1
+        resourceVersion: <hash of the pod model>
+        tags:
+          - env:prod
+          - 'pod_status:'
+      type: metadata
+  deleted:
+    - envelope: CollectorManifest
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+        HostName: ""
+        OriginCollector: datadogAgent
+      messageTags: null
+      model:
+        apiVersion: v1
+        content:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            annotations:
+              kubectl.kubernetes.io/last-applied-configuration: '-'
+            creationTimestamp: null
+            deletionTimestamp: <deletion time>
+            labels:
+              app: name
+              tags.datadoghq.com/env: prod
+              updated: "true"
+            managedFields: <managed fields>
+            name: v1-pods
+            namespace: default
+            resourceVersion: "3"
+            uid: v1_pods
+          spec:
+            containers:
+              - env:
+                  - name: PASSWORD
+                    value: '********'
+                  - name: REGION
+                    value: us-east-1
+                image: image
+                name: c
+                resources: {}
+          status: {}
+        contentType: json
+        isTerminated: true
+        kind: Pod
+        resourceVersion: <hash of the pod model>
+        tags:
+          - env:prod
+          - kube_api_version:v1
+          - pod_status:terminating
+        type: 1
+        uid: v1_pods
+        version: v1
+      type: manifest
+    - envelope: CollectorPod
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+        HostName: ""
+      messageTags:
+        - kube_api_version:v1
+      model:
+        metadata:
+          annotations:
+            - kubectl.kubernetes.io/last-applied-configuration:-
+          deletionTimestamp: <deletion time>
+          labels:
+            - app:name
+            - tags.datadoghq.com/env:prod
+            - updated:true
+          name: v1-pods
+          namespace: default
+          resourceVersion: <hash of the pod model>
+          uid: v1_pods
+        resourceRequirements:
+          - name: c
+            type: 1
+        resourceVersion: <hash of the pod model>
+        status: Terminating
+        tags:
+          - env:prod
+          - pod_status:terminating
+      type: metadata

@@ -24,7 +24,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	orchestratorcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 // Sent is one resource of a payload that the check sent: a manifest, or a structured metadata model.
@@ -231,15 +231,15 @@ func (o Output) duplicates() []string {
 	return sortedCopy(duplicates)
 }
 
-// recorder records the resources of the payloads that the check sends, from any goroutine.
+// recorder records the resources of the payloads that the pipelines send, from any goroutine.
 type recorder struct {
 	sender *mocksender.MockSender
 	mu     sync.Mutex
 	sent   Output
 }
 
-func newRecorder(t *testing.T, chk *orchestratorcheck.OrchestratorCheck, senderManager sender.SenderManager) *recorder {
-	r := &recorder{sender: mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)}
+func newRecorder(t *testing.T, id checkid.ID, senderManager sender.SenderManager) *recorder {
+	r := &recorder{sender: mocksender.NewMockSenderWithSenderManager(id, senderManager)}
 	r.sender.On("OrchestratorMetadata", mock.Anything, mock.Anything, mock.Anything).Return().Run(func(args mock.Arguments) {
 		r.record(metadataResources(args.Get(0).([]model.MessageBody)))
 	})

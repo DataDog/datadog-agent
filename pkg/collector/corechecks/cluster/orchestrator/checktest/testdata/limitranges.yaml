@@ -1,0 +1,74 @@
+v1_limitranges:
+  manifest:
+    apiVersion: v1
+    kind: LimitRange
+    metadata:
+      managedFields:
+        - manager: kubectl
+          operation: Apply
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: secret
+      labels:
+        app: name
+        tags.datadoghq.com/env: prod
+      name: v1-limitranges
+      namespace: default
+      resourceVersion: "1"
+      uid: v1_limitranges
+    spec:
+      limits: null
+  live:
+    - envelope: CollectorLimitRange
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+      messageTags:
+        - kube_api_version:v1
+      model:
+        metadata:
+          annotations:
+            - kubectl.kubernetes.io/last-applied-configuration:-
+          labels:
+            - app:name
+            - tags.datadoghq.com/env:prod
+          name: v1-limitranges
+          namespace: default
+          resourceVersion: "1"
+          uid: v1_limitranges
+        spec: {}
+      type: metadata
+    - envelope: CollectorManifest
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+        HostName: ""
+        OriginCollector: datadogAgent
+      messageTags: null
+      model:
+        apiVersion: v1
+        content:
+          apiVersion: v1
+          kind: LimitRange
+          metadata:
+            annotations:
+              kubectl.kubernetes.io/last-applied-configuration: '-'
+            creationTimestamp: null
+            labels:
+              app: name
+              tags.datadoghq.com/env: prod
+            managedFields: <managed fields>
+            name: v1-limitranges
+            namespace: default
+            resourceVersion: "1"
+            uid: v1_limitranges
+          spec:
+            limits: null
+        contentType: json
+        kind: LimitRange
+        resourceVersion: "1"
+        tags:
+          - kube_api_version:v1
+        type: 25
+        uid: v1_limitranges
+        version: v1
+      type: manifest

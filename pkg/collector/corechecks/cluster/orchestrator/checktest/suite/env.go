@@ -16,6 +16,7 @@ package suite
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -46,6 +47,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	orchestratorcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -77,10 +79,11 @@ type Env struct {
 	Tagger       taggermock.Mock
 	Workloadmeta workloadmetamock.Mock
 
-	cluster  *fakeCluster
-	leader   atomic.Bool
-	recorder *recorder
-	options  options
+	cluster   *fakeCluster
+	leader    atomic.Bool
+	recorder  *recorder
+	pipelines []pipeline
+	options   options
 	// electionErr is the error of the leader election, other than not leading.
 	electionErr atomic.Pointer[error]
 	// elections counts the leader elections that the check ran.
@@ -89,6 +92,13 @@ type Env struct {
 	stopped bool
 	// deletions are the UIDs of the objects whose deletion the check handled, which WaitForDeletions waits for.
 	deletions sync.Map
+}
+
+// pipeline is a producer of payloads that the environment runs, stops and records. The orchestrator check is the only
+// one today; a manifest pipeline scheduled apart from the check would be a second.
+type pipeline struct {
+	run    func() error
+	cancel func()
 }
 
 type options struct {
@@ -377,11 +387,18 @@ func (env *Env) configure(t *testing.T, o options) {
 	}
 
 	senderManager := mocksender.CreateDefaultDemultiplexer(t)
-	env.recorder = newRecorder(t, env.Check, senderManager)
+	env.recorder = newRecorder(t, env.Check.ID(), senderManager)
 	require.NoError(t, env.Check.Configure(senderManager, 1, integration.Data(instance.String()), integration.Data(o.initConfig), "test", "provider"))
+	env.pipelines = nil
 	// Configure derives the check ID from its configuration.
-	mocksender.SetSender(env.recorder.sender, env.Check.ID())
+	env.addPipeline(env.Check.ID(), env.Check.Run, env.Check.Cancel)
 	env.stopped = false
+}
+
+// addPipeline records what a producer sends through the sender of its check ID, and runs it at each check run.
+func (env *Env) addPipeline(id checkid.ID, run func() error, cancel func()) {
+	mocksender.SetSender(env.recorder.sender, id)
+	env.pipelines = append(env.pipelines, pipeline{run: run, cancel: cancel})
 }
 
 // stop cancels the check, which flushes the deletions that it queued.
@@ -390,7 +407,9 @@ func (env *Env) stop(t *testing.T) {
 		return
 	}
 	env.stopped = true
-	_ = runWithTimeout(t, func() error { env.Check.Cancel(); return nil })
+	for _, p := range env.pipelines {
+		_ = runWithTimeout(t, func() error { p.cancel(); return nil })
+	}
 }
 
 // Stop cancels the check, like the Agent does when it unschedules it, and returns what the check sent meanwhile.
@@ -678,10 +697,13 @@ func (env *Env) runUntil(t *testing.T, done func(Output) bool) (Output, error) {
 
 func (env *Env) runOnce(t *testing.T) (Output, error) {
 	t.Helper()
-	err := runWithTimeout(t, env.Check.Run)
+	var errs []error
+	for _, p := range env.pipelines {
+		errs = append(errs, runWithTimeout(t, p.run))
+	}
 	out := env.recorder.take()
 	env.assertNoSensitiveData(t, out)
-	return out, err
+	return out, errors.Join(errs...)
 }
 
 // Updated returns a copy of the object with a new label and the next resource version.
