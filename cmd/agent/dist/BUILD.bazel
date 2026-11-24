@@ -14,7 +14,7 @@ pkg_files(
     renames = {
         "//pkg/config:agent_config": "datadog.yaml.example",
     },
-    visibility = ["//packages/agent:__subpackages__"],
+    visibility = ["//packages:__subpackages__"],
 )
 
 pkg_filegroup(
@@ -26,10 +26,15 @@ pkg_filegroup(
         "@platforms//os:windows": ["//cmd/agent/dist/protected:all_files"],
         "//conditions:default": [],
     }),
-    visibility = [
-        "//packages/agent:__subpackages__",
-        "//packages/heroku:__subpackages__",
-    ],
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_files(
+    name = "dd_agent_stub",
+    srcs = ["dd-agent"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "/usr/bin",
+    visibility = ["//packages:__subpackages__"],
 )
 
 pkg_files(
@@ -50,8 +55,7 @@ pkg_filegroup(
     ],
     visibility = [
         "//cmd/agent:__subpackages__",
-        "//packages/agent:__subpackages__",
-        "//packages/heroku:__subpackages__",
+        "//packages:__subpackages__",
     ],
 )
 

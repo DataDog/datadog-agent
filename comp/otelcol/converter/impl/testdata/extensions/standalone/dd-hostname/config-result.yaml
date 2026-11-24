@@ -1,0 +1,30 @@
+receivers:
+  otlp:
+
+exporters:
+  nop:
+
+extensions:
+  datadog:
+    api:
+      key: ggggg77777
+    deployment_type: daemonset
+    hostname: test-host
+  datadog/explicit:
+    api:
+      key: ggggg77777
+    hostname: user-host
+  dogtel/dd-autoconfigured:
+
+service:
+  extensions: [datadog, datadog/explicit, dogtel/dd-autoconfigured]
+  pipelines:
+    traces:
+      receivers: [nop]
+      exporters: [nop]
+    metrics:
+      receivers: [nop]
+      exporters: [nop]
+    logs:
+      receivers: [nop]
+      exporters: [nop]

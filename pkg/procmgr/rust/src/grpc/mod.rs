@@ -14,6 +14,7 @@ pub mod proto {
 
 #[cfg(all(test, unix))]
 mod tests {
+    use super::caller_auth::{CallerPolicy, peer_uid};
     use super::proto;
     use super::proto::process_manager_client::ProcessManagerClient;
     use super::service::ProcessManagerService;
@@ -38,11 +39,16 @@ mod tests {
         ProcessManagerClient<Channel>,
         tokio::sync::oneshot::Sender<()>,
     ) {
-        start_test_server_with_catalog(LoadedCatalog::valid(defs)).await
+        start_test_server_with_catalog(
+            LoadedCatalog::valid(defs),
+            CallerPolicy::from_enforce(false),
+        )
+        .await
     }
 
     async fn start_test_server_with_catalog(
         catalog: LoadedCatalog,
+        policy: CallerPolicy,
     ) -> (
         ProcessManagerClient<Channel>,
         tokio::sync::oneshot::Sender<()>,
@@ -57,7 +63,7 @@ mod tests {
             Arc::new(StaticConfigLoader::with_catalog(catalog)),
             Arc::new(crate::uuid_gen::V4UuidGenerator),
         );
-        let svc = ProcessManagerService::new(mgr.clone(), cmd_tx);
+        let svc = ProcessManagerService::with_caller_policy(mgr.clone(), cmd_tx, policy);
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
@@ -333,7 +339,8 @@ mod tests {
                 error: "bad yaml".to_string(),
             }],
         };
-        let (mut client, _shutdown) = start_test_server_with_catalog(catalog).await;
+        let (mut client, _shutdown) =
+            start_test_server_with_catalog(catalog, CallerPolicy::from_enforce(false)).await;
         let resp = client
             .get_config(proto::GetConfigRequest {})
             .await
@@ -1143,5 +1150,242 @@ mod tests {
             .unwrap()
             .into_inner();
         assert_eq!(resp.detail.unwrap().name, "svc-c");
+    }
+
+    fn assert_requires_root(status: &tonic::Status) {
+        assert_eq!(status.code(), tonic::Code::PermissionDenied);
+        assert_eq!(status.message(), "operation requires root");
+    }
+
+    #[tokio::test]
+    async fn test_server_sees_peer_uid_over_uds() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock_path = dir.path().join("peer.sock");
+        let uds_stream = UnixListenerStream::new(UnixListener::bind(&sock_path).unwrap());
+        let mgr = ProcessManager::new(
+            Arc::new(StaticConfigLoader::with_catalog(LoadedCatalog::valid(
+                vec![],
+            ))),
+            Arc::new(crate::uuid_gen::V4UuidGenerator),
+        );
+        let (cmd_tx, _cmd_rx) = mpsc::channel::<Command>(1);
+        let svc = ProcessManagerService::with_caller_policy(
+            mgr,
+            cmd_tx,
+            CallerPolicy::from_enforce(false),
+        );
+
+        let seen = Arc::new(std::sync::Mutex::new(None));
+        let seen_in = seen.clone();
+        let pm_service = proto::process_manager_server::ProcessManagerServer::with_interceptor(
+            svc,
+            move |req: tonic::Request<()>| {
+                *seen_in.lock().unwrap() = Some(peer_uid(&req));
+                Ok(req)
+            },
+        );
+
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let server = tokio::spawn(async move {
+            tonic::transport::Server::builder()
+                .add_service(pm_service)
+                .serve_with_incoming_shutdown(uds_stream, async {
+                    let _ = shutdown_rx.await;
+                })
+                .await
+                .unwrap();
+        });
+
+        let channel = dd_procmgr_client::connect(&sock_path).await.unwrap();
+        ProcessManagerClient::new(channel)
+            .list(proto::ListRequest {})
+            .await
+            .unwrap();
+        let _ = shutdown_tx.send(());
+        server.await.unwrap();
+
+        let euid = nix::unistd::Uid::effective().as_raw();
+        assert_eq!(*seen.lock().unwrap(), Some(Some(euid)));
+    }
+
+    #[tokio::test]
+    async fn test_enforced_policy_denies_non_root_mutations() {
+        // Root is allowed, so the denial assertions cannot run. A successful
+        // ReloadConfig is the enforced allow path over a real socket.
+        if nix::unistd::Uid::effective().is_root() {
+            let (mut client, _shutdown) = start_test_server_with_catalog(
+                LoadedCatalog::valid(vec![]),
+                CallerPolicy::from_enforce(true),
+            )
+            .await;
+            client
+                .reload_config(proto::ReloadConfigRequest {})
+                .await
+                .unwrap();
+            return;
+        }
+        let (mut client, _shutdown) = start_test_server_with_catalog(
+            LoadedCatalog::valid(vec![sleep_process_def("target")]),
+            CallerPolicy::from_enforce(true),
+        )
+        .await;
+
+        let (cmd, args) = test_helpers::true_cmd();
+        let err = client
+            .create(proto::CreateRequest {
+                name: "injected".to_string(),
+                command: cmd.to_string(),
+                args,
+                auto_start: Some(false),
+                ..Default::default()
+            })
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        // The guard runs before request validation.
+        let err = client
+            .create(proto::CreateRequest {
+                name: "empty".to_string(),
+                command: String::new(),
+                ..Default::default()
+            })
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let err = client
+            .start(proto::StartRequest {
+                name_or_uuid: "target".to_string(),
+            })
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let err = client
+            .stop(proto::StopRequest {
+                name_or_uuid: "target".to_string(),
+            })
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        // The guard runs before the not-found lookup.
+        let err = client
+            .stop(proto::StopRequest {
+                name_or_uuid: "missing".to_string(),
+            })
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let err = client
+            .reload_config(proto::ReloadConfigRequest {})
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let listed = client
+            .list(proto::ListRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(listed.processes.len(), 1);
+        assert_eq!(listed.processes[0].name, "target");
+        assert_eq!(
+            listed.processes[0].state,
+            proto::ProcessState::Created as i32
+        );
+        assert_eq!(listed.processes[0].pid, 0);
+
+        let detail = client
+            .describe(proto::DescribeRequest {
+                name_or_uuid: "target".to_string(),
+            })
+            .await
+            .unwrap()
+            .into_inner()
+            .detail
+            .unwrap();
+        assert_eq!(detail.state, proto::ProcessState::Created as i32);
+        assert_eq!(detail.pid, 0);
+
+        let status = client
+            .get_status(proto::GetStatusRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(status.total_processes, 1);
+        assert_eq!(status.created_processes, 1);
+        assert_eq!(status.running_processes, 0);
+
+        let config = client
+            .get_config(proto::GetConfigRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(config.loaded_processes, 1);
+        assert_eq!(config.runtime_processes, 0);
+    }
+
+    /// A request with no peer credential is denied while enforcing, whatever
+    /// uid runs the test. This keeps every handler's guard covered under root,
+    /// where the socket test above skips the denial assertions.
+    #[tokio::test]
+    async fn test_enforced_policy_denies_requests_without_peer_credential() {
+        use super::proto::process_manager_server::ProcessManager as _;
+
+        let mgr = ProcessManager::new(
+            Arc::new(StaticConfigLoader::with_catalog(LoadedCatalog::valid(
+                vec![],
+            ))),
+            Arc::new(crate::uuid_gen::V4UuidGenerator),
+        );
+        // No event loop: a handler missing its guard fails fast instead of
+        // waiting for a reply.
+        let (cmd_tx, _) = mpsc::channel::<Command>(1);
+        let svc = ProcessManagerService::with_caller_policy(
+            mgr,
+            cmd_tx,
+            CallerPolicy::from_enforce(true),
+        );
+
+        let err = svc
+            .create(tonic::Request::new(proto::CreateRequest::default()))
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let err = svc
+            .start(tonic::Request::new(proto::StartRequest::default()))
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let err = svc
+            .stop(tonic::Request::new(proto::StopRequest::default()))
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let err = svc
+            .reload_config(tonic::Request::new(proto::ReloadConfigRequest {}))
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+    }
+
+    #[tokio::test]
+    async fn test_unenforced_policy_allows_reload_config() {
+        let (mut client, _shutdown) = start_test_server_with_catalog(
+            LoadedCatalog::valid(vec![]),
+            CallerPolicy::from_enforce(false),
+        )
+        .await;
+
+        client
+            .reload_config(proto::ReloadConfigRequest {})
+            .await
+            .unwrap();
     }
 }

@@ -14,6 +14,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestFullYamlConfigWithOTLP(t *testing.T) {
@@ -35,4 +38,108 @@ func TestOTLPGrpcMaxRecvMsgSizeMibFromEnv(t *testing.T) {
 	require.NotNil(t, cfg)
 
 	assert.Equal(t, 100, cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib)
+}
+
+func TestOTLPInternalReceiverDataPlaneModes(t *testing.T) {
+	const (
+		plaintext = `
+apm_config:
+  receiver_port: 18126
+otlp_config:
+  receiver:
+    protocols:
+      grpc:
+  traces:
+    internal_port: 50053
+`
+		withTLS = `
+apm_config:
+  receiver_port: 18126
+otlp_config:
+  receiver:
+    protocols:
+      grpc:
+        tls:
+          cert_file: /etc/datadog-agent/otlp/cert.pem
+          key_file: /etc/datadog-agent/otlp/key.pem
+  traces:
+    internal_port: 50053
+`
+	)
+	const (
+		dataPlaneEnabled = "DD_DATA_PLANE_ENABLED"
+		dataPlaneOTLP    = "DD_DATA_PLANE_OTLP_ENABLED"
+		proxyMetrics     = "DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_METRICS"
+		proxyTraces      = "DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_TRACES"
+	)
+	tests := []struct {
+		name     string
+		yaml     string
+		env      map[string]string
+		grpcPort int
+	}{
+		{
+			name:     "data plane disabled",
+			yaml:     withTLS,
+			env:      map[string]string{dataPlaneOTLP: "true", proxyTraces: "true"},
+			grpcPort: 50053,
+		},
+		{
+			name:     "data plane OTLP disabled",
+			yaml:     withTLS,
+			env:      map[string]string{dataPlaneEnabled: "true", proxyTraces: "true"},
+			grpcPort: 50053,
+		},
+		{
+			name: "data plane only",
+			yaml: plaintext,
+			env:  map[string]string{dataPlaneEnabled: "true", dataPlaneOTLP: "true"},
+		},
+		{
+			name: "data plane only with TLS",
+			yaml: withTLS,
+			env:  map[string]string{dataPlaneEnabled: "true", dataPlaneOTLP: "true"},
+		},
+		{
+			name:     "proxy traces",
+			yaml:     plaintext,
+			env:      map[string]string{dataPlaneEnabled: "true", dataPlaneOTLP: "true", proxyTraces: "true"},
+			grpcPort: 50053,
+		},
+		{
+			name:     "proxy metrics only",
+			yaml:     plaintext,
+			env:      map[string]string{dataPlaneEnabled: "true", dataPlaneOTLP: "true", proxyMetrics: "true"},
+			grpcPort: 50053,
+		},
+		{
+			name: "proxy with TLS",
+			yaml: withTLS,
+			env:  map[string]string{dataPlaneEnabled: "true", dataPlaneOTLP: "true", proxyTraces: "true"},
+		},
+	}
+	for _, agentFlavor := range []string{flavor.DefaultAgent, flavor.TraceAgent, flavor.OTelAgent} {
+		t.Run(agentFlavor, func(t *testing.T) {
+			previousFlavor := flavor.GetFlavor()
+			flavor.SetFlavor(agentFlavor)
+			t.Cleanup(func() { flavor.SetFlavor(previousFlavor) })
+			t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
+
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					for key, value := range tt.env {
+						t.Setenv(key, value)
+					}
+					cfg := buildComponent(t, true, configcomp.NewMockFromYAML(t, tt.yaml)).Object()
+
+					grpcPort := tt.grpcPort
+					if agentFlavor == flavor.OTelAgent {
+						grpcPort = 50053
+					}
+					assert.Equal(t, grpcPort, cfg.OTLPReceiver.GRPCPort)
+					assert.Equal(t, 18126, cfg.ReceiverPort)
+				})
+			}
+		})
+	}
 }

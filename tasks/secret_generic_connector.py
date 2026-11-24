@@ -46,22 +46,23 @@ def build(
             )
         if race:
             raise NotImplementedError("--enable-bazel does not support --race. Use bazel build directly.")
-        if fips_backend != FipsBackend.none:
-            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
-        build_binary_with_bazel("//cmd/secret-generic-connector:secret-generic-connector", bin_path=BIN_PATH)
+        build_binary_with_bazel(
+            "//cmd/secret-generic-connector:secret-generic-connector", bin_path=BIN_PATH, fips_backend=fips_backend
+        )
         return
 
     version = get_version(ctx, include_git=True)
 
     # generate windows resources
     if sys.platform == 'win32':
-        build_messagetable(ctx)
+        build_messagetable(ctx, fips_backend=fips_backend)
         vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/secret-generic-connector/windows_resources/secret-generic-connector.rc",
             vars=vars,
             out="cmd/secret-generic-connector/rsrc.syso",
+            fips_backend=fips_backend,
         )
 
     ldflags, gcflags, env = get_build_flags(ctx)

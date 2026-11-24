@@ -191,6 +191,14 @@ func (r *Rule) GetAst() *ast.Rule {
 	return r.ast
 }
 
+// GetResolvedAst returns the tree of the rule after the compilation passes
+func (r *Rule) GetResolvedAst() *ast.Rule {
+	if r.evaluator == nil {
+		return nil
+	}
+	return r.evaluator.tree
+}
+
 // NewRuleEvaluator returns a new evaluator for a parsed rule: it runs the
 // compilation passes over the tree and compiles the result.
 func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
@@ -292,7 +300,7 @@ func (r *Rule) genPartials(fields []Field, key string) error {
 		return nil
 	}
 
-	node, err := pass.Run(r.evaluator.tree, pass.ProjectFields(fields, r.Opts.fieldOf), pass.FoldBools())
+	node, err := pass.Run(r.evaluator.tree, pass.ProjectFields(fields), pass.FoldBools())
 	if err != nil {
 		return fmt.Errorf("couldn't generate partial for fields %v and rule %s: %w", fields, r.ID, err)
 	}

@@ -25,6 +25,7 @@ jobs:
   release-note-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -58,6 +59,7 @@ jobs:
   fetch-labels:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     outputs:
       LABELS: ${{ steps.pr-labels.outputs.LABELS }}
     steps:
@@ -78,6 +80,7 @@ jobs:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check team assignment
         run: |
@@ -100,6 +103,7 @@ jobs:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -125,6 +129,7 @@ jobs:
   agenttelemetry-list-change-ack-check:
     if: github.triggering_actor != 'dd-devflow[bot]' && github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:

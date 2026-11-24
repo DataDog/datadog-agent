@@ -119,7 +119,7 @@ func (s *usmHTTP2Suite) TestLoadHTTP2Binary() {
 
 	cfg := s.getCfg()
 
-	for _, debug := range map[string]bool{"enabled": true, "disabled": false} {
+	for _, debug := range bpfDebugValues() {
 		t.Run(fmt.Sprintf("debug %v", debug), func(t *testing.T) {
 			cfg.BPFDebug = debug
 			setupUSMTLSMonitor(t, cfg, useExistingConsumer)

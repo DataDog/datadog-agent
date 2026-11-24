@@ -1,0 +1,43 @@
+---
+# No needs: even allowed-failure E2E consumers must finish before cleanup.
+# Child creation is required; child execution does not hold parent readiness.
+post-validation:
+  stage: .post
+  # Forward runtime defaults without promoting checkout defaults above job variables.
+  inherit:
+    variables:
+      - CI_IMAGE_LINUX
+      - CI_IMAGE_LINUX_SUFFIX
+      - AGENT_API_KEY_ORG2
+      - AGENT_QA_E2E
+      - COMPARE_TO_BRANCH
+      - DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND
+      - DISABLE_GIT_CACHE
+      - GET_SOURCES_ATTEMPTS
+      - EXECUTOR_JOB_SECTION_ATTEMPTS
+      - FF_SCRIPT_SECTIONS
+      - FF_KUBERNETES_HONOR_ENTRYPOINT
+      - FF_TIMESTAMPS
+      - FF_USE_FASTZIP
+      - PYTHONUNBUFFERED
+      - PYTHONDONTWRITEBYTECODE
+  rules:
+    # Evaluate this in the parent to preserve unset versus empty base branches.
+    - if: !reference [.if_light_pipeline, if]
+      when: always
+      variables:
+        POST_VALIDATION_CLEANUP_ENABLED: "false"
+    - when: always
+  variables:
+    POST_VALIDATION_PARENT_ID: $CI_PIPELINE_ID
+    POST_VALIDATION_PARENT_SOURCE: $CI_PIPELINE_SOURCE
+    POST_VALIDATION_PARENT_BRANCH: $CI_COMMIT_BRANCH
+    POST_VALIDATION_PARENT_TAG: $CI_COMMIT_TAG
+    POST_VALIDATION_CLEANUP_ENABLED: "true"
+    DDCI_REQUEST_ID: $DDCI_REQUEST_ID
+  trigger:
+    include:
+      - local: .gitlab/childs/post-validation.yml
+    forward:
+      pipeline_variables: true
+    # Omit strategy so the bridge succeeds when GitLab creates the child.

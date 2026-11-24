@@ -6,6 +6,7 @@
 package inventorychecksimpl
 
 import (
+	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
@@ -27,6 +28,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -39,6 +41,7 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
@@ -298,22 +301,60 @@ func TestGetPayload(t *testing.T) {
 
 func TestGetPayloadFilesMetadata(t *testing.T) {
 	confdPath := t.TempDir()
-	configPath := filepath.Join(confdPath, "secret_test.yaml")
-	require.NoError(t, os.WriteFile(configPath, []byte("init_config: {}\ninstances:\n- custom_field: some_value\n"), 0600))
-
-	ic := getTestInventoryChecks(
-		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
-	)
-
+	files := []string{filepath.Join(confdPath, "http_check.d", "one.yaml"), filepath.Join(confdPath, "http_check.d", "two.yaml")}
+	require.NoError(t, os.MkdirAll(filepath.Dir(files[0]), 0700))
+	for _, file := range files {
+		require.NoError(t, os.WriteFile(file, []byte(`init_config: {password: 'ENC[shared]'}
+instances: [{custom_field: some_value, password: 'ENC[shared]'}, {password: raw-value}]
+logs: [{password: raw-value}]
+jmx_metrics: [{password: 'ENC[shared]'}]
+`), 0600))
+	}
+	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil)
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetSecrets(map[string]string{"shared": "secret-value"})
+	ic.secrets = secretsComp
 	providers.ResetReader([]string{confdPath})
 	t.Cleanup(func() { providers.ResetReader(nil) })
+	payload := ic.getPayload(true).(*Payload)
+	require.Len(t, payload.FilesMetadata, 2)
+	for _, file := range files {
+		require.Contains(t, payload.FilesMetadata, file)
+		assert.Contains(t, payload.FilesMetadata[file], "raw_config")
+		encoded, err := json.Marshal(payload.FilesMetadata[file])
+		require.NoError(t, err)
+		assert.NotContains(t, string(encoded), "raw-value")
+		var decoded struct{ Secrets []map[string]string }
+		require.NoError(t, json.Unmarshal(encoded, &decoded))
+		assert.ElementsMatch(t, []map[string]string{
+			{"path": "init_config.password", "kind": "enc", "handle": "shared"},
+			{"path": "instances.0.password", "kind": "enc", "handle": "shared"},
+			{"path": "instances.1.password", "kind": "raw"},
+			{"path": "logs.0.password", "kind": "raw"},
+			{"path": "jmx_metrics.0.password", "kind": "enc", "handle": "shared"},
+		}, decoded.Secrets)
+	}
 
-	backendPayload := ic.getPayload(true).(*Payload)
-	require.Contains(t, backendPayload.FilesMetadata, configPath)
-	assert.Contains(t, backendPayload.FilesMetadata[configPath], "raw_config")
+	// enc_info aggregates the secrets of every file
+	encPaths := []string{"init_config.password", "instances.0.password", "jmx_metrics.0.password"}
+	rawPaths := []string{"instances.1.password", "logs.0.password"}
+	assert.ElementsMatch(t, append(encPaths, encPaths...), payload.EncInfo["paths"])
+	assert.Equal(t, []string{"shared", "shared", "shared", "shared", "shared", "shared"}, payload.EncInfo["handles"])
+	assert.ElementsMatch(t, append(rawPaths, rawPaths...), payload.EncInfo["scrubbed"])
+	assert.Equal(t, map[string]string{"shared": "31160254d1297393d2ad00e1c01851aec834361e02c524b89fe06aff2879ce6a"}, payload.EncInfo["hash_secret_id"])
+	encoded, err := json.Marshal(payload)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "secret-value")
 
 	expvarPayload := ic.getPayload(false).(*Payload)
 	assert.Empty(t, expvarPayload.FilesMetadata)
+	assert.Nil(t, expvarPayload.EncInfo)
+	ic.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
+	payload = ic.getPayload(true).(*Payload)
+	for _, file := range payload.FilesMetadata {
+		assert.NotContains(t, file, "secrets")
+	}
+	assert.Nil(t, payload.EncInfo)
 }
 
 func TestFlareProviderFilename(t *testing.T) {
