@@ -21,7 +21,9 @@ upgrade:
     else either: without ``DD_HOSTNAME``, the hostname no longer falls back to
     the kubelet when none of these environment variables is set, and the
     cluster name, the Kubernetes distribution tag and the node annotation host
-    aliases are no longer looked up from the node. ``DD_CLUSTER_NAME``, the
+    aliases are no longer looked up from the node, which the OpenTelemetry
+    Agent only reads through the Cluster Agent (``cluster_agent.enabled``).
+    ``DD_CLUSTER_NAME``, the
     cloud provider, and the ``k8s.cluster.name`` attribute of the collector's
     telemetry resource still give the cluster name. To keep the previous
     behavior, set ``use_kubelet_collector: true`` in the ``dogtel`` extension

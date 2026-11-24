@@ -989,6 +989,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_ConnectedModeIgnored() {
 	assert.Equal(t, "", c.GetString("hostname"))
 	assert.Equal(t, "", c.GetString("secret_backend_command"))
 	assert.Equal(t, "", c.GetString("kubernetes_kubelet_host"))
+	assert.False(t, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
 }
 
 func TestTelemetryResourceAttribute(t *testing.T) {
@@ -1124,7 +1125,7 @@ func TestGetDogtelExtensionConfig_KubeletTLSVerify(t *testing.T) {
 
 // TestGetDogtelExtensionConfig_UseKubeletCollector verifies that
 // use_kubelet_collector can be explicitly set to false (distinguishable from
-// the unset/nil state, which defaults to the kubelet collector).
+// the unset/nil state, which keeps the Agent setting).
 func TestGetDogtelExtensionConfig_UseKubeletCollector(t *testing.T) {
 	falseVal := false
 	cfg := confmap.NewFromStringMap(map[string]any{
