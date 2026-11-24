@@ -3775,7 +3775,10 @@ func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
 			name += " equal ports"
 		}
 		t.Run(name, func(t *testing.T) {
+			// releases the handlers of every attempt's server, including those of rejected attempts if the
+			// subtest fails in the retry loop
 			done := make(chan struct{})
+			t.Cleanup(func() { close(done) })
 			var srv *tracertestutil.TCPServer
 			var c net.Conn
 			var err error
@@ -3832,7 +3835,6 @@ func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
 				srv.Shutdown()
 			}
 			defer c.Close()
-			defer close(done)
 			if serverSends {
 				_, err = io.ReadFull(c, make([]byte, len(response)))
 			} else {
@@ -4106,18 +4108,19 @@ func dialSNAT(t *testing.T, equalPorts bool, accept func(client, server net.Conn
 			port = ln.Addr().(*net.TCPAddr).Port
 		}
 		d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6"), Port: port}, Timeout: 5 * time.Second}
-		client, err = d.Dial("tcp", ln.Addr().String())
+		// each cleanup closes its own attempt's conn, not a variable that a later attempt's failed dial leaves nil
+		c, err := d.Dial("tcp", ln.Addr().String())
 		if err == nil {
-			t.Cleanup(func() { _ = client.Close() })
-			server, err = ln.Accept()
-			require.NoError(t, err)
-			t.Cleanup(func() { _ = server.Close() })
-			if err = accept(client, server); err == nil {
+			t.Cleanup(func() { _ = c.Close() })
+			s, aerr := ln.Accept()
+			require.NoError(t, aerr)
+			t.Cleanup(func() { _ = s.Close() })
+			if err = accept(c, s); err == nil {
 				_ = ln.Close()
-				return client, server
+				return c, s
 			}
-			_ = client.Close()
-			_ = server.Close()
+			_ = c.Close()
+			_ = s.Close()
 		} else {
 			require.ErrorIs(t, err, syscall.EADDRINUSE, "dial failed after %d attempt(s)", attempt)
 		}

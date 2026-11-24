@@ -71,11 +71,13 @@ func SetupSNAT(t *testing.T) string {
 // [firstPort, lastPort]. The kernel keeps a source port that is already in that range and free. It must be called
 // after SetupSNAT, and its rule is removed when t ends.
 func SetupSNATPortRewrite(t *testing.T, firstPort, lastPort uint16) {
-	nettestutil.IptablesSave(t)
+	// registered before IptablesSave's restore, so it runs after the rule is gone: connections from this test keep
+	// their rewritten ports in conntrack otherwise, and late packets, such as TIME_WAIT ACKs, would make new entries
+	// while the rule is still in place
 	t.Cleanup(func() {
-		// connections from this test keep their rewritten ports in conntrack otherwise
 		nettestutil.RunCommands(t, []string{"conntrack -F"}, true)
 	})
+	nettestutil.IptablesSave(t)
 	cmds := []string{
 		// inserted, so it comes before SetupSNAT's rule
 		fmt.Sprintf("iptables -t nat -I POSTROUTING 1 -s 6.6.6.6/32 -p tcp -j SNAT --to-source 7.7.7.7:%d-%d", firstPort, lastPort),
