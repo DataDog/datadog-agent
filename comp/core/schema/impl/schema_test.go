@@ -260,16 +260,29 @@ func TestValidateConfigSkipsSecretPlaceholders(t *testing.T) {
 	}
 }
 
-func TestValidateYAMLSkipsNull(t *testing.T) {
+func TestValidateYAMLReportsNull(t *testing.T) {
+	// without a configuration there is no way to tell which nulls are ignored, so they are all reported
 	v := newTestValidator(t)
-	violations, err := v.ValidateYAML([]byte("api_key:\ntags: ~\nlogs_config:\n"), model.CoreSchema)
-	require.NoError(t, err)
-	assert.Empty(t, violations)
-
-	violations, err = v.ValidateYAML([]byte("tags: [a, ~]\n"), model.CoreSchema)
-	require.NoError(t, err)
-	require.Len(t, violations, 1)
-	assert.Equal(t, "/tags/1", violations[0].Path)
+	for _, tc := range []struct {
+		name     string
+		yaml     string
+		wantPath []string
+	}{
+		{"null setting", "api_key:\n", []string{"/api_key"}},
+		{"null section", "logs_config: ~\n", []string{"/logs_config"}},
+		{"null list item", "tags: [a, ~]\n", []string{"/tags/1"}},
+		{"null map setting entry", "additional_endpoints:\n  https://a.test: ~\n", []string{"/additional_endpoints/https:~1~1a.test"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			violations, err := v.ValidateYAML([]byte(tc.yaml), model.CoreSchema)
+			require.NoError(t, err)
+			var paths []string
+			for _, violation := range violations {
+				paths = append(paths, violation.Path)
+			}
+			assert.Equal(t, tc.wantPath, paths)
+		})
+	}
 }
 
 func TestValidateConfigSkipsNull(t *testing.T) {
