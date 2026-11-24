@@ -119,26 +119,26 @@ func TestStatementMetricsSkipsZeroDeltaRows(t *testing.T) {
 	// Seed previous cache as if a prior collection interval already observed these rows.
 	idleKey := StatementMetricsKeyDB{
 		ConID:                  1,
-		PDBName:                "PDB1",
+		PDBName:                sql.NullString{String: "PDB1", Valid: true},
 		ForceMatchingSignature: "1001",
 		PlanHashValue:          11111,
 	}
 	activeKey := StatementMetricsKeyDB{
 		ConID:                  1,
-		PDBName:                "PDB1",
+		PDBName:                sql.NullString{String: "PDB1", Valid: true},
 		ForceMatchingSignature: "1002",
 		PlanHashValue:          0, // skip plan lookup for the active row to isolate assertions
 	}
 	parseOnlyKey := StatementMetricsKeyDB{
 		ConID:                  1,
-		PDBName:                "PDB1",
+		PDBName:                sql.NullString{String: "PDB1", Valid: true},
 		SQLID:                  "sql_parse_only",
 		ForceMatchingSignature: "",
 		PlanHashValue:          0,
 	}
 	negativeKey := StatementMetricsKeyDB{
 		ConID:                  1,
-		PDBName:                "PDB1",
+		PDBName:                sql.NullString{String: "PDB1", Valid: true},
 		SQLID:                  "sql_neg",
 		ForceMatchingSignature: "",
 		PlanHashValue:          0,
@@ -299,11 +299,11 @@ func TestStatementMetricsEnforcesMaxRunTimeForPlans(t *testing.T) {
 
 		// 2 idle rows followed by 3 active rows (indices 2, 3, 4 — none satisfy (i+1)%10 == 0).
 		c.statementMetricsMonotonicCountsPrevious = map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB{
-			{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "idle1", PlanHashValue: 1001}:   {Executions: 5},
-			{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "idle2", PlanHashValue: 1002}:   {Executions: 5},
-			{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "active1", PlanHashValue: 2001}: {Executions: 5},
-			{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "active2", PlanHashValue: 2002}: {Executions: 5},
-			{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "active3", PlanHashValue: 2003}: {Executions: 5},
+			{ConID: 1, PDBName: sql.NullString{String: "PDB1", Valid: true}, ForceMatchingSignature: "idle1", PlanHashValue: 1001}:   {Executions: 5},
+			{ConID: 1, PDBName: sql.NullString{String: "PDB1", Valid: true}, ForceMatchingSignature: "idle2", PlanHashValue: 1002}:   {Executions: 5},
+			{ConID: 1, PDBName: sql.NullString{String: "PDB1", Valid: true}, ForceMatchingSignature: "active1", PlanHashValue: 2001}: {Executions: 5},
+			{ConID: 1, PDBName: sql.NullString{String: "PDB1", Valid: true}, ForceMatchingSignature: "active2", PlanHashValue: 2002}: {Executions: 5},
+			{ConID: 1, PDBName: sql.NullString{String: "PDB1", Valid: true}, ForceMatchingSignature: "active3", PlanHashValue: 2003}: {Executions: 5},
 		}
 
 		fmsRows := sqlmock.NewRows(statementMetricsTestColumns).
@@ -338,7 +338,7 @@ func TestStatementMetricsEnforcesMaxRunTimeForPlans(t *testing.T) {
 		c, _ := statementMetricsTestCheck(t, sqlx.NewDb(db, "sqlmock"))
 		c.config.QueryMetrics.MaxRunTime = 0
 		c.statementMetricsMonotonicCountsPrevious = map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB{
-			{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "active1", PlanHashValue: 3001}: {Executions: 1},
+			{ConID: 1, PDBName: sql.NullString{String: "PDB1", Valid: true}, ForceMatchingSignature: "active1", PlanHashValue: 3001}: {Executions: 1},
 		}
 
 		fmsRows := sqlmock.NewRows(statementMetricsTestColumns).
@@ -410,9 +410,9 @@ func TestStatementMetricsReplacesCacheAndCombinesQueries(t *testing.T) {
 
 	c, _ := statementMetricsTestCheck(t, sqlx.NewDb(db, "sqlmock"))
 
-	fmsKey := StatementMetricsKeyDB{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "2001"}
-	sqlIDKey := StatementMetricsKeyDB{ConID: 1, PDBName: "PDB1", SQLID: "sql_only"}
-	staleKey := StatementMetricsKeyDB{ConID: 1, PDBName: "PDB1", ForceMatchingSignature: "stale_fms"}
+	fmsKey := StatementMetricsKeyDB{ConID: 1, PDBName: sql.NullString{String: "PDB1", Valid: true}, ForceMatchingSignature: "2001"}
+	sqlIDKey := StatementMetricsKeyDB{ConID: 1, PDBName: sql.NullString{String: "PDB1", Valid: true}, SQLID: "sql_only"}
+	staleKey := StatementMetricsKeyDB{ConID: 1, PDBName: sql.NullString{String: "PDB1", Valid: true}, ForceMatchingSignature: "stale_fms"}
 
 	c.statementMetricsMonotonicCountsPrevious = map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB{
 		fmsKey:   {Executions: 10},
@@ -466,4 +466,104 @@ func TestStatementMetricsReplacesCacheAndCombinesQueries(t *testing.T) {
 	assert.Equal(t, float64(3), c.lastOracleRows[0].Executions)
 	assert.Len(t, c.statementMetricsMonotonicCountsPrevious, 1)
 	assert.Contains(t, c.statementMetricsMonotonicCountsPrevious, fmsKey)
+}
+
+func TestGetFullPDBName(t *testing.T) {
+	c := &Check{cdbName: "ORCLCDB"}
+	assert.Equal(t, "ORCLCDB", c.getFullPDBName(""))
+	assert.Equal(t, "ORCLCDB.PDB1", c.getFullPDBName("PDB1"))
+}
+
+func TestStatementMetricsNullPDBName(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	c, sender := statementMetricsTestCheck(t, sqlx.NewDb(db, "sqlmock"))
+	c.cdbName = "ORCLCDB"
+
+	// Run 1 (baseline): NULL PDB_NAME in both FMS and SQL_ID queries must scan cleanly without error.
+	dbMock.ExpectQuery("DD_QM_FMS").WillReturnRows(
+		sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(0, nil, "sql_root", "5001", uint64(9001), "SELECT * FROM cdb_root_tbl", 26, 1.0, 5.0, 100.0, 1.0, 4096.0, 0.0).
+			AddRow(3, "PDB1", "sql_pdb", "5002", uint64(9002), "SELECT * FROM pdb_tbl", 21, 1.0, 5.0, 100.0, 1.0, 4096.0, 0.0),
+	)
+	dbMock.ExpectQuery("DD_QM_SQLID").WillReturnRows(
+		sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(0, nil, "sql_noncdb", "", uint64(0), "SELECT * FROM noncdb_tbl", 24, 1.0, 2.0, 50.0, 1.0, 2048.0, 0.0),
+	)
+
+	sqlCount, err := c.StatementMetrics()
+	require.NoError(t, err)
+	assert.Equal(t, 3, sqlCount)
+	assert.Empty(t, c.lastOracleRows)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+
+	nullRootKey := StatementMetricsKeyDB{
+		ConID:                  0,
+		PDBName:                sql.NullString{},
+		ForceMatchingSignature: "5001",
+		PlanHashValue:          9001,
+	}
+	assert.Contains(t, c.statementMetricsMonotonicCountsPrevious, nullRootKey)
+
+	// Run 2 (active): NULL PDB_NAME rows match cached keys, emit c.cdbName without trailing dot,
+	// and omit empty "pdb:" tag from plan payloads while non-NULL PDB_NAME rows keep "pdb:PDB1".
+	dbMock.ExpectQuery("DD_QM_FMS").WillReturnRows(
+		sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(0, nil, "sql_root", "5001", uint64(9001), "SELECT * FROM cdb_root_tbl", 26, 1.0, 8.0, 400.0, 1.0, 4096.0, 0.0).
+			AddRow(3, "PDB1", "sql_pdb", "5002", uint64(9002), "SELECT * FROM pdb_tbl", 21, 1.0, 7.0, 300.0, 1.0, 4096.0, 0.0),
+	)
+	dbMock.ExpectQuery("DD_QM_SQLID").WillReturnRows(
+		sqlmock.NewRows(statementMetricsTestColumns).
+			AddRow(0, nil, "sql_noncdb", "", uint64(0), "SELECT * FROM noncdb_tbl", 24, 1.0, 4.0, 150.0, 1.0, 2048.0, 0.0),
+	)
+
+	planCols := []string{"CHILD_NUMBER", "OPERATION", "ID", "PARENT_ID", "DEPTH"}
+	dbMock.ExpectQuery("v\\$sql_plan_statistics_all").
+		WithArgs("sql_root", uint64(9001), 0).
+		WillReturnRows(sqlmock.NewRows(planCols).AddRow(0, "SELECT STATEMENT", 0, 0, 0))
+	dbMock.ExpectQuery("v\\$sql_plan_statistics_all").
+		WithArgs("sql_pdb", uint64(9002), 3).
+		WillReturnRows(sqlmock.NewRows(planCols).AddRow(0, "SELECT STATEMENT", 0, 0, 0))
+
+	callsBefore := len(sender.Calls)
+	c.statementsLastRun = time.Now().Add(-2 * time.Hour)
+	sqlCount, err = c.StatementMetrics()
+	require.NoError(t, err)
+	assert.Equal(t, 3, sqlCount)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+
+	require.Len(t, c.lastOracleRows, 3)
+	rowsByHash := make(map[string]OracleRow, len(c.lastOracleRows))
+	for _, row := range c.lastOracleRows {
+		rowsByHash[row.QueryHash] = row
+	}
+	assert.Equal(t, "ORCLCDB", rowsByHash["5001"].PDBName)
+	assert.Equal(t, float64(3), rowsByHash["5001"].Executions)
+	assert.Equal(t, "ORCLCDB.PDB1", rowsByHash["5002"].PDBName)
+	assert.Equal(t, float64(2), rowsByHash["5002"].Executions)
+	assert.Equal(t, "ORCLCDB", rowsByHash["sql_noncdb"].PDBName)
+	assert.Equal(t, float64(2), rowsByHash["sql_noncdb"].Executions)
+
+	plansBySQLID := make(map[string]PlanPayload)
+	for _, call := range sender.Calls[callsBefore:] {
+		if call.Method != "EventPlatformEvent" || call.Arguments.String(1) != "dbm-samples" {
+			continue
+		}
+		var pp PlanPayload
+		require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &pp))
+		if pp.DBMType == "plan" {
+			plansBySQLID[pp.OraclePlan.SQLID] = pp
+		}
+	}
+	require.Len(t, plansBySQLID, 2)
+
+	rootPlan := plansBySQLID["sql_root"]
+	assert.Empty(t, rootPlan.OraclePlan.PDBName)
+	assert.NotContains(t, rootPlan.Tags, "pdb:", "NULL PDB_NAME must not emit an empty pdb: tag")
+
+	pdbPlan := plansBySQLID["sql_pdb"]
+	assert.Equal(t, "PDB1", pdbPlan.OraclePlan.PDBName)
+	assert.Contains(t, strings.Split(pdbPlan.Tags, ","), "pdb:PDB1")
 }

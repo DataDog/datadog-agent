@@ -467,6 +467,9 @@ func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string
 }
 
 func (c *Check) getFullPDBName(pdb string) string {
+	if pdb == "" {
+		return c.cdbName
+	}
 	return fmt.Sprintf("%s.%s", c.cdbName, pdb)
 }
 
