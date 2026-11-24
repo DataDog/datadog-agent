@@ -45,6 +45,7 @@ var errNoLeaderSource = errors.New("leader election is not available")
 
 // k8sIdentityStorage stores the PAR identity in a Kubernetes secret shared by the Cluster Agent replicas.
 type k8sIdentityStorage struct {
+	cfg          configModel.Reader
 	kubeClient   func() (kubernetes.Interface, error)
 	namespace    string
 	secretName   string
@@ -59,12 +60,13 @@ type k8sIdentityStorage struct {
 
 func newK8sIdentityStorage(cfg configModel.Reader, leader LeaderSource) *k8sIdentityStorage {
 	return &k8sIdentityStorage{
+		cfg:          cfg,
 		kubeClient:   getKubeClient,
 		namespace:    namespace.GetResourcesNamespace(),
 		secretName:   getSecretName(cfg),
 		leader:       leader,
 		pollInterval: secretPollInterval,
-		apiKeyHash:   HashAPIKey(cfg.GetString("api_key")),
+		apiKeyHash:   HashAPIKey(par.EnrollmentAPIKey(cfg)),
 		selfEnroll:   cfg.GetBool(par.SelfEnroll),
 		useWIF:       UsesWIF(cfg) && cfg.GetBool(par.SelfEnroll),
 		wifOrgUUID:   cfg.GetString("delegated_auth.org_uuid"),
@@ -82,6 +84,10 @@ func NewK8sIdentityStorage(cfg configModel.Reader, leader LeaderSource, client k
 
 // acceptsSecret reports whether the secret's identity can be used with the configured enrollment scope.
 func (s *k8sIdentityStorage) acceptsSecret(secret *corev1.Secret) bool {
+	identity := &PersistedIdentity{URN: string(secret.Data[urnField]), WIFOrgUUID: string(secret.Data[wifOrgUUIDField])}
+	if !identity.MatchesPAROverrides(s.cfg) {
+		return false
+	}
 	if s.useWIF {
 		orgUUID := string(secret.Data[wifOrgUUIDField])
 		return orgUUID != "" && strings.EqualFold(orgUUID, s.wifOrgUUID) && string(secret.Data[wifSiteField]) == s.wifSite

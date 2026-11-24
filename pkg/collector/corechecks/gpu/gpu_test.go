@@ -624,7 +624,11 @@ func TestReadinessWaitsForNVMLInitialization(t *testing.T) {
 		synctest.Wait()
 		require.Contains(t, health.GetReady().Unhealthy, CheckName)
 
+		// Stop the state changes worker before replacing the NVML singleton, and before
+		// this mock is reset at cleanup: cleanups run in reverse order.
+		check.stateChanges.Stop()
 		nvmltestutil.SetupMockNVML(t, testutil.WithPhysicalDeviceUUIDs([]string{testutil.DefaultGpuUUID}), testutil.WithMockAllFunctions())
+		t.Cleanup(check.stateChanges.Stop)
 		require.NoError(t, check.Run())
 		require.True(t, check.telemetry.nvmlState.LastNvmlInitSuccess())
 		time.Sleep(15 * time.Second)
@@ -649,8 +653,10 @@ func TestReadinessStaysHealthyAfterNVMLBecomesUnavailable(t *testing.T) {
 		synctest.Wait()
 		require.Contains(t, health.GetReady().Healthy, CheckName)
 
-		// Stop the event worker before replacing the NVML singleton with a failing mock.
+		// Stop the event and state changes workers before replacing the NVML singleton with
+		// a failing mock.
 		require.NoError(t, check.deviceEvtGatherer.Stop())
+		check.stateChanges.Stop()
 		lib.InitFunc = func() nvml.Return { return nvml.ERROR_UNKNOWN }
 		ddnvml.WithPartialMockNVML(t, nil, nil)
 		ddnvml.WithMockNvmlNewFunc(t, func(...nvml.LibraryOption) nvml.Interface { return lib })
@@ -877,8 +883,9 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// eBPF is disabled by default, and PLR requires the system-probe
 	// endpoint.
 	parentCollectorTypes := nvidia.NumCollectors() - 2
-	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created.
-	migCollectorTypes := parentCollectorTypes - 4
+	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created, and
+	// state changes are only watched on physical devices.
+	migCollectorTypes := parentCollectorTypes - 5
 
 	// Track the number of visible MIG children dynamically.
 	migDeviceCount := 0
@@ -1742,7 +1749,7 @@ func TestEmitSharingFractionPerContainer(t *testing.T) {
 		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, container.ID), "foo", []string{"pod_name:" + container.ID}, nil, nil, nil)
 	}
 	for _, uuid := range []string{gpu0, gpu1} {
-		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, uuid), "foo", []string{"gpu_uuid:" + uuid, "gpu_sharing_mode:kai_fraction"}, nil, nil, nil)
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, uuid), "foo", []string{"gpu_uuid:" + uuid, "gpu_sharing_mode:kai-fraction"}, nil, nil, nil)
 	}
 
 	require.NoError(t, check.Run())
@@ -1766,9 +1773,9 @@ func TestEmitSharingFractionPerContainer(t *testing.T) {
 
 	perPod := func(value float64) []series {
 		return []series{
-			{value, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-a"}},
-			{value, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-multi"}},
-			{value, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu1, "pod_name:frac-multi"}},
+			{value, []string{"gpu_sharing_mode:kai-fraction", "gpu_uuid:" + gpu0, "pod_name:frac-a"}},
+			{value, []string{"gpu_sharing_mode:kai-fraction", "gpu_uuid:" + gpu0, "pod_name:frac-multi"}},
+			{value, []string{"gpu_sharing_mode:kai-fraction", "gpu_uuid:" + gpu1, "pod_name:frac-multi"}},
 		}
 	}
 	assert.ElementsMatch(t, perPod(0.5), emitted["gpu.device.sharing_fraction"])
@@ -2107,7 +2114,7 @@ func TestNvlinkErrorCounterDedupPrefersStatelessCollector(t *testing.T) {
 
 	disabled := []string{
 		"stateless", "sampling", "fields", "gpm", "device_events", "sharing",
-		"nvlink_plr", "nvlink_fec", "nvlink_gpm",
+		"nvlink_plr", "nvlink_fec", "nvlink_gpm", "state_changes",
 	}
 	deps := &nvidia.CollectorDependencies{
 		Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
@@ -2342,7 +2349,7 @@ func TestReleaseNVMLRebuildsCollectorsOfDevicesPendingRetry(t *testing.T) {
 }
 
 func TestMetricsFollowSpec(t *testing.T) {
-	// - KubernetesDevicePlugins required for gpu.device.unhealthy metric
+	// - KubernetesDevicePlugins enables device-plugin health reporting for gpu.device.unavailable
 	// - NVML required to ensure the NVML workloadmeta collector starts up
 	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
 	nvidia.WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)

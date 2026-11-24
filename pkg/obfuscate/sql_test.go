@@ -131,6 +131,12 @@ func TestScanDollarQuotedString(t *testing.T) {
 		{`$$abc$$`, `abc`, false},
 		{`$$abc`, `abc`, true},
 		{`$$abc$`, `abc`, true},
+		// A tag cannot contain '$', so a '$' right after the opening tag starts the
+		// content (or the closing tag), and is never an escaped delimiter.
+		{`$tag$$tag$`, ``, false},
+		{`$eEGKEwMKHi$$eEGKEwMKHi$`, ``, false},
+		{`$tag$$5.00$tag$`, `$5.00`, false},
+		{`$tag$$$tag$`, `$`, false},
 	} {
 		t.Run("", func(t *testing.T) {
 			tok := NewSQLTokenizer(tt.in, false, nil)
@@ -141,7 +147,7 @@ func TestScanDollarQuotedString(t *testing.T) {
 				}
 				return
 			}
-			assert.Equal(t, string(str), tt.out)
+			assert.Equal(t, tt.out, string(str))
 			assert.Equal(t, DollarQuotedString, kind)
 		})
 	}
@@ -161,6 +167,19 @@ func TestScanDollarQuotedString(t *testing.T) {
 			assert.Equal(t, DollarQuotedFunc, kind)
 		})
 	})
+}
+
+func TestObfuscateEmptyDollarQuotedString(t *testing.T) {
+	for _, in := range []string{
+		`SELECT * FROM users WHERE name = $eEGKEwMKHi$$eEGKEwMKHi$`,
+		`SELECT * FROM users WHERE name = $tag$$5.00$tag$`,
+	} {
+		t.Run(in, func(t *testing.T) {
+			oq, err := NewObfuscator(Config{}).ObfuscateSQLStringForDBMS(in, DBMSPostgres)
+			require.NoError(t, err)
+			assert.Equal(t, `SELECT * FROM users WHERE name = ?`, oq.Query)
+		})
+	}
 }
 
 func TestSQLMetadata(t *testing.T) {

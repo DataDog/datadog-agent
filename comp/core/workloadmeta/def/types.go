@@ -2530,7 +2530,7 @@ const (
 	GPUSharingModeNone GPUSharingMode = "none"
 	// GPUSharingModeKAIFraction means that KAI Scheduler shares the GPU
 	// between workloads that each request a fraction of it.
-	GPUSharingModeKAIFraction GPUSharingMode = "kai_fraction"
+	GPUSharingModeKAIFraction GPUSharingMode = "kai-fraction"
 	// GPUSharingModeTimeSlicing means that the NVIDIA device plugin shares the
 	// GPU between workloads as time-sliced replicas of it.
 	GPUSharingModeTimeSlicing GPUSharingMode = "time-slicing"
@@ -2595,7 +2595,7 @@ type GPU struct {
 	// Index is the index of the GPU in the host system. This is useful as sometimes
 	// GPUs will be identified by their index instead of their UUID. Note that the index
 	// is not guaranteed to be stable across reboots, nor is necessarily the same inside
-	// of containers.
+	// of containers. It is the index nvidia-smi or amd-smi reports, -1 when unknown.
 	Index int
 
 	// Architecture contains the architecture of the GPU (e.g., Pascal, Volta, etc.). Optional, can be empty.

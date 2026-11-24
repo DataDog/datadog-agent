@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/rand"
 	"net"
@@ -41,6 +42,8 @@ import (
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/miekg/dns"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,6 +69,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
@@ -466,7 +470,72 @@ func (s *TracerSuite) TestTCPMiscount() {
 		assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
 	}
 
-	assert.NotZero(t, connection.EbpfTracerTelemetry.GetLastTCPSentMiscounts())
+	assert.NotZero(t, collectCounter(t, tr.ebpfTracer, "network_tracer__ebpf__tcp_sent_miscounts"))
+}
+
+// TestTelemetryCountersAreRunningTotals checks that reading the eBPF tracer's
+// telemetry doesn't change it. Every Gather of the telemetry registry calls
+// Collect, not only scrapes of /telemetry, so a collector that reports the change
+// since its previous call hands most of the counts to whichever reader ran last.
+func (s *TracerSuite) TestTelemetryCountersAreRunningTotals() {
+	t := s.T()
+	tr := setupTracer(t, testConfig())
+	switch tr.ebpfTracer.Type() {
+	case connection.TracerTypeKProbePrebuilt, connection.TracerTypeKProbeRuntimeCompiled, connection.TracerTypeKProbeCORE, connection.TracerTypeFentry:
+	default:
+		t.Skipf("tracer type %v has no eBPF telemetry counters", tr.ebpfTracer.Type())
+	}
+
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		_, _ = io.Copy(io.Discard, c)
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	// Every tcp_close of a tracked connection increments tcp_close_connection_flush.
+	for range 5 {
+		c, err := server.Dial()
+		require.NoError(t, err)
+		_, err = c.Write([]byte("ping"))
+		require.NoError(t, err)
+		require.NoError(t, c.Close())
+	}
+
+	const name = "network_tracer__ebpf__tcp_close_connection_flush"
+	var first float64
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		first = collectCounter(ct, tr.ebpfTracer, name)
+		// Each client close above is counted synchronously in tcp_close.
+		assert.GreaterOrEqual(ct, first, 5.0)
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// With no new closes in between, a second read must see at least the same
+	// total, not just what changed since the first read.
+	assert.GreaterOrEqual(t, collectCounter(t, tr.ebpfTracer, name), first)
+}
+
+// collectCounter returns the value of the named counter reported by c, summed
+// over its label values. It gathers c through a pedantic registry, which also
+// checks that c only collects metrics it describes.
+func collectCounter(t require.TestingT, c prometheus.Collector, name string) float64 {
+	reg := prometheus.NewPedanticRegistry()
+	require.NoError(t, reg.Register(c))
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	for _, mf := range families {
+		if mf.GetName() != name {
+			continue
+		}
+		require.Equal(t, dto.MetricType_COUNTER, mf.GetType(), "%s is not a counter", name)
+		var value float64
+		for _, m := range mf.GetMetric() {
+			value += m.GetCounter().GetValue()
+		}
+		return value
+	}
+	require.Fail(t, name+" not reported")
+	return 0
 }
 
 func (s *TracerSuite) TestConnectionExpirationRegression() {
@@ -596,8 +665,8 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	require.NoError(t, err)
 }
 
-// This test ensures that conntrack lookups are retried for short-lived
-// connections when the first lookup fails
+// This test ensures that the tracer retries the conntrack lookup of an active
+// connection on a later fetch when the first lookup fails
 func (s *TracerSuite) TestConntrackDelays() {
 	t := s.T()
 	cfg := testConfig()
@@ -626,16 +695,42 @@ func (s *TracerSuite) TestConntrackDelays() {
 	c, err := tracertestutil.DialTCP("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err)
 	defer tracertestutil.GracefulCloseTCP(c)
-	_, err = c.Write([]byte("ping"))
-	require.NoError(t, err)
 
+	// SetupDNAT rewrites 2.2.2.2 to 1.1.1.1 without changing the port, so the
+	// reply tuple runs from the server (1.1.1.1:port) back to the client.
+	laddr := c.LocalAddr().(*net.TCPAddr)
+	serverPort, err := strconv.ParseUint(port, 10, 16)
+	require.NoError(t, err)
+	expectedTranslation := &network.IPTranslation{
+		ReplSrcIP:   util.AddressFromString("1.1.1.1"),
+		ReplDstIP:   util.AddressFromNetIP(laddr.IP),
+		ReplSrcPort: uint16(serverPort),
+		ReplDstPort: uint16(laddr.Port),
+	}
+
+	// The tracer looks up the NAT translation of every active connection on each
+	// fetch, and the delayedConntracker makes its first lookup miss, so the test
+	// passes only if a later fetch retries the lookup. With the netlink conntracker
+	// (the fallback when the eBPF conntracker is unavailable, e.g. on kernels before
+	// 4.14 other than RHEL 7) the entry is also registered asynchronously and can land
+	// after several fetches. An idle connection is reported in only one fetch per
+	// client, so write on every tick to keep it in each delta.
+	var seen, sawMiss bool
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		_, err := c.Write([]byte("ping"))
+		require.NoError(collect, err)
 		connections, cleanup := getConnections(collect, tr)
 		defer cleanup()
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		require.True(collect, ok)
-		require.NotNil(collect, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple))
+		require.True(collect, ok, "connection not found")
+		if !seen {
+			seen = true
+			sawMiss = conn.IPTranslation == nil
+		}
+		require.NotNil(collect, conn.IPTranslation, "connection reported without NAT translation")
+		require.Equal(collect, expectedTranslation, conn.IPTranslation, "unexpected NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection with translation")
+	require.True(t, sawMiss, "the tracer's first translation lookup should have been delayed")
 
 	// write newline so server connections will exit
 	_, err = c.Write([]byte("\n"))
@@ -795,7 +890,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 		var clientIP string
 		var clientPort int
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
-			clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{"google.com"}, dnsAddr, "udp")
+			clientIP, clientPort, err = sendUDPToExternalDNS(dnsAddr)
 			assert.NoError(c, err)
 		}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
@@ -885,7 +980,10 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	network.Cloud = m
 
 	destAddr := net.ParseIP("8.8.8.8")
-	destDomain := "google.com"
+	// Register the restore before the tracer is created, so that it runs after
+	// tr.Stop (cleanups run LIFO) and never races the running gateway lookup.
+	oldSubnetFunc := network.SubnetForHwAddrFunc
+	t.Cleanup(func() { network.SubnetForHwAddrFunc = oldSubnetFunc })
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	// create the tracer without starting it
@@ -911,7 +1009,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	var clientIP string
 	var clientPort int
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{destDomain}, destAddr, "udp")
+		clientIP, clientPort, err = sendUDPToExternalDNS(destAddr)
 		assert.NoError(c, err)
 	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
@@ -928,7 +1026,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	require.Nil(t, c.Via)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{destDomain}, destAddr, "udp")
+		clientIP, clientPort, err = sendUDPToExternalDNS(destAddr)
 		assert.NoError(c, err)
 	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
@@ -957,6 +1055,10 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	m.EXPECT().IsAWS().Return(true)
 	network.Cloud = m
 
+	// Register the restore before the tracer is created, so that it runs after
+	// tr.Stop (cleanups run LIFO) and never races the running gateway lookup.
+	oldSubnetFunc := network.SubnetForHwAddrFunc
+	t.Cleanup(func() { network.SubnetForHwAddrFunc = oldSubnetFunc })
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	tr, err := newTracer(cfg, telemetryimpl.NewMock(t), nil)
@@ -1093,7 +1195,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		var clientPort int
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			netns.WithNS(test2Ns, func() error {
-				clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{"google.com"}, dnsAddr, "udp")
+				clientIP, clientPort, err = sendUDPToExternalDNS(dnsAddr)
 				return nil
 			})
 			assert.NoError(c, err)
@@ -1305,30 +1407,86 @@ func (s *TracerSuite) TestSelfConnect() {
 		}
 	})
 
-	portStr, err := bufio.NewReader(stdOutReader).ReadString('\n')
-	require.NoError(t, err, "error reading port from fork.py")
+	// fork.py prints "<port> <child PID>".
+	line, err := bufio.NewReader(stdOutReader).ReadString('\n')
+	require.NoError(t, err, "error reading port and child PID from fork.py")
+	fields := strings.Fields(line)
+	require.Len(t, fields, 2, "unexpected fork.py output %q", line)
 
-	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)
-	require.NoError(t, err, "could not convert %s to integer port", portStr)
+	port, err := strconv.ParseUint(fields[0], 10, 16)
+	require.NoError(t, err, "could not convert %s to integer port", fields[0])
+	childPID64, err := strconv.ParseUint(fields[1], 10, 32)
+	require.NoError(t, err, "could not convert %s to integer PID", fields[1])
 
-	t.Logf("port is %d", port)
+	parentPID := uint32(cmd.Process.Pid)
+	childPID := uint32(childPID64)
+	t.Logf("port is %d, parent PID %d, child PID %d", port, parentPID, childPID)
 
 	buildmode := ebpftest.GetBuildMode()
+	// The two sides of the self-connection share the 4-tuple and differ only by PID. Once they have
+	// exchanged their 3 bytes they are idle, so the client sees each of them in one fetch only: the
+	// state skips an active connection whose stats haven't changed since the client's last fetch. The
+	// two sides update their stats at slightly different times (the sender's tcp_sendmsg returns after
+	// the data has already reached the receiver), so a fetch can land between them and report only
+	// one side, after which neither comes back. So keep the latest connection seen for the parent and
+	// for the child across fetches, keyed by PID only: other tuple fields such as Direction can differ
+	// between fetches, and keying on them would let one side show up twice.
+	seen := make(map[uint32]network.ConnectionStats)
+	var duplicate string
+	// SK reports a single connection carrying both sides' bytes; keep the latest non-empty fetch, since
+	// an idle connection is reported in only one fetch.
+	var skLatest []network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		allConnections, cleanup := getConnections(collect, tr)
 		defer cleanup()
-		conns := network.FilterConnections(allConnections, func(cs network.ConnectionStats) bool {
+		polled := network.FilterConnections(allConnections, func(cs network.ConnectionStats) bool {
 			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
 		})
+		t.Logf("connections in this fetch: %v", polled)
 
-		t.Logf("connections: %v", conns)
 		if buildmode == ebpftest.SK {
-			// SK tracer will have one connection but capture all the sent/recv
-			require.Len(collect, conns, 1)
-			assert.Equal(collect, 3, int(conns[0].Monotonic.SentBytes))
-			assert.Equal(collect, 3, int(conns[0].Monotonic.RecvBytes))
-		} else {
-			require.Len(collect, conns, 2, "expected number of tcp connections")
+			if len(polled) > 0 {
+				skLatest = polled
+			}
+			require.Len(collect, skLatest, 1)
+			assert.Equal(collect, 3, int(skLatest[0].Monotonic.SentBytes))
+			assert.Equal(collect, 3, int(skLatest[0].Monotonic.RecvBytes))
+			return
+		}
+
+		// Each side must appear at most once per fetch; a duplicate would otherwise overwrite the
+		// first record in seen and hide it. Later fetches may still refresh a side's counters. The
+		// failure is sticky: a later fetch must not let the test pass on the stale seen map.
+		if duplicate == "" {
+			perFetch := make(map[uint32]int)
+			for _, c := range polled {
+				if c.Pid == parentPID || c.Pid == childPID {
+					perFetch[c.Pid]++
+				}
+			}
+			for pid, n := range perFetch {
+				if n > 1 {
+					duplicate = fmt.Sprintf("PID %d appears %d times in one fetch: %v", pid, n, polled)
+				}
+			}
+		}
+		if duplicate != "" {
+			assert.Fail(collect, "duplicate connection in one fetch", duplicate)
+			return
+		}
+		for _, c := range polled {
+			if c.Pid == parentPID || c.Pid == childPID {
+				seen[c.Pid] = c
+			}
+		}
+		// The parent received the 3 bytes and sent none; the child sent them and received none.
+		if parent, ok := seen[parentPID]; assert.True(collect, ok, "no connection for the parent (PID %d); seen: %v", parentPID, seen) {
+			assert.Equal(collect, 3, int(parent.Monotonic.RecvBytes), "parent recv bytes")
+			assert.Equal(collect, 0, int(parent.Monotonic.SentBytes), "parent sent bytes")
+		}
+		if child, ok := seen[childPID]; assert.True(collect, ok, "no connection for the child (PID %d); seen: %v", childPID, seen) {
+			assert.Equal(collect, 3, int(child.Monotonic.SentBytes), "child sent bytes")
+			assert.Equal(collect, 0, int(child.Monotonic.RecvBytes), "child recv bytes")
 		}
 	}, 5*time.Second, 100*time.Millisecond, "could not find connection(s)")
 }
@@ -1426,37 +1584,7 @@ func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	})
 	require.NoError(t, err)
 
-	var incoming *network.ConnectionStats
-	var outgoing *network.ConnectionStats
-	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
-		conns, cleanup := getConnections(collect, tr)
-		defer cleanup()
-		newOutgoing, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if newOutgoing != nil {
-			outgoing = newOutgoing
-		}
-		newIncoming, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
-		if newIncoming != nil {
-			incoming = newIncoming
-		}
-		require.NotNil(collect, outgoing)
-		require.NotNil(collect, incoming)
-	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
-
-	m := outgoing.Monotonic
-	require.Equal(t, len(msg), int(m.SentBytes))
-	require.Equal(t, 0, int(m.RecvBytes))
-	require.Equal(t, 1, int(m.SentPackets))
-	require.Equal(t, 0, int(m.RecvPackets))
-	require.True(t, outgoing.IntraHost)
-
-	// make sure the inverse values are seen for the other message
-	m = incoming.Monotonic
-	require.Equal(t, 0, int(m.SentBytes))
-	require.Equal(t, len(msg), int(m.RecvBytes))
-	require.Equal(t, 0, int(m.SentPackets))
-	require.Equal(t, 1, int(m.RecvPackets))
-	require.True(t, incoming.IntraHost)
+	requireUDPCounters(t, tr, c, len(msg), 1)
 }
 
 func (s *TracerSuite) TestUDPPacketSumming() {
@@ -1493,40 +1621,52 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 		recvBytes += n
 	}
 	// sanity check: did userspace get all four expected packets?
-	require.Equal(t, recvBytes, expectedBytes)
+	require.Equal(t, expectedBytes, recvBytes)
 
-	var incoming *network.ConnectionStats
-	var outgoing *network.ConnectionStats
+	requireUDPCounters(t, tr, c, expectedBytes, len(msg))
+}
+
+// requireUDPCounters waits until the tracer reports the expected counters for
+// both directions of the UDP flow on c: the outgoing side sent bytes/packets,
+// and the incoming side received the same amounts.
+//
+// The counters are checked inside the retry loop: eBPFless mode counts
+// packets asynchronously from an AF_PACKET ring, so a poll can return the
+// connections before all the packets have been processed. The last stats
+// seen for each direction are kept across polls, because a poll doesn't
+// necessarily return a connection again once it has stopped changing.
+func requireUDPCounters(t *testing.T, tr *Tracer, c net.Conn, expectedBytes, expectedPackets int) {
+	var outgoing, incoming *network.ConnectionStats
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 		conns, cleanup := getConnections(collect, tr)
 		defer cleanup()
-		newOutgoing, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if newOutgoing != nil {
-			outgoing = newOutgoing
+
+		if conn, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); conn != nil {
+			outgoing = conn
 		}
-		newIncoming, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
-		if newIncoming != nil {
-			incoming = newIncoming
+		if conn, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), conns); conn != nil {
+			incoming = conn
 		}
 
-		require.NotNil(collect, outgoing)
-		require.NotNil(collect, incoming)
-	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
+		if assert.NotNil(collect, outgoing, "outgoing connection not found") {
+			m := outgoing.Monotonic
+			assert.Equal(collect, expectedBytes, int(m.SentBytes), "outgoing sent bytes")
+			assert.Equal(collect, 0, int(m.RecvBytes), "outgoing recv bytes")
+			assert.Equal(collect, expectedPackets, int(m.SentPackets), "outgoing sent packets")
+			assert.Equal(collect, 0, int(m.RecvPackets), "outgoing recv packets")
+			assert.True(collect, outgoing.IntraHost, "outgoing intrahost")
+		}
 
-	m := outgoing.Monotonic
-	require.Equal(t, expectedBytes, int(m.SentBytes))
-	require.Equal(t, 0, int(m.RecvBytes))
-	require.Equal(t, int(len(msg)), int(m.SentPackets))
-	require.Equal(t, 0, int(m.RecvPackets))
-	require.True(t, outgoing.IntraHost)
-
-	// make sure the inverse values are seen for the other message
-	m = incoming.Monotonic
-	require.Equal(t, 0, int(m.SentBytes))
-	require.Equal(t, expectedBytes, int(m.RecvBytes))
-	require.Equal(t, 0, int(m.SentPackets))
-	require.Equal(t, int(len(msg)), int(m.RecvPackets))
-	require.True(t, incoming.IntraHost)
+		// make sure the inverse values are seen for the other direction
+		if assert.NotNil(collect, incoming, "incoming connection not found") {
+			m := incoming.Monotonic
+			assert.Equal(collect, 0, int(m.SentBytes), "incoming sent bytes")
+			assert.Equal(collect, expectedBytes, int(m.RecvBytes), "incoming recv bytes")
+			assert.Equal(collect, 0, int(m.SentPackets), "incoming sent packets")
+			assert.Equal(collect, expectedPackets, int(m.RecvPackets), "incoming recv packets")
+			assert.True(collect, incoming.IntraHost, "incoming intrahost")
+		}
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections with the expected counters")
 }
 
 func (s *TracerSuite) TestUDPPythonReusePort() {
@@ -1564,6 +1704,17 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 
 	t.Logf("port is %d", port)
 
+	// The byte counters are checked inside the retry loop, not after it. In
+	// eBPFless mode the tracer counts packets asynchronously: they reach
+	// userspace one TPACKET_V3 block at a time (the afpacket default block
+	// timeout) and a goroutine processes them, so all four connections can be
+	// visible before the replies have been counted. The 4s window, matching
+	// testUDPReusePort, covers both finding the connections and that counting.
+	//
+	// conns keeps the last-seen copy of each connection across polls, because a
+	// connection that has stopped changing isn't necessarily returned again.
+	// The stats are stored by value, since cleanup() releases the buffer.
+	serverBytes, clientBytes := 3, 6
 	conns := map[network.ConnectionTuple]network.ConnectionStats{}
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		allConnections, cleanup := getConnections(collect, tr)
@@ -1582,38 +1733,37 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 		t.Log(conns)
 
 		require.Len(collect, conns, 4)
-	}, 3*time.Second, 100*time.Millisecond, "could not find expected number of udp connections, expected: 4")
 
-	var incoming, outgoing []network.ConnectionStats
-	for _, c := range conns {
-		if c.SPort == uint16(port) {
-			incoming = append(incoming, c)
-		} else if c.DPort == uint16(port) {
-			outgoing = append(outgoing, c)
+		var incoming, outgoing []network.ConnectionStats
+		for _, c := range conns {
+			if c.SPort == uint16(port) {
+				incoming = append(incoming, c)
+			} else if c.DPort == uint16(port) {
+				outgoing = append(outgoing, c)
+			}
 		}
-	}
 
-	serverBytes, clientBytes := 3, 6
-	if assert.Len(t, incoming, 2, "unable to find incoming connections") {
-		for _, c := range incoming {
-			assert.Equal(t, network.INCOMING, c.Direction, "incoming direction")
+		if assert.Len(collect, incoming, 2, "unable to find incoming connections") {
+			for _, c := range incoming {
+				assert.Equal(collect, network.INCOMING, c.Direction, "incoming direction")
 
-			// make sure the inverse values are seen for the other message
-			assert.Equal(t, serverBytes, int(c.Monotonic.SentBytes), "incoming sent")
-			assert.Equal(t, clientBytes, int(c.Monotonic.RecvBytes), "incoming recv")
-			assert.True(t, c.IntraHost, "incoming intrahost")
+				// make sure the inverse values are seen for the other message
+				assert.Equal(collect, serverBytes, int(c.Monotonic.SentBytes), "incoming sent")
+				assert.Equal(collect, clientBytes, int(c.Monotonic.RecvBytes), "incoming recv")
+				assert.True(collect, c.IntraHost, "incoming intrahost")
+			}
 		}
-	}
 
-	if assert.Len(t, outgoing, 2, "unable to find outgoing connections") {
-		for _, c := range outgoing {
-			assert.Equal(t, network.OUTGOING, c.Direction, "outgoing direction")
+		if assert.Len(collect, outgoing, 2, "unable to find outgoing connections") {
+			for _, c := range outgoing {
+				assert.Equal(collect, network.OUTGOING, c.Direction, "outgoing direction")
 
-			assert.Equal(t, clientBytes, int(c.Monotonic.SentBytes), "outgoing sent")
-			assert.Equal(t, serverBytes, int(c.Monotonic.RecvBytes), "outgoing recv")
-			assert.True(t, c.IntraHost, "outgoing intrahost")
+				assert.Equal(collect, clientBytes, int(c.Monotonic.SentBytes), "outgoing sent")
+				assert.Equal(collect, serverBytes, int(c.Monotonic.RecvBytes), "outgoing recv")
+				assert.True(collect, c.IntraHost, "outgoing intrahost")
+			}
 		}
-	}
+	}, 4*time.Second, 100*time.Millisecond, "could not find the 4 expected udp connections with the expected byte counts")
 }
 
 func (s *TracerSuite) TestUDPReusePort() {
@@ -1777,6 +1927,33 @@ func iptablesWrapper(t *testing.T, f func()) {
 	require.NoError(t, err)
 
 	f()
+}
+
+// sendUDPToExternalDNS sends a single DNS query datagram to dest:53 and returns the
+// local address used, without waiting for a reply. The gateway lookup tests only need the
+// tracer to observe an outgoing flow that is routed through a gateway; they never use the
+// response. Waiting for an answer from a real public resolver made them depend on external
+// internet connectivity, which is flaky on CI VMs (i/o timeout).
+func sendUDPToExternalDNS(dest net.IP) (string, int, error) {
+	conn, err := net.DialUDP("udp", nil, &net.UDPAddr{IP: dest, Port: 53})
+	if err != nil {
+		return "", 0, err
+	}
+	defer conn.Close()
+
+	msg := new(dns.Msg)
+	msg.SetQuestion(dns.Fqdn("google.com"), dns.TypeA)
+	msg.RecursionDesired = true
+	payload, err := msg.Pack()
+	if err != nil {
+		return "", 0, err
+	}
+	if _, err := conn.Write(payload); err != nil {
+		return "", 0, err
+	}
+
+	local := conn.LocalAddr().(*net.UDPAddr)
+	return local.IP.String(), local.Port, nil
 }
 
 func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interface {
@@ -3051,7 +3228,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		IP:   net.ParseIP("127.0.0.1"),
 		Port: 10000,
 	}
-	makeConn := func(t *testing.T, nonblocking bool) net.Conn {
+	makeConn := func(t *testing.T, nonblocking, waitForTimeout bool) net.Conn {
 		addr := syscall.SockaddrInet4{
 			Port: remoteAddr.Port,
 		}
@@ -3079,6 +3256,22 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 				require.NoError(t, err, "could not connect to server: ", err)
 			}
 		}
+		if nonblocking && waitForTimeout {
+			// Wait for the kernel to time out the connect before the test polls the tracer. Polling makes
+			// bpf() map syscalls, and a kprobe that fires on a CPU in such a syscall is skipped. This
+			// removes only the test's own polling: the tracer's background goroutines still make bpf()
+			// syscalls during the window. poll() doesn't read SO_ERROR, so sk_err is left set as it
+			// would be for an app that never checks it.
+			fds := []unix.PollFd{{Fd: int32(sfd), Events: unix.POLLOUT}}
+			for {
+				_, err = unix.Poll(fds, 5000)
+				if !errors.Is(err, unix.EINTR) {
+					break
+				}
+			}
+			require.NoError(t, err)
+			require.NotZero(t, fds[0].Revents&(unix.POLLERR|unix.POLLHUP), "connect did not time out")
+		}
 
 		c, err := net.FileConn(f)
 		require.NoError(t, err)
@@ -3089,40 +3282,41 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	testcases := []struct {
 		name      string
 		makeConn  func(t *testing.T) net.Conn
-		checkConn func(collect *assert.CollectT, stats *network.ConnectionStats)
+		checkConn func(t assert.TestingT, stats *network.ConnectionStats)
 	}{
 		{
 			name: "blocking kernel timeout",
 			makeConn: func(t *testing.T) net.Conn {
-				return makeConn(t, false)
+				return makeConn(t, false, false)
 			},
-			checkConn: func(collect *assert.CollectT, conn *network.ConnectionStats) {
-				assert.Equal(collect, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
-				assert.Equal(collect, uint32(0), conn.TCPFailures[125], "expected 0 connection cancelled")
+			checkConn: func(t assert.TestingT, conn *network.ConnectionStats) {
+				assert.Equal(t, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
+				assert.Equal(t, uint32(0), conn.TCPFailures[125], "expected 0 connection cancelled")
 			},
 		},
 		{
 			name: "nonblocking kernel timeout",
 			makeConn: func(t *testing.T) net.Conn {
-				// connection will time out in 500ms while checkConn is running
-				return makeConn(t, true)
+				// returns once the connection has timed out, after ~1s: TCP_USER_TIMEOUT (500ms) is only
+				// checked when the SYN retransmit timer fires, so the connect fails at the first SYN RTO
+				return makeConn(t, true, true)
 			},
-			checkConn: func(collect *assert.CollectT, conn *network.ConnectionStats) {
-				assert.Equal(collect, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
-				assert.Equal(collect, uint32(0), conn.TCPFailures[125], "expected 0 connection cancelled")
+			checkConn: func(t assert.TestingT, conn *network.ConnectionStats) {
+				assert.Equal(t, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
+				assert.Equal(t, uint32(0), conn.TCPFailures[125], "expected 0 connection cancelled")
 			},
 		},
 		{
 			name: "userspace cancel",
 			makeConn: func(t *testing.T) net.Conn {
-				c := makeConn(t, true)
+				c := makeConn(t, true, false)
 				// immediately close c to cause a cancellation
 				require.NoError(t, c.Close())
 				return c
 			},
-			checkConn: func(collect *assert.CollectT, conn *network.ConnectionStats) {
-				assert.Equal(collect, uint32(0), conn.TCPFailures[110], "expected 0 connection timeout")
-				assert.Equal(collect, uint32(1), conn.TCPFailures[125], "expected 1 connection cancelled")
+			checkConn: func(t assert.TestingT, conn *network.ConnectionStats) {
+				assert.Equal(t, uint32(0), conn.TCPFailures[110], "expected 0 connection timeout")
+				assert.Equal(t, uint32(1), conn.TCPFailures[125], "expected 1 connection cancelled")
 			},
 		},
 	}
@@ -3140,33 +3334,76 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	cfg.TCPFailedConnectionsEnabled = true
 	tr := setupTracer(t, cfg)
 
+	// findClosedConn polls for the failed connection from localAddr and returns it, or nil if it isn't
+	// reported within waitFor. The failure may be reported in a single fetch only. A failed fetch is
+	// logged and retried on the next tick, as EventuallyWithT would.
+	findClosedConn := func(t *testing.T, localAddr net.Addr, waitFor time.Duration) *network.ConnectionStats {
+		for deadline := time.Now().Add(waitFor); time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
+			conns, cleanup, err := tr.GetActiveConnections(clientID)
+			if err != nil {
+				t.Logf("error getting active connections: %s", err)
+				continue
+			}
+			// Accept a matching entry that is closed or carries failure counters. The failure can arrive
+			// on an entry with IsClosed=false: the eBPF code writes the failure reason to tcp_stats before
+			// it removes the connection, so a fetch in between reports the still-open entry with
+			// TCPFailures set. And when GetDelta aggregates an open and a closed entry with the same
+			// tuple and different cookies, the open entry survives with its own IsClosed and TCPFailures.
+			// An entry with neither means the failure wasn't reported, which the retry below covers.
+			closed := network.FirstConnection(conns, network.ByTuple(localAddr, remoteAddr), func(c network.ConnectionStats) bool {
+				return c.IsClosed || len(c.TCPFailures) > 0
+			})
+			cleanup()
+			if closed != nil {
+				return closed
+			}
+		}
+		return nil
+	}
+
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			// use the testcase's connection
-			c := tc.makeConn(t)
-
-			// the addr here is 0.0.0.0, but the tracer sees it as 127.0.0.1
-			port := c.LocalAddr().(*net.TCPAddr).Port
-			localAddr := &net.TCPAddr{
-				IP:   net.ParseIP("127.0.0.1"),
-				Port: port,
+			// A kprobe-based tracer can miss a connection failure: the kernel skips a kprobe program
+			// (and counts it in the program's recursion_misses) when it fires while this CPU is
+			// already running a BPF program or a bpf() map syscall. A connect timeout is detected in
+			// the TCP retransmit timer softirq, which can interrupt such a window, so tcp_done never
+			// reports the failed connection. Retry with a new connection when the connection isn't
+			// reported at all. A connection that is reported must carry the right failure.
+			// fentry programs (Fentry and SK modes) have a per-program recursion guard instead, so
+			// they are much less likely to lose events this way and get a single attempt: a miss
+			// there is most likely a real bug.
+			attempts := 1
+			if mode := ebpftest.GetBuildMode(); mode == ebpftest.CORE || mode == ebpftest.RuntimeCompiled {
+				attempts = 3
 			}
+			var conn *network.ConnectionStats
+			for attempt := 1; attempt <= attempts && conn == nil; attempt++ {
+				// use the testcase's connection
+				c := tc.makeConn(t)
+
+				// the addr here is 0.0.0.0, but the tracer sees it as 127.0.0.1
+				localAddr := &net.TCPAddr{
+					IP:   net.ParseIP("127.0.0.1"),
+					Port: c.LocalAddr().(*net.TCPAddr).Port,
+				}
+
+				conn = findClosedConn(t, localAddr, 3*time.Second)
+				if conn == nil {
+					t.Logf("attempt %d/%d: failed connection %s -> %s was not reported", attempt, attempts, localAddr, remoteAddr)
+					// Close it now rather than at test cleanup. Closing can still make the tracer report it
+					// during a later attempt's fetch, but that attempt normally gets a new local port, so
+					// findClosedConn won't match it.
+					c.Close()
+				}
+			}
+			require.NotNil(t, conn, "Failed connection not recorded properly")
 
 			// Check if the connection was recorded as failed due to timeout or cancel
-			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				conns, cleanup := getConnections(collect, tr)
-				defer cleanup()
-
-				conn, _ := findConnection(localAddr, remoteAddr, conns)
-				require.NotNil(collect, conn)
-				assert.Equal(collect, uint32(0), conn.TCPFailures[104], "expected 0 connection reset")
-				assert.Equal(collect, uint32(0), conn.TCPFailures[111], "expected 0 connection refused")
-				assert.Equal(collect, uint64(0), conn.Monotonic.SentBytes, "expected 0 bytes sent")
-				assert.Equal(collect, uint64(0), conn.Monotonic.RecvBytes, "expected 0 bytes received")
-
-				tc.checkConn(collect, conn)
-			}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
-
+			assert.Equal(t, uint32(0), conn.TCPFailures[104], "expected 0 connection reset")
+			assert.Equal(t, uint32(0), conn.TCPFailures[111], "expected 0 connection refused")
+			assert.Equal(t, uint64(0), conn.Monotonic.SentBytes, "expected 0 bytes sent")
+			assert.Equal(t, uint64(0), conn.Monotonic.RecvBytes, "expected 0 bytes received")
+			tc.checkConn(t, conn)
 		})
 	}
 }
@@ -3469,6 +3706,290 @@ func (s *TracerSuite) TestTCPFailureConnectionResetWithDNAT() {
 	assert.Equal(t, uint32(0), conn.TCPFailures[110], "expected 0 connection timeout")
 	assert.Equal(t, uint64(4), conn.Monotonic.SentBytes, "expected 4 bytes sent")
 	assert.Equal(t, uint64(0), conn.Monotonic.RecvBytes, "expected 0 bytes received")
+}
+
+func (s *TracerSuite) TestNATFromEbpfConntracker() {
+	t := s.T()
+	if !kprobe.ClassificationSupported(testConfig()) {
+		t.Skip("protocol classification not supported")
+	}
+
+	t.Run("ebpf conntracker", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.EnableEbpfConntracker = true
+		tr := setupTracer(t, cfg)
+		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+			t.Skip("the sk tracer doesn't classify with the conntrack map")
+		}
+		natMap := requireConntrackNATMapShared(t, cfg, tr)
+		// the shared map is still reported as the conntracker's
+		if info, err := natMap.Info(); err == nil {
+			if id, ok := info.ID(); ok {
+				module, err := ddebpf.GetModuleFromMapID(uint32(id))
+				require.NoError(t, err)
+				assert.Equal(t, ebpfConntrackerModule, module)
+			}
+		}
+		// net_dev_queue isn't attached, so its map is left at one entry
+		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
+		require.NoError(t, err)
+		assert.Equal(t, uint32(1), m.MaxEntries())
+		testSNATOneSidedClassification(t, tr)
+	})
+
+	t.Run("netlink conntracker", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.EnableEbpfConntracker = false
+		tr := setupTracer(t, cfg)
+		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+			t.Skip("the sk tracer doesn't classify with the net_dev_queue map")
+		}
+		require.Nil(t, sharedConntrackNATMap(cfg, tr.conntracker, kprobe.ClassificationSupported(cfg), hostBPFNATDataplane))
+		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
+		require.NoError(t, err)
+		assert.Equal(t, cfg.MaxTrackedConnections, m.MaxEntries())
+		// net_dev_queue supplies the NAT'd tuples here
+		testSNATOneSidedClassification(t, tr)
+	})
+}
+
+// testSNATOneSidedClassification checks that both ends of a SNAT'd connection are classified when only one of them
+// sends, so the other end's socket only sees classified traffic under the NAT'd tuple.
+func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
+	netlinktestutil.SetupSNAT(t)
+	request := []byte("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+	response := []byte("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+	for _, serverSends := range []bool{false, true} {
+		t.Run(fmt.Sprintf("server sends %v", serverSends), func(t *testing.T) {
+			done := make(chan struct{})
+			srv := tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(c net.Conn) {
+				defer c.Close()
+				if serverSends {
+					_, _ = c.Write(response)
+				} else {
+					_, _ = io.ReadFull(c, make([]byte, len(request)))
+				}
+				<-done
+			})
+			require.NoError(t, srv.Run())
+			t.Cleanup(srv.Shutdown)
+
+			d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6")}, Timeout: 5 * time.Second}
+			c, err := d.Dial("tcp", srv.Address())
+			require.NoError(t, err)
+			defer c.Close()
+			defer close(done)
+			if serverSends {
+				_, err = io.ReadFull(c, make([]byte, len(response)))
+			} else {
+				_, err = c.Write(request)
+			}
+			require.NoError(t, err)
+
+			// After its one message the connection is idle, so each end is reported in one fetch only: the
+			// state skips an active connection whose stats haven't changed since the last fetch. The two ends
+			// can land in different fetches (the client's send can be reported before the server's goroutine
+			// reads it), and neither comes back afterwards. So keep the latest copy of each end seen across
+			// fetches.
+			var client, server *network.ConnectionStats
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				conns, cleanup := getConnections(collect, tr)
+				defer cleanup()
+				if conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); ok {
+					cp := *conn
+					client = &cp
+				}
+				// the server's socket sees the SNAT'd source
+				if conn := network.FirstConnection(conns, func(cs network.ConnectionStats) bool {
+					return cs.Direction == network.INCOMING && fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == srv.Address() && cs.Dest.String() == "7.7.7.7"
+				}); conn != nil {
+					cp := *conn
+					server = &cp
+				}
+				if assert.NotNil(collect, client, "client connection not found in any fetch") {
+					assert.True(collect, client.ProtocolStack.Contains(protocols.HTTP), "client not classified: %v", client)
+				}
+				if assert.NotNil(collect, server, "server connection not found in any fetch") {
+					assert.True(collect, server.ProtocolStack.Contains(protocols.HTTP), "server not classified: %v", server)
+				}
+			}, 5*time.Second, 100*time.Millisecond)
+		})
+	}
+}
+
+// requireConntrackNATMapShared skips the test unless the eBPF conntracker loaded, then requires that the connection
+// tracer shares its map.
+func requireConntrackNATMapShared(t *testing.T, cfg *config.Config, tr *Tracer) *ebpf.Map {
+	ctks := []netlink.Conntracker{tr.conntracker}
+	if chain, ok := tr.conntracker.(*chainConntracker); ok {
+		ctks = chain.ctks
+	}
+	if !slices.ContainsFunc(ctks, func(c netlink.Conntracker) bool { _, ok := c.(*ebpfConntracker); return ok }) {
+		t.Skip("ebpf conntracker not loaded")
+	}
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported, so the map isn't shared")
+	}
+	natMap := sharedConntrackNATMap(cfg, tr.conntracker, true, hostBPFNATDataplane)
+	require.NotNil(t, natMap, "ebpf conntracker map not shared")
+	m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), m.MaxEntries(), "tracer loaded without the conntracker's map")
+	return natMap
+}
+
+// TestNATClassificationCleanup checks that closing both ends of a SNAT'd connection on this host deletes the
+// classification under both of its tuples. Each tuple is one end's own and the other end's packet tuple, and is
+// marked as seen from both sides, so it is only deleted by the second of its two cleanups.
+func (s *TracerSuite) TestNATClassificationCleanup() {
+	t := s.T()
+	if !kprobe.ClassificationSupported(testConfig()) {
+		t.Skip("protocol classification not supported")
+	}
+	cfg := testConfig()
+	cfg.EnableEbpfConntracker = true
+	tr := setupTracer(t, cfg)
+	if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+		t.Skip("the sk tracer doesn't classify with the conntrack map")
+	}
+	requireConntrackNATMapShared(t, cfg, tr)
+	netlinktestutil.SetupSNAT(t)
+
+	protoMap, err := tr.GetMap(probes.ConnectionProtocolMap)
+	require.NoError(t, err)
+	tlsMap, err := tr.GetMap(probes.EnhancedTLSTagsMap)
+	require.NoError(t, err)
+
+	// waitClosed waits for userspace to store c's close, which is when it deletes the conntrack entry
+	waitClosed := func(t *testing.T, c net.Conn) {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conns, cleanup := getConnections(collect, tr)
+			defer cleanup()
+			conn, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+			if assert.NotNil(collect, conn, "closed connection not found") {
+				assert.True(collect, conn.IsClosed)
+			}
+		}, 5*time.Second, 100*time.Millisecond)
+	}
+
+	tests := []struct {
+		name string
+		// deferred is whether userspace defers deleting the conntrack entry of the first end to close
+		deferred bool
+		close    func(t *testing.T, client, server net.Conn)
+	}{
+		{
+			name:     "client closes first",
+			deferred: true,
+			close: func(t *testing.T, client, server net.Conn) {
+				require.NoError(t, client.Close())
+				waitClosed(t, client)
+				require.NoError(t, server.Close())
+			},
+		},
+		{
+			name:     "server closes first",
+			deferred: true,
+			close: func(t *testing.T, client, server net.Conn) {
+				require.NoError(t, server.Close())
+				waitClosed(t, server)
+				require.NoError(t, client.Close())
+			},
+		},
+		{
+			// the server's tcp_done flushes it before close(), and its conntrack entry is gone by then, so only
+			// tcp_done's cleanup can find the client's tuple
+			name:     "client resets",
+			deferred: false,
+			close: func(t *testing.T, client, server net.Conn) {
+				require.NoError(t, client.(*net.TCPConn).SetLinger(0))
+				require.NoError(t, client.Close())
+				waitClosed(t, client)
+				require.NoError(t, server.Close())
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !tt.deferred {
+				// tcp_done only flushes, and cleans up, a connection it reports as failed
+				checkSkipFailureConnectionsTests(t)
+				tr.closedNATTranslations.setMax(0)
+				t.Cleanup(func() { tr.closedNATTranslations.setMax(int(cfg.MaxTrackedConnections)) })
+			}
+			ln, err := net.Listen("tcp4", "127.0.0.1:0")
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = ln.Close() })
+			accepted := make(chan net.Conn, 1)
+			go func() {
+				c, err := ln.Accept()
+				if err == nil {
+					accepted <- c
+				}
+				close(accepted)
+			}()
+			d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6")}, Timeout: 5 * time.Second}
+			client, err := d.Dial("tcp", ln.Addr().String())
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = client.Close() })
+			server := <-accepted
+			require.NotNil(t, server)
+			t.Cleanup(func() { _ = server.Close() })
+			require.Equal(t, "7.7.7.7", server.RemoteAddr().(*net.TCPAddr).IP.String(), "connection wasn't SNAT'd")
+
+			now, err := ddebpf.NowNanoseconds()
+			require.NoError(t, err)
+			stack := netebpf.ProtocolStackWrapper{Updated: uint64(now), Stack: netebpf.ProtocolStack{Flags: flagServerSide | flagClientSide}}
+			tags := netebpf.TLSTagsWrapper{Updated: uint64(now), Info: netebpf.TLSTags{Chosen_version: tls.VersionTLS12}}
+			keys := map[string]netebpf.ConnTuple{
+				"client's tuple": normalizedClassificationKey(client.LocalAddr(), client.RemoteAddr()),
+				"server's tuple": normalizedClassificationKey(server.LocalAddr(), server.RemoteAddr()),
+			}
+			for _, k := range keys {
+				require.NoError(t, protoMap.Put(unsafe.Pointer(&k), unsafe.Pointer(&stack)))
+				require.NoError(t, tlsMap.Put(unsafe.Pointer(&k), unsafe.Pointer(&tags)))
+			}
+
+			tt.close(t, client, server)
+
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				for name, k := range keys {
+					var gotStack netebpf.ProtocolStackWrapper
+					assert.ErrorIs(collect, protoMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&gotStack)), ebpf.ErrKeyNotExist, "connection_protocol under the %s", name)
+					var gotTags netebpf.TLSTagsWrapper
+					assert.ErrorIs(collect, tlsMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&gotTags)), ebpf.ErrKeyNotExist, "tls_enhanced_tags under the %s", name)
+				}
+			}, 3*time.Second, 100*time.Millisecond)
+		})
+	}
+}
+
+const (
+	flagServerSide = 1 << 5
+	flagClientSide = 1 << 6
+)
+
+// normalizedClassificationKey returns the classification maps' key for an IPv4 TCP connection, normalized the way
+// normalize_tuple does.
+func normalizedClassificationKey(local, remote net.Addr) netebpf.ConnTuple {
+	l, r := local.(*net.TCPAddr), remote.(*net.TCPAddr)
+	lLow, lHigh := util.ToLowHigh(util.AddressFromNetIP(l.IP))
+	rLow, rHigh := util.ToLowHigh(util.AddressFromNetIP(r.IP))
+	k := netebpf.ConnTuple{
+		Saddr_h: lHigh, Saddr_l: lLow, Sport: uint16(l.Port),
+		Daddr_h: rHigh, Daddr_l: rLow, Dport: uint16(r.Port),
+		Metadata: uint32(netebpf.TCP) | uint32(netebpf.IPv4),
+	}
+	begin, end := network.EphemeralRange()
+	ephemeral := func(p uint16) bool { return p >= begin && p <= end }
+	if ephemeral(k.Sport) && !ephemeral(k.Dport) {
+		return k
+	}
+	if (!ephemeral(k.Sport) && ephemeral(k.Dport)) || k.Dport > k.Sport {
+		k.Saddr_h, k.Saddr_l, k.Daddr_h, k.Daddr_l = k.Daddr_h, k.Daddr_l, k.Saddr_h, k.Saddr_l
+		k.Sport, k.Dport = k.Dport, k.Sport
+	}
+	return k
 }
 
 func setupDropTrafficRule(tb testing.TB) (ns string) {
@@ -4079,7 +4600,11 @@ func testTLSCertParsing(t *testing.T, client *http.Client, matcher func(c *netwo
 		KeyPath:   keyPath,
 	})
 
-	usmutils.WaitForProgramsToBeTraced(t, ssluprobes.CNMModuleName, ssluprobes.CNMTLSAttacherName, cmd.Process.Pid, usmutils.ManualTracingFallbackEnabled)
+	// The cert is captured only if both the libssl uprobes (SSL_do_handshake etc.) and the
+	// libcrypto uprobes (i2d_X509) are in place before the handshake. The attacher registers
+	// each library separately, so wait until both are registered for this pid.
+	usmutils.WaitForLibrariesToBeTraced(t, ssluprobes.CNMModuleName, ssluprobes.CNMTLSAttacherName, cmd.Process.Pid,
+		[]string{"libssl.so", "libcrypto.so"}, usmutils.ManualTracingFallbackEnabled)
 
 	code, _, err := tracertestutil.HTTPGet(client, "https://"+serverAddr+"/status/200/foobar")
 	require.NoError(t, err)
@@ -4274,33 +4799,55 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 
 	tr := setupTracer(t, cfg)
 
-	c := setupNetemCongestionTest(t, []string{"delay", "100ms", "loss", "30%", "50%"}, nil)
+	// Drop every packet so that the data, the tail loss probe and every
+	// retransmit are lost, and the retransmission timer has to fire. Random
+	// loss isn't enough: with one segment in flight per write, the kernel
+	// repairs most losses with a tail loss probe, which counts neither as an
+	// RTO nor as a recovery, and a run can go 30s without either.
+	var env *netemTestEnv
+	c := setupNetemCongestionTest(t, []string{"loss", "100%"}, func(_ *testing.T, e *netemTestEnv) { env = e })
 	defer c.Close()
+	// The write only has to queue data for the kernel to (re)transmit, so a
+	// short write or a deadline timeout under 100% loss is fine; log it.
+	c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+	n, err := c.Write(make([]byte, 64*1024))
+	t.Logf("wrote %d of %d bytes under 100%% loss (err: %v)", n, 64*1024, err)
+	require.Greater(t, n, 0, "no data queued for transmission")
+	c.SetWriteDeadline(time.Time{})
 
-	// Wait for either rto_count or recovery_count to appear. Both live
-	// in the same tcp_event_stats struct that gets copied at close, so
-	// either one is sufficient to validate the sync. This test checks
-	// the close-event plumbing, not which signal fires — TestTCPRTOCount
-	// and TestTCPRecoveryCount cover each signal independently.
-	var rtoCount, recoveryCount uint32
+	// rto_count is the signal under test. With every packet dropped no ACK
+	// arrives, so there is no fast recovery and recovery_count stays 0. That
+	// still covers recovery_count's close path: the close event copies the
+	// whole tcp_event_stats struct (tracer: events.h, SK: sk_conn.h), and
+	// active and closed connections share FromTCPEventStats, so a working
+	// rto_count copy implies a working recovery_count copy.
+	// TestTCPRTOCount and TestTCPRecoveryCount cover each signal while active.
+	//
+	// A fetch only reports an active connection whose stats changed since
+	// the previous fetch, so keep the highest count seen across fetches
+	// instead of requiring the connection in the latest one.
+	var rtoCount uint32
+	var seen bool
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		data := make([]byte, 64*1024)
-		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
-		c.Write(data) //nolint:errcheck
-
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if !assert.True(ct, ok, "active connection not found") {
+		if conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); ok {
+			seen = true
+			rtoCount = max(rtoCount, conn.Monotonic.TCPRTOCount)
+		}
+		if !assert.True(ct, seen, "connection not found") {
 			return
 		}
-		rtoCount = conn.Monotonic.TCPRTOCount
-		recoveryCount = conn.Monotonic.TCPRecoveryCount
-		assert.Greater(ct, rtoCount+recoveryCount, uint32(0),
-			"rto_count or recovery_count should be > 0 while active")
+		assert.Greater(ct, rtoCount, uint32(0), "rto_count should be > 0 while active")
 	}, 30*time.Second, 200*time.Millisecond)
 
-	// Close and verify rto_count and recovery_count after the close event
+	// Stop dropping packets so the connection delivers its data and closes.
+	// Remove the qdisc rather than changing it to "loss 0%": the iproute2 in
+	// older distros (e.g. 4.15 on Ubuntu 18.04) rejects a zero percentage
+	// with 'Illegal "loss percent"'.
+	env.delNetem(t)
+
+	// Close and verify that the close event preserves rto_count
 	localAddr := c.LocalAddr()
 	remoteAddr := c.RemoteAddr()
 	c.Close()
@@ -4309,17 +4856,23 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 	require.Eventually(t, func() bool {
 		conns, cleanup := getConnections(t, tr)
 		defer cleanup()
-		conn, ok := findConnection(localAddr, remoteAddr, conns)
-		if ok {
-			closedConn = conn
-		}
-		return ok
+		// Require the closed entry: after delNetem the queued data is
+		// retransmitted, so the active entry may also be reported and
+		// carries the same monotonic rto_count. Filter on IsClosed rather
+		// than checking the first tuple match, so an active entry ahead of
+		// the closed one can't hide it. If an active entry with the same
+		// cookie lands in the same fetch, the state merge
+		// (mergeConnectionStats in state.go) still sets the closed entry's
+		// counters to the max of the two, so this check can't fully rule
+		// out a broken close-event copy.
+		closedConn = network.FirstConnection(conns, network.ByTuple(localAddr, remoteAddr), func(c network.ConnectionStats) bool {
+			return c.IsClosed
+		})
+		return closedConn != nil
 	}, 5*time.Second, 100*time.Millisecond, "closed connection not found")
 
 	require.GreaterOrEqual(t, closedConn.Monotonic.TCPRTOCount, rtoCount,
 		"close event should preserve rto_count")
-	require.GreaterOrEqual(t, closedConn.Monotonic.TCPRecoveryCount, recoveryCount,
-		"close event should preserve recovery_count")
 }
 
 // netemTestEnv holds the resources for an isolated network namespace where
@@ -4366,6 +4919,14 @@ func (env *netemTestEnv) changeNetem(t *testing.T, args ...string) {
 	changeCmd := exec.Command(cmd[0], cmd[1:]...)
 	out, err := changeCmd.CombinedOutput()
 	require.NoError(t, err, "tc qdisc change netem failed: %s", out)
+}
+
+// delNetem removes the netem qdisc from the loopback device inside the
+// namespace, restoring an unimpaired link.
+func (env *netemTestEnv) delNetem(t *testing.T) {
+	t.Helper()
+	out, err := exec.Command("ip", "netns", "exec", env.Netns, "tc", "qdisc", "del", "dev", "lo", "root").CombinedOutput()
+	require.NoError(t, err, "tc qdisc del failed: %s", out)
 }
 
 // setupNetemTestEnv creates an isolated network namespace with loopback up.
@@ -4550,9 +5111,26 @@ func (s *TracerSuite) TestTCPRecoveryCount() {
 		{"delay", "50ms", "loss", "20%", "50%"},
 	}
 
+	// A fresh netns loopback has a 64KiB MTU, so each 64KiB write is only
+	// one or two segments. Fast recovery needs duplicate ACKs (or SACKs)
+	// from segments sent after the reordered or lost one. Kernels with
+	// the full RACK-TLP loss detection (4.18+) get there anyway; the
+	// older ones in CI (3.10, 4.4 and 4.9) have at most partial
+	// RACK/TLP, mostly don't, and fall through most of the configs below
+	// before one triggers. An Ethernet-sized MTU splits each write into
+	// ~45 MSS-sized segments, so dupack-based fast recovery fires on the
+	// first configs on every kernel. lo keeps TSO/GSO on, but behind
+	// netem's delay the sender's skbs stay close to one MSS (about 1.4KB
+	// per netem packet on 6.8), and even a multi-segment skb that netem
+	// reorders or drops as a unit is counted by TCP in MSS units
+	// (tcp_skb_pcount), so the dupack threshold is still reached.
+	lowerLoopbackMTU := func(t *testing.T, env *netemTestEnv) {
+		env.setLoopbackMTU(t, 1500)
+	}
+
 	for i, netemArgs := range netemConfigs {
 		t.Logf("TestTCPRecoveryCount attempt %d/%d: netem %v", i+1, len(netemConfigs), netemArgs)
-		c := setupNetemCongestionTest(t, netemArgs, nil)
+		c := setupNetemCongestionTest(t, netemArgs, lowerLoopbackMTU)
 		triggered := false
 		deadline := time.Now().Add(20 * time.Second)
 		for time.Now().Before(deadline) {
@@ -5056,9 +5634,19 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 	t.Cleanup(ownServer.Shutdown)
 	t.Cleanup(func() { ownConn.Close() })
 
+	// These connections are idle, so the client sees each of them in one fetch only: the state skips an
+	// active connection whose stats haven't changed since the client's last fetch. Checking each fetch
+	// alone would need every connection, including the accepted side that the server's goroutine tracks
+	// later, to be in the first fetch, and a miss there would hide the others for the rest of the wait.
+	// So keep the latest copy of every connection seen.
+	seen := make(map[network.ConnectionTuple]network.ConnectionStats)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		conns, cleanup := getConnections(collect, tr)
-		defer cleanup()
+		payload, cleanup := getConnections(collect, tr)
+		for _, c := range payload.Conns {
+			seen[c.ConnectionTuple] = c
+		}
+		cleanup()
+		conns := &network.Connections{BufferedData: network.BufferedData{Conns: slices.Collect(maps.Values(seen))}}
 
 		pod, ok := findConnection(podConn.LocalAddr(), podConn.RemoteAddr(), conns)
 		require.True(collect, ok, "connection in the pod namespace not found")

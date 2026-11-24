@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -95,6 +96,19 @@ func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentit
 	return false
 }
 
+// MatchesPAROverrides reports whether an identity can be reused with explicit PAR overrides.
+// Legacy identities retain their existing reuse behavior when no overrides are configured.
+func (identity *PersistedIdentity) MatchesPAROverrides(cfg configModel.Reader) bool {
+	if strings.TrimSpace(cfg.GetString(par.APIKey)) != "" && identity.WIFOrgUUID != "" {
+		return false
+	}
+	if strings.TrimSpace(cfg.GetString(par.RunnerSite)) != "" {
+		parts, err := util.ParseRunnerURN(identity.URN)
+		return err == nil && parts.Region == regions.GetRegionFromDDSite(par.Site(cfg))
+	}
+	return true
+}
+
 // SelfEnroll performs self-registration using API key + application key.
 func SelfEnroll(
 	ctx context.Context,
@@ -162,7 +176,7 @@ func SelfEnroll(
 // Enroll performs self-enrollment using config and an agent identifier.
 func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
 	ddSite := par.Site(cfg)
-	apiKey := cfg.GetString("api_key")
+	apiKey := par.EnrollmentAPIKey(cfg)
 	extraHeaders := cfg.GetStringMapString(par.OPMSExtraHeaders)
 
 	runnerNamePrefix := getRunnerNamePrefix(ctx, agentIdentifier)

@@ -9,6 +9,7 @@ jobs:
   get-backport-targets:
     name: Get backport targets
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: github.event.pull_request.merged
     outputs:
       targets: ${{ steps.get-targets.outputs.targets }}
@@ -40,6 +41,7 @@ jobs:
     needs: get-backport-targets
     if: needs.get-backport-targets.outputs.targets != '[]' && needs.get-backport-targets.outputs.targets != ''
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
