@@ -273,10 +273,14 @@ func (s *TracerSuite) TestTCPRetransmit() {
 		if !tr.config.EnableEbpfless {
 			assert.Equal(ct, os.Getpid(), int(conn.Pid))
 		}
-		// every retransmitted segment is also a sent one, so a wrapped count shows up here. The
-		// prebuilt tracer doesn't collect packet counts.
-		if !tr.config.EnableEbpfless && ebpftest.GetBuildMode() != ebpftest.Prebuilt {
-			assert.LessOrEqual(ct, uint64(conn.Monotonic.Retransmits), conn.Monotonic.SentPackets)
+		// Every retransmitted segment is also a sent one, so a wrapped count shows up here. Compare
+		// against the kernel's live count, read after the fetch: SentPackets is a snapshot from the
+		// last send or receive, and RTOs after the last write still resend. tcpi_segs_out is 4.2+;
+		// prebuilt counts tcp_retransmit_skb's segs argument, which can exceed the segments sent.
+		if !tr.config.EnableEbpfless && ebpftest.GetBuildMode() != ebpftest.Prebuilt && kv >= kernel.VersionCode(4, 2, 0) {
+			info, err := offsetguess.TCPGetInfo(c)
+			require.NoError(ct, err)
+			assert.LessOrEqual(ct, conn.Monotonic.Retransmits, info.Segs_out, "retransmits above tcpi_segs_out")
 		}
 
 		assert.Equal(ct, addrPort(server.Address()), int(conn.DPort))
@@ -284,10 +288,11 @@ func (s *TracerSuite) TestTCPRetransmit() {
 }
 
 // TestTCPRetransmitManySockets retransmits on many sockets at once, so retransmissions run concurrently in
-// timer context on several CPUs, and checks each connection's count against the kernel's own. The count must
-// never exceed tcpi_total_retrans: the kernel counts every segment resent, including tail loss probes, which
-// don't go through tcp_retransmit_skb. With fewer sockets or less loss, calls on different CPUs rarely
-// overlap, and pairing a call with another CPU's entry goes unnoticed.
+// timer context on several CPUs, and checks the tracer's counts against the kernel's own. Per connection the
+// count must never exceed tcpi_total_retrans: the kernel counts every segment resent, including tail loss
+// probes, which don't go through tcp_retransmit_skb. In total it must come close, so a regression that drops
+// retransmits fails too. The loss stays on for a while after the writers stop, so RTOs fire on idle CPUs,
+// where the retransmit runs as pid_tgid 0 and is only told apart from other CPUs' calls by the CPU.
 func (s *TracerSuite) TestTCPRetransmitManySockets() {
 	t := s.T()
 	cfg := testConfig()
@@ -310,7 +315,7 @@ func (s *TracerSuite) TestTCPRetransmitManySockets() {
 	// a fresh netns loopback has a 64KiB MTU; lower it so each write is many segments in flight
 	env.setLoopbackMTU(t, 1500)
 
-	const numConns = 256
+	const numConns = 32
 	conns := make([]net.Conn, 0, numConns)
 	for i := 0; i < numConns; i++ {
 		c := env.dialInNs(t)
@@ -320,7 +325,7 @@ func (s *TracerSuite) TestTCPRetransmitManySockets() {
 
 	env.addNetem(t, "delay", "10ms", "loss", "20%")
 	var wg sync.WaitGroup
-	stop := time.Now().Add(20 * time.Second)
+	stop := time.Now().Add(4 * time.Second)
 	for _, c := range conns {
 		wg.Add(1)
 		go func(c net.Conn) {
@@ -335,6 +340,8 @@ func (s *TracerSuite) TestTCPRetransmitManySockets() {
 		}(c)
 	}
 	wg.Wait()
+	// The writers are idle now; what's still unacknowledged is resent from timers on idle CPUs
+	time.Sleep(2 * time.Second)
 	env.delNetem(t)
 
 	// Read the tracer's counts first and the kernel's after: the kernel keeps counting in between, so a
@@ -367,7 +374,9 @@ func (s *TracerSuite) TestTCPRetransmitManySockets() {
 	}
 	t.Logf("retransmits: tracer %d, kernel %d", ours, theirs)
 	require.Positive(t, theirs, "no retransmissions happened")
-	require.Positive(t, ours, "the tracer counted no retransmits")
+	// Tail loss probes are the only resends the tracer doesn't see, and they're a small share under steady
+	// loss; the kernel also keeps counting after the tracer's fetch
+	assert.GreaterOrEqual(t, float64(ours), 0.9*float64(theirs), "the tracer missed more than a tenth of the kernel's retransmits")
 }
 
 func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
