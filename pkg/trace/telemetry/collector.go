@@ -108,11 +108,6 @@ func NewCollector(cfg *config.AgentConfig) TelemetryCollector {
 
 	var endpoints []config.Endpoint
 	for _, endpoint := range cfg.TelemetryConfig.Endpoints {
-		if endpoint.HasPendingDelegatedAuth {
-			// A pending delegated-auth endpoint has no key yet; skip it rather than send
-			// with an empty one.
-			continue
-		}
 		u, err := url.Parse(endpoint.Host)
 		if err != nil {
 			continue
@@ -148,6 +143,10 @@ func (f *telemetryCollector) sendEvent(event *OnboardingEvent) (err error) {
 	}
 	bodyLen := strconv.Itoa(len(body))
 	for _, endpoint := range f.endpoints {
+		apiKey, ready := endpoint.GetAPIKeyIfReady()
+		if !ready {
+			continue
+		}
 		req, reqErr := http.NewRequest("POST", endpoint.Host, bytes.NewReader(body))
 		if reqErr != nil {
 			err = reqErr
@@ -155,7 +154,7 @@ func (f *telemetryCollector) sendEvent(event *OnboardingEvent) (err error) {
 		}
 		req.Header.Add("Content-Type", "application/json")
 		req.Header.Add("User-Agent", f.userAgent)
-		req.Header.Add("DD-Api-Key", endpoint.APIKey)
+		req.Header.Add("DD-Api-Key", apiKey)
 		req.Header.Add("Content-Length", bodyLen)
 
 		resp, reqErr := f.client.Do(req)
