@@ -10,6 +10,7 @@ load(
 load("@supply_chain_tools//sbom:sbom.bzl", "sbom")
 load("@supply_chain_tools//sbom:spdx.bzl", "spdx")
 load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
+load("//bazel/rules/dd_strip:get_debug_symbols.bzl", "get_debug_symbols")
 load("//bazel/tools/healthcheck:gate.bzl", "healthcheck_gate")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/rules:dd_pkg_deb.bzl", "dd_pkg_deb")
@@ -84,6 +85,8 @@ pkg_filegroup(
     name = "whole_distro",
     srcs = [
         ":installed_distro",
+        "//cmd/agent/dist:dd_agent_stub",
+        "//packages:log_dir",
     ] + select({
         "//:is_standard_install": [
             ":datadog_agent_installer_symlinks",
@@ -102,15 +105,25 @@ forwards metrics from your applications as well as system services.
 See http://www.datadoghq.com/ for more information
 """
 
+get_debug_symbols(
+    name = "debug_symbols",
+    srcs = [":whole_distro"],
+    prefix = "{install_dir}/.debug",
+    tags = ["manual"],
+)
+
 # TODO: Look at omnibus/config/projects/agent.rb for more content here.
 dd_pkg_deb(
     name = "debian",
-    srcs = [":whole_distro"],
+    srcs = [
+        ":whole_distro",
+        "//packages/debian/etc:all_files",
+    ],
     out = "debian.deb",
     conflicts = ["datadog-iot-agent"],
+    debug_symbols = ":debug_symbols",
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
-    # vendor = "Datadog <package@datadoghq.com>",
     license = "Apache License Version 2.0",
     maintainer = "Datadog Packages <package@datadoghq.com>",
     package_file_name = "{product_name}_{version}-1_{arch_deb}.deb",
@@ -143,13 +156,17 @@ spdx(
 dd_pkg_rpm(
     name = "rpm",
     package_name = "{product_name}",
-    srcs = [":whole_distro"],
+    srcs = [
+        ":whole_distro",
+        "//packages/redhat/etc:all_files",
+    ],
     # glibc-common < 2.17 conflict applies to RHEL-based distros only;
     # TODO: use select() when a RHEL vs SUSE constraint is defined.
     conflicts = [
         "datadog-iot-agent",
         "glibc-common < 2.17",
     ],
+    debug_symbols = ":debug_symbols",
     description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix Go Live Debugger line probes failing to install or missing events
+    when the compiler inlines multiple calls to the same function.

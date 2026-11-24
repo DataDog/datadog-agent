@@ -197,6 +197,7 @@ api_key:
 ## On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
 ## On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
 ## This setting is ignored on Linux and does not enable or disable the systemd unit.
+## On macOS, dd-procmgrd always runs as the LaunchDaemon `com.datadoghq.procmgr`. This setting is not yet supported there.
 #
 # process_manager:
 
@@ -204,6 +205,7 @@ api_key:
 #   # @env DD_PROCESS_MANAGER_ENABLED - boolean - optional - default: true
 #   # When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
 #   # On Linux, the process manager daemon is started by systemd; this option is ignored.
+#   # On macOS, dd-procmgrd always runs (LaunchDaemon com.datadoghq.procmgr). This option is not yet supported there.
 #
 #   enabled: true
 
@@ -329,6 +331,31 @@ api_key:
 #     # @param endpoints - object - optional - default: {}
 #     # @env DD_USE_V3_API_SERIES_ENDPOINTS - JSON object of string to string - optional - default: {}
 #     # Per-URL override map for non-distribution metrics intake version. The URL
+#     # must match exactly what was configured under `dd_url` or `additional_endpoints`.
+#     # Accepted values:
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
+#     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+#     #   - false: v2 everywhere.
+#
+#     endpoints: {}
+
+#   # @param distributions - custom object - optional
+#   # Controls the use of the v3 metrics intake for distribution metrics.
+#
+#   distributions:
+
+#     # @param enabled - string - optional - default: "datadog_only"
+#     # @env DD_USE_V3_API_DISTRIBUTIONS_ENABLED - string - optional - default: "datadog_only"
+#     # Global default for the distribution metrics intake version. Accepted values:
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
+#     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+#     #   - false: v2 everywhere.
+#
+#     enabled: "datadog_only"
+
+#     # @param endpoints - object - optional - default: {}
+#     # @env DD_USE_V3_API_DISTRIBUTIONS_ENDPOINTS - JSON object of string to string - optional - default: {}
+#     # Per-URL override map for distribution metrics intake version. The URL
 #     # must match exactly what was configured under `dd_url` or `additional_endpoints`.
 #     # Accepted values:
 #     #   - true: v3 for every destination except Observability Pipelines Worker.
@@ -596,7 +623,8 @@ api_key:
 
 ## @param gpu - custom object - optional
 ## Configuration for GPU Monitoring on non-containerized Linux hosts.
-## Both this section and the gpu_monitoring section in system-probe.yaml must be configured.
+## NVIDIA kernel-level monitoring also requires gpu_monitoring in system-probe.yaml.
+## AMD sysfs monitoring does not require system-probe.
 #
 # gpu:
 
@@ -604,9 +632,26 @@ api_key:
 #   # @env DD_GPU_ENABLED - boolean - optional - default: false
 #   # Set to true to enable the GPU check in the core Agent.
 #   # Required for GPU monitoring on non-containerized Linux hosts.
-#   # Must be used together with gpu_monitoring.enabled: true in system-probe.yaml.
+#   # Enable gpu_monitoring.enabled in system-probe.yaml for NVIDIA kernel-level metrics.
+#   # AMD sysfs metrics require only the core Agent.
+#   # On Linux Agents with NVML support, enabling GPU Monitoring delays readiness
+#   # until NVML initializes or gpu.readiness_timeout expires (one minute by default).
 #
 #   enabled: false
+
+#   # @param readiness_timeout - duration - optional - default: "1m"
+#   # @env DD_GPU_READINESS_TIMEOUT - duration - optional - default: "1m"
+#   # How long the core Agent waits for NVML initialization before reporting GPU
+#   # readiness when gpu.enabled is true. Applies to Linux Agents with NVML support.
+#   # The timeout starts during Agent startup, even if the GPU check is not scheduled.
+#   # It also expires during GPU reset windows, even while GPU collection is paused.
+#   # Hosts without working NVML, including AMD-only hosts, wait for the full timeout
+#   # on every Agent restart. The health probe can take up to 15 additional seconds
+#   # to report readiness. This does not affect liveness or ongoing GPU health checks.
+#   # Use a duration such as 30s or 2m. Set to 0s or a negative duration to disable
+#   # this readiness delay.
+#
+#   readiness_timeout: "1m"
 
 #   # @param legacy_sm_active - boolean - optional - default: false
 #   # @env DD_GPU_LEGACY_SM_ACTIVE - boolean - optional - default: false
@@ -615,6 +660,14 @@ api_key:
 #   # reported as both gpu.sm_active and gpu.sm_utilization.
 #
 #   legacy_sm_active: false
+
+#   # @param prefer_gr_engine_sm_active - boolean - optional - default: false
+#   # @env DD_GPU_PREFER_GR_ENGINE_SM_ACTIVE - boolean - optional - default: false
+#   # gpu.sm_active falls back to the GPM GR engine activity (the same value as gpu.gr_engine_active)
+#   # when no other source is available. Set to true to report it with priority over the sampling and
+#   # eBPF sources. This source is not used if gpu.legacy_sm_active is enabled.
+#
+#   prefer_gr_engine_sm_active: false
 
 #   # @param nccl - custom object - optional
 #   # NCCL collective communication metrics. When enabled, the Agent listens on a
@@ -654,6 +707,90 @@ api_key:
 #   # Set to 0 to report on every check run.
 #
 #   static_metrics_reporting_interval: "15s"
+
+#   # @param jobs - custom object - optional
+#   # Identify the training job a GPU workload belongs to. The Agent reads the
+#   # configured pod label, pod annotation, or environment variable and attaches
+#   # its value as a tag on GPU metrics.
+#
+#   jobs:
+
+#     # @param run - custom object - optional
+#     # Where to find the unique ID of a single training run.
+#
+#     run:
+
+#       # @param key - string - optional - default: ""
+#       # @env DD_GPU_JOBS_RUN_KEY - string - optional - default: ""
+#       # Name of the pod label, pod annotation, or environment variable holding
+#       # the run ID, for example _RAY_SUBMISSION_ID. Leave empty to disable run tagging.
+#
+#       key: ""
+
+#       # @param type - string - optional - default: "label"
+#       # @env DD_GPU_JOBS_RUN_TYPE - string - optional - default: "label"
+#       # Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+#       # (environment variable of the process using the GPU).
+#
+#       type: "label"
+
+#     # @param group - custom object - optional
+#     # Where to find the ID of the group of related training runs.
+#
+#     group:
+
+#       # @param key - string - optional - default: ""
+#       # @env DD_GPU_JOBS_GROUP_KEY - string - optional - default: ""
+#       # Name of the pod label, pod annotation, or environment variable holding
+#       # the group ID, for example example/job-group-annotation. Leave empty to
+#       # disable group tagging.
+#
+#       key: ""
+
+#       # @param type - string - optional - default: "label"
+#       # @env DD_GPU_JOBS_GROUP_TYPE - string - optional - default: "label"
+#       # Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+#       # (environment variable of the process using the GPU).
+#
+#       type: "label"
+
+#   # @param kai_scheduler - custom object - optional
+#   # Support for workloads scheduled by KAI Scheduler, which lets several pods
+#   # share one GPU. A pod asking for a fraction of a GPU does not request
+#   # `nvidia.com/gpu`, so the GPU it uses cannot be identified from the pod's
+#   # own resource requests; the assignment is read from the reservation pod KAI
+#   # creates for the shared GPU.
+#
+#   kai_scheduler:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_GPU_KAI_SCHEDULER_ENABLED - boolean - optional - default: false
+#     # Set to true to report which GPU each KAI Scheduler fractional workload
+#     # is using, the fraction of it assigned to the workload and the memory
+#     # of that fraction (`gpu.device.sharing_fraction`,
+#     # `gpu.device.sharing_memory`, `gpu_sharing_mode:kai_fraction`).
+#
+#     enabled: false
+
+#   # @param tracing - custom object - optional
+#   # Configure the tracers injected into GPU workloads. The fields match an
+#   # apm_config.instrumentation.targets entry of Single Step Instrumentation.
+#
+#   tracing:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_GPU_TRACING_ENABLED - boolean - optional - default: false
+#     # Set to true to inject tracers into GPU workloads.
+#
+#     enabled: false
+
+#     # @param tracer_versions - object - optional - default: {'c': '0'}
+#     # @env DD_GPU_TRACING_TRACER_VERSIONS - JSON object - optional - default: {'c': '0'}
+#     # Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+#     # Defaults to the latest major version 0 of the C tracer.
+#
+#     tracer_versions:
+#       c: "0.24.0"
 
 ## @param azure_metadata_timeout - integer - optional - default: 300
 ## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
@@ -1400,6 +1537,22 @@ api_key:
 #
 #     streamlogs_log_file: "/var/log/datadog/streamlogs_info/streamlogs.log"
 
+#   # @param tag_filters - object - optional - default: {}
+#   # @env DD_LOGS_CONFIG_TAG_FILTERS - JSON object - optional - default: {}
+#   # Filter tags from logs before sending them to Datadog. Each pattern must use "key:value"
+#   # syntax. Keys are matched exactly; values may contain "*" to match zero or more characters.
+#   # Matching ignores ASCII letter case. Exclude removes matching tags, while include preserves
+#   # exceptions to exclusions. Per-source filters override global filters. Excluding source,
+#   # service, or host logs a warning because those attributes are sent separately and remain.
+#
+#   tag_filters:
+#     exclude:
+#       - "container_id:*"
+#       - "kube_namespace:*"
+#     include:
+#       # Keep namespace tags for production workloads.
+#       - "kube_namespace:production-*"
+
 #   # @param unreliable_mount - custom object - optional
 #   # Node-wide profile for log files on mounts with stale page-cache or file-handle
 #   # behavior during rotation, such as CIFS/SMB and Azure Files. It selects direct
@@ -1902,6 +2055,13 @@ api_key:
 #
 #   ignore_resources: ["(GET|POST) /healthcheck"]
 
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_APM_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for the trace Agent only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""
+
 #   # @param log_file - string - optional - default: ""
 #   # @env DD_APM_LOG_FILE - string - optional - default: ""
 #   # The full path to the file where APM-agent logs are written.
@@ -2146,6 +2306,13 @@ api_key:
 #   # Port for configuring runtime settings for the process Agent.
 #
 #   cmd_port: 6162
+
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_PROCESS_CONFIG_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for the process Agent only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""
 
 #   # @param log_file - string - optional - default: "/var/log/datadog/process-agent.log"
 #   # @env DD_PROCESS_CONFIG_LOG_FILE - string - optional - default: "/var/log/datadog/process-agent.log"
@@ -3121,29 +3288,12 @@ api_key:
 ## The list of environment variables that are allowed to be resolved in check
 ## configurations.
 ## If the list is not set or is empty, the default behavior applies: all envs
-## are allowed except the ones bound to Agent settings (see
-## `ad_allowed_agent_env_vars`).
+## are allowed.
 ## This list only applies when `ad_disable_env_var_resolution` is set to false.
 #
 # ad_allowed_env_vars:
 #   - <ENV_VAR_1>
 #   - <ENV_VAR_2>
-
-## @param ad_allowed_agent_env_vars - list of strings - optional - default: ["DD_CLUSTER_NAME", "DD_ENV"]
-## @env DD_AD_ALLOWED_AGENT_ENV_VARS - space-separated list of strings - optional - default: "DD_CLUSTER_NAME DD_ENV"
-## The list of environment variables bound to Agent settings that are allowed
-## to be resolved in check configurations. Other environment variables bound
-## to Agent settings are not resolved because some of them hold Agent
-## credentials, like `DD_API_KEY`.
-## Setting this list replaces the default, so include `DD_CLUSTER_NAME` and
-## `DD_ENV` if you still need them.
-## This list only applies when `ad_allowed_env_vars` is not set or is empty,
-## and `ad_disable_env_var_resolution` is set to false.
-#
-# ad_allowed_agent_env_vars:
-#   - DD_CLUSTER_NAME
-#   - DD_ENV
-#   - <ENV_VAR_1>
 
 ## @param ad_disable_env_var_resolution - boolean - optional - default: false
 ## @env DD_AD_DISABLE_ENV_VAR_RESOLUTION - boolean - optional - default: false
@@ -3257,6 +3407,18 @@ api_key:
 # container_labels_as_tags:
 #   <LABEL_NAME>: <TAG_KEY>
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
+
+## @param container_image_annotations_as_tags - object - optional - default: {}
+## @env DD_CONTAINER_IMAGE_ANNOTATIONS_AS_TAGS - JSON object of string to string - optional - default: {}
+## The Agent can extract container image OCI annotation values and set them as tags associated to a <TAG_KEY>.
+## These tags are attached to container image entities (appearing on the Container Images page) and are also
+## applied to the containers using the image, so they show up on container.* metrics.
+## If you prefix your tag name with `+`, it will only be added to high cardinality metrics. (Supported container
+## runtimes: Containerd, CRI-O).
+#
+# container_image_annotations_as_tags:
+#   <ANNOTATION_NAME>: <TAG_KEY>
+#   <HIGH_CARDINALITY_ANNOTATION_NAME>: +<TAG_KEY>
 
 ###################################
 ## ECS integration Configuration ##
@@ -4710,6 +4872,9 @@ api_key:
 #   # @param actions_allowlist - list of strings - optional - default: []
 #   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma-separated list of strings - optional - default: []
 #   # List of actions that the Private Action Runner is allowed to execute.
+#   # A trailing wildcard allows all actions within an integration or sub-bundle,
+#   # for example com.datadoghq.kubernetes.* or com.datadoghq.gitlab.*.
+#   # Wildcards require an integration name; com.datadoghq.* and * are not supported.
 #   # See http://docs.datadoghq.com/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
 #   # for the list of available actions.
 #
@@ -4724,6 +4889,34 @@ api_key:
 #   # Set to false to disable these default actions.
 #
 #   default_actions_enabled: true
+
+#   # @param credentials - custom object - optional
+#   # Named credentials available to Private Action Runner tasks.
+#
+#   credentials:
+
+#     # @param values - object - optional - default: {}
+#     # @env DD_PRIVATE_ACTION_RUNNER_CREDENTIALS_VALUES - JSON object - optional - default: {}
+#     # Named credentials with a required value field supporting ENC[...] secrets.
+#     # allowed_actions accepts case-sensitive action names or wildcards such as
+#     # com.datadoghq.mongodb.*. allowed_http_domains limits use to HTTP actions
+#     # whose initial destination matches a case-insensitive hostname, IP address,
+#     # or *.example.com subdomain pattern (excluding the parent domain).
+#     # Omitted restriction lists are unrestricted; empty lists deny all; null is invalid.
+#     # Restrictions apply during credential resolution, not to redirects or secret
+#     # loading. All referenced credentials' restrictions and runner allowlists apply.
+#
+#     values:
+#       api_token:
+#         value: ENC[api_token]
+#         allowed_actions:
+#           - com.datadoghq.http.*
+#         allowed_http_domains:
+#           - api.example.com
+#       mongodb_password:
+#         value: ENC[mongodb_password]
+#         allowed_actions:
+#           - com.datadoghq.mongodb.*
 
 #   # @param http_timeout_seconds - integer - optional - default: 30
 #   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_TIMEOUT_SECONDS - integer - optional - default: 30
@@ -4772,3 +4965,27 @@ api_key:
 #     #  sensitive to forward to Datadog telemetry.
 #
 #     disable_detailed_telemetry: false
+
+## @param security_agent - custom object - optional
+## Settings specific to the security Agent process.
+#
+# security_agent:
+
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_SECURITY_AGENT_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for the security Agent only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""
+
+## @param system_probe - custom object - optional
+## system-probe settings the core Agent owns and streams to system-probe.
+#
+# system_probe:
+
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_SYSTEM_PROBE_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for system-probe only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""

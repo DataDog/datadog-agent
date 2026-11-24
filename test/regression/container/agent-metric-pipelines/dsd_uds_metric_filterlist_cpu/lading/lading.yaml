@@ -1,0 +1,130 @@
+generator:
+  # Counts and distributions whose names all appear in metric_tag_filterlist,
+  # so every sample goes through tag stripping in the context resolver.
+  - id: tag-filtered
+    unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
+      path: "/tmp/dsd.socket"
+      variant:
+        dogstatsd:
+          contexts:
+            constant: 3000
+          tags_per_msg:
+            constant: 6
+          metric_names:
+            - "smp.filter.tagged.{{0-19}}"
+          tag_names:
+            - env
+            - service
+            - version
+            - pod_name
+            - request_id
+            - container_id
+          tag_values:
+            - "v-{{0-999}}"
+          multivalue_pack_probability: 0.0
+          sampling_probability: 0.0
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          metric_weights:
+            count: 50
+            gauge: 0
+            timer: 0
+            distribution: 50
+            set: 0
+            histogram: 0
+      bytes_per_second: "6 MiB"
+      maximum_prebuild_cache_size_bytes: "300 MiB"
+
+  # Metrics whose names all appear in metric_filterlist, so the DogStatsD
+  # workers drop them before they reach the aggregator.
+  - id: name-filtered
+    unix_datagram:
+      seed: [3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59,
+             61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137]
+      path: "/tmp/dsd.socket"
+      variant:
+        dogstatsd:
+          contexts:
+            constant: 3000
+          tags_per_msg:
+            constant: 6
+          metric_names:
+            - "smp.filter.blocked.{{0-19}}"
+          tag_names:
+            - env
+            - service
+            - version
+            - pod_name
+            - request_id
+            - container_id
+          tag_values:
+            - "v-{{0-999}}"
+          multivalue_pack_probability: 0.0
+          sampling_probability: 0.0
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          metric_weights:
+            count: 50
+            gauge: 50
+            timer: 0
+            distribution: 0
+            set: 0
+            histogram: 0
+      bytes_per_second: "2 MiB"
+      maximum_prebuild_cache_size_bytes: "100 MiB"
+
+  # Counts and distributions matched by neither list. They exercise the miss
+  # path of both filters.
+  - id: unfiltered
+    unix_datagram:
+      seed: [5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61,
+             67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139]
+      path: "/tmp/dsd.socket"
+      variant:
+        dogstatsd:
+          contexts:
+            constant: 3000
+          tags_per_msg:
+            constant: 6
+          metric_names:
+            - "smp.filter.other.{{0-19}}"
+          tag_names:
+            - env
+            - service
+            - version
+            - pod_name
+            - request_id
+            - container_id
+          tag_values:
+            - "v-{{0-999}}"
+          multivalue_pack_probability: 0.0
+          sampling_probability: 0.0
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          metric_weights:
+            count: 50
+            gauge: 0
+            timer: 0
+            distribution: 50
+            set: 0
+            histogram: 0
+      bytes_per_second: "2 MiB"
+      maximum_prebuild_cache_size_bytes: "100 MiB"
+
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9091"
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry"
+      tags:
+        sub_agent: "core"

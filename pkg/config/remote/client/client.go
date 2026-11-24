@@ -41,6 +41,11 @@ const (
 
 	// number of update failed update attempts before reporting an error log
 	consecutiveFailuresThreshold = 5
+
+	// Minimum delay between two drops of the in-memory TUF state. Dropping the
+	// state makes the next update a fresh join that re-downloads everything,
+	// so it must not happen on every failed poll.
+	tufStateResetCooldown = 5 * time.Minute
 )
 
 // ConfigFetcher defines the interface that an agent client uses to get config updates
@@ -138,6 +143,21 @@ type Client struct {
 	// when in use
 	installerState *atomic.Value // *pbgo.ClientUpdater
 	cwsWorkloads   *atomic.Value // []string
+
+	// lastTUFStateResetAttempt is only read and written from the poll goroutine: it
+	// gates how often the TUF state can be dropped after failed updates.
+	lastTUFStateResetAttempt time.Time
+
+	// pendingResetRemovals holds the products that had configs in the
+	// repository dropped by the last TUF state reset. The fresh repository
+	// cannot detect their removal by diffing (it starts empty), so on the
+	// next successful update their listeners are notified that the configs
+	// are gone. Only read and written from the poll goroutine.
+	pendingResetRemovals []string
+
+	// now is the clock used to evaluate the TUF state reset cooldown; it is
+	// injectable for tests.
+	now func() time.Time
 }
 
 // Options describes the client options
@@ -338,6 +358,7 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 		backoffPolicy:    backoffPolicy,
 		listeners:        make(map[string][]Listener),
 		configFetcher:    cf,
+		now:              time.Now,
 	}, nil
 }
 
@@ -363,6 +384,10 @@ func (c *Client) GetClientID() string {
 
 // UpdateApplyStatus updates the config's metadata to reflect its applied status
 func (c *Client) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
+	// c.state can be swapped by maybeResetTUFState on the poll goroutine, so
+	// the pointer must be read under the lock like every other reader.
+	c.m.Lock()
+	defer c.m.Unlock()
 	c.state.UpdateApplyStatus(cfgPath, status)
 }
 
@@ -529,8 +554,24 @@ func (c *Client) update() error {
 
 	changedProducts, err := c.applyUpdate(response)
 	if err != nil {
+		// An update that cannot be applied means the metadata did not verify
+		// against the latched TUF state. After an org DC switch this fails
+		// permanently: the latched chain belongs to the old DC while the core
+		// agent now serves the new DC's metadata, and no root file can repair
+		// the chain since both DCs sit at the same root version. Drop the
+		// in-memory TUF state (cooldown-gated) so the next update re-joins
+		// from the embedded root, the same way a restarted client would.
+		c.maybeResetTUFState()
 		return err
 	}
+
+	// Products whose configs were dropped with the old repository and that
+	// the fresh repository does not serve again never appear in
+	// changedProducts: notify their listeners that the configs are gone.
+	if len(c.pendingResetRemovals) > 0 {
+		changedProducts = append(changedProducts, c.takeResetRemovalProducts(changedProducts)...)
+	}
+
 	// We don't want to force the products to reload config if nothing changed
 	// in the latest update.
 	if len(changedProducts) == 0 {
@@ -554,6 +595,80 @@ func (c *Client) update() error {
 
 func containsProduct(products []string, product string) bool {
 	return slices.Contains(products, product)
+}
+
+// maybeResetTUFState drops the in-memory TUF state and the Director proofs
+// after an update could not be applied, so that the next update is a fresh
+// join verified from the embedded root.
+//
+// This recovers from an org DC switch: the latched chain belongs to the old
+// DC and the new DC's metadata can never verify against it. Dropping the
+// state resets the reported root version to the embedded one, and the core
+// agent then serves the full root chain from there (each DC's root is
+// cross-signed by the embedded root's keys). The cost is one full
+// re-download, so the reset is cooldown-gated and limited to clients that
+// verify TUF metadata.
+//
+// Must only be called from the poll goroutine (it reads and writes
+// lastTUFStateReset and pendingResetRemovals without synchronization).
+func (c *Client) maybeResetTUFState() {
+	if c.skipTufVerification {
+		return
+	}
+	now := c.now()
+	if !c.lastTUFStateResetAttempt.IsZero() && now.Sub(c.lastTUFStateResetAttempt) < tufStateResetCooldown {
+		return
+	}
+	c.lastTUFStateResetAttempt = now
+
+	repository, err := state.NewRepository(meta.RootsDirector(c.site, c.directorRootOverride).Root())
+	if err != nil {
+		log.Errorf("could not rebuild the remote-config repository from the embedded root: %v", err)
+		return
+	}
+
+	c.m.Lock()
+	// Record the products that had configs in the dropped repository: the
+	// fresh repository starts empty, so if the new DC never serves those
+	// configs again, no update will ever report them as changed and their
+	// listeners must be notified explicitly that the configs are gone.
+	for _, product := range c.products {
+		if len(c.state.GetConfigs(product)) > 0 {
+			c.pendingResetRemovals = append(c.pendingResetRemovals, product)
+		}
+	}
+	c.state = repository
+	c.m.Unlock()
+
+	// The Director proofs accumulate the root files of every accepted
+	// update: they must be dropped with the state, otherwise stale roots of
+	// the old DC would corrupt the proofs sent for the new one (both DCs sit
+	// at the same root version, so the chains cannot be merged).
+	c.proofMu.Lock()
+	c.proofRoots = nil
+	c.proofTargets = nil
+	c.proofTargetFiles = make(map[string][]byte)
+	c.proofMu.Unlock()
+
+	log.Warnf("could not apply the remote-config update, dropped the TUF state to re-joined from the embedded root")
+}
+
+// takeResetRemovalProducts consumes the pending reset removals and returns
+// the products that the fresh repository does not serve again (they are
+// absent from changedProducts). Products served again are notified through
+// the normal changedProducts path with the new configs. Only called from the
+// poll goroutine.
+func (c *Client) takeResetRemovalProducts(changedProducts []string) []string {
+	removals := c.pendingResetRemovals
+	c.pendingResetRemovals = nil
+
+	removed := make([]string, 0, len(removals))
+	for _, product := range removals {
+		if !containsProduct(changedProducts, product) {
+			removed = append(removed, product)
+		}
+	}
+	return removed
 }
 
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {

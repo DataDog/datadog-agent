@@ -248,7 +248,7 @@ func (a *counterAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner
 			labels[allowedLabel] = labelValues[i]
 		}
 
-		hostname, tags := k.hostnameAndTags(labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
+		hostname, tags := k.hostnameAndTags(a.ksmMetricName, labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
 
 		sender.Gauge(ksmMetricPrefix+a.ddMetricName, count, hostname, tags)
 	}
@@ -269,7 +269,7 @@ func (a *resourceAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoine
 				labels[allowedLabel] = labelValues[i]
 			}
 
-			hostname, tags := k.hostnameAndTags(labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
+			hostname, tags := k.hostnameAndTags(a.ksmMetricName, labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
 			sender.Gauge(metricName, count, hostname, tags)
 		}
 		a.accumulators[resource] = make(map[[maxNumberOfAllowedLabels]string]float64)
@@ -287,6 +287,7 @@ func (a *lastCronJobFailedAggregator) flush(sender sender.Sender, k *KSMCheck, l
 func (a *lastCronJobAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	for cronjob, state := range a.accumulator {
 		hostname, tags := k.hostnameAndTags(
+			"",
 			map[string]string{
 				"namespace": cronjob.namespace,
 				"cronjob":   cronjob.name,
@@ -415,6 +416,11 @@ func defaultMetricAggregators() map[string]metricAggregator {
 		"kube_ingress_labels": newCountObjectsAggregator(
 			"ingress.count",
 			"kube_ingress_labels",
+			[]string{"namespace"},
+		),
+		"kube_networkpolicy_labels": newCountObjectsAggregator(
+			"networkpolicy.count",
+			"kube_networkpolicy_labels",
 			[]string{"namespace"},
 		),
 		"kube_job_complete_start_time": &lastCronJobCompleteAggregator{aggregator: cronJobAggregator},

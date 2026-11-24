@@ -81,8 +81,8 @@ class TestOmnibusCache(unittest.TestCase):
             (r'grep .*', Result()),
             (r'aws(\.exe)? ssm .*', Result()),
             (r'vault kv get .*', Result()),
-            (r'ci-identities-gitlab-job-client secrets read .*', Result()),
-            (r'C:\\devtools\\ci-identities-gitlab-job-client\.exe secrets read .*', Result()),
+            (r'tools/ci/read_ci_secret\.sh .*', Result()),
+            (r'powershell\.exe .* -File tools\\ci\\read_ci_secret\.ps1 .*', Result()),
         ]
         for pattern, result in patterns:
             self.mock_ctx.set_result_for('run', re.compile(pattern), result)

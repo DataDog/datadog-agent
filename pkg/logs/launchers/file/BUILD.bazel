@@ -4,9 +4,11 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "file",
     srcs = [
+        "duplicate_sources.go",
         "fingerprint_tailer_diagnostics.go",
         "launcher.go",
         "position.go",
+        "shared_file_diagnostics.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/file",
     visibility = ["//visibility:public"],
@@ -37,6 +39,7 @@ go_library(
 dd_agent_go_test(
     name = "file_test",
     srcs = [
+        "duplicate_sources_test.go",
         "fingerprint_tailer_diagnostics_test.go",
         "launcher_privileged_logs_test.go",
         "launcher_test.go",

@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
+
+	"github.com/DataDog/datadog-agent/pkg/rshell/allowedpaths"
 )
 
 // MaxHeredocBytes is the maximum size of a heredoc body in bytes.
@@ -292,7 +294,19 @@ func (r *Runner) redir(ctx context.Context, rd *syntax.Redirect) (io.Closer, err
 
 	switch rd.Op {
 	case syntax.RdrIn:
-		// done further below
+		// An input redirect reads a file without invoking any command, so
+		// authorizing the command it is attached to is not enough: an
+		// allowed stdin filter would otherwise become a general file
+		// reader. Treat `< file` as an implicit `cat file` for allowlist
+		// purposes, exactly like the `$(<file)` shortcut in cmdSubst.
+		// The platform's null device yields no data, so it is exempt (it is
+		// still subject to AllowedPaths when opened below). Only its native
+		// spelling counts: on Windows "/dev/null" opens an ordinary file.
+		if !isNativeDevNull(arg) && !r.allowAllCommands && !r.allowedCommands["cat"] {
+			r.errf("< %s: file read not permitted (cat not in allowed commands)\n", arg)
+			return nil, fmt.Errorf("< %s: file read not permitted (cat not in allowed commands)", arg)
+		}
+		// open further below
 
 	case syntax.RdrOut, syntax.RdrClob, syntax.AppOut:
 		// /dev/null is short-circuited to io.Discard in all modes.
@@ -346,10 +360,31 @@ func (r *Runner) redir(ctx context.Context, rd *syntax.Redirect) (io.Closer, err
 	if err != nil {
 		return nil, err
 	}
+	// Close on ctx end: a read from a FIFO with no writer only returns on Close.
+	closer := inputRedirCloser{src: allowedpaths.WithContextClose(ctx, f)}
 	stdin, err := stdinFile(ctx, f)
 	if err != nil {
+		closer.Close() //nolint:errcheck
 		return nil, err
 	}
+	if src, ok := f.(*os.File); !ok || src != stdin {
+		closer.pipe = stdin
+	}
 	r.stdin = stdin
-	return f, nil
+	return closer, nil
+}
+
+// inputRedirCloser closes an input redirect source and, when stdinFile put a
+// pipe in front of it, the pipe's read end so the copy goroutine can exit.
+type inputRedirCloser struct {
+	src  io.Closer
+	pipe io.Closer
+}
+
+func (c inputRedirCloser) Close() error {
+	err := c.src.Close()
+	if c.pipe != nil {
+		c.pipe.Close() //nolint:errcheck
+	}
+	return err
 }

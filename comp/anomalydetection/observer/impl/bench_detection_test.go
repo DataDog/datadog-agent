@@ -27,8 +27,8 @@ func BenchmarkDetection_SeriesCount(b *testing.B) {
 		numSeries := numSeries
 		b.Run(fmt.Sprintf("series=%d", numSeries), func(b *testing.B) {
 			storage := buildSyntheticStorage(numSeries, 600)
-			detectors, correlators, _, _, _ := defaultCatalog().Instantiate(benchmarkSettings)
-			e := newEngine(engineConfig{
+			detectors, correlators, _, _, _ := instantiateForTest(b, defaultCatalog(), benchmarkSettings)
+			e := mustNewEngine(engineConfig{
 				storage:     storage,
 				detectors:   detectors,
 				correlators: correlators,
@@ -68,8 +68,8 @@ func BenchmarkDetection_AdvanceFrequency(b *testing.B) {
 		newSecs := newSecs
 		b.Run(fmt.Sprintf("newSecs=%d", newSecs), func(b *testing.B) {
 			storage := buildSyntheticStorage(numSeries, 600)
-			detectors, correlators, _, _, _ := defaultCatalog().Instantiate(benchmarkSettings)
-			e := newEngine(engineConfig{
+			detectors, correlators, _, _, _ := instantiateForTest(b, defaultCatalog(), benchmarkSettings)
+			e := mustNewEngine(engineConfig{
 				storage:     storage,
 				detectors:   detectors,
 				correlators: correlators,

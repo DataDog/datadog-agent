@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix Go Live Debugger line probes missing events when compiler-generated
+    branch setup instructions are attributed to the requested source line.

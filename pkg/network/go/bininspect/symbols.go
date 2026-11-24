@@ -22,6 +22,8 @@ import (
 const (
 	symbolChunkSize       = uint64(100)
 	symbolNameAddressSize = 4
+	// Bound scan work: the header's section size is unchecked and a sparse file can back any size.
+	maxSymbolEntries = uint64(1 << 24)
 )
 
 // ErrSymbolsNotFound is returned when the ELF symbol sections are readable, but
@@ -129,6 +131,9 @@ func getSymbolsUnified(f *safeelf.File, typ safeelf.SectionType, filter symbolFi
 	if symbolSection.Size%uint64(symbolSize) != 0 {
 		return nil, fmt.Errorf("length of symbol section is not a multiple of %d", symbolSize)
 	}
+	if numEntries := symbolSection.Size / uint64(symbolSize); numEntries > maxSymbolEntries {
+		return nil, fmt.Errorf("symbol section has %d entries, more than the maximum of %d", numEntries, maxSymbolEntries)
+	}
 
 	// Checking the symbol section link is valid.
 	if symbolSection.Link <= 0 || symbolSection.Link >= uint32(len(f.Sections)) {
@@ -142,6 +147,8 @@ func getSymbolsUnified(f *safeelf.File, typ safeelf.SectionType, filter symbolFi
 
 	// Allocating entries for all wanted symbols.
 	symbols := make([]safeelf.Symbol, 0, numWanted)
+	// A name can appear in several entries, so count distinct matches.
+	found := make(map[string]struct{}, numWanted)
 	// Extracting the min and max symbol length.
 	minSymbolNameSize, maxSymbolNameSize := filter.getMinMaxLength()
 	// Pre-allocating a buffer to read the symbol string into.
@@ -161,10 +168,15 @@ func getSymbolsUnified(f *safeelf.File, typ safeelf.SectionType, filter symbolFi
 		// symbol index. If the current symbol index is a multiplier of symbolChunkSize, then we read a new chunk.
 		symbolIndex := (readLocation / symbolSizeUint64) - 1
 		if symbolIndex%symbolChunkSize == 0 {
-			_, err := symbolSection.ReaderAt.ReadAt(symbolsCache, int64(readLocation))
+			want := min(chunkSize, symbolSection.Size-readLocation)
+			n, err := symbolSection.ReaderAt.ReadAt(symbolsCache[:want], int64(readLocation))
 			if err != nil && err != io.EOF {
 				log.Debugf("failed reading symbol entry %s", err)
 				return nil, err
+			}
+			// The section header may claim more bytes than the file holds.
+			if uint64(n) < want {
+				return nil, fmt.Errorf("symbol section truncated: read %d of %d bytes at offset %d", n, want, readLocation)
 			}
 			locationInCache = 0
 		} else {
@@ -190,6 +202,10 @@ func getSymbolsUnified(f *safeelf.File, typ safeelf.SectionType, filter symbolFi
 		if !filter.want(symbolNameBuf[:symbolNameSize]) {
 			continue
 		}
+		// Keep the first entry per name so results stay bounded by numWanted.
+		if _, ok := found[string(symbolNameBuf[:symbolNameSize])]; ok {
+			continue
+		}
 
 		var symbol safeelf.Symbol
 		// Complete the symbol reading.
@@ -197,9 +213,10 @@ func getSymbolsUnified(f *safeelf.File, typ safeelf.SectionType, filter symbolFi
 		// of the symbols. So here we skip the first 4 bytes of the symbol, as we already processed it.
 		fillSymbol(&symbol, f.ByteOrder, string(symbolNameBuf[:symbolNameSize]), symbolsCache[locationInCache+symbolNameAddressSize:locationInCache+int64(symbolSize)-symbolNameAddressSize], is64Bit)
 		symbols = append(symbols, symbol)
+		found[symbol.Name] = struct{}{}
 
 		// If no symbols left, stop running.
-		if len(symbols) == numWanted {
+		if len(found) == numWanted {
 			break
 		}
 	}

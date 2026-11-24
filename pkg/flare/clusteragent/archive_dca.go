@@ -89,7 +89,7 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	flarecommon.GetDefaultLogFiles(fb, logFilePath)
 	flarecommon.GetConfigFiles(fb, confSearchPaths)
 	getClusterAgentConfigCheck(fb, client) //nolint:errcheck
-	flarecommon.GetExpVar(ctx, fb)         //nolint:errcheck
+	flarecommon.GetExpVar(ctx, fb, client) //nolint:errcheck
 	getMetadataMap(ctx, fb)                //nolint:errcheck
 	if err := getClusterChecksMetadata(fb, client); err != nil {
 		log.Debugf("Could not collect cluster checks metadata for flare: %v", err)
@@ -186,7 +186,7 @@ func getClusterAgentClusterChecks(fb flaretypes.FlareBuilder, client ipc.HTTPCli
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterChecks(writer, "", client) //nolint:errcheck
+	GetClusterChecks(writer, ClusterChecksOptions{Verbose: true}, client) //nolint:errcheck
 	writer.Flush()
 
 	return fb.AddFile("clusterchecks.log", b.Bytes())

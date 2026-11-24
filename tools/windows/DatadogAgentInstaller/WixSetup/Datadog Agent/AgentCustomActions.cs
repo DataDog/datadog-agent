@@ -82,6 +82,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction ConfigureServicesRollback { get; }
 
+        public ManagedAction StopDDServicesRollback { get; }
+
         public ManagedAction StopDDServices { get; }
 
         public ManagedAction StartDDServices { get; }
@@ -554,6 +556,7 @@ namespace WixSetup.Datadog_Agent
                            "SITE=[SITE]," +
                            "DD_LOG_LEVEL=[DD_LOG_LEVEL]," +
                            "DD_ENV=[DD_ENV]," +
+                           "DD_SYSTEM_PROBE_NETWORK_ENABLED=[DD_SYSTEM_PROBE_NETWORK_ENABLED]," +
                            "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
                            "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
                            "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]," +
@@ -658,15 +661,33 @@ namespace WixSetup.Datadog_Agent
             // WiX built-in StopServices only stops services if the component is changing.
             // This means that the services associated with MainApplication won't be restarted
             // during change operations.
+            // Only removal disables services; incoming installs/repairs still stop them.
             StopDDServices = new CustomAction<CustomActions>(
                 new Id(nameof(StopDDServices)),
                 CustomActions.StopDDServices,
                 Return.check,
                 When.Before,
-                Step.StopServices
+                Step.StopServices,
+                Condition.Always
             )
             {
                 Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("REMOVE=[REMOVE], RollbackDisabled=[RollbackDisabled]");
+
+            // Removal rollback re-enables this package's active services after
+            // its service, file and user rollback actions have completed.
+            StopDDServicesRollback = new CustomAction<CustomActions>(
+                new Id(nameof(StopDDServicesRollback)),
+                CustomActions.StopDDServicesRollback,
+                Return.ignore,
+                When.Before,
+                new Step(StopDDServices.Id),
+                Conditions.Uninstalling | Conditions.RemovingForUpgrade
+            )
+            {
+                Execute = Execute.rollback,
                 Impersonate = false
             };
 
@@ -687,7 +708,7 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("DD_INSTALL_ONLY=[DD_INSTALL_ONLY]");
 
-            // Rollback StartDDServices stops the the services so that any file locks are released.
+            // Rollback StartDDServices stops services so that any file locks are released.
             StartDDServicesRollback = new CustomAction<CustomActions>(
                 new Id(nameof(StartDDServicesRollback)),
                 CustomActions.StartDDServicesRollback,

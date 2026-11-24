@@ -30,7 +30,7 @@ type Probe struct {
 }
 
 // NewProbe creates a [Probe]
-func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
+func NewProbe(_ *ddebpf.Config) (*Probe, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("kernel version: %s", err)
@@ -41,11 +41,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 
 	p := &Probe{}
 
-	filename := "noisy-neighbor.o"
-	if cfg.BPFDebug {
-		filename = "noisy-neighbor-debug.o"
-	}
-	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset("noisy-neighbor.o", func(buf bytecode.AssetReader, opts manager.Options) error {
 		p.mgr = ddebpf.NewManagerWithDefault(&manager.Manager{}, "noisy_neighbor", &ebpftelemetry.ErrorsTelemetryModifier{})
 		const uid = "noisy"
 		p.mgr.Probes = []*manager.Probe{

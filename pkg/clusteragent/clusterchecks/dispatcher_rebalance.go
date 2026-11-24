@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -53,6 +52,11 @@ func (d *dispatcher) moveConfig(src, dest, digest string) error {
 	}
 	if !configFound {
 		return fmt.Errorf("no config registered for digest %s", digest)
+	}
+	// The rebalance plan is computed from an earlier snapshot: the config may
+	// have been unscheduled, re-dispatched or moved since.
+	if current := d.store.digestToNode[digest]; current != src {
+		return fmt.Errorf("config %s is on node %q, not %q", digest, current, src)
 	}
 	if len(instanceIDs) == 0 {
 		return fmt.Errorf("no instances registered for digest %s", digest)
@@ -99,7 +103,12 @@ func (d *dispatcher) moveConfig(src, dest, digest string) error {
 	return nil
 }
 
-func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
+func (d *dispatcher) rebalance(force bool) ([]types.RebalanceResponse, error) {
+	if !d.rebalanceMu.TryLock() {
+		return nil, types.ErrRebalanceInProgress
+	}
+	defer d.rebalanceMu.Unlock()
+
 	span := tracer.StartSpan("cluster_checks.dispatcher.rebalance",
 		tracer.ResourceName("rebalanceChecks"),
 		tracer.SpanType("worker"))
@@ -108,7 +117,7 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 
 	result := d.rebalanceUsingUtilization(force)
 	span.SetTag("checks_moved", len(result))
-	return result
+	return result, nil
 }
 
 // rebalanceUsingUtilization rebalances the cluster checks deployed in a cluster
@@ -166,11 +175,11 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	// own runners.
 	cohorts := make(map[string]*cohort)
 	d.store.RLock()
-	for digest, config := range currentConfigsDistribution.Configs {
+	for digest, config := range currentConfigsDistribution.configs {
 		group := d.checkGroup[config.CheckName]
 		c, ok := cohorts[group]
 		if !ok {
-			c = &cohort{group: group, runners: d.groupNodes(group), configs: make(map[string]*ConfigStatus)}
+			c = &cohort{group: group, runners: d.groupNodes(group), configs: make(map[string]*configStatus)}
 			cohorts[group] = c
 		}
 		c.configs[digest] = config
@@ -190,7 +199,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 type cohort struct {
 	group   string // "" for general workers
 	runners []string
-	configs map[string]*ConfigStatus
+	configs map[string]*configStatus
 }
 
 // rebalanceCohort rebalances one cohort's configs within its eligible runners.
@@ -198,18 +207,13 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 	// Runners that joined after the current snapshot wait for the next rebalance.
 	runners := make(map[string]int, len(cohort.runners))
 	for _, r := range cohort.runners {
-		if runnerStatus, found := current.Runners[r]; found {
+		if runnerStatus, found := current.runners[r]; found {
 			runners[r] = runnerStatus.Workers
 		}
 	}
 
-	config := pkgconfigsetup.Datadog()
-	stickinessEnabled := config.GetBool("cluster_checks.stickiness_enabled")
-	stickinessFactor := config.GetFloat64("cluster_checks.stickiness_factor")
-	stickinessUpperLimit := config.GetFloat64("cluster_checks.stickiness_upper_limit")
-	stickinessLowerLimit := config.GetFloat64("cluster_checks.stickiness_lower_limit")
-	currentCohort := newConfigsDistribution(runners, stickinessEnabled, stickinessFactor, stickinessUpperLimit, stickinessLowerLimit)
-	proposedCohort := newConfigsDistribution(runners, stickinessEnabled, stickinessFactor, stickinessUpperLimit, stickinessLowerLimit)
+	currentCohort := newConfigsDistribution(runners, d.stickiness)
+	proposedCohort := newConfigsDistribution(runners, d.stickiness)
 
 	// Current: each config on its runner. Proposed: pinned configs stay, the
 	// rest go greedily to the least busy eligible runner.
@@ -221,16 +225,15 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 		}
 	}
 	for _, digest := range currentCohort.configsSortedByWorkersNeeded() {
-		configInfo := currentCohort.Configs[digest]
+		configInfo := currentCohort.configs[digest]
 		if configInfo.Pinned {
 			continue
 		}
 		proposedCohort.addToLeastBusy(digest, configInfo.CheckName, configInfo.WorkersNeeded, configInfo.Runner, false)
 	}
 
-	minPercImprovement := config.GetInt("cluster_checks.rebalance_min_percentage_improvement")
 	currentStdDev, proposedStdDev := currentCohort.utilizationStdDev(), proposedCohort.utilizationStdDev()
-	if !force && !rebalanceIsWorthIt(currentCohort, proposedCohort, minPercImprovement) {
+	if !force && !rebalanceIsWorthIt(currentCohort, proposedCohort, d.rebalanceMinPercImprovement) {
 		log.Debugf("Cohort rebalance not worth it (current stddev: %.3f, proposed: %.3f)", currentStdDev, proposedStdDev)
 		setPredictedUtilization(currentCohort)
 		return nil
@@ -241,7 +244,7 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 	if force {
 		prefix = "Forced cohort rebalance: moved"
 	}
-	log.Infof("%s %d of %d checks in runner group %q on %d runners (stddev %.3f -> %.3f)", prefix, len(moves), len(proposedCohort.Configs), cmp.Or(cohort.group, "general"), len(proposedCohort.Runners), currentStdDev, proposedStdDev)
+	log.Infof("%s %d of %d checks in runner group %q on %d runners (stddev %.3f -> %.3f)", prefix, len(moves), len(proposedCohort.configs), cmp.Or(cohort.group, "general"), len(proposedCohort.runners), currentStdDev, proposedStdDev)
 	setPredictedUtilization(proposedCohort)
 	return moves
 }
@@ -256,7 +259,8 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 		currentWorkersPerRunner[nodeName] = nodeInfo.workers
 	}
 
-	distribution := newConfigsDistribution(currentWorkersPerRunner, pkgconfigsetup.Datadog().GetBool("cluster_checks.stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_upper_limit"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_lower_limit"))
+	// Only records the current placement: stickiness never applies.
+	distribution := newConfigsDistribution(currentWorkersPerRunner, stickinessConfig{})
 
 	for nodeName, nodeStoreInfo := range d.store.nodes {
 		nodeStoreInfo.RLock()
@@ -306,7 +310,7 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 func (d *dispatcher) applyDistribution(proposedDistribution configsDistribution, currentDistribution configsDistribution) []types.RebalanceResponse {
 	var checksMoved []types.RebalanceResponse
 
-	for digest, config := range proposedDistribution.Configs {
+	for digest, config := range proposedDistribution.configs {
 		currentNode := currentDistribution.runnerForConfig(digest)
 		proposedNode := config.Runner
 
@@ -339,7 +343,7 @@ func (d *dispatcher) applyDistribution(proposedDistribution configsDistribution,
 }
 
 func setPredictedUtilization(distribution configsDistribution) {
-	for runnerName, runnerStatus := range distribution.Runners {
+	for runnerName, runnerStatus := range distribution.runners {
 		predictedUtilization.Set(runnerStatus.utilization(), runnerName, le.JoinLeaderValue)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 
@@ -34,13 +35,16 @@ type DeviceMode string
 const (
 	DeviceModePhysical DeviceMode = "physical"
 	DeviceModeMIG      DeviceMode = "mig"
-	DeviceModeVGPU     DeviceMode = "vgpu"
+	// DeviceModeMIGParent is a physical GPU with MIG enabled and at least one MIG child.
+	DeviceModeMIGParent DeviceMode = "mig_parent"
+	DeviceModeVGPU      DeviceMode = "vgpu"
 )
 
 // AllDeviceModes lists every device mode modeled by the GPU spec.
 var AllDeviceModes = []DeviceMode{
 	DeviceModePhysical,
 	DeviceModeMIG,
+	DeviceModeMIGParent,
 	DeviceModeVGPU,
 }
 
@@ -344,6 +348,8 @@ func (v *MetricValidator) validateDefinition() error {
 
 // MetricSupportSpec defines where a metric is supported.
 type MetricSupportSpec struct {
+	// AMDOnly marks a metric emitted only for AMD GPUs: no NVIDIA architecture supports it.
+	AMDOnly                  bool                       `yaml:"amd_only,omitempty"`
 	UnsupportedArchitectures []string                   `yaml:"unsupported_architectures"`
 	DeviceModes              map[DeviceMode]bool        `yaml:"device_modes"`
 	CapabilitiesRequired     MetricCapabilitiesRequired `yaml:"capabilities_required,omitempty"`
@@ -499,6 +505,9 @@ func (a ArchitectureSpec) SupportedNVLinkGeneration() int {
 
 // SupportsArchitecture returns true if the metric is supported on this architecture.
 func (m MetricSpec) SupportsArchitecture(arch string) bool {
+	if m.Support.AMDOnly {
+		return false
+	}
 	for _, unsupportedArch := range m.Support.UnsupportedArchitectures {
 		if unsupportedArch == arch {
 			return false
@@ -587,8 +596,34 @@ func LoadArchitecturesSpec() (*ArchitecturesSpec, error) {
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
 		return nil, fmt.Errorf("unmarshal architectures spec %q: %w", architecturesSpecFile, err)
 	}
+	if err := parsed.validate(); err != nil {
+		return nil, fmt.Errorf("invalid architectures spec %q: %w", architecturesSpecFile, err)
+	}
 
 	return &parsed, nil
+}
+
+// validate checks that the architectures spec is consistent.
+func (s *ArchitecturesSpec) validate() error {
+	var errs []error
+	for _, name := range slices.Sorted(maps.Keys(s.Architectures)) {
+		errs = append(errs, s.Architectures[name].validate(name))
+	}
+	return errors.Join(errs...)
+}
+
+// validate checks that no device mode is both unsupported on the architecture and given a support entry: a
+// mode that does not exist on the architecture has no configuration to override.
+func (a ArchitectureSpec) validate(name string) error {
+	var errs []error
+	for _, support := range a.Support {
+		for _, mode := range support.DeviceModes {
+			if !IsModeSupportedByArchitecture(a, mode) {
+				errs = append(errs, fmt.Errorf("architecture %s: device mode %q is in unsupported_device_modes, remove it from its support entry", name, mode))
+			}
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // LoadAggregationsSpec loads the canonical GPU aggregations specification file.

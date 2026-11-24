@@ -64,6 +64,32 @@ func TestHasValidLineage(t *testing.T) {
 		assert.ErrorAs(t, err, &mn)
 	})
 
+	t.Run("pid1-reexec", func(t *testing.T) {
+		pid1 := newPCE(1, nil, false)
+		reexec1 := newPCE(1, nil, false)
+		pid1.Exec(reexec1)
+		reexec2 := newPCE(1, nil, false)
+		reexec1.Exec(reexec2)
+		child := newPCE(2, reexec2, false)
+
+		isValid, err := child.HasValidLineage()
+		assert.True(t, isValid)
+		assert.NoError(t, err)
+	})
+
+	t.Run("pid1-reexec-with-parent", func(t *testing.T) {
+		other := newPCE(2, nil, false)
+		pid1 := newPCE(1, other, false)
+		reexec := newPCE(1, nil, false)
+		pid1.Exec(reexec)
+		child := newPCE(3, reexec, false)
+
+		isValid, err := child.HasValidLineage()
+		assert.False(t, isValid)
+
+		var mn *ErrProcessWrongParentNode
+		assert.ErrorAs(t, err, &mn)
+	})
 }
 
 func TestExecSetsStopExecutionTimeWithoutExitTime(t *testing.T) {
@@ -106,23 +132,69 @@ func TestEntryEquals(t *testing.T) {
 	e2 := NewProcessCacheEntry()
 	e2.Pid = 3
 	assert.True(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
 
 	// different file
 	e1.FileEvent.Inode = 33
 	e2.FileEvent.Inode = 44
 	assert.False(t, e1.Equals(e2))
+	assert.False(t, e1.EqualsForProcfs(e2))
 
 	// same file
 	e2.FileEvent.Inode = 33
 	assert.True(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
 
 	// different args
 	e2.ArgsEntry = &ArgsEntry{Values: []string{"aaa"}}
 	assert.False(t, e1.Equals(e2))
+	assert.False(t, e1.EqualsForProcfs(e2))
 
 	// same args
 	e1.ArgsEntry = &ArgsEntry{Values: []string{"aaa"}}
 	assert.True(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
+
+	// Strict exec equality includes capabilities, unlike procfs fork inference.
+	e1.FileCapabilities = FileCapabilities{Permitted: 1 << 10, Effective: true, Available: true}
+	assert.False(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
+	e2.FileCapabilities = e1.FileCapabilities
+	assert.True(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
+
+	// Current xattrs may differ from the parent's exec-time metadata.
+	e2.FileCapabilities.Permitted = 1 << 12
+	assert.False(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
+
+	// Availability alone must not imply that an exec occurred either.
+	e1.FileCapabilities = FileCapabilities{}
+	e2.FileCapabilities = FileCapabilities{Available: true}
+	assert.False(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
+
+	// Credentials and environment differences still distinguish executions.
+	e2.Credentials.UID = 1000
+	assert.False(t, e1.EqualsForProcfs(e2))
+	e1.Credentials = e2.Credentials
+	assert.True(t, e1.EqualsForProcfs(e2))
+	e2.EnvsEntry = &EnvsEntry{Values: []string{"KEY=value"}}
+	assert.False(t, e1.EqualsForProcfs(e2))
+}
+
+func TestFileCapabilitiesForkAndExec(t *testing.T) {
+	parent := newPCE(2, nil, false)
+	parent.FileCapabilities = FileCapabilities{Permitted: 1 << 10, Effective: true, Available: true}
+	child := newPCE(3, nil, false)
+
+	parent.Fork(child)
+	assert.Equal(t, parent.FileCapabilities, child.FileCapabilities)
+
+	replacement := newPCE(3, nil, false)
+	child.Exec(replacement)
+	assert.Equal(t, FileCapabilities{}, replacement.FileCapabilities, "a new exec must not inherit the previous binary's file capabilities")
+	assert.Equal(t, parent.FileCapabilities, child.FileCapabilities, "the old executable's context must remain available in the lineage")
 }
 
 func TestCopyProcessContextFromParent(t *testing.T) {

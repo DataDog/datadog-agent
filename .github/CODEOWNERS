@@ -20,13 +20,14 @@
 /.claude/rules/allium.md                        @DataDog/single-machine-performance
 /.claude/rules/bazel.md                         @DataDog/agent-build
 /.claude/rules/msi.md                           @DataDog/windows-products
+/.claude/rules/ndm-testing.md                   @DataDog/network-device-monitoring-core @DataDog/ndm-integrations
 /.claude/rules/systemd.md                       @DataDog/agent-runtimes
 /.cursor/rules/bazel-buildifier.mdc             @DataDog/agent-build
 /.agents/*                                      @DataDog/agent-devx
 /.agents/skills/*                               @DataDog/agent-devx
 /.agents/skills/allium/                         @DataDog/single-machine-performance
 /.agents/skills/agent-supply-chain-newsletter/  @DataDog/agent-devx
-/.agents/skills/anomalydetection-run-gensim-scenario-on-vm/ @DataDog/agent-anomaly-detection
+/.agents/skills/anomalydetection-run-gensim-scenario/ @DataDog/agent-anomaly-detection
 /.agents/skills/auto-jira/                      @DataDog/agent-devx
 /.agents/skills/create-component/               @DataDog/agent-runtimes
 /.agents/skills/create-core-check/              @DataDog/agent-runtimes
@@ -42,6 +43,7 @@
 /.agents/skills/create-runtime-setting/SKILL.md @DataDog/agent-runtimes @DataDog/fleet-automation
 /.agents/skills/cws-btfhub-sync                 @DataDog/agent-security
 /.agents/skills/cws-iouring-coverage/           @DataDog/agent-security
+/.agents/skills/describe-functional-changes/    @DataDog/agent-devx
 /.agents/skills/explain-lading-config           @DataDog/single-machine-performance
 /.agents/skills/gpu-live-metric-validation/     @DataDog/accelerator-telemetry
 /.agents/skills/injector-dev                    @Datadog/container-platform
@@ -69,7 +71,7 @@
 /CHANGELOG-DCA.rst                              @DataDog/container-integrations @DataDog/container-platform
 /CHANGELOG-INSTALLSCRIPT.rst                    @DataDog/agent-delivery
 /*.md                                           @DataDog/agent-devx
-/CHANGELOG-AIX.md                               @DataDog/agent-runtimes
+/CHANGELOG-SERVERLESS-INIT.md                   @DataDog/serverless-azure-and-gcp
 /AGENTS.md                                      @DataDog/agent-devx
 /CLAUDE.md                                      @DataDog/agent-devx
 /NOTICE                                         @DataDog/agent-delivery
@@ -125,6 +127,7 @@
 /.github/workflows/buildimages-update.yml            @DataDog/agent-build @DataDog/agent-runtimes @DataDog/agent-devx
 /.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent @DataDog/agent-devx
 /.github/workflows/update-kubernetes-versions.yml    @DataDog/container-integrations @DataDog/agent-devx
+/.github/workflows/update-changelog.yml              @DataDog/agent-delivery @DataDog/agent-devx
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-devx or agent-delivery or agent-build
@@ -152,6 +155,7 @@
 /.gitlab/distribute/trigger_release/*                                     @DataDog/agent-devx @DataDog/agent-delivery
 /.gitlab/build/binary_build/cws_instrumentation.yml                       @DataDog/agent-devx @DataDog/agent-security
 /.gitlab/build/binary_build/linux.yml                                     @DataDog/agent-devx @DataDog/agent-build
+/.gitlab/build/binary_build/nosys_seccomp.yml                             @DataDog/agent-build
 /.gitlab/test/functional_test/static_quality_gate.yml                     @DataDog/agent-build
 /.gitlab/test/functional_test/files_inventory_check.yml                   @DataDog/agent-build
 /.gitlab/test/functional_test/bazel_parity_check.yml                      @DataDog/agent-build
@@ -175,6 +179,7 @@
 /.gitlab/windows/build/binary_build/windows.yml                           @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/source_test/codeql_scan.yml                                @DataDog/sdlc-security
 /.gitlab/test/benchmarks/                                                 @DataDog/agent-devx @DataDog/apm-ecosystems-performance @DataDog/agent-apm
+/.gitlab/test/logs_tokenizer_benchmark.yml                                @DataDog/agent-log-pipelines
 /.gitlab/distribute/                                                      @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/deploy/deploy_packages/                                          @DataDog/agent-delivery
 /.gitlab/deploy/deploy_packages/oci.yml                                   @DataDog/agent-delivery @DataDog/fleet
@@ -186,19 +191,20 @@
 /.gitlab/windows/test/e2e_install_packages/windows.yml                    @DataDog/windows-products
 /.gitlab/windows/test/e2e/windows_templates.yml                           @DataDog/agent-devx @DataDog/windows-products
 /.gitlab/windows/test/e2e/windows_alp.yml                                 @DataDog/agent-log-pipelines @DataDog/agent-devx
-/.gitlab/windows/test/e2e/windows_agent.yml                               @DataDog/agent-configuration @DataDog/fleet-automation @DataDog/fleet-remediation @DataDog/agent-runtimes @DataDog/windows-products @DataDog/agent-devx
+/.gitlab/windows/test/e2e/windows_agent.yml                               @DataDog/fleet-automation @DataDog/fleet-remediation @DataDog/agent-runtimes @DataDog/windows-products @DataDog/agent-devx
 /.gitlab/windows/test/e2e/windows_products.yml                            @DataDog/windows-products @DataDog/agent-devx
 /.gitlab/windows/test/e2e/windows_observability.yml                       @DataDog/cloud-network-monitoring @DataDog/network-path @DataDog/agent-log-pipelines @DataDog/agent-data-plane @DataDog/agent-security @DataDog/container-experiences @DataDog/ebpf-platform @DataDog/windows-products @DataDog/agent-devx
 /.gitlab/.pre/common/                                                     @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_templates.yml                                       @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_devx.yml                                            @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_containers.yml                                      @DataDog/container-integrations @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_containers_benchmarkeks.yml                         @DataDog/container-integrations @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_fleet.yml                                           @DataDog/fleet @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_npm.yml                                             @DataDog/cloud-network-monitoring @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_ssi.yml                                             @DataDog/injection-platform @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_otel.yml                                            @DataDog/opentelemetry-agent @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_security.yml                                        @DataDog/agent-security @DataDog/agent-cspm @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_agent_configuration.yml                             @DataDog/agent-configuration @DataDog/fleet-automation @DataDog/fleet-remediation @DataDog/remote-config @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_agent_configuration.yml                             @DataDog/fleet-automation @DataDog/fleet-remediation @DataDog/remote-config @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_agent_runtimes.yml                                  @DataDog/agent-runtimes @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_agent_health.yml                                    @DataDog/fleet-remediation @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_apm.yml                                             @DataDog/agent-apm @DataDog/agent-devx
@@ -238,6 +244,7 @@
 /.gitlab/deploy/network_device_build/                                     @DataDog/agent-delivery
 /.gitlab/test/benchmarks/benchmarks.yml                                   @DataDog/agent-apm
 /.gitlab/test/functional_test/regression_detector.yml                     @DataDog/single-machine-performance
+/.gitlab/childs/smp-regression-child-pipeline.yml                         @DataDog/single-machine-performance
 
 /chocolatey/ @DataDog/windows-products
 
@@ -298,11 +305,11 @@
 /cmd/agent/dist/conf.d/cpu.d/                          @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/cri.d/                          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/datadog_csi_driver.d/           @DataDog/container-platform
-/cmd/agent/dist/conf.d/discovery.d/                    @DataDog/agent-discovery
+/cmd/agent/dist/conf.d/discovery.d/                    @DataDog/agent-log-pipelines
 /cmd/agent/dist/conf.d/disk.d/                         @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/docker.d/                       @DataDog/container-integrations
 /cmd/agent/dist/conf.d/file_handle.d/                  @DataDog/agent-runtimes
-/cmd/agent/dist/conf.d/go_expvar.d/                    @DataDog/agent-configuration
+/cmd/agent/dist/conf.d/go_expvar.d/                    @DataDog/fleet-automation
 /cmd/agent/dist/conf.d/gpu.d/                          @DataDog/accelerator-telemetry
 /cmd/agent/dist/conf.d/io.d/                           @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/jetson.d/                       @DataDog/agent-runtimes
@@ -313,6 +320,7 @@
 /cmd/agent/dist/conf.d/myapp.d/                        @DataDog/agent-log-pipelines
 /cmd/agent/dist/conf.d/mysql.d/                        @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/amd_gpu.d/                      @DataDog/accelerator-telemetry
+/cmd/agent/dist/conf.d/tpu.d/                          @DataDog/accelerator-telemetry
 /cmd/agent/dist/conf.d/nccl.d/                         @DataDog/accelerator-telemetry
 /cmd/agent/dist/conf.d/network.d/                      @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/network_config_management.d/    @DataDog/ndm-integrations
@@ -320,7 +328,7 @@
 /cmd/agent/dist/conf.d/noisy_neighbor.d/               @DataDog/container-experiences
 /cmd/agent/dist/conf.d/ntp.d/                          @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/oom_kill.d/                     @DataDog/container-integrations
-/cmd/agent/dist/conf.d/openmetrics.d/                  @DataDog/agent-configuration
+/cmd/agent/dist/conf.d/openmetrics.d/                  @DataDog/fleet-remediation
 /cmd/agent/dist/conf.d/oracle-dbm.d/                   @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle.d/                       @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/orchestrator_ecs.d/             @DataDog/ecs-experiences
@@ -393,6 +401,7 @@
 /cmd/system-probe/modules/dynamic_instrumentation*  @DataDog/debugger-go
 /cmd/system-probe/modules/noisy_neighbor*           @DataDog/container-experiences
 /cmd/system-probe/modules/gpu*                      @DataDog/accelerator-telemetry
+/cmd/system-probe/modules/privileged_logs*          @DataDog/agent-log-pipelines
 /cmd/system-probe/windows/                          @DataDog/windows-products
 /cmd/system-probe/windows_resources/                @DataDog/windows-products
 /cmd/system-probe/main_windows*.go                  @DataDog/windows-products
@@ -416,9 +425,14 @@
 
 /Dockerfiles/                            @DataDog/agent-build
 /Dockerfiles/agent/entrypoint.d/privateactionrunner                         @DataDog/action-platform
+/Dockerfiles/agent/entrypoint.d/procmgr-all-in-one                         @DataDog/agent-runtimes @DataDog/agent-build
 /Dockerfiles/agent/par-probe.sh                                            @DataDog/action-platform
-/Dockerfiles/agent/processes.d/datadog-agent-action-executor.yaml          @DataDog/action-platform
-/Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml              @DataDog/action-platform
+/Dockerfiles/agent/processes.d/datadog-agent-action-executor.yaml          @DataDog/action-platform @DataDog/agent-runtimes
+/Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml              @DataDog/action-platform @DataDog/agent-runtimes
+/Dockerfiles/agent/processes.d/aio/                                        @DataDog/agent-runtimes @DataDog/agent-build
+/Dockerfiles/agent/processes.d/aio/datadog-agent-action-executor.yaml      @DataDog/action-platform @DataDog/agent-runtimes
+/Dockerfiles/agent/processes.d/aio/datadog-agent-par.yaml                  @DataDog/action-platform @DataDog/agent-runtimes
+/Dockerfiles/agent/processes.d/aio/datadog-agent-par-control.yaml          @DataDog/action-platform @DataDog/agent-runtimes
 /Dockerfiles/agent/s6-services/privateactionrunner/                        @DataDog/action-platform
 /Dockerfiles/agent/entrypoint.d.windows/ @DataDog/agent-build @DataDog/windows-products
 /Dockerfiles/agent/entrypoint.ps1        @DataDog/agent-build @DataDog/windows-products
@@ -442,6 +456,7 @@
 /doc/how-to/run-jmxfetch.md                                  @DataDog/agent-runtimes
 /docs/public/hostname/                                       @DataDog/agent-runtimes
 /doc/architecture/dogstatsd/                                 @DataDog/agent-metric-pipelines
+/doc/how-to/test/e2e/benchmarkeks/                           @DataDog/container-integrations
 /docs/public/guidelines/deprecated-components-documentation/ @DataDog/agent-runtimes
 
 # These files are owned by all teams, but assigning them to @DataDog/agent-community-eng causes a lot of spam
@@ -454,7 +469,6 @@
 /omnibus/package-scripts/agent-rpm/                      @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-deb/                      @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-dmg/                      @DataDog/agent-build @DataDog/windows-products
-/omnibus/python-scripts/                                 @DataDog/agent-integrations @DataDog/windows-products
 /deps/openscap/                                          @DataDog/agent-build @DataDog/agent-cspm @DataDog/agent-security
 /omnibus/config/software/datadog-agent-integrations-*.rb @DataDog/agent-integrations
 /deps/agent_integrations/                                @DataDog/agent-build @DataDog/agent-integrations
@@ -465,6 +479,7 @@
 /packages/macos                                          @DataDog/agent-build @DataDog/windows-products
 /packages/windows                                        @DataDog/agent-build @DataDog/windows-products
 /packages/installer                                      @DataDog/agent-build @DataDog/fleet
+/packages/agent/python-scripts/                          @DataDog/agent-integrations @DataDog/windows-products
 
 # AIX
 /packaging/aix/ @DataDog/agent-build
@@ -514,6 +529,7 @@
 /comp/core/gui @DataDog/fleet-remediation
 /comp/core/profiler @DataDog/fleet-remediation
 /comp/core/remoteflags @DataDog/fleet-remediation
+/comp/core/schema @DataDog/fleet-automation
 /comp/core/secrets @DataDog/fleet-automation
 /comp/core/settings @DataDog/fleet-automation
 /comp/core/status @DataDog/fleet-remediation
@@ -533,10 +549,10 @@
 /comp/metadata/hostgpu @DataDog/accelerator-telemetry
 /comp/metadata/hostsysteminfo @DataDog/windows-products
 /comp/metadata/packagesigning @DataDog/agent-delivery
+/comp/metadata/serverlessaas @DataDog/serverless-azure-and-gcp @DataDog/fleet-automation
 /comp/metadata/serverlessinit @DataDog/serverless-azure-and-gcp @DataDog/fleet-automation
 /comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/ebpf-platform
 /comp/trace/etwtracer @DataDog/windows-products
-/comp/trace-telemetry @DataDog/agent-runtimes
 /comp/anomalydetection/logssource @DataDog/agent-anomaly-detection
 /comp/anomalydetection/observer @DataDog/agent-anomaly-detection
 /comp/anomalydetection/recorder @DataDog/agent-anomaly-detection
@@ -553,8 +569,9 @@
 /comp/languagedetection/client @DataDog/container-platform
 /comp/logonduration @DataDog/windows-products
 /comp/metriclookback @DataDog/q-branch
+/comp/ndmconnectivitycheck @DataDog/network-device-monitoring-core
+/comp/ndmdiscovery @DataDog/network-device-monitoring-core
 /comp/networkconfigmanagement @DataDog/ndm-integrations
-/comp/networkdevices @DataDog/network-device-monitoring-core
 /comp/networkpcap/uploader @DataDog/cloud-network-monitoring
 /comp/notableevents @DataDog/windows-products
 /comp/offlinereporter @DataDog/agent-metric-pipelines
@@ -610,7 +627,6 @@
 # the rest of comp/host-profiler is shared with opentelemetry-agent (see bundle.go)
 /comp/host-profiler/cgroup/                 @DataDog/profiling-full-host
 /comp/host-profiler/collector/impl/receiver/ @DataDog/profiling-full-host
-/comp/host-profiler/oom/                    @DataDog/profiling-full-host
 /comp/host-profiler/symboluploader/         @DataDog/profiling-full-host
 
 # pkg
@@ -639,9 +655,24 @@
 /pkg/cli/subcommands/workloadfilter                                   @DataDog/container-platform
 /pkg/cli/subcommands/autoscalerlist                                   @DataDog/container-autoscaling @DataDog/container-integrations
 /pkg/cli/subcommands/processchecks                                    @DataDog/container-experiences
-/pkg/discovery/                                                       @DataDog/agent-discovery
+/pkg/discovery/                                                       @DataDog/ebpf-platform
+/pkg/discovery/core/                                                  @DataDog/agent-discovery
+/pkg/discovery/language/                                              @DataDog/agent-discovery
+/pkg/discovery/model/                                                 @DataDog/agent-discovery
+/pkg/discovery/usm/                                                   @DataDog/agent-discovery
+/pkg/discovery/module/rust/src/params.rs                              @DataDog/agent-discovery
+/pkg/discovery/module/rust/src/ust.rs                                 @DataDog/agent-discovery
+/pkg/discovery/tracermetadata/                                        @DataDog/agent-discovery
+/pkg/discovery/module/rust/src/comm.rs                                @DataDog/agent-discovery
+/pkg/discovery/module/rust/src/procfs/fd.rs                           @DataDog/agent-discovery
+/pkg/discovery/module/rust/src/services.rs                            @DataDog/agent-discovery
+/pkg/discovery/module/rust/src/service_name*                          @DataDog/agent-discovery
+/pkg/discovery/module/rust/src/language.rs                            @DataDog/agent-discovery
+/pkg/discovery/module/rust/src/apm.rs                                 @DataDog/agent-discovery
+/pkg/discovery/module/rust/src/procfs/maps.rs                         @DataDog/agent-discovery
+/pkg/discovery/module/rust/src/tracer_metadata.rs                     @DataDog/agent-discovery
 /pkg/errors/                                                          @DataDog/agent-runtimes
-/pkg/privileged-logs/                                                 @DataDog/agent-discovery @DataDog/agent-log-pipelines
+/pkg/privileged-logs/                                                 @DataDog/agent-log-pipelines
 /pkg/fips                                                             @DataDog/agent-runtimes
 /pkg/gohai                                                            @DataDog/fleet-automation
 /pkg/gpu/                                                             @DataDog/accelerator-telemetry
@@ -666,6 +697,9 @@
 /pkg/trace/api/loader/listeners.go                                    @DataDog/agent-apm
 /pkg/trace/api/container_tags_hash_test.go                            @DataDog/data-streams-monitoring
 /pkg/trace/api/container_tags_hash_dbm_test.go                        @DataDog/database-monitoring
+# The EVP proxy carries the AI Guard proxy route, whose behavior ASM owns.
+/pkg/trace/api/evp_proxy.go                                           @DataDog/agent-apm @DataDog/asm-go
+/pkg/trace/api/evp_proxy_test.go                                      @DataDog/agent-apm @DataDog/asm-go
 /pkg/trace/traceutil/                                                 @DataDog/agent-apm
 /pkg/trace/stats/                                                     @DataDog/agent-apm
 /pkg/trace/otel/                                                      @DataDog/opentelemetry
@@ -675,15 +709,16 @@
 /comp/core/autodiscovery/listeners/                                   @DataDog/container-platform
 /comp/core/autodiscovery/listeners/cloudfoundry*.go                   @DataDog/agent-integrations
 /comp/core/autodiscovery/listeners/snmp*.go                           @DataDog/network-device-monitoring-core
+/comp/core/autodiscovery/listeners/dbm_*.go                           @DataDog/database-monitoring
 /comp/core/autodiscovery/providers/                                   @DataDog/container-platform
 /comp/core/autodiscovery/providers/file*.go                           @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/config_reader*.go                  @DataDog/container-platform @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/cloudfoundry*.go                   @DataDog/agent-integrations
-/comp/core/autodiscovery/providers/process_log*.go                    @DataDog/agent-discovery @DataDog/agent-log-pipelines
+/comp/core/autodiscovery/providers/process_log*.go                    @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/datastreams                        @DataDog/data-streams-monitoring
 /comp/core/autodiscovery/providers/datasecurity                       @DataDog/sensitive-data-scanner
 /comp/core/autodiscovery/providers/networkpath                        @DataDog/network-path @DataDog/container-platform
-/comp/core/autodiscovery/providers/ndm                                @DataDog/network-device-monitoring-core @DataDog/container-platform
+/comp/core/autodiscovery/providers/ndm                                @DataDog/network-device-monitoring-core
 /comp/ndm                                                             @DataDog/network-device-monitoring-core
 /comp/core/gui/impl/systray/                                          @DataDog/windows-products @DataDog/fleet-remediation
 /comp/healthplatform/issues/ad-misconfiguration                       @DataDog/container-platform @DataDog/fleet-remediation
@@ -713,7 +748,7 @@
 /pkg/collector/corechecks/containers/csi_driver/                      @DataDog/container-platform
 /pkg/collector/corechecks/containerimage/                             @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/                         @DataDog/container-integrations
-/pkg/collector/corechecks/discovery/                                  @DataDog/agent-discovery
+/pkg/collector/corechecks/discovery/                                  @DataDog/agent-log-pipelines
 /pkg/collector/corechecks/ebpf/                                       @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/ebpf*                                  @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/noisyneighbor/                         @DataDog/container-experiences
@@ -798,6 +833,8 @@
 /pkg/flare/certificates*.go                                           @DataDog/agent-runtimes
 /pkg/fleet/                                                           @DataDog/fleet
 /pkg/fleet/**/*_windows*.go                                           @DataDog/fleet @DataDog/windows-products
+/pkg/fleet/installer/msi/                                             @DataDog/fleet @DataDog/windows-products
+/pkg/fleet/**/windows/                                                @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/installer/setup/djm/                                       @DataDog/fleet @DataDog/data-observability
 /pkg/inventory/                                                       @DataDog/windows-products
 /pkg/inventory/software/                                              @DataDog/windows-products
@@ -819,6 +856,7 @@
 /pkg/privateactionrunner/bundles/remoteaction/pcap                    @DataDog/action-platform @DataDog/cloud-network-monitoring
 /pkg/proto/                                                           @DataDog/agent-runtimes
 /pkg/proto/datadog/dogstatsdhttp                                      @DataDog/agent-metric-pipelines
+/pkg/proto/datadog/genresources                                      @DataDog/accelerator-telemetry
 /pkg/proto/datadog/kubemetadata                                       @DataDog/container-platform
 /pkg/proto/datadog/languagedetection                                  @DataDog/container-experiences
 /pkg/proto/datadog/privateactionrunner                                @DataDog/action-platform
@@ -865,13 +903,15 @@
 /pkg/util/ktime                                                       @DataDog/agent-security
 /pkg/util/kubelet/                                                    @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/                                                 @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
+/pkg/util/kubernetes/autoscalers/                                     @DataDog/container-integrations @Datadog/container-autoscaling @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/nodename/                                        @DataDog/opentelemetry-agent
 /pkg/util/podman/                                                     @DataDog/container-integrations
-/pkg/util/port/                                                       @DataDog/agent-runtimes
+/pkg/util/port/                                                       @DataDog/cloud-network-monitoring
 /pkg/util/port/portlist/*windows*.go                                  @DataDog/windows-products
 /pkg/util/prometheus                                                  @DataDog/container-integrations
 /pkg/util/quantile/                                                   @DataDog/opentelemetry-agent
 /pkg/util/tags/                                                       @DataDog/container-platform
+/pkg/util/telemetry/                                                  @DataDog/fleet-remediation
 /pkg/util/tmplvar/                                                    @DataDog/container-platform
 /pkg/util/trivy/                                                      @DataDog/agent-security @DataDog/container-integrations
 /pkg/util/uuid/                                                       @DataDog/agent-runtimes
@@ -989,6 +1029,8 @@
 
 /rtloader/ @DataDog/agent-runtimes
 
+/runbooks/ @DataDog/agent-build
+
 /tasks/                                                         @DataDog/agent-devx
 /tasks/macos.py                                                 @DataDog/windows-products
 /tasks/msi.py                                                   @DataDog/windows-products
@@ -1001,11 +1043,17 @@
 /tasks/build_tags.py                                            @DataDog/agent-build
 /tasks/build_tags.bzl                                           @DataDog/agent-build
 /tasks/anomalydetection.py                                      @DataDog/agent-anomaly-detection
+/.gitlab/test/functional_test/anomalydetection.yml               @DataDog/agent-anomaly-detection
+/tasks/logs_tokenizer.py                                        @DataDog/agent-log-pipelines
 /tasks/unit_tests/anomalydetection*.py                          @DataDog/agent-anomaly-detection
+/tasks/unit_tests/logs_tokenizer*.py                            @DataDog/agent-log-pipelines
 /tasks/loader.py                                                @DataDog/agent-runtimes
 /tasks/go_deps.py                                               @DataDog/agent-runtimes
 /tasks/gotest.py                                                @DataDog/agent-devx @DataDog/agent-build
 /tasks/dogstatsd.py                                             @DataDog/agent-metric-pipelines
+/tasks/serverless_init.py                                       @DataDog/serverless-azure-and-gcp
+/tasks/libs/serverless_init/                                    @DataDog/serverless-azure-and-gcp
+/tasks/unit_tests/serverless_init_tests.py                      @DataDog/serverless-azure-and-gcp
 /tasks/update_go.py                                             @DataDog/agent-runtimes
 /tasks/python_version.py                                        @DataDog/agent-integrations
 /tasks/unit_tests/update_go_tests.py                            @DataDog/agent-runtimes
@@ -1013,13 +1061,19 @@
 /tasks/unit_tests/kmt_tests.py                                  @DataDog/ebpf-platform
 /tasks/unit_tests/system_probe_test_programs_tests.py            @DataDog/debugger-go
 /tasks/unit_tests/macos_tests.py                                @DataDog/windows-products
+/tasks/unit_tests/macos_install_script_tests.py                 @DataDog/windows-products
+/tasks/unit_tests/adp_macos_windows_packaging_tests.py          @DataDog/windows-products
 /tasks/unit_tests/winbuild_tests.py                             @DataDog/windows-products
+/tasks/unit_tests/procmgr_init_templates_tests.py               @DataDog/agent-runtimes
+/tasks/unit_tests/par_legacy_startup_template_tests.py          @DataDog/action-platform @DataDog/agent-runtimes
 /tasks/cluster_agent_cloudfoundry.py                            @DataDog/agent-integrations
 /tasks/cluster_agent.py                                         @DataDog/container-platform
 /tasks/cluster_agent_helpers.py                                 @DataDog/container-platform
 /tasks/devcontainer.py                                          @DataDog/agent-devx @DataDog/container-platform
 /tasks/skaffold.py                                              @DataDog/agent-devx @DataDog/container-platform
 /tasks/new_e2e_tests.py                                         @DataDog/agent-devx
+/tasks/libs/testing/benchmarkeks.py                             @DataDog/container-integrations @DataDog/agent-devx
+/tasks/unit_tests/benchmarkeks_tests.py                         @DataDog/container-integrations @DataDog/agent-devx
 /tasks/process_agent.py                                         @DataDog/container-experiences
 /tasks/privateactionrunner.py                                   @DataDog/action-platform
 /tasks/rshell.py                                                @DataDog/fleet-remediation
@@ -1040,6 +1094,7 @@
 /tasks/security_agent.py                                        @DataDog/agent-security
 /tasks/sbomgen.py                                               @DataDog/agent-security
 /tasks/libs/anomalydetection/                                   @DataDog/agent-anomaly-detection
+/tasks/libs/logs_tokenizer/                                     @DataDog/agent-log-pipelines
 /tasks/libs/build/                                              @DataDog/agent-build
 /tasks/libs/cws/                                                @DataDog/agent-security
 /tasks/libs/gpu/                                                @DataDog/accelerator-telemetry
@@ -1089,6 +1144,9 @@
 /test/e2e-framework/scenarios/aws/ecs/                          @DataDog/ecs-experiences
 /test/e2e-framework/scenarios/aws/integrations/                 @DataDog/agent-integrations
 /tasks/e2e_framework/aws/integrations/                          @DataDog/agent-integrations
+/test/e2e-framework/scenarios/aws/gensim-eks/                   @DataDog/agent-anomaly-detection
+/tasks/e2e_framework/aws/gensim_eks.py                          @DataDog/agent-anomaly-detection
+/tasks/unit_tests/gensim_eks_tests.py                           @DataDog/agent-anomaly-detection
 /test/e2e-framework/resources/aws/ecs/                          @DataDog/ecs-experiences
 /test/e2e-framework/components/ecs/                             @DataDog/ecs-experiences
 /test/e2e-framework/components/datadog/agent/ecs.go             @DataDog/ecs-experiences
@@ -1125,6 +1183,9 @@
 /test/new-e2e/tests/agent-subcommands/hostname*                 @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-subcommands/configcheck*              @DataDog/agent-runtimes @DataDog/agent-integrations
 /test/new-e2e/tests/agent-subcommands/run*                      @DataDog/agent-runtimes
+/test/new-e2e/tests/agent-subcommands/dogstatsd*                @DataDog/agent-metric-pipelines
+/test/new-e2e/tests/agent-subcommands/diagnose*                 @DataDog/fleet-remediation
+/test/new-e2e/tests/agent-subcommands/secret*                   @DataDog/fleet-automation
 /test/new-e2e/tests/agent-subcommands/flare*                    @DataDog/fleet-remediation
 /test/new-e2e/tests/agent-subcommands/status*                   @DataDog/fleet-remediation
 /test/new-e2e/tests/agent-telemetry                             @DataDog/fleet-remediation
@@ -1140,7 +1201,7 @@
 /test/new-e2e/tests/language-detection                          @DataDog/container-experiences
 /test/new-e2e/tests/ndm                                         @DataDog/network-device-monitoring-core
 /test/new-e2e/tests/ndm/netflow                                 @DataDog/ndm-integrations
-/test/new-e2e/tests/netpath                                     @DataDog/windows-products @DataDog/network-path
+/test/new-e2e/tests/netpath                                     @DataDog/network-path @DataDog/windows-products
 /test/new-e2e/tests/npm                                         @DataDog/cloud-network-monitoring
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go                  @DataDog/cloud-network-monitoring @DataDog/windows-products
 /test/new-e2e/tests/npm/ecs_1host_test.go                       @DataDog/ecs-experiences
@@ -1184,6 +1245,7 @@
 /test/regression/container/quality_gates/quality_gate_private_action_runner* @DataDog/single-machine-performance @DataDog/action-platform
 /test/regression/container/selection.yaml                         @DataDog/single-machine-performance
 /test/regression/container/logs/                                  @DataDog/agent-log-pipelines
+/test/regression/container/agent-metric-pipelines/                @DataDog/agent-metric-pipelines
 
 /tools/                                                              @DataDog/agent-devx
 /tools/host-profiler/                                                @DataDog/profiling-full-host
@@ -1217,8 +1279,6 @@
 /deps/go.MODULE.bazel # do not notify anyone
 
 # Add here modules that need explicit review from the team owning them
-/pkg/util/scrubber/go.mod @DataDog/agent-runtimes
-/pkg/util/scrubber/go.sum @DataDog/agent-runtimes
 
 # Temporary during Bazel migration
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden

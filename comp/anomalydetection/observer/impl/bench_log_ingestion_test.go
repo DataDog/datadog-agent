@@ -83,9 +83,9 @@ func BenchmarkLogExtraction_SeriesCount(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				_, _, _, extractors, _ := defaultCatalog().Instantiate(benchmarkSettings)
+				_, _, _, extractors, _ := instantiateForTest(b, defaultCatalog(), benchmarkSettings)
 				storage := newTimeSeriesStorage()
-				e := newEngine(engineConfig{
+				e := mustNewEngine(engineConfig{
 					storage:    storage,
 					extractors: extractors,
 				})
@@ -120,9 +120,9 @@ func BenchmarkLogExtraction_DiversePatterns(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				_, _, _, extractors, _ := defaultCatalog().Instantiate(benchmarkSettings)
+				_, _, _, extractors, _ := instantiateForTest(b, defaultCatalog(), benchmarkSettings)
 				storage := newTimeSeriesStorage()
-				e := newEngine(engineConfig{
+				e := mustNewEngine(engineConfig{
 					storage:    storage,
 					extractors: extractors,
 				})
@@ -143,7 +143,7 @@ func BenchmarkLogExtraction_DiversePatterns(b *testing.B) {
 func BenchmarkLogContextSteadyState(b *testing.B) {
 	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	extractor.config.MinClusterSizeBeforeEmit = 1
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:    newTimeSeriesStorage(),
 		extractors: []observerdef.LogMetricsExtractor{extractor},
 	})
@@ -159,6 +159,22 @@ func BenchmarkLogContextSteadyState(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		log.timestampMs = int64(i+2) * 1_000
 		e.IngestLog("logs", log)
+	}
+}
+
+// BenchmarkLogMetricsExtractor_ProcessLog measures the per-log cost of the
+// log metrics extractor across the twenty diverse line shapes.
+func BenchmarkLogMetricsExtractor_ProcessLog(b *testing.B) {
+	extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
+	logs := make([]*logObs, 20)
+	for s := range logs {
+		logs[s] = &logObs{content: diverseLogContent(s)}
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		extractor.ProcessLog(logs[i%len(logs)])
 	}
 }
 

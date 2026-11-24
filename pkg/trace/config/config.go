@@ -49,6 +49,16 @@ type Endpoint struct {
 
 	// IsMRF determines whether this is a Multi-Region Failover endpoint.
 	IsMRF bool `mapstructure:"-" json:"-"`
+
+	// HasPendingDelegatedAuth marks an endpoint whose only configured keys are DELA[...]
+	// directives still waiting for the delegatedauth component to write back a resolved
+	// API key. APIKey is empty for such endpoints; writers hold payloads for them until
+	// the key arrives.
+	HasPendingDelegatedAuth bool `mapstructure:"-" json:"-"`
+
+	// APIKeyConfigIndex identifies this key's slot in the additional-endpoint host's
+	// key list. Nil for endpoints that do not subscribe to that setting.
+	APIKeyConfigIndex *int `mapstructure:"-" json:"-"`
 }
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
@@ -317,6 +327,8 @@ type EVPProxy struct {
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
 	APIKey string `json:"-"` // Never marshal this field
+	// ApplicationKey is the top-level application key (app_key). Only the AI Guard proxy uses it.
+	ApplicationKey string `json:"-"` // Never marshal this field
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
@@ -397,6 +409,12 @@ type AgentConfig struct {
 	// configuration file, if present.
 	Endpoints []*Endpoint
 
+	// OnAdditionalEndpointsUpdate, when set, subscribes cb to runtime changes of the
+	// apm_config.additional_endpoints setting (e.g. delegated-auth key writeback), delivering
+	// the host and its current API keys in config order. Keys are trimmed and pending
+	// DELA[...] slots are empty. Nil means runtime updates are unavailable.
+	OnAdditionalEndpointsUpdate func(cb func(host string, apiKeys []string)) `json:"-"`
+
 	// SkipMainEndpoint makes the trace and stats writers skip the main endpoint
 	// (Endpoints[0], derived from api_key and apm_config.apm_dd_url) and send
 	// only to the endpoints configured through apm_config.additional_endpoints
@@ -458,8 +476,6 @@ type AgentConfig struct {
 	PipeBufferSize         int
 	PipeSecurityDescriptor string
 
-	GUIPort string // the port of the Datadog Agent GUI (for control access)
-
 	// Writers
 	SynchronousFlushing     bool // Mode where traces are only submitted when FlushAsync is called, used for Serverless Extension
 	StatsWriter             *WriterConfig
@@ -505,6 +521,8 @@ type AgentConfig struct {
 
 	// ReplaceTags is used to filter out sensitive information from tag values.
 	// It maps tag keys to a set of replacements. Only supported in A6.
+	// It must not contain rules named "env": the span env can be used as the env
+	// for sampling and stats, so config loading drops them.
 	ReplaceTags []*ReplaceRule
 
 	// GlobalTags list metadata that will be added to all spans
@@ -732,7 +750,6 @@ func New() *AgentConfig {
 		},
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
-		GUIPort:                "5002",
 
 		StatsWriter:             new(WriterConfig),
 		TraceWriter:             new(WriterConfig),
@@ -833,6 +850,13 @@ func (c *AgentConfig) UpdateAPIKey(val string) {
 	c.Endpoints[0].APIKey = val
 }
 
+// UpdateApplicationKey updates the application key the AI Guard proxy sends to Datadog, so that
+// rotating app_key does not need a restart. Assigned in place like UpdateAPIKey above: this
+// struct is copied by value into the /info payload, so it cannot hold a lock.
+func (c *AgentConfig) UpdateApplicationKey(val string) {
+	c.EVPProxy.ApplicationKey = val
+}
+
 // WriterEndpoints returns the endpoints the trace and stats writers send
 // payloads to: Endpoints, minus the main endpoint (Endpoints[0]) when
 // SkipMainEndpoint is set. Configuration validation guarantees that at least
@@ -848,7 +872,8 @@ func (c *AgentConfig) WriterEndpoints() []*Endpoint {
 // would receive traces and stats, taking SkipMainEndpoint into account.
 func (c *AgentConfig) HasWriterDestination() bool {
 	for _, e := range c.WriterEndpoints() {
-		if e != nil && !e.IsMRF && e.Host != "" && e.APIKey != "" {
+		// A pending delegated-auth endpoint counts: a key is on its way.
+		if e != nil && !e.IsMRF && e.Host != "" && (e.APIKey != "" || e.HasPendingDelegatedAuth) {
 			return true
 		}
 	}

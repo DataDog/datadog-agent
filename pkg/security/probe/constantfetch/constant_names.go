@@ -18,6 +18,9 @@ const (
 const (
 	OffsetNameSuperBlockStructSFlags    = "sb_flags_offset"
 	OffsetNameSuperBlockStructSMagic    = "sb_magic_offset"
+	OffsetNameSignalStructLive          = "signal_live_offset"
+	OffsetNameSignalStructGroupExitCode = "signal_group_exit_code_offset"
+	OffsetNameSignalStructFlags         = "signal_flags_offset"
 	OffsetNameSignalStructStructTTY     = "tty_offset"
 	OffsetNameTTYStructStructName       = "tty_name_offset"
 	OffsetNameCredStructUID             = "creds_uid_offset"
@@ -52,6 +55,7 @@ const (
 	OffsetNameSuperblockSType           = "super_block_s_type_offset"
 	OffsetNameDentryDName               = "dentry_d_name_offset"
 	OffsetNameQstrName                  = "qstr_name_offset"
+	OffsetNameQstrLen                   = "qstr_len_offset"
 	OffsetNameDentryDParent             = "dentry_d_parent_offset"
 
 	// inode
@@ -157,6 +161,10 @@ const (
 	// ARM64:  task_struct->thread.uw.tp_value (tp_value is first member of uw, offset within uw = 0)
 	OffsetNameTaskStructThread = "task_struct_thread_offset"
 	OffsetNameThreadStructTp   = "thread_struct_tp_offset"
+
+	// Executable file capabilities
+	OffsetNameCPUVFSCapDataStructPermitted   = "cpu_vfs_cap_data_permitted_offset"
+	OffsetNameCPUVFSCapDataStructInheritable = "cpu_vfs_cap_data_inheritable_offset"
 
 	// Interpreter constants
 	OffsetNameLinuxBinprmStructFile     = "binprm_file_offset"

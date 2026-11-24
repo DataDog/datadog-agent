@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	k8sclient "k8s.io/client-go/kubernetes"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	kindvmscen "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
@@ -60,10 +59,6 @@ const (
 	fallbackDuration             = 2 * scheduleTimeout
 	rebalanceStabilizationPeriod = 10 * time.Second
 )
-
-// helmChartVersion is the minimum Datadog Helm chart version that exposes the
-// datadog.autoscaling.cluster.spot.enabled feature toggle.
-const helmChartVersion = "3.208.0"
 
 // makeHelmValues returns the Helm values for the spot scheduling suite.
 // pullPolicy should be "Never" when the image is pre-loaded into kind (local dev)
@@ -159,7 +154,6 @@ func TestSpotSchedulingKind(t *testing.T) {
 		localkubernetes.WithKindLoadImage(image),
 		localkubernetes.WithAgentOptions(
 			kubernetesagentparams.WithClusterAgentFullImagePath(image),
-			kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
 			kubernetesagentparams.WithHelmValues(makeHelmValues("Never")),
 		),
 	)))
@@ -170,17 +164,16 @@ func TestSpotSchedulingKind(t *testing.T) {
 // qa_dca ECR image built by this pipeline (cluster-agent-qa:{E2E_PIPELINE_ID}-{E2E_COMMIT_SHA}).
 // Requires E2E_PIPELINE_ID to be set (provided by the standard .new_e2e_template CI job).
 func TestSpotSchedulingKindCI(t *testing.T) {
-	flake.Mark(t)
 	if os.Getenv("E2E_PIPELINE_ID") == "" {
 		t.Skip("E2E_PIPELINE_ID not set; this test is for CI use only")
 	}
 	e2e.Run(t, &spotSchedulingSuite{waitForLogs: true}, e2e.WithProvisioner(awskindvm.Provisioner(
 		awskindvm.WithRunOptions(
+			kindvmscen.WithInternetAccess(),
 			kindvmscen.WithName(kindClusterName),
 			kindvmscen.WithKindWorkerNodes(workerNodes...),
 			kindvmscen.WithoutFakeIntake(),
 			kindvmscen.WithAgentOptions(
-				kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
 				kubernetesagentparams.WithHelmValues(makeHelmValues("IfNotPresent")),
 				kubernetesagentparams.WithTimeout(600),
 			),

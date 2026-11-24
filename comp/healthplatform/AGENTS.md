@@ -71,6 +71,19 @@ The `def` packages (`runner/def`, `store/def`, etc.) contain only interfaces and
 
 ---
 
+## Telemetry
+
+The `checks` COAT profile collects four metrics every 900 seconds:
+
+- `health_platform.active_issues{issue_type}`: active instance count, including restored issues; update under `issuesMux` after store and lifecycle mutations.
+- `health_platform.reports_sent{status,error_type}`: one count per send attempt; `success/none` or `error/timeout|http_4xx|http_5xx|other`; skipped ticks are excluded.
+- `health_platform.issues_resolved{issue_type}`: one count per transition to resolved, including `ResolveAllIssues`.
+- `health_platform.issues_detected{issue_type,severity}`: pre-existing counter, one count per report with the legacy display-name tags; left unchanged by this profile.
+
+Use proto `IssueType` (`PersistedIssue.ProtoIssueType`) for these tags; `issuesByName` and the legacy `PersistedIssue.IssueType` hold display names. Leave `issues_detected{issue_type,severity}` unchanged: it counts every report with the legacy tags. Restoring resolved tombstones emits no resolve metrics. Shutdown does not call `ResolveAllIssues`; check callers before adding lifecycle uses that could count restarts as recoveries. COAT drops zero-valued metrics.
+
+Count active instances from persisted state by proto type, excluding records without a display name as restoration does. Empty proto types from older state or unregistered issues share one series; refresh the previous label when re-reporting changes the proto type so its gauge cannot remain stale.
+
 ## Module file layout
 
 Issue packages live under `comp/healthplatform/issues/<pkgname>/`. The required files depend on which path the issue uses.
@@ -297,7 +310,7 @@ Use a fakeintake-backed integration test when the issue can be triggered and ver
 
 The pattern (see `TestIssueStateLifecycleForwarded`):
 1. Start an in-process fakeintake server: `fi := fakeintakeserver.NewServer(...); fi.Start()`
-2. Boot the full bundle with `fxutil.Test`, pointing `dd_url` at `fi.URL()`
+2. Boot the full bundle with `fxutil.Test`, pointing `health_platform.forwarder.dd_url` at `fi.URL()`
 3. Trigger the condition by calling `store.ReportIssue(...)` or `scheduler.Schedule(...)`
 4. Poll `fiClient.GetAgentHealth()` and assert on issue state (`ISSUE_STATE_ACTIVE`, `ISSUE_STATE_RESOLVED`)
 

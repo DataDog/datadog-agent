@@ -60,8 +60,17 @@ Open `http://localhost:5173` in your browser.
 
 ## UI Controls
 
+- Scenarios start with no metric groups selected. Select groups from the sidebar
+  to load their charts, or click **Show up to 50 most anomalous metrics** to select
+  recorded metric groups ranked by detections from enabled detectors. The button
+  disappears when all of those groups are selected.
+  Charts appear as each group loads, and expanding reuses already fetched series.
+  Manual sidebar selection remains available. Ties are sorted by metric name;
+  telemetry and log-derived virtual groups are excluded from this shortcut.
 - **Drag** on chart to zoom time range
 - **Middle-drag** to pan when zoomed
 - **Shift+click** correlations to multi-select
 - **Resize** sidebar by dragging right edge
+- **Anomaly count** below each metric expands or collapses its anomaly list.
+  Lists start collapsed; clicking a chart marker opens the matching details.
 - Tree buttons: Expand / Collapse / Focus (hide unselected)

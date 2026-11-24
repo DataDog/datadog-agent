@@ -703,6 +703,14 @@ func (c *scriptChecker) redirects(entry *CommandCheck, redirects []*syntax.Redir
 			continue
 		}
 		path := paths[0]
+		// Run authorizes `< file` as an implicit `cat file` (see redir). A
+		// cat entry, i.e. `cat < file` or the `$(<file)` shortcut, already
+		// carries the command-policy result for cat.
+		if redirect.Op == syntax.RdrIn && !isNativeDevNull(path) && entry.Command != "cat" &&
+			!c.policy.allowAllCommands && !c.policy.allowedCommands["cat"] {
+			entry.issue(CheckCommandNotAllowed, "< "+path+": file read not permitted (cat not in allowed commands)")
+			entry.Issues[len(entry.Issues)-1].Path = path
+		}
 		// Only output redirects implement the unconditional null-device sink.
 		if op == allowedpaths.PathWrite && isDevNull(path) {
 			continue

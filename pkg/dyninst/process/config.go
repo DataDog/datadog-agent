@@ -15,10 +15,30 @@ import "github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 type Config struct {
 	Info
 
-	RuntimeID         string
-	Probes            []ir.ProbeDefinition
+	RuntimeID string
+	Probes    []ir.ProbeDefinition
+	// InvalidProbes are the probes configured for the process whose
+	// definitions could not be parsed. They cannot be instrumented, but are
+	// reported so that users can see what is wrong with them.
+	InvalidProbes     []InvalidProbe
 	ShouldUploadSymDB bool
 }
+
+// InvalidProbe identifies a probe whose definition could not be parsed, and
+// says why.
+type InvalidProbe struct {
+	ID      string
+	Version int
+	Issue   ir.Issue
+}
+
+var _ ir.ProbeIDer = InvalidProbe{}
+
+// GetID implements ir.ProbeIDer.
+func (p InvalidProbe) GetID() string { return p.ID }
+
+// GetVersion implements ir.ProbeIDer.
+func (p InvalidProbe) GetVersion() int { return p.Version }
 
 // ProcessesUpdate aggregates lifecycle removals and refreshed configuration
 // for processes discovered by dynamic instrumentation components.

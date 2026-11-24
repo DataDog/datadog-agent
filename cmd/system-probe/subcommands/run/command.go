@@ -48,6 +48,7 @@ import (
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-systemprobe"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
@@ -117,7 +118,13 @@ type cliParams struct {
 	pidfilePath string
 }
 
-const configSyncTimeout = 10 * time.Second
+const (
+	// configSyncTimeout is the timeout of each config sync request to the core agent
+	configSyncTimeout = 3 * time.Second
+	// configSyncOnInitTimeout is how long config sync retries at startup before failing,
+	// leaving time for the core agent to start its IPC server
+	configSyncOnInitTimeout = 30 * time.Second
+)
 
 // Commands returns a slice of subcommands for the 'system-probe' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -193,6 +200,7 @@ func getSharedFxOption(coreAgentIPC bool) fx.Option {
 		coreAgentFxOptions(coreAgentIPC),
 		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile())),
 		config.Module(),
+		schemanoopfx.Module(),
 		delegatedauthnoopfx.Module(),
 		sysprobeconfigfx.Module(),
 		systemprobeloggerfx.Module(),
@@ -275,7 +283,7 @@ func coreAgentFxOptions(coreAgentIPC bool) fx.Option {
 			remotehostnameimpl.WithMaxAttempts(10),
 			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
 		),
-		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncTimeout)),
+		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncOnInitTimeout)),
 		remoteagentfx.Module(),
 	)
 }

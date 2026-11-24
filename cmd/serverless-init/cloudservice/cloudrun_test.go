@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
@@ -291,6 +292,47 @@ func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
 	}, tags)
 }
 
+func TestCloudRunMissingIdentity(t *testing.T) {
+	saved := metadataHelperFunc
+	t.Cleanup(func() { metadataHelperFunc = saved })
+	for _, kind := range []CloudRunType{CloudRunService, CloudRunFunction, CloudRunJob} {
+		t.Run(string(kind), func(t *testing.T) {
+			env := map[string]string{
+				ServiceNameEnvVar: "unknown", revisionNameEnvVar: "revision",
+				cloudRunJobNameEnvVar: "job", cloudRunExecutionEnvVar: "execution",
+			}
+			for key, value := range env {
+				t.Setenv(key, value)
+			}
+			keys := []string{projectID, location, ServiceNameEnvVar, revisionNameEnvVar}
+			if kind == CloudRunJob {
+				keys = []string{projectID, location, cloudRunJobNameEnvVar, cloudRunExecutionEnvVar}
+			}
+			for _, missing := range append([]string{"none"}, keys...) {
+				t.Run(missing, func(t *testing.T) {
+					values := map[string]string{projectID: "unknown", location: "region", containerID: "instance"}
+					delete(values, missing)
+					if _, ok := env[missing]; ok {
+						t.Setenv(missing, "")
+					}
+					metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string { return values }
+					var service CloudService = &CloudRun{isFunction: kind == CloudRunFunction}
+					if kind == CloudRunJob {
+						service = &CloudRunJobs{}
+					}
+					service.GetTags()
+					id := service.GetMetadata().ResourceID
+					if missing == "none" {
+						assert.NotEmpty(t, id)
+					} else {
+						assert.Empty(t, id)
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestCloudRunTagsOmitFailedMetadataLookups(t *testing.T) {
 	saved := metadataHelperFunc
 	t.Cleanup(func() { metadataHelperFunc = saved })
@@ -322,6 +364,7 @@ func TestCloudRunTagsOmitFailedMetadataLookups(t *testing.T) {
 			assert.NotContains(t, tags, tt.prefix+resourceName)
 			assert.Equal(t, "region", tags[location])
 			assert.Equal(t, "region", tags[tt.prefix+location])
+			assert.Empty(t, tt.service.GetMetadata().ResourceID)
 		})
 	}
 }
@@ -336,9 +379,11 @@ func TestCloudRunMetadataSharesTagLookup(t *testing.T) {
 				service := &CloudRun{isFunction: isFunction}
 				prefix := cloudRunServiceTagPrefix
 				kind := CloudRunService
+				wantMetadata := serverlessdef.CloudServiceMetadata{WorkloadType: workloadTypeCloudRunService, ResourceName: "service"}
 				if isFunction {
 					prefix = cloudRunFunctionTagPrefix
 					kind = CloudRunFunction
+					wantMetadata.WorkloadType = workloadTypeCloudRunFunction
 				}
 				gcpMetadata := map[string]string{projectID: "", location: "", containerID: ""}
 				if available {
@@ -352,6 +397,9 @@ func TestCloudRunMetadataSharesTagLookup(t *testing.T) {
 					assert.Equal(t, kind, gotKind)
 					return gcpMetadata
 				}
+
+				assert.Empty(t, service.GetMetadata().ResourceID, "metadata before GetTags has no GCP values")
+				assert.Zero(t, calls, "GetMetadata must not fetch GCP metadata")
 
 				first := service.GetTags()
 				first[projectID] = "mutated-by-caller"
@@ -367,10 +415,16 @@ func TestCloudRunMetadataSharesTagLookup(t *testing.T) {
 						resource += "/functions/handler"
 					}
 					assert.Equal(t, resource, second[prefix+resourceName])
+					wantMetadata.ResourceID = "//run.googleapis.com/projects/project/locations/region/revisions/revision"
+					wantMetadata.ParentResourceID = "//run.googleapis.com/projects/project/locations/region/services/service"
+					wantMetadata.Region = "region"
+					wantMetadata.GCPProjectID = "project"
 				} else {
 					assert.NotContains(t, second, prefix+resourceName)
 					assert.Equal(t, "unknown", service.GetEnhancedMetricTags(second).Base[projectID])
 				}
+				assert.Equal(t, wantMetadata, service.GetMetadata())
+				assert.True(t, service.CanCollectMetadata())
 				assert.Equal(t, 1, calls, "metadata and telemetry share the cached lookup, including failures")
 			})
 		}

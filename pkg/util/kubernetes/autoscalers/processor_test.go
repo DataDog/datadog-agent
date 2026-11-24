@@ -71,6 +71,61 @@ func TestParallelLimit(t *testing.T) {
 	assert.Equal(t, 20, p.parallelQueries)
 }
 
+func TestMetricRequestsInflight(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("external_metrics_provider.max_parallel_queries", 2, pkgconfigmodel.SourceLocalConfigProcess)
+	cfg.Set("external_metrics_provider.chunk_size", 1, pkgconfigmodel.SourceLocalConfigProcess)
+
+	queries := []string{"avg:first{*}", "avg:second{*}", "avg:third{*}"}
+	entered := make(chan string, len(queries))
+	release := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	})
+
+	client := datadogclientmock.New(t).Comp
+	client.SetQueryMetricsFunc(func(_, _ int64, query string) ([]datadog.Series, error) {
+		entered <- query
+		<-release
+		if query == queries[0] {
+			return nil, errors.New("request failed")
+		}
+		return nil, nil
+	})
+	p := NewProcessor(client)
+	assert.Equal(t, float64(2), ddRequestsParallelLimit.WithValues(le.JoinLeaderValue).Get())
+	assert.Zero(t, ddRequestsInflight.WithValues(le.JoinLeaderValue).Get())
+
+	resultsCh := make(chan map[string]Point, 1)
+	go func() { resultsCh <- p.QueryExternalMetric(queries, time.Minute) }()
+	for range 2 {
+		select {
+		case <-entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for parallel requests")
+		}
+	}
+	assert.Equal(t, float64(2), ddRequestsInflight.WithValues(le.JoinLeaderValue).Get())
+	select {
+	case <-entered:
+		t.Fatal("request started beyond the configured parallel limit")
+	default:
+	}
+
+	close(release)
+	select {
+	case results := <-resultsCh:
+		assert.Error(t, results[queries[0]].Error)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for requests to finish")
+	}
+	assert.Zero(t, ddRequestsInflight.WithValues(le.JoinLeaderValue).Get())
+}
+
 func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 	penTime := (int(time.Now().Unix()) - int(testMaxAge.Seconds()/2)) * 1000
 	metricName := "requests_per_s"
@@ -377,6 +432,61 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 
 			_ = p.QueryExternalMetric(tt.in, GetDefaultTimeWindow())
 			assert.Equal(t, tt.batchCalls, res.bc)
+		})
+	}
+}
+
+func TestMakeChunksOverLimitQuery(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("external_metrics_provider.chunk_size", 35, pkgconfigmodel.SourceLocalConfigProcess)
+
+	// Escaped length of a query is len + extraQueryCharacters, so these are well on each side of the limit.
+	long1 := randStringRune(maxCharactersPerChunk + 1386)
+	long2 := randStringRune(maxCharactersPerChunk + 10)
+	short1 := randStringRune(3874)
+	short2 := randStringRune(100)
+	short3 := randStringRune(200)
+
+	tests := []struct {
+		desc     string
+		batch    []string
+		expected [][]string
+	}{
+		{
+			desc:     "over-limit query first does not drop the following queries",
+			batch:    []string{long1, short1, short2},
+			expected: [][]string{{short1, short2}},
+		},
+		{
+			desc:     "over-limit query in the middle",
+			batch:    []string{short1, long1, short2},
+			expected: [][]string{{short1, short2}},
+		},
+		{
+			desc:     "over-limit query last",
+			batch:    []string{short1, short2, long1},
+			expected: [][]string{{short1, short2}},
+		},
+		{
+			desc:     "several over-limit queries interleaved",
+			batch:    []string{long1, short2, long2, short3, long1},
+			expected: [][]string{{short2, short3}},
+		},
+		{
+			desc:     "queries overflowing the chunk are still split after an over-limit query",
+			batch:    []string{long1, short1, short1, short2},
+			expected: [][]string{{short1}, {short1, short2}},
+		},
+		{
+			desc:     "only over-limit queries",
+			batch:    []string{long1, long2},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			assert.Equal(t, tt.expected, makeChunks(tt.batch))
 		})
 	}
 }

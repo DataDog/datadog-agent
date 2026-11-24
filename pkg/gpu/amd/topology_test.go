@@ -107,10 +107,10 @@ func TestDiscoverCapturedTopologies(t *testing.T) {
 			slices.SortFunc(expected, func(a, b capturedGPU) int { return strings.Compare(a.pciBusID(), b.pciBusID()) })
 			for i, dev := range devices {
 				gpu := expected[i]
-				assert.Equal(t, i, dev.Index)
+				assert.Equal(t, -1, dev.Index, "no KFD topology")
 				assert.Equal(t, gpu.pciBusID(), dev.PCIBusID)
 				assert.Equal(t, gpu.deviceID, dev.DeviceID)
-				assert.Equal(t, fmt.Sprintf("amd-%016x", gpu.uniqueID), dev.UUID)
+				assert.Equal(t, amdSMIUUID(gpu.uniqueID, gpu.deviceID), dev.UUID)
 				assert.NotContains(t, dev.Name, "AMD GPU 0x", "device ID %#04x has a known name", gpu.deviceID)
 
 				m, err := dev.ReadMetrics()
