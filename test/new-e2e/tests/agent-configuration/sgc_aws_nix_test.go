@@ -24,7 +24,7 @@ secret_backend_config:
   aws_session:
     aws_region: us-east-1`
 
-	v.UpdateEnv(awshost.Provisioner(
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(
 			scenec2.WithAgentOptions(
 				agentparams.WithSkipAPIKeyInConfig(),
