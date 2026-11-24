@@ -393,16 +393,17 @@ def create_version_json(ctx, git_sha_length=7):
 
 def query_version_cached(ctx, major_version):
     """Like `query_version`, but in CI reads the pipeline's agent-version cache, so jobs don't need tags."""
-    # Outside CI a leftover cache file may describe an older checkout.
     pipeline_id = os.getenv("CI_PIPELINE_ID")
-    if pipeline_id:
-        cache = _load_agent_version_cache(ctx, pipeline_id=pipeline_id)
-        try:
-            version, pre, commits, git_sha, cached_pipeline_id = cache[major_version]
-            return version, pre, commits, git_sha, cached_pipeline_id
-        except (KeyError, TypeError, ValueError):
-            pass
-    return query_version(ctx, major_version)
+    # Outside CI a leftover cache file may describe an older checkout.
+    if not pipeline_id:
+        return query_version(ctx, major_version)
+    # No git fallback: CI checkouts are shallow, and setup_agent_version always publishes the cache.
+    cache = _load_agent_version_cache(ctx, pipeline_id=pipeline_id)
+    try:
+        version, pre, commits, git_sha, cached_pipeline_id = cache[major_version]
+    except (KeyError, TypeError, ValueError) as e:
+        raise Exit(f"{AGENT_VERSION_CACHE_NAME} has no valid record for major version {major_version}", code=1) from e
+    return version, pre, commits, git_sha, cached_pipeline_id
 
 
 def query_version(ctx, major_version, git_sha_length=7, release=False):
