@@ -11,7 +11,7 @@ import (
 	"errors"
 	"path/filepath"
 
-	oidcauth "github.com/DataDog/datadog-api-client-go/v2/auth/oidc"
+	oidcauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/oidc/localscope"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"

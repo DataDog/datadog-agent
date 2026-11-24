@@ -10,7 +10,7 @@ go_library(
         "//comp/core/delegatedauth/api/cloudauth/config",
         "//comp/core/delegatedauth/common",
         "//pkg/config/model",
-        "@com_github_datadog_datadog_api_client_go_v2//auth/oidc",
+        "//comp/core/delegatedauth/api/cloudauth/oidc/localscope",
     ],
 )
 
@@ -21,7 +21,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/delegatedauth/api/cloudauth/config",
         "//comp/core/delegatedauth/common",
-        "@com_github_datadog_datadog_api_client_go_v2//auth/oidc",
+        "//comp/core/delegatedauth/api/cloudauth/oidc/localscope",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
