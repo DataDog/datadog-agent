@@ -147,6 +147,24 @@ func checkDelegatedAuthRedirect(req *http.Request, via []*http.Request) error {
 	return nil
 }
 
+func isBearerProof(proof string) bool {
+	return strings.HasPrefix(proof, oidcProofPrefix)
+}
+
+// hardenForBearerProof applies to every exchange that sends an oidc- proof, whose workload JWT is a replayable bearer credential.
+func hardenForBearerProof(endpoint string, transport *http.Transport, client *http.Client) error {
+	if parsed, err := url.Parse(endpoint); err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		return errors.New("custom OIDC delegated auth requires an HTTPS endpoint")
+	}
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	if transport.TLSClientConfig.InsecureSkipVerify {
+		log.Warn("skip_ssl_validation is ignored for custom OIDC delegated auth; the workload token is only sent to a verified endpoint")
+	}
+	transport.TLSClientConfig.InsecureSkipVerify = false
+	transport.TLSClientConfig.RootCAs = oidcExchangeRootCAs
+	return nil
+}
+
 // GetAPIKey performs the cloud auth exchange and returns an API key.
 // The delegatedAuthProof contains the signed AWS request which includes the org id.
 //
@@ -171,17 +189,10 @@ func GetAPIKey(ctx context.Context, cfg pkgconfigmodel.Reader, delegatedAuthProo
 	if targetSite != "" {
 		client.CheckRedirect = checkDelegatedAuthRedirect
 	}
-	if strings.HasPrefix(delegatedAuthProof, oidcProofPrefix) {
-		// The workload JWT is a bearer credential, so never send it in plaintext or follow a redirect with it.
-		if !strings.HasPrefix(url, "https://") {
-			return nil, errors.New("custom OIDC delegated auth requires an HTTPS endpoint")
+	if isBearerProof(delegatedAuthProof) {
+		if err := hardenForBearerProof(url, transport, client); err != nil {
+			return nil, err
 		}
-		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-		if transport.TLSClientConfig.InsecureSkipVerify {
-			log.Warn("skip_ssl_validation is ignored for custom OIDC delegated auth; the workload token is only sent to a verified endpoint")
-		}
-		transport.TLSClientConfig.InsecureSkipVerify = false
-		transport.TLSClientConfig.RootCAs = oidcExchangeRootCAs
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer([]byte("")))
 	if err != nil {
