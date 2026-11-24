@@ -1,0 +1,35 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    With its default entrypoint, the Linux Agent container now runs its
+    processes under ``dd-procmgrd`` instead of s6. Containers that override the
+    entrypoint or command are not affected. If the core Agent exits, the
+    container now exits with the Agent's exit code instead of 0. Only enabled
+    processes start, except the OTel Agent, which starts and exits when it is
+    disabled. On ``docker stop``, processes stop in parallel and each can take
+    up to its stop timeout (90 seconds by default, 180 seconds for the private
+    action runner), so set a stop grace period above Docker's default 10
+    seconds to avoid a ``SIGKILL``. A crashed
+    process restarts after 2 seconds, and the delay doubles up to 60 seconds
+    while it keeps exiting within 1 second of starting. Under s6, every crash
+    restart waited 2 seconds. Custom services under ``/etc/services.d/`` still
+    start, but a service whose name is not a process name or matches a catalog
+    process does not. Their ``finish`` scripts do not run, and editing a shipped
+    service's ``run`` file has no effect. A ``down`` file in a shipped service
+    directory keeps its catalog process stopped at start until
+    ``dd-procmgr start <process>``, except ``agent``, which always starts.
+    Scripts in ``/etc/cont-init.d/`` still run but need a shebang. Scripts in
+    ``/etc/cont-finish.d/`` and ``/etc/fix-attrs.d/`` do not run. ``S6_*``
+    variables do not control supervision, and ``s6-svc`` and ``s6-svstat`` do
+    not control ``dd-procmgrd``. ``DD_PM_*`` variables are not passed to the
+    processes, except ``DD_PM_SOCKET_PATH``. Process start and restart messages
+    are no longer appended to ``/var/log/datadog/init.log``. To keep s6 for this
+    release, set the environment variable ``ENTRYPOINT=s6-all-in-one``. s6 will
+    be removed in a future release.

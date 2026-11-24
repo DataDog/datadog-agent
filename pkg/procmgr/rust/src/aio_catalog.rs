@@ -98,7 +98,6 @@ const AUXILIARIES: &[&str] = &[
     "datadog-agent-process",
     "datadog-agent-sysprobe",
     "datadog-agent-security",
-    "datadog-agent-otel",
     "datadog-agent-data-plane",
     "datadog-agent-par",
 ];
@@ -196,6 +195,31 @@ fn aio_auxiliaries_restart_on_failure() {
         );
         assert_shared_stdio(config);
     }
+}
+
+#[test]
+fn aio_otel_matches_the_s6_service() {
+    let configs = load_shipped_catalog();
+    let otel = configs.get("datadog-agent-otel").expect("otel");
+
+    assert!(
+        otel.condition_config_any.is_empty() && otel.condition_config_none.is_empty(),
+        "otel-agent decides enablement itself, like the s6 service"
+    );
+    assert_eq!(otel.restart, RestartPolicy::OnFailure);
+    assert_eq!(otel.restart_delay(), 2.0);
+    assert_eq!(otel.max_restart_delay(), 2.0);
+    assert_eq!(
+        otel.start_limit_interval_sec,
+        Some(0),
+        "s6 restarts otel-agent without a limit"
+    );
+    assert!(
+        otel.burst_limit() >= 1,
+        "a start_limit_burst of 0 blocks every restart"
+    );
+    assert!(!otel.exit_with_supervisor);
+    assert_shared_stdio(otel);
 }
 
 #[test]
@@ -994,11 +1018,28 @@ fn procmgr_all_in_one_shipped_down_mappings_match_catalog() {
 }
 
 #[test]
-fn default_entrypoint_still_execs_init() {
-    assert!(ENTRYPOINT_DEFAULT.contains("exec /init"));
+fn default_entrypoint_execs_procmgr_all_in_one() {
     assert!(
-        !ENTRYPOINT_DEFAULT.contains("dd-procmgrd"),
-        "_default must keep exec /init and must not exec dd-procmgrd"
+        ENTRYPOINT_DEFAULT
+            .lines()
+            .any(|line| line.trim() == "exec /opt/entrypoints/procmgr-all-in-one"),
+        "_default must exec the procmgr all-in-one entrypoint"
+    );
+    assert!(
+        ENTRYPOINT_DEFAULT.contains("-x /opt/datadog-agent/embedded/bin/dd-procmgrd"),
+        "_default must check for dd-procmgrd before selecting it"
+    );
+    assert!(
+        ENTRYPOINT_DEFAULT.contains("-f /opt/datadog-agent/processes.d/aio/.procmgr-default"),
+        "_default must require the catalog marker before selecting procmgr"
+    );
+    // The marker is not YAML, so include it here to fail the build if it is removed.
+    let _marker: &str =
+        include_str!("../../../../Dockerfiles/agent/processes.d/aio/.procmgr-default");
+    assert_eq!(
+        ENTRYPOINT_DEFAULT.lines().last().map(str::trim),
+        Some("exec /opt/entrypoints/s6-all-in-one"),
+        "_default must fall back to s6 on bases without dd-procmgrd"
     );
 }
 
