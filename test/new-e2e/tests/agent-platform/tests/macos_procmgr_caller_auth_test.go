@@ -116,7 +116,7 @@ func killMacosSleep(t *testing.T, client *common.MacOSTestClient, sleepArg strin
 // pristine-catalog precondition. A child outlives a daemon restart and its dropped runtime entry, so
 // the marker file is the only trace of it. Only a restart drops runtime entries, so it restarts only
 // when one of this test's own entries is listed. Listing and restart failures are logged, not
-// asserted, so a daemon that is still starting gets the precondition's wait.
+// asserted, so the precondition decides whether the daemon is healthy.
 func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) {
 	t.Helper()
 	out, err := client.Execute("sudo sh -c 'cat " + macosCallerAuthSleepMarker + " 2>/dev/null || true'")
@@ -142,7 +142,13 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 	if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
 		t.Logf("heal: failed to remove %s: %v", macosCallerAuthReloadEntry, err)
 	}
-	out, err = client.Execute("sudo " + macosProcmgrCLI + " list --json")
+	// A daemon that is still starting must not skip the healing below.
+	for deadline := time.Now().Add(time.Minute); ; time.Sleep(time.Second) {
+		out, err = client.Execute("sudo " + macosProcmgrCLI + " list --json")
+		if err == nil || time.Now().After(deadline) {
+			break
+		}
+	}
 	if err != nil {
 		t.Logf("heal: failed to list processes: %v", err)
 		return
