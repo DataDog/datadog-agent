@@ -246,6 +246,7 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 	r.refreshLock.Lock()
 	defer r.refreshLock.Unlock()
 
+	// Re-check after acquiring refreshLock in case another goroutine already refreshed.
 	if r.isCacheValid(cacheValidity) {
 		return nil
 	}
