@@ -7,6 +7,7 @@ package flare
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -170,6 +172,24 @@ func TestCreateOTelFlare(t *testing.T) {
 		assert.NotContains(t, string(content), testAPIKey, "API key not scrubbed from %s", name)
 		assert.NotContains(t, string(content), testSessionCookie, "session cookie kept in %s", name)
 	}
+}
+
+// TestCollectOTelDataFallbackHint checks that a flare that can't reach the collector says how to find
+// its auth token, the usual cause when the collector is running, on the console and in the archive.
+func TestCollectOTelDataFallbackHint(t *testing.T) {
+	globalParams := newGlobalParamsTest(t)
+	cfg, ipcComp := newUnreachableCollector(t)
+
+	var output bytes.Buffer
+	previousOutput := color.Output
+	color.Output = &output
+	t.Cleanup(func() { color.Output = previousOutput })
+
+	_, reason, err := collectOTelData(globalParams, cfg, ipcComp.GetClient())
+	require.NoError(t, err)
+
+	assert.Contains(t, output.String(), "DD_AUTH_TOKEN_FILE_PATH")
+	assert.Contains(t, reason, "DD_AUTH_TOKEN_FILE_PATH")
 }
 
 func TestCreateOTelFlareFromRunningCollector(t *testing.T) {

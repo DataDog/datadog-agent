@@ -67,6 +67,9 @@ const (
 	noConfigProvided = "No configuration files provided, pass the --config flags given to the collector"
 	// fallbackNote says what the flare lacks when the running collector can't be reached
 	fallbackNote = "Falling back to the configuration files: the flare won't contain the effective configuration."
+	// authTokenHint helps when the collector is running but the flare can't find its auth token,
+	// which is looked up in the working directory unless the configuration says otherwise
+	authTokenHint = "If the collector is running, run this command from its working directory, with the same --core-config, or set DD_AUTH_TOKEN_FILE_PATH to the path of its auth_token."
 )
 
 // cliParams are the command-line arguments for this subcommand
@@ -254,8 +257,9 @@ func collectOTelData(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader
 	}
 	fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Warning: could not get the flare data of the running OTel Agent: %v", err)))
 	fmt.Fprintln(color.Output, color.YellowString(fallbackNote))
+	fmt.Fprintln(color.Output, color.YellowString(authTokenHint))
 	// Like the core Agent flare, which writes it to otel/otel-agent.log
-	reason := fmt.Sprintf("did not get otel-agent configuration: %v\n%s\n", err, fallbackNote)
+	reason := fmt.Sprintf("did not get otel-agent configuration: %v\n%s\n%s\n", err, fallbackNote, authTokenHint)
 	resp, err = collectConfigData(params)
 	return resp, reason, err
 }
