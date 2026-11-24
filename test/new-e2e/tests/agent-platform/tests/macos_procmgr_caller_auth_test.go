@@ -119,9 +119,10 @@ func killMacosSleep(t *testing.T, client *common.MacOSTestClient, sleepArg strin
 }
 
 // healMacosCallerAuthLeftovers undoes a failed restore from an earlier attempt, which would fail the
-// pristine-catalog precondition. A child outlives a daemon restart and its dropped runtime entry, so
-// the marker file is the only trace of it. Only a restart drops runtime entries, so it restarts only
-// when one of this test's own entries is listed. Failing to read the marker or to stop its child is
+// pristine-catalog precondition. A child outlives a daemon that was killed or crashed instead of
+// shutting down, and the restart drops its runtime entry, so the marker file is the only trace of
+// it. Only a restart drops runtime entries, so it restarts only when one of this test's own entries
+// is listed, which stops anything still running. Failing to read the marker or to stop its child is
 // an error, because the marker would be lost. Listing and restart failures are logged, not asserted,
 // so the precondition decides whether the daemon is healthy.
 func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) {
@@ -172,12 +173,9 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 	}
 	found := false
 	for _, process := range list {
-		if !slices.Contains([]string{macosCallerAuthEntry, macosCallerAuthAgentEntry, macosCallerAuthStartEntry, macosCallerAuthReloadEntry}, process.Name) {
-			continue
-		}
-		found = true
-		if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + process.Name); err != nil {
-			t.Logf("heal: failed to stop %s: %v", process.Name, err)
+		if slices.Contains([]string{macosCallerAuthEntry, macosCallerAuthAgentEntry, macosCallerAuthStartEntry, macosCallerAuthReloadEntry}, process.Name) {
+			found = true
+			break
 		}
 	}
 	if !found {
@@ -198,8 +196,8 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	// did not start.
 	preconditionsPassed := false
 
-	// Stop and kill before the restart: each child has its own process group and would outlive
-	// the restart, which drops the runtime entry.
+	// Stop and kill before the restart: each child has its own process group and outlives a daemon
+	// that is killed or crashes, and the restart drops its runtime entry.
 	t.Cleanup(func() {
 		if !preconditionsPassed {
 			return
