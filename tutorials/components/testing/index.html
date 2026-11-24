@@ -4361,7 +4361,7 @@
 </div>
 </div>
 <p>Run the implementation tests:</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dda<span class="w"> </span>inv<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--targets<span class="o">=</span>./comp/compression/impl-zstd<span class="w"> </span>--verbose
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dda<span class="w"> </span>inv<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--targets<span class="o">=</span>./comp/compression/impl-zstd
 </span></code></pre></div>
 <p>Expect both <code>TestCompressionRoundTrip</code> subtests and <code>TestDecompressInvalidData</code> to pass. You have now checked successful round trips, the empty-input boundary, and an error case through the public compression interface.</p>
 <h2 id="test-lifecycle-hooks">Test lifecycle hooks<a class="headerlink" href="#test-lifecycle-hooks" title="Permanent link">&para;</a></h2>
@@ -4477,7 +4477,7 @@
 </div>
 </div>
 <p>Run the lifecycle test:</p>
-<div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dda<span class="w"> </span>inv<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--targets<span class="o">=</span>./comp/lifecycleexample/impl<span class="w"> </span>--verbose
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dda<span class="w"> </span>inv<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--targets<span class="o">=</span>./comp/lifecycleexample/impl
 </span></code></pre></div>
 <p>Expect <code>TestLifecycleHooks</code> to pass. Its assertions verify that construction leaves the component stopped, startup makes it running, and shutdown stops it again. The test observes these changes through the public interface.</p>
 <h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
