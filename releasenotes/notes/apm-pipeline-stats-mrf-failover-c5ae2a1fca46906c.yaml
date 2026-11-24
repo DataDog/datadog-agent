@@ -8,7 +8,10 @@
 ---
 fixes:
   - |
-    APM: The trace-agent no longer forwards Data Streams Monitoring pipeline
-    stats to the multi-region failover endpoint unless APM failover is active,
-    matching how traces and APM stats are routed. Errors from additional
+    APM: When Multi-Region Failover is set up but not active, the Agent no
+    longer sends Data Streams Monitoring pipeline stats to the failover data
+    center. Traces and APM stats already work this way. Errors from additional
     pipeline stats endpoints now name the endpoint that failed.
+  - |
+    APM: Fixes a rare crash of the trace-agent when Remote Configuration turns
+    Multi-Region Failover for APM on or off while the Agent is sending data.
