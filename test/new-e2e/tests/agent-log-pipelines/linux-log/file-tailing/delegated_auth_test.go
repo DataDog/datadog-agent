@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 )
 
@@ -123,7 +124,12 @@ logs_config:
 		require.NoError(c, payloadsErr)
 		matched := false
 		for _, payload := range payloads {
-			if payload.APIKey == "dela-e2e-api-key" && bytes.Contains(payload.Data, []byte(delegatedLogMessage)) {
+			if payload.APIKey != "dela-e2e-api-key" {
+				continue
+			}
+			data, inflateErr := aggregator.Inflate(payload.Data, payload.Encoding)
+			require.NoError(c, inflateErr)
+			if bytes.Contains(data, []byte(delegatedLogMessage)) {
 				matched = true
 				break
 			}
