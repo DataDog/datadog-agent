@@ -346,9 +346,11 @@ def eval_ddeval(
     testbench_binary: str = "bin/anomalydetection-testbench",
     config: str = "",
     site: str = DEFAULT_SITE,
+    env: str = "ddbuild",
+    workflow_test_drive: str = "",
 ):
     """
-    Build a local testbench and evaluate it remotely with the DDBuild DDEval worker.
+    Build and upload a local testbench for DDEval on DDBuild or a staging test drive.
 
     The binary is stored privately in qbranch-gensim-recordings under its SHA-256;
     an existing matching object is reused. It is shared with the worker through a
@@ -357,6 +359,7 @@ def eval_ddeval(
 
     Examples:
         dda inv anomalydetection.eval-ddeval
+        dda inv anomalydetection.eval-ddeval --env staging --workflow-test-drive my-drive --limit 1 --jobs 1
         dda inv anomalydetection.eval-ddeval --where-in=metadata.record_id=scenario-a,scenario-b
         dda inv anomalydetection.eval-ddeval --config=/tmp/observer-config.json
         dda inv anomalydetection.eval-ddeval --ddeval-executable="C:\\Program Files\\DDEval\\ddeval.exe"
@@ -370,8 +373,10 @@ def eval_ddeval(
         max_attempts: Maximum attempts per DDEval pipeline activity.
         limit: Optional maximum number of dataset records after filtering.
         where_in: Optional DDEval inclusion filter, such as metadata.record_id=a,b.
-        site: LLMObs site; this DDBuild worker supports datadoghq.com only.
-        data_env: Legacy alias for site selection; only prod is supported remotely.
+        env: DDEval environment (ddbuild or staging). Selects the corresponding LLMObs environment.
+        workflow_test_drive: Existing Rapid test drive name; required for staging.
+        site: Legacy site option; leave unset to use the site selected by --env.
+        data_env: Legacy production selector; use --env staging for staging.
         experiment_config: Optional base DDEval experiment-config JSON file.
         config: Optional Observer component-config JSON file, as in eval-scenarios.
         testbench_config: Alias for --config.
@@ -383,6 +388,13 @@ def eval_ddeval(
         build: Build the testbench before uploading it.
         testbench_binary: Testbench binary to upload. Custom paths require --no-build.
     """
+    if env not in {"ddbuild", "staging"}:
+        raise Exit("--env must be ddbuild or staging", code=2)
+    workflow_test_drive = workflow_test_drive.strip()
+    if env == "staging" and not workflow_test_drive:
+        raise Exit("--env staging requires --workflow-test-drive", code=2)
+    if env == "ddbuild" and workflow_test_drive:
+        raise Exit("--workflow-test-drive requires --env staging", code=2)
     if not 1 <= jobs <= 100:
         raise Exit("--jobs must be between 1 and 100", code=2)
     if dataset_version < 0:
@@ -393,10 +405,10 @@ def eval_ddeval(
         raise Exit("--limit must be non-negative", code=2)
     if not 60 <= expires_in <= 604800:
         raise Exit("--expires-in must be between 60 and 604800 seconds", code=2)
-    if site != DEFAULT_SITE or data_env not in {"", "prod"}:
+    if site != DEFAULT_SITE or data_env not in ({"", "prod"} if env == "ddbuild" else {""}):
         raise Exit(
-            "The DDBuild worker uses production LLMObs (--site datadoghq.com). "
-            "Other sites require a worker in that environment; --data-env cannot override a remote worker's site.",
+            "DDBuild uses production LLMObs. Use --env staging --workflow-test-drive NAME "
+            "for staging LLMObs, without --site or --data-env.",
             code=2,
         )
     if config and testbench_config and config != testbench_config:
@@ -512,6 +524,8 @@ def eval_ddeval(
                 testbench_sha256=digest,
                 testbench_config=component_config,
             )
+            if env == "staging":
+                remote_config["executor_config"].setdefault("score_timeout_as_zero", False)
         except ValueError as error:
             raise Exit(str(error), code=1) from error
 
@@ -530,6 +544,8 @@ def eval_ddeval(
             max_attempts=max_attempts,
             limit=limit,
             where_in=where_in,
+            env=env,
+            workflow_test_drive=workflow_test_drive,
         )
         safe_url = redacted_presigned_url(presigned_url)
         stdout_writer = RedactingWriter(sys.stdout, presigned_url, safe_url)

@@ -81,7 +81,16 @@ dda inv anomalydetection.eval-ddeval --dataset "my-recordings" --config params.j
 `--dataset` accepts a name or UUID and reads its latest version. If omitted, it
 defaults to `observer-metric-types-2026-10-26`. Both evaluators default to project
 `observer-log-ad` on `datadoghq.com`. Local replay accepts other `--site` values;
-the remote command targets the production DDBuild worker. See [available datasets](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7384334870/AAD+evaluation+datasets).
+the remote command targets the production DDBuild worker by default. See [available datasets](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7384334870/AAD+evaluation+datasets).
+
+To evaluate against an existing staging test drive, pass its name and a dataset
+available in staging. The task uploads or reuses the testbench artifact and pins
+its SHA-256 automatically. Staging timeouts fail by default.
+
+```bash
+dda inv anomalydetection.eval-ddeval --env staging --workflow-test-drive my-drive \
+  --dataset observer-metric-types-2026-10-26 --limit 1 --jobs 1
+```
 
 Use local evaluation for detector iteration and visual investigation, and DDEval
 for worker execution and shared experiment results. DDEval also accepts the older
