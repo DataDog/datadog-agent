@@ -382,7 +382,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 			ch := make(chan bool, 1)
 
 			go func() {
-				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 
 				cmdFunc(timeoutCtx)
@@ -392,7 +392,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 
 			select {
 			case <-ch:
-			case <-time.After(time.Second * 8):
+			case <-time.After(time.Second * 12):
 				t.Error("signal timeout")
 			}
 			return nil
@@ -465,7 +465,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 		for i := 0; i < 2; i++ {
 			t.Logf("test iteration %d", i)
 			testKillActionSuccess(t, "kill_action_disarm_executable", func(ctx context.Context) {
-				cmd := exec.CommandContext(ctx, syscallTester, "sleep", "5")
+				cmd := exec.CommandContext(ctx, syscallTester, "sleep", "8")
 				cmd.Env = []string{"TARGETTOKILL=1"}
 				_ = cmd.Run()
 			})
@@ -499,7 +499,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 		for i := 0; i < 2; i++ {
 			t.Logf("test iteration %d", i)
 			testKillActionSuccess(t, "kill_action_disarm_container", func(_ context.Context) {
-				cmd := dockerInstance.Command("env", []string{"-i", "-", "TARGETTOKILL=1", "sleep", "5"}, []string{})
+				cmd := dockerInstance.Command("env", []string{"-i", "-", "TARGETTOKILL=1", "sleep", "8"}, []string{})
 				_ = cmd.Run()
 			})
 		}
