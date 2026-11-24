@@ -521,11 +521,17 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 // idxChunkBuilder collects the spans of one trace for receiveResourceSpansV2Idx.
 type idxChunkBuilder struct {
 	spans []*idx.InternalSpan
-	// tracerDM is the first valid _dd.p.dm tag of the spans of the trace, if hasTracerDM.
+	// tracerDM is the first valid _dd.p.dm tag of the spans of the trace with a non-zero
+	// sampling mechanism, if hasTracerDM.
 	tracerDM    string
 	hasTracerDM bool
+	// fallbackDM is the first valid _dd.p.dm tag of the spans of the trace with sampling
+	// mechanism 0 ("-0", the tracer's startup fallback), if hasFallbackDM. It is used only when
+	// no other decision maker is found, as in tracerDecisionMaker.
+	fallbackDM    string
+	hasFallbackDM bool
 	// tracestates are the non-empty w3c.tracestate tags of the spans of the trace, in order.
-	// They are only parsed when the trace needs a decision maker and no span has a valid one.
+	// They are only parsed when the trace needs a decision maker and no span has a non-zero one.
 	tracestates []string
 	// traceIDHex is the hex encoding of the 128-bit trace ID of the first span of the trace,
 	// otelTraceID. Spans are grouped by the lower 64 bits of their trace ID, so the spans of the
@@ -589,8 +595,14 @@ func (o *OTLPReceiver) receiveResourceSpansV2Idx(ctx context.Context, rspans ptr
 				b.hasPriority = true
 			}
 			b.spans = append(b.spans, span)
-			if !b.hasTracerDM && isValidDecisionMaker(samplingTags.DecisionMaker) {
-				b.tracerDM, b.hasTracerDM = samplingTags.DecisionMaker, true
+			if !b.hasTracerDM {
+				if mechanism, ok := decisionMakerMechanism(samplingTags.DecisionMaker); ok {
+					if mechanism != 0 {
+						b.tracerDM, b.hasTracerDM = samplingTags.DecisionMaker, true
+					} else if !b.hasFallbackDM {
+						b.fallbackDM, b.hasFallbackDM = samplingTags.DecisionMaker, true
+					}
+				}
 			}
 			if samplingTags.Tracestate != "" {
 				b.tracestates = append(b.tracestates, samplingTags.Tracestate)
@@ -702,18 +714,25 @@ func setIdxDecisionMaker(span *idx.InternalSpan, dm string) {
 }
 
 // tracerDecisionMaker is tracerDecisionMaker for the sampling tags of the idx spans of the trace:
-// the first valid _dd.p.dm tag of its spans, else the first decision maker found in their
-// w3c.tracestate tags.
+// the first valid _dd.p.dm tag of its spans with a non-zero mechanism, else the first such
+// decision maker found in their w3c.tracestate tags. "-0", the tracer's startup fallback, is
+// returned only when no other decision maker is present, preferring a _dd.p.dm tag.
 func (b *idxChunkBuilder) tracerDecisionMaker() (string, bool) {
 	if b.hasTracerDM {
 		return b.tracerDM, true
 	}
+	fallback, hasFallback := b.fallbackDM, b.hasFallbackDM
 	for _, ts := range b.tracestates {
-		if dm, ok := decisionMakerFromTracestate(ts); ok {
-			return dm, true
+		if dm, mechanism, ok := decisionMakerFromTracestate(ts); ok {
+			if mechanism != 0 {
+				return dm, true
+			}
+			if !hasFallback {
+				fallback, hasFallback = dm, true
+			}
 		}
 	}
-	return "", false
+	return fallback, hasFallback
 }
 
 // receiveResourceSpansV1 converts rspans into a legacy (pb) payload with the legacy OTLP receiver,
@@ -930,7 +949,7 @@ func (o *OTLPReceiver) createChunksInOrder(order []uint64, tracesByID map[uint64
 		// `_dd.p.dm` must not be set even if a drop decision is applied to the trace here.
 		// Traces with a drop decision by the OTLPReceiver's probabilistic sampler are re-evaluated by ErrorsSampler later.
 		if samplingPriorty.IsKeep() {
-			traceutil.SetMeta(spans[0], "_dd.p.dm", decisionMaker)
+			traceutil.SetMeta(spans[0], string(semantics.ConceptDDDecisionMaker), decisionMaker)
 		}
 		chunk.Priority = int32(samplingPriorty)
 		traceChunks = append(traceChunks, chunk)
@@ -941,23 +960,38 @@ func (o *OTLPReceiver) createChunksInOrder(order []uint64, tracesByID map[uint64
 // tracerDecisionMaker returns the sampling decision maker set upstream by the tracer on
 // any span of the chunk, either as a `_dd.p.dm` attribute or, failing that, as the `t.dm`
 // field of the `dd` member of the W3C tracestate. Only well-formed values are returned.
+// Any decision maker is preferred over "-0", the tracer's startup fallback, which is returned
+// only when no other decision maker is present.
 func tracerDecisionMaker(spans pb.Trace) (string, bool) {
+	fallback, hasFallback := "", false
+	// consider reports whether dm is a real decision, remembering the first mechanism 0 one as the fallback.
+	consider := func(dm string, mechanism uint64) bool {
+		if mechanism != 0 {
+			return true
+		}
+		if !hasFallback {
+			fallback, hasFallback = dm, true
+		}
+		return false
+	}
 	for _, s := range spans {
-		if dm, ok := s.Meta["_dd.p.dm"]; ok && isValidDecisionMaker(dm) {
-			return dm, true
+		if dm, ok := s.Meta[string(semantics.ConceptDDDecisionMaker)]; ok {
+			if mechanism, ok := decisionMakerMechanism(dm); ok && consider(dm, mechanism) {
+				return dm, true
+			}
 		}
 	}
 	for _, s := range spans {
-		if dm, ok := decisionMakerFromTracestate(s.Meta["w3c.tracestate"]); ok {
+		if dm, mechanism, ok := decisionMakerFromTracestate(s.Meta["w3c.tracestate"]); ok && consider(dm, mechanism) {
 			return dm, true
 		}
 	}
-	return "", false
+	return fallback, hasFallback
 }
 
-// decisionMakerFromTracestate extracts `t.dm` from the `dd` member of a W3C tracestate,
-// e.g. "dd=s:2;t.dm:-12,other=value" yields "-12".
-func decisionMakerFromTracestate(ts string) (string, bool) {
+// decisionMakerFromTracestate extracts `t.dm` and its sampling mechanism from the `dd` member of a
+// W3C tracestate, e.g. "dd=s:2;t.dm:-12,other=value" yields "-12" and 12.
+func decisionMakerFromTracestate(ts string) (string, uint64, bool) {
 	for ts != "" {
 		var member string
 		member, ts, _ = strings.Cut(ts, ",")
@@ -968,26 +1002,27 @@ func decisionMakerFromTracestate(ts string) (string, bool) {
 		for value != "" {
 			var field string
 			field, value, _ = strings.Cut(value, ";")
-			if dm, ok := strings.CutPrefix(field, "t.dm:"); ok && isValidDecisionMaker(dm) {
-				return dm, true
+			if dm, ok := strings.CutPrefix(field, "t.dm:"); ok {
+				if mechanism, ok := decisionMakerMechanism(dm); ok {
+					return dm, mechanism, true
+				}
 			}
 		}
-		return "", false
+		return "", 0, false
 	}
-	return "", false
+	return "", 0, false
 }
 
-// isValidDecisionMaker reports whether dm looks like a sampling decision maker: "-" followed by digits.
-func isValidDecisionMaker(dm string) bool {
-	if len(dm) < 2 || dm[0] != '-' {
-		return false
+// decisionMakerMechanism parses a sampling decision maker, "-" followed by digits, into its sampling
+// mechanism. It reports false when dm isn't well-formed or its mechanism doesn't fit in a uint32, as
+// the V1 conversion paths require. Mechanism 0 ("-0") is the tracer's startup fallback.
+func decisionMakerMechanism(dm string) (uint64, bool) {
+	digits, ok := strings.CutPrefix(dm, "-")
+	if !ok {
+		return 0, false
 	}
-	for i := 1; i < len(dm); i++ {
-		if dm[i] < '0' || dm[i] > '9' {
-			return false
-		}
-	}
-	return true
+	mechanism, err := strconv.ParseUint(digits, 10, 32)
+	return mechanism, err == nil
 }
 
 // convertSpan converts the span in to a Datadog span, and uses the res resource and the lib instrumentation

@@ -77,7 +77,7 @@ func TestSymDB(t *testing.T) {
 
 // Additional patch versions can be built with:
 // dda inv system-probe.build-dyninst-test-programs --programs=simple --toolchains=go1.23.11,go1.26.10,go1.27.2,go1.27.3
-// Run with dda inv test --targets=./pkg/dyninst/symdb --build-include=bpf,test --test-run-name=TestModuleMetadataCompatibility
+// Run with dda inv test --targets=./pkg/dyninst/symdb --bazel-args='--test_tag_filters=' --test-args=-test.run=TestModuleMetadataCompatibility
 func TestModuleMetadataCompatibility(t *testing.T) {
 	for _, toolchain := range []string{"go1.23.11", "go1.26.10", "go1.27.2", "go1.27.3"} {
 		for _, arch := range []string{testprogs.Amd64, testprogs.Arm64} {

@@ -1,0 +1,107 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright {{ .CopyrightYear }}-present Datadog, Inc.
+
+package com_datadoghq_kubernetes_{{ .Package }}
+
+import (
+	"context"
+	{{ range .StandardImports -}}
+	{{ . }}
+	{{ end }}
+
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+
+	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	{{ range .RequiredImports -}}
+	{{ . }}
+	{{ end -}}
+)
+
+type {{ .Name | title }}Handler struct{}
+
+func New{{ .Name | title }}Handler() *{{ .Name | title }}Handler {
+	return &{{ .Name | title }}Handler{}
+}
+
+type {{ .Name | title }}Inputs struct{
+	{{ if .SDKMethod | eq "DeleteCollection" -}}
+	*support.DeleteFields
+	*support.ListFields
+	{{ else }}
+	*support.{{ .SDKMethod }}Fields
+	{{end -}}
+	{{ if .Resource.Namespaced -}}
+	Namespace     string `json:"namespace,omitempty"`
+	{{ end -}}
+	{{ if  list "Create" "Update" | mustHas .SDKMethod -}}
+	Body          *v1.{{ .Resource.Name }} `json:"body,omitempty"`
+	{{ end -}}
+}
+
+type {{ .Name | title }}Outputs struct { {{- if list "Delete" "DeleteCollection" | mustHas .SDKMethod -}} } {{- else }}
+{{ if .SDKMethod | eq "List" -}}
+	Items    []v1.{{ .Resource.Name }}       `json:"items"`
+	ListMeta metav1.ListMeta 			`json:"metadata"`
+{{ else if not (list "Delete" "DeleteCollection" | mustHas .SDKMethod) -}}
+	{{ range .Resource.Fields -}}
+		{{ .Name }} {{ .FullType }} {{ .Tag }}
+	{{end -}}
+{{ end -}}
+}
+{{- end }}
+
+func (h *{{ .Name | title }}Handler) Run(
+	ctx context.Context,
+	task *types.Task,
+	credential *privateconnection.PrivateCredentials,
+) (outputs interface{}, err error) {
+	inputs, err := types.ExtractInputs[{{ .Name | title }}Inputs](task)
+    if err != nil {
+    	return nil, err
+    }
+
+	{{ if list "Get" "Delete" "Patch" | mustHas .SDKMethod -}}
+	if inputs.{{ .SDKMethod }}Fields == nil || inputs.Name == "" {
+		return nil, errors.New("name is required")
+	}
+	{{ end -}}
+	{{ if .NamespaceRequired -}}
+	if inputs.Namespace == "" {
+		return nil, errors.New("namespace is required")
+	}
+	{{ end -}}
+	{{ if list "Create" "Update" "Patch" | mustHas .SDKMethod -}}
+	if inputs.Body == nil {
+		return nil, errors.New("body is required")
+	}
+	{{ end }}
+	client, err := support.KubeClient(credential)
+	if err != nil {
+		return nil, err
+	}
+	{{ if .SDKMethod | eq "Patch" -}}
+	body, err := json.Marshal(inputs.Body)
+	if err != nil {
+		return nil, err
+	}
+	{{ end }}
+
+	{{ if list "Delete" "DeleteCollection" | mustHas .SDKMethod }}err ={{else}}response, err :={{ end }} client.{{ .Client }}().{{ .Resource.NamePluralized }}({{ if .Resource.Namespaced }}inputs.Namespace{{ end }}).{{ .SDKMethod }}({{ .SDKMethodArgs | join ", "}})
+	if err != nil {
+		return nil, err
+	}
+
+	return &{{ .Name | title }}Outputs{
+	{{ if .SDKMethod | eq "List" -}}
+		Items:    response.Items,
+		ListMeta: response.ListMeta,
+	{{ else if not (list "Delete" "DeleteCollection" | mustHas .SDKMethod) -}}
+		{{ range .Resource.Fields -}}
+		{{ .Name }} : response.{{ .Name }},
+		{{end -}}
+	{{ end -}}
+	}, nil
+}

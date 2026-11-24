@@ -9,13 +9,16 @@
 package kfilters
 
 import (
-	"errors"
+	"fmt"
 	"path"
 	"strings"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -35,6 +38,15 @@ const (
 	AUIDApproverType = "auid"
 	// InUpperLayerApproverType is the type of in upper layer approver
 	InUpperLayerApproverType = "in_upper_layer"
+
+	patternAffixSize = 3 // size of the prefix and suffix basename keys, has to be in sync with the kernel side of the approvers
+	// minParentBasenameSize avoids registering a parent-basename approver on a very short directory name
+	// (e.g. "a"), which would match files in any same-named directory across the filesystem and make the
+	// kernel approver too coarse to filter anything useful.
+	minParentBasenameSize = 3
+
+	auidApproversTable      = "auid_approvers"
+	auidRangeApproversTable = "auid_range_approvers"
 )
 
 // Basename approver types — kept in sync with enum BASENAME_APPROVER_TYPE on the kernel side.
@@ -74,261 +86,314 @@ func (ba *basenameApprover) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
-type kfiltersGetter func(approvers rules.Approvers) (KFilters, []eval.Field, error)
+// The kernel approvers, one type per test of the kernel.
 
-// KFilterGetters var contains all the kfilter getters
-var KFilterGetters = make(map[eval.EventType]kfiltersGetter)
+// basename approves the files on their basename, or on the basename of their
+// parent directory.
+type basename struct {
+	key basenameApprover
+}
 
-func newBasenameKFilter(tableName string, eventType model.EventType, basename string, valueType eval.FieldValueType) (kFilter, error) {
-	basenameType := leafBasename
-
-	if valueType == eval.PatternValueType || valueType == eval.GlobValueType {
-		if strings.Contains(basename, "*") {
-			// Reduce to a fixed-length prefix or suffix so the kernel can match it with a
-			// single map lookup using the same shape built from the event basename.
-			// validateBasenameFilter guarantees one of the two is long enough, so the
-			// slices below are safe.
-			els := strings.Split(basename, "*")
-			switch {
-			case len(els[0]) >= patternAffixSize:
-				basenameType = leafBasenamePrefix
-				basename = els[0][:patternAffixSize]
-			case isSuffixPattern(basename):
-				basenameType = leafBasenameSuffix
-				basename = basename[len(basename)-patternAffixSize:]
-			default:
-				return nil, errors.New("unexpected pattern prefix size")
-			}
-		}
+// a parent-basename approver approves the files of every directory of that
+// name, it is weighed below the flags approvers
+func (a basename) Weight() int {
+	if a.key.kind == parentBasename {
+		return 20
 	}
-
-	return &eventMaskKFilter{
-		approverType: BasenameApproverType,
-		tableName:    tableName,
-		tableKey:     &basenameApprover{kind: basenameType, value: basename},
-		eventMask:    uint64(1 << (eventType - 1)),
-	}, nil
+	return 300
 }
 
-func newParentBasenameKFilter(tableName string, eventType model.EventType, basename string) (kFilter, error) {
-	return &eventMaskKFilter{
-		approverType: BasenameApproverType,
-		tableName:    tableName,
-		tableKey:     &basenameApprover{kind: parentBasename, value: basename},
-		eventMask:    uint64(1 << (eventType - 1)),
-	}, nil
+// bits approves the events whose flags have one of some bits set, the bits of a
+// table being ORed. No bits approves the events with no flags set.
+type bits struct {
+	table  string
+	bits   int
+	weight int
 }
 
-func newInUpperLayerKFilter(tableName string, eventType model.EventType) (kFilter, error) {
-	return &eventMaskKFilter{
-		approverType: InUpperLayerApproverType,
-		tableName:    tableName,
-		tableKey:     ebpf.Uint32MapItem(0),
-		eventMask:    uint64(1 << (eventType - 1)),
-		isArrayMap:   true,
-	}, nil
+func (a bits) Weight() int { return a.weight }
+
+// rdonly approves the events opening a file read-only.
+type rdonly struct{}
+
+func (rdonly) Weight() int { return 100 }
+
+// enum approves the events whose field has a value, the values of a table index
+// being ORed in a bitmask.
+type enum struct {
+	table  string
+	index  uint32
+	value  int
+	weight int
 }
 
-func newBasenameKFilters(tableName string, eventType model.EventType, fvs ...rules.FilterValue) (approvers []kFilter, _ error) {
-	for _, fv := range fvs {
-		value, ok := fv.Value.(string)
-		if !ok {
-			return nil, errors.New("wrong basename value type")
+func (a enum) Weight() int { return a.weight }
+
+// inetFamily approves the events of an INET socket, the family of a table
+// being AF_INET or AF_INET6.
+type inetFamily struct {
+	table string
+}
+
+// less selective than one family
+func (inetFamily) Weight() int { return 40 }
+
+// auid approves the events of the processes of an audit uid.
+type auid struct {
+	value int
+}
+
+func (auid) Weight() int { return 100 }
+
+func (a auid) Report() (eval.FieldValueType, interface{}) {
+	return eval.ScalarValueType, a.value
+}
+
+// Intersect intersects the audit uid with another one or with a range.
+func (a auid) Intersect(other rules.Approver) ([]rules.Approver, bool) {
+	switch o := other.(type) {
+	case auid:
+		if a == o {
+			return approvers(a)
 		}
-		basename := path.Base(value)
-
-		activeKFilter, err := newBasenameKFilter(tableName, eventType, basename, fv.Type)
-		if err != nil {
-			return nil, err
+	case auidRange:
+		if o.min <= a.value && a.value <= o.max {
+			return approvers(a)
 		}
-		approvers = append(approvers, activeKFilter)
+	default:
+		return nil, false
 	}
-	return approvers, nil
+	return nil, true
 }
 
-func newPathKFilters(tableName string, eventType model.EventType, fvs ...rules.FilterValue) (approvers []kFilter, _ error) {
-	for _, fv := range fvs {
-		value, ok := fv.Value.(string)
-		if !ok {
-			return nil, errors.New("wrong path value type")
+// auidRange approves the events of the processes of a range of audit uids, the
+// ranges of an event type being merged in the range covering them.
+type auidRange struct {
+	min, max int
+}
+
+func (auidRange) Weight() int { return 100 }
+
+func (a auidRange) Report() (eval.FieldValueType, interface{}) {
+	return eval.RangeValueType, rules.RangeFilterValue{Min: a.min, Max: a.max}
+}
+
+// Intersect intersects the range with another one or with an audit uid.
+func (a auidRange) Intersect(other rules.Approver) ([]rules.Approver, bool) {
+	switch o := other.(type) {
+	case auid:
+		return o.Intersect(a)
+	case auidRange:
+		r := auidRange{min: max(a.min, o.min), max: min(a.max, o.max)}
+		if r.min > r.max {
+			return nil, true
 		}
-		basename := path.Base(value)
+		return approvers(r)
+	}
+	return nil, false
+}
 
-		if fv.Type == eval.PatternValueType || fv.Type == eval.GlobValueType {
-			if strings.Contains(basename, "*") {
-				// When neither the leaf's prefix nor its suffix is long enough for a kernel
-				// approver (or the basename is just "*"), fall back to approving on the parent
-				// directory basename instead, which the resolver looks up exactly.
-				if !validateBasenameFilter(basename) {
-					basename = path.Base(path.Dir(value))
-					// should have been validated by the capabilities but worth validating here again
-					if strings.Contains(basename, "*") {
-						return nil, errors.New("wildcard on parent basename is not supported")
-					}
+// upperLayer approves the events on the files of the upper layer of an overlay
+// filesystem.
+type upperLayer struct{}
 
-					activeKFilter, err := newParentBasenameKFilter(tableName, eventType, basename)
-					if err != nil {
-						return nil, err
-					}
-					approvers = append(approvers, activeKFilter)
+func (upperLayer) Weight() int { return 50 }
 
-					continue
+// the events approved on their audit uid bypass the discarders
+
+func (basename) ApproverOnly() bool   { return false }
+func (bits) ApproverOnly() bool       { return false }
+func (rdonly) ApproverOnly() bool     { return false }
+func (enum) ApproverOnly() bool       { return false }
+func (inetFamily) ApproverOnly() bool { return false }
+func (auid) ApproverOnly() bool       { return true }
+func (auidRange) ApproverOnly() bool  { return true }
+func (upperLayer) ApproverOnly() bool { return false }
+
+// The approver models, a comparison having the approvers of the kernel tests it
+// implies.
+
+func approvers(approvers ...rules.Approver) ([]rules.Approver, bool) {
+	return approvers, true
+}
+
+// isSuffixPattern reports whether the literal text after the last '*' of pattern, which every
+// match ends with, is long enough for the kernel suffix approver (`*.php`, `ab*.php`, `*foo*.php`).
+func isSuffixPattern(pattern string) bool {
+	i := strings.LastIndex(pattern, "*")
+	return i >= 0 && len(pattern)-i-1 >= patternAffixSize
+}
+
+// Basename approves the paths of the files, or their names, on their basename.
+// A pattern is approved on the prefix of its basename, else on its suffix, else,
+// with parent, on the basename of its parent directory.
+func Basename(parent bool) rules.ApproverModel {
+	return rules.ApproverModel(func(c rules.Comparison) ([]rules.Approver, bool) {
+		if value, ok := c.Equal(); ok {
+			return approvers(basename{key: basenameApprover{kind: leafBasename, value: path.Base(value)}})
+		}
+
+		pattern, ok := c.Glob()
+		if !ok {
+			return nil, false
+		}
+
+		base := path.Base(pattern)
+		if prefix, _, isPattern := strings.Cut(base, "*"); !isPattern {
+			return approvers(basename{key: basenameApprover{kind: leafBasename, value: base}})
+		} else if len(prefix) >= patternAffixSize {
+			return approvers(basename{key: basenameApprover{kind: leafBasenamePrefix, value: prefix[:patternAffixSize]}})
+		} else if isSuffixPattern(base) {
+			return approvers(basename{key: basenameApprover{kind: leafBasenameSuffix, value: base[len(base)-patternAffixSize:]}})
+		}
+
+		// `**` matches the files of the subdirectories too
+		dir := path.Base(path.Dir(pattern))
+		if !parent || base == "**" || len(dir) < minParentBasenameSize || strings.Contains(dir, "*") {
+			return nil, false
+		}
+		return approvers(basename{key: basenameApprover{kind: parentBasename, value: dir}})
+	})
+}
+
+// Bits approves the flags having one of some bits set. With zero, it approves
+// the flags having none set, `field == 0`.
+func Bits(table string, weight int, zero bool) rules.ApproverModel {
+	return rules.ApproverModel(func(c rules.Comparison) ([]rules.Approver, bool) {
+		if value, ok := c.AnyBits(); ok {
+			return approvers(bits{table: table, bits: value, weight: weight})
+		}
+		if mask, ok := c.NoBits(); ok && zero && mask == -1 {
+			return approvers(bits{table: table, weight: weight})
+		}
+		return nil, false
+	})
+}
+
+// RdOnly approves the flags of a read-only open, none of the bits of the access
+// mode set.
+var RdOnly = rules.ApproverModel(func(c rules.Comparison) ([]rules.Approver, bool) {
+	if mask, ok := c.NoBits(); ok && mask&unix.O_ACCMODE == unix.O_ACCMODE {
+		return approvers(rdonly{})
+	}
+	return nil, false
+})
+
+// Enum approves an enumeration field on its value.
+func Enum(table string, index uint32, weight int) rules.ApproverModel {
+	return rules.ApproverModel(func(c rules.Comparison) ([]rules.Approver, bool) {
+		// the fields are unsigned, a negative value is none of them
+		if value, ok := c.Int(); ok && value >= 0 {
+			return approvers(enum{table: table, index: index, value: value, weight: weight})
+		}
+		return nil, false
+	})
+}
+
+// InetFamily approves the fields of an address on its family, the address being
+// of an INET socket for the values an address of another family doesn't have:
+// a port, an IP that isn't public, an IP or a hostname.
+func InetFamily(table string) rules.ApproverModel {
+	return rules.ApproverModel(func(c rules.Comparison) ([]rules.Approver, bool) {
+		port, isPort := c.Int()
+		isPublic, isBool := c.Bool()
+		hostname, isHostname := c.Equal()
+		_, isIP := c.IP()
+		if isPort && port != 0 || isBool && !isPublic || isHostname && hostname != "" || isIP {
+			return approvers(inetFamily{table: table})
+		}
+		return nil, false
+	})
+}
+
+// AUID approves the audit uid, a value or a range of values, the unset audit uid
+// being the highest one.
+var AUID = rules.ApproverModel(func(c rules.Comparison) ([]rules.Approver, bool) {
+	if value, ok := c.Int(); ok {
+		return approvers(auid{value: value})
+	}
+	if value, ok := c.NotInt(); ok && value == sharedconsts.AuditUIDUnset {
+		return approvers(auidRange{min: 0, max: sharedconsts.AuditUIDUnset - 1})
+	}
+	if minimum, maximum, ok := c.Range(); ok {
+		return approvers(auidRange{min: max(minimum, 0), max: min(maximum, sharedconsts.AuditUIDUnset)})
+	}
+	return nil, false
+})
+
+// UpperLayer approves the files of the upper layer of an overlay filesystem.
+var UpperLayer = rules.ApproverModel(func(c rules.Comparison) ([]rules.Approver, bool) {
+	if inUpperLayer, ok := c.Bool(); ok && inUpperLayer {
+		return approvers(upperLayer{})
+	}
+	return nil, false
+})
+
+// NewKFilters returns the kernel filters of the approvers of an event type.
+func NewKFilters(eventType eval.EventType, approvers rules.Approvers) (KFilters, error) {
+	event, err := model.ParseEvalEventType(eventType)
+	if err != nil {
+		return nil, err
+	}
+	eventMask := uint64(1 << (event - 1))
+
+	type enumKey struct {
+		table string
+		index uint32
+	}
+	var (
+		kfilters    = newKFilters()
+		flags       = make(map[string]int)
+		noFlags     = make(map[string]bool)
+		enums       = make(map[enumKey]uint64)
+		auids       *rules.RangeFilterValue
+		inetFamilys = []int{unix.AF_INET, unix.AF_INET6}
+	)
+
+	for _, values := range approvers {
+		for _, value := range values {
+			switch a := value.Approver.(type) {
+			case basename:
+				kfilters.Add(&eventMaskKFilter{approverType: BasenameApproverType, tableName: BasenameApproverKernelMapName, tableKey: &a.key, eventMask: eventMask})
+			case bits:
+				flags[a.table] |= a.bits
+				noFlags[a.table] = noFlags[a.table] || a.bits == 0
+			case rdonly:
+				kfilters.Add(&arrayKFilter{approverType: FlagApproverType, tableName: "open_flags_rdonly_approver", index: uint32(0), value: ebpf.BoolTrueMapItem, zeroValue: ebpf.BoolFalseMapItem})
+			case enum:
+				enums[enumKey{a.table, a.index}] |= 1 << (a.value % 64)
+			case inetFamily:
+				for _, family := range inetFamilys {
+					enums[enumKey{a.table, 0}] |= 1 << (family % 64)
 				}
+			case auid:
+				kfilters.Add(&eventMaskKFilter{approverType: AUIDApproverType, tableName: auidApproversTable, tableKey: ebpf.Uint32MapItem(a.value), eventMask: eventMask})
+			case auidRange:
+				if auids == nil {
+					auids = &rules.RangeFilterValue{Min: a.min, Max: a.max}
+				}
+				auids.Min, auids.Max = min(auids.Min, a.min), max(auids.Max, a.max)
+			case upperLayer:
+				kfilters.Add(&eventMaskKFilter{approverType: InUpperLayerApproverType, tableName: InUpperLayerApproverKernelMapName, tableKey: ebpf.Uint32MapItem(0), eventMask: eventMask, isArrayMap: true})
+			default:
+				return nil, fmt.Errorf("unknown approver %T of %s", value.Approver, value.Field)
 			}
 		}
+	}
 
-		activeKFilter, err := newBasenameKFilter(tableName, eventType, basename, fv.Type)
-		if err != nil {
-			return nil, err
+	for table, bits := range flags {
+		// the kernel approves no flags only when no bits are approved
+		if noFlags[table] && bits != 0 {
+			return nil, fmt.Errorf("no flags and some flags can't be both approved by %s", table)
 		}
-		approvers = append(approvers, activeKFilter)
+		kfilters.Add(&arrayKFilter{approverType: FlagApproverType, tableName: table, index: uint32(0), value: ebpf.NewUint32FlagsMapItem(uint32(bits)), zeroValue: ebpf.Uint32FlagsZeroMapItem})
 	}
-	return approvers, nil
-}
-
-func uintValues[I uint32 | uint64](fvs rules.FilterValues) []I {
-	var values []I
-	for _, v := range fvs {
-		values = append(values, I(v.Value.(int)))
+	for key, bitmask := range enums {
+		kfilters.Add(&arrayKFilter{approverType: FlagApproverType, tableName: key.table, index: key.index, value: ebpf.NewUint64FlagsMapItem(bitmask), zeroValue: ebpf.Uint64FlagsZeroMapItem})
 	}
-	return values
-}
-
-func newKFilterWithUInt32Flags(tableName string, flags ...uint32) (kFilter, error) {
-	var bitmask uint32
-	for _, flag := range flags {
-		bitmask |= flag
+	if auids != nil {
+		kfilters.Add(&hashKFilter{approverType: AUIDApproverType, tableName: auidRangeApproversTable, tableKey: event, value: ebpf.NewUInt32RangeMapItem(uint32(auids.Min), uint32(auids.Max))})
 	}
 
-	return &arrayKFilter{
-		approverType: FlagApproverType,
-		tableName:    tableName,
-		index:        uint32(0),
-		value:        ebpf.NewUint32FlagsMapItem(bitmask),
-		zeroValue:    ebpf.Uint32FlagsZeroMapItem,
-	}, nil
-}
-
-func newKFilterWithUInt64FlagsAndIndex(tableName string, index uint32, flags ...uint64) (kFilter, error) {
-	var bitmask uint64
-	for _, flag := range flags {
-		bitmask |= flag
-	}
-
-	return &arrayKFilter{
-		approverType: FlagApproverType,
-		tableName:    tableName,
-		index:        index,
-		value:        ebpf.NewUint64FlagsMapItem(bitmask),
-		zeroValue:    ebpf.Uint64FlagsZeroMapItem,
-	}, nil
-}
-
-func newKFilterZeroFlagValue(tableName string, approve bool) (kFilter, error) {
-	mapValue := ebpf.BoolFalseMapItem
-	if approve {
-		mapValue = ebpf.BoolTrueMapItem
-	}
-
-	return &arrayKFilter{
-		approverType: FlagApproverType,
-		tableName:    tableName,
-		index:        uint32(0),
-		value:        mapValue,
-		zeroValue:    ebpf.BoolFalseMapItem,
-	}, nil
-}
-
-func getFlagsKFilter(tableName string, flags ...uint32) (kFilter, error) {
-	return newKFilterWithUInt32Flags(tableName, flags...)
-}
-
-func getEnumsKFiltersWithIndex(tableName string, index uint32, enums ...uint64) (kFilter, error) {
-	var flags []uint64
-	for _, enum := range enums {
-		flags = append(flags, 1<<(enum%64))
-	}
-	return newKFilterWithUInt64FlagsAndIndex(tableName, index, flags...)
-}
-
-func getBasenameKFilters(eventType model.EventType, field string, approvers rules.Approvers) ([]kFilter, []eval.Field, error) {
-	var fieldHandled []eval.Field
-
-	prefix := eventType.String()
-	if field != "" {
-		prefix += "." + field
-	}
-
-	var kfilters []kFilter
-	for field, values := range approvers {
-		switch field {
-		case prefix + model.NameSuffix:
-			activeKFilters, err := newBasenameKFilters(BasenameApproverKernelMapName, eventType, values...)
-			if err != nil {
-				return nil, nil, err
-			}
-			kfilters = append(kfilters, activeKFilters...)
-			fieldHandled = append(fieldHandled, field)
-		case prefix + model.PathSuffix:
-			activeKFilters, err := newPathKFilters(BasenameApproverKernelMapName, eventType, values...)
-			if err != nil {
-				return nil, nil, err
-			}
-			kfilters = append(kfilters, activeKFilters...)
-			fieldHandled = append(fieldHandled, field)
-		}
-	}
-
-	return kfilters, fieldHandled, nil
-}
-
-func fimKFiltersGetter(eventType model.EventType, fields []eval.Field) kfiltersGetter {
-	return func(approvers rules.Approvers) (KFilters, []eval.Field, error) {
-		var (
-			kfilters     []kFilter
-			fieldHandled []eval.Field
-		)
-
-		for _, field := range fields {
-			kfilter, handled, err := getBasenameKFilters(eventType, field, approvers)
-			if err != nil {
-				return nil, nil, err
-			}
-			kfilters = append(kfilters, kfilter...)
-			fieldHandled = append(fieldHandled, handled...)
-		}
-
-		kfs, handled, err := getProcessKFilters(eventType, approvers)
-		if err != nil {
-			return nil, nil, err
-		}
-		kfilters = append(kfilters, kfs...)
-		fieldHandled = append(fieldHandled, handled...)
-
-		return newKFilters(kfilters...), fieldHandled, nil
-	}
-}
-
-func init() {
-	KFilterGetters["chmod"] = fimKFiltersGetter(model.FileChmodEventType, []eval.Field{"file"})
-	KFilterGetters["chown"] = fimKFiltersGetter(model.FileChownEventType, []eval.Field{"file"})
-	KFilterGetters["link"] = fimKFiltersGetter(model.FileLinkEventType, []eval.Field{"file", "file.destination"})
-	KFilterGetters["mkdir"] = fimKFiltersGetter(model.FileMkdirEventType, []eval.Field{"file"})
-	KFilterGetters["open"] = openKFiltersGetter
-	KFilterGetters["rename"] = fimKFiltersGetter(model.FileRenameEventType, []eval.Field{"file", "file.destination"})
-	KFilterGetters["rmdir"] = fimKFiltersGetter(model.FileRmdirEventType, []eval.Field{"file"})
-	KFilterGetters["unlink"] = fimKFiltersGetter(model.FileUnlinkEventType, []eval.Field{"file"})
-	KFilterGetters["utimes"] = fimKFiltersGetter(model.FileUtimesEventType, []eval.Field{"file"})
-	KFilterGetters["mmap"] = mmapKFiltersGetter
-	KFilterGetters["mprotect"] = mprotectKFiltersGetter
-	KFilterGetters["splice"] = spliceKFiltersGetter
-	KFilterGetters["chdir"] = fimKFiltersGetter(model.FileChdirEventType, []eval.Field{"file"})
-	KFilterGetters["bpf"] = bpfKFiltersGetter
-	KFilterGetters["sysctl"] = sysctlKFiltersGetter
-	KFilterGetters["bind"] = bindKFiltersGetter
-	KFilterGetters["connect"] = connectKFiltersGetter
-	KFilterGetters["prctl"] = prctlKFiltersGetter
-	KFilterGetters["setsockopt"] = setsockoptKFiltersGetter
-	KFilterGetters["socket"] = socketKFiltersGetter
-	KFilterGetters["unshare"] = unshareKFiltersGetter
+	return kfilters, nil
 }

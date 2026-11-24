@@ -2,7 +2,7 @@
     "base_branch": "main",
     "current_milestone": "7.87.0",
     "dependencies": {
-        "INTEGRATIONS_CORE_VERSION": "c6cac33b42ac12ef5f0e84008a7f008068e3bbbb",
+        "INTEGRATIONS_CORE_VERSION": "c3b787ea2fdad92b36da64d6c02fd0ef0c2a9b0e",
         "INTEGRATIONS_WHEELS_STORAGE": "stable",
         "OMNIBUS_RUBY_VERSION": "564a6f11686c655771da48765ae65a11c479d625",
         "SECURITY_AGENT_POLICIES_SHA256": "57ce0e30465068e2ead377612d72406ffed347cb80c3cd8cab46dd3ed8db5efe",
@@ -16,6 +16,6 @@
     },
     "last_stable": {
         "6": "6.53.1",
-        "7": "7.85.4"
+        "7": "7.86.0"
     }
 }

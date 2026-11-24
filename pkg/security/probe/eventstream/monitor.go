@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -166,9 +165,9 @@ func NewEventStreamMonitor(config *config.Config, eRPC *erpc.ERPC, manager *mana
 
 		onEventLost: onEventLost,
 	}
-	numCPU, err := utils.NumCPU()
+	numCPU, err := lib.PossibleCPU()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
+		return nil, fmt.Errorf("couldn't fetch the possible CPU count: %w", err)
 	}
 	pbm.numCPU = numCPU
 
