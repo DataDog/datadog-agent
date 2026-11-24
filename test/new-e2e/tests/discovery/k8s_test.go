@@ -197,7 +197,7 @@ func (s *k8sTestSuite) validateDiscoveryMode(mode discoveryMode) {
 // EventuallyWithT, where "not yet" is a normal transient state, not a failure.
 func tryFindReadyAgentPod(c *assert.CollectT, s *k8sTestSuite) (corev1.Pod, bool) {
 	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").
-		List(t.Context(), v1.ListOptions{LabelSelector: "app=dda-linux-datadog"})
+		List(s.T().Context(), v1.ListOptions{LabelSelector: "app=dda-linux-datadog"})
 	if !assert.NoError(c, err, "failed to list agent pods") {
 		return corev1.Pod{}, false
 	}

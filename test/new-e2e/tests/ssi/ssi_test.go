@@ -626,7 +626,7 @@ func (v *ssiSuite) testDatadogInstrumentation() {
 	dynamicClient, err := dynamic.NewForConfig(v.Env().KubernetesCluster.KubernetesClient.K8sConfig)
 	require.NoError(v.T(), err)
 	resourceClient := dynamicClient.Resource(ddiAPMGVR).Namespace(ddiNamespace)
-	ctx := t.Context()
+	ctx := v.T().Context()
 
 	ddi := &datadoghq.DatadogInstrumentation{
 		TypeMeta: metav1api.TypeMeta{

@@ -68,7 +68,7 @@ func TestAdmissionProbeSuite(t *testing.T) {
 //  2. Block port 8000 with iptables → probe fails → health issue reported to fakeintake
 //  3. Unblock port → probe succeeds → health issue absent from subsequent reports
 func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
-	ctx := t.Context()
+	ctx := suite.T().Context()
 	fakeIntake := suite.Env().FakeIntake.Client()
 
 	clusterAgentPod := suite.findClusterAgentPod(ctx)

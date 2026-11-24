@@ -40,7 +40,7 @@ func (s *windowsRunSuite) TestRunWhenAgentAlreadyRunning() {
 	agentPath := filepath.Join(path, "bin", "agent.exe")
 	cmd := fmt.Sprintf(`& "%s" run`, agentPath)
 	// run command with timeout in case it succeeds/hangs
-	out, err := runCommandWithTimeout(host, cmd, s.runTimeout())
+	out, err := runCommandWithTimeout(s.T().Context(), host, cmd, s.runTimeout())
 	if err == nil {
 		s.T().Log(out)
 		s.FailNow("agent run command succeeded when it should have failed")

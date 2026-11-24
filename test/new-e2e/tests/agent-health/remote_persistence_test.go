@@ -139,7 +139,7 @@ func (suite *admissionProbeSuite) TestRemotePersistenceReconciliation() {
 }
 
 func (suite *admissionProbeSuite) captureRemotePersistenceStartup() remotePersistenceStartup {
-	ctx := t.Context()
+	ctx := suite.T().Context()
 	client := suite.Env().KubernetesCluster.Client()
 
 	daemonSet, err := client.AppsV1().DaemonSets(clusterAgentNamespace).Get(ctx, remotePersistenceDaemonSetName, metav1.GetOptions{})
@@ -284,7 +284,7 @@ func (suite *admissionProbeSuite) setRemoteBackendIssues(t testing.TB, agentType
 }
 
 func (suite *admissionProbeSuite) remoteBackendControl(method, path, body string) (string, error) {
-	ctx := t.Context()
+	ctx := suite.T().Context()
 	pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods(remotePersistenceNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: "app=" + remotePersistenceBackendName,
 	})

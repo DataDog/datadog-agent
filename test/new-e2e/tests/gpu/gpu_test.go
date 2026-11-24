@@ -265,7 +265,7 @@ func (s *gpuK8sSuite) AfterTest(suiteName, testName string) {
 		return
 	}
 
-	diagnose, err := k8sPulumiProvisioner.Diagnose(t.Context(), s.Env().KubernetesCluster.ClusterName)
+	diagnose, err := k8sPulumiProvisioner.Diagnose(s.T().Context(), s.Env().KubernetesCluster.ClusterName)
 	if err != nil {
 		s.T().Logf("failed to diagnose provisioner: %v", err)
 	}

@@ -39,7 +39,7 @@ func (s *linuxRunSuite) TestRunWhenAgentAlreadyRunning() {
 	// execute the `agent run` subcommand
 	cmd := `sudo datadog-agent run`
 	// run command with timeout in case it succeeds/hangs
-	out, err := runCommandWithTimeout(host, cmd, s.runTimeout())
+	out, err := runCommandWithTimeout(s.T().Context(), host, cmd, s.runTimeout())
 	if err == nil {
 		s.T().Log(out)
 		s.FailNow("agent run command succeeded when it should have failed")

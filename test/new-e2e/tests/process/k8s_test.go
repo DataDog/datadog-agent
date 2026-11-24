@@ -7,6 +7,7 @@ package process
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -98,7 +99,7 @@ func (s *K8sSuite) TestProcessCheck() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		status := k8sAgentStatus(c, s.Env().KubernetesCluster)
+		status := k8sAgentStatus(s.T().Context(), c, s.Env().KubernetesCluster)
 		// On Linux, process checks run in the core agent's process component
 		assert.ElementsMatch(c, []string{"process", "rtprocess", "service_discovery"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 	}, 5*time.Minute, 10*time.Second)
@@ -118,17 +119,17 @@ func (s *K8sSuite) TestProcessCheck() {
 }
 
 func (s *K8sSuite) TestManualProcessCheck() {
-	checkOutput := execProcessAgentCheck(s.T(), s.Env().KubernetesCluster, "process")
+	checkOutput := execProcessAgentCheck(s.T().Context(), s.T(), s.Env().KubernetesCluster, "process")
 	assertManualProcessCheck(s.T(), checkOutput, false, "stress-ng-cpu [run]", "stress-ng")
 }
 
 func (s *K8sSuite) TestManualProcessDiscoveryCheck() {
-	checkOutput := execProcessAgentCheck(s.T(), s.Env().KubernetesCluster, "process_discovery")
+	checkOutput := execProcessAgentCheck(s.T().Context(), s.T(), s.Env().KubernetesCluster, "process_discovery")
 	assertManualProcessDiscoveryCheck(s.T(), checkOutput, "stress-ng-cpu [run]")
 }
 
 func (s *K8sSuite) TestManualContainerCheck() {
-	checkOutput := execProcessAgentCheck(s.T(), s.Env().KubernetesCluster, "container")
+	checkOutput := execProcessAgentCheck(s.T().Context(), s.T(), s.Env().KubernetesCluster, "container")
 	assertManualContainerCheck(s.T(), checkOutput, "stress-ng")
 	assertAbsentManualContainerCheck(s.T(), checkOutput, "nginx")
 }
@@ -159,7 +160,7 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 		}
 	}()
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		status = k8sAgentStatus(c, s.Env().KubernetesCluster)
+		status = k8sAgentStatus(s.T().Context(), c, s.Env().KubernetesCluster)
 		// On Linux, process discovery runs in the core agent's process component
 		assert.ElementsMatch(c, []string{"process_discovery"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 	}, 5*time.Minute, 10*time.Second)
@@ -204,7 +205,7 @@ func (s *K8sSuite) TestProcessCheckWithNPM() {
 		}
 	}()
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		status = k8sAgentStatus(c, s.Env().KubernetesCluster)
+		status = k8sAgentStatus(s.T().Context(), c, s.Env().KubernetesCluster)
 		assert.ElementsMatch(c, []string{"process", "rtprocess", "service_discovery"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 		assert.ElementsMatch(c, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 	}, 5*time.Minute, 10*time.Second)
@@ -227,7 +228,7 @@ func (s *K8sSuite) TestProcessCheckWithNPM() {
 	}, 5*time.Minute, 10*time.Second)
 }
 
-func execProcessAgentCheck(t *testing.T, cluster *components.KubernetesCluster, check string) string {
+func execProcessAgentCheck(ctx context.Context, t *testing.T, cluster *components.KubernetesCluster, check string) string {
 	// set the wait interval as workloadmeta takes some time to initialize for container data
 	// https://datadoghq.atlassian.net/browse/PROCS-4157
 	cmd := fmt.Sprintf("DD_LOG_LEVEL=OFF agent processchecks %s -w 10s --json", check)
@@ -237,7 +238,7 @@ func execProcessAgentCheck(t *testing.T, cluster *components.KubernetesCluster, 
 	// https://datadoghq.atlassian.net/browse/CXP-2804
 	var checkOutput string
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		agent := getAgentPod(c, cluster.Client())
+		agent := getAgentPod(ctx, c, cluster.Client())
 
 		// The log level needs to be overridden as the pod has an ENV var set.
 		// This is so we get just json back from the check
@@ -253,8 +254,8 @@ func execProcessAgentCheck(t *testing.T, cluster *components.KubernetesCluster, 
 	return checkOutput
 }
 
-func k8sAgentStatus(t assert.TestingT, cluster *components.KubernetesCluster) AgentStatus {
-	agent := getAgentPod(t, cluster.Client())
+func k8sAgentStatus(ctx context.Context, t assert.TestingT, cluster *components.KubernetesCluster) AgentStatus {
+	agent := getAgentPod(ctx, t, cluster.Client())
 
 	stdout, stderr, err := cluster.KubernetesClient.
 		PodExec(agent.Namespace, agent.Name, "agent",
@@ -270,9 +271,9 @@ func k8sAgentStatus(t assert.TestingT, cluster *components.KubernetesCluster) Ag
 	return statusMap
 }
 
-func getAgentPod(t assert.TestingT, client kubeClient.Interface) corev1.Pod {
+func getAgentPod(ctx context.Context, t assert.TestingT, client kubeClient.Interface) corev1.Pod {
 	res, err := client.CoreV1().Pods("datadog").
-		List(t.Context(), v1.ListOptions{LabelSelector: "app=dda-linux-datadog"})
+		List(ctx, v1.ListOptions{LabelSelector: "app=dda-linux-datadog"})
 	assert.NoError(t, err)
 	assert.NotEmpty(t, res.Items)
 

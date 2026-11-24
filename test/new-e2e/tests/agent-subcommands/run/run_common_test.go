@@ -27,10 +27,10 @@ func (s *baseRunSuite) runTimeout() time.Duration {
 	return 5 * time.Minute
 }
 
-func runCommandWithTimeout(host *components.RemoteHost, cmd string, timeout time.Duration) (string, error) {
+func runCommandWithTimeout(ctx context.Context, host *components.RemoteHost, cmd string, timeout time.Duration) (string, error) {
 	var out string
 	var err error
-	ctx, cancel := context.WithTimeout(t.Context(), timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	go func() {
 		out, err = host.Execute(cmd)

@@ -34,7 +34,7 @@ func (v *baseHealthSuite) TestDefaultInstallHealthy() {
 
 	var output string
 	var err error
-	output, err = backoff.Retry(t.Context(), func() (string, error) {
+	output, err = backoff.Retry(v.T().Context(), func() (string, error) {
 		out, err := v.Env().Agent.Client.Health()
 		if err != nil {
 			return "", err

@@ -79,7 +79,7 @@ func (s *kubeletConfigDirTestSuite) TestConfigDir() {
 
 // workerNode returns the name of the kind worker.
 func (s *kubeletConfigDirTestSuite) workerNode() string {
-	nodes, err := s.Env().KubernetesCluster.Client().CoreV1().Nodes().List(t.Context(), metav1.ListOptions{
+	nodes, err := s.Env().KubernetesCluster.Client().CoreV1().Nodes().List(s.T().Context(), metav1.ListOptions{
 		LabelSelector: "!node-role.kubernetes.io/control-plane",
 	})
 	require.NoError(s.T(), err)
@@ -92,7 +92,7 @@ func (s *kubeletConfigDirTestSuite) workerNode() string {
 // with its pull secrets.
 func (s *kubeletConfigDirTestSuite) writeDropins(node, agentPod string) {
 	pods := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog")
-	agent, err := pods.Get(t.Context(), agentPod, metav1.GetOptions{})
+	agent, err := pods.Get(s.T().Context(), agentPod, metav1.GetOptions{})
 	require.NoError(s.T(), err)
 	var image string
 	for _, c := range agent.Spec.Containers {
@@ -136,19 +136,19 @@ chmod 0600 /dropins/sub/20-e2e.conf
 			}},
 		},
 	}
-	writer, err = pods.Create(t.Context(), writer, metav1.CreateOptions{})
+	writer, err = pods.Create(s.T().Context(), writer, metav1.CreateOptions{})
 	require.NoError(s.T(), err)
 	t := s.T()
 	t.Cleanup(func() {
-		if err := pods.Delete(t.Context(), writer.Name, metav1.DeleteOptions{}); err != nil {
+		if err := pods.Delete(s.T().Context(), writer.Name, metav1.DeleteOptions{}); err != nil {
 			t.Logf("delete pod %s: %v", writer.Name, err)
 		}
 	})
 	assert.Eventually(s.T(), func() bool {
-		p, err := pods.Get(t.Context(), writer.Name, metav1.GetOptions{})
+		p, err := pods.Get(s.T().Context(), writer.Name, metav1.GetOptions{})
 		return err == nil && (p.Status.Phase == corev1.PodSucceeded || p.Status.Phase == corev1.PodFailed)
 	}, 3*time.Minute, 5*time.Second, "pod %s did not complete", writer.Name)
-	p, err := pods.Get(t.Context(), writer.Name, metav1.GetOptions{})
+	p, err := pods.Get(s.T().Context(), writer.Name, metav1.GetOptions{})
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), corev1.PodSucceeded, p.Status.Phase, "pod %s: %+v", writer.Name, p.Status.ContainerStatuses)
 }

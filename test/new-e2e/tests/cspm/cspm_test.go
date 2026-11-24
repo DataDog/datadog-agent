@@ -16,10 +16,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 
 	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
@@ -57,7 +58,7 @@ func TestCSPM(t *testing.T) {
 // evaluates in the Cluster Agent. 5.3.2 is its one surviving rule. A kind
 // cluster defines no NetworkPolicy, so it reports failed.
 func (s *cspmTestSuite) TestFindings() {
-	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(t.Context(), metav1.ListOptions{
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(s.T().Context(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
 	})
 	require.NoError(s.T(), err)
@@ -127,7 +128,7 @@ func isContainerReady(pod *corev1.Pod, containerName string) bool {
 // kubelet on containerd with a reachable dockerd - and asserts the filter
 // suppresses CIS Docker rules.
 func (s *cspmTestSuite) TestDockerRulesFilteredOnContainerdCRI() {
-	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(t.Context(), metav1.ListOptions{
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(s.T().Context(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 	})
 	require.NoError(s.T(), err)

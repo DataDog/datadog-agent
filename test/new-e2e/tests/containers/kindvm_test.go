@@ -6,6 +6,7 @@
 package containers
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"regexp"
@@ -17,18 +18,19 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilversion "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/client-go/dynamic"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 //go:embed fixtures/kubeai-model-crd.json
@@ -107,7 +109,8 @@ func (suite *kindSuite) TestKubeAIInferenceTagsOnContainerMetric() {
 	_, err = crds.Create(ctx, &crd, metav1.CreateOptions{})
 	suite.Require().NoError(err)
 	suite.T().Cleanup(func() {
-		ctx := t.Context()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 		suite.Require().NoError(crds.Delete(ctx, crd.GetName(), metav1.DeleteOptions{}))
 		suite.EventuallyWithT(func(c *assert.CollectT) {
 			_, err := crds.Get(ctx, crd.GetName(), metav1.GetOptions{})
@@ -136,7 +139,9 @@ func (suite *kindSuite) TestKubeAIInferenceTagsOnContainerMetric() {
 	}}, metav1.CreateOptions{})
 	suite.Require().NoError(err)
 	suite.T().Cleanup(func() {
-		suite.Require().NoError(models.Delete(t.Context(), model.GetName(), metav1.DeleteOptions{}))
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		suite.Require().NoError(models.Delete(ctx, model.GetName(), metav1.DeleteOptions{}))
 	})
 
 	// Kubelet does not refresh owner references on an existing pod. Set the Model
@@ -159,7 +164,8 @@ func (suite *kindSuite) TestKubeAIInferenceTagsOnContainerMetric() {
 	}, metav1.CreateOptions{})
 	suite.Require().NoError(err)
 	suite.T().Cleanup(func() {
-		ctx := t.Context()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 		err := pods.Delete(ctx, pod.Name, metav1.DeleteOptions{})
 		suite.Require().True(err == nil || apierrors.IsNotFound(err), "delete test pod: %v", err)
 		suite.EventuallyWithT(func(c *assert.CollectT) {
@@ -251,7 +257,7 @@ func (suite *kindSuite) testInferenceTagsOnContainerMetric(podLabels map[string]
 	}
 	suite.Require().NoError(setLabels(ctx, labels))
 	defer func() {
-		suite.Require().NoError(setLabels(t.Context(), originalLabels), "restore stress-ng pod labels")
+		suite.Require().NoError(setLabels(suite.T().Context(), originalLabels), "restore stress-ng pod labels")
 	}()
 
 	expectedTags := append([]string{
