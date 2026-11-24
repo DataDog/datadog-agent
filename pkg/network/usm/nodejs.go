@@ -249,6 +249,7 @@ func newNodeJSMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protoco
 
 // ConfigureOptions changes map attributes to the given options.
 func (m *nodeJSMonitor) ConfigureOptions(options *manager.Options) {
+	configureUprobeMulti(options, m.cfg.EnableUprobeMulti, nodejsSpec.Probes)
 	sharedLibrariesConfigureOptions(options, m.cfg)
 }
 
@@ -301,5 +302,3 @@ func (*nodeJSMonitor) GetStats() (*protocols.ProtocolStats, func()) {
 func (*nodeJSMonitor) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
-
-func (m *nodeJSMonitor) getUprobeAttacher() *uprobes.UprobeAttacher { return m.attacher }

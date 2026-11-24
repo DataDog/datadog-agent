@@ -130,11 +130,11 @@ func TestUSMUprobeMultiHTTPS(t *testing.T) {
 					ready, err := reader.ReadString('\n')
 					require.NoError(t, err)
 					require.Equal(t, "ready\n", ready)
-					attacher := opensslSpec.Instance
 					if runtime == "nodejs" {
-						attacher = nodejsSpec.Instance
+						err = nodejsSpec.Instance.(*nodeJSMonitor).attacher.AttachPIDWithOptions(uint32(command.Process.Pid), true)
+					} else {
+						err = opensslSpec.Instance.(*sslProgram).attacher.AttachPIDWithOptions(uint32(command.Process.Pid), true)
 					}
-					err = attacher.(multiUprobeProtocol).getUprobeAttacher().AttachPIDWithOptions(uint32(command.Process.Pid), true)
 					require.True(t, err == nil || errors.Is(err, utils.ErrPathIsAlreadyRegistered), "%s TLS attach: %v", runtime, err)
 					_, err = io.WriteString(input, "1")
 					require.NoError(t, err)

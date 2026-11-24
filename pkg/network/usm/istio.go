@@ -189,6 +189,7 @@ func newIstioMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol
 
 // ConfigureOptions changes map attributes to the given options.
 func (m *istioMonitor) ConfigureOptions(options *manager.Options) {
+	configureUprobeMulti(options, m.cfg.EnableUprobeMulti, istioSpec.Probes)
 	sharedLibrariesConfigureOptions(options, m.cfg)
 }
 
@@ -243,5 +244,3 @@ func (*istioMonitor) GetStats() (*protocols.ProtocolStats, func()) {
 func (*istioMonitor) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
-
-func (m *istioMonitor) getUprobeAttacher() *uprobes.UprobeAttacher { return m.attacher }

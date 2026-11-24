@@ -16,6 +16,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -48,6 +49,12 @@ func (m *MockManager) DetachHook(probeID manager.ProbeIdentificationPair) error 
 func (m *MockManager) GetProbe(probeID manager.ProbeIdentificationPair) (*manager.Probe, bool) {
 	args := m.Called(probeID)
 	return args.Get(0).(*manager.Probe), args.Bool(1)
+}
+
+// GetProgramSpec is a mock implementation of manager.Manager.GetProgramSpec.
+func (m *MockManager) GetProgramSpec(probeID manager.ProbeIdentificationPair) ([]*ebpf.ProgramSpec, bool, error) {
+	args := m.Called(probeID)
+	return args.Get(0).([]*ebpf.ProgramSpec), args.Bool(1), args.Error(2)
 }
 
 // MockFileRegistry is a mock implementation of the FileRegistry interface.

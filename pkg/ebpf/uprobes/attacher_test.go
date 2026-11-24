@@ -19,6 +19,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	ciliumebpf "github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -1027,6 +1028,7 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234, ReturnLocations: []uint64{0x0, 0x1}}
+	mockMan.On("GetProgramSpec", manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect__return"}).Return([]*ciliumebpf.ProgramSpec{{}}, true, nil)
 	inspector.On("Inspect", target, mock.Anything).Return(map[int]*InspectionResult{
 		0: {
 			SymbolMap: map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach},

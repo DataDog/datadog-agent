@@ -606,6 +606,7 @@ func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Confi
 
 // ConfigureOptions changes map attributes to the given options.
 func (o *sslProgram) ConfigureOptions(options *manager.Options) {
+	configureUprobeMulti(options, o.cfg.EnableUprobeMulti, opensslSpec.Probes)
 	sharedLibrariesConfigureOptions(options, o.cfg)
 	o.addProcessExitProbe(options)
 }
@@ -895,5 +896,3 @@ func (o *sslProgram) deleteDeadPidsInSSLCtxMap(alivePIDs map[uint32]struct{}) er
 
 	return nil
 }
-
-func (o *sslProgram) getUprobeAttacher() *uprobes.UprobeAttacher { return o.attacher }

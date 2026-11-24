@@ -198,6 +198,7 @@ func (*goTLSProgram) IsBuildModeSupported(mode buildmode.Type) bool {
 
 // ConfigureOptions changes map attributes to the given options.
 func (p *goTLSProgram) ConfigureOptions(options *manager.Options) {
+	configureUprobeMulti(options, p.cfg.EnableUprobeMulti, goTLSSpec.Probes)
 	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
@@ -299,5 +300,3 @@ func GoTLSDetachPID(pid pid) error {
 
 	return goTLSSpec.Instance.(*goTLSProgram).attacher.DetachPID(pid)
 }
-
-func (p *goTLSProgram) getUprobeAttacher() *uprobes.UprobeAttacher { return p.attacher }

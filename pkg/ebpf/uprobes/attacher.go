@@ -24,6 +24,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	ciliumebpf "github.com/cilium/ebpf"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -321,11 +322,10 @@ type ProbeManager interface {
 
 	// GetProbe returns the probe with the given ID pair, and a boolean indicating if it was found
 	GetProbe(manager.ProbeIdentificationPair) (*manager.Probe, bool)
-}
 
-// UseUprobeMulti selects grouped offsets after manager initialization has
-// selected the backend. Call before Start; the manager owns all probe resources.
-func (ua *UprobeAttacher) UseUprobeMulti(enabled bool) { ua.useUprobeMulti = enabled }
+	// GetProgramSpec returns the program metadata selected during manager initialization.
+	GetProgramSpec(manager.ProbeIdentificationPair) ([]*ciliumebpf.ProgramSpec, bool, error)
+}
 
 // FileRegistry is an interface that defines the methods that a FileRegistry implements, so that we can replace it in tests for a mock object
 type FileRegistry interface {
@@ -383,8 +383,6 @@ type UprobeAttacher struct {
 	// fileIDToAttachedProbes maps a filesystem path to the probes attached to it.
 	// Used to detach them once the path is no longer used.
 	fileIDToAttachedProbes map[utils.PathIdentifier][]manager.ProbeIdentificationPair
-
-	useUprobeMulti bool
 
 	// onAttachCallback is a callback that is called whenever a probe is attached
 	onAttachCallback AttachCallback
@@ -1010,9 +1008,19 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 		// A multi probe owns all locations for this program/file. Legacy probes
 		// retain one manager hook per location.
 		groups := make([][]uint64, 0, len(locationsToAttach))
-		if ua.useUprobeMulti && len(locationsToAttach) != 0 {
-			groups = append(groups, locationsToAttach)
-		} else {
+		if len(locationsToAttach) > 1 {
+			specs, found, err := ua.manager.GetProgramSpec(manager.ProbeIdentificationPair{EBPFFuncName: probeID.EBPFFuncName})
+			if err != nil {
+				return fmt.Errorf("get program spec for %s: %w", probeID.EBPFFuncName, err)
+			}
+			if !found || len(specs) == 0 || specs[0] == nil {
+				return fmt.Errorf("program spec not found for %s", probeID.EBPFFuncName)
+			}
+			if specs[0].AttachType == ciliumebpf.AttachTraceUprobeMulti {
+				groups = append(groups, locationsToAttach)
+			}
+		}
+		if len(groups) == 0 {
 			for _, location := range locationsToAttach {
 				groups = append(groups, []uint64{location})
 			}

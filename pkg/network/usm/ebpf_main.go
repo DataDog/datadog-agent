@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -59,10 +58,6 @@ var (
 		nodejsSpec,
 	}
 )
-
-type multiUprobeProtocol interface {
-	getUprobeAttacher() *uprobes.UprobeAttacher
-}
 
 const (
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
@@ -527,19 +522,9 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	var multiAttachers []*uprobes.UprobeAttacher
-	if e.cfg.EnableUprobeMulti {
-		for _, spec := range supported {
-			if protocol, ok := spec.Instance.(multiUprobeProtocol); ok {
-				multiAttachers = append(multiAttachers, protocol.getUprobeAttacher())
-				for _, probe := range spec.Probes {
-					if !slices.Contains(options.ExcludedFunctions, probe.EBPFFuncName) && (strings.Contains(probe.EBPFFuncName, "uprobe__") || strings.Contains(probe.EBPFFuncName, "uretprobe__")) {
-						options.UprobeMultiPrograms = append(options.UprobeMultiPrograms, probe.EBPFFuncName)
-					}
-				}
-			}
-		}
-	}
+	options.UprobeMultiPrograms = slices.DeleteFunc(options.UprobeMultiPrograms, func(name string) bool {
+		return slices.Contains(options.ExcludedFunctions, name)
+	})
 	err := e.InitWithOptions(buf, &options)
 	if err != nil {
 		cleanup()
@@ -550,15 +535,23 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		} else if enabled {
 			log.Info("Using multi-uprobe links for USM TLS monitoring")
 		}
-		for _, attacher := range multiAttachers {
-			attacher.UseUprobeMulti(enabled)
-		}
 		// Update the protocols lists to reflect the ones we actually enabled
 		e.enabledProtocols = supported
 		e.disabledProtocols = notSupported
 	}
 
 	return err
+}
+
+func configureUprobeMulti(options *manager.Options, enabled bool, probes []*manager.Probe) {
+	if !enabled {
+		return
+	}
+	for _, probe := range probes {
+		if strings.Contains(probe.EBPFFuncName, "uprobe__") || strings.Contains(probe.EBPFFuncName, "uretprobe__") {
+			options.UprobeMultiPrograms = append(options.UprobeMultiPrograms, probe.EBPFFuncName)
+		}
+	}
 }
 
 func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap *ebpf.Map) {
